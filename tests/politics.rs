@@ -93,6 +93,24 @@ fn territorial_campaigns_transfer_control_not_resources_or_ancestry() {
     let id = g.declare_war(route.from, route.to).unwrap();
     let h = g.civilizations.as_ref().unwrap();
     assert_eq!(id, 0);
+    let war_name = h.politics.as_ref().unwrap().wars[0].name.clone();
+    assert!(!war_name.is_empty());
+    let attacker = h.politics.as_ref().unwrap().wars[0].attacker;
+    let record = &h.civilizations[attacker as usize]
+        .language
+        .as_ref()
+        .unwrap()
+        .names["war:0"];
+    assert_eq!(record.name, war_name);
+    assert!(record.source.is_some());
+    assert!(h
+        .events
+        .iter()
+        .any(|e| e.kind == "war_declared" && e.detail.contains(&war_name)));
+    let mut old = serde_json::to_value(&h.politics.as_ref().unwrap().wars[0]).unwrap();
+    old.as_object_mut().unwrap().remove("name");
+    let old: ancient_world::politics::War = serde_json::from_value(old).unwrap();
+    assert_eq!(old.label(), "War 0");
     assert!(h.route_cost(route.from, route.to).is_none());
     assert!(h.society.as_ref().unwrap().raids[0].equipment > 0.);
     let file = std::env::temp_dir().join(format!("war-{}.world", std::process::id()));
@@ -111,6 +129,11 @@ fn territorial_campaigns_transfer_control_not_resources_or_ancestry() {
     let h = g.civilizations.as_ref().unwrap();
     assert_eq!(h.sites[route.to as usize].civilization, original);
     assert_eq!(h.politics.as_ref().unwrap().wars[0].outcome, "conquest");
+    assert_eq!(h.politics.as_ref().unwrap().wars[0].name, war_name);
+    assert!(h
+        .events
+        .iter()
+        .any(|e| e.kind == "peace" && e.detail.contains(&war_name)));
     assert_eq!(h.controller(route.to), h.controller(route.from));
     assert!(h.food_residual().abs() < 0.001);
     assert!(h.population_residual().abs() < 0.001);

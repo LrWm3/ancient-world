@@ -45,6 +45,8 @@ pub struct Claim {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct War {
+    #[serde(default)]
+    pub name: String,
     pub id: u32,
     pub attacker: u32,
     pub defender: u32,
@@ -53,6 +55,15 @@ pub struct War {
     pub ended: Option<u32>,
     pub outcome: String,
     pub cause: u64,
+}
+impl War {
+    pub fn label(&self) -> String {
+        if self.name.is_empty() {
+            format!("War {}", self.id)
+        } else {
+            self.name.clone()
+        }
+    }
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Politics {
@@ -893,6 +904,25 @@ impl History {
         );
         let food = soldiers * 18. * (months * 2 + 3) as f32;
         let id = p.wars.len() as u32;
+        let source = |site: u32| crate::naming::Source {
+            kind: "site".into(),
+            id: site,
+            name: self.sites[site as usize].name.clone(),
+        };
+        let target_source = source(target);
+        let origin_source = source(origin);
+        let leader = self.civilizations[attacker as usize].leader;
+        let leader_source = crate::naming::Source {
+            kind: "person".into(),
+            id: leader,
+            name: self.people[leader as usize].name.clone(),
+        };
+        let name = self.civilizations[attacker as usize].naming(self.seed).war(
+            id,
+            target_source,
+            origin_source,
+            leader_source,
+        );
         let s = &mut self.sites[origin as usize];
         s.stocks.stock[0] -= soldiers;
         s.demography.ages[1] -= soldiers;
@@ -904,7 +934,7 @@ impl History {
             Some(origin),
             Some(target),
             format!(
-                "War {id}: {} claims administration of {}; {:.0} adults mobilized",
+                "{name}: {} claims administration of {}; {:.0} adults mobilized",
                 self.civilizations[attacker as usize].name,
                 self.sites[target as usize].name,
                 soldiers
@@ -914,6 +944,7 @@ impl History {
         event.causes.push(cause);
         let declaration = event.id;
         self.politics.as_mut().unwrap().wars.push(War {
+            name,
             id,
             attacker,
             defender,
@@ -975,12 +1006,13 @@ impl History {
         }
         .into();
         let outcome = w.outcome.clone();
+        let name = w.label();
         self.event(
             "peace",
             Some(raid.target),
             Some(raid.origin),
             format!(
-                "War {id} ended: {outcome}; ten-year truce. Resident identity and stocks retained."
+                "{name} ended: {outcome}; ten-year truce. Resident identity and stocks retained."
             ),
         );
         self.events.last_mut().unwrap().causes.push(raid.cause);

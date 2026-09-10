@@ -227,6 +227,7 @@ fn hostile_intermediaries_cannot_be_used_to_evade_war_closures() {
         controllers: vec![0, 1, 2],
         claims: vec![],
         wars: vec![War {
+            name: String::new(),
             id: 0,
             attacker: 0,
             defender: 1,
@@ -463,6 +464,7 @@ fn sea_arrival_cannot_bypass_hostile_inland_transit() {
         birth_observed: vec![],
         birth_credit: vec![],
         wars: vec![War {
+            name: String::new(),
             id: 0,
             attacker: 0,
             defender: 1,

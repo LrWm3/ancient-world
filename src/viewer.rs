@@ -2148,7 +2148,7 @@ impl App {
                         for r in &society.raids {
                             ui.label(format!(
                                 "{} · {:.0} people · {:.0} kg provisions · {} · arrival {}",
-                                r.war.map_or(format!("Raid {}",r.id),|w|format!("War {w}, army {}",r.id)),
+                                r.war.map_or(format!("Raid {}",r.id),|w|format!("{}, army {}",h.politics.as_ref().and_then(|p|p.wars.get(w as usize)).map(|w|w.label()).unwrap_or_else(||format!("War {w}")),r.id)),
                                 r.soldiers,
                                 r.food,
                                 if r.occupation_until.is_some() { "occupying until" } else if r.returning { "returning" } else { "outbound" },
@@ -2187,7 +2187,7 @@ impl App {
                                 }
                             }
                         }
-                        for w in p.wars.iter().rev().take(20) { ui.label(format!("War {}: {} → {} · {} · Y{}–{}",w.id,h.civilizations[w.attacker as usize].name,h.sites[w.goal as usize].name,w.outcome,w.started/12,w.ended.map_or("present".into(),|m|(m/12).to_string()))); }
+                        for w in p.wars.iter().rev().take(20) { ui.label(format!("{}: {} → {} · {} · Y{}–{}",w.label(),h.civilizations[w.attacker as usize].name,h.sites[w.goal as usize].name,w.outcome,w.started/12,w.ended.map_or("present".into(),|m|(m/12).to_string()))); }
                     });
                 }
                 if let Some(g)=&h.governance {

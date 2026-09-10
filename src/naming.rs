@@ -6,6 +6,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 const ROOTS: &[(&str, &str)] = &[
     ("of", "na"),
+    ("war", "belora"),
+    ("campaign", "strateia"),
+    ("claim", "vindika"),
+    ("frontier", "limara"),
     ("hearth", "fokara"),
     ("cloth", "pannara"),
     ("metal", "metalom"),
@@ -613,6 +617,19 @@ impl Language {
         };
         options[hash(self.seed ^ key_hash(key) ^ 0x68656164) as usize % options.len()]
     }
+    /// An attacker's commemorative label, not a claim that all sides use this name.
+    pub fn war(&mut self, id: u32, target: Source, origin: Source, leader: Source) -> String {
+        let key = format!("war:{id}");
+        let q = hash(self.seed ^ key_hash(&key) ^ 0x776172);
+        let (meanings, source): (&[&str], Source) = match q % 6 {
+            0 | 1 => (&["war"], target),
+            2 => (&["claim", "war"], target),
+            3 => (&["frontier", "campaign"], target),
+            4 => (&["campaign"], origin),
+            _ => (&["claim", "campaign"], leader),
+        };
+        self.coin(&key, meanings, Some(source))
+    }
     pub fn coin(&mut self, key: &str, meanings: &[&str], source: Option<Source>) -> String {
         if let Some(record) = self.names.get(key) {
             return record.name.clone();
@@ -789,6 +806,38 @@ impl crate::civilization::Civilization {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn wars_keep_context_and_names_across_vocabulary_changes() {
+        let site = |id, name: &str| Source {
+            kind: "site".into(),
+            id,
+            name: name.into(),
+        };
+        let leader = Source {
+            kind: "person".into(),
+            id: 5,
+            name: "Morina".into(),
+        };
+        let mut forms = BTreeSet::new();
+        for seed in 0..64 {
+            let mut l = Language::new(seed, 0);
+            let name = l.war(0, site(1, "Avelara"), site(0, "Talora"), leader.clone());
+            let record = &l.names["war:0"];
+            assert!(record
+                .meanings
+                .iter()
+                .any(|m| m == "war" || m == "campaign"));
+            assert!(record.source.is_some());
+            assert!(!name.chars().any(|c| c.is_ascii_digit()));
+            forms.insert(name.clone());
+            l.roots.insert("war".into(), "changed".into());
+            assert_eq!(
+                name,
+                l.war(0, site(1, "Renamed"), site(0, "Elsewhere"), leader.clone())
+            );
+        }
+        assert!(forms.len() > 20);
+    }
     #[test]
     fn ordered_sound_changes_have_known_results() {
         let mut l = Language::new(17, 0);

@@ -162,3 +162,28 @@ three GPU history seeds, source-ID resolution, and seed 17 checkpoint continuati
 The enlarged emblem pool required 3,000 forced collisions to reliably exercise the
 untranslated fallback; the earlier 1,500-case coverage assertion was insufficient.
 Clippy across all targets, formatting and the repository artifact check passed.
+
+## War names
+
+New territorial wars receive a persistent name in the attacker's naming language
+at declaration. Six equally weighted templates favor the contested settlement
+(four templates), with the launching settlement or attacking leader as alternatives.
+The templates combine the source name with war, claim, campaign or frontier roots.
+They describe the existing territorial campaign mechanic, not invented holy-war,
+resource-war or siege causes. The name is one attacker's commemorative convention;
+separate opposing names and later historical nicknames are not modeled.
+
+The language's name record preserves meanings, source and lexical choices under
+`war:<id>`. The war stores the resulting name, so later vocabulary changes, conquest
+or leader death do not rename it. Declaration and peace prose and explorer war/army
+lists use that label. Older archives without a name keep their `War N` fallback;
+no historical name is fabricated during loading. Naming does not alter war decisions
+or resource transfers.
+
+Validation: a 64-seed fixture checks varied names, recorded context, no numeric
+suffixes and stability after vocabulary/source-label changes. All 12 naming tests
+passed, including the existing GPU histories. The GPU territorial-campaign test
+checks declaration/peace labels, legacy fallback, full checkpoint continuation and
+unchanged population/food/economic conservation assertions. All 53 ordinary library
+tests passed (52 hardware tests ignored); Clippy with warnings denied, formatting
+and the repository artifact check passed.
