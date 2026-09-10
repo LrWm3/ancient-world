@@ -1026,6 +1026,7 @@ impl History {
             }
             if c.arrives <= self.month {
                 self.observe_export_delivery(&c);
+                self.observe_lexical_trade(c.from, c.to, c.kg);
                 if c.weather_delay_months > 0 {
                     self.event(
                         "cargo_weather_recovered",

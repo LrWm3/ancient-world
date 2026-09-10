@@ -395,6 +395,8 @@ pub struct Language {
     pub lexicon_month: u32,
     #[serde(default)]
     pub contact_years: BTreeMap<u32, u32>,
+    #[serde(default)]
+    pub trade_kg: BTreeMap<u32, f64>,
     #[serde(skip)]
     used: BTreeSet<(String, String)>,
 }
@@ -425,6 +427,7 @@ impl Language {
             lexicon: BTreeMap::new(),
             lexicon_month: 0,
             contact_years: BTreeMap::new(),
+            trade_kg: BTreeMap::new(),
             used: BTreeSet::new(),
         };
         l.name = title(&format!(
@@ -492,6 +495,7 @@ impl Language {
             && self.vowels.iter().all(|v| "aeiou".contains(*v))
             && !self.name.is_empty()
             && !self.roots.is_empty()
+            && self.trade_kg.values().all(|v| v.is_finite() && *v >= 0.)
             && self.lexicon.iter().all(|(concept, options)| {
                 self.roots.contains_key(concept)
                     && !options.is_empty()

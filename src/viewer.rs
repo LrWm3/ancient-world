@@ -1800,12 +1800,16 @@ impl App {
                             ui.small("Fictional naming conventions only; no effect on beliefs, trade or politics.");
                             ui.label(format!("{} recorded names · consistent sound changes from a shared invented vocabulary", language.names.len()));
                             ui.collapsing("Evolving vocabulary", |ui| {
+                                for (other, kg) in &language.trade_kg {
+                                    ui.small(format!("Civilization {other}: {kg:.1} kg received/sent since last annual update"));
+                                }
                                 for (concept, options) in &language.lexicon {
                                     ui.label(format!("{concept}: {}", options.iter().enumerate().map(|(i,w)|
                                         format!("{} (weight {})",w.form,1 << i)).collect::<Vec<_>>().join(" · ")))
                                         .on_hover_text(options.iter().map(|w| format!("{} · month {} · {}{}", w.form,w.adopted,
                                             w.source.as_ref().map(|s| format!("{} {}: {}",s.kind,s.id,s.name)).unwrap_or_else(|| "original root".into()),
-                                            w.borrowed_from.map(|c| format!(" · borrowed from civilization {c}")).unwrap_or_default()))
+                                            format_args!("{} · {} · {}{}", w.borrowed_from.map(|c| format!("borrowed from civilization {c}")).unwrap_or_default(),
+                                                w.basis, if w.adapted {"adapted"} else {"retained"}, w.original_form.as_ref().map(|f| format!(" from {f}")).unwrap_or_default())))
                                             .collect::<Vec<_>>().join("\n"));
                                 }
                             });
