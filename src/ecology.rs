@@ -246,7 +246,11 @@ impl Ecology {
             .split("struct Params")
             .next()
             .unwrap();
-        let source = format!("{cell}\n{}", include_str!("../shaders/ecology.wgsl"));
+        let source = format!(
+            "{cell}\n{}\n{}",
+            include_str!("../shaders/sunlight.wgsl"),
+            include_str!("../shaders/ecology.wgsl")
+        );
         let module = d.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Ecological cycles"),
             source: wgpu::ShaderSource::Wgsl(source.into()),
@@ -338,7 +342,7 @@ impl Ecology {
                 config.island_phosphorus_scale,
                 f32::from(catalog.producer_competition),
                 f32::from(config.wildlife_open_barriers),
-                0.,
+                config.axial_tilt.to_radians(), // abundance.w: solar obliquity
             ],
             counts: catalog.counts(),
             options: [
@@ -1145,6 +1149,63 @@ mod wildlife_tests {
             0,
             true,
         );
+    }
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn seasonal_light_reverses_actual_aquatic_production() {
+        let mut g = fixture();
+        g.run_epochs(1).unwrap();
+        let count = g.config.eco_cells() as usize;
+        let mut env = Environment {
+            fields: [[0.; 4]; 25],
+        };
+        env.fields[0][1] = 1.; // identical open lake habitat
+        env.fields[1] = [23., 1400., 1., 0.];
+        env.fields[3] = [1., 0., 100., 0.75];
+        let mut cell = EcoCell::default();
+        cell.pools[20] = [0., 100., 100., 0.];
+        cell.pools[23] = [0.1, 0.003, 0.0003, 0.];
+        cell.pools[31] = [0., 0., 1., 0.];
+        let initial = vec![cell; count];
+        let mut production = Vec::new();
+        for (month, latitude, scale, living) in [
+            (0, 0.75, 1., false),
+            (6, 0.75, 1., false),
+            (0, -0.75, 1., false),
+            (6, -0.75, 1., false),
+            (6, 0.75, 0., false),
+            (11, 1., 1., false),
+            (6, 0.75, 1., true),
+        ] {
+            g.restore_ecology(&initial).unwrap();
+            env.fields[3][3] = latitude;
+            g.gpu.queue.write_buffer(
+                &g.ecology.environment,
+                0,
+                bytemuck::cast_slice(&vec![env; count]),
+            );
+            g.config.solar_scale = scale;
+            g.ecology.clock.month = month;
+            g.ecology.living = living;
+            g.ecology.living_weather[3] = month as u32 + 1;
+            g.gpu.queue.write_buffer(
+                &g.ecology.uniform,
+                0,
+                bytemuck::bytes_of(&g.ecology.params(&g.config, &g.catalog, [0; 4])),
+            );
+            dispatch(&mut g, "biology");
+            production.push(g.ecology.snapshot(&g.gpu, &g.config).unwrap()[0].pools[28][0]);
+        }
+        assert!(
+            production[1] > production[0] && production[0] > 0.,
+            "{production:?}"
+        );
+        assert!(production[2] > production[3]);
+        assert!((production[0] - production[3]).abs() < 1e-6);
+        assert!((production[1] - production[2]).abs() < 1e-6);
+        assert_eq!(production[4], 0.);
+        assert_eq!(production[5], 0.);
+        assert_eq!(production[6], production[1]);
     }
     #[test]
     #[ignore = "requires hardware GPU"]

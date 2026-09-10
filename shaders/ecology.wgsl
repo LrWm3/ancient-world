@@ -171,7 +171,7 @@ fn biology(@builtin(global_invocation_id) g:vec3<u32>) {
  s.pools[27].w+=e.fields[2].z;s.pools[28]=vec4(0.);s.pools[29].w=0.;
  let wet=clamp(e.fields[1].y/1400.+e.fields[1].z*.5,0.,1.);
  let thermal=clamp(1.-abs(e.fields[1].x-23.)/40.,0.,1.);
- let sun=max(0.,1.-abs(e.fields[3].w)*.7)*p.physical.w*(.85+.15*cos(f32(season_month()%12u)*.5235988));
+ let sun=ecological_sunlight(e.fields[3].w,season_month(),p.abundance.w)*p.physical.w;
  let activity=e.fields[2].x*wet;
  let reaction_rate=e.fields[9].x/max(e.fields[4].y,.0000001);
  let reacted=min(s.pools[26].z,s.pools[26].z*reaction_rate*dt*s.pools[31].x);
@@ -594,7 +594,8 @@ fn history_drought(i:u32)->f32 {
 @compute @workgroup_size(8,8)
 fn monthly_weather(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=id(g,p.dims.x);var c=terrain[i];let dt=p.physical.y;
- let seasonal=sin(f32(season_month()%12u)*.5235988)*pos(i,p.dims.x).y;
+ // Shared solar calendar; retain the weather amplitude at default 23.44-degree tilt.
+ let seasonal=seasonal_declination_sine(season_month(),p.abundance.w)/sin(.40910518)*pos(i,p.dims.x).y;
  let temp=c.hydro.y+seasonal*12.;
  var unmanaged=1.;if p.options.w==1u {c.climate.y=max(0.,c.hydro.z)*(1.+seasonal*.25)*history_drought(i);if c.tags.x>=2u {unmanaged=clamp(1.-src[parent(i)].pools[24].w/max(land(environment[parent(i)]),.00001),0.,1.);}}
  let precipitation=unmanaged*max(0.,c.hydro.z)*.001*dt*(1.+seasonal*.25)*history_drought(i);
