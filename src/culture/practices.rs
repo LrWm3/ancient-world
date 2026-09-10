@@ -789,6 +789,8 @@ mod tests {
             }
         }
         // Declared construction stock; both branches start with the same inventory.
+        h.sites[site as usize].economy.goods[0] += 1000.;
+        h.sites[site as usize].economy.initial[0] += 1000.;
         h.sites[site as usize].economy.goods[5] += 2. * crate::institution_capacity::HALL_BRICKS_KG;
         h.sites[site as usize].economy.initial[5] +=
             2. * crate::institution_capacity::HALL_BRICKS_KG;
@@ -836,14 +838,16 @@ mod tests {
         c.household_faith[companion_household as usize] = minority;
         let mut poor = c.clone();
         let mut poor_h = h.clone();
-        poor_h.sites[site as usize].economy.goods[5] = 0.;
+        for good in [0, 2, 5, 50] {
+            poor_h.sites[site as usize].economy.goods[good] = 0.;
+        }
         poor.decisions(&mut poor_h);
         assert!(!poor
             .institutions
             .iter()
             .any(|n| n.tradition == Some(minority)));
         let faiths = c.household_faith.clone();
-        let bricks = h.sites[site as usize].economy.goods[5];
+        let stocks = h.sites[site as usize].economy.goods;
         let cash = h.sites[site as usize].economy.finance[0] as f64
             + c.institutions.iter().map(|n| n.treasury).sum::<f64>();
         c.decisions(h);
@@ -852,8 +856,8 @@ mod tests {
             .iter()
             .find(|n| n.tradition == Some(minority))
             .unwrap();
-        assert!(!order.operational());
         assert_eq!(
+            order.operational(),
             order
                 .capacity
                 .as_ref()
@@ -861,15 +865,29 @@ mod tests {
                 .building
                 .as_ref()
                 .unwrap()
-                .construction_remaining,
-            3.8
+                .construction_remaining
+                == 0.
         );
+        assert!(order
+            .capacity
+            .as_ref()
+            .unwrap()
+            .building
+            .as_ref()
+            .unwrap()
+            .facility
+            .is_some());
         assert_eq!(order.members.len(), 2);
         assert!(order.members.contains(&actor) && order.members.contains(&companion));
-        assert_eq!(
-            h.sites[site as usize].economy.goods[5],
-            bricks - crate::institution_capacity::HALL_BRICKS_KG
-        );
+        for &(good, mass) in &c.artifacts[order.property[0] as usize].materials {
+            assert!(
+                (stocks[good as usize]
+                    - h.sites[site as usize].economy.goods[good as usize]
+                    - mass)
+                    .abs()
+                    < 0.001
+            );
+        }
         assert!(
             (cash
                 - h.sites[site as usize].economy.finance[0] as f64

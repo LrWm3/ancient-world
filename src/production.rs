@@ -201,7 +201,7 @@ impl History {
                 e.storage[2] = s.stocks.stock[0].max(1.) * catalog.production.storage_kg_per_person;
             }
             if e.storage[2] > 0. {
-                e.logistics[0] = e.storage_capacity();
+                e.logistics[0] = e.storage_capacity() + e.container_capacity(catalog);
             }
             e.workshop[3] = f32::from(catalog.production.enabled && catalog.production.workshops);
             e.workshop_types[0][3] =
@@ -262,6 +262,38 @@ impl History {
             {
                 planner.available[c.good as usize] += c.planned_kg;
             }
+            // Institutional procurement feeds the ordinary production/trade path. Only funded,
+            // unfinished demand is proposed; material still must be present when construction buys it.
+            if let Some(culture) = &self.culture {
+                for n in culture
+                    .institutions
+                    .iter()
+                    .filter(|n| n.active && n.site == s.id)
+                {
+                    if let Some(f) = n
+                        .capacity
+                        .as_ref()
+                        .and_then(|c| c.building.as_ref())
+                        .and_then(|b| b.facility.as_ref())
+                    {
+                        let target = crate::facilities::demand(&n.kind, n.members.len());
+                        if f.remaining() == 0. && target - f.planned() >= 2. {
+                            let mut quoted = *e;
+                            quoted.goods.fill(1_000_000.);
+                            if let Some(room) = crate::facilities::choose(
+                                catalog,
+                                &quoted,
+                                target - f.planned(),
+                                (n.treasury - 10.).max(0.) * 0.25,
+                            ) {
+                                for (good, mass) in room.materials() {
+                                    planner.request(good as usize, mass * 2.);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             // Same finite stock/expected deliveries and recipe knowledge as ordinary orders.
             // Only the working tool requirement is urgent; exports and reserve expansion are not.
             let mut replacement = planner.clone();
@@ -289,7 +321,58 @@ impl History {
                     (pop * 0.5 - covered).max(0.) / if selected == 43 { 0.6 } else { 1. },
                 );
             }
+            if let Some(methods) = &catalog.materials {
+                // Containers substitute by useful storage, not equal mass. Existing variants count.
+                let held = planner.available[7]
+                    + methods
+                        .variants
+                        .iter()
+                        .filter(|v| v.role == "container")
+                        .map(|v| planner.available[v.slot] * v.service)
+                        .sum::<f32>();
+                let selected = methods
+                    .variants
+                    .iter()
+                    .filter(|v| v.role == "container")
+                    .map(|v| (v.slot, v.service, v.wear))
+                    .chain(std::iter::once((7, 1., 0.005)))
+                    .min_by(|a, b| {
+                        let cost = |x: &(usize, f32, f32)| {
+                            e.prices[x.0].max(0.01) / x.1 * (1. + x.2 * 120.)
+                        };
+                        cost(a).total_cmp(&cost(b))
+                    });
+                if let Some((k, service, _)) = selected {
+                    planner.request(
+                        k,
+                        planner.available[k] + (pop * 2. - held).max(0.) / service,
+                    );
+                }
+                for v in &methods.variants {
+                    let need = match v.role.as_str() {
+                        "digging" | "breaking" => {
+                            if e.reserves[1] + e.reserves[2] > 0. {
+                                pop * 0.025
+                            } else {
+                                0.
+                            }
+                        }
+                        "cutting" => {
+                            if e.forest[0] > 0. {
+                                pop * 0.025
+                            } else {
+                                0.
+                            }
+                        }
+                        _ => 0.,
+                    };
+                    planner.request(v.slot, need);
+                }
+            }
             for (k, g) in catalog.goods.iter().enumerate() {
+                if g.id == "pottery" && catalog.materials.is_some() {
+                    continue;
+                }
                 if g.id == "tools" && e.extraction[1] > 0.5 {
                     let desired = pop * reserve("tools");
                     let selected = if matches!(e.extraction[0] as u32, 35..=37) {
@@ -494,7 +577,7 @@ impl History {
             e.tool_orders = std::array::from_fn(|k| replacement.orders[k].min(e.orders[k]));
             e.logistics = [
                 if e.storage_plan[3] > 0.5 {
-                    e.storage_capacity()
+                    e.storage_capacity() + e.container_capacity(catalog)
                 } else {
                     pop * catalog.production.storage_kg_per_person
                 },

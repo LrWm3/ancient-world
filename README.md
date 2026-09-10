@@ -73,7 +73,7 @@ connections are narrow, and some optional experiments produce poor outcomes.
 | Farms and workshops | Managed plots, crop and livestock rules, material inventories and production orders. [Economy](docs/economy.md), [experimental alternatives](docs/crop-and-price-experiments.md) |
 | Exchange and travel | Local quotes, shipments, roads, harbors and provisioned household relocation. [Shipping](docs/shipping.md), [relocation](docs/household-relocation.md) |
 | People and politics | Aggregate populations, some named family records, competing interests, administration and compact conflict rules. [History guide](docs/civilizations.md), [factions](docs/faction-interests.md) |
-| Foundings and beliefs | Patron-led arrivals, human traditions, institutions and attributed accounts. [Foundings](docs/patron-foundings.md), [religious change](docs/religious-dynamics.md) |
+| Foundings and beliefs | Patron-led arrivals, human traditions, institutions and attributed accounts. [Foundings](docs/patron-foundings.md), [religious change](docs/religious-dynamics.md), [modest institutional facilities](docs/material-objects-and-facilities.md) |
 | Expeditions | Funded journeys, temporary camps, hazards and modest returning discoveries. [Expeditions](docs/expeditions.md) |
 | Places and possessions | Abstract site assets, some persistent objects and shared resource stocks. [Site assets](docs/site-assets.md), [resources](docs/shared-resources.md) |
 | Inspection | Globe/atlas layers, regional surveys, event records and a short retained settlement timeline. [Timeline](docs/history-timeline.md) |

@@ -15,7 +15,7 @@ struct Eco {pools:array<vec4<f32>,38>}
 struct Recipe {input:array<vec4<f32>,16>, output:array<vec4<f32>,16>, work:vec4<f32>}
 @group(0) @binding(5) var<storage,read_write> economies:array<Economy>;
 @group(0) @binding(6) var<storage,read_write> ecology:array<Eco>;
-struct CraftCatalog { goods:array<vec4<f32>,64>, crops:array<vec4<f32>,12>, herds:array<vec4<f32>,3>, seasons:array<vec4<f32>,6>, recipes:array<Recipe> }
+struct CraftCatalog { goods:array<vec4<f32>,64>, crops:array<vec4<f32>,12>, herds:array<vec4<f32>,3>, seasons:array<vec4<f32>,6>, methods:array<vec4<f32>,6>, recipes:array<Recipe> }
 @group(0) @binding(7) var<storage,read> catalog:CraftCatalog;
 // One invocation serializes overlapping coarse-cell reservations in stable site order.
 @compute @workgroup_size(1)
@@ -74,7 +74,8 @@ fn order_room(e:Economy,k:u32)->f32 {
  return min(max(0.,e.targets[k/4u][k%4u]-e.goods[k/4u][k%4u]),max(0.,e.logistics.x-e.logistics.y-dry_stock(e)));
 }
 fn warehouse_capacity(e:Economy)->f32 {
- return e.storage.z+min(e.storage.x/.02,e.storage.y/.03);
+ let base=e.storage.z+min(e.storage.x/.02,e.storage.y/.03);
+ return base+select(0.,min(base*.2,container_service(e)),catalog.methods[0].x>0.);
 }
 // Invoked even for empty sites: the physical shell persists and weathers.
 fn weather_storage(i:u32) {
@@ -132,16 +133,17 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  e.diagnostics.x=0.;if n<output{e.diagnostics.x=1.;}output=min(output,n);if ph<output{e.diagnostics.x=2.;}output=min(output,ph);if water<output{e.diagnostics.x=3.;}output=min(output,water);
  e.soil.y-=output*.02;e.soil.z-=output*.003;e.exchange.x+=output*.45;e.water.x-=output*.5;e.water.w+=output*.5;e.diagnostics.y=output;
  // Finite timber harvest; a regional woodland stock, not unlimited yield from cover.
- let wood_potential=min(e.labor.y*20.,min(e.forest.x/.5,min(e.forest.y/.002,e.forest.z/.0002)));
+ let wood_potential=min(e.labor.y*extraction_rate(e,0u),min(e.forest.x/.5,min(e.forest.y/.002,e.forest.z/.0002)));
  let wood=min(wood_potential,order_room(e,0u));
  e.forest-=vec4(wood*vec3(.5,.002,.0002),0.);e.goods[0].x+=wood;e.made[0].x+=wood;
  // One mining workforce serves ore and clay. Rotate priority to avoid starving
  // either industry when both have orders; all policies obey the physical budget.
- var mining=e.labor.z*5.;
+ var mining=e.labor.z;
  for(var extract=0u;extract<2u;extract++) {
  let mineral=(extract+p.dims.z)%2u;let good=select(ore_good(e),4u,mineral==1u);
- let quantity=min(min(e.reserves[mineral+1u],mining),order_room(e,good));
- e.reserves[mineral+1u]-=quantity;e.goods[good/4u][good%4u]+=quantity;e.made[good/4u][good%4u]+=quantity;mining-=quantity;
+ let rate=extraction_rate(e,mineral+1u);
+ let quantity=min(min(e.reserves[mineral+1u],mining*rate),order_room(e,good));
+ e.reserves[mineral+1u]-=quantity;e.goods[good/4u][good%4u]+=quantity;e.made[good/4u][good%4u]+=quantity;mining=max(0.,mining-quantity/rate);
  }
  // Research workshops reserve staff before dispatch; no double-counted craft labor.
  var labor=max(0.,e.labor.w-e.exchange.w);
@@ -347,14 +349,16 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
    if k==22u||k==23u{in_use=min(e.goods[k/4u][k%4u],s.stock.x*.1);rate=.002;}
   }
   if k==43u&&e.extraction.y>.5 {rate=.01;}
+  if k>=45u && k<=50u && catalog.methods[k-45u].x>0. && catalog.methods[k-45u].x<5. {in_use=min(e.goods[k/4u][k%4u],s.stock.x*.2);rate=catalog.methods[k-45u].z;}
   let worn=in_use*rate;e.goods[k/4u][k%4u]-=worn;e.used[k/4u][k%4u]+=worn;
-  let recovered=select(0.,worn*.9,(k==3u||k==22u||k==23u) && catalog.herds[0].w>.5);
+  var recovered=select(0.,worn*.9,(k==3u||k==22u||k==23u) && catalog.herds[0].w>.5);
+  if k>=45u && k<=50u {recovered=worn*catalog.methods[k-45u].w*.9;}
    if (k==41u||k==43u) && e.extraction.y>.5 {
    let scrap_good=select(42u,44u,k==43u);let scrap=worn*.9;e.goods[scrap_good/4u][scrap_good%4u]+=scrap;e.made[scrap_good/4u][scrap_good%4u]+=scrap;e.reserves.w-=scrap;
   }
   e.goods[7].y+=recovered;e.made[7].y+=recovered;e.reserves.w+=worn-recovered;
   // Organic worn material is a recorded detrital transfer, not a missing C/N/P sink.
-  e.detritus+=vec4((worn-recovered)*catalog.goods[k].xyz,0.);
+  e.detritus+=vec4(select(worn-recovered,worn,k>=45u&&k<=50u)*catalog.goods[k].xyz,0.);
  }
  if e.management.x>.5 { e=managed_production(i,e,max(0.,potential*(1.-e.policy.x)*tool_factor*(1.-.5*recovery)-fixed*fixation_cost),weather);output=e.diagnostics.y; }
  // Retain a year's approximate memory of observed food handling returns. This
@@ -625,13 +629,13 @@ fn baseline_worker_shares(e:Economy,pop:f32,available_workers:f32)->vec4<f32>{
  // extraction. Cargo suppresses orders in the CPU planner; it is not stock here.
  var stock=e.goods;
  let wood=min(order_room(e,0u),min(e.forest.x/.5,min(e.forest.y/.002,e.forest.z/.0002)));
- let forestry=min(workforce*.12,wood/20.);
- let room=max(0.,e.logistics.x-e.logistics.y-dry_stock(e)-forestry*20.);
+ let wood_rate=extraction_rate(e,0u);let forestry=min(workforce*.12,wood/wood_rate);
+ let room=max(0.,e.logistics.x-e.logistics.y-dry_stock(e)-forestry*wood_rate);
  let ore=min(room,min(order_room(e,ore_good(e)),e.reserves.y));let clay=min(max(0.,room-min(ore,workforce*.16*5.)),min(order_room(e,4u),e.reserves.z));
  let mining=min(workforce*.16,(ore+clay)/5.);
- stock[0].x+=forestry*20.;
- var extraction=mining*5.;
- for(var k=0u;k<2u;k++){let mineral=(k+p.dims.z)%2u;let good=select(ore_good(e),4u,mineral==1u);let mined=min(extraction,select(ore,clay,mineral==1u));stock[good/4u][good%4u]+=mined;extraction-=mined;}
+ stock[0].x+=forestry*wood_rate;
+ var extraction=mining;
+ for(var k=0u;k<2u;k++){let mineral=(k+p.dims.z)%2u;let good=select(ore_good(e),4u,mineral==1u);let rate=extraction_rate(e,mineral+1u);let mined=min(extraction*rate,select(ore,clay,mineral==1u));stock[good/4u][good%4u]+=mined;extraction=max(0.,extraction-mined/rate);}
  var craft=0.;var residue_held=e.residue.x;
  for(var step=0u;step<p.options.y;step++){
  let r=(step+p.dims.z)%p.options.y;let recipe=catalog.recipes[r];
@@ -688,13 +692,13 @@ fn food_worker_shares(e:Economy,pop:f32,available_workers:f32)->vec4<f32>{
  // extraction. Cargo suppresses orders in the CPU planner; it is not stock here.
  var stock=e.goods;
  let wood=min(order_room(e,0u),min(e.forest.x/.5,min(e.forest.y/.002,e.forest.z/.0002)));
- let forestry=min(workforce*.12,wood/20.);
- let room=max(0.,e.logistics.x-e.logistics.y-dry_stock(e)-forestry*20.);
+ let wood_rate=extraction_rate(e,0u);let forestry=min(workforce*.12,wood/wood_rate);
+ let room=max(0.,e.logistics.x-e.logistics.y-dry_stock(e)-forestry*wood_rate);
  let ore=min(room,min(order_room(e,ore_good(e)),e.reserves.y));let clay=min(max(0.,room-min(ore,workforce*.16*5.)),min(order_room(e,4u),e.reserves.z));
  let mining=min(workforce*.16,(ore+clay)/5.);
- stock[0].x+=forestry*20.;
- var extraction=mining*5.;
- for(var k=0u;k<2u;k++){let mineral=(k+p.dims.z)%2u;let good=select(ore_good(e),4u,mineral==1u);let mined=min(extraction,select(ore,clay,mineral==1u));stock[good/4u][good%4u]+=mined;extraction-=mined;}
+ stock[0].x+=forestry*wood_rate;
+ var extraction=mining;
+ for(var k=0u;k<2u;k++){let mineral=(k+p.dims.z)%2u;let good=select(ore_good(e),4u,mineral==1u);let rate=extraction_rate(e,mineral+1u);let mined=min(extraction*rate,select(ore,clay,mineral==1u));stock[good/4u][good%4u]+=mined;extraction=max(0.,extraction-mined/rate);}
  var craft=0.;var tool_work=0.;var residue_held=e.residue.x;
  for(var step=0u;step<p.options.y;step++){
  let r=(step+p.dims.z)%p.options.y;let recipe=catalog.recipes[r];
@@ -756,3 +760,22 @@ fn food_worker_shares(e:Economy,pop:f32,available_workers:f32)->vec4<f32>{
 }
 
 fn ore_good(e:Economy)->u32 {return select(1u,u32(e.extraction.x),e.extraction.x>=1.);}
+
+// Capability is task-specific. Labor improves access rate, never source inventory.
+fn extraction_rate(e:Economy,task:u32)->f32 {
+ let base=select(5.,20.,task==0u);if catalog.methods[0].x==0. {return base;}
+ let role=select(select(4.,2.,task==2u),3.,task==0u);
+ let workers=max(1.,select(e.labor.z,e.labor.y,task==0u));
+ var tools=e.goods[0].w*.25;
+ if e.extraction.y>.5 {tools+=e.goods[10].y*.25+e.goods[10].w*.15;}
+ for(var j=0u;j<6u;j++){if catalog.methods[j].x==role {let k=j+45u;tools+=e.goods[k/4u][k%4u]*catalog.methods[j].y;}}
+ let capability=clamp(tools/workers,0.,2.);
+ let difficulty=select(select(max(.1,e.extraction.z)+e.extraction.w*2.,.2,task==2u),.4+clamp(e.forest.x/max(e.claim.y,1.),0.,1.),task==0u);
+ return base/(1.+difficulty/(.2+2.*capability));
+}
+
+fn container_service(e:Economy)->f32 {
+ var vessels=e.goods[1].w;
+ for(var j=0u;j<6u;j++){if catalog.methods[j].x==1. {let k=j+45u;vessels+=e.goods[k/4u][k%4u]*catalog.methods[j].y;}}
+ return vessels;
+}

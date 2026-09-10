@@ -773,6 +773,27 @@ impl Engine {
                 table
             });
         recipe_bytes.extend_from_slice(bytemuck::cast_slice(&agriculture));
+        let mut methods = [[0f32; 4]; 6];
+        if let Some(m) = &catalog.materials {
+            for v in &m.variants {
+                let role = match v.role.as_str() {
+                    "container" => 1.,
+                    "digging" => 2.,
+                    "cutting" => 3.,
+                    "breaking" => 4.,
+                    _ => 5.,
+                };
+                let total: f32 = v.inputs.iter().map(|(_, m)| m).sum();
+                let metal: f32 = v
+                    .inputs
+                    .iter()
+                    .filter(|(g, _)| g == "metal")
+                    .map(|(_, m)| m)
+                    .sum();
+                methods[v.slot - 45] = [role, v.service, v.wear, metal / total];
+            }
+        }
+        recipe_bytes.extend_from_slice(bytemuck::cast_slice(&methods));
         if catalog.recipes.is_empty() {
             recipe_bytes.extend_from_slice(bytemuck::bytes_of(&Recipe {
                 input: [0.; crate::economy::GOODS],
@@ -1124,6 +1145,25 @@ impl Generator {
                     engine.claim(self);
                     engine.read(self, &mut h, false)?;
                     h.register_resources(&terrain, self.config.radius_km);
+                }
+                if h.economy_catalog
+                    .as_ref()
+                    .is_some_and(|c| c.materials.is_some())
+                {
+                    for site in &mut h.sites {
+                        let t = &terrain[site.cell as usize];
+                        site.economy.extraction[2] = self
+                            .catalog
+                            .rocks
+                            .get(t.ids[0] as usize)
+                            .map_or(0.5, |r| r.hardness / 10.)
+                            .clamp(0.1, 1.);
+                        site.economy.extraction[3] = h
+                            .resources
+                            .as_ref()
+                            .and_then(|r| r.sources.get(&site.cell))
+                            .map_or(0., |s| (s.extracted[0] / s.initial[0].max(1.)) as f32);
+                    }
                 }
                 h.patron_aid_month();
                 // Snapshot actual cumulative crop harvest before this month's GPU work.
@@ -2220,5 +2260,68 @@ mod lifecycle_tests {
             .lifecycle
             .harvest_observed
             .is_none());
+    }
+}
+
+#[cfg(test)]
+mod material_integration_tests {
+    use super::*;
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn tools_change_actual_extraction_without_changing_source_mass() {
+        let mut g = Generator::new(
+            pollster::block_on(crate::gpu::ContextGpu::headless()).unwrap(),
+            crate::config::Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                ..Default::default()
+            },
+            crate::catalog::Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        let engine = Engine::new(&g).unwrap();
+        let mut h = g.civilizations.as_ref().unwrap().clone();
+        h.society = None;
+        h.month = 1;
+        let base = h.sites[0].clone();
+        for (j, s) in h.sites.iter_mut().enumerate() {
+            s.stocks = base.stocks;
+            s.stocks.stock[0] = 100.;
+            s.economy = Economy::default();
+            let e = &mut s.economy;
+            e.claim = [1., 1000., 0., 1.];
+            e.forest = [500., 2., 0.2, 0.];
+            e.reserves = [0., 1000., 0., 0.];
+            e.extraction = [1., 0., 0.8, 0.];
+            e.logistics = [100000., 0., 0., 1.];
+            e.targets[0] = 1000.;
+            e.targets[1] = 1000.;
+            if j == 1 {
+                e.goods[49] = 100.;
+            } // pick only: mining improves, forestry must not.
+            if j == 2 {
+                e.goods[48] = 100.;
+            } // axe only: forestry improves, mining must not.
+            if j == 3 {
+                e.goods[49] = 100.;
+                e.extraction[3] = 1.;
+            } // depleted deposit harder despite same tool.
+        }
+        engine.upload(&g, &h);
+        engine.dispatch(&g, false, h.sites.len() as u32);
+        engine.read(&g, &mut h, true).unwrap();
+        let e: Vec<_> = h.sites.iter().map(|s| s.economy).collect();
+        assert!(e[1].made[1] > e[0].made[1]);
+        assert_eq!(e[1].made[0], e[0].made[0]);
+        assert!(e[2].made[0] > e[0].made[0]);
+        assert_eq!(e[2].made[1], e[0].made[1]);
+        assert!(e[3].made[1] < e[1].made[1]);
+        for x in &e {
+            assert!((x.reserves[1] + x.made[1] - 1000.).abs() < 0.001);
+            assert!((x.forest[0] + x.made[0] * 0.5 - 500.).abs() < 0.001);
+        }
+        // Analytical hand-tool rate: 5/(1+0.8/0.2)=1 kg per worker-month.
+        assert!((e[0].made[1] - e[0].labor[2]).abs() < 0.001);
     }
 }

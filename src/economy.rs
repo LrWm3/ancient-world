@@ -78,6 +78,8 @@ impl Default for MarketSettings {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EconomyCatalog {
     #[serde(default)]
+    pub materials: Option<crate::materials::MaterialCatalog>,
+    #[serde(default)]
     pub production: crate::production::ProductionSettings,
     #[serde(default)]
     pub agriculture: Option<crate::agriculture::AgricultureCatalog>,
@@ -129,10 +131,16 @@ impl EconomyCatalog {
                 r.work[1] = 5.;
             }
         }
+        let materials = crate::materials::MaterialCatalog::bundled()?;
+        materials.compile(&mut c)?;
+        c.materials = Some(materials);
         c.validate()?;
         Ok(c)
     }
     pub fn validate(&self) -> Result<()> {
+        if let Some(m) = &self.materials {
+            m.validate(self)?;
+        }
         ensure!(
             self.production.enabled
                 || !(self.production.replacement_tool_jobs || self.production.toolmaking_expertise),
@@ -245,21 +253,44 @@ impl EconomyCatalog {
                 .filter_map(|(id, f)| self.index(id).map(|i| amounts[i] * f))
                 .sum()
             };
+            let variant_content = |q: &[f32; GOODS], material: &str| -> f32 {
+                self.materials.as_ref().map_or(0., |m| {
+                    m.variants
+                        .iter()
+                        .map(|v| {
+                            let total: f32 = v.inputs.iter().map(|(_, kg)| kg).sum();
+                            let part: f32 = v
+                                .inputs
+                                .iter()
+                                .filter(|(id, _)| id == material)
+                                .map(|(_, kg)| kg)
+                                .sum();
+                            q[v.slot] * part / total
+                        })
+                        .sum()
+                })
+            };
             ensure!(
-                r.output[2]
+                variant_content(&r.output, "metal")
+                    + r.output[2]
                     + r.output[3]
                     + r.output[22]
                     + r.output[23]
                     + r.output[29]
                     + iron_content(&r.output)
-                    <= iron_content(&r.input)
+                    <= variant_content(&r.input, "metal")
+                        + iron_content(&r.input)
                         + r.input[1] * 0.5
                         + r.input[2]
                         + r.input[3]
                         + r.input[22]
                         + r.input[23]
                         + r.input[29]
-                    && r.output[5] + r.output[7] <= r.input[4] + r.input[5] + r.input[7],
+                    && variant_content(&r.output, "bricks") + r.output[5] + r.output[7]
+                        <= variant_content(&r.input, "bricks")
+                            + r.input[4]
+                            + r.input[5]
+                            + r.input[7],
                 "recipe creates metal or ceramic feedstock"
             );
             for element in 1..3 {
@@ -474,6 +505,17 @@ impl Economy {
     }
     pub fn housing_accepts(&self, population: f32) -> bool {
         self.housing_plan[3] < 0.5 || population <= self.housing_capacity()
+    }
+    pub fn container_capacity(&self, c: &EconomyCatalog) -> f32 {
+        c.materials.as_ref().map_or(0., |m| {
+            (self.goods[7]
+                + m.variants
+                    .iter()
+                    .filter(|v| v.role == "container")
+                    .map(|v| self.goods[v.slot] * v.service)
+                    .sum::<f32>())
+            .min(self.storage_capacity() * 0.2)
+        })
     }
     pub fn storage_capacity(&self) -> f32 {
         self.storage[2] + (self.storage[0] / 0.02).min(self.storage[1] / 0.03)

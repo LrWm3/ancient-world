@@ -20,6 +20,9 @@ pub const ALLOY_GOODS: [(usize, &str); 10] = [
 /// Modeled metal mass fractions; general historical metal remains the legacy iron-compatible pool.
 pub fn metals(id: &str) -> [f32; 3] {
     match id {
+        "metal_vessel" => [1., 0., 0.],
+        "metal_axe" => [0.6, 0., 0.],
+        "metal_pick" => [0.7, 0., 0.],
         "hematite_ore" => [0.7, 0., 0.],
         "magnetite_ore" => [0.72, 0., 0.],
         "limonite_ore" => [0.5, 0., 0.],

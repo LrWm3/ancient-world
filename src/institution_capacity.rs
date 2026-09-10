@@ -14,6 +14,8 @@ pub struct Capacity {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MeetingPlace {
+    #[serde(default)]
+    pub facility: Option<crate::facilities::Facility>,
     pub artifact: u32,
     /// Unfinished construction labor; zero in legacy archives.
     #[serde(default)]
@@ -27,6 +29,14 @@ pub const HALL_BRICKS_KG: f32 = 2_000.;
 pub const HALL_WORK_MONTHS: f32 = 4.;
 
 impl MeetingPlace {
+    pub fn facility(artifact: u32, f: crate::facilities::Facility) -> Self {
+        Self {
+            construction_remaining: f.remaining(),
+            condition: f.condition(),
+            facility: Some(f),
+            ..Self::new(artifact)
+        }
+    }
     pub fn hall(artifact: u32) -> Self {
         Self {
             construction_remaining: HALL_WORK_MONTHS - 0.2,
@@ -37,6 +47,7 @@ impl MeetingPlace {
     pub fn new(artifact: u32) -> Self {
         Self {
             artifact,
+            facility: None,
             construction_remaining: 0.,
             condition: 1.,
             repaired_kg: 0.,
@@ -69,9 +80,10 @@ impl crate::culture::Institution {
             && self.capacity.as_ref().is_none_or(|c| {
                 c.mandate.as_ref().is_none_or(|m| m.holder.is_some())
                     && c.readiness >= 0.25
-                    && c.building
-                        .as_ref()
-                        .is_none_or(|b| b.construction_remaining == 0. && b.condition >= 0.25)
+                    && c.building.as_ref().is_none_or(|b| {
+                        (b.facility.is_some() || b.construction_remaining == 0.)
+                            && b.condition >= 0.25
+                    })
             })
     }
 }
@@ -112,7 +124,12 @@ impl crate::culture::Culture {
                     .iter()
                     .any(|&(g, mass)| g == 5 && mass >= HALL_BRICKS_KG)
             });
-            let work_limit = if large_building { 0.125 } else { 0.025 };
+            let work_limit =
+                if large_building || c.building.as_ref().is_some_and(|b| b.facility.is_some()) {
+                    0.125
+                } else {
+                    0.025
+                };
             let work = if h.sites[i].abandoned || living == 0 {
                 0.
             } else {
@@ -138,109 +155,158 @@ impl crate::culture::Culture {
             let mut repair_work = 0.;
             let mut building_support = 1.;
             if let Some(b) = &mut c.building {
-                let a = &self.artifacts[b.artifact as usize];
-                let accessible = !a.destroyed
-                    && !a.lost
-                    && a.site == Some(n.site)
-                    && a.owner == crate::culture::Owner::Institution(n.id);
-                let embodied = a
-                    .materials
-                    .iter()
-                    .filter(|&&(g, _)| g == 5)
-                    .map(|&(_, m)| m)
-                    .sum::<f32>();
-                let replacement_work = if large_building {
-                    HALL_WORK_MONTHS
+                if let Some(f) = &mut b.facility {
+                    let a = &self.artifacts[b.artifact as usize];
+                    let accessible = !a.destroyed
+                        && !a.lost
+                        && a.site == Some(n.site)
+                        && a.owner == crate::culture::Owner::Institution(n.id);
+                    if accessible {
+                        let target = crate::facilities::demand(&n.kind, living);
+                        let (used, mass, spent, completed, expanded) = f.advance(
+                            &mut h.sites[i].economy,
+                            h.economy_catalog.as_ref().unwrap(),
+                            &mut n.treasury,
+                            (work - 0.025).max(0.),
+                            target,
+                        );
+                        repair_work = used;
+                        b.repaired_kg += mass;
+                        b.repair_paid += spent;
+                        n.expenses += spent;
+                        self.artifacts[b.artifact as usize].materials = f.embodied();
+                        b.condition = f.condition();
+                        b.construction_remaining = f.remaining();
+                        if completed > 0 || expanded {
+                            let kind = if expanded {
+                                "meeting_place_expanded"
+                            } else {
+                                "meeting_place_completed"
+                            };
+                            let cause = self.artifacts[b.artifact as usize].events.last().copied();
+                            h.event(kind,Some(n.site),None,format!("{}: {:.1} usable / {:.1} planned capacity; {:.2} worker-months construction remaining; {} rooms",n.name,f.usable(),f.planned(),f.remaining(),f.rooms.len()));
+                            let event = h.events.last_mut().unwrap();
+                            event.subjects.push(("institution".into(), n.id));
+                            event.subjects.push(("artifact".into(), b.artifact));
+                            if let Some(cause) = cause {
+                                event.causes.push(cause);
+                            }
+                            self.artifacts[b.artifact as usize].events.push(event.id);
+                        }
+                    } else {
+                        b.condition = 0.;
+                    }
+                    building_support = if accessible {
+                        (f.usable() / crate::facilities::demand(&n.kind, living)).clamp(0., 1.)
+                    } else {
+                        0.
+                    };
                 } else {
-                    0.1
-                };
-                if accessible && b.construction_remaining > 0. {
-                    let built = work.min(b.construction_remaining);
-                    b.construction_remaining = (b.construction_remaining - built).max(0.);
-                    repair_work = built;
-                    if b.construction_remaining == 0. {
-                        b.condition = 1.;
-                        h.event("meeting_place_completed", Some(n.site), None, format!("{} completed its meeting room enclosure: {:.0} kg brick, {:.1} worker-months construction", n.name, embodied, HALL_WORK_MONTHS));
+                    let a = &self.artifacts[b.artifact as usize];
+                    let accessible = !a.destroyed
+                        && !a.lost
+                        && a.site == Some(n.site)
+                        && a.owner == crate::culture::Owner::Institution(n.id);
+                    let embodied = a
+                        .materials
+                        .iter()
+                        .filter(|&&(g, _)| g == 5)
+                        .map(|&(_, m)| m)
+                        .sum::<f32>();
+                    let replacement_work = if large_building {
+                        HALL_WORK_MONTHS
+                    } else {
+                        0.1
+                    };
+                    if accessible && b.construction_remaining > 0. {
+                        let built = work.min(b.construction_remaining);
+                        b.construction_remaining = (b.construction_remaining - built).max(0.);
+                        repair_work = built;
+                        if b.construction_remaining == 0. {
+                            b.condition = 1.;
+                            h.event("meeting_place_completed", Some(n.site), None, format!("{} completed its meeting room enclosure: {:.0} kg brick, {:.1} worker-months construction", n.name, embodied, HALL_WORK_MONTHS));
+                            let event = h.events.last_mut().unwrap();
+                            event.subjects.push(("institution".into(), n.id));
+                            event.subjects.push(("artifact".into(), b.artifact));
+                            if let Some(&cause) = a.events.last() {
+                                event.causes.push(cause);
+                            }
+                            self.artifacts[b.artifact as usize].events.push(event.id);
+                        }
+                    } else if accessible {
+                        b.condition = (b.condition
+                            - 0.0025
+                            - 0.08 * h.sites[i].economy.soil[3].clamp(0., 1.))
+                        .max(0.);
+                        let price = h.sites[i].economy.prices[5].max(0.01) as f64;
+                        let improvement = (1. - b.condition)
+                            .min(0.1)
+                            .min(work / replacement_work)
+                            .min(h.sites[i].economy.goods[5] / embodied)
+                            .min((n.treasury / (embodied as f64 * price)) as f32);
+                        // Debit exactly the representable stock withdrawal. The same mass of
+                        // old brick leaves the foundation as waste; its embodied mass stays fixed.
+                        let old = h.sites[i].economy.goods[5];
+                        let mut remaining =
+                            (old as f64 - improvement as f64 * embodied as f64).max(0.) as f32;
+                        if old as f64 - remaining as f64 > improvement as f64 * embodied as f64 {
+                            remaining = f32::from_bits(remaining.to_bits() + 1).min(old);
+                        }
+                        let mass = old as f64 - remaining as f64;
+                        let fee = mass * price;
+                        let pool = &mut h.sites[i].economy.finance[0];
+                        let old_cash = *pool;
+                        let mut next = (old_cash as f64 + fee) as f32;
+                        if next as f64 - old_cash as f64 > fee {
+                            next = f32::from_bits(next.to_bits().saturating_sub(1)).max(old_cash);
+                        }
+                        let payment = next as f64 - old_cash as f64;
+                        *pool = next;
+                        n.treasury -= payment;
+                        n.expenses += payment;
+                        b.repair_paid += payment;
+                        let e = &mut h.sites[i].economy;
+                        e.goods[5] = remaining;
+                        e.used[5] += mass as f32;
+                        e.reserves[3] += mass as f32;
+                        for (k, ratio) in h
+                            .economy_catalog
+                            .as_ref()
+                            .unwrap()
+                            .composition(5)
+                            .iter()
+                            .enumerate()
+                        {
+                            e.detritus[k] += mass as f32 * ratio;
+                        }
+                        b.repaired_kg += mass;
+                        b.condition = (b.condition + mass as f32 / embodied).min(1.);
+                        repair_work = mass as f32 / embodied * replacement_work;
+                    } else {
+                        b.condition = 0.;
+                    }
+                    building_support = b.condition;
+                    let event =
+                        if !b.dilapidated && b.construction_remaining == 0. && b.condition < 0.25 {
+                            b.dilapidated = true;
+                            Some("meeting_place_dilapidated")
+                        } else if b.dilapidated && b.condition >= 0.7 {
+                            b.dilapidated = false;
+                            Some("meeting_place_repaired")
+                        } else {
+                            None
+                        };
+                    if let Some(kind) = event {
+                        let cause = self.artifacts[b.artifact as usize].events.last().copied();
+                        h.event(kind,Some(n.site),None,format!("{} meeting place condition {:.0}%; cumulative replacement bricks {:.3} kg",n.name,b.condition*100.,b.repaired_kg));
                         let event = h.events.last_mut().unwrap();
                         event.subjects.push(("institution".into(), n.id));
                         event.subjects.push(("artifact".into(), b.artifact));
-                        if let Some(&cause) = a.events.last() {
+                        if let Some(cause) = cause {
                             event.causes.push(cause);
                         }
                         self.artifacts[b.artifact as usize].events.push(event.id);
                     }
-                } else if accessible {
-                    b.condition =
-                        (b.condition - 0.0025 - 0.08 * h.sites[i].economy.soil[3].clamp(0., 1.))
-                            .max(0.);
-                    let price = h.sites[i].economy.prices[5].max(0.01) as f64;
-                    let improvement = (1. - b.condition)
-                        .min(0.1)
-                        .min(work / replacement_work)
-                        .min(h.sites[i].economy.goods[5] / embodied)
-                        .min((n.treasury / (embodied as f64 * price)) as f32);
-                    // Debit exactly the representable stock withdrawal. The same mass of
-                    // old brick leaves the foundation as waste; its embodied mass stays fixed.
-                    let old = h.sites[i].economy.goods[5];
-                    let mut remaining =
-                        (old as f64 - improvement as f64 * embodied as f64).max(0.) as f32;
-                    if old as f64 - remaining as f64 > improvement as f64 * embodied as f64 {
-                        remaining = f32::from_bits(remaining.to_bits() + 1).min(old);
-                    }
-                    let mass = old as f64 - remaining as f64;
-                    let fee = mass * price;
-                    let pool = &mut h.sites[i].economy.finance[0];
-                    let old_cash = *pool;
-                    let mut next = (old_cash as f64 + fee) as f32;
-                    if next as f64 - old_cash as f64 > fee {
-                        next = f32::from_bits(next.to_bits().saturating_sub(1)).max(old_cash);
-                    }
-                    let payment = next as f64 - old_cash as f64;
-                    *pool = next;
-                    n.treasury -= payment;
-                    n.expenses += payment;
-                    b.repair_paid += payment;
-                    let e = &mut h.sites[i].economy;
-                    e.goods[5] = remaining;
-                    e.used[5] += mass as f32;
-                    e.reserves[3] += mass as f32;
-                    for (k, ratio) in h
-                        .economy_catalog
-                        .as_ref()
-                        .unwrap()
-                        .composition(5)
-                        .iter()
-                        .enumerate()
-                    {
-                        e.detritus[k] += mass as f32 * ratio;
-                    }
-                    b.repaired_kg += mass;
-                    b.condition = (b.condition + mass as f32 / embodied).min(1.);
-                    repair_work = mass as f32 / embodied * replacement_work;
-                } else {
-                    b.condition = 0.;
-                }
-                building_support = b.condition;
-                let event =
-                    if !b.dilapidated && b.construction_remaining == 0. && b.condition < 0.25 {
-                        b.dilapidated = true;
-                        Some("meeting_place_dilapidated")
-                    } else if b.dilapidated && b.condition >= 0.7 {
-                        b.dilapidated = false;
-                        Some("meeting_place_repaired")
-                    } else {
-                        None
-                    };
-                if let Some(kind) = event {
-                    let cause = self.artifacts[b.artifact as usize].events.last().copied();
-                    h.event(kind,Some(n.site),None,format!("{} meeting place condition {:.0}%; cumulative replacement bricks {:.3} kg",n.name,b.condition*100.,b.repaired_kg));
-                    let event = h.events.last_mut().unwrap();
-                    event.subjects.push(("institution".into(), n.id));
-                    event.subjects.push(("artifact".into(), b.artifact));
-                    if let Some(cause) = cause {
-                        event.causes.push(cause);
-                    }
-                    self.artifacts[b.artifact as usize].events.push(event.id);
                 }
             }
             let support = ((work - repair_work).max(0.) / 0.025)

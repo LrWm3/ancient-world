@@ -1982,6 +1982,7 @@ impl App {
                             if e.housing_plan[3] > 0.5 {
                                 ui.label(format!("Shelter {:.1} places · crowding {:.0}% · timber/bricks {:.1}/{:.1} kg",e.housing_capacity(),e.crowding(s.stocks.stock[0])*100.,e.housing[0],e.housing[1]));
                             }
+                            if let Some(catalog)=h.economy_catalog.as_ref().filter(|c|c.materials.is_some()) {ui.small(format!("Container storage bonus {:.0} kg · host resistance {:.2} · source depleted {:.0}%",e.container_capacity(catalog),e.extraction[2],e.extraction[3]*100.));}
                             if e.storage[2] > 0. {
                                 ui.label(format!("Persistent yards {:.0} kg · warehouses {:.0} kg · timber/bricks {:.1}/{:.1} kg · cumulative wear {:.1} kg",e.storage[2],e.storage_capacity()-e.storage[2],e.storage[0],e.storage[1],e.storage_plan[1]));
                             }
@@ -2275,7 +2276,7 @@ impl App {
                             if let Some(tradition) = n.tradition {
                                 ui.small(format!("Tradition: {}", c.traditions[tradition as usize].name));
                             }
-                            if let Some(c)=&n.capacity {if let Some(b)=&c.building {ui.small(format!("Meeting place {:.0}% condition · construction remaining {:.2} worker-months · replacement brick {:.3} kg · repairs paid {:.2}",b.condition*100.,b.construction_remaining,b.repaired_kg,b.repair_paid));} ui.small(format!("Readiness {:.0}% · upkeep paid {:.1} · work {:.2} · {}",c.readiness*100.,c.paid,c.work,if n.operational() {"operational"}else{"services limited"}));}
+                            if let Some(c)=&n.capacity {if let Some(b)=&c.building {if let Some(f)=&b.facility {ui.small(format!("Facility capacity {:.1} usable / {:.1} planned · expansion investment {:.1}",f.usable(),f.planned(),f.invested)); for room in &f.rooms { ui.small(format!("{} · {:.0} capacity · {:.2} work remaining",room.method,room.capacity,room.remaining_work));for p in &room.components {let name=h.economy_catalog.as_ref().and_then(|c|c.goods.get(p.good as usize)).map_or("unknown",|g|g.name.as_str());ui.small(format!("  {}: {:.1} kg, {:.0}% condition",name,p.kg,p.condition*100.));}}}ui.small(format!("Meeting place {:.0}% condition · construction remaining {:.2} worker-months · replacement material {:.3} kg · repairs paid {:.2}",b.condition*100.,b.construction_remaining,b.repaired_kg,b.repair_paid));} ui.small(format!("Readiness {:.0}% · upkeep paid {:.1} · work {:.2} · {}",c.readiness*100.,c.paid,c.work,if n.operational() {"operational"}else{"services limited"}));}
                             if let Some(m) = n.capacity.as_ref().and_then(|c| c.mandate.as_ref()) {
                                 let eligible = c.institution_candidates(h, n.id).len();
                                 ui.small(format!("{eligible} eligible local representatives{}", if eligible == 0 { " · no local constituency for succession" } else { "" }));

@@ -71,3 +71,6 @@ pub mod enterprises;
 pub mod history_timeline;
 
 pub mod faction_interests;
+
+pub mod facilities;
+pub mod materials;

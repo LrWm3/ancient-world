@@ -66,7 +66,7 @@ fn month(@builtin(global_invocation_id) g:vec3<u32>) {
  if p.options.x==2u {produced=ecological_production(i,produced*bitcast<f32>(p.options.z),weather);}
  let growth=produced;
  if (p.options.w&1u)==1u && economies[i].management.x<.5 {produced=crop_calendar(i,produced);}
- let storage=select(1.,1.-.5*clamp(economies[i].goods[1].w/max(1.,s.stock.x*2.),0.,1.),p.options.x==2u);
+ let storage=select(1.,1.-.5*clamp(container_service(economies[i])/max(1.,s.stock.x*2.),0.,1.),p.options.x==2u);
  // Basic granaries hold one harvest year; manufactured storage adds up to
  // another year. Unprotected overflow spoils after this month's consumption.
  let capacity=s.stock.x*18.*(12.+24.*(1.-storage));
