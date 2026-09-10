@@ -1472,7 +1472,11 @@ impl History {
                 let id = self.people.len() as u32;
                 self.people.push(Person {
                     id,
-                    name: self.civilizations[i].naming(self.seed).personal(id),
+                    name: self.civilizations[i].naming(self.seed).person_with(
+                        "person",
+                        id,
+                        &crate::naming::PersonalContext::default().with_person(&self.people[old]),
+                    ),
                     civilization: i as u32,
                     born: self.month as i32 - 360,
                     died: None,

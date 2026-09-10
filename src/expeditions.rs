@@ -564,7 +564,14 @@ impl Expeditions {
             )),
             name: h.civilizations[h.sites[origin as usize].civilization as usize]
                 .naming(h.seed)
-                .person_in("crew", id * 16 + i as u32),
+                .person_with(
+                    "crew",
+                    id * 16 + i as u32,
+                    &crate::naming::PersonalContext::local(
+                        &h.sites[origin as usize],
+                        h.culture.as_ref(),
+                    ),
+                ),
             role: role.into(),
             alive: true,
         })

@@ -3,6 +3,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 const ROOTS: &[(&str, &str)] = &[
+    ("of", "na"),
+    ("hearth", "fokara"),
+    ("cloth", "pannara"),
     ("metal", "metalom"),
     ("bright", "alika"),
     ("steadfast", "tarem"),
@@ -52,6 +55,154 @@ const ROOTS: &[(&str, &str)] = &[
     ("shelter", "tegom"),
     ("oath", "juram"),
     ("healing", "medika"),
+    ("gentle", "lemira"),
+    ("merry", "hilara"),
+    ("just", "equita"),
+    ("loyal", "fidela"),
+    ("curious", "quesira"),
+    ("free", "liberi"),
+    ("swift", "velora"),
+    ("calm", "serena"),
+    ("generous", "donara"),
+    ("watchful", "vigila"),
+    ("resilient", "tenaka"),
+    ("honest", "verita"),
+    ("moon", "seluna"),
+    ("sun", "solara"),
+    ("rain", "pluvia"),
+    ("snow", "nivara"),
+    ("mist", "nebula"),
+    ("cloud", "nubera"),
+    ("thunder", "tonara"),
+    ("frost", "gelida"),
+    ("spring", "verna"),
+    ("summer", "estara"),
+    ("autumn", "frugara"),
+    ("winter", "hiberna"),
+    ("dusk", "vespara"),
+    ("night", "nokta"),
+    ("ember", "brasa"),
+    ("ash", "cinera"),
+    ("flame", "flama"),
+    ("tide", "undara"),
+    ("wave", "ondina"),
+    ("foam", "spuma"),
+    ("current", "fluvena"),
+    ("river", "rivana"),
+    ("brook", "riloma"),
+    ("marsh", "paluda"),
+    ("fen", "ulmera"),
+    ("pool", "laguna"),
+    ("lake", "lakora"),
+    ("sea", "marina"),
+    ("cliff", "rupina"),
+    ("valley", "valena"),
+    ("ridge", "dorsana"),
+    ("peak", "akrena"),
+    ("cave", "speluna"),
+    ("hollow", "konava"),
+    ("meadow", "pratena"),
+    ("heath", "bruyera"),
+    ("willow", "salika"),
+    ("pine", "pinara"),
+    ("birch", "betula"),
+    ("cedar", "kedara"),
+    ("fern", "filika"),
+    ("moss", "musena"),
+    ("blossom", "florena"),
+    ("seed", "semina"),
+    ("root", "radika"),
+    ("leaf", "folia"),
+    ("thorn", "spina"),
+    ("vine", "vitara"),
+    ("flax", "linara"),
+    ("barley", "hordea"),
+    ("millet", "milika"),
+    ("wheat", "tritika"),
+    ("orchard", "pomara"),
+    ("apple", "malina"),
+    ("pear", "pirena"),
+    ("olive", "oleva"),
+    ("fig", "fikara"),
+    ("heron", "ardea"),
+    ("crane", "gruva"),
+    ("raven", "korva"),
+    ("swallow", "hiruna"),
+    ("lark", "aloda"),
+    ("wren", "troda"),
+    ("owl", "ulula"),
+    ("eagle", "akuila"),
+    ("hawk", "falena"),
+    ("fox", "vulpa"),
+    ("wolf", "lupena"),
+    ("deer", "cerva"),
+    ("hare", "lepora"),
+    ("otter", "lutra"),
+    ("badger", "melora"),
+    ("bear", "ursena"),
+    ("bee", "apina"),
+    ("moth", "noktila"),
+    ("salmon", "salara"),
+    ("trout", "trutta"),
+    ("carp", "karpa"),
+    ("shell", "konka"),
+    ("pearl", "perula"),
+    ("copper", "kupara"),
+    ("tin", "stanara"),
+    ("bronze", "bronta"),
+    ("salt", "salena"),
+    ("flint", "sileka"),
+    ("chalk", "kreta"),
+    ("amber", "sukina"),
+    ("weaver", "texira"),
+    ("smith", "ferrika"),
+    ("potter", "keramita"),
+    ("grower", "agrena"),
+    ("shepherd", "pastora"),
+    ("fisher", "piskara"),
+    ("sailor", "navita"),
+    ("mason", "lapida"),
+    ("healer", "medena"),
+    ("scribe", "skriba"),
+    ("teacher", "docera"),
+    ("merchant", "merkana"),
+    ("miller", "molina"),
+    ("baker", "panera"),
+    ("dyer", "tinkara"),
+    ("carpenter", "lignara"),
+    ("messenger", "nuntia"),
+    ("watch", "vigara"),
+    ("pilgrim", "peregra"),
+    ("witness", "testara"),
+    ("ancestor", "avena"),
+    ("promise", "sponda"),
+    ("mercy", "venia"),
+    ("vigil", "vigilia"),
+    ("feast", "festara"),
+    ("song", "kantara"),
+    ("dance", "saltera"),
+    ("drum", "timpana"),
+    ("bell", "kampana"),
+    ("lantern", "lukerna"),
+    ("ribbon", "tenia"),
+    ("crown", "korona"),
+    ("mantle", "palium"),
+    ("banner", "veksila"),
+    ("circle", "orbina"),
+    ("assembly", "komita"),
+    ("fellowship", "sodala"),
+    ("tower", "turena"),
+    ("gate", "valva"),
+    ("court", "kuria"),
+    ("hall", "aula"),
+    ("path", "semeta"),
+    ("crossing", "vadara"),
+    ("refuge", "refugia"),
+    ("renewal", "novara"),
+    ("victory", "viktara"),
+    ("peace", "pakira"),
+    ("endurance", "durana"),
+    ("remembrance", "memorina"),
 ];
 const VIRTUES: &[&str] = &[
     "bright",
@@ -62,10 +213,29 @@ const VIRTUES: &[&str] = &[
     "patient",
     "keeper",
     "healing",
+    "gentle",
+    "merry",
+    "just",
+    "loyal",
+    "curious",
+    "free",
+    "swift",
+    "calm",
+    "generous",
+    "watchful",
+    "resilient",
+    "honest",
 ];
 const EMBLEMS: &[&str] = &[
     "dawn", "star", "reed", "oak", "stone", "water", "fire", "wind", "silver", "gold", "grove",
-    "hill",
+    "hill", "moon", "rain", "snow", "mist", "thunder", "dusk", "ember", "tide", "river", "cliff",
+    "valley", "willow", "pine", "birch", "fern", "blossom", "thorn", "heron", "raven", "lark",
+    "owl", "fox", "deer", "otter", "bee", "pearl", "amber", "flint", "song", "lantern", "spring",
+    "sun", "cloud", "frost", "summer", "autumn", "winter", "night", "ash", "flame", "wave", "foam",
+    "current", "brook", "marsh", "fen", "pool", "lake", "sea", "ridge", "peak", "cave", "hollow",
+    "meadow", "heath", "cedar", "moss", "seed", "root", "leaf", "vine", "orchard", "apple", "pear",
+    "olive", "fig", "crane", "swallow", "wren", "eagle", "hawk", "wolf", "hare", "badger", "bear",
+    "moth", "salmon", "trout", "carp", "shell", "bell", "ribbon", "mantle", "banner",
 ];
 fn hash(mut x: u32) -> u32 {
     x = (x ^ (x >> 16)).wrapping_mul(0x7feb352d);
@@ -98,6 +268,98 @@ pub struct Source {
     pub kind: String,
     pub id: u32,
     pub name: String,
+}
+/// Only associations available at naming time, never a scan of future/global names.
+#[derive(Clone, Debug, Default)]
+pub struct PersonalContext {
+    pub references: Vec<(Source, u32)>,
+    pub concepts: Vec<String>,
+}
+impl PersonalContext {
+    pub fn local(
+        site: &crate::civilization::Site,
+        culture: Option<&crate::culture::Culture>,
+    ) -> Self {
+        let mut c = Self::default();
+        c.references.push((
+            Source {
+                kind: "site".into(),
+                id: site.id,
+                name: site.name.clone(),
+            },
+            3,
+        ));
+        for (g, material, occupation) in [
+            (0, "timber", "carpenter"),
+            (2, "metal", "smith"),
+            (5, "clay", "mason"),
+            (7, "clay", "potter"),
+            (8, "wheat", "grower"),
+            (9, "barley", "grower"),
+            (10, "millet", "grower"),
+            (18, "cloth", "weaver"),
+            (28, "water", "fisher"),
+        ] {
+            if site.economy.made[g] > 1. {
+                c.concepts.push(material.into());
+                c.concepts.push(occupation.into());
+            }
+        }
+        if let Some(culture) = culture {
+            if let Some(t) = culture
+                .site_faith
+                .get(site.id as usize)
+                .and_then(|id| culture.traditions.get(*id as usize))
+            {
+                c.references.push((
+                    Source {
+                        kind: "tradition".into(),
+                        id: t.id,
+                        name: t.name.clone(),
+                    },
+                    3,
+                ));
+                if let Some(p) = t.patron.and_then(|id| culture.patrons.get(id as usize)) {
+                    c.references.push((
+                        Source {
+                            kind: "patron".into(),
+                            id: p.id,
+                            name: p.name.clone(),
+                        },
+                        2,
+                    ));
+                }
+            }
+            // Bound the candidate list; choose established local organizations, not distant fame.
+            for n in culture
+                .institutions
+                .iter()
+                .filter(|n| n.active && n.site == site.id)
+                .take(4)
+            {
+                c.references.push((
+                    Source {
+                        kind: "institution".into(),
+                        id: n.id,
+                        name: n.name.clone(),
+                    },
+                    1,
+                ));
+            }
+        }
+        c
+    }
+    pub fn with_person(mut self, person: &crate::civilization::Person) -> Self {
+        self.references.push((
+            Source {
+                kind: "person".into(),
+                id: person.id,
+                name: person.name.clone(),
+            },
+            6,
+        ));
+        self
+    }
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NameRecord {
@@ -147,7 +409,7 @@ impl Language {
                 ['a', 'e', 'e', 'o', 'o'],
                 ['o', 'e', 'i', 'u', 'a'],
             ][q(9) as usize % 4],
-            preferred_form: (q(10) % 3) as u8,
+            preferred_form: (q(10) % 5) as u8,
             roots: ROOTS.iter().map(|&(a, b)| (a.into(), b.into())).collect(),
             names: BTreeMap::new(),
             used: BTreeSet::new(),
@@ -213,7 +475,7 @@ impl Language {
     pub fn valid(&self) -> bool {
         self.palatalization <= 2
             && self.lenition <= 2
-            && self.preferred_form <= 2
+            && self.preferred_form <= 4
             && self.vowels.iter().all(|v| "aeiou".contains(*v))
             && !self.name.is_empty()
             && !self.roots.is_empty()
@@ -242,37 +504,121 @@ impl Language {
     }
     /// Expedition crew are sparse crew records, not duplicate historical Person IDs.
     pub fn person_in(&mut self, category: &str, id: u32) -> String {
+        self.person_with(category, id, &PersonalContext::default())
+    }
+    pub fn person_with(&mut self, category: &str, id: u32, context: &PersonalContext) -> String {
+        let key = format!("{category}:{id}");
+        if let Some(r) = self.names.get(&key) {
+            return r.name.clone();
+        }
         let q = hash(self.seed ^ id.wrapping_mul(31337) ^ key_hash(category));
-        self.coin(
-            &format!("{category}:{id}"),
-            &[
-                VIRTUES[q as usize % VIRTUES.len()],
-                EMBLEMS[(q >> 8) as usize % EMBLEMS.len()],
-                EMBLEMS[(q >> 16) as usize % EMBLEMS.len()],
-            ],
-            None,
-        )
+        let virtue = VIRTUES[q as usize % VIRTUES.len()];
+        let emblem = EMBLEMS[hash(q ^ 1) as usize % EMBLEMS.len()];
+        let other = EMBLEMS[hash(q ^ 2) as usize % EMBLEMS.len()];
+        // Weighted conventions: 30% aspiration, 20% nature, 20% local livelihood,
+        // 30% commemoration. Missing context falls back to an aspirational name.
+        let mut source = None;
+        let (meanings, style) = match hash(q ^ 3) % 10 {
+            3..=4 => (vec![emblem, other], "nature pairing"),
+            5..=6 if !context.concepts.is_empty() => (
+                vec![
+                    emblem,
+                    context.concepts[hash(q ^ 4) as usize % context.concepts.len()].as_str(),
+                ],
+                "local livelihood",
+            ),
+            7..=9 if !context.references.is_empty() => {
+                let total: u32 = context.references.iter().map(|(_, w)| *w).sum();
+                let mut pick = hash(q ^ 5) % total.max(1);
+                for (s, w) in &context.references {
+                    if pick < *w {
+                        source = Some(s.clone());
+                        break;
+                    }
+                    pick -= *w;
+                }
+                (vec![virtue, emblem], "commemorative")
+            }
+            _ => (vec![virtue, emblem], "aspirational"),
+        };
+        let name = self.coin(&key, &meanings, source);
+        let record = self.names.get_mut(&key).unwrap();
+        record.form = format!("{style}; {}", record.form);
+        name
+    }
+    fn source_stem(&self, name: &str, q: u32) -> String {
+        let particle = self.word("of");
+        let tokens: Vec<String> = name
+            .split_whitespace()
+            .map(|s| {
+                s.chars()
+                    .filter(|c| c.is_alphabetic())
+                    .collect::<String>()
+                    .to_lowercase()
+            })
+            .filter(|s| {
+                s.chars().count() >= 3
+                    && s != &particle
+                    && !matches!(s.as_str(), "of" | "the" | "and")
+            })
+            .collect();
+        tokens
+            .get((q as usize / 7) % tokens.len().max(1))
+            .cloned()
+            .unwrap_or_else(|| self.word("memory"))
+    }
+    /// Alternative naming heads, not assertions about the entity's legal status.
+    pub fn descriptor<'a>(&self, key: &str, base: &'a str) -> &'a str {
+        let options: &[&str] = match base {
+            "home" => &["home", "home", "hearth", "shelter", "refuge"],
+            "league" => &["league", "league", "people", "assembly", "fellowship"],
+            "sanctuary" => &["sanctuary", "sanctuary", "vigil", "covenant", "circle"],
+            "market" => &["market", "market", "crossing", "fellowship", "house"],
+            "learning" => &["learning", "learning", "memory", "witness", "circle"],
+            "craft" => &["craft", "craft", "hall", "house", "fellowship"],
+            "memory" => &["memory", "memory", "remembrance", "song", "oath"],
+            _ => return base,
+        };
+        options[hash(self.seed ^ key_hash(key) ^ 0x68656164) as usize % options.len()]
     }
     pub fn coin(&mut self, key: &str, meanings: &[&str], source: Option<Source>) -> String {
         if let Some(record) = self.names.get(key) {
             return record.name.clone();
         }
+        // Extend old vocabularies without replacing archived roots or old labels.
+        for &(meaning, root) in ROOTS {
+            self.roots
+                .entry(meaning.into())
+                .or_insert_with(|| root.into());
+        }
         let q = hash(self.seed ^ key_hash(key));
+        let meanings: Vec<&str> = meanings
+            .iter()
+            .map(|m| {
+                if key.starts_with("person:") || key.starts_with("crew:") {
+                    *m
+                } else {
+                    self.descriptor(key, m)
+                }
+            })
+            .collect();
         let mut words: Vec<String> = meanings.iter().map(|m| self.word(m)).collect();
         if let Some(s) = &source {
             // Proper names retain their existing sound, rather than undergoing the shifts twice.
-            let stem: String = s
-                .name
-                .split_whitespace()
-                .next()
-                .unwrap_or("Anon")
-                .chars()
-                .filter(|c| c.is_alphabetic())
-                .collect();
-            words.insert(0, stem.to_lowercase());
+            let stem = self.source_stem(&s.name, q);
+            words.insert(
+                (q as usize / 11) % (words.len() + 1),
+                stem.chars().take(12).collect::<String>().to_lowercase(),
+            );
+        }
+        // Each language favors an order, but permits reversals and rotations.
+        if q % 5 == 0 {
+            words.reverse();
+        } else if q % 5 == 1 && words.len() > 1 {
+            words.rotate_left(1);
         }
         let mut form = if q % 4 == 0 {
-            (q / 4 % 3) as u8
+            (q / 4 % 5) as u8
         } else {
             self.preferred_form
         };
@@ -282,6 +628,16 @@ impl Language {
         let text = match form {
             0 => words.iter().map(|s| title(s)).collect::<Vec<_>>().join(" "),
             1 => title(&words.join("")),
+            3 => words
+                .iter()
+                .map(|w| title(&w.chars().take(4).collect::<String>()))
+                .collect::<Vec<_>>()
+                .join(" "),
+            4 => words
+                .iter()
+                .map(|w| title(w))
+                .collect::<Vec<_>>()
+                .join(&format!(" {} ", self.word("of"))),
             _ => {
                 let mut blend = String::new();
                 for (i, word) in words.iter().enumerate() {
@@ -307,24 +663,58 @@ impl Language {
                 .collect();
         }
         let taken = |candidate: &str| self.used.contains(&(category.into(), candidate.into()));
-        if taken(&name) {
-            name = format!(
-                "{} {}",
-                text,
-                title(&self.word(EMBLEMS[(q >> 12) as usize % EMBLEMS.len()]))
-            );
-            if taken(&name) {
-                name = format!("{} {}", name, key.split(':').next_back().unwrap_or(key));
+        let mut gloss: Vec<String> = meanings.iter().map(|s| (*s).into()).collect();
+        let mut attempt = 0u32;
+        while taken(&name) {
+            let salt = hash(q.wrapping_add(attempt));
+            if attempt < 16 {
+                let a = EMBLEMS[salt as usize % EMBLEMS.len()];
+                let b = VIRTUES[hash(salt) as usize % VIRTUES.len()];
+                name = format!(
+                    "{text} {}",
+                    title(&format!("{}{}", self.word(a), self.word(b)))
+                );
+                gloss = meanings
+                    .iter()
+                    .map(|s| (*s).into())
+                    .chain([a.into(), b.into()])
+                    .collect();
+            } else {
+                // A phonotactic family byname, not an exposed entity number.
+                let mut value = salt;
+                let syllables = [
+                    "ba", "de", "fi", "go", "hu", "ka", "le", "mi", "no", "pu", "ra", "se", "ti",
+                    "vo", "wa", "zu",
+                ];
+                let mut byname = String::new();
+                for _ in 0..8 {
+                    byname.push_str(syllables[(value & 15) as usize]);
+                    value >>= 4;
+                }
+                name = format!("{text} {}", title(&self.evolve(&byname)));
+                gloss = meanings
+                    .iter()
+                    .map(|s| (*s).into())
+                    .chain(["family byname (untranslated)".into()])
+                    .collect();
             }
+            attempt = attempt.wrapping_add(1);
         }
         self.used.insert((category.into(), name.clone()));
         self.names.insert(
             key.into(),
             NameRecord {
                 name: name.clone(),
-                meanings: meanings.iter().map(|s| (*s).into()).collect(),
+                meanings: gloss,
                 source,
-                form: ["separate words", "compound", "blend"][form as usize].into(),
+                form: [
+                    "separate words",
+                    "compound",
+                    "blend",
+                    "clipped words",
+                    "linked words",
+                ][form as usize]
+                    .into(),
             },
         );
         name
@@ -383,7 +773,10 @@ mod tests {
         };
         let n = l.coin("institution:3", &["market"], Some(source));
         assert_eq!(l.names["institution:3"].source.as_ref().unwrap().id, 5);
-        assert_eq!(l.names["institution:3"].meanings, ["market"]);
+        assert_eq!(
+            l.names["institution:3"].meanings,
+            [l.descriptor("institution:3", "market")]
+        );
         assert_eq!(n, l.coin("institution:3", &["fire"], None));
         let mut loaded: Language =
             serde_json::from_str(&serde_json::to_string(&l).unwrap()).unwrap();
@@ -398,6 +791,104 @@ mod tests {
         assert!(old.language.is_none());
         assert_eq!(old.name, "Old League");
     }
+    #[test]
+    fn references_skip_particles_and_keep_proper_name_sounds() {
+        let l = Language::new(81, 2);
+        for q in 0..100 {
+            assert_eq!(
+                l.source_stem(&format!("of the Avela {}", l.word("of")), q),
+                "avela"
+            );
+        }
+    }
+    #[test]
+    fn weighted_context_names_are_varied_traceable_and_nonnumeric() {
+        let mut l = Language::new(256, 1);
+        assert!(ROOTS.len() >= 180);
+        assert_eq!(l.roots.len(), ROOTS.len(), "duplicate vocabulary meaning");
+        let context = PersonalContext {
+            concepts: vec!["smith".into(), "metal".into(), "weaver".into()],
+            references: ["person", "site", "tradition", "patron", "institution"]
+                .into_iter()
+                .enumerate()
+                .map(|(i, kind)| {
+                    (
+                        Source {
+                            kind: kind.into(),
+                            id: i as u32,
+                            name: [
+                                "Avela Morin",
+                                "Reed Haven",
+                                "Returning Lantern",
+                                "Sena Guide",
+                                "Clay Circle",
+                            ][i]
+                                .into(),
+                        },
+                        2,
+                    )
+                })
+                .collect(),
+        };
+        let mut styles = BTreeMap::<String, usize>::new();
+        let mut sources = BTreeSet::new();
+        let mut forms = BTreeSet::new();
+        for id in 0..10000 {
+            let n = l.person_with("person", id, &context);
+            assert!(!n.chars().any(|c| c.is_ascii_digit()));
+            assert!(n.len() < 100, "unbounded name: {n}");
+            let r = &l.names[&format!("person:{id}")];
+            let (style, form) = r.form.split_once("; ").unwrap();
+            *styles.entry(style.into()).or_default() += 1;
+            forms.insert(form.to_string());
+            if let Some(s) = &r.source {
+                sources.insert(s.kind.clone());
+            }
+            if id < 16 {
+                eprintln!("{n} — {} ({})", r.meanings.join(" + "), r.form);
+            }
+        }
+        assert_eq!(sources.len(), 5);
+        assert_eq!(forms.len(), 5);
+        assert!((2500..3500).contains(&styles["commemorative"]));
+        assert!((1500..2500).contains(&styles["local livelihood"]));
+        assert_eq!(
+            l.names
+                .values()
+                .map(|r| &r.name)
+                .collect::<BTreeSet<_>>()
+                .len(),
+            10000
+        );
+        eprintln!("personal conventions: {styles:?}; roots: {}", ROOTS.len());
+        let mut resumed: Language =
+            serde_json::from_str(&serde_json::to_string(&l).unwrap()).unwrap();
+        for id in 10000..10100 {
+            assert_eq!(
+                l.person_with("person", id, &context),
+                resumed.person_with("person", id, &context)
+            );
+        }
+        // Deliberately exhaust simple bynames; no identity number may leak into a label.
+        for id in 0..3000 {
+            let n = l.coin(&format!("fixture:{id}"), &["bright"], None);
+            assert!(!n.chars().any(|c| c.is_ascii_digit()));
+        }
+        assert_eq!(
+            l.names
+                .iter()
+                .filter(|(k, _)| k.starts_with("fixture:"))
+                .map(|(_, r)| &r.name)
+                .collect::<BTreeSet<_>>()
+                .len(),
+            3000
+        );
+        assert!(l
+            .names
+            .values()
+            .any(|r| r.meanings.iter().any(|m| m.contains("untranslated"))));
+    }
+
     #[test]
     fn cultures_differ_without_changing_the_underlying_meanings() {
         let mut names = BTreeSet::new();
@@ -453,6 +944,54 @@ mod tests {
             for c in &h.civilizations {
                 let l = c.language.as_ref().unwrap();
                 assert!(l.valid());
+                assert!(l
+                    .names
+                    .iter()
+                    .any(|(key, r)| key.starts_with("person:") && r.source.is_some()));
+                for (key, record) in &l.names {
+                    if key.starts_with("person:") {
+                        assert!(!record.name.chars().any(|c| c.is_ascii_digit()));
+                        if let Some(source) = &record.source {
+                            let exists = match source.kind.as_str() {
+                                "site" => h
+                                    .sites
+                                    .iter()
+                                    .any(|s| s.id == source.id && s.name == source.name),
+                                "person" => h
+                                    .people
+                                    .iter()
+                                    .any(|p| p.id == source.id && p.name == source.name),
+                                "tradition" => h
+                                    .culture
+                                    .as_ref()
+                                    .unwrap()
+                                    .traditions
+                                    .iter()
+                                    .any(|t| t.id == source.id),
+                                "patron" => h
+                                    .culture
+                                    .as_ref()
+                                    .unwrap()
+                                    .patrons
+                                    .iter()
+                                    .any(|p| p.id == source.id),
+                                "institution" => h
+                                    .culture
+                                    .as_ref()
+                                    .unwrap()
+                                    .institutions
+                                    .iter()
+                                    .any(|n| n.id == source.id),
+                                _ => false,
+                            };
+                            assert!(
+                                exists,
+                                "unresolved name source {}:{}",
+                                source.kind, source.id
+                            );
+                        }
+                    }
+                }
                 assert!(l
                     .names
                     .values()

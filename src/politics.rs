@@ -535,13 +535,18 @@ impl History {
             let parents = m.partners;
             self.people.push(Person {
                 id,
-                name: format!(
-                    "{} of {}",
-                    self.civilizations[self.sites[site].civilization as usize]
-                        .naming(self.seed)
-                        .personal(id),
-                    f.name
-                ),
+                name: self.civilizations[self.sites[site].civilization as usize]
+                    .naming(self.seed)
+                    .person_with(
+                        "person",
+                        id,
+                        &crate::naming::PersonalContext::local(
+                            &self.sites[site],
+                            self.culture.as_ref(),
+                        )
+                        .with_person(&self.people[parents[0] as usize])
+                        .with_person(&self.people[parents[1] as usize]),
+                    ),
                 civilization: self.sites[site].civilization,
                 born: self.month as i32,
                 died: None,

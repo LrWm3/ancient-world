@@ -421,7 +421,14 @@ impl History {
                                 id: person,
                                 name: self.civilizations[site.civilization as usize]
                                     .naming(self.seed)
-                                    .personal(person),
+                                    .person_with(
+                                        "person",
+                                        person,
+                                        &crate::naming::PersonalContext::local(
+                                            site,
+                                            self.culture.as_ref(),
+                                        ),
+                                    ),
                                 civilization: site.civilization,
                                 born: self.month as i32 - 360 - (family as i32 % 20) * 12,
                                 died: None,
@@ -629,7 +636,12 @@ impl History {
                         id,
                         name: self.civilizations[site.civilization as usize]
                             .naming(self.seed)
-                            .personal(id),
+                            .person_with(
+                                "person",
+                                id,
+                                &crate::naming::PersonalContext::local(site, self.culture.as_ref())
+                                    .with_person(&self.people[old]),
+                            ),
                         civilization: site.civilization,
                         born: self.month as i32 - 300,
                         died: None,
