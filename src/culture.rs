@@ -5,6 +5,7 @@ use crate::{
     grid,
 };
 use anyhow::{ensure, Result};
+pub mod dynamics;
 mod practices;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -246,6 +247,8 @@ pub struct Artifact {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Culture {
     #[serde(default)]
+    pub religious_dynamics: dynamics::ReligiousDynamics,
+    #[serde(default)]
     pub local_recoveries: Vec<crate::local_places::RecoveryRequest>,
     #[serde(default)]
     pub religious_relief: crate::religious_relief::ReligiousRelief,
@@ -272,6 +275,7 @@ pub struct Culture {
 impl Culture {
     fn empty(month: u32, legacy: bool, options: FoundingOptions) -> Result<Self> {
         Ok(Self {
+            religious_dynamics: Default::default(),
             local_recoveries: vec![],
             religious_relief: Default::default(),
             version: 1,
@@ -340,6 +344,7 @@ impl Culture {
         }
         self.validate_local_recoveries(h)?;
         self.religious_relief.validate(h, self.institutions.len())?;
+        self.religious_dynamics.validate(h, self.traditions.len())?;
         for (i, t) in self.traditions.iter().enumerate() {
             ensure!(
                 t.id as usize == i
@@ -1597,6 +1602,7 @@ impl Culture {
         routes.extend(reverse);
         routes.sort_unstable();
         routes.dedup();
+        let religious_routes = routes.clone();
         let mut counted = BTreeSet::new();
         for (from, to) in routes {
             if self.site_people(h, from).is_empty() || self.site_people(h, to).is_empty() {
@@ -1661,30 +1667,9 @@ impl Culture {
                         .insert(topic, event.id);
                 }
             }
-            if a != b && unit(h.seed, to, h.month, 400) < 0.08 {
-                if let Some(s) = &h.society {
-                    if let Some(hh) = s.households.iter().find(|hh| {
-                        hh.site == to
-                            && !s.relocation.away(hh.id)
-                            && self.household_faith[hh.id as usize] == b
-                    }) {
-                        self.household_faith[hh.id as usize] = a;
-                        self.log(
-                            h,
-                            "faith_adopted",
-                            to,
-                            Some(hh.head),
-                            Some(a),
-                            None,
-                            None,
-                            "A household adopted a neighboring tradition after sustained contact"
-                                .into(),
-                        );
-                    }
-                }
-            }
         }
-        // Household affiliation, not controller, determines the site's plurality.
+        self.advance_religious_dynamics(h, &religious_routes);
+        // Resident household counts determine plurality; ownership shares are wealth, not adherents.
         if let Some(s) = &h.society {
             for site in &h.sites {
                 let mut votes = BTreeMap::<u32, f64>::new();
@@ -1695,73 +1680,13 @@ impl Culture {
                 {
                     *votes
                         .entry(self.household_faith[hh.id as usize])
-                        .or_default() += hh.share;
+                        .or_default() += 1.;
                 }
                 if let Some((&faith, _)) = votes
                     .iter()
                     .max_by(|a, b| a.1.total_cmp(b.1).then_with(|| b.0.cmp(a.0)))
                 {
                     self.site_faith[site.id as usize] = faith;
-                }
-            }
-        }
-        // A splinter requires a living local leader, a dissatisfied constituency, and years of pressure.
-        let count = self.traditions.len();
-        for ti in 0..count {
-            let sites: Vec<u32> = self
-                .site_faith
-                .iter()
-                .enumerate()
-                .filter(|(i, t)| **t == ti as u32 && !h.sites[*i].abandoned)
-                .map(|(i, _)| i as u32)
-                .collect();
-            let pressure = sites
-                .iter()
-                .map(|&s| h.sites[s as usize].stocks.stock[3])
-                .fold(0f32, f32::max);
-            self.traditions[ti].dissent =
-                (self.traditions[ti].dissent + pressure * 0.5 - 0.01).clamp(0., 1.);
-            if self.traditions.len() < 256
-                && sites.len() >= 2
-                && self.traditions[ti].dissent > 0.15
-                && h.month > self.traditions[ti].founded + 240
-            {
-                let site = *sites.last().unwrap();
-                let people = self.site_people(h, site);
-                if let Some(&leader) = people.iter().find(|&&p| {
-                    self.agents[p as usize].traits[0] > 0.6
-                        && self.agents[p as usize].traits[2] > 0.55
-                }) {
-                    let id = self.traditions.len() as u32;
-                    let mut t = self.traditions[ti].clone();
-                    t.id = id;
-                    t.parent = Some(ti as u32);
-                    t.name = format!("{} Covenant", h.people[leader as usize].name);
-                    t.founded = h.month;
-                    t.leader = leader;
-                    t.sacred_site = site;
-                    t.themes[0] = (t.themes[0] + 1) % 8;
-                    t.dissent = 0.;
-                    self.traditions.push(t);
-                    self.traditions[ti].dissent = 0.;
-                    if let Some(s) = &h.society {
-                        for hh in s
-                            .households
-                            .iter()
-                            .filter(|hh| hh.site == site && !s.relocation.away(hh.id))
-                        {
-                            self.household_faith[hh.id as usize] = id;
-                        }
-                    }
-                    self.site_faith[site as usize] = id;
-                    let ev=self.log(h,"religious_schism",site,Some(leader),Some(id),None,None,"A local reformer and households separated after sustained hardship; shared patron ancestry retained".into());
-                    self.account(
-                        h,
-                        id,
-                        Some(leader),
-                        vec![ev],
-                        "Our founding charge requires a different response to hardship.".into(),
-                    );
                 }
             }
         }
@@ -1807,31 +1732,6 @@ impl Culture {
                             THEMES[self.traditions[ti].themes[0] as usize]
                         ),
                     );
-                }
-            }
-            let pairs = self
-                .contact
-                .iter()
-                .filter(|(_, years)| **years >= 20)
-                .filter_map(|(key, _)| {
-                    let (a, b) = key.split_once(':')?;
-                    Some((a.parse::<usize>().ok()?, b.parse::<usize>().ok()?))
-                })
-                .collect::<Vec<_>>();
-            for (a, b) in pairs {
-                if self.living_interpreter(h, a as u32).is_none() {
-                    continue;
-                }
-                let Some((site, leader)) = self.living_interpreter(h, b as u32) else {
-                    continue;
-                };
-                if self.traditions[a].themes[3] != self.traditions[b].themes[3]
-                    && unit(h.seed, a as u32, h.month, 701) < 0.2
-                {
-                    self.traditions[b].themes[3] = self.traditions[a].themes[3];
-
-                    let ev=self.log(h,"religious_syncretism",site,Some(leader),Some(b as u32),None,None,"Long contact led interpreters to adopt one neighboring practice; ancestry and identity remain distinct".into());
-                    self.account(h,b as u32,Some(leader),vec![ev],"Our neighboring community offers a practice compatible with our founding obligations.".into());
                 }
             }
         }

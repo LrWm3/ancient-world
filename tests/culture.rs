@@ -308,13 +308,13 @@ fn artifact_sale_transfers_existing_money_and_rejects_disputed_title() {
 
 #[test]
 #[ignore = "requires a hardware GPU"]
-fn supported_schism_keeps_patron_ancestry_and_records_its_human_author() {
+fn scalar_dissent_and_ambition_alone_cannot_create_a_schism() {
     let mut g = world();
     g.found_civilizations(5).unwrap();
     g.enable_society().unwrap();
     g.advance_history(1).unwrap();
     let h = g.civilizations.as_mut().unwrap();
-    // Controlled cultural fixture: a mature shared tradition with sustained dissent.
+    // Legacy dissent and ambitious leaders are insufficient without an observed constituency.
     h.month = 251;
     let c = h.culture.as_mut().unwrap();
     c.site_faith.fill(0);
@@ -328,17 +328,8 @@ fn supported_schism_keeps_patron_ancestry_and_records_its_human_author() {
     g.advance_history(1).unwrap();
     let h = g.civilizations.as_ref().unwrap();
     let c = h.culture.as_ref().unwrap();
-    assert_eq!(c.traditions.len(), count + 1);
-    let child = c.traditions.last().unwrap();
-    assert_eq!(child.parent, Some(0));
-    assert_eq!(child.patron, c.traditions[0].patron);
-    assert_ne!(child.themes, c.traditions[0].themes);
-    let account = c.accounts.iter().find(|a| a.tradition == child.id).unwrap();
-    assert_eq!(account.author, Some(child.leader));
-    assert!(account
-        .facts
-        .iter()
-        .any(|&id| h.events[id as usize].kind == "religious_schism"));
+    assert_eq!(c.traditions.len(), count);
+    assert!(!h.events.iter().any(|e| e.kind == "religious_schism"));
     h.validate(&g.snapshot().unwrap()).unwrap();
 }
 

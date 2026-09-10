@@ -11,7 +11,7 @@ An optional `SocialState` on `Society` contains one fixed-layout `SocialCell` pe
 | 3 × 5 age/livelihood projection | Children, working-age adults and elders across farming, forestry, mining, craft and other/care |
 | Eight ownership bins | Resident household counts by beneficial ownership relative to the local mean household share |
 | Four pressures | Remembered hunger, disease burden, waterlogging/cleanup disruption and ownership inequality |
-| Four named faith shares + other | Existing household affiliations, normalized by resident household shares |
+| Four named faith shares + other | Existing household affiliations, normalized by resident household counts (not property shares) |
 | Three faction-interest shares | Existing household faction affiliations, normalized locally |
 | Exposure and status | Latest observations, sustained-strain/recovery counters, episode flag and observation month |
 

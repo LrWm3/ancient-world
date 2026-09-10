@@ -189,7 +189,7 @@ impl History {
                 .as_ref()
                 .and_then(|c| c.household_faith.get(hh.id as usize))
             {
-                *faith[site].entry(*id).or_default() += hh.share;
+                *faith[site].entry(*id).or_default() += 1.;
             }
             if let Some(id) = self
                 .politics

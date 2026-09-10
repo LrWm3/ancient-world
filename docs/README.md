@@ -10,6 +10,7 @@ recorded runs, not automatically to today's revision. Opt-in features remain opt
 ## System guides and verification workflows
 
 - [Household observance and local congregations](religious-pluralism.md)
+- [Evidence-driven religious change](religious-dynamics.md)
 
 - [Adaptive industrial staffing](adaptive-industries.md)
 - [Copper, tin, tools and processing residues](alloy-processing.md)
