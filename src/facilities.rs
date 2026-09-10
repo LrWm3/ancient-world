@@ -13,6 +13,15 @@ pub struct Component {
     pub wear: f32,
     pub work: f32,
 }
+impl Component {
+    /// Catalog wear is also a bounded resilience proxy under local disruption.
+    /// This is a game rule: roof loads, fire resistance and rot are not separately solved.
+    pub fn wear_at(&self, disruption: f32) -> f32 {
+        (self.wear * (1. + 10. * disruption.clamp(0., 1.))).min(1.)
+    }
+}
+const INVESTMENT_QUARTERS: f64 = 80.;
+const WORK_VALUE: f64 = 20.;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Room {
     pub method: String,
@@ -69,7 +78,12 @@ pub fn expansion_budget(f: &Facility, e: &Economy, treasury: f64) -> f64 {
         .rooms
         .iter()
         .flat_map(|r| &r.components)
-        .map(|p| p.kg as f64 * p.wear as f64 * 4. * e.prices[p.good as usize].max(0.01) as f64)
+        .map(|p| {
+            p.kg as f64
+                * p.wear_at(e.soil[3]) as f64
+                * 4.
+                * e.prices[p.good as usize].max(0.01) as f64
+        })
         .sum();
     (treasury - 10. - upkeep).max(0.) * 0.75
 }
@@ -117,10 +131,19 @@ pub fn choose(c: &EconomyCatalog, e: &Economy, target: f32, budget: f64) -> Opti
                     },
                 ],
             };
-            // Favor useful capacity, then lifetime cost including upkeep and construction labor.
-            let score = units as f64
-                / (unit_cost * (1. + 20. * (wall.wear + roof.wear) as f64)
-                    + 20. * (wall.work + roof.work) as f64);
+            // Quote each component's own replacement cost and work. Roof wear must not
+            // charge replacement of an intact wall. Current exposure is a planning scenario.
+            let lifetime_per_unit: f64 = room
+                .components
+                .iter()
+                .map(|p| {
+                    let material = p.kg as f64 * e.prices[p.good as usize].max(0.01) as f64;
+                    (material + WORK_VALUE * p.work as f64)
+                        * (1. + INVESTMENT_QUARTERS * p.wear_at(e.soil[3]) as f64)
+                        / units as f64
+                })
+                .sum();
+            let score = units as f64 / lifetime_per_unit;
             if best.as_ref().is_none_or(|(s, _)| score > *s) {
                 best = Some((score, room));
             }
@@ -203,7 +226,7 @@ impl Facility {
             }
             for p in &r.components {
                 let price = e.prices[p.good as usize].max(0.01) as f64;
-                let damage = p.wear + 0.08 * e.soil[3].clamp(0., 1.);
+                let damage = p.wear_at(e.soil[3]);
                 let repair = (1. - p.condition + damage)
                     .clamp(0., 0.1)
                     .min(labor / p.work)
@@ -280,7 +303,7 @@ impl Facility {
                 continue;
             }
             for p in &mut r.components {
-                p.condition = (p.condition - p.wear - 0.08 * e.soil[3].clamp(0., 1.)).max(0.);
+                p.condition = (p.condition - p.wear_at(e.soil[3])).max(0.);
                 let g = p.good as usize;
                 let price = e.prices[g].max(0.01) as f64;
                 let improvement = (1. - p.condition)
@@ -343,6 +366,48 @@ mod tests {
         e.prices.fill(2.);
         e.finance[0] = 1000.;
         e
+    }
+    #[test]
+    fn durable_roofs_pay_back_under_sustained_exposure_but_not_in_shelter() {
+        let c = EconomyCatalog::bundled().unwrap();
+        let mut e = stocks();
+        e.prices = std::array::from_fn(|g| c.goods[g].base_price);
+        e.prices[0] = 4.5;
+        e.goods[2] = 0.; // Compare stocked wood/ceramic alternatives, without a metal supplier.
+        let dry = choose(&c, &e, 4., 10000.).unwrap();
+        assert_eq!(dry.components[1].good, 0);
+        e.soil[3] = 1.;
+        let wet = choose(&c, &e, 4., 10000.).unwrap();
+        assert_eq!(wet.components[0].good, dry.components[0].good);
+        assert_eq!(wet.components[1].good, 50);
+        let cost = [dry.cost(&e), wet.cost(&e)];
+        assert!(cost[1] > cost[0], "durability has an upfront tradeoff");
+        let mut outcome = Vec::new();
+        for room in [dry, wet] {
+            let mut town = e;
+            let mut f = Facility::found(room, &mut town);
+            let mut treasury = 10000.;
+            let cash = treasury + town.finance[0] as f64;
+            f.advance(&mut town, &c, &mut treasury, f.remaining(), 0.);
+            let start_waste = town.reserves[3];
+            let mut replaced = 0.;
+            for _ in 0..80 {
+                let before_goods: f64 = town.goods.iter().map(|v| *v as f64).sum();
+                let (_, mass, _, _, _) = f.advance(&mut town, &c, &mut treasury, 0.1, 0.);
+                let after_goods: f64 = town.goods.iter().map(|v| *v as f64).sum();
+                assert!((before_goods - after_goods - mass).abs() < 0.001);
+                assert_eq!(cash, treasury + town.finance[0] as f64);
+                replaced += mass;
+            }
+            assert!((town.reserves[3] as f64 - start_waste as f64 - replaced).abs() < 0.01);
+            assert!(f.condition() > 0.99);
+            outcome.push(10000. - treasury);
+        }
+        eprintln!(
+            "wood/tile upfront {:?}, 80-quarter upkeep {:?}",
+            cost, outcome
+        );
+        assert!(cost[1] + outcome[1] < cost[0] + outcome[0]);
     }
     #[test]
     fn stocked_alternatives_respond_to_local_material_prices() {

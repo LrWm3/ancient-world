@@ -255,6 +255,15 @@ mod tests {
                 }
             }
             eprintln!("facility demand gaps {gaps}, affordable quotes {funded}, unfinished {pending}, active treasury {treasury:.1}");
+            let mut components = [0.; 4];
+            for f in &facilities {
+                for (good, mass) in f.embodied() {
+                    if let Some(k) = [0, 5, 2, 50].iter().position(|g| *g == good) {
+                        components[k] += mass;
+                    }
+                }
+            }
+            eprintln!("facility embodied wood/bricks/metal/tiles kg {components:?}");
             let made: Vec<f32> = (45..=50)
                 .map(|k| h.sites.iter().map(|s| s.economy.made[k]).sum())
                 .collect();

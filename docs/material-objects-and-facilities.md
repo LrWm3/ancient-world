@@ -182,8 +182,8 @@ These are combined procurement changes, including raw-source recipe forecasts;
 the population differences are not an isolated effect of container substitution.
 There was still **no metal-vessel or roof-tile production in ordinary runs**.
 This improves a demonstrated blocked-supply case, not regional architectural or
-material diversity in general. More specialized vessel functions and building
-exposure/durability tradeoffs remain possible future work.
+material diversity in general. More specialized vessel functions remain possible
+future work; the next pass below adds building exposure/durability tradeoffs.
 
 Maximum absolute economy residual remained below 0.000006. Seed 17's complete
 history matched across save/reload and batch sizes. Reproduce the new controlled
@@ -191,3 +191,57 @@ checks with `cargo test --lib production::tests` and
 `cargo test --lib container_substitution_orders -- --ignored --nocapture`, using
 the repository's Rust toolchain. The existing material-history seed fixture
 reproduces the ordinary-world comparison endpoint.
+
+## Third tuning pass: component durability and upkeep
+
+Previously, construction scoring charged both wall and roof wear against the
+entire room's cost. Actual disruption damage also added the same condition loss
+to every material, largely erasing the advantage of more durable components.
+
+Construction now scores each component's own material and repair-work costs over
+an 80-quarter (20-year) planning scenario. The existing preference for capacity
+remains, subject to upfront affordability and finite stock. It assumes present
+prices and disruption persist; it does not forecast weather or market prices.
+Work is valued at 20 abstract money per worker-month for this comparison.
+
+Quarterly condition loss is now
+`min(1, catalog_wear * (1 + 10 * clamp(local_disruption, 0, 1)))`.
+The same rule drives projected repair orders, the four-quarter expansion reserve,
+construction scoring and actual damage. Catalog wear thus also serves as a simple
+resilience proxy. This is a game rule, not a structural-engineering model of rot,
+fire or flooding. Sheltered wear is unchanged. Older token meeting places without
+component records retain their legacy maintenance path.
+
+### Controlled durability comparison
+
+A four-capacity fixture supplies wood and ceramics, no metal, catalog prices
+except timber at 4.5 money/kg, and sufficient cash. With no disruption, it chooses
+a wooden roof. At maximum sustained disruption, it keeps the same timber walls
+but selects tiles. Each selected room then receives 80 quarters of actual repairs
+under that sustained disruption, with 0.1 worker-month available per quarter:
+
+| Roof | Upfront material value | Repair expenditure | Combined value |
+|---|---:|---:|---:|
+| Timber | 252.00 | 1457.27 | 1709.27 |
+| Tile | 372.00 | 1288.31 | 1660.31 |
+
+Tiles cost 120 more initially and save about 169 in repairs over this scenario.
+Both rooms stay above 99% condition. Each repair checks matched material withdrawal
+and replacement mass, conserved town/institution cash, and cumulative waste.
+Founding material is a declared community contribution; the upfront column values
+that contribution rather than pretending it was also paid from the treasury.
+Reproduce with `cargo test --lib durable_roofs -- --nocapture`.
+
+### Ordinary-world limits and verification
+
+Repeating seeds 17, 81 and 256 at the second pass's settings left every reported
+endpoint unchanged: populations 754/711/763, usable capacity 121.7/94.7/122.6,
+and expansions 13/4/6. Installed facility material was respectively
+1820/1428/2016 kg timber, with no bricks, metal or tiles. The controlled fixture
+demonstrates a contextual reason for substitution, **not ordinary-world material
+diversity**. Limited budgets and inexpensive timber still dominate these runs.
+
+All 47 ordinary library tests passed; 50 hardware tests remain ignored by that
+command. The explicit three-seed GPU test passed, including seed 17's full-history
+save/reload and batch-size equivalence. Maximum absolute economy residual remained
+below 0.000006. These are small-world game-tuning checks, not empirical calibration.
