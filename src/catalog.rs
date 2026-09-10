@@ -7,6 +7,8 @@ pub struct Catalog {
     #[serde(default)]
     pub geological_provinces: bool,
     #[serde(default)]
+    pub process_geology: bool,
+    #[serde(default)]
     pub producer_competition: bool,
     pub rocks: Vec<Rock>,
     pub minerals: Vec<Mineral>,
@@ -23,6 +25,10 @@ pub struct Rock {
     pub id: String,
     pub name: String,
     pub formation: u32,
+    /// 0 generic; 1 volcanic, 2 plutonic, 3 marine, 4 clastic, 5 evaporite,
+    /// 6 regional metamorphic, 7 contact metamorphic, 8 mantle.
+    #[serde(default)]
+    pub setting: u32,
     pub hardness: f32,
     pub permeability: f32,
     pub weathering: f32,
@@ -249,6 +255,13 @@ impl Catalog {
         for r in &self.rocks {
             ensure!(
                 r.formation < 3
+                    && match r.setting {
+                        0 => true,
+                        1 | 2 | 8 => r.formation == 0,
+                        3..=5 => r.formation == 1,
+                        6 | 7 => r.formation == 2,
+                        _ => false,
+                    }
                     && r.hardness.is_finite()
                     && r.hardness > 0.
                     && unit(r.permeability)
@@ -434,9 +447,9 @@ impl Catalog {
             out.push(Entry {
                 a: [r.hardness, r.permeability, r.weathering, 0.],
                 b: r.chemistry,
-                c: z,
+                c: rock_color(r),
                 d: z,
-                ids: [r.formation, stable_salt(&r.id), 0, 0],
+                ids: [r.formation, stable_salt(&r.id), r.setting, 0],
             });
         }
         for m in &self.minerals {
@@ -550,4 +563,15 @@ impl Catalog {
             self.plants.len() as u32,
         ]
     }
+}
+
+/// Shared linear RGB palette for the GPU map and its catalog legend.
+pub fn rock_color(r: &Rock) -> [f32; 4] {
+    let base = match r.formation {
+        0 => [0.67, 0.39, 0.31],
+        1 => [0.73, 0.65, 0.42],
+        _ => [0.46, 0.53, 0.64],
+    };
+    let shade = 0.84 + (stable_salt(&r.id) % 101) as f32 / 100. * 0.24;
+    [base[0] * shade, base[1] * shade, base[2] * shade, 1.]
 }

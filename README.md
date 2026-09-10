@@ -157,3 +157,5 @@ records source/catalog checksums, hardware, monthly trajectories and measured er
 [Harbor work](docs/harbor-work.md) makes port construction and repairs compete with roads for finite craft labor, with persistent deterioration and recovery.
 
 Experiment outputs stay in ignored `output/`; only [human-readable summaries](docs/evidence/README.md) belong in commits.
+
+[Geological regions](docs/geological-regions.md) describes setting-driven rock provinces, muted family colors, water context and the catalog legend.

@@ -441,7 +441,15 @@ impl Generator {
                 120.,
                 1.,
                 self.progress.geological_time_myr as f32,
-                self.catalog.geological_provinces as u32 as f32,
+                if self.catalog.geological_provinces {
+                    if self.catalog.process_geology {
+                        2.
+                    } else {
+                        1.
+                    }
+                } else {
+                    0.
+                },
             ],
         }
     }

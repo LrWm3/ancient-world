@@ -2,11 +2,13 @@
 version = 2
 producer_competition = true
 geological_provinces = true
+process_geology = true
 
 
 [[rocks]]
 chemistry = [0.001, 0.04, 0.0004, 0.02]
 id = "granite"
+setting = 2
 name = "Granite"
 formation = 0
 hardness = 7.0
@@ -16,6 +18,7 @@ weathering = 0.2
 [[rocks]]
 chemistry = [0.003, 0.2, 0.002, 0.04]
 id = "basalt"
+setting = 1
 name = "Basalt"
 formation = 0
 hardness = 6.0
@@ -25,6 +28,7 @@ weathering = 0.3
 [[rocks]]
 chemistry = [0.003, 0.2, 0.002, 0.04]
 id = "gabbro"
+setting = 2
 name = "Gabbro"
 formation = 0
 hardness = 7.0
@@ -34,6 +38,7 @@ weathering = 0.2
 [[rocks]]
 chemistry = [0.001, 0.04, 0.0004, 0.02]
 id = "diorite"
+setting = 2
 name = "Diorite"
 formation = 0
 hardness = 6.0
@@ -43,6 +48,7 @@ weathering = 0.25
 [[rocks]]
 chemistry = [0.003, 0.2, 0.002, 0.04]
 id = "andesite"
+setting = 1
 name = "Andesite"
 formation = 0
 hardness = 6.0
@@ -52,6 +58,7 @@ weathering = 0.3
 [[rocks]]
 chemistry = [0.001, 0.04, 0.0004, 0.02]
 id = "rhyolite"
+setting = 1
 name = "Rhyolite"
 formation = 0
 hardness = 6.0
@@ -61,6 +68,7 @@ weathering = 0.2
 [[rocks]]
 chemistry = [0.001, 0.04, 0.0004, 0.02]
 id = "obsidian"
+setting = 1
 name = "Obsidian"
 formation = 0
 hardness = 5.0
@@ -70,6 +78,7 @@ weathering = 0.1
 [[rocks]]
 chemistry = [0.001, 0.04, 0.0004, 0.02]
 id = "pumice"
+setting = 1
 name = "Pumice"
 formation = 0
 hardness = 2.0
@@ -79,6 +88,7 @@ weathering = 0.7
 [[rocks]]
 chemistry = [0.002, 0.01, 0.0008, 0.015]
 id = "limestone"
+setting = 3
 name = "Limestone"
 formation = 1
 hardness = 3.0
@@ -88,6 +98,7 @@ weathering = 0.7
 [[rocks]]
 chemistry = [0.001, 0.04, 0.0004, 0.02]
 id = "sandstone"
+setting = 4
 name = "Sandstone"
 formation = 1
 hardness = 4.0
@@ -97,6 +108,7 @@ weathering = 0.5
 [[rocks]]
 chemistry = [0.002, 0.01, 0.0008, 0.015]
 id = "shale"
+setting = 4
 name = "Shale"
 formation = 1
 hardness = 2.0
@@ -106,6 +118,7 @@ weathering = 0.8
 [[rocks]]
 chemistry = [0.001, 0.04, 0.0004, 0.02]
 id = "chalk"
+setting = 3
 name = "Chalk"
 formation = 1
 hardness = 1.0
@@ -115,6 +128,7 @@ weathering = 0.9
 [[rocks]]
 chemistry = [0.001, 0.04, 0.0004, 0.02]
 id = "dolomite"
+setting = 3
 name = "Dolomite"
 formation = 1
 hardness = 4.0
@@ -124,6 +138,7 @@ weathering = 0.5
 [[rocks]]
 chemistry = [0.001, 0.04, 0.0004, 0.02]
 id = "conglomerate"
+setting = 4
 name = "Conglomerate"
 formation = 1
 hardness = 4.0
@@ -133,6 +148,7 @@ weathering = 0.5
 [[rocks]]
 chemistry = [0.002, 0.01, 0.0008, 0.015]
 id = "mudstone"
+setting = 4
 name = "Mudstone"
 formation = 1
 hardness = 2.0
@@ -142,6 +158,7 @@ weathering = 0.8
 [[rocks]]
 chemistry = [0.001, 0.04, 0.0004, 0.02]
 id = "rock_salt"
+setting = 5
 name = "Rock Salt"
 formation = 1
 hardness = 2.0
@@ -151,6 +168,7 @@ weathering = 1.0
 [[rocks]]
 chemistry = [0.001, 0.04, 0.0004, 0.02]
 id = "marble"
+setting = 7
 name = "Marble"
 formation = 2
 hardness = 4.0
@@ -160,6 +178,7 @@ weathering = 0.3
 [[rocks]]
 chemistry = [0.001, 0.04, 0.0004, 0.02]
 id = "slate"
+setting = 6
 name = "Slate"
 formation = 2
 hardness = 4.0
@@ -169,6 +188,7 @@ weathering = 0.2
 [[rocks]]
 chemistry = [0.001, 0.04, 0.0004, 0.02]
 id = "quartzite"
+setting = 6
 name = "Quartzite"
 formation = 2
 hardness = 8.0
@@ -178,6 +198,7 @@ weathering = 0.08
 [[rocks]]
 chemistry = [0.001, 0.04, 0.0004, 0.02]
 id = "gneiss"
+setting = 6
 name = "Gneiss"
 formation = 2
 hardness = 7.0
@@ -187,6 +208,7 @@ weathering = 0.15
 [[rocks]]
 chemistry = [0.001, 0.04, 0.0004, 0.02]
 id = "schist"
+setting = 6
 name = "Schist"
 formation = 2
 hardness = 5.0
@@ -196,6 +218,7 @@ weathering = 0.3
 [[rocks]]
 chemistry = [0.001, 0.04, 0.0004, 0.02]
 id = "phyllite"
+setting = 6
 name = "Phyllite"
 formation = 2
 hardness = 4.0
@@ -205,6 +228,7 @@ weathering = 0.3
 [[rocks]]
 chemistry = [0.001, 0.04, 0.0004, 0.02]
 id = "amphibolite"
+setting = 6
 name = "Amphibolite"
 formation = 2
 hardness = 7.0
@@ -214,6 +238,7 @@ weathering = 0.2
 [[rocks]]
 chemistry = [0.0004, 0.7, 0.001, 0.06]
 id = "serpentinite"
+setting = 6
 name = "Serpentinite"
 formation = 2
 hardness = 4.0
@@ -2108,6 +2133,7 @@ phosphorus_fraction = 0.18
 
 [[rocks]]
 id = "peridotite"
+setting = 8
 name = "Peridotite"
 formation = 0
 hardness = 6.5

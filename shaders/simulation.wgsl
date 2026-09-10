@@ -140,6 +140,36 @@ fn province_rock(f:u32,d:vec3<f32>,legacy:f32)->u32 {
  let score=noise(d*24.+offset);if score>best {best=score;id=j;}}
  return id;
 }
+// Broad depositional/exposure settings; these are regional proxies, not a basin solver.
+fn geological_setting(d:vec3<f32>,pl:vec3<f32>,h:f32,r:u32)->u32 {
+ let basin=noise(d*3.+vec3(19.,37.,71.));
+ let arc=pl.y*smoothstep(.02,.45,pl.z);
+ if r==0u {return 1u;}
+ if arc>.48 {return 1u;}
+ if pl.y>.66 && pl.z>.12 && h>700. {return 6u;}
+ if pl.y>.55 && pl.z<-.22 && h>1100. {return 8u;}
+ if h>1050. && basin<.5 {return 2u;}
+ if arc>.26 && h>800. {return 7u;}
+ if r==1u || basin>.56 {
+  if r>=2u && abs(d.y)>.2 && abs(d.y)<.6 && basin>.76 && pl.y<.25 {return 5u;}
+  return 3u;
+ }
+ return 4u;
+}
+fn setting_rock(setting:u32,d:vec3<f32>)->u32 {
+ var formation=0u;if setting>=3u && setting<=5u {formation=1u;}
+ if setting==6u || setting==7u {formation=2u;}
+ let warp=vec3(noise(d*3.+11.),noise(d*3.+37.),noise(d*3.+73.))-.5;
+ let q=d*5.+warp*.7;
+ var id=NONE;var best=-1.;
+ for(var j=0u;j<p.counts.x;j++) {
+  if catalog[j].ids.x!=formation || (catalog[j].ids.z!=0u && catalog[j].ids.z!=setting) {continue;}
+  let salt=catalog[j].ids.y;
+  let offset=vec3(rand(salt),rand(salt+1u),rand(salt+2u))*200.;
+  let score=noise(q+offset);if score>best {best=score;id=j;}
+ }
+ if id==NONE {return province_rock(formation,d,noise(d*5.));}return id;
+}
 fn deposit_environment(c:Cell,setting:u32)->f32 {
  let activity=clamp(c.geology.x,0.,1.);let young=exp(-c.terrain.w/500.);
  let wet=clamp(c.hydro.z/2000.,0.,1.);let warmth=clamp((c.hydro.y+5.)/30.,0.,1.);
@@ -203,7 +233,9 @@ fn initialize(@builtin(global_invocation_id) g:vec3<u32>) {
  c.hydro=vec4(0.,c.climate.x,800.,0.);
  let formation=select(select(1u,0u,pl.y>.5),2u,pl.y>.8);
  c.ids=vec4(province_rock(formation,d,f),0u,NONE,0u);
- c.routing=vec4(NONE,NONE,NONE,u32(pl.x));c.tags=vec4(r,NONE,province_rock(1u,d,f+.1),province_rock(0u,d,f+.2));c.budget=vec4(0.);
+ if p.tuning.w>1. {c.ids.x=setting_rock(geological_setting(d,pl,h,r),d);}
+ c.routing=vec4(NONE,NONE,NONE,u32(pl.x));c.tags=vec4(r,NONE,province_rock(1u,d,f+.1),province_rock(0u,d,f+.2));
+ if p.tuning.w>1. {c.tags.z=setting_rock(select(4u,3u,r<2u),d);c.tags.w=setting_rock(select(2u,1u,r==0u),d);}c.budget=vec4(0.);
  c.strata=vec4(100.+f*400.,500.+fbm(d*11.+29.)*2000.,0.,0.);c.strata.z=max(0.,c.geology.y*1000.-c.strata.x-c.strata.y);
  dst[i]=c;
 }
@@ -214,8 +246,8 @@ fn tectonics(@builtin(global_invocation_id) g:vec3<u32>) {
  let old_crust=c.geology.y;
  c.terrain.w+=dt;c.routing.w=u32(pl.x);c.geology.x=geological_activity(d,pl.y,c.tags.x);c.geology.y=clamp(c.geology.y+uplift*.001,5.,80.);
  if column_present(c) {c.strata.z=max(0.,c.strata.z+(c.geology.y-old_crust)*1000.);}
- if pl.y>.85 && pl.z>.4 {c.ids.x=province_rock(0u,d,fbm(d*9.));c.terrain.w=max(0.,c.terrain.w-dt*100.);}
- if pl.y>.9 && pl.z<-.3 {c.ids.x=province_rock(2u,d,fbm(d*9.));}
+ if pl.y>.85 && pl.z>.4 {c.ids.x=province_rock(0u,d,fbm(d*9.));if p.tuning.w>1. {c.ids.x=setting_rock(1u,d);}c.terrain.w=max(0.,c.terrain.w-dt*100.);}
+ if pl.y>.9 && select(pl.z<-.3,geological_setting(d,pl,c.terrain.x,c.tags.x)==6u,p.tuning.w>1.) {c.ids.x=province_rock(2u,d,fbm(d*9.));if p.tuning.w>1. {c.ids.x=setting_rock(6u,d);}}
  dst[i]=c;
 }
 @compute @workgroup_size(8,8)
@@ -339,7 +371,8 @@ fn water_erosion(@builtin(global_invocation_id) g:vec3<u32>) {
  c.budget.z=lost+erode+weather;c.budget.w=gained+deposit+weather;
  if column_present(c) {
   let lithified=min(c.terrain.y,max(0.,c.terrain.y-5.)*min(.1,p.physical.z*.01));
-  c=lithify_column(c,lithified,province_rock(1u,pos(i),fbm(pos(i)*9.)+.1));
+  var rock_id=province_rock(1u,pos(i),fbm(pos(i)*9.)+.1);if p.tuning.w>1. {rock_id=setting_rock(select(4u,3u,c.tags.x<2u),pos(i));}
+  c=lithify_column(c,lithified,rock_id);
  }
  if c.tags.x==1u {c.life.z=planet[0].y;}
  dst[i]=c;

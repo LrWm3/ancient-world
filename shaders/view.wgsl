@@ -30,7 +30,7 @@ fn color_for(c:Cell)->vec3<f32> {
   case 0u:{return terrain(c);}
   case 1u:{if water{return mix(vec3(.02,.06,.2),vec3(.1,.5,.62),clamp((c.terrain.x+4000.)/4120.,0.,1.));}return mix(vec3(.2,.4,.22),vec3(.95,.9,.77),clamp(c.terrain.x/6000.,0.,1.));}
   case 2u:{return palette(f32(c.routing.w)*.618);}
-  case 3u:{return palette(f32(c.ids.x)*.618);}
+  case 3u:{if water || c.water.x>.25 {return terrain(c); }return catalog[c.ids.x].c.xyz;}
   case 4u:{return mix(vec3(.035,.045,.065),vec3(.95,.65,.2),clamp(c.geology.z*2.,0.,1.));}
   case 5u:{return palette(f32(c.ids.y)*.618);}
   case 6u:{return mix(vec3(.16,.35,.8),vec3(.98,.3,.12),clamp((c.hydro.y+30.)/75.,0.,1.));}
@@ -81,10 +81,10 @@ fn render(@builtin(global_invocation_id) g:vec3<u32>) {
  var color=color_for(c)*shade;
  if v.camera.z>2. && (v.dims.w==0u||v.dims.w==1u) {color=mix(color,regional_color(d)*shade,smoothstep(2.,4.,v.camera.z));}
  if v.dims.w>=15u {color=eco_color(id,v.dims.w)*shade;}
- if v.dims.w==0u || v.dims.w==1u {
+ if v.dims.w==0u || v.dims.w==1u || v.dims.w==3u {
   let tangent=normalize(cross(d,vec3(.01,1.,.01)));let other=cells[index(normalize(d+tangent*2./f32(v.dims.x)))];
   var contrast=(c.terrain.x-other.terrain.x)*.0004;
-  if v.camera.z>2. {
+  if v.camera.z>2. && v.dims.w!=3u {
    let step=2./f32(v.dims.x)/min(v.camera.z,16.);
    contrast=(regional_height(d)-regional_height(normalize(d+tangent*step)))*.003;
   }

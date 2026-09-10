@@ -49,7 +49,7 @@ const LEGENDS: [&str; 31] = [
     "Land cover · relief · water",
     "−4,000 m ocean → 6,000 m peaks",
     "16 moving plates · categorical colors",
-    "Rock type · select a cell for its layers",
+    "Exposed rock family · blue water · select for strata",
     "Dark → gold: low → high deposit potential",
     "Soil type · select a cell for properties",
     "Blue −30 °C → red 45 °C",
@@ -1051,6 +1051,36 @@ impl App {
                     }
                 });
             ui.small(LEGENDS[self.layer as usize]);
+            if self.layer == 3 {
+                ui.horizontal(|ui| {
+                    for (name, rgb) in [
+                        ("Igneous", [171, 99, 79]),
+                        ("Sedimentary", [186, 166, 107]),
+                        ("Metamorphic", [117, 135, 163]),
+                    ] {
+                        ui.colored_label(egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]), name);
+                    }
+                });
+                ui.collapsing("Rock color key", |ui| {
+                    egui::ScrollArea::vertical()
+                        .max_height(180.)
+                        .show(ui, |ui| {
+                            for rock in &self.generator.catalog.rocks {
+                                let rgb = crate::catalog::rock_color(rock);
+                                ui.colored_label(
+                                    egui::Color32::from_rgb(
+                                        (rgb[0] * 255.) as u8,
+                                        (rgb[1] * 255.) as u8,
+                                        (rgb[2] * 255.) as u8,
+                                    ),
+                                    &rock.name,
+                                );
+                            }
+                        });
+                });
+                ui.small("Submerged rock remains available through cell inspection.");
+            }
+
             if let Some((low, high)) = legend_colors(self.layer) {
                 let (rect, _) = ui.allocate_exact_size(egui::vec2(245., 9.), egui::Sense::hover());
                 for k in 0..64 {

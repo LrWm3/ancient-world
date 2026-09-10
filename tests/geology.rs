@@ -228,3 +228,62 @@ fn column_depth_queries_respect_contacts_and_finite_base() {
     }
     assert_eq!(ancient_world::gpu::Cell::default().rock_at_depth(0.), None);
 }
+
+#[test]
+fn rock_settings_and_archive_defaults_are_validated() {
+    let c = Catalog::bundled().unwrap();
+    assert!(c.process_geology);
+    assert!(c.rocks.iter().all(|r| r.setting > 0));
+    let mut bad = c.clone();
+    bad.rocks[0].setting = 4;
+    assert!(bad.validate().is_err());
+    let mut value = serde_json::to_value(&c).unwrap();
+    value.as_object_mut().unwrap().remove("process_geology");
+    for r in value["rocks"].as_array_mut().unwrap() {
+        r.as_object_mut().unwrap().remove("setting");
+    }
+    let old: Catalog = serde_json::from_value(value).unwrap();
+    old.validate().unwrap();
+    assert!(!old.process_geology);
+}
+
+#[test]
+#[ignore = "requires hardware GPU"]
+fn process_regions_reduce_fragmentation_without_erasing_diversity() {
+    let gpu = pollster::block_on(ContextGpu::headless()).unwrap();
+    for seed in [17, 81, 256] {
+        let mut agreement = Vec::new();
+        for enabled in [false, true] {
+            let mut c = Catalog::bundled().unwrap();
+            c.process_geology = enabled;
+            let mut g = Generator::new(gpu.clone(), config(seed), c).unwrap();
+            g.run_epochs(1).unwrap();
+            let cells = g.snapshot().unwrap();
+            let mut matched = 0;
+            let mut count = 0;
+            let mut kinds = std::collections::BTreeSet::new();
+            for (i, c) in cells.iter().enumerate() {
+                if c.meta[0] < 2 {
+                    continue;
+                }
+                kinds.insert(c.ids[0]);
+                let n = &cells[grid::neighbor(i as u32, 64, 1, 0) as usize];
+                if n.meta[0] < 2 {
+                    continue;
+                }
+                count += 1;
+                matched += usize::from(c.ids[0] == n.ids[0]);
+                if c.meta[1] != NONE {
+                    assert!(g.catalog.minerals[c.meta[1] as usize]
+                        .hosts
+                        .contains(&g.catalog.rocks[c.ids[0] as usize].id));
+                }
+            }
+            let rate = matched as f64 / count as f64;
+            agreement.push(rate);
+            eprintln!("process geology seed={seed} enabled={enabled} land_neighbor_agreement={rate:.4} rock_types={}",kinds.len());
+            assert!(kinds.len() >= 8);
+        }
+        assert!(agreement[1] > agreement[0] + 0.15);
+    }
+}
