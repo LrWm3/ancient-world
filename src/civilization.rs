@@ -220,6 +220,8 @@ impl History {
                 .all(|e| e.causes.iter().all(|&id| id < e.id)
                     && e.subjects.iter().all(|(kind, id)| {
                         let limit = match kind.as_str() {
+                            "civilization" => self.civilizations.len(),
+                            "site" => self.sites.len(),
                             "person" => self.people.len(),
                             "road" => self.society.as_ref().map_or(0, |s| s.routes.len()),
                             "port" => self.shipping.as_ref().map_or(0, |s| s.ports.len()),
@@ -1321,6 +1323,7 @@ impl Generator {
 }
 impl History {
     fn annual(&mut self, radius: f32) {
+        self.evolve_lexicons();
         let n = self.terrain_resolution;
         for i in 0..self.sites.len() {
             if self.sites[i].abandoned {

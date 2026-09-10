@@ -1,4 +1,6 @@
 //! Naming-only fictional daughter languages. No social or economic effects.
+mod evolution;
+pub use evolution::{Lexeme, WordUse};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -363,6 +365,8 @@ impl PersonalContext {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NameRecord {
+    #[serde(default)]
+    pub words: Vec<WordUse>,
     pub name: String,
     pub meanings: Vec<String>,
     pub source: Option<Source>,
@@ -385,6 +389,12 @@ pub struct Language {
     /// Archived vocabulary: future source edits do not change an existing language.
     pub roots: BTreeMap<String, String>,
     pub names: BTreeMap<String, NameRecord>,
+    #[serde(default)]
+    pub lexicon: BTreeMap<String, Vec<Lexeme>>,
+    #[serde(default)]
+    pub lexicon_month: u32,
+    #[serde(default)]
+    pub contact_years: BTreeMap<u32, u32>,
     #[serde(skip)]
     used: BTreeSet<(String, String)>,
 }
@@ -412,6 +422,9 @@ impl Language {
             preferred_form: (q(10) % 5) as u8,
             roots: ROOTS.iter().map(|&(a, b)| (a.into(), b.into())).collect(),
             names: BTreeMap::new(),
+            lexicon: BTreeMap::new(),
+            lexicon_month: 0,
+            contact_years: BTreeMap::new(),
             used: BTreeSet::new(),
         };
         l.name = title(&format!(
@@ -479,6 +492,21 @@ impl Language {
             && self.vowels.iter().all(|v| "aeiou".contains(*v))
             && !self.name.is_empty()
             && !self.roots.is_empty()
+            && self.lexicon.iter().all(|(concept, options)| {
+                self.roots.contains_key(concept)
+                    && !options.is_empty()
+                    && options.len() <= 3
+                    && options
+                        .iter()
+                        .all(|w| !w.form.is_empty() && w.form.chars().all(|c| c.is_alphabetic()))
+                    && options.windows(2).all(|w| w[0].adopted <= w[1].adopted)
+                    && options
+                        .iter()
+                        .map(|w| &w.form)
+                        .collect::<BTreeSet<_>>()
+                        .len()
+                        == options.len()
+            })
             && self
                 .roots
                 .values()
@@ -602,7 +630,15 @@ impl Language {
                 }
             })
             .collect();
-        let mut words: Vec<String> = meanings.iter().map(|m| self.word(m)).collect();
+        let mut chosen: Vec<WordUse> = meanings
+            .iter()
+            .enumerate()
+            .map(|(slot, m)| WordUse {
+                concept: (*m).into(),
+                word: self.lexical_choice(m, key, slot),
+            })
+            .collect();
+        let mut words: Vec<String> = chosen.iter().map(|w| w.word.form.clone()).collect();
         if let Some(s) = &source {
             // Proper names retain their existing sound, rather than undergoing the shifts twice.
             let stem = self.source_stem(&s.name, q);
@@ -665,21 +701,32 @@ impl Language {
         let taken = |candidate: &str| self.used.contains(&(category.into(), candidate.into()));
         let mut gloss: Vec<String> = meanings.iter().map(|s| (*s).into()).collect();
         let mut attempt = 0u32;
+        let mut byname_words = vec![];
         while taken(&name) {
             let salt = hash(q.wrapping_add(attempt));
             if attempt < 16 {
                 let a = EMBLEMS[salt as usize % EMBLEMS.len()];
                 let b = VIRTUES[hash(salt) as usize % VIRTUES.len()];
-                name = format!(
-                    "{text} {}",
-                    title(&format!("{}{}", self.word(a), self.word(b)))
-                );
+                let left = self.lexical_choice(a, key, 100 + attempt as usize * 2);
+                let right = self.lexical_choice(b, key, 101 + attempt as usize * 2);
+                name = format!("{text} {}", title(&format!("{}{}", left.form, right.form)));
+                byname_words = vec![
+                    WordUse {
+                        concept: a.into(),
+                        word: left,
+                    },
+                    WordUse {
+                        concept: b.into(),
+                        word: right,
+                    },
+                ];
                 gloss = meanings
                     .iter()
                     .map(|s| (*s).into())
                     .chain([a.into(), b.into()])
                     .collect();
             } else {
+                byname_words.clear();
                 // A phonotactic family byname, not an exposed entity number.
                 let mut value = salt;
                 let syllables = [
@@ -700,10 +747,12 @@ impl Language {
             }
             attempt = attempt.wrapping_add(1);
         }
+        chosen.extend(byname_words);
         self.used.insert((category.into(), name.clone()));
         self.names.insert(
             key.into(),
             NameRecord {
+                words: chosen,
                 name: name.clone(),
                 meanings: gloss,
                 source,
@@ -1004,10 +1053,11 @@ mod tests {
                     .map(|(_, r)| format!("{} [{}]", r.name, r.meanings.join("+")))
                     .collect();
                 eprintln!(
-                    "seed {seed} · {} · {} · {} records: {}",
+                    "seed {seed} · {} · {} · {} records · {} evolved concepts: {}",
                     c.name,
                     l.name,
                     l.names.len(),
+                    l.lexicon.len(),
                     examples.join("; ")
                 );
             }

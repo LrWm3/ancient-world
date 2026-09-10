@@ -87,8 +87,9 @@ with missing roots, preserving existing root spellings. Newly generated children
 use the same weighted conventions instead of always appending an English household
 suffix; actual household and genealogy links are unchanged. An old civilization without a language receives
 one when it next needs a new generated name; existing labels do not acquire
-fabricated etymologies. There is no general renaming system, language drift,
-borrowing/contact, grammatical inflection, or language-based political identity.
+fabricated etymologies. There is no general renaming system, grammatical inflection, or language-based
+political identity. [Lexical evolution and contact borrowing](lexicon-evolution.md)
+now add bounded alternatives to concepts used by future names.
 Patron names are human naming conventions, not a newly simulated ancient language.
 Catalog species, goods, mineral names and faction category labels remain as before.
 Some descriptive labels, including specimen descriptions and building labels,

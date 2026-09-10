@@ -1799,12 +1799,24 @@ impl App {
                         ui.collapsing(format!("{} naming language · {}", language.name, civ.name), |ui| {
                             ui.small("Fictional naming conventions only; no effect on beliefs, trade or politics.");
                             ui.label(format!("{} recorded names · consistent sound changes from a shared invented vocabulary", language.names.len()));
+                            ui.collapsing("Evolving vocabulary", |ui| {
+                                for (concept, options) in &language.lexicon {
+                                    ui.label(format!("{concept}: {}", options.iter().enumerate().map(|(i,w)|
+                                        format!("{} (weight {})",w.form,1 << i)).collect::<Vec<_>>().join(" · ")))
+                                        .on_hover_text(options.iter().map(|w| format!("{} · month {} · {}{}", w.form,w.adopted,
+                                            w.source.as_ref().map(|s| format!("{} {}: {}",s.kind,s.id,s.name)).unwrap_or_else(|| "original root".into()),
+                                            w.borrowed_from.map(|c| format!(" · borrowed from civilization {c}")).unwrap_or_default()))
+                                            .collect::<Vec<_>>().join("\n"));
+                                }
+                            });
                             let records: Vec<_> = language.names.iter().collect();
                             let row_height = ui.text_style_height(&egui::TextStyle::Body);
                             egui::ScrollArea::vertical().max_height(240.).id_salt(("names", civ.id)).show_rows(ui, row_height, records.len(), |ui, range| {
                                 for index in range {
                                     let (key, record) = records[index];
-                                    ui.label(&record.name).on_hover_text(format!("{} · {}\n{}{}", key, record.form, record.meanings.join(" + "), record.source.as_ref().map(|s| format!(" · named for {} ({} {})",s.name,s.kind,s.id)).unwrap_or_default()));
+                                    ui.label(&record.name).on_hover_text(format!("{} · {}\n{}{}", key, record.form, record.meanings.join(" + "), record.source.as_ref().map(|s| format!(" · named for {} ({} {})",s.name,s.kind,s.id)).unwrap_or_default()))
+                                        .on_hover_text(record.words.iter().map(|w| format!("{} → {}{}", w.concept, w.word.form,
+                                            w.word.source.as_ref().map(|s| format!(" · from {}",s.name)).unwrap_or_default())).collect::<Vec<_>>().join("\n"));
                                 }
                             });
                         });
