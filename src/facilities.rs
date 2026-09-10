@@ -62,6 +62,17 @@ pub fn demand(kind: &InstitutionKind, members: usize) -> f32 {
     };
     (members as f32 * factor).clamp(2., 64.)
 }
+/// Keep ten cash for administration plus a year of component upkeep in cash.
+/// Investment uses three quarters of the remainder; quotations and purchases share this limit.
+pub fn expansion_budget(f: &Facility, e: &Economy, treasury: f64) -> f64 {
+    let upkeep: f64 = f
+        .rooms
+        .iter()
+        .flat_map(|r| &r.components)
+        .map(|p| p.kg as f64 * p.wear as f64 * 4. * e.prices[p.good as usize].max(0.01) as f64)
+        .sum();
+    (treasury - 10. - upkeep).max(0.) * 0.75
+}
 /// Select one affordable extension, preserving a finite stock reserve. No planned goods count as stock.
 pub fn choose(c: &EconomyCatalog, e: &Economy, target: f32, budget: f64) -> Option<Room> {
     let methods = c.materials.as_ref()?;
@@ -179,6 +190,32 @@ impl Facility {
             construction_work: built as f64,
         }
     }
+    /// Next quarter's bounded repairs, quoted against one shared cash/work allowance.
+    /// This requests supplies only; actual repairs still withdraw and pay at the boundary.
+    pub fn repair_order(&self, e: &Economy, treasury: f64, work: f32) -> Vec<(u32, f32)> {
+        let mut cash = (treasury - 0.5).max(0.);
+        let mut labor = work.max(0.);
+        let mut goods = std::collections::BTreeMap::new();
+        for r in &self.rooms {
+            if r.remaining_work > 0. {
+                labor = (labor - r.remaining_work).max(0.);
+                continue;
+            }
+            for p in &r.components {
+                let price = e.prices[p.good as usize].max(0.01) as f64;
+                let damage = p.wear + 0.08 * e.soil[3].clamp(0., 1.);
+                let repair = (1. - p.condition + damage)
+                    .clamp(0., 0.1)
+                    .min(labor / p.work)
+                    .min((cash / (p.kg as f64 * price)) as f32);
+                let mass = repair * p.kg;
+                *goods.entry(p.good).or_insert(0.) += mass;
+                cash = (cash - mass as f64 * price).max(0.);
+                labor = (labor - repair * p.work).max(0.);
+            }
+        }
+        goods.into_iter().filter(|(_, mass)| *mass > 0.).collect()
+    }
     pub fn embodied(&self) -> Vec<(u32, f32)> {
         let mut map = std::collections::BTreeMap::new();
         for r in &self.rooms {
@@ -266,7 +303,7 @@ impl Facility {
             }
         }
         let mut expanded = false;
-        // Keep 75% of treasury for operation and other obligations; finish/repair first.
+        // Protect operating reserves; finish and repair existing rooms before expansion.
         if available >= 0.025
             && self.remaining() == 0.
             && self.condition() >= 0.8
@@ -277,7 +314,7 @@ impl Facility {
                 c,
                 e,
                 target - self.planned(),
-                (*treasury - 10.).max(0.) * 0.25,
+                expansion_budget(self, e, *treasury),
             ) {
                 let cost = room.cost(e);
                 let paid = pay(e, treasury, cost);
@@ -306,6 +343,58 @@ mod tests {
         e.prices.fill(2.);
         e.finance[0] = 1000.;
         e
+    }
+    #[test]
+    fn stocked_alternatives_respond_to_local_material_prices() {
+        let c = EconomyCatalog::bundled().unwrap();
+        for (cheap, roof, wall_name) in [
+            (0, 0, "timber_room"),
+            (2, 2, "metal_frame_room"),
+            (5, 50, "masonry_room"),
+        ] {
+            let mut e = stocks();
+            e.prices.fill(40.);
+            e.prices[cheap] = 0.5;
+            e.prices[roof] = 0.5;
+            let room = choose(&c, &e, 8., 10000.).unwrap();
+            assert!(room.method.starts_with(wall_name), "{}", room.method);
+            assert_eq!(room.components[1].good as usize, roof);
+        }
+    }
+    #[test]
+    fn repair_orders_and_expansion_share_finite_operating_reserves() {
+        let c = EconomyCatalog::bundled().unwrap();
+        let mut e = stocks();
+        let mut f = Facility::found(choose(&c, &e, 4., 1000.).unwrap(), &mut e);
+        for r in &mut f.rooms {
+            r.remaining_work = 0.;
+            for p in &mut r.components {
+                p.condition = 0.9;
+            }
+        }
+        assert!(f.repair_order(&e, 0., 0.1).is_empty());
+        assert!(f.repair_order(&e, 100., 0.).is_empty());
+        let orders = f.repair_order(&e, 5., 0.1);
+        let bill: f64 = orders
+            .iter()
+            .map(|&(g, m)| m as f64 * e.prices[g as usize] as f64)
+            .sum();
+        assert!(bill > 0. && bill <= 4.500001);
+        // Receiving exactly the quoted goods permits the corresponding repair, never more.
+        e.goods.fill(0.);
+        for &(g, m) in &orders {
+            e.goods[g as usize] = m;
+        }
+        let mut cash = 5.;
+        let result = f.advance(&mut e, &c, &mut cash, 0.1, 2.);
+        assert!((result.1 - orders.iter().map(|(_, m)| *m as f64).sum::<f64>()).abs() < 1e-5);
+        assert!(cash >= 0.5 - 1e-5);
+        assert_eq!(expansion_budget(&f, &e, 10.), 0.);
+        let budget = expansion_budget(&f, &e, 1000.);
+        assert!(budget > 247.5 && budget < 742.5);
+        let before = budget;
+        e.prices.iter_mut().for_each(|p| *p *= 10.);
+        assert!(expansion_budget(&f, &e, 1000.) < before);
     }
     #[test]
     fn substitution_scale_and_component_repairs_have_finite_costs() {

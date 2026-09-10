@@ -188,7 +188,7 @@ mod tests {
             g.run_epochs(1).unwrap();
             g.found_civilizations(5).unwrap();
             g.enable_society().unwrap();
-            g.advance_history(120).unwrap();
+            g.advance_history(360).unwrap();
             if seed == 17 {
                 let path = std::env::temp_dir().join(format!(
                     "ancient-material-check-{}.world",
@@ -218,6 +218,43 @@ mod tests {
                         .and_then(|b| b.facility.as_ref())
                 })
                 .collect();
+            let mut gaps = 0;
+            let mut funded = 0;
+            let mut pending = 0;
+            let mut treasury = 0.;
+            for n in culture.institutions.iter().filter(|n| n.active) {
+                let Some(f) = n
+                    .capacity
+                    .as_ref()
+                    .and_then(|c| c.building.as_ref())
+                    .and_then(|b| b.facility.as_ref())
+                else {
+                    continue;
+                };
+                let local = culture
+                    .site_people(h, n.site)
+                    .iter()
+                    .filter(|p| n.members.contains(p))
+                    .count();
+                let gap = crate::facilities::demand(&n.kind, local) - f.planned();
+                treasury += n.treasury;
+                pending += usize::from(f.remaining() > 0.);
+                if gap >= 2. {
+                    gaps += 1;
+                    let mut quote = h.sites[n.site as usize].economy;
+                    quote.goods.fill(1_000_000.);
+                    funded += usize::from(
+                        crate::facilities::choose(
+                            h.economy_catalog.as_ref().unwrap(),
+                            &quote,
+                            gap,
+                            crate::facilities::expansion_budget(f, &quote, n.treasury),
+                        )
+                        .is_some(),
+                    );
+                }
+            }
+            eprintln!("facility demand gaps {gaps}, affordable quotes {funded}, unfinished {pending}, active treasury {treasury:.1}");
             let made: Vec<f32> = (45..=50)
                 .map(|k| h.sites.iter().map(|s| s.economy.made[k]).sum())
                 .collect();

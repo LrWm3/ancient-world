@@ -176,6 +176,27 @@ impl History {
                 0.
             };
         }
+        let local_members: Vec<usize> = self
+            .culture
+            .as_ref()
+            .map(|culture| {
+                let present: Vec<_> = self
+                    .sites
+                    .iter()
+                    .map(|s| culture.site_people(self, s.id))
+                    .collect();
+                culture
+                    .institutions
+                    .iter()
+                    .map(|n| {
+                        present[n.site as usize]
+                            .iter()
+                            .filter(|p| n.members.contains(p))
+                            .count()
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         for s in &mut self.sites {
             let e = &mut s.economy;
             e.logistics = [0.; 4];
@@ -276,15 +297,23 @@ impl History {
                         .and_then(|c| c.building.as_ref())
                         .and_then(|b| b.facility.as_ref())
                     {
-                        let target = crate::facilities::demand(&n.kind, n.members.len());
-                        if f.remaining() == 0. && target - f.planned() >= 2. {
+                        let local = local_members[n.id as usize];
+                        if local == 0 {
+                            continue;
+                        }
+                        let target = crate::facilities::demand(&n.kind, local);
+                        for (good, mass) in f.repair_order(e, n.treasury, 0.1) {
+                            planner.request(good as usize, mass);
+                        }
+                        if f.remaining() == 0. && f.condition() >= 0.8 && target - f.planned() >= 2.
+                        {
                             let mut quoted = *e;
                             quoted.goods.fill(1_000_000.);
                             if let Some(room) = crate::facilities::choose(
                                 catalog,
                                 &quoted,
                                 target - f.planned(),
-                                (n.treasury - 10.).max(0.) * 0.25,
+                                crate::facilities::expansion_budget(f, e, n.treasury),
                             ) {
                                 for (good, mass) in room.materials() {
                                     planner.request(good as usize, mass * 2.);

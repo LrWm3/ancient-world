@@ -47,7 +47,7 @@ Target service capacity follows member count and institution kind: religious 1.5
 
 Founding material gifts come from existing community goods, capped in value by 15% of site cash; the previous 25-money organizational endowment remains a separate cash transfer. Initial assembly uses the existing 0.2 worker-month founding allowance. Subsequent construction and repairs share at most 0.1 worker-month per quarter, alongside 0.025 for administration, subject to staffing and the settlement's finite cultural allocation.
 
-An established institution may commission another room when it has unmet capacity demand, finished construction, a maintained facility and sufficient treasury. It retains 10 money plus 75% of the remainder for other obligations. Expansion buys actual stocked materials from its town, with exact matched cash transfers. Funded prospective extensions feed ordinary material production/import targets; expected deliveries are not usable construction stock.
+An established institution may commission another room when it has unmet capacity demand, finished construction, a maintained facility and sufficient treasury. It reserves 10 money for administration and four quarters of component upkeep, then may invest 75% of the remainder. Expansion buys actual stocked materials from its town, with exact matched cash transfers. Funded prospective extensions and the next quarter of bounded repairs feed ordinary material production/import targets; expected deliveries are not usable construction stock. Procurement and operating capacity both count living members currently at the site, excluding absent representatives.
 
 Existing completed rooms continue serving while an extension is unfinished. Each component wears and repairs independently; replacement purchases remove equal worn mass into the waste/C/N/P ledgers. Installed components cannot change material for free. Destruction, loss and physical ownership still use the foundation artifact. Room component records describe that artifact's inventory; they are not another inventory in the ledger.
 
@@ -69,6 +69,52 @@ At terrain resolution 32, ecology resolution 16, one geological epoch and five c
 
 No metal vessels, roof tiles or expansion events occurred in these ordinary runs. Those mechanisms need broader calibration; the tests do not establish broad adoption. All reported economy residuals were below 0.000003 in magnitude. Seed 17 additionally saved at year 10, then compared a 12-month batch with twelve one-month steps from the saved world: full historical state matched.
 
-Reproduce using `mise exec rust@1.89.0 -- cargo test --lib material_history_seed_smoke -- --ignored --nocapture` and `cargo test --lib tools_change_actual_extraction -- --ignored`. The ordinary library suite and the hardware-backed institutional and minority-founding fixtures provide the smaller checks. Generated world files stay temporary; only summaries belong in git.
+The current smoke fixture extends these runs to 30 years (31 for seed 17); see the tuning report below. Reproduce using `mise exec rust@1.89.0 -- cargo test --lib material_history_seed_smoke -- --ignored --nocapture` and `cargo test --lib tools_change_actual_extraction -- --ignored`. The ordinary library suite and the hardware-backed institutional and minority-founding fixtures provide the smaller checks. Generated world files stay temporary; only summaries belong in git.
 
 Final checks: 39 ordinary library tests passed; the extraction fixture, three institutional-capacity fixtures, minority-founding fixture and three-seed history/continuation fixture passed with hardware enabled. Clippy, formatting and source-artifact checks passed.
+
+## First tuning pass: longer matched histories
+
+The same seeds, grids, one epoch and five founding groups were advanced for 360
+months; seed 17 then ran another 12 months for checkpoint/batch equivalence.
+The pre-tuning implementation was `3b9526a`, with only the test duration and
+read-only diagnostics changed. Both runs used the same catalogs and GPU.
+
+The baseline had 41 active institutions with at least two units of unmet local
+space demand, no unfinished construction, and **zero affordable extension
+quotes**. The 25% spending limit was the observed bottleneck, rather than absent
+demand. Procurement also counted absent members and omitted repair supplies.
+
+The changes align local membership, request affordable repairs through ordinary
+production, and replace the fixed investment fraction with the operating reserve
+rule described above. Unmaintained buildings must be repaired before extension
+orders are proposed. No institution receives new money or free materials.
+
+| Seed | Years | Expansions before → after | Usable capacity before → after | Active treasury before → after | Population before → after |
+|---|---:|---:|---:|---:|---:|
+| 17 | 31 | 0 → 18 | 73.3 → 109.4 | 1647 → 647 | 749 → 758 |
+| 81 | 30 | 0 → 7 | 74.9 → 88.9 | 1088 → 720 | 694 → 696 |
+| 256 | 30 | 0 → 9 | 100.9 → 119.1 | 1069 → 558 | 759 → 765 |
+
+The paired changes are a combined game-balancing experiment; population differences
+are downstream observations, not an isolated estimate of construction's effect.
+Space demand remains partially unmet. A cash-poor institution is still allowed to
+remain small. The largest absolute economy residual was below 0.000007; the full
+historical state matched after save/reload and differing batch sizes on seed 17.
+
+Wooden vessels, shovels, axes and picks continued to be produced. No metal vessels
+or roof tiles were produced in either ensemble. Their relative service/cost still
+favors timber here; no random demand or price subsidy was introduced to fill the
+catalog. A controlled all-materials-stocked fixture verifies timber, masonry/tile,
+and metal construction are each selected when their local prices favor them.
+This does not establish that ordinary generated worlds produce those price regimes.
+
+Additional fixtures check zero-cash/zero-labor repair orders, shared procurement
+limits, exact-supply repair execution, and larger upkeep reserves when component
+prices rise. This is small-world game tuning, not empirical calibration or a
+long-term guarantee of institutional solvency.
+
+Tuning-pass checks: 41 ordinary library tests passed (48 hardware tests remain
+ignored in that run); the three-seed GPU fixture, three institution-capacity
+fixtures and minority-founding fixture passed explicitly. Clippy with warnings
+denied, formatting, and the repository artifact check passed.
