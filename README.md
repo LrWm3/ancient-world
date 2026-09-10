@@ -1,14 +1,27 @@
 # Ancient World
 
-A native GPU world generator and globe/atlas explorer. A vast inland sea holds five island continents inside a surrounding supercontinent, with an exterior ocean beyond it. Natural history evolves through compute shaders; the CPU schedules work, handles the UI, catalogs and sparse social-history graphs, and reads explicit inspection/export data.
+Ancient World is a toy world generator and a game-like experiment in AI-assisted
+procedural world generation. The idea is to stack a lot of interacting systems—
+geology, weather, ecology, farming, trade, religion and politics—and see what falls
+out of them. AI helps build and iterate the project; seeded simulation rules
+produce the worlds and their histories.
 
+**Simulation accuracy is not a project goal.** The systems use simplified rules,
+fictional assumptions and parameters chosen for experimentation. The aim is to
+make interesting worlds with consequences that carry between systems. Tests focus
+on whether those connections work, resources are accounted for, and runs can be
+reproduced. They do not establish that the results describe real ecosystems or
+historical societies.
 
-*The globe and atlas show the island continents, surrounding inland sea, and enclosing supercontinent.*
+The setting puts several island continents inside a vast inland sea, surrounded
+by a much larger ancient continent and an exterior ocean. A native Rust globe and
+atlas explorer lets you watch the world evolve, inspect its layers and follow its
+settlements. Dense environmental systems run on GPU compute shaders; sparse social
+history runs on the CPU.
 
-Agriculture and social economics use game-model assumptions; they are not validated
-predictors of real crop yields or ancient societies. [Controlled crop and price experiments](docs/crop-and-price-experiments.md) report both mechanism improvements and failed outcomes.
-
-See the [documentation index](docs/README.md) for current system guides, evaluation reports, and archived designs.
+See the [documentation index](docs/README.md) for system guides and experiments,
+including [crop and price comparisons](docs/crop-and-price-experiments.md) that
+record failed outcomes as well as useful changes.
 
 ## Run
 
@@ -95,7 +108,9 @@ The ecology grid defaults to 256² per face independently of terrain resolution.
 
 For a regional export, run `cargo run --example region -- output/planet.world output/region.png` (optional cell ID and width in km follow the output path). The default is a 600 km square at 1024² cells centered on dry mountainous terrain. It writes both a PNG and a `.region.json` containing the actual fine fields and catalogs. Extents must be 1 km to half the planet radius.
 
-For the five-seed century-scale ecological comparison, run `cargo run --example calibrate -- 10`. Results and tuning assumptions are documented in `docs/ecology.md`. Current verification includes 54 tests, including nutrient excretion, shared lake levels across cube seams, regional export determinism, and compact-drainage recovery.
+For the five-seed century-scale ecological comparison, run `cargo run --example calibrate -- 10`. Results and tuning assumptions are documented in `docs/ecology.md`. Verification covers nutrient excretion, shared lake levels across cube seams, regional export determinism, and compact-drainage recovery.
+
+## Societies and history
 
 The [current civilization guide](docs/civilizations.md) connects the implemented economy, families, politics, religions, expeditions and environmental feedback, and identifies remaining limits. Open **Civilizations beta** in the sidebar to found and inspect central-island societies. The [Timeline tab](docs/history-timeline.md) connects recorded monthly town charts with events and their recorded causes; the map remains present-day.
 
