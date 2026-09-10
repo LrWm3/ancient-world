@@ -67,3 +67,5 @@ pub mod occupation;
 pub mod local_places;
 
 pub mod enterprises;
+
+pub mod history_timeline;

@@ -9,6 +9,8 @@ recorded runs, not automatically to today's revision. Opt-in features remain opt
 
 ## System guides and verification workflows
 
+- [Settlement timeline and causal event navigation](history-timeline.md)
+
 - [Household observance and local congregations](religious-pluralism.md)
 - [Evidence-driven religious change](religious-dynamics.md)
 

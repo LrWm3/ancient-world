@@ -388,6 +388,7 @@ struct App {
     history_selection: Option<usize>,
     history_search: String,
     history_tab: u8,
+    timeline_view: crate::history_timeline::TimelineView,
     political_overlay: bool,
     cultural_overlay: u32,
     founding_options: crate::culture::FoundingOptions,
@@ -467,6 +468,7 @@ impl App {
             history_selection,
             history_search: String::new(),
             history_tab: 0,
+            timeline_view: Default::default(),
             political_overlay: true,
             cultural_overlay: 0,
             founding_options: Default::default(),
@@ -1783,6 +1785,7 @@ impl App {
                     ui.selectable_value(&mut self.history_tab, 0, "Towns and economy");
                     ui.selectable_value(&mut self.history_tab, 1, "Foundings and culture");
                     ui.selectable_value(&mut self.history_tab, 2, "Chronicle");
+                    ui.selectable_value(&mut self.history_tab, 3, "Timeline");
                 });
                 ui.separator();
                 if self.history_tab == 0 {
@@ -2317,6 +2320,9 @@ impl App {
                         });
                     });
                 }
+                }
+                if self.history_tab == 3 {
+                    focus = self.timeline_view.show(ui, h, &mut self.history_selection);
                 }
                 if self.history_tab == 2 {
                 ui.label("Recorded events");

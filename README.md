@@ -97,7 +97,7 @@ For a regional export, run `cargo run --example region -- output/planet.world ou
 
 For the five-seed century-scale ecological comparison, run `cargo run --example calibrate -- 10`. Results and tuning assumptions are documented in `docs/ecology.md`. Current verification includes 54 tests, including nutrient excretion, shared lake levels across cube seams, regional export determinism, and compact-drainage recovery.
 
-The [current civilization guide](docs/civilizations.md) connects the implemented economy, families, politics, religions, expeditions and environmental feedback, and identifies remaining limits. Open **Civilizations beta** in the sidebar to found and inspect central-island societies.
+The [current civilization guide](docs/civilizations.md) connects the implemented economy, families, politics, religions, expeditions and environmental feedback, and identifies remaining limits. Open **Civilizations beta** in the sidebar to found and inspect central-island societies. The [Timeline tab](docs/history-timeline.md) connects recorded monthly town charts with events and their recorded causes; the map remains present-day.
 
 [Managed farming, crafts and markets](docs/economy.md) now run in new civilization worlds. Farms reserve actual ecological C/N/P and water; finite timber/ore/clay feed workshops, and paid shipments move goods between central-island settlements. Select a settlement to inspect production and change farming or market policies. Existing first-beta histories offer an explicit economy upgrade.
 

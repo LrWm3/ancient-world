@@ -54,6 +54,7 @@ impl SettlementSize {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SettlementLifecycle {
+    pub timeline: crate::history_timeline::Timeline,
     pub size: SettlementSize,
     pub pending_size: Option<SettlementSize>,
     pub pending_months: u32,
@@ -421,6 +422,12 @@ impl History {
         (self.initial_population + born - died - living) / (self.initial_population + born).max(1.)
     }
     pub fn validate(&self, cells: &[crate::gpu::Cell]) -> Result<()> {
+        ensure!(
+            self.sites
+                .iter()
+                .all(|s| s.lifecycle.timeline.valid(s.founded, self.month)),
+            "invalid settlement timeline observations"
+        );
         ensure!(
             self.experimental_tool_reserves
                 .iter()
@@ -1180,6 +1187,7 @@ impl Generator {
                 }
                 h.sync_offices();
                 h.social_indicators_month();
+                h.record_timeline();
             }
             h.prepare_society(&terrain, self.config.radius_km);
             h.prepare_politics(&terrain);
