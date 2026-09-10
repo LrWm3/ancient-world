@@ -6,6 +6,9 @@ Conserving nutrients and money establishes accounting correctness, not agronomic
 or historical accuracy. Base prices, policy shares and crop coefficients remain
 explicit design assumptions.
 
+Subsequent work changed [shared crop-resource allocation](crop-resource-competition.md)
+in both modes. The historical comparison below predates that change.
+
 This increment adds two independently selectable alternatives. **Neither is enabled
 by default.** Controlled comparisons exposed severe crop underproduction and large
 staple-price drift. Keeping them experimental is an evaluation result, not evidence

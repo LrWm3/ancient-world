@@ -1108,3 +1108,55 @@ fn seasonal_crops_and_adaptive_prices_seed_comparison() {
         }
     }
 }
+
+#[test]
+#[ignore = "requires hardware GPU"]
+fn scarce_crop_resources_are_not_awarded_in_catalog_order() {
+    let mut g = world();
+    g.found_civilizations(5).unwrap();
+    let mut catalog = EconomyCatalog::bundled().unwrap();
+    catalog.recipes.clear();
+    g.configure_economy(catalog.clone()).unwrap();
+    for site in &mut g.civilizations.as_mut().unwrap().sites {
+        let e = &mut site.economy;
+        let removed = e.soil[2] + e.detritus[2] + e.reserves[0] - 0.01;
+        e.external[2] -= removed;
+        e.soil[2] = 0.01;
+        e.detritus[2] = 0.;
+        e.reserves[0] = 0.;
+    }
+    let checkpoint = std::env::temp_dir().join(format!("crop-order-{}.world", std::process::id()));
+    g.save(&checkpoint).unwrap();
+    let mut reversed = Generator::load(g.gpu.clone(), &checkpoint).unwrap();
+    std::fs::remove_file(checkpoint).unwrap();
+    catalog.agriculture.as_mut().unwrap().crops.reverse();
+    reversed.configure_economy(catalog).unwrap();
+    for site in &mut reversed.civilizations.as_mut().unwrap().sites {
+        site.economy.crops.reverse();
+    }
+    g.advance_history(1).unwrap();
+    reversed.advance_history(1).unwrap();
+    let a = g.civilizations.as_ref().unwrap();
+    let b = reversed.civilizations.as_ref().unwrap();
+    assert!(a.sites.iter().any(|s| s.economy.agriculture[0] > 0.));
+    for (a, b) in a.sites.iter().zip(&b.sites) {
+        for j in 0..6 {
+            for k in 1..4 {
+                assert!(
+                    relative(
+                        a.economy.crops[j][k] as f64,
+                        b.economy.crops[5 - j][k] as f64
+                    ) < 0.0001,
+                    "site {} crop {j} field {k}: {:?} vs {:?}",
+                    a.id,
+                    a.economy.crops[j],
+                    b.economy.crops[5 - j]
+                );
+            }
+        }
+        assert!(a.economy.valid() && b.economy.valid());
+    }
+    for h in [a, b] {
+        assert!(h.economy_residuals().iter().all(|v| v.abs() < 0.001));
+    }
+}

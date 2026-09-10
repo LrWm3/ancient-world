@@ -383,7 +383,8 @@ fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
  var e=input;let s=src[i];let t=world[u32(s.habitat.z)];let month=p.dims.z%12u;
  let temp=select(t.hydro.y,t.climate.x,(p.options.w&2u)!=0u);
  let moisture=max(0.,t.hydro.z)*weather;
- var strongest=0.;
+ var demands:array<f32,6>;
+ var total_need=vec3(0.); // N, P and water, measured before any crop uptake.
  for(var j=0u;j<6u;j++){
   let params=catalog.crops[j*2u];let growth_params=catalog.crops[j*2u+1u];let good=u32(params.x);let chemistry=catalog.goods[good].xyz;var c=e.crops[j];
   let seasonal=catalog.seasons[j];let harvest=(u32(demography[i].crops.z)+u32(growth_params.w))%12u;
@@ -403,15 +404,27 @@ fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
   }
   // Industrial crops stop growing once standing crop plus stores cover orders.
   if e.logistics.w>.5 && catalog.goods[good].w<=0.{growth=min(growth,max(0.,order_room(e,good)-c.y));}
-  let n_limit=e.soil.y/max(chemistry.y,.00001);let p_limit=e.soil.z/max(chemistry.z,.00001);let w_limit=e.water.x/growth_params.y;
-  let capacity=min(n_limit,min(p_limit,w_limit));let restriction=clamp(1.-capacity/max(growth,.00001),0.,1.);
-  if restriction>strongest {strongest=restriction;e.diagnostics.x=select(select(3.,2.,p_limit<=w_limit),1.,n_limit<=min(p_limit,w_limit));}
-  if seasonal.x>0. && phase>=3u && phase<=4u && growth>.00001 {
-   // Reproductive water deficit damages standing yield; lost matter becomes litter.
-   let damage=c.y*seasonal.z*clamp(1.-w_limit/max(growth,.00001),0.,1.);
+  demands[j]=max(0.,growth);
+  total_need+=demands[j]*vec3(chemistry.yz,growth_params.y);
+  e.crops[j]=c;
+ }
+ // Proportional rationing: all crops face the same resource snapshot. This bounded
+ // single round may leave other resources unused when one resource is limiting.
+ let supply=max(vec3(e.soil.yz,e.water.x),vec3(0.));
+ let fractions=select(vec3(1.),min(vec3(1.),supply/max(total_need,vec3(.000001))),total_need>vec3(0.));
+ let fulfilled=min(fractions.x,min(fractions.y,fractions.z));
+ if fulfilled<1. {e.diagnostics.x=select(select(3.,2.,fractions.y<=fractions.z),1.,fractions.x<=min(fractions.y,fractions.z));}
+ for(var j=0u;j<6u;j++){
+  let params=catalog.crops[j*2u];let growth_params=catalog.crops[j*2u+1u];let good=u32(params.x);let chemistry=catalog.goods[good].xyz;var c=e.crops[j];
+  let seasonal=catalog.seasons[j];let harvest=(u32(demography[i].crops.z)+u32(growth_params.w))%12u;
+  let phase=(month+12u-(harvest+6u)%12u)%12u;
+  if seasonal.x>0. && phase>=3u && phase<=4u && demands[j]>.00001 {
+   let damage=c.y*seasonal.z*(1.-fractions.z);
    c.y-=damage;e.detritus+=vec4(damage*chemistry,0.);
   }
-  growth=max(0.,min(growth,capacity));
+  // Guard only against final float32 subtraction error, not sequential allocation.
+  let capacity=min(e.soil.y/max(chemistry.y,.00001),min(e.soil.z/max(chemistry.z,.00001),e.water.x/growth_params.y));
+  let growth=max(0.,min(demands[j]*fulfilled,capacity));
   e.soil.y=max(0.,e.soil.y-growth*chemistry.y);e.soil.z=max(0.,e.soil.z-growth*chemistry.z);e.exchange.x+=growth*chemistry.x;e.water.x-=growth*growth_params.y;e.water.w+=growth*growth_params.y;c.y+=growth;e.agriculture.x+=growth;
   if month==harvest {
    if seasonal.x>0. {let residue=c.y*(1.-seasonal.y);c.y-=residue;e.detritus+=vec4(residue*chemistry,0.);}
