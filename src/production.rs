@@ -102,6 +102,76 @@ struct Planner<'a> {
     knowledge: u32,
 }
 impl Planner<'_> {
+    /// One recipe stage backed by known stock/deliveries and unreserved local sources.
+    /// This is a procurement forecast, not a promise about this month's workforce.
+    fn supported_output(&self, good: usize) -> f32 {
+        self.catalog
+            .recipes
+            .iter()
+            .filter(|r| {
+                r.output[good] > 0.
+                    && (r.work[1] == 0. || self.knowledge & (1 << (r.work[1] as u32 - 1)) != 0)
+            })
+            .map(|r| {
+                r.input
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, q)| **q > 0.)
+                    .map(|(g, q)| {
+                        (self.available[g] + (self.extractable[g] - self.targets[g]).max(0.)) / q
+                    })
+                    .fold(f32::INFINITY, f32::min)
+                    * r.output[good]
+            })
+            .filter(|q| q.is_finite())
+            .fold(0., f32::max)
+    }
+    fn containers(&mut self, prices: &[f32; GOODS], population: f32) {
+        let Some(materials) = &self.catalog.materials else {
+            return;
+        };
+        let mut options: Vec<_> = materials
+            .variants
+            .iter()
+            .filter(|v| v.role == "container")
+            .map(|v| (v.slot, v.service, v.wear))
+            .chain(std::iter::once((7, 1., 0.005)))
+            .collect();
+        options.sort_by(|a, b| {
+            let cost = |x: &(usize, f32, f32)| prices[x.0].max(0.01) / x.1 * (1. + x.2 * 120.);
+            cost(a).total_cmp(&cost(b)).then(a.0.cmp(&b.0))
+        });
+        let mut needed = population.max(0.) * 2.;
+        // Keep only useful existing service; surplus remains available for other demands/trade.
+        for &(g, service, _) in &options {
+            let held = self.available[g].min(needed / service);
+            self.request(g, held);
+            needed = (needed - held * service).max(0.);
+        }
+        // Mix feasible substitutes instead of waiting exclusively for the cheapest missing input.
+        for &(g, service, _) in &options {
+            let make = self.supported_output(g).min(needed / service);
+            self.request(g, make);
+            needed = (needed - make * service).max(0.);
+        }
+        // Remaining demand still enters ordinary upstream production/import planning.
+        if let Some(&(g, service, _)) = options.first() {
+            self.request(g, needed / service);
+        }
+    }
+    fn construction_quote(&self, e: &crate::economy::Economy) -> crate::economy::Economy {
+        let mut quote = *e;
+        for g in 0..GOODS {
+            quote.goods[g] = self.available[g] + (self.extractable[g] - self.targets[g]).max(0.);
+        }
+        // Include possible assembly of tiles from actual bricks; no speculative upstream cascade.
+        if let Some(materials) = &self.catalog.materials {
+            for v in materials.variants.iter().filter(|v| v.role == "roof") {
+                quote.goods[v.slot] += self.supported_output(v.slot);
+            }
+        }
+        quote
+    }
     fn request(&mut self, good: usize, quantity: f32) {
         if quantity <= 0. || self.visiting[good] {
             return;
@@ -258,6 +328,8 @@ impl History {
                 extractable: {
                     let mut supply = [0.; GOODS];
                     supply[e.extraction[0].max(1.) as usize] = e.reserves[1];
+                    supply[0] = e.forest[0] / catalog.composition(0)[0].max(0.0001);
+                    supply[4] = e.reserves[2];
                     supply
                 },
                 targets: [0.; GOODS],
@@ -307,8 +379,7 @@ impl History {
                         }
                         if f.remaining() == 0. && f.condition() >= 0.8 && target - f.planned() >= 2.
                         {
-                            let mut quoted = *e;
-                            quoted.goods.fill(1_000_000.);
+                            let quoted = planner.construction_quote(e);
                             if let Some(room) = crate::facilities::choose(
                                 catalog,
                                 &quoted,
@@ -351,32 +422,7 @@ impl History {
                 );
             }
             if let Some(methods) = &catalog.materials {
-                // Containers substitute by useful storage, not equal mass. Existing variants count.
-                let held = planner.available[7]
-                    + methods
-                        .variants
-                        .iter()
-                        .filter(|v| v.role == "container")
-                        .map(|v| planner.available[v.slot] * v.service)
-                        .sum::<f32>();
-                let selected = methods
-                    .variants
-                    .iter()
-                    .filter(|v| v.role == "container")
-                    .map(|v| (v.slot, v.service, v.wear))
-                    .chain(std::iter::once((7, 1., 0.005)))
-                    .min_by(|a, b| {
-                        let cost = |x: &(usize, f32, f32)| {
-                            e.prices[x.0].max(0.01) / x.1 * (1. + x.2 * 120.)
-                        };
-                        cost(a).total_cmp(&cost(b))
-                    });
-                if let Some((k, service, _)) = selected {
-                    planner.request(
-                        k,
-                        planner.available[k] + (pop * 2. - held).max(0.) / service,
-                    );
-                }
+                planner.containers(&e.prices, pop);
                 for v in &methods.variants {
                     let need = match v.role.as_str() {
                         "digging" | "breaking" => {
@@ -782,6 +828,63 @@ mod tests {
             visiting: [false; GOODS],
             knowledge: u32::MAX,
         }
+    }
+    #[test]
+    fn containers_mix_supported_materials_without_overfilling_service() {
+        let c = EconomyCatalog::bundled().unwrap();
+        let prices = std::array::from_fn(|g| c.goods[g].base_price);
+        let mut p = planner(&c);
+        p.available[0] = 2.;
+        p.available[2] = 100.;
+        p.containers(&prices, 100.);
+        assert!((p.targets[45] - 2.).abs() < 1e-5);
+        assert!((p.targets[46] - 38.8).abs() < 1e-5);
+        assert!((p.targets[45] * 3. + p.targets[46] * 5. - 200.).abs() < 1e-4);
+        assert_eq!(p.targets[7], 0.);
+        assert!(p.available[2] > 61.);
+        let mut delivered = planner(&c);
+        delivered.available[46] = 100.; // Also represents expected cargo in the caller.
+        delivered.containers(&prices, 100.);
+        assert_eq!(delivered.targets[46], 40.);
+        assert_eq!(delivered.available[46], 60.);
+        assert_eq!(delivered.orders, [0.; GOODS]);
+        let mut forest = planner(&c);
+        forest.extractable[0] = 1000.;
+        forest.available[2] = 100.;
+        forest.containers(&prices, 100.);
+        assert_eq!(forest.targets[46], 0.);
+        assert!((forest.targets[45] - 200. / 3.).abs() < 1e-4);
+        let mut no_supply = planner(&c);
+        no_supply.containers(&prices, 100.);
+        assert_eq!(no_supply.targets[46], 0.);
+        assert!(
+            no_supply.targets[0] > 0.,
+            "uncovered demand must still request upstream supplies"
+        );
+    }
+    #[test]
+    fn construction_quotes_follow_local_stock_and_tile_assembly() {
+        let c = EconomyCatalog::bundled().unwrap();
+        let e = crate::economy::Economy {
+            prices: std::array::from_fn(|g| c.goods[g].base_price),
+            ..Default::default()
+        };
+        let empty = planner(&c);
+        assert!(crate::facilities::choose(&c, &empty.construction_quote(&e), 8., 10000.).is_none());
+        let mut kiln = planner(&c);
+        kiln.available[5] = 500.;
+        let room = crate::facilities::choose(&c, &kiln.construction_quote(&e), 8., 10000.).unwrap();
+        assert_eq!(room.components[0].good, 5);
+        assert_eq!(room.components[1].good, 50);
+        assert_eq!(
+            e.goods[50], 0.,
+            "a quote must not manufacture physical tiles"
+        );
+        for (g, kg) in room.materials() {
+            kiln.request(g as usize, kg * 2.);
+        }
+        assert!(kiln.targets[50] > 0.);
+        assert!(kiln.orders.iter().sum::<f32>() > 0.);
     }
     #[test]
     fn orders_follow_inputs_and_existing_deliveries_prevent_duplicate_work() {

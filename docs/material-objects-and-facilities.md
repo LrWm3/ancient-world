@@ -15,7 +15,7 @@ Six material-specific goods occupy previously reserved slots 45–50. Each has a
 | Metal pick | 0.3 kg timber + 0.7 kg base metal | Ore extraction |
 | Roof tiles | 1 kg bricks | Masonry tiles cut from existing fired material |
 
-Existing pottery is the ceramic vessel alternative. Towns compare vessel price per service and a simple ten-year wear estimate; existing vessels of every type count toward the same need. Vessels affect the existing granary preservation rule and add a bounded dry-storage benefit (at most 20% of existing yard/warehouse capacity). They cannot create unlimited storage by stacking themselves.
+Existing pottery is the ceramic vessel alternative. Towns compare vessel price per service and a simple ten-year wear estimate. Existing vessels of every type count toward the same need. Procurement protects only the required service, then mixes substitutes backed by available inputs before requesting uncovered demand through the cheapest upstream/import path. Vessels affect the existing granary preservation rule and add a bounded dry-storage benefit (at most 20% of existing yard/warehouse capacity). They cannot create unlimited storage by stacking themselves.
 
 All six remain ordinary goods through production, inventories and shipments. Composite goods carry the mass-weighted C/N/P of their inputs. Worn wooden components return organic matter; the recoverable base-metal fraction returns to scrap. No fuel or feedstock is free. These recipes are deliberately simple assembly/cutting recipes, with upstream smelting and firing remaining in existing industries.
 
@@ -118,3 +118,76 @@ Tuning-pass checks: 41 ordinary library tests passed (48 hardware tests remain
 ignored in that run); the three-seed GPU fixture, three institution-capacity
 fixtures and minority-founding fixture passed explicitly. Clippy with warnings
 denied, formatting, and the repository artifact check passed.
+
+## Second tuning pass: supply-aware substitution
+
+The catalog values and investment reserve settings are unchanged. Two procurement
+rules were masking possible material alternatives:
+
+- Container selection considered price alone, even when the cheapest material had
+  no available input and a different vessel could be made locally.
+- Extension quotes temporarily filled **every** material inventory with a million
+  kg. This often selected a material combination without any supporting supply.
+
+Container planning now reserves existing useful service (leaving surplus free),
+then allocates the remaining need across price-ranked, input-supported variants.
+It accounts for existing stock and incoming deliveries. One-stage recipe forecasts
+also consider finite local extraction stocks: wood carbon, clay and the selected
+ore source. Previously the planner's extraction forecast included only ore.
+Orders already reserving a raw good reduce its forecast source allowance; this is
+conservative when some orders are covered by inventory. Actual GPU work remains
+limited by staffing, equipment, industry capacity and physical inputs.
+
+Uncovered container demand still enters the ordinary cheapest upstream/import
+path. A missing local input does not prohibit future trade. Existing and expected
+vessels can satisfy the need without making every catalog alternative. No price
+subsidies, material-specific quotas or productivity multipliers were added.
+
+Extension quotes now use stock, expected deliveries and remaining local raw
+sources; existing bricks can support a tile-assembly quote. They do not assume an
+unlimited upstream manufacturing chain. Quotes remain forecasts: actual expansion
+still requires materials in town, a funded treasury and the existing construction
+boundary checks. A town without those stocks may have to wait for ordinary
+production/trade to supply them.
+
+### Controlled checks
+
+- For 200 units of required service, 2 kg timber plus ample metal generates orders
+  for **2 kg wooden vessels and 38.8 kg metal vessels**, exactly covering demand.
+- A 100 kg existing/expected metal-vessel supply protects only 40 kg for that need;
+  the other 60 kg remain free, with no duplicate manufacturing orders.
+- A stocked forest preserves the inexpensive wooden choice. No supported inputs
+  leaves an upstream request instead of inventing supply.
+- Bricks with no timber support a masonry/tile extension quote and tile production
+  orders. Empty stocks/sources cannot quote a funded building merely because cash
+  is available. The quote itself creates no goods.
+- A GPU fixture starts with declared metal, no timber/forest, and adequate abstract
+  workshop access. Planning requests metal vessels; the actual monthly production
+  kernel makes them. Metal depletion is checked against used metal, and wooden
+  vessel production stays zero. This fixture disables workshop prerequisites to
+  isolate material choice from building access; ordinary worlds retain them.
+
+### Matched worlds
+
+Same seeds and settings as the first tuning pass: terrain 32, ecology 16, one
+epoch, five civilizations, 30 years (31 for seed 17's continuation check).
+
+| Seed | Expansions before → after | Usable capacity before → after | Active treasury before → after | Population before → after |
+|---|---:|---:|---:|---:|
+| 17 | 18 → 13 | 109.4 → 121.7 | 647 → 614 | 758 → 754 |
+| 81 | 7 → 4 | 88.9 → 94.7 | 720 → 789 | 696 → 711 |
+| 256 | 9 → 6 | 119.1 → 122.6 | 558 → 617 | 765 → 763 |
+
+These are combined procurement changes, including raw-source recipe forecasts;
+the population differences are not an isolated effect of container substitution.
+There was still **no metal-vessel or roof-tile production in ordinary runs**.
+This improves a demonstrated blocked-supply case, not regional architectural or
+material diversity in general. More specialized vessel functions and building
+exposure/durability tradeoffs remain possible future work.
+
+Maximum absolute economy residual remained below 0.000006. Seed 17's complete
+history matched across save/reload and batch sizes. Reproduce the new controlled
+checks with `cargo test --lib production::tests` and
+`cargo test --lib container_substitution_orders -- --ignored --nocapture`, using
+the repository's Rust toolchain. The existing material-history seed fixture
+reproduces the ordinary-world comparison endpoint.

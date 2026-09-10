@@ -2308,6 +2308,57 @@ mod lifecycle_tests {
 mod material_integration_tests {
     use super::*;
     #[test]
+    #[ignore = "requires a GPU"]
+    fn container_substitution_orders_reach_actual_gpu_production() {
+        let mut g = Generator::new(
+            pollster::block_on(crate::gpu::ContextGpu::headless()).unwrap(),
+            crate::config::Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                ..Default::default()
+            },
+            crate::catalog::Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        let mut h = g.civilizations.as_ref().unwrap().clone();
+        h.society = None;
+        h.culture = None;
+        h.month = 1;
+        let catalog = h.economy_catalog.as_mut().unwrap();
+        catalog.production.workshops = false;
+        catalog.production.food_security_labor = false;
+        let prices = std::array::from_fn(|g| catalog.goods[g].base_price);
+        for s in &mut h.sites {
+            s.stocks.stock[0] = 100.;
+            s.economy = Economy::default();
+            s.economy.prices = prices;
+            s.economy.goods[2] = 200.;
+            s.economy.finance[0] = 10000.;
+            s.economy.claim = [1., 1000., 1000., 1.];
+            s.economy.initial[2] = 200.;
+        }
+        h.plan_production();
+        assert!(h.sites.iter().all(|s| s.economy.targets[46] > 0.));
+        g.civilizations = Some(h.clone());
+        let engine = Engine::new(&g).unwrap();
+        engine.upload(&g, &h);
+        engine.dispatch(&g, false, h.sites.len() as u32);
+        engine.read(&g, &mut h, true).unwrap();
+        for s in &h.sites {
+            let e = &s.economy;
+            eprintln!(
+                "metal-only fixture: vessels {}, metal remaining {}, metal used {}, waste {}",
+                e.made[46], e.goods[2], e.used[2], e.reserves[3]
+            );
+            assert!(e.made[46] > 0.);
+            assert_eq!(e.made[45], 0.);
+            assert!((e.goods[2] + e.used[2] - 200.).abs() < 0.001);
+            assert!(e.used[2] >= e.made[46]);
+            assert!(e.valid());
+        }
+    }
+    #[test]
     #[ignore = "requires hardware GPU"]
     fn tools_change_actual_extraction_without_changing_source_mass() {
         let mut g = Generator::new(
