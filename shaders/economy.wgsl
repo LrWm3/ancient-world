@@ -15,7 +15,7 @@ struct Eco {pools:array<vec4<f32>,38>}
 struct Recipe {input:array<vec4<f32>,16>, output:array<vec4<f32>,16>, work:vec4<f32>}
 @group(0) @binding(5) var<storage,read_write> economies:array<Economy>;
 @group(0) @binding(6) var<storage,read_write> ecology:array<Eco>;
-struct CraftCatalog { goods:array<vec4<f32>,64>, crops:array<vec4<f32>,12>, herds:array<vec4<f32>,3>, recipes:array<Recipe> }
+struct CraftCatalog { goods:array<vec4<f32>,64>, crops:array<vec4<f32>,12>, herds:array<vec4<f32>,3>, seasons:array<vec4<f32>,6>, recipes:array<Recipe> }
 @group(0) @binding(7) var<storage,read> catalog:CraftCatalog;
 // One invocation serializes overlapping coarse-cell reservations in stable site order.
 @compute @workgroup_size(1)
@@ -369,6 +369,11 @@ fn return_food(i:u32,amount:f32){
  e.detritus+=vec4(0.,returned,0.);e.exchange-=vec4(amount*.45,nutrients-returned,0.);e.diagnostics.z=returned.x;e.diagnostics.w=returned.y;economies[i]=e;
 }
 
+// Canopy proxy across sowing, expansion, flowering, filling and senescence.
+fn crop_canopy(phase:u32)->f32 {
+ if phase>6u {return 0.;}
+ return array<f32,7>(.2,.6,1.,1.,.8,.4,.1)[phase];
+}
 // Managed growth and husbandry share finite land, water, feed and nutrients.
 fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
  var e=input;let s=src[i];let t=world[u32(s.habitat.z)];let month=p.dims.z%12u;
@@ -377,19 +382,37 @@ fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
  var strongest=0.;
  for(var j=0u;j<6u;j++){
   let params=catalog.crops[j*2u];let growth_params=catalog.crops[j*2u+1u];let good=u32(params.x);let chemistry=catalog.goods[good].xyz;var c=e.crops[j];
+  let seasonal=catalog.seasons[j];let harvest=(u32(demography[i].crops.z)+u32(growth_params.w))%12u;
+  let phase=(month+12u-(harvest+6u)%12u)%12u;
+  if seasonal.x>0. && phase==0u {let planted=min(c.z,max(2.,s.stock.x*.02));c.z-=planted;c.y+=planted;}
   let habitat=clamp((temp-params.y)/10.,0.,1.)*clamp((params.z-temp)/10.,0.,1.)*clamp(moisture/params.w,0.,1.);
   // Every crop shares the same bounded total potential and 5% of land is pasture.
   var growth=potential*.95*c.x*growth_params.x*habitat*select(0.,1.,c.z>0.001||c.y>0.001);
+  if seasonal.x>0. {
+   // Crop-equivalent standing mass, normalized to a common 0.45 kg-C budget.
+   // Stored seed is dormant. Monthly phenology is a calendar proxy, not thermal time.
+   let canopy=crop_canopy(phase);
+   let thermal=clamp((temp-params.y)/10.,0.,1.)*clamp((params.z-temp)/10.,0.,1.);
+   growth=potential*.95*c.x*growth_params.x*(.45/max(chemistry.x,.01))*thermal*canopy*f32(c.y>.001);
+   let frost=c.y*seasonal.w*clamp((params.y-temp)/10.,0.,1.);
+   c.y-=frost;e.detritus+=vec4(frost*chemistry,0.);
+  }
   // Industrial crops stop growing once standing crop plus stores cover orders.
   if e.logistics.w>.5 && catalog.goods[good].w<=0.{growth=min(growth,max(0.,order_room(e,good)-c.y));}
   let n_limit=e.soil.y/max(chemistry.y,.00001);let p_limit=e.soil.z/max(chemistry.z,.00001);let w_limit=e.water.x/growth_params.y;
   let capacity=min(n_limit,min(p_limit,w_limit));let restriction=clamp(1.-capacity/max(growth,.00001),0.,1.);
   if restriction>strongest {strongest=restriction;e.diagnostics.x=select(select(3.,2.,p_limit<=w_limit),1.,n_limit<=min(p_limit,w_limit));}
+  if seasonal.x>0. && phase>=3u && phase<=4u && growth>.00001 {
+   // Reproductive water deficit damages standing yield; lost matter becomes litter.
+   let damage=c.y*seasonal.z*clamp(1.-w_limit/max(growth,.00001),0.,1.);
+   c.y-=damage;e.detritus+=vec4(damage*chemistry,0.);
+  }
   growth=max(0.,min(growth,capacity));
   e.soil.y=max(0.,e.soil.y-growth*chemistry.y);e.soil.z=max(0.,e.soil.z-growth*chemistry.z);e.exchange.x+=growth*chemistry.x;e.water.x-=growth*growth_params.y;e.water.w+=growth*growth_params.y;c.y+=growth;e.agriculture.x+=growth;
-  let harvest=(u32(demography[i].crops.z)+u32(growth_params.w))%12u;
-  if month==harvest {let seed=min(c.y*.05,max(2.,s.stock.x*.02));let harvested=max(0.,c.y-seed);e.goods[good/4u][good%4u]+=harvested;e.made[good/4u][good%4u]+=harvested;c.w+=harvested;c.z+=seed;c.y=0.;}
-  if month==(harvest+6u)%12u {let planted=min(c.z,max(2.,s.stock.x*.02));c.z-=planted;c.y+=planted;}
+  if month==harvest {
+   if seasonal.x>0. {let residue=c.y*(1.-seasonal.y);c.y-=residue;e.detritus+=vec4(residue*chemistry,0.);}
+   let seed=min(c.y*.05,max(2.,s.stock.x*.02));let harvested=max(0.,c.y-seed);e.goods[good/4u][good%4u]+=harvested;e.made[good/4u][good%4u]+=harvested;c.w+=harvested;c.z+=seed;c.y=0.;}
+  if seasonal.x==0. && month==(harvest+6u)%12u {let planted=min(c.z,max(2.,s.stock.x*.02));c.z-=planted;c.y+=planted;}
   // Purchased seed can establish a new daughter farm; no spontaneous imports.
   if c.z+c.y<.001{let seed=min(2.,e.goods[good/4u][good%4u]);e.goods[good/4u][good%4u]-=seed;e.used[good/4u][good%4u]+=seed;c.z+=seed;}
   e.crops[j]=c;

@@ -5,6 +5,9 @@ A native GPU world generator and globe/atlas explorer. A vast inland sea holds f
 
 *The globe and atlas show the island continents, surrounding inland sea, and enclosing supercontinent.*
 
+Agriculture and social economics use game-model assumptions; they are not validated
+predictors of real crop yields or ancient societies. [Controlled crop and price experiments](docs/crop-and-price-experiments.md) report both mechanism improvements and failed outcomes.
+
 See the [documentation index](docs/README.md) for current system guides, evaluation reports, and archived designs.
 
 ## Run

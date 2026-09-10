@@ -110,7 +110,16 @@ fn no_phosphorus_blocks_crops_and_manure_retains_it() {
     s.economy.reserves[0] = 0.;
     let mut catalog = EconomyCatalog::bundled().unwrap();
     catalog.recipes.clear();
+    catalog.agriculture =
+        Some(ancient_world::agriculture::AgricultureCatalog::seasonal_experiment());
     g.configure_economy(catalog).unwrap();
+    // Declare an established mid-season stand by moving existing seed, not adding biomass.
+    let site = &mut g.civilizations.as_mut().unwrap().sites[0];
+    site.demography.crops[2] = 4.;
+    for crop in &mut site.economy.crops {
+        crop[1] += crop[2];
+        crop[2] = 0.;
+    }
     g.set_site_policy(0, [0.15, 0., 0.25, 0.]).unwrap();
     g.advance_history(1).unwrap();
     let h = g.civilizations.as_ref().unwrap();
@@ -957,4 +966,145 @@ fn fisheries_can_use_migratory_animals_without_aquatic_grazers() {
             .unwrap()
             .within_tolerance
     );
+}
+
+#[test]
+fn seasonal_catalog_validates_and_legacy_remains_explicit() {
+    let mut c = EconomyCatalog::bundled().unwrap();
+    assert!(c
+        .agriculture
+        .as_ref()
+        .unwrap()
+        .crops
+        .iter()
+        .all(|c| c.season.is_none()));
+    c.agriculture = Some(ancient_world::agriculture::AgricultureCatalog::seasonal_experiment());
+    let a = c.agriculture.as_mut().unwrap();
+    assert_eq!(a.crops[4].yield_scale, 1.);
+    assert!(a.crops.iter().all(|c| c.season.is_some()));
+    a.crops[0].season.as_mut().unwrap().harvest_index = 1.1;
+    assert!(c.validate().is_err());
+    let c = EconomyCatalog::bundled().unwrap();
+    let mut value = serde_json::to_value(c.agriculture.as_ref().unwrap()).unwrap();
+    for crop in value["crops"].as_array_mut().unwrap() {
+        crop.as_object_mut().unwrap().remove("season");
+    }
+    let legacy: ancient_world::agriculture::AgricultureCatalog =
+        serde_json::from_value(value).unwrap();
+    legacy.validate(&c).unwrap();
+    assert!(legacy.crops.iter().all(|c| c.season.is_none()));
+    assert!(legacy.gpu(&c)[15..].iter().all(|v| *v == [0.; 4]));
+}
+#[test]
+#[ignore = "requires hardware GPU"]
+fn stored_seed_is_dormant_and_a_full_season_conserves_material() {
+    let mut g = world();
+    g.found_civilizations(5).unwrap();
+    let mut catalog = EconomyCatalog::bundled().unwrap();
+    catalog.agriculture =
+        Some(ancient_world::agriculture::AgricultureCatalog::seasonal_experiment());
+    catalog.market.adaptive_prices = true;
+    g.configure_economy(catalog).unwrap();
+    let h = g.civilizations.as_mut().unwrap();
+    for site in &mut h.sites {
+        // At month one, phase seven is post-harvest for every crop.
+        site.demography.crops[2] = 0.;
+    }
+    g.advance_history(1).unwrap();
+    let h = g.civilizations.as_ref().unwrap();
+    assert!(h.sites.iter().all(|s| s.economy.agriculture[0] == 0.));
+    assert!(h
+        .sites
+        .iter()
+        .all(|s| s.economy.crops.iter().all(|c| c[1] == 0.)));
+    g.advance_history(6).unwrap();
+    let checkpoint = std::env::temp_dir().join(format!("seasonal-{}.world", std::process::id()));
+    g.save(&checkpoint).unwrap();
+    let mut resumed = Generator::load(g.gpu.clone(), &checkpoint).unwrap();
+    std::fs::remove_file(checkpoint).unwrap();
+    g.advance_history(12).unwrap();
+    for _ in 0..12 {
+        resumed.advance_history(1).unwrap();
+    }
+    assert_eq!(
+        serde_json::to_value(&g.civilizations).unwrap(),
+        serde_json::to_value(&resumed.civilizations).unwrap()
+    );
+    let h = g.civilizations.as_ref().unwrap();
+    assert!(h.sites.iter().any(|s| s.economy.agriculture[0] > 0.));
+    assert!(
+        h.economy_residuals().iter().all(|r| r.abs() < 0.001),
+        "{:?}",
+        h.economy_residuals()
+    );
+}
+
+#[test]
+#[ignore = "requires hardware GPU; paired 50-year model evaluation"]
+fn seasonal_crops_and_adaptive_prices_seed_comparison() {
+    let gpu = pollster::block_on(ContextGpu::headless()).unwrap();
+    for seed in [17, 81, 256] {
+        let variants = [(false, false), (true, false), (false, true), (true, true)];
+        for (crops, prices) in variants {
+            let mut g = Generator::new(
+                gpu.clone(),
+                Config {
+                    seed,
+                    resolution: 64,
+                    ecology_resolution: 32,
+                    ecology_years_per_epoch: 1,
+                    ..Default::default()
+                },
+                Catalog::bundled().unwrap(),
+            )
+            .unwrap();
+            g.run_epochs(1).unwrap();
+            g.found_civilizations(8).unwrap();
+            let mut catalog = EconomyCatalog::bundled().unwrap();
+            catalog.market.adaptive_prices = prices;
+            if crops {
+                catalog.agriculture =
+                    Some(ancient_world::agriculture::AgricultureCatalog::seasonal_experiment());
+            }
+            if !crops {
+                for c in &mut catalog.agriculture.as_mut().unwrap().crops {
+                    c.season = None;
+                    if c.good == "tubers" {
+                        c.yield_scale = 6.;
+                    }
+                }
+            }
+            g.configure_economy(catalog).unwrap();
+            g.enable_society().unwrap();
+            g.enable_politics().unwrap();
+            g.enable_governance().unwrap();
+            g.enable_shipping().unwrap();
+            g.advance_history(600).unwrap();
+            let h = g.civilizations.as_ref().unwrap();
+            let population: f32 = h.sites.iter().map(|s| s.stocks.stock[0]).sum();
+            let harvest: f32 = h
+                .sites
+                .iter()
+                .map(|s| {
+                    s.economy
+                        .crops
+                        .iter()
+                        .enumerate()
+                        .map(|(i, c)| {
+                            let catalog = h.economy_catalog.as_ref().unwrap();
+                            let crop = &catalog.agriculture.as_ref().unwrap().crops[i];
+                            c[3] * catalog.goods[catalog.index(&crop.good).unwrap()].food_energy
+                        })
+                        .sum::<f32>()
+                })
+                .sum();
+            let residual = h
+                .economy_residuals()
+                .into_iter()
+                .map(f64::abs)
+                .fold(0., f64::max);
+            assert!(residual < 0.001, "seed {seed}: {residual}");
+            println!("seed={seed} seasonal={crops} adaptive_prices={prices} population={population:.1} occupied={} harvested_food_equivalent={harvest:.1} wheat_price={:.3} tools_price={:.3} residual={residual:.7}",h.sites.iter().filter(|s|!s.abandoned).count(),h.sites[0].economy.prices[8],h.sites[0].economy.prices[3]);
+        }
+    }
 }

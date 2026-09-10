@@ -95,6 +95,8 @@ work = [0.15,0.0,2.0,0.0]
 
 # Commercial reserves: kg/person; tools retain 150% of the buyer target.
 [market]
+# Experimental cost/delivery quotes; paired tests still show excessive staple-price drift.
+adaptive_prices = false
 network_trade = true
 max_distance_km = 3000.0
 reserve_per_person = [3.0,3.0,3.0,0.75,3.0,3.0,3.0,3.0]

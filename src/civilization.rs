@@ -760,7 +760,7 @@ impl Engine {
             .as_ref()
             .map(|a| a.gpu(&catalog))
             .unwrap_or_else(|| {
-                let mut table = vec![[0.; 4]; 15];
+                let mut table = vec![[0.; 4]; 21];
                 // Archives predating managed agriculture used this fixation cost.
                 table[12][2] = 80.;
                 table

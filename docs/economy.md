@@ -4,6 +4,10 @@ New civilizations use economic history version two. Settlements still occupy onl
 
 This describes the base economy. [Demand planning](demand-economy.md), [diversified farming and culture](patron-foundings.md), [household wallets](household-economy.md), and optional environmental coupling extend it; see the [current civilization guide](civilizations.md).
 
+These are game economy rules, not validated agronomy or ancient economic estimates.
+The [crop and price experiments](crop-and-price-experiments.md) document process-based
+alternatives, their failed calibration comparisons, and why they remain opt-in.
+
 ## Run and inspect
 
 ```sh

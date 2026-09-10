@@ -56,6 +56,8 @@ impl Default for HistoryWeather {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct MarketSettings {
+    /// Adjust quotes from previous prices, replacement costs and observed deliveries.
+    pub adaptive_prices: bool,
     pub network_trade: bool,
     pub max_distance_km: f32,
     #[serde(with = "slots")]
@@ -65,6 +67,7 @@ pub struct MarketSettings {
 impl Default for MarketSettings {
     fn default() -> Self {
         Self {
+            adaptive_prices: false,
             network_trade: false,
             max_distance_km: 1500.,
             reserve_per_person: [3.; GOODS],
@@ -637,6 +640,43 @@ pub struct Cargo {
     #[serde(default)]
     pub weather_delay_months: u32,
 }
+/// Partial price adjustment: inventory pressure plus separately observed costs/prices.
+/// Rate limits bound adjustment speed, not a multiple of the catalog's base price.
+fn adaptive_quote(
+    previous: f32,
+    stock: f32,
+    target: f32,
+    cost: Option<f32>,
+    delivered: Option<f32>,
+    purchasing_capacity: f32,
+) -> f32 {
+    let scarcity = if target > 0. {
+        ((target - stock) / (target + stock).max(1.)).clamp(-1., 1.)
+    } else if stock > 0. {
+        -1.
+    } else {
+        0.
+    };
+    let cost_signal = cost
+        .filter(|c| *c > 0.)
+        .map_or(0., |c| (c / previous).ln().clamp(-1., 1.));
+    let trade_signal = delivered
+        .filter(|v| *v > 0.)
+        .map_or(0., |v| (v / previous).ln().clamp(-1., 1.));
+    let shortage = (target - stock).max(0.);
+    let funded = if shortage > 0. {
+        (purchasing_capacity / (shortage * previous).max(0.0001)).clamp(0., 1.)
+    } else {
+        1.
+    };
+    let demand =
+        scarcity.min(0.) + scarcity.max(0.) * funded - f32::from(shortage > 0.) * (1. - funded);
+    let adjustment = (0.08 * demand
+        + 0.08 * (cost_signal.min(0.) + cost_signal.max(0.) * funded)
+        + 0.12 * trade_signal)
+        .clamp(-0.15, 0.15);
+    (previous * adjustment.exp()).clamp(0.0001, 1e6)
+}
 impl History {
     pub fn economy_residuals(&self) -> [f64; 6] {
         let mut baseline = self.nutrition_initial;
@@ -899,6 +939,7 @@ impl History {
 
     pub(crate) fn market_month(&mut self, radius: f32) {
         self.expire_export_contracts();
+        let mut observed = vec![[[0_f64; 2]; GOODS]; self.sites.len()];
         let arrivals = std::mem::take(&mut self.cargo);
         for mut c in arrivals {
             if c.arrives <= self.month && self.flood_blocks_delivery(c.from, c.to, c.sea_lane) {
@@ -967,6 +1008,10 @@ impl History {
                 } else {
                     self.sites[c.to as usize].economy.goods[c.good as usize] += c.kg;
                 }
+                if c.kg > 0. && c.paid > 0. && c.weather_delay_months == 0 {
+                    observed[c.to as usize][c.good as usize][0] += c.paid as f64;
+                    observed[c.to as usize][c.good as usize][1] += c.kg as f64;
+                }
                 self.event(
                     "market_arrival",
                     Some(c.to),
@@ -990,7 +1035,32 @@ impl History {
         let Some(catalog) = self.economy_catalog.clone() else {
             return;
         };
-        // Prices are local scarcity quotes, not a global price. Stable ordering resolves reservations.
+        // Cost quotes all read last month's price snapshot, avoiding settlement/good order feedback.
+        let costs: Vec<Vec<_>> = if catalog.market.adaptive_prices {
+            (0..self.sites.len())
+                .map(|site| {
+                    (0..catalog.goods.len())
+                        .map(|good| self.supplier_unit_cost(site, good))
+                        .collect()
+                })
+                .collect()
+        } else {
+            vec![]
+        };
+        let mut purchasing: Vec<f32> = self.sites.iter().map(|s| s.economy.finance[0]).collect();
+        if let Some(society) = &self.society {
+            if let Some(wallets) = &society.household_economy {
+                for hh in &society.households {
+                    if !society.relocation.away(hh.id) {
+                        purchasing[hh.site as usize] += wallets
+                            .accounts
+                            .get(hh.id as usize)
+                            .map_or(0., |a| a.cash as f32);
+                    }
+                }
+            }
+        }
+        // Prices are local offers, not equilibrium solutions or money transfers.
         for s in &mut self.sites {
             for (k, good) in catalog.goods.iter().enumerate() {
                 let target = if s.economy.logistics[3] > 0.5 {
@@ -1002,6 +1072,23 @@ impl History {
                 } else {
                     s.stocks.stock[0] * if k == 3 { 0.5 } else { 2. }
                 };
+                if catalog.market.adaptive_prices {
+                    let stock = if k == FOOD {
+                        s.stocks.stock[1]
+                    } else {
+                        s.economy.goods[k]
+                    };
+                    let trade = observed[s.id as usize][k];
+                    s.economy.prices[k] = adaptive_quote(
+                        s.economy.prices[k].max(0.0001),
+                        stock,
+                        target,
+                        costs[s.id as usize][k],
+                        (trade[1] > 0.).then(|| (trade[0] / trade[1]) as f32),
+                        purchasing[s.id as usize],
+                    );
+                    continue;
+                }
                 s.economy.prices[k] = good.base_price
                     * (target
                         / ((if k == FOOD {
@@ -1609,5 +1696,69 @@ mod freight_tests {
             .iter()
             .all(|c| c.from == 1 && c.to == 3 && c.sea_lane == Some(0)));
         assert_eq!(direct.land_freight_capacity(3), 7.);
+    }
+}
+
+#[cfg(test)]
+mod adaptive_price_tests {
+    use super::*;
+    #[test]
+    fn quotes_respond_to_costs_and_paid_evidence_without_catalog_price_ceiling() {
+        assert_eq!(
+            adaptive_quote(10., 100., 100., Some(10.), Some(10.), 1e12),
+            10.
+        );
+        let ordinary = adaptive_quote(10., 100., 100., Some(10.), None, 1e12);
+        assert!(adaptive_quote(10., 100., 100., Some(20.), None, 1e12) > ordinary);
+        assert!(adaptive_quote(10., 100., 100., None, Some(5.), 1e12) < ordinary);
+        assert!(adaptive_quote(10., 200., 100., None, None, 1e12) < ordinary);
+        assert!(adaptive_quote(10., 0., 100., Some(20.), None, 0.) < 10.);
+        let mut scarce = 10.;
+        for _ in 0..24 {
+            scarce = adaptive_quote(scarce, 0., 100., None, None, 1e12);
+        }
+        assert!(scarce > 40. && scarce.is_finite());
+        for previous in [0.0001, 1., 100., 1e6] {
+            let q = adaptive_quote(previous, 0., 1e9, Some(1e6), Some(1e6), 1e12);
+            assert!(q <= previous * 0.15_f32.exp() + 0.001);
+        }
+        let mut legacy = serde_json::to_value(EconomyCatalog::bundled().unwrap()).unwrap();
+        legacy["market"]
+            .as_object_mut()
+            .unwrap()
+            .remove("adaptive_prices");
+        let legacy: EconomyCatalog = serde_json::from_value(legacy).unwrap();
+        assert!(!legacy.market.adaptive_prices);
+    }
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn local_recipe_input_prices_change_the_actual_tool_quote() {
+        let mut g = Generator::new(
+            pollster::block_on(crate::gpu::ContextGpu::headless()).unwrap(),
+            crate::config::Config {
+                resolution: 64,
+                ecology_resolution: 16,
+                ecology_years_per_epoch: 1,
+                ..Default::default()
+            },
+            crate::catalog::Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        h.economy_catalog.as_mut().unwrap().market.adaptive_prices = true;
+        h.month = 1;
+        h.sites[0].economy.prices[3] = h.supplier_unit_cost(0, 3).unwrap();
+        let mut expensive = h.clone();
+        expensive.sites[0].economy.prices[2] *= 4.;
+        let before = expensive.supplier_unit_cost(0, 3).unwrap();
+        assert!(before > h.supplier_unit_cost(0, 3).unwrap());
+        h.market_month(6371.);
+        expensive.market_month(6371.);
+        assert!(expensive.sites[0].economy.prices[3] > h.sites[0].economy.prices[3]);
+        assert_eq!(
+            h.sites[0].economy.finance,
+            expensive.sites[0].economy.finance
+        );
     }
 }

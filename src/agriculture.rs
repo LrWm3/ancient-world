@@ -17,6 +17,9 @@ pub struct RoleState {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Crop {
+    /// Optional monthly seasonal model; absent archives retain their original growth.
+    #[serde(default)]
+    pub season: Option<CropSeason>,
     pub good: String,
     pub temperature: [f32; 2],
     pub rainfall_mm: f32,
@@ -24,6 +27,13 @@ pub struct Crop {
     pub water_m3_kg: f32,
     pub land_share: f32,
     pub harvest_offset: u32,
+}
+/// Regional crop-process hypotheses, not measured cultivar physiology.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CropSeason {
+    pub harvest_index: f32,
+    pub reproductive_stress: f32,
+    pub frost_loss: f32,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Herd {
@@ -81,6 +91,12 @@ impl AgricultureCatalog {
         toml::from_str(include_str!("../assets/agriculture.toml"))
             .expect("bundled agriculture TOML")
     }
+    /// Explicit research preset: current founding/food budgets are NOT calibrated
+    /// for its shorter productive season. Keep out of default worlds.
+    pub fn seasonal_experiment() -> Self {
+        toml::from_str(include_str!("../assets/agriculture-seasonal.toml"))
+            .expect("seasonal experiment TOML")
+    }
     pub fn validate(&self, e: &EconomyCatalog) -> Result<()> {
         ensure!(
             self.version == 1
@@ -111,6 +127,17 @@ impl AgricultureCatalog {
         );
         let mut crop_ids = std::collections::BTreeSet::new();
         for c in &self.crops {
+            if let Some(s) = &c.season {
+                ensure!(
+                    s.harvest_index.is_finite()
+                        && (0.05..=1.).contains(&s.harvest_index)
+                        && s.reproductive_stress.is_finite()
+                        && (0. ..=1.).contains(&s.reproductive_stress)
+                        && s.frost_loss.is_finite()
+                        && (0. ..=1.).contains(&s.frost_loss),
+                    "invalid crop seasonal traits"
+                );
+            }
             ensure!(
                 crop_ids.insert(&c.good)
                     && e.index(&c.good).is_some_and(|i| i != crate::economy::FOOD)
@@ -189,6 +216,11 @@ impl AgricultureCatalog {
                     0.
                 },
             ]);
+        }
+        for c in &self.crops {
+            out.push(c.season.as_ref().map_or([0.; 4], |s| {
+                [1., s.harvest_index, s.reproductive_stress, s.frost_loss]
+            }));
         }
         out
     }

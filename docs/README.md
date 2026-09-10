@@ -22,6 +22,7 @@ recorded runs, not automatically to today's revision. Opt-in features remain opt
 - [Ecological model and tuning](ecology.md)
 - [Illness and effective work](illness-and-work.md)
 - [Managed farming, crafts and markets](economy.md)
+- [Experimental crop processes and price formation](crop-and-price-experiments.md)
 - [Managed land returning to the environment](environmental-returns.md)
 - [Ancient-continent expeditions — v1 design](expeditions.md)
 - [Funded repeat export contracts](export-contracts.md)

@@ -37,7 +37,13 @@ impl History {
         let catalog = self.economy_catalog.as_ref()?;
         let e = &self.sites.get(site)?.economy;
         let item = catalog.goods.get(good)?;
-        let price = |k: usize| e.prices[k].max(catalog.goods[k].base_price * 0.4);
+        let price = |k: usize| {
+            e.prices[k].max(if catalog.market.adaptive_prices {
+                0.0001
+            } else {
+                catalog.goods[k].base_price * 0.4
+            })
+        };
         let labor = 18. * price(FOOD);
         let raw = match item.id.as_str() {
             "wood" if e.forest[0] > 0. && e.forest[1] > 0. && e.forest[2] > 0. => {
