@@ -724,7 +724,11 @@ impl History {
                 .duration(a.kind == "intelligent", a.aid_strength, variance);
             let patron_name = format!(
                 "{} the {}",
-                crate::civilization::name(self.seed, i as u32 + 8000),
+                self.civilizations[i].naming(self.seed).coin(
+                    &format!("patron:{i}"),
+                    &["guide", "journey"],
+                    None
+                ),
                 a.name
             );
             let (population, food, tools) = (
@@ -747,9 +751,14 @@ impl History {
             }
             c.traditions.push(Tradition {
                 id: i as u32,
-                name: format!(
-                    "{} Remembrance",
-                    crate::civilization::name(self.seed, i as u32 + 9000)
+                name: self.civilizations[i].naming(self.seed).coin(
+                    &format!("tradition:{i}"),
+                    &["memory"],
+                    Some(crate::naming::Source {
+                        kind: "patron".into(),
+                        id: i as u32,
+                        name: patron_name.clone(),
+                    }),
                 ),
                 patron: Some(i as u32),
                 parent: None,
@@ -789,7 +798,15 @@ impl History {
             let ae=c.log(self,"founding_keepsake",sid,Some(leader),Some(i as u32),Some(c.artifacts.len()as u32),Some(ev),"A ceramic voyage token was entrusted to the founding community; one kg declared arrival import".into());
             c.artifacts.push(Artifact {
                 id: c.artifacts.len() as u32,
-                name: format!("Token of {patron_name}"),
+                name: self.civilizations[i].naming(self.seed).coin(
+                    &format!("artifact:{}", c.artifacts.len()),
+                    &["gift", "memory"],
+                    Some(crate::naming::Source {
+                        kind: "patron".into(),
+                        id: i as u32,
+                        name: patron_name.clone(),
+                    }),
+                ),
                 kind: "founding keepsake".into(),
                 creator: None,
                 owner: Owner::Community(sid),
@@ -1343,13 +1360,41 @@ impl Culture {
                 self.institutions.push(Institution {
                     capacity: Some(crate::institution_capacity::Capacity::new(h.month)),
                     id,
-                    name: if kind == InstitutionKind::Religious {
-                        format!(
-                            "{} — {} congregation",
-                            h.sites[si].name, self.traditions[faith as usize].name
-                        )
-                    } else {
-                        format!("{} {:?}", h.sites[si].name, kind)
+                    name: {
+                        let purpose = match kind {
+                            InstitutionKind::Religious => "sanctuary",
+                            InstitutionKind::Merchant => "market",
+                            InstitutionKind::Craft => "craft",
+                            InstitutionKind::Scholarly => "learning",
+                        };
+                        let source = if kind == InstitutionKind::Religious {
+                            crate::naming::Source {
+                                kind: "tradition".into(),
+                                id: faith,
+                                name: self.traditions[faith as usize].name.clone(),
+                            }
+                        } else {
+                            crate::naming::Source {
+                                kind: "person".into(),
+                                id: actor,
+                                name: h.people[actor as usize].name.clone(),
+                            }
+                        };
+                        let mut meanings = vec![purpose];
+                        if kind == InstitutionKind::Craft {
+                            // A material epithet requires actual local output, not a hidden deposit.
+                            let e = &h.sites[si].economy;
+                            if let Some((_, term)) = [(0usize, "timber"), (2, "metal"), (5, "clay")]
+                                .into_iter()
+                                .filter(|(g, _)| e.made[*g] > 1.)
+                                .max_by(|(a, _), (b, _)| e.made[*a].total_cmp(&e.made[*b]))
+                            {
+                                meanings.insert(0, term);
+                            }
+                        }
+                        h.civilizations[h.sites[si].civilization as usize]
+                            .naming(h.seed)
+                            .coin(&format!("institution:{id}"), &meanings, Some(source))
                     },
                     kind: kind.clone(),
                     site,
@@ -1514,7 +1559,17 @@ impl Culture {
                 self.agents[actor as usize].goal = "leave a useful crafted legacy".into();
                 self.artifacts.push(Artifact {
                     id,
-                    name: format!("{} {}", h.people[actor as usize].name, kind),
+                    name: h.civilizations[h.sites[si].civilization as usize]
+                        .naming(h.seed)
+                        .coin(
+                            &format!("artifact:{id}"),
+                            &[if manuscript { "book" } else { "gift" }],
+                            Some(crate::naming::Source {
+                                kind: "person".into(),
+                                id: actor,
+                                name: h.people[actor as usize].name.clone(),
+                            }),
+                        ),
                     kind: kind.into(),
                     creator: Some(actor),
                     owner: Owner::Person(actor),

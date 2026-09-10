@@ -86,6 +86,8 @@ pub struct Site {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Civilization {
+    #[serde(default)]
+    pub language: Option<crate::naming::Language>,
     pub id: u32,
     pub name: String,
     pub leader: u32,
@@ -127,6 +129,9 @@ pub struct Shipment {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Candidate {
+    /// Observed at the initial survey; used only for naming, never suitability.
+    #[serde(default)]
+    pub naming_landmark: Option<crate::naming::Landmark>,
     pub cell: u32,
     pub island: u32,
     pub yield_kg: f32,
@@ -196,20 +201,6 @@ fn random(mut x: u32) -> u32 {
     x = (x ^ (x >> 16)).wrapping_mul(0x7feb352d);
     x = (x ^ (x >> 15)).wrapping_mul(0x846ca68b);
     x ^ (x >> 16)
-}
-pub(crate) fn name(seed: u32, id: u32) -> String {
-    let a = [
-        "Ar", "Bel", "Cor", "Dun", "El", "Far", "Gal", "Hal", "Iri", "Jen", "Kel", "Lor",
-    ];
-    let b = [
-        "aven", "mere", "ford", "vale", "holm", "wick", "ora", "eth", "an", "is", "mar", "en",
-    ];
-    let q = random(seed ^ id.wrapping_mul(7919));
-    format!(
-        "{}{}",
-        a[q as usize % a.len()],
-        b[(q >> 8) as usize % b.len()]
-    )
 }
 pub(crate) fn distance(a: u32, b: u32, n: u32) -> f32 {
     let a = grid::cell_direction(a, n);
@@ -309,7 +300,23 @@ impl History {
     }
     fn found(&mut self, c: &Candidate, civilization: u32, population: f32, food: f32) {
         let id = self.sites.len() as u32;
-        let label = name(self.seed, id + 1000);
+        // Named from the recorded survey, not hidden resources or invented past events.
+        let source = self
+            .sites
+            .iter()
+            .find(|s| s.civilization == civilization)
+            .map(|s| crate::naming::Source {
+                kind: "site".into(),
+                id: s.id,
+                name: s.name.clone(),
+            });
+        let land = c
+            .naming_landmark
+            .map(crate::naming::Landmark::meaning)
+            .unwrap_or("island");
+        let label = self.civilizations[civilization as usize]
+            .naming(self.seed)
+            .coin(&format!("site:{id}"), &[land, "home"], source);
         self.sites.push(Site {
             id,
             civilization,
@@ -422,6 +429,12 @@ impl History {
         (self.initial_population + born - died - living) / (self.initial_population + born).max(1.)
     }
     pub fn validate(&self, cells: &[crate::gpu::Cell]) -> Result<()> {
+        ensure!(
+            self.civilizations
+                .iter()
+                .all(|c| c.language.as_ref().is_none_or(|l| l.valid())),
+            "invalid naming language"
+        );
         ensure!(
             self.sites
                 .iter()
@@ -978,12 +991,29 @@ impl Generator {
                 }
             }
         }
+        let terrain = self.snapshot()?;
         let mut candidates = Vec::new();
         for (i, p) in scores.iter().enumerate() {
             if p[0] > 450. {
                 let area =
                     grid::solid_angle(i as u32, n) * (self.config.radius_km as f64 * 1000.).powi(2);
+                let coast = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+                    .into_iter()
+                    .any(|(dx, dy)| {
+                        terrain[grid::neighbor(i as u32, n, dx, dy) as usize].meta[0] == 1
+                    });
+                use crate::naming::Landmark;
+                let landmark = if coast {
+                    Landmark::Shore
+                } else if terrain[i].water[3] > 1. {
+                    Landmark::Water
+                } else if terrain[i].terrain[0] > 1000. {
+                    Landmark::Hill
+                } else {
+                    Landmark::Field
+                };
                 candidates.push(Candidate {
+                    naming_landmark: Some(landmark),
                     cell: i as u32,
                     island: islands[i],
                     yield_kg: p[0],
@@ -1049,16 +1079,27 @@ impl Generator {
                 .position(|c| h.sites.iter().all(|s| s.island != c.island))
                 .unwrap_or(0);
             let c = choices.remove(at);
-            let civname = format!("{} League", name(h.seed, id));
+            let mut language = crate::naming::Language::new(h.seed, id);
+            let leader_name = language.personal(id);
+            let civname = language.coin(
+                &format!("civilization:{id}"),
+                &["league"],
+                Some(crate::naming::Source {
+                    kind: "person".into(),
+                    id,
+                    name: leader_name.clone(),
+                }),
+            );
             h.people.push(Person {
                 id,
-                name: name(h.seed, id + 500),
+                name: leader_name,
                 civilization: id,
                 born: -360,
                 died: None,
                 predecessor: None,
             });
             h.civilizations.push(Civilization {
+                language: Some(language),
                 id,
                 name: civname,
                 leader: id,
@@ -1067,7 +1108,7 @@ impl Generator {
             h.initial_food += 120. * 18. * 12.;
             h.initial_population += 120.;
         }
-        h.validate(&self.snapshot()?)?;
+        h.validate(&terrain)?;
         self.civilizations = Some(h);
         self.upgrade_economy()?;
         Ok(())
@@ -1431,7 +1472,7 @@ impl History {
                 let id = self.people.len() as u32;
                 self.people.push(Person {
                     id,
-                    name: name(self.seed, id + 500),
+                    name: self.civilizations[i].naming(self.seed).personal(id),
                     civilization: i as u32,
                     born: self.month as i32 - 360,
                     died: None,

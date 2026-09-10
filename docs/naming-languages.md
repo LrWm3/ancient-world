@@ -1,0 +1,115 @@
+# Naming languages
+
+Each civilization now has a naming-only fictional language. This is a game name
+maker inspired by ordered sound changes, not a reconstruction of Latin or a
+model of language acquisition. It does not affect production, trade, religion,
+politics, cultural affiliation or migration.
+
+## How it works
+
+`src/naming.rs` contains a small shared invented proto-vocabulary, loosely inspired
+by classical word shapes. Each civilization's seed chooses consistent rules for
+palatalization, intervocalic lenition, initial f, final m/s loss, kt/ai/oi changes,
+vowels and preferred compound form. Rules apply in a fixed order. Vowel shifts
+are simultaneous; outputs are not repeatedly shifted. Proper names used in a
+dedication are not passed through the sound changes again.
+
+Names can be separate words, full compounds, or blends of the beginning of each
+word and the end of the final word. Longer compounds become separate words.
+Personal names combine a virtue with two emblems: these are aspirational name
+meanings, not claims about that person's actual character. The pool is still
+bounded, not a grammar capable of arbitrary translation.
+
+Language rules, vocabulary and coined-name records are archived. Each record
+stores the meanings, form and optional source kind/ID/name. Thus an opaque-looking
+name can still be explained. The source is a naming association, not an extra
+historical fact or an assertion that an artifact's supposed origin is true.
+
+## Where names come from
+
+| Entity | Inputs |
+|---|---|
+| Civilization | Founder's recorded personal name + league |
+| Town | Initial survey landmark + home; daughter towns also reference the civilization's earliest site |
+| Person | Language-specific virtue/emblem combination; genealogy retains household affiliation |
+| Household | Founding household head + house |
+| Patron | Human language's guide/journey name, with the existing archetype epithet |
+| Founding tradition | Patron + memory |
+| Schism | Actual reformer + covenant |
+| Religious institution | Affiliated tradition + sanctuary |
+| Merchant or scholarly institution | Actual founding actor + market or learning |
+| Craft institution | Founder + craft, optionally the most-produced local timber, metal or ceramic material |
+| Keepsake | Patron + gift/memory |
+| Crafted artifact/manuscript | Creator + gift/book |
+| Recovered ancient ceramic | Actual recovering expedition + clay/memory |
+| Expedition crew | The originating civilization's personal-name conventions, in a separate identity namespace |
+
+Town survey labels prefer an adjacent great-lake shore, otherwise river discharge
+above 1 m³/s, elevation above 1,000 m, or prospective fields. These thresholds
+are naming conventions. They do not change settlement suitability. The initial
+survey is preserved; later environmental changes do not rename the town. Missing
+old survey information falls back to an island association. Craft material
+associations require actual cumulative local output above 1 kg, not knowledge of
+hidden ores. The geological generic metal pool is called metal, not presumed iron.
+
+Names are unique among newly registered entities of the same category in a
+language. Collisions add another emblem, then an ID if needed. Similar names
+across languages are possible. An unarchived lookup index makes collision checks
+logarithmic and rebuilds after loading. Randomness is keyed to civilization and
+entity identity and does not consume the history simulation's random streams.
+
+## Explorer and compatibility
+
+In the history overview, expand a civilization's naming-language panel and hover
+a name to see its gloss, form and reference. Existing entity labels elsewhere
+show the generated name as usual. Public serialized language/name records are
+also accessible through the history API.
+
+Existing saves keep their names. An old civilization without a language receives
+one when it next needs a new generated name; existing labels do not acquire
+fabricated etymologies. There is no general renaming system, language drift,
+borrowing/contact, grammatical inflection, or language-based political identity.
+Patron names are human naming conventions, not a newly simulated ancient language.
+Catalog species, goods, mineral names and faction category labels remain as before.
+Some descriptive labels, including specimen descriptions and building labels,
+still use their existing templates.
+
+## Verification
+
+Small tests check hand-calculated ordered sound changes, simultaneous vowel
+shifts, cross-civilization variation, 2,000 unique personal-name registrations,
+reference/gloss retention, invalid profiles, old-record imports and exact naming
+continuation after serialization.
+
+The hardware fixture generates seeds 17, 81 and 256 at terrain 32/ecology 16,
+with one geological epoch, five civilizations and ten years of social history.
+It checks survey-to-town name inputs, patron references, valid profiles and
+existing economy residuals. Seed 17 additionally compares a 12-month batch with
+twelve one-month steps from a saved world, including the full naming ledger.
+
+Reproduce with:
+
+```sh
+mise exec rust@1.89.0 -- cargo test --lib naming -- --include-ignored --nocapture
+```
+
+Generated archives are temporary. The vocabulary and sound rules are deliberately
+small first-pass content, not evidence of realistic historical linguistics.
+
+First pass on the Quadro RTX 5000 Vulkan backend: all three ten-year naming runs
+passed (five language records per seed), including full checkpoint/batch equality
+for seed 17. Observed names included `Lidurdumu` (shore + home),
+`Melo Selwa Teeto` (founder-associated timber craft), and `Dokes Sakra`
+(tradition-associated sanctuary). The panel retains the full source identity even
+when the displayed name uses only its first word or a blended fragment.
+
+The existing 30–31-year material fixture also reproduced the pre-naming numeric
+summaries exactly for seeds 17, 81 and 256: populations 758/696/765 and facility
+expansion counts 18/7/9, with identical printed production and ledger residuals.
+That is evidence for the intended naming-only boundary in these runs, not a proof
+covering every future history path.
+
+Verification: 44 ordinary library tests passed; all four naming tests passed when
+the GPU fixture was explicitly enabled; six ordinary market integration tests
+passed (two hardware market fixtures remain ignored). Clippy across all targets,
+formatting and the source-artifact check passed.

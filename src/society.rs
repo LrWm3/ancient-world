@@ -419,7 +419,9 @@ impl History {
                             let person = self.people.len() as u32;
                             self.people.push(Person {
                                 id: person,
-                                name: format!("{} {}", site.name, family + 1),
+                                name: self.civilizations[site.civilization as usize]
+                                    .naming(self.seed)
+                                    .personal(person),
                                 civilization: site.civilization,
                                 born: self.month as i32 - 360 - (family as i32 % 20) * 12,
                                 died: None,
@@ -430,7 +432,17 @@ impl History {
                     society.households.push(Household {
                         id,
                         site: site.id,
-                        name: format!("House {}-{}", site.name, family + 1),
+                        name: self.civilizations[site.civilization as usize]
+                            .naming(self.seed)
+                            .coin(
+                                &format!("household:{id}"),
+                                &["house"],
+                                Some(crate::naming::Source {
+                                    kind: "person".into(),
+                                    id: head,
+                                    name: self.people[head as usize].name.clone(),
+                                }),
+                            ),
                         share: 1. / count as f64,
                         head,
                         founded: self.month,
@@ -615,7 +627,9 @@ impl History {
                 if existing.is_none() {
                     self.people.push(Person {
                         id,
-                        name: format!("{} heir {}", f.name, f.generation + 1),
+                        name: self.civilizations[site.civilization as usize]
+                            .naming(self.seed)
+                            .personal(id),
                         civilization: site.civilization,
                         born: self.month as i32 - 300,
                         died: None,

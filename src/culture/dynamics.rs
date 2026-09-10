@@ -512,7 +512,17 @@ impl Culture {
                 child.id = id;
                 child.parent = Some(faith);
                 child.founded = h.month;
-                child.name = format!("{} Covenant", h.people[leader.head as usize].name);
+                child.name = h.civilizations[h.sites[site as usize].civilization as usize]
+                    .naming(h.seed)
+                    .coin(
+                        &format!("tradition:{id}"),
+                        &["covenant"],
+                        Some(crate::naming::Source {
+                            kind: "person".into(),
+                            id: leader.head,
+                            name: h.people[leader.head as usize].name.clone(),
+                        }),
+                    );
                 child.leader = leader.head;
                 child.sacred_site = site;
                 child.themes[slot] = theme;

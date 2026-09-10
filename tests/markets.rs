@@ -18,6 +18,7 @@ fn network() -> History {
         month: 0,
         civilizations: (0..3)
             .map(|id| Civilization {
+                language: None,
                 id,
                 name: format!("State {id}"),
                 leader: 0,

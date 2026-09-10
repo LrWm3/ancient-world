@@ -562,13 +562,9 @@ impl Expeditions {
                 local_knowledge,
                 random(h.seed, id, h.month, 80 + i as u32),
             )),
-            name: format!(
-                "{}-{} {}",
-                ["Aren", "Bela", "Corin", "Dara", "Elen", "Faro", "Galen", "Hara"]
-                    [(i + (h.seed % 8) as usize) % 8],
-                id + 1,
-                h.sites[origin as usize].name
-            ),
+            name: h.civilizations[h.sites[origin as usize].civilization as usize]
+                .naming(h.seed)
+                .person_in("crew", id * 16 + i as u32),
             role: role.into(),
             alive: true,
         })

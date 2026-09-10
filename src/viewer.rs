@@ -1795,6 +1795,21 @@ impl App {
                         "{} · led by {}",
                         civ.name, h.people[civ.leader as usize].name
                     ));
+                    if let Some(language) = &civ.language {
+                        ui.collapsing(format!("{} naming language · {}", language.name, civ.name), |ui| {
+                            ui.small("Fictional naming conventions only; no effect on beliefs, trade or politics.");
+                            ui.label(format!("{} recorded names · consistent sound changes from a shared invented vocabulary", language.names.len()));
+                            let records: Vec<_> = language.names.iter().collect();
+                            let row_height = ui.text_style_height(&egui::TextStyle::Body);
+                            egui::ScrollArea::vertical().max_height(240.).id_salt(("names", civ.id)).show_rows(ui, row_height, records.len(), |ui, range| {
+                                for index in range {
+                                    let (key, record) = records[index];
+                                    ui.label(&record.name).on_hover_text(format!("{} · {}\n{}{}", key, record.form, record.meanings.join(" + "), record.source.as_ref().map(|s| format!(" · named for {} ({} {})",s.name,s.kind,s.id)).unwrap_or_default()));
+                                }
+                            });
+                        });
+                    }
+
                 }
                 ui.separator();
                 if let Some(r) = h.household_relocations() {

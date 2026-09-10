@@ -118,7 +118,17 @@ pub(crate) fn deliver(h: &mut History, e: &mut Expedition) {
     let event_id = h.events.len() as u64;
     c.artifacts.push(Artifact {
         id,
-        name: format!("Fragment from voyage {}", e.id),
+        name: h.civilizations[h.sites[e.origin as usize].civilization as usize]
+            .naming(h.seed)
+            .coin(
+                &format!("artifact:{id}"),
+                &["clay", "memory"],
+                Some(crate::naming::Source {
+                    kind: "expedition".into(),
+                    id: e.id,
+                    name: format!("{} voyage {}", h.sites[e.origin as usize].name, e.id),
+                }),
+            ),
         kind: "ancient ceramic fragment".into(),
         creator: None,
         owner,

@@ -537,7 +537,9 @@ impl History {
                 id,
                 name: format!(
                     "{} of {}",
-                    crate::civilization::name(self.seed, id + 50000),
+                    self.civilizations[self.sites[site].civilization as usize]
+                        .naming(self.seed)
+                        .personal(id),
                     f.name
                 ),
                 civilization: self.sites[site].civilization,

@@ -74,3 +74,5 @@ pub mod faction_interests;
 
 pub mod facilities;
 pub mod materials;
+
+pub mod naming;
