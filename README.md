@@ -14,7 +14,13 @@ reproduced. They do not establish that the results describe real ecosystems or
 historical societies.
 
 The setting puts several island continents inside a vast inland sea, surrounded
-by a much larger ancient continent and an exterior ocean. A native Rust globe and
+by a much larger ancient continent and an exterior ocean. The island civilizations
+establish permanent settlements only on the central islands **by design**; their
+journeys to the ancient continent are expeditions, not a path to colonization.
+Whether the ancient continent should have civilizations of its own is still an
+open design question, not a committed feature.
+
+A native Rust globe and
 atlas explorer lets you watch the world evolve, inspect its layers and follow its
 settlements. Dense environmental systems run on GPU compute shaders; sparse social
 history runs on the CPU.

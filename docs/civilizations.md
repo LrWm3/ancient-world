@@ -1,9 +1,17 @@
 # Civilization history: current guide
 
-Permanent settlements remain confined to the central islands. History uses monthly
-resource and population accounting, with sparse CPU records for people, institutions,
-politics and events. Individual local gameplay and ancient-continent civilizations
-are not implemented.
+The simulated island civilizations establish permanent settlements only on the
+central islands by design. Permanent colonization of the ancient continent by
+these civilizations is not a project goal. Expeditions and temporary camps provide
+contact with the ancient continent within that setting rule.
+
+Whether the ancient continent should host civilizations of its own remains under
+discussion. They are not implemented, but neither are they a committed feature or
+an unfinished requirement.
+
+History uses monthly resource and population accounting, with sparse CPU records
+for people, institutions, politics and events. Individual local gameplay is not
+implemented.
 
 ## Implemented systems
 

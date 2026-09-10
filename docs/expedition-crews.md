@@ -61,8 +61,10 @@ this is not a promise of identical futures across software versions.
 
 Crews still represent withdrawn aggregate adults rather than genealogy-linked
 household members. There is no reserve of recruitable named veterans, and this
-increment does not add sailing storms, inland tactical routes, permanent camps or
-ancient-continent civilizations. Experience returns through the existing delivered
+increment does not add sailing storms or inland tactical routes. Permanent
+colonization is outside the island civilizations' intended scope; separate
+ancient-continent civilizations remain undecided (see [civilization scope](civilizations.md)).
+Experience returns through the existing delivered
 findings/expedition-preparation feedback, while individual crew records preserve
 what happened to the expedition.
 
