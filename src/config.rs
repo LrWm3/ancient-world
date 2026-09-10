@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Config {
+    pub systems: crate::systems::Systems,
     pub resolution: u32,
     pub ecology_resolution: u32,
     pub ecology_years_per_epoch: u32,
@@ -30,6 +31,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            systems: Default::default(),
             resolution: 512,
             ecology_resolution: 256,
             ecology_years_per_epoch: 10,
@@ -53,6 +55,7 @@ impl Default for Config {
 }
 impl Config {
     pub fn validate(&self) -> Result<()> {
+        self.systems.validate()?;
         ensure!(
             (0.1..=1.).contains(&self.crop_yield_scale),
             "crop yield scale must be 0.1–1"

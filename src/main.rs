@@ -2,6 +2,7 @@ use ancient_world::{
     catalog::Catalog,
     config::Config,
     gpu::{validate_cells, ContextGpu, Generator},
+    systems::System,
     viewer::{self, Camera, MapRenderer},
 };
 use anyhow::{Context, Result};
@@ -12,6 +13,12 @@ use std::{path::PathBuf, time::Instant};
 struct Args {
     #[arg(long)]
     headless: bool,
+    /// Explicitly enable startup systems (comma-separated; all default on for new histories).
+    #[arg(long, value_enum, value_delimiter = ',')]
+    enable_system: Vec<System>,
+    /// Disable startup systems and their dependents before founding.
+    #[arg(long, value_enum, value_delimiter = ',')]
+    disable_system: Vec<System>,
     /// Found this many central-island civilizations (1–16), then optionally evolve history.
     #[arg(long)]
     civilizations: Option<u32>,
@@ -51,7 +58,7 @@ struct Args {
     /// Editable economy TOML; archived with the history.
     #[arg(long)]
     economy_catalog: Option<PathBuf>,
-    /// Advance social years; --living-world couples monthly planetary ecology.
+    /// Advance social years; new histories include monthly planetary ecology by default.
     #[arg(long, default_value_t = 0)]
     history_years: u32,
     /// Export civilization records, settlements and events as JSON.
@@ -102,6 +109,33 @@ struct Args {
 }
 fn main() -> Result<()> {
     let args = Args::parse();
+    let mut overrides = std::collections::BTreeMap::new();
+    for &system in &args.disable_system {
+        overrides.insert(system, false);
+    }
+    let mut enable = args.enable_system.clone();
+    for (requested, system) in [
+        (args.society, System::Society),
+        (args.politics, System::Politics),
+        (args.governance, System::Governance),
+        (args.offices, System::Offices),
+        (args.shipping, System::Shipping),
+        (args.expeditions, System::Expeditions),
+        (args.discoveries, System::Discoveries),
+        (args.living_world, System::LivingWorld),
+    ] {
+        if requested {
+            enable.push(system);
+        }
+    }
+    for system in enable {
+        anyhow::ensure!(
+            overrides.get(&system) != Some(&false),
+            "{} was both enabled and disabled",
+            system.label()
+        );
+        overrides.insert(system, true);
+    }
     anyhow::ensure!(
         args.headless
             || (args.civilizations.is_none()
@@ -109,6 +143,7 @@ fn main() -> Result<()> {
                 && args.history_export.is_none()
                 && !args.society
                 && !args.politics
+                && !args.offices
                 && !args.governance
                 && !args.shipping
                 && !args.expeditions
@@ -133,6 +168,7 @@ fn main() -> Result<()> {
     if let Some(y) = args.ecology_years {
         config.ecology_years_per_epoch = y;
     }
+    config.systems.overrides.extend(overrides.clone());
     config.validate()?;
     let catalog = if let Some(path) = args.catalog {
         Catalog::parse(&std::fs::read_to_string(path)?)?
@@ -175,6 +211,7 @@ fn main() -> Result<()> {
     if !args.headless {
         return viewer::run(config, catalog, args.load, args.smoke_test);
     }
+    let requested_systems = config.systems.clone();
     let gpu = pollster::block_on(ContextGpu::headless())?;
     eprintln!("GPU: {}", gpu.adapter_name);
     let start = Instant::now();
@@ -251,29 +288,10 @@ fn main() -> Result<()> {
     if let Some(path) = args.economy_catalog {
         generator.configure_economy(toml::from_str(&std::fs::read_to_string(path)?)?)?;
     }
-    if args.society {
-        generator.enable_society()?;
-    }
-    if args.politics {
-        generator.enable_politics()?;
-    }
-    if args.governance {
-        generator.enable_governance()?;
-    }
-    if args.offices {
-        generator.enable_offices()?;
-    }
-    if args.shipping {
-        generator.enable_shipping()?;
-    }
-    if args.expeditions {
-        generator.enable_expeditions()?;
-    }
-    if args.discoveries {
-        generator.enable_discoveries()?;
-    }
-    if args.living_world {
-        generator.enable_living_history()?;
+    if args.civilizations.is_some() || !requested_systems.overrides.is_empty() {
+        let mut systems = generator.config.systems.clone();
+        systems.overrides.extend(requested_systems.overrides);
+        generator.apply_systems(&systems)?;
     }
     if args.history_years > 0 {
         generator.advance_history(
@@ -338,4 +356,31 @@ fn main() -> Result<()> {
         serde_json::json!({"epochs":generator.progress.epoch,"cells":generator.config.cells(),"seconds":start.elapsed().as_secs_f64(),"stage_ms":generator.progress.stage_ms,"gpu_timestamps":generator.progress.timestamp_supported})
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod args_tests {
+    use super::*;
+    #[test]
+    fn system_flags_are_explicit_and_validate_names() {
+        let args = Args::try_parse_from([
+            "ancient-world",
+            "--disable-system",
+            "society,living-world",
+            "--enable-system",
+            "adaptive-prices",
+        ])
+        .unwrap();
+        assert_eq!(
+            args.disable_system,
+            vec![System::Society, System::LivingWorld]
+        );
+        assert_eq!(args.enable_system, vec![System::AdaptivePrices]);
+        assert!(Args::try_parse_from(["ancient-world", "--disable-system", "typo"]).is_err());
+        assert!(
+            Args::try_parse_from(["ancient-world", "--society"])
+                .unwrap()
+                .society
+        );
+    }
 }

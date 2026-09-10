@@ -441,11 +441,23 @@ impl App {
             adapter_name: state.adapter.get_info().name,
             adapter_info: state.adapter.get_info(),
         };
-        let generator = if let Some(path) = load {
+        let requested_systems = config.systems.clone();
+        let loaded = load.is_some();
+        let mut generator = if let Some(path) = load {
             Generator::load(gpu, path)?
         } else {
             Generator::new(gpu, config, catalog)?
         };
+        if loaded && !requested_systems.overrides.is_empty() {
+            let mut systems = generator.config.systems.clone();
+            systems.overrides.extend(requested_systems.overrides);
+            if generator.civilizations.is_some() {
+                generator.apply_systems(&systems)?;
+            } else {
+                systems.validate()?;
+                generator.config.systems = systems;
+            }
+        }
         let maps = [
             MapRenderer::new(&generator, 768, 768)?,
             MapRenderer::new(&generator, 1536, 768)?,
@@ -1418,6 +1430,14 @@ impl App {
                 &mut self.founding_options.aid_enabled,
                 "Patron founding aid",
             );
+            ui.collapsing("Optional systems (default on)", |ui| {
+                for &system in crate::systems::System::ALL {
+                    let mut enabled = self.generator.config.systems.enabled(system);
+                    if ui.checkbox(&mut enabled, system.label()).changed() {
+                        self.generator.config.systems.select(system, enabled);
+                    }
+                }
+            });
             if ui
                 .add_enabled(
                     self.generator.progress.stage == Stage::Boundary,
@@ -1428,7 +1448,11 @@ impl App {
                 self.running = false;
                 let result = self
                     .generator
-                    .found_civilizations_with_options(5, self.founding_options.clone());
+                    .found_civilizations_with_options(5, self.founding_options.clone())
+                    .and_then(|()| {
+                        let systems = self.generator.config.systems.clone();
+                        self.generator.apply_systems(&systems)
+                    });
                 self.report(
                     result,
                     "Civilizations founded. Open the history window to inspect them.",

@@ -9,7 +9,8 @@ commitments; some ambitions in them have been withdrawn.
 
 System guides describe mechanisms, controls and archive compatibility. Some include
 historical measurements; their test counts and calibration outcomes apply to the
-recorded runs, not automatically to today's revision. Opt-in features remain opt-in.
+recorded runs, not automatically to today's revision. Older opt-in descriptions are superseded for new application histories by the
+[default-on startup options](system-options.md); saved histories retain their settings.
 
 ## System guides and verification workflows
 
