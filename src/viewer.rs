@@ -610,10 +610,44 @@ impl App {
                     ));
                 }
                 if let Some(&p) = points.last() {
+                    if matches!(
+                        e.phase,
+                        crate::expeditions::Phase::Camp | crate::expeditions::Phase::Stranded
+                    ) {
+                        let color = if e.phase == crate::expeditions::Phase::Stranded {
+                            egui::Color32::RED
+                        } else {
+                            egui::Color32::LIGHT_GREEN
+                        };
+                        painter.circle_filled(project(p), 5., color);
+                        painter.text(
+                            project(p) + egui::vec2(8., 0.),
+                            egui::Align2::LEFT_CENTER,
+                            format!("{:?}", e.phase),
+                            egui::FontId::proportional(12.),
+                            color,
+                        );
+                    }
                     painter.circle_stroke(
                         project(p),
                         5.,
                         egui::Stroke::new(2., egui::Color32::GOLD),
+                    );
+                }
+                if let Some(find) = e.heritage.as_ref().and_then(|c| c.find.as_ref()) {
+                    let d =
+                        crate::grid::cell_direction(find.cell, self.generator.config.resolution);
+                    let pos = project([
+                        d[0].atan2(d[2]).to_degrees() as f64,
+                        d[1].asin().to_degrees() as f64,
+                    ]);
+                    painter.circle_filled(pos, 4., egui::Color32::LIGHT_BLUE);
+                    painter.text(
+                        pos + egui::vec2(8., 12.),
+                        egui::Align2::LEFT_CENTER,
+                        "Heritage find",
+                        egui::FontId::proportional(12.),
+                        egui::Color32::LIGHT_BLUE,
                     );
                 }
             }
@@ -2614,6 +2648,27 @@ impl App {
             self.expedition_overlay = None;
         }
         ui.text_edit_singleline(&mut self.path);
+        if ui
+            .add_enabled(
+                self.region.is_some(),
+                egui::Button::new("Export survey spatial features"),
+            )
+            .clicked()
+        {
+            let path = Path::new(&self.path).with_extension("survey.geojson");
+            let result = self
+                .region
+                .as_ref()
+                .unwrap()
+                .0
+                .spatial_features()
+                .and_then(|f| f.geojson())
+                .and_then(|value| {
+                    std::fs::write(&path, serde_json::to_vec_pretty(&value)?)?;
+                    Ok(())
+                });
+            self.report(result, &format!("Exported {}", path.display()));
+        }
         if ui.button("Export spatial features").clicked() {
             let path = Path::new(&self.path).with_extension("spatial.geojson");
             let result = self

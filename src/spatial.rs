@@ -58,6 +58,7 @@ pub struct EntityRef {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Precision {
+    ParentCellCoverage,
     CellRepresentative,
     ModelCellPath,
     LegacyRouteAssociation,
@@ -82,6 +83,119 @@ pub struct FeatureCollection {
     pub ecology_month: u64,
     pub history_month: Option<u32>,
     pub features: Vec<Feature>,
+}
+/// Identity and parent grid of a generated survey. Old surveys have no inferred identity.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SurveyRef {
+    pub id: u64,
+    pub grid: GridRef,
+    pub radius_m: f64,
+}
+impl FeatureCollection {
+    fn resource(&mut self, source: &crate::resources::Source) -> Result<()> {
+        let cell = CellRef {
+            grid: self.grid.clone(),
+            cell: source.cell,
+        };
+        cell.direction()?;
+        self.features.push(Feature {
+            id: format!(
+                "{}/resource_source/{}/location",
+                self.grid.world, source.cell
+            ),
+            entity: EntityRef {
+                kind: "resource_source".into(),
+                id: source.cell as u64,
+            },
+            role: "location".into(),
+            label: format!(
+                "{} and clay source",
+                source.mineral.as_deref().unwrap_or("Ore")
+            ),
+            geometry: Geometry::Point(cell),
+            precision: Precision::CellRepresentative,
+            history_month: self.history_month.unwrap_or(0),
+            evidence: vec![],
+        });
+        Ok(())
+    }
+}
+impl crate::region::Region {
+    /// Frozen survey coverage and source/site snapshots, not live inventories.
+    pub fn spatial_features(&self) -> Result<FeatureCollection> {
+        let survey = self.spatial.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("legacy survey lacks a world/grid identity; regenerate the survey")
+        })?;
+        ensure!(
+            survey.radius_m.is_finite() && survey.radius_m > 0.,
+            "invalid survey identity or radius"
+        );
+        let mut result = FeatureCollection {
+            version: 1,
+            grid: survey.grid.clone(),
+            radius_m: survey.radius_m,
+            epoch: self.epoch,
+            ecology_month: self.ecological_month,
+            history_month: self.history_month,
+            features: vec![],
+        };
+        let parents: std::collections::BTreeSet<_> =
+            self.cells.iter().map(|c| c.route[2]).collect();
+        ensure!(!parents.is_empty(), "survey has no coverage");
+        let cells: Vec<_> = parents
+            .iter()
+            .map(|&cell| CellRef {
+                grid: survey.grid.clone(),
+                cell,
+            })
+            .collect();
+        for cell in &cells {
+            cell.direction()?;
+        }
+        result.features.push(Feature {
+            id: format!("{}/survey/{}/coverage", survey.grid.world, survey.id),
+            entity: EntityRef {
+                kind: "survey".into(),
+                id: survey.id,
+            },
+            role: "parent_cell_coverage".into(),
+            label: format!(
+                "{} km survey · {}² local grid",
+                self.width_km, self.resolution
+            ),
+            geometry: Geometry::CellRegion(cells),
+            precision: Precision::ParentCellCoverage,
+            history_month: self.history_month.unwrap_or(0),
+            evidence: vec![],
+        });
+        for source in &self.resource_sources {
+            ensure!(
+                parents.contains(&source.cell),
+                "survey source outside coverage"
+            );
+            result.resource(source)?;
+        }
+        for site in &self.historical_sites {
+            ensure!(parents.contains(&site.cell), "survey site outside coverage");
+            result.features.push(Feature {
+                id: format!("{}/site/{}/location", survey.grid.world, site.id),
+                entity: EntityRef {
+                    kind: "site".into(),
+                    id: site.id as u64,
+                },
+                role: "location".into(),
+                label: site.name.clone(),
+                geometry: Geometry::Point(CellRef {
+                    grid: survey.grid.clone(),
+                    cell: site.cell,
+                }),
+                precision: Precision::CellRepresentative,
+                history_month: self.history_month.unwrap_or(0),
+                evidence: vec![],
+            });
+        }
+        Ok(result)
+    }
 }
 impl Generator {
     /// Current sparse features; no GPU readback, routing decisions or new inventories.
@@ -277,6 +391,11 @@ impl Generator {
                 }
             }
         }
+        if let Some(resources) = &h.resources {
+            for source in resources.sources.values() {
+                result.resource(source)?;
+            }
+        }
         Ok(result)
     }
 }
@@ -305,11 +424,21 @@ impl FeatureCollection {
                         cells.iter().map(CellRef::lon_lat).collect::<Result<_>>()?;
                     serde_json::json!({"type":"MultiLineString","coordinates":split_dateline(&points)})
                 }
-                Geometry::CellRegion(_) => {
-                    anyhow::bail!("cell-region polygon export is not implemented")
+                Geometry::CellRegion(cells) => {
+                    ensure!(!cells.is_empty(), "empty cell region");
+                    let mut seen = std::collections::BTreeSet::new();
+                    ensure!(
+                        cells.iter().all(|c| seen.insert(c.cell)),
+                        "duplicate region cell"
+                    );
+                    let points = cells
+                        .iter()
+                        .map(CellRef::lon_lat)
+                        .collect::<Result<Vec<_>>>()?;
+                    serde_json::json!({"type":"MultiPoint","coordinates":points})
                 }
             };
-            features.push(serde_json::json!({"type":"Feature","id":f.id,"geometry":geometry,"properties":{"entity":{"kind":f.entity.kind,"id":f.entity.id.to_string()},"role":f.role,"label":f.label,"precision":f.precision,"history_month":f.history_month,"evidence":f.evidence.iter().map(|id|id.to_string()).collect::<Vec<_>>()}}));
+            features.push(serde_json::json!({"type":"Feature","id":f.id,"geometry":geometry,"properties":{"entity":{"kind":f.entity.kind,"id":f.entity.id.to_string()},"role":f.role,"label":f.label,"precision":f.precision,"native_geometry":match &f.geometry {Geometry::Point(_) => "point",Geometry::Path(_) => "path",Geometry::CellRegion(_) => "cell_region_representatives"},"history_month":f.history_month,"evidence":f.evidence.iter().map(|id|id.to_string()).collect::<Vec<_>>()}}));
         }
         Ok(
             serde_json::json!({"type":"FeatureCollection","features":features,"ancient_world":{"world":self.grid.world,"radius_m":self.radius_m,"terrain_resolution":self.grid.resolution,"epoch":self.epoch,"ecology_month":self.ecology_month,"history_month":self.history_month,"coordinate_system":"fictional sphere; longitude/latitude degrees; not WGS84"}}),
@@ -389,6 +518,15 @@ mod tests {
         }
         assert!(collection.geojson().is_err());
         collection.features[0].geometry = Geometry::CellRegion(vec![CellRef { grid, cell: 0 }]);
+        assert_eq!(
+            collection.geojson().unwrap()["features"][0]["geometry"]["type"],
+            "MultiPoint"
+        );
+        if let Geometry::CellRegion(cells) = &mut collection.features[0].geometry {
+            cells.push(cells[0].clone());
+        }
+        assert!(collection.geojson().is_err());
+        collection.features[0].geometry = Geometry::CellRegion(vec![]);
         assert!(collection.geojson().is_err());
     }
     #[test]

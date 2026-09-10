@@ -1,7 +1,7 @@
 # Shared spatial features and future map layers
 
 Status: staged design, based on repository review on 2026-09-10. The first
-[spatial adapters and expedition atlas route](spatial-features.md) are implemented.
+[spatial adapters, survey coverage and expedition atlas markers](spatial-features.md) are implemented.
 The broader registry, temporal queries, area geometry and remaining subsystem
 adapters below remain planned.
 

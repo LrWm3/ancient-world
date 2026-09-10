@@ -33,6 +33,8 @@ impl RegionalCell {
 }
 #[derive(Serialize, Deserialize)]
 pub struct Region {
+    #[serde(default)]
+    pub spatial: Option<crate::spatial::SurveyRef>,
     /// Canonical site/object snapshots, localized only to their parent cells.
     #[serde(default)]
     pub historical_sites: Vec<crate::civilization::Site>,
@@ -269,6 +271,22 @@ impl Generator {
                     .collect()
             });
         Ok(Region {
+            spatial: Some(crate::spatial::SurveyRef {
+                id: crate::spatial::new_world_id()
+                    .bytes()
+                    .fold(0xcbf29ce484222325u64, |hash, byte| {
+                        (hash ^ byte as u64).wrapping_mul(0x100000001b3)
+                    }),
+                grid: crate::spatial::GridRef {
+                    world: self
+                        .config
+                        .spatial_world_id
+                        .clone()
+                        .expect("generator world identity"),
+                    resolution: self.config.resolution,
+                },
+                radius_m: self.config.radius_km as f64 * 1000.,
+            }),
             historical_sites: self.civilizations.as_ref().map_or_else(Vec::new, |h| {
                 h.sites
                     .iter()

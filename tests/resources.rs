@@ -115,6 +115,47 @@ fn shared_sources_connect_mining_surveys_markets_and_checkpoints() {
         .unwrap();
     assert_eq!(source.remaining, r.sources[&cell].remaining);
     assert_eq!(region.history_month, Some(h.month));
+    let before = serde_json::to_value(h).unwrap();
+    let world_features = g.spatial_features().unwrap();
+    let survey_features = region.spatial_features().unwrap();
+    assert_eq!(world_features.grid, survey_features.grid);
+    let source_feature = survey_features
+        .features
+        .iter()
+        .find(|f| f.entity.kind == "resource_source" && f.entity.id == cell as u64)
+        .unwrap();
+    let world_source = world_features
+        .features
+        .iter()
+        .find(|f| f.id == source_feature.id)
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(world_source).unwrap(),
+        serde_json::to_value(source_feature).unwrap()
+    );
+    let coverage = &survey_features.geojson().unwrap()["features"][0];
+    assert_eq!(coverage["geometry"]["type"], "MultiPoint");
+    assert_eq!(
+        coverage["properties"]["native_geometry"],
+        "cell_region_representatives"
+    );
+    let serialized = serde_json::to_value(&region).unwrap();
+    let roundtrip: ancient_world::region::Region =
+        serde_json::from_value(serialized.clone()).unwrap();
+    assert_eq!(
+        serde_json::to_value(roundtrip.spatial_features().unwrap()).unwrap(),
+        serde_json::to_value(&survey_features).unwrap()
+    );
+    let mut legacy_region = serialized;
+    legacy_region.as_object_mut().unwrap().remove("spatial");
+    let legacy_region: ancient_world::region::Region =
+        serde_json::from_value(legacy_region).unwrap();
+    assert!(legacy_region.spatial_features().is_err());
+    assert_eq!(
+        before,
+        serde_json::to_value(g.civilizations.as_ref().unwrap()).unwrap()
+    );
+
     for site in 0..5 {
         closed.set_mine_closed(site, false).unwrap();
     }
