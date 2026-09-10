@@ -11,14 +11,14 @@ fictional assumptions and parameters chosen for experimentation. The aim is to
 make interesting worlds with consequences that carry between systems. Tests focus
 on whether those connections work, resources are accounted for, and runs can be
 reproduced. They do not establish that the results describe real ecosystems or
-historical societies.
+historical societies; it's just for fun.
 
 The setting puts several island continents inside a vast inland sea, surrounded
 by a much larger ancient continent and an exterior ocean. The island civilizations
-establish permanent settlements only on the central islands **by design**; their
+establish permanent settlements only on the central islands by design; their
 journeys to the ancient continent are expeditions, not a path to colonization.
 Whether the ancient continent should have civilizations of its own is still an
-open design question, not a committed feature.
+open design question, for now it is merely a hostile ecosystem.
 
 A native Rust globe and atlas explorer lets you watch the world evolve, inspect its layers and follow its
 settlements. Dense environmental systems run on GPU compute shaders; sparse social
@@ -31,8 +31,7 @@ record failed outcomes as well as useful changes.
 ## Try it
 
 Requires Rust 1.89 and a hardware GPU supported by wgpu (Vulkan, Metal or DX12).
-Linux also needs a graphical session for the explorer. Software adapters are
-rejected. The project includes Rust toolchain and mise configuration.
+Linux also needs a graphical session for the explorer. The project includes Rust toolchain and mise configuration.
 
 ```sh
 cargo run --release
