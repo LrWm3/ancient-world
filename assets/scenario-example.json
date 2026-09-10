@@ -1,0 +1,5 @@
+[
+  {"month":120,"region":3,"intervention":{"GeochemicalSupply":false}},
+  {"month":132,"region":3,"intervention":{"RemoveGuild":3}},
+  {"month":144,"region":1,"intervention":{"LakeMixing":10.0}}
+]

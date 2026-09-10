@@ -1,0 +1,885 @@
+//! Sparse genealogy, faction institutions and territorial warfare over GPU population stocks.
+use crate::{
+    civilization::{History, Person},
+    gpu::{Cell, Generator},
+    grid,
+    society::Raid,
+};
+use anyhow::{ensure, Result};
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet};
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Kinship {
+    pub person: u32,
+    pub household: u32,
+    pub parents: [Option<u32>; 2],
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Marriage {
+    pub partners: [u32; 2],
+    pub started: u32,
+    pub ended: Option<u32>,
+    pub children: u32,
+    pub last_birth: u32,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Faction {
+    pub id: u32,
+    pub civilization: u32,
+    pub interest: u32,
+    pub support: f32,
+    pub dissent: f32,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Claim {
+    pub cell: u32,
+    pub sites: Vec<u32>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct War {
+    pub id: u32,
+    pub attacker: u32,
+    pub defender: u32,
+    pub goal: u32,
+    pub started: u32,
+    pub ended: Option<u32>,
+    pub outcome: String,
+    pub cause: u64,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Politics {
+    /// Finite post-conquest occupation; absent in older archives.
+    #[serde(default)]
+    pub occupation_months: u32,
+    pub version: u32,
+    pub started: u32,
+    pub kin: Vec<Kinship>,
+    pub marriages: Vec<Marriage>,
+    pub factions: Vec<Faction>,
+    pub household_factions: Vec<u32>,
+    pub governing: Vec<u32>,
+    /// Political administration, distinct from settlement cultural affiliation.
+    pub controllers: Vec<u32>,
+    pub claims: Vec<Claim>,
+    pub wars: Vec<War>,
+    pub birth_observed: Vec<f32>,
+    pub birth_credit: Vec<f32>,
+}
+impl Politics {
+    pub fn claim_owners(&self, claim: &Claim) -> BTreeSet<u32> {
+        claim
+            .sites
+            .iter()
+            .map(|&s| self.controllers[s as usize])
+            .collect()
+    }
+    pub fn validate(&self, h: &History, cells: &[Cell]) -> Result<()> {
+        let social = h
+            .society
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("politics requires households"))?;
+        ensure!(
+            self.version == 1 && self.started <= h.month && self.occupation_months <= 12,
+            "invalid political version or clock"
+        );
+        ensure!(
+            self.controllers.len() == h.sites.len()
+                && self
+                    .controllers
+                    .iter()
+                    .all(|&c| (c as usize) < h.civilizations.len()),
+            "invalid territorial administration"
+        );
+        ensure!(
+            self.birth_credit.len() == h.sites.len()
+                && self.birth_observed.len() == h.sites.len()
+                && self
+                    .birth_credit
+                    .iter()
+                    .chain(&self.birth_observed)
+                    .all(|x| x.is_finite() && *x >= 0.),
+            "invalid named birth accounting"
+        );
+        // Monthly validation must not rescan every historical union for every child.
+        // These temporary indexes preserve the exact chronology and ancestry checks.
+        let kin_index: BTreeMap<_, _> = self.kin.iter().map(|k| (k.person, k)).collect();
+        ensure!(
+            self.kin.len() <= 50000 && kin_index.len() == self.kin.len(),
+            "duplicate or excessive genealogy"
+        );
+        let pair = |a: u32, b: u32| (a.min(b), a.max(b));
+        let mut unions: BTreeMap<_, Vec<&Marriage>> = BTreeMap::new();
+        for m in &self.marriages {
+            unions
+                .entry(pair(m.partners[0], m.partners[1]))
+                .or_default()
+                .push(m);
+        }
+        let ancestors = |person: u32| {
+            let mut result = BTreeSet::from([person]);
+            let mut frontier = vec![person];
+            for _ in 0..3 {
+                let mut next = vec![];
+                for id in frontier {
+                    if let Some(k) = kin_index.get(&id) {
+                        for &p in k.parents.iter().flatten() {
+                            result.insert(p);
+                            next.push(p);
+                        }
+                    }
+                }
+                frontier = next;
+            }
+            result
+        };
+        for k in &self.kin {
+            ensure!(
+                (k.person as usize) < h.people.len()
+                    && (k.household as usize) < social.households.len(),
+                "invalid family member"
+            );
+            let child = &h.people[k.person as usize];
+            ensure!(
+                k.parents[0].is_none() == k.parents[1].is_none()
+                    && (k.parents[0].is_none() || k.parents[0] != k.parents[1]),
+                "invalid parent pair"
+            );
+            if k.parents[0].is_some() {
+                ensure!(
+                    unions
+                        .get(&pair(k.parents[0].unwrap(), k.parents[1].unwrap()))
+                        .is_some_and(|unions| unions
+                            .iter()
+                            .any(|m| child.born >= m.started as i32
+                                && m.ended.is_none_or(|v| child.born <= v as i32))),
+                    "birth lacks a recorded parental union"
+                );
+            }
+            for &parent in k.parents.iter().flatten() {
+                ensure!(
+                    parent < k.person && kin_index.contains_key(&parent),
+                    "cyclic or missing ancestry"
+                );
+                let p = &h.people[parent as usize];
+                ensure!(
+                    child.born - p.born >= 192
+                        && child.born - p.born <= 660
+                        && p.died.is_none_or(|m| m as i32 >= child.born),
+                    "impossible parent chronology"
+                );
+            }
+        }
+        let mut married = BTreeSet::new();
+        for m in &self.marriages {
+            ensure!(
+                m.started >= self.started
+                    && m.started <= h.month
+                    && m.last_birth <= h.month
+                    && m.ended.is_none_or(|v| v >= m.started && v <= h.month),
+                "invalid marriage chronology"
+            );
+            ensure!(
+                m.partners.iter().all(|&p| (p as usize) < h.people.len()
+                    && kin_index.contains_key(&p)
+                    && m.started as i32 - h.people[p as usize].born >= 216)
+                    && ancestors(m.partners[0]).is_disjoint(&ancestors(m.partners[1])),
+                "invalid marriage or close kin"
+            );
+            if m.ended.is_none() {
+                ensure!(
+                    m.partners
+                        .iter()
+                        .all(|&p| married.insert(p) && h.people[p as usize].died.is_none()),
+                    "overlapping active marriages"
+                );
+            }
+        }
+        ensure!(
+            self.factions.len() == h.civilizations.len() * 3
+                && self
+                    .factions
+                    .iter()
+                    .enumerate()
+                    .all(|(i, f)| f.id == i as u32
+                        && f.civilization == i as u32 / 3
+                        && f.interest == i as u32 % 3
+                        && (0. ..=1.).contains(&f.support)
+                        && (0. ..=1.).contains(&f.dissent)),
+            "invalid faction"
+        );
+        ensure!(
+            self.household_factions.len() == social.households.len()
+                && self
+                    .household_factions
+                    .iter()
+                    .enumerate()
+                    .all(|(i, &f)| (f as usize) < self.factions.len()
+                        && self.factions[f as usize].civilization
+                            == h.sites[social.households[i].site as usize].civilization),
+            "invalid faction membership"
+        );
+        ensure!(
+            self.governing.len() == h.civilizations.len()
+                && self
+                    .governing
+                    .iter()
+                    .enumerate()
+                    .all(|(c, &f)| f / 3 == c as u32),
+            "invalid governing faction"
+        );
+        let mut previous = None;
+        for c in &self.claims {
+            ensure!(
+                previous.is_none_or(|p| p < c.cell)
+                    && cells.get(c.cell as usize).is_some_and(
+                        |x| x.meta[0] == 2 && (h.living.is_some() || x.water[0] < 0.25)
+                    )
+                    && !c.sites.is_empty()
+                    && c.sites.windows(2).all(|s| s[0] < s[1])
+                    && c.sites.iter().all(|&s| (s as usize) < h.sites.len()),
+                "invalid or non-central claim"
+            );
+            previous = Some(c.cell);
+        }
+        for (i, w) in self.wars.iter().enumerate() {
+            ensure!(
+                w.id == i as u32
+                    && w.attacker != w.defender
+                    && (w.attacker as usize) < h.civilizations.len()
+                    && (w.defender as usize) < h.civilizations.len()
+                    && (w.goal as usize) < h.sites.len()
+                    && w.started <= h.month
+                    && w.ended.is_none_or(|m| m >= w.started && m <= h.month)
+                    && (w.cause as usize) < h.events.len(),
+                "invalid war record"
+            );
+        }
+        Ok(())
+    }
+}
+impl History {
+    pub fn controller(&self, site: u32) -> u32 {
+        self.politics
+            .as_ref()
+            .and_then(|p| p.controllers.get(site as usize))
+            .copied()
+            .unwrap_or(self.sites[site as usize].civilization)
+    }
+    pub(crate) fn prepare_politics(&mut self, cells: &[Cell]) {
+        let Some(mut p) = self.politics.take() else {
+            return;
+        };
+        let society = self.society.as_ref().unwrap();
+        let rebuild = p.controllers.len() != self.sites.len() || p.claims.is_empty();
+        while p.controllers.len() < self.sites.len() {
+            let s = &self.sites[p.controllers.len()];
+            let inherited = self
+                .events
+                .iter()
+                .rev()
+                .find(|e| {
+                    e.kind == "migration"
+                        && e.other == Some(s.id)
+                        && e.month == self.month
+                        && self.month > p.started
+                })
+                .and_then(|e| e.site)
+                .and_then(|parent| p.controllers.get(parent as usize))
+                .copied();
+            p.controllers.push(inherited.unwrap_or(s.civilization));
+            p.birth_observed.push(s.stocks.people[0]);
+            p.birth_credit.push(0.);
+        }
+        for f in &society.households {
+            if p.household_factions.len() <= f.id as usize {
+                p.household_factions
+                    .push(self.sites[f.site as usize].civilization * 3 + f.id % 3);
+            }
+            if !p.kin.iter().any(|k| k.person == f.head) {
+                p.kin.push(Kinship {
+                    person: f.head,
+                    household: f.id,
+                    parents: [None; 2],
+                });
+            }
+        }
+        if rebuild {
+            // Bounded regional claims: occupied cells, dry immediate hinterland and
+            // surveyed road corridors. Unexplored island interiors remain unclaimed.
+            let mut claims: BTreeMap<u32, BTreeSet<u32>> = BTreeMap::new();
+            for s in &self.sites {
+                claims.entry(s.cell).or_default().insert(s.id);
+                for (x, y) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
+                    let cell = grid::neighbor(s.cell, self.terrain_resolution, x, y);
+                    if cells[cell as usize].meta[0] == 2 && cells[cell as usize].water[0] < 0.25 {
+                        claims.entry(cell).or_default().insert(s.id);
+                    }
+                }
+            }
+            for r in &society.routes {
+                for &cell in &r.cells {
+                    claims.entry(cell).or_default().extend([r.from, r.to]);
+                }
+            }
+            p.claims = claims
+                .into_iter()
+                .map(|(cell, sites)| Claim {
+                    cell,
+                    sites: sites.into_iter().collect(),
+                })
+                .collect();
+        }
+        self.politics = Some(p);
+    }
+    pub(crate) fn genealogy_month(&mut self) {
+        let Some(mut p) = self.politics.take() else {
+            return;
+        };
+        let social = self.society.as_ref().unwrap();
+        for s in &self.sites {
+            let i = s.id as usize;
+            p.birth_credit[i] += (s.stocks.people[0] - p.birth_observed[i]).max(0.);
+            p.birth_observed[i] = s.stocks.people[0];
+        }
+        let heads: BTreeSet<_> = social.households.iter().map(|f| f.head).collect();
+        for k in &p.kin {
+            let person = &mut self.people[k.person as usize];
+            let site = social.households[k.household as usize].site as usize;
+            if !social.relocation.away(k.household)
+                && !heads.contains(&k.person)
+                && person.died.is_none()
+                && self.month as i32 - person.born >= 840
+                && self.sites[site].demography.health[2] >= 1.
+            {
+                person.died = Some(self.month);
+                self.sites[site].demography.health[2] -= 1.;
+            }
+        }
+        for m in &mut p.marriages {
+            if m.ended.is_none()
+                && m.partners
+                    .iter()
+                    .any(|&id| self.people[id as usize].died.is_some())
+            {
+                m.ended = Some(self.month);
+            }
+        }
+        if self.month % 12 == 0 {
+            let mut used: BTreeSet<u32> = p
+                .marriages
+                .iter()
+                .filter(|m| m.ended.is_none())
+                .flat_map(|m| m.partners)
+                .collect();
+            let eligible: Vec<_> = p
+                .kin
+                .iter()
+                .filter(|k| {
+                    let v = &self.people[k.person as usize];
+                    let age = self.month as i32 - v.born;
+                    !social.relocation.away(k.household)
+                        && v.died.is_none()
+                        && !self.sites[social.households[k.household as usize].site as usize]
+                            .abandoned
+                        && (216..660).contains(&age)
+                })
+                .map(|k| (k.person, k.household))
+                .collect();
+            let lookup: BTreeMap<_, _> = p.kin.iter().map(|k| (k.person, k.parents)).collect();
+            let ancestry: BTreeMap<_, _> = eligible
+                .iter()
+                .map(|&(id, _)| {
+                    let mut result = BTreeSet::from([id]);
+                    let mut frontier = vec![id];
+                    for _ in 0..3 {
+                        let mut next = vec![];
+                        for person in frontier {
+                            if let Some(parents) = lookup.get(&person) {
+                                for &parent in parents.iter().flatten() {
+                                    result.insert(parent);
+                                    next.push(parent);
+                                }
+                            }
+                        }
+                        frontier = next;
+                    }
+                    (id, result)
+                })
+                .collect();
+            for &(a, house) in &eligible {
+                if used.contains(&a) {
+                    continue;
+                }
+                let site = self.society.as_ref().unwrap().households[house as usize].site;
+                if let Some(&(b, _)) = eligible.iter().find(|&&(b, h)| {
+                    b != a
+                        && !used.contains(&b)
+                        && self.society.as_ref().unwrap().households[h as usize].site == site
+                        && ancestry[&a].is_disjoint(&ancestry[&b])
+                }) {
+                    used.extend([a, b]);
+                    p.marriages.push(Marriage {
+                        partners: [a, b],
+                        started: self.month,
+                        ended: None,
+                        children: 0,
+                        last_birth: self.month,
+                    });
+                    self.event(
+                        "marriage",
+                        Some(site),
+                        None,
+                        format!(
+                            "{} married {}",
+                            self.people[a as usize].name, self.people[b as usize].name
+                        ),
+                    );
+                }
+            }
+        }
+        for index in 0..p.marriages.len() {
+            let m = &p.marriages[index];
+            if m.ended.is_some()
+                || m.partners.iter().any(|id| {
+                    p.kin.iter().find(|k| k.person == *id).is_some_and(|k| {
+                        let household =
+                            &self.society.as_ref().unwrap().households[k.household as usize];
+                        let other = p.kin.iter().find(|k| k.person == m.partners[0]).unwrap();
+                        self.society.as_ref().unwrap().relocation.away(k.household)
+                            || household.site
+                                != self.society.as_ref().unwrap().households
+                                    [other.household as usize]
+                                    .site
+                    })
+                })
+                || m.children >= 4
+                || self.month - m.last_birth < 36
+                || m.partners
+                    .iter()
+                    .any(|&id| self.month as i32 - self.people[id as usize].born >= 540)
+            {
+                continue;
+            }
+            let house = p
+                .kin
+                .iter()
+                .find(|k| k.person == m.partners[0])
+                .unwrap()
+                .household;
+            let f = &self.society.as_ref().unwrap().households[house as usize];
+            let site = f.site as usize;
+            if self.society.as_ref().unwrap().relocation.away(f.id)
+                || self.sites[site].abandoned
+                || p.birth_credit[site] < 1.
+                || self.sites[site].demography.ages[0] < 1.
+                || p.kin.len() >= 50000
+            {
+                continue;
+            }
+            p.birth_credit[site] -= 1.;
+            let id = self.people.len() as u32;
+            let parents = m.partners;
+            self.people.push(Person {
+                id,
+                name: format!(
+                    "{} of {}",
+                    crate::civilization::name(self.seed, id + 50000),
+                    f.name
+                ),
+                civilization: self.sites[site].civilization,
+                born: self.month as i32,
+                died: None,
+                predecessor: None,
+            });
+            p.kin.push(Kinship {
+                person: id,
+                household: house,
+                parents: parents.map(Some),
+            });
+            p.marriages[index].children += 1;
+            p.marriages[index].last_birth = self.month;
+            self.event(
+                "birth",
+                Some(site as u32),
+                None,
+                format!(
+                    "{} born to {} and {}",
+                    self.people[id as usize].name,
+                    self.people[parents[0] as usize].name,
+                    self.people[parents[1] as usize].name
+                ),
+            );
+        }
+        self.politics = Some(p);
+    }
+    pub(crate) fn genealogical_heir(&self, old: u32, site: u32) -> Option<u32> {
+        let p = self.politics.as_ref()?;
+        let social = self.society.as_ref()?;
+        p.kin
+            .iter()
+            .filter(|k| {
+                k.parents.contains(&Some(old))
+                    && social.households[k.household as usize].site == site
+                    && !social.households.iter().any(|f| f.head == k.person)
+            })
+            .map(|k| &self.people[k.person as usize])
+            .filter(|v| v.died.is_none() && self.month as i32 - v.born >= 216)
+            .min_by_key(|v| (v.born, v.id))
+            .map(|v| v.id)
+    }
+    pub(crate) fn politics_year(&mut self) {
+        let Some(mut p) = self.politics.take() else {
+            return;
+        };
+        for civ in 0..self.civilizations.len() {
+            let mut votes = [0f32; 3];
+            for f in &self.society.as_ref().unwrap().households {
+                let s = &self.sites[f.site as usize];
+                if self.society.as_ref().unwrap().relocation.away(f.id) {
+                    continue;
+                }
+                if s.civilization != civ as u32 {
+                    continue;
+                }
+                let interest = p.household_factions[f.id as usize] as usize % 3;
+                let threat = p.wars.iter().any(|w| {
+                    w.ended.is_none() && (w.attacker == civ as u32 || w.defender == civ as u32)
+                });
+                let urgency = match interest {
+                    0 => {
+                        1. + self.social_indicators(s.id).map_or(s.stocks.stock[3], |c| {
+                            0.5 * s.stocks.stock[3] + 0.5 * c.pressure[0]
+                        }) * 4.
+                    }
+                    1 => 1. + s.economy.finance[2] / s.economy.finance[1].max(1.),
+                    _ => 1. + if threat { 2. } else { 0. },
+                };
+                votes[interest] += f.share as f32 * s.stocks.stock[0] * urgency.min(5.);
+            }
+            let sum = votes.iter().sum::<f32>().max(1.);
+            for (j, v) in votes.iter().enumerate() {
+                let f = &mut p.factions[civ * 3 + j];
+                f.support = *v / sum;
+                f.dissent = (1. - f.support)
+                    * self
+                        .sites
+                        .iter()
+                        .filter(|s| s.civilization == civ as u32)
+                        .map(|s| s.stocks.stock[3])
+                        .fold(0f32, f32::max);
+            }
+            let winner = (0..3)
+                .max_by(|&a, &b| votes[a].total_cmp(&votes[b]).then_with(|| b.cmp(&a)))
+                .unwrap();
+            let faction = (civ * 3 + winner) as u32;
+            if p.governing[civ] != faction
+                && p.factions[faction as usize].support
+                    > p.factions[p.governing[civ] as usize].support + 0.05
+            {
+                p.governing[civ] = faction;
+                if let Some(f) = self
+                    .society
+                    .as_ref()
+                    .unwrap()
+                    .households
+                    .iter()
+                    .filter(|f| {
+                        p.household_factions[f.id as usize] == faction
+                            && !self.society.as_ref().unwrap().relocation.away(f.id)
+                            && !self.sites[f.site as usize].abandoned
+                            && self.people[f.head as usize].civilization == civ as u32
+                    })
+                    .max_by(|a, b| {
+                        let score = |head: u32| {
+                            self.culture
+                                .as_ref()
+                                .and_then(|c| c.agents.get(head as usize))
+                                .map_or(0., |a| a.traits[0] + a.traits[4] * 0.5 + a.skills[0])
+                        };
+                        score(a.head)
+                            .total_cmp(&score(b.head))
+                            .then_with(|| b.id.cmp(&a.id))
+                    })
+                {
+                    let leader = f.head;
+                    self.civilizations[civ].leader = leader;
+                    self.event(
+                        "faction_shift",
+                        Some(f.site),
+                        None,
+                        format!(
+                            "{} gained the council: {}",
+                            self.civilizations[civ].name,
+                            ["growers", "merchants", "retainers"][winner]
+                        ),
+                    );
+                    let event = self.events.last_mut().unwrap();
+                    event.subjects.push(("person".into(), leader));
+                    if let Some(cause) = self
+                        .culture
+                        .as_ref()
+                        .and_then(|c| c.agents.get(leader as usize))
+                        .and_then(|a| a.last_campaign)
+                    {
+                        event.causes.push(cause);
+                    }
+                }
+            }
+            self.society.as_mut().unwrap().councils[civ].tax_rate =
+                [0.02, 0.03, 0.06][p.governing[civ] as usize % 3];
+        }
+        self.politics = Some(p);
+        // Escalation needs a recent material grievance, a contested corridor and supplies.
+        let pairs: Vec<_> = self
+            .society
+            .as_ref()
+            .unwrap()
+            .routes
+            .iter()
+            .filter(|r| r.open && r.flood_months == 0)
+            .flat_map(|r| [(r.from, r.to), (r.to, r.from)])
+            .collect();
+        for (a, b) in pairs {
+            let grievance = self
+                .events
+                .iter()
+                .rev()
+                .find(|e| {
+                    self.month.saturating_sub(e.month) <= 24
+                        && ((e.kind == "raid_outcome"
+                            && e.site == Some(a)
+                            && self.controller(a) != self.controller(b)
+                            && e.other.is_some_and(|origin| {
+                                self.controller(origin) == self.controller(b)
+                            }))
+                            || (e.kind == "food_crisis"
+                                && e.site == Some(a)
+                                && self.sites[b as usize].stocks.stock[1]
+                                    > self.sites[a as usize].stocks.stock[1] * 1.5))
+                })
+                .map(|e| e.id);
+            if let Some(cause) = grievance {
+                let _ = self.start_war(a, b, cause);
+            }
+        }
+    }
+    pub(crate) fn start_war(&mut self, origin: u32, target: u32, cause: u64) -> Result<u32> {
+        ensure!(
+            (origin as usize) < self.sites.len()
+                && (target as usize) < self.sites.len()
+                && (cause as usize) < self.events.len(),
+            "invalid war target or cause"
+        );
+        let p = self
+            .politics
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("enable dynasties and politics first"))?;
+        let attacker = self.controller(origin);
+        let defender = self.controller(target);
+        ensure!(
+            !self
+                .governance
+                .as_ref()
+                .is_some_and(|g| g.protected(attacker, defender, self.month)),
+            "non-aggression treaty prevents war"
+        );
+        ensure!(
+            attacker != defender
+                && !self.sites[origin as usize].abandoned
+                && !self.sites[target as usize].abandoned,
+            "war requires occupied foreign settlements"
+        );
+        ensure!(
+            !p.wars
+                .iter()
+                .any(|w| ((w.attacker == attacker && w.defender == defender)
+                    || (w.attacker == defender && w.defender == attacker))
+                    && w.ended.is_none_or(|m| self.month.saturating_sub(m) < 120)),
+            "active war or ten-year truce"
+        );
+        let distance = self
+            .route_cost(origin, target)
+            .ok_or_else(|| anyhow::anyhow!("no open land route"))?;
+        ensure!(distance < 1500., "campaign exceeds supply range");
+        ensure!(
+            p.claims
+                .iter()
+                .any(|c| c.sites.contains(&origin) && c.sites.contains(&target)),
+            "no contested territorial corridor"
+        );
+        ensure!(
+            !self
+                .society
+                .as_ref()
+                .unwrap()
+                .raids
+                .iter()
+                .any(|r| r.origin == origin),
+            "settlement already has an expedition"
+        );
+        let months = (distance / 150.).ceil().max(1.) as u32;
+        let s = &self.sites[origin as usize];
+        let reserve = s.stocks.stock[0] * 18. * 3.;
+        let soldiers = (s.demography.ages[1] * 0.25)
+            .min(s.economy.goods[3])
+            .min((s.stocks.stock[1] - reserve).max(0.) / (18. * (months * 2 + 3) as f32));
+        ensure!(
+            soldiers >= 3.,
+            "insufficient adult manpower, tools or campaign provisions"
+        );
+        let food = soldiers * 18. * (months * 2 + 3) as f32;
+        let id = p.wars.len() as u32;
+        let s = &mut self.sites[origin as usize];
+        s.stocks.stock[0] -= soldiers;
+        s.demography.ages[1] -= soldiers;
+        s.stocks.people[3] += soldiers;
+        s.stocks.stock[1] -= food;
+        s.economy.goods[3] -= soldiers;
+        self.event(
+            "war_declared",
+            Some(origin),
+            Some(target),
+            format!(
+                "War {id}: {} claims administration of {}; {:.0} adults mobilized",
+                self.civilizations[attacker as usize].name,
+                self.sites[target as usize].name,
+                soldiers
+            ),
+        );
+        let event = self.events.last_mut().unwrap();
+        event.causes.push(cause);
+        let declaration = event.id;
+        self.politics.as_mut().unwrap().wars.push(War {
+            id,
+            attacker,
+            defender,
+            goal: target,
+            started: self.month,
+            ended: None,
+            outcome: "campaigning".into(),
+            cause: declaration,
+        });
+        let social = self.society.as_mut().unwrap();
+        let raid_id = social.next_raid;
+        social.next_raid += 1;
+        social.raids.push(Raid {
+            id: raid_id,
+            origin,
+            target,
+            soldiers,
+            food,
+            arrives: self.month + months,
+            cause: declaration,
+            returning: false,
+            war: Some(id),
+            equipment: soldiers,
+            occupation_until: None,
+            travel_months: months,
+        });
+        Ok(id)
+    }
+    pub(crate) fn campaign_authorized(&self, raid: &Raid) -> bool {
+        raid.war.is_none_or(|id| {
+            self.politics.as_ref().is_some_and(|p| {
+                let w = &p.wars[id as usize];
+                w.ended.is_none()
+                    && p.controllers[raid.target as usize] == w.defender
+                    && p.controllers[raid.origin as usize] == w.attacker
+            })
+        })
+    }
+    pub(crate) fn resolve_war(&mut self, raid: &Raid, won: bool) {
+        let Some(id) = raid.war else {
+            return;
+        };
+        let Some(p) = self.politics.as_mut() else {
+            return;
+        };
+        let w = &mut p.wars[id as usize];
+        let valid = p.controllers[raid.target as usize] == w.defender
+            && p.controllers[raid.origin as usize] == w.attacker;
+        if won && valid {
+            p.controllers[raid.target as usize] = w.attacker;
+        }
+        w.ended = Some(self.month);
+        w.outcome = if !valid {
+            "withdrawn"
+        } else if won {
+            "conquest"
+        } else {
+            "repulsed"
+        }
+        .into();
+        let outcome = w.outcome.clone();
+        self.event(
+            "peace",
+            Some(raid.target),
+            Some(raid.origin),
+            format!(
+                "War {id} ended: {outcome}; ten-year truce. Resident identity and stocks retained."
+            ),
+        );
+        self.events.last_mut().unwrap().causes.push(raid.cause);
+    }
+}
+impl Generator {
+    pub fn enable_politics(&mut self) -> Result<()> {
+        let cells = self.snapshot()?;
+        let mut h = self
+            .civilizations
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("found civilizations first"))?;
+        ensure!(
+            h.society.is_some() && h.politics.is_none(),
+            "politics requires social history without an existing political baseline"
+        );
+        let count = h.civilizations.len();
+        h.politics = Some(Politics {
+            occupation_months: 3,
+            version: 1,
+            started: h.month,
+            kin: vec![],
+            marriages: vec![],
+            factions: (0..count * 3)
+                .map(|id| Faction {
+                    id: id as u32,
+                    civilization: id as u32 / 3,
+                    interest: id as u32 % 3,
+                    support: 1. / 3.,
+                    dissent: 0.,
+                })
+                .collect(),
+            household_factions: vec![],
+            governing: (0..count).map(|c| c as u32 * 3).collect(),
+            controllers: vec![],
+            claims: vec![],
+            wars: vec![],
+            birth_observed: vec![],
+            birth_credit: vec![],
+        });
+        h.prepare_politics(&cells);
+        h.event("political_baseline",None,None,"Founding adults have unknown ancestry; family records, factions and surveyed claims established".into());
+        h.validate(&cells)?;
+        self.civilizations = Some(h);
+        Ok(())
+    }
+    pub fn declare_war(&mut self, origin: u32, target: u32) -> Result<u32> {
+        let cells = self.snapshot()?;
+        let mut h = self
+            .civilizations
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("no history"))?;
+        h.event(
+            "territorial_demand",
+            Some(origin),
+            Some(target),
+            "Scenario: council demands neighboring territory".into(),
+        );
+        let cause = h.events.len() as u64 - 1;
+        let id = h.start_war(origin, target, cause)?;
+        h.validate(&cells)?;
+        self.civilizations = Some(h);
+        Ok(id)
+    }
+}

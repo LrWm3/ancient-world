@@ -1,0 +1,66 @@
+version = 1
+# Regional game calibration: kg crop potential consumed per kg fixed nitrogen.
+fixation_cost_kg = 12.0
+[[crops]]
+good = "wheat"
+temperature = [0.0, 35.0]
+rainfall_mm = 600.0
+yield_scale = 1.0
+water_m3_kg = 0.5
+land_share = 0.3
+harvest_offset = 0
+[[crops]]
+good = "barley"
+temperature = [-5.0, 30.0]
+rainfall_mm = 450.0
+yield_scale = 1.1
+water_m3_kg = 0.4
+land_share = 0.25
+harvest_offset = 1
+[[crops]]
+good = "millet"
+temperature = [8.0, 43.0]
+rainfall_mm = 280.0
+yield_scale = 1.0
+water_m3_kg = 0.3
+land_share = 0.2
+harvest_offset = 2
+[[crops]]
+good = "pulses"
+temperature = [2.0, 32.0]
+rainfall_mm = 500.0
+yield_scale = 1.0
+water_m3_kg = 0.5
+land_share = 0.15
+harvest_offset = 0
+[[crops]]
+good = "tubers"
+temperature = [-2.0, 28.0]
+rainfall_mm = 700.0
+yield_scale = 6.0
+water_m3_kg = 0.3
+land_share = 0.08
+harvest_offset = 1
+[[crops]]
+good = "flax"
+temperature = [0.0, 32.0]
+rainfall_mm = 600.0
+yield_scale = 0.55
+water_m3_kg = 0.6
+land_share = 0.02
+harvest_offset = 2
+[[herds]]
+id = "goats"
+product = "milk"
+feed = "pulses"
+initial_kg = 20.0
+[[herds]]
+id = "sheep"
+product = "wool"
+feed = "pulses"
+initial_kg = 20.0
+[[herds]]
+id = "fowl"
+product = "eggs"
+feed = "pulses"
+initial_kg = 4.0

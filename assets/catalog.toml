@@ -1,0 +1,2127 @@
+# Game simulation parameters, not a scientific material database.
+version = 2
+producer_competition = true
+geological_provinces = true
+
+
+[[rocks]]
+chemistry = [0.001, 0.04, 0.0004, 0.02]
+id = "granite"
+name = "Granite"
+formation = 0
+hardness = 7.0
+permeability = 0.05
+weathering = 0.2
+
+[[rocks]]
+chemistry = [0.003, 0.2, 0.002, 0.04]
+id = "basalt"
+name = "Basalt"
+formation = 0
+hardness = 6.0
+permeability = 0.08
+weathering = 0.3
+
+[[rocks]]
+chemistry = [0.003, 0.2, 0.002, 0.04]
+id = "gabbro"
+name = "Gabbro"
+formation = 0
+hardness = 7.0
+permeability = 0.04
+weathering = 0.2
+
+[[rocks]]
+chemistry = [0.001, 0.04, 0.0004, 0.02]
+id = "diorite"
+name = "Diorite"
+formation = 0
+hardness = 6.0
+permeability = 0.05
+weathering = 0.25
+
+[[rocks]]
+chemistry = [0.003, 0.2, 0.002, 0.04]
+id = "andesite"
+name = "Andesite"
+formation = 0
+hardness = 6.0
+permeability = 0.1
+weathering = 0.3
+
+[[rocks]]
+chemistry = [0.001, 0.04, 0.0004, 0.02]
+id = "rhyolite"
+name = "Rhyolite"
+formation = 0
+hardness = 6.0
+permeability = 0.1
+weathering = 0.2
+
+[[rocks]]
+chemistry = [0.001, 0.04, 0.0004, 0.02]
+id = "obsidian"
+name = "Obsidian"
+formation = 0
+hardness = 5.0
+permeability = 0.01
+weathering = 0.1
+
+[[rocks]]
+chemistry = [0.001, 0.04, 0.0004, 0.02]
+id = "pumice"
+name = "Pumice"
+formation = 0
+hardness = 2.0
+permeability = 0.8
+weathering = 0.7
+
+[[rocks]]
+chemistry = [0.002, 0.01, 0.0008, 0.015]
+id = "limestone"
+name = "Limestone"
+formation = 1
+hardness = 3.0
+permeability = 0.6
+weathering = 0.7
+
+[[rocks]]
+chemistry = [0.001, 0.04, 0.0004, 0.02]
+id = "sandstone"
+name = "Sandstone"
+formation = 1
+hardness = 4.0
+permeability = 0.7
+weathering = 0.5
+
+[[rocks]]
+chemistry = [0.002, 0.01, 0.0008, 0.015]
+id = "shale"
+name = "Shale"
+formation = 1
+hardness = 2.0
+permeability = 0.1
+weathering = 0.8
+
+[[rocks]]
+chemistry = [0.001, 0.04, 0.0004, 0.02]
+id = "chalk"
+name = "Chalk"
+formation = 1
+hardness = 1.0
+permeability = 0.6
+weathering = 0.9
+
+[[rocks]]
+chemistry = [0.001, 0.04, 0.0004, 0.02]
+id = "dolomite"
+name = "Dolomite"
+formation = 1
+hardness = 4.0
+permeability = 0.4
+weathering = 0.5
+
+[[rocks]]
+chemistry = [0.001, 0.04, 0.0004, 0.02]
+id = "conglomerate"
+name = "Conglomerate"
+formation = 1
+hardness = 4.0
+permeability = 0.5
+weathering = 0.5
+
+[[rocks]]
+chemistry = [0.002, 0.01, 0.0008, 0.015]
+id = "mudstone"
+name = "Mudstone"
+formation = 1
+hardness = 2.0
+permeability = 0.1
+weathering = 0.8
+
+[[rocks]]
+chemistry = [0.001, 0.04, 0.0004, 0.02]
+id = "rock_salt"
+name = "Rock Salt"
+formation = 1
+hardness = 2.0
+permeability = 0.01
+weathering = 1.0
+
+[[rocks]]
+chemistry = [0.001, 0.04, 0.0004, 0.02]
+id = "marble"
+name = "Marble"
+formation = 2
+hardness = 4.0
+permeability = 0.1
+weathering = 0.3
+
+[[rocks]]
+chemistry = [0.001, 0.04, 0.0004, 0.02]
+id = "slate"
+name = "Slate"
+formation = 2
+hardness = 4.0
+permeability = 0.05
+weathering = 0.2
+
+[[rocks]]
+chemistry = [0.001, 0.04, 0.0004, 0.02]
+id = "quartzite"
+name = "Quartzite"
+formation = 2
+hardness = 8.0
+permeability = 0.02
+weathering = 0.08
+
+[[rocks]]
+chemistry = [0.001, 0.04, 0.0004, 0.02]
+id = "gneiss"
+name = "Gneiss"
+formation = 2
+hardness = 7.0
+permeability = 0.04
+weathering = 0.15
+
+[[rocks]]
+chemistry = [0.001, 0.04, 0.0004, 0.02]
+id = "schist"
+name = "Schist"
+formation = 2
+hardness = 5.0
+permeability = 0.1
+weathering = 0.3
+
+[[rocks]]
+chemistry = [0.001, 0.04, 0.0004, 0.02]
+id = "phyllite"
+name = "Phyllite"
+formation = 2
+hardness = 4.0
+permeability = 0.08
+weathering = 0.3
+
+[[rocks]]
+chemistry = [0.001, 0.04, 0.0004, 0.02]
+id = "amphibolite"
+name = "Amphibolite"
+formation = 2
+hardness = 7.0
+permeability = 0.03
+weathering = 0.2
+
+[[rocks]]
+chemistry = [0.0004, 0.7, 0.001, 0.06]
+id = "serpentinite"
+name = "Serpentinite"
+formation = 2
+hardness = 4.0
+permeability = 0.1
+weathering = 0.4
+
+[[minerals]]
+deposit_setting = "sedimentary"
+province_scale_km = 450.0
+id = "hematite"
+name = "Hematite"
+hosts = ["sandstone", "quartzite"]
+formation = 1
+abundance = 0.4
+yield_fraction = 0.7
+depth_m = 25.0
+
+[[minerals]]
+deposit_setting = "magmatic"
+province_scale_km = 450.0
+id = "magnetite"
+name = "Magnetite"
+hosts = ["gabbro", "amphibolite"]
+formation = 0
+abundance = 0.3
+yield_fraction = 0.72
+depth_m = 162.0
+
+[[minerals]]
+deposit_setting = "weathered"
+province_scale_km = 450.0
+id = "limonite"
+name = "Limonite"
+hosts = ["limestone", "shale"]
+formation = 1
+abundance = 0.35
+yield_fraction = 0.5
+depth_m = 15.0
+
+[[minerals]]
+deposit_setting = "hydrothermal"
+province_scale_km = 250.0
+id = "cassiterite"
+name = "Cassiterite"
+hosts = ["granite"]
+formation = 0
+abundance = 0.08
+yield_fraction = 0.78
+depth_m = 436.0
+
+[[minerals]]
+deposit_setting = "hydrothermal"
+province_scale_km = 250.0
+id = "chalcopyrite"
+name = "Chalcopyrite"
+hosts = ["diorite", "andesite"]
+formation = 0
+abundance = 0.2
+yield_fraction = 0.34
+depth_m = 573.0
+
+[[minerals]]
+deposit_setting = "weathered"
+province_scale_km = 450.0
+id = "malachite"
+name = "Malachite"
+hosts = ["limestone", "dolomite"]
+formation = 1
+abundance = 0.12
+yield_fraction = 0.57
+depth_m = 30.0
+
+[[minerals]]
+deposit_setting = "hydrothermal"
+province_scale_km = 250.0
+id = "galena"
+name = "Galena"
+hosts = ["limestone", "dolomite"]
+formation = 1
+abundance = 0.12
+yield_fraction = 0.86
+depth_m = 847.0
+
+[[minerals]]
+deposit_setting = "hydrothermal"
+province_scale_km = 250.0
+id = "sphalerite"
+name = "Sphalerite"
+hosts = ["limestone", "shale"]
+formation = 1
+abundance = 0.15
+yield_fraction = 0.67
+depth_m = 984.0
+
+[[minerals]]
+deposit_setting = "weathered"
+province_scale_km = 450.0
+id = "bauxite"
+name = "Bauxite"
+hosts = ["basalt", "limestone"]
+formation = 1
+abundance = 0.2
+yield_fraction = 0.4
+depth_m = 20.0
+
+[[minerals]]
+deposit_setting = "metamorphic"
+province_scale_km = 250.0
+id = "native_gold"
+name = "Native Gold"
+hosts = ["quartzite", "schist"]
+formation = 2
+abundance = 0.008
+yield_fraction = 0.9
+depth_m = 1258.0
+
+[[minerals]]
+deposit_setting = "hydrothermal"
+province_scale_km = 250.0
+id = "native_silver"
+name = "Native Silver"
+hosts = ["andesite", "limestone"]
+formation = 0
+abundance = 0.02
+yield_fraction = 0.9
+depth_m = 1395.0
+
+[[minerals]]
+deposit_setting = "magmatic"
+province_scale_km = 450.0
+id = "platinum"
+name = "Platinum"
+hosts = ["gabbro"]
+formation = 0
+abundance = 0.005
+yield_fraction = 0.95
+depth_m = 1532.0
+
+[[minerals]]
+deposit_setting = "magmatic"
+province_scale_km = 450.0
+id = "chromite"
+name = "Chromite"
+hosts = ["serpentinite", "gabbro"]
+formation = 0
+abundance = 0.15
+yield_fraction = 0.46
+depth_m = 1669.0
+
+[[minerals]]
+deposit_setting = "magmatic"
+province_scale_km = 450.0
+id = "ilmenite"
+name = "Ilmenite"
+hosts = ["gabbro", "basalt"]
+formation = 0
+abundance = 0.2
+yield_fraction = 0.32
+depth_m = 1806.0
+
+[[minerals]]
+deposit_setting = "metamorphic"
+province_scale_km = 250.0
+id = "rutile"
+name = "Rutile"
+hosts = ["schist", "gneiss"]
+formation = 2
+abundance = 0.08
+yield_fraction = 0.6
+depth_m = 143.0
+
+[[minerals]]
+deposit_setting = "sedimentary"
+province_scale_km = 450.0
+id = "pyrolusite"
+name = "Pyrolusite"
+hosts = ["shale", "sandstone"]
+formation = 1
+abundance = 0.15
+yield_fraction = 0.63
+depth_m = 280.0
+
+[[minerals]]
+deposit_setting = "magmatic"
+province_scale_km = 450.0
+id = "pentlandite"
+name = "Pentlandite"
+hosts = ["gabbro", "serpentinite"]
+formation = 0
+abundance = 0.08
+yield_fraction = 0.34
+depth_m = 417.0
+
+[[minerals]]
+deposit_setting = "hydrothermal"
+province_scale_km = 250.0
+id = "cinnabar"
+name = "Cinnabar"
+hosts = ["andesite", "shale"]
+formation = 0
+abundance = 0.03
+yield_fraction = 0.86
+depth_m = 554.0
+
+[[minerals]]
+deposit_setting = "hydrothermal"
+province_scale_km = 450.0
+id = "uraninite"
+name = "Uraninite"
+hosts = ["granite", "sandstone"]
+formation = 0
+abundance = 0.01
+yield_fraction = 0.8
+depth_m = 691.0
+
+[[minerals]]
+deposit_setting = "sedimentary"
+province_scale_km = 450.0
+id = "bituminous_coal"
+name = "Bituminous Coal"
+hosts = ["shale", "mudstone"]
+formation = 1
+abundance = 0.3
+yield_fraction = 0.75
+depth_m = 828.0
+
+[[minerals]]
+deposit_setting = "sedimentary"
+province_scale_km = 450.0
+id = "lignite"
+name = "Lignite"
+hosts = ["mudstone", "sandstone"]
+formation = 1
+abundance = 0.4
+yield_fraction = 0.5
+depth_m = 965.0
+
+[[minerals]]
+deposit_setting = "evaporite"
+province_scale_km = 450.0
+id = "gypsum"
+name = "Gypsum"
+hosts = ["limestone", "rock_salt"]
+formation = 1
+abundance = 0.4
+yield_fraction = 0.9
+depth_m = 1102.0
+
+[[minerals]]
+deposit_setting = "hydrothermal"
+province_scale_km = 450.0
+id = "quartz"
+name = "Quartz"
+hosts = ["granite", "quartzite"]
+formation = 0
+abundance = 0.8
+yield_fraction = 0.95
+depth_m = 1239.0
+
+[[minerals]]
+deposit_setting = "metamorphic"
+province_scale_km = 450.0
+id = "garnet"
+name = "Garnet"
+hosts = ["schist", "gneiss"]
+formation = 2
+abundance = 0.15
+yield_fraction = 0.8
+depth_m = 1376.0
+
+[[soils]]
+id = "alluvial_loam"
+name = "Alluvial Loam"
+texture = "loam"
+fertility = 0.9
+drainage = 0.6
+parent_formation = 1
+
+[[soils]]
+id = "sandy_soil"
+name = "Sandy Soil"
+texture = "sand"
+fertility = 0.3
+drainage = 0.9
+parent_formation = 1
+
+[[soils]]
+id = "clay_soil"
+name = "Clay Soil"
+texture = "clay"
+fertility = 0.65
+drainage = 0.15
+parent_formation = 1
+
+[[soils]]
+id = "volcanic_soil"
+name = "Volcanic Soil"
+texture = "silt"
+fertility = 0.95
+drainage = 0.55
+parent_formation = 0
+
+[[soils]]
+id = "peat"
+name = "Peat"
+texture = "organic"
+fertility = 0.5
+drainage = 0.1
+parent_formation = 1
+
+[[soils]]
+id = "laterite"
+name = "Laterite"
+texture = "clay"
+fertility = 0.25
+drainage = 0.4
+parent_formation = 0
+
+[[soils]]
+id = "rocky_soil"
+name = "Rocky Soil"
+texture = "gravel"
+fertility = 0.15
+drainage = 0.8
+parent_formation = 2
+
+[[soils]]
+id = "glacial_till"
+name = "Glacial Till"
+texture = "mixed"
+fertility = 0.4
+drainage = 0.5
+parent_formation = 2
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_oak"
+name = "Oak"
+temp_min = 0.0
+temp_max = 27.0
+rain_min = 450.0
+rain_max = 2200.0
+soil_min = 0.35
+growth = 0.05
+height_m = 14.4
+outer = false
+substrate = 0
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_beech"
+name = "Beech"
+temp_min = 0.0
+temp_max = 27.0
+rain_min = 450.0
+rain_max = 2200.0
+soil_min = 0.35
+growth = 0.065
+height_m = 15.84
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_ash"
+name = "Ash"
+temp_min = 0.0
+temp_max = 27.0
+rain_min = 450.0
+rain_max = 2200.0
+soil_min = 0.35
+growth = 0.08
+height_m = 17.28
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_elm"
+name = "Elm"
+temp_min = 0.0
+temp_max = 27.0
+rain_min = 450.0
+rain_max = 2200.0
+soil_min = 0.35
+growth = 0.095
+height_m = 18.72
+outer = false
+substrate = 0
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_maple"
+name = "Maple"
+temp_min = 0.0
+temp_max = 27.0
+rain_min = 450.0
+rain_max = 2200.0
+soil_min = 0.35
+growth = 0.11
+height_m = 20.160000000000004
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 1, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_hazel"
+name = "Hazel"
+temp_min = 0.0
+temp_max = 27.0
+rain_min = 450.0
+rain_max = 2200.0
+soil_min = 0.35
+growth = 0.125
+height_m = 21.6
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_pine"
+name = "Pine"
+temp_min = -20.0
+temp_max = 20.0
+rain_min = 200.0
+rain_max = 2000.0
+soil_min = 0.15
+growth = 0.05
+height_m = 17.6
+outer = false
+substrate = 1
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_spruce"
+name = "Spruce"
+temp_min = -20.0
+temp_max = 20.0
+rain_min = 200.0
+rain_max = 2000.0
+soil_min = 0.15
+growth = 0.065
+height_m = 19.36
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_fir"
+name = "Fir"
+temp_min = -20.0
+temp_max = 20.0
+rain_min = 200.0
+rain_max = 2000.0
+soil_min = 0.15
+growth = 0.08
+height_m = 21.12
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_larch"
+name = "Larch"
+temp_min = -20.0
+temp_max = 20.0
+rain_min = 200.0
+rain_max = 2000.0
+soil_min = 0.15
+growth = 0.095
+height_m = 22.880000000000003
+outer = false
+substrate = 1
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_birch"
+name = "Birch"
+temp_min = -20.0
+temp_max = 20.0
+rain_min = 200.0
+rain_max = 2000.0
+soil_min = 0.15
+growth = 0.11
+height_m = 24.64
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_aspen"
+name = "Aspen"
+temp_min = -20.0
+temp_max = 20.0
+rain_min = 200.0
+rain_max = 2000.0
+soil_min = 0.15
+growth = 0.125
+height_m = 26.400000000000006
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_acacia"
+name = "Acacia"
+temp_min = 10.0
+temp_max = 48.0
+rain_min = 30.0
+rain_max = 700.0
+soil_min = 0.05
+growth = 0.05
+height_m = 6.4
+outer = false
+substrate = 2
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_baobab"
+name = "Baobab"
+temp_min = 10.0
+temp_max = 48.0
+rain_min = 30.0
+rain_max = 700.0
+soil_min = 0.05
+growth = 0.065
+height_m = 7.04
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_date_palm"
+name = "Date Palm"
+temp_min = 10.0
+temp_max = 48.0
+rain_min = 30.0
+rain_max = 700.0
+soil_min = 0.05
+growth = 0.08
+height_m = 7.680000000000001
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 1, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_juniper"
+name = "Juniper"
+temp_min = 10.0
+temp_max = 48.0
+rain_min = 30.0
+rain_max = 700.0
+soil_min = 0.05
+growth = 0.095
+height_m = 8.32
+outer = false
+substrate = 2
+
+[[plants]]
+ecology = { layer = 1, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_sagebrush"
+name = "Sagebrush"
+temp_min = 10.0
+temp_max = 48.0
+rain_min = 30.0
+rain_max = 700.0
+soil_min = 0.05
+growth = 0.11
+height_m = 8.96
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 1, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_agave"
+name = "Agave"
+temp_min = 10.0
+temp_max = 48.0
+rain_min = 30.0
+rain_max = 700.0
+soil_min = 0.05
+growth = 0.125
+height_m = 9.600000000000001
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_kapok"
+name = "Kapok"
+temp_min = 18.0
+temp_max = 42.0
+rain_min = 1200.0
+rain_max = 6500.0
+soil_min = 0.3
+growth = 0.05
+height_m = 24.0
+outer = false
+substrate = 0
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_mahogany"
+name = "Mahogany"
+temp_min = 18.0
+temp_max = 42.0
+rain_min = 1200.0
+rain_max = 6500.0
+soil_min = 0.3
+growth = 0.065
+height_m = 26.4
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_bamboo"
+name = "Bamboo"
+temp_min = 18.0
+temp_max = 42.0
+rain_min = 1200.0
+rain_max = 6500.0
+soil_min = 0.3
+growth = 0.08
+height_m = 28.8
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_teak"
+name = "Teak"
+temp_min = 18.0
+temp_max = 42.0
+rain_min = 1200.0
+rain_max = 6500.0
+soil_min = 0.3
+growth = 0.095
+height_m = 31.200000000000003
+outer = false
+substrate = 0
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_mangrove"
+name = "Mangrove"
+temp_min = 18.0
+temp_max = 42.0
+rain_min = 1200.0
+rain_max = 6500.0
+soil_min = 0.3
+growth = 0.11
+height_m = 33.6
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 1, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_tree_fern"
+name = "Tree Fern"
+temp_min = 18.0
+temp_max = 42.0
+rain_min = 1200.0
+rain_max = 6500.0
+soil_min = 0.3
+growth = 0.125
+height_m = 36.00000000000001
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_willow"
+name = "Willow"
+temp_min = -2.0
+temp_max = 35.0
+rain_min = 900.0
+rain_max = 6000.0
+soil_min = 0.1
+growth = 0.05
+height_m = 3.2
+outer = false
+substrate = 1
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_alder"
+name = "Alder"
+temp_min = -2.0
+temp_max = 35.0
+rain_min = 900.0
+rain_max = 6000.0
+soil_min = 0.1
+growth = 0.065
+height_m = 3.52
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 2, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_reed"
+name = "Reed"
+temp_min = -2.0
+temp_max = 35.0
+rain_min = 900.0
+rain_max = 6000.0
+soil_min = 0.1
+growth = 0.08
+height_m = 3.8400000000000003
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 2, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_papyrus"
+name = "Papyrus"
+temp_min = -2.0
+temp_max = 35.0
+rain_min = 900.0
+rain_max = 6000.0
+soil_min = 0.1
+growth = 0.095
+height_m = 4.16
+outer = false
+substrate = 1
+
+[[plants]]
+ecology = { layer = 2, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_sedge"
+name = "Sedge"
+temp_min = -2.0
+temp_max = 35.0
+rain_min = 900.0
+rain_max = 6000.0
+soil_min = 0.1
+growth = 0.11
+height_m = 4.48
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 2, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_cattail"
+name = "Cattail"
+temp_min = -2.0
+temp_max = 35.0
+rain_min = 900.0
+rain_max = 6000.0
+soil_min = 0.1
+growth = 0.125
+height_m = 4.800000000000001
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 2, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_fescue"
+name = "Fescue"
+temp_min = -35.0
+temp_max = 25.0
+rain_min = 80.0
+rain_max = 2400.0
+soil_min = 0.01
+growth = 0.05
+height_m = 0.4
+outer = false
+substrate = 2
+
+[[plants]]
+ecology = { layer = 2, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_ryegrass"
+name = "Ryegrass"
+temp_min = -35.0
+temp_max = 25.0
+rain_min = 80.0
+rain_max = 2400.0
+soil_min = 0.01
+growth = 0.065
+height_m = 0.44
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 1, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_heather"
+name = "Heather"
+temp_min = -35.0
+temp_max = 25.0
+rain_min = 80.0
+rain_max = 2400.0
+soil_min = 0.01
+growth = 0.08
+height_m = 0.48000000000000004
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 2, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_moss"
+name = "Moss"
+temp_min = -35.0
+temp_max = 25.0
+rain_min = 80.0
+rain_max = 2400.0
+soil_min = 0.01
+growth = 0.095
+height_m = 0.52
+outer = false
+substrate = 2
+
+[[plants]]
+ecology = { layer = 2, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_lichen"
+name = "Lichen"
+temp_min = -35.0
+temp_max = 25.0
+rain_min = 80.0
+rain_max = 2400.0
+soil_min = 0.01
+growth = 0.11
+height_m = 0.56
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 1, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.01, fixation = 0.03, shade = 0.4, turnover = 0.15 }
+id = "plant_tundra_willow"
+name = "Tundra Willow"
+temp_min = -35.0
+temp_max = 25.0
+rain_min = 80.0
+rain_max = 2400.0
+soil_min = 0.01
+growth = 0.125
+height_m = 0.6000000000000001
+outer = false
+substrate = 3
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.35, fixation = 0.3, shade = 0.4, turnover = 0.5 }
+id = "plant_cathedral_tree"
+name = "Cathedral Tree"
+temp_min = 12.0
+temp_max = 45.0
+rain_min = 900.0
+rain_max = 7000.0
+soil_min = 0.25
+growth = 0.05
+height_m = 72.0
+outer = true
+substrate = 0
+
+[[plants]]
+ecology = { layer = 2, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.35, fixation = 0.3, shade = 0.4, turnover = 0.5 }
+id = "plant_lantern_reed"
+name = "Lantern Reed"
+temp_min = 12.0
+temp_max = 45.0
+rain_min = 900.0
+rain_max = 7000.0
+soil_min = 0.25
+growth = 0.065
+height_m = 79.2
+outer = true
+substrate = 3
+
+[[plants]]
+ecology = { layer = 1, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.35, fixation = 0.3, shade = 0.4, turnover = 0.5 }
+id = "plant_glass_fern"
+name = "Glass Fern"
+temp_min = 12.0
+temp_max = 45.0
+rain_min = 900.0
+rain_max = 7000.0
+soil_min = 0.25
+growth = 0.08
+height_m = 86.4
+outer = true
+substrate = 3
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.35, fixation = 0.3, shade = 0.4, turnover = 0.5 }
+id = "plant_redveil_canopy"
+name = "Redveil Canopy"
+temp_min = 12.0
+temp_max = 45.0
+rain_min = 900.0
+rain_max = 7000.0
+soil_min = 0.25
+growth = 0.095
+height_m = 93.60000000000001
+outer = true
+substrate = 0
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.35, fixation = 0.3, shade = 0.4, turnover = 0.5 }
+id = "plant_thunder_bamboo"
+name = "Thunder Bamboo"
+temp_min = 12.0
+temp_max = 45.0
+rain_min = 900.0
+rain_max = 7000.0
+soil_min = 0.25
+growth = 0.11
+height_m = 100.80000000000001
+outer = true
+substrate = 3
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.35, fixation = 0.3, shade = 0.4, turnover = 0.5 }
+id = "plant_crown_mangrove"
+name = "Crown Mangrove"
+temp_min = 12.0
+temp_max = 45.0
+rain_min = 900.0
+rain_max = 7000.0
+soil_min = 0.25
+growth = 0.125
+height_m = 108.00000000000001
+outer = true
+substrate = 3
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.35, fixation = 0.3, shade = 0.4, turnover = 0.5 }
+id = "plant_ironroot"
+name = "Ironroot"
+temp_min = -30.0
+temp_max = 35.0
+rain_min = 200.0
+rain_max = 4500.0
+soil_min = 0.1
+growth = 0.05
+height_m = 36.0
+outer = true
+substrate = 1
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.35, fixation = 0.3, shade = 0.4, turnover = 0.5 }
+id = "plant_pale_spire"
+name = "Pale Spire"
+temp_min = -30.0
+temp_max = 35.0
+rain_min = 200.0
+rain_max = 4500.0
+soil_min = 0.1
+growth = 0.065
+height_m = 39.6
+outer = true
+substrate = 3
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.35, fixation = 0.3, shade = 0.4, turnover = 0.5 }
+id = "plant_frost_colossus"
+name = "Frost Colossus"
+temp_min = -30.0
+temp_max = 35.0
+rain_min = 200.0
+rain_max = 4500.0
+soil_min = 0.1
+growth = 0.08
+height_m = 43.2
+outer = true
+substrate = 3
+
+[[plants]]
+ecology = { layer = 2, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.35, fixation = 0.3, shade = 0.4, turnover = 0.5 }
+id = "plant_whisper_moss"
+name = "Whisper Moss"
+temp_min = -30.0
+temp_max = 35.0
+rain_min = 200.0
+rain_max = 4500.0
+soil_min = 0.1
+growth = 0.095
+height_m = 46.800000000000004
+outer = true
+substrate = 1
+
+[[plants]]
+ecology = { layer = 0, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.35, fixation = 0.3, shade = 0.4, turnover = 0.5 }
+id = "plant_black_sail_palm"
+name = "Black Sail Palm"
+temp_min = -30.0
+temp_max = 35.0
+rain_min = 200.0
+rain_max = 4500.0
+soil_min = 0.1
+growth = 0.11
+height_m = 50.400000000000006
+outer = true
+substrate = 3
+
+[[plants]]
+ecology = { layer = 1, nitrogen = 0.025, phosphorus = 0.002, maintenance = 0.08, symbiosis = 0.35, fixation = 0.3, shade = 0.4, turnover = 0.5 }
+id = "plant_amber_vine"
+name = "Amber Vine"
+temp_min = -30.0
+temp_max = 35.0
+rain_min = 200.0
+rain_max = 4500.0
+soil_min = 0.1
+growth = 0.125
+height_m = 54.00000000000001
+outer = true
+substrate = 3
+
+[[biomes]]
+id = "biome_ice_cap"
+name = "Ice Cap"
+temp_min = -100.0
+temp_max = -20.0
+rain_min = 0.0
+rain_max = 10000.0
+elevation_min = -10000.0
+elevation_max = 15000.0
+vegetation = 0.0
+color = [0.9, 0.95, 1.0]
+
+[[biomes]]
+id = "biome_tundra"
+name = "Tundra"
+temp_min = -20.0
+temp_max = 0.0
+rain_min = 0.0
+rain_max = 10000.0
+elevation_min = -10000.0
+elevation_max = 15000.0
+vegetation = 0.15
+color = [0.5, 0.6, 0.5]
+
+[[biomes]]
+id = "biome_cold_desert"
+name = "Cold Desert"
+temp_min = 0.0
+temp_max = 12.0
+rain_min = 0.0
+rain_max = 200.0
+elevation_min = -10000.0
+elevation_max = 15000.0
+vegetation = 0.03
+color = [0.6, 0.55, 0.4]
+
+[[biomes]]
+id = "biome_boreal_forest"
+name = "Boreal Forest"
+temp_min = 0.0
+temp_max = 10.0
+rain_min = 200.0
+rain_max = 10000.0
+elevation_min = -10000.0
+elevation_max = 2500.0
+vegetation = 0.8
+color = [0.12, 0.32, 0.27]
+
+[[biomes]]
+id = "biome_temperate_steppe"
+name = "Temperate Steppe"
+temp_min = 10.0
+temp_max = 22.0
+rain_min = 0.0
+rain_max = 450.0
+elevation_min = -10000.0
+elevation_max = 2500.0
+vegetation = 0.3
+color = [0.63, 0.65, 0.3]
+
+[[biomes]]
+id = "biome_temperate_woodland"
+name = "Temperate Woodland"
+temp_min = 10.0
+temp_max = 22.0
+rain_min = 450.0
+rain_max = 900.0
+elevation_min = -10000.0
+elevation_max = 2500.0
+vegetation = 0.55
+color = [0.35, 0.52, 0.24]
+
+[[biomes]]
+id = "biome_temperate_forest"
+name = "Temperate Forest"
+temp_min = 10.0
+temp_max = 22.0
+rain_min = 900.0
+rain_max = 1800.0
+elevation_min = -10000.0
+elevation_max = 2500.0
+vegetation = 0.8
+color = [0.13, 0.42, 0.22]
+
+[[biomes]]
+id = "biome_temperate_rainforest"
+name = "Temperate Rainforest"
+temp_min = 10.0
+temp_max = 22.0
+rain_min = 1800.0
+rain_max = 10000.0
+elevation_min = -10000.0
+elevation_max = 2500.0
+vegetation = 0.95
+color = [0.08, 0.33, 0.22]
+
+[[biomes]]
+id = "biome_hot_desert"
+name = "Hot Desert"
+temp_min = 22.0
+temp_max = 100.0
+rain_min = 0.0
+rain_max = 200.0
+elevation_min = -10000.0
+elevation_max = 15000.0
+vegetation = 0.02
+color = [0.82, 0.69, 0.4]
+
+[[biomes]]
+id = "biome_dry_scrub"
+name = "Dry Scrub"
+temp_min = 22.0
+temp_max = 100.0
+rain_min = 200.0
+rain_max = 500.0
+elevation_min = -10000.0
+elevation_max = 2500.0
+vegetation = 0.2
+color = [0.62, 0.6, 0.25]
+
+[[biomes]]
+id = "biome_savanna"
+name = "Savanna"
+temp_min = 22.0
+temp_max = 100.0
+rain_min = 500.0
+rain_max = 1000.0
+elevation_min = -10000.0
+elevation_max = 2500.0
+vegetation = 0.45
+color = [0.56, 0.65, 0.2]
+
+[[biomes]]
+id = "biome_tropical_seasonal"
+name = "Tropical Seasonal"
+temp_min = 22.0
+temp_max = 100.0
+rain_min = 1000.0
+rain_max = 1800.0
+elevation_min = -10000.0
+elevation_max = 2500.0
+vegetation = 0.7
+color = [0.25, 0.55, 0.13]
+
+[[biomes]]
+id = "biome_tropical_rainforest"
+name = "Tropical Rainforest"
+temp_min = 22.0
+temp_max = 100.0
+rain_min = 1800.0
+rain_max = 10000.0
+elevation_min = -10000.0
+elevation_max = 2500.0
+vegetation = 1.0
+color = [0.06, 0.34, 0.15]
+
+[[biomes]]
+id = "biome_alpine_meadow"
+name = "Alpine Meadow"
+temp_min = 0.0
+temp_max = 22.0
+rain_min = 200.0
+rain_max = 10000.0
+elevation_min = 2500.0
+elevation_max = 4000.0
+vegetation = 0.3
+color = [0.45, 0.55, 0.35]
+
+[[biomes]]
+id = "biome_high_mountain"
+name = "High Mountain"
+temp_min = 0.0
+temp_max = 100.0
+rain_min = 200.0
+rain_max = 10000.0
+elevation_min = 4000.0
+elevation_max = 15000.0
+vegetation = 0.08
+color = [0.5, 0.48, 0.45]
+
+[[biomes]]
+id = "biome_cloud_forest"
+name = "Cloud Forest"
+temp_min = 22.0
+temp_max = 100.0
+rain_min = 200.0
+rain_max = 10000.0
+elevation_min = 2500.0
+elevation_max = 4000.0
+vegetation = 0.75
+color = [0.25, 0.5, 0.37]
+
+[[plants]]
+id = "eco_0"
+name = "Acetate lace"
+temp_min = -5.0
+temp_max = 45.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.3
+height_m = 1.0
+outer = true
+substrate = 3
+ecology = { layer = 3, nitrogen = 0.03, phosphorus = 0.003, maintenance = 0.025, symbiosis = 0.85, fixation = 0.3, shade = 0.8, turnover = 0.4 }
+
+[[plants]]
+id = "eco_1"
+name = "Fault lantern"
+temp_min = -5.0
+temp_max = 45.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.3
+height_m = 1.0
+outer = true
+substrate = 3
+ecology = { layer = 4, nitrogen = 0.03, phosphorus = 0.003, maintenance = 0.025, symbiosis = 0.85, fixation = 0.3, shade = 0.8, turnover = 0.4 }
+
+[[plants]]
+id = "eco_2"
+name = "Hydrogen reed"
+temp_min = -5.0
+temp_max = 45.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.3
+height_m = 1.0
+outer = true
+substrate = 3
+ecology = { layer = 3, nitrogen = 0.03, phosphorus = 0.003, maintenance = 0.025, symbiosis = 0.85, fixation = 0.3, shade = 0.8, turnover = 0.4 }
+
+[[plants]]
+id = "eco_3"
+name = "Stone veil"
+temp_min = -5.0
+temp_max = 45.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.3
+height_m = 1.0
+outer = true
+substrate = 3
+ecology = { layer = 4, nitrogen = 0.03, phosphorus = 0.003, maintenance = 0.025, symbiosis = 0.85, fixation = 0.3, shade = 0.8, turnover = 0.4 }
+
+[[plants]]
+id = "eco_4"
+name = "Deep amber root"
+temp_min = -5.0
+temp_max = 45.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.3
+height_m = 1.0
+outer = true
+substrate = 3
+ecology = { layer = 3, nitrogen = 0.03, phosphorus = 0.003, maintenance = 0.025, symbiosis = 0.85, fixation = 0.3, shade = 0.8, turnover = 0.4 }
+
+[[plants]]
+id = "eco_5"
+name = "Iron chamber fern"
+temp_min = -5.0
+temp_max = 45.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.3
+height_m = 1.0
+outer = true
+substrate = 3
+ecology = { layer = 4, nitrogen = 0.03, phosphorus = 0.003, maintenance = 0.025, symbiosis = 0.85, fixation = 0.3, shade = 0.8, turnover = 0.4 }
+
+[[plants]]
+id = "eco_6"
+name = "Sulfur ribbon"
+temp_min = -5.0
+temp_max = 45.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.3
+height_m = 1.0
+outer = true
+substrate = 3
+ecology = { layer = 3, nitrogen = 0.03, phosphorus = 0.003, maintenance = 0.025, symbiosis = 0.85, fixation = 0.3, shade = 0.8, turnover = 0.4 }
+
+[[plants]]
+id = "eco_7"
+name = "Basalt sleeper"
+temp_min = -5.0
+temp_max = 45.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.3
+height_m = 1.0
+outer = true
+substrate = 3
+ecology = { layer = 4, nitrogen = 0.03, phosphorus = 0.003, maintenance = 0.025, symbiosis = 0.85, fixation = 0.3, shade = 0.8, turnover = 0.4 }
+
+[[plants]]
+id = "eco_8"
+name = "Blind crown"
+temp_min = -5.0
+temp_max = 45.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.3
+height_m = 1.0
+outer = true
+substrate = 3
+ecology = { layer = 3, nitrogen = 0.03, phosphorus = 0.003, maintenance = 0.025, symbiosis = 0.85, fixation = 0.3, shade = 0.8, turnover = 0.4 }
+
+[[plants]]
+id = "eco_9"
+name = "Cavern braid"
+temp_min = -5.0
+temp_max = 45.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.3
+height_m = 1.0
+outer = true
+substrate = 3
+ecology = { layer = 4, nitrogen = 0.03, phosphorus = 0.003, maintenance = 0.025, symbiosis = 0.85, fixation = 0.3, shade = 0.8, turnover = 0.4 }
+
+[[plants]]
+id = "eco_10"
+name = "Understone fan"
+temp_min = -5.0
+temp_max = 45.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.3
+height_m = 1.0
+outer = true
+substrate = 3
+ecology = { layer = 3, nitrogen = 0.03, phosphorus = 0.003, maintenance = 0.025, symbiosis = 0.85, fixation = 0.3, shade = 0.8, turnover = 0.4 }
+
+[[plants]]
+id = "eco_11"
+name = "Rift heart"
+temp_min = -5.0
+temp_max = 45.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.3
+height_m = 1.0
+outer = true
+substrate = 3
+ecology = { layer = 4, nitrogen = 0.03, phosphorus = 0.003, maintenance = 0.025, symbiosis = 0.85, fixation = 0.3, shade = 0.8, turnover = 0.4 }
+
+[[plants]]
+id = "eco_12"
+name = "Gyre filament"
+temp_min = 8.0
+temp_max = 40.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.18
+height_m = 1.0
+outer = false
+substrate = 3
+ecology = { layer = 5, nitrogen = 0.03, phosphorus = 0.001, maintenance = 0.02, symbiosis = 0.2, fixation = 0.3, shade = 0.8, turnover = 0.25 }
+
+[[plants]]
+id = "eco_13"
+name = "Shelf kelp"
+temp_min = -2.0
+temp_max = 24.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.32
+height_m = 1.0
+outer = false
+substrate = 3
+ecology = { layer = 5, nitrogen = 0.03, phosphorus = 0.003, maintenance = 0.04, symbiosis = 0.2, fixation = 0.3, shade = 0.8, turnover = 0.35 }
+
+[[plants]]
+id = "eco_14"
+name = "Delta ribbon"
+temp_min = 8.0
+temp_max = 38.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.4
+height_m = 1.0
+outer = false
+substrate = 3
+ecology = { layer = 5, nitrogen = 0.03, phosphorus = 0.004, maintenance = 0.06, symbiosis = 0.2, fixation = 0.3, shade = 0.8, turnover = 0.5 }
+
+[[plants]]
+id = "eco_15"
+name = "Upwelling sail"
+temp_min = 5.0
+temp_max = 35.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.55
+height_m = 1.0
+outer = false
+substrate = 3
+ecology = { layer = 5, nitrogen = 0.03, phosphorus = 0.006, maintenance = 0.09, symbiosis = 0.2, fixation = 0.3, shade = 0.8, turnover = 0.65 }
+
+[[plants]]
+id = "eco_16"
+name = "Thermocline moss"
+temp_min = -5.0
+temp_max = 15.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.16
+height_m = 1.0
+outer = false
+substrate = 3
+ecology = { layer = 5, nitrogen = 0.03, phosphorus = 0.0015, maintenance = 0.015, symbiosis = 0.2, fixation = 0.3, shade = 0.8, turnover = 0.15 }
+
+[[plants]]
+id = "eco_17"
+name = "Floating citadel"
+temp_min = 18.0
+temp_max = 45.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.22
+height_m = 1.0
+outer = false
+substrate = 3
+ecology = { layer = 5, nitrogen = 0.03, phosphorus = 0.002, maintenance = 0.03, symbiosis = 0.2, fixation = 0.3, shade = 0.8, turnover = 0.2 }
+
+[[plants]]
+id = "eco_18"
+name = "Ashwood"
+temp_min = -5.0
+temp_max = 45.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.3
+height_m = 60.0
+outer = true
+substrate = 3
+ecology = { layer = 0, nitrogen = 0.03, phosphorus = 0.003, maintenance = 0.08, symbiosis = 0.2, fixation = 0.3, shade = 0.8, turnover = 0.4 }
+
+[[plants]]
+id = "eco_19"
+name = "Phosphor palm"
+temp_min = -5.0
+temp_max = 45.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.3
+height_m = 60.0
+outer = true
+substrate = 3
+ecology = { layer = 0, nitrogen = 0.03, phosphorus = 0.003, maintenance = 0.08, symbiosis = 0.2, fixation = 0.3, shade = 0.8, turnover = 0.4 }
+
+[[plants]]
+id = "eco_20"
+name = "Mist lattice"
+temp_min = -5.0
+temp_max = 45.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.3
+height_m = 60.0
+outer = true
+substrate = 3
+ecology = { layer = 1, nitrogen = 0.03, phosphorus = 0.003, maintenance = 0.08, symbiosis = 0.2, fixation = 0.3, shade = 0.8, turnover = 0.4 }
+
+[[plants]]
+id = "eco_21"
+name = "Rift cedar"
+temp_min = -5.0
+temp_max = 45.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.3
+height_m = 60.0
+outer = true
+substrate = 3
+ecology = { layer = 0, nitrogen = 0.03, phosphorus = 0.003, maintenance = 0.08, symbiosis = 0.2, fixation = 0.3, shade = 0.8, turnover = 0.4 }
+
+[[plants]]
+id = "eco_22"
+name = "Sulfur sedge"
+temp_min = -5.0
+temp_max = 45.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.3
+height_m = 60.0
+outer = true
+substrate = 3
+ecology = { layer = 2, nitrogen = 0.03, phosphorus = 0.003, maintenance = 0.08, symbiosis = 0.2, fixation = 0.3, shade = 0.8, turnover = 0.4 }
+
+[[plants]]
+id = "eco_23"
+name = "Floodplain tower"
+temp_min = -5.0
+temp_max = 45.0
+rain_min = 0.0
+rain_max = 10000.0
+soil_min = 0.0
+growth = 0.3
+height_m = 60.0
+outer = true
+substrate = 3
+ecology = { layer = 0, nitrogen = 0.03, phosphorus = 0.003, maintenance = 0.08, symbiosis = 0.2, fixation = 0.3, shade = 0.8, turnover = 0.4 }
+
+[[biomes]]
+id = "eco_biome_0"
+ecological_habitat = 1
+name = "Shallow root caverns"
+temp_min = -5.0
+temp_max = 50.0
+rain_min = 0.0
+rain_max = 10000.0
+elevation_min = -7000.0
+elevation_max = 10000.0
+vegetation = 0.5
+color = [0.2, 0.4, 0.3]
+
+[[biomes]]
+id = "eco_biome_1"
+ecological_habitat = 2
+name = "Deep fault gardens"
+temp_min = -5.0
+temp_max = 50.0
+rain_min = 0.0
+rain_max = 10000.0
+elevation_min = -7000.0
+elevation_max = 10000.0
+vegetation = 0.5
+color = [0.2, 0.4, 0.3]
+
+[[biomes]]
+id = "eco_biome_2"
+ecological_habitat = 3
+name = "Hydrogen seep"
+temp_min = -5.0
+temp_max = 50.0
+rain_min = 0.0
+rain_max = 10000.0
+elevation_min = -7000.0
+elevation_max = 10000.0
+vegetation = 0.5
+color = [0.2, 0.4, 0.3]
+
+[[biomes]]
+id = "eco_biome_3"
+ecological_habitat = 4
+name = "Sulfur marsh"
+temp_min = -5.0
+temp_max = 50.0
+rain_min = 0.0
+rain_max = 10000.0
+elevation_min = -7000.0
+elevation_max = 10000.0
+vegetation = 0.5
+color = [0.2, 0.4, 0.3]
+
+[[biomes]]
+id = "eco_biome_4"
+ecological_habitat = 5
+name = "Geothermal woodland"
+temp_min = -5.0
+temp_max = 50.0
+rain_min = 0.0
+rain_max = 10000.0
+elevation_min = -7000.0
+elevation_max = 10000.0
+vegetation = 0.5
+color = [0.2, 0.4, 0.3]
+
+[[biomes]]
+id = "eco_biome_5"
+ecological_habitat = 6
+name = "Oligotrophic inland sea"
+temp_min = -5.0
+temp_max = 50.0
+rain_min = 0.0
+rain_max = 10000.0
+elevation_min = -7000.0
+elevation_max = 10000.0
+vegetation = 0.5
+color = [0.2, 0.4, 0.3]
+
+[[biomes]]
+id = "eco_biome_6"
+ecological_habitat = 7
+name = "Upwelling forest"
+temp_min = -5.0
+temp_max = 50.0
+rain_min = 0.0
+rain_max = 10000.0
+elevation_min = -7000.0
+elevation_max = 10000.0
+vegetation = 0.5
+color = [0.2, 0.4, 0.3]
+
+[[biomes]]
+id = "eco_biome_7"
+ecological_habitat = 8
+name = "Flooded root shelf"
+temp_min = -5.0
+temp_max = 50.0
+rain_min = 0.0
+rain_max = 10000.0
+elevation_min = -7000.0
+elevation_max = 10000.0
+vegetation = 0.5
+color = [0.2, 0.4, 0.3]
+
+[[guilds]]
+id = "guild_0"
+diet = [{ prey = 1, weight = 0.6 }, { prey = 2, weight = 0.25 }, { prey = 18, weight = 0.15 }]
+body_mass_kg = 0.2
+name = "Small herbivores"
+prey = 1
+aquatic = false
+nitrogen = 0.12
+phosphorus = 0.015
+assimilation = 0.4
+maintenance = 0.1
+feeding = 2.0
+migration = 0.1
+
+[[guilds]]
+id = "guild_1"
+diet = [{ prey = 0, weight = 0.7 }, { prey = 1, weight = 0.3 }]
+body_mass_kg = 100.0
+name = "Browsers"
+prey = 0
+aquatic = false
+nitrogen = 0.12
+phosphorus = 0.015
+assimilation = 0.4
+maintenance = 0.1
+feeding = 2.0
+migration = 0.1
+
+[[guilds]]
+id = "guild_2"
+diet = [{ prey = 2, weight = 0.8 }, { prey = 1, weight = 0.2 }]
+body_mass_kg = 200.0
+name = "Grazers"
+prey = 2
+aquatic = false
+nitrogen = 0.12
+phosphorus = 0.015
+assimilation = 0.4
+maintenance = 0.1
+feeding = 2.0
+migration = 0.1
+
+[[guilds]]
+id = "guild_3"
+diet = [{ prey = 0, weight = 0.6 }, { prey = 1, weight = 0.3 }, { prey = 2, weight = 0.1 }]
+body_mass_kg = 20000.0
+name = "Giant herbivores"
+prey = 0
+aquatic = false
+nitrogen = 0.12
+phosphorus = 0.015
+assimilation = 0.25
+maintenance = 0.18
+feeding = 2.0
+migration = 0.5
+
+[[guilds]]
+id = "guild_4"
+diet = [{ prey = 0, weight = 0.8 }, { prey = 1, weight = 0.2 }]
+body_mass_kg = 200000.0
+name = "Colossal herbivores"
+prey = 0
+aquatic = false
+nitrogen = 0.12
+phosphorus = 0.015
+assimilation = 0.25
+maintenance = 0.18
+feeding = 2.0
+migration = 0.5
+
+[[guilds]]
+animal_prey_refuge = 0.000005
+
+food_half_saturation = 0.000005
+
+id = "guild_5"
+diet = [{ prey = 5, weight = 0.7 }, { prey = 7, weight = 0.2 }, { prey = 13, weight = 0.1 }]
+body_mass_kg = 5.0
+name = "Small predators"
+prey = 5
+aquatic = false
+nitrogen = 0.12
+phosphorus = 0.015
+assimilation = 0.4
+maintenance = 0.1
+feeding = 0.8
+migration = 0.1
+
+[[guilds]]
+animal_prey_refuge = 0.000005
+
+food_half_saturation = 0.000005
+
+id = "guild_6"
+diet = [{ prey = 8, weight = 0.6 }, { prey = 6, weight = 0.25 }, { prey = 7, weight = 0.15 }]
+body_mass_kg = 30000.0
+name = "Apex predators"
+prey = 8
+aquatic = false
+nitrogen = 0.12
+phosphorus = 0.015
+assimilation = 0.25
+maintenance = 0.18
+feeding = 1.2
+migration = 0.1
+
+[[guilds]]
+id = "guild_7"
+diet = [{ prey = 18, weight = 0.7 }, { prey = 3, weight = 0.2 }, { prey = 4, weight = 0.1 }]
+body_mass_kg = 0.01
+name = "Detritivores"
+prey = 18
+aquatic = false
+nitrogen = 0.12
+phosphorus = 0.015
+assimilation = 0.4
+maintenance = 0.1
+feeding = 0.8
+migration = 0.1
+
+[[guilds]]
+id = "guild_8"
+food_half_saturation = 0.001
+diet = [{ prey = 23, weight = 0.8, efficiency = 1.0 }, { prey = 22, weight = 0.2, efficiency = 0.2 }]
+body_mass_kg = 1.0
+name = "Aquatic grazers"
+prey = 23
+aquatic = true
+nitrogen = 0.12
+phosphorus = 0.015
+assimilation = 0.4
+maintenance = 0.1
+feeding = 2.4
+migration = 0.1
+
+[[guilds]]
+animal_prey_refuge = 0.000005
+
+id = "guild_9"
+food_half_saturation = 0.000005
+diet = [{ prey = 13, weight = 0.8, efficiency = 1.0 }, { prey = 15, weight = 0.2, efficiency = 0.6 }]
+body_mass_kg = 100.0
+name = "Aquatic predators"
+prey = 13
+aquatic = true
+nitrogen = 0.12
+phosphorus = 0.015
+assimilation = 0.4
+maintenance = 0.1
+feeding = 0.8
+migration = 0.1
+
+[[guilds]]
+animal_prey_refuge = 0.000005
+
+id = "guild_10"
+food_half_saturation = 0.001
+diet = [{ prey = 23, weight = 0.6, efficiency = 0.8 }, { prey = 13, weight = 0.25, efficiency = 1.0 }, { prey = 22, weight = 0.15, efficiency = 0.15 }]
+body_mass_kg = 500.0
+name = "Migratory river animals"
+prey = 23
+aquatic = true
+nitrogen = 0.12
+phosphorus = 0.015
+assimilation = 0.4
+maintenance = 0.1
+feeding = 2.4
+migration = 0.5
+
+[[guilds]]
+animal_prey_refuge = 0.000005
+
+id = "guild_11"
+food_half_saturation = 0.000005
+diet = [{ prey = 13, weight = 0.6 }, { prey = 15, weight = 0.2, efficiency = 0.4 }, { prey = 5, weight = 0.2 }]
+body_mass_kg = 5.0
+name = "Colonial waterbirds"
+prey = 13
+aquatic = false
+nitrogen = 0.12
+phosphorus = 0.015
+assimilation = 0.4
+maintenance = 0.1
+feeding = 0.8
+migration = 0.5
+
+[[microbes]]
+id = "microbe_0"
+name = "Hydrogen acetogens"
+process = 0
+efficiency = 0.4
+rate = 0.5
+
+[[microbes]]
+id = "microbe_1"
+name = "Secondary redox symbionts"
+process = 1
+efficiency = 0.4
+rate = 0.5
+
+[[microbes]]
+id = "microbe_2"
+name = "Root nitrogen fixers"
+process = 2
+efficiency = 0.4
+rate = 0.5
+
+[[microbes]]
+id = "microbe_3"
+name = "Aquatic nitrogen fixers"
+process = 3
+efficiency = 0.4
+rate = 0.5
+
+[[microbes]]
+id = "microbe_4"
+name = "Soil decomposers"
+process = 4
+efficiency = 0.4
+rate = 0.5
+
+[[microbes]]
+id = "microbe_5"
+name = "Aquatic decomposers"
+process = 5
+efficiency = 0.4
+rate = 0.5
+
+[[microbes]]
+id = "microbe_6"
+name = "Phosphorus mobilizers"
+process = 6
+efficiency = 0.4
+rate = 0.5
+
+[[microbes]]
+id = "microbe_7"
+name = "Nutrient scavengers"
+process = 7
+efficiency = 0.4
+rate = 0.5
+
+[[minerals]]
+deposit_setting = "magmatic"
+province_scale_km = 450.0
+id = "apatite"
+name = "Apatite"
+hosts = ["granite", "basalt"]
+formation = 0
+abundance = 0.12
+yield_fraction = 0.18
+depth_m = 120.0
+phosphorus_fraction = 0.18
+
+[[rocks]]
+id = "peridotite"
+name = "Peridotite"
+formation = 0
+hardness = 6.5
+permeability = 0.2
+weathering = 0.4
+chemistry = [0.0005, 0.8, 0.001, 0.08]
+[[minerals]]
+deposit_setting = "sedimentary"
+province_scale_km = 450.0
+id = "phosphorite"
+name = "Phosphorite"
+hosts = ["limestone", "shale"]
+formation = 1
+abundance = 0.1
+yield_fraction = 0.15
+depth_m = 80.0
+phosphorus_fraction = 0.15

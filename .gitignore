@@ -1,0 +1,25 @@
+/target/
+/output/
+*.world
+__pycache__/
+
+# Generated experiments and binary artifacts belong under ignored output/.
+*.gz
+*.zip
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.bin
+*.exe
+*.log
+*.jsonl
+/docs/evidence/**
+!/docs/evidence/**/
+!/docs/evidence/**/*.md
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.pdf

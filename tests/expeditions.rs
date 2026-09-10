@@ -1,0 +1,399 @@
+use ancient_world::{
+    catalog::Catalog,
+    config::Config,
+    expeditions::{Objective, Phase, Rules},
+    gpu::{ContextGpu, Generator},
+};
+fn world() -> Generator {
+    let mut g = Generator::new(
+        pollster::block_on(ContextGpu::headless()).unwrap(),
+        Config {
+            resolution: 64,
+            ecology_resolution: 64,
+            seed: 7,
+            ..Default::default()
+        },
+        Catalog::bundled().unwrap(),
+    )
+    .unwrap();
+    g.run_epochs(1).unwrap();
+    g.found_civilizations(5).unwrap();
+    // Isolate transport, escrow and rescue accounting from new crop balance.
+    g.set_diversified_farming(false).unwrap();
+    g.enable_society().unwrap();
+    g.enable_politics().unwrap();
+    g.enable_governance().unwrap();
+    g.enable_shipping().unwrap();
+    g.enable_expeditions().unwrap();
+    g.configure_expeditions(Rules {
+        automatic: false,
+        hazard_scale: 0.,
+        ..Default::default()
+    })
+    .unwrap();
+    g.advance_history(240).unwrap();
+    g
+}
+fn launch(g: &mut Generator) -> u32 {
+    let routes = g
+        .civilizations
+        .as_ref()
+        .unwrap()
+        .expeditions
+        .as_ref()
+        .unwrap()
+        .routes
+        .len();
+    (0..routes)
+        .find_map(|r| g.launch_expedition(r as u32, Objective::Ecology, None).ok())
+        .expect("prosperous fixture must fund a voyage")
+}
+#[test]
+#[ignore = "requires hardware GPU"]
+fn voyages_conserve_and_deliver_knowledge_after_exact_checkpoint_continuation() {
+    let mut g = world();
+    assert!(g
+        .civilizations
+        .as_ref()
+        .unwrap()
+        .expeditions
+        .as_ref()
+        .unwrap()
+        .voyages
+        .is_empty());
+    let id = launch(&mut g);
+    let h = g.civilizations.as_ref().unwrap();
+    let x = h.expeditions.as_ref().unwrap();
+    let e = &x.voyages[id as usize];
+    let initial_expertise: Vec<_> = e.crew.iter().map(|c| c.expertise.unwrap()).collect();
+    let duration = x.routes[e.route as usize].travel_months * 2 + 10;
+    assert_eq!(e.survivors(), 8);
+    assert!(!e.confirmed);
+    assert!(x.knowledge.iter().all(|v| *v == 0.));
+    let terrain = g.snapshot().unwrap();
+    h.validate(&terrain).unwrap();
+    let before = serde_json::to_vec(&g.civilizations).unwrap();
+    assert!(g
+        .launch_expedition(e.route, Objective::Charts, None)
+        .is_err());
+    assert_eq!(before, serde_json::to_vec(&g.civilizations).unwrap());
+    let file = std::env::temp_dir().join(format!("expedition-resume-{}.world", std::process::id()));
+    g.save(&file).unwrap();
+    let mut b = Generator::load(g.gpu.clone(), &file).unwrap();
+    std::fs::remove_file(file).unwrap();
+    g.advance_history(duration).unwrap();
+    for _ in 0..duration {
+        b.advance_history(1).unwrap();
+    }
+    assert_eq!(
+        serde_json::to_value(&g.civilizations).unwrap(),
+        serde_json::to_value(&b.civilizations).unwrap()
+    );
+    let h = g.civilizations.as_ref().unwrap();
+    let x = h.expeditions.as_ref().unwrap();
+    let e = &x.voyages[id as usize];
+    assert_eq!(e.phase, Phase::Returned);
+    assert!(e
+        .crew
+        .iter()
+        .zip(&initial_expertise)
+        .any(|(c, before)| c.expertise.unwrap() > *before));
+    assert!(e.confirmed && x.knowledge[e.sponsor as usize] > 0.);
+    h.validate(&terrain).unwrap();
+    assert!(h
+        .sites
+        .iter()
+        .all(|s| terrain[s.cell as usize].meta[0] == 2));
+    let mut bad = h.clone();
+    bad.expeditions.as_mut().unwrap().routes[0].cells[1] = h.sites[0].cell;
+    assert!(bad.validate(&terrain).is_err());
+    let mut bad = h.clone();
+    bad.expeditions.as_mut().unwrap().voyages[0].purse = f64::NAN;
+    assert!(bad.validate(&terrain).is_err());
+    let mut bad = h.clone();
+    bad.expeditions.as_mut().unwrap().voyages[0].crew[0].expertise = Some(1.01);
+    assert!(bad.validate(&terrain).is_err());
+}
+#[test]
+#[ignore = "requires hardware GPU"]
+fn rescue_transfers_real_survivors_and_stores_and_recall_takes_time() {
+    let mut g = world();
+    let id = launch(&mut g);
+    let x = g
+        .civilizations
+        .as_ref()
+        .unwrap()
+        .expeditions
+        .as_ref()
+        .unwrap();
+    let route = x.voyages[id as usize].route;
+    let travel = x.routes[route as usize].travel_months;
+    g.advance_history(travel + 2).unwrap();
+    let h = g.civilizations.as_mut().unwrap();
+    let e = &mut h.expeditions.as_mut().unwrap().voyages[id as usize];
+    assert_eq!(e.phase, Phase::Camp);
+    e.phase = Phase::Stranded;
+    e.due = h.month + 1000;
+    let origin = e.origin as usize;
+    let rescued_expertise: Vec<_> = e
+        .crew
+        .iter()
+        .filter(|c| c.alive)
+        .map(|c| (c.name.clone(), c.expertise))
+        .collect();
+    // This fixture tests survivor and store transfers, not whether a sponsor can afford two
+    // consecutive voyages. Fund the rescue with existing neighboring tool stocks.
+    let mut needed =
+        (25. + h.sites[origin].stocks.stock[0] * 0.5 - h.sites[origin].economy.goods[3]).max(0.);
+    for donor in 0..h.sites.len() {
+        if donor == origin {
+            continue;
+        }
+        let transfer = needed.min(h.sites[donor].economy.goods[3]);
+        h.sites[donor].economy.goods[3] -= transfer;
+        h.sites[origin].economy.goods[3] += transfer;
+        needed -= transfer;
+    }
+    assert!(needed < 0.001, "fixture needs existing rescue equipment");
+    // Explicitly fund the second voyage too: unrelated institutional succession and
+    // wage changes can leave the original sponsor unable to finance a rescue.
+    // Transfer existing town cash into the council; do not mint fixture money.
+    let controller = h.controller(origin as u32) as usize;
+    for donor in 0..h.sites.len() {
+        let treasury = h.society.as_ref().unwrap().councils[controller].treasury;
+        let needed = (1201. - treasury).max(0.);
+        let pool = &mut h.sites[donor].economy.finance[0];
+        let before = *pool;
+        *pool = (*pool as f64 - needed.min(*pool as f64)).max(0.) as f32;
+        h.society.as_mut().unwrap().councils[controller].treasury += before as f64 - *pool as f64;
+    }
+    assert!(
+        h.society.as_ref().unwrap().councils[controller].treasury >= 1200.,
+        "fixture needs existing rescue capital"
+    );
+    let rescue = g
+        .launch_expedition(route, Objective::Rescue, Some(id))
+        .unwrap();
+    g.advance_history(travel).unwrap();
+    let h = g.civilizations.as_ref().unwrap();
+    let x = h.expeditions.as_ref().unwrap();
+    assert_eq!(x.voyages[id as usize].phase, Phase::Rescued);
+    assert_eq!(x.voyages[rescue as usize].survivors(), 16);
+    for (name, expertise) in rescued_expertise {
+        assert_eq!(
+            x.voyages[rescue as usize]
+                .crew
+                .iter()
+                .find(|c| c.name == name)
+                .unwrap()
+                .expertise,
+            expertise
+        );
+    }
+    assert_eq!(x.voyages[rescue as usize].phase, Phase::Homeward);
+    h.validate(&g.snapshot().unwrap()).unwrap();
+    g.advance_history(travel + 1).unwrap();
+    let h = g.civilizations.as_ref().unwrap();
+    assert_eq!(
+        h.expeditions.as_ref().unwrap().voyages[rescue as usize].phase,
+        Phase::Returned
+    );
+    h.validate(&g.snapshot().unwrap()).unwrap();
+    g.advance_history(60).unwrap();
+    let next = launch(&mut g);
+    g.advance_history(2).unwrap();
+    g.recall_expedition(next).unwrap();
+    let e = &g
+        .civilizations
+        .as_ref()
+        .unwrap()
+        .expeditions
+        .as_ref()
+        .unwrap()
+        .voyages[next as usize];
+    assert_eq!(e.phase, Phase::Homeward);
+    assert!(e.due > g.civilizations.as_ref().unwrap().month);
+    g.advance_history(3).unwrap();
+    assert_eq!(
+        g.civilizations
+            .as_ref()
+            .unwrap()
+            .expeditions
+            .as_ref()
+            .unwrap()
+            .voyages[next as usize]
+            .phase,
+        Phase::Returned
+    );
+}
+#[test]
+#[ignore = "requires hardware GPU"]
+fn starvation_writes_off_losses_without_creating_resources() {
+    let mut g = world();
+    let id = launch(&mut g);
+    let h = g.civilizations.as_mut().unwrap();
+    let e = &mut h.expeditions.as_mut().unwrap().voyages[id as usize];
+    h.sites[e.origin as usize].stocks.stock[1] += e.food;
+    e.food = 0.;
+    e.due = h.month + 100; // Move food home, preserving the fixture's inventory.
+    g.advance_history(9).unwrap();
+    let h = g.civilizations.as_ref().unwrap();
+    let e = &h.expeditions.as_ref().unwrap().voyages[id as usize];
+    assert_eq!(e.phase, Phase::Lost);
+    assert_eq!(e.survivors(), 0);
+    assert!(!e.confirmed);
+    h.validate(&g.snapshot().unwrap()).unwrap();
+}
+
+#[test]
+#[ignore = "requires hardware GPU"]
+fn merchant_institution_pays_existing_escrow_and_receives_its_refund() {
+    use ancient_world::culture::{Institution, InstitutionKind};
+    let mut g = world();
+    // Probe only to identify a port satisfying all the existing physical launch requirements.
+    let baseline = g.civilizations.clone();
+    let voyage = launch(&mut g);
+    let e = &g
+        .civilizations
+        .as_ref()
+        .unwrap()
+        .expeditions
+        .as_ref()
+        .unwrap()
+        .voyages[voyage as usize];
+    let (origin, route) = (e.origin, e.route);
+    g.civilizations = baseline;
+    let h = g.civilizations.as_mut().unwrap();
+    let leader = h.civilizations[h.sites[origin as usize].civilization as usize].leader;
+    let c = h.culture.as_mut().unwrap();
+    let institution = c.institutions.len() as u32;
+    // Declared fixture starting capital, held once in the institution rather than town stocks.
+    h.sites[origin as usize].economy.finance[1] += 1300.;
+    c.institutions.push(Institution {
+        capacity: None,
+        id: institution,
+        name: "Fixture expedition house".into(),
+        kind: InstitutionKind::Merchant,
+        site: origin,
+        tradition: None,
+        members: vec![leader],
+        leader,
+        treasury: 1300.,
+        active: true,
+        founded: h.month,
+        knowledge: Default::default(),
+        property: vec![],
+        dues: 1300.,
+        expenses: 0.,
+    });
+    let before = h.economy_residuals();
+    let voyage = g.launch_expedition(route, Objective::Charts, None).unwrap();
+    let h = g.civilizations.as_ref().unwrap();
+    let e = &h.expeditions.as_ref().unwrap().voyages[voyage as usize];
+    assert_eq!(e.institution, Some(institution));
+    assert_eq!(e.purse, 600.);
+    assert_eq!(
+        h.culture.as_ref().unwrap().institutions[institution as usize].treasury,
+        700.
+    );
+    for (a, b) in before.into_iter().zip(h.economy_residuals()) {
+        assert!((a - b).abs() < 1e-6);
+    }
+    g.recall_expedition(voyage).unwrap();
+    g.advance_history(2).unwrap();
+    let h = g.civilizations.as_ref().unwrap();
+    let e = &h.expeditions.as_ref().unwrap().voyages[voyage as usize];
+    assert_eq!(e.phase, Phase::Returned);
+    assert_eq!(e.purse, 0.);
+    assert!(h.culture.as_ref().unwrap().institutions[institution as usize].treasury > 700.);
+    h.validate(&g.snapshot().unwrap()).unwrap();
+}
+
+#[test]
+#[ignore = "requires hardware GPU"]
+fn heritage_voyages_preserve_minor_finds_and_checkpoint_continuity() {
+    let mut g = world();
+    let eligible: Vec<_> = {
+        let h = g.civilizations.as_ref().unwrap();
+        h.expeditions
+            .as_ref()
+            .unwrap()
+            .routes
+            .iter()
+            .enumerate()
+            .filter_map(|(i, r)| {
+                let cell = *r.cells.last().unwrap();
+                let hash = cell
+                    .wrapping_mul(747796405)
+                    .wrapping_add(h.seed.wrapping_mul(2891336453));
+                ((hash ^ (hash >> 16)) % 5 < 3).then_some(i as u32)
+            })
+            .collect()
+    };
+    let id = eligible
+        .into_iter()
+        .find_map(|r| g.launch_expedition(r, Objective::PatronSearch, None).ok())
+        .expect("eligible funded patron voyage");
+    let h = g.civilizations.as_ref().unwrap();
+    let e = &h.expeditions.as_ref().unwrap().voyages[id as usize];
+    assert!(e.heritage.as_ref().unwrap().patron.is_some());
+    for objective in [Objective::Inscriptions, Objective::OldLiterature] {
+        assert!(
+            ancient_world::expedition_heritage::charter(h, e.origin, objective)
+                .unwrap()
+                .is_some()
+        );
+    }
+    let mut old = serde_json::to_value(e).unwrap();
+    old.as_object_mut().unwrap().remove("heritage");
+    let old: ancient_world::expeditions::Expedition = serde_json::from_value(old).unwrap();
+    assert!(old.heritage.is_none());
+    let duration = h.expeditions.as_ref().unwrap().routes[e.route as usize].travel_months * 2 + 10;
+    let file = std::env::temp_dir().join(format!("heritage-{}.world", std::process::id()));
+    g.save(&file).unwrap();
+    let mut resumed = Generator::load(g.gpu.clone(), &file).unwrap();
+    std::fs::remove_file(file).unwrap();
+    g.advance_history(duration).unwrap();
+    for _ in 0..duration {
+        resumed.advance_history(1).unwrap();
+    }
+    assert_eq!(
+        serde_json::to_value(&g.civilizations).unwrap(),
+        serde_json::to_value(&resumed.civilizations).unwrap()
+    );
+    let h = g.civilizations.as_ref().unwrap();
+    let e = &h.expeditions.as_ref().unwrap().voyages[id as usize];
+    assert_eq!(e.phase, Phase::Returned);
+    let find = e
+        .heritage
+        .as_ref()
+        .unwrap()
+        .find
+        .as_ref()
+        .expect("fragment from qualifying endpoint");
+    let artifact = &h.culture.as_ref().unwrap().artifacts[find.artifact.unwrap() as usize];
+    assert_eq!(artifact.kind, "ancient ceramic fragment");
+    assert_eq!(artifact.materials.iter().map(|v| v.1).sum::<f32>(), 0.125);
+    assert!(
+        artifact.topic.is_none(),
+        "minor artifact does not grant a technology"
+    );
+    assert!(h
+        .culture
+        .as_ref()
+        .unwrap()
+        .accounts
+        .iter()
+        .any(|a| a.facts.contains(&find.observed)));
+    assert!(h.economy_residuals().iter().all(|v| v.abs() < 1e-3));
+    h.validate(&g.snapshot().unwrap()).unwrap();
+    let mut duplicate = h.clone();
+    let x = duplicate.expeditions.as_mut().unwrap();
+    let mut copy = x.voyages[id as usize].clone();
+    copy.id = x.voyages.len() as u32;
+    x.voyages.push(copy);
+    assert!(
+        duplicate.validate(&g.snapshot().unwrap()).is_err(),
+        "duplicate recovery must fail validation"
+    );
+}

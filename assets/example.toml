@@ -1,0 +1,15 @@
+resolution = 512
+seed = 42
+radius_km = 6371.0
+axial_tilt = 23.44
+inner_continents = 5
+target_epochs = 1000
+geological_step_myr = 0.01
+climate_iterations = 24
+climate_cycles = 4
+max_drainage_iterations = 16384
+
+ecology_resolution = 256
+ecology_years_per_epoch = 10
+lake_mixing = 1.0
+solar_scale = 1.0

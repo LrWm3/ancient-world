@@ -1,0 +1,171 @@
+version = 2
+# Quantities are kg, prices are abstract currency/kg; recipe work[0] is worker-months/batch.
+# delay_spoilage: fraction lost per extra month held by flooded transport; game-scale rates.
+goods = [
+ {id="wood", name="Timber", base_price=2.0, cnp=[0.5,0.002,0.0002]},
+ {id="ore", name="Metal-bearing ore", base_price=4.0},
+ {id="metal", name="Base metal", base_price=15.0},
+ {id="tools", name="Tools", base_price=30.0},
+ {id="clay", name="Clay", base_price=1.0},
+ {id="bricks", name="Bricks", base_price=4.0},
+ {id="charcoal", name="Charcoal", base_price=8.0, cnp=[1.0,0.0,0.0]},
+ {id="pottery", name="Pottery", base_price=8.0},
+ {id="wheat",name="Wheat",base_price=2.0,cnp=[0.45, 0.02, 0.003],food_energy=1,delay_spoilage=0.02},
+ {id="barley",name="Barley",base_price=2.0,cnp=[0.43, 0.018, 0.0028],food_energy=0.95,delay_spoilage=0.02},
+ {id="millet",name="Millet",base_price=2.0,cnp=[0.44, 0.018, 0.0028],food_energy=1,delay_spoilage=0.02},
+ {id="pulses",name="Pulses",base_price=3.0,cnp=[0.43, 0.035, 0.0035],food_energy=0.95,delay_spoilage=0.02},
+ {id="tubers",name="Tubers",base_price=1.0,cnp=[0.18, 0.004, 0.0006],food_energy=0.3,delay_spoilage=0.08},
+ {id="flax",name="Flax",base_price=3.0,cnp=[0.45, 0.012, 0.002],food_energy=0},
+ {id="flour",name="Flour",base_price=3.0,cnp=[0.45, 0.018, 0.0025],food_energy=1,delay_spoilage=0.04},
+ {id="preserved_food",name="Preserved Food",base_price=4.0,cnp=[0.4, 0.016, 0.002],food_energy=0.85,delay_spoilage=0.01},
+ {id="fiber",name="Fiber",base_price=4.0,cnp=[0.45, 0.005, 0.001],food_energy=0},
+ {id="yarn",name="Yarn",base_price=6.0,cnp=[0.45, 0.005, 0.001],food_energy=0},
+ {id="cloth",name="Cloth",base_price=9.0,cnp=[0.45, 0.005, 0.001],food_energy=0},
+ {id="hides",name="Hides",base_price=4.0,cnp=[0.4, 0.04, 0.001],food_energy=0},
+ {id="leather",name="Leather",base_price=8.0,cnp=[0.4, 0.04, 0.001],food_energy=0},
+ {id="writing_material",name="Writing Material",base_price=7.0,cnp=[0.45, 0.002, 0.0002],food_energy=0},
+ {id="weapons",name="Weapons",base_price=35.0,cnp=[0, 0, 0],food_energy=0},
+ {id="armor",name="Armor",base_price=40.0,cnp=[0, 0, 0],food_energy=0},
+ {id="meat",name="Meat",base_price=3.0,cnp=[0.25, 0.04, 0.003],food_energy=0.6,delay_spoilage=0.3},
+ {id="milk",name="Milk",base_price=1.0,cnp=[0.06, 0.006, 0.001],food_energy=0.2,delay_spoilage=0.4},
+ {id="eggs",name="Eggs",base_price=2.0,cnp=[0.15, 0.02, 0.002],food_energy=0.4,delay_spoilage=0.1},
+ {id="wool",name="Wool",base_price=5.0,cnp=[0.45, 0.04, 0.001],food_energy=0},
+ {id="fish",name="Fish",base_price=3.0,cnp=[0.2, 0.03, 0.003],food_energy=0.5,delay_spoilage=0.35},
+ {id="scrap_metal",name="Recoverable metal scrap",base_price=6.0},
+ {id="faultroot_specimen",name="Preserved faultroot resin",base_price=20.0,cnp=[0.45,0.02,0.003]},
+ {id="phosphatic_specimen",name="Preserved phosphatic crust",base_price=20.0,cnp=[0.0,0.0,0.08]},
+ {id="reserved_32",name="Reserved",base_price=1.0},
+ {id="reserved_33",name="Reserved",base_price=1.0},
+ {id="reserved_34",name="Reserved",base_price=1.0},
+ {id="reserved_35",name="Reserved",base_price=1.0},
+ {id="reserved_36",name="Reserved",base_price=1.0},
+ {id="reserved_37",name="Reserved",base_price=1.0},
+ {id="reserved_38",name="Reserved",base_price=1.0},
+ {id="reserved_39",name="Reserved",base_price=1.0},
+ {id="reserved_40",name="Reserved",base_price=1.0},
+ {id="reserved_41",name="Reserved",base_price=1.0},
+ {id="reserved_42",name="Reserved",base_price=1.0},
+ {id="reserved_43",name="Reserved",base_price=1.0},
+ {id="reserved_44",name="Reserved",base_price=1.0},
+ {id="reserved_45",name="Reserved",base_price=1.0},
+ {id="reserved_46",name="Reserved",base_price=1.0},
+ {id="reserved_47",name="Reserved",base_price=1.0},
+ {id="reserved_48",name="Reserved",base_price=1.0},
+ {id="reserved_49",name="Reserved",base_price=1.0},
+ {id="reserved_50",name="Reserved",base_price=1.0},
+ {id="reserved_51",name="Reserved",base_price=1.0},
+ {id="reserved_52",name="Reserved",base_price=1.0},
+ {id="reserved_53",name="Reserved",base_price=1.0},
+ {id="reserved_54",name="Reserved",base_price=1.0},
+ {id="reserved_55",name="Reserved",base_price=1.0},
+ {id="reserved_56",name="Reserved",base_price=1.0},
+ {id="reserved_57",name="Reserved",base_price=1.0},
+ {id="reserved_58",name="Reserved",base_price=1.0},
+ {id="reserved_59",name="Reserved",base_price=1.0},
+ {id="reserved_60",name="Reserved",base_price=1.0},
+ {id="reserved_61",name="Reserved",base_price=1.0},
+ {id="reserved_62",name="Reserved",base_price=1.0},
+ {id="food",name="Dietary food equivalent",base_price=2.0,cnp=[0.45,0.02,0.003],food_energy=1.0,delay_spoilage=0.2},
+]
+[[recipes]]
+input = [4.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]
+output = [0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0]
+work = [0.05,0.0,2.0,0.0]
+[[recipes]]
+input = [0.0,2.0,0.0,0.0,0.0,0.0,1.0,0.0]
+output = [0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0]
+work = [0.1,0.0,1.0,0.0]
+[[recipes]]
+# Remelting: finite recovered metal, real fuel, 10% remelting loss.
+input = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+output = [0.0, 0.0, 0.9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+work = [0.08,0.0,1.0,0.0]
+[[recipes]]
+input = [0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0]
+output = [0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0]
+work = [0.1,0.0,1.0,0.0]
+[[recipes]]
+input = [0.0,0.0,0.0,0.0,2.0,0.0,0.2,0.0]
+output = [0.0,0.0,0.0,0.0,0.0,2.0,0.0,0.0]
+work = [0.05,0.0,2.0,0.0]
+[[recipes]]
+input = [0.0,0.0,0.0,0.0,1.0,0.0,0.1,0.0]
+output = [0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0]
+work = [0.15,0.0,2.0,0.0]
+
+# Commercial reserves: kg/person; tools retain 150% of the buyer target.
+[market]
+network_trade = true
+max_distance_km = 3000.0
+reserve_per_person = [3.0,3.0,3.0,0.75,3.0,3.0,3.0,3.0]
+food_reserve_months = 12.0
+
+# Optional regional multi-year drought forcing; 0 probability restores the old forcing.
+[weather]
+# Monthly regional wet pulses during living history; finite rainfall inputs.
+storm_probability = 0.04
+storm_multiplier = 3.0
+drought_probability = 0.2
+drought_severity = 0.5
+regime_months = 48
+
+[[recipes]]
+input = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+output = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+work = [0.15,0.0,0.0,0.0]
+
+[[recipes]]
+input = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+output = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+work = [0.15,0.0,0.0,0.0]
+
+[[recipes]]
+input = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+output = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+work = [0.15,0.0,3.0,0.0]
+
+[[recipes]]
+input = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+output = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.95, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+work = [0.15,0.0,3.0,0.0]
+
+[[recipes]]
+input = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+output = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.95, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+work = [0.15,0.0,3.0,0.0]
+
+[[recipes]]
+input = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+output = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+work = [0.15,0.0,3.0,0.0]
+
+[[recipes]]
+input = [1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+output = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+work = [0.15,0.0,0.0,0.0]
+
+[[recipes]]
+input = [0.0, 0.0, 1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+output = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+work = [0.15,0.0,1.0,0.0]
+
+[[recipes]]
+input = [0.0, 0.0, 2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+output = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+work = [0.15,0.0,1.0,0.0]
+
+[production]
+persistent_storage = true
+persistent_housing = true
+waterworks = true
+# Partial service avoids universal capital demand in low-exposure towns.
+waterworks_target_fraction = 0.5
+enabled = true
+adaptive_labor = true
+workshops = true
+specialized_workshops = true
+export_contracts = true
+supplier_profitability = true
+contract_margin = 0.1
+storage_kg_per_person = 100.0
+land_freight_kg_per_person = 20.0

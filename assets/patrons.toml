@@ -1,0 +1,133 @@
+version = 1
+
+[[patrons]]
+id = "reed_crowned"
+name = "Reed-crowned navigator"
+kind = "animal"
+appearance = "A many-legged shore animal with a crown of sensing reeds."
+communication = "gestures"
+habitat = "wetland"
+aid_strength = 0.35
+teaching = 0
+theme = 0
+
+[[patrons]]
+id = "glassback"
+name = "Glassback wayfinder"
+kind = "animal"
+appearance = "A translucent plated lake swimmer."
+communication = "patterns"
+habitat = "lake"
+aid_strength = 0.65
+teaching = 1
+theme = 1
+
+[[patrons]]
+id = "lantern_elk"
+name = "Lantern elk"
+kind = "animal"
+appearance = "A tall ungulate bearing luminous antlers."
+communication = "gestures"
+habitat = "forest"
+aid_strength = 0.25
+teaching = 2
+theme = 2
+
+[[patrons]]
+id = "basalt_tortoise"
+name = "Basalt tortoise"
+kind = "animal"
+appearance = "A broad tortoise with a weathered mineral shell."
+communication = "touch"
+habitat = "volcanic"
+aid_strength = 0.8
+teaching = 3
+theme = 3
+
+[[patrons]]
+id = "storm_heron"
+name = "Storm heron"
+kind = "animal"
+appearance = "A long-winged bird that reads approaching storms."
+communication = "calls"
+habitat = "coast"
+aid_strength = 0.5
+teaching = 4
+theme = 4
+
+[[patrons]]
+id = "root_marten"
+name = "Root marten"
+kind = "animal"
+appearance = "A burrowing animal carrying seeds in layered fur."
+communication = "gestures"
+habitat = "forest"
+aid_strength = 0.4
+teaching = 5
+theme = 5
+
+[[patrons]]
+id = "silver_manta"
+name = "Silver river manta"
+kind = "animal"
+appearance = "An amphibious ray with dexterous feeding tendrils."
+communication = "patterns"
+habitat = "lake"
+aid_strength = 0.7
+teaching = 6
+theme = 6
+
+[[patrons]]
+id = "ash_bear"
+name = "Ash bear"
+kind = "animal"
+appearance = "A gentle, large excavating mammal."
+communication = "gestures"
+habitat = "volcanic"
+aid_strength = 0.9
+teaching = 7
+theme = 7
+
+[[patrons]]
+id = "many_hands"
+name = "Many-hands envoy"
+kind = "intelligent"
+appearance = "A slender being with four pairs of tool-using arms."
+communication = "speech"
+habitat = "forest"
+aid_strength = 0.8
+teaching = 8
+theme = 0
+
+[[patrons]]
+id = "salt_listener"
+name = "Salt listener"
+kind = "intelligent"
+appearance = "A shelled, upright coastal interpreter."
+communication = "speech"
+habitat = "coast"
+aid_strength = 0.45
+teaching = 9
+theme = 1
+
+[[patrons]]
+id = "deep_weaver"
+name = "Deep weaver"
+kind = "intelligent"
+appearance = "A quiet subterranean being clothed in living fibers."
+communication = "signs"
+habitat = "volcanic"
+aid_strength = 0.6
+teaching = 10
+theme = 2
+
+[[patrons]]
+id = "dawn_keeper"
+name = "Dawn keeper"
+kind = "intelligent"
+appearance = "A feathered biped with a resonant throat fan."
+communication = "speech"
+habitat = "wetland"
+aid_strength = 0.3
+teaching = 11
+theme = 3

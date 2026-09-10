@@ -1,0 +1,13 @@
+# Managed land returning to the environment
+
+Enable living history, then **Connect runoff and abandoned land to ecology** in the civilization panel, or call `Generator::enable_environmental_returns()`. Existing saves default to the previous behavior. The opt-in and its date persist; there is no retroactive reconstruction of past exports.
+
+Monthly farm overflow now carries bounded dissolved soil C/N/P into the town's actual fine-grid river cell. Leaching removes at most 5% of current soil inventories per month, scaled by overflow relative to managed area. The existing GPU river network subsequently routes those masses, including across cube seams, into receiving soil or aquatic compartments. Coarse ecology does not replace the receiving river with an unrelated basin. This is a game-scale dissolved-load model, not sediment erosion or a water-quality solver. Crop consumption, evaporation and domestic outflow retain their existing declared exports.
+
+Abandonment returns soil, detritus, forest nutrients, geological phosphorus and standing crops to their ecological compartments. Remaining livestock becomes detritus; it does not become a new wild animal population. Stored water enters the river. Retained goods, seeds, buildings and mineral sources remain with the ruined site. A persisted release marker prevents repeated transfers and removes the plot's wild-production/rainfall reservation. Ordinary ecological growth and decomposition then operate on the returned inventories.
+
+Reoccupation withdraws a bounded share of the *current* ecological inventory. It cannot restore the town's former soil stock, create livestock or refill its mine. Stored water records both rain and reclamation as inputs. Land is an aggregate fraction of a coarse cell, so this models shared regional recovery rather than a spatially resolved overgrown town footprint.
+
+The town ledger debits every environmental return; the ecological external ledger credits the matching transfer. Pending river transfers are committed on GPU before the coupled monthly boundary can be saved. The two external ledgers represent an internal exchange when considering the combined system. A failed coupled month cannot be resumed or checkpointed as if complete.
+
+Verification: hardware-GPU fixtures exercise seeds 17, 81 and 256 with 32-cell terrain faces and 16-cell ecology faces, runoff during occupied history, abandonment, repeated empty months, finite reoccupation, ecological/economic budgets and exact checkpoint/batch continuation. A separate transfer fixture checks receiving fine-cell identity, matching ledger credits and idempotence. These are controlled functional checks, not long-history calibration of leaching rates or regrowth speed.
