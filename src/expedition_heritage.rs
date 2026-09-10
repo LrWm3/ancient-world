@@ -76,6 +76,14 @@ pub(crate) fn survey(h: &mut History, e: &mut Expedition, cell: u32, already: bo
     );
     let event = h.events.last_mut().unwrap();
     event.causes.push(e.cause);
+    event
+        .spatial
+        .as_mut()
+        .unwrap()
+        .push(crate::spatial::EventAnchor {
+            cell,
+            role: crate::spatial::EventRole::Milestone,
+        });
     c.find = Some(Find {
         cell,
         description,

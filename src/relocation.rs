@@ -256,6 +256,15 @@ impl History {
         let e = self.events.last_mut().unwrap();
         e.subjects.push(("household".into(), j.household));
         e.causes.push(j.cause);
+        if matches!(kind, "household_arrival" | "household_returned") {
+            e.spatial
+                .as_mut()
+                .unwrap()
+                .push(crate::spatial::EventAnchor {
+                    cell: self.sites[j.to as usize].cell,
+                    role: crate::spatial::EventRole::Milestone,
+                });
+        }
     }
     fn finish_relocation(&mut self, mut j: Journey) {
         if j.returning {
@@ -982,6 +991,33 @@ mod tests {
             serde_json::to_value(resumed).unwrap()
         );
         assert!(h.household_relocations().unwrap().journeys.is_empty());
+        let arrival = h
+            .events
+            .iter()
+            .rev()
+            .find(|e| e.kind == "household_arrival")
+            .unwrap();
+        assert_eq!(
+            arrival
+                .spatial
+                .as_ref()
+                .unwrap()
+                .iter()
+                .find(|a| a.role == crate::spatial::EventRole::Milestone)
+                .unwrap()
+                .cell,
+            h.sites[to].cell
+        );
+        assert!(h
+            .events
+            .iter()
+            .filter(|e| e.kind == "household_journey_blocked" || e.kind == "household_journey_lost")
+            .all(|e| e
+                .spatial
+                .as_ref()
+                .unwrap()
+                .iter()
+                .all(|a| a.role != crate::spatial::EventRole::Milestone)));
         assert_eq!(
             h.society.as_ref().unwrap().households[j.household as usize].site,
             to as u32

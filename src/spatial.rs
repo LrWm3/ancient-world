@@ -3,6 +3,28 @@ use crate::{expeditions::Phase, gpu::Generator, grid};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
+/// Compact event snapshot; the enclosing history supplies its immutable terrain grid.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct EventAnchor {
+    pub cell: u32,
+    pub role: EventRole,
+}
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum EventRole {
+    AssociatedSite,
+    AssociatedOtherSite,
+    Milestone,
+}
+impl EventRole {
+    fn label(self) -> &'static str {
+        match self {
+            Self::AssociatedSite => "associated_site",
+            Self::AssociatedOtherSite => "associated_other_site",
+            Self::Milestone => "milestone",
+        }
+    }
+}
 pub(crate) fn new_world_id() -> String {
     use std::sync::atomic::{AtomicU64, Ordering};
     static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -62,6 +84,7 @@ pub enum Precision {
     CellRepresentative,
     ModelCellPath,
     LegacyRouteAssociation,
+    LegacySiteAssociation,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Feature {
@@ -198,6 +221,81 @@ impl crate::region::Region {
     }
 }
 impl Generator {
+    /// Inclusive monthly range. Kept separate from current-world features to bound export size.
+    pub fn spatial_events(
+        &self,
+        months: std::ops::RangeInclusive<u32>,
+    ) -> Result<FeatureCollection> {
+        ensure!(!months.is_empty(), "invalid event month range");
+        let mut result = FeatureCollection {
+            version: 1,
+            grid: GridRef {
+                world: self
+                    .config
+                    .spatial_world_id
+                    .clone()
+                    .ok_or_else(|| anyhow::anyhow!("world identity unavailable"))?,
+                resolution: self.config.resolution,
+            },
+            radius_m: self.config.radius_km as f64 * 1000.,
+            epoch: self.progress.epoch,
+            ecology_month: self.ecology.clock.month,
+            history_month: self.civilizations.as_ref().map(|h| h.month),
+            features: vec![],
+        };
+        let Some(h) = &self.civilizations else {
+            return Ok(result);
+        };
+        for event in h.events.iter().filter(|e| months.contains(&e.month)) {
+            let legacy = event.spatial.is_none();
+            let fallback;
+            let anchors = if let Some(anchors) = &event.spatial {
+                anchors
+            } else {
+                fallback = [
+                    (event.site, EventRole::AssociatedSite),
+                    (event.other, EventRole::AssociatedOtherSite),
+                ]
+                .into_iter()
+                .filter_map(|(site, role)| {
+                    site.and_then(|id| h.sites.get(id as usize))
+                        .map(|s| EventAnchor { cell: s.cell, role })
+                })
+                .collect::<Vec<_>>();
+                &fallback
+            };
+            for anchor in anchors {
+                let cell = CellRef {
+                    grid: result.grid.clone(),
+                    cell: anchor.cell,
+                };
+                cell.direction()?;
+                result.features.push(Feature {
+                    id: format!(
+                        "{}/event/{}/{}",
+                        result.grid.world,
+                        event.id,
+                        anchor.role.label()
+                    ),
+                    entity: EntityRef {
+                        kind: "event".into(),
+                        id: event.id,
+                    },
+                    role: anchor.role.label().into(),
+                    label: format!("{}: {}", event.kind, event.detail),
+                    geometry: Geometry::Point(cell),
+                    precision: if legacy {
+                        Precision::LegacySiteAssociation
+                    } else {
+                        Precision::CellRepresentative
+                    },
+                    history_month: event.month,
+                    evidence: vec![event.id],
+                });
+            }
+        }
+        Ok(result)
+    }
     /// Current sparse features; no GPU readback, routing decisions or new inventories.
     pub fn spatial_features(&self) -> Result<FeatureCollection> {
         let grid = GridRef {

@@ -391,6 +391,7 @@ struct App {
     timeline_view: crate::history_timeline::TimelineView,
     political_overlay: bool,
     expedition_overlay: Option<u32>,
+    event_export_months: u32,
     cultural_overlay: u32,
     founding_options: crate::culture::FoundingOptions,
     region: Option<(crate::region::Region, egui::TextureHandle)>,
@@ -484,6 +485,7 @@ impl App {
             timeline_view: Default::default(),
             political_overlay: true,
             expedition_overlay: None,
+            event_export_months: 120,
             cultural_overlay: 0,
             founding_options: Default::default(),
             region: None,
@@ -2662,6 +2664,30 @@ impl App {
                 .unwrap()
                 .0
                 .spatial_features()
+                .and_then(|f| f.geojson())
+                .and_then(|value| {
+                    std::fs::write(&path, serde_json::to_vec_pretty(&value)?)?;
+                    Ok(())
+                });
+            self.report(result, &format!("Exported {}", path.display()));
+        }
+        ui.add(
+            egui::DragValue::new(&mut self.event_export_months)
+                .range(1..=120000)
+                .prefix("Event export months "),
+        );
+        if ui
+            .add_enabled(
+                self.generator.civilizations.is_some(),
+                egui::Button::new("Export recent event locations"),
+            )
+            .clicked()
+        {
+            let month = self.generator.civilizations.as_ref().unwrap().month;
+            let path = Path::new(&self.path).with_extension("events.geojson");
+            let result = self
+                .generator
+                .spatial_events(month.saturating_sub(self.event_export_months - 1)..=month)
                 .and_then(|f| f.geojson())
                 .and_then(|value| {
                     std::fs::write(&path, serde_json::to_vec_pretty(&value)?)?;

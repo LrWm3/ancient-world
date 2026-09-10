@@ -116,7 +116,7 @@ fn chart(
     });
 }
 impl TimelineView {
-    /// Returns the current geographic location to focus; does not rewind the world.
+    /// Returns a recorded event anchor or current site cell; does not rewind the world.
     pub fn show(
         &mut self,
         ui: &mut egui::Ui,
@@ -244,10 +244,33 @@ impl TimelineView {
             ui.separator();
             ui.label(format!("#{} · {} · {}", e.id, date(e.month), e.kind));
             ui.label(&e.detail);
+            if let Some(anchors) = &e.spatial {
+                ui.horizontal_wrapped(|ui| {
+                    for anchor in anchors {
+                        let label = match anchor.role {
+                            crate::spatial::EventRole::Milestone => "Locate recorded milestone",
+                            crate::spatial::EventRole::AssociatedSite => {
+                                "Locate recorded site association"
+                            }
+                            crate::spatial::EventRole::AssociatedOtherSite => {
+                                "Locate recorded other-site association"
+                            }
+                        };
+                        if ui.small_button(label).clicked() {
+                            focus = Some(anchor.cell);
+                        }
+                    }
+                    if anchors.is_empty() {
+                        ui.small("No geographic anchor recorded.");
+                    }
+                });
+            } else {
+                ui.small("Legacy event: only current site associations are available.");
+            }
             ui.horizontal_wrapped(|ui| {
                 for id in [e.site, e.other].into_iter().flatten() {
                     if let Some(place) = h.sites.get(id as usize) {
-                        if ui.small_button(format!("Locate {}", place.name)).clicked() {
+                        if ui.small_button(format!("Current {}", place.name)).clicked() {
                             focus = Some(place.cell);
                         }
                     }

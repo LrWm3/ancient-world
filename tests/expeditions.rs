@@ -133,6 +133,63 @@ fn voyages_conserve_and_deliver_knowledge_after_exact_checkpoint_continuation() 
         .routes[route]
         .cells = saved;
 
+    let recorded_before = serde_json::to_value(b.spatial_events(0..=u32::MAX).unwrap()).unwrap();
+    let origin = b
+        .civilizations
+        .as_ref()
+        .unwrap()
+        .expeditions
+        .as_ref()
+        .unwrap()
+        .voyages[id as usize]
+        .origin as usize;
+    let original_cell = b.civilizations.as_ref().unwrap().sites[origin].cell;
+    b.civilizations.as_mut().unwrap().sites[origin].cell = (original_cell + 1) % (6 * 64 * 64);
+    assert_eq!(
+        recorded_before,
+        serde_json::to_value(b.spatial_events(0..=u32::MAX).unwrap()).unwrap()
+    );
+    b.civilizations.as_mut().unwrap().sites[origin].cell = original_cell;
+    assert_eq!(
+        serde_json::to_value(g.spatial_events(0..=u32::MAX).unwrap()).unwrap(),
+        recorded_before
+    );
+
+    let cause = b
+        .civilizations
+        .as_ref()
+        .unwrap()
+        .expeditions
+        .as_ref()
+        .unwrap()
+        .voyages[id as usize]
+        .cause;
+    let frozen = b.civilizations.as_mut().unwrap().events[cause as usize]
+        .spatial
+        .take();
+    let legacy_features = b.spatial_events(0..=u32::MAX).unwrap();
+    let legacy_features: Vec<_> = legacy_features
+        .features
+        .iter()
+        .filter(|f| f.entity.id == cause)
+        .collect();
+    assert!(!legacy_features.is_empty());
+    assert!(legacy_features.iter().all(|f| matches!(
+        f.precision,
+        ancient_world::spatial::Precision::LegacySiteAssociation
+    )));
+    b.civilizations.as_mut().unwrap().events[cause as usize].spatial = Some(vec![]);
+    assert!(!b
+        .spatial_events(0..=u32::MAX)
+        .unwrap()
+        .features
+        .iter()
+        .any(|f| f.entity.id == cause));
+    b.civilizations.as_mut().unwrap().events[cause as usize].spatial = frozen;
+    assert!(b
+        .spatial_events(std::ops::RangeInclusive::new(1, 0))
+        .is_err());
+
     g.advance_history(duration).unwrap();
     for _ in 0..duration {
         b.advance_history(1).unwrap();
@@ -145,6 +202,43 @@ fn voyages_conserve_and_deliver_knowledge_after_exact_checkpoint_continuation() 
     let x = h.expeditions.as_ref().unwrap();
     let e = &x.voyages[id as usize];
     assert_eq!(e.phase, Phase::Returned);
+    let landfall = h
+        .events
+        .iter()
+        .find(|v| v.kind == "expedition_landfall" && v.causes.contains(&e.cause))
+        .unwrap();
+    let milestone = landfall
+        .spatial
+        .as_ref()
+        .unwrap()
+        .iter()
+        .find(|a| a.role == ancient_world::spatial::EventRole::Milestone)
+        .unwrap();
+    assert_eq!(
+        milestone.cell,
+        *e.planned_cells.as_ref().unwrap().last().unwrap()
+    );
+    let event_features = g.spatial_events(landfall.month..=landfall.month).unwrap();
+    assert!(event_features
+        .features
+        .iter()
+        .all(|f| f.history_month == landfall.month));
+    assert!(event_features
+        .features
+        .iter()
+        .any(|f| f.entity.id == landfall.id && f.role == "milestone"));
+    let mut bad_event_history = h.clone();
+    bad_event_history.events[landfall.id as usize]
+        .spatial
+        .as_mut()
+        .unwrap()[0]
+        .cell = 6 * 64 * 64;
+    assert!(bad_event_history.validate(&terrain).is_err());
+    let mut legacy = serde_json::to_value(landfall).unwrap();
+    legacy.as_object_mut().unwrap().remove("spatial");
+    let legacy: ancient_world::civilization::Event = serde_json::from_value(legacy).unwrap();
+    assert!(legacy.spatial.is_none());
+
     assert!(e
         .crew
         .iter()

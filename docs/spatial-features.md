@@ -52,6 +52,35 @@ a stored world/grid identity this export asks for regeneration rather than guess
 one from the seed. New survey identities survive serialization, while two separate
 surveys have distinct identities even when their generated cells are identical.
 
+## Historical event anchors
+
+New events save up to three terrain-cell anchors: associated settlement, associated
+other settlement, and (when recorded explicitly) a movement/discovery milestone.
+Settlement associations are context, not claims that something physically happened
+there. They are copied at event creation; subsequent changes to sites do not move
+those anchors. Their enclosing history supplies the terrain grid, and export adds
+the saved world identity.
+
+Explicit milestones currently cover expedition landfall, rescue/empty-camp arrival,
+stranding, retreat, repaired return access, return to the home town, heritage
+fragment observation, and household resettlement/return. Lost parties and blocked
+journeys have no invented position along a route. These remain cell-scale markers,
+not surveyed coordinates, continuous travel tracks or timestamps finer than a month.
+
+`Generator::spatial_events(start..=end)` exports an inclusive monthly range. Each
+feature links to its event and date. **Export recent event locations** writes
+`<checkpoint-name>.events.geojson`; its month-count control defaults to 120.
+Current-world export deliberately excludes the event log. The timeline event
+inspector distinguishes recorded anchors from buttons locating the current town.
+Focusing a past location changes the camera, not the displayed terrain epoch.
+
+Legacy events without snapshots may expose current site associations, explicitly
+marked `LegacySiteAssociation`. They never acquire inferred milestone locations.
+A new event with an explicitly empty anchor list stays unmapped. Events without
+any location yield no feature; they remain in the event log. Generic site-bound
+events are covered automatically, but route geometry, war extents and other
+subsystem-specific occurrence locations still need dedicated adapters.
+
 ## Export and limits
 
 **Export spatial features** writes `<checkpoint-name>.spatial.geojson` beside the
@@ -68,8 +97,8 @@ represents a cell set, not a filled polygon or exact boundary. Empty or duplicat
 cell sets are rejected. Polygon generation, local regional-grid addresses and
 globe overlays are not implemented here.
 
-Features are a current snapshot with per-feature history dates, not a temporal
-geometry registry. IDs refer to existing stable records; harbor and sea-lane IDs
+Current-world features are snapshots with per-feature history dates. Event anchors
+are separately frozen records, not a general temporal geometry registry. IDs refer to existing stable records; harbor and sea-lane IDs
 currently use array positions and must be revised if those arrays become reorderable.
 Movement milestones, event snapshots, area adapters, filtering/indexing and the
 remaining subsystem coverage are listed in the [larger plan](spatial-features-plan.md).
@@ -105,3 +134,18 @@ multi-seed evaluation of expedition outcomes.
 - Library Clippy (`-D warnings`), formatting and repository artifact checks passed.
   New expedition markers and survey export controls compile; they have not received
   interactive visual testing. No new expedition outcome calibration was attempted.
+
+## Event-anchor increment verification (2026-09-10)
+
+- Library suite: 57 passed, 53 hardware tests ignored; library Clippy passed with
+  warnings denied. Formatting and source-only artifact checks passed.
+- NVIDIA Vulkan expedition fixture (seed 7, 64² terrain/ecology): passed in 6.01 s
+  with cached shaders. Checks frozen site associations despite a changed current
+  site cell, checkpoint/batch continuation, the recorded outer landfall cell,
+  inclusive monthly filtering, invalid cell rejection, legacy association labels,
+  explicitly unmapped events and invalid month ranges.
+- Hardware relocation fixture: passed in 1.13 s. The recorded arrival cell matches
+  the receiving settlement; existing population, food, money, identity and
+  serialized-continuation assertions still pass.
+- The new timeline buttons and range-export controls compile; interactive visual
+  testing was not performed. Timings describe fixtures, not scalability claims.

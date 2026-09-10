@@ -239,6 +239,32 @@ fn record(h: &mut History, e: &Expedition, kind: &str, detail: String) {
         format!("Expedition {}: {detail}", e.id),
     );
     h.events.last_mut().unwrap().causes.push(e.cause);
+    if kind == "expedition_return" {
+        let cell = h.sites[e.origin as usize].cell;
+        h.events
+            .last_mut()
+            .unwrap()
+            .spatial
+            .as_mut()
+            .unwrap()
+            .push(crate::spatial::EventAnchor {
+                cell,
+                role: crate::spatial::EventRole::Milestone,
+            });
+    }
+}
+fn record_at(h: &mut History, e: &Expedition, kind: &str, detail: String, cell: u32) {
+    record(h, e, kind, detail);
+    h.events
+        .last_mut()
+        .unwrap()
+        .spatial
+        .as_mut()
+        .unwrap()
+        .push(crate::spatial::EventAnchor {
+            cell,
+            role: crate::spatial::EventRole::Milestone,
+        });
 }
 fn casualty(h: &mut History, e: &mut Expedition, reason: &str) {
     let alive = e.survivors();
@@ -742,13 +768,14 @@ impl History {
                         refund(self, t);
                         t.phase = Phase::Rescued;
                         t.ended = Some(self.month);
-                        record(self,&e,"expedition_rescue",format!("Reached camp and recovered {survivors} survivors from expedition {target}"));
+                        record_at(self,&e,"expedition_rescue",format!("Reached camp and recovered {survivors} survivors from expedition {target}"), *r.cells.last().unwrap());
                     } else {
-                        record(
+                        record_at(
                             self,
                             &e,
                             "expedition_empty_camp",
                             format!("Expedition {target} was no longer waiting at camp"),
+                            *r.cells.last().unwrap(),
                         );
                     }
                     e.phase = Phase::Homeward;
@@ -756,7 +783,7 @@ impl History {
                 } else {
                     e.phase = Phase::Camp;
                     e.due = self.month + 6;
-                    record(
+                    record_at(
                         self,
                         &e,
                         "expedition_landfall",
@@ -764,6 +791,7 @@ impl History {
                             "Temporary research camp at outer-continent cell {}",
                             r.cells.last().unwrap()
                         ),
+                        *r.cells.last().unwrap(),
                     );
                 }
             } else if matches!(e.phase, Phase::Camp | Phase::Stranded) {
@@ -808,7 +836,7 @@ impl History {
                         spend_wood(self, &mut e, timber);
                         e.phase = Phase::Stranded;
                         e.due = self.month + 3;
-                        record(self,&e,"expedition_stranded","Storm damage cut the camp's return access; attempting repairs and awaiting rescue".into());
+                        record_at(self,&e,"expedition_stranded","Storm damage cut the camp's return access; attempting repairs and awaiting rescue".into(), *r.cells.last().unwrap());
                     } else {
                         let loss = e.food * 0.12;
                         lose_food(self, &mut e, loss);
@@ -856,11 +884,12 @@ impl History {
                     {
                         e.phase = Phase::Homeward;
                         e.due = self.month + r.travel_months;
-                        record(
+                        record_at(
                             self,
                             &e,
                             "expedition_retreat",
                             "Research concluded or reserves triggered an early return".into(),
+                            *r.cells.last().unwrap(),
                         );
                     }
                 } else if self.month >= e.due
@@ -873,11 +902,12 @@ impl History {
                     spend_tools(self, &mut e, 3.);
                     e.phase = Phase::Homeward;
                     e.due = self.month + r.travel_months;
-                    record(
+                    record_at(
                         self,
                         &e,
                         "expedition_repaired",
                         "Crew restored return access using reserved timber and tools".into(),
+                        *r.cells.last().unwrap(),
                     );
                 }
             } else if e.phase == Phase::Homeward

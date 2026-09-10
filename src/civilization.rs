@@ -103,6 +103,9 @@ pub struct Person {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Event {
+    /// None means a legacy record; Some(empty) deliberately records no known anchor.
+    #[serde(default)]
+    pub spatial: Option<Vec<crate::spatial::EventAnchor>>,
     #[serde(default)]
     pub subjects: Vec<(String, u32)>,
     pub id: u64,
@@ -239,6 +242,23 @@ impl History {
                     })),
             "cyclic or invalid event causes"
         );
+        for event in &self.events {
+            if let Some(anchors) = &event.spatial {
+                ensure!(
+                    anchors.len() <= 3
+                        && anchors.iter().all(|a| (a.cell as u64)
+                            < 6 * self.terrain_resolution as u64 * self.terrain_resolution as u64),
+                    "invalid event spatial cell"
+                );
+                ensure!(
+                    anchors
+                        .iter()
+                        .enumerate()
+                        .all(|(i, a)| anchors[..i].iter().all(|b| b.role != a.role)),
+                    "duplicate event spatial role"
+                );
+            }
+        }
         Ok(())
     }
     pub(crate) fn event(
@@ -248,7 +268,18 @@ impl History {
         other: Option<u32>,
         detail: String,
     ) {
+        let spatial = [
+            (site, crate::spatial::EventRole::AssociatedSite),
+            (other, crate::spatial::EventRole::AssociatedOtherSite),
+        ]
+        .into_iter()
+        .filter_map(|(id, role)| {
+            id.and_then(|id| self.sites.get(id as usize))
+                .map(|s| crate::spatial::EventAnchor { cell: s.cell, role })
+        })
+        .collect();
         self.events.push(Event {
+            spatial: Some(spatial),
             id: self.events.len() as u64,
             month: self.month,
             kind: kind.into(),
