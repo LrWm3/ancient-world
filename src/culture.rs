@@ -459,6 +459,9 @@ impl Culture {
                 ensure!(
                     b.condition.is_finite()
                         && (0. ..=1.).contains(&b.condition)
+                        && b.construction_remaining.is_finite()
+                        && (0. ..=crate::institution_capacity::HALL_WORK_MONTHS)
+                            .contains(&b.construction_remaining)
                         && b.repaired_kg.is_finite()
                         && b.repaired_kg >= 0.
                         && b.repair_paid.is_finite()
@@ -467,7 +470,10 @@ impl Culture {
                             .artifacts
                             .get(b.artifact as usize)
                             .is_some_and(|a| a.kind == "institutional foundation"
-                                && a.materials == vec![(5, 2.)]),
+                                && a.materials.len() == 1
+                                && a.materials[0].0 == 5
+                                && a.materials[0].1.is_finite()
+                                && a.materials[0].1 > 0.),
                     "invalid institutional meeting place"
                 );
             }
@@ -1294,7 +1300,7 @@ impl Culture {
             if remaining_work >= 0.2
                 && members.len() >= 2
                 && h.sites[si].economy.finance[0] > 500.
-                && h.sites[si].economy.goods[5] >= 2.
+                && h.sites[si].economy.goods[5] >= crate::institution_capacity::HALL_BRICKS_KG
                 && !self.institutions.iter().any(|n| {
                     n.site == site
                         && n.kind == kind
@@ -1304,7 +1310,7 @@ impl Culture {
             {
                 remaining_work -= 0.2;
                 h.sites[si].economy.finance[0] -= 25.;
-                h.sites[si].economy.goods[5] -= 2.;
+                h.sites[si].economy.goods[5] -= crate::institution_capacity::HALL_BRICKS_KG;
 
                 let id = self.institutions.len() as u32;
                 self.institutions.push(Institution {
@@ -1336,7 +1342,7 @@ impl Culture {
                     expenses: 0.,
                 });
                 let artifact = self.artifacts.len() as u32;
-                let event=self.log(h,"institution_founded",site,Some(actor),Some(faith),Some(artifact),None,format!("A {kind:?} institution formed with 25 money transferred and two kg bricks embodied in its meeting place; motive: shared practice"));
+                let event=self.log(h,"institution_founded",site,Some(actor),Some(faith),Some(artifact),None,format!("A {kind:?} institution formed with 25 money transferred and 2000 kg bricks reserved in an unfinished meeting room enclosure; four worker-months construction required; motive: shared practice"));
                 h.events[event as usize]
                     .subjects
                     .push(("institution".into(), id));
@@ -1349,7 +1355,7 @@ impl Culture {
                     claims: vec![],
                     site: Some(site),
                     custodian: None,
-                    materials: vec![(5, 2.)],
+                    materials: vec![(5, crate::institution_capacity::HALL_BRICKS_KG)],
                     topic: None,
                     tradition: Some(faith),
                     events: vec![event],
@@ -1361,7 +1367,7 @@ impl Culture {
                     .capacity
                     .as_mut()
                     .unwrap()
-                    .building = Some(crate::institution_capacity::MeetingPlace::new(artifact));
+                    .building = Some(crate::institution_capacity::MeetingPlace::hall(artifact));
             }
             if remaining_work >= 0.05 && traits[1] > 0.6 {
                 if let Some(dest) = h.society.as_ref().and_then(|s| {

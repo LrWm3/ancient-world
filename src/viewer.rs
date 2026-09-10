@@ -2275,7 +2275,7 @@ impl App {
                             if let Some(tradition) = n.tradition {
                                 ui.small(format!("Tradition: {}", c.traditions[tradition as usize].name));
                             }
-                            if let Some(c)=&n.capacity {if let Some(b)=&c.building {ui.small(format!("Meeting place {:.0}% condition · replacement brick {:.3} kg · repairs paid {:.2}",b.condition*100.,b.repaired_kg,b.repair_paid));} ui.small(format!("Readiness {:.0}% · upkeep paid {:.1} · work {:.2} · {}",c.readiness*100.,c.paid,c.work,if n.operational() {"operational"}else{"services limited"}));}
+                            if let Some(c)=&n.capacity {if let Some(b)=&c.building {ui.small(format!("Meeting place {:.0}% condition · construction remaining {:.2} worker-months · replacement brick {:.3} kg · repairs paid {:.2}",b.condition*100.,b.construction_remaining,b.repaired_kg,b.repair_paid));} ui.small(format!("Readiness {:.0}% · upkeep paid {:.1} · work {:.2} · {}",c.readiness*100.,c.paid,c.work,if n.operational() {"operational"}else{"services limited"}));}
                             if let Some(m) = n.capacity.as_ref().and_then(|c| c.mandate.as_ref()) {
                                 let eligible = c.institution_candidates(h, n.id).len();
                                 ui.small(format!("{eligible} eligible local representatives{}", if eligible == 0 { " · no local constituency for succession" } else { "" }));

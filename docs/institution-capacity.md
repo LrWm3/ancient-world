@@ -2,7 +2,7 @@
 
 This implements the institutional-capacity idea from the [archived history design menu](archive/history-simulation-considerations.md) using existing institutions, treasuries and reserved cultural work. Organizational readiness now depends on the condition of the existing founding meeting place as well as finite operating support.
 
-New institutions start at 50% readiness, supported by their existing founding materials and labor. Each quarter maintenance may use 0.025 worker-months and 0.5 money. Work comes from the cultural allocation already reserved before production, leaving less for other cultural decisions. The institution pays its settlement for upkeep; the exact representable receipt is debited from its treasury and recorded in expenses. There is no new money source. The previous per-decision upkeep fee is retained only for legacy institutions without capacity state.
+New institutions start at 50% organizational readiness but cannot provide institutional services until construction finishes. Each quarter a new meeting place may reserve up to 0.125 worker-months for construction, repair and operation, plus 0.5 abstract money for organizational upkeep. Operating support alone requires 0.025 worker-months. Work comes from the cultural allocation already reserved before production, leaving less for other cultural decisions. The institution pays its settlement for upkeep; the exact representable receipt is debited from its treasury and recorded in expenses. There is no new money source. The previous per-decision upkeep fee is retained only for legacy institutions without capacity state.
 
 When several staffed institutions share a site, each has equal access to the initial local labor budget, capped at its maintenance requirement. Institutions with no locally present adult members reserve no work. Support is limited by the fractions of required work and money provided and locally present adult membership (two members provide full staffing). Each quarter readiness changes by `+0.12 * support - 0.08 * (1 - support) - 0.12 * disruption`, clamped to 0–1. Disruption uses existing waterlogging/cleanup exposure. Upkeep can consume effort without restoring readiness when money or staffing is missing.
 
@@ -16,9 +16,13 @@ Capacity is an optional record on each institution. Old archives and explicit le
 
 ## Meeting places and finite repairs
 
-New foundations retain their existing two kg of embodied bricks and acquire a condition record. This is the economy's existing abstract institutional project scale, not a literal full-sized building. No second material inventory is created. Older capacity records without a meeting place keep their previous behavior.
+New foundations reserve **2,000 kg of existing bricks** into their physical artifact, and require **four worker-months** of construction: 0.2 at founding and the remainder accumulated from the settlement's reserved cultural work. This represents a modest masonry meeting-room enclosure, not a complete temple, school campus or guild complex. These are explicit game construction parameters, not an architectural estimate. Roofs, interiors and detailed geometry are not modeled.
 
-Each active institutional quarter condition loses 0.0025 plus 0.08 times local waterlogging/cleanup exposure. Repair restores at most 0.1 condition per quarter, limited by local bricks, treasury and reserved maintenance labor. Full replacement corresponds to two kg bricks and 0.1 worker-months. The institution purchases replacement bricks at the local price; actual representable cash receipts are debited from its treasury. Replaced bricks enter the existing waste and C/N/P detritus ledgers. The foundation retains constant embodied mass. Repair work reduces work available for organizational support.
+Founding requires the entire brick inventory up front. Unfinished construction is visible in the explorer and persists in saves; it provides no institutional services. Present members must supply work. With the full 0.125 quarterly allocation, completion takes 31 subsequent quarters; competing institutions and labor shortages delay it. Completion emits a provenance-linked event. Initial assembly does not consume a second material inventory or generate replacement waste.
+
+Completed rooms lose 0.0025 condition plus 0.08 times local waterlogging/cleanup exposure per active quarter. Repair restores at most 0.1 condition per quarter, limited by bricks, treasury and reserved work. Replacement mass is **the actual embodied brick mass × repaired condition**, with four worker-months per full replacement of a new room. Thus a 1% repair takes 20 kg and 0.04 worker-months. Replacement bricks enter the structure while equal worn mass enters existing waste and C/N/P ledgers; the artifact's embodied mass stays constant. Repair work reduces organizational support. Institutions pay the site for repairs through the existing cash transfer path.
+
+Legacy two-kg artifacts retain their old mass and labor basis; they are not upgraded into new buildings for free. Archives without meeting places keep their earlier behavior. The UI's numeric condition is an abstract usability score, and readiness remains a bounded game rule for staffing, support and disruption—not a measured organizational property. No new claim of scientific realism is intended.
 
 Condition caps operational support; below 25% it blocks institutional services. Dilapidation is announced once below 25%, and repair recovery once condition reaches 70%. Events link to the foundation's provenance and identify both institution and artifact. Destruction immediately disables the meeting place; lost or inaccessible property is recognized at the next maintenance boundary and cannot receive repairs. Destroyed property is never rebuilt automatically.
 
@@ -28,7 +32,7 @@ Inactive institutions preserve their final record; this version does not weather
 
 Controlled tests verify gradual decline/recovery, bounded flood effects, exact cash transfers, finite reserved work, repeated-update idempotence, single impairment/recovery episodes and legacy archive defaults. Existing culture and expedition tests cover continuation and sponsorship accounting.
 
-### First evaluation
+### Historical evaluation (before construction scale correction)
 
 Three 50-year runs at crop yield 0.33:
 
@@ -120,3 +124,11 @@ not a new multi-seed calibration of institutional survival.
 [Institutional mandates](institutional-succession.md) now gate formal services during
 leadership vacancies. Staffed institutions can still maintain their premises and
 readiness; succession spends the same finite cultural work budget.
+
+### Construction-scale verification
+
+The hardware-backed institution fixture covers legacy repairs and cash/material/work accounting, then checks a new 2,000 kg room: 30 quarters remain unfinished, the next quarter completes exactly once, construction creates no replacement waste, and continuation from a mid-construction serialized state agrees. A 1% repair withdraws 20 kg and adds equal waste. Other fixtures cover local staffing and recovery after neglect.
+
+This change makes founding materially harder and takes years of the deliberately small cultural work allocation. Long-history institution frequency has not yet been recalibrated; the controlled checks establish construction behavior, not that every seed will build schools or orders at a desirable rate. Other town infrastructure still uses older game-scale costs and is not rescaled here.
+
+Checks for this change: 37 ordinary library tests passed (46 hardware tests excluded from that run); all three institutional-capacity tests passed with hardware enabled, as did the controlled majority/minority founding fixture with explicitly funded construction stocks. The founding fixture also rejects insufficient bricks and verifies unfinished institutions are non-operational. Clippy and repository artifact checks passed.

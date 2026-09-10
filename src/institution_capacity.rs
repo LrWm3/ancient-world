@@ -15,15 +15,29 @@ pub struct Capacity {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MeetingPlace {
     pub artifact: u32,
+    /// Unfinished construction labor; zero in legacy archives.
+    #[serde(default)]
+    pub construction_remaining: f32,
     pub condition: f32,
     pub repaired_kg: f64,
     pub repair_paid: f64,
     pub dilapidated: bool,
 }
+pub const HALL_BRICKS_KG: f32 = 2_000.;
+pub const HALL_WORK_MONTHS: f32 = 4.;
+
 impl MeetingPlace {
+    pub fn hall(artifact: u32) -> Self {
+        Self {
+            construction_remaining: HALL_WORK_MONTHS - 0.2,
+            condition: 0.,
+            ..Self::new(artifact)
+        }
+    }
     pub fn new(artifact: u32) -> Self {
         Self {
             artifact,
+            construction_remaining: 0.,
             condition: 1.,
             repaired_kg: 0.,
             repair_paid: 0.,
@@ -55,7 +69,9 @@ impl crate::culture::Institution {
             && self.capacity.as_ref().is_none_or(|c| {
                 c.mandate.as_ref().is_none_or(|m| m.holder.is_some())
                     && c.readiness >= 0.25
-                    && c.building.as_ref().is_none_or(|b| b.condition >= 0.25)
+                    && c.building
+                        .as_ref()
+                        .is_none_or(|b| b.construction_remaining == 0. && b.condition >= 0.25)
             })
     }
 }
@@ -90,10 +106,17 @@ impl crate::culture::Culture {
                 continue;
             }
             let i = n.site as usize;
+            let large_building = c.building.as_ref().is_some_and(|b| {
+                self.artifacts[b.artifact as usize]
+                    .materials
+                    .iter()
+                    .any(|&(g, mass)| g == 5 && mass >= HALL_BRICKS_KG)
+            });
+            let work_limit = if large_building { 0.125 } else { 0.025 };
             let work = if h.sites[i].abandoned || living == 0 {
                 0.
             } else {
-                (available.get(i).copied().unwrap_or(0.) / counts[i].max(1) as f32).min(0.025)
+                (available.get(i).copied().unwrap_or(0.) / counts[i].max(1) as f32).min(work_limit)
             };
             let fee = if work > 0. { n.treasury.min(0.5) } else { 0. };
             let pool = &mut h.sites[i].economy.finance[0];
@@ -120,21 +143,48 @@ impl crate::culture::Culture {
                     && !a.lost
                     && a.site == Some(n.site)
                     && a.owner == crate::culture::Owner::Institution(n.id);
-                if accessible {
+                let embodied = a
+                    .materials
+                    .iter()
+                    .filter(|&&(g, _)| g == 5)
+                    .map(|&(_, m)| m)
+                    .sum::<f32>();
+                let replacement_work = if large_building {
+                    HALL_WORK_MONTHS
+                } else {
+                    0.1
+                };
+                if accessible && b.construction_remaining > 0. {
+                    let built = work.min(b.construction_remaining);
+                    b.construction_remaining = (b.construction_remaining - built).max(0.);
+                    repair_work = built;
+                    if b.construction_remaining == 0. {
+                        b.condition = 1.;
+                        h.event("meeting_place_completed", Some(n.site), None, format!("{} completed its meeting room enclosure: {:.0} kg brick, {:.1} worker-months construction", n.name, embodied, HALL_WORK_MONTHS));
+                        let event = h.events.last_mut().unwrap();
+                        event.subjects.push(("institution".into(), n.id));
+                        event.subjects.push(("artifact".into(), b.artifact));
+                        if let Some(&cause) = a.events.last() {
+                            event.causes.push(cause);
+                        }
+                        self.artifacts[b.artifact as usize].events.push(event.id);
+                    }
+                } else if accessible {
                     b.condition =
                         (b.condition - 0.0025 - 0.08 * h.sites[i].economy.soil[3].clamp(0., 1.))
                             .max(0.);
                     let price = h.sites[i].economy.prices[5].max(0.01) as f64;
                     let improvement = (1. - b.condition)
                         .min(0.1)
-                        .min(work / 0.1)
-                        .min(h.sites[i].economy.goods[5] / 2.)
-                        .min((n.treasury / (2. * price)) as f32);
+                        .min(work / replacement_work)
+                        .min(h.sites[i].economy.goods[5] / embodied)
+                        .min((n.treasury / (embodied as f64 * price)) as f32);
                     // Debit exactly the representable stock withdrawal. The same mass of
                     // old brick leaves the foundation as waste; its embodied mass stays fixed.
                     let old = h.sites[i].economy.goods[5];
-                    let mut remaining = (old as f64 - improvement as f64 * 2.).max(0.) as f32;
-                    if old as f64 - remaining as f64 > improvement as f64 * 2. {
+                    let mut remaining =
+                        (old as f64 - improvement as f64 * embodied as f64).max(0.) as f32;
+                    if old as f64 - remaining as f64 > improvement as f64 * embodied as f64 {
                         remaining = f32::from_bits(remaining.to_bits() + 1).min(old);
                     }
                     let mass = old as f64 - remaining as f64;
@@ -165,21 +215,22 @@ impl crate::culture::Culture {
                         e.detritus[k] += mass as f32 * ratio;
                     }
                     b.repaired_kg += mass;
-                    b.condition = (b.condition + mass as f32 / 2.).min(1.);
-                    repair_work = mass as f32 / 2. * 0.1;
+                    b.condition = (b.condition + mass as f32 / embodied).min(1.);
+                    repair_work = mass as f32 / embodied * replacement_work;
                 } else {
                     b.condition = 0.;
                 }
                 building_support = b.condition;
-                let event = if !b.dilapidated && b.condition < 0.25 {
-                    b.dilapidated = true;
-                    Some("meeting_place_dilapidated")
-                } else if b.dilapidated && b.condition >= 0.7 {
-                    b.dilapidated = false;
-                    Some("meeting_place_repaired")
-                } else {
-                    None
-                };
+                let event =
+                    if !b.dilapidated && b.construction_remaining == 0. && b.condition < 0.25 {
+                        b.dilapidated = true;
+                        Some("meeting_place_dilapidated")
+                    } else if b.dilapidated && b.condition >= 0.7 {
+                        b.dilapidated = false;
+                        Some("meeting_place_repaired")
+                    } else {
+                        None
+                    };
                 if let Some(kind) = event {
                     let cause = self.artifacts[b.artifact as usize].events.last().copied();
                     h.event(kind,Some(n.site),None,format!("{} meeting place condition {:.0}%; cumulative replacement bricks {:.3} kg",n.name,b.condition*100.,b.repaired_kg));
@@ -438,6 +489,76 @@ mod tests {
             .unwrap()
             .building
             .is_none());
+        // New construction reserves a real material stock, then needs cumulative work.
+        c.artifacts[artifact as usize].destroyed = false;
+        c.artifacts[artifact as usize].materials = vec![(5, HALL_BRICKS_KG)];
+        c.institutions[0].capacity.as_mut().unwrap().building = Some(MeetingPlace::hall(artifact));
+        let work_before = c.labor_spent;
+        let goods_before = h.sites[0].economy.goods[5];
+        let waste_before = h.sites[0].economy.reserves[3];
+        for _ in 0..30 {
+            h.month += 3;
+            c.labor_budget.fill(0.5);
+            c.maintain_institutions(h);
+            assert!(!c.institutions[0].operational());
+        }
+        assert!((c.labor_spent - work_before - 3.75).abs() < 1e-5);
+        // Checkpoint mid-construction, then continue both copies.
+        let mut resumed: crate::culture::Culture =
+            serde_json::from_slice(&serde_json::to_vec(&c).unwrap()).unwrap();
+        let mut resumed_history = h.clone();
+        h.month += 3;
+        resumed_history.month = h.month;
+        c.labor_budget.fill(0.5);
+        resumed.labor_budget.fill(0.5);
+        c.maintain_institutions(h);
+        resumed.maintain_institutions(&mut resumed_history);
+        assert_eq!(
+            serde_json::to_value(&c).unwrap(),
+            serde_json::to_value(&resumed).unwrap()
+        );
+        let b = c.institutions[0]
+            .capacity
+            .as_ref()
+            .unwrap()
+            .building
+            .as_ref()
+            .unwrap();
+        assert_eq!(b.construction_remaining, 0.);
+        assert_eq!(b.condition, 1.);
+        assert_eq!(goods_before, h.sites[0].economy.goods[5]);
+        assert_eq!(waste_before, h.sites[0].economy.reserves[3]);
+        assert_eq!(
+            h.events
+                .iter()
+                .filter(|e| e.kind == "meeting_place_completed")
+                .count(),
+            1
+        );
+        // A one-percent repair requires 20 kg, not 0.02 kg.
+        c.institutions[0]
+            .capacity
+            .as_mut()
+            .unwrap()
+            .building
+            .as_mut()
+            .unwrap()
+            .condition = 0.9925;
+        c.institutions[0].treasury += 10000.; // explicit test funding
+        h.sites[0].economy.goods[5] = 100.;
+        h.month += 3;
+        c.labor_budget.fill(0.5);
+        c.maintain_institutions(h);
+        let b = c.institutions[0]
+            .capacity
+            .as_ref()
+            .unwrap()
+            .building
+            .as_ref()
+            .unwrap();
+        assert!((b.repaired_kg - 20.).abs() < 0.001, "{b:?}");
+        assert!((h.sites[0].economy.goods[5] - 80.).abs() < 0.001);
+        assert!((h.sites[0].economy.reserves[3] - waste_before - 20.).abs() < 0.001);
         h.culture = Some(c);
     }
     #[test]

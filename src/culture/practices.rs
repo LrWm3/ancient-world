@@ -789,8 +789,9 @@ mod tests {
             }
         }
         // Declared construction stock; both branches start with the same inventory.
-        h.sites[site as usize].economy.goods[5] += 10.;
-        h.sites[site as usize].economy.initial[5] += 10.;
+        h.sites[site as usize].economy.goods[5] += 2. * crate::institution_capacity::HALL_BRICKS_KG;
+        h.sites[site as usize].economy.initial[5] +=
+            2. * crate::institution_capacity::HALL_BRICKS_KG;
         assert!(h.sites[site as usize].economy.finance[0] > 550.);
         c.labor_budget = vec![0.; h.sites.len()];
         c.labor_budget[site as usize] = 0.5;
@@ -851,9 +852,24 @@ mod tests {
             .iter()
             .find(|n| n.tradition == Some(minority))
             .unwrap();
+        assert!(!order.operational());
+        assert_eq!(
+            order
+                .capacity
+                .as_ref()
+                .unwrap()
+                .building
+                .as_ref()
+                .unwrap()
+                .construction_remaining,
+            3.8
+        );
         assert_eq!(order.members.len(), 2);
         assert!(order.members.contains(&actor) && order.members.contains(&companion));
-        assert_eq!(h.sites[site as usize].economy.goods[5], bricks - 2.);
+        assert_eq!(
+            h.sites[site as usize].economy.goods[5],
+            bricks - crate::institution_capacity::HALL_BRICKS_KG
+        );
         assert!(
             (cash
                 - h.sites[site as usize].economy.finance[0] as f64
