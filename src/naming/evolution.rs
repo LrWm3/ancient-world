@@ -117,6 +117,42 @@ impl Language {
     }
 }
 
+// Deliberate milestones, rather than routine monthly accounting or lexical feedback.
+fn significant(kind: &str) -> bool {
+    matches!(
+        kind,
+        "founded"
+            | "patron_arrival"
+            | "patron_departure"
+            | "abandoned"
+            | "settlement_reoccupied"
+            | "food_crisis"
+            | "governance_crisis"
+            | "governance_recovery"
+            | "secession"
+            | "war_declared"
+            | "peace"
+            | "raid_outcome"
+            | "occupation_started"
+            | "occupation_ended"
+            | "succession"
+            | "treaty_signed"
+            | "faction_fragmentation"
+            | "institution_founded"
+            | "artifact_created"
+            | "religious_schism"
+            | "religious_syncretism"
+            | "expedition_return"
+            | "heritage_fragment_received"
+            | "port_opened"
+            | "meeting_place_completed"
+            | "regional_mine_activated"
+    )
+}
+fn annual_slots(seed: u32, month: u32, events: usize) -> usize {
+    1 + hash(seed ^ month ^ 0x62756467) as usize % events.max(1)
+}
+
 impl crate::civilization::History {
     pub(crate) fn observe_lexical_trade(&mut self, from: u32, to: u32, kg: f32) {
         if !kg.is_finite() || kg <= 0. {
@@ -170,6 +206,21 @@ impl crate::civilization::History {
         }
         for ci in 0..self.civilizations.len() {
             let civ = self.civilizations[ci].id;
+            let significant_events = self
+                .events
+                .iter()
+                .filter(|e| {
+                    e.month > self.month.saturating_sub(12)
+                        && e.month <= self.month
+                        && significant(&e.kind)
+                        && (e.subjects.contains(&("civilization".into(), civ))
+                            || [e.site, e.other].into_iter().flatten().any(|id| {
+                                self.sites
+                                    .get(id as usize)
+                                    .is_some_and(|s| s.civilization == civ)
+                            }))
+                })
+                .count();
             let Some(l) = self.civilizations[ci].language.as_mut() else {
                 continue;
             };
@@ -183,216 +234,227 @@ impl crate::civilization::History {
                 let years = l.contact_years.entry(b).or_default();
                 *years = years.saturating_add(1);
             }
-            let q = hash(l.seed ^ self.month ^ 0x6c657869);
-            // At most one adoption per civilization/year, including contact loans.
-            let mut candidates: Vec<(String, Lexeme, Option<u32>)> = vec![];
+            let slots = annual_slots(l.seed, self.month, significant_events);
+            let mut pending = Vec::new();
+            let mut adopted = BTreeSet::new();
             let trade = std::mem::take(&mut l.trade_kg);
             let trade_bonus = trade.values().copied().sum::<f64>().sqrt().min(30.) as u32;
-            if q % 5 == 0 || hash(q ^ 0x74726164) % 100 < trade_bonus {
-                for (&other, &years) in &l.contact_years {
-                    if years < 3 {
-                        continue;
-                    }
-                    if let Some(words) = snapshot.get(&other) {
-                        for (concept, options) in words {
-                            if let Some(word) = options.last().filter(|w| w.source.is_some()) {
-                                let mut loan = word.clone();
-                                loan.adopted = self.month;
-                                loan.borrowed_from = Some(other);
-                                loan.basis = "borrowed".into();
-                                loan = l.pronunciation(loan, q ^ other ^ key_hash(concept));
-                                let tickets = 1
-                                    + (trade.get(&other).copied().unwrap_or(0.) / 100.)
-                                        .sqrt()
-                                        .min(8.) as usize;
-                                for _ in 0..tickets {
-                                    candidates.push((concept.clone(), loan.clone(), None));
+            for slot in 0..slots {
+                let q =
+                    hash(l.seed ^ self.month ^ 0x6c657869 ^ (slot as u32).wrapping_mul(0x9e3779b9));
+                let mut candidates: Vec<(String, Lexeme, Option<u32>)> = vec![];
+                if q % 5 == 0 || hash(q ^ 0x74726164) % 100 < trade_bonus {
+                    for (&other, &years) in &l.contact_years {
+                        if years < 3 {
+                            continue;
+                        }
+                        if let Some(words) = snapshot.get(&other) {
+                            for (concept, options) in words {
+                                if let Some(word) = options.last().filter(|w| w.source.is_some()) {
+                                    let mut loan = word.clone();
+                                    loan.adopted = self.month;
+                                    loan.borrowed_from = Some(other);
+                                    loan.basis = "borrowed".into();
+                                    loan = l.pronunciation(loan, q ^ other ^ key_hash(concept));
+                                    let tickets = 1
+                                        + (trade.get(&other).copied().unwrap_or(0.) / 100.)
+                                            .sqrt()
+                                            .min(8.)
+                                            as usize;
+                                    for _ in 0..tickets {
+                                        candidates.push((concept.clone(), loan.clone(), None));
+                                    }
                                 }
                             }
                         }
                     }
-                }
-            } else if q % 7 == 0 {
-                // Production and durable institutions supply associations, not arbitrary virtues
-                // inferred from a person's name. Thresholds are explicit game conventions.
-                let mut add = |concept: &str, source: Source, site: Option<u32>| {
-                    let form = l
-                        .source_stem(&source.name, hash(q ^ source.id))
-                        .chars()
-                        .take(16)
-                        .collect();
-                    let (concept, basis) =
-                        l.association(concept, &source, q ^ source.id ^ key_hash(concept));
-                    candidates.push((
-                        concept,
-                        Lexeme {
-                            original_form: None,
-                            adapted: false,
-                            basis: basis.into(),
-                            form,
-                            adopted: self.month,
-                            source: Some(source),
-                            borrowed_from: None,
-                        },
-                        site,
-                    ));
-                };
-                for site in self.sites.iter().filter(|s| {
-                    s.civilization == civ
-                        && !s.abandoned
-                        && self.month.saturating_sub(s.founded) >= 60
-                }) {
-                    for (good, concept) in [
-                        (0, "timber"),
-                        (2, "metal"),
-                        (5, "clay"),
-                        (8, "grain"),
-                        (18, "cloth"),
-                        (28, "fisher"),
-                    ] {
-                        if site.economy.made[good] >= 1000. {
+                } else {
+                    // Production and durable institutions supply associations, not arbitrary virtues
+                    // inferred from a person's name. Thresholds are explicit game conventions.
+                    let mut add = |concept: &str, source: Source, site: Option<u32>| {
+                        let form = l
+                            .source_stem(&source.name, hash(q ^ source.id))
+                            .chars()
+                            .take(16)
+                            .collect();
+                        let (concept, basis) =
+                            l.association(concept, &source, q ^ source.id ^ key_hash(concept));
+                        candidates.push((
+                            concept,
+                            Lexeme {
+                                original_form: None,
+                                adapted: false,
+                                basis: basis.into(),
+                                form,
+                                adopted: self.month,
+                                source: Some(source),
+                                borrowed_from: None,
+                            },
+                            site,
+                        ));
+                    };
+                    for site in self.sites.iter().filter(|s| {
+                        s.civilization == civ
+                            && !s.abandoned
+                            && self.month.saturating_sub(s.founded) >= 60
+                    }) {
+                        for (good, concept) in [
+                            (0, "timber"),
+                            (2, "metal"),
+                            (5, "clay"),
+                            (8, "grain"),
+                            (18, "cloth"),
+                            (28, "fisher"),
+                        ] {
+                            if site.economy.made[good] >= 1000. {
+                                add(
+                                    concept,
+                                    Source {
+                                        kind: "site".into(),
+                                        id: site.id,
+                                        name: site.name.clone(),
+                                    },
+                                    Some(site.id),
+                                );
+                            }
+                        }
+                    }
+                    if let Some(culture) = &self.culture {
+                        for n in culture.institutions.iter().filter(|n| {
+                            n.active
+                                && n.expenses >= 50.
+                                && self.month.saturating_sub(n.founded) >= 60
+                                && self
+                                    .sites
+                                    .get(n.site as usize)
+                                    .is_some_and(|s| s.civilization == civ && !s.abandoned)
+                        }) {
+                            use crate::culture::InstitutionKind::*;
+                            let concept = match n.kind {
+                                Religious => "sanctuary",
+                                Merchant => "market",
+                                Craft => "craft",
+                                Scholarly => "learning",
+                            };
                             add(
                                 concept,
                                 Source {
-                                    kind: "site".into(),
-                                    id: site.id,
-                                    name: site.name.clone(),
+                                    kind: "institution".into(),
+                                    id: n.id,
+                                    name: n.name.clone(),
                                 },
-                                Some(site.id),
+                                Some(n.site),
+                            );
+                        }
+                        for p in culture
+                            .patrons
+                            .iter()
+                            .filter(|p| p.civilization == civ && p.departed.is_some())
+                        {
+                            add(
+                                "guide",
+                                Source {
+                                    kind: "patron".into(),
+                                    id: p.id,
+                                    name: p.name.clone(),
+                                },
+                                Some(p.site),
+                            );
+                        }
+                        for a in culture.agents.iter().filter(|a| a.actions >= 5) {
+                            let Some(p) = self
+                                .people
+                                .get(a.person as usize)
+                                .filter(|p| p.civilization == civ)
+                            else {
+                                continue;
+                            };
+                            let concept = match a.occupation.as_str() {
+                                "farmer" => "grower",
+                                "navigator" => "journey",
+                                "craftworker" => "craft",
+                                "teacher" => "learning",
+                                _ => continue,
+                            };
+                            add(
+                                concept,
+                                Source {
+                                    kind: "person".into(),
+                                    id: p.id,
+                                    name: p.name.clone(),
+                                },
+                                None,
+                            );
+                        }
+                        for a in culture.artifacts.iter().filter(|a| {
+                            !a.destroyed
+                                && !a.lost
+                                && a.topic.is_some()
+                                && a.site
+                                    .and_then(|id| self.sites.get(id as usize))
+                                    .is_some_and(|s| s.civilization == civ && !s.abandoned)
+                        }) {
+                            add(
+                                "book",
+                                Source {
+                                    kind: "artifact".into(),
+                                    id: a.id,
+                                    name: a.name.clone(),
+                                },
+                                a.site,
                             );
                         }
                     }
                 }
-                if let Some(culture) = &self.culture {
-                    for n in culture.institutions.iter().filter(|n| {
-                        n.active
-                            && n.expenses >= 50.
-                            && self.month.saturating_sub(n.founded) >= 60
-                            && self
-                                .sites
-                                .get(n.site as usize)
-                                .is_some_and(|s| s.civilization == civ && !s.abandoned)
-                    }) {
-                        use crate::culture::InstitutionKind::*;
-                        let concept = match n.kind {
-                            Religious => "sanctuary",
-                            Merchant => "market",
-                            Craft => "craft",
-                            Scholarly => "learning",
-                        };
-                        add(
-                            concept,
-                            Source {
-                                kind: "institution".into(),
-                                id: n.id,
-                                name: n.name.clone(),
-                            },
-                            Some(n.site),
-                        );
-                    }
-                    for p in culture
-                        .patrons
-                        .iter()
-                        .filter(|p| p.civilization == civ && p.departed.is_some())
-                    {
-                        add(
-                            "guide",
-                            Source {
-                                kind: "patron".into(),
-                                id: p.id,
-                                name: p.name.clone(),
-                            },
-                            Some(p.site),
-                        );
-                    }
-                    for a in culture.agents.iter().filter(|a| a.actions >= 5) {
-                        let Some(p) = self
-                            .people
-                            .get(a.person as usize)
-                            .filter(|p| p.civilization == civ)
-                        else {
-                            continue;
-                        };
-                        let concept = match a.occupation.as_str() {
-                            "farmer" => "grower",
-                            "navigator" => "journey",
-                            "craftworker" => "craft",
-                            "teacher" => "learning",
-                            _ => continue,
-                        };
-                        add(
-                            concept,
-                            Source {
-                                kind: "person".into(),
-                                id: p.id,
-                                name: p.name.clone(),
-                            },
-                            None,
-                        );
-                    }
-                    for a in culture.artifacts.iter().filter(|a| {
-                        !a.destroyed
-                            && !a.lost
-                            && a.topic.is_some()
-                            && a.site
-                                .and_then(|id| self.sites.get(id as usize))
-                                .is_some_and(|s| s.civilization == civ && !s.abandoned)
-                    }) {
-                        add(
-                            "book",
-                            Source {
-                                kind: "artifact".into(),
-                                id: a.id,
-                                name: a.name.clone(),
-                            },
-                            a.site,
-                        );
-                    }
+                candidates.retain(|(concept, word, _)| {
+                    l.lexicon
+                        .get(concept)
+                        .is_none_or(|v| !v.iter().any(|w| w.form == word.form))
+                        && word.form != l.word(concept)
+                });
+                if candidates.is_empty() {
+                    continue;
                 }
-            }
-            candidates.retain(|(concept, word, _)| {
-                l.lexicon
-                    .get(concept)
-                    .is_none_or(|v| !v.iter().any(|w| w.form == word.form))
-                    && word.form != l.word(concept)
-            });
-            if candidates.is_empty() {
-                continue;
-            }
-            let (concept, mut word, site) =
-                candidates.swap_remove(hash(q ^ 11) as usize % candidates.len());
-            if word.borrowed_from.is_none() {
-                word = l.pronunciation(word, q ^ key_hash(&concept));
-            }
-            if !l.adopt_word(&concept, word.clone()) {
-                continue;
-            }
-            let source = word.source.as_ref().unwrap();
-            let detail = format!(
-                "{} adopted '{}' as an option for {} from {}{}; existing names retained",
-                l.name,
-                word.form,
-                concept,
-                source.name,
-                word.borrowed_from
-                    .map(|c| format!(" via civilization {c} after sustained contact"))
-                    .unwrap_or_default()
-            );
-            let detail = format!(
-                "{detail}; basis {}; pronunciation {}",
-                word.basis,
-                if word.adapted {
-                    "locally adapted"
-                } else {
-                    "retained"
+                let (concept, mut word, site) =
+                    candidates.swap_remove(hash(q ^ 11) as usize % candidates.len());
+                if word.borrowed_from.is_none() {
+                    word = l.pronunciation(word, q ^ key_hash(&concept));
                 }
-            );
-            self.event("lexicon_adoption", site, None, detail);
-            let event = self.events.last_mut().unwrap();
-            event.subjects.push(("civilization".into(), civ));
-            event.subjects.push((source.kind.clone(), source.id));
-            if let Some(other) = word.borrowed_from {
-                event.subjects.push(("civilization".into(), other));
+                if !adopted.insert((concept.clone(), word.form.clone()))
+                    || !l.adopt_word(&concept, word.clone())
+                {
+                    continue;
+                }
+                let source = word.source.as_ref().unwrap();
+                let detail = format!(
+                    "{} adopted '{}' as an option for {} from {}{}; existing names retained",
+                    l.name,
+                    word.form,
+                    concept,
+                    source.name,
+                    word.borrowed_from
+                        .map(|c| format!(" via civilization {c} after sustained contact"))
+                        .unwrap_or_default()
+                );
+                let detail = format!(
+                    "{detail}; basis {}; pronunciation {}",
+                    word.basis,
+                    if word.adapted {
+                        "locally adapted"
+                    } else {
+                        "retained"
+                    }
+                );
+                pending.push((site, detail, source.clone(), word.borrowed_from));
+            }
+            for (site, detail, source, borrowed_from) in pending {
+                self.event("lexicon_adoption", site, None, detail);
+                let event = self.events.last_mut().unwrap();
+                event.subjects.push(("civilization".into(), civ));
+                event.subjects.push((source.kind.clone(), source.id));
+                if let Some(other) = borrowed_from {
+                    event.subjects.push(("civilization".into(), other));
+                }
             }
         }
     }
@@ -415,6 +477,22 @@ mod tests {
             }),
             borrowed_from: None,
         }
+    }
+    #[test]
+    fn event_budget_is_bounded_and_varies() {
+        let mut seen = BTreeSet::new();
+        for seed in 0..1000 {
+            assert_eq!(annual_slots(seed, 12, 0), 1);
+            assert_eq!(annual_slots(seed, 12, 1), 1);
+            let slots = annual_slots(seed, 12, 8);
+            assert!((1..=8).contains(&slots));
+            seen.insert(slots);
+        }
+        assert_eq!(seen.len(), 8);
+        assert!(significant("religious_schism"));
+        assert!(!significant("lexicon_adoption"));
+        assert!(!significant("market_arrival"));
+        assert!(!significant("harvest"));
     }
     #[test]
     fn pronunciation_and_name_etymology_are_seeded_alternatives() {
@@ -576,6 +654,44 @@ mod tests {
                 }
             }
         }
+        // Many milestones allow multiple distinct adoptions, not just repeated yearly checks.
+        for concept in ["moon", "water", "grain", "book", "craft", "guide"] {
+            h.civilizations[0]
+                .language
+                .as_mut()
+                .unwrap()
+                .adopt_word(concept, word("avelara", 0));
+        }
+        let mut maximum = 0;
+        for trial in 0..40 {
+            let mut run = h.clone();
+            run.month = (trial + 4) * 12;
+            run.civilizations[1]
+                .language
+                .as_mut()
+                .unwrap()
+                .contact_years
+                .insert(0, 3);
+            run.observe_lexical_trade(0, 1, 10000.);
+            for _ in 0..12 {
+                run.event("food_crisis", Some(1), None, "Budget fixture".into());
+            }
+            let start = run.events.len();
+            run.evolve_lexicons();
+            let n = run.events[start..]
+                .iter()
+                .filter(|e| {
+                    e.kind == "lexicon_adoption" && e.subjects.contains(&("civilization".into(), 1))
+                })
+                .count();
+            assert!(n <= 12);
+            maximum = maximum.max(n);
+            let saved = serde_json::to_value(&run).unwrap();
+            run.evolve_lexicons();
+            assert_eq!(saved, serde_json::to_value(&run).unwrap());
+        }
+        assert!(maximum > 1, "eventful years must permit multiple adoptions");
+        eprintln!("maximum adoptions with twelve milestones: {maximum}");
         assert!(counts[1] > counts[0], "{counts:?}");
         eprintln!(
             "low/high delivered-volume borrowing in 200 matched annual opportunities: {counts:?}"

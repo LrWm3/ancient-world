@@ -30,10 +30,25 @@ use for a concept. Language display names remain unchanged.
 
 ## Local sources
 
-Annual updates allow at most one adoption per civilization. A deterministic 20%
-annual opportunity considers borrowing, plus a bounded delivered-volume opportunity
-as described below. Otherwise a separate one-in-seven gate considers local eponyms. An opportunity with no eligible
-source makes no change. These rates and thresholds are game conventions:
+Each civilization draws a seeded annual slot budget uniformly from 1 through
+`max(1, significant_events)`. Events count once per civilization in the preceding
+12 months, attributed through explicit civilization subjects or either site's
+current civilization. The window excludes the preceding annual boundary and
+includes the current one. The explicit milestone list in `significant()` includes
+foundings, patron arrival/departure, abandonment/reoccupation, crises and recovery,
+war/peace and occupation, succession, treaties, schisms, institutional and artifact
+creation, expedition returns and major infrastructure openings. Routine harvest,
+market, policy and lexical-adoption notices do not count. Lexical events cannot
+inflate their own future budget. Site attribution uses current control, not a
+reconstruction of past borders.
+
+Each slot has a 20% borrowing opportunity plus the bounded delivered-volume
+opportunity below; otherwise it tries a local eponym. The old one-in-seven local
+gate is removed. A slot with no distinct eligible source remains unused, so the
+budget is not a guarantee of that many new words. The same concept/form cannot be
+readopted within one update even if another slot retires it. All slots use the
+same previous-year borrowing snapshot and annual contact/receipt totals are
+updated only once. These rates and thresholds are game conventions:
 
 - An occupied town at least five years old, with at least 1,000 kg cumulative output
   of the associated timber, metal, ceramics, grain, cloth or fish product.
@@ -75,9 +90,9 @@ or money. In-transit cargo contributes nothing. Delayed shipments contribute onl
 when received; lost mass does not count. Receipts accumulate in the archived
 `Language.trade_kg` map until the next annual lexical update, then are consumed.
 
-For annual total delivered kg K, a second seeded borrowing gate has probability
+For annual total delivered kg K, a second seeded borrowing gate per slot has probability
 `floor(min(sqrt(K), 30)) / 100`. Combined with the baseline 20% gate, the maximum
-opportunity is approximately 44%, not certainty. Among eligible neighbor/concept
+opportunity per slot is approximately 44%, not certainty. Among eligible neighbor/concept
 pairs, a neighbor with volume k gets `1 + floor(min(sqrt(k / 100), 8))` tickets,
 compared with one for a route-only neighbor. These saturating values are game
 settings, not fitted communication rates. All goods count by kg; shipment splitting
@@ -153,3 +168,21 @@ continuation remained stable. The ordinary library suite passed 51 tests with 52
 hardware tests ignored. Clippy with warnings denied, formatting and repository
 artifact checks passed. These fixtures verify the implemented game rules, not
 empirical rates of linguistic change.
+
+
+## Event-scaled annual budgets
+
+The budget fixture checks quiet years and all eight possible budgets for an
+eight-milestone year across 1,000 seeds. The GPU receipt fixture also injects twelve
+same-year milestones with several eligible donor concepts and checks that multiple
+adoptions can occur, never exceeding twelve; replaying the annual boundary leaves
+the complete history unchanged. These are controlled opportunity tests, not a
+claim that every significant event causes a new word.
+
+Validation: all 11 naming tests passed, including the GPU cases; the twelve-event
+fixture observed a maximum of six actual adoptions. Ten-year seeds 17, 81 and 256
+produced 19, 19 and 17 evolved civilization/concept entries respectively. Full
+history checkpoint continuation passed. All 52 ordinary library tests passed
+(52 hardware tests ignored by that command); Clippy, formatting and artifact checks
+passed. The increase from the earlier run reflects both event budgets and removal
+of the local-adoption gate; it does not isolate either change's individual effect.
