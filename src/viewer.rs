@@ -390,6 +390,7 @@ struct App {
     history_tab: u8,
     timeline_view: crate::history_timeline::TimelineView,
     political_overlay: bool,
+    expedition_overlay: Option<u32>,
     cultural_overlay: u32,
     founding_options: crate::culture::FoundingOptions,
     region: Option<(crate::region::Region, egui::TextureHandle)>,
@@ -482,6 +483,7 @@ impl App {
             history_tab: 0,
             timeline_view: Default::default(),
             political_overlay: true,
+            expedition_overlay: None,
             cultural_overlay: 0,
             founding_options: Default::default(),
             region: None,
@@ -530,6 +532,7 @@ impl App {
         });
         drop(renderer);
         self.maps = maps;
+        self.expedition_overlay = None;
         self.draft = generator.config.clone();
         self.region = None;
         self.regional_selection = None;
@@ -565,6 +568,56 @@ impl App {
         let response = ui.add(
             egui::Image::new((self.textures[which], size)).sense(egui::Sense::click_and_drag()),
         );
+        if which == 1 {
+            if let Some(e) = self
+                .generator
+                .civilizations
+                .as_ref()
+                .and_then(|h| h.expeditions.as_ref())
+                .and_then(|x| {
+                    self.expedition_overlay
+                        .and_then(|id| x.voyages.get(id as usize).map(|e| (x, e)))
+                })
+            {
+                let (x, e) = e;
+                let cells = e
+                    .planned_cells
+                    .as_deref()
+                    .unwrap_or(&x.routes[e.route as usize].cells);
+                let points: Vec<_> = cells
+                    .iter()
+                    .map(|&cell| {
+                        let d = crate::grid::cell_direction(cell, self.generator.config.resolution);
+                        [
+                            d[0].atan2(d[2]).to_degrees() as f64,
+                            d[1].asin().to_degrees() as f64,
+                        ]
+                    })
+                    .collect();
+                let camera = self.cameras[1];
+                let project = |p: [f64; 2]| {
+                    let q = egui::vec2(p[0] as f32 / 360. + 0.5, 0.5 - p[1] as f32 / 180.);
+                    response.rect.min
+                        + ((q - egui::vec2(0.5 + camera.pan[0], 0.5 + camera.pan[1])) * camera.zoom
+                            + egui::vec2(0.5, 0.5))
+                            * size
+                };
+                let painter = ui.painter().with_clip_rect(response.rect);
+                for segment in crate::spatial::split_dateline(&points) {
+                    painter.add(egui::Shape::line(
+                        segment.into_iter().map(project).collect(),
+                        egui::Stroke::new(2., egui::Color32::GOLD),
+                    ));
+                }
+                if let Some(&p) = points.last() {
+                    painter.circle_stroke(
+                        project(p),
+                        5.,
+                        egui::Stroke::new(2., egui::Color32::GOLD),
+                    );
+                }
+            }
+        }
         if which == 1 {
             if let Some(history) = &self.generator.civilizations {
                 let camera = self.cameras[1];
@@ -1382,6 +1435,7 @@ impl App {
             self.draft.estimated_bytes() as f64 / 1048576.
         ));
         if ui.button("Generate new planet").clicked() {
+            self.draft.spatial_world_id = None;
             let result = Generator::new(
                 self.generator.gpu.clone(),
                 self.draft.clone(),
@@ -2277,6 +2331,8 @@ impl App {
                                 if let Some(c)=&e.heritage { ui.label(&c.motive); if let Some(f)=&c.find { ui.small(&f.description); ui.small(format!("Recovered artifact: {:?}",f.artifact)); } }
                                 ui.label(format!("Departed Y{} M{} · next milestone month {} · {:.0} kg food · {:.1} kg tools · {:.1} kg timber · {:.0} money escrow",e.departed/12,e.departed%12+1,e.due,e.food,e.tools,e.timber,e.purse));
                                 ui.label(format!("{:.1} observation points · {} · effective research competence {:.0}%",e.findings,if e.confirmed {"delivered and confirmed"}else{"not confirmed at home"},e.research_skill()*100.));
+                                if ui.button("Show planned route on atlas").clicked() { self.expedition_overlay=Some(e.id); self.cameras[1]=Camera::atlas(); self.view_mode=2; }
+                                ui.small(if e.planned_cells.is_some() { "Route saved at departure; endpoint is the planned destination." } else { "Legacy route association; original route was not saved." });
                                 ui.small(format!("Specimens aboard: {:.2} kg resin · {:.2} kg phosphatic crust",e.samples[0],e.samples[1]));
                                 for c in &e.crew {ui.small(format!("{} · {} · {} · competence {:.0}%",c.name,c.role,if c.alive {"survivor"}else{"deceased"},c.expertise.unwrap_or(e.skill)*100.));}
                                 if matches!(e.phase,Phase::Outward|Phase::Camp)&&ui.button("Recall expedition").clicked(){expedition_recall=Some(e.id);}
@@ -2554,7 +2610,22 @@ impl App {
             }
         }
 
+        if self.expedition_overlay.is_some() && ui.button("Hide expedition route").clicked() {
+            self.expedition_overlay = None;
+        }
         ui.text_edit_singleline(&mut self.path);
+        if ui.button("Export spatial features").clicked() {
+            let path = Path::new(&self.path).with_extension("spatial.geojson");
+            let result = self
+                .generator
+                .spatial_features()
+                .and_then(|f| f.geojson())
+                .and_then(|value| {
+                    std::fs::write(&path, serde_json::to_vec_pretty(&value)?)?;
+                    Ok(())
+                });
+            self.report(result, &format!("Exported {}", path.display()));
+        }
         if ui.button("Save checkpoint").clicked() {
             self.pending_save = true;
             self.message =

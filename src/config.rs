@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Config {
+    pub spatial_world_id: Option<String>,
     pub systems: crate::systems::Systems,
     pub resolution: u32,
     pub ecology_resolution: u32,
@@ -31,6 +32,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            spatial_world_id: None,
             systems: Default::default(),
             resolution: 512,
             ecology_resolution: 256,

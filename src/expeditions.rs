@@ -84,6 +84,9 @@ pub struct FrontierRoute {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Expedition {
+    /// Frozen planned route, not an observed travel track. Absent in old archives.
+    #[serde(default)]
+    pub planned_cells: Option<Vec<u32>>,
     #[serde(default)]
     pub institution: Option<u32>,
     #[serde(default)]
@@ -329,6 +332,8 @@ impl Expeditions {
                         .is_some_and(|c| (id as usize) < c.institutions.len()))
                     && (e.route as usize) < self.routes.len()
                     && shipping.ports[self.routes[e.route as usize].port as usize].site == e.origin
+                    && e.planned_cells.as_ref().is_none_or(|path| !path.is_empty()
+                        && path.iter().all(|&cell| (cell as usize) < cells.len()))
                     && e.departed >= self.started
                     && e.departed <= h.month
                     && e.cause < h.events.len() as u64
@@ -577,6 +582,7 @@ impl Expeditions {
         })
         .collect();
         self.voyages.push(Expedition {
+            planned_cells: Some(self.routes[route as usize].cells.clone()),
             id,
             origin,
             sponsor,

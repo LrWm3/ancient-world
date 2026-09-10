@@ -200,8 +200,11 @@ pub struct Generator {
     reduction_side: u32,
 }
 impl Generator {
-    pub fn new(gpu: ContextGpu, config: Config, catalog: Catalog) -> Result<Self> {
+    pub fn new(gpu: ContextGpu, mut config: Config, catalog: Catalog) -> Result<Self> {
         config.validate()?;
+        config
+            .spatial_world_id
+            .get_or_insert_with(crate::spatial::new_world_id);
         catalog.validate()?;
         let size = config.cells() as u64 * std::mem::size_of::<Cell>() as u64;
         ensure!(size<=gpu.device.limits().max_storage_buffer_binding_size as u64 && size<=gpu.device.limits().max_buffer_size,"{}² per face needs a {} MiB storage binding; this GPU exposes only {} MiB. Select a lower resolution.",config.resolution,size/1048576,gpu.device.limits().max_storage_buffer_binding_size/1048576);

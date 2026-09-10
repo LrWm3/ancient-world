@@ -12,9 +12,9 @@ historical measurements; their test counts and calibration outcomes apply to the
 recorded runs, not automatically to today's revision. Older opt-in descriptions are superseded for new application histories by the
 [default-on startup options](system-options.md); saved histories retain their settings.
 
-Proposed work: [shared spatial features and map-layer plan](spatial-features-plan.md)
-reviews current spatial records and proposes common geometry, temporal references
-and subsystem adapters. It is a design, not an implemented feature list.
+The [spatial feature guide](spatial-features.md) describes the first adapters and
+expedition atlas routes. The broader [map-layer plan](spatial-features-plan.md)
+includes work that remains unimplemented.
 
 ## System guides and verification workflows
 

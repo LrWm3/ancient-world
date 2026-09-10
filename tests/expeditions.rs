@@ -65,6 +65,22 @@ fn voyages_conserve_and_deliver_knowledge_after_exact_checkpoint_continuation() 
     let h = g.civilizations.as_ref().unwrap();
     let x = h.expeditions.as_ref().unwrap();
     let e = &x.voyages[id as usize];
+    assert_eq!(
+        e.planned_cells.as_ref().unwrap(),
+        &x.routes[e.route as usize].cells
+    );
+    let spatial_before = serde_json::to_value(g.spatial_features().unwrap()).unwrap();
+    let history_before = serde_json::to_value(h).unwrap();
+    let exported = g.spatial_features().unwrap().geojson().unwrap();
+    assert!(exported["features"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|f| f["properties"]["role"] == "planned_route"));
+    assert_eq!(
+        history_before,
+        serde_json::to_value(g.civilizations.as_ref().unwrap()).unwrap()
+    );
     let initial_expertise: Vec<_> = e.crew.iter().map(|c| c.expertise.unwrap()).collect();
     let duration = x.routes[e.route as usize].travel_months * 2 + 10;
     assert_eq!(e.survivors(), 8);
@@ -81,6 +97,42 @@ fn voyages_conserve_and_deliver_knowledge_after_exact_checkpoint_continuation() 
     g.save(&file).unwrap();
     let mut b = Generator::load(g.gpu.clone(), &file).unwrap();
     std::fs::remove_file(file).unwrap();
+    assert_eq!(g.config.spatial_world_id, b.config.spatial_world_id);
+    assert_eq!(
+        spatial_before,
+        serde_json::to_value(b.spatial_features().unwrap()).unwrap()
+    );
+    // Changing the current route graph must not rewrite a saved expedition plan.
+    let bx = b
+        .civilizations
+        .as_mut()
+        .unwrap()
+        .expeditions
+        .as_mut()
+        .unwrap();
+    let route = bx.voyages[id as usize].route as usize;
+    let saved = bx.routes[route].cells.clone();
+    bx.routes[route].cells.reverse();
+    let altered = b.spatial_features().unwrap();
+    let planned = altered
+        .features
+        .iter()
+        .find(|f| f.entity.kind == "expedition" && f.role == "planned_route")
+        .unwrap();
+    if let ancient_world::spatial::Geometry::Path(cells) = &planned.geometry {
+        assert_eq!(cells.iter().map(|c| c.cell).collect::<Vec<_>>(), saved);
+    } else {
+        panic!("expected path");
+    }
+    b.civilizations
+        .as_mut()
+        .unwrap()
+        .expeditions
+        .as_mut()
+        .unwrap()
+        .routes[route]
+        .cells = saved;
+
     g.advance_history(duration).unwrap();
     for _ in 0..duration {
         b.advance_history(1).unwrap();

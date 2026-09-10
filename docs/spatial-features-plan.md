@@ -1,7 +1,9 @@
 # Shared spatial features and future map layers
 
-Status: proposed design, based on repository review on 2026-09-10. This document
-plans implementation; the shared geometry registry and layers do not exist yet.
+Status: staged design, based on repository review on 2026-09-10. The first
+[spatial adapters and expedition atlas route](spatial-features.md) are implemented.
+The broader registry, temporal queries, area geometry and remaining subsystem
+adapters below remain planned.
 
 ## Objective
 
