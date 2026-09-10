@@ -392,6 +392,7 @@ struct App {
     political_overlay: bool,
     expedition_overlay: Option<u32>,
     event_export_months: u32,
+    territory_export_month: u32,
     cultural_overlay: u32,
     founding_options: crate::culture::FoundingOptions,
     region: Option<(crate::region::Region, egui::TextureHandle)>,
@@ -486,6 +487,7 @@ impl App {
             political_overlay: true,
             expedition_overlay: None,
             event_export_months: 120,
+            territory_export_month: 0,
             cultural_overlay: 0,
             founding_options: Default::default(),
             region: None,
@@ -2688,6 +2690,23 @@ impl App {
             let result = self
                 .generator
                 .spatial_events(month.saturating_sub(self.event_export_months - 1)..=month)
+                .and_then(|f| f.geojson())
+                .and_then(|value| {
+                    std::fs::write(&path, serde_json::to_vec_pretty(&value)?)?;
+                    Ok(())
+                });
+            self.report(result, &format!("Exported {}", path.display()));
+        }
+        ui.add(egui::DragValue::new(&mut self.territory_export_month).prefix("Territory month "));
+        if ui.button("Use current history month").clicked() {
+            self.territory_export_month =
+                self.generator.civilizations.as_ref().map_or(0, |h| h.month);
+        }
+        if ui.button("Export recorded territory").clicked() {
+            let path = Path::new(&self.path).with_extension("territory.geojson");
+            let result = self
+                .generator
+                .spatial_territory(self.territory_export_month)
                 .and_then(|f| f.geojson())
                 .and_then(|value| {
                     std::fs::write(&path, serde_json::to_vec_pretty(&value)?)?;

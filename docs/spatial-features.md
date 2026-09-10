@@ -81,6 +81,45 @@ any location yield no feature; they remain in the event log. Generic site-bound
 events are covered automatically, but route geometry, war extents and other
 subsystem-specific occurrence locations still need dedicated adapters.
 
+## Household route plans
+
+Each new household departure event stores its intended route, ordered from origin
+to destination. This survives arrival, loss and removal of the active journey.
+`spatial_events` includes it as `planned_route`; current-world features expose an
+active journey's saved `outward_plan`, keyed by its departure event. A returning
+household still references that original plan, with its return status in the label.
+The plan is not an observed track or evidence that a failed party visited every cell.
+
+Old active journeys can expose their current road association with explicit legacy
+precision. Old completed journeys do not acquire invented paths. Travel costs,
+population, provisions and route availability remain controlled by the existing
+relocation system; these records add no second journey ledger.
+
+## Territorial history
+
+Political baselines and completed monthly history updates record change-only
+snapshots of site control and claimed terrain cells. All controllers claiming a
+cell remain in its set, so a contest is not resolved merely for display. A repeated
+unchanged month adds no record. Multiple writes within one month retain the final
+boundary state, rather than claiming sub-month precision.
+
+`History::territory_at(month)` selects the latest recorded state at or before the
+requested month. It returns unknown before the first baseline or after current
+history. Old worlds start recording as they evolve; their earlier borders are not
+reconstructed. Checkpoints retain the snapshots.
+
+`Generator::spatial_territory(month)` exports separate `controlled_sites` and
+`claimed_cells` features per controller. Overlapping claim features are intentional.
+The exporter uses cell representatives, not continuous national polygons. Feature
+dates give the last recorded change; collection history time is the requested month.
+These footprints are not culture/faith maps and do not rewind terrain or ecology.
+
+In file controls, choose **Territory month** (or **Use current history month**), then
+**Export recorded territory** to write `<checkpoint-name>.territory.geojson`.
+A missing baseline produces an error. Historical territory is exportable here;
+a dated interactive territory overlay remains future work. Storage grows with
+changed snapshots; large long-run archive scaling has not yet been benchmarked.
+
 ## Export and limits
 
 **Export spatial features** writes `<checkpoint-name>.spatial.geojson` beside the
@@ -149,3 +188,17 @@ multi-seed evaluation of expedition outcomes.
   serialized-continuation assertions still pass.
 - The new timeline buttons and range-export controls compile; interactive visual
   testing was not performed. Timings describe fixtures, not scalability claims.
+
+## Route/territory increment verification (2026-09-10)
+
+- Library suite: 57 passed, 54 hardware tests ignored; library Clippy with warnings
+  denied, test compilation, formatting and artifact-policy checks passed.
+- `territorial_revisions_preserve_overlap_and_prior_control` passed on NVIDIA
+  Vulkan (32² terrain, five settlements; 0.54 s). Controlled claims test overlap,
+  changed control, unchanged-month deduplication, same-month replacement, old-state
+  export, serialization and unknown/future-date rejection.
+- Relocation conservation/identity fixture passed (1.08 s), including saved path
+  independence from a route edit and retention after the active journey ends.
+- Expedition checkpoint/batch fixture passed (6.14 s) with monthly territorial
+  recording enabled. These cached fixture timings are not long-run benchmarks.
+- New territory export controls compile but have not been interactively inspected.

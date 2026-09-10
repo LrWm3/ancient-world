@@ -264,6 +264,31 @@ impl Generator {
                 .collect::<Vec<_>>();
                 &fallback
             };
+            if let Some(path) = &event.planned_path {
+                let cells: Vec<_> = path
+                    .iter()
+                    .map(|&cell| CellRef {
+                        grid: result.grid.clone(),
+                        cell,
+                    })
+                    .collect();
+                for cell in &cells {
+                    cell.direction()?;
+                }
+                result.features.push(Feature {
+                    id: format!("{}/event/{}/planned_route", result.grid.world, event.id),
+                    entity: EntityRef {
+                        kind: "event".into(),
+                        id: event.id,
+                    },
+                    role: "planned_route".into(),
+                    label: format!("{}: intended route at departure", event.kind),
+                    geometry: Geometry::Path(cells),
+                    precision: Precision::ModelCellPath,
+                    history_month: event.month,
+                    evidence: vec![event.id],
+                });
+            }
             for anchor in anchors {
                 let cell = CellRef {
                     grid: result.grid.clone(),
@@ -291,6 +316,85 @@ impl Generator {
                     },
                     history_month: event.month,
                     evidence: vec![event.id],
+                });
+            }
+        }
+        Ok(result)
+    }
+    /// Political footprint as recorded at a monthly boundary; no inferred continuous borders.
+    pub fn spatial_territory(&self, month: u32) -> Result<FeatureCollection> {
+        let h = self
+            .civilizations
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("no history"))?;
+        let snapshot = h
+            .territory_at(month)
+            .ok_or_else(|| anyhow::anyhow!("no recorded territorial baseline for this month"))?;
+        let grid = GridRef {
+            world: self
+                .config
+                .spatial_world_id
+                .clone()
+                .ok_or_else(|| anyhow::anyhow!("world identity unavailable"))?,
+            resolution: self.config.resolution,
+        };
+        let mut result = FeatureCollection {
+            version: 1,
+            grid: grid.clone(),
+            radius_m: self.config.radius_km as f64 * 1000.,
+            epoch: self.progress.epoch,
+            ecology_month: self.ecology.clock.month,
+            history_month: Some(month),
+            features: vec![],
+        };
+        for controller in 0..h.civilizations.len() as u32 {
+            for role in ["controlled_sites", "claimed_cells"] {
+                let ids: std::collections::BTreeSet<_> = if role == "controlled_sites" {
+                    snapshot
+                        .sites
+                        .iter()
+                        .filter(|s| s.controller == controller)
+                        .map(|s| s.cell)
+                        .collect()
+                } else {
+                    snapshot
+                        .claims
+                        .iter()
+                        .filter(|(_, owners)| owners.contains(&controller))
+                        .map(|(&cell, _)| cell)
+                        .collect()
+                };
+                if ids.is_empty() {
+                    continue;
+                }
+                let cells: Vec<_> = ids
+                    .into_iter()
+                    .map(|cell| CellRef {
+                        grid: grid.clone(),
+                        cell,
+                    })
+                    .collect();
+                for cell in &cells {
+                    cell.direction()?;
+                }
+                result.features.push(Feature {
+                    id: format!(
+                        "{}/territory/{}/{controller}/{role}",
+                        grid.world, snapshot.month
+                    ),
+                    entity: EntityRef {
+                        kind: "civilization".into(),
+                        id: controller as u64,
+                    },
+                    role: role.into(),
+                    label: format!(
+                        "Controller {controller} · {role} · recorded month {}",
+                        snapshot.month
+                    ),
+                    geometry: Geometry::CellRegion(cells),
+                    precision: Precision::ParentCellCoverage,
+                    history_month: snapshot.month,
+                    evidence: vec![],
                 });
             }
         }
@@ -386,6 +490,43 @@ impl Generator {
                     Precision::ModelCellPath,
                     h.month,
                     vec![],
+                )?;
+            }
+        }
+        if let Some(s) = &h.society {
+            for j in &s.relocation.journeys {
+                let saved = h
+                    .events
+                    .get(j.cause as usize)
+                    .and_then(|e| e.planned_path.as_deref());
+                let mut legacy = s.routes[j.route as usize].cells.clone();
+                if s.routes[j.route as usize].from != j.from {
+                    legacy.reverse();
+                }
+                add(
+                    "relocation",
+                    j.cause,
+                    "outward_plan",
+                    format!(
+                        "Household {} · {}",
+                        j.household,
+                        if j.returning {
+                            "return ordered"
+                        } else if j.blocked {
+                            "blocked journey"
+                        } else {
+                            "traveling"
+                        }
+                    ),
+                    saved.unwrap_or(&legacy),
+                    false,
+                    if saved.is_some() {
+                        Precision::ModelCellPath
+                    } else {
+                        Precision::LegacyRouteAssociation
+                    },
+                    j.departed,
+                    vec![j.cause],
                 )?;
             }
         }

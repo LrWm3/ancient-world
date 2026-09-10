@@ -103,6 +103,9 @@ pub struct Person {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Event {
+    /// Saved intended route, not an observed travel track.
+    #[serde(default)]
+    pub planned_path: Option<Vec<u32>>,
     /// None means a legacy record; Some(empty) deliberately records no known anchor.
     #[serde(default)]
     pub spatial: Option<Vec<crate::spatial::EventAnchor>>,
@@ -143,6 +146,8 @@ pub struct Candidate {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct History {
+    #[serde(default)]
+    pub territorial_history: Vec<crate::territory::Snapshot>,
     #[serde(default)]
     pub enterprises: Option<crate::enterprises::Enterprises>,
     /// Counterfactual custody outside town production/trade; ordinary worlds keep this empty.
@@ -242,7 +247,17 @@ impl History {
                     })),
             "cyclic or invalid event causes"
         );
+        self.validate_territory()?;
         for event in &self.events {
+            if let Some(path) = &event.planned_path {
+                let cells = 6 * self.terrain_resolution as u64 * self.terrain_resolution as u64;
+                ensure!(
+                    path.len() >= 2
+                        && path.len() as u64 <= cells
+                        && path.iter().all(|&c| (c as u64) < cells),
+                    "invalid event planned path"
+                );
+            }
             if let Some(anchors) = &event.spatial {
                 ensure!(
                     anchors.len() <= 3
@@ -279,6 +294,7 @@ impl History {
         })
         .collect();
         self.events.push(Event {
+            planned_path: None,
             spatial: Some(spatial),
             id: self.events.len() as u64,
             month: self.month,
@@ -1059,6 +1075,7 @@ impl Generator {
         }
         candidates.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.cell.cmp(&b.cell)));
         let mut h = History {
+            territorial_history: vec![],
             enterprises: Some(Default::default()),
             experimental_tool_reserves: Default::default(),
             resources: None,

@@ -1057,6 +1057,7 @@ impl Generator {
         });
         h.prepare_politics(&cells);
         h.event("political_baseline",None,None,"Founding adults have unknown ancestry; family records, factions and surveyed claims established".into());
+        h.record_territory();
         h.validate(&cells)?;
         self.civilizations = Some(h);
         Ok(())

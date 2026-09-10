@@ -46,6 +46,7 @@ impl Timeline {
 }
 impl History {
     pub(crate) fn record_timeline(&mut self) {
+        self.record_territory();
         for s in &mut self.sites {
             s.lifecycle.timeline.record(Observation {
                 month: self.month,

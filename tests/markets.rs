@@ -5,6 +5,7 @@ use ancient_world::{
 };
 fn network() -> History {
     History {
+        territorial_history: vec![],
         enterprises: None,
         experimental_tool_reserves: Default::default(),
         resources: None,

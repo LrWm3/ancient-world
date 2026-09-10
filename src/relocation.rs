@@ -521,6 +521,12 @@ impl History {
                     source.demography.ages[k] -= amount;
                 }
                 self.event("household_departure",Some(from as u32),Some(to),format!("Household {id} left repeated hardship with {people:.2} residents; {months}-month journey funded by {food:.1} kg existing food, {cash:.2} money and {tools:.2} kg tools; dated destination testimony preference {report_weight:.3}"));
+                let road = &self.society.as_ref().unwrap().routes[route as usize];
+                let mut path = road.cells.clone();
+                if road.from != from as u32 {
+                    path.reverse();
+                }
+                self.events.last_mut().unwrap().planned_path = Some(path);
                 let cause = self.events.last().unwrap().id;
                 self.events
                     .last_mut()
@@ -660,6 +666,22 @@ mod tests {
         assert_eq!(h.household_relocations().unwrap().journeys.len(), 1);
         let j = h.household_relocations().unwrap().journeys[0].clone();
         assert_eq!((j.from, j.to), (r.from, r.to));
+        assert_eq!(
+            h.events[j.cause as usize].planned_path.as_ref().unwrap(),
+            &r.cells
+        );
+        let mut changed_route = h.clone();
+        changed_route.society.as_mut().unwrap().routes[j.route as usize]
+            .cells
+            .reverse();
+        assert_eq!(
+            changed_route.events[j.cause as usize]
+                .planned_path
+                .as_ref()
+                .unwrap(),
+            &r.cells
+        );
+
         let faith = h.culture.as_ref().unwrap().household_faith[j.household as usize];
         let head = h.society.as_ref().unwrap().households[j.household as usize].head;
         let ancestry = h.people[head as usize].civilization;
@@ -991,6 +1013,11 @@ mod tests {
             serde_json::to_value(resumed).unwrap()
         );
         assert!(h.household_relocations().unwrap().journeys.is_empty());
+        assert_eq!(
+            h.events[j.cause as usize].planned_path.as_ref().unwrap(),
+            &r.cells
+        );
+
         let arrival = h
             .events
             .iter()
