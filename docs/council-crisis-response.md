@@ -8,9 +8,9 @@ particular empirical secession rate should be fitted.
 
 Newly enabled governance now permits councils to negotiate local autonomy. At a
 quarterly decision boundary, an occupied town with 3–11 consecutive crisis months
-can receive 75% autonomy. Grower and merchant councils accept this concession;
-retainer councils accept only after at least six consecutive underfunded payroll
-months. Governing interests already exist in the faction model. These preferences
+can receive 75% autonomy. Most councils accept this concession; retainers,
+revivalists and warbands accept only after at least six consecutive underfunded
+payroll months (see [expanded interests](faction-interests.md)). Governing interests already exist in the faction model. These preferences
 and thresholds are explicit game assumptions, not universal historical claims.
 
 This sets the existing autonomy policy and records `autonomy_negotiated` linked to

@@ -69,3 +69,5 @@ pub mod local_places;
 pub mod enterprises;
 
 pub mod history_timeline;
+
+pub mod faction_interests;

@@ -200,3 +200,48 @@ fn competing_campaigns_withdraw_when_the_objective_changes_owner() {
     assert!(h.economy_residuals().iter().all(|r| r.abs() < 0.001));
     assert!(h.population_residual().abs() < 0.001);
 }
+
+#[test]
+#[ignore = "requires hardware GPU; small faction seed comparison"]
+fn expanded_interests_seed_comparison() {
+    let gpu = pollster::block_on(ContextGpu::headless()).unwrap();
+    for seed in [17, 81, 256] {
+        let mut g = Generator::new(
+            gpu.clone(),
+            Config {
+                seed,
+                resolution: 64,
+                ecology_resolution: 16,
+                ..Default::default()
+            },
+            Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(8).unwrap();
+        g.enable_society().unwrap();
+        g.enable_politics().unwrap();
+        g.advance_history(360).unwrap();
+        let h = g.civilizations.as_ref().unwrap();
+        let p = h.politics.as_ref().unwrap();
+        let mut memberships = [0; ancient_world::faction_interests::COUNT];
+        for id in &p.household_factions {
+            memberships[p.factions[*id as usize].interest as usize] += 1;
+        }
+        println!(
+            "seed={seed} households_by_interest={memberships:?} shifts={} fragmentations={}",
+            h.events
+                .iter()
+                .filter(|e| e.kind == "faction_shift")
+                .count(),
+            h.events
+                .iter()
+                .filter(|e| e.kind == "faction_fragmentation")
+                .count()
+        );
+        assert_eq!(
+            p.factions.len(),
+            h.civilizations.len() * ancient_world::faction_interests::COUNT
+        );
+        h.validate(&g.snapshot().unwrap()).unwrap();
+    }
+}

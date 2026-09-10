@@ -32,8 +32,10 @@ pub struct SocialCell {
     /// Four most prevalent tradition IDs; remaining traditions are grouped in faith[4].
     pub traditions: [u32; 4],
     pub faith: [f32; 5],
-    /// Existing three faction interests; a descriptive local share, not extra votes.
+    /// Legacy first three interests; additional interests have a separate archive-defaulted field.
     pub factions: [f32; 3],
+    #[serde(default)]
+    pub additional_factions: [f32; 6],
     /// Latest measured shortage, disease burden, disruption, ownership Gini.
     pub exposure: [f32; 4],
     /// Consecutive high/low pressure months, crisis flag, latest observation month.
@@ -53,6 +55,7 @@ impl Default for SocialCell {
             traditions: [NO_TRADITION; 4],
             faith: [0.; 5],
             factions: [0.; 3],
+            additional_factions: [0.; 6],
             exposure: [0.; 4],
             status: [0; 4],
         }
@@ -121,6 +124,7 @@ impl SocialState {
                     .chain(&c.exposure)
                     .chain(&c.faith)
                     .chain(&c.factions)
+                    .chain(&c.additional_factions)
                     .all(|x| x.is_finite() && (0. ..=1.).contains(x)),
                 "invalid social pressure/share"
             );
@@ -136,7 +140,8 @@ impl SocialState {
                 "invalid social status"
             );
             ensure!(
-                c.faith.iter().sum::<f32>() <= 1.00001 && c.factions.iter().sum::<f32>() <= 1.00001,
+                c.faith.iter().sum::<f32>() <= 1.00001
+                    && c.factions.iter().chain(&c.additional_factions).sum::<f32>() <= 1.00001,
                 "invalid social prevalence totals"
             );
             ensure!(
@@ -170,7 +175,7 @@ impl History {
         let mut shares = vec![vec![]; self.sites.len()];
         let mut accounts = vec![vec![]; self.sites.len()];
         let mut faith = vec![BTreeMap::<u32, f64>::new(); self.sites.len()];
-        let mut factions = vec![[0f64; 3]; self.sites.len()];
+        let mut factions = vec![[0f64; 9]; self.sites.len()];
         for hh in &society.households {
             if society.relocation.away(hh.id) {
                 continue;
@@ -196,7 +201,9 @@ impl History {
                 .as_ref()
                 .and_then(|p| p.household_factions.get(hh.id as usize))
             {
-                factions[site][*id as usize % 3] += hh.share;
+                let interest =
+                    self.politics.as_ref().unwrap().factions[*id as usize].interest as usize;
+                factions[site][interest] += hh.share;
             }
         }
         let mut events = vec![];
@@ -321,6 +328,9 @@ impl History {
             let faction_total = factions[i].iter().sum::<f64>();
             for k in 0..3 {
                 c.factions[k] = (factions[i][k] / faction_total.max(1e-12)) as f32;
+            }
+            for k in 0..6 {
+                c.additional_factions[k] = (factions[i][k + 3] / faction_total.max(1e-12)) as f32;
             }
             c.housing[0] = site.economy.housing_capacity();
             c.housing[1] = site.economy.crowding(site.stocks.stock[0]);

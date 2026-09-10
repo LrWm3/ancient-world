@@ -356,12 +356,14 @@ impl History {
                 let politics = self.politics.as_ref().unwrap();
                 let faction =
                     &politics.factions[politics.governing[a.controller as usize] as usize];
-                // Growers/merchants accept devolved revenue; retainers hold out unless payroll fails.
-                if faction.interest != 2 || a.unpaid_months >= 6 {
+                // Centralizing interests hold out on devolved revenue unless payroll fails.
+                if !crate::faction_interests::resists_autonomy(faction.interest)
+                    || a.unpaid_months >= 6
+                {
                     let previous = a.autonomy;
                     a.autonomy = 0.75;
                     self.event("autonomy_negotiated", Some(i as u32), None,
-                        format!("{} council granted 75% local autonomy after {} crisis months (previous {:.0}%, unpaid {} months); future tax collection falls from {:.0}% to 44% of the standard rate", ["Grower", "Merchant", "Retainer"][faction.interest as usize], a.crisis_months, previous * 100., a.unpaid_months, (1. - previous * 0.75) * 100.));
+                        format!("{} council granted 75% local autonomy after {} crisis months (previous {:.0}%, unpaid {} months); future tax collection falls from {:.0}% to 44% of the standard rate", crate::faction_interests::name(faction.interest), a.crisis_months, previous * 100., a.unpaid_months, (1. - previous * 0.75) * 100.));
                     if let Some(cause) = a.cause {
                         self.events.last_mut().unwrap().causes.push(cause);
                     }

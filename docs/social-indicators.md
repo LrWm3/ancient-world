@@ -12,7 +12,7 @@ An optional `SocialState` on `Society` contains one fixed-layout `SocialCell` pe
 | Eight ownership bins | Resident household counts by beneficial ownership relative to the local mean household share |
 | Four pressures | Remembered hunger, disease burden, waterlogging/cleanup disruption and ownership inequality |
 | Four named faith shares + other | Existing household affiliations, normalized by resident household counts (not property shares) |
-| Three faction-interest shares | Existing household faction affiliations, normalized locally |
+| Nine faction-interest shares (three legacy slots plus six additional slots) | Existing household faction affiliations, normalized locally |
 | Exposure and status | Latest observations, sustained-strain/recovery counters, episode flag and observation month |
 
 Labor allocations are projected into the existing adult cohort, capped at the available adults. Children and elders remain in other/care. This is an observational age × livelihood table, not recruitment or employment transitions. Its rows sum to existing age cohorts; it never adds workers to production. Other/care must not be interpreted as unemployment.

@@ -2055,7 +2055,7 @@ impl App {
                                 ui.small(format!("Persistent severe deprivation: {:.0}%",c.household_stress[2]*100.));
                                 for k in 0..4 {if let Some(t)=h.culture.as_ref().and_then(|culture|culture.traditions.get(c.traditions[k] as usize)) {ui.small(format!("{}: {:.0}% affiliation proxy",t.name,c.faith[k]*100.));}}
                                 if c.faith[4]>0. {ui.small(format!("Other traditions: {:.0}%",c.faith[4]*100.));}
-                                ui.small(format!("Local faction-interest shares: {:.0}% / {:.0}% / {:.0}%",c.factions[0]*100.,c.factions[1]*100.,c.factions[2]*100.));
+                                for (k,share) in c.factions.iter().chain(&c.additional_factions).enumerate() { if *share>0. {ui.small(format!("{}: {:.0}% local affiliation",crate::faction_interests::NAMES[k],share*100.));} }
                             }
                             if let Some(operators) = &h.enterprises {
                                 for firm in operators.firms.iter().filter(|f| f.site == site.id && f.closed.is_none()) {
@@ -2144,7 +2144,7 @@ impl App {
                             let s=&h.sites[site]; let controller=h.controller(s.id);
                             ui.label(format!("Administration: {} · cultural affiliation: {}",h.civilizations[controller as usize].name,h.civilizations[s.civilization as usize].name));
                             for f in p.factions.iter().filter(|f|f.civilization==s.civilization) {
-                                ui.label(format!("{} · support {:.0}% · dissent {:.0}%{}",["Growers","Merchants","Retainers"][f.interest as usize],f.support*100.,f.dissent*100.,if p.governing[s.civilization as usize]==f.id {" · governing"}else{""}));
+                                ui.label(format!("{} · support {:.0}% · dissent {:.0}% · cohesion {:.0}%{}",crate::faction_interests::name(f.interest),f.support*100.,f.dissent*100.,f.cohesion*100.,if p.governing[s.civilization as usize]==f.id {" · governing"}else{""}));
                             }
                             ui.label(format!("{} claimed cells · {} contested",p.claims.iter().filter(|c|c.sites.contains(&s.id)).count(),p.claims.iter().filter(|c|c.sites.contains(&s.id)&&p.claim_owners(c).len()>1).count()));
                             ui.small("Claims cover occupied hinterland and surveyed road corridors. Taxes go to the administrator.");

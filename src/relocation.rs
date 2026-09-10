@@ -294,9 +294,17 @@ impl History {
                 }
             }
             if let Some(p) = &mut self.politics {
-                let interest = p.household_factions[j.household as usize] % 3;
-                p.household_factions[j.household as usize] =
-                    self.sites[j.to as usize].civilization * 3 + interest;
+                let interest =
+                    p.factions[p.household_factions[j.household as usize] as usize].interest;
+                p.household_factions[j.household as usize] = p
+                    .factions
+                    .iter()
+                    .find(|f| {
+                        f.civilization == self.sites[j.to as usize].civilization
+                            && f.interest == interest
+                    })
+                    .unwrap()
+                    .id;
             }
             self.receive_appeal(&j);
             self.relocation_event("household_arrival", &j, format!("Household resettled with {pop:.2} residents, {:.1} kg food, {:.2} money and {:.2} kg tools; relinquished {:.2}% origin private-stock interest, acquired {:.2}% destination interest; ancestry and faith retained",j.food,j.cash,j.tools,old_share*100.,new_share*100.));

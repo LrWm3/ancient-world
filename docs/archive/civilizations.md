@@ -2,13 +2,13 @@
 
 > **Archived design / legacy reference — 2026-09-09.** This preserves the original proposal and its historical limitations; it is not the current implementation status or an active task list. See the [current civilization guide](../civilizations.md) and [documentation index](../README.md).
 
-Status: the [first civilization beta](civilization-beta.md) implements central-island founding, GPU habitat/food/demography, expansion, food relief, succession, events, inspection and persistence. The [economic expansion](../economy.md) now adds reserved ecological plots, nutrient-limited farming, labor, finite extraction, five craft recipes and paid same-island markets. The opt-in [social history extension](../society.md) adds age cohorts, seasonal grain, household shares and inheritance, terrain routes, councils, roads and provisioned raids. The optional [political extension](../politics.md) now records genealogy and marriages, competing council factions, regional territorial claims and provisioned conquest/repulse campaigns. The [governance extension](../governance.md) adds administrative wages, autonomy, legitimacy, secession and non-aggression agreements. The milestones below remain the long-term roadmap; complete individual demography, full crop/livestock catalogs, continuous planetary feedback, cultures, tactical/multi-front warfare and inter-island trade remain unimplemented.
+Status: the [first civilization beta](civilization-beta.md) implements central-island founding, GPU habitat/food/demography, expansion, food relief, succession, events, inspection and persistence. The [economic expansion](../economy.md) now adds reserved ecological plots, nutrient-limited farming, labor, finite extraction, five craft recipes and paid same-island markets. The opt-in [social history extension](../society.md) adds age cohorts, seasonal grain, household shares and inheritance, terrain routes, councils, roads and provisioned raids. The optional [political extension](../politics.md) now records genealogy and marriages, competing council factions, regional territorial claims and provisioned conquest/repulse campaigns. The [governance extension](../governance.md) adds administrative wages, autonomy, legitimacy, secession and non-aggression agreements. The milestones below are archived ideas, not an active roadmap; complete individual demography, full crop/livestock catalogs, continuous planetary feedback, cultures, tactical/multi-front warfare and inter-island trade remain unimplemented.
 
-## Target and scope
+## Archived scope ideas
 
-Build persistent societies whose settlements, people, institutions, resources and conflicts produce a causally connected history. The target is approximate parity with Dwarf Fortress's **world-generation and historical simulation**, followed by a path to playable sites. Full fortress management, anatomical combat and adventure mode are separate, much larger milestones.
+Build persistent societies whose settlements, people, institutions, resources and conflicts produce a causally connected history. The earlier ambition to match Dwarf Fortress is withdrawn. This archived document collects possible experiments; neither comparable simulation depth nor playable fortress/adventure modes are project goals or commitments.
 
-The reference is the persistent world spanning centuries, trade, nobility, institutions, material-dependent crafts and revisitable sites described by [Bay 12's features page](https://bay12games.com/dwarves/features.html). Bay 12's [2012 development log](https://www.bay12games.com/dwarves/dev_2012.html) also describes succession, births, historical figures, holdings and site retirement. These establish useful behavior targets; the architecture and milestones below are proposals for this project, not claims about Dwarf Fortress's internal implementation.
+The reference is the persistent world spanning centuries, trade, nobility, institutions, material-dependent crafts and revisitable sites described by [Bay 12's features page](https://bay12games.com/dwarves/features.html). Bay 12's [2012 development log](https://www.bay12games.com/dwarves/dev_2012.html) also describes succession, births, historical figures, holdings and site retirement. These are sources of inspiration, not acceptance targets; the architecture and milestones below are proposals for this project, not claims about Dwarf Fortress's internal implementation.
 
 Civilizations appear **only on the central island continents**. This applies throughout history, not just initial seeding. The outer continent has no founded settlements, territorial claims, farming colonies, military bases or hidden starting societies. Ships may travel between eligible island ports across the great lake. Outer-continent expeditions are outside the initial scope and must never silently become settlement mechanisms.
 
@@ -110,7 +110,7 @@ Resolve towns into districts, households, farms, roads, workshops, walls, temple
 
 Support site activation/retirement contracts: an active local simulation temporarily owns named people, items and affected land; world history advances the rest. Retirement reconciles deltas once and preserves rooms, structures, ownership and history. Loading the same site must not regenerate away a battlefield, canal or ruined temple.
 
-Gate: visit → modify → retire → advance history → revisit preserves identity and reconciles inventories. Two sites cannot both own the same historical figure or artifact. This is the bridge toward fortress/adventure parity, not a claim that their gameplay is implemented.
+Gate: visit → modify → retire → advance history → revisit preserves identity and reconciles inventories. Two sites cannot both own the same historical figure or artifact. This was a proposed experiment in local interaction, not a commitment to fortress or adventure gameplay.
 
 ## Explorer, API and persistence
 
@@ -120,19 +120,19 @@ Use versioned archives with simulation clocks, catalogs, stable ID allocators, s
 
 Default initial history target: 250 social years, editable, with continuous continuation. Start calibration with 5–15 civilizations and 50–200 sites, then measure scaling toward thousands of sites and large historical populations. These are test settings, not a promise of fixed generation duration.
 
-## Parity checklist and exit criteria
+## Archived capability ideas (not current exit criteria)
 
 | Capability | World-history target | Later local-gameplay dependency |
 | --- | --- | --- |
-| Founding, growth, decline, ruins | Required | Detailed building occupation |
-| Cohorts, notable people, genealogy, succession | Required | Individual daily needs and jobs |
-| Trade, crafts, finite resources, livelihoods | Required | Workshop operation and hauling |
-| Diplomacy, raids, conquest, migration | Required | Tactical and anatomical combat |
-| Religion, institutions, art, knowledge, artifacts | Required | Detailed performances and interactions |
-| Historical browser and causal records | Required | Local memories and rumors |
-| Persistent sites and reversible activation | Required foundation | Fortress/adventure modes |
+| Founding, growth, decline, ruins | Proposed | Detailed building occupation |
+| Cohorts, notable people, genealogy, succession | Proposed | Individual daily needs and jobs |
+| Trade, crafts, finite resources, livelihoods | Proposed | Workshop operation and hauling |
+| Diplomacy, raids, conquest, migration | Proposed | Tactical and anatomical combat |
+| Religion, institutions, art, knowledge, artifacts | Proposed | Detailed performances and interactions |
+| Historical browser and causal records | Proposed | Local memories and rumors |
+| Persistent sites and reversible activation | Proposed foundation | Fortress/adventure modes |
 | Excavation and subterranean settlements | Schema foundations | Voxel terrain, caves and fluid simulation |
 
-Require 100-, 250- and 1,000-year seed suites; population and goods accounting; zero outer-continent settlements at every tick; acyclic ancestry; valid office intervals; artifact ownership uniqueness; reproducible checkpoint continuation; and bounded performance/memory growth. Include controlled famine, succession crisis, blockade, resource exhaustion, epidemic, rebellion and library-loss scenarios.
+Earlier validation ideas included 100-, 250- and 1,000-year seed suites; population and goods accounting; zero outer-continent settlements at every tick; acyclic ancestry; valid office intervals; artifact ownership uniqueness; reproducible checkpoint continuation; and bounded performance/memory growth. Include controlled famine, succession crisis, blockade, resource exhaustion, epidemic, rebellion and library-loss scenarios.
 
 The first implementation slice should stop at a compelling, inspectable loop: **found villages → produce food and goods → grow families → exchange surplus → expand or fail → record why**. Subsequent milestones extend these same records and budgets rather than replacing a disposable civilization prototype.

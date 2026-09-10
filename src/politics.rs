@@ -25,11 +25,18 @@ pub struct Marriage {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Faction {
+    #[serde(default = "full_cohesion")]
+    pub cohesion: f32,
+    #[serde(default)]
+    pub organizer: Option<u32>,
     pub id: u32,
     pub civilization: u32,
     pub interest: u32,
     pub support: f32,
     pub dissent: f32,
+}
+fn full_cohesion() -> f32 {
+    1.
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Claim {
@@ -80,7 +87,9 @@ impl Politics {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("politics requires households"))?;
         ensure!(
-            self.version == 1 && self.started <= h.month && self.occupation_months <= 12,
+            matches!(self.version, 1 | 2)
+                && self.started <= h.month
+                && self.occupation_months <= 12,
             "invalid political version or clock"
         );
         ensure!(
@@ -196,16 +205,36 @@ impl Politics {
             }
         }
         ensure!(
-            self.factions.len() == h.civilizations.len() * 3
+            self.factions.len()
+                == h.civilizations.len()
+                    * if self.version == 1 {
+                        3
+                    } else {
+                        crate::faction_interests::COUNT
+                    }
                 && self
                     .factions
                     .iter()
                     .enumerate()
                     .all(|(i, f)| f.id == i as u32
-                        && f.civilization == i as u32 / 3
-                        && f.interest == i as u32 % 3
+                        && (f.civilization as usize) < h.civilizations.len()
+                        && (f.interest as usize)
+                            < if self.version == 1 {
+                                3
+                            } else {
+                                crate::faction_interests::COUNT
+                            }
                         && (0. ..=1.).contains(&f.support)
-                        && (0. ..=1.).contains(&f.dissent)),
+                        && (0. ..=1.).contains(&f.dissent)
+                        && (0. ..=1.).contains(&f.cohesion)
+                        && f.organizer.is_none_or(|id| (id as usize) < h.people.len()))
+                && self
+                    .factions
+                    .iter()
+                    .map(|f| (f.civilization, f.interest))
+                    .collect::<BTreeSet<_>>()
+                    .len()
+                    == self.factions.len(),
             "invalid faction"
         );
         ensure!(
@@ -221,11 +250,10 @@ impl Politics {
         );
         ensure!(
             self.governing.len() == h.civilizations.len()
-                && self
-                    .governing
-                    .iter()
-                    .enumerate()
-                    .all(|(c, &f)| f / 3 == c as u32),
+                && self.governing.iter().enumerate().all(|(c, &f)| self
+                    .factions
+                    .get(f as usize)
+                    .is_some_and(|f| f.civilization == c as u32)),
             "invalid governing faction"
         );
         let mut previous = None;
@@ -270,6 +298,23 @@ impl History {
         let Some(mut p) = self.politics.take() else {
             return;
         };
+        if p.version == 1 {
+            for civ in 0..self.civilizations.len() {
+                for interest in 3..crate::faction_interests::COUNT {
+                    p.factions.push(Faction {
+                        id: p.factions.len() as u32,
+                        civilization: civ as u32,
+                        interest: interest as u32,
+                        support: 0.,
+                        dissent: 0.,
+                        cohesion: if interest >= 6 { 0.3 } else { 1. },
+                        organizer: None,
+                    });
+                }
+            }
+            p.version = 2;
+            self.event("political_expansion",None,None,"Additional political interests became available; existing faction identities and household memberships retained".into());
+        }
         let society = self.society.as_ref().unwrap();
         let rebuild = p.controllers.len() != self.sites.len() || p.claims.is_empty();
         while p.controllers.len() < self.sites.len() {
@@ -293,8 +338,16 @@ impl History {
         }
         for f in &society.households {
             if p.household_factions.len() <= f.id as usize {
-                p.household_factions
-                    .push(self.sites[f.site as usize].civilization * 3 + f.id % 3);
+                p.household_factions.push(
+                    p.factions
+                        .iter()
+                        .find(|x| {
+                            x.civilization == self.sites[f.site as usize].civilization
+                                && x.interest == f.id % 3
+                        })
+                        .unwrap()
+                        .id,
+                );
             }
             if !p.kin.iter().any(|k| k.person == f.head) {
                 p.kin.push(Kinship {
@@ -533,7 +586,105 @@ impl History {
             return;
         };
         for civ in 0..self.civilizations.len() {
-            let mut votes = [0f32; 3];
+            let ids: Vec<usize> = (0..crate::faction_interests::COUNT)
+                .map(|k| {
+                    p.factions
+                        .iter()
+                        .position(|f| f.civilization == civ as u32 && f.interest == k as u32)
+                        .unwrap()
+                })
+                .collect();
+            let mut votes = [0f32; crate::faction_interests::COUNT];
+            let threat = p.wars.iter().any(|w| {
+                w.ended.is_none() && (w.attacker == civ as u32 || w.defender == civ as u32)
+            });
+            let residents: Vec<_> = self
+                .society
+                .as_ref()
+                .unwrap()
+                .households
+                .iter()
+                .filter(|f| {
+                    self.sites[f.site as usize].civilization == civ as u32
+                        && !self.society.as_ref().unwrap().relocation.away(f.id)
+                        && !self.sites[f.site as usize].abandoned
+                        && self.people[f.head as usize].died.is_none()
+                })
+                .collect();
+            let mut conditions = Vec::new();
+            for f in &residents {
+                let s = &self.sites[f.site as usize];
+                let a = self
+                    .culture
+                    .as_ref()
+                    .and_then(|c| c.agents.get(f.head as usize));
+                let pressure = self
+                    .social_indicators(s.id)
+                    .map_or([s.stocks.stock[3], 0., 0., 0.], |c| c.pressure);
+                let traits = a.map_or([0.5; 6], |a| a.traits);
+                let workers = s.economy.labor.iter().sum::<f32>().max(1.);
+                conditions.push([
+                    pressure[0].clamp(0., 1.),
+                    pressure[3],
+                    pressure[2],
+                    f32::from(threat),
+                    (s.economy.labor[3] / workers).clamp(0., 1.),
+                    (s.economy.finance[2] / s.economy.finance[1].max(1.)).clamp(0., 1.),
+                    traits[2],
+                    traits[3],
+                ]);
+            }
+            let mut fragments = Vec::new();
+            for (k, &id) in ids.iter().enumerate().skip(6) {
+                let faction = &mut p.factions[id];
+                let organizer = residents
+                    .iter()
+                    .zip(&conditions)
+                    .max_by(|(a, x), (b, y)| {
+                        crate::faction_interests::appeal(k, **x)
+                            .total_cmp(&crate::faction_interests::appeal(k, **y))
+                            .then_with(|| b.id.cmp(&a.id))
+                    })
+                    .map(|(f, _)| f.head);
+                let pressure = conditions
+                    .iter()
+                    .map(|x| match k {
+                        6 => (x[0] + x[1]) * 0.5,
+                        7 => x[6] * (x[0] + x[2]).min(1.),
+                        _ => x[3],
+                    })
+                    .sum::<f32>()
+                    / conditions.len().max(1) as f32;
+                let before = faction.cohesion;
+                faction.cohesion = crate::faction_interests::cohesion(
+                    k,
+                    before,
+                    pressure,
+                    faction.organizer.is_some() && faction.organizer != organizer,
+                );
+                faction.organizer = organizer;
+                if before >= 0.6 && faction.cohesion < 0.6 && faction.support > 0.05 {
+                    fragments.push((k, faction.support, pressure));
+                }
+            }
+            for (f, x) in residents.iter().zip(&conditions) {
+                let previous =
+                    p.factions[p.household_factions[f.id as usize] as usize].interest as usize;
+                let score = |k: usize| {
+                    crate::faction_interests::appeal(k, *x) * p.factions[ids[k]].cohesion
+                        + if k == previous { 0.25 } else { 0. }
+                };
+                let best = (0..crate::faction_interests::COUNT)
+                    .max_by(|&a, &b| score(a).total_cmp(&score(b)).then_with(|| b.cmp(&a)))
+                    .unwrap();
+                if (f.id + self.month / 12) % 3 == 0 || p.factions[ids[previous]].cohesion < 0.25 {
+                    p.household_factions[f.id as usize] = ids[best] as u32;
+                }
+            }
+            drop(residents);
+            for (k, support, pressure) in fragments {
+                self.event("faction_fragmentation",self.sites.iter().find(|s|s.civilization==civ as u32).map(|s|s.id),None,format!("{}: {} lost cohesion after organizing pressure fell or leadership changed; prior support {:.0}%, pressure {:.2}",self.civilizations[civ].name,crate::faction_interests::NAMES[k],support*100.,pressure));
+            }
             for f in &self.society.as_ref().unwrap().households {
                 let s = &self.sites[f.site as usize];
                 if self.society.as_ref().unwrap().relocation.away(f.id) {
@@ -542,7 +693,8 @@ impl History {
                 if s.civilization != civ as u32 {
                     continue;
                 }
-                let interest = p.household_factions[f.id as usize] as usize % 3;
+                let interest =
+                    p.factions[p.household_factions[f.id as usize] as usize].interest as usize;
                 let threat = p.wars.iter().any(|w| {
                     w.ended.is_none() && (w.attacker == civ as u32 || w.defender == civ as u32)
                 });
@@ -553,13 +705,17 @@ impl History {
                         }) * 4.
                     }
                     1 => 1. + s.economy.finance[2] / s.economy.finance[1].max(1.),
-                    _ => 1. + if threat { 2. } else { 0. },
+                    2 | 8 => 1. + if threat { 2. } else { 0. },
+                    _ => 1.,
                 };
-                votes[interest] += f.share as f32 * s.stocks.stock[0] * urgency.min(5.);
+                votes[interest] += f.share as f32
+                    * s.stocks.stock[0]
+                    * urgency.min(5.)
+                    * p.factions[ids[interest]].cohesion;
             }
             let sum = votes.iter().sum::<f32>().max(1.);
             for (j, v) in votes.iter().enumerate() {
-                let f = &mut p.factions[civ * 3 + j];
+                let f = &mut p.factions[ids[j]];
                 f.support = *v / sum;
                 f.dissent = (1. - f.support)
                     * self
@@ -569,10 +725,10 @@ impl History {
                         .map(|s| s.stocks.stock[3])
                         .fold(0f32, f32::max);
             }
-            let winner = (0..3)
+            let winner = (0..crate::faction_interests::COUNT)
                 .max_by(|&a, &b| votes[a].total_cmp(&votes[b]).then_with(|| b.cmp(&a)))
                 .unwrap();
-            let faction = (civ * 3 + winner) as u32;
+            let faction = ids[winner] as u32;
             if p.governing[civ] != faction
                 && p.factions[faction as usize].support
                     > p.factions[p.governing[civ] as usize].support + 0.05
@@ -611,7 +767,7 @@ impl History {
                         format!(
                             "{} gained the council: {}",
                             self.civilizations[civ].name,
-                            ["growers", "merchants", "retainers"][winner]
+                            crate::faction_interests::NAMES[winner]
                         ),
                     );
                     let event = self.events.last_mut().unwrap();
@@ -626,8 +782,8 @@ impl History {
                     }
                 }
             }
-            self.society.as_mut().unwrap().councils[civ].tax_rate =
-                [0.02, 0.03, 0.06][p.governing[civ] as usize % 3];
+            self.society.as_mut().unwrap().councils[civ].tax_rate = crate::faction_interests::TAX
+                [p.factions[p.governing[civ] as usize].interest as usize];
         }
         self.politics = Some(p);
         // Escalation needs a recent material grievance, a contested corridor and supplies.
@@ -843,6 +999,8 @@ impl Generator {
             marriages: vec![],
             factions: (0..count * 3)
                 .map(|id| Faction {
+                    cohesion: 1.,
+                    organizer: None,
                     id: id as u32,
                     civilization: id as u32 / 3,
                     interest: id as u32 % 3,
@@ -881,5 +1039,101 @@ impl Generator {
         h.validate(&cells)?;
         self.civilizations = Some(h);
         Ok(id)
+    }
+}
+
+#[cfg(test)]
+mod expanded_faction_tests {
+    use super::*;
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn crisis_membership_policy_recovery_and_legacy_ids() {
+        let mut g = Generator::new(
+            pollster::block_on(crate::gpu::ContextGpu::headless()).unwrap(),
+            crate::config::Config {
+                resolution: 64,
+                ecology_resolution: 16,
+                ..Default::default()
+            },
+            crate::catalog::Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(8).unwrap();
+        g.enable_society().unwrap();
+        g.enable_politics().unwrap();
+        let cells = g.snapshot().unwrap();
+        let mut h = g.civilizations.as_ref().unwrap().clone();
+        let count = h.civilizations.len();
+        // Recreate a version-one political catalog; upgrade must append, never renumber.
+        {
+            let p = h.politics.as_mut().unwrap();
+            p.factions.truncate(count * 3);
+            p.version = 1;
+        }
+        let before = h.politics.as_ref().unwrap().household_factions.clone();
+        h.prepare_politics(&cells);
+        assert_eq!(h.politics.as_ref().unwrap().household_factions, before);
+        assert_eq!(h.politics.as_ref().unwrap().factions.len(), count * 9);
+        h.validate(&cells).unwrap();
+        // Freeze production and isolate political responses to declared pressure.
+        for _ in 0..8 {
+            h.month += 12;
+            for s in &mut h
+                .society
+                .as_mut()
+                .unwrap()
+                .indicators
+                .as_mut()
+                .unwrap()
+                .sites
+            {
+                s.pressure = [1., 0., 1., 1.];
+            }
+            h.politics_year();
+        }
+        let p = h.politics.as_ref().unwrap();
+        assert!(p
+            .household_factions
+            .iter()
+            .any(|id| p.factions[*id as usize].interest == 6));
+        assert!(p
+            .governing
+            .iter()
+            .any(|id| p.factions[*id as usize].interest == 6));
+        for (c, id) in p.governing.iter().enumerate() {
+            assert_eq!(
+                h.society.as_ref().unwrap().councils[c].tax_rate,
+                crate::faction_interests::TAX[p.factions[*id as usize].interest as usize]
+            );
+        }
+        let mut resumed: History =
+            serde_json::from_slice(&serde_json::to_vec(&h).unwrap()).unwrap();
+        for _ in 0..8 {
+            for world in [&mut h, &mut resumed] {
+                world.month += 12;
+                for s in &mut world
+                    .society
+                    .as_mut()
+                    .unwrap()
+                    .indicators
+                    .as_mut()
+                    .unwrap()
+                    .sites
+                {
+                    s.pressure = [0.; 4];
+                }
+                world.politics_year();
+            }
+        }
+        assert_eq!(
+            serde_json::to_value(&h).unwrap(),
+            serde_json::to_value(&resumed).unwrap()
+        );
+        assert!(h.events.iter().any(|e| e.kind == "faction_fragmentation"));
+        let p = h.politics.as_ref().unwrap();
+        assert!(p
+            .household_factions
+            .iter()
+            .all(|id| p.factions[*id as usize].interest != 6));
     }
 }

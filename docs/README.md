@@ -3,6 +3,10 @@
 Start with the [current civilization guide](civilizations.md) for implemented history
 systems and their limits, or the [project README](../README.md) for running the explorer.
 
+Simulation parity, scientific accuracy and comprehensive coverage are not project
+goals. Feature names refer to limited experiments. Archived roadmaps are not
+commitments; some ambitions in them have been withdrawn.
+
 System guides describe mechanisms, controls and archive compatibility. Some include
 historical measurements; their test counts and calibration outcomes apply to the
 recorded runs, not automatically to today's revision. Opt-in features remain opt-in.
@@ -37,6 +41,7 @@ recorded runs, not automatically to today's revision. Opt-in features remain opt
 - [Teaching successors for scarce practices](knowledge-succession.md)
 - [Land freight reservations](land-freight-reservations.md)
 - [Governance and diplomacy](governance.md)
+- [Expanded political interests](faction-interests.md)
 - [Local hardship and political consent](governance-pressure.md)
 - [Founding, religious and literary expeditions](heritage-expeditions.md)
 - [History experiments and regional weather](history-evaluation.md)
