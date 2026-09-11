@@ -159,8 +159,33 @@ Reproduce with `target/release/examples/cultural_work_calibrate --seeds 17,81,25
 Concurrent arm runtimes were 39.5–82.8 seconds per seed, including first-run GPU
 setup; no speedup claim is supported.
 
-Matched **100-year held-out** runs for seeds 409 and 1024 have now started with
-the same settings in both arms. Their outputs are ignored
+## Held-out century results
+
+Both arms finished seeds 409 and 1024 for 100 years under the same protocol as
+above. Model `db6d2cb`; the later separate-household kin-care change is absent
+from both runs. The only between-arm option is `--agriculture-refinement`.
+
+| Seed | Control residents / active sites | Agricultural residents / active sites | Physical gap, control → agricultural | Access gap, control → agricultural |
+|---|---:|---:|---:|---:|
+| 409 | 89 / 13 | 767 / 16 | 0.0124% → 0.0000% | 5.6943% → 3.5663% |
+| 1024 | 87 / 12 | 691 / 16 | 0.1023% → 0.0629% | 5.5542% → 3.6396% |
+
+All maximum monthly population residuals are zero. Maximum normalized food
+residuals are 5.33e-7 and 6.45e-7 for the controls, and 3.29e-7 and 3.48e-7 for
+the agricultural arms. Runtime is 149.7–217.2 seconds per seed with simultaneous
+arms and test compilation, so timing is not an isolated benchmark.
+
+The improvement survives the longer interval on these two held-out seeds, but
+**does not establish stable populations**. Seed 409's agricultural population
+falls from 1,992 at year 10 to 1,313 at year 50 and 767 at year 100; its control
+falls from 2,045 to 864 to 89. Agriculture meaningfully slows the decline instead
+of repairing every cause. Cumulative access gaps remain over 3.5% despite very
+small physical shortages. Keep the population/income gate open and the pilot
+opt-in. The next production connection is actual extraction/construction work
+and household pay, while separately reviewing dependents' food entitlement;
+simply increasing crop yield is not supported by these results.
+
+Reproduce each arm using the 30-year command above with `--seeds 409,1024
+--years 100` and separate filenames. Completed raw results are ignored
 `output/agriculture-heldout-control.json` and `output/agriculture-heldout-pilot.json`.
-They are pending evidence, not an accepted long-run balance result. Preserve the
-opt-in pilot and the open population/income gate until those results are reviewed.
+No incomplete runs were extrapolated or excluded from this comparison.

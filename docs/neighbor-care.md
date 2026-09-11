@@ -8,14 +8,16 @@ or a simulation of social obligation.
 
 After normal family care is matched and limited by town service labor, consider
 resident adults from domestic units with **no dependent-care demand**. Each helper
-must have a cultural agent with positive generosity and a relationship above 0.2
-toward a currently resident member of a household needing help. A common town or
+must have a cultural agent with positive generosity and a support affinity above
+0.2 toward a currently resident member of a household needing help. Affinity uses
+the stronger of a positive relationship and supported local kinship (described
+below). A common town or
 religion alone does not establish that relationship.
 
-A helper prefers the eligible household with the highest relationship strength
+A helper prefers the eligible household with the highest support affinity
 multiplied by its fraction of unmet need. Ties use stable domestic-unit IDs;
 helpers are processed in stable person-ID order. Each helps at most one household.
-The monthly offer is at most `0.1 × generosity × relationship` worker-months,
+The monthly offer is at most `0.1 × generosity × affinity` worker-months,
 further capped by their illness-sensitive capacity, remaining need and town labor.
 These are toy behavioral parameters, not empirical estimates.
 
@@ -65,3 +67,42 @@ the connected adult supplies 0.1 worker-month, retains 0.7 for other activities,
 and the care ledger completes 0.1. Disconnected, disabled, unavailable and exhausted
 budget controls supply zero within numerical tolerance. Long-run assistance rates
 and social consequences have not been calibrated.
+
+
+## Separate-household kin support
+
+Adult children and parents often occupy different domestic units even in the same
+town. Known parent/child ties now provide affinity 0.75 and siblings with a known
+shared parent provide 0.5. Missing ancestry supplies no tie. Positive friendship
+can be stronger; an explicit negative relationship proportionally reduces the
+kin affinity, reaching zero at -1. Kinship therefore creates an opportunity for
+help, not unconditional obedience or a fabricated friendship.
+
+The same willingness, resident presence, own-family priority, unique-carer rule,
+and remaining town work ceiling apply. An adult child with generosity 1 can offer
+at most 0.075 worker-month to a separate elderly parent, leaving the rest of their
+capacity for other activities. Helping retains the ordinary care commitment and
+recruitment restriction until settlement. It transfers no money and does not
+create remote attendance, nutrition or a mortality reduction.
+
+`Domestic.kin_help` defaults to true for new and older state. Set it false before
+the next reservation to isolate the kin channel while retaining friend assistance;
+`neighbor_help = false` disables both external-household channels. Existing monthly
+assignments are honored. The ancestry lookup is built once per matching pass,
+rather than searching genealogy for every candidate pair.
+
+This closes the local separated-family matching gap. Cross-town elder support
+would need funded travel or remittances and remains unimplemented. Unmet care
+continues to appear in the care comparison and constrain family departures; it
+adds no new health penalty. Applying another mortality penalty on top of existing
+nutrition/disease exposure is not justified by this increment. Any later health
+connection needs an explicit exposure model and controlled double-counting tests.
+
+
+Kin-support verification: five focused domestic tests pass, including the GPU
+separate-household fixture and monthly/batched/checkpoint continuation. The elder
+fixture produces 0.075 worker-month of help and 0.725 remaining helper capacity;
+kin-disabled and estranged controls produce zero. Recorded unions are ended,
+not deleted, so the fixture also retains valid historical domestic anchors.
+The regular library suite passes 113 tests (101 GPU tests skipped in that run).
+This is local mechanism verification, not a calibrated long-run elder welfare model.

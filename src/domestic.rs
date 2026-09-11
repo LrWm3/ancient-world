@@ -62,6 +62,8 @@ pub struct CarePlan {
 pub struct Domestic {
     #[serde(default = "help_enabled")]
     pub neighbor_help: bool,
+    #[serde(default = "help_enabled")]
+    pub kin_help: bool,
     pub enabled: bool,
     pub baseline: Option<u32>,
     pub observed: Option<u32>,
@@ -76,6 +78,7 @@ impl Default for Domestic {
     fn default() -> Self {
         Self {
             neighbor_help: true,
+            kin_help: true,
             enabled: true,
             baseline: None,
             observed: None,
@@ -773,6 +776,62 @@ mod tests {
         let comparison = &isolated.resolution.as_ref().unwrap().receipts[0];
         assert!((comparison.metrics[1].expected - 0.12).abs() < 1e-6);
         assert_eq!(comparison.metrics[1].actual, 0.);
+        // Adult children retain a local care connection after forming a separate unit.
+        let mut separated = isolated.clone();
+        separated.domestic.as_mut().unwrap().care = None;
+        separated.participation.as_mut().unwrap().month = None;
+        separated.resolution.as_mut().unwrap().receipts.clear();
+        separated.people[a as usize].born = separated.month as i32 - 1080;
+        for marriage in &mut separated.politics.as_mut().unwrap().marriages {
+            marriage.ended = Some(separated.month);
+        }
+        separated
+            .politics
+            .as_mut()
+            .unwrap()
+            .kin
+            .iter_mut()
+            .find(|k| k.person == b)
+            .unwrap()
+            .parents = [Some(a), None];
+        // This fixture predates the monthly culture sync for newly named household heads.
+        let agents = &mut separated.culture.as_mut().unwrap().agents;
+        while agents.len() <= b as usize {
+            let mut helper = agents[a as usize].clone();
+            helper.person = agents.len() as u32;
+            agents.push(helper);
+        }
+        for agent in &mut separated.culture.as_mut().unwrap().agents {
+            agent.relations.clear();
+        }
+        separated.culture.as_mut().unwrap().agents[b as usize].traits[1] = 1.;
+        let mut without_kin = separated.clone();
+        without_kin.domestic.as_mut().unwrap().kin_help = false;
+        without_kin.open_participation();
+        assert_eq!(without_kin.domestic_care_for(b), 0.);
+        let mut estranged = separated.clone();
+        estranged.culture.as_mut().unwrap().agents[b as usize]
+            .relations
+            .insert(a, -1.);
+        estranged.open_participation();
+        assert_eq!(estranged.domestic_care_for(b), 0.);
+        separated.open_participation();
+        let d = separated.domestic.as_ref().unwrap();
+        assert_ne!(d.membership[&a], d.membership[&b]);
+        assert!((separated.domestic_care_for(b) - 0.075).abs() < 1e-6);
+        assert!(
+            (separated.participation.as_ref().unwrap().residents[&b].capacity - 0.725).abs() < 1e-6
+        );
+        assert!(!separated.domestic_departure_allowed(b, &[]));
+        separated.sites[0].economy.labor[3] = 0.075;
+        separated.settle_domestic_care();
+        separated.settle_care_resolutions().unwrap();
+        separated
+            .domestic
+            .as_ref()
+            .unwrap()
+            .validate(&separated)
+            .unwrap();
         // A known, generous adult can help the isolated child, using real time.
         let mut connected = isolated.clone();
         connected.domestic.as_mut().unwrap().care = None;
