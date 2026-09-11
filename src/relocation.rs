@@ -353,6 +353,28 @@ impl History {
         );
     }
 
+    /// Death before succession must not strand an ownerless account in transit.
+    pub(crate) fn household_available_for_relocation(&self, household: u32) -> bool {
+        let Some(society) = &self.society else {
+            return false;
+        };
+        let Some(hh) = society.households.get(household as usize) else {
+            return false;
+        };
+        self.people
+            .get(hh.head as usize)
+            .is_some_and(|p| p.died.is_none())
+            && !society.relocation.away(household)
+            && !self
+                .person_duties
+                .values()
+                .any(|d| d.household == Some(household))
+            && !self
+                .military
+                .duties
+                .values()
+                .any(|d| d.household == Some(household))
+    }
     /// Seasonal hardship memory and admissions after this month's food/demography.
     pub(crate) fn observe_relocation(&self) -> RelocationObservations {
         RelocationObservations {
@@ -452,17 +474,7 @@ impl History {
                 .households
                 .iter()
                 .filter(|hh| {
-                    hh.site == from as u32
-                        && !society.relocation.away(hh.id)
-                        && !self
-                            .person_duties
-                            .values()
-                            .any(|d| d.household == Some(hh.id))
-                        && !self
-                            .military
-                            .duties
-                            .values()
-                            .any(|d| d.household == Some(hh.id))
+                    hh.site == from as u32 && self.household_available_for_relocation(hh.id)
                 })
                 .collect::<Vec<_>>();
             // Keep a local ownership representative; this v1 moves one household

@@ -7,6 +7,7 @@ fn network() -> History {
     History {
         person_duties: Default::default(),
         domestic: None,
+        named_demography: None,
         military: Default::default(),
         participation: None,
         territorial_history: vec![],

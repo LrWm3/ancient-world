@@ -397,6 +397,13 @@ impl History {
         self.politics = Some(p);
     }
     pub(crate) fn genealogy_month(&mut self) {
+        let mut child_slots = self.named_demography.as_ref().map(|_| {
+            self.population_reconciliation()
+                .sites
+                .iter()
+                .map(|s| s.unrepresented_slots[0])
+                .collect::<Vec<_>>()
+        });
         let Some(mut p) = self.politics.take() else {
             return;
         };
@@ -411,7 +418,8 @@ impl History {
             let on_service = self.person_on_service(k.person);
             let person = &mut self.people[k.person as usize];
             let site = social.households[k.household as usize].site as usize;
-            if !social.relocation.away(k.household)
+            if self.named_demography.is_none()
+                && !social.relocation.away(k.household)
                 && !on_service
                 && !heads.contains(&k.person)
                 && person.died.is_none()
@@ -539,11 +547,15 @@ impl History {
             let site = f.site as usize;
             if self.society.as_ref().unwrap().relocation.away(f.id)
                 || self.sites[site].abandoned
+                || child_slots.as_ref().is_some_and(|slots| slots[site] == 0)
                 || p.birth_credit[site] < 1.
                 || self.sites[site].demography.ages[0] < 1.
                 || p.kin.len() >= 50000
             {
                 continue;
+            }
+            if let Some(slots) = &mut child_slots {
+                slots[site] -= 1;
             }
             p.birth_credit[site] -= 1.;
             let id = self.people.len() as u32;

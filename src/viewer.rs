@@ -2588,6 +2588,12 @@ impl App {
                         });
                         ui.collapsing("Individual participation", |ui| {
                             ui.small("Named residents share cultural and research work. Population and ordinary employment still use settlement cohorts.");
+                            ui.collapsing("Population reconciliation", |ui| {
+                                ui.small("Known identities are compared with cohort stocks; excess identities are reported, not deleted.");
+                                let audit=h.population_reconciliation();
+                                ui.label(format!("Away: {} expedition, {} military, {} relocating · unresolved {}",audit.expedition,audit.military,audit.relocating,audit.unresolved.len()));
+                                for s in &audit.sites {ui.label(format!("{} · known {:?} / cohorts {:.1?} · excess {:.1?}",h.sites[s.site as usize].name,s.known,s.cohorts,s.overhang));}
+                            });
                             if let Some(d)=&h.domestic {
                                 ui.label(format!("{} domestic groups among known people · {:.2} caregiving worker-months completed", d.units.iter().filter(|u|u.ended.is_none()).count(),d.care_completed));
                                 if let Some(c)=&d.care {ui.small(format!("Care requested / granted / used: {:.2} / {:.2} / {:.2}",c.receipt.requested,c.receipt.granted,c.receipt.used));}

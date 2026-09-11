@@ -250,3 +250,12 @@ connects caregiving to local work and recruitment. See
 [domestic participation](domestic-participation.md) for timing, controls and limits.
 This supersedes the earlier statement that domestic groups are entirely absent;
 full population rosters and household demographic authority remain outstanding.
+
+## Population reconciliation and named mortality
+
+[Population reconciliation](population-reconciliation.md) now distinguishes present
+named age bands from travelers and unresolved identities. New histories limit
+representative births to unrepresented child slots and assign some freshly counted
+GPU deaths to named residents of all ages. These assignments consume existing death
+credit without another population debit. Earlier age-70-only named mortality remains
+a legacy mode. This improves alignment; it does not yet make named people the census.

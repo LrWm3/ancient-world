@@ -15,6 +15,8 @@ struct Args {
     #[arg(long)]
     no_domestic_care: bool,
     #[arg(long)]
+    legacy_named_demography: bool,
+    #[arg(long)]
     strict_identities: bool,
     #[arg(long, value_delimiter = ',', default_value = "17,81,256")]
     seeds: Vec<u32>,
@@ -59,6 +61,10 @@ fn main() -> Result<()> {
             .as_mut()
             .unwrap()
             .set_domestic_households(!args.no_domestic_care)?;
+        g.civilizations
+            .as_mut()
+            .unwrap()
+            .set_named_demography(!args.legacy_named_demography)?;
         g.enable_society()?;
         g.enable_politics()?;
         g.enable_governance()?;
@@ -122,14 +128,14 @@ fn main() -> Result<()> {
         for e in &h.events {
             *events.entry(e.kind.clone()).or_default() += 1;
         }
-        rows.push(json!({"seed":seed,"seconds":start.elapsed().as_secs_f64(),"samples":samples,"changed_identities":changes,"cancelled_actions":actions,"events":events,"travel":h.expeditions.as_ref().map(|x|json!({"voyages":x.voyages.len(),"active_people":h.person_duties.len(),"identified_at_recruitment":x.voyages.iter().flat_map(|e|&e.crew).filter(|c|c.identified_from_cohort).filter_map(|c|c.person).collect::<std::collections::BTreeSet<_>>().len(),"crew_person_ids":x.voyages.iter().flat_map(|e|&e.crew).filter_map(|c|c.person).collect::<std::collections::BTreeSet<_>>().len()})),"military":{"active_people":h.military.duties.len(),"people_ever_served":h.military.careers.len(),"service_months":h.military.careers.values().map(|c|c.months_served as u64).sum::<u64>(),"named_deaths":h.events.iter().filter(|e|e.kind=="military_deaths").flat_map(|e|&e.subjects).filter(|(k,_)|k=="person").count()},"residuals":h.economy_residuals()}));
+        rows.push(json!({"seed":seed,"seconds":start.elapsed().as_secs_f64(),"samples":samples,"changed_identities":changes,"cancelled_actions":actions,"events":events,"travel":h.expeditions.as_ref().map(|x|json!({"voyages":x.voyages.len(),"active_people":h.person_duties.len(),"identified_at_recruitment":x.voyages.iter().flat_map(|e|&e.crew).filter(|c|c.identified_from_cohort).filter_map(|c|c.person).collect::<std::collections::BTreeSet<_>>().len(),"crew_person_ids":x.voyages.iter().flat_map(|e|&e.crew).filter_map(|c|c.person).collect::<std::collections::BTreeSet<_>>().len()})),"military":{"active_people":h.military.duties.len(),"people_ever_served":h.military.careers.len(),"service_months":h.military.careers.values().map(|c|c.months_served as u64).sum::<u64>(),"named_deaths":h.events.iter().filter(|e|e.kind=="military_deaths").flat_map(|e|&e.subjects).filter(|(k,_)|k=="person").count()},"population_reconciliation":h.population_reconciliation(),"residuals":h.economy_residuals()}));
         if let Some(parent) = args.output.parent() {
             std::fs::create_dir_all(parent)?;
         }
         std::fs::write(
             &args.output,
             serde_json::to_vec_pretty(
-                &json!({"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows}),
+                &json!({"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows}),
             )?,
         )?;
     }

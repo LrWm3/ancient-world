@@ -880,7 +880,8 @@ impl History {
             }
             let old = f.head as usize;
             if self.people[old].died.is_some()
-                || (self.month as i32 - self.people[old].born >= 840
+                || (self.named_demography.is_none()
+                    && self.month as i32 - self.people[old].born >= 840
                     && site.demography.health[2] >= 1.)
             {
                 // A recorded travel death already removed this person from the

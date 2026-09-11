@@ -147,6 +147,8 @@ pub struct Candidate {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct History {
     #[serde(default)]
+    pub named_demography: Option<crate::population_registry::NamedDemography>,
+    #[serde(default)]
     pub domestic: Option<crate::domestic::Domestic>,
     #[serde(default)]
     pub military: crate::military::Military,
@@ -1107,6 +1109,7 @@ impl Generator {
             participation: Some(Default::default()),
             person_duties: Default::default(),
             domestic: Some(Default::default()),
+            named_demography: Some(Default::default()),
             military: Default::default(),
             territorial_history: vec![],
             enterprises: Some(Default::default()),
@@ -1305,12 +1308,14 @@ impl Generator {
         retail: Vec<crate::household_economy::RetailPlan>,
     ) -> Result<f64> {
         let production_started = std::time::Instant::now();
+        let deaths_before: Vec<_> = h.sites.iter().map(|s| s.stocks.people[1]).collect();
         engine.upload(self, h);
         engine.claim(self);
         engine.fish(self);
         engine.dispatch(self, false, h.sites.len() as u32);
         engine.read(self, h, true)?;
         h.settle_domestic_care();
+        h.assign_demographic_deaths(&deaths_before);
         h.settle_resources(extraction_allowances)?;
         h.settle_enterprises();
         h.storage_events();

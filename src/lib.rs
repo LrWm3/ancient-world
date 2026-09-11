@@ -102,3 +102,5 @@ pub mod participation;
 pub mod military;
 
 pub mod domestic;
+
+pub mod population_registry;

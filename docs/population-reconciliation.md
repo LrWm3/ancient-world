@@ -1,0 +1,104 @@
+# Reconciling named people with population stocks
+
+The GPU's child, adult and elder cohorts still own population. Named people are
+incomplete historical identities with fixed birthdays, household links and physical
+presence. The two representations previously drifted far enough that a town could
+have more named adults than adult residents. This adapter measures that drift and
+closes two sources without deleting inconvenient identities or adding population.
+
+## Read-only reconciliation
+
+History::population_reconciliation classifies every identity exactly once as a
+resident in an age band, expedition member, soldier, relocating person, dead,
+unresolved, or a resident with an invalid future birth. Residents use ages <15,
+15–59 and 60+, matching the cohort labels. Site rows expose:
+
+- Fractional cohort stock and whole known resident count for each age band.
+- Unrepresented whole slots: max(floor(cohort) − known, 0).
+- Overhang: max(known − cohort, 0).
+
+Do not sum positive and negative site differences into a reassuring global result.
+Surplus adults in one town cannot fill unnamed slots in another town. Travelers
+are reported separately, and unresolved living people are not silently declared
+dead. The participation explorer and cultural_work_calibrate reports expose this
+audit. The audit itself changes no state.
+
+## Birth identification
+
+In the new adapter, genealogy needs both its existing accumulated birth credit and
+an unrepresented child slot at the current settlement. Each newly recorded child
+uses one slot; later families in the same pass see the reduced allowance. This
+identifies a child already counted by the GPU, rather than adding a second birth.
+Named birthdays remain an approximation until demographic authority is transferred.
+
+## Assigning already-counted mortality
+
+Previously, ordinary named non-heads and ownership heads normally consumed death
+credits only after age 70. Younger people could therefore survive cohort famine and
+disease outcomes merely because they had a name.
+
+The monthly execute phase now observes the change in cumulative demographic deaths
+across the production dispatch, before later expedition or military losses. After
+care settles, an identity adapter distributes a bounded portion of these losses
+among present named residents. It does not run another mortality simulation.
+
+For each town, with age weights w, known counts K and completed cohort counts C:
+
+    coverage = clamp(sum(K × w) / sum(C × w), 0, 1)
+    target = fractional_carry + fresh_GPU_deaths × coverage
+    named_deaths = min(floor(target), eligible_known_people, floor(unassigned_death_credit))
+    next_carry = fractional_part(target)
+
+Zero cohort exposure gives zero coverage. Weights follow the existing toy mortality
+ordering: child/adult/elder base weights 0.0005/0.0006/0.003, plus unmet-ration weights
+0.06/0.025/0.05 and disease burden × 0.01. These select which already-counted deaths
+receive names; they do not create additional deaths. Candidates are sorted by a
+seeded weighted sampling key, with stable person IDs breaking ties. There is no
+age-70 exemption, and service travelers never enter the local candidate pool.
+
+Whole assignments consume existing unassigned mortality credit. They change person
+death dates and produce site events with person references, fresh loss and coverage
+values. They never decrement resident population, food, money or nutrients a second
+time. Only a fractional remainder carries forward; insufficient candidates cannot
+build a backlog of hypothetical named deaths. A monthly stamp prevents repeated
+assignment. Old accumulated archive credits alone cannot trigger new assignments.
+
+Existing response stages handle the consequences: head succession, ended unions,
+loss of knowledge holders, canceled personal work and subsequent family observation.
+There is no additional head/non-head age-70 death pass while this adapter is enabled.
+Local production has already happened when these deaths are assigned; later personal
+work must still check whether its actor survives. This is an explicit monthly timing
+choice, not a daily sequence.
+
+## Compatibility and remaining gaps
+
+New histories enable NamedDemography. Older archives missing the field retain the
+legacy adapter until History::set_named_demography(true) is called at a completed
+work boundary. It starts with no fractional credit or retroactive death assignment.
+The --legacy-named-demography calibration option retains the previous birth and
+named-mortality behavior for comparisons. Adapter state is serialized and validated.
+
+This is still **not a complete resident registry**:
+
+- Cohorts age gradually through fractional transfers; named people cross age bands
+  on birthdays. Exact agreement cannot be expected from those two rules.
+- Ownership-account relocation is not yet a roster of independently moving families.
+- Succession and other identity-producing adapters can still identify representatives
+  without a common census allocator. They need conversion before claiming a census.
+- Cohort losses may outrun the sampled named share locally. Existing overhang is
+  reported, not resolved by inventing deaths or moving people between towns.
+- Food consumption, ordinary employment, fertility and demographic totals remain
+  aggregate. No complete biographies are invented for anonymous slots.
+
+The next authority transfer needs one shared resident allocator, explicit conversion
+of fractional stocks, and roster-backed movement before individual births/deaths
+replace the GPU cohort calculation.
+
+The new earlier death boundary also requires a relocation guard: an ownership account
+with a deceased head cannot depart before succession supplies a living representative.
+Otherwise the account could become stuck in transit while the succession pass skips
+away households. Existing traveler guards remain in force.
+
+The adapter reuses existing production readback; it adds no terrain snapshot or GPU
+transfer. [Verification and paired results](population-reconciliation-verification.md)
+record the improvement and remaining discrepancies.
