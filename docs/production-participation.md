@@ -386,5 +386,43 @@ All four GPU forecast/attendance tests pass with this transaction, including an
 analytical one-place housing case (2 timber + 3 bricks, 0.2 worker-month), absent
 brick and absent target controls, and unchanged input inventories after preview.
 Monthly/batched checkpoint continuation passes; all-target Clippy, formatting and
-repository artifact checks pass. A fresh matched two-seed balance run is still
-required to measure utilization and household effects.
+repository artifact checks pass. The matched two-seed balance results follow below.
+
+
+Feasible-forecast balance protocol: model `8a4062c`, seeds 17 and 81, 30 years,
+terrain 32/ecology 16, one epoch, yield scale 0.5 and living history. Both arms
+enable individual demography, workshops, agriculture and extraction, with monthly
+comparison and household diagnostics; only `--construction-refinement` differs.
+Completed runs are at `output/construction-feasible-{control,pilot}.json` (ignored).
+Compare cumulative builder completion/grants, food access, physical food gaps and
+population. The result is a reservation-efficiency improvement, not uniform population recovery.
+
+
+| Seed | Control → forecast population | Control → forecast access gap | Requested / granted / completed builders |
+|---|---:|---:|---:|
+| 17 | 1,501 → 1,522 | 3.26325% → 3.24341% | 240.67 / 220.43 / 220.43 |
+| 81 | 1,565 → 1,554 | 3.14581% → 3.36325% | 243.69 / 239.68 / 239.68 |
+
+All four runs retain 16 active sites, zero monthly population residual and
+normalized food residual below 2.95e-7. Physical food gaps remain approximately
+0.042% for seed 17 and zero for seed 81. Runtime is 43.1–93.9 seconds per seed,
+including concurrent execution and initial shader setup.
+
+Compared with the earlier ceiling-only construction arm, granted builder time
+falls from 1,270.04 to 220.43 worker-months (seed 17) and 1,863.90 to 239.68
+(seed 81). Completed work remains close: 221.17 → 220.43 and 241.52 → 239.68.
+Completion/grants is effectively 100% within f32 rounding in these two samples.
+This supports retaining the shared forecast. Food access and population remain
+mixed; construction efficiency does not solve the household entitlement problem.
+The disabled controls reproduce the preceding comparison's population and food
+gaps, providing an additional check of the refactor's aggregate path.
+
+
+After the shared-function refactor, housing (2), storage (2) and waterworks (4)
+integration tests pass again with hardware tests enabled.
+
+Held-out extension is running on the same `8a4062c` binary: seeds 409 and 1024
+for 100 years, with all other settings matching the 30-year protocol. The only
+arm difference remains construction participation. Raw files are ignored at
+`output/construction-feasible-heldout-{control,pilot}.json`; those century results
+are pending and must not be inferred from the short runs.
