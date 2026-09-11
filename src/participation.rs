@@ -319,6 +319,7 @@ impl History {
             let capacity = match presence {
                 Presence::Resident(site) if (180..720).contains(&(self.month as i32 - p.born)) => {
                     0.8 * (1. - 0.5 * self.sites[site as usize].demography.health[0].clamp(0., 0.5))
+                        * self.household_work_nutrition(household, site)
                 }
                 _ => 0.,
             };

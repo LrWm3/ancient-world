@@ -44,6 +44,8 @@ pub struct DemographicSnapshot {
     /// False in older snapshots: retain their original community birth expectation.
     #[serde(default)]
     pub age_structured_births: bool,
+    #[serde(default)]
+    pub personal_mortality: std::collections::BTreeMap<u32, f64>,
 }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct DemographicComparison {
@@ -54,6 +56,16 @@ pub struct DemographicComparison {
 impl DemographicSnapshot {
     pub fn validate(&self) -> Result<()> {
         let p = &self.projection;
+        let ids: std::collections::BTreeSet<_> =
+            self.people.iter().flatten().map(|p| p.0).collect();
+        ensure!(
+            self.personal_mortality
+                .iter()
+                .all(|(id, rate)| rate.is_finite()
+                    && (0. ..=0.9).contains(rate)
+                    && ids.contains(id)),
+            "invalid personal mortality exposure"
+        );
         ensure!(
             self.month > 0 && self.month <= i32::MAX as u32,
             "invalid snapshot month"
@@ -112,13 +124,14 @@ impl DemographicSnapshot {
             } else {
                 self.projection.clone()
             };
-            projection.resolve(
+            projection.resolve_with_mortality(
                 mode,
                 self.seed,
                 self.month,
                 people,
                 self.anonymous,
                 self.birth_carry,
+                &self.personal_mortality,
             )
         };
         let aggregate = run(Mode::Aggregate, &[]);
@@ -190,6 +203,7 @@ impl DemographicProjection {
             aging: [opening[0] / 180., opening[1] / 540.],
         }
     }
+    #[cfg(test)]
     fn resolve(
         &self,
         mode: crate::resolution::Mode,
@@ -198,6 +212,27 @@ impl DemographicProjection {
         people: &[(u32, usize, i32)],
         anonymous: [f64; 3],
         carry: f64,
+    ) -> DemographicOutcome {
+        self.resolve_with_mortality(
+            mode,
+            seed,
+            month,
+            people,
+            anonymous,
+            carry,
+            &Default::default(),
+        )
+    }
+    #[allow(clippy::too_many_arguments)] // Explicit immutable replay inputs, including archived household exposure.
+    fn resolve_with_mortality(
+        &self,
+        mode: crate::resolution::Mode,
+        seed: u32,
+        month: u32,
+        people: &[(u32, usize, i32)],
+        anonymous: [f64; 3],
+        carry: f64,
+        personal_mortality: &std::collections::BTreeMap<u32, f64>,
     ) -> DemographicOutcome {
         let individual = mode == crate::resolution::Mode::Individual;
         let stock = if individual { anonymous } else { self.opening };
@@ -213,7 +248,10 @@ impl DemographicProjection {
         if individual {
             for &(id, band, born) in people {
                 if (crate::expeditions::random(seed, id, month, 0x494e4444) as f64)
-                    < self.mortality[band]
+                    < personal_mortality
+                        .get(&id)
+                        .copied()
+                        .unwrap_or(self.mortality[band])
                 {
                     deaths[band] += 1.;
                     dead.push(id);
@@ -476,7 +514,11 @@ impl History {
                 .collect(),
         }))
     }
-    pub(crate) fn settle_individual_demography(&mut self, observation: Observation) -> Result<()> {
+    pub(crate) fn settle_individual_demography(
+        &mut self,
+        observation: Observation,
+        mortality: &std::collections::BTreeMap<u32, f64>,
+    ) -> Result<()> {
         use crate::resolution::{Boundary, Metric, Mode, Receipt, System};
         // Pre-framework archives may already own individual demographics.
         self.resolution.get_or_insert_with(Default::default);
@@ -525,13 +567,18 @@ impl History {
             } else {
                 projection.clone()
             };
-            let outcome = resolved_projection.resolve(
+            let personal_mortality: std::collections::BTreeMap<_, _> = people
+                .iter()
+                .filter_map(|(id, _, _)| mortality.get(id).map(|r| (*id, *r)))
+                .collect();
+            let outcome = resolved_projection.resolve_with_mortality(
                 mode,
                 self.seed,
                 self.month,
                 &people,
                 observation.anonymous[site],
                 carry,
+                &personal_mortality,
             );
             ensure!(
                 outcome.ages.iter().all(|v| v.is_finite() && *v >= 0.)
@@ -557,7 +604,12 @@ impl History {
                         .chain([
                             projection.births.to_bits(),
                             resolved_projection.births.to_bits(),
-                        ]),
+                        ])
+                        .chain(
+                            personal_mortality
+                                .iter()
+                                .flat_map(|(id, r)| [*id as u64, r.to_bits()]),
+                        ),
                 ),
             };
             self.resolution
@@ -592,7 +644,21 @@ impl History {
                             .map(|(n, r)| n * r)
                             .sum(),
                         actual: outcome.deaths.iter().sum(),
-                        explained: vec![],
+                        explained: vec![(
+                            "household food exposure (expected deaths)".into(),
+                            if individual {
+                                people
+                                    .iter()
+                                    .map(|(id, b, _)| {
+                                        personal_mortality
+                                            .get(id)
+                                            .map_or(0., |r| r - projection.mortality[*b])
+                                    })
+                                    .sum()
+                            } else {
+                                0.
+                            },
+                        )],
                     },
                     Metric {
                         name: "child_to_adult".into(),
@@ -631,6 +697,7 @@ impl History {
                         anonymous: observation.anonymous[site],
                         birth_carry: carry,
                         age_structured_births: individual,
+                        personal_mortality,
                     });
             if let Some(snapshot) = &demographic_snapshot {
                 snapshot.validate()?;
@@ -825,6 +892,7 @@ mod tests {
             anonymous: [0.; 3],
             birth_carry: 0.9,
             age_structured_births: true,
+            personal_mortality: Default::default(),
         };
         let comparison = snapshot.compare().unwrap();
         assert_eq!(comparison.individual.unwrap().births, 0.);
@@ -834,6 +902,51 @@ mod tests {
         old.as_object_mut().unwrap().remove("age_structured_births");
         let old: DemographicSnapshot = serde_json::from_value(old).unwrap();
         assert_eq!(old.compare().unwrap().individual.unwrap().births, 3.);
+    }
+    #[test]
+    fn household_hunger_replaces_average_risk_and_replays_without_extra_deaths() {
+        let id = (0..10000)
+            .find(|id| {
+                let r = crate::expeditions::random(17, *id, 1, 0x494e4444);
+                (0.001..0.01).contains(&r)
+            })
+            .unwrap();
+        let mut s = DemographicSnapshot {
+            seed: 17,
+            month: 1,
+            projection: DemographicProjection {
+                opening: [0., 1., 0.],
+                mortality: [0., 0.0131, 0.],
+                births: 0.,
+                aging: [0., 1. / 540.],
+            },
+            people: Some(vec![(id, 1, -300)]),
+            anonymous: [0.; 3],
+            birth_carry: 0.,
+            age_structured_births: true,
+            personal_mortality: [(id, 0.0006)].into(),
+        };
+        let fed = s.compare().unwrap();
+        assert_eq!(fed.individual.as_ref().unwrap().dead.len(), 0);
+        s.personal_mortality.insert(id, 0.0256);
+        let hungry = s.compare().unwrap();
+        assert_eq!(hungry.individual.as_ref().unwrap().dead, vec![id]);
+        assert_eq!(
+            hungry.individual.as_ref().unwrap().ages.iter().sum::<f64>(),
+            0.
+        );
+        assert_eq!(
+            serde_json::to_value(fed.aggregate).unwrap(),
+            serde_json::to_value(&hungry.aggregate).unwrap()
+        );
+        let loaded: DemographicSnapshot =
+            serde_json::from_value(serde_json::to_value(&s).unwrap()).unwrap();
+        assert_eq!(
+            serde_json::to_value(hungry).unwrap(),
+            serde_json::to_value(loaded.compare().unwrap()).unwrap()
+        );
+        s.personal_mortality.insert(id + 1, 0.1);
+        assert!(s.validate().is_err());
     }
     #[test]
     fn snapshot_replay_preserves_inputs_and_reports_birthday_difference() {
@@ -850,6 +963,7 @@ mod tests {
             anonymous: [0.; 3],
             birth_carry: 0.,
             age_structured_births: true,
+            personal_mortality: Default::default(),
         };
         let before = serde_json::to_value(&snapshot).unwrap();
         let result = snapshot.compare().unwrap();

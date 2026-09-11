@@ -1337,7 +1337,8 @@ impl Generator {
         engine.read(self, h, true)?;
         h.settle_domestic_care();
         if let Some(observation) = individual_observation {
-            h.settle_individual_demography(observation)?;
+            let mortality = h.household_mortality(&retail);
+            h.settle_individual_demography(observation, &mortality)?;
         }
         if !h.individual_demography_enabled() {
             h.assign_demographic_deaths(&deaths_before);

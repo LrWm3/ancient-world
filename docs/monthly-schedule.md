@@ -348,3 +348,18 @@ Sea cargo now advances using the preceding month's funded crews before opening
 arrivals. Research and cultural reservations retain dated plans, with live resource
 checks and explicit unused-work receipts. See [Work execution boundaries](work-execution-boundaries.md)
 for the timing, archive behavior, tests and remaining limits.
+
+### Household nutrition and personal exposure
+
+Reserve captures age-weighted account needs and funded retail demand. After GPU
+food consumption, Execute previews the exact same common/purchased allocation
+that later settles wallets. Individual demographic resolution uses that preview
+as its household hunger input before its single population commit. Retail then
+settles money and records the completed food-access observation in its existing
+position; the preview neither consumes food again nor pays anyone.
+
+Personal availability at the next Reserve uses the preceding completed household
+shortage. Current work grants are not retroactively reduced. Demographic replay
+snapshots persist personal mortality probabilities alongside aggregate rates;
+aggregate comparisons still use the aggregate projection. Old snapshots without
+these inputs retain their previous age-band behavior.

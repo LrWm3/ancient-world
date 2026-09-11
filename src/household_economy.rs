@@ -2,6 +2,7 @@
 use crate::civilization::History;
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+mod nutrition;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct HouseholdAccount {
@@ -152,6 +153,7 @@ pub(crate) struct RetailPlan {
     site: usize,
     ids: Vec<usize>,
     demand: Vec<f64>,
+    needs: Vec<f64>,
     need: f64,
     free: f64,
     price: f64,
@@ -239,6 +241,7 @@ impl History {
         for s in &mut self.sites {
             s.demography.household_food = [0.; 4];
         }
+        let member_counts = self.household_food_members();
         let controllers = (0..self.sites.len())
             .map(|i| self.controller(i as u32) as usize)
             .collect::<Vec<_>>();
@@ -307,6 +310,12 @@ impl History {
                 .zip([10., 18., 14.])
                 .map(|(a, r)| (*a * r) as f64)
                 .sum::<f64>();
+            let needs = nutrition::food_needs(
+                std::array::from_fn(|b| s.demography.ages[b] as f64),
+                &ids.iter()
+                    .map(|id| member_counts.get(id).copied().unwrap_or([0.; 3]))
+                    .collect::<Vec<_>>(),
+            );
             let price = s.economy.prices[crate::economy::FOOD].max(0.01) as f64;
             let mut municipal_work = s.economy.labor;
             municipal_work[3] = (municipal_work[3] - vessel_work[i]).max(0.);
@@ -377,9 +386,9 @@ impl History {
                 a.wages += wage;
                 a.dividends += dividend;
                 a.cash += wage + dividend;
-                a.need = need / ids.len() as f64;
+                a.need = needs[j];
                 a.food_site = Some(i as u32);
-                demand.push(((need - free) / ids.len() as f64).min(a.cash / price));
+                demand.push((needs[j] * (1. - e.common_share as f64)).min(a.cash / price));
             }
             let cap = free + demand.iter().sum::<f64>();
             // Round down so GPU consumption cannot exceed funded entitlements.
@@ -392,6 +401,7 @@ impl History {
                 site: i,
                 ids,
                 demand,
+                needs,
                 need,
                 free,
                 price,
@@ -425,8 +435,8 @@ impl History {
         }
         for p in &mut plans {
             for (j, &id) in p.ids.iter().enumerate() {
-                p.demand[j] =
-                    ((p.need - p.free) / p.ids.len() as f64).min(e.accounts[id].cash / p.price);
+                p.demand[j] = (p.needs[j] * (1. - p.free / p.need.max(1e-12)))
+                    .min(e.accounts[id].cash / p.price);
             }
             let cap = p.free + p.demand.iter().sum::<f64>();
             let mut cap32 = cap as f32;
@@ -470,17 +480,10 @@ impl History {
                 episode[2] = 0;
                 notices.push((p.site,"food_access_recovery","Six months without substantial purchasing-power exclusion; physical food shortages may still remain".into()));
             }
-            let free = eaten.min(p.free);
-            let paid = (eaten - free).max(0.);
-            let demand = p.demand.iter().sum::<f64>();
-            for (j, &id) in p.ids.iter().enumerate() {
+            for (id, common, purchased) in p.food_allocation(eaten) {
                 let a = &mut e.accounts[id];
-                a.common_food = free / p.ids.len() as f64;
-                a.purchased_food = if demand > 0. {
-                    paid * p.demand[j] / demand
-                } else {
-                    0.
-                };
+                a.common_food = common;
+                a.purchased_food = purchased;
                 let payment = deposit(
                     &mut s.economy.finance[0],
                     (a.purchased_food * p.price).min(a.cash),

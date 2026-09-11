@@ -5,13 +5,17 @@ Households hold real cash wallets, separate from settlement operating cash and b
 Each monthly production step has two CPU bookends around the existing GPU work:
 
 1. Pay a finite payroll from settlement cash, capped by allocated adult labor and 20% of available cash. Allocate payroll among resident households using the industry-linked rule below; older policies retain equal division. Pay ownership-weighted dividends from 1% of the remaining cash.
-2. Calculate equal-size household food needs from the actual pre-transition age cohorts. Reserve a common entitlement covering 50% of need. Households can purchase the remainder only up to their cash divided by the local food price.
+2. Calculate age-weighted household food needs from known resident members and the pre-transition age cohorts. Reserve a common entitlement covering 50% of need. Households can purchase the remainder only up to their cash divided by the local food price.
 3. Upload combined common and affordable demand as a consumption ceiling. The GPU produces food, consumes no more than available food and this ceiling, and applies age-cohort ration priorities and demographic effects. Unsold food stays in storage, subject to existing spoilage and capacity limits.
 4. Divide actual consumed food into common rations and purchases. When supply is insufficient, paid food is allocated proportionally to funded demand after common rations. Transfer payments from wallets back to settlement operating cash. Unfilled demand is not charged.
 
 Existing food and C/N/P ledgers record consumption once. Wallets are included in total money accounting. Each account independently reconciles wages + dividends - food spending - estate returns = cash. Transfers reconcile to the actual representable change in the settlement's f32 money pool; sub-ULP purchase charges can round down, leaving a tiny rounding discount, never an overdraft.
 
-Household needs are an **equal-size approximation**, independent of property shares. This does not create a second population ledger. The model does not yet track household members, individual employment contracts, household taxes, retail merchants, household food stores, or household-specific age structure. Age-cohort shortages still determine mortality; household food-access inequality influences existing relocation willingness, with its route/provision/shortage gates unchanged. It does not directly assign extra deaths to individual poor households.
+Known resident ages now weight each account's needs (10/18/14 food-equivalent kg per child/adult/elder month). Unrepresented cohort stock is shared across eligible accounts; overhanging named membership is scaled down within each age band. This preserves total cohort demand without inventing population. Common rations follow need, while purchases follow funded demand.
+
+In individual demographic mode, realized household shortage replaces the age-band hunger contribution to each known resident's mortality probability. Disease remains a shared town exposure, and anonymous residents and aggregate mode retain age-band rates. There is one demographic commit, not a second starvation-death pass. The preceding completed household shortage also reduces next month's personal activity capacity by up to 35%; missing, stale or different-site observations have no effect. Birth opportunity still uses town nutrition and the existing individual age-structure adjustment. These are toy response rules, not physiological calibration.
+
+Accounts still represent ownership households rather than independently simulated kitchens. Municipal payroll remains largely aggregate, while participating workshop workers and vessel crews receive their existing direct earnings. There are no household food stores or individual diets.
 
 Wallet identity follows the existing household ID through head succession and relocation. Travelers cannot earn wages, dividends or buy resident rations; their wallet remains separately counted alongside existing journey cash and provisions. It is not counted again in the journey purse. Lost travelers' remaining wallets return to their origin estate's settlement pool at the next monthly preparation. No invented family or population is attached to a wallet.
 
@@ -128,3 +132,30 @@ track `capital_invested` and `capital_returned` explicitly, extending the cash
 identity without treating investment as consumption. Employer wages are included
 once in cumulative wages and the craft-income display. The municipal craft work
 basis excludes prepaid operator shifts before applying the existing town-cash cap.
+
+## Resident nutrition integration verification
+
+Focused fixtures use seeds 17, 81 and 256 at terrain resolution 32 and ecology
+resolution 16. They enable society, politics and individual demography, transfer
+existing town cash to one account, disable additional payroll/dividends/relief,
+and compare that account with an unfunded resident household. The fixture supplies
+the funded consumption total directly to isolate allocation from crop yields.
+Funded accounts receive more food, lower personal hunger mortality probabilities,
+and higher next-month nutrition capacity. Wallet serialization preserves exposure;
+a different-site account observation cannot penalize a newly arrived resident.
+This is a mechanism check, not a long-run famine calibration.
+
+An analytical fixture checks unequal family sizes, anonymous residual cohorts,
+overhanging identities and exact common/purchased food totals. A matched-random
+mortality fixture verifies that household risk replaces average hunger mortality,
+aggregate resolution ignores personal overrides, and snapshot replay retains its
+inputs. The full individual-demography suite checks population authority,
+observational comparison and checkpoint continuation. Existing household ledger
+and relief fixtures remain regression checks for cash and food settlement.
+
+Validation for this pass: 7 household tests, 10 individual-demography tests and
+5 vessel tests passed with hardware-required cases enabled. The ordinary library
+suite passed 106 tests (94 hardware cases ignored by that command). Clippy with
+warnings denied and the repository artifact check passed. These checks include
+checkpoint consistency but do not establish long-run population balance under
+the new unequal food exposure.
