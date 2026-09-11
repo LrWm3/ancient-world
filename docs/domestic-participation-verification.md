@@ -86,3 +86,44 @@ culture, six expedition and five politics fixtures. The century-long genealogy t
 also retained exact checkpoint continuation. The complete ignored GPU suite was not
 run. Clippy across all targets, formatting, diff whitespace and the source-only
 repository artifact check passed.
+
+## Illness-sensitive dependent care and elder support
+
+Domestic care now includes a gradual support need from age 60 to 90, capped at
+0.08 worker-months, and applies the completed settlement disease exposure to child
+and elder needs (up to 50% additional demand). Existing illness-related caregiver
+capacity loss still applies separately. These are toy care assumptions; there is
+no individual diagnosis or new health benefit from care.
+
+Controlled checks cover age boundaries, the elder cap and illness limits. In the
+existing two-carer/young-child fixture, disease burden 0.5 increases requested care
+from 0.12 to 0.18 worker-months. Each carer reserves 0.09 rather than 0.06, leaving
+0.51 personal activity capacity after illness and care instead of 0.74. A family
+with a ninety-year-old partner and the young child requests 0.20, and cannot send
+its remaining caregiver into service. Existing tests cover finite aggregate work,
+once-only settlement, abandonment of stale reservations, and checkpoint/batch
+continuation.
+
+The elder fixture was corrected during verification: aging a child into adulthood
+moves that person into an independent domestic group under existing membership
+rules, so it cannot test care by the former household. The corrected fixture ages
+a recorded partner and keeps an actual shared group. Cross-group elder support and
+moving older parents into their children's households remain unimplemented.
+
+Final verification: **184/184 library tests passed**, including hardware tests
+(132.85 seconds), and **6/6 expedition integration tests passed** (78.50 seconds).
+The latter verify recruitment through actual funded launches, rescues, starvation,
+remittances, conservation and checkpoint continuation. All-target Clippy with
+warnings denied, formatting, whitespace and repository artifact checks passed.
+The first library run had 183 passes and the incorrectly grouped elder fixture
+failure described above; the corrected full run passed. No new care-demand
+calibration or cross-GPU portability claim is made.
+
+```sh
+CARGO_INCREMENTAL=0 mise exec rust@1.89.0 -- cargo test --lib -- --include-ignored
+CARGO_INCREMENTAL=0 mise exec rust@1.89.0 -- cargo test --test expeditions -- --include-ignored --test-threads=1
+CARGO_INCREMENTAL=0 mise exec rust@1.89.0 -- cargo clippy --all-targets -- -D warnings
+```
+
+Raw logs remain ignored under `output/dependent-care-*`; only source and this
+human-readable summary are committed.

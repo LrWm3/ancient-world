@@ -75,15 +75,22 @@ impl Default for Domestic {
         }
     }
 }
-fn need(age: i32) -> f64 {
-    if (0..60).contains(&age) {
+fn need(age: i32, disease: f32) -> f64 {
+    let baseline = if (0..60).contains(&age) {
         0.12
     } else if (60..180).contains(&age) {
         0.04
+    } else if age >= 720 {
+        // Gradual old-age support, capped at 0.08 worker-months by age 90.
+        ((age - 720) as f64 / 360.).min(1.) * 0.08
     } else {
         0.
-    }
+    };
+    // Settlement exposure is a proxy, not an individual diagnosis. Illness
+    // increases dependent care while the existing capacity rule limits carers.
+    baseline * (1. + disease.clamp(0., 0.5) as f64)
 }
+
 fn capacity(h: &History, person: u32, site: u32) -> f32 {
     if h.person_presence(person).1 == Presence::Resident(site)
         && (180..720).contains(&(h.month as i32 - h.people[person as usize].born))
@@ -325,7 +332,12 @@ impl History {
             .members
             .iter()
             .filter(|p| self.person_presence(**p).1 == Presence::Resident(unit.home))
-            .map(|p| need(self.month as i32 - self.people[*p as usize].born))
+            .map(|p| {
+                need(
+                    self.month as i32 - self.people[*p as usize].born,
+                    self.sites[unit.home as usize].demography.health[0],
+                )
+            })
             .sum();
         let remaining: f64 = unit
             .members
@@ -361,7 +373,12 @@ impl History {
                     .members
                     .iter()
                     .filter(|p| self.person_presence(**p).1 == Presence::Resident(unit.home))
-                    .map(|p| need(self.month as i32 - self.people[*p as usize].born))
+                    .map(|p| {
+                        need(
+                            self.month as i32 - self.people[*p as usize].born,
+                            self.sites[unit.home as usize].demography.health[0],
+                        )
+                    })
                     .sum();
                 if demand == 0. {
                     continue;
@@ -555,6 +572,17 @@ impl Domestic {
 mod tests {
     use super::*;
     #[test]
+    fn dependent_care_changes_with_age_and_exposure_with_bounded_demand() {
+        assert_eq!(need(-1, 0.5), 0.);
+        assert_eq!(need(180, 0.5), 0.);
+        assert_eq!(need(719, 0.5), 0.);
+        assert_eq!(need(720, 0.), 0.);
+        assert!((need(900, 0.) - 0.04).abs() < 1e-12);
+        assert!((need(1080, 0.5) - 0.12).abs() < 1e-12);
+        assert_eq!(need(1440, 1.), need(1080, 0.5));
+        assert!((need(24, 0.5) - 0.18).abs() < 1e-12);
+    }
+    #[test]
     #[ignore = "requires hardware GPU"]
     fn family_care_competes_for_time_and_protects_dependents() {
         use crate::{
@@ -628,6 +656,33 @@ mod tests {
         );
         assert_eq!(economy, serde_json::to_value(h.sites[0].economy).unwrap());
         assert_eq!(stocks, serde_json::to_value(h.sites[0].stocks).unwrap());
+        let mut exposed = h.clone();
+        exposed.sites[0].demography.health[0] = 0.5;
+        exposed.open_participation();
+        let care = exposed.domestic.as_ref().unwrap().care.as_ref().unwrap();
+        assert!((care.receipt.requested - 0.18).abs() < 1e-6);
+        assert!((exposed.domestic_care_for(a) - 0.09).abs() < 1e-6);
+        assert!(
+            (exposed.participation.as_ref().unwrap().residents[&a].capacity - 0.51).abs() < 1e-6
+        );
+        let mut elder = h.clone();
+        elder.people[a as usize].born = elder.month as i32 - 1080;
+        elder.open_participation();
+        assert!(
+            (elder
+                .domestic
+                .as_ref()
+                .unwrap()
+                .care
+                .as_ref()
+                .unwrap()
+                .receipt
+                .requested
+                - 0.20)
+                .abs()
+                < 1e-6
+        );
+        assert!(!elder.domestic_departure_allowed(b, &[a]));
         assert!(h.domestic_departure_allowed(a, &[]));
         assert!(!h.domestic_departure_allowed(b, &[a]));
         let mut disabled = h.clone();

@@ -1,9 +1,9 @@
 # Domestic groups and caregiving
 
 Domestic groups now connect recorded families to individual work availability and
-service recruitment. These are observations of **known people**, not a complete
-resident census. Settlement cohorts still own population and ordinary employment;
-existing households still own money, shares and goods.
+service recruitment. These are observations of **known people**; coverage depends on whether complete
+resident rosters are enabled. Population authority follows the selected aggregate
+or individual demographic mode. Existing households still own money, shares and goods.
 
 ## Membership
 
@@ -25,7 +25,10 @@ ownership-account relocation into an independently selectable family migration.
 
 Opening participation reserves care before vessel crews, research and cultural
 work. The toy monthly demand is 0.12 worker-months per known child under five and
-0.04 from five through fourteen. Present known adults aged 15–59 provide capacity,
+0.04 from five through fourteen. Elder support grows linearly from zero at age 60
+to 0.08 worker-months at age 90, remaining capped thereafter. These dependent needs
+are multiplied by `1 + clamp(local disease burden, 0, 0.5)`. This uses settlement
+exposure as a proxy, not an individual diagnosis. Present known adults aged 15–59 provide capacity,
 reduced by the existing local illness factor. Grants are proportional within each
 family and scaled to the town's remaining service allowance. These rates are game
 parameters, not measured time-use estimates.
@@ -56,12 +59,21 @@ shows group counts and requested, granted and completed care.
 The cultural_work_calibrate example supports --no-domestic-care for matched runs
 and reports known domestic membership and care. Raw outputs belong in output/.
 
-## Remaining population work
+## Limits and further work
 
-Complete member rosters, household nutrition, individual births/deaths, ordinary
-employment/payroll and domestic-group migration still need their own authority
-transfers. This increment makes recorded family responsibilities consequential
-without claiming those larger conversions are complete.
+[Individual demography](individual-demography.md) now supports full resident rosters
+and birthday-owned transitions; workshop participation also uses individual work.
+Other labor sectors remain aggregate. Adult children form separate domestic groups,
+so this does not yet model support across those groups, professional nursing or
+moving an older parent into a child's household. An isolated elder can have unmet
+care demand; the adapter reports this rather than inventing a caregiver or cure.
+
+Disease now raises dependent care needs and reduces caregiver capacity through the
+existing illness rule. That reduces remaining personal work and can constrain
+military/expedition departures. Sanitation affects this indirectly through its
+existing disease calculation, with care observing the completed opening health
+state. There is no same-month disease-to-care-to-health feedback loop, and no new
+mortality benefit is assigned to care.
 
 [Verification and paired seed results](domestic-participation-verification.md)
 cover the work boundary, continuation, recruitment and the remaining census gap.
