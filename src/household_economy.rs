@@ -298,6 +298,7 @@ impl History {
         }
         let farm_earnings = self.agricultural_earnings();
         let extraction_earnings = [self.production_earnings(1), self.production_earnings(2)];
+        let building_earnings = self.production_earnings(3);
         let member_counts = self.household_food_members();
         let complete_roster = self.individual_demography_enabled();
         let controllers = (0..self.sites.len())
@@ -393,6 +394,19 @@ impl History {
             municipal_work[3] = (municipal_work[3] - vessel_work[i]).max(0.);
             municipal_work[3] =
                 (municipal_work[3] - s.economy.enterprise_plan.iter().sum::<f32>()).max(0.);
+            let building_grant = building_earnings.as_ref().map_or(0., |m| {
+                ids.iter()
+                    .map(|id| m.get(id).copied().unwrap_or(0.))
+                    .sum::<f64>()
+            });
+            let legacy_craft = if building_earnings.is_some() {
+                let residual =
+                    (municipal_work[3] - s.economy.construction_workers[3]).max(0.) as f64;
+                municipal_work[3] = (residual + building_grant) as f32;
+                residual
+            } else {
+                municipal_work[3] as f64
+            };
             let labor = municipal_work
                 .iter()
                 .sum::<f32>()
@@ -431,7 +445,7 @@ impl History {
                 .map(|&id| society.households[id].share)
                 .sum::<f64>();
             let work = municipal_work.map(|w| w.max(0.) as f64);
-            let weights = ids
+            let mut weights = ids
                 .iter()
                 .map(|&id| {
                     let mut weights = if e.occupational_payroll {
@@ -450,6 +464,18 @@ impl History {
                     weights
                 })
                 .collect::<Vec<_>>();
+            if let Some(earnings) = &building_earnings {
+                let old_total: f64 = weights
+                    .iter()
+                    .zip(&eligible)
+                    .filter(|(_, yes)| **yes)
+                    .map(|(w, _)| w[3])
+                    .sum();
+                for (j, id) in ids.iter().enumerate() {
+                    weights[j][3] = legacy_craft * weights[j][3] / old_total.max(1e-12)
+                        + earnings.get(id).copied().unwrap_or(0.);
+                }
+            }
             let eligible_ids: Vec<_> = eligible
                 .iter()
                 .enumerate()

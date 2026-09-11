@@ -156,14 +156,19 @@ mod agriculture_tests {
     #[test]
     #[ignore = "requires hardware GPU"]
     fn agricultural_attendance_controls_cultivation_income_and_continuation() {
-        attendance_fixture(false);
+        attendance_fixture(false, false);
     }
     #[test]
     #[ignore = "requires hardware GPU"]
     fn extraction_attendance_controls_output_income_and_continuation() {
-        attendance_fixture(true);
+        attendance_fixture(true, false);
     }
-    fn attendance_fixture(extraction: bool) {
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn builders_limit_assets_without_stopping_contracted_workshops() {
+        attendance_fixture(true, true);
+    }
+    fn attendance_fixture(extraction: bool, construction: bool) {
         let mut g = Generator::new(
             pollster::block_on(crate::gpu::ContextGpu::headless()).unwrap(),
             crate::config::Config {
@@ -185,6 +190,7 @@ mod agriculture_tests {
         h.set_workshop_refinement(true).unwrap();
         h.set_agriculture_refinement(true).unwrap();
         h.set_extraction_refinement(extraction).unwrap();
+        h.set_construction_refinement(construction).unwrap();
         assert!(h.set_workshop_refinement(false).is_err());
         let mut ready = h.clone();
         ready.month += 1;
@@ -198,6 +204,15 @@ mod agriculture_tests {
                 site.economy.reserves[1] = 100.;
                 site.economy.reserves[2] = 100.;
                 site.economy.logistics[3] = 0.; // no stock-target suppression
+            }
+        }
+        if construction {
+            for site in &mut ready.sites {
+                site.economy.goods[0] = 1000.;
+                site.economy.goods[5] = 1000.;
+                site.economy.housing = [0., 0., 0., 0.];
+                site.economy.housing_plan = [200., 0., 0., 1.];
+                site.economy.waterworks[3] = 0.;
             }
         }
         let engine = Engine::new(&g).unwrap();
@@ -319,6 +334,42 @@ mod agriculture_tests {
                 .sites
                 .iter()
                 .all(|s| s.economy.reserves[1] == 100. && s.economy.reserves[2] == 100.));
+        }
+        if construction {
+            assert!(ready
+                .sites
+                .iter()
+                .any(|s| s.economy.construction_workers[2] > 0.));
+            assert!(ready.sites.iter().any(|s| s.economy.housing_plan[2] > 0.));
+            assert!(busy.sites.iter().all(
+                |s| s.economy.construction_workers[2] == 0. && s.economy.housing_plan[2] == 0.
+            ));
+            // Synthetic, already contracted workshop inputs: no new builders available.
+            let mut contracted = busy.clone();
+            for site in &mut contracted.sites {
+                let e = &mut site.economy;
+                e.goods = [0.; 64];
+                e.goods[0] = 1000.;
+                e.goods[1] = 1000.;
+                e.goods[2] = 1000.;
+                e.goods[4] = 1000.;
+                e.workshop = [200., 300., 20., 1.];
+                e.workshop_types = [[2., 2., 0., 1.]; 4];
+                e.enterprise_lease = [1.; 4];
+                e.enterprise_plan = [1.; 4];
+                e.logistics[3] = 0.;
+            }
+            engine.upload(&g, &contracted);
+            engine.dispatch(&g, false, contracted.sites.len() as u32);
+            engine.read(&g, &mut contracted, true).unwrap();
+            assert!(contracted
+                .sites
+                .iter()
+                .all(|s| s.economy.construction_workers[2] == 0.));
+            assert!(contracted
+                .sites
+                .iter()
+                .any(|s| s.economy.enterprise_used.iter().sum::<f32>() > 0.));
         }
         ready.settle_agriculture().unwrap();
         let settled = serde_json::to_value(&ready.resolution).unwrap();

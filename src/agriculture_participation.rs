@@ -12,11 +12,13 @@ use std::collections::BTreeMap;
 pub struct Agriculture {
     #[serde(default)]
     pub extraction: bool,
+    #[serde(default)]
+    pub construction: bool,
     pub plans: Vec<FarmPlan>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FarmPlan {
-    /// 0 farming, 1 forestry, 2 mining; legacy plans are farming.
+    /// 0 farming, 1 forestry, 2 mining, 3 construction; legacy plans are farming.
     #[serde(default)]
     pub sector: usize,
     pub month: u32,
@@ -50,6 +52,27 @@ impl History {
             .and_then(|r| r.agriculture.as_ref())
             .is_some_and(|a| a.extraction)
     }
+    pub fn set_construction_refinement(&mut self, enabled: bool) -> Result<()> {
+        ensure!(
+            !enabled || self.extraction_refinement_enabled(),
+            "construction participation requires extraction participation"
+        );
+        if let Some(a) = self
+            .resolution
+            .as_mut()
+            .and_then(|r| r.agriculture.as_mut())
+        {
+            ensure!(
+                a.plans.iter().all(|p| p.settled),
+                "production work remains unsettled"
+            );
+            a.construction = enabled;
+        }
+        for site in &mut self.sites {
+            site.economy.construction_workers = [0.; 4];
+        }
+        Ok(())
+    }
     pub fn set_extraction_refinement(&mut self, enabled: bool) -> Result<()> {
         let a = self
             .resolution
@@ -65,6 +88,10 @@ impl History {
         ensure!(
             a.plans.iter().all(|p| p.settled),
             "production work remains unsettled"
+        );
+        ensure!(
+            enabled || !a.construction,
+            "disable construction before extraction"
         );
         a.extraction = enabled;
         for s in &mut self.sites {
@@ -102,6 +129,7 @@ impl History {
         }
         for s in &mut self.sites {
             s.economy.farm_workers = [0.; 4];
+            s.economy.construction_workers = [0.; 4];
             s.economy.extraction_workers = [0.; 4];
         }
         Ok(())
@@ -135,16 +163,33 @@ impl History {
         );
         let mut plans = Vec::new();
         let extraction = self.extraction_refinement_enabled();
+        let construction = self
+            .resolution
+            .as_ref()
+            .unwrap()
+            .agriculture
+            .as_ref()
+            .unwrap()
+            .construction;
         for site in &mut self.sites {
             site.economy.extraction_workers = [0.; 4];
+            site.economy.construction_workers = [0.; 4];
         }
         for f in forecasts {
-            for sector in 0..if extraction { 3 } else { 1 } {
+            for sector in 0..if construction {
+                4
+            } else if extraction {
+                3
+            } else {
+                1
+            } {
                 let site = &self.sites[f.site as usize];
                 let wanted = if site.abandoned {
                     0.
                 } else if sector == 0 {
                     f.sectors[0].min(site.stocks.habitat[1].max(0.) / 1.5)
+                } else if sector == 3 {
+                    (f.sectors[3] - f.services - f.enterprises).max(0.) * 0.2
                 } else {
                     f.sectors[sector]
                 };
@@ -197,6 +242,9 @@ impl History {
                 if sector == 0 {
                     self.sites[f.site as usize].economy.farm_workers =
                         [if extraction { 2. } else { 1. }, plan.granted(), 0., wanted];
+                } else if sector == 3 {
+                    self.sites[f.site as usize].economy.construction_workers =
+                        [1., plan.granted(), 0., wanted];
                 } else {
                     self.sites[f.site as usize].economy.extraction_workers[sector - 1] =
                         plan.granted();
@@ -219,7 +267,7 @@ impl History {
     }
     pub(crate) fn production_earnings(&self, sector: usize) -> Option<BTreeMap<usize, f64>> {
         let a = self.resolution.as_ref()?.agriculture.as_ref()?;
-        if sector > 0 && !a.extraction {
+        if (sector > 0 && !a.extraction) || (sector == 3 && !a.construction) {
             return None;
         }
         Some(
@@ -247,6 +295,8 @@ impl History {
                 let economy = &self.sites[p.site as usize].economy;
                 let used = if p.sector == 0 {
                     economy.farm_workers[2]
+                } else if p.sector == 3 {
+                    economy.construction_workers[2]
                 } else {
                     economy.extraction_workers[p.sector + 1]
                 };
@@ -265,7 +315,12 @@ impl History {
                 let state = self.resolution.as_mut().unwrap();
                 let boundary = Boundary {
                     month: self.month,
-                    system: [System::Agriculture, System::Forestry, System::Mining][p.sector],
+                    system: [
+                        System::Agriculture,
+                        System::Forestry,
+                        System::Mining,
+                        System::Construction,
+                    ][p.sector],
                     site: p.site,
                     subject: p.site,
                     revision: crate::resolution::revision([
@@ -278,6 +333,8 @@ impl History {
                         Metric {
                             name: if p.sector == 0 {
                                 "agriculture_attendance"
+                            } else if p.sector == 3 {
+                                "construction_attendance"
                             } else {
                                 "extraction_attendance"
                             }
@@ -290,6 +347,8 @@ impl History {
                         Metric {
                             name: if p.sector == 0 {
                                 "cultivation_work"
+                            } else if p.sector == 3 {
+                                "construction_work"
                             } else {
                                 "extraction_work"
                             }
@@ -336,7 +395,8 @@ impl History {
         ensure!(
             self.individual_demography_enabled()
                 && self.participation.is_some()
-                && self.resolution.as_ref().unwrap().workshop_individual,
+                && self.resolution.as_ref().unwrap().workshop_individual
+                && (!a.construction || a.extraction),
             "agriculture lost individual authority"
         );
         let mut sites = std::collections::BTreeSet::new();
@@ -345,7 +405,7 @@ impl History {
             ensure!(
                 p.month <= self.month
                     && (p.site as usize) < self.sites.len()
-                    && p.sector < 3
+                    && p.sector < 4
                     && sites.insert((p.site, p.sector))
                     && p.requested.is_finite()
                     && p.requested >= 0.
@@ -387,5 +447,10 @@ impl History {
 }
 
 fn activity(sector: usize) -> Activity {
-    [Activity::Agriculture, Activity::Forestry, Activity::Mining][sector]
+    [
+        Activity::Agriculture,
+        Activity::Forestry,
+        Activity::Mining,
+        Activity::Construction,
+    ][sector]
 }

@@ -1,8 +1,8 @@
 # Production participation boundary
 
 Production participation remains unfinished. Workshops and the opt-in agriculture
-pilot assign people; an opt-in extension now assigns forestry/mining workers too.
-Construction still uses pooled labor.
+pilot assign people; opt-in extensions assign forestry/mining and construction workers too.
+Informal craft, operating services, fisheries and husbandry remain partly aggregate.
 The [food-access controls](resident-payroll-balance.md) make this more consequential:
 account-weighted pay and actual household needs diverge. Multiplying wages by
 household size would not establish who worked or prevent overlapping assignments.
@@ -220,8 +220,8 @@ payroll pool and prepaid-attendance semantics remain unchanged.
 The saved plan retains the historic agricultural container for archive
 compatibility, with a sector tag (old plans default to farming). Separate common
 resolution receipts identify Agriculture, Forestry and Mining and record requested,
-granted and productive work. Construction, fisheries and husbandry still require
-their own conversions; this extension does not claim their anonymous labor has
+granted and productive work. At this extraction-only stage, construction, fisheries and husbandry still require
+their own conversions (see the construction extension below); this extension does not claim their anonymous labor has
 been reconciled with actual people. Construction in particular shares a service
 pool with infrastructure operation and cannot simply reuse the mining output rule.
 
@@ -247,7 +247,7 @@ construction should stop while the separately staffed workshop can still operate
 
 
 Extraction balance protocol (model `0d8959f`): paired 30-year runs for seeds 17 and
-81 have started with terrain 32, ecology 16, one epoch, yield scale 0.5, living
+81 used terrain 32, ecology 16, one epoch, yield scale 0.5, living
 history, individual demography, workshops, agricultural participation and the new
 local kin-care behavior. Both arms use the same compiled model; only extraction
 participation changes. Commands:
@@ -257,6 +257,86 @@ target/release/examples/cultural_work_calibrate --seeds 17,81 --years 30 --indiv
 target/release/examples/cultural_work_calibrate --seeds 17,81 --years 30 --individual-demography --workshop-refinement --agriculture-refinement --extraction-refinement --compare-resolution --household-diagnostics --output output/extraction-pilot.json
 ```
 
-The runs are pending, not proof of balance. All-target Clippy, formatting and the
-source-only artifact check pass. Raw outputs and logs remain ignored. Construction
-participation and long-term population stability remain open worklist items.
+The completed results follow below. Raw outputs and logs remain ignored.
+Long-term population stability remains an open worklist item.
+
+
+## Completed extraction comparison
+
+Both `0d8959f` arms completed the two-seed 30-year protocol above. This comparison
+includes kin care in both arms and predates construction participation.
+
+| Seed | Agricultural control population | With named extraction | Physical gap, control → extraction | Access gap, control → extraction |
+|---|---:|---:|---:|---:|
+| 17 | 1,540 | 1,501 | 0.04279% → 0.04224% | 3.2047% → 3.2633% |
+| 81 | 1,551 | 1,565 | 0.00000% → 0.00000% | 3.2557% → 3.1458% |
+
+All runs retain 16 active sites and have zero maximum monthly population residual;
+normalized food residuals remain below 1.95e-7. Food gaps sum all months before
+dividing by need. Runtimes are 39.9–84.6 seconds with simultaneous arms and initial
+shader setup, not isolated benchmarks.
+
+Seed 17 has no forestry/mining requests in the closing month; this does not prove
+there was no extraction during the preceding years. At month 360 seed 81 requests
+0.2966 forestry worker-month and grants 0.2361, using 0.2190; mining requests 0.5133
+and grants/uses 0.1575. The latter demonstrates a remaining-capacity shortfall under
+the current priority, not proof that every resource shortage has that cause.
+Mixed population and access outcomes do not justify enabling extraction globally
+or tuning yields to hide them. Review sustained request/grant distributions and
+construction interactions before choosing a broader allocation policy.
+
+
+## Construction attendance extension
+
+`History::set_construction_refinement(true)` / `--construction-refinement` extends
+the same plan after farming, forestry and mining. It requires extraction
+participation. It is off by default and old plans keep their earlier sector tags.
+
+The opening request is a policy ceiling: 20% of forecast craft work remaining
+after services and enterprise commitments, not an exact estimate of every project.
+Available residents receive bounded assignments after the other production sectors.
+The GPU caps its existing asset-work pool and workshop building/fitting by those
+grants and the labor left after protecting contracted workshop shifts. Stocked
+materials, target capacities and the existing urgent-shelter/recovery ordering
+continue to limit actual building. Operating water services is outside this cap;
+recipe production continues against its existing labor and installed capacity.
+
+Construction completion reports the actual labor decrement across building and
+fitting, before recipes execute. Thus zero builders stops expansion without
+pretending that an already staffed workshop also has zero workers. Wages remain
+prepaid attendance: the municipal craft payroll separates the requested building
+portion from its existing aggregate remainder, substitutes named grants, and
+weights that portion toward their households. Unconverted craft income retains
+its prior household weights. Total withdrawals remain cash-bounded; unused
+building attendance does not create structures or retroactively reassign time.
+
+This is still a partial production conversion. Informal crafts, water-system
+operation, fisheries and husbandry do not yet have complete individual assignments.
+The construction request ceiling may reserve more time than material/target demand
+can use; receipts expose that shortfall. A later exact project-demand forecast
+should be shared with GPU execution rather than duplicating recipe/asset formulas
+on the CPU. Broad labor priority and long-term food access remain balance questions.
+
+
+The balance runner now accumulates requested, granted and completed worker-months
+from each completed monthly plan for farming, forestry, mining and construction.
+It rejects stale/unsettled plans rather than reusing them. Reports label sector
+order, columns and units; disabled sectors report zero with their option off.
+These cumulative observations distinguish sustained under-allocation from an idle
+closing month and must not be inferred from the older endpoint-only reports.
+
+
+Construction verification: four production-forecast GPU fixtures pass, including
+zero-builder/contracted-workshop separation, payroll, saved continuation and
+batched versus monthly execution. The housing (2), storage (2) and waterworks (4)
+integration tests also pass with ignored hardware tests explicitly enabled.
+The regular library suite passes 113 tests (103 hardware tests skipped); two
+material integration GPU fixtures pass separately. All-target Clippy is clean.
+These checks establish bounded execution, not desirable population balance.
+
+A matched construction comparison uses seeds 17 and 81 for 30 years, with the
+same terrain/ecology/yield settings as the extraction protocol. Both arms enable
+individual demography, workshops, agriculture and extraction; only
+`--construction-refinement` differs. Both record cumulative production work.
+Results are pending; ignored outputs are `output/construction-control.json` and
+`output/construction-pilot.json`.

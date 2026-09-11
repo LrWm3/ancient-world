@@ -1,5 +1,5 @@
 struct Economy {
- farm_workers:vec4<f32>, extraction_workers:vec4<f32>,
+ farm_workers:vec4<f32>, extraction_workers:vec4<f32>, construction_workers:vec4<f32>,
  production_probe:vec4<f32>, food_labor:vec4<f32>,
  tool_craft:vec4<f32>, tool_work:vec4<f32>, tool_orders:array<vec4<f32>,16>,
  residue:vec4<f32>,
@@ -178,7 +178,14 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
   e.water_service.z+=work;e.water_service.w=operated;
   e.waterworks_plan.w=clamp(operated/max(s.stock.x,1.),0.,1.);
  }
- var asset_work=labor*.1;
+ // Builders cannot consume already contracted workshop shifts.
+ let building_start=labor;
+ var building_budget=1e30;
+ if e.construction_workers.x>.5 {
+  building_budget=min(e.construction_workers.y,max(0.,labor-dot(e.enterprise_plan,vec4(1.))));
+  e.construction_workers.z=0.;
+ }
+ var asset_work=min(labor*.1,building_budget);
  // Under recovery priority, meet current shelter need before spending on headroom.
  // Reuse the same finite asset-work pool; all construction still consumes stocks.
  if e.waterworks.w>.5 && e.waterworks_recovery.y>.5 && e.housing_plan.w>.5 {
@@ -240,6 +247,7 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
   labor-=build*.002;e.storage.w+=build*.002;e.storage_plan.z=build;
   e.logistics.x=warehouse_capacity(e);
  }
+ building_budget=max(0.,building_budget-(building_start-labor));
  e.workshop_plan.z=0.;e.workshop_plan.w=0.;
  var industrial_capacity=1e30;
  let specialized=e.workshop_types[0].w>.5;
@@ -262,19 +270,19 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
   // Construction and repair spend actual craft labor and stocked materials.
   let costs=vec3(20.,30.,2.);
   let units=min(e.workshop.x/20.,min(e.workshop.y/30.,e.workshop.z/2.));
-  var build=min(max(0.,e.workshop_plan.x-units),labor*.1/2.);
+  var build=min(max(0.,e.workshop_plan.x-units),min(labor*.1,building_budget)/2.);
   build=min(build,min(e.goods[0].x/20.,min(e.goods[1].y/30.,max(0.,e.goods[0].w-s.stock.x*.3)/2.)));
   for(var j=0u;j<3u;j++) {
    let good=select(select(0u,5u,j==1u),3u,j==2u);let mass=build*costs[j];
    e.goods[good/4u][good%4u]=max(0.,e.goods[good/4u][good%4u]-mass);e.workshop[j]+=mass;
   }
-  labor-=build*2.;e.workshop_plan.z=build;
+  labor-=build*2.;building_budget=max(0.,building_budget-build*2.);e.workshop_plan.z=build;
   industrial_capacity=household_capacity+4.*(units+build);
   if specialized {
    var assigned=0.;for(var j=0u;j<4u;j++){assigned+=e.workshop_types[j].x;}
    var unassigned=max(0.,units+build-assigned);
    // Existing generic assets require fitting labor; new builds include fitting.
-   var fitting=build+labor*.1/.5;
+   var fitting=build+min(labor*.1,building_budget)/.5;
    for(var step=0u;step<4u;step++){
     let j=(step+p.dims.z)%4u;
     let fitted=min(unassigned,min(fitting,max(0.,e.workshop_types[j].y-e.workshop_types[j].x)));
@@ -286,6 +294,7 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
   }
  }
 
+ if e.construction_workers.x>.5 {e.construction_workers.z=max(0.,building_start-labor);}
  if specialized {
   for(var j=0u;j<4u;j++) {
    let leased=min(type_capacity[j],4.*e.enterprise_lease[j]*.998);

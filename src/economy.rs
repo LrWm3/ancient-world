@@ -354,6 +354,9 @@ pub struct Economy {
     /// Forestry/mining granted attendance and productive work.
     #[serde(default)]
     pub extraction_workers: [f32; 4],
+    /// Enabled, granted, used, requested building attendance.
+    #[serde(default)]
+    pub construction_workers: [f32; 4],
     /// Last production inputs: tool multiplier, cultivated ha, effective tools kg, population.
     #[serde(default)]
     pub production_probe: [f32; 4],

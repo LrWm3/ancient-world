@@ -14,6 +14,7 @@ pub enum Activity {
     Agriculture,
     Forestry,
     Mining,
+    Construction,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Presence {
@@ -155,7 +156,10 @@ impl Participation {
             Activity::Research => 1,
             Activity::Workshop => 2,
             Activity::MerchantCrew => 3,
-            Activity::Agriculture | Activity::Forestry | Activity::Mining => 4,
+            Activity::Agriculture
+            | Activity::Forestry
+            | Activity::Mining
+            | Activity::Construction => 4,
         };
         for &(person, share) in &c.people {
             let resident = self.residents.get_mut(&person).unwrap();
