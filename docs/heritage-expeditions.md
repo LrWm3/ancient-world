@@ -34,7 +34,8 @@ specific to ecological/geological objectives.
 ## Finds, custody and uncertainty
 
 A deterministic seed/cell rule makes roughly three fifths of surveyed endpoints
-eligible for one accessible 0.125 kg ceramic fragment. This is a provisional fictional
+eligible for one accessible 0.125 kg minor object: a ceramic fragment, textile remnant,
+trade weight or tool fragment. This is a provisional fictional
 archaeological cache, not evidence produced by a simulated ancient civilization.
 The first month of fieldwork can claim it. One find per endpoint across all voyages
 and objectives prevents farming repeat imports. A lost expedition does not reset the
@@ -42,7 +43,7 @@ cache. There is no navigable ruin or ancient creature population behind this pro
 
 Discovery is recorded in the expedition's external field custody. Only successful
 return imports the fragment into the managed settlement economy. Its material is
-resolved by the stable catalog ID `pottery`; the import is declared in the goods and
+resolved by the corresponding stable catalog ID (`pottery`, `cloth`, `metal` or `tools`); the import is declared in the goods and
 C/N/P exchange ledgers, including custom catalog composition. Failed voyages import
 nothing. The voyage record retains the claimed source and its outcome.
 

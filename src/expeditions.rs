@@ -122,8 +122,27 @@ pub struct Expedition {
     pub field_months: u32,
     #[serde(default)]
     pub samples: [f64; 2],
+    /// Typed subset of organic samples; not additional cargo mass.
+    #[serde(default)]
+    pub botanicals: [f64; 3],
+    #[serde(default)]
+    pub botanical_sources: [Option<u32>; 3],
 }
 impl Expedition {
+    pub(crate) fn take_collections(&mut self, source: &mut Expedition) {
+        for k in 0..2 {
+            self.samples[k] += source.samples[k];
+            source.samples[k] = 0.;
+        }
+        for k in 0..3 {
+            self.botanicals[k] += source.botanicals[k];
+            if source.botanicals[k] > 0. {
+                self.botanical_sources[k] = source.botanical_sources[k];
+            }
+            source.botanicals[k] = 0.;
+            source.botanical_sources[k] = None;
+        }
+    }
     pub fn team_skill(&self, role: &str) -> f32 {
         team_skill(&self.crew, self.skill, role)
     }
@@ -532,7 +551,16 @@ impl Expeditions {
                 }
             }
             ensure!(
-                e.samples.iter().all(|v| v.is_finite() && *v >= 0.)
+                e.botanicals.iter().all(|v| v.is_finite() && *v >= 0.)
+                    && e.botanicals.iter().sum::<f64>() <= e.samples[0] + 1e-8
+                    && e.botanical_sources
+                        .iter()
+                        .enumerate()
+                        .all(
+                            |(k, source)| source.is_none_or(|cell| (cell as usize) < cells.len())
+                                && (e.botanicals[k] == 0. || source.is_some())
+                        )
+                    && e.samples.iter().all(|v| v.is_finite() && *v >= 0.)
                     && e.samples.iter().sum::<f64>() <= 24. + 1e-8
                     && (self.discoveries.is_some() || e.samples == [0.; 2]),
                 "invalid specimen manifest"
@@ -817,6 +845,8 @@ impl Expeditions {
             cause,
             field_months: 0,
             samples: [0.; 2],
+            botanicals: [0.; 3],
+            botanical_sources: [None; 3],
         });
         self.next_launch[sponsor as usize] = h.month + self.rules.cooldown_months;
         Ok(id)
@@ -858,6 +888,19 @@ impl History {
                         _ => Objective::OldLiterature,
                     }
                 };
+                let followup =
+                    if site.demography.health[0] <= 0.01 && site.economy.diagnostics[0] != 2. {
+                        x.routes[route].cells.last().and_then(|cell| {
+                            x.discoveries.as_ref().and_then(|d| {
+                                crate::discoveries::returns::followup(self, d, site.id, *cell)
+                            })
+                        })
+                    } else {
+                        None
+                    };
+                if followup.is_some() {
+                    objective = Objective::Ecology;
+                }
                 if let Some(source) = x.discoveries.as_ref().and_then(|d| {
                     d.sources
                         .iter()
@@ -882,7 +925,13 @@ impl History {
                         }
                     }
                 }
-                let _ = x.launch(self, route as u32, objective, None);
+                if let Ok(id) = x.launch(self, route as u32, objective, None) {
+                    if let Some(cause) = followup.filter(|_| objective == Objective::Ecology) {
+                        let departure = x.voyages[id as usize].cause;
+                        self.events[departure as usize].causes.push(cause);
+                        self.events[departure as usize].detail.push_str("; revisit a confirmed botanical source to supply a demonstrated local application");
+                    }
+                }
             }
         }
         self.expeditions = Some(x);
@@ -948,10 +997,7 @@ impl History {
                         e.tools += t.tools;
                         e.findings = (e.findings + t.findings).min(24.);
                         e.exposure = e.exposure.max(t.exposure);
-                        for k in 0..2 {
-                            e.samples[k] += t.samples[k];
-                            t.samples[k] = 0.;
-                        }
+                        e.take_collections(t);
                         t.food = 0.;
                         t.timber = 0.;
                         t.tools = 0.;
@@ -1214,7 +1260,7 @@ impl History {
             x.voyages[i] = e;
         }
         if let Some(d) = &mut x.discoveries {
-            d.month(self);
+            d.month_in_environment(self, cells);
         }
         if x.rules.automatic {
             let stranded: Vec<_> = x

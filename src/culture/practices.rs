@@ -1179,6 +1179,7 @@ mod tests {
         });
         d.collected = [10., 0.];
         d.workshops.push(crate::discoveries::Workshop {
+            botanicals: Default::default(),
             work_plan: None,
             site: 0,
             enabled: true,

@@ -192,6 +192,7 @@ mod tests {
                 .as_mut()
                 .unwrap()
                 .workshops = vec![crate::discoveries::Workshop {
+                botanicals: Default::default(),
                 work_plan: None,
                 site: 0,
                 enabled: true,

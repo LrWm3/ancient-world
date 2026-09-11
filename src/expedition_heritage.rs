@@ -15,6 +15,8 @@ pub struct Charter {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Find {
+    #[serde(default)]
+    pub category: FindCategory,
     pub cell: u32,
     pub description: String,
     pub observed: u64,
@@ -22,6 +24,42 @@ pub struct Find {
     #[serde(default)]
     pub studies: Vec<Study>,
 }
+
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+pub enum FindCategory {
+    #[default]
+    Ceramic,
+    Weaving,
+    TradeWeight,
+    Tool,
+}
+impl FindCategory {
+    fn material(self) -> &'static str {
+        match self {
+            Self::Ceramic => "pottery",
+            Self::Weaving => "cloth",
+            Self::TradeWeight => "metal",
+            Self::Tool => "tools",
+        }
+    }
+    fn kind(self) -> &'static str {
+        match self {
+            Self::Ceramic => "ancient ceramic fragment",
+            Self::Weaving => "ancient textile remnant",
+            Self::TradeWeight => "ancient trade weight",
+            Self::Tool => "ancient tool fragment",
+        }
+    }
+    fn description(self) -> &'static str {
+        match self {
+        Self::Ceramic => "A worn ceramic fragment preserves uncertain marks.",
+        Self::Weaving => "A mineral-encrusted strip of weaving preserves an unfamiliar pattern; its makers and original use are unknown.",
+        Self::TradeWeight => "A small corroded weight bears repeated notches; it may record an old trading measure, but its unit is uncertain.",
+        Self::Tool => "A worn tool fragment retains traces of repair, evidence of ordinary craft and reuse rather than lost miraculous technology.",
+    }
+    }
+}
+
 pub fn charter(h: &History, origin: u32, objective: Objective) -> Result<Option<Charter>> {
     if !matches!(
         objective,
@@ -58,18 +96,31 @@ pub(crate) fn survey(h: &mut History, e: &mut Expedition, cell: u32, already: bo
     if already || c.find.is_some() || e.field_months != 1 || survivors == 0 {
         return;
     }
-    // One small accessible ceramic fragment per qualifying endpoint, across all objectives.
+    // One small accessible object per qualifying endpoint, across all objectives.
     let hash = cell
         .wrapping_mul(747796405)
         .wrapping_add(h.seed.wrapping_mul(2891336453));
     if (hash ^ (hash >> 16)) % 5 >= 3 {
         return;
     }
-    let description=match e.objective {
+    let category = if e.objective == Objective::PatronSearch {
+        FindCategory::Ceramic
+    } else {
+        match (hash >> 8) % 4 {
+            0 => FindCategory::Ceramic,
+            1 => FindCategory::Weaving,
+            2 => FindCategory::TradeWeight,
+            _ => FindCategory::Tool,
+        }
+    };
+    let mut description=match e.objective {
         Objective::PatronSearch=>"A worn ceramic charm bears an animal-like outline. Its resemblance to the patron is suggestive, not identification; no living patron was encountered.",
         Objective::Inscriptions=>"A broken ceramic plaque bears repeated marks and possible tally strokes. Dating, language and authorship remain uncertain.",
         _=>"A small fired-clay text fragment preserves repeated signs interpreted provisionally as a household list or refrain; most of the text is missing.",
     }.to_string();
+    if !matches!(category, FindCategory::Ceramic) {
+        description = category.description().into();
+    }
     h.event(
         "heritage_fragment_observed",
         Some(e.origin),
@@ -87,6 +138,7 @@ pub(crate) fn survey(h: &mut History, e: &mut Expedition, cell: u32, already: bo
             role: crate::spatial::EventRole::Milestone,
         });
     c.find = Some(Find {
+        category,
         cell,
         description,
         observed: event.id,
@@ -107,11 +159,11 @@ pub(crate) fn deliver(h: &mut History, e: &mut Expedition) {
     if find.artifact.is_some() {
         return;
     }
-    let Some(good) = h
-        .economy_catalog
-        .as_ref()
-        .and_then(|c| c.goods.iter().position(|g| g.id == "pottery"))
-    else {
+    let Some(good) = h.economy_catalog.as_ref().and_then(|c| {
+        c.goods
+            .iter()
+            .position(|g| g.id == find.category.material())
+    }) else {
         return;
     };
     let Some(c) = &mut h.culture else { return };
@@ -133,14 +185,14 @@ pub(crate) fn deliver(h: &mut History, e: &mut Expedition) {
             .naming(h.seed)
             .coin(
                 &format!("artifact:{id}"),
-                &["clay", "memory"],
+                &["memory"],
                 Some(crate::naming::Source {
                     kind: "expedition".into(),
                     id: e.id,
                     name: format!("{} voyage {}", h.sites[e.origin as usize].name, e.id),
                 }),
             ),
-        kind: "ancient ceramic fragment".into(),
+        kind: find.category.kind().into(),
         creator: None,
         owner,
         claims: vec![],
@@ -161,7 +213,7 @@ pub(crate) fn deliver(h: &mut History, e: &mut Expedition) {
     if h.people[author as usize].died.is_none() {
         c.accounts.push(Account{id:c.accounts.len() as u32,tradition:charter.tradition,author:Some(author),institution:e.institution,month:h.month,facts:vec![find.observed,event_id],text:format!("Our interpreter considers the fragment relevant to our remembered origins. This remains a disputed reading, not proof of our patron's identity or mission. {}",find.description)});
     }
-    h.event("heritage_fragment_received",Some(e.origin),None,format!("Voyage {} delivered one 0.125 kg ancient ceramic fragment from cell {}; finite external material import, uncertain provenance, no new technology or supernatural effect",e.id,find.cell));
+    h.event("heritage_fragment_received",Some(e.origin),None,format!("Voyage {} delivered one 0.125 kg {} from cell {}; preserved for material study and competing interpretations",e.id,find.category.kind(),find.cell));
     let event = h.events.last_mut().unwrap();
     event.causes.extend([e.cause, find.observed]);
     event.subjects.extend([
@@ -212,7 +264,7 @@ pub(crate) fn validate(h: &History, voyages: &[Expedition]) -> Result<()> {
                             && culture
                                 .artifacts
                                 .get(a as usize)
-                                .is_some_and(|a| a.kind == "ancient ceramic fragment")),
+                                .is_some_and(|a| a.kind == f.category.kind())),
                     "invalid or duplicate heritage recovery"
                 );
             }
@@ -298,7 +350,7 @@ pub(crate) fn study(h: &mut History, c: &mut crate::culture::Culture) {
                     && other.site == Some(site)
                     && !other.lost
                     && !other.destroyed
-                    && other.kind == "ancient ceramic fragment"
+                    && other.kind.starts_with("ancient ")
             })
             .map(|a| a.id);
         let reading = if let Some(other) = comparison {
@@ -422,6 +474,7 @@ mod tests {
                 patron: None,
                 motive: "Test".into(),
                 find: Some(Find {
+                    category: FindCategory::Ceramic,
                     cell: 0,
                     description: "marks".into(),
                     observed: 0,
@@ -453,6 +506,8 @@ mod tests {
             cause: 0,
             field_months: 1,
             samples: [0.; 2],
+            botanicals: [0.; 3],
+            botanical_sources: [None; 3],
         });
         let good = h
             .economy_catalog

@@ -1,12 +1,13 @@
 # Finite expedition specimens and local applications
 
-See [the latest memory, fleet and research extension](memory-fleets-and-research.md) for subsequent changes.
+See [memory, fleet and research](memory-fleets-and-research.md) and
+[typed expedition collections](expedition-returns.md) for subsequent changes.
 
 This optional extension connects expeditions to farming, health and manufacturing. Enable it after expeditions with `Generator::enable_discoveries`, the desktop's **Enable specimen research and applications** button, or `--discoveries` on the headless CLI. Existing archives load without it; enabling establishes a recorded baseline and does not award cargo to past voyages. The history evaluator's `--discoveries` implies shipping and expeditions.
 
 ## Collection and return
 
-Ecological voyages can collect **faultroot resin**, an explicitly fictional biological material. Geological voyages can collect **phosphatic crust**. Resin availability depends on destination vegetation, geological activity and a permissive temperature range; mineral availability depends on geological activity. These are two regional specimen classes rather than individual catalog species or mapped ore veins.
+Ecological voyages can collect **faultroot resin**, an explicitly fictional biological material. Geological voyages can collect **phosphatic crust**. Resin availability depends on destination vegetation, geological activity and a permissive temperature range; mineral availability depends on geological activity. These are broad source-ledger classes rather than individual catalog species or mapped ore veins. New organic collections divide between resin and typed fiber, pigment or planting samples; their shared source stock is not increased.
 
 The first visit establishes a finite *accessible coastal* stock at the destination cell. Harbors reaching the same cell share that stock. It represents material accessible to repeated short excursions from that camp, not all resources on the continent. This stock is recorded separately from the frozen planetary environmental baseline and town plots. Extraction is a declared C/N/P import into the civilization economy and a withdrawal from the accessible source ledger. It does not silently renew or claim to deplete the whole GPU ecosystem.
 

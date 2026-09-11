@@ -7,6 +7,7 @@ use crate::{
 };
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+pub mod returns;
 pub const CNP: [[f64; 3]; 2] = [[0.45, 0.02, 0.003], [0., 0., 0.08]];
 pub const NAMES: [&str; 2] = ["faultroot resin", "phosphatic crust"];
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -19,6 +20,8 @@ pub struct Source {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ResearchPlan {
     #[serde(default)]
+    pub botanical_kg: [f64; 3],
+    #[serde(default)]
     pub commitment: Option<u32>,
     pub receipt: crate::labor::WorkReceipt,
     pub teachers: [Option<u32>; 2],
@@ -27,6 +30,8 @@ pub struct ResearchPlan {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Workshop {
+    #[serde(default)]
+    pub botanicals: returns::Botanicals,
     #[serde(default)]
     pub work_plan: Option<ResearchPlan>,
     pub site: u32,
@@ -122,7 +127,15 @@ impl Discoveries {
                 - self.discarded[k]
                 - self.studied[k]
                 - self.processed[k]
-                - self.curated[k])
+                - self.curated[k]
+                - if k == 0 {
+                    self.workshops
+                        .iter()
+                        .map(|w| w.botanicals.received.iter().sum::<f64>())
+                        .sum()
+                } else {
+                    0.
+                })
                 / self.collected[k].max(1.);
         }
         out[2] = (self.remedy_made
@@ -139,6 +152,11 @@ impl Discoveries {
                 + self.workshops.iter().map(|w| w.samples[kind]).sum::<f64>();
             for (v, fraction) in held.iter_mut().zip(composition) {
                 *v += kg * fraction;
+            }
+        }
+        for w in &self.workshops {
+            for (v, fraction) in held.iter_mut().zip(CNP[0]) {
+                *v += w.botanicals.stock.iter().sum::<f64>() * fraction;
             }
         }
         let remedy = self.workshops.iter().map(|w| w.remedy).sum::<f64>();
@@ -174,6 +192,15 @@ impl Discoveries {
             }
         }
         for w in &self.workshops {
+            w.botanicals.validate(h)?;
+            if let Some(plan) = &w.work_plan {
+                ensure!(
+                    plan.botanical_kg
+                        .iter()
+                        .all(|v| v.is_finite() && *v >= 0. && *v <= 0.25 + 1e-8),
+                    "invalid botanical work request"
+                );
+            }
             ensure!(
                 (w.site as usize) < h.sites.len()
                     && sites.insert(w.site)
@@ -198,8 +225,17 @@ impl Discoveries {
             }
             for k in 0..2 {
                 ensure!(
-                    (w.delivered[k] - w.samples[k] - w.studied[k] - w.processed[k] - w.curated[k])
-                        .abs()
+                    (w.delivered[k]
+                        - w.samples[k]
+                        - w.studied[k]
+                        - w.processed[k]
+                        - w.curated[k]
+                        - if k == 0 {
+                            w.botanicals.received.iter().sum::<f64>()
+                        } else {
+                            0.
+                        })
+                    .abs()
                         < 1e-6 * w.delivered[k].max(1.),
                     "workshop specimen ledger mismatch"
                 );
@@ -301,7 +337,7 @@ impl Discoveries {
                 remaining: initial,
                 collected: [0.; 2],
             });
-            event(h,e.origin,Some(e.cause),"specimen_source",format!("Accessible coastal baseline at cell {cell_id}: {:.1} kg resin, {:.1} kg phosphatic crust; no replenishment during frozen planetary history",initial[0],initial[1]));
+            event(h,e.origin,Some(e.cause),"specimen_source",format!("Accessible coastal baseline at cell {cell_id}: {:.1} kg organic collection material, {:.1} kg phosphatic crust; no replenishment during frozen planetary history",initial[0],initial[1]));
             self.sources.len() - 1
         };
         let capacity = (12. - e.samples.iter().sum::<f64>()).max(0.);
@@ -316,6 +352,12 @@ impl Discoveries {
         src.collected[kind] += kg;
         self.collected[kind] += kg;
         e.samples[kind] += kg;
+        if kind == 0 {
+            // Half the accessible organic collection is retained as typed botanical material.
+            let profile = (cell_id.wrapping_add(h.seed) % 3) as usize;
+            e.botanicals[profile] += kg * 0.5;
+            e.botanical_sources[profile] = Some(cell_id);
+        }
         exchange(h, e.origin, kind, kg);
         if src.remaining[kind] <= 1e-8 {
             event(
@@ -328,6 +370,8 @@ impl Discoveries {
         }
     }
     pub(crate) fn discard(&mut self, h: &mut History, e: &mut Expedition) {
+        e.botanicals = [0.; 3];
+        e.botanical_sources = [None; 3];
         for kind in 0..2 {
             self.discarded[kind] += e.samples[kind];
             exchange(h, e.origin, kind, -e.samples[kind]);
@@ -342,6 +386,7 @@ impl Discoveries {
             i
         } else {
             self.workshops.push(Workshop {
+                botanicals: Default::default(),
                 work_plan: None,
                 site: e.origin,
                 enabled: true,
@@ -357,8 +402,31 @@ impl Discoveries {
             });
             self.workshops.len() - 1
         };
-        event(h,e.origin,Some(e.cause),"specimens_delivered",format!("Expedition {} delivered {:.2} kg resin and {:.2} kg phosphatic crust to the research workshop",e.id,e.samples[0],e.samples[1]));
+        event(h,e.origin,Some(e.cause),"specimens_delivered",format!("Expedition {} delivered {:.2} kg organic specimens (including typed botanical material) and {:.2} kg phosphatic crust to the research workshop",e.id,e.samples[0],e.samples[1]));
         let cause = h.events.last().unwrap().id;
+        for k in 0..3 {
+            let kg = e.botanicals[k];
+            self.workshops[i].botanicals.stock[k] += kg;
+            self.workshops[i].botanicals.received[k] += kg;
+            if kg > 0. {
+                self.workshops[i].botanicals.causes[k] = Some(cause);
+                self.workshops[i].botanicals.sources[k] = e.botanical_sources[k];
+                event(
+                    h,
+                    e.origin,
+                    Some(cause),
+                    "botanical_collection_received",
+                    format!(
+                        "Received {kg:.2} kg {}; held for finite trials and processing",
+                        returns::NAMES[k]
+                    ),
+                );
+            }
+        }
+        let botanical_mass = e.botanicals.iter().sum::<f64>();
+        e.botanicals = [0.; 3];
+        e.botanical_sources = [None; 3];
+
         for k in 0..2 {
             if e.samples[k] > 0. {
                 self.workshops[i].causes[k] = Some(cause);
@@ -367,8 +435,13 @@ impl Discoveries {
                 e.samples[k] = 0.;
             }
         }
+        self.workshops[i].samples[0] = (self.workshops[i].samples[0] - botanical_mass).max(0.);
     }
+    #[cfg(test)]
     pub(crate) fn month(&mut self, h: &mut History) {
+        self.month_in_environment(h, &[]);
+    }
+    pub(crate) fn month_in_environment(&mut self, h: &mut History, cells: &[Cell]) {
         // Snapshot: transmitted methods cannot cross multiple contacts in one update.
         let teachers = self.workshops.clone();
         for w in &mut self.workshops {
@@ -513,6 +586,7 @@ impl Discoveries {
                     }
                 }
             }
+            self.worker_months += returns::process(h, w, cells, &mut labor);
             if let Some(p) = &mut w.work_plan {
                 if !p.receipt.settled {
                     if p.receipt.month != h.month {
@@ -606,6 +680,16 @@ fn plan_work(h: &History, workshop: &Workshop, teachers: &[Workshop]) -> Researc
         work += kg * 2.;
         tools -= kg * 0.1;
         fuel -= kg * 0.2;
+    }
+    for k in 0..3 {
+        let kg = returns::limit(&w.botanicals, k)
+            .min(tools / 0.1)
+            .min(fuel / 0.2)
+            .min((budget - work).max(0.) / 2.);
+        plan.botanical_kg[k] = kg;
+        work += 2. * kg;
+        tools -= 0.1 * kg;
+        fuel -= 0.2 * kg;
     }
     plan.receipt.requested = work.min(2.);
     plan.receipt.granted = plan.receipt.requested;
@@ -780,6 +864,7 @@ mod exchange_tests {
             upkeep: None,
         }];
         let workshop = |site| Workshop {
+            botanicals: Default::default(),
             work_plan: None,
             site,
             enabled: true,

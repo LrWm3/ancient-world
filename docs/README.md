@@ -17,6 +17,7 @@ selection. Saved histories retain their settings.
 
 The [spatial feature guide](spatial-features.md) describes the first adapters and
 expedition atlas routes. The broader [map-layer plan](spatial-features-plan.md)
+- [Expedition collections and applications](expedition-returns.md)
 includes work that remains unimplemented.
 
 ## Working on history systems

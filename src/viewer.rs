@@ -2006,6 +2006,7 @@ impl App {
         let mut expedition_recall = None;
         let mut expedition_rules = None;
         let mut specimen_policy = None;
+        let mut botanical_policy = None;
         egui::Window::new("Civilizations and history")
             .open(&mut open)
             .default_width(480.)
@@ -2517,7 +2518,15 @@ impl App {
                         ui.small("Finite coastal sources. Workshops reserve up to two craft workers and consume tools and charcoal. Local assays or paid research exchange establish a method; fresh specimens are still required.");
                         ui.label(format!("Remedy made {:.1} kg · used {:.1} · expired {:.1} · farm phosphorus {:.2} kg · labor {:.1}/{:.1} worker-months used/reserved",d.remedy_made,d.remedy_used,d.remedy_expired,d.phosphorus_applied,d.worker_months,d.worker_months_reserved));
                         ui.small(format!("Specimen/remedy budget residuals: {:?}",d.residuals(x)));
-                        for w in &d.workshops {let mut open=w.enabled;if ui.checkbox(&mut open,format!("{} workshop open",h.sites[w.site as usize].name)).changed(){specimen_policy=Some((w.site,open));}ui.label(format!("{}: resin {:.2} kg · mineral {:.2} kg · remedy {:.2} kg",h.sites[w.site as usize].name,w.samples[0],w.samples[1],w.remedy));ui.small(format!("Assay progress: resin {:.0}% · mineral {:.0}%",w.studied[0]/1.5*100.,w.studied[1]/1.5*100.));ui.small(format!("Copied methods: resin {} · mineral {}",w.learned[0].is_some(),w.learned[1].is_some()));}
+                        for w in &d.workshops {let mut open=w.enabled;if ui.checkbox(&mut open,format!("{} workshop open",h.sites[w.site as usize].name)).changed(){specimen_policy=Some((w.site,open));}ui.label(format!("{}: resin {:.2} kg · mineral {:.2} kg · remedy {:.2} kg",h.sites[w.site as usize].name,w.samples[0],w.samples[1],w.remedy));ui.small(format!("Assay progress: resin {:.0}% · mineral {:.0}%",w.studied[0]/1.5*100.,w.studied[1]/1.5*100.));ui.small(format!("Copied methods: resin {} · mineral {}",w.learned[0].is_some(),w.learned[1].is_some()));use crate::discoveries::returns::{Use, NAMES};
+                        for (k, name) in NAMES.iter().enumerate() {
+                            ui.small(format!("{}: {:.2} kg held · trial {:.0}% · output {:.2} kg",name,w.botanicals.stock[k],w.botanicals.studied[k]/0.25*100.,w.botanicals.output[k]));
+                            let mut policy = w.botanicals.policy[k];
+                            egui::ComboBox::from_id_salt(("botanical-use",w.site,k)).selected_text(format!("{policy:?}")).show_ui(ui,|ui| {
+                                for option in [Use::Store,Use::Study,Use::Apply] { ui.selectable_value(&mut policy,option,format!("{option:?}")); }
+                            });
+                            if policy != w.botanicals.policy[k] { botanical_policy = Some((w.site,k,policy)); }
+                        }}
                         for source in &d.sources {ui.small(format!("Coast {}: resin {:.1}/{:.1} kg · mineral {:.1}/{:.1} kg remaining",source.cell,source.remaining[0],source.initial[0],source.remaining[1],source.initial[1]));}
                     });
                 }}
@@ -2686,6 +2695,10 @@ impl App {
                 }
             });
         self.history_window_open &= open;
+        if let Some((site, kind, policy)) = botanical_policy {
+            let result = self.generator.set_botanical_use(site, kind, policy);
+            self.report(result, "Collection use updated.");
+        }
         if let Some((site, open)) = specimen_policy {
             let result = self.generator.set_specimen_workshop_open(site, open);
             self.report(result, "Workshop policy updated.");
