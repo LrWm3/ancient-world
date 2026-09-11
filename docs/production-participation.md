@@ -338,5 +338,27 @@ A matched construction comparison uses seeds 17 and 81 for 30 years, with the
 same terrain/ecology/yield settings as the extraction protocol. Both arms enable
 individual demography, workshops, agriculture and extraction; only
 `--construction-refinement` differs. Both record cumulative production work.
-Results are pending; ignored outputs are `output/construction-control.json` and
-`output/construction-pilot.json`.
+Both arms completed; ignored outputs are `output/construction-control.json` and
+`output/construction-pilot.json`. The tested source is committed as `c2b0c73`.
+
+
+### Construction comparison results
+
+| Seed | Control population | Named builders | Physical gap, control → builders | Access gap, control → builders | Builder requested / granted / completed worker-months |
+|---|---:|---:|---:|---:|---:|
+| 17 | 1,501 | 1,518 | 0.04224% → 0.04261% | 3.26325% → 3.15159% | 1,338.08 / 1,270.04 / 221.17 |
+| 81 | 1,565 | 1,551 | 0% → 0% | 3.14581% → 3.29845% | 1,914.79 / 1,863.90 / 241.52 |
+
+All four histories retain 16 active sites, with zero maximum monthly population
+residual and normalized food residual below 1.77e-7. Execution takes 40.5–94.6
+seconds per seed under concurrent runs, including initial shader setup; this is
+not an isolated performance benchmark. Population and access effects are mixed.
+
+Only 17.4% and 13.0% of granted builder time is completed. In contrast, 94.9% and
+97.3% of requested builder time is granted. This identifies unused reservation,
+rather than general builder scarcity, as the first issue to address. It does not
+identify whether materials, targets or the shader's smaller asset-work share is
+the principal cause; add a shared feasible-project forecast before adjusting
+priority or increasing construction entitlement. Attendance remains prepaid, so
+unused work also affects who receives income. These two seeds do not establish
+long-term stability or justify a default-mode change.
