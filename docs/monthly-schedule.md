@@ -235,3 +235,36 @@ passed, the GPU relocation/relief fixture passed, and all three history-environm
 fixtures passed with exact seed 17/81/256 batch/checkpoint comparisons. Strict Clippy,
 formatting and repository artifact checks passed. These are timing/allocation checks,
 not long-run relief-policy calibration.
+
+## Shared workshop labor allocation (2026-09-11)
+
+Enterprise preparation now gathers affordable shifts before paying wages. Existing
+rent transfers happen first; each active operator requests work bounded by its
+leased equipment, observed demand, remaining working capital and the town's
+existing craft labor allowance. A proportional allocation shares that allowance
+across workshop families. Payroll commits only the granted work. Fixed family
+slots give the demand sum a stable order, and GPU allowances round downward so
+rounding cannot authorize unpaid work. Cash-poor operators cannot reserve shifts
+they cannot finance.
+
+Previously the firm loop consumed a declining allowance, privileging the first
+operator. Under contention multiple operators can now receive smaller shifts;
+existing distress rules can consequently affect several firms instead of only
+late-listed ones. This is a game allocation policy, not a labor market equilibrium.
+
+The change preserves the current craft allowance and cross-system scheduling.
+Culture still reserves before enterprise preparation, and vessel preparation uses
+remaining capacity after enterprise plans. It does not unify those capacity formulas
+or provide a global labor/treasury auction. Rent deposits and household wage
+transfers retain their existing commit order; only labor allocation is independent
+of firm storage order. No archive fields or terrain readbacks were added.
+
+Analytical tests cover proportional contention, permuted requests, cash-limited
+requests, empty/zero budgets and rounding bounds.
+
+Verification: 68 ordinary library tests passed; both GPU enterprise fixtures passed
+(accounting/failure and prepaid work/checkpoint continuation). All three
+history-environment fixtures passed in 24.72 seconds excluding compilation,
+including exact seed 17/81/256 batching and checkpoint comparisons. Strict Clippy,
+formatting and the repository artifact check passed. These checks establish bounded
+allocation and continuation, not long-run economic balance under labor scarcity.

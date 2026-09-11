@@ -142,6 +142,17 @@ fn work_floor(v: f64) -> f32 {
     }
     rounded
 }
+// One slot per workshop family makes summation independent of firm storage order.
+// Requests are already affordable after rent; do not reserve workers for unfunded shifts.
+fn allocate_work(requests: [f64; 4], capacity: f64) -> [f32; 4] {
+    let total = requests.iter().sum::<f64>();
+    let factor = if total > 0. {
+        (capacity.max(0.) / total).min(1.)
+    } else {
+        0.
+    };
+    requests.map(|request| work_floor(request * factor))
+}
 fn viable_entry(expected_work: f64, paid_shift: f64, units: f64) -> bool {
     expected_work * 1.25 > paid_shift + units * 0.08
 }
@@ -305,16 +316,12 @@ impl History {
                 }
             }
         }
-        let mut labor_left = self
-            .sites
-            .iter()
-            .map(|s| s.economy.labor[3].max(0.) as f64)
-            .collect::<Vec<_>>();
+        let mut requests = vec![[0.; 4]; self.sites.len()];
+        let mut desired_work = vec![0.; enterprises.firms.len()];
         for f in enterprises.firms.iter_mut().filter(|f| f.closed.is_none()) {
             let site = f.site as usize;
             let family = f.family as usize;
             let town = &mut self.sites[site];
-            let ids = &residents[site];
             f.wage_rate = 18. * town.economy.prices[crate::economy::FOOD].max(0.01) as f64;
             let units = f
                 .leased_units
@@ -326,21 +333,35 @@ impl History {
             let lease_share = units / (town.economy.workshop_types[family][0] as f64).max(0.001);
             let desired = (units * 4.)
                 .min((town.economy.workshop_types[family][2] as f64 * lease_share * 1.1).max(0.05))
-                .min(labor_left[site]);
-            let work = work_floor(desired.min(f.cash / f.wage_rate)) as f64;
+                .min(town.economy.labor[3].max(0.) as f64);
+            desired_work[f.id as usize] = desired;
+            requests[site][family] = desired.min(f.cash / f.wage_rate);
+            town.economy.enterprise_lease[family] = units as f32;
+        }
+        let grants = requests
+            .iter()
+            .zip(&self.sites)
+            .map(|(&requests, town)| allocate_work(requests, town.economy.labor[3] as f64))
+            .collect::<Vec<_>>();
+        for f in enterprises.firms.iter_mut().filter(|f| f.closed.is_none()) {
+            let site = f.site as usize;
+            let family = f.family as usize;
+            let town = &mut self.sites[site];
+            let ids = &residents[site];
+            let units = town.economy.enterprise_lease[family] as f64;
+            let desired = desired_work[f.id as usize];
+            let work = grants[site][family] as f64;
             let payroll = (work * f.wage_rate).min(f.cash);
             f.cash -= payroll;
             f.wages += payroll;
             f.paid_work += work;
             f.last_funded_work = work;
             f.last_completed_work = 0.;
-            labor_left[site] = (labor_left[site] - work).max(0.);
             f.distressed_months = if work < desired * 0.25 || units < 0.001 {
                 f.distressed_months + 1
             } else {
                 0
             };
-            town.economy.enterprise_lease[family] = units as f32;
             town.economy.enterprise_plan[family] = work as f32;
             let weights = ids
                 .iter()
@@ -491,6 +512,23 @@ mod tests {
         economy::EconomyCatalog,
         gpu::{ContextGpu, Generator},
     };
+    #[test]
+    fn competing_workshops_share_labor_before_payroll() {
+        assert_eq!(allocate_work([6., 3., 0., 0.], 3.), [2., 1., 0., 0.]);
+        assert_eq!(allocate_work([3., 6., 0., 0.], 3.), [1., 2., 0., 0.]);
+        assert_eq!(allocate_work([0.; 4], 3.), [0.; 4]);
+        assert_eq!(allocate_work([6.; 4], 0.), [0.; 4]);
+        // Cash-limited claims leave workers available to other operators.
+        assert_eq!(allocate_work([0.5, 1., 0., 0.], 3.), [0.5, 1., 0., 0.]);
+        for capacity in [0.001, 0.1, 1., 10., 100.] {
+            let requests = [0.13, 7.7, 12.1, 0.003];
+            let grants = allocate_work(requests, capacity);
+            assert!(grants.iter().map(|&x| x as f64).sum::<f64>() <= capacity);
+            for (grant, request) in grants.into_iter().zip(requests) {
+                assert!(grant as f64 <= request);
+            }
+        }
+    }
     fn world() -> Generator {
         let mut g = Generator::new(
             pollster::block_on(ContextGpu::headless()).unwrap(),
