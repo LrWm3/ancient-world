@@ -1,4 +1,4 @@
-//! Partial practical learning. Only paid instruction/study invokes this path.
+//! Practical learning progress shared by paid work and bounded informal exposure.
 use super::*;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -25,6 +25,27 @@ impl Agent {
         let completed = study.advance(0.1, self.traits[3], support);
         (completed, study.progress, study.source)
     }
+    /// Informal observation is not paid instruction or additional worker-months.
+    /// A single bounded exposure across all topics/channels prevents route fan-out.
+    pub(super) fn observe_topic(
+        &mut self,
+        topic: u32,
+        month: u32,
+        exposure: f32,
+    ) -> Option<(bool, f32, Option<u64>)> {
+        if topic >= 12
+            || self.knowledge.contains(&topic)
+            || self.last_learning_exposure.is_some_and(|m| m >= month)
+            || !exposure.is_finite()
+            || exposure <= 0.
+        {
+            return None;
+        }
+        self.last_learning_exposure = Some(month);
+        let study = self.studies.entry(topic).or_default();
+        let completed = study.advance(exposure.min(0.05), self.traits[3], 0.);
+        Some((completed, study.progress, study.source))
+    }
     pub(super) fn study_source(&mut self, topic: u32, event: u64, completed: bool) {
         if completed {
             self.studies.remove(&topic);
@@ -41,6 +62,51 @@ impl Agent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn agent() -> Agent {
+        Agent {
+            person: 0,
+            traits: [0.; 6],
+            skills: [0.; 4],
+            occupation: String::new(),
+            goal: String::new(),
+            knowledge: BTreeSet::new(),
+            known_places: BTreeSet::new(),
+            knowledge_sources: BTreeMap::new(),
+            studies: BTreeMap::new(),
+            instruction_work: 0.,
+            last_learning_exposure: None,
+            last_campaign: None,
+            relations: BTreeMap::new(),
+            actions: 0,
+        }
+    }
+    #[test]
+    fn informal_exposure_is_partial_bounded_and_combines_with_paid_study() {
+        let mut a = agent();
+        let first = a.observe_topic(4, 12, 0.025).unwrap();
+        assert!(!first.0 && first.1 < 0.1);
+        a.study_source(4, 7, false);
+        assert!(a.observe_topic(5, 12, 0.05).is_none());
+        let mut restored: Agent =
+            serde_json::from_str(&serde_json::to_string(&a).unwrap()).unwrap();
+        assert!(restored.observe_topic(4, 12, 0.05).is_none());
+        let (_, progress, source) = restored.observe_topic(4, 24, 0.025).unwrap();
+        assert!(progress > first.1);
+        assert_eq!(source, Some(7));
+        let (_, paid, _) = restored.study_topic(4, 0.);
+        assert!(paid - progress > progress - first.1);
+        assert_eq!(restored.instruction_work, 0.);
+        for month in 25..40 {
+            let (done, _, _) = restored.observe_topic(4, month, 0.05).unwrap();
+            restored.study_source(4, 8, done);
+            if done {
+                break;
+            }
+        }
+        assert!(restored.knowledge.contains(&4));
+        assert_eq!(restored.knowledge_sources[&4], 8);
+        assert!(restored.observe_topic(4, 41, 0.05).is_none());
+    }
     #[test]
     fn partial_learning_requires_work_and_preserves_progress() {
         let mut novice = Study::default();

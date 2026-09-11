@@ -86,9 +86,13 @@ impl Culture {
                 .next()
                 .copied()
             {
-                learned = Some((teacher, topic));
-                self.agents[actor as usize].knowledge.insert(topic);
-                self.agents[actor as usize].relations.insert(teacher, 0.5);
+                // Observation during an already funded visit, not a second paid lesson.
+                if let Some((completed, progress, previous)) =
+                    self.agents[actor as usize].observe_topic(topic, h.month, 0.05)
+                {
+                    learned = Some((teacher, topic, completed, progress, previous));
+                    self.agents[actor as usize].relations.insert(teacher, 0.5);
+                }
             }
         }
         self.agents[actor as usize]
@@ -98,10 +102,21 @@ impl Culture {
         self.agents[actor as usize].actions += 1;
         let returned = self.log(h,"pilgrimage_returned",site,Some(actor),Some(faith),None,Some(departure),
             "The pilgrim returned within the month after a local visit, teaching contact and a 0.1 kg ceramic offering".into());
-        if let Some((teacher, topic)) = learned {
-            self.agents[actor as usize]
-                .knowledge_sources
-                .insert(topic, returned);
+        if let Some((teacher, topic, completed, progress, previous)) = learned {
+            self.agents[actor as usize].study_source(topic, returned, completed);
+            h.events[returned as usize].detail.push_str(&format!(
+                " Observed {}; study progress {:.0}%, practical access {}.",
+                TOPICS[topic as usize],
+                progress * 100.,
+                if completed {
+                    "acquired"
+                } else {
+                    "not yet acquired"
+                }
+            ));
+            if let Some(previous) = previous {
+                h.events[returned as usize].causes.push(previous);
+            }
             h.events[returned as usize]
                 .subjects
                 .push(("person".into(), teacher));
@@ -330,6 +345,61 @@ mod tests {
         g
     }
     #[test]
+    #[ignore = "requires hardware GPU"]
+    fn contact_completion_cannot_relay_across_two_routes_in_one_year() {
+        let mut g = world();
+        let h = g.civilizations.as_mut().unwrap();
+        h.month = 12;
+        let mut c = h.culture.take().unwrap();
+        c.sync(h);
+        let route = h
+            .society
+            .as_ref()
+            .unwrap()
+            .routes
+            .iter()
+            .find(|r| r.passable() && !r.cells.is_empty())
+            .unwrap()
+            .clone();
+        // Controlled three-town contact graph, independent of transport capacity.
+        let mut ab = route.clone();
+        ab.id = 0;
+        ab.from = 0;
+        ab.to = 1;
+        let mut bc = route;
+        bc.id = 1;
+        bc.from = 1;
+        bc.to = 2;
+        h.society.as_mut().unwrap().routes = vec![ab, bc];
+        c.site_faith.fill(0);
+        c.household_faith.fill(0);
+        for a in &mut c.agents {
+            a.knowledge.clear();
+            a.studies.clear();
+            a.knowledge_sources.clear();
+            a.last_learning_exposure = None;
+        }
+        let teacher = c.site_people(h, 0)[0] as usize;
+        let student = c.site_people(h, 1)[0] as usize;
+        let distant = c.site_people(h, 2)[0] as usize;
+        c.agents[teacher].knowledge.insert(4);
+        c.agents[student].studies.insert(
+            4,
+            Study {
+                progress: 0.99,
+                source: None,
+            },
+        );
+        c.year(h);
+        assert!(c.agents[student].knowledge.contains(&4));
+        assert!(!c.agents[distant].studies.contains_key(&4));
+        assert!(!c.agents[distant].knowledge.contains(&4));
+        h.month = 24;
+        c.year(h);
+        assert!(c.agents[distant].studies[&4].progress > 0.);
+    }
+
+    #[test]
     #[ignore = "requires a hardware GPU"]
     fn flood_closure_blocks_new_contact_but_not_completed_delivery_evidence() {
         let mut g = world();
@@ -373,11 +443,15 @@ mod tests {
         open_h.society.as_mut().unwrap().routes[route.id as usize].flood_months = 0;
         let mut open = c.clone();
         open.year(&mut open_h);
-        assert!(open.agents[student as usize].knowledge.contains(&4));
+        assert!(!open.agents[student as usize].knowledge.contains(&4));
+        assert!(open.agents[student as usize].studies[&4].progress > 0.);
         assert!(open_h
             .events
             .iter()
-            .any(|e| e.kind == "knowledge_contact" && e.site == Some(route.to)));
+            .any(|e| e.kind == "knowledge_contact_progress" && e.site == Some(route.to)));
+        let prior = open.agents[student as usize].studies[&4].progress;
+        open.year(&mut open_h);
+        assert_eq!(open.agents[student as usize].studies[&4].progress, prior);
         // A witnessed arrival before the closure remains real historical contact.
         let mut delivered_h = h.clone();
         delivered_h.event(
@@ -389,11 +463,12 @@ mod tests {
         let arrival = delivered_h.events.last().unwrap().id;
         let mut delivered = c.clone();
         delivered.year(&mut delivered_h);
-        assert!(delivered.agents[student as usize].knowledge.contains(&4));
+        assert!(!delivered.agents[student as usize].knowledge.contains(&4));
+        assert!(delivered.agents[student as usize].studies[&4].progress > 0.);
         assert!(delivered_h
             .events
             .iter()
-            .any(|e| e.kind == "knowledge_contact"
+            .any(|e| e.kind == "knowledge_contact_progress"
                 && e.site == Some(route.to)
                 && e.causes.contains(&arrival)));
         // Evidence outside the one-year contact window cannot bypass current closure.
@@ -454,7 +529,8 @@ mod tests {
         closed_h.society.as_mut().unwrap().routes[route.id as usize].flood_months = 0;
         closed_h.month = 24;
         closed.year(&mut closed_h);
-        assert!(closed.agents[student as usize].knowledge.contains(&4));
+        assert!(!closed.agents[student as usize].knowledge.contains(&4));
+        assert!(closed.agents[student as usize].studies[&4].progress > 0.);
     }
     #[test]
     #[ignore = "requires a hardware GPU"]
@@ -1019,6 +1095,11 @@ mod tests {
         c.traditions[majority as usize].sacred_site = site;
         c.traditions[faith as usize].sacred_site = destination;
         assert_eq!(c.resident_tradition(h, site, actor), Some(faith));
+        let teacher = c.site_people(h, destination)[0] as usize;
+        c.agents[teacher].knowledge = BTreeSet::from([11]);
+        c.agents[actor as usize].knowledge.remove(&11);
+        c.agents[actor as usize].studies.remove(&11);
+        c.agents[actor as usize].last_learning_exposure = None;
         let affiliations = c.household_faith.clone();
         assert!(!c.pilgrimage(h, site, actor, 0.));
         let food_before = h.sites[site as usize].stocks.stock[1];
@@ -1029,6 +1110,10 @@ mod tests {
         assert_eq!(h.sites[site as usize].economy.goods[7], offerings_before);
         h.society.as_mut().unwrap().routes[route.id as usize].flood_months = 0;
         assert!(c.pilgrimage(h, site, actor, 1.));
+        assert!(!c.agents[actor as usize].knowledge.contains(&11));
+        assert!(c.agents[actor as usize].studies[&11].progress > 0.);
+        assert!(c.agents[actor as usize].studies[&11].source.is_some());
+
         assert_eq!(c.site_faith[site as usize], majority);
         assert_eq!(c.household_faith, affiliations);
         assert!(h.events.iter().any(|e| e.kind == "pilgrimage_returned"

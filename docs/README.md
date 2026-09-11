@@ -29,6 +29,7 @@ transfer population authority or choose a resource-sharing policy.
 - [Work execution and settlement boundaries](work-execution-boundaries.md)
 - [Explicit service allocation policies](service-allocation.md)
 - [Research and cultural work reconciliation](learning-resolution.md)
+- [Partial learning through contact and pilgrimage](informal-learning.md)
 - [Aggregate projections, individual resolution and reconciliation](resolution-framework.md)
 - [Known-person participation, travel and work](individual-participation.md)
 - [Resident rosters and relocation passengers](resident-rosters.md)

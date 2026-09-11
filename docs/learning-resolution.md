@@ -48,8 +48,9 @@ and the latest month's receipts. Both modes execute the same actions.
 
 These are conditional work expectations, not independent predictions of knowledge,
 beliefs or future productivity. Only demography currently has replayable
-same-input aggregate/individual outcome snapshots. Research and culture do not
-yet replay alternative participant assignments, compare learning channels, or
+same-input aggregate/individual outcome snapshots. [Contact and pilgrimage](informal-learning.md) now share partial learning progress.
+Research and culture receipts do not yet replay alternative participant assignments,
+compare knowledge outcomes between channels, or
 resolve competition for individual teachers simultaneously.
 
 For sharing rules see [service allocation](service-allocation.md). For dated

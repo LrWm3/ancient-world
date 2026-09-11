@@ -196,6 +196,9 @@ pub struct Agent {
     pub studies: BTreeMap<u32, Study>,
     #[serde(default)]
     pub instruction_work: f32,
+    /// One informal learning exposure per month, shared by contact and pilgrimage.
+    #[serde(default)]
+    pub last_learning_exposure: Option<u32>,
     #[serde(default)]
     pub last_campaign: Option<u64>,
     pub relations: BTreeMap<u32, f32>,
@@ -597,6 +600,7 @@ impl Culture {
                 knowledge_sources: BTreeMap::new(),
                 studies: BTreeMap::new(),
                 instruction_work: 0.,
+                last_learning_exposure: None,
                 last_campaign: None,
                 actions: 0,
             });
@@ -1872,6 +1876,12 @@ impl Culture {
         routes.dedup();
         let religious_routes = routes.clone();
         let mut counted = BTreeSet::new();
+        // Transmission reads completed knowledge at the opening of this pass.
+        let opening_knowledge: Vec<_> = self
+            .agents
+            .iter()
+            .map(|a| (a.knowledge.clone(), a.knowledge_sources.clone()))
+            .collect();
         for (from, to) in routes {
             if self.site_people(h, from).is_empty() || self.site_people(h, to).is_empty() {
                 continue;
@@ -1890,15 +1900,20 @@ impl Culture {
             let teachers = self.site_people(h, from);
             let students = self.site_people(h, to);
             if let (Some(&teacher), Some(&student)) = (teachers.first(), students.first()) {
-                if let Some(topic) = self.agents[teacher as usize]
-                    .knowledge
+                if let Some(topic) = opening_knowledge[teacher as usize]
+                    .0
                     .difference(&self.agents[student as usize].knowledge)
                     .next()
                     .copied()
                 {
-                    self.agents[student as usize].knowledge.insert(topic);
+                    let Some((completed, progress, previous)) =
+                        self.agents[student as usize].observe_topic(topic, h.month, 0.025)
+                    else {
+                        continue;
+                    };
                     for n in &mut self.institutions {
-                        if n.site == from
+                        if completed
+                            && n.site == from
                             && n.active
                             && n.kind == InstitutionKind::Scholarly
                             && n.members.len() < 24
@@ -1909,7 +1924,7 @@ impl Culture {
                     }
                     self.log(
                         h,
-                        "knowledge_contact",
+                        if completed { "knowledge_contact" } else { "knowledge_contact_progress" },
                         to,
                         Some(student),
                         None,
@@ -1919,20 +1934,22 @@ impl Culture {
                             .or_else(|| deliveries.get(&(to, from)))
                             .copied(),
                         format!(
-                            "Learned {} through contact with {}",
-                            TOPICS[topic as usize], h.sites[from as usize].name
+                            "Contact with {} contributed to studying {}; progress {:.0}%, practical access {}",
+                            h.sites[from as usize].name, TOPICS[topic as usize], progress * 100.,
+                            if completed { "acquired" } else { "not yet acquired" }
                         ),
                     );
                     let event = h.events.last_mut().unwrap();
                     event.subjects.push(("person".into(), teacher));
-                    if let Some(&cause) =
-                        self.agents[teacher as usize].knowledge_sources.get(&topic)
-                    {
+                    if let Some(&cause) = opening_knowledge[teacher as usize].1.get(&topic) {
                         event.causes.push(cause);
                     }
-                    self.agents[student as usize]
-                        .knowledge_sources
-                        .insert(topic, event.id);
+                    if let Some(previous) = previous {
+                        if !event.causes.contains(&previous) {
+                            event.causes.push(previous);
+                        }
+                    }
+                    self.agents[student as usize].study_source(topic, event.id, completed);
                 }
             }
         }

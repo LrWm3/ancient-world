@@ -62,8 +62,9 @@ Each paid lesson records progress and links to its source and prior lesson.
 Completion grants the topic and makes the completion event its provenance. Partial
 progress does not count as a holder or unlock recipes. The read-only culture report
 exposes unfinished study counts and instruction work. Previously acquired knowledge
-is not revoked. Other routes such as founding instruction, trade contact and
-pilgrimage retain their existing transmission rules; this is not yet a universal
+is not revoked. Trade contact and pilgrimage now share partial progress through
+[bounded informal exposure](informal-learning.md). Founding instruction retains
+its separate rules; this is not yet a universal
 model of all learning or forgetting.
 
 ## Controlled evidence

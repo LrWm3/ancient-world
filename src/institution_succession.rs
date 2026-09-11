@@ -221,6 +221,7 @@ mod tests {
                 knowledge_sources: Default::default(),
                 studies: Default::default(),
                 instruction_work: 0.,
+                last_learning_exposure: None,
                 last_campaign: None,
                 relations: Default::default(),
                 actions: 0,
