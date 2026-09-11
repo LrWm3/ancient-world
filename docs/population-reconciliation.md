@@ -155,3 +155,10 @@ never modify population stock. Legacy birth/succession compatibility remains exp
 
 This is a shared admission rule, not a complete census or a new demographic model.
 See [admission and regression verification](resident-admission-verification.md).
+
+## Explicit roster follow-up
+
+New relocation journeys now carry named passenger manifests, and an opt-in resident
+observation baseline identifies all available whole residents without increasing
+population. See [resident rosters](resident-rosters.md) for compatibility, age-band
+constraints and the remaining cohort-authority gap.

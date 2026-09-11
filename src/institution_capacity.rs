@@ -741,6 +741,7 @@ mod tests {
             .relocation
             .journeys
             .push(crate::relocation::Journey {
+                roster: None,
                 household: hh,
                 from: 0,
                 to: 1,

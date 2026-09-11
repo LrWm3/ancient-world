@@ -216,8 +216,21 @@ impl History {
             return (duty.household, Presence::Military(duty.army));
         }
         if let Some((society, hh)) = self.society.as_ref().zip(household) {
-            if society.relocation.away(hh) {
-                return (household, Presence::Traveling(hh));
+            if let Some(journey) = society
+                .relocation
+                .journeys
+                .iter()
+                .find(|j| j.household == hh)
+            {
+                if journey
+                    .roster
+                    .as_ref()
+                    .is_none_or(|r| r.passengers.iter().any(|p| p.person == person))
+                {
+                    return (household, Presence::Traveling(hh));
+                }
+            } else if society.relocation.lost_households.contains(&hh) {
+                return (household, Presence::Unknown);
             }
             if let Some(hh) = society.households.get(hh as usize) {
                 return (

@@ -10,6 +10,9 @@ use serde_json::json;
 use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 #[derive(Parser)]
 struct Args {
+    /// Identify all whole residents at the initial boundary; does not replace cohort demography.
+    #[arg(long)]
+    resident_baseline: bool,
     #[arg(long)]
     legacy_participation: bool,
     #[arg(long)]
@@ -73,6 +76,12 @@ fn main() -> Result<()> {
         g.enable_expeditions()?;
         g.enable_discoveries()?;
         g.enable_living_history()?;
+        if args.resident_baseline {
+            g.civilizations
+                .as_mut()
+                .unwrap()
+                .identify_resident_baseline()?;
+        }
         let mut samples = vec![];
         let mut changes = BTreeMap::<String, u64>::new();
         let mut actions = BTreeMap::<String, u64>::new();
@@ -135,7 +144,7 @@ fn main() -> Result<()> {
         std::fs::write(
             &args.output,
             serde_json::to_vec_pretty(
-                &json!({"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows}),
+                &json!({"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows}),
             )?,
         )?;
     }

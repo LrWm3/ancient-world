@@ -42,8 +42,22 @@ pub struct Pressure {
     pub observed_months: u32,
     pub last_departure: u32,
 }
+/// Explicit identities within the cohort payload. None on Journey preserves old archives.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Passenger {
+    pub person: u32,
+    /// Cohort at embarkation; travel does not run the settlement aging kernel.
+    pub band: usize,
+}
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct TravelRoster {
+    pub passengers: Vec<Passenger>,
+    pub death_carry: [f32; 3],
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Journey {
+    #[serde(default)]
+    pub roster: Option<TravelRoster>,
     pub household: u32,
     pub from: u32,
     pub to: u32,
@@ -111,6 +125,7 @@ impl RelocationState {
                 "invalid relief appeal"
             );
         }
+        let mut passengers = std::collections::BTreeSet::new();
         let mut households = self.lost_households.clone();
         for p in &self.sites {
             ensure!(
@@ -121,6 +136,45 @@ impl RelocationState {
             );
         }
         for j in &self.journeys {
+            if let Some(roster) = &j.roster {
+                ensure!(
+                    roster
+                        .death_carry
+                        .iter()
+                        .all(|c| c.is_finite() && (0. ..1.).contains(c)),
+                    "invalid travel mortality carry"
+                );
+                for band in 0..3 {
+                    let living = roster
+                        .passengers
+                        .iter()
+                        .filter(|e| {
+                            e.band == band
+                                && h.people
+                                    .get(e.person as usize)
+                                    .is_some_and(|p| p.died.is_none())
+                        })
+                        .count();
+                    ensure!(
+                        living as f32 <= j.cohorts[band].ceil(),
+                        "passenger count exceeds traveling age cohort"
+                    );
+                }
+                for entry in &roster.passengers {
+                    ensure!(
+                        entry.band < 3
+                            && passengers.insert(entry.person)
+                            && h.people.get(entry.person as usize).is_some_and(|p| {
+                                crate::population_registry::age_band(j.departed, p.born)
+                                    == Some(entry.band)
+                                    && p.died.is_none_or(|month| month >= j.departed)
+                            })
+                            && h.person_presence(entry.person).0 == Some(j.household)
+                            && !h.person_on_service(entry.person),
+                        "invalid relocation passenger"
+                    );
+                }
+            }
             ensure!(
                 (j.from as usize) < h.sites.len()
                     && (j.to as usize) < h.sites.len()
@@ -214,6 +268,14 @@ impl History {
                 origin.stocks.people[1] += dead;
                 origin.demography.health[2] += dead;
             }
+            self.reconcile_travel_deaths(
+                &mut j,
+                if eaten + 0.001 < need {
+                    0.08 * (1. - eaten / need.max(0.001))
+                } else {
+                    0.
+                },
+            );
             if j.population() < 0.01 {
                 self.society
                     .as_mut()
@@ -268,6 +330,51 @@ impl History {
                 continue;
             }
             self.finish_relocation(j);
+        }
+    }
+    fn reconcile_travel_deaths(&mut self, j: &mut Journey, loss: f32) {
+        let extinct = j.population() < 0.01;
+        let Some(roster) = &mut j.roster else {
+            return;
+        };
+        let mut deaths = Vec::new();
+        for band in 0..3 {
+            let alive: Vec<_> = roster
+                .passengers
+                .iter()
+                .filter(|e| e.band == band && self.people[e.person as usize].died.is_none())
+                .map(|e| e.person)
+                .collect();
+            let before = j.cohorts[band] / (1. - loss).max(1e-6);
+            let lost = (before - j.cohorts[band]).max(0.);
+            let coverage = (alive.len() as f32 / before.max(1e-6)).min(1.);
+            let target = roster.death_carry[band] + lost * coverage;
+            let count = if extinct {
+                alive.len()
+            } else {
+                (target.floor() as usize).min(alive.len())
+            };
+            roster.death_carry[band] = if extinct { 0. } else { target.fract() };
+            // Stable identity order; these are assignments of already-counted losses,
+            // not another population mortality debit.
+            for id in alive.into_iter().take(count) {
+                self.people[id as usize].died = Some(self.month);
+                let account = &mut self.society.as_mut().unwrap().households[j.household as usize];
+                if account.head == id {
+                    account.vacant_since.get_or_insert(self.month);
+                }
+                deaths.push(id);
+            }
+        }
+        if !deaths.is_empty() {
+            let credit = &mut self.sites[j.from as usize].demography.health[2];
+            *credit = (*credit - deaths.len() as f32).max(0.);
+            self.relocation_event("relocation_passenger_deaths", j, format!("{} recorded passengers died during provision shortage; population losses were already recorded in travel cohorts", deaths.len()));
+            self.events
+                .last_mut()
+                .unwrap()
+                .subjects
+                .extend(deaths.into_iter().map(|id| ("person".into(), id)));
         }
     }
     fn relocation_event(&mut self, kind: &str, j: &Journey, detail: String) {
@@ -526,12 +633,41 @@ impl History {
             };
             let seek_help = society.relocation.witnessed_relief && household.id % 3 != 0;
             let reserve_months = if seek_help { 1 } else { 3 };
+            let roster = self.household_resident_roster(household.id);
+            let mut known = [0.; 3];
+            for &id in &roster {
+                if let Some(band) =
+                    crate::population_registry::age_band(self.month, self.people[id as usize].born)
+                {
+                    known[band] += 1.;
+                }
+            }
             let pop = (s.stocks.stock[0] / homes.len() as f32)
                 .clamp(2., 8.)
                 .min(s.stocks.stock[0] * 0.25);
+            let pop = pop.max(roster.len() as f32);
+            let reconciliation = &self.population_reconciliation().sites[from];
+            if pop < 1.
+                || pop > s.stocks.stock[0] * 0.75
+                || (0..3).any(|b| known[b] > s.demography.ages[b])
+            {
+                continue;
+            }
+            // Anonymous passengers may only use space not occupied by people
+            // belonging to another ownership account.
+            let free: [f32; 3] = std::array::from_fn(|b| {
+                (s.demography.ages[b] - reconciliation.known[b] as f32).max(0.)
+            });
+            let total_free: f32 = free.iter().sum();
+            // The anonymous target is optional: a fully named group can travel
+            // on its own instead of being blocked by nonexistent extra passengers.
+            let extra = (pop - roster.len() as f32).max(0.).min(total_free);
+            let pop = roster.len() as f32 + extra;
             if pop < 1. {
                 continue;
             }
+            let cohorts: [f32; 3] =
+                std::array::from_fn(|b| known[b] + extra * free[b] / total_free.max(1e-10));
             let mut best = None;
             for r in &society.routes {
                 let to = if r.from as usize == from {
@@ -601,8 +737,6 @@ impl History {
                 let id = household.id;
                 let share = household.share as f32;
                 let source = &mut self.sites[from];
-                let fraction = pop / source.stocks.stock[0];
-                let cohorts = std::array::from_fn(|k| source.demography.ages[k] * fraction);
                 let people: f32 = cohorts.iter().sum();
                 let food = people * 18. * (months + reserve_months) as f32;
                 let cash = source.economy.finance[0] * share;
@@ -643,6 +777,20 @@ impl History {
                 let society = self.society.as_mut().unwrap();
                 society.relocation.sites[from].last_departure = self.month;
                 society.relocation.journeys.push(Journey {
+                    roster: Some(TravelRoster {
+                        passengers: roster
+                            .into_iter()
+                            .map(|person| Passenger {
+                                person,
+                                band: crate::population_registry::age_band(
+                                    self.month,
+                                    self.people[person as usize].born,
+                                )
+                                .unwrap(),
+                            })
+                            .collect(),
+                        death_carry: [0.; 3],
+                    }),
                     household: id,
                     from: from as u32,
                     to,
@@ -778,6 +926,74 @@ mod tests {
         assert_eq!(h.household_relocations().unwrap().journeys.len(), 1);
         let j = h.household_relocations().unwrap().journeys[0].clone();
         assert_eq!((j.from, j.to), (r.from, r.to));
+        let manifest = j.roster.as_ref().unwrap();
+        assert!(!manifest.passengers.is_empty());
+        for passenger in &manifest.passengers {
+            assert_eq!(
+                h.person_presence(passenger.person).1,
+                crate::participation::Presence::Traveling(j.household)
+            );
+        }
+        for band in 0..3 {
+            assert!(
+                manifest
+                    .passengers
+                    .iter()
+                    .filter(|p| p.band == band)
+                    .count() as f32
+                    <= j.cohorts[band]
+            );
+        }
+        let mut malformed = h.clone();
+        let roster = malformed.society.as_mut().unwrap().relocation.journeys[0]
+            .roster
+            .as_mut()
+            .unwrap();
+        roster.passengers.push(roster.passengers[0].clone());
+        assert!(malformed
+            .household_relocations()
+            .unwrap()
+            .validate(&malformed)
+            .is_err());
+        // A blocked journey exhausts its own food and eventually its real cohort.
+        // Its known passengers must not remain immortal Traveling identities.
+        let mut stranded = h.clone();
+        stranded.society.as_mut().unwrap().routes[j.route as usize].open = false;
+        let mut resumed: History =
+            serde_json::from_value(serde_json::to_value(&stranded).unwrap()).unwrap();
+        let pop_budget = stranded.population_residual();
+        for month in 25..225 {
+            for world in [&mut stranded, &mut resumed] {
+                world.month = month;
+                world.relocation_arrivals();
+            }
+        }
+        assert_eq!(
+            serde_json::to_value(&stranded).unwrap(),
+            serde_json::to_value(&resumed).unwrap()
+        );
+        assert!(stranded
+            .household_relocations()
+            .unwrap()
+            .journeys
+            .is_empty());
+        assert!(manifest
+            .passengers
+            .iter()
+            .all(|p| stranded.people[p.person as usize].died.is_some()));
+        assert!((stranded.population_residual() - pop_budget).abs() < 1e-5);
+        let estate = &stranded.society.as_ref().unwrap().households[j.household as usize];
+        assert_eq!(
+            estate.vacant_since,
+            stranded.people[estate.head as usize].died
+        );
+        assert!(estate.vacant_since.is_some());
+        stranded
+            .household_relocations()
+            .unwrap()
+            .validate(&stranded)
+            .unwrap();
+
         assert_eq!(
             h.events[j.cause as usize].planned_path.as_ref().unwrap(),
             &r.cells

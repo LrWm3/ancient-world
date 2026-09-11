@@ -112,6 +112,115 @@ pub struct PopulationReconciliation {
     pub future_births: Vec<u32>,
 }
 impl History {
+    /// Current explicit membership, derived from stable identities rather than headcount
+    /// estimates. Ownership membership is not evidence of biological kinship.
+    pub fn household_resident_roster(&self, household: u32) -> Vec<u32> {
+        self.people
+            .iter()
+            .filter(|p| {
+                let (home, presence) = self.person_presence(p.id);
+                home == Some(household)
+                    && matches!(presence, Presence::Resident(_))
+                    && age_band(self.month, p.born).is_some()
+            })
+            .map(|p| p.id)
+            .collect()
+    }
+    /// Explicit observation baseline: name all currently unrepresented whole residents.
+    /// Fractional remainders and existing overhang remain visible; no past families,
+    /// births or population are invented. Call at a completed monthly boundary.
+    pub fn identify_resident_baseline(&mut self) -> anyhow::Result<usize> {
+        anyhow::ensure!(
+            self.participation
+                .as_ref()
+                .is_none_or(|p| p.commitments.iter().all(|c| c.settled)),
+            "resident baseline requires settled participation"
+        );
+        let society = self
+            .society
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("resident baseline requires ownership accounts"))?;
+        let politics = self
+            .politics
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("resident baseline requires membership records"))?;
+        let audit = self.population_reconciliation();
+        let mut planned = Vec::new();
+        for row in &audit.sites {
+            if self.sites[row.site as usize].abandoned {
+                continue;
+            }
+            let homes: Vec<_> = society
+                .households
+                .iter()
+                .filter(|h| h.site == row.site && !society.relocation.away(h.id))
+                .map(|h| h.id)
+                .collect();
+            let needed: u64 = row.unrepresented_slots.iter().map(|&n| u64::from(n)).sum();
+            anyhow::ensure!(
+                needed == 0 || !homes.is_empty(),
+                "resident site has no available ownership account"
+            );
+            anyhow::ensure!(
+                planned.len() as u64 + needed + politics.kin.len() as u64 <= 50000,
+                "resident baseline exceeds membership capacity"
+            );
+            let mut sizes: Vec<_> = homes
+                .iter()
+                .map(|&id| self.household_resident_roster(id).len())
+                .collect();
+            for band in 0..3 {
+                for _ in 0..row.unrepresented_slots[band] {
+                    let h = (0..homes.len())
+                        .min_by_key(|&i| (sizes[i], homes[i]))
+                        .unwrap();
+                    sizes[h] += 1;
+                    planned.push((row.site, band, homes[h]));
+                }
+            }
+        }
+        anyhow::ensure!(
+            (self.month as u64) <= i32::MAX as u64,
+            "resident baseline date exceeds identity calendar"
+        );
+        let added = planned.len();
+        for (site, band, household) in planned {
+            let id = self.people.len() as u32;
+            let (start, span) = [(0, 180), (180, 540), (720, 240)][band];
+            let age = start
+                + (crate::expeditions::random(self.seed, id, self.month, 219) * span as f32) as i32;
+            let town = &self.sites[site as usize];
+            self.people.push(crate::civilization::Person {
+                id,
+                name: self.civilizations[town.civilization as usize]
+                    .naming(self.seed)
+                    .person_with(
+                        "person",
+                        id,
+                        &crate::naming::PersonalContext::local(town, self.culture.as_ref()),
+                    ),
+                civilization: town.civilization,
+                born: self.month as i32 - age,
+                died: None,
+                predecessor: None,
+            });
+            self.politics
+                .as_mut()
+                .unwrap()
+                .kin
+                .push(crate::politics::Kinship {
+                    person: id,
+                    household,
+                    parents: [None; 2],
+                });
+        }
+        if added > 0 {
+            self.event("resident_observation_baseline", None, None,
+                format!("Identified {added} previously unnamed whole residents; ages estimated and ownership membership assigned; no reconstructed ancestry or additional population"));
+        }
+        Ok(added)
+    }
+
     /// A polity can retain its last ruler's historical ID during an interregnum.
     pub fn living_civilization_leader(&self, civilization: u32) -> Option<u32> {
         let id = self.civilizations.get(civilization as usize)?.leader;
@@ -456,6 +565,52 @@ mod gpu_tests {
         g.enable_society().unwrap();
         g.enable_politics().unwrap();
         g
+    }
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn whole_resident_baseline_preserves_stocks_and_continuation() {
+        let mut g = world();
+        let h = g.civilizations.as_mut().unwrap();
+        let stocks: Vec<_> = h
+            .sites
+            .iter()
+            .map(|s| serde_json::to_value((s.stocks, s.demography.ages)).unwrap())
+            .collect();
+        let old = h.people.len();
+        let added = h.identify_resident_baseline().unwrap();
+        assert!(added > 0);
+        assert_eq!(h.people.len(), old + added);
+        for row in h.population_reconciliation().sites {
+            assert_eq!(row.unrepresented_slots, [0; 3]);
+            assert_eq!(
+                serde_json::to_value((
+                    h.sites[row.site as usize].stocks,
+                    h.sites[row.site as usize].demography.ages
+                ))
+                .unwrap(),
+                stocks[row.site as usize]
+            );
+        }
+        assert!(h
+            .politics
+            .as_ref()
+            .unwrap()
+            .kin
+            .iter()
+            .filter(|k| k.person as usize >= old)
+            .all(|k| k.parents == [None; 2]));
+        let once = serde_json::to_value(&*h).unwrap();
+        assert_eq!(h.identify_resident_baseline().unwrap(), 0);
+        assert_eq!(once, serde_json::to_value(&*h).unwrap());
+        let baseline = h.clone();
+        g.advance_history(12).unwrap();
+        let completed = serde_json::to_value(&g.civilizations).unwrap();
+        g.civilizations =
+            Some(serde_json::from_value(serde_json::to_value(baseline).unwrap()).unwrap());
+        for _ in 0..12 {
+            g.advance_history(1).unwrap();
+        }
+        assert_eq!(completed, serde_json::to_value(&g.civilizations).unwrap());
     }
     #[test]
     #[ignore = "requires hardware GPU"]
