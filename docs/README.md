@@ -30,6 +30,7 @@ transfer population authority or choose a resource-sharing policy.
 - [Explicit service allocation policies](service-allocation.md)
 - [Research and cultural work reconciliation](learning-resolution.md)
 - [Domestic care comparisons](care-resolution.md)
+- [Neighbor care assistance](neighbor-care.md)
 - [Partial learning through contact and pilgrimage](informal-learning.md)
 - [Aggregate projections, individual resolution and reconciliation](resolution-framework.md)
 - [Known-person participation, travel and work](individual-participation.md)

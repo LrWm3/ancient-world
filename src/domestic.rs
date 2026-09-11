@@ -5,7 +5,12 @@ use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+mod assistance;
 mod resolution;
+
+fn help_enabled() -> bool {
+    true
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Anchor {
@@ -55,6 +60,8 @@ pub struct CarePlan {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Domestic {
+    #[serde(default = "help_enabled")]
+    pub neighbor_help: bool,
     pub enabled: bool,
     pub baseline: Option<u32>,
     pub observed: Option<u32>,
@@ -68,6 +75,7 @@ pub struct Domestic {
 impl Default for Domestic {
     fn default() -> Self {
         Self {
+            neighbor_help: true,
             enabled: true,
             baseline: None,
             observed: None,
@@ -445,6 +453,9 @@ impl History {
                     row.granted = row.carers.iter().map(|(_, c)| *c as f64).sum();
                 }
             }
+            if d.neighbor_help {
+                self.match_neighbor_care(&d, &mut rows);
+            }
             d.care = Some(CarePlan {
                 projections,
                 receipt: WorkReceipt {
@@ -762,6 +773,55 @@ mod tests {
         let comparison = &isolated.resolution.as_ref().unwrap().receipts[0];
         assert!((comparison.metrics[1].expected - 0.12).abs() < 1e-6);
         assert_eq!(comparison.metrics[1].actual, 0.);
+        // A known, generous adult can help the isolated child, using real time.
+        let mut connected = isolated.clone();
+        connected.domestic.as_mut().unwrap().care = None;
+        connected.participation.as_mut().unwrap().month = None;
+        connected.resolution.as_mut().unwrap().receipts.clear();
+        connected.culture.as_mut().unwrap().agents[a as usize].traits[1] = 1.;
+        connected.culture.as_mut().unwrap().agents[a as usize]
+            .relations
+            .insert(child, 1.);
+        let mut no_help = connected.clone();
+        no_help.domestic.as_mut().unwrap().neighbor_help = false;
+        no_help.open_participation();
+        assert_eq!(no_help.domestic_care_for(a), 0.);
+        let mut absent = connected.clone();
+        absent.people[a as usize].died = Some(absent.month);
+        absent.open_participation();
+        assert_eq!(absent.domestic_care_for(a), 0.);
+        let mut scarce = connected.clone();
+        let spare = crate::labor::available(&scarce.sites[0], true, false);
+        scarce.sites[0].economy.external[3] += spare;
+        scarce.open_participation();
+        assert!(scarce.domestic_care_for(a) < 1e-5);
+        let mut resumed_help: History =
+            serde_json::from_value(serde_json::to_value(&connected).unwrap()).unwrap();
+        connected.open_participation();
+        resumed_help.open_participation();
+        assert!((connected.domestic_care_for(a) - 0.1).abs() < 1e-6);
+        assert!(
+            (connected.participation.as_ref().unwrap().residents[&a].capacity - 0.7).abs() < 1e-6
+        );
+        assert!(!connected.domestic_departure_allowed(a, &[]));
+        connected.sites[0].economy.labor[3] = 0.1;
+        resumed_help.sites[0].economy.labor[3] = 0.1;
+        connected.settle_domestic_care();
+        resumed_help.settle_domestic_care();
+        connected.settle_care_resolutions().unwrap();
+        resumed_help.settle_care_resolutions().unwrap();
+        assert_eq!(
+            serde_json::to_value(&connected).unwrap(),
+            serde_json::to_value(&resumed_help).unwrap()
+        );
+        assert!((connected.domestic.as_ref().unwrap().care_completed - 0.1).abs() < 1e-6);
+        connected
+            .domestic
+            .as_ref()
+            .unwrap()
+            .validate(&connected)
+            .unwrap();
+
         let available = crate::labor::available(&h.sites[0], true, false);
         h.open_participation();
         let grant = h
@@ -894,7 +954,7 @@ mod tests {
         h.politics.as_mut().unwrap().kin.push(Kinship {
             person: child,
             household: heads[0].1,
-            parents: [Some(a), Some(b)],
+            parents: [None, None],
         });
         h.politics.as_mut().unwrap().marriages.push(Marriage {
             partners: [a, b],
@@ -903,6 +963,10 @@ mod tests {
             children: 1,
             last_birth: 0,
         });
+        h.culture.as_mut().unwrap().agents[a as usize].traits[1] = 1.;
+        h.culture.as_mut().unwrap().agents[a as usize]
+            .relations
+            .insert(child, 1.);
         h.sync_domestic();
         h.resolution = Some(crate::resolution::ResolutionState {
             compare: true,

@@ -42,12 +42,7 @@ impl CareProjection {
                         pooled,
                         "opening capacity shortfall",
                     ),
-                    (
-                        "reserved_care",
-                        pooled,
-                        granted,
-                        "family matching shortfall",
-                    ),
+                    ("reserved_care", pooled, granted, "care matching shortfall"),
                     ("completed_care", granted, used, "unused care reservation"),
                 ]
                 .into_iter()

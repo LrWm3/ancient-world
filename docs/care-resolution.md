@@ -1,8 +1,8 @@
 # Domestic care comparisons
 
 Domestic care now contributes to `History::resolution_report()` when the resolution
-framework is enabled. It retains actual family assignments and existing labor
-settlement. This is a diagnostic pooled-capacity counterfactual, not a new communal
+framework is enabled. It retains actual care assignments and existing labor
+settlement. This is a diagnostic pooled-capacity counterfactual, not itself a communal
 care service or a second demographic resolver.
 
 ## Opening inputs and actual outcomes
@@ -19,20 +19,21 @@ families. It does not claim they will help, and never reserves that extra work.
 Sparse named populations still describe only observed domestic groups, not every
 anonymous resident of the settlement.
 
-Actual reservation continues to match carers inside their own domestic unit and
-then enforce the settlement labor budget. Production and the existing care
+Actual reservation first matches carers inside their own domestic unit and
+enforces the settlement labor budget. [Neighbor assistance](neighbor-care.md) then
+uses willing, connected adults and the remaining budget. Production and the existing care
 settlement determine completed work. At monthly Close the adapter records:
 
 | Comparison | Expected | Actual |
 | --- | --- | --- |
 | pooled_care | Dependent demand | Pooled feasible care |
-| reserved_care | Pooled feasible care | Family-matched reservation |
+| reserved_care | Pooled feasible care | Family and neighbor reservation |
 | completed_care | Reservation | Completed care |
 
 All values are worker-months. These distinguish opening scarcity, family matching,
 and unused reservations. The second difference can identify an isolated dependent
-household despite spare town capacity. It does not identify a willing neighbor or
-measure the health consequences of unmet care. Those remain future work.
+household despite spare town capacity. Neighbor assistance can close part of that gap when relationships and willingness
+support it. The report does not measure health consequences of unmet care.
 
 ## Boundaries and persistence
 
