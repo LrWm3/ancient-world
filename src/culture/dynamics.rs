@@ -253,7 +253,13 @@ impl Culture {
                     .filter(|m| self.institutions[m.institution as usize].tradition == Some(faith))
                     .max_by_key(|m| m.outcome_event);
                 let compatibility = similarity(&own.themes, &target.themes);
-                let advantage = 0.55 * (prevalence - own_support)
+                let heritage =
+                    crate::heritage_renown::score(self, hh.site, h.month, |r| r.tradition == faith)
+                        - crate::heritage_renown::score(self, hh.site, h.month, |r| {
+                            r.tradition == hh.faith
+                        });
+                let advantage = 0.15 * heritage
+                    + 0.55 * (prevalence - own_support)
                     + 0.25 * kin
                     + 0.25 * trust
                     + 0.25 * service

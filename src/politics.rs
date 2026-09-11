@@ -808,14 +808,19 @@ impl History {
                             && self.people[f.head as usize].civilization == civ as u32
                     })
                     .max_by(|a, b| {
-                        let score = |head: u32| {
+                        let score = |head: u32, site: u32| {
                             self.culture
                                 .as_ref()
                                 .and_then(|c| c.agents.get(head as usize))
                                 .map_or(0., |a| a.traits[0] + a.traits[4] * 0.5 + a.skills[0])
+                                + self.culture.as_ref().map_or(0., |c| {
+                                    0.15 * crate::heritage_renown::score(c, site, self.month, |r| {
+                                        r.people.contains(&head)
+                                    })
+                                })
                         };
-                        score(a.head)
-                            .total_cmp(&score(b.head))
+                        score(a.head, a.site)
+                            .total_cmp(&score(b.head, b.site))
                             .then_with(|| b.id.cmp(&a.id))
                     })
                 {

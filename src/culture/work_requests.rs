@@ -217,7 +217,8 @@ impl Culture {
             requests.push(("teach successor", 0.1));
         }
         if traits[2] > 0.7 && unit(h.seed, actor, h.month, 990) < 0.12 {
-            let dest = self.traditions[faith as usize].sacred_site;
+            let dest = crate::heritage_renown::destination(self, h, site, faith, 0.5)
+                .map_or(self.traditions[faith as usize].sacred_site, |v| v.0);
             if dest != site && !h.sites[dest as usize].abandoned {
                 if let Some(route) = h.society.as_ref().and_then(|soc| {
                     soc.routes.iter().find(|r| {

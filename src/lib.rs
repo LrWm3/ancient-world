@@ -112,3 +112,5 @@ mod individual_demography;
 pub mod resolution;
 
 mod workshop_resolution;
+
+pub mod heritage_renown;

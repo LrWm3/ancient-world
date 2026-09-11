@@ -697,7 +697,14 @@ impl Expeditions {
                         }
                         _ => n.kind == crate::culture::InstitutionKind::Merchant,
                     };
-                    (!preferred, n.id)
+                    let reputation = crate::heritage_renown::score(c, origin, h.month, |r| {
+                        r.institution == Some(n.id)
+                    });
+                    (
+                        !preferred,
+                        std::cmp::Reverse((reputation * 1000.) as u32),
+                        n.id,
+                    )
                 })
                 .map(|n| n.id)
         });

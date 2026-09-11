@@ -27,7 +27,8 @@ impl Culture {
         let Some(faith) = self.resident_tradition(h, site, actor) else {
             return false;
         };
-        let destination = self.traditions[faith as usize].sacred_site;
+        let heritage = crate::heritage_renown::destination(self, h, site, faith, work);
+        let destination = heritage.map_or(self.traditions[faith as usize].sacred_site, |v| v.0);
         if site == destination || h.sites[destination as usize].abandoned {
             return false;
         }
@@ -77,6 +78,16 @@ impl Culture {
             .map(|id| self.patrons[id as usize].arrival_event);
         let departure = self.log(h,"pilgrimage_departed",site,Some(actor),Some(faith),None,cause,
             format!("A pious traveler set out for {}; {travel_work:.3} worker-months reserved, {food:.2} kg provisions consumed outside managed plots",h.sites[destination as usize].name));
+        if let Some((_, artifact)) = heritage {
+            let event = h.events.last_mut().unwrap();
+            event.subjects.push(("artifact".into(), artifact));
+            if let Some(r) = self.heritage_renown.iter().find(|r| r.artifact == artifact) {
+                event.causes.push(r.event);
+            }
+            event
+                .detail
+                .push_str("; visiting a recovered heritage object");
+        }
         let mut learned = None;
         let teacher = self.site_people(h, destination).first().copied();
         if let Some(teacher) = teacher {

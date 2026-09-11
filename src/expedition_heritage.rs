@@ -220,6 +220,47 @@ pub(crate) fn deliver(h: &mut History, e: &mut Expedition) {
         ("artifact".into(), id),
         ("tradition".into(), charter.tradition),
     ]);
+    let received = event.id;
+    event.subjects.push(("civilization".into(), e.sponsor));
+    if let Some(institution) = e.institution {
+        event.subjects.push(("institution".into(), institution));
+    }
+    let people: Vec<_> = e
+        .crew
+        .iter()
+        .filter(|p| p.alive)
+        .filter_map(|p| p.person)
+        .collect();
+    event
+        .subjects
+        .extend(people.iter().map(|&p| ("person".into(), p)));
+    h.culture
+        .as_mut()
+        .unwrap()
+        .heritage_renown
+        .push(crate::heritage_renown::Recognition {
+            artifact: id,
+            expedition: e.id,
+            event: received,
+            month: h.month,
+            origin: e.origin,
+            civilization: e.sponsor,
+            tradition: charter.tradition,
+            institution: e.institution,
+            people,
+            survival: e.crew.iter().filter(|p| p.alive).count() as f32 / e.crew.len().max(1) as f32,
+            witnesses: vec![(e.origin, h.month)],
+        });
+    // Locally witnessed public patronage benefits the government that actually paid.
+    // Private/institutional recoveries cannot be claimed automatically by a ruler.
+    if e.public_funding && e.institution.is_none() && h.controller(e.origin) == e.sponsor {
+        let survival =
+            e.crew.iter().filter(|p| p.alive).count() as f32 / e.crew.len().max(1) as f32;
+        if let Some(g) = &mut h.governance {
+            let a = &mut g.administrations[e.origin as usize];
+            a.loyalty = (a.loyalty + 0.01 * survival).min(1.);
+        }
+    }
 }
 pub(crate) fn validate(h: &History, voyages: &[Expedition]) -> Result<()> {
     let mut cells = std::collections::BTreeSet::new();
@@ -551,5 +592,121 @@ mod tests {
         assert_eq!(count(h), 2);
         assert_eq!(c.accounts.len(), accounts + 2);
         assert_eq!(c.artifacts[id as usize].materials, materials);
+
+        // Deliver a new finite find through the production path. Repeating delivery
+        // must not duplicate either material or reputation.
+        let mut voyage = h.expeditions.as_ref().unwrap().voyages[0].clone();
+        voyage
+            .heritage
+            .as_mut()
+            .unwrap()
+            .find
+            .as_mut()
+            .unwrap()
+            .artifact = None;
+        voyage.crew.push(crate::expeditions::Crew {
+            person: Some(author),
+            identified_from_cohort: false,
+            expertise: None,
+            name: "Witness".into(),
+            role: "interpreter".into(),
+            alive: true,
+        });
+        h.culture = Some(c);
+        let loyalty = h.governance.as_ref().unwrap().administrations[site as usize].loyalty;
+        let mut private = h.clone();
+        let mut private_voyage = voyage.clone();
+        private_voyage.public_funding = false;
+        deliver(&mut private, &mut private_voyage);
+        assert_eq!(
+            private.governance.as_ref().unwrap().administrations[site as usize].loyalty,
+            loyalty
+        );
+        deliver(h, &mut voyage);
+        assert_eq!(
+            h.governance.as_ref().unwrap().administrations[site as usize].loyalty,
+            (loyalty + 0.01).min(1.)
+        );
+        let artifact = voyage
+            .heritage
+            .as_ref()
+            .unwrap()
+            .find
+            .as_ref()
+            .unwrap()
+            .artifact
+            .unwrap();
+        let before = h.economy_residuals();
+        deliver(h, &mut voyage);
+        assert_eq!(before, h.economy_residuals());
+        let mut c = h.culture.take().unwrap();
+        assert_eq!(c.heritage_renown.len(), 1);
+        crate::heritage_renown::validate(&c, h).unwrap();
+        assert!(
+            crate::heritage_renown::score(&c, site, h.month, |r| r.people.contains(&author)) > 0.
+        );
+        // Controlled route chain, independent of planet geography.
+        let middle = (site + 1) % h.sites.len() as u32;
+        let far = (site + 2) % h.sites.len() as u32;
+        h.society.as_mut().unwrap().routes = vec![(site, middle), (middle, far)]
+            .into_iter()
+            .enumerate()
+            .map(|(i, (from, to))| crate::society::Route {
+                id: i as u32,
+                from,
+                to,
+                cells: vec![],
+                cost_km: 100.,
+                open: true,
+                flood_months: 0,
+                road_bricks: 0.,
+                upkeep: None,
+            })
+            .collect();
+        h.month += 1;
+        crate::heritage_renown::spread(h, &mut c);
+        assert!(crate::heritage_renown::score(&c, middle, h.month, |_| true) > 0.);
+        assert_eq!(
+            crate::heritage_renown::score(&c, far, h.month, |_| true),
+            0.
+        );
+        crate::heritage_renown::spread(h, &mut c);
+        assert_eq!(
+            crate::heritage_renown::score(&c, far, h.month, |_| true),
+            0.,
+            "same-month repeat cannot send a second hop"
+        );
+        assert_eq!(
+            crate::heritage_renown::destination(&c, h, middle, 0, 1.),
+            Some((site, artifact))
+        );
+        c.artifacts[artifact as usize].lost = true;
+        assert_eq!(
+            crate::heritage_renown::destination(&c, h, middle, 0, 1.),
+            None
+        );
+        assert!(
+            crate::heritage_renown::score(&c, middle, h.month, |r| r.people.contains(&author)) > 0.,
+            "loss of custody does not erase the witnessed achievement"
+        );
+        c.artifacts[artifact as usize].lost = false;
+        h.society.as_mut().unwrap().routes[1].open = false;
+        h.month += 1;
+        crate::heritage_renown::spread(h, &mut c);
+        assert_eq!(
+            crate::heritage_renown::score(&c, far, h.month, |_| true),
+            0.
+        );
+        let mut resumed: crate::culture::Culture =
+            serde_json::from_slice(&serde_json::to_vec(&c).unwrap()).unwrap();
+        h.society.as_mut().unwrap().routes[1].open = true;
+        h.month += 1;
+        crate::heritage_renown::spread(h, &mut c);
+        crate::heritage_renown::spread(h, &mut resumed);
+        assert_eq!(
+            serde_json::to_value(&c).unwrap(),
+            serde_json::to_value(&resumed).unwrap()
+        );
+        assert!(crate::heritage_renown::score(&c, far, h.month, |_| true) > 0.);
     }
 }

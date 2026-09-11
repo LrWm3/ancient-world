@@ -256,6 +256,8 @@ pub struct Artifact {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Culture {
+    #[serde(default)]
+    pub heritage_renown: Vec<crate::heritage_renown::Recognition>,
     /// Restrict personal identity guards to the planned participants. False is a calibration control.
     #[serde(default = "focused_work_default")]
     pub focused_work_identities: bool,
@@ -295,6 +297,7 @@ fn focused_work_default() -> bool {
 impl Culture {
     fn empty(month: u32, legacy: bool, options: FoundingOptions) -> Result<Self> {
         Ok(Self {
+            heritage_renown: vec![],
             focused_work_identities: true,
             work_plans: vec![],
             work_receipt: Default::default(),
@@ -322,6 +325,7 @@ impl Culture {
         })
     }
     pub fn validate(&self, h: &History, cells: &[Cell]) -> Result<()> {
+        crate::heritage_renown::validate(self, h)?;
         self.options.validate()?;
         self.catalog.validate()?;
         ensure!(
@@ -1015,6 +1019,7 @@ impl History {
         if self.participation.is_some() && self.month.is_multiple_of(3) {
             c.validate_work_plans(self);
         }
+        crate::heritage_renown::spread(self, &mut c);
         let spent_before = c.labor_spent;
         c.institutional_succession(self);
         if self.month % 3 == 0
