@@ -132,6 +132,16 @@ impl crate::civilization::History {
                         && i < self.sites.len()
                         && p.month <= self.month
                         && p.actor.is_none_or(|a| (a as usize) < self.people.len())
+                        && p.participants.as_ref().is_none_or(|ids| ids
+                            .iter()
+                            .all(|&id| (id as usize) < self.people.len()))
+                        && p.institution_lesson
+                            .is_none_or(|(topic, teacher, institution)| topic < 12
+                                && (teacher as usize) < self.people.len()
+                                && (institution as usize) < c.institutions.len())
+                        && [p.granted, p.cancelled_work]
+                            .iter()
+                            .all(|v| v.is_finite() && *v >= 0.)
                         && p.actions.iter().all(|(_, w)| w.is_finite() && *w >= 0.),
                     "invalid cultural work plan"
                 );

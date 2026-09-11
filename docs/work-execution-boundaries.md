@@ -29,8 +29,9 @@ This is aggregate endpoint staffing, not individual vessel assignment.
 ## Reserved cultural work
 
 Reserve captures a dated site bundle containing the chosen actor, requested action
-kinds, a teaching successor/topic, and the identities of local people, their
-knowledge and affiliations, institutions and eligible local objects. Execution
+kinds, a teaching successor/topic, the selected institutional teacher, and the
+identities and knowledge of those named participants. Institutions and eligible
+local objects retain their own identity guards. Execution
 checks those identities again. Death, departure, changed custody or local knowledge
 can cancel the bundle rather than retargeting its grant to a replacement person or
 object. The next regular reservation can reconsider the site.
@@ -39,8 +40,8 @@ Only requested action kinds can spend the grant. Execution retains live checks o
 materials, cash, travel and eligibility. Goods are not escrowed. Requests compete
 for a shared site grant and the existing execution priorities, rather than receiving
 separate guaranteed material allocations. A bundle may therefore complete partly
-or not at all. Identity invalidation is deliberately conservative: a changed local
-roster may defer otherwise feasible work. This is not a claim that every social
+or not at all. The calibrated default ignores unrelated residents' changes;
+changed institutions or objects can still conservatively defer a bundle. This is not a claim that every social
 operation has an immutable individual action record.
 
 ## Reserved research
@@ -97,4 +98,5 @@ more than its grant must fail validation.
 Small fixtures deliberately isolate timing and resource accounting. These checks
 do not establish long-run balance, arbitrary mid-month recovery, or cross-GPU
 identity. The conservative cultural cancellation rule can defer feasible work;
-its longer-term frequency remains a calibration question.
+its measured longer-term frequency is reported in
+[cultural work calibration](cultural-work-calibration.md).

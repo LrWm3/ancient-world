@@ -9,13 +9,32 @@ pub struct WorkPlan {
     pub site: u32,
     pub actor: Option<u32>,
     pub successor: Option<(u32, u32, u32)>,
+    #[serde(default)]
+    pub participants: Option<Vec<u32>>,
+    #[serde(default)]
+    pub institution_lesson: Option<(u32, u32, u32)>,
     pub actions: Vec<(String, f32)>,
     pub identities: serde_json::Value,
     pub cancellation: Option<String>,
+    #[serde(default)]
+    pub granted: f32,
+    #[serde(default)]
+    pub cancelled_work: f32,
+    #[serde(default)]
+    pub changed_identities: Vec<String>,
 }
 impl Culture {
-    fn work_identities(&self, h: &History, site: u32) -> serde_json::Value {
-        let people = self.site_people(h, site);
+    fn work_identities(
+        &self,
+        h: &History,
+        site: u32,
+        participants: Option<&[u32]>,
+    ) -> serde_json::Value {
+        let people: Vec<_> = self
+            .site_people(h, site)
+            .into_iter()
+            .filter(|p| participants.is_none_or(|ids| ids.contains(p)))
+            .collect();
         serde_json::json!({
             "people": people.iter().map(|&p| (p, self.agents.get(p as usize).map(|a| &a.knowledge))).collect::<Vec<_>>(),
             "recoveries": self.local_recoveries.iter().filter(|r| r.site == site).collect::<Vec<_>>(),
@@ -29,8 +48,23 @@ impl Culture {
         let actor = people
             .get((h.month / 3 + site) as usize % people.len().max(1))
             .copied();
+        let successor = actor.and_then(|a| self.succession_lesson(h, site, a));
+        let institution_lesson = actor.and_then(|a| self.institutional_lesson(h, site, a));
+        let participants = self.focused_work_identities.then(|| {
+            let mut ids: Vec<_> = actor
+                .into_iter()
+                .chain(successor.map(|s| s.0))
+                .chain(institution_lesson.map(|l| l.1))
+                .collect();
+            ids.sort_unstable();
+            ids.dedup();
+            ids
+        });
+        let identities = self.work_identities(h, site, participants.as_deref());
         WorkPlan {
-            successor: actor.and_then(|a| self.succession_lesson(h, site, a)),
+            successor,
+            institution_lesson,
+            participants,
             month: h.month,
             site,
             actor: people
@@ -41,24 +75,38 @@ impl Culture {
                 .into_iter()
                 .map(|(a, w)| (a.into(), w))
                 .collect(),
-            identities: self.work_identities(h, site),
+            identities,
             cancellation: None,
+            granted: 0.,
+            cancelled_work: 0.,
+            changed_identities: vec![],
         }
     }
     pub(super) fn validate_work_plans(&mut self, h: &History) {
         for i in 0..self.work_plans.len() {
             let p = &self.work_plans[i];
+            if p.cancellation.is_some() {
+                continue;
+            }
+            let current = self.work_identities(h, p.site, p.participants.as_deref());
+            let changed: Vec<String> = ["people", "faith", "objects", "institutions", "recoveries"]
+                .into_iter()
+                .filter(|key| p.identities[*key] != current[*key])
+                .map(str::to_owned)
+                .collect();
             let reason = if p.month != h.month {
                 Some("stale month")
             } else if h.sites[p.site as usize].abandoned {
                 Some("site abandoned")
-            } else if p.identities != self.work_identities(h, p.site) {
+            } else if !changed.is_empty() {
                 Some("actor or named target changed")
             } else {
                 None
             };
             if let Some(reason) = reason {
-                self.labor_budget[p.site as usize] = 0.;
+                self.work_plans[i].cancelled_work = self.labor_budget[p.site as usize];
+                self.work_plans[i].changed_identities = changed;
+                self.labor_budget[self.work_plans[i].site as usize] = 0.;
                 self.work_plans[i].cancellation = Some(reason.into());
             }
         }
@@ -431,6 +479,55 @@ mod tests {
         assert_eq!(migration.labor_budget[0], 0.);
         assert!(migration.work_plans[0].cancellation.is_some());
         h.society.as_mut().unwrap().households[household].site = 0;
+
+        // Unrelated residents do not revoke a named actor's feasible craft plan.
+        h.sites[0].economy.goods[7] = 1.;
+        let mut focused = original.clone();
+        focused.focused_work_identities = true;
+        focused.work_plans = h.sites.iter().map(|s| focused.plan_work(h, s.id)).collect();
+        focused.labor_budget = vec![0.2; h.sites.len()];
+        let bystander = *people.iter().find(|&&p| p != actor).unwrap();
+        let mut strict = focused.clone();
+        strict.focused_work_identities = false;
+        strict.work_plans = h.sites.iter().map(|s| strict.plan_work(h, s.id)).collect();
+        focused.agents[bystander as usize].knowledge.insert(1);
+        strict.agents[bystander as usize].knowledge.insert(1);
+        focused.validate_work_plans(h);
+        strict.validate_work_plans(h);
+        assert!(focused.work_plans[0].cancellation.is_none());
+        assert!(strict.work_plans[0].cancellation.is_some());
+        assert_eq!(strict.work_plans[0].cancelled_work, 0.2);
+        strict.validate_work_plans(h);
+        assert_eq!(
+            strict.work_plans[0].cancelled_work, 0.2,
+            "a second guard must not erase the original loss"
+        );
+        let restored: Culture =
+            serde_json::from_slice(&serde_json::to_vec(&focused).unwrap()).unwrap();
+        assert_eq!(
+            serde_json::to_value(&restored.work_plans).unwrap(),
+            serde_json::to_value(&focused.work_plans).unwrap()
+        );
+
+        let before_work = focused.labor_spent;
+        focused.decisions(h);
+        assert!((focused.labor_spent - before_work - 0.2).abs() < 1e-6);
+        assert_eq!(focused.artifacts.len(), 1);
+        assert_eq!(h.sites[0].economy.goods[7], 0.);
+
+        // A real teaching recipient remains part of the guard.
+        let mut teaching = original.clone();
+        teaching.agents[actor as usize].knowledge.insert(0);
+        teaching.work_plans = h
+            .sites
+            .iter()
+            .map(|s| teaching.plan_work(h, s.id))
+            .collect();
+        teaching.labor_budget = vec![0.2; h.sites.len()];
+        let student = teaching.work_plans[0].successor.unwrap().0;
+        teaching.agents[student as usize].knowledge.insert(0);
+        teaching.validate_work_plans(h);
+        assert!(teaching.work_plans[0].cancellation.is_some());
 
         let mut stale = original.clone();
         stale.work_plans = h.sites.iter().map(|s| stale.plan_work(h, s.id)).collect();

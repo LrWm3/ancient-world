@@ -247,6 +247,9 @@ pub struct Artifact {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Culture {
+    /// Restrict personal identity guards to the planned participants. False is a calibration control.
+    #[serde(default = "focused_work_default")]
+    pub focused_work_identities: bool,
     #[serde(default)]
     pub work_plans: Vec<work_requests::WorkPlan>,
     #[serde(default)]
@@ -277,9 +280,13 @@ pub struct Culture {
     #[serde(default)]
     pub roles: Vec<crate::agriculture::RoleState>,
 }
+fn focused_work_default() -> bool {
+    true
+}
 impl Culture {
     fn empty(month: u32, legacy: bool, options: FoundingOptions) -> Result<Self> {
         Ok(Self {
+            focused_work_identities: true,
             work_plans: vec![],
             work_receipt: Default::default(),
             religious_dynamics: Default::default(),
@@ -1226,7 +1233,25 @@ impl Culture {
                     .map(|topic| (topic, Some(a.id), a.events.last().copied()))
             });
             let institution_lesson = if readable.is_none() {
-                self.institutional_lesson(h, site, actor)
+                self.work_plans
+                    .get(si)
+                    .map_or_else(
+                        || self.institutional_lesson(h, site, actor),
+                        |p| p.institution_lesson,
+                    )
+                    .filter(|(topic, teacher, institution)| {
+                        people.contains(teacher)
+                            && self.agents[*teacher as usize].knowledge.contains(topic)
+                            && self
+                                .institutions
+                                .get(*institution as usize)
+                                .is_some_and(|n| {
+                                    n.operational()
+                                        && n.site == site
+                                        && n.members.contains(&actor)
+                                        && n.members.contains(teacher)
+                                })
+                    })
             } else {
                 None
             };
@@ -1984,6 +2009,7 @@ impl History {
                     let available =
                         crate::labor::available(s, self.society.is_some(), self.living.is_some());
                     let work = available.min(requests[i]);
+                    c.work_plans[i].granted = work;
                     c.work_receipt.granted += work as f64;
                     c.labor_budget[i] = work;
                     s.economy.external[3] += work;
