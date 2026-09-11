@@ -5,6 +5,8 @@ use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+mod resolution;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Anchor {
     Person(u32),
@@ -44,6 +46,9 @@ pub struct CareRow {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CarePlan {
+    /// Opening comparison inputs; older archives have no reconstructed forecast.
+    #[serde(default)]
+    pub projections: Vec<resolution::CareProjection>,
     pub receipt: WorkReceipt,
     pub reserved: bool,
     pub rows: Vec<CareRow>,
@@ -401,7 +406,26 @@ impl History {
                     carers,
                 });
             }
+            let mut projections = vec![];
             for s in &self.sites {
+                if self.resolution.is_some() {
+                    projections.push(resolution::CareProjection {
+                        site: s.id,
+                        demand: rows.iter().filter(|r| r.site == s.id).map(|r| r.need).sum(),
+                        pooled_capacity: d
+                            .units
+                            .iter()
+                            .filter(|u| u.ended.is_none() && u.home == s.id)
+                            .flat_map(|u| &u.members)
+                            .map(|p| capacity(self, *p, s.id) as f64)
+                            .sum(),
+                        labor: crate::labor::available(
+                            s,
+                            self.society.is_some(),
+                            self.living.is_some(),
+                        ) as f64,
+                    });
+                }
                 let requested: f64 = rows
                     .iter()
                     .filter(|r| r.site == s.id)
@@ -422,6 +446,7 @@ impl History {
                 }
             }
             d.care = Some(CarePlan {
+                projections,
                 receipt: WorkReceipt {
                     month: self.month,
                     requested: rows.iter().map(|r| r.need).sum(),
@@ -531,6 +556,33 @@ impl Domestic {
         }
         if let Some(c) = &self.care {
             c.receipt.validate()?;
+            let mut projected_sites = BTreeSet::new();
+            for p in &c.projections {
+                ensure!(
+                    (p.site as usize) < h.sites.len()
+                        && projected_sites.insert(p.site)
+                        && [p.demand, p.pooled_capacity, p.labor]
+                            .iter()
+                            .all(|v| v.is_finite() && *v >= 0.),
+                    "invalid care projection"
+                );
+                ensure!(
+                    (p.demand
+                        - c.rows
+                            .iter()
+                            .filter(|r| r.site == p.site)
+                            .map(|r| r.need)
+                            .sum::<f64>())
+                    .abs()
+                        <= 1e-4,
+                    "care projection demand mismatch"
+                );
+            }
+            ensure!(
+                c.projections.is_empty()
+                    || c.rows.iter().all(|r| projected_sites.contains(&r.site)),
+                "incomplete care projections"
+            );
             ensure!(c.receipt.month <= h.month, "future domestic care");
             let mut carers = BTreeSet::new();
             for r in &c.rows {
@@ -688,6 +740,28 @@ mod tests {
         let mut disabled = h.clone();
         disabled.set_domestic_households(false).unwrap();
         disabled.open_participation();
+        h.resolution = Some(crate::resolution::ResolutionState {
+            compare: true,
+            ..Default::default()
+        });
+        // Same residents and labor, but no family connection to the child.
+        // The pooled counterfactual sees spare adults; actual care must not invent a guardian.
+        let mut isolated = h.clone();
+        isolated
+            .politics
+            .as_mut()
+            .unwrap()
+            .kin
+            .iter_mut()
+            .find(|k| k.person == child)
+            .unwrap()
+            .parents = [None, None];
+        isolated.open_participation();
+        isolated.settle_domestic_care();
+        isolated.settle_care_resolutions().unwrap();
+        let comparison = &isolated.resolution.as_ref().unwrap().receipts[0];
+        assert!((comparison.metrics[1].expected - 0.12).abs() < 1e-6);
+        assert_eq!(comparison.metrics[1].actual, 0.);
         let available = crate::labor::available(&h.sites[0], true, false);
         h.open_participation();
         let grant = h
@@ -718,6 +792,18 @@ mod tests {
             serde_json::from_value(serde_json::to_value(&*h).unwrap()).unwrap();
         h.settle_domestic_care();
         resumed.settle_domestic_care();
+        let physical = serde_json::to_value(&*h).unwrap();
+        h.settle_care_resolutions().unwrap();
+        resumed.settle_care_resolutions().unwrap();
+        let r = &h.resolution.as_ref().unwrap().receipts[0];
+        assert_eq!(r.boundary.system, crate::resolution::System::DomesticCare);
+        assert!((r.metrics[2].actual - 0.06).abs() < 1e-6);
+        let mut measured = serde_json::to_value(&*h).unwrap();
+        measured["resolution"] = physical["resolution"].clone();
+        assert_eq!(measured, physical);
+        let before = serde_json::to_value(&*h).unwrap();
+        assert!(h.settle_care_resolutions().is_err());
+        assert_eq!(before, serde_json::to_value(&*h).unwrap());
         assert_eq!(
             serde_json::to_value(&*h).unwrap(),
             serde_json::to_value(resumed).unwrap()
@@ -818,6 +904,10 @@ mod tests {
             last_birth: 0,
         });
         h.sync_domestic();
+        h.resolution = Some(crate::resolution::ResolutionState {
+            compare: true,
+            ..Default::default()
+        });
         g.advance_history(3).unwrap();
         let path = std::path::PathBuf::from(format!(
             "output/domestic-checkpoint-{}.world",

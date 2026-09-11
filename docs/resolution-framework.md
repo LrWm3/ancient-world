@@ -3,7 +3,9 @@
 The first implementation keeps the five monthly phases and introduces a shared
 boundary, reconciliation receipt and commit guard for **demography and enterprise
 staffing**. [Research and cultural work](learning-resolution.md) now also record
-guarded work comparisons from their existing execution plans. Other history
+guarded work comparisons from their existing execution plans.
+[Domestic care](care-resolution.md) compares pooled resident capacity with family
+assignments and completed work. Other history
 systems retain their existing contracts. This is a toy
 model comparison facility, not a claim of empirical calibration.
 
