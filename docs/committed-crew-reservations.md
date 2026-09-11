@@ -39,13 +39,12 @@ staffing claim. Full idle-fleet staffing is removed.
 This prioritizes **existing commitments**, not hypothetical trade profitability.
 It does not infer urgency from a commodity name or automatically give speculative
 food orders priority. Existing voyages can still be underfunded if workers, cash or
-hulls are unavailable; they cannot mint crew labor. The existing cargo travel and
-arrival rules remain unchanged: this patch does not newly delay cargo for crew
-shortfalls or reconstruct vessel-by-vessel voyages.
+hulls are unavailable; they cannot mint crew labor. The subsequent
+[execution-boundary change](work-execution-boundaries.md) makes staffing shortfalls
+delay aggregate sea cargo progress; individual vessel voyages remain abstract.
 
-Culture and research still request aggregate allowances; enterprise demand still
-uses observed workshop activity. A common action-request allocator and completed
-versus paid work calibration remain separate follow-ups. Relief journeys that do
+Culture and research now retain dated feasible-work plans; enterprise demand still
+uses observed workshop activity. There is no universal allocation auction. Relief journeys that do
 not use a sea-lane cargo record are not counted as maritime commitments.
 
 ## Verification

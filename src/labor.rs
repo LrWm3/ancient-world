@@ -66,3 +66,115 @@ mod tests {
         assert_eq!(remaining(sick, 2.5, [3., 4., 0., 0.]), 2.5);
     }
 }
+
+/// Last boundary's work ledger. Released work expires; it is not backdated into production.
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub struct WorkReceipt {
+    pub month: u32,
+    pub requested: f64,
+    pub granted: f64,
+    pub used: f64,
+    pub released: f64,
+    pub settled: bool,
+}
+impl WorkReceipt {
+    pub(crate) fn validate(&self) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            [self.requested, self.granted, self.used, self.released]
+                .iter()
+                .all(|v| v.is_finite() && *v >= 0.)
+                && self.granted <= self.requested + 1e-5
+                && self.used <= self.granted + 1e-5
+                && (!self.settled || (self.granted - self.used - self.released).abs() <= 1e-5),
+            "invalid work reservation receipt: {self:?}"
+        );
+        Ok(())
+    }
+    pub(crate) fn settle(&mut self, used: f64) {
+        self.used = used;
+        self.released = (self.granted - used).max(0.);
+        self.settled = true;
+    }
+}
+
+impl crate::civilization::History {
+    pub fn service_work_report(&self) -> serde_json::Value {
+        serde_json::json!({
+            "month": self.month,
+            "culture": self.culture.as_ref().map(|c| (&c.work_receipt, &c.work_plans)),
+            "research": self.expeditions.as_ref().and_then(|x| x.discoveries.as_ref()).map(|d| d.workshops.iter().map(|w| (w.site, &w.work_plan)).collect::<Vec<_>>()),
+            "workshops": self.enterprises.as_ref().map(|e| e.firms.iter().map(|f| serde_json::json!({"firm":f.id,"site":f.site,"requested":f.last_requested_work,"funded":f.last_funded_work,"completed":f.last_completed_work,"idle_paid":(f.last_funded_work-f.last_completed_work).max(0.)})).collect::<Vec<_>>()),
+            "crews": self.shipping.as_ref().map(|s| s.ports.iter().map(|p| (p.site, p.fleet.as_ref().map(|f| serde_json::json!({"requested":f.requested_work,"funded":f.work(),"unfunded":(f.requested_work-f.work()).max(0.)})))).collect::<Vec<_>>()),
+            "note": "Crew work is paid employment, including standby; unused late grants expire rather than rerunning production."
+        })
+    }
+    pub(crate) fn validate_service_work(&self) -> anyhow::Result<()> {
+        for cargo in &self.cargo {
+            anyhow::ensure!(
+                cargo
+                    .voyage_clock
+                    .as_ref()
+                    .is_none_or(|c| c.month <= self.month
+                        && c.remaining.is_finite()
+                        && c.remaining >= 0.),
+                "invalid cargo travel clock"
+            );
+        }
+        if let Some(c) = &self.culture {
+            c.work_receipt.validate()?;
+            anyhow::ensure!(
+                c.work_receipt.month <= self.month,
+                "future cultural work receipt"
+            );
+            for (i, p) in c.work_plans.iter().enumerate() {
+                anyhow::ensure!(
+                    p.site as usize == i
+                        && i < self.sites.len()
+                        && p.month <= self.month
+                        && p.actor.is_none_or(|a| (a as usize) < self.people.len())
+                        && p.actions.iter().all(|(_, w)| w.is_finite() && *w >= 0.),
+                    "invalid cultural work plan"
+                );
+            }
+        }
+        if let Some(d) = self
+            .expeditions
+            .as_ref()
+            .and_then(|x| x.discoveries.as_ref())
+        {
+            for w in &d.workshops {
+                if let Some(p) = &w.work_plan {
+                    p.receipt.validate()?;
+                    anyhow::ensure!(
+                        p.receipt.month <= self.month
+                            && p.teachers
+                                .iter()
+                                .all(|t| t.is_none_or(|id| (id as usize) < self.sites.len()))
+                            && p.processing_kg.iter().all(|v| v.is_finite() && *v >= 0.),
+                        "invalid research work plan"
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod receipt_tests {
+    use super::*;
+    #[test]
+    fn unused_work_expires_and_overspending_is_rejected() {
+        let mut r = WorkReceipt {
+            month: 12,
+            requested: 0.5,
+            granted: 0.2,
+            ..Default::default()
+        };
+        r.settle(0.05);
+        r.validate().unwrap();
+        assert!((r.released - 0.15).abs() < 1e-9);
+        r.settle(0.3);
+        assert!(r.validate().is_err());
+    }
+}

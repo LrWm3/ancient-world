@@ -35,7 +35,8 @@ reserve 0.5 worker-months.
 
 `History::cultural_work_requests()` exposes a read-only JSON view of the current
 requests and capped total. This is a current-state query, not an archived statement
-of earlier decisions or completed work. No archive schema changes were necessary.
+of earlier decisions or completed work. Archived work plans and receipts are
+exposed separately by `service_work_report()`.
 
 Personal decisions previously counted the entire available grant as completed work
 before checking whether any action succeeded. They now charge explicit successful
@@ -50,8 +51,8 @@ existing explicit charges.
 These are demand estimates, not a universal action-proposal/commit engine. They do
 not lock goods or people before production. Earlier consumers can exhaust supplies,
 actors can leave, and routes can close before execution. Execution can therefore
-complete less work than reserved. Candidate activities can also become possible
-later in the month, and still compete within the site's grant.
+complete less work than reserved. Only requested activity kinds may execute; new
+opportunities wait for another reservation unless already included in the bundle.
 
 Institutional petition hearings remain a bounded candidate request; their existing
 political scoring decides whether a petition is ultimately justified. Curation
@@ -62,8 +63,8 @@ duplication. There is no claim that every forecast worker is subsequently produc
 Maintenance and special-action priority inside culture remain as before. A small
 combined grant can fall below an action's minimum work and go unused. Further
 per-action arbitration would be needed to eliminate those cases rather than merely
-avoiding blanket allowances. Resource holds and persistent action identities are
-outside this increment.
+avoiding blanket allowances. Resource escrow remains outside this increment;
+dated actor and target continuity is covered by the follow-up below.
 
 ## Tests
 
@@ -104,3 +105,12 @@ excluding compilation; seed 17/81/256 batch and checkpoint continuations remaine
 exact. Strict Clippy, formatting and repository artifact checks passed. This is
 verification of requests, work accounting and continuation, not long-run balance
 calibration. Generated logs stay in ignored `output/`.
+
+## Execution continuity follow-up
+
+The forecast now persists as a dated plan: research pins teachers and processing
+caps, while culture retains its actor, candidate action kinds and named-target
+snapshot. Resource availability remains live. Changed identities can cancel work;
+new opportunities cannot silently introduce unrequested action kinds. Latest-month
+work receipts expose grants, consumption and expiry. See
+[Work execution boundaries](work-execution-boundaries.md) for precise scope.

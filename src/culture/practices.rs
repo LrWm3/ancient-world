@@ -1048,6 +1048,7 @@ mod tests {
         });
         d.collected = [10., 0.];
         d.workshops.push(crate::discoveries::Workshop {
+            work_plan: None,
             site: 0,
             enabled: true,
             processed: [0.; 2],

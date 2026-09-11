@@ -671,6 +671,8 @@ impl Economy {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Cargo {
+    #[serde(default)]
+    pub voyage_clock: Option<crate::vessels::VoyageClock>,
     /// Distinct inland service sites reserved at dispatch, including intermediate towns.
     /// Empty in older archives: retain the original endpoint/port footprint.
     #[serde(default)]
@@ -1002,6 +1004,7 @@ impl History {
     }
 
     pub(crate) fn market_arrivals(&mut self) -> Vec<[[f64; 2]; GOODS]> {
+        self.advance_cargo_voyages();
         self.expire_export_contracts();
         let mut observed = vec![[[0_f64; 2]; GOODS]; self.sites.len()];
         let arrivals = std::mem::take(&mut self.cargo);
@@ -1477,6 +1480,10 @@ impl History {
                     }
                     let arrives = self.month + (distance / 150.).ceil().max(1.) as u32;
                     self.cargo.push(Cargo {
+                        voyage_clock: sea_lane.map(|_| crate::vessels::VoyageClock {
+                            month: self.month,
+                            remaining: (arrives - self.month) as f32,
+                        }),
                         freight_stops: freight_sites.clone(),
                         sea_lane,
                         weather_delay_months: 0,
@@ -1561,6 +1568,7 @@ mod freight_tests {
         // Cheaper supplier's carriers are already away with goods removed at dispatch.
         h.sites[1].economy.goods[3] -= 10.;
         h.cargo.push(Cargo {
+            voyage_clock: None,
             freight_stops: vec![],
             from: 1,
             to: 3,
@@ -1721,6 +1729,7 @@ mod freight_tests {
         let mut blocked = h.clone();
         blocked.sites[1].economy.goods[4] -= 3.;
         blocked.cargo.push(Cargo {
+            voyage_clock: None,
             freight_stops: vec![],
             from: 1,
             to: 4,

@@ -340,6 +340,7 @@ mod tests {
     }
     fn evidence(h: &mut History) {
         let delivery = Cargo {
+            voyage_clock: None,
             freight_stops: vec![],
             from: 0,
             to: 1,

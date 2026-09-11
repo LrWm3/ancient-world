@@ -30,6 +30,8 @@ pub struct Firm {
     pub written_off: f64,
     pub completed_work: f64,
     pub paid_work: f64,
+    #[serde(default)]
+    pub last_requested_work: f64,
     pub last_funded_work: f64,
     pub last_completed_work: f64,
     pub wage_rate: f64,
@@ -297,6 +299,7 @@ impl History {
                         written_off: 0.,
                         completed_work: 0.,
                         paid_work: 0.,
+                        last_requested_work: 0.,
                         last_funded_work: 0.,
                         last_completed_work: 0.,
                         wage_rate: rate,
@@ -338,6 +341,7 @@ impl History {
                 .min(capacities[site]);
             desired_work[f.id as usize] = desired;
             requests[site][family] = desired.min(f.cash / f.wage_rate);
+            f.last_requested_work = requests[site][family];
             town.economy.enterprise_lease[family] = units as f32;
         }
         let grants = requests

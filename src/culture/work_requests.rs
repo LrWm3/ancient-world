@@ -1,7 +1,73 @@
 //! Opening-boundary requests, not guarantees: execution rechecks live people,
 //! routes and materials. Nothing is spent or named while forecasting work.
 use super::*;
+/// A site's bounded bundle: actor and eligible named targets are fixed at Reserve.
+/// Material stocks remain live and must pass the action's execution checks.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WorkPlan {
+    pub month: u32,
+    pub site: u32,
+    pub actor: Option<u32>,
+    pub successor: Option<(u32, u32, u32)>,
+    pub actions: Vec<(String, f32)>,
+    pub identities: serde_json::Value,
+    pub cancellation: Option<String>,
+}
 impl Culture {
+    fn work_identities(&self, h: &History, site: u32) -> serde_json::Value {
+        let people = self.site_people(h, site);
+        serde_json::json!({
+            "people": people.iter().map(|&p| (p, self.agents.get(p as usize).map(|a| &a.knowledge))).collect::<Vec<_>>(),
+            "recoveries": self.local_recoveries.iter().filter(|r| r.site == site).collect::<Vec<_>>(),
+            "faith": people.iter().map(|&p| self.resident_tradition(h, site, p)).collect::<Vec<_>>(),
+            "objects": self.artifacts.iter().filter(|a| a.site.is_some_and(|s| h.sites[s as usize].cell == h.sites[site as usize].cell)).map(|a| (a.id, a.site, a.custodian, &a.owner, a.topic, a.lost, a.destroyed)).collect::<Vec<_>>(),
+            "institutions": self.institutions.iter().filter(|n| n.site == site).map(|n| (n.id, n.leader, &n.members, &n.knowledge, n.active)).collect::<Vec<_>>(),
+        })
+    }
+    pub(super) fn plan_work(&self, h: &History, site: u32) -> WorkPlan {
+        let people = self.site_people(h, site);
+        let actor = people
+            .get((h.month / 3 + site) as usize % people.len().max(1))
+            .copied();
+        WorkPlan {
+            successor: actor.and_then(|a| self.succession_lesson(h, site, a)),
+            month: h.month,
+            site,
+            actor: people
+                .get((h.month / 3 + site) as usize % people.len().max(1))
+                .copied(),
+            actions: self
+                .work_requests(h, site)
+                .into_iter()
+                .map(|(a, w)| (a.into(), w))
+                .collect(),
+            identities: self.work_identities(h, site),
+            cancellation: None,
+        }
+    }
+    pub(super) fn validate_work_plans(&mut self, h: &History) {
+        for i in 0..self.work_plans.len() {
+            let p = &self.work_plans[i];
+            let reason = if p.month != h.month {
+                Some("stale month")
+            } else if h.sites[p.site as usize].abandoned {
+                Some("site abandoned")
+            } else if p.identities != self.work_identities(h, p.site) {
+                Some("actor or named target changed")
+            } else {
+                None
+            };
+            if let Some(reason) = reason {
+                self.labor_budget[p.site as usize] = 0.;
+                self.work_plans[i].cancellation = Some(reason.into());
+            }
+        }
+    }
+    pub(crate) fn work_allowed(&self, site: u32, action: &str) -> bool {
+        self.work_plans
+            .get(site as usize)
+            .is_none_or(|p| p.cancellation.is_none() && p.actions.iter().any(|(a, _)| a == action))
+    }
     pub(super) fn work_requests(&self, h: &History, site: u32) -> Vec<(&'static str, f32)> {
         let s = &h.sites[site as usize];
         if s.abandoned || !h.month.is_multiple_of(3) {
@@ -321,5 +387,60 @@ mod tests {
         );
         h.sites[0].economy.goods[7] = 0.;
         assert!(c.work_requests(h, 0).is_empty());
+
+        // A requested craft cannot spend vanished materials or switch to newly learned teaching.
+        h.sites[0].economy.goods[7] = 1.;
+        c.work_plans.clear();
+        let original = c.clone();
+        c.work_plans = h.sites.iter().map(|s| c.plan_work(h, s.id)).collect();
+        c.labor_budget = vec![0.2; h.sites.len()];
+        h.sites[0].economy.goods[7] = 0.;
+        let before = c.labor_spent;
+        c.decisions(h);
+        assert_eq!(c.labor_spent, before);
+        assert!(c.artifacts.is_empty());
+        assert!(!c.work_allowed(0, "teach successor"));
+
+        // Named actor loss cancels the bundle rather than selecting the next resident.
+        let mut death = original.clone();
+        death.work_plans = h.sites.iter().map(|s| death.plan_work(h, s.id)).collect();
+        death.labor_budget = vec![0.2; h.sites.len()];
+        let old_death = h.people[actor as usize].died;
+        h.people[actor as usize].died = Some(h.month);
+        death.validate_work_plans(h);
+        assert_eq!(death.labor_budget[0], 0.);
+        assert!(death.work_plans[0].cancellation.is_some());
+        h.people[actor as usize].died = old_death;
+        let mut migration = original.clone();
+        migration.work_plans = h
+            .sites
+            .iter()
+            .map(|s| migration.plan_work(h, s.id))
+            .collect();
+        migration.labor_budget = vec![0.2; h.sites.len()];
+        let household = h
+            .society
+            .as_ref()
+            .unwrap()
+            .households
+            .iter()
+            .position(|hh| hh.site == 0 && hh.head == actor)
+            .unwrap();
+        h.society.as_mut().unwrap().households[household].site = 1;
+        migration.validate_work_plans(h);
+        assert_eq!(migration.labor_budget[0], 0.);
+        assert!(migration.work_plans[0].cancellation.is_some());
+        h.society.as_mut().unwrap().households[household].site = 0;
+
+        let mut stale = original.clone();
+        stale.work_plans = h.sites.iter().map(|s| stale.plan_work(h, s.id)).collect();
+        stale.labor_budget = vec![0.2; h.sites.len()];
+        h.month += 3;
+        stale.validate_work_plans(h);
+        assert_eq!(stale.labor_budget[0], 0.);
+        assert_eq!(
+            stale.work_plans[0].cancellation.as_deref(),
+            Some("stale month")
+        );
     }
 }

@@ -248,6 +248,10 @@ pub struct Artifact {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Culture {
     #[serde(default)]
+    pub work_plans: Vec<work_requests::WorkPlan>,
+    #[serde(default)]
+    pub work_receipt: crate::labor::WorkReceipt,
+    #[serde(default)]
     pub religious_dynamics: dynamics::ReligiousDynamics,
     #[serde(default)]
     pub local_recoveries: Vec<crate::local_places::RecoveryRequest>,
@@ -276,6 +280,8 @@ pub struct Culture {
 impl Culture {
     fn empty(month: u32, legacy: bool, options: FoundingOptions) -> Result<Self> {
         Ok(Self {
+            work_plans: vec![],
+            work_receipt: Default::default(),
             religious_dynamics: Default::default(),
             local_recoveries: vec![],
             religious_relief: Default::default(),
@@ -979,11 +985,17 @@ impl History {
             }
         }
         c.institutional_succession(self);
-        if self.month % 3 == 0 {
+        if self.month % 3 == 0
+            && (c.work_plans.is_empty()
+                || (c.work_receipt.month == self.month && !c.work_receipt.settled))
+        {
+            c.validate_work_plans(self);
+            let spent_before = c.labor_spent;
             c.maintain_institutions(self);
             crate::expedition_heritage::study(self, &mut c);
             crate::civic_petitions::propose(self, &mut c);
             c.decisions(self);
+            c.work_receipt.settle(c.labor_spent - spent_before);
         }
         if self.month % 12 == 0 {
             c.year(self);
@@ -1152,6 +1164,7 @@ impl Culture {
         None
     }
     fn decisions(&mut self, h: &mut History) {
+        self.validate_work_plans(h);
         let recovered_sites = self.process_local_recoveries(h);
         for si in 0..h.sites.len() {
             if h.sites[si].abandoned || recovered_sites.contains(&(si as u32)) {
@@ -1162,7 +1175,14 @@ impl Culture {
             if people.is_empty() {
                 continue;
             }
-            let actor = people[((h.month / 3 + site) as usize) % people.len()];
+            let actor = self
+                .work_plans
+                .get(si)
+                .and_then(|p| p.actor)
+                .unwrap_or(people[((h.month / 3 + site) as usize) % people.len()]);
+            if !people.contains(&actor) {
+                continue;
+            }
             let traits = self.agents[actor as usize].traits;
             let Some(faith) = self.resident_tradition(h, site, actor) else {
                 continue;
@@ -1171,18 +1191,24 @@ impl Culture {
             if labor < 0.1 {
                 continue;
             }
-            if traits[2] > 0.7
+            if self.work_allowed(site, "pilgrimage")
+                && traits[2] > 0.7
                 && unit(h.seed, actor, h.month, 990) < 0.12
                 && self.pilgrimage(h, site, actor, labor)
             {
                 // Travel work is charged by the successful pilgrimage itself.
                 continue;
             }
-            if self.recover_object(h, site, actor) {
+            if self.work_allowed(site, "local object recovery")
+                && self.recover_object(h, site, actor)
+            {
                 self.labor_spent += 0.1;
                 continue;
             }
-            if traits[3] > 0.6 && self.curate_specimen(h, site, actor) {
+            if self.work_allowed(site, "specimen curation")
+                && traits[3] > 0.6
+                && self.curate_specimen(h, site, actor)
+            {
                 self.labor_spent += 0.1;
                 continue;
             }
@@ -1216,7 +1242,9 @@ impl Culture {
                     )
                 })
             });
-            if let Some((topic, object, cause)) = lesson.filter(|_| remaining_work >= 0.1) {
+            if let Some((topic, object, cause)) =
+                lesson.filter(|_| remaining_work >= 0.1 && self.work_allowed(site, "study"))
+            {
                 remaining_work -= 0.1;
                 self.agents[actor as usize].knowledge.insert(topic);
                 let channel = institution_lesson.map_or_else(
@@ -1251,10 +1279,17 @@ impl Culture {
                     .knowledge_sources
                     .insert(topic, event.id);
             }
-            if let Some((student, topic, holders)) = self
-                .succession_lesson(h, site, actor)
-                .filter(|_| remaining_work >= 0.1)
-            {
+            let successor = self
+                .work_plans
+                .get(si)
+                .map_or_else(|| self.succession_lesson(h, site, actor), |p| p.successor);
+            if let Some((student, topic, holders)) = successor.filter(|(student, topic, _)| {
+                remaining_work >= 0.1
+                    && self.work_allowed(site, "teach successor")
+                    && people.contains(student)
+                    && self.agents[actor as usize].knowledge.contains(topic)
+                    && !self.agents[*student as usize].knowledge.contains(topic)
+            }) {
                 remaining_work -= 0.1;
                 self.agents[student as usize].knowledge.insert(topic);
                 self.agents[actor as usize].relations.insert(student, 0.5);
@@ -1285,7 +1320,8 @@ impl Culture {
                     .knowledge_sources
                     .insert(topic, event.id);
             }
-            if remaining_work >= 0.1
+            if self.work_allowed(site, "office campaign")
+                && remaining_work >= 0.1
                 && traits[0] > 0.75
                 && unit(h.seed, actor, h.month, 993) < 0.08
                 && self.seek_office(h, site, actor)
@@ -1294,9 +1330,11 @@ impl Culture {
                 continue;
             }
             // Small donations are transfers, not extra community income.
+            let administration = self.work_allowed(site, "institution administration");
             for ni in 0..self.institutions.len() {
                 let inst = &mut self.institutions[ni];
-                if inst.site != site
+                if !administration
+                    || inst.site != site
                     || !inst.active
                     || remaining_work < 0.05
                     || h.sites[si].economy.finance[0] <= 0.
@@ -1344,7 +1382,8 @@ impl Culture {
                     (h.sites[si].economy.finance[0] as f64 * 0.15).max(0.),
                 )
             });
-            if remaining_work >= 0.2
+            if self.work_allowed(site, "institution founding")
+                && remaining_work >= 0.2
                 && members.len() >= 2
                 && h.sites[si].economy.finance[0] > 500.
                 && (room.is_some()
@@ -1471,7 +1510,7 @@ impl Culture {
                     |f| crate::institution_capacity::MeetingPlace::facility(artifact, f),
                 ));
             }
-            if remaining_work >= 0.05 && traits[1] > 0.6 {
+            if self.work_allowed(site, "charity") && remaining_work >= 0.05 && traits[1] > 0.6 {
                 if let Some(dest) = h.society.as_ref().and_then(|s| {
                     s.routes
                         .iter()
@@ -1507,7 +1546,8 @@ impl Culture {
                     );
                 }
             }
-            let make = remaining_work >= 0.2
+            let make = self.work_allowed(site, "craft object or manuscript")
+                && remaining_work >= 0.2
                 && h.month / 3 % 4 == site % 4
                 && h.sites[si].economy.goods[7] >= 1.
                 && self
@@ -1601,7 +1641,8 @@ impl Culture {
                     lost: false,
                 });
             }
-            if remaining_work >= 0.1
+            if self.work_allowed(site, "ownership dispute")
+                && remaining_work >= 0.1
                 && traits[0] > 0.8
                 && traits[4] < 0.3
                 && unit(h.seed, actor, h.month, 600) < 0.05
@@ -1914,20 +1955,28 @@ impl History {
                     .collect()
             })
             .unwrap_or_default();
+        let plans: Vec<_> = self
+            .sites
+            .iter()
+            .filter(|_| self.month.is_multiple_of(3))
+            .filter_map(|s| self.culture.as_ref().map(|c| c.plan_work(self, s.id)))
+            .collect();
         let requests: Vec<f32> = self
             .sites
             .iter()
             .map(|s| {
-                self.culture.as_ref().map_or(0., |c| {
-                    c.work_requests(self, s.id)
-                        .iter()
-                        .map(|r| r.1)
-                        .sum::<f32>()
-                        .min(0.5)
+                plans.get(s.id as usize).map_or(0., |p| {
+                    p.actions.iter().map(|(_, w)| *w).sum::<f32>().min(0.5)
                 })
             })
             .collect();
         if let Some(c) = &mut self.culture {
+            c.work_plans = plans;
+            c.work_receipt = crate::labor::WorkReceipt {
+                month: self.month,
+                requested: requests.iter().map(|&v| v as f64).sum(),
+                ..Default::default()
+            };
             c.labor_budget = vec![0.; self.sites.len()];
             for (i, s) in self.sites.iter_mut().enumerate() {
                 s.economy.management[3] = knowledge[i] as f32;
@@ -1935,6 +1984,7 @@ impl History {
                     let available =
                         crate::labor::available(s, self.society.is_some(), self.living.is_some());
                     let work = available.min(requests[i]);
+                    c.work_receipt.granted += work as f64;
                     c.labor_budget[i] = work;
                     s.economy.external[3] += work;
                 }

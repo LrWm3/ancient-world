@@ -16,8 +16,17 @@ pub struct Source {
     pub remaining: [f64; 2],
     pub collected: [f64; 2],
 }
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ResearchPlan {
+    pub receipt: crate::labor::WorkReceipt,
+    pub teachers: [Option<u32>; 2],
+    pub processing_kg: [f64; 2],
+    pub cancellation: Option<String>,
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Workshop {
+    #[serde(default)]
+    pub work_plan: Option<ResearchPlan>,
     pub site: u32,
     pub enabled: bool,
     pub processed: [f64; 2],
@@ -331,6 +340,7 @@ impl Discoveries {
             i
         } else {
             self.workshops.push(Workshop {
+                work_plan: None,
                 site: e.origin,
                 enabled: true,
                 processed: [0.; 2],
@@ -369,13 +379,26 @@ impl Discoveries {
                 s.economy.external[k] -= (expired * CNP[0][k]) as f32;
             }
             if s.abandoned || !w.enabled {
+                if let Some(p) = &mut w.work_plan {
+                    p.receipt.settle(0.);
+                    p.cancellation = Some("workshop closed or site abandoned".into());
+                }
                 continue;
             }
             // The GPU has reserved this labor from its normal craft budget for this month.
             let mut labor = (s.economy.external[3].min(s.economy.labor[3]).max(0.)) as f64;
+            if let Some(p) = &w.work_plan {
+                labor = if p.receipt.month == h.month && !p.receipt.settled {
+                    labor.min(p.receipt.granted)
+                } else {
+                    0.
+                };
+            }
+            let before_work = self.worker_months;
             self.worker_months_reserved += labor;
             for (k, name) in NAMES.iter().enumerate() {
-                if h.month.is_multiple_of(12)
+                if w.work_plan.as_ref().is_none_or(|p| p.teachers[k].is_some())
+                    && h.month.is_multiple_of(12)
                     && w.studied[k] < 1.5 - 1e-8
                     && w.learned[k].is_none()
                     && labor >= 0.25
@@ -383,7 +406,10 @@ impl Discoveries {
                     if let Some(teacher) = teachers
                         .iter()
                         .filter(|t| {
-                            t.site != w.site
+                            w.work_plan
+                                .as_ref()
+                                .is_none_or(|p| p.teachers[k] == Some(t.site))
+                                && t.site != w.site
                                 && !h.sites[t.site as usize].abandoned
                                 && (t.studied[k] >= 1.5 - 1e-8 || t.learned[k].is_some())
                                 && h.route_cost(t.site, w.site).is_some()
@@ -417,6 +443,11 @@ impl Discoveries {
                 let limit = processing_limit(w, k, &h.sites[site]);
                 let e = &mut h.sites[site].economy;
                 let kg = w.samples[k]
+                    .min(
+                        w.work_plan
+                            .as_ref()
+                            .map_or(f64::INFINITY, |p| p.processing_kg[k]),
+                    )
                     .min(limit)
                     .min(labor * 0.5)
                     .min(e.goods[3] as f64 / 0.1)
@@ -475,6 +506,17 @@ impl Discoveries {
                     }
                 }
             }
+            if let Some(p) = &mut w.work_plan {
+                if !p.receipt.settled {
+                    if p.receipt.month != h.month {
+                        p.cancellation = Some("stale month".into());
+                    }
+                    p.receipt.settle(self.worker_months - before_work);
+                    if p.receipt.released > 1e-5 && p.cancellation.is_none() {
+                        p.cancellation = Some("planned teacher, supplies or execution labor unavailable; remainder expired".into());
+                    }
+                }
+            }
             let s = &mut h.sites[site];
             if s.demography.health[0] > 0.01 && s.stocks.stock[0] > 0. {
                 let demand = s.stocks.stock[0] as f64 * 0.005;
@@ -503,10 +545,12 @@ impl Discoveries {
 }
 // Read-only feasible work forecast; shared tools, fuel and writing stock are
 // deducted locally so multiple activities cannot each claim the same supplies.
-fn requested_work(h: &History, workshop: &Workshop, teachers: &[Workshop]) -> f32 {
+fn plan_work(h: &History, workshop: &Workshop, teachers: &[Workshop]) -> ResearchPlan {
+    let mut plan = ResearchPlan::default();
+    plan.receipt.month = h.month;
     let site = &h.sites[workshop.site as usize];
     if site.abandoned || !workshop.enabled {
-        return 0.;
+        return plan;
     }
     let budget =
         crate::labor::available(site, h.society.is_some(), h.living.is_some()).min(2.) as f64;
@@ -532,6 +576,16 @@ fn requested_work(h: &History, workshop: &Workshop, teachers: &[Workshop]) -> f3
                     && h.route_cost(t.site, w.site).is_some()
             })
         {
+            plan.teachers[k] = teachers
+                .iter()
+                .filter(|t| {
+                    t.site != w.site
+                        && !h.sites[t.site as usize].abandoned
+                        && (t.studied[k] >= 1.5 - 1e-8 || t.learned[k].is_some())
+                        && h.route_cost(t.site, w.site).is_some()
+                })
+                .map(|t| t.site)
+                .min();
             work += 0.25;
             writing -= 0.05;
             w.learned[k] = Some(0); // Forecast only; no historical discovery is committed.
@@ -541,12 +595,20 @@ fn requested_work(h: &History, workshop: &Workshop, teachers: &[Workshop]) -> f3
             .min(tools / 0.1)
             .min(fuel / 0.2)
             .min((budget - work).max(0.) * 0.5);
+        plan.processing_kg[k] = kg;
         work += kg * 2.;
         tools -= kg * 0.1;
         fuel -= kg * 0.2;
     }
-    work.min(2.) as f32
+    plan.receipt.requested = work.min(2.);
+    plan.receipt.granted = plan.receipt.requested;
+    plan
 }
+#[cfg(test)]
+fn requested_work(h: &History, workshop: &Workshop, teachers: &[Workshop]) -> f32 {
+    plan_work(h, workshop, teachers).receipt.requested as f32
+}
+
 impl History {
     pub(crate) fn prepare_discoveries(&mut self) {
         let requests: Vec<_> = self
@@ -556,15 +618,24 @@ impl History {
             .map(|d| {
                 d.workshops
                     .iter()
-                    .map(|w| (w.site, requested_work(self, w, &d.workshops)))
+                    .map(|w| (w.site, plan_work(self, w, &d.workshops)))
                     .collect()
             })
             .unwrap_or_default();
-        for (site, wanted) in requests {
+        for (site, mut plan) in requests {
             let s = &mut self.sites[site as usize];
-            s.economy.external[3] +=
-                crate::labor::available(s, self.society.is_some(), self.living.is_some())
-                    .min(wanted);
+            let grant = crate::labor::available(s, self.society.is_some(), self.living.is_some())
+                .min(plan.receipt.requested as f32);
+            s.economy.external[3] += grant;
+            plan.receipt.granted = grant as f64;
+            if let Some(w) = self
+                .expeditions
+                .as_mut()
+                .and_then(|x| x.discoveries.as_mut())
+                .and_then(|d| d.workshops.iter_mut().find(|w| w.site == site))
+            {
+                w.work_plan = Some(plan);
+            }
         }
     }
 }
@@ -653,6 +724,7 @@ mod exchange_tests {
             upkeep: None,
         }];
         let workshop = |site| Workshop {
+            work_plan: None,
             site,
             enabled: true,
             processed: [0.; 2],
@@ -732,5 +804,38 @@ mod exchange_tests {
         h.sites[1].economy.goods[3] = 0.001;
         h.sites[1].economy.goods[6] = 1.;
         assert!((requested_work(h, &learner, &[]) - 0.02).abs() < 1e-6);
+        // Both specimen kinds compete for one tool stock, not two independent claims.
+        learner.samples = [4.; 2];
+        let plan = plan_work(h, &learner, &[]);
+        assert!((plan.processing_kg.iter().sum::<f64>() - 0.01).abs() < 1e-8);
+        assert_eq!(plan.processing_kg[1], 0.);
+        learner.work_plan = Some(plan);
+        d.workshops[1] = learner.clone();
+        h.sites[1].economy.goods[3] = 0.; // sold after Reserve
+        h.sites[1].economy.external[3] = 0.02;
+        let before = d.worker_months;
+        d.month(h);
+        assert_eq!(d.worker_months, before);
+        let receipt = &d.workshops[1].work_plan.as_ref().unwrap().receipt;
+        receipt.validate().unwrap();
+        assert_eq!(receipt.used, 0.);
+        assert_eq!(receipt.released, receipt.granted);
+        // New fuel/tools cannot revive an already settled grant in the same month.
+        h.sites[1].economy.goods[3] = 1.;
+        d.month(h);
+        assert_eq!(d.worker_months, before);
+        // A teacher disappearing does not silently substitute another source.
+        learner.samples = [0.; 2];
+        learner.work_plan = None;
+        h.sites[1].economy.goods[good] = 1.;
+        let plan = plan_work(h, &learner, &d.workshops);
+        assert_eq!(plan.teachers[1], Some(0));
+        learner.work_plan = Some(plan);
+        d.workshops[1] = learner;
+        h.sites[1].economy.external[3] = 0.25;
+        h.society.as_mut().unwrap().routes[0].open = false;
+        d.month(h);
+        assert!(d.workshops[1].learned[1].is_none());
+        assert_eq!(d.workshops[1].work_plan.as_ref().unwrap().receipt.used, 0.);
     }
 }

@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Fleet {
+    #[serde(default)]
+    pub requested_work: f32,
     pub vessels: Vec<Vessel>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -15,6 +17,25 @@ pub struct Vessel {
     pub household: Option<u32>,
     pub funded_work: f32,
     pub wages_paid: f64,
+}
+/// Completed travel intervals, persisted independently of the projected arrival date.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct VoyageClock {
+    pub month: u32,
+    pub remaining: f32,
+}
+impl VoyageClock {
+    fn advance(&mut self, month: u32, staffing: f32) {
+        // A funding observation pays for one interval, never an arbitrary time jump.
+        if month == self.month.saturating_add(1) {
+            self.remaining = (self.remaining - staffing.clamp(0., 1.)).max(0.);
+            // f32 payroll transfers may leave a few millionths of an interval unpaid.
+            if self.remaining < 1e-4 {
+                self.remaining = 0.;
+            }
+        }
+        self.month = self.month.max(month);
+    }
 }
 fn funded_work(paid: f64, wage: f64, reserved: f32) -> f32 {
     ((paid / wage) as f32).min(reserved)
@@ -48,6 +69,37 @@ fn committed_port_loads(
     loads
 }
 impl History {
+    /// Opening reads the preceding month's funded crews before reservations reset.
+    pub(crate) fn advance_cargo_voyages(&mut self) {
+        let Some(shipping) = &self.shipping else {
+            return;
+        };
+        let loads = committed_port_loads(shipping, &self.cargo);
+        for cargo in &mut self.cargo {
+            let Some(lane) = cargo
+                .sea_lane
+                .and_then(|id| shipping.lanes.get(id as usize))
+            else {
+                continue;
+            };
+            let staffing = lane.ports.iter().fold(1_f32, |fraction, &id| {
+                let port = &shipping.ports[id as usize];
+                // Archives/configurations without the vessel subsystem retain scheduled travel.
+                let funded = port.fleet.as_ref().map_or(1., |fleet| {
+                    (fleet.capacity() / loads[id as usize].max(0.001)).clamp(0., 1.)
+                });
+                fraction.min(funded)
+            });
+            let clock = cargo.voyage_clock.get_or_insert(VoyageClock {
+                month: self.month.saturating_sub(1),
+                remaining: cargo.arrives.saturating_sub(self.month.saturating_sub(1)) as f32,
+            });
+            clock.advance(self.month, staffing);
+            if clock.remaining > 0. {
+                cargo.arrives = self.month.saturating_add(clock.remaining.ceil() as u32);
+            }
+        }
+    }
     /// Clear completed reservations once, before this month's service claims.
     pub(crate) fn begin_service_reservations(&mut self) {
         for site in &mut self.sites {
@@ -66,6 +118,7 @@ impl History {
         if let Some(shipping) = &mut self.shipping {
             for port in &mut shipping.ports {
                 if let Some(fleet) = &mut port.fleet {
+                    fleet.requested_work = 0.;
                     for vessel in &mut fleet.vessels {
                         vessel.funded_work = 0.;
                         vessel.household = None;
@@ -140,6 +193,7 @@ impl History {
             let s = &mut self.sites[site];
             let target = (loads[port_index] / 1000. + if committed_only { 0. } else { 0.1 })
                 .min(hulls as f32 * 0.25);
+            fleet.requested_work = target;
             let mut work_left = crate::labor::available(s, true, self.living.is_some())
                 .min((target - fleet.work()).max(0.));
             let wage = 18. * s.economy.prices[crate::economy::FOOD].max(0.01) as f64;
@@ -190,6 +244,42 @@ impl History {
 mod tests {
     use super::*;
     #[test]
+    fn travel_uses_completed_intervals_and_survives_resume() {
+        let mut clock = VoyageClock {
+            month: 11,
+            remaining: 2.,
+        };
+        clock.advance(12, 0.);
+        assert_eq!(
+            clock.remaining, 2.,
+            "no crews, including across year boundary"
+        );
+        clock.advance(12, 1.);
+        assert_eq!(
+            clock.remaining, 2.,
+            "same-month hiring cannot advance completed interval twice"
+        );
+        clock.advance(13, 0.5);
+        assert_eq!(clock.remaining, 1.5);
+        let mut restored: VoyageClock =
+            serde_json::from_str(&serde_json::to_string(&clock).unwrap()).unwrap();
+        for month in [14, 15] {
+            clock.advance(month, 0.75);
+            restored.advance(month, 0.75);
+        }
+        assert_eq!(clock.remaining, 0.);
+        assert_eq!(restored.remaining, clock.remaining);
+        let mut skipped = VoyageClock {
+            month: 1,
+            remaining: 4.,
+        };
+        skipped.advance(4, 1.);
+        assert_eq!(
+            skipped.remaining, 4.,
+            "one funding observation cannot fund skipped months"
+        );
+    }
+    #[test]
     fn cargo_claims_use_actual_sea_endpoints() {
         let shipping = crate::shipping::Shipping {
             version: 1,
@@ -226,6 +316,7 @@ mod tests {
             ],
         };
         let cargo = |kg, sea_lane| crate::economy::Cargo {
+            voyage_clock: None,
             freight_stops: vec![],
             from: 0,
             to: 2,
@@ -376,6 +467,7 @@ mod tests {
             });
         let lane = h.shipping.as_ref().unwrap().lanes.len() as u32 - 1;
         h.cargo.push(crate::economy::Cargo {
+            voyage_clock: None,
             freight_stops: vec![],
             from: site as u32,
             to: h.shipping.as_ref().unwrap().ports[1].site,
@@ -427,5 +519,49 @@ mod tests {
         h.prepare_vessels();
         assert!((h.vessel_work(site as u32) - work).abs() < 1e-6);
         assert!((total(h) - paid).abs() < 1e-8);
+
+        // Exercise actual delivery, with both ports sharing the same cargo footprint.
+        h.living = None;
+        h.month = 11;
+        h.cargo[0].voyage_clock = Some(VoyageClock {
+            month: 11,
+            remaining: 1.,
+        });
+        h.cargo[0].arrives = 12;
+        let destination = h.cargo[0].to as usize;
+        let food_before = h.sites[destination].stocks.stock[1];
+        let set_crews = |h: &mut History, work: f32| {
+            for port in &mut h.shipping.as_mut().unwrap().ports[..2] {
+                port.fleet = Some(Fleet {
+                    requested_work: work,
+                    vessels: (0..4)
+                        .map(|id| Vessel {
+                            id,
+                            name: format!("fixture {id}"),
+                            commissioned: 0,
+                            household: None,
+                            funded_work: work / 4.,
+                            wages_paid: 0.,
+                        })
+                        .collect(),
+                });
+            }
+        };
+        set_crews(h, 0.);
+        h.month = 12;
+        h.market_arrivals();
+        assert_eq!(h.cargo.len(), 1);
+        assert_eq!(h.sites[destination].stocks.stock[1], food_before);
+        set_crews(h, 0.4); // half the 800 kg shipment can advance per interval
+        h.market_arrivals(); // repeated opening cannot consume newly funded work
+        assert_eq!(h.cargo[0].voyage_clock.as_ref().unwrap().remaining, 1.);
+        h.month = 13;
+        h.market_arrivals();
+        assert!((h.cargo[0].voyage_clock.as_ref().unwrap().remaining - 0.5).abs() < 1e-6);
+        h.cargo = serde_json::from_str(&serde_json::to_string(&h.cargo).unwrap()).unwrap();
+        h.month = 14;
+        h.market_arrivals();
+        assert!(h.cargo.is_empty());
+        assert!((h.sites[destination].stocks.stock[1] - food_before - 800.).abs() < 0.1);
     }
 }

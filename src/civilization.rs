@@ -479,6 +479,7 @@ impl History {
         (self.initial_population + born - died - living) / (self.initial_population + born).max(1.)
     }
     pub fn validate(&self, cells: &[crate::gpu::Cell]) -> Result<()> {
+        self.validate_service_work()?;
         ensure!(
             self.civilizations
                 .iter()

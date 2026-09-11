@@ -384,6 +384,7 @@ fn shipping_shares_capacity_between_lanes_and_respects_port_closures() {
     assert_eq!(h.sea_quotes(&roads)[1], Some((350., 0)));
     assert_eq!(h.sea_quotes(&roads)[2], Some((500., 1)));
     h.cargo.push(Cargo {
+        voyage_clock: None,
         freight_stops: vec![],
         from: 0,
         to: 1,
@@ -395,6 +396,7 @@ fn shipping_shares_capacity_between_lanes_and_respects_port_closures() {
         weather_delay_months: 0,
     });
     h.cargo.push(Cargo {
+        voyage_clock: None,
         freight_stops: vec![],
         from: 0,
         to: 2,

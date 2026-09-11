@@ -66,6 +66,7 @@ pub(crate) fn propose(h: &mut History, c: &mut Culture) {
     let mut proposals = vec![];
     for site in &h.sites {
         if site.abandoned
+            || !c.work_allowed(site.id, "petition hearing")
             || c.labor_budget.get(site.id as usize).copied().unwrap_or(0.) < 0.1
             || g.petitions
                 .iter()

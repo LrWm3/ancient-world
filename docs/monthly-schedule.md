@@ -18,7 +18,7 @@ Reservations remain subsystem-specific; this is not a simultaneous global auctio
 | Stage | Operations and visibility |
 | --- | --- |
 | Open | Prepare society/politics/governance; increment month; activate due policies; inspect environmental disruption; settle due market cargo, relief and relocating households; answer appeals; restore sites; prepare economy and claims; refresh extraction inputs; patron assistance and legacy cohort cleanup. Arrival price observations are returned to the response stage. |
-| Reserve | Prepare discoveries, reserve cultural work, prepare fisheries, allocate extraction allowances, plan production, prepare enterprises and vessels, prepare household retail. The extraction and retail plans are explicitly passed to execution. Earlier reservations have priority over later claims. |
+| Reserve | Reset completed reservations; fund crews for committed sea cargo; prepare dated research and cultural work requests, prepare fisheries, allocate extraction allowances, plan production, prepare enterprises and top up standby vessels, prepare household retail. The extraction and retail plans are explicitly passed to execution. Earlier reservations have priority over later claims. |
 | Execute/settle | Upload committed inputs; claim, fish and run GPU production/consumption; read town results; settle extraction and enterprises; storage, housing and waterworks; settle retail. No production policy chosen later in the month can retroactively change this dispatch. |
 | Respond | Quote markets and dispatch new cargo using opening delivery evidence; release vessel/cultural work; expeditions, relocation, site lifecycle, society, genealogy, culture, offices and governance. Annual politics/shipping/expeditions/governance run here when due. Events remain available to later consumers in this stage. |
 | Close | Synchronize society, politics, governance, economy, resource claims, culture and offices; refresh social indicators; validate. Frozen history records its timeline here. Living history then commits environmental returns, reconciles land, records its timeline and validates the coupled boundary. |
@@ -335,3 +335,10 @@ specimen kinds. Cultural completed-work accounting charges successful personal
 actions instead of automatically treating their entire grant as spent. These are
 forecasts with execution-time checks, not persistent exclusive action/resource
 reservations.
+
+## Execution-boundary follow-up
+
+Sea cargo now advances using the preceding month's funded crews before opening
+arrivals. Research and cultural reservations retain dated plans, with live resource
+checks and explicit unused-work receipts. See [Work execution boundaries](work-execution-boundaries.md)
+for the timing, archive behavior, tests and remaining limits.

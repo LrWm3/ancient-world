@@ -244,7 +244,8 @@ pub(crate) fn study(h: &mut History, c: &mut crate::culture::Culture) {
         let Some(site) = a.site.filter(|_| !a.lost && !a.destroyed) else {
             continue;
         };
-        if h.sites[site as usize].abandoned
+        if !c.work_allowed(site, "heritage study")
+            || h.sites[site as usize].abandoned
             || c.labor_budget.get(site as usize).copied().unwrap_or(0.) < 0.1
         {
             continue;
