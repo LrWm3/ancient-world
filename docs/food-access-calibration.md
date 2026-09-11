@@ -116,3 +116,8 @@ also checks every monthly decomposition, complete paired coverage, unchanged
 opening supply across access controls, and negligible access gaps with full common
 entitlement. No core simulation code changed; the addition is diagnostic tooling
 and controlled evaluation.
+
+New histories now use a [temporary founding access policy](founding-food-access.md).
+The evaluation commands above retain static access by default; --founding-access
+adds the communal year and four-year taper. Earlier results describe the static
+policy and should not be interpreted as the new defaults.

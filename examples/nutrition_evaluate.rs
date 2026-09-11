@@ -15,6 +15,9 @@ struct Args {
     /// Isolate food access: nutrition stays enabled; vary common entitlements instead.
     #[arg(long)]
     affordability: bool,
+    /// Include the default founding communal-to-household transition (otherwise static policy).
+    #[arg(long)]
+    founding_access: bool,
     #[arg(long, value_delimiter = ',', default_value = "0.5,0.75,1.0")]
     common_shares: Vec<f32>,
     #[arg(long, value_delimiter = ',', default_value = "0.33,0.15")]
@@ -48,7 +51,7 @@ fn main() -> Result<()> {
     writeln!(
         out,
         "{}",
-        json!({"type":"settings","gpu":gpu.adapter_name,"years":args.years,"resolution":args.resolution,"seeds":args.seeds,"yields":args.yields,"living":false,"affordability":args.affordability,"common_shares":args.common_shares})
+        json!({"type":"settings","gpu":gpu.adapter_name,"years":args.years,"resolution":args.resolution,"seeds":args.seeds,"yields":args.yields,"living":false,"affordability":args.affordability,"founding_access":args.founding_access,"common_shares":args.common_shares})
     )?;
     for &seed in &args.seeds {
         for &yield_scale in &args.yields {
@@ -78,6 +81,15 @@ fn main() -> Result<()> {
                 g.enable_offices()?;
                 g.enable_shipping()?;
                 let h = g.civilizations.as_mut().unwrap();
+                if !args.founding_access {
+                    h.society
+                        .as_mut()
+                        .unwrap()
+                        .household_economy
+                        .as_mut()
+                        .unwrap()
+                        .founding_access = None;
+                }
                 h.set_demographic_resolution(ancient_world::resolution::Mode::Individual, true)?;
                 h.society
                     .as_mut()

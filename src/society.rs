@@ -1387,6 +1387,10 @@ impl Generator {
             "Age cohorts, household ownership and councils established; terrain routes surveyed"
                 .into(),
         );
+        if h.month == 0 {
+            h.event("household_distribution_policy", None, None,
+                "Founding provisions are held in common: one year of full food entitlement, then four years of gradual transition to household purchasing; all meals draw on existing town stocks".into());
+        }
         h.social_indicators_month();
         h.validate(&cells)?;
         self.civilizations = Some(h);

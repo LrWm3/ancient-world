@@ -33,6 +33,34 @@ pub struct HouseholdAccount {
     #[serde(default)]
     pub food_site: Option<u32>,
 }
+/// Founding-site entitlement schedule, measured from original landfall (month zero).
+/// This changes access to finite town food, never the quantity of food.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct FoundingAccess {
+    pub communal_months: u32,
+    pub transition_months: u32,
+}
+impl Default for FoundingAccess {
+    fn default() -> Self {
+        Self {
+            communal_months: 12,
+            transition_months: 48,
+        }
+    }
+}
+impl FoundingAccess {
+    fn share(self, month: u32, target: f32) -> f32 {
+        if month <= self.communal_months {
+            return 1.;
+        }
+        let elapsed = month - self.communal_months;
+        if elapsed >= self.transition_months {
+            return target;
+        }
+        let progress = elapsed as f32 / self.transition_months as f32;
+        1. + (target - 1.) * progress
+    }
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HouseholdEconomy {
     /// Older archives retain equal payroll allocation.
@@ -43,7 +71,11 @@ pub struct HouseholdEconomy {
     pub individual_nutrition: bool,
     pub started: u32,
     pub observed: u32,
+    /// Long-run common entitlement; founding access may temporarily raise it.
     pub common_share: f32,
+    /// Missing in older archives: do not retroactively introduce a founding subsidy.
+    #[serde(default)]
+    pub founding_access: Option<FoundingAccess>,
     pub payroll_share: f32,
     pub dividend_share: f32,
     /// Monthly fraction of treasury available for targeted food relief. Old archives retain zero.
@@ -66,6 +98,7 @@ impl HouseholdEconomy {
             started: month,
             observed: month,
             common_share: 0.5,
+            founding_access: (month == 0).then(FoundingAccess::default),
             payroll_share: 0.2,
             dividend_share: 0.01,
             relief_share: 0.05,
@@ -73,6 +106,12 @@ impl HouseholdEconomy {
             accounts: vec![],
             access_episodes: vec![],
         }
+    }
+    /// Only original landfall settlements receive the transition, not later colonies.
+    pub fn common_share_at(&self, month: u32, founded: u32) -> f32 {
+        self.founding_access
+            .filter(|_| founded == 0)
+            .map_or(self.common_share, |p| p.share(month, self.common_share))
     }
     pub fn validate(&self, h: &History) -> Result<()> {
         ensure!(
@@ -90,6 +129,11 @@ impl HouseholdEconomy {
             .iter()
             .all(|v| v.is_finite() && (0. ..=1.).contains(v)),
             "invalid household distribution policy"
+        );
+        ensure!(
+            self.founding_access
+                .is_none_or(|p| p.communal_months <= 1200 && p.transition_months <= 1200),
+            "founding access intervals must be at most 1200 months"
         );
         ensure!(
             self.accounts.len() <= h.society.as_ref().unwrap().households.len(),
@@ -356,7 +400,8 @@ impl History {
             let paid_sectors = sector_payroll(&weights, work, payroll);
             let mut wage_left = payroll;
             let mut dividend_left = dividends;
-            let free = need * e.common_share as f64;
+            let common_share = e.common_share_at(self.month, s.founded) as f64;
+            let free = need * common_share;
             let mut demand = vec![];
             for (j, &id) in ids.iter().enumerate() {
                 let wage = if j + 1 == ids.len() {
@@ -395,7 +440,7 @@ impl History {
                 a.cash += wage + dividend;
                 a.need = needs[j];
                 a.food_site = Some(i as u32);
-                demand.push((needs[j] * (1. - e.common_share as f64)).min(a.cash / price));
+                demand.push((needs[j] * (1. - common_share)).min(a.cash / price));
             }
             let cap = free + demand.iter().sum::<f64>();
             // Round down so GPU consumption cannot exceed funded entitlements.
@@ -420,7 +465,8 @@ impl History {
         for p in &plans {
             for &id in &p.ids {
                 let a = &e.accounts[id];
-                let target = (e.relief_target - e.common_share).max(0.) as f64 * a.need * p.price;
+                let common_share = p.free / p.need.max(1e-12);
+                let target = (e.relief_target as f64 - common_share).max(0.) * a.need * p.price;
                 let request = (target - a.cash).max(0.);
                 if request > 0. {
                     requests[controllers[p.site]].push((id, request));
@@ -550,6 +596,33 @@ impl crate::gpu::Generator {
         Ok(())
     }
 
+    /// Set or disable founding communal access at a completed boundary. Enabling
+    /// never resets landfall age; the common-share policy remains the final target.
+    pub fn configure_founding_food_access(&mut self, policy: Option<FoundingAccess>) -> Result<()> {
+        ensure!(
+            self.progress.stage == crate::gpu::Stage::Boundary,
+            "founding food policy requires a completed boundary"
+        );
+        self.validate_living_boundary()?;
+        ensure!(
+            policy.is_none_or(|p| p.communal_months <= 1200 && p.transition_months <= 1200),
+            "founding access intervals must be at most 1200 months"
+        );
+        let h = self
+            .civilizations
+            .as_mut()
+            .ok_or_else(|| anyhow::anyhow!("found civilizations first"))?;
+        let e = h
+            .society
+            .as_mut()
+            .and_then(|s| s.household_economy.as_mut())
+            .ok_or_else(|| anyhow::anyhow!("enable household economy first"))?;
+        e.founding_access = policy;
+        h.event("household_distribution_policy", None, None,
+            format!("Founding food access: {policy:?}; original landfall age is retained, using existing communal stocks"));
+        Ok(())
+    }
+
     /// Explicit baseline for older worlds; policy changes apply before the next monthly production.
     pub fn configure_household_economy(
         &mut self,
@@ -623,6 +696,127 @@ impl crate::gpu::Generator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn founding_entitlement_tapers_without_restarting_or_migrating_legacy_archives() {
+        let e = HouseholdEconomy::new(0);
+        for m in [0, 1, 12] {
+            assert_eq!(e.common_share_at(m, 0), 1.);
+        }
+        assert!((e.common_share_at(13, 0) - (1. - 0.5 / 48.)).abs() < 1e-6);
+        assert_eq!(e.common_share_at(36, 0), 0.75);
+        assert_eq!(e.common_share_at(60, 0), 0.5);
+        assert_eq!(e.common_share_at(120, 0), 0.5);
+        assert_eq!(e.common_share_at(13, 13), 0.5, "daughter settlement");
+        assert!(HouseholdEconomy::new(24).founding_access.is_none());
+        let mut encoded = serde_json::to_value(&e).unwrap();
+        let resumed: HouseholdEconomy = serde_json::from_value(encoded.clone()).unwrap();
+        assert_eq!(e.common_share_at(37, 0), resumed.common_share_at(37, 0));
+        encoded.as_object_mut().unwrap().remove("founding_access");
+        let old: HouseholdEconomy = serde_json::from_value(encoded).unwrap();
+        assert_eq!(old.common_share_at(1, 0), 0.5);
+        assert_eq!(
+            FoundingAccess {
+                communal_months: 0,
+                transition_months: 0
+            }
+            .share(1, 0.4),
+            0.4
+        );
+    }
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn founding_food_is_accessible_and_transition_resumes_at_the_same_age() {
+        use crate::{
+            catalog::Catalog,
+            config::Config,
+            gpu::{ContextGpu, Generator},
+        };
+        let mut g = Generator::new(
+            pollster::block_on(ContextGpu::headless()).unwrap(),
+            Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                seed: 17,
+                ..Default::default()
+            },
+            Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        g.enable_society().unwrap();
+        // With no wages, dividends or relief, entitlement still covers all founding need.
+        let mut fixture = g.civilizations.as_ref().unwrap().clone();
+        let e = fixture
+            .society
+            .as_mut()
+            .unwrap()
+            .household_economy
+            .as_mut()
+            .unwrap();
+        e.payroll_share = 0.;
+        e.dividend_share = 0.;
+        e.relief_share = 0.;
+        let plans = fixture.prepare_household_retail();
+        for p in &plans {
+            assert_eq!(p.free, p.need);
+            assert!(p.demand.iter().all(|v| *v == 0.));
+            // Deliberately scarce physical supply is not replaced by the entitlement.
+            fixture.sites[p.site].demography.ration_need[3] = p.need as f32;
+            fixture.sites[p.site].demography.ration_eaten[3] = (p.need * 0.25) as f32;
+        }
+        fixture.settle_household_retail(plans);
+        assert!(fixture
+            .society
+            .as_ref()
+            .unwrap()
+            .household_economy
+            .as_ref()
+            .unwrap()
+            .accounts
+            .iter()
+            .filter(|a| a.need > 0.)
+            .all(|a| a.hunger > 0.74 && a.food_spending == 0.));
+        g.advance_history(12).unwrap();
+        let h = g.civilizations.as_ref().unwrap();
+        let e = h
+            .society
+            .as_ref()
+            .unwrap()
+            .household_economy
+            .as_ref()
+            .unwrap();
+        assert!(e.accounts.iter().all(|a| a.food_spending == 0.));
+        assert!(
+            e.accounts.iter().any(|a| a.cash > 0.),
+            "households can accumulate purchasing power"
+        );
+        let file =
+            std::env::temp_dir().join(format!("founding-access-{}.world", std::process::id()));
+        g.save(&file).unwrap();
+        let mut resumed = Generator::load(g.gpu.clone(), &file).unwrap();
+        std::fs::remove_file(file).unwrap();
+        g.advance_history(49).unwrap();
+        for _ in 0..49 {
+            resumed.advance_history(1).unwrap();
+        }
+        assert_eq!(
+            serde_json::to_value(&g.civilizations).unwrap(),
+            serde_json::to_value(&resumed.civilizations).unwrap()
+        );
+        let h = g.civilizations.as_ref().unwrap();
+        let e = h
+            .society
+            .as_ref()
+            .unwrap()
+            .household_economy
+            .as_ref()
+            .unwrap();
+        assert_eq!(e.common_share_at(h.month, 0), e.common_share);
+        assert!(e.accounts.iter().any(|a| a.food_spending > 0.));
+        h.validate(&g.snapshot().unwrap()).unwrap();
+    }
+
     #[test]
     fn relief_is_need_weighted_and_old_archives_keep_zero_policy() {
         let requests = [10., 100., 0., 1.];
@@ -725,6 +919,7 @@ mod tests {
         e.accounts.resize(count, HouseholdAccount::default());
         e.dividend_share = 0.;
         e.relief_share = 0.;
+        e.founding_access = None;
         e.common_share = 0.;
         for &id in &ids {
             e.accounts[id].livelihood = Some([1.; 4]);
@@ -802,6 +997,7 @@ mod tests {
         g.found_civilizations(5).unwrap();
         g.enable_society().unwrap();
         assert!(g.configure_household_economy(f32::NAN, 0.2, 0.01).is_err());
+        g.configure_founding_food_access(None).unwrap(); // Static retail-policy fixture.
         let h = g.civilizations.as_mut().unwrap();
         let ids = h
             .society
@@ -943,6 +1139,7 @@ mod tests {
             .household_economy
             .as_mut()
             .unwrap();
+        e.founding_access = None;
         e.common_share = 0.5;
         e.relief_share = 0.1;
         e.relief_target = 0.75;

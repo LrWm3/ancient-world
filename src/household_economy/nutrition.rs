@@ -285,6 +285,7 @@ mod tests {
             e.payroll_share = 0.;
             e.dividend_share = 0.;
             e.relief_share = 0.;
+            e.founding_access = None; // Isolate unequal retail access after the founding phase.
             e.accounts.resize(accounts_len, Default::default());
             let members = h.household_food_members();
             let accounts: Vec<_> = h
