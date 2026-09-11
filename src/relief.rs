@@ -50,7 +50,10 @@ impl History {
             .map_or(0., |c| c.religious_relief.received_kg(from, to));
         let trust =
             0.15 * received / (received + self.sites[from as usize].stocks.stock[0].max(1.) * 18.);
-        (diplomatic + if kin { 0.2 } else { 0. } + trust).min(1.)
+        let reciprocity = self.culture.as_ref().map_or(0., |c| {
+            c.religious_relief.memory.reciprocity(to, from, self.month)
+        });
+        (diplomatic + if kin { 0.2 } else { 0. } + trust + reciprocity).min(1.)
     }
     pub(crate) fn receive_appeal(&mut self, j: &Journey) {
         if !j.seek_help || j.returning {
@@ -133,6 +136,8 @@ impl History {
                 surplus
                     .min(a.population * 18. * 3.)
                     .min(3000. / months as f32)
+                    .min(self.land_freight_capacity(a.host))
+                    .min(self.land_freight_capacity(a.origin))
             } else {
                 0.
             };

@@ -26,6 +26,8 @@ pub struct Workshop {
     pub curated: [f64; 2],
     pub samples: [f64; 2],
     pub studied: [f64; 2],
+    #[serde(default)]
+    pub learned: [Option<u64>; 2],
     pub remedy: f64,
     pub delivered: [f64; 2],
     pub causes: [Option<u64>; 2],
@@ -52,7 +54,7 @@ pub struct Discoveries {
     pub worker_months_reserved: f64,
 }
 fn processing_limit(w: &Workshop, kind: usize, site: &crate::civilization::Site) -> f64 {
-    if w.studied[kind] < 1.5 - 1e-8 {
+    if w.studied[kind] < 1.5 - 1e-8 && w.learned[kind].is_none() {
         return (1.5 - w.studied[kind]).min(0.25);
     }
     if kind == 0 {
@@ -175,6 +177,14 @@ impl Discoveries {
                     && w.studied.iter().all(|v| *v <= 1.5 + 1e-8),
                 "invalid research workshop"
             );
+            for learned in w.learned.into_iter().flatten() {
+                ensure!(
+                    h.events.get(learned as usize).is_some_and(|e| e.kind
+                        == "specimen_method_transmitted"
+                        && e.month <= h.month),
+                    "invalid transmitted research"
+                );
+            }
             for k in 0..2 {
                 ensure!(
                     (w.delivered[k] - w.samples[k] - w.studied[k] - w.processed[k] - w.curated[k])
@@ -327,6 +337,7 @@ impl Discoveries {
                 curated: [0.; 2],
                 samples: [0.; 2],
                 studied: [0.; 2],
+                learned: [None; 2],
                 remedy: 0.,
                 delivered: [0.; 2],
                 causes: [None; 2],
@@ -346,6 +357,8 @@ impl Discoveries {
         }
     }
     pub(crate) fn month(&mut self, h: &mut History) {
+        // Snapshot: transmitted methods cannot cross multiple contacts in one update.
+        let teachers = self.workshops.clone();
         for w in &mut self.workshops {
             let site = w.site as usize;
             let s = &mut h.sites[site];
@@ -355,14 +368,52 @@ impl Discoveries {
             for k in 0..3 {
                 s.economy.external[k] -= (expired * CNP[0][k]) as f32;
             }
-            if s.abandoned {
+            if s.abandoned || !w.enabled {
                 continue;
             }
             // The GPU has reserved this labor from its normal craft budget for this month.
             let mut labor = (s.economy.external[3].min(s.economy.labor[3]).max(0.)) as f64;
             self.worker_months_reserved += labor;
             for (k, name) in NAMES.iter().enumerate() {
-                let studying = w.studied[k] < 1.5 - 1e-8;
+                if h.month.is_multiple_of(12)
+                    && w.studied[k] < 1.5 - 1e-8
+                    && w.learned[k].is_none()
+                    && labor >= 0.25
+                {
+                    if let Some(teacher) = teachers
+                        .iter()
+                        .filter(|t| {
+                            t.site != w.site
+                                && !h.sites[t.site as usize].abandoned
+                                && (t.studied[k] >= 1.5 - 1e-8 || t.learned[k].is_some())
+                                && h.route_cost(t.site, w.site).is_some()
+                        })
+                        .min_by_key(|t| t.site)
+                    {
+                        if let Some(good) = h
+                            .economy_catalog
+                            .as_ref()
+                            .and_then(|c| c.goods.iter().position(|g| g.id == "writing_material"))
+                        {
+                            let ratios = h.economy_catalog.as_ref().unwrap().composition(good);
+                            let e = &mut h.sites[site].economy;
+                            if e.goods[good] >= 0.05 {
+                                e.goods[good] -= 0.05;
+                                e.used[good] += 0.05;
+                                e.reserves[3] += 0.05;
+                                for (j, r) in ratios.into_iter().enumerate() {
+                                    e.detritus[j] += 0.05 * r;
+                                }
+                                labor -= 0.25;
+                                self.worker_months += 0.25;
+                                event(h,w.site,teacher.learned[k].or(teacher.causes[k]),
+                                    "specimen_method_transmitted",format!("Researchers copied the {} method from {} through an open route; specimens still must be acquired locally",name,h.sites[teacher.site as usize].name));
+                                w.learned[k] = h.events.last().map(|e| e.id);
+                            }
+                        }
+                    }
+                }
+                let studying = w.studied[k] < 1.5 - 1e-8 && w.learned[k].is_none();
                 let limit = processing_limit(w, k, &h.sites[site]);
                 let e = &mut h.sites[site].economy;
                 let kg = w.samples[k]
@@ -529,5 +580,96 @@ impl Generator {
         h.validate(&self.snapshot()?)?;
         self.civilizations = Some(h);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod exchange_tests {
+    use super::*;
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn methods_need_contact_and_supplies_without_creating_specimens() {
+        use crate::{catalog::Catalog, config::Config, gpu::ContextGpu, society::Route};
+        let mut g = Generator::new(
+            pollster::block_on(ContextGpu::headless()).unwrap(),
+            Config {
+                resolution: 64,
+                ecology_resolution: 64,
+                seed: 7,
+                ..Default::default()
+            },
+            Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.run_epochs(1).unwrap();
+        g.found_civilizations(5).unwrap();
+        g.enable_society().unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        h.month = 12;
+        h.society.as_mut().unwrap().routes = vec![Route {
+            id: 0,
+            from: 0,
+            to: 1,
+            cells: vec![],
+            cost_km: 10.,
+            open: false,
+            flood_months: 0,
+            road_bricks: 0.,
+            upkeep: None,
+        }];
+        let workshop = |site| Workshop {
+            site,
+            enabled: true,
+            processed: [0.; 2],
+            curated: [0.; 2],
+            samples: [0., 4.],
+            studied: [0.; 2],
+            learned: [None; 2],
+            remedy: 0.,
+            delivered: [0., 4.],
+            causes: [None; 2],
+            batches: [0; 2],
+        };
+        let mut d = Discoveries::new(h.month);
+        d.workshops = vec![workshop(0), workshop(1)];
+        d.workshops[0].studied[1] = 1.5;
+        d.workshops[0].samples[1] = 2.5;
+        let good = h
+            .economy_catalog
+            .as_ref()
+            .unwrap()
+            .goods
+            .iter()
+            .position(|g| g.id == "writing_material")
+            .unwrap();
+        for s in &mut h.sites {
+            s.economy.external[3] = 0.;
+        }
+        let fund = |h: &mut History| {
+            let e = &mut h.sites[1].economy;
+            e.external[3] = 0.5;
+            e.labor[3] = 1.;
+            e.goods[3] = 1.;
+            e.goods[6] = 1.;
+        };
+        fund(h);
+        h.sites[1].economy.goods[good] = 1.;
+        d.month(h);
+        assert!(d.workshops[1].learned[1].is_none());
+        h.society.as_mut().unwrap().routes[0].open = true;
+        fund(h);
+        h.sites[1].economy.goods[good] = 0.;
+        d.month(h);
+        assert!(d.workshops[1].learned[1].is_none());
+        fund(h);
+        h.sites[1].economy.goods[good] = 1.;
+        let studied = d.workshops[1].studied[1];
+        let samples = d.workshops[1].samples[1];
+        d.month(h);
+        assert!(d.workshops[1].learned[1].is_some());
+        assert_eq!(d.workshops[1].studied[1], studied);
+        assert!((samples - d.workshops[1].samples[1] - d.workshops[1].processed[1]).abs() < 1e-8);
+        assert!((h.sites[1].economy.goods[good] - 0.95).abs() < 1e-6);
+        assert!(d.worker_months <= d.worker_months_reserved + 1e-8);
     }
 }

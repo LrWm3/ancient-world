@@ -1,5 +1,7 @@
 # Inter-island shipping
 
+See [the latest memory, fleet and research extension](memory-fleets-and-research.md) for subsequent changes.
+
 Shipping connects the central-island economies through actual great-lake routes. Enable **Lake shipping** in the civilization controls after enabling social history, or explicitly opt in from the CLI:
 
 ```sh

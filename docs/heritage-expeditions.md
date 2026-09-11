@@ -1,5 +1,7 @@
 # Founding, religious and literary expeditions
 
+See [the latest memory, fleet and research extension](memory-fleets-and-research.md) for subsequent changes.
+
 Three new charter objectives use the existing expedition interface and transport:
 
 | Objective | Motivation | Possible modest find |

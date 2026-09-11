@@ -352,6 +352,7 @@ fn shipping_shares_capacity_between_lanes_and_respects_port_closures() {
         surveyed_sites: 3,
         ports: (0..3)
             .map(|site| Port {
+                fleet: None,
                 work: None,
                 site,
                 access: vec![site],
@@ -483,6 +484,7 @@ fn sea_arrival_cannot_bypass_hostile_inland_transit() {
         surveyed_sites: 4,
         ports: (0..2)
             .map(|site| Port {
+                fleet: None,
                 work: None,
                 site,
                 access: vec![site],

@@ -26,6 +26,9 @@ pub struct HarborWork {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Port {
+    /// Missing archives retain the old pooled capacity; new ports have staffed vessels.
+    #[serde(default)]
+    pub fleet: Option<crate::vessels::Fleet>,
     #[serde(default)]
     pub work: Option<HarborWork>,
     pub site: u32,
@@ -43,7 +46,10 @@ impl Port {
         if self.commissioned.is_none() || self.flood_months > 0 {
             return 0.;
         }
-        1000.
+        self.fleet
+            .as_ref()
+            .map_or(1000., |f| f.capacity())
+            .min(1000.)
             * self
                 .assets
                 .iter()
@@ -175,6 +181,23 @@ impl Shipping {
             })
         };
         for p in &self.ports {
+            if let Some(f) = &p.fleet {
+                ensure!(
+                    f.vessels.len() <= 4
+                        && f.vessels.iter().enumerate().all(|(id, v)| v.id == id as u32
+                            && !v.name.is_empty()
+                            && v.commissioned <= h.month
+                            && v.funded_work.is_finite()
+                            && (0. ..=0.25001).contains(&v.funded_work)
+                            && v.wages_paid.is_finite()
+                            && v.wages_paid >= 0.
+                            && v.household.is_none_or(|id| h
+                                .society
+                                .as_ref()
+                                .is_some_and(|s| (id as usize) < s.households.len()))),
+                    "invalid vessel fleet"
+                );
+            }
             ensure!(
                 (p.site as usize) < h.sites.len()
                     && islands.insert(h.sites[p.site as usize].island)
@@ -320,6 +343,7 @@ impl History {
                     }
                 }
                 shipping.ports.push(Port {
+                    fleet: Some(Default::default()),
                     site: i as u32,
                     access,
                     water_cell,

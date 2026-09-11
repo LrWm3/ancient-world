@@ -19,6 +19,8 @@ pub struct Find {
     pub description: String,
     pub observed: u64,
     pub artifact: Option<u32>,
+    #[serde(default)]
+    pub studies: Vec<Study>,
 }
 pub fn charter(h: &History, origin: u32, objective: Objective) -> Result<Option<Charter>> {
     if !matches!(
@@ -89,6 +91,7 @@ pub(crate) fn survey(h: &mut History, e: &mut Expedition, cell: u32, already: bo
         description,
         observed: event.id,
         artifact: None,
+        studies: vec![],
     });
 }
 pub(crate) fn deliver(h: &mut History, e: &mut Expedition) {
@@ -182,6 +185,24 @@ pub(crate) fn validate(h: &History, voyages: &[Expedition]) -> Result<()> {
             );
             if let Some(f) = &c.find {
                 ensure!(
+                    f.studies.len() <= 3
+                        && f.studies.windows(2).all(|w| w[1].month >= w[0].month + 60),
+                    "invalid heritage study schedule"
+                );
+                for s in &f.studies {
+                    ensure!(
+                        s.month <= h.month
+                            && (s.site as usize) < h.sites.len()
+                            && (s.author as usize) < h.people.len()
+                            && s.comparison
+                                .is_none_or(|a| (a as usize) < culture.artifacts.len())
+                            && h.events.get(s.event as usize).is_some_and(|e| e.kind
+                                == "heritage_interpreted"
+                                && e.month == s.month),
+                        "invalid heritage study"
+                    );
+                }
+                ensure!(
                     f.cell < 6 * h.terrain_resolution * h.terrain_resolution
                         && cells.insert(f.cell)
                         && h.events
@@ -198,4 +219,280 @@ pub(crate) fn validate(h: &History, voyages: &[Expedition]) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Re-examine an accessible object; the resulting reading is an attributed account.
+pub(crate) fn study(h: &mut History, c: &mut crate::culture::Culture) {
+    if !h.month.is_multiple_of(12) {
+        return;
+    }
+    let Some(mut x) = h.expeditions.take() else {
+        return;
+    };
+    for voyage in &mut x.voyages {
+        let Some(charter) = &mut voyage.heritage else {
+            continue;
+        };
+        let Some(find) = &mut charter.find else {
+            continue;
+        };
+        if find.studies.len() >= 3 || find.studies.last().is_some_and(|s| h.month < s.month + 60) {
+            continue;
+        }
+        let Some(id) = find.artifact else { continue };
+        let a = &c.artifacts[id as usize];
+        let Some(site) = a.site.filter(|_| !a.lost && !a.destroyed) else {
+            continue;
+        };
+        if h.sites[site as usize].abandoned
+            || c.labor_budget.get(site as usize).copied().unwrap_or(0.) < 0.1
+        {
+            continue;
+        }
+        let Some(n) = c.institutions.iter().find(|n| {
+            n.site == site
+                && n.operational()
+                && matches!(
+                    n.kind,
+                    crate::culture::InstitutionKind::Scholarly
+                        | crate::culture::InstitutionKind::Religious
+                )
+                && h.people[n.leader as usize].died.is_none()
+        }) else {
+            continue;
+        };
+        let (institution, author) = (n.id, n.leader);
+        let Some(good) = h
+            .economy_catalog
+            .as_ref()
+            .and_then(|c| c.goods.iter().position(|g| g.id == "writing_material"))
+        else {
+            continue;
+        };
+        let e = &mut h.sites[site as usize].economy;
+        if e.goods[good] < 0.05 {
+            continue;
+        }
+        e.goods[good] -= 0.05;
+        e.used[good] += 0.05;
+        e.reserves[3] += 0.05;
+        for (k, r) in h
+            .economy_catalog
+            .as_ref()
+            .unwrap()
+            .composition(good)
+            .into_iter()
+            .enumerate()
+        {
+            e.detritus[k] += 0.05 * r;
+        }
+        c.labor_budget[site as usize] -= 0.1;
+        c.labor_spent += 0.1;
+        let comparison = c
+            .artifacts
+            .iter()
+            .find(|other| {
+                other.id != id
+                    && other.site == Some(site)
+                    && !other.lost
+                    && !other.destroyed
+                    && other.kind == "ancient ceramic fragment"
+            })
+            .map(|a| a.id);
+        let reading = if let Some(other) = comparison {
+            format!("Compared the marks with object {other}; possible shared practices remain an interpretation, not established common authorship.")
+        } else if find.studies.is_empty() {
+            "Recorded the surviving marks and wear; the fragment's date and original use remain uncertain.".into()
+        } else {
+            "Reconsidered the earlier reading against local founding accounts; resemblance does not establish the patron's identity.".into()
+        };
+        h.event(
+            "heritage_interpreted",
+            Some(site),
+            None,
+            format!("{}: {reading}", h.people[author as usize].name),
+        );
+        let ev = h.events.last_mut().unwrap();
+        ev.causes
+            .push(find.studies.last().map_or(find.observed, |s| s.event));
+        ev.subjects.extend([
+            ("artifact".into(), id),
+            ("institution".into(), institution),
+            ("person".into(), author),
+        ]);
+        if let Some(other) = comparison {
+            ev.subjects.push(("artifact".into(), other));
+        }
+        let event = ev.id;
+        c.accounts.push(Account {
+            id: c.accounts.len() as u32,
+            tradition: charter.tradition,
+            author: Some(author),
+            institution: Some(institution),
+            month: h.month,
+            facts: vec![find.observed, event],
+            text: reading,
+        });
+        c.artifacts[id as usize].events.push(event);
+        find.studies.push(Study {
+            month: h.month,
+            event,
+            site,
+            author,
+            comparison,
+        });
+    }
+    h.expeditions = Some(x);
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Study {
+    pub month: u32,
+    pub event: u64,
+    pub site: u32,
+    pub author: u32,
+    pub comparison: Option<u32>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn heritage_study_requires_access_work_and_preserves_prior_readings() {
+        use crate::{
+            catalog::Catalog,
+            config::Config,
+            culture::{Institution, InstitutionKind},
+            gpu::{ContextGpu, Generator},
+        };
+        let mut g = Generator::new(
+            pollster::block_on(ContextGpu::headless()).unwrap(),
+            Config {
+                resolution: 64,
+                ecology_resolution: 64,
+                seed: 7,
+                ..Default::default()
+            },
+            Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.run_epochs(1).unwrap();
+        g.found_civilizations(5).unwrap();
+        g.enable_society().unwrap();
+        g.enable_politics().unwrap();
+        g.enable_governance().unwrap();
+        g.enable_shipping().unwrap();
+        g.enable_expeditions().unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        h.month = 12;
+        let mut c = h.culture.take().unwrap();
+        let mut a = c.artifacts[0].clone();
+        a.kind = "ancient ceramic fragment".into();
+        let site = a.site.unwrap();
+        let id = a.id;
+        a.lost = false;
+        a.destroyed = false;
+        c.artifacts[id as usize] = a;
+        let author = c.traditions[0].leader;
+        c.institutions.push(Institution {
+            id: c.institutions.len() as u32,
+            name: "Study circle".into(),
+            kind: InstitutionKind::Scholarly,
+            site,
+            tradition: Some(0),
+            members: vec![author],
+            leader: author,
+            treasury: 10.,
+            active: true,
+            founded: 0,
+            knowledge: Default::default(),
+            property: vec![id],
+            dues: 0.,
+            expenses: 0.,
+            capacity: None,
+        });
+        h.expeditions.as_mut().unwrap().voyages.push(Expedition {
+            planned_cells: None,
+            institution: None,
+            heritage: Some(Charter {
+                tradition: 0,
+                patron: None,
+                motive: "Test".into(),
+                find: Some(Find {
+                    cell: 0,
+                    description: "marks".into(),
+                    observed: 0,
+                    artifact: Some(id),
+                    studies: vec![],
+                }),
+            }),
+            id: 0,
+            origin: site,
+            sponsor: 0,
+            public_funding: true,
+            route: 0,
+            objective: Objective::Inscriptions,
+            rescue: None,
+            crew: vec![],
+            phase: Phase::Returned,
+            departed: 0,
+            due: 0,
+            ended: Some(0),
+            food: 0.,
+            timber: 0.,
+            tools: 0.,
+            purse: 0.,
+            spent: 0.,
+            findings: 0.,
+            confirmed: false,
+            exposure: 0.,
+            skill: 0.,
+            cause: 0,
+            field_months: 1,
+            samples: [0.; 2],
+        });
+        let good = h
+            .economy_catalog
+            .as_ref()
+            .unwrap()
+            .goods
+            .iter()
+            .position(|g| g.id == "writing_material")
+            .unwrap();
+        h.sites[site as usize].economy.goods[good] = 1.;
+        c.labor_budget = vec![0.; h.sites.len()];
+        let count = |h: &History| {
+            h.expeditions.as_ref().unwrap().voyages[0]
+                .heritage
+                .as_ref()
+                .unwrap()
+                .find
+                .as_ref()
+                .unwrap()
+                .studies
+                .len()
+        };
+        study(h, &mut c);
+        assert_eq!(count(h), 0);
+        c.labor_budget[site as usize] = 0.5;
+        c.artifacts[id as usize].lost = true;
+        study(h, &mut c);
+        assert_eq!(count(h), 0);
+        c.artifacts[id as usize].lost = false;
+        let materials = c.artifacts[id as usize].materials.clone();
+        let accounts = c.accounts.len();
+        study(h, &mut c);
+        assert_eq!(count(h), 1);
+        assert_eq!(c.accounts.len(), accounts + 1);
+        assert_eq!(materials, c.artifacts[id as usize].materials);
+        assert!((h.sites[site as usize].economy.goods[good] - 0.95).abs() < 1e-6);
+        study(h, &mut c);
+        assert_eq!(count(h), 1);
+        h.month += 60;
+        study(h, &mut c);
+        assert_eq!(count(h), 2);
+        assert_eq!(c.accounts.len(), accounts + 2);
+        assert_eq!(c.artifacts[id as usize].materials, materials);
+    }
 }

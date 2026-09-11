@@ -1,5 +1,7 @@
 # Witnessed appeals and household choices
 
+See [the latest memory, fleet and research extension](memory-fleets-and-research.md) for subsequent changes.
+
 New societies require an arriving help-seeking household before a town can organize outside food relief. The old annual rule that inspected every town's shortage and automatically selected a donor is disabled under this policy. Neighbor-charity decisions also require a recent appeal; ordinary commerce and local assistance continue.
 
 The History window's **Household relocation** section has **Require arriving families to request outside relief**, with recent reports and response status. `History::set_witnessed_relief(bool)` exposes the same control. Older archives retain their previous behavior until enabled. Pending appeals and already funded shipments continue if the policy is changed.

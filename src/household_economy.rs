@@ -283,6 +283,16 @@ impl History {
                 residents[hh.site as usize].push(hh.id as usize);
             }
         }
+        let vessel_work: Vec<f32> = self.shipping.as_ref().map_or_else(
+            || vec![0.; self.sites.len()],
+            |shipping| {
+                let mut work = vec![0.; self.sites.len()];
+                for p in &shipping.ports {
+                    work[p.site as usize] += p.fleet.as_ref().map_or(0., |f| f.work());
+                }
+                work
+            },
+        );
         let mut plans = vec![];
         for (i, ids) in residents.into_iter().enumerate() {
             let s = &mut self.sites[i];
@@ -296,6 +306,7 @@ impl History {
                 .sum::<f64>();
             let price = s.economy.prices[crate::economy::FOOD].max(0.01) as f64;
             let mut municipal_work = s.economy.labor;
+            municipal_work[3] = (municipal_work[3] - vessel_work[i]).max(0.);
             municipal_work[3] =
                 (municipal_work[3] - s.economy.enterprise_plan.iter().sum::<f32>()).max(0.);
             let labor = municipal_work

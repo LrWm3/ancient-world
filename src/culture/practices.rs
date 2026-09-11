@@ -1053,6 +1053,7 @@ mod tests {
             curated: [0.; 2],
             samples: [10., 0.],
             studied: [0.; 2],
+            learned: [None; 2],
             remedy: 0.,
             delivered: [10., 0.],
             causes: [Some(event), None],

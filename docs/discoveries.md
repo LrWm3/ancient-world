@@ -1,5 +1,7 @@
 # Finite expedition specimens and local applications
 
+See [the latest memory, fleet and research extension](memory-fleets-and-research.md) for subsequent changes.
+
 This optional extension connects expeditions to farming, health and manufacturing. Enable it after expeditions with `Generator::enable_discoveries`, the desktop's **Enable specimen research and applications** button, or `--discoveries` on the headless CLI. Existing archives load without it; enabling establishes a recorded baseline and does not award cargo to past voyages. The history evaluator's `--discoveries` implies shipping and expeditions.
 
 ## Collection and return

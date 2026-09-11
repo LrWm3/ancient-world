@@ -1277,6 +1277,7 @@ impl Generator {
                 let extraction_allowances = h.allocate_resources();
                 h.plan_production();
                 h.prepare_enterprises();
+                h.prepare_vessels();
                 let retail = h.prepare_household_retail();
                 let production_started = std::time::Instant::now();
                 engine.upload(self, &h);
@@ -1294,6 +1295,7 @@ impl Generator {
                 if h.version == 2 {
                     h.market_month(self.config.radius_km);
                 }
+                h.release_vessel_work();
                 h.release_cultural_work();
                 h.expedition_month(&terrain);
                 h.relocation_departures();
@@ -2165,7 +2167,9 @@ impl History {
                         .unwrap()
                         .causes
                         .extend(shipment.appeal_cause);
+                    let outcome = self.events.last().unwrap().id;
                     self.religious_relief_outcome(&shipment, false);
+                    self.remember_relief(&shipment, false, outcome);
                     continue;
                 }
                 shipment.arrives = self.month + 1;
@@ -2186,7 +2190,9 @@ impl History {
                         .unwrap()
                         .causes
                         .extend(shipment.appeal_cause);
+                    let outcome = self.events.last().unwrap().id;
                     self.religious_relief_outcome(&shipment, false);
+                    self.remember_relief(&shipment, false, outcome);
                     continue;
                 }
                 self.sites[shipment.to as usize].stocks.stock[1] += shipment.food_kg;
@@ -2201,7 +2207,9 @@ impl History {
                     .unwrap()
                     .causes
                     .extend(shipment.appeal_cause);
+                let outcome = self.events.last().unwrap().id;
                 self.religious_relief_outcome(&shipment, true);
+                self.remember_relief(&shipment, true, outcome);
             } else {
                 self.shipments.push(shipment);
             }

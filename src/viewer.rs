@@ -2080,6 +2080,7 @@ impl App {
                         }
                         if let Some(c)=&h.culture {
                             ui.small(format!("{} dated local reports; {} communities practicing mutual aid",c.religious_relief.memory.reports.len(),c.religious_relief.memory.mutual_aid_sites.len()));
+                            for a in &c.religious_relief.memory.aid {ui.small(format!("{} remembers {}: {:.0} kg aid received, {} deliveries, {} failures",h.sites[a.recipient as usize].name,h.sites[a.donor as usize].name,a.delivered_kg,a.successes,a.failures));}
                             for m in c.religious_relief.missions.iter().rev().take(5) {
                                 ui.small(format!("{}; {:.1} kg prior assistance repaid, {:.1} kg returned against this mission", if m.reciprocal { "Reciprocal assistance" } else { "Gift" },m.repayment_kg,m.returned_kg));
                                 let receipt = m.delivered_kg.map_or_else(|| "in transit".into(), |kg| format!("{kg:.1} kg received"));
@@ -2462,6 +2463,7 @@ impl App {
                         for p in &shipping.ports {
                             if p.flood_months > 0 { ui.small(format!("{}: weather closure · {} dry steps to reopen", h.sites[p.site as usize].name, p.flood_months)); }
                             ui.label(format!("{}: {:.0} kg capacity · timber {:.0}/200 · tools {:.1}/10 · masonry {:.0}/100 · approach {:.0} travel km", h.sites[p.site as usize].name,p.capacity(),p.assets[0],p.assets[1],p.assets[2],p.access_km));
+                            if let Some(f) = &p.fleet { for v in &f.vessels { ui.small(format!("{} · crew household {:?} · {:.2} worker-months · cumulative wages {:.1}",v.name,v.household,v.funded_work,v.wages_paid)); } }
                             if let Some(w) = &p.work { ui.small(format!("Harbor work {:.2} worker-months{}",w.worker_months,if w.impaired {" · deteriorated"}else{""})); }
                         }
                         for (id,l) in shipping.lanes.iter().enumerate() {
@@ -2487,7 +2489,7 @@ impl App {
                         }
                         for e in x.voyages.iter().rev().take(24) {
                             ui.collapsing(format!("Expedition {} · {:?} · {:?} · {}/{} survivors",e.id,e.objective,e.phase,e.survivors(),e.crew.len()),|ui| {
-                                if let Some(c)=&e.heritage { ui.label(&c.motive); if let Some(f)=&c.find { ui.small(&f.description); ui.small(format!("Recovered artifact: {:?}",f.artifact)); } }
+                                if let Some(c)=&e.heritage { ui.label(&c.motive); if let Some(f)=&c.find { ui.small(&f.description); ui.small(format!("Recovered artifact: {:?} · {} dated institutional readings",f.artifact,f.studies.len())); } }
                                 ui.label(format!("Departed Y{} M{} · next milestone month {} · {:.0} kg food · {:.1} kg tools · {:.1} kg timber · {:.0} money escrow",e.departed/12,e.departed%12+1,e.due,e.food,e.tools,e.timber,e.purse));
                                 ui.label(format!("{:.1} observation points · {} · effective research competence {:.0}%",e.findings,if e.confirmed {"delivered and confirmed"}else{"not confirmed at home"},e.research_skill()*100.));
                                 if ui.button("Show planned route on atlas").clicked() { self.expedition_overlay=Some(e.id); self.history_window_open=false; self.journey_overlay=None; self.historical_territory=false; self.cameras[1]=Camera::atlas(); self.view_mode=2; }
@@ -2502,10 +2504,10 @@ impl App {
                 }
                 if let Some(x)=&h.expeditions {if let Some(d)=&x.discoveries {
                     ui.collapsing("Specimen research and applications",|ui| {
-                        ui.small("Finite coastal sources. Workshops reserve up to two craft workers and consume tools and charcoal. Six successful assay months establish a recipe; fresh specimens are still required.");
+                        ui.small("Finite coastal sources. Workshops reserve up to two craft workers and consume tools and charcoal. Local assays or paid research exchange establish a method; fresh specimens are still required.");
                         ui.label(format!("Remedy made {:.1} kg · used {:.1} · expired {:.1} · farm phosphorus {:.2} kg · labor {:.1}/{:.1} worker-months used/reserved",d.remedy_made,d.remedy_used,d.remedy_expired,d.phosphorus_applied,d.worker_months,d.worker_months_reserved));
                         ui.small(format!("Specimen/remedy budget residuals: {:?}",d.residuals(x)));
-                        for w in &d.workshops {let mut open=w.enabled;if ui.checkbox(&mut open,format!("{} workshop open",h.sites[w.site as usize].name)).changed(){specimen_policy=Some((w.site,open));}ui.label(format!("{}: resin {:.2} kg · mineral {:.2} kg · remedy {:.2} kg",h.sites[w.site as usize].name,w.samples[0],w.samples[1],w.remedy));ui.small(format!("Assay progress: resin {:.0}% · mineral {:.0}%",w.studied[0]/1.5*100.,w.studied[1]/1.5*100.));}
+                        for w in &d.workshops {let mut open=w.enabled;if ui.checkbox(&mut open,format!("{} workshop open",h.sites[w.site as usize].name)).changed(){specimen_policy=Some((w.site,open));}ui.label(format!("{}: resin {:.2} kg · mineral {:.2} kg · remedy {:.2} kg",h.sites[w.site as usize].name,w.samples[0],w.samples[1],w.remedy));ui.small(format!("Assay progress: resin {:.0}% · mineral {:.0}%",w.studied[0]/1.5*100.,w.studied[1]/1.5*100.));ui.small(format!("Copied methods: resin {} · mineral {}",w.learned[0].is_some(),w.learned[1].is_some()));}
                         for source in &d.sources {ui.small(format!("Coast {}: resin {:.1}/{:.1} kg · mineral {:.1}/{:.1} kg remaining",source.cell,source.remaining[0],source.initial[0],source.remaining[1],source.initial[1]));}
                     });
                 }}

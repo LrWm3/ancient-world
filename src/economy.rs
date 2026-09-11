@@ -978,7 +978,13 @@ impl History {
             })
             .map(|c| c.kg)
             .sum();
-        (s.stocks.stock[0] * catalog.production.land_freight_kg_per_person - used).max(0.)
+        let relief: f32 = self
+            .shipments
+            .iter()
+            .filter(|c| c.from == site || c.to == site)
+            .map(|c| c.food_kg)
+            .sum();
+        (s.stocks.stock[0] * catalog.production.land_freight_kg_per_person - used - relief).max(0.)
     }
 
     pub(crate) fn market_month(&mut self, radius: f32) {
@@ -1673,6 +1679,7 @@ mod freight_tests {
             ports: [1, 3]
                 .into_iter()
                 .map(|site| crate::shipping::Port {
+                    fleet: None,
                     work: None,
                     site,
                     access: vec![],
