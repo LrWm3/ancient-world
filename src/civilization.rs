@@ -1168,8 +1168,9 @@ impl Generator {
         self.advance_history_with_terrain(months, None)
     }
 
-    // A supplied snapshot must be from the current completed ecological step.
-    // Borrow it only for this transaction; never cache terrain across months.
+    // A supplied view must contain current observations for every cell consumed
+    // by this transaction. HistoryEnvironment refreshes those cells each month;
+    // callers that perform unbounded surveys require a full view.
     fn advance_history_with_terrain(
         &mut self,
         months: u32,
@@ -2066,16 +2067,17 @@ impl Generator {
                 &self.config,
                 &self.catalog,
             )?;
-            // Share this month's fresh terrain between flood checks and history.
-            // The engine separately refreshes ecology and commits farm withdrawals
-            // before the next ecological dispatch.
-            let terrain = self.snapshot()?;
+            // Refresh every cell consumed this month, retaining static geography
+            // between full survey refreshes. Drop the cache if the month fails.
+            let mut environment = self.history_environment.take().unwrap_or_default();
+            environment.refresh(self)?;
+            let terrain = environment.for_month(self.civilizations.as_ref().unwrap().month + 1)?;
             self.civilizations
                 .as_mut()
                 .unwrap()
                 .candidates
                 .retain(|c| crate::hazards::flood_depth(&terrain[c.cell as usize]) < 0.25);
-            self.advance_history_with_terrain(1, Some(&terrain))?;
+            self.advance_history_with_terrain(1, Some(terrain))?;
             self.commit_environmental_returns()?;
             self.reconcile_managed_land();
             self.civilizations
@@ -2086,6 +2088,7 @@ impl Generator {
                 .unwrap()
                 .incomplete = false;
             self.validate_living_boundary()?;
+            self.history_environment = Some(environment);
         }
         Ok(())
     }
@@ -2266,6 +2269,7 @@ mod lifecycle_tests {
             "frozen history needs only one terrain snapshot per batch"
         );
         g.enable_living_history().unwrap();
+        g.set_history_readback_mode(crate::history_environment::HistoryReadbackMode::Full);
         g.terrain_snapshot_count.store(0, Relaxed);
         g.advance_history(0).unwrap();
         assert_eq!(g.terrain_snapshot_count.load(Relaxed), 0);

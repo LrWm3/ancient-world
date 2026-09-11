@@ -177,6 +177,9 @@ pub fn device_descriptor(adapter: &wgpu::Adapter) -> wgpu::DeviceDescriptor<'sta
     }
 }
 pub struct Generator {
+    pub(crate) history_environment: Option<crate::history_environment::HistoryEnvironment>,
+    pub(crate) history_readback_mode: crate::history_environment::HistoryReadbackMode,
+    pub(crate) history_readback_stats: crate::history_environment::HistoryReadbackStats,
     #[cfg(test)]
     pub(crate) terrain_snapshot_count: std::sync::atomic::AtomicU64,
     pub(crate) return_pipeline: Option<wgpu::ComputePipeline>,
@@ -386,6 +389,9 @@ impl Generator {
         let mut s = Self {
             #[cfg(test)]
             terrain_snapshot_count: Default::default(),
+            history_environment: None,
+            history_readback_mode: Default::default(),
+            history_readback_stats: Default::default(),
             civilizations: None,
             history_engine: None,
             return_pipeline: None,
@@ -533,6 +539,7 @@ impl Generator {
     /// Relax connected water through actual neighboring saddles, with conservative
     /// area-weighted transfers. Never shares water across a dry internal ridge.
     pub fn equilibrate_lakes(&mut self) -> Result<()> {
+        self.history_environment = None;
         let start = Instant::now();
         self.gpu
             .queue
@@ -575,6 +582,7 @@ impl Generator {
     }
     /// Advance a bounded dispatch batch. Returns true at an epoch boundary.
     pub fn advance(&mut self) -> Result<bool> {
+        self.history_environment = None;
         ensure!(self.civilizations.is_none(), "Geological epochs are locked after founding; enable living history for monthly environmental evolution");
         if let Some(e) = &self.error {
             return Err(anyhow!(e.clone()));
@@ -887,6 +895,7 @@ impl Generator {
     }
     /// Uploads a validated checkpoint or a diagnostic fixture, never used for simulation.
     pub fn restore_cells(&mut self, cells: &[Cell], epoch: u32) -> Result<()> {
+        self.history_environment = None;
         ensure!(
             cells.len() == self.config.cells() as usize,
             "checkpoint cell count mismatch"

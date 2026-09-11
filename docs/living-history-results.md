@@ -52,3 +52,5 @@ CARGO_INCREMENTAL=0 mise exec rust@1.89.0 -- cargo test --lib living_history_rea
 CARGO_INCREMENTAL=0 mise exec rust@1.89.0 -- cargo test --test living -- --ignored
 CARGO_INCREMENTAL=0 mise exec rust@1.89.0 -- cargo test --lib
 ```
+
+The subsequent [compact history readback](history-environment-readback.md) retains this single-readback path as a reference and replaces most monthly full transfers with gathered observations.

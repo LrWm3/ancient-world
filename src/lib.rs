@@ -88,3 +88,5 @@ mod history_atlas;
 pub mod vessels;
 
 pub mod civic_petitions;
+
+pub mod history_environment;
