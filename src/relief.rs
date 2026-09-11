@@ -23,6 +23,53 @@ pub(crate) struct ReliefObservations {
     month: u32,
     pending: Vec<(usize, Appeal, f32, bool, f32)>,
 }
+/// Simultaneous secular claims: food belongs to the donor; freight is shared
+/// by incoming and outgoing journeys. No float atomics or history mutation here.
+#[derive(Clone, Copy)]
+struct ReliefClaim {
+    host: usize,
+    origin: usize,
+    requested: f32,
+}
+
+fn allocate_relief(claims: &[ReliefClaim], food: &[f32], freight: &[f32]) -> Vec<f32> {
+    let mut food_demand = vec![0f64; food.len()];
+    let mut freight_demand = vec![0f64; freight.len()];
+    for c in claims {
+        food_demand[c.host] += c.requested as f64;
+        freight_demand[c.host] += c.requested as f64;
+        if c.origin != c.host {
+            freight_demand[c.origin] += c.requested as f64;
+        }
+    }
+    let factor = |available: f32, demand: f64| {
+        if demand > 0. {
+            (available as f64 / demand).clamp(0., 1.)
+        } else {
+            1.
+        }
+    };
+    claims
+        .iter()
+        .map(|c| {
+            let scale = factor(food[c.host], food_demand[c.host])
+                .min(factor(freight[c.host], freight_demand[c.host]))
+                .min(factor(freight[c.origin], freight_demand[c.origin]));
+            let exact = c.requested as f64 * scale;
+            let mut grant = exact as f32;
+            if grant as f64 > exact {
+                grant = f32::from_bits(grant.to_bits().saturating_sub(1));
+            }
+            // Below the existing minimum journey load: release it, do not send a token shipment.
+            if grant >= 18. {
+                grant
+            } else {
+                0.
+            }
+        })
+        .collect()
+}
+
 impl History {
     pub(crate) fn relief_affinity(&self, from: u32, to: u32) -> f32 {
         let a = self.controller(from);
@@ -164,29 +211,62 @@ impl History {
     }
 
     fn answer_appeals_inner(&mut self, observations: &ReliefObservations) {
-        for &(i, ref a, affinity, hostile, shortage) in &observations.pending {
+        let mut pending: Vec<_> = observations.pending.iter().collect();
+        pending.sort_by_key(|(_, a, _, _, _)| (a.host, a.origin, a.cause, a.household));
+        let food: Vec<_> = self
+            .sites
+            .iter()
+            .map(|s| (s.stocks.stock[1] - s.stocks.stock[0] * 18. * 12.).max(0.))
+            .collect();
+        let freight: Vec<_> = self
+            .sites
+            .iter()
+            .map(|s| self.land_freight_capacity(s.id))
+            .collect();
+        let claims: Vec<_> = pending
+            .iter()
+            .map(|&&(_, ref a, affinity, hostile, shortage)| {
+                let r = &self.society.as_ref().unwrap().routes[a.route as usize];
+                let months = (r.cost_km / 150.).ceil().max(1.) as u32;
+                let allowed = affinity >= 0.2 + months as f32 * 0.025
+                    && !hostile
+                    && !self.sites[a.host as usize].abandoned
+                    && r.open
+                    && r.flood_months == 0
+                    && self.month - a.reported <= 18
+                    && shortage <= 0.01;
+                ReliefClaim {
+                    host: a.host as usize,
+                    origin: a.origin as usize,
+                    requested: if allowed {
+                        (a.population * 18. * 3.)
+                            .min(3000. / months as f32)
+                            .min(food[a.host as usize])
+                            .min(freight[a.host as usize])
+                            .min(freight[a.origin as usize])
+                    } else {
+                        0.
+                    },
+                }
+            })
+            .collect();
+        let grants = allocate_relief(&claims, &food, &freight);
+        // Commit all funded secular shipments before any religious fallback may reserve resources.
+        let mut order: Vec<_> = (0..pending.len()).collect();
+        order.sort_by_key(|&k| grants[k] < 18.);
+        for k in order {
+            let &(i, ref a, affinity, hostile, shortage) = pending[k];
             let r = self.society.as_ref().unwrap().routes[a.route as usize].clone();
             let months = (r.cost_km / 150.).ceil().max(1.) as u32;
             let host = &self.sites[a.host as usize];
             let surplus = (host.stocks.stock[1] - host.stocks.stock[0] * 18. * 12.).max(0.);
             let willing = affinity >= 0.2 + months as f32 * 0.025;
-            let allowed = willing
-                && !hostile
-                && !host.abandoned
-                && r.open
-                && r.flood_months == 0
-                && self.month - a.reported <= 18
-                && shortage <= 0.01;
-            let amount = if allowed {
-                surplus
-                    .min(a.population * 18. * 3.)
-                    .min(3000. / months as f32)
-                    .min(self.land_freight_capacity(a.host))
-                    .min(self.land_freight_capacity(a.origin))
-            } else {
-                0.
-            };
-            if amount < 18. && self.sponsor_religious_relief(a) {
+            // Live checks protect against f32 subtraction rounding at the commit boundary.
+            let amount = grants[k]
+                .min(surplus)
+                .min(self.land_freight_capacity(a.host))
+                .min(self.land_freight_capacity(a.origin));
+            if amount < 18. && grants[k] < 18. && self.sponsor_religious_relief(a) {
                 let response = self.events.last().unwrap().id;
                 self.society.as_mut().unwrap().relocation.appeals[i].response = Some(response);
                 continue;
@@ -236,6 +316,89 @@ impl History {
                     appeal_cause: Some(response),
                     relief_route: Some(a.route),
                 });
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod allocation_tests {
+    use super::*;
+    #[test]
+    fn competing_appeals_share_food_without_first_claimant_advantage() {
+        let claims = [
+            ReliefClaim {
+                host: 0,
+                origin: 1,
+                requested: 120.,
+            },
+            ReliefClaim {
+                host: 0,
+                origin: 2,
+                requested: 60.,
+            },
+        ];
+        let food = [90., 0., 0.];
+        let freight = [f32::INFINITY; 3];
+        assert_eq!(allocate_relief(&claims, &food, &freight), [60., 30.]);
+        assert_eq!(
+            allocate_relief(&[claims[1], claims[0]], &food, &freight),
+            [30., 60.]
+        );
+        assert_eq!(allocate_relief(&claims, &[0.; 3], &freight), [0., 0.]);
+    }
+    #[test]
+    fn incoming_and_outgoing_relief_share_endpoint_capacity() {
+        let claims = [
+            ReliefClaim {
+                host: 0,
+                origin: 1,
+                requested: 100.,
+            },
+            ReliefClaim {
+                host: 1,
+                origin: 2,
+                requested: 100.,
+            },
+        ];
+        assert_eq!(
+            allocate_relief(&claims, &[100.; 3], &[200., 80., 200.]),
+            [40., 40.]
+        );
+        // Below-minimum allocations are released; the algorithm deliberately does not refill.
+        assert_eq!(
+            allocate_relief(&claims, &[100.; 3], &[200., 20., 200.]),
+            [0., 0.]
+        );
+    }
+    #[test]
+    fn combined_constraints_never_overdraw() {
+        for available in [0., 18., 31.7, 100., 1000.] {
+            let claims: Vec<_> = (0..20)
+                .map(|i| ReliefClaim {
+                    host: i % 4,
+                    origin: (i + 1) % 4,
+                    requested: 18. + i as f32 * 7.3,
+                })
+                .collect();
+            let food = [available; 4];
+            let freight = [available * 1.5; 4];
+            let grants = allocate_relief(&claims, &food, &freight);
+            for site in 0..4 {
+                let used_food: f64 = claims
+                    .iter()
+                    .zip(&grants)
+                    .filter(|(c, _)| c.host == site)
+                    .map(|(_, &v)| v as f64)
+                    .sum();
+                let used_freight: f64 = claims
+                    .iter()
+                    .zip(&grants)
+                    .filter(|(c, _)| c.host == site || c.origin == site)
+                    .map(|(_, &v)| v as f64)
+                    .sum();
+                assert!(used_food <= food[site] as f64);
+                assert!(used_freight <= freight[site] as f64);
             }
         }
     }

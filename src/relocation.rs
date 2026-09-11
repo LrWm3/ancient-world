@@ -880,6 +880,59 @@ mod tests {
             "relief_appeal_declined"
         );
         appeal.society.as_mut().unwrap().routes[r.id as usize].cost_km = 150.;
+        // Synthetic two-origin appeal batch: geometry is irrelevant to this allocation fixture.
+        let mut competing = appeal.clone();
+        competing.politics = None;
+        competing.governance = None;
+        let other = (0..competing.sites.len())
+            .find(|&s| s != from && s != to)
+            .unwrap();
+        let civilization = competing.sites[to].civilization;
+        for site in &mut competing.sites {
+            site.civilization = civilization;
+            site.economy.logistics[3] = 0.; // Isolate food arbitration from carrier capacity.
+        }
+        let reserve = competing.sites[to].stocks.stock[0] * 18. * 12.;
+        competing.sites[to].stocks.stock[1] = reserve + 90.;
+        competing.sites[to].stocks.stock[3] = 0.;
+        let society = competing.society.as_mut().unwrap();
+        let mut second = society.relocation.appeals[0].clone();
+        society.relocation.appeals[0].population = 100.;
+        let mut link = society.routes[r.id as usize].clone();
+        link.id = society.routes.len() as u32;
+        link.from = to as u32;
+        link.to = other as u32;
+        second.origin = other as u32;
+        second.route = link.id;
+        second.population = 100.;
+        society.routes.push(link);
+        society.relocation.appeals.push(second);
+        let mut reversed = competing.clone();
+        reversed
+            .society
+            .as_mut()
+            .unwrap()
+            .relocation
+            .appeals
+            .reverse();
+        let before = competing.food_residual();
+        competing.answer_appeals();
+        reversed.answer_appeals();
+        let delivered = |world: &History| {
+            let mut loads: Vec<_> = world.shipments.iter().map(|s| (s.to, s.food_kg)).collect();
+            loads.sort_by_key(|s| s.0);
+            loads
+        };
+        assert_eq!(delivered(&competing), delivered(&reversed));
+        let new_loads: Vec<_> = competing
+            .shipments
+            .iter()
+            .filter(|s| s.from == to as u32 && (s.to == from as u32 || s.to == other as u32))
+            .collect();
+        assert_eq!(new_loads.len(), 2);
+        assert!(new_loads.iter().all(|s| s.food_kg == 45.));
+        assert_eq!(competing.sites[to].stocks.stock[1], reserve);
+        assert!((competing.food_residual() - before).abs() < 0.01);
         let mut captured_relief = appeal.clone();
         let evidence = captured_relief.observe_relief();
         captured_relief.sites[to].stocks.stock[3] = 1.;

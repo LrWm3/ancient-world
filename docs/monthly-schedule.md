@@ -198,3 +198,40 @@ the GPU expanded-faction fixture passed; all three history-environment fixtures
 passed (25.78 seconds excluding compilation), retaining exact seed 17/81/256
 batch/checkpoint comparisons. Strict Clippy passed after a boolean simplification;
 formatting and artifact checks passed. No new balance claims are made.
+
+
+## Shared secular relief allocation (2026-09-11)
+
+Secular appeals no longer consume a host's entire available budget in appeal-array
+order. Captured eligible reports produce bounded requests, then a pure allocation
+pass gathers total demand on each donor's food surplus and each endpoint's freight
+capacity. Every request is scaled by the tightest proportional budget factor.
+Incoming and outgoing relief share the same endpoint capacity; existing journeys
+are deducted before new requests are considered. The donor retains the existing
+12-month food reserve.
+
+The commit order is canonical by host, origin, cause and household rather than
+appeal storage position. Funded secular shipments commit before religious fallback
+may reserve remaining resources. Live food/freight checks remain at commit to bound
+float rounding. A funded grant rounded below the shipment minimum is declined rather
+than allowing fallback to consume another secular grant's capacity.
+
+This is deliberately conservative: grants below 18 kg are released and overlapping
+constraints can leave capacity unused. There is no refill pass or maximum-flow claim.
+The priority is explicit (existing commitments, secular allocation, religious
+fallback); it is not an assertion that this is the only reasonable social policy.
+Markets later in the month see these committed reservations through existing freight
+accounting. Regional/intermediate relief stops still use the existing endpoint model.
+
+Analytical fixtures cover 120:60 requests sharing 90 kg as 60:30, reversed request
+order, incoming/outgoing freight competition, zero budgets and combined constraints.
+An integrated fixture reverses a two-origin appeal batch, obtains two 45 kg shipments
+from a 90 kg surplus, preserves the donor reserve and checks the food ledger. It uses
+synthetic endpoint connectivity to isolate allocation, not to test route geometry.
+Broader cross-system labor and treasury arbitration remains outside this increment.
+
+Relief allocation verification on the Quadro backend: 67 ordinary library tests
+passed, the GPU relocation/relief fixture passed, and all three history-environment
+fixtures passed with exact seed 17/81/256 batch/checkpoint comparisons. Strict Clippy,
+formatting and repository artifact checks passed. These are timing/allocation checks,
+not long-run relief-policy calibration.
