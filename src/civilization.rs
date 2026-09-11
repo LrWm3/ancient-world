@@ -147,6 +147,8 @@ pub struct Candidate {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct History {
     #[serde(default)]
+    pub domestic: Option<crate::domestic::Domestic>,
+    #[serde(default)]
     pub military: crate::military::Military,
     /// Current named travel duties, independent of optional service-work accounting.
     #[serde(default)]
@@ -1104,6 +1106,7 @@ impl Generator {
         let mut h = History {
             participation: Some(Default::default()),
             person_duties: Default::default(),
+            domestic: Some(Default::default()),
             military: Default::default(),
             territorial_history: vec![],
             enterprises: Some(Default::default()),
@@ -1307,6 +1310,7 @@ impl Generator {
         engine.fish(self);
         engine.dispatch(self, false, h.sites.len() as u32);
         engine.read(self, h, true)?;
+        h.settle_domestic_care();
         h.settle_resources(extraction_allowances)?;
         h.settle_enterprises();
         h.storage_events();
@@ -1370,6 +1374,7 @@ impl Generator {
         engine.read(self, h, false)?;
         h.register_resources(terrain, self.config.radius_km);
         h.sync_culture();
+        h.sync_domestic();
         h.sync_offices();
         h.settle_participation()?;
         h.social_indicators_month();

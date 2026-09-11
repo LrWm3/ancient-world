@@ -242,3 +242,11 @@ demographic births/deaths remain aggregate; this completes another population-wr
 adapter, not the complete-population conversion.
 
 Verification and limitations: [military participation](individual-military-verification.md).
+
+## Known domestic groups
+
+The next adapter separates recorded domestic families from ownership accounts and
+connects caregiving to local work and recruitment. See
+[domestic participation](domestic-participation.md) for timing, controls and limits.
+This supersedes the earlier statement that domestic groups are entirely absent;
+full population rosters and household demographic authority remain outstanding.

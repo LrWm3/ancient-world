@@ -5,6 +5,9 @@ use ancient_world::{
     gpu::{ContextGpu, Generator},
 };
 fn world() -> Generator {
+    world_with_domestic(true)
+}
+fn world_with_domestic(domestic: bool) -> Generator {
     let mut g = Generator::new(
         pollster::block_on(ContextGpu::headless()).unwrap(),
         Config {
@@ -18,6 +21,11 @@ fn world() -> Generator {
     .unwrap();
     g.run_epochs(1).unwrap();
     g.found_civilizations(5).unwrap();
+    g.civilizations
+        .as_mut()
+        .unwrap()
+        .set_domestic_households(domestic)
+        .unwrap();
     // Isolate transport, escrow and rescue accounting from new crop balance.
     g.set_diversified_farming(false).unwrap();
     g.enable_society().unwrap();
@@ -527,7 +535,9 @@ fn merchant_institution_pays_existing_escrow_and_receives_its_refund() {
 #[test]
 #[ignore = "requires hardware GPU"]
 fn heritage_voyages_preserve_minor_finds_and_checkpoint_continuity() {
-    let mut g = world();
+    // This fixture requires a funded route to a specific find. Isolate that
+    // precondition from caregiving competition for tool-production labor.
+    let mut g = world_with_domestic(false);
     let eligible: Vec<_> = {
         let h = g.civilizations.as_ref().unwrap();
         h.expeditions
@@ -547,7 +557,15 @@ fn heritage_voyages_preserve_minor_finds_and_checkpoint_continuity() {
     };
     let id = eligible
         .into_iter()
-        .find_map(|r| g.launch_expedition(r, Objective::PatronSearch, None).ok())
+        .find_map(
+            |r| match g.launch_expedition(r, Objective::PatronSearch, None) {
+                Ok(id) => Some(id),
+                Err(error) => {
+                    eprintln!("patron route {r}: {error:#}");
+                    None
+                }
+            },
+        )
         .expect("eligible funded patron voyage");
     let h = g.civilizations.as_ref().unwrap();
     let e = &h.expeditions.as_ref().unwrap().voyages[id as usize];

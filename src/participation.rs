@@ -31,6 +31,8 @@ pub struct Resident {
     /// Existing ownership household, not a reconstructed domestic family.
     pub household: Option<u32>,
     pub presence: Presence,
+    #[serde(default)]
+    pub care: f32,
     pub capacity: f32,
     pub committed: f32,
     pub completed: [f64; 2],
@@ -141,9 +143,10 @@ impl Participation {
                         .society
                         .as_ref()
                         .is_some_and(|s| (id as usize) < s.households.len()))
-                    && [p.capacity, p.committed]
+                    && [p.capacity, p.committed, p.care]
                         .iter()
                         .all(|v| v.is_finite() && *v >= 0.)
+                    && p.capacity + p.care <= 0.80001
                     && p.committed <= p.capacity + 1e-5
                     && p.completed.iter().all(|v| v.is_finite() && *v >= 0.),
                 "invalid resident participation"
@@ -237,6 +240,7 @@ impl History {
         )
     }
     pub(crate) fn open_participation(&mut self) {
+        self.reserve_domestic_care();
         let Some(mut state) = self.participation.take() else {
             return;
         };
@@ -254,14 +258,18 @@ impl History {
                 }
                 _ => 0.,
             };
+            let care = self.domestic_care_for(p.id).min(capacity);
+            let capacity = (capacity - care).max(0.);
             let entry = state.residents.entry(p.id).or_insert(Resident {
                 person: p.id,
+                care,
                 household,
                 presence,
                 capacity,
                 committed: 0.,
                 completed: [0.; 2],
             });
+            entry.care = care;
             entry.household = household;
             entry.presence = presence;
             entry.capacity = capacity;
@@ -318,7 +326,7 @@ impl History {
         Ok(())
     }
     pub fn participation_report(&self) -> serde_json::Value {
-        serde_json::json!({"mode":if self.participation.is_some(){"named participation; aggregate demography"}else{"legacy"},"state":self.participation})
+        serde_json::json!({"mode":if self.participation.is_some(){"named participation; aggregate demography"}else{"legacy"},"state":self.participation,"domestic":self.domestic})
     }
 }
 
@@ -373,6 +381,7 @@ impl History {
             minimum > 0 && maximum >= minimum && (origin as usize) < self.sites.len(),
             "invalid service recruitment request"
         );
+        self.sync_domestic();
         let maximum = maximum.min(
             self.sites[origin as usize].demography.ages[1]
                 .floor()
@@ -400,7 +409,16 @@ impl History {
         candidates.sort_by_key(|&person| {
             crate::expeditions::random(self.seed, person, self.month, 211).to_bits()
         });
-        candidates.truncate(maximum);
+        let mut chosen = Vec::new();
+        for person in candidates {
+            if chosen.len() == maximum {
+                break;
+            }
+            if self.domestic_departure_allowed(person, &chosen) {
+                chosen.push(person);
+            }
+        }
+        let mut candidates = chosen;
         let named_adults = self
             .people
             .iter()
@@ -498,6 +516,7 @@ mod tests {
                             person: id,
                             household: None,
                             presence: Presence::Resident(0),
+                            care: 0.,
                             capacity: 0.8,
                             committed: 0.,
                             completed: [0.; 2],

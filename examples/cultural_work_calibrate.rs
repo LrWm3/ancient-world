@@ -13,6 +13,8 @@ struct Args {
     #[arg(long)]
     legacy_participation: bool,
     #[arg(long)]
+    no_domestic_care: bool,
+    #[arg(long)]
     strict_identities: bool,
     #[arg(long, value_delimiter = ',', default_value = "17,81,256")]
     seeds: Vec<u32>,
@@ -53,6 +55,10 @@ fn main() -> Result<()> {
             .as_mut()
             .unwrap()
             .focused_work_identities = !args.strict_identities;
+        g.civilizations
+            .as_mut()
+            .unwrap()
+            .set_domestic_households(!args.no_domestic_care)?;
         g.enable_society()?;
         g.enable_politics()?;
         g.enable_governance()?;
@@ -106,7 +112,7 @@ fn main() -> Result<()> {
                 }
             }
             if quarter % 40 == 0 || quarter == args.years * 4 {
-                let row = json!({"year":quarter/4,"funded_bundles":funded,"cancelled_bundles":cancelled,"requested":requested,"granted":granted,"used":used,"cancelled_work":cancelled_work,"population":h.sites.iter().map(|s|s.stocks.stock[0] as f64).sum::<f64>(),"active_sites":h.sites.iter().filter(|s|!s.abandoned).count(),"institutions":c.institutions.iter().filter(|n|n.active).count(),"knowledge_links":c.agents.iter().map(|a|a.knowledge.len()).sum::<usize>(),"artifacts":c.artifacts.len(),"individuals":h.participation.as_ref().map(|p|json!({"known":p.residents.len(),"available_adults":p.residents.values().filter(|r|r.capacity>0.).count(),"culture_work":p.residents.values().map(|r|r.completed[0]).sum::<f64>(),"research_work":p.residents.values().map(|r|r.completed[1]).sum::<f64>()}))});
+                let row = json!({"year":quarter/4,"domestic":h.domestic.as_ref().map(|d|json!({"groups":d.units.iter().filter(|u|u.ended.is_none()).count(),"members":d.membership.len(),"completed":d.care_completed,"care":d.care})),"funded_bundles":funded,"cancelled_bundles":cancelled,"requested":requested,"granted":granted,"used":used,"cancelled_work":cancelled_work,"population":h.sites.iter().map(|s|s.stocks.stock[0] as f64).sum::<f64>(),"active_sites":h.sites.iter().filter(|s|!s.abandoned).count(),"institutions":c.institutions.iter().filter(|n|n.active).count(),"knowledge_links":c.agents.iter().map(|a|a.knowledge.len()).sum::<usize>(),"artifacts":c.artifacts.len(),"individuals":h.participation.as_ref().map(|p|json!({"known":p.residents.len(),"available_adults":p.residents.values().filter(|r|r.capacity>0.).count(),"culture_work":p.residents.values().map(|r|r.completed[0]).sum::<f64>(),"research_work":p.residents.values().map(|r|r.completed[1]).sum::<f64>()}))});
                 eprintln!("seed {seed}: {} years, cancelled {cancelled}/{funded}, work {used:.1}/{granted:.1}, {:.1}s",quarter/4,start.elapsed().as_secs_f64());
                 samples.push(row);
             }
@@ -123,7 +129,7 @@ fn main() -> Result<()> {
         std::fs::write(
             &args.output,
             serde_json::to_vec_pretty(
-                &json!({"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows}),
+                &json!({"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows}),
             )?,
         )?;
     }

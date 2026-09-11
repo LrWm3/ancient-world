@@ -2588,6 +2588,10 @@ impl App {
                         });
                         ui.collapsing("Individual participation", |ui| {
                             ui.small("Named residents share cultural and research work. Population and ordinary employment still use settlement cohorts.");
+                            if let Some(d)=&h.domestic {
+                                ui.label(format!("{} domestic groups among known people · {:.2} caregiving worker-months completed", d.units.iter().filter(|u|u.ended.is_none()).count(),d.care_completed));
+                                if let Some(c)=&d.care {ui.small(format!("Care requested / granted / used: {:.2} / {:.2} / {:.2}",c.receipt.requested,c.receipt.granted,c.receipt.used));}
+                            }
                             if let Some(p)=&h.participation {
                                 ui.label(format!("Opening-month roster: {} known people · {} commitments",p.residents.len(),p.commitments.len()));
                                 for work in &p.commitments {

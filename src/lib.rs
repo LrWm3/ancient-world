@@ -100,3 +100,5 @@ mod labor;
 pub mod participation;
 
 pub mod military;
+
+pub mod domestic;

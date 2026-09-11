@@ -111,6 +111,9 @@ impl crate::civilization::History {
     }
     pub(crate) fn validate_service_work(&self) -> anyhow::Result<()> {
         self.military.validate(self)?;
+        if let Some(d) = &self.domestic {
+            d.validate(self)?;
+        }
         for (&person, duty) in &self.person_duties {
             anyhow::ensure!(
                 self.people

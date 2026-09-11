@@ -102,11 +102,14 @@ impl History {
     }
     /// Clear completed reservations once, before this month's service claims.
     pub(crate) fn begin_service_reservations(&mut self) {
-        self.open_participation();
         for site in &mut self.sites {
             site.economy.external[3] = 0.;
             site.economy.enterprise_plan = [0.; 4];
         }
+        if let Some(c) = self.domestic.as_mut().and_then(|d| d.care.as_mut()) {
+            c.reserved = false;
+        }
+        self.open_participation();
         if let Some(e) = self
             .society
             .as_mut()
