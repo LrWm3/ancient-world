@@ -306,3 +306,12 @@ history-environment fixtures passed in 25.24 seconds excluding compilation,
 retaining exact seed 17/81/256 batch/checkpoint comparisons. Strict Clippy,
 formatting and repository artifact checks passed. No long-run balance or optimal
 allocation claim follows from these bounded-work and continuation tests.
+
+## Controlled priority comparison
+
+The [service labor scarcity comparison](service-labor-scarcity-comparison.md)
+tests current and alternative priorities across three seeds. Scarcity materially
+changes which activity is excluded, while abundant-workforce controls agree.
+The report distinguishes reserved work and staffed shipping capacity from completed
+production and deliveries. It recommends demand-aware requests before changing the
+production priority order; this experiment does not change that order.

@@ -541,11 +541,15 @@ mod tests {
         }
     }
     fn world() -> Generator {
+        world_seed(Config::default().seed)
+    }
+    fn world_seed(seed: u32) -> Generator {
         let mut g = Generator::new(
             pollster::block_on(ContextGpu::headless()).unwrap(),
             Config {
                 resolution: 32,
                 ecology_resolution: 16,
+                seed,
                 ..Default::default()
             },
             Catalog::bundled().unwrap(),
@@ -554,6 +558,129 @@ mod tests {
         g.found_civilizations(5).unwrap();
         g.enable_society().unwrap();
         g
+    }
+    /// Matched reservation-only counterfactuals: synthetic installed port at the
+    /// workshop site isolates priority from route geography. No harvest/population
+    /// conclusions are inferred from this single-boundary experiment.
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn service_scarcity_priority_comparison() {
+        for seed in [17, 81, 256] {
+            let mut g = world_seed(seed);
+            install(&mut g);
+            g.enable_shipping().unwrap();
+            let h = g.civilizations.as_mut().unwrap();
+            h.month = 3;
+            h.prepare_enterprises();
+            assert_eq!(h.enterprises.as_ref().unwrap().firms.len(), 1);
+            // Explicit fixture capital import, identical in every arm. No transactions
+            // may create money after this baseline is captured.
+            h.sites[0].economy.finance[0] = 10000.;
+            h.shipping.as_mut().unwrap().ports = vec![crate::shipping::Port {
+                fleet: Some(Default::default()),
+                work: None,
+                site: 0,
+                access: vec![],
+                water_cell: 0,
+                access_km: 0.,
+                assets: [200., 10., 100.],
+                commissioned: Some(3),
+                flood_months: 0,
+            }];
+            let base = h.clone();
+            let money = |h: &History| {
+                h.sites
+                    .iter()
+                    .map(|s| s.economy.finance[0] as f64)
+                    .sum::<f64>()
+                    + h.society
+                        .as_ref()
+                        .unwrap()
+                        .household_economy
+                        .as_ref()
+                        .unwrap()
+                        .accounts
+                        .iter()
+                        .map(|a| a.cash)
+                        .sum::<f64>()
+                    + h.enterprises
+                        .as_ref()
+                        .unwrap()
+                        .firms
+                        .iter()
+                        .map(|f| f.cash)
+                        .sum::<f64>()
+            };
+            println!(
+                "seed,adults,illness,culture,order,ceiling,cultural,enterprise,crew,freight,idle"
+            );
+            for adults in [2., 8., 20., 100.] {
+                for illness in [0., 0.5] {
+                    for cultural in [false, true] {
+                        let mut outcomes = Vec::new();
+                        for order in [0, 1, 2] {
+                            let mut h = base.clone();
+                            h.sites[0].demography.ages[1] = adults;
+                            h.sites[0].demography.health[0] = illness;
+                            h.sites[0].economy.external[3] = 0.;
+                            h.sites[0].economy.enterprise_plan = [0.; 4];
+                            let ceiling = crate::labor::available(&h.sites[0], true, false);
+                            let before = money(&h);
+                            if cultural && order != 2 {
+                                h.reserve_cultural_work();
+                            }
+                            if order == 0 {
+                                h.prepare_enterprises();
+                                h.prepare_vessels();
+                            } else {
+                                h.prepare_vessels();
+                                h.prepare_enterprises();
+                            }
+                            if cultural && order == 2 {
+                                h.reserve_cultural_work();
+                            }
+                            let enterprise = h.sites[0].economy.enterprise_plan.iter().sum::<f32>();
+                            let crew = h.vessel_work(0);
+                            let culture = if cultural {
+                                h.culture.as_ref().unwrap().labor_budget[0]
+                            } else {
+                                0.
+                            };
+                            let used = enterprise + crew + culture;
+                            outcomes.push([culture, enterprise, crew]);
+                            assert!(used <= ceiling + 1e-5);
+                            assert!((money(&h) - before).abs() < 1e-6);
+                            println!("{seed},{adults},{illness},{cultural},{order},{ceiling:.4},{culture:.4},{enterprise:.4},{crew:.4},{:.2},{:.4}",
+                            h.shipping.as_ref().unwrap().ports[0].capacity(), (ceiling-used).max(0.));
+                            if adults == 2. && cultural && order != 2 {
+                                assert!(enterprise < 1e-5 && crew < 1e-5);
+                                assert!((culture - ceiling).abs() < 1e-5);
+                            }
+                            if adults == 8. && illness == 0. && !cultural {
+                                if order == 0 {
+                                    assert!(crew < 0.5);
+                                } else {
+                                    assert!(crew > 0.99);
+                                }
+                            }
+                        }
+                        // Negative control: when everyone fits, reordering must
+                        // not alter these allocations. With culture off, orders
+                        // 1 and 2 are the same intervention and must agree.
+                        for outcome in &outcomes[1..] {
+                            if adults >= 20. {
+                                for (a, b) in outcome.iter().zip(outcomes[0]) {
+                                    assert!((*a - b).abs() < 1e-5);
+                                }
+                            }
+                        }
+                        if !cultural {
+                            assert_eq!(outcomes[1], outcomes[2]);
+                        }
+                    }
+                }
+            }
+        }
     }
     // Explicit fixture imports of installed capital and metal, plus a transfer of existing cash.
     fn install(g: &mut Generator) {
