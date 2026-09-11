@@ -189,3 +189,30 @@ Reproduction: `target/release/examples/cultural_work_calibrate --seeds 17,81,256
 --household-diagnostics --output output/household-distribution.json`.
 All-target Clippy and the source-only artifact check passed for this diagnostic
 increment. It changes observations, not model decisions.
+
+## Repaired common-food century outcome
+
+The whole-household daughter-founding correction allows the seed-17 common-food
+control to finish. At year 100 it has **7,019 residents and 27 active sites**,
+compared with 57 residents in the legacy-payroll retail baseline. Population is
+2,275 at year 10, 3,946 at year 50 and 6,347 at year 90. The run records 30 founding
+events and three abandonments. Maximum monthly population residual is zero and
+normalized food residual is 5.81e-7. Runtime is 496.5 seconds on the Quadro RTX 5000
+Max-Q Vulkan backend.
+
+Across all monthly observations, physical shortage is 0.8603% of food need;
+unfunded access shortage is below 1e-8%. Physical shortage increases relative to
+the collapsing baseline as the much larger population consumes resources. This
+is a controlled change to distribution, not a yield increase. It strongly supports
+food access as a major cause of the original decline. It does not establish that
+universal common distribution is the preferred policy, that the income mechanism
+is repaired, or that every seed would grow this way. Daughter founding necessarily
+uses the corrected resident path; the baseline never reached its triggering growth.
+
+Command: `target/release/examples/cultural_work_calibrate --seeds 17 --years 100
+--individual-demography --workshop-refinement --compare-resolution
+--legacy-resident-payroll --common-share 1 --output output/common-food-rosters.json`.
+Terrain resolution 32, ecology 16, one geological epoch, crop yield scale 0.5,
+living history. Raw results remain ignored. Next balance comparisons should vary
+income and entitlement while holding production fixed, and include held-out seeds;
+actual production participation remains a separate unfinished integration.

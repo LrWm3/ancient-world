@@ -3,13 +3,17 @@
 use crate::{civilization::History, household_economy::withdraw};
 use serde::{Deserialize, Serialize};
 mod crews;
+mod resolution;
 pub(crate) use crews::validate_crews;
 pub use crews::CrewWork;
+pub use resolution::{CrewProjection, CrewWindow};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Fleet {
     #[serde(default)]
     pub requested_work: f32,
+    #[serde(default)]
+    pub projection: Option<CrewProjection>,
     pub vessels: Vec<Vessel>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -48,6 +52,16 @@ fn funded_work(paid: f64, wage: f64, reserved: f32) -> f32 {
 }
 
 impl Fleet {
+    fn observe_grants(&mut self, window: usize) {
+        let work = self.work() as f64;
+        if let Some(w) = self
+            .projection
+            .as_mut()
+            .and_then(|p| p.windows[window].as_mut())
+        {
+            w.granted = (work - w.opening_work).max(0.);
+        }
+    }
     pub fn capacity(&self) -> f32 {
         self.vessels
             .iter()
@@ -129,6 +143,7 @@ impl History {
             for port in &mut shipping.ports {
                 if let Some(fleet) = &mut port.fleet {
                     fleet.requested_work = 0.;
+                    fleet.projection = None;
                     for vessel in &mut fleet.vessels {
                         vessel.funded_work = 0.;
                         vessel.household = None;
@@ -187,8 +202,34 @@ impl History {
             let target = (loads[port_index] / 1000. + if committed_only { 0. } else { 0.1 })
                 .min(hulls as f32 * 0.25);
             fleet.requested_work = target;
+            let window = usize::from(!committed_only);
+            let opening_work = fleet.work() as f64;
+            if self.resolution.is_some() {
+                let projection = fleet.projection.get_or_insert_with(|| CrewProjection {
+                    month: self.month,
+                    mode: if self.participation.is_some() {
+                        crate::resolution::Mode::Individual
+                    } else {
+                        crate::resolution::Mode::Aggregate
+                    },
+                    windows: [None, None],
+                    settled: false,
+                });
+                projection.windows[window].get_or_insert_with(|| CrewWindow {
+                    demand: (target as f64 - opening_work).max(0.),
+                    labor: crate::labor::available(&self.sites[site], true, self.living.is_some())
+                        as f64,
+                    affordable: self.sites[site].economy.finance[0].max(0.) as f64
+                        / (18.
+                            * self.sites[site].economy.prices[crate::economy::FOOD].max(0.01)
+                                as f64),
+                    opening_work,
+                    granted: 0.,
+                });
+            }
             if self.participation.is_some() {
                 self.reserve_named_vessels(port.site, fleet, hulls, target);
+                fleet.observe_grants(window);
                 continue;
             }
             let Some(society) = &mut self.society else {
@@ -236,6 +277,7 @@ impl History {
                 s.economy.external[3] += actual;
                 work_left -= actual;
             }
+            fleet.observe_grants(window);
         }
         self.shipping = Some(shipping);
     }
@@ -554,6 +596,7 @@ mod tests {
             for port in &mut h.shipping.as_mut().unwrap().ports[..2] {
                 port.fleet = Some(Fleet {
                     requested_work: work,
+                    projection: None,
                     vessels: (0..4)
                         .map(|id| Vessel {
                             id,

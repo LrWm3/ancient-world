@@ -17,6 +17,7 @@ pub enum System {
     Research,
     Culture,
     DomesticCare,
+    MerchantCrew,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Boundary {
@@ -144,7 +145,7 @@ impl ResolutionState {
     }
     pub(crate) fn validate(&self, month: u32, sites: usize) -> Result<()> {
         ensure!(
-            self.receipts.len() <= sites * 8,
+            self.receipts.len() <= sites * 9,
             "unbounded resolution receipts"
         );
         ensure!(

@@ -82,3 +82,18 @@ exposed severe individual-mode depopulation despite clean accounting. See the
 [resident payroll investigation](resident-payroll-balance.md) for the measured
 population and food-access differences, the verified empty-estate income bug,
 and the controls being run before accepting any balance conclusion.
+
+The previously unstarted static-access scarcity condition is now running directly
+with the release runner corresponding to `a323d84` (the current crew-comparison
+addition changes observations only). Command:
+
+```sh
+target/release/examples/cultural_work_calibrate --seeds 17,81,256,409,1024 \
+  --years 100 --individual-demography --workshop-refinement --compare-resolution \
+  --crop-yield-scale 0.33 --no-founding-access \
+  --output output/scarcity-static-residents.json
+```
+
+This explicitly retains resident-eligible payroll. Earlier failures and controls
+used different payroll switches; compare reported switches before attributing a
+difference to founding entitlement alone. Completion and outcomes remain pending.

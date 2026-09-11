@@ -158,6 +158,18 @@ impl History {
                         *external = (*external - lost).max(0.);
                     }
                 }
+                let used = fleet.work() as f64;
+                if let (Some(projection), Some(state)) =
+                    (&mut fleet.projection, &mut self.resolution)
+                {
+                    if !projection.settled {
+                        let receipt =
+                            projection.outcome(self.month, port.site, used, state.compare)?;
+                        let boundary = receipt.boundary.clone();
+                        state.commit(receipt, &boundary)?;
+                        projection.settled = true;
+                    }
+                }
             }
             Ok(())
         })();
@@ -170,6 +182,12 @@ pub(crate) fn validate_crews(shipping: &Shipping, h: &History) -> Result<()> {
     let mut ids = std::collections::BTreeSet::new();
     for port in &shipping.ports {
         if let Some(fleet) = &port.fleet {
+            if let Some(projection) = &fleet.projection {
+                ensure!(projection.month <= h.month, "future crew projection");
+                let mut checked = projection.clone();
+                checked.settled = false;
+                checked.outcome(projection.month, port.site, fleet.work() as f64, false)?;
+            }
             for vessel in &fleet.vessels {
                 for work in &vessel.crew {
                     work.receipt.validate()?;
@@ -274,6 +292,7 @@ mod tests {
             g.run_epochs(1).unwrap();
             g.found_civilizations(5).unwrap();
             g.enable_society().unwrap();
+            g.enable_politics().unwrap();
             g.enable_shipping().unwrap();
             let h = g.civilizations.as_mut().unwrap();
             // Declared fixture assets/cash isolate matching from harbor construction.
@@ -292,6 +311,8 @@ mod tests {
             h.shipping.as_mut().unwrap().ports[0].commissioned = Some(h.month);
             h.sites[site].economy.finance[1] += 10000. - h.sites[site].economy.finance[0];
             h.sites[site].economy.finance[0] = 10000.;
+            h.set_demographic_resolution(crate::resolution::Mode::Aggregate, true)
+                .unwrap();
             h.begin_service_reservations();
             let base = h.clone();
             let before = cash(h);
@@ -341,6 +362,14 @@ mod tests {
                 commitments
             );
             h.settle_vessel_crews().unwrap();
+            let resolution_before = serde_json::to_value(&h.resolution).unwrap();
+            assert!(h
+                .resolution
+                .as_ref()
+                .unwrap()
+                .receipts
+                .iter()
+                .any(|r| r.boundary.system == crate::resolution::System::MerchantCrew));
             let experience =
                 h.participation.as_ref().unwrap().residents[&hire.person].merchant_completed;
             assert!(experience > 0.);
@@ -348,6 +377,10 @@ mod tests {
             assert_eq!(
                 h.participation.as_ref().unwrap().residents[&hire.person].merchant_completed,
                 experience
+            );
+            assert_eq!(
+                serde_json::to_value(&h.resolution).unwrap(),
+                resolution_before
             );
             validate_crews(h.shipping.as_ref().unwrap(), h).unwrap();
             h.participation.as_ref().unwrap().validate(h).unwrap();
@@ -427,8 +460,34 @@ mod tests {
             let mut aggregate = busy.clone();
             // Explicit comparison control: no personal matching, same site cash and ceilings.
             aggregate.participation = None;
+            for p in &mut aggregate.shipping.as_mut().unwrap().ports {
+                if let Some(f) = &mut p.fleet {
+                    f.projection = None;
+                }
+            }
             aggregate.prepare_vessels();
             assert!(aggregate.vessel_work(site as u32) > 0.);
+            busy.settle_vessel_crews().unwrap();
+            aggregate.settle_vessel_crews().unwrap();
+            let crew_receipt = |h: &History| {
+                h.resolution
+                    .as_ref()
+                    .unwrap()
+                    .receipts
+                    .iter()
+                    .find(|r| {
+                        r.boundary.system == crate::resolution::System::MerchantCrew
+                            && r.boundary.site == site as u32
+                    })
+                    .unwrap()
+                    .clone()
+            };
+            let unavailable = crew_receipt(&busy);
+            assert!(unavailable.metrics[0].expected > 0.);
+            assert_eq!(unavailable.metrics[0].actual, 0.);
+            let pooled = crew_receipt(&aggregate);
+            assert_eq!(pooled.mode, crate::resolution::Mode::Aggregate);
+            assert!(pooled.metrics[0].actual > 0.);
 
             // Loss after reservation cannot fund new dispatch or earn completed experience.
             let mut absent = base.clone();
@@ -454,6 +513,10 @@ mod tests {
                 absent.participation.as_ref().unwrap().residents[&person].merchant_completed,
                 0.
             );
+            let loss = crew_receipt(&absent);
+            let completed = loss.metrics.last().unwrap();
+            assert!(completed.actual < completed.expected);
+            assert!(completed.unexplained().abs() < 1e-9);
             validate_crews(absent.shipping.as_ref().unwrap(), &absent).unwrap();
 
             // Settled prepaid capacity survives save/reload and the next monthly reset.

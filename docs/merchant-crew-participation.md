@@ -83,3 +83,35 @@ reserving that time. The controlled checkpoint fixture records supplied harbor
 materials and capital in its opening ledgers; it does not waive budget validation.
 These checks demonstrate bounded work, financial transfers and timing, not a claim
 that the current crew sizes or labor priorities are well balanced in every world.
+
+## Aggregate/individual resolution comparisons
+
+Fleet projections now retain the opening demand, remaining pooled service labor,
+affordable worker-months and already funded work separately at the committed-cargo
+and standby reservation windows. Their minimum is a **pooled budget ceiling**,
+not a promise that eligible households or named workers exist. It is not a full
+parallel aggregate history. In particular, the later window sees actual remaining
+budgets after earlier crew hiring and intervening services.
+
+With resolution comparisons enabled, one `MerchantCrew` receipt per port records
+conditional expected and actual hiring for each window, then granted versus
+completed work. Hiring differences remain unexplained in the common metric;
+the model does not infer a particular cause from a single missing match. Released
+prepaid work is directly measured at settlement. Neither forecast pays wages,
+reserves personal time, moves cargo nor supplies capacity. Aggregate staffing
+receives the same budget comparison while preserving its existing behavior.
+
+Current fleet projections are archived and reset alongside assignments at Reserve.
+Old archives default to no projection for the already prepaid interval. Completed
+receipts are bounded to the current month; cumulative comparisons retain numeric
+summaries. Repeated settlement does not add observations or experience. Endpoint
+service remains the model: these receipts do not imply onboard ship populations.
+
+Verification for the comparison increment: six vessel tests pass, including the
+three-seed named-worker fixture, unavailable-worker aggregate control, departure
+from a prepaid grant, idempotence, and 15-month save/load versus batch continuation.
+The analytical fixture checks pooled limits, unexplained hiring differences,
+measured release, stale dates, invalid grants and serialized forecasts. The regular
+library suite passes 112 tests (99 hardware tests skipped); the hardware shipping
+integration fixture also passes. All-target Clippy with warnings denied passes.
+These checks establish accounting and timing, not balanced crew labor shares.

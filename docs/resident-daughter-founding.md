@@ -44,3 +44,8 @@ for absent households and missing provisions, serialization replay, normal site
 initialization and full checkpoint versus monthly/batched continuation. The
 common-food century rerun is required in addition to the fixture; fixing roster
 movement alone does not establish viable long-run population balance.
+
+The corrected seed-17 common-food century now completes with 7,019 residents,
+27 active sites and zero population residual; see the [balance evidence](resident-payroll-balance.md).
+This establishes continuation through repeated daughter founding, not the balance
+of the default household purchasing policy.
