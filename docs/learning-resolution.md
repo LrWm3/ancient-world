@@ -122,4 +122,5 @@ from labor. Compare-on/off histories remain equal after excluding resolution
 bookkeeping. The cultural request GPU fixture checks absent funding, actual
 progress and saved outcome fields. A CPU projection fixture checks read-only
 behavior and completion from prior partial study. All-target Clippy is clean.
-The full frozen-history checkpoint/batch fixture is being rerun separately.
+The full frozen-history checkpoint/batch fixture also passes after this change,
+including its three-seed monthly, batched and resumed comparisons.

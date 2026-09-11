@@ -421,8 +421,28 @@ gaps, providing an additional check of the refactor's aggregate path.
 After the shared-function refactor, housing (2), storage (2) and waterworks (4)
 integration tests pass again with hardware tests enabled.
 
-Held-out extension is running on the same `8a4062c` binary: seeds 409 and 1024
+Held-out extension completed on the same `8a4062c` binary: seeds 409 and 1024
 for 100 years, with all other settings matching the 30-year protocol. The only
 arm difference remains construction participation. Raw files are ignored at
-`output/construction-feasible-heldout-{control,pilot}.json`; those century results
-are pending and must not be inferred from the short runs.
+`output/construction-feasible-heldout-{control,pilot}.json`; the independently observed century results follow.
+
+
+### Held-out feasible-construction centuries
+
+| Seed | Control → builders population | Physical gap, control → builders | Access gap, control → builders | Builder requested / granted / completed |
+|---|---:|---:|---:|---:|
+| 409 | 665 → 735 | 0% → 0% | 3.76419% → 3.70500% | 279.42 / 242.56 / 242.56 |
+| 1024 | 595 → 615 | 0.06710% → 0.06661% | 3.71694% → 3.75198% | 276.74 / 236.79 / 236.79 |
+
+Both arms retain all 16 sites, zero maximum monthly population residual and
+normalized food residual below 3.99e-7. Runtime is 175–198 seconds per seed under
+concurrent builds/tests and simulations; no isolated speed claim is supported.
+Grant utilization remains effectively 100% within floating-point rounding.
+
+This is not population stabilization. Seed 409's builder arm falls from 1,990
+residents at year 10 to 1,295 at year 50 and 735 at year 100; seed 1024 falls
+from 1,948 to 1,160 to 615. Access gaps are much larger than physical food gaps,
+and one seed has slightly worse access with builders despite retaining more
+people. Keep the efficient request mechanism while investigating household
+income, entitlement, exposure and age structure separately. Do not compensate
+for access failures with another increase in natural crop abundance.
