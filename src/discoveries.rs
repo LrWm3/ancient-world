@@ -17,8 +17,19 @@ pub struct Source {
     pub remaining: [f64; 2],
     pub collected: [f64; 2],
 }
+/// Requested outcomes before allocation; execution alone updates actual transfers.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ResearchOutcomes {
+    /// Resin studied, crust studied, remedy made, phosphorus released (kg).
+    pub expected: [f64; 4],
+    pub actual: [f64; 4],
+    pub methods_expected: [bool; 2],
+    pub methods_actual: [bool; 2],
+}
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ResearchPlan {
+    #[serde(default)]
+    pub outcomes: Option<ResearchOutcomes>,
     #[serde(default)]
     pub botanical_kg: [f64; 3],
     #[serde(default)]
@@ -205,6 +216,16 @@ impl Discoveries {
         for w in &self.workshops {
             w.botanicals.validate(h)?;
             if let Some(plan) = &w.work_plan {
+                if let Some(outcomes) = &plan.outcomes {
+                    ensure!(
+                        outcomes
+                            .expected
+                            .iter()
+                            .chain(&outcomes.actual)
+                            .all(|v| v.is_finite() && *v >= 0.),
+                        "invalid research outcomes"
+                    );
+                }
                 ensure!(
                     plan.botanical_kg
                         .iter()
@@ -525,6 +546,11 @@ impl Discoveries {
                                 event(h,w.site,teacher.learned[k].or(teacher.causes[k]),
                                     "specimen_method_transmitted",format!("Researchers copied the {} method from {} through an open route; specimens still must be acquired locally",name,h.sites[teacher.site as usize].name));
                                 w.learned[k] = h.events.last().map(|e| e.id);
+                                if let Some(outcomes) =
+                                    w.work_plan.as_mut().and_then(|p| p.outcomes.as_mut())
+                                {
+                                    outcomes.methods_actual[k] = true;
+                                }
                             }
                         }
                     }
@@ -544,6 +570,14 @@ impl Discoveries {
                     .min(e.goods[6] as f64 / 0.2);
                 if kg <= 1e-8 {
                     continue;
+                }
+                if let Some(outcomes) = w.work_plan.as_mut().and_then(|p| p.outcomes.as_mut()) {
+                    if studying {
+                        outcomes.actual[k] += kg;
+                        outcomes.methods_actual[k] |= study_complete(w.studied[k] + kg);
+                    } else {
+                        outcomes.actual[2 + k] += kg * if k == 0 { 0.5 } else { CNP[1][2] };
+                    }
                 }
                 w.samples[k] -= kg;
                 labor -= kg * 2.;
@@ -637,7 +671,10 @@ impl Discoveries {
 // Read-only feasible work forecast; shared tools, fuel and writing stock are
 // deducted locally so multiple activities cannot each claim the same supplies.
 fn plan_work(h: &History, workshop: &Workshop, teachers: &[Workshop]) -> ResearchPlan {
-    let mut plan = ResearchPlan::default();
+    let mut plan = ResearchPlan {
+        outcomes: Some(ResearchOutcomes::default()),
+        ..Default::default()
+    };
     plan.receipt.month = h.month;
     let site = &h.sites[workshop.site as usize];
     if site.abandoned || !workshop.enabled {
@@ -679,6 +716,7 @@ fn plan_work(h: &History, workshop: &Workshop, teachers: &[Workshop]) -> Researc
             work += 0.25;
             writing -= 0.05;
             w.learned[k] = Some(0); // Forecast only; no historical discovery is committed.
+            plan.outcomes.as_mut().unwrap().methods_expected[k] = true;
         }
         let kg = w.samples[k]
             .min(processing_limit(&w, k, site))
@@ -686,6 +724,13 @@ fn plan_work(h: &History, workshop: &Workshop, teachers: &[Workshop]) -> Researc
             .min(fuel / 0.2)
             .min((budget - work).max(0.) * 0.5);
         plan.processing_kg[k] = kg;
+        let outcomes = plan.outcomes.as_mut().unwrap();
+        if !method_known(&w, k) {
+            outcomes.expected[k] = kg;
+            outcomes.methods_expected[k] |= study_complete(w.studied[k] + kg);
+        } else {
+            outcomes.expected[2 + k] = kg * if k == 0 { 0.5 } else { CNP[1][2] };
+        }
         work += kg * 2.;
         tools -= kg * 0.1;
         fuel -= kg * 0.2;
@@ -960,6 +1005,8 @@ mod exchange_tests {
         let plan = plan_work(h, &learner, &[]);
         assert!((plan.processing_kg.iter().sum::<f64>() - 0.01).abs() < 1e-8);
         assert_eq!(plan.processing_kg[1], 0.);
+        assert!((plan.outcomes.as_ref().unwrap().expected[0] - 0.01).abs() < 1e-8);
+        assert_eq!(plan.outcomes.as_ref().unwrap().actual, [0.; 4]);
         learner.work_plan = Some(plan);
         d.workshops[1] = learner.clone();
         h.sites[1].economy.goods[3] = 0.; // sold after Reserve
@@ -971,6 +1018,17 @@ mod exchange_tests {
         receipt.validate().unwrap();
         assert_eq!(receipt.used, 0.);
         assert_eq!(receipt.released, receipt.granted);
+        assert_eq!(
+            d.workshops[1]
+                .work_plan
+                .as_ref()
+                .unwrap()
+                .outcomes
+                .as_ref()
+                .unwrap()
+                .actual,
+            [0.; 4]
+        );
         // New fuel/tools cannot revive an already settled grant in the same month.
         h.sites[1].economy.goods[3] = 1.;
         d.month(h);
@@ -988,6 +1046,51 @@ mod exchange_tests {
         d.month(h);
         assert!(d.workshops[1].learned[1].is_none());
         assert_eq!(d.workshops[1].work_plan.as_ref().unwrap().receipt.used, 0.);
+        let outcomes = d.workshops[1]
+            .work_plan
+            .as_ref()
+            .unwrap()
+            .outcomes
+            .as_ref()
+            .unwrap();
+        assert!(outcomes.methods_expected[1]);
+        assert!(!outcomes.methods_actual[1]);
+
+        // Known methods produce physical outputs, not another destructive study.
+        let mut producing = d.clone();
+        let mut world = h.clone();
+        let w = &mut producing.workshops[1];
+        w.studied = [1.5; 2];
+        w.samples = [1.; 2];
+        w.remedy = 0.;
+        w.work_plan = None;
+        world.sites[1].economy.goods[3] = 10.;
+        world.sites[1].economy.goods[6] = 10.;
+        world.sites[1].economy.labor[3] = 2.;
+        let plan = plan_work(&world, w, &[]);
+        let predicted = plan.outcomes.as_ref().unwrap().clone();
+        assert!(predicted.expected[2] > 0. && predicted.expected[3] > 0.);
+        assert_eq!(predicted.expected[..2], [0.; 2]);
+        assert!((predicted.expected[2] - plan.processing_kg[0] * 0.5).abs() < 1e-9);
+        assert!((predicted.expected[3] - plan.processing_kg[1] * 0.08).abs() < 1e-9);
+        world.sites[1].economy.external[3] = plan.receipt.granted as f32;
+        w.work_plan = Some(plan);
+        producing.month(&mut world);
+        let actual = producing.workshops[1]
+            .work_plan
+            .as_ref()
+            .unwrap()
+            .outcomes
+            .as_ref()
+            .unwrap();
+        for (a, b) in actual.actual.iter().zip(predicted.expected) {
+            assert!((a - b).abs() < 1e-7);
+        }
+        let restored: ResearchPlan = serde_json::from_value(
+            serde_json::to_value(producing.workshops[1].work_plan.as_ref().unwrap()).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(restored.outcomes.unwrap().actual, actual.actual);
     }
 }
 

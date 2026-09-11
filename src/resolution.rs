@@ -179,7 +179,12 @@ impl ResolutionState {
                 "invalid resolution boundary"
             );
             ensure!(
-                r.metrics.len() <= 8
+                r.metrics.len()
+                    <= if r.boundary.system == System::Research {
+                        9
+                    } else {
+                        8
+                    }
                     && r.metrics.iter().all(|m| m.expected.is_finite()
                         && m.actual.is_finite()
                         && m.explained.iter().all(|(_, v)| v.is_finite())),

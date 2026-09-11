@@ -334,11 +334,21 @@ mod tests {
                             5
                         }
                     } else {
-                        3
+                        9
                     }
                 );
                 assert!(r.metrics[2].actual > 0., "fixture must complete real work");
                 assert!(r.metrics[..3].iter().all(|m| m.unexplained().abs() < 1e-8));
+                if system == crate::resolution::System::Research {
+                    let study = r
+                        .metrics
+                        .iter()
+                        .find(|m| m.name == "resin_studied")
+                        .unwrap();
+                    assert!(study.expected > 0. && study.actual > 0.);
+                    assert!(study.actual <= study.expected + 1e-7);
+                    assert!((study.actual * 2. - r.metrics[2].actual).abs() < 1e-6);
+                }
                 if system == crate::resolution::System::Culture {
                     let gain = r
                         .metrics

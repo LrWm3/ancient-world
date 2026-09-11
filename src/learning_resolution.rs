@@ -109,6 +109,46 @@ impl crate::civilization::History {
                     [r.requested[k] as f64, r.allocated[k] as f64, granted, used],
                     resolution.compare,
                 )?;
+                if k == 0 && resolution.compare {
+                    if let Some(outcomes) = self
+                        .expeditions
+                        .as_ref()
+                        .and_then(|x| x.discoveries.as_ref())
+                        .and_then(|d| d.workshops.iter().find(|w| w.site == r.site))
+                        .and_then(|w| w.work_plan.as_ref())
+                        .and_then(|p| p.outcomes.as_ref())
+                    {
+                        for (i, name) in [
+                            "resin_studied",
+                            "crust_studied",
+                            "remedy_produced",
+                            "phosphorus_released",
+                        ]
+                        .into_iter()
+                        .enumerate()
+                        {
+                            receipt.metrics.push(Metric {
+                                name: name.into(),
+                                unit: "kg".into(),
+                                expected: outcomes.expected[i],
+                                actual: outcomes.actual[i],
+                                explained: vec![],
+                            });
+                        }
+                        for (i, name) in ["resin_method_acquired", "crust_method_acquired"]
+                            .into_iter()
+                            .enumerate()
+                        {
+                            receipt.metrics.push(Metric {
+                                name: name.into(),
+                                unit: "methods".into(),
+                                expected: f64::from(outcomes.methods_expected[i]),
+                                actual: f64::from(outcomes.methods_actual[i]),
+                                explained: vec![],
+                            });
+                        }
+                    }
+                }
                 if k == 1 && resolution.compare {
                     if let Some(plan) = self
                         .culture

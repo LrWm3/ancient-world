@@ -110,9 +110,9 @@ explanation or converted into additional teaching.
 
 The dated WorkPlan persists these values, with absent expectations for older
 archives. Compare-off mode retains the same action execution and work plans but
-omits summary metrics. This first action-specific comparison covers successor
-teaching only: manuscript/institutional study, research processing, heritage
-interpretation and other cultural actions still need their own output contracts.
+omits summary metrics. This increment first covered successor teaching; subsequent study and research
+contracts are described below. Heritage interpretation and other cultural actions
+still need their own output contracts.
 
 
 Verification: the regular library suite passes 114 tests (103 hardware tests
@@ -145,8 +145,8 @@ The projections describe individually feasible requests before competing actions
 spend their shared grant; their sum is not a guaranteed joint outcome. A scarce
 0.125-worker-month cultural grant can fund study but not the following 0.1-month
 successor lesson. Their separate outcomes expose this ordering consequence while
-the ordinary labor receipt still accounts for unused work. Research processing,
-heritage interpretation and other cultural actions remain separate follow-ups.
+the ordinary labor receipt still accounts for unused work. Heritage interpretation and other cultural actions remain separate follow-ups.
+Research processing outcomes are described below.
 
 
 The four service-allocation tests pass, including three GPU seeds and a two-action
@@ -158,3 +158,36 @@ progress, alongside the existing source/provenance checks. Regular library tests
 pass 114 cases (103 hardware tests skipped); all-target Clippy is clean. The full
 three-seed frozen-history fixture also passes monthly, batched and checkpoint
 continuation comparisons with the new study outcomes.
+
+
+## Specimen research outcomes
+
+Research plans now retain requested and actual resin/crust study, remedy output
+and phosphorus release in kilograms, plus acquisition of each processing method.
+The read-only forecast consumes shared tools, fuel, writing supplies and work
+locally; its outcomes are conditional on receiving the requested effort and
+retaining those supplies and teaching contacts. Allocation does not erase unmet
+expectations.
+
+Execution records the actual study, method acquisition and physical processing
+output at the existing transfer points. The comparison adapter only reads these
+results at Close; it does not perform another transfer. Method copying and
+destructive study remain distinct from manufacturing. A failed teaching contact
+can leave study possible instead of the expected manufacturing, so actual output
+need not occupy the same category as the forecast. Differences remain unexplained
+unless a mechanism explicitly attributes them.
+
+The research receipt now holds three work metrics and six outcome metrics. Its
+bounded validator permits nine metrics for research; other receipt limits are
+unchanged. Old research plans without outcome fields remain readable and do not
+receive invented historical comparisons. Botanical processing, heritage actions
+and comparisons between learning channels remain unfinished.
+
+Verification for specimen outcomes: the GPU research fixture passes shared-tool
+scarcity, post-reservation tool loss, closed teaching contact and known-method
+production cases, including serialized outcomes. All four service-allocation tests
+pass, including three GPU seeds checking study mass against completed effort and
+unchanged histories with comparison disabled. The regular library suite passes
+114 tests (103 hardware tests skipped); all-target Clippy is clean.
+The full frozen-history fixture also passes its three-seed monthly, batched and
+checkpoint-resumed comparisons with these outcomes present.
