@@ -49,8 +49,8 @@ at a completed monthly boundary for a declared comparison.
 The cultural-work runner now exposes `--legacy-resident-payroll`,
 `--no-individual-nutrition`, and `--common-share`. These isolate the payroll bug,
 personal exposure and food access without changing crop production directly.
-The original ensemble continues using its already-built debug executable; new
-controls use the release executable, keeping the original conditions intact.
+The original ensemble used its already-built debug executable; new controls
+use the release executable, keeping the original conditions intact.
 Reports record the selected switches. Controls and their results must be evaluated
 before attributing the century collapse to this one income defect.
 
@@ -68,8 +68,8 @@ including the retained-estate negative control, no-recipient treasury case,
 legacy-field loading and the existing continuation/accounting fixtures. All-target
 Clippy with warnings denied, formatting and the repository artifact check passed.
 The four century controls (resident payroll, legacy payroll, age-band exposure,
-and full common-food access) are running sequentially for seed 17; results are
-pending and the population-balance gate remains open.
+and full common-food access) run sequentially for seed 17. Results below supersede
+the initial pending status; the population-balance gate remains open.
 
 Each uses `target/release/examples/cultural_work_calibrate --seeds 17 --years 100
 --individual-demography --workshop-refinement --compare-resolution --output
@@ -78,3 +78,70 @@ output/<condition>.json`. Add no flag for resident payroll,
 `--no-individual-nutrition` for age-band exposure, or that flag plus
 `--common-share 1` for the common-food control. The original debug ensemble remains
 unchanged; these release runs are not used as timing comparisons.
+
+## First matched control results
+
+The seed-17 release legacy-payroll control reproduced the earlier debug baseline's
+57 residents and cumulative food-gap totals. Resident payroll retained 101 people
+at year 100. Physical shortfall was 0.0417% versus 0.0391% of need; access shortfall
+was 5.6485% versus 5.8108%. This confirms a beneficial contribution in this seed,
+not a resolution of the population collapse. Neither comparison changed crop
+production or mortality parameters. Further exposure and common-food controls
+remain necessary; do not infer a cross-seed effect from this single matched pair.
+
+The original scarcity ensemble is **stopped**, not still running: seed 17 completed
+100 years, then seed 81 failed at month 740 with `invalid civilization leadership`.
+The static-founding condition was never started. Completed seed results remain in
+the partial report. A focused reproduction uses seed 81, yield 0.33, individual
+demography/workshops and legacy resident payroll; the validator now identifies the
+failing civilization, leader, affiliation, death month and estate vacancy.
+
+Removing individual nutrition while retaining legacy payroll produced **zero**
+residents by year 90 (18 at year 70, one at year 80). Cumulative access shortfall
+rose to 9.7104%, physical shortfall to 0.0482%; population residual remained zero
+and maximum normalized food residual was 3.09e-7. This ablation removes both
+household-specific mortality exposure and the next-month hunger/work penalty;
+it does not isolate those two channels individually. It rules out treating pooled
+age-band exposure as a sufficient fix. Persistent household differences protect
+some families from shortages that the pooled control spreads across the age band.
+That mechanism is an interpretation, not yet an isolated causal result.
+
+## Succession away from the home polity
+
+The focused scarcity reproduction failed at exactly month 740: civilization 10's
+leader 1306 died that month, with no retained vacant estate satisfying validation.
+Inspection separately exposed a territorial-identity bug: household succession
+looked up the ruler using the site's current civilization. Moving the household to another civilization's settlement could therefore
+change which office it was considered to hold and which successors were eligible.
+
+The regression places a ruler's household in another civilization's settlement
+and gives the nearest heir a foreign affiliation, while retaining an eligible
+household member of the ruler's own civilization. It failed before the correction. Succession now follows the
+ruler's own polity, preserves both people's affiliations, leaves the host civilization's
+ruler unchanged and creates no people. All seven resident-registry GPU fixtures
+pass, including vacancy recovery and checkpoint continuation. The century rerun
+must still establish whether this correction also resolves the seed-81 failure;
+the narrower fixture alone does not prove that connection.
+
+## Common-food control stopped at daughter founding
+
+Full common food with legacy payroll passed 50 years, then failed at month 673.
+Site 6's opening resident roster contained `[110, 160, 46]` people by age band,
+while its cohorts had become `[88, 128, 36.8]`. The preceding month recorded a
+`migration` event: the legacy daughter-settlement path deducted a 20% fractional
+cohort without relocating the corresponding individuals. This control has **no
+century outcome** and cannot be presented as proof that common access fixes balance.
+
+The next population-authority connection is therefore actual resident/household
+transfer during daughter founding, including the existing finite provisions and
+cash transfer. Disabling founding or relaxing roster validation would hide that gap.
+The runner now preserves failed history diagnostics beside its output, with the
+seed, attempted month, error and completed decadal samples. These are marked
+`diagnostic_only`: GPU ecology may have advanced while the history transaction
+rolled back, so they are not resumable world checkpoints. Raw files stay ignored.
+
+Follow-up checks: all seven resident-registry GPU fixtures passed after the
+relocated-household regression; all-target Clippy with warnings denied, formatting,
+Git whitespace checks and repository artifact policy passed. The focused scarcity
+rerun is in progress; its result will update this record rather than silently
+replacing the failed baseline.

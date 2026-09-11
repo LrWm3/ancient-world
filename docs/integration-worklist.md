@@ -10,7 +10,7 @@ or a successful balance run.
 
 | Connection | Current implementation | Remaining commitment / review |
 |---|---|---|
-| Population and household authority | Individual demography, resident rosters, roster relocation and household nutrition exist | [Five matched century histories expose severe individual decline](resident-payroll-balance.md); resolve income/exposure/age-structure causes before closing this gate |
+| Population and household authority | Individual demography, resident rosters, roster relocation and household nutrition exist | [Five matched century histories expose severe individual decline](resident-payroll-balance.md); resolve income/exposure/age-structure causes and roster-based daughter founding before closing this gate |
 | Production participation | Workshops assign people and return wages; other production still uses aggregate allowances | Agriculture, extraction and construction need actual assignments and common resolution receipts; preserve aggregate mode |
 | Merchant crews | Named paid endpoint crews, bounded commitments and experience | Comparable resolution receipts; onboard presence is a separate larger extension, not already implemented |
 | Research and culture | Dated requests, personal commitments and comparison receipts | Action-specific outcome forecasts and cross-channel learning comparison |
@@ -20,7 +20,7 @@ or a successful balance run.
 | Factions and food access | Shared political eligibility, household hunger and current craft wages; founding common access tapers toward retail | Recent completed-trade exposure now replaces cumulative sales; calibrate sustained deprivation, political recovery and opening food depletion |
 | Heritage | Local recognition, custody-sensitive pilgrims, sponsorship/council/religious effects | Funded stewardship, recruitment, membership/donations, scholarly visitors and foreign diplomatic recognition remain open; traffic-based diffusion now replaces route-only spread |
 | Conservation and cross-scale connections | Finite sources, processing, downstream runoff and abandoned-land recovery have increments | Review transformed-good provenance and regional activation together; local excavation remains a larger project |
-| Balance evidence | Short matched runs and boundary fixtures exist | Five individual and five aggregate century runs completed with monthly food/work observations; scarcity variants continue. Major population divergence fails the balance gate; controlled follow-ups are in progress |
+| Balance evidence | Short matched runs and boundary fixtures exist | Five individual and five aggregate century runs completed with monthly food/work observations; scarcity suite stopped on seed 81/month 740 leadership validation, with its static-access variant unstarted. The payroll control improves seed 17 only partially; exposure controls and leadership diagnosis are in progress |
 
 The monthly balance runner now observes every tick, rather than treating the last
 month of each quarter as the whole quarter. Its cumulative work totals therefore

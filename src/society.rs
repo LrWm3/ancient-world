@@ -947,14 +947,19 @@ impl History {
                         slots.observe(f.site, band, false);
                     }
                 }
-                let ruler = self.civilizations[site.civilization as usize].leader == old as u32;
+                // Political identity survives occupation or household relocation.
+                // The host site's administrator does not own this ruler's office.
+                let polity = self.people[old].civilization;
+                let ruler = self.civilizations[polity as usize].leader == old as u32;
+                let successor_civilization = if ruler { polity } else { site.civilization };
                 let resident_mode = self.named_demography.is_some() || f.vacant_since.is_some();
                 let existing = if resident_mode {
                     successors.get(&f.id).and_then(|ids| {
                         ids.iter().copied().find(|id| {
                             !occupied.contains(id)
                                 && (!ruler
-                                    || self.people[*id as usize].civilization == site.civilization)
+                                    || self.people[*id as usize].civilization
+                                        == successor_civilization)
                                 && self.people[*id as usize].died.is_none()
                                 && !self.person_duties.contains_key(id)
                                 && !self.military.duties.contains_key(id)
@@ -965,7 +970,8 @@ impl History {
                 }
                 .filter(|id| {
                     !occupied.contains(id)
-                        && (!ruler || self.people[*id as usize].civilization == site.civilization)
+                        && (!ruler
+                            || self.people[*id as usize].civilization == successor_civilization)
                         && self.people[*id as usize].died.is_none()
                         && !self.person_duties.contains_key(id)
                         && !self.military.duties.contains_key(id)
@@ -1002,7 +1008,7 @@ impl History {
                     }
                     self.people.push(Person {
                         id,
-                        name: self.civilizations[site.civilization as usize]
+                        name: self.civilizations[successor_civilization as usize]
                             .naming(self.seed)
                             .person_with(
                                 "person",
@@ -1010,7 +1016,7 @@ impl History {
                                 &crate::naming::PersonalContext::local(site, self.culture.as_ref())
                                     .with_person(&self.people[old]),
                             ),
-                        civilization: site.civilization,
+                        civilization: successor_civilization,
                         born: self.month as i32 - identified_age,
                         died: None,
                         predecessor: Some(old as u32),
@@ -1045,7 +1051,7 @@ impl History {
                 f.head = id;
                 f.generation += 1;
                 if ruler {
-                    self.civilizations[site.civilization as usize].leader = id;
+                    self.civilizations[successor_civilization as usize].leader = id;
                 }
                 self.event(
                     "inheritance",

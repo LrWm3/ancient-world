@@ -54,6 +54,10 @@ is not retroactively canceled.
 
 ## Political vacancy is separate from inheritance
 
+The ruler's civilization identity, rather than the household site's current
+administrator, determines which office is inherited and who is eligible. Conquest
+or relocation does not silently transfer that office to the host civilization.
+
 If the deceased head was also the ruler, the vacant estate is not awarded to an
 already occupied ownership head. Instead, the council may choose a present adult
 head of the same civilization as caretaker (oldest birth date, then stable ID).
@@ -72,8 +76,11 @@ instead of a deceased leader as that naming source.
 
 This does not add constitutional offices, regency disputes or estate courts. It
 removes another forced identity source while retaining the existing aggregate
-population authority. Initial account allocation, complete rosters, roster-backed
-relocation and a common identity allocator remain unfinished.
+population authority. Later increments add [complete rosters and roster-backed relocation](resident-rosters.md).
+[Resident payroll](resident-payroll-balance.md) now excludes empty estates from
+municipal wages in new histories; retained accounts can still serve dependents.
+The older aggregate-entitlement description above describes the original vacancy
+implementation, not the newer roster-based payroll eligibility.
 
 [Verification](estate-vacancy-verification.md) records controlled boundary checks,
 financial transfers, continuation, seed runs and remaining unrelated test failures.

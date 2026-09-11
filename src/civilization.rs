@@ -575,25 +575,23 @@ impl History {
                 && self.month <= 120000,
             "invalid civilization version, size or clock"
         );
-        ensure!(
-            self.civilizations.len() <= 16
-                && self
-                    .civilizations
+        ensure!(self.civilizations.len() <= 16, "too many civilizations");
+        for (i, c) in self.civilizations.iter().enumerate() {
+            let leader = self.people.get(c.leader as usize);
+            let vacant_estate = self.society.as_ref().is_some_and(|s| {
+                s.households
                     .iter()
-                    .enumerate()
-                    .all(|(i, c)| c.id as usize == i
-                        && self
-                            .people
-                            .get(c.leader as usize)
-                            .is_some_and(|p| p.civilization == c.id
-                                && (p.died.is_none()
-                                    || self.society.as_ref().is_some_and(|s| {
-                                        s.households
-                                            .iter()
-                                            .any(|f| f.head == c.leader && f.vacant_since.is_some())
-                                    })))),
-            "invalid civilization leadership"
-        );
+                    .any(|f| f.head == c.leader && f.vacant_since.is_some())
+            });
+            ensure!(
+                c.id as usize == i
+                    && leader.is_some_and(|p| p.civilization == c.id
+                        && (p.died.is_none() || vacant_estate)),
+                "invalid civilization leadership: month {}, civilization {}, leader {}, affiliation {:?}, death {:?}, vacant estate {}",
+                self.month, c.id, c.leader, leader.map(|p| p.civilization),
+                leader.and_then(|p| p.died), vacant_estate
+            );
+        }
         ensure!(
             self.people
                 .iter()

@@ -177,8 +177,31 @@ fn main() -> Result<()> {
         let mut max_population_residual = 0f64;
         let mut max_food_residual = 0f64;
         for month in 1..=args.years * 12 {
-            g.advance_history(1)
-                .with_context(|| format!("seed {seed}, month {month}"))?;
+            if let Err(error) = g.advance_history(1) {
+                // The history transaction may have rolled back while ecology already
+                // advanced. Preserve evidence, explicitly not a resumable checkpoint.
+                let diagnostic = args
+                    .output
+                    .with_extension(format!("seed-{seed}-month-{month}.failure.json"));
+                let write = (|| -> Result<()> {
+                    if let Some(parent) = diagnostic.parent() {
+                        std::fs::create_dir_all(parent)?;
+                    }
+                    std::fs::write(
+                        &diagnostic,
+                        serde_json::to_vec_pretty(&json!({
+                            "diagnostic_only": true, "seed": seed, "attempted_month": month,
+                            "error": format!("{error:#}"), "history": g.civilizations,
+                            "completed_samples": samples,
+                        }))?,
+                    )?;
+                    Ok(())
+                })();
+                if let Err(write_error) = write {
+                    eprintln!("Could not preserve failure evidence: {write_error:#}");
+                }
+                return Err(error).with_context(|| format!("seed {seed}, month {month}"));
+            }
             let h = g.civilizations.as_ref().unwrap();
             let c = h.culture.as_ref().unwrap();
             max_population_residual = max_population_residual.max(h.population_residual().abs());

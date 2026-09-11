@@ -864,6 +864,17 @@ mod gpu_tests {
         assert_ne!(ruler, member);
         assert_eq!(foreign.people[member as usize].civilization, 1);
         assert_eq!(foreign.people[ruler as usize].civilization, 0);
+        // A relocated ruler's household inherits its own office, not its host's.
+        let mut occupied_site = baseline.clone();
+        occupied_site.society.as_mut().unwrap().households[account as usize].site = 1;
+        occupied_site.people[child as usize].civilization = 1;
+        let occupying_ruler = occupied_site.civilizations[1].leader;
+        occupied_site.social_month();
+        assert_eq!(occupied_site.civilizations[0].leader, member);
+        assert_eq!(occupied_site.civilizations[1].leader, occupying_ruler);
+        assert_eq!(occupied_site.people[member as usize].civilization, 0);
+        assert_eq!(occupied_site.people[child as usize].civilization, 1);
+        assert_eq!(occupied_site.people.len(), count);
         // An existing person can precede the deceased head in identity creation order.
         let mut older = baseline.clone();
         older.society.as_mut().unwrap().households[account as usize].head = child;
