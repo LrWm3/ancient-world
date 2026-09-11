@@ -94,14 +94,7 @@ impl History {
                 .accounts
                 .resize(society.households.len(), Default::default());
             let s = &mut self.sites[site];
-            let available = s.demography.ages[1]
-                * 0.8
-                * (1. - 0.5 * s.demography.health[0].clamp(0., 0.5))
-                * (1. - 0.4 * s.economy.soil[3].clamp(0., 1.));
-            let mut work_left = (available * 0.2
-                - s.economy.external[3]
-                - s.economy.enterprise_plan.iter().sum::<f32>())
-            .max(0.);
+            let mut work_left = crate::labor::available(s, true, self.living.is_some());
             let wage = 18. * s.economy.prices[crate::economy::FOOD].max(0.01) as f64;
             for (v, &hh) in fleet.vessels.iter_mut().take(hulls).zip(&ids) {
                 let work = 0.25_f32
@@ -226,6 +219,32 @@ mod tests {
         assert_eq!(restored.capacity(), fleet.capacity());
         h.release_vessel_work();
         assert!(h.sites[site].economy.external[3] < 1e-5);
+        // Only 0.24 worker-months remain with two sick adults. Quarterly
+        // cultural work must respect that limit and leave no duplicate crew labor.
+        h.month = 3;
+        h.sites[site].demography.ages[1] = 2.;
+        h.sites[site].demography.health[0] = 0.5;
+        h.sites[site].economy.enterprise_plan = [99.; 4]; // completed old plans
+        h.prepare_discoveries();
+        assert_eq!(h.sites[site].economy.enterprise_plan, [0.; 4]);
+        h.reserve_cultural_work();
+        let reserved = h.sites[site].economy.external[3];
+        assert!(reserved > 0. && reserved <= 0.240001);
+        let before = total(h);
+        h.prepare_vessels();
+        assert!(h.vessel_work(site as u32) < 1e-6);
+        assert!((total(h) - before).abs() < 1e-8);
+        h.release_vessel_work();
+        h.release_cultural_work();
+        // Prior service and paid enterprise plans leave only 0.10 for crews.
+        h.sites[site].economy.external[3] = 0.1;
+        h.sites[site].economy.enterprise_plan = [0.04, 0., 0., 0.];
+        h.prepare_vessels();
+        let crew = h.vessel_work(site as u32);
+        assert!(crew > 0. && crew <= 0.100001);
+        assert!(h.sites[site].economy.external[3] + 0.04 <= 0.240001);
+        assert!((total(h) - before).abs() < 1e-8);
+        h.release_vessel_work();
         h.sites[site].economy.finance[0] = 0.;
         h.prepare_vessels();
         assert_eq!(h.shipping.as_ref().unwrap().ports[0].capacity(), 0.);

@@ -1904,7 +1904,7 @@ impl History {
                 s.economy.management[3] = knowledge[i] as f32;
                 if self.month % 3 == 0 && !s.abandoned {
                     let available =
-                        (s.demography.ages[1] * 0.8 * 0.2 - s.economy.external[3]).max(0.);
+                        crate::labor::available(s, self.society.is_some(), self.living.is_some());
                     let work = available.min(0.5);
                     c.labor_budget[i] = work;
                     s.economy.external[3] += work;

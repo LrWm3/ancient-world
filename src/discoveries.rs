@@ -505,6 +505,8 @@ impl History {
     pub(crate) fn prepare_discoveries(&mut self) {
         for s in &mut self.sites {
             s.economy.external[3] = 0.;
+            // Discard completed prior-month plans before the first new reservation.
+            s.economy.enterprise_plan = [0.; 4];
         }
         if let Some(d) = self
             .expeditions
@@ -525,9 +527,10 @@ impl History {
                     let possible = wanted
                         .min(s.economy.goods[3] as f64 / 0.1)
                         .min(s.economy.goods[6] as f64 / 0.2);
-                    s.economy.external[3] = (s.demography.ages[1] * 0.8 * 0.2)
-                        .min(2.)
-                        .min((possible * 2.) as f32);
+                    s.economy.external[3] =
+                        crate::labor::available(s, self.society.is_some(), self.living.is_some())
+                            .min(2.)
+                            .min((possible * 2.) as f32);
                 }
             }
         }

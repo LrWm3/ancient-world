@@ -268,3 +268,41 @@ history-environment fixtures passed in 24.72 seconds excluding compilation,
 including exact seed 17/81/256 batching and checkpoint comparisons. Strict Clippy,
 formatting and the repository artifact check passed. These checks establish bounded
 allocation and continuation, not long-run economic balance under labor scarcity.
+
+## Shared service workforce ceiling (2026-09-11)
+
+Research workshops, cultural work, enterprise shifts and vessel crews now use one
+CPU reservation ceiling. Effective workers follow the GPU production contract:
+with society enabled, adult population × 0.8 × (1 − 0.5 × illness), with illness
+bounded to 0–0.5; without society, population × 0.5. Living-history recovery stress
+then multiplies by (1 − 0.4 × stress), with stress bounded to 0–1. Frozen history
+ignores that stress just as the production shader does. At most 20% of the result
+is available for these reservations; abandoned sites receive none.
+
+The explicit priority remains research, culture, enterprises, crews. Every later
+reservation subtracts existing external service work and enterprise plans. Enterprise
+allocation also retains its previous craft allowance as an additional cap. Stale
+enterprise plans are cleared with external reservations at the start of research
+preparation, before any current-month reservations. Previously research/culture
+ignored illness and recovery; enterprises could reserve their old craft allowance
+without subtracting newly promised service work.
+
+This unifies the ceiling, not the entire labor economy. GPU demand allocation,
+materials and recurring infrastructure work can still reduce completed enterprise
+work below paid shifts; payment remains for employment rather than guaranteed output.
+The 20% service ceiling is a game scheduling policy, and priority is intentionally
+not a simultaneous auction across all occupations. No extra readback or persistent
+archive field is introduced.
+
+Fixtures cover workforce option flags, sickness, recovery, empty workforce and
+subtraction of earlier claims. The vessel fixture also exercises quarterly cultural
+reservation with two sick adults, clears stale enterprise plans, blocks duplicate
+crew recruitment and checks bounded crews after research/enterprise reservations,
+including unchanged total money during wage transfers.
+
+Verification: 70 ordinary library tests passed. The GPU vessel fixture, two
+enterprise fixtures and discovery-exchange fixture passed. All three
+history-environment fixtures passed in 25.24 seconds excluding compilation,
+retaining exact seed 17/81/256 batch/checkpoint comparisons. Strict Clippy,
+formatting and repository artifact checks passed. No long-run balance or optimal
+allocation claim follows from these bounded-work and continuation tests.

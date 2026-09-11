@@ -316,6 +316,17 @@ impl History {
                 }
             }
         }
+        let capacities: Vec<f64> = self
+            .sites
+            .iter()
+            .map(|s| {
+                (s.economy.labor[3].max(0.).min(crate::labor::available(
+                    s,
+                    true,
+                    self.living.is_some(),
+                ))) as f64
+            })
+            .collect();
         let mut requests = vec![[0.; 4]; self.sites.len()];
         let mut desired_work = vec![0.; enterprises.firms.len()];
         for f in enterprises.firms.iter_mut().filter(|f| f.closed.is_none()) {
@@ -333,15 +344,15 @@ impl History {
             let lease_share = units / (town.economy.workshop_types[family][0] as f64).max(0.001);
             let desired = (units * 4.)
                 .min((town.economy.workshop_types[family][2] as f64 * lease_share * 1.1).max(0.05))
-                .min(town.economy.labor[3].max(0.) as f64);
+                .min(capacities[site]);
             desired_work[f.id as usize] = desired;
             requests[site][family] = desired.min(f.cash / f.wage_rate);
             town.economy.enterprise_lease[family] = units as f32;
         }
         let grants = requests
             .iter()
-            .zip(&self.sites)
-            .map(|(&requests, town)| allocate_work(requests, town.economy.labor[3] as f64))
+            .zip(capacities)
+            .map(|(&requests, capacity)| allocate_work(requests, capacity))
             .collect::<Vec<_>>();
         for f in enterprises.firms.iter_mut().filter(|f| f.closed.is_none()) {
             let site = f.site as usize;
