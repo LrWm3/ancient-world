@@ -17,8 +17,8 @@ selection. Saved histories retain their settings.
 
 The [spatial feature guide](spatial-features.md) describes the first adapters and
 expedition atlas routes. The broader [map-layer plan](spatial-features-plan.md)
-- [Expedition collections and applications](expedition-returns.md)
-includes work that remains unimplemented.
+includes work that remains unimplemented. See also
+[expedition collections and applications](expedition-returns.md).
 
 ## Working on history systems
 
@@ -31,6 +31,7 @@ transfer population authority or choose a resource-sharing policy.
 - [Explicit service allocation policies](service-allocation.md)
 - [Research and cultural work reconciliation](learning-resolution.md)
 - [Domestic care comparisons](care-resolution.md)
+- [Named merchant crew service](merchant-crew-participation.md)
 - [Neighbor care assistance](neighbor-care.md)
 - [Partial learning through contact and pilgrimage](informal-learning.md)
 - [Aggregate projections, individual resolution and reconciliation](resolution-framework.md)

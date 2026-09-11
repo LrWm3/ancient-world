@@ -147,8 +147,9 @@ GPU recipes retain authority over physical output and material consumption. Actu
 completed work settles personal commitments and lifetime workshop practice totals.
 It changes firm revenue, household purchasing power, stocks and subsequent planning
 through existing paths. Practice now improves hiring priority, but does not increase
-physical output per hour or technical efficiency. The four enterprise workshop families participate; other production labor and vessel
-crews still rely on their existing aggregate allowances. The aggregate service ceiling
+physical output per hour or technical efficiency. The four enterprise workshop families participate; other production labor still relies on aggregate allowances.
+[Merchant crews](merchant-crew-participation.md) now reserve actual participants
+when participation is enabled, within their existing aggregate service ceiling. The aggregate service ceiling
 remains in this pilot, so named employment is not yet a complete resident labor model.
 
 Aggregate staffing uses the same receipt/settlement interface, with the existing

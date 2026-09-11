@@ -2,6 +2,9 @@
 //! Hull material remains in Port::assets: vessel records never duplicate that inventory.
 use crate::{civilization::History, household_economy::withdraw};
 use serde::{Deserialize, Serialize};
+mod crews;
+pub(crate) use crews::validate_crews;
+pub use crews::CrewWork;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Fleet {
@@ -17,6 +20,9 @@ pub struct Vessel {
     pub household: Option<u32>,
     pub funded_work: f32,
     pub wages_paid: f64,
+    /// Current boundary assignments; older fleets retain aggregate prepaid capacity.
+    #[serde(default)]
+    pub crew: Vec<CrewWork>,
 }
 /// Completed travel intervals, persisted independently of the projected arrival date.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -126,6 +132,7 @@ impl History {
                     for vessel in &mut fleet.vessels {
                         vessel.funded_work = 0.;
                         vessel.household = None;
+                        vessel.crew.clear();
                     }
                 }
             }
@@ -138,6 +145,7 @@ impl History {
         self.reserve_vessels(false);
     }
     fn reserve_vessels(&mut self, committed_only: bool) {
+        self.open_participation();
         let Some(mut shipping) = self.shipping.take() else {
             return;
         };
@@ -171,9 +179,17 @@ impl History {
                     household: None,
                     funded_work: 0.,
                     wages_paid: 0.,
+                    crew: vec![],
                 });
                 self.event("vessel_commissioned",Some(port.site),None,
                     format!("{name} entered the port fleet; 50 kg timber and 2.5 kg equipment already held in port assets back its hull"));
+            }
+            let target = (loads[port_index] / 1000. + if committed_only { 0. } else { 0.1 })
+                .min(hulls as f32 * 0.25);
+            fleet.requested_work = target;
+            if self.participation.is_some() {
+                self.reserve_named_vessels(port.site, fleet, hulls, target);
+                continue;
             }
             let Some(society) = &mut self.society else {
                 continue;
@@ -195,9 +211,6 @@ impl History {
                 .accounts
                 .resize(society.households.len(), Default::default());
             let s = &mut self.sites[site];
-            let target = (loads[port_index] / 1000. + if committed_only { 0. } else { 0.1 })
-                .min(hulls as f32 * 0.25);
-            fleet.requested_work = target;
             let mut work_left = crate::labor::available(s, true, self.living.is_some())
                 .min((target - fleet.work()).max(0.));
             let wage = 18. * s.economy.prices[crate::economy::FOOD].max(0.01) as f64;
@@ -383,6 +396,9 @@ mod tests {
         g.enable_society().unwrap();
         g.enable_shipping().unwrap();
         let h = g.civilizations.as_mut().unwrap();
+        // This fixture retains aggregate staffing; named crew constraints have a
+        // separate controlled test in crews.rs.
+        h.set_individual_participation(false).unwrap();
         let site = h.shipping.as_ref().unwrap().ports[0].site as usize;
         h.shipping.as_mut().unwrap().ports[0].assets = [200., 10., 100.];
         h.shipping.as_mut().unwrap().ports[0].commissioned = Some(h.month);
@@ -546,6 +562,7 @@ mod tests {
                             household: None,
                             funded_work: work / 4.,
                             wages_paid: 0.,
+                            crew: vec![],
                         })
                         .collect(),
                 });

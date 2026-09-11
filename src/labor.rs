@@ -106,7 +106,7 @@ impl crate::civilization::History {
             "culture": self.culture.as_ref().map(|c| (&c.work_receipt, &c.work_plans)),
             "research": self.expeditions.as_ref().and_then(|x| x.discoveries.as_ref()).map(|d| d.workshops.iter().map(|w| (w.site, &w.work_plan)).collect::<Vec<_>>()),
             "workshops": self.enterprises.as_ref().map(|e| e.firms.iter().map(|f| serde_json::json!({"firm":f.id,"site":f.site,"requested":f.last_requested_work,"funded":f.last_funded_work,"completed":f.last_completed_work,"idle_paid":(f.last_funded_work-f.last_completed_work).max(0.)})).collect::<Vec<_>>()),
-            "crews": self.shipping.as_ref().map(|s| s.ports.iter().map(|p| (p.site, p.fleet.as_ref().map(|f| serde_json::json!({"requested":f.requested_work,"funded":f.work(),"unfunded":(f.requested_work-f.work()).max(0.)})))).collect::<Vec<_>>()),
+            "crews": self.shipping.as_ref().map(|s| s.ports.iter().map(|p| (p.site, p.fleet.as_ref().map(|f| serde_json::json!({"requested":f.requested_work,"vessels":f.vessels,"funded":f.work(),"unfunded":(f.requested_work-f.work()).max(0.)})))).collect::<Vec<_>>()),
             "note": "Crew work is paid employment, including standby; unused late grants expire rather than rerunning production."
         })
     }

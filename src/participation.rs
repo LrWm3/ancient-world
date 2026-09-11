@@ -10,6 +10,7 @@ pub enum Activity {
     Culture,
     Research,
     Workshop,
+    MerchantCrew,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Presence {
@@ -39,6 +40,8 @@ pub struct Resident {
     pub completed: [f64; 2],
     #[serde(default)]
     pub workshop_completed: f64,
+    #[serde(default)]
+    pub merchant_completed: f64,
     /// Completed worker-months by the existing four recipe families. Older untyped
     /// experience remains in workshop_completed; no historical trade is invented.
     #[serde(default)]
@@ -148,11 +151,14 @@ impl Participation {
             Activity::Culture => 0,
             Activity::Research => 1,
             Activity::Workshop => 2,
+            Activity::MerchantCrew => 3,
         };
         for &(person, share) in &c.people {
             let resident = self.residents.get_mut(&person).unwrap();
             let contribution = (share * c.used / c.granted) as f64;
-            if category == 2 {
+            if category == 3 {
+                resident.merchant_completed += contribution;
+            } else if category == 2 {
                 resident.workshop_completed += contribution;
                 if let Some(family) = family {
                     resident.workshop_practice[family] += contribution;
@@ -185,6 +191,8 @@ impl Participation {
                     && p.completed.iter().all(|v| v.is_finite() && *v >= 0.)
                     && p.workshop_completed.is_finite()
                     && p.workshop_completed >= 0.
+                    && p.merchant_completed.is_finite()
+                    && p.merchant_completed >= 0.
                     && p.workshop_practice
                         .iter()
                         .all(|v| v.is_finite() && *v >= 0.)
@@ -325,6 +333,7 @@ impl History {
                 committed: 0.,
                 completed: [0.; 2],
                 workshop_completed: 0.,
+                merchant_completed: 0.,
                 workshop_practice: [0.; 4],
                 workshop_learning: [0.; 4],
             });
@@ -374,6 +383,17 @@ impl History {
                 "disable workshop refinement before personal participation"
             );
             self.participation = None;
+            if let Some(shipping) = &mut self.shipping {
+                for port in &mut shipping.ports {
+                    if let Some(fleet) = &mut port.fleet {
+                        for vessel in &mut fleet.vessels {
+                            for crew in &mut vessel.crew {
+                                crew.commitment = None;
+                            }
+                        }
+                    }
+                }
+            }
             if let Some(c) = &mut self.culture {
                 for p in &mut c.work_plans {
                     p.commitment = None;
@@ -588,6 +608,7 @@ mod tests {
                             committed: 0.,
                             completed: [0.; 2],
                             workshop_completed: 0.,
+                            merchant_completed: 0.,
                             workshop_practice: [0.; 4],
                             workshop_learning: [0.; 4],
                         },

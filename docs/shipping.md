@@ -21,7 +21,7 @@ Each island receives one regional harbor. Among newly surveyed settlements, thos
 
 A commissioned harbor holds 200 kg timber, 10 kg tools and 100 kg masonry. Materials transfer from its settlement's real stockpiles above civilian reserves; commissioning waits until all are available. Annual wear consumes 2% of held materials, records disposal in the conservation ledgers, and attempts replacement from available goods. A harbor supports up to 1,000 kg of cargo in transit, scaled by its weakest material reserve. All lanes sharing a harbor compete for that capacity. Both endpoint harbors reserve the shipment until arrival; new contracts cannot overbook them. Maintenance can reduce capacity while grandfathered contracts finish.
 
-These are deliberately small regional harbor and pooled merchant assets, not full-scale ocean ports or individually simulated ships. There are no separate crews, vessel locations, return voyages, piracy, wrecks, tariffs or freight wages. Maintenance is a material cost, not a newly invented monetary payment. One harbor per island is an initial constraint: an abandoned host loses service and currently has no automatic replacement.
+These are deliberately small regional harbor and pooled merchant assets, not full-scale ocean ports or individually simulated ships. Named vessels and [paid crew participation](merchant-crew-participation.md) now subdivide these assets. Vessel locations, return voyages, piracy and wrecks remain unmodeled. Maintenance is a material cost, not a newly invented monetary payment. One harbor per island is an initial constraint: an abandoned host loses service and currently has no automatic replacement.
 
 ## Commerce and diplomacy
 

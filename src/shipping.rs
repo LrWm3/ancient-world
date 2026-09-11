@@ -185,6 +185,7 @@ impl Shipping {
                 && self.ports.len() <= h.sites.len(),
             "invalid shipping baseline"
         );
+        crate::vessels::validate_crews(self, h)?;
         let mut islands = BTreeSet::new();
         let contiguous = |p: &[u32]| {
             p.windows(2).all(|w| {

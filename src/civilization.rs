@@ -1345,6 +1345,7 @@ impl Generator {
         h.settle_resources(extraction_allowances)?;
         h.settle_enterprises();
         h.settle_workshop_resolutions()?;
+        h.settle_vessel_crews()?;
         h.storage_events();
         h.housing_events();
         h.waterworks_events();

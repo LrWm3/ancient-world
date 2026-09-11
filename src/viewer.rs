@@ -2474,7 +2474,7 @@ impl App {
                         for p in &shipping.ports {
                             if p.flood_months > 0 { ui.small(format!("{}: weather closure · {} dry steps to reopen", h.sites[p.site as usize].name, p.flood_months)); }
                             ui.label(format!("{}: {:.0} kg capacity · timber {:.0}/200 · tools {:.1}/10 · masonry {:.0}/100 · approach {:.0} travel km", h.sites[p.site as usize].name,p.capacity(),p.assets[0],p.assets[1],p.assets[2],p.access_km));
-                            if let Some(f) = &p.fleet { for v in &f.vessels { ui.small(format!("{} · crew household {:?} · {:.2} worker-months · cumulative wages {:.1}",v.name,v.household,v.funded_work,v.wages_paid)); } }
+                            if let Some(f) = &p.fleet { for v in &f.vessels { ui.small(format!("{} · crew household {:?} · {:.2} worker-months · cumulative wages {:.1}",v.name,v.household,v.funded_work,v.wages_paid)); for c in &v.crew { ui.small(format!("{} · {:.3}/{:.3} work · wages {:.2}",h.people[c.person as usize].name,c.receipt.used,c.receipt.granted,c.wages)); } } }
                             if let Some(w) = &p.work { ui.small(format!("Harbor work {:.2} worker-months{}",w.worker_months,if w.impaired {" · deteriorated"}else{""})); }
                         }
                         for (id,l) in shipping.lanes.iter().enumerate() {
