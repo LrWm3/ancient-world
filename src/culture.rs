@@ -975,6 +975,7 @@ impl History {
         if self.month % 3 == 0 {
             c.maintain_institutions(self);
             crate::expedition_heritage::study(self, &mut c);
+            crate::civic_petitions::propose(self, &mut c);
             c.decisions(self);
         }
         if self.month % 12 == 0 {

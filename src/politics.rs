@@ -690,6 +690,7 @@ impl History {
                     p.factions[p.household_factions[f.id as usize] as usize].interest as usize;
                 let score = |k: usize| {
                     crate::faction_interests::appeal(k, *x) * p.factions[ids[k]].cohesion
+                        + crate::civic_petitions::credit(self, &p, f.site, k as u32)
                         + if k == previous { 0.25 } else { 0. }
                 };
                 let best = (0..crate::faction_interests::COUNT)

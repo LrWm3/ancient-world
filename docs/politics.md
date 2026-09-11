@@ -1,5 +1,7 @@
 # Genealogy, factions and territorial warfare
 
+See [civic petitions](civic-petitions.md) for the added institutional representation and remembered-outcome loop.
+
 Enable **Dynasties and politics** after social history in the civilization sidebar. Existing social archives remain unchanged until activated; the new baseline records unknown ancestry for existing adults. New worlds can use both flags:
 
 ```sh

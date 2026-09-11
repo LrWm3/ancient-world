@@ -1,5 +1,7 @@
 # Naming languages
 
+See [civic petitions](civic-petitions.md) for the added institutional representation and remembered-outcome loop.
+
 Each civilization now has a naming-only fictional language. This is a game name
 maker inspired by ordered sound changes, not a reconstruction of Latin or a
 model of language acquisition. It does not affect production, trade, religion,

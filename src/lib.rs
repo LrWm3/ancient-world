@@ -86,3 +86,5 @@ pub mod territory;
 mod history_atlas;
 
 pub mod vessels;
+
+pub mod civic_petitions;

@@ -233,6 +233,7 @@ impl History {
                             "person" => self.people.len(),
                             "road" => self.society.as_ref().map_or(0, |s| s.routes.len()),
                             "port" => self.shipping.as_ref().map_or(0, |s| s.ports.len()),
+                            "faction" => self.politics.as_ref().map_or(0, |p| p.factions.len()),
                             "office" => self.offices.as_ref().map_or(0, |o| o.seats.len()),
                             "household" => self.society.as_ref().map_or(0, |s| s.households.len()),
                             "patron" => self.culture.as_ref().map_or(0, |c| c.patrons.len()),

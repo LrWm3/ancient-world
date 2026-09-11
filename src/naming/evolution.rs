@@ -144,6 +144,7 @@ fn significant(kind: &str) -> bool {
             | "religious_syncretism"
             | "expedition_return"
             | "heritage_fragment_received"
+            | "civic_petition_honored"
             | "port_opened"
             | "meeting_place_completed"
             | "regional_mine_activated"
@@ -319,6 +320,25 @@ impl crate::civilization::History {
                             }
                         }
                     }
+                    if let (Some(g), Some(c)) = (&self.governance, &self.culture) {
+                        for petition in g.petitions.iter().filter(|p| {
+                            p.honored
+                                && self.sites[p.site as usize].civilization == civ
+                                && p.resolved
+                                    .is_some_and(|m| self.month.saturating_sub(m) <= 120)
+                        }) {
+                            let n = &c.institutions[petition.institution as usize];
+                            add(
+                                petition.demand.concept(),
+                                Source {
+                                    kind: "institution".into(),
+                                    id: n.id,
+                                    name: n.name.clone(),
+                                },
+                                Some(petition.site),
+                            );
+                        }
+                    }
                     if let Some(culture) = &self.culture {
                         for n in culture.institutions.iter().filter(|n| {
                             n.active
@@ -445,13 +465,30 @@ impl crate::civilization::History {
                         "retained"
                     }
                 );
-                pending.push((site, detail, source.clone(), word.borrowed_from));
+                pending.push((site, detail, source.clone(), word.borrowed_from, concept));
             }
-            for (site, detail, source, borrowed_from) in pending {
+            for (site, detail, source, borrowed_from, concept) in pending {
                 self.event("lexicon_adoption", site, None, detail);
                 let event = self.events.last_mut().unwrap();
                 event.subjects.push(("civilization".into(), civ));
                 event.subjects.push((source.kind.clone(), source.id));
+                if source.kind == "institution" {
+                    if let Some(cause) = self.governance.as_ref().and_then(|g| {
+                        g.petitions
+                            .iter()
+                            .rev()
+                            .find(|p| {
+                                p.institution == source.id
+                                    && p.honored
+                                    && p.demand.concept() == concept
+                                    && p.resolved
+                                        .is_some_and(|m| self.month.saturating_sub(m) <= 120)
+                            })
+                            .and_then(|p| p.outcome)
+                    }) {
+                        event.causes.push(cause);
+                    }
+                }
                 if let Some(other) = borrowed_from {
                     event.subjects.push(("civilization".into(), other));
                 }

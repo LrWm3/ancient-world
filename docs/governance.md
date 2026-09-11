@@ -1,5 +1,7 @@
 # Governance and diplomacy
 
+See [civic petitions](civic-petitions.md) for the added institutional representation and remembered-outcome loop.
+
 This extension makes territorial control depend on administration and local consent, and gives trading neighbors a reason to agree to peace. Enable **Governance and diplomacy** after politics in the civilization sidebar, or activate it on an existing political archive:
 
 ```sh

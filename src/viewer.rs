@@ -2429,6 +2429,11 @@ impl App {
                     });
                 }
                 if let Some(g)=&h.governance {
+                    ui.collapsing("Civic petitions and remembered outcomes",|ui| {
+                        for p in g.petitions.iter().rev().take(30) {
+                            ui.small(format!("{}: {:?} · {} · {:.1}/{:.1} transferred · pressure {:.2}",h.sites[p.site as usize].name,p.demand,if p.honored {"honored"}else if p.resolved.is_some() {"lapsed"}else {"pending"},p.paid,p.requested,p.pressure));
+                        }
+                    });
                     ui.collapsing("Governance and diplomacy",|ui| {
                         if h.offices.is_none() { offices_init |= ui.button("Establish local offices").clicked(); }
                         let mut negotiate = g.negotiated_autonomy;

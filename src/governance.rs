@@ -49,6 +49,8 @@ pub struct Treaty {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Governance {
+    #[serde(default)]
+    pub petitions: Vec<crate::civic_petitions::Petition>,
     /// Older histories retain scenario-only autonomy unless explicitly enabled.
     #[serde(default)]
     pub negotiated_autonomy: bool,
@@ -97,6 +99,7 @@ impl Governance {
             .any(|t| t.parties == pair(a, b) && t.signed <= month && month < t.expires)
     }
     pub fn validate(&self, h: &History) -> Result<()> {
+        crate::civic_petitions::validate(h, &self.petitions)?;
         ensure!(
             h.politics.is_some()
                 && self.version == 1
@@ -227,15 +230,17 @@ impl History {
                         r.trust = (r.trust - 35.).max(0.);
                     }
                 }
-            } else if e.kind == "market_arrival" {
+            } else if e.kind == "market_arrival" || e.kind == "arrival" {
                 if let (Some(a), Some(b)) = (e.site, e.other) {
                     if let Some(r) = g
                         .relations
                         .iter_mut()
                         .find(|r| r.parties == pair(self.controller(a), self.controller(b)))
                     {
-                        r.trust = (r.trust + 0.2).min(100.);
-                        r.trade_contacts = r.trade_contacts.saturating_add(1);
+                        r.trust = (r.trust + if e.kind == "arrival" { 1. } else { 0.2 }).min(100.);
+                        if e.kind == "market_arrival" {
+                            r.trade_contacts = r.trade_contacts.saturating_add(1);
+                        }
                     }
                 }
             }
@@ -387,6 +392,7 @@ impl History {
             }
         }
         self.governance = Some(g);
+        crate::civic_petitions::resolve(self);
     }
     pub(crate) fn governance_year(&mut self) {
         let Some(g) = &self.governance else {
@@ -506,6 +512,7 @@ impl Generator {
             }
         }
         h.governance = Some(Governance {
+            petitions: vec![],
             negotiated_autonomy: true,
             version: 1,
             started: h.month,
