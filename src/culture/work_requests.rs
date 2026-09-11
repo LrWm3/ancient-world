@@ -14,6 +14,8 @@ pub struct WorkPlan {
     pub actor: Option<u32>,
     pub successor: Option<(u32, u32, u32)>,
     #[serde(default)]
+    pub successor_expectation: Option<LessonExpectation>,
+    #[serde(default)]
     pub participants: Option<Vec<u32>>,
     #[serde(default)]
     pub institution_lesson: Option<(u32, u32, u32)>,
@@ -65,7 +67,21 @@ impl Culture {
             ids
         });
         let identities = self.work_identities(h, site, participants.as_deref());
+        let actions: Vec<(String, f32)> = self
+            .work_requests(h, site)
+            .into_iter()
+            .map(|(a, w)| (a.into(), w))
+            .collect();
+        let successor_expectation = successor
+            .filter(|_| actions.iter().any(|(a, _)| a == "teach successor"))
+            .map(|(student, topic, _)| {
+                self.agents[student as usize].lesson_expectation(
+                    topic,
+                    self.agents[actor.unwrap() as usize].instruction_support(),
+                )
+            });
         WorkPlan {
+            successor_expectation,
             completed: 0.,
             commitment: None,
             successor,
@@ -76,11 +92,7 @@ impl Culture {
             actor: people
                 .get((h.month / 3 + site) as usize % people.len().max(1))
                 .copied(),
-            actions: self
-                .work_requests(h, site)
-                .into_iter()
-                .map(|(a, w)| (a.into(), w))
-                .collect(),
+            actions,
             identities,
             cancellation: None,
             granted: 0.,
@@ -429,8 +441,39 @@ mod tests {
         h.reserve_cultural_work();
         assert!((h.culture.as_ref().unwrap().labor_budget[0] - 0.1).abs() < 1e-6);
         let mut c = h.culture.take().unwrap();
+        let predicted = c.work_plans[0]
+            .successor_expectation
+            .as_ref()
+            .unwrap()
+            .clone();
+        assert!((predicted.expected_gain - 1. / 3.).abs() < 1e-6);
+        assert_eq!(predicted.actual_gain, 0.);
+        let mut unfunded = c.clone();
+        let mut unfunded_history = h.clone();
+        unfunded.labor_budget[0] = 0.;
+        unfunded.decisions(&mut unfunded_history);
+        assert_eq!(
+            unfunded.work_plans[0]
+                .successor_expectation
+                .as_ref()
+                .unwrap()
+                .actual_gain,
+            0.
+        );
+        assert!(!unfunded.agents[predicted.student as usize]
+            .studies
+            .contains_key(&predicted.topic));
         let before = c.labor_spent;
         c.decisions(h);
+        let observed = c.work_plans[0].successor_expectation.as_ref().unwrap();
+        assert!((observed.actual_gain - predicted.expected_gain).abs() < 1e-6);
+        assert!(!observed.actual_acquisition);
+        let restored: WorkPlan =
+            serde_json::from_value(serde_json::to_value(&c.work_plans[0]).unwrap()).unwrap();
+        assert_eq!(
+            restored.successor_expectation.unwrap().actual_gain,
+            observed.actual_gain
+        );
         assert!((c.labor_spent - before - 0.1).abs() < 1e-6);
         assert!(h.events.iter().any(|e| e.kind == "practice_instruction"));
         assert!((c.work_plans[0].completed - 0.1).abs() < 1e-6);

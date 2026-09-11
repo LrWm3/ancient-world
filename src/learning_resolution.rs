@@ -101,7 +101,7 @@ impl crate::civilization::History {
                         && (granted - r.reserved[k] as f64).abs() <= 1e-4,
                     "learning result no longer matches reservation"
                 );
-                let receipt = outcome(
+                let mut receipt = outcome(
                     r.month,
                     r.site,
                     system,
@@ -109,6 +109,31 @@ impl crate::civilization::History {
                     [r.requested[k] as f64, r.allocated[k] as f64, granted, used],
                     resolution.compare,
                 )?;
+                if k == 1 && resolution.compare {
+                    if let Some(lesson) = self
+                        .culture
+                        .as_ref()
+                        .and_then(|c| c.work_plans.iter().find(|p| p.site == r.site))
+                        .and_then(|p| p.successor_expectation.as_ref())
+                    {
+                        receipt.metrics.extend([
+                            Metric {
+                                name: "successor_learning_gain".into(),
+                                unit: "topic fraction".into(),
+                                expected: lesson.expected_gain as f64,
+                                actual: lesson.actual_gain as f64,
+                                explained: vec![],
+                            },
+                            Metric {
+                                name: "successor_acquisition".into(),
+                                unit: "topics".into(),
+                                expected: f64::from(lesson.expected_acquisition),
+                                actual: f64::from(lesson.actual_acquisition),
+                                explained: vec![],
+                            },
+                        ]);
+                    }
+                }
                 let boundary = receipt.boundary.clone();
                 resolution.commit(receipt, &boundary)?;
             }

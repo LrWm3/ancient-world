@@ -6,6 +6,17 @@ pub struct Study {
     pub progress: f32,
     pub source: Option<u64>,
 }
+/// Conditional outcome of one requested successor lesson, captured before allocation.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct LessonExpectation {
+    pub student: u32,
+    pub topic: u32,
+    pub opening_progress: f32,
+    pub expected_gain: f32,
+    pub expected_acquisition: bool,
+    pub actual_gain: f32,
+    pub actual_acquisition: bool,
+}
 impl Study {
     fn advance(&mut self, work: f32, curiosity: f32, support: f32) -> bool {
         // Three novice lessons, potentially two with curiosity and experienced
@@ -20,6 +31,21 @@ impl Study {
     }
 }
 impl Agent {
+    pub(super) fn lesson_expectation(&self, topic: u32, support: f32) -> LessonExpectation {
+        let mut study = self.studies.get(&topic).cloned().unwrap_or_default();
+        let opening_progress = study.progress;
+        let completed = study.advance(0.1, self.traits[3], support);
+        LessonExpectation {
+            student: self.person,
+            topic,
+            opening_progress,
+            expected_gain: study.progress - opening_progress,
+            expected_acquisition: completed,
+            actual_gain: 0.,
+            actual_acquisition: false,
+        }
+    }
+
     pub(super) fn study_topic(&mut self, topic: u32, support: f32) -> (bool, f32, Option<u64>) {
         let study = self.studies.entry(topic).or_default();
         let completed = study.advance(0.1, self.traits[3], support);
@@ -106,6 +132,26 @@ mod tests {
         assert!(restored.knowledge.contains(&4));
         assert_eq!(restored.knowledge_sources[&4], 8);
         assert!(restored.observe_topic(4, 41, 0.05).is_none());
+    }
+    #[test]
+    fn lesson_projection_is_read_only_and_partial_progress_changes_completion() {
+        let mut a = agent();
+        a.studies.insert(
+            4,
+            Study {
+                progress: 0.8,
+                source: Some(3),
+            },
+        );
+        let before = serde_json::to_value(&a).unwrap();
+        let expected = a.lesson_expectation(4, 0.);
+        assert_eq!(serde_json::to_value(&a).unwrap(), before);
+        assert!((expected.expected_gain - 0.2).abs() < 1e-6);
+        assert!(expected.expected_acquisition);
+        assert_eq!(expected.actual_gain, 0.);
+        let (completed, progress, _) = a.study_topic(4, 0.);
+        assert!(completed);
+        assert!((progress - expected.opening_progress - expected.expected_gain).abs() < 1e-6);
     }
     #[test]
     fn partial_learning_requires_work_and_preserves_progress() {

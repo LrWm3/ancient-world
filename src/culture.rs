@@ -8,7 +8,7 @@ use anyhow::{ensure, Result};
 pub mod dynamics;
 mod learning;
 mod practices;
-pub use learning::Study;
+pub use learning::{LessonExpectation, Study};
 pub(crate) mod work_requests;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -1391,8 +1391,21 @@ impl Culture {
             }) {
                 remaining_work -= 0.1;
                 let support = self.agents[actor as usize].instruction_support();
+                let before = self.agents[student as usize]
+                    .studies
+                    .get(&topic)
+                    .map_or(0., |s| s.progress);
                 let (completed, progress, previous) =
                     self.agents[student as usize].study_topic(topic, support);
+                if let Some(outcome) = self
+                    .work_plans
+                    .get_mut(si)
+                    .and_then(|p| p.successor_expectation.as_mut())
+                    .filter(|p| p.student == student && p.topic == topic)
+                {
+                    outcome.actual_gain = progress - before;
+                    outcome.actual_acquisition = completed;
+                }
                 self.agents[actor as usize].instruction_work += 0.1;
                 self.agents[actor as usize].relations.insert(student, 0.5);
                 self.agents[student as usize].relations.insert(actor, 0.5);

@@ -317,9 +317,25 @@ mod tests {
                     .iter()
                     .find(|r| r.boundary.system == system && r.boundary.site == 0)
                     .unwrap();
-                assert_eq!(r.metrics.len(), 3);
+                assert_eq!(
+                    r.metrics.len(),
+                    if system == crate::resolution::System::Culture {
+                        5
+                    } else {
+                        3
+                    }
+                );
                 assert!(r.metrics[2].actual > 0., "fixture must complete real work");
-                assert!(r.metrics.iter().all(|m| m.unexplained().abs() < 1e-8));
+                assert!(r.metrics[..3].iter().all(|m| m.unexplained().abs() < 1e-8));
+                if system == crate::resolution::System::Culture {
+                    let gain = r
+                        .metrics
+                        .iter()
+                        .find(|m| m.name == "successor_learning_gain")
+                        .unwrap();
+                    assert!(gain.expected > 0. && gain.actual > 0.);
+                    assert!((gain.actual - gain.expected).abs() < 1e-6);
+                }
             }
             let previous = serde_json::to_value(&equal.resolution).unwrap();
             assert!(equal.settle_learning_resolutions().is_err());
