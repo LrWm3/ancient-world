@@ -180,7 +180,7 @@ impl Culture {
         w.curated[k] += mass;
         d.curated[k] += mass;
         let cause = w.causes[k];
-        let topic = if w.studied[k] >= 1.5 - 1e-8 {
+        let topic = if crate::discoveries::study_complete(w.studied[k]) {
             Some(8 + k as u32)
         } else {
             None

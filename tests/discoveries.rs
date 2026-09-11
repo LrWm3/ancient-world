@@ -22,6 +22,13 @@ fn world() -> Generator {
     .unwrap();
     g.run_epochs(1).unwrap();
     g.found_civilizations(5).unwrap();
+    // Specimen transport/research is the subject here, not competition with family care
+    // for the tool-making workforce during the twenty-year economic warm-up.
+    g.civilizations
+        .as_mut()
+        .unwrap()
+        .set_domestic_households(false)
+        .unwrap();
     // These fixtures isolate repeated specimen/rescue transfers under the legacy farm control.
     g.set_diversified_farming(false).unwrap();
     g.enable_society().unwrap();
@@ -60,8 +67,9 @@ fn launch(g: &mut Generator, goal: Objective) -> (u32, u32) {
         if goal == Objective::Geology && cell.geology[0] <= 0. {
             continue;
         }
-        if let Ok(id) = g.launch_expedition(i as u32, goal, None) {
-            return (id, r.travel_months);
+        match g.launch_expedition(i as u32, goal, None) {
+            Ok(id) => return (id, r.travel_months),
+            Err(error) => eprintln!("route {i}: {error:#}"),
         }
     }
     panic!("fixture requires a wealthy sponsor and suitable destination")
@@ -165,7 +173,12 @@ fn accessible_mineral_stock_depletes_and_fertilizer_uses_real_phosphorus() {
     let x = h.expeditions.as_ref().unwrap();
     let d = x.discoveries.as_ref().unwrap();
     assert_eq!(d.sources[0].remaining[1], 0.);
-    assert!(d.phosphorus_applied > 0.);
+    assert!(d.phosphorus_applied > 0., "workshops: {:#?}", d.workshops);
+    // Only actually processed crust releases P; the completion tolerance must
+    // neither round study inventories up nor produce nutrients from study waste.
+    assert!((d.phosphorus_applied - d.processed[1] * 0.08).abs() < 1e-10);
+    assert!((d.studied[1] - 1.5).abs() < 1e-6);
+    assert!(d.residuals(x).iter().all(|v| v.abs() < 1e-8));
     let collected = d.collected[1];
     let route = x.voyages[id as usize].route;
     g.advance_history(60).unwrap();
@@ -266,9 +279,17 @@ fn healthy_towns_keep_samples_until_treatment_is_needed() {
     let d = x.discoveries.as_ref().unwrap();
     assert!(d.remedy_made > 0. && d.remedy_made < 0.5);
     assert_eq!(d.remedy_used, 0.);
-    assert!(d.workshops[0].samples[0] > 1.5);
-    let before = d.processed[0];
     let site = x.voyages[id as usize].origin as usize;
+    let workshop = d
+        .workshops
+        .iter()
+        .find(|w| w.site as usize == site)
+        .unwrap();
+    // Typed botanicals now share the organic manifest: only the remaining resin
+    // can become medicine. Healthy-town processing must still leave resin stored.
+    assert!(workshop.samples[0] > 0., "{workshop:#?}");
+    assert!(workshop.botanicals.received.iter().sum::<f64>() > 0.);
+    let before = d.processed[0];
     g.civilizations.as_mut().unwrap().sites[site]
         .demography
         .health[0] = 0.3;

@@ -102,7 +102,7 @@ limitations are recorded below after the run.
 - Tiny transfer checks use an isolated detritus stock: subtracting two large f32
   detritus totals obscured the initial sub-kilogram fixture's signal. Whole-world
   budgets retain their existing scale-aware tolerances.
-- The older `tests/discoveries.rs` suite remains failing: three ecological fixtures
+- At the expansion commit, the older `tests/discoveries.rs` suite failed: three ecological fixtures
   cannot launch a suitable funded voyage after their 240-month setup; the mineral
   fixture never reaches positive phosphorus application. The healthy-town launch
   failure and mineral-production failure both reproduce at pre-change commit
@@ -110,8 +110,45 @@ limitations are recorded below after the run.
 
 The new fixtures establish bounded transfers and controlled effects. Natural
 collection frequency, long-run research competition and voyage profitability have
-not been calibrated. The older voyage fixture prerequisites need a separate review.
+not been calibrated. The discovery integration follow-up below resolves the earlier
+fixture blockers and the mineral-processing stall.
 
 The final regular library run passed 103 tests (92 hardware-dependent tests ignored
 in that run). The focused archaeological study fixture passed. All-target Clippy
 with warnings denied and the source-artifact check passed.
+
+
+### Discovery integration follow-up (2026-09-11)
+
+The four hardware-backed discovery integration tests now pass. Their twenty-year
+warm-up explicitly disables domestic care to isolate specimen voyages and research
+from competing tool-production labor; it retains normal voyage funding, recruitment,
+cargo, monthly production and validation. Failed launch attempts now print the
+specific unmet prerequisites. This is a controlled accounting fixture, not evidence
+that default economies always afford expeditions.
+
+The mineral failure exposed a real precision deadlock: study stopped at
+1.4999999552965164 kg, while the old completion threshold required another
+0.0000000447034836 kg. Its requested work fell below the personal allocation
+minimum, preventing the method from ever unlocking. Planning, execution, teaching
+and curated-specimen knowledge now share a 1 mg completion tolerance. Only the
+eligibility comparison changes; consumed material and nutrient ledgers are never
+rounded up. A boundary regression rejects materially incomplete studies, and the
+contact/supplies test verifies that a near-complete teacher can transmit a method.
+
+The healthy-town check now finds the workshop by its actual origin site and checks
+remaining resin separately from typed botanical cargo. It still requires a small
+medicine reserve, no consumption while healthy, and increased processing and actual
+treatment after imposed illness. The mineral test requires positive application,
+P output equal to 8% of processed crust, source depletion and closed specimen
+ledgers. Rescue/loss and exact batched-versus-checkpoint continuation remain tested.
+
+Follow-up verification:
+
+- `cargo test --test discoveries -- --ignored --test-threads=1`: all four GPU
+  integration tests pass, including exact full-history save/resume comparison.
+- `cargo test --lib discoveries -- --include-ignored --test-threads=1`: four
+  focused tests pass, including the three-seed botanical fixture and method copying.
+- `cargo test --lib`: 104 pass; 92 hardware-dependent tests skipped in this run.
+- `cargo clippy --all-targets -- -D warnings`, `git diff --check`, and the source
+  artifact policy check pass. The complete repository GPU suite was not rerun.

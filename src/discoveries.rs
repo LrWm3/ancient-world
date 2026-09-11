@@ -69,9 +69,20 @@ pub struct Discoveries {
     pub worker_months: f64,
     pub worker_months_reserved: f64,
 }
+// Research work passes through f32 labor grants with a minimum useful allocation.
+// A sub-milligram remainder must not strand a completed 1.5 kg study forever.
+// This is an eligibility tolerance only: never round up consumed mass or ledgers.
+const STUDY_KG: f64 = 1.5;
+const STUDY_TOLERANCE_KG: f64 = 1e-6;
+pub(crate) fn study_complete(kg: f64) -> bool {
+    kg >= STUDY_KG - STUDY_TOLERANCE_KG
+}
+fn method_known(w: &Workshop, kind: usize) -> bool {
+    study_complete(w.studied[kind]) || w.learned[kind].is_some()
+}
 fn processing_limit(w: &Workshop, kind: usize, site: &crate::civilization::Site) -> f64 {
-    if w.studied[kind] < 1.5 - 1e-8 && w.learned[kind].is_none() {
-        return (1.5 - w.studied[kind]).min(0.25);
+    if !method_known(w, kind) {
+        return (STUDY_KG - w.studied[kind]).min(0.25);
     }
     if kind == 0 {
         // Keep a small emergency reserve in healthy towns, two months of doses during illness.
@@ -479,8 +490,7 @@ impl Discoveries {
             for (k, name) in NAMES.iter().enumerate() {
                 if w.work_plan.as_ref().is_none_or(|p| p.teachers[k].is_some())
                     && h.month.is_multiple_of(12)
-                    && w.studied[k] < 1.5 - 1e-8
-                    && w.learned[k].is_none()
+                    && !method_known(w, k)
                     && labor >= 0.25
                 {
                     if let Some(teacher) = teachers
@@ -491,7 +501,7 @@ impl Discoveries {
                                 .is_none_or(|p| p.teachers[k] == Some(t.site))
                                 && t.site != w.site
                                 && !h.sites[t.site as usize].abandoned
-                                && (t.studied[k] >= 1.5 - 1e-8 || t.learned[k].is_some())
+                                && method_known(t, k)
                                 && h.route_cost(t.site, w.site).is_some()
                         })
                         .min_by_key(|t| t.site)
@@ -519,7 +529,7 @@ impl Discoveries {
                         }
                     }
                 }
-                let studying = w.studied[k] < 1.5 - 1e-8 && w.learned[k].is_none();
+                let studying = !method_known(w, k);
                 let limit = processing_limit(w, k, &h.sites[site]);
                 let e = &mut h.sites[site].economy;
                 let kg = w.samples[k]
@@ -550,7 +560,7 @@ impl Discoveries {
                     w.studied[k] += kg;
                     self.studied[k] += kg;
                     exchange(h, w.site, k, -kg);
-                    if w.studied[k] >= 1.5 - 1e-8 {
+                    if study_complete(w.studied[k]) {
                         event(h,w.site,w.causes[k],"specimen_application_discovered",format!("Destructive study of {} established {}; production still requires fresh material, fuel, tools and labor",name,if k==0{"a fictional remedy recipe"}else{"phosphorus extraction"}));
                     }
                 } else {
@@ -647,13 +657,12 @@ fn plan_work(h: &History, workshop: &Workshop, teachers: &[Workshop]) -> Researc
     for k in 0..2 {
         if budget - work >= 0.25
             && h.month.is_multiple_of(12)
-            && w.studied[k] < 1.5 - 1e-8
-            && w.learned[k].is_none()
+            && !method_known(&w, k)
             && writing >= 0.05
             && teachers.iter().any(|t| {
                 t.site != w.site
                     && !h.sites[t.site as usize].abandoned
-                    && (t.studied[k] >= 1.5 - 1e-8 || t.learned[k].is_some())
+                    && method_known(t, k)
                     && h.route_cost(t.site, w.site).is_some()
             })
         {
@@ -662,7 +671,7 @@ fn plan_work(h: &History, workshop: &Workshop, teachers: &[Workshop]) -> Researc
                 .filter(|t| {
                     t.site != w.site
                         && !h.sites[t.site as usize].abandoned
-                        && (t.studied[k] >= 1.5 - 1e-8 || t.learned[k].is_some())
+                        && method_known(t, k)
                         && h.route_cost(t.site, w.site).is_some()
                 })
                 .map(|t| t.site)
@@ -880,7 +889,8 @@ mod exchange_tests {
         };
         let mut d = Discoveries::new(h.month);
         d.workshops = vec![workshop(0), workshop(1)];
-        d.workshops[0].studied[1] = 1.5;
+        // A teacher with f32 labor rounding residue still knows the method.
+        d.workshops[0].studied[1] = 1.4999999552965164;
         d.workshops[0].samples[1] = 2.5;
         let good = h
             .economy_catalog
@@ -978,5 +988,16 @@ mod exchange_tests {
         d.month(h);
         assert!(d.workshops[1].learned[1].is_none());
         assert_eq!(d.workshops[1].work_plan.as_ref().unwrap().receipt.used, 0.);
+    }
+}
+
+#[cfg(test)]
+mod precision_tests {
+    #[test]
+    fn study_completion_tolerates_labor_rounding() {
+        assert!(super::study_complete(1.4999999552965164));
+        assert!(super::study_complete(1.5));
+        assert!(!super::study_complete(1.5 - 2e-6));
+        assert!(!super::study_complete(1.49));
     }
 }
