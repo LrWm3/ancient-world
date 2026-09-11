@@ -183,3 +183,33 @@ competitive wage negotiation. The transfer coefficient is a toy tuning choice.
 Full verification: `cargo test --lib -- --include-ignored` passed all 173 tests,
 including GPU fixtures, in 79.82 seconds. All-target Clippy with warnings denied,
 formatting and the repository artifact policy also passed.
+
+## Learning alongside experienced coworkers
+
+The optional individual workshop adapter now gives novices a separate, bounded
+competence score when they complete work alongside more experienced coworkers at
+the same firm. It uses opening family experience. Exposure is limited by both
+coworkers' completed work and divided among eligible novices; competence has
+diminishing returns and adds a modest hiring-priority benefit next month.
+It is not extra work and never enters payroll or physical production totals.
+
+Controlled coverage:
+
+- An absent/idle expert, an idle novice, or equally experienced coworkers produce
+  no learning gain.
+- More novices divide the available expert exposure instead of multiplying it.
+- Canonical person order makes learning independent of crew array order.
+- A productive two-person enterprise crew develops novice competence; the same
+  assignments with zero completed production do not.
+- The enterprise crew resumes identically from serialization. Repeating settlement
+  cannot award another gain.
+- Existing resident archives initialize the new competence array to zero.
+
+This is incidental learning, not a formal apprenticeship contract, teaching
+schedule or a calibrated model of knowledge acquisition. Competence does not yet
+decay or affect physical output quality. No dedicated new long-run seed ensemble
+was added for this increment.
+
+Verification: all 175 library tests passed with `cargo test --lib -- --include-ignored`
+(including GPU fixtures) in 77.06 seconds. All-target Clippy with warnings denied,
+formatting and repository artifact checks passed.

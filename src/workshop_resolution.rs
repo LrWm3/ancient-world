@@ -59,6 +59,39 @@ fn practice_scores(total: f64, by_family: [f64; 4]) -> [f32; 4] {
         (relevant / (12. + relevant)) as f32
     })
 }
+/// Learning by observation during real shared production, not extra teaching work.
+/// Each mentor's completed work is shared across learners; no remote/idle mentors.
+fn peer_learning(crew: &[(u32, f64, f32, f32)]) -> Vec<(u32, f32)> {
+    // Entries: identity, completed work, opening family experience score, prior learning.
+    let mut ordered = crew.to_vec();
+    ordered.sort_by_key(|entry| entry.0);
+    let crew = &ordered;
+    let demand: Vec<f64> = crew
+        .iter()
+        .map(|mentor| {
+            crew.iter()
+                .filter(|learner| learner.0 != mentor.0 && learner.2 < mentor.2)
+                .map(|learner| learner.1)
+                .sum()
+        })
+        .collect();
+    crew.iter()
+        .map(|learner| {
+            let exposure: f64 = crew
+                .iter()
+                .zip(&demand)
+                .filter(|(mentor, demand)| {
+                    mentor.0 != learner.0 && mentor.2 > learner.2 && **demand > 0.
+                })
+                .map(|(mentor, demand)| {
+                    (mentor.1 * learner.1 / demand) * (mentor.2 - learner.2) as f64
+                })
+                .sum();
+            let gain = (0.05 * exposure.min(learner.1)) as f32 * (1. - learner.3);
+            (learner.0, gain)
+        })
+        .collect()
+}
 fn household_pressure(cash: f64, food_need: f64, hunger: f64, food_price: f64) -> f32 {
     // A two-month gross food bill is a buffer target, not a new inventory.
     let buffer = 2. * food_need.max(0.) * food_price;
@@ -245,7 +278,10 @@ impl crate::civilization::History {
                     household_pressure(a.cash, a.need, a.hunger, food_price)
                 });
             // Completed work, not merely time paid for, develops hiring familiarity.
-            let practice = practice_scores(p.workshop_completed, p.workshop_practice);
+            let base = practice_scores(p.workshop_completed, p.workshop_practice);
+            let practice = std::array::from_fn(|family| {
+                base[family] + 0.25 * p.workshop_learning[family] * (1. - base[family])
+            });
             offers[site as usize].push(Candidate {
                 person: p.person,
                 household,
@@ -265,6 +301,13 @@ impl crate::civilization::History {
         let Some(firms) = self.enterprises.as_mut().map(|e| &mut e.firms) else {
             return Ok(());
         };
+        // Capture before any firm settles: new work cannot become same-month expertise.
+        let opening: std::collections::BTreeMap<_, _> = self
+            .participation
+            .iter()
+            .flat_map(|p| p.residents.iter())
+            .map(|(&id, r)| (id, (r.workshop_practice, r.workshop_learning)))
+            .collect();
         for f in firms {
             let revision = staffing_revision(f);
             let Some(s) = f.staffing.as_mut().filter(|s| !s.settled) else {
@@ -290,14 +333,36 @@ impl crate::civilization::History {
                     .participation
                     .as_mut()
                     .ok_or_else(|| anyhow::anyhow!("missing workshop participants"))?;
+                let mut assignments = Vec::new();
+                let mut crew = Vec::new();
                 for &id in &s.commitments {
                     let c = &pool.commitments[id as usize];
                     let contribution = if s.granted > 0. {
-                        c.granted as f64 * used / s.granted
+                        (c.granted as f64 * used / s.granted) as f32
                     } else {
                         0.
                     };
-                    pool.settle_workshop(id, contribution as f32, f.family)?;
+                    for &(person, share) in &c.people {
+                        let (practice, learning) = &opening[&person];
+                        let experience = practice[f.family as usize];
+                        let completed = (share * contribution.min(c.granted) / c.granted) as f64;
+                        crew.push((
+                            person,
+                            completed,
+                            (experience / (12. + experience)) as f32,
+                            learning[f.family as usize],
+                        ));
+                    }
+                    assignments.push((id, contribution));
+                }
+                let gains = peer_learning(&crew);
+                for (id, contribution) in assignments {
+                    pool.settle_workshop(id, contribution, f.family)?;
+                }
+                for (person, gain) in gains {
+                    let learning = &mut pool.residents.get_mut(&person).unwrap().workshop_learning
+                        [f.family as usize];
+                    *learning = (*learning + gain).min(1.);
                 }
             }
             state.commit(s.receipt(used, state.compare), &current)?;
@@ -309,6 +374,29 @@ impl crate::civilization::History {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn peer_learning_requires_shared_completed_work_and_bounds_mentor_capacity() {
+        let mentor = (0, 0.2, 0.8, 0.);
+        let novice = (1, 0.4, 0., 0.);
+        let gains = peer_learning(&[mentor, novice]);
+        assert_eq!(gains[0].1, 0.);
+        assert!(gains[1].1 > 0.);
+        assert_eq!(peer_learning(&[novice])[0].1, 0.);
+        assert_eq!(peer_learning(&[(0, 0., 0.8, 0.), novice])[1].1, 0.);
+        assert_eq!(peer_learning(&[mentor, (1, 0., 0., 0.)])[1].1, 0.);
+        assert_eq!(peer_learning(&[mentor, (1, 0.4, 0.8, 0.)])[1].1, 0.);
+        let crowded = [mentor, novice, (2, 0.4, 0., 0.)];
+        let gains = peer_learning(&crowded);
+        assert!(gains[1].1 < peer_learning(&[mentor, novice])[1].1);
+        assert!(gains.iter().map(|(_, g)| *g).sum::<f32>() <= 0.05 * 0.2);
+        let mut reversed = peer_learning(&[crowded[2], crowded[1], crowded[0]]);
+        reversed.sort_by_key(|(id, _)| *id);
+        assert_eq!(gains, reversed);
+        assert!(
+            peer_learning(&[mentor, (1, 0.4, 0., 0.9)])[1].1
+                < peer_learning(&[mentor, novice])[1].1
+        );
+    }
     #[test]
     fn specialization_changes_hiring_without_changing_time_or_inventing_old_trades() {
         let base = Candidate {
@@ -343,6 +431,7 @@ mod tests {
                     completed: [0.; 2],
                     workshop_completed: 0.,
                     workshop_practice: [0.; 4],
+                    workshop_learning: [0.; 4],
                 },
             );
         }
@@ -456,6 +545,7 @@ mod tests {
                     completed: [0.; 2],
                     workshop_completed: 0.,
                     workshop_practice: [0.; 4],
+                    workshop_learning: [0.; 4],
                 },
             );
         }

@@ -660,6 +660,88 @@ mod tests {
         gpu::{ContextGpu, Generator},
     };
     #[test]
+    #[ignore = "requires hardware GPU"]
+    fn coworkers_learn_only_from_actual_shared_work_and_resume_identically() {
+        let mut g = world();
+        install(&mut g);
+        g.enable_politics().unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        h.enable_individual_demography().unwrap();
+        h.set_workshop_refinement(true).unwrap();
+        h.month = 3;
+        h.begin_service_reservations();
+        let ids: Vec<_> = h
+            .participation
+            .as_ref()
+            .unwrap()
+            .residents
+            .values()
+            .filter(|r| {
+                r.presence == crate::participation::Presence::Resident(0) && r.capacity > 0.
+            })
+            .take(2)
+            .map(|r| r.person)
+            .collect();
+        assert_eq!(ids.len(), 2);
+        for r in h.participation.as_mut().unwrap().residents.values_mut() {
+            r.capacity = 0.;
+            r.care = 0.;
+        }
+        for &id in &ids {
+            h.participation
+                .as_mut()
+                .unwrap()
+                .residents
+                .get_mut(&id)
+                .unwrap()
+                .capacity = 0.001;
+        }
+        let mentor = h
+            .participation
+            .as_mut()
+            .unwrap()
+            .residents
+            .get_mut(&ids[0])
+            .unwrap();
+        mentor.workshop_practice = [24.; 4];
+        mentor.workshop_completed = 96.;
+        h.prepare_enterprises();
+        let mut idle = h.clone();
+        let mut resumed: History =
+            serde_json::from_value(serde_json::to_value(&*h).unwrap()).unwrap();
+        for world in [&mut *h, &mut resumed] {
+            for site in &mut world.sites {
+                site.economy.enterprise_used = site.economy.enterprise_plan.map(|w| w * 0.5);
+            }
+            world.settle_enterprises();
+            world.settle_workshop_resolutions().unwrap();
+        }
+        for site in &mut idle.sites {
+            site.economy.enterprise_used = [0.; 4];
+        }
+        idle.settle_enterprises();
+        idle.settle_workshop_resolutions().unwrap();
+        assert_eq!(
+            serde_json::to_value(&*h).unwrap(),
+            serde_json::to_value(resumed).unwrap()
+        );
+        let pool = h.participation.as_ref().unwrap();
+        assert!(pool.residents[&ids[1]]
+            .workshop_learning
+            .iter()
+            .any(|v| *v > 0.));
+        assert_eq!(pool.residents[&ids[0]].workshop_learning, [0.; 4]);
+        assert_eq!(
+            idle.participation.as_ref().unwrap().residents[&ids[1]].workshop_learning,
+            [0.; 4]
+        );
+        let before = serde_json::to_value(&h.participation).unwrap();
+        h.settle_workshop_resolutions().unwrap();
+        assert_eq!(before, serde_json::to_value(&h.participation).unwrap());
+        h.enterprises.as_ref().unwrap().validate(h).unwrap();
+    }
+
+    #[test]
     fn competing_workshops_share_labor_before_payroll() {
         assert_eq!(allocate_work([6., 3., 0., 0.], 3.), [2., 1., 0., 0.]);
         assert_eq!(allocate_work([3., 6., 0., 0.], 3.), [1., 2., 0., 0.]);

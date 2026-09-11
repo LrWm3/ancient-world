@@ -43,6 +43,10 @@ pub struct Resident {
     /// experience remains in workshop_completed; no historical trade is invented.
     #[serde(default)]
     pub workshop_practice: [f64; 4],
+    /// Bounded competence gained from working alongside more experienced coworkers;
+    /// not worker-months and never included in completed labor.
+    #[serde(default)]
+    pub workshop_learning: [f32; 4],
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Commitment {
@@ -184,7 +188,10 @@ impl Participation {
                     && p.workshop_practice
                         .iter()
                         .all(|v| v.is_finite() && *v >= 0.)
-                    && p.workshop_practice.iter().sum::<f64>() <= p.workshop_completed + 1e-6,
+                    && p.workshop_practice.iter().sum::<f64>() <= p.workshop_completed + 1e-6
+                    && p.workshop_learning
+                        .iter()
+                        .all(|v| v.is_finite() && (0. ..=1.).contains(v)),
                 "invalid resident participation"
             );
             let committed: f32 = self
@@ -319,6 +326,7 @@ impl History {
                 completed: [0.; 2],
                 workshop_completed: 0.,
                 workshop_practice: [0.; 4],
+                workshop_learning: [0.; 4],
             });
             entry.care = care;
             entry.household = household;
@@ -581,6 +589,7 @@ mod tests {
                             completed: [0.; 2],
                             workshop_completed: 0.,
                             workshop_practice: [0.; 4],
+                            workshop_learning: [0.; 4],
                         },
                     )
                 })

@@ -81,7 +81,23 @@ at 20%; the score is `relevant / (12 + relevant)`. This gives diminishing return
 and partial transfer between trades without changing recipe yields. Existing archives
 retain their total as untyped practice rather than receiving invented specializations.
 New work is assigned its family only when its commitment settles; paid idle time
-earns none. Family sums cannot exceed total completed work. The 20% transfer and
+earns none.
+
+Coworkers also learn by observation during completed production at the same firm.
+The month uses opening family experience, so newly completed work cannot cascade
+into instant expertise elsewhere. Each more experienced coworker's completed work
+is shared across less experienced coworkers in proportion to their completed work.
+Learning depends on the experience gap, is capped by the learner's own completed
+work, and slows as a separate 0–1 competence score fills. Its gain scale is 0.05 per
+worker-month of effective exposure. A fully idle or absent expert contributes zero.
+This is incidental learning during production; no extra teaching labor is claimed.
+
+This score adds at most one quarter of the remaining gap in practice-based hiring
+priority. It does not add worker-months, wages, goods or recipe yield. The separate
+`workshop_learning[4]` field defaults to zero in old archives. Structured courses,
+explicit mentor contracts and teaching time remain absent.
+
+Family sums cannot exceed total completed work. The 20% transfer and
 12-month scale are game parameters, not measured skill acquisition. Sparse agents use neutral ambition where
 no traits were recorded. Offers remain bounded between zero and remaining capacity;
 zero pay produces no paid-work offer. These response constants are toy behavior
@@ -132,7 +148,7 @@ and workshop receipts, grants and comparison settings serialize with History.
   worlds still requires explicit roster reconciliation.
 - Richer birth eligibility and reproductive circumstances; births currently retain the
   community-level expectation and unknown-parent fallback.
-- Employer wage competition, teaching and skill loss; explicit coordination with
+- Employer wage competition, dedicated teaching and skill loss; explicit coordination with
   agricultural and other aggregate labor before removing the service ceiling.
   Family-specific experience currently affects hiring, not technical output quality.
 - More subsystem-specific input revisions and reservation references as contracts
