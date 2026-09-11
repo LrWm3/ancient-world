@@ -1219,7 +1219,8 @@ impl Generator {
         };
         h.relief_arrivals();
         h.relocation_arrivals();
-        h.answer_appeals();
+        let relief_observations = h.observe_relief();
+        h.answer_appeals_observed(&relief_observations)?;
         h.restore_returning_settlements();
         self.prepare_economy(h);
         if h.resources.is_some() && h.sites.iter().any(|s| s.economy.claim[3] < 0.5) {
@@ -1322,7 +1323,8 @@ impl Generator {
         h.genealogy_month();
         h.culture_month();
         h.office_month();
-        h.governance_month();
+        let governance_observations = h.observe_governance();
+        h.governance_month_observed(&governance_observations)?;
         if h.month % 12 == 0 {
             h.annual(self.config.radius_km);
             h.prepare_society_with_navigation(terrain, self.config.radius_km, navigation)?;

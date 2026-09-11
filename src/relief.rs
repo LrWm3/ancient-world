@@ -5,7 +5,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Appeal {
     pub origin: u32,
     pub host: u32,
@@ -16,6 +16,12 @@ pub struct Appeal {
     pub population: f32,
     pub cause: u64,
     pub response: Option<u64>,
+}
+/// Appeal evidence is captured together; goods and carriers remain live reservations.
+#[derive(Clone, Debug)]
+pub(crate) struct ReliefObservations {
+    month: u32,
+    pending: Vec<(usize, Appeal, f32, bool, f32)>,
 }
 impl History {
     pub(crate) fn relief_affinity(&self, from: u32, to: u32) -> f32 {
@@ -97,31 +103,70 @@ impl History {
                 response: None,
             });
     }
+    pub(crate) fn observe_relief(&self) -> ReliefObservations {
+        let pending = self.society.as_ref().map_or_else(Vec::new, |s| {
+            s.relocation
+                .appeals
+                .iter()
+                .enumerate()
+                .filter(|(_, a)| a.response.is_none() && a.received < self.month)
+                .map(|(i, a)| {
+                    let hostile = self.politics.as_ref().is_some_and(|p| {
+                        p.wars.iter().any(|w| {
+                            w.ended.is_none()
+                                && ((w.attacker == self.controller(a.origin)
+                                    && w.defender == self.controller(a.host))
+                                    || (w.defender == self.controller(a.origin)
+                                        && w.attacker == self.controller(a.host)))
+                        })
+                    });
+                    (
+                        i,
+                        a.clone(),
+                        self.relief_affinity(a.origin, a.host),
+                        hostile,
+                        self.sites[a.host as usize].stocks.stock[3],
+                    )
+                })
+                .collect()
+        });
+        ReliefObservations {
+            month: self.month,
+            pending,
+        }
+    }
+
+    pub(crate) fn answer_appeals_observed(
+        &mut self,
+        observations: &ReliefObservations,
+    ) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            observations.month == self.month,
+            "stale relief observations"
+        );
+        for (i, a, _, _, _) in &observations.pending {
+            anyhow::ensure!(
+                self.society
+                    .as_ref()
+                    .and_then(|s| s.relocation.appeals.get(*i))
+                    .is_some_and(|live| live == a),
+                "relief appeal changed after observation"
+            );
+        }
+        self.answer_appeals_inner(observations);
+        Ok(())
+    }
+
+    #[cfg(test)]
     pub(crate) fn answer_appeals(&mut self) {
-        let Some(s) = &self.society else {
-            return;
-        };
-        let pending = s
-            .relocation
-            .appeals
-            .iter()
-            .enumerate()
-            .filter(|(_, a)| a.response.is_none() && a.received < self.month)
-            .map(|(i, a)| (i, a.clone()))
-            .collect::<Vec<_>>();
-        for (i, a) in pending {
+        let observations = self.observe_relief();
+        self.answer_appeals_observed(&observations).unwrap();
+    }
+
+    fn answer_appeals_inner(&mut self, observations: &ReliefObservations) {
+        for &(i, ref a, affinity, hostile, shortage) in &observations.pending {
             let r = self.society.as_ref().unwrap().routes[a.route as usize].clone();
             let months = (r.cost_km / 150.).ceil().max(1.) as u32;
-            let affinity = self.relief_affinity(a.origin, a.host);
-            let hostile = self.politics.as_ref().is_some_and(|p| {
-                p.wars.iter().any(|w| {
-                    w.ended.is_none()
-                        && ((w.attacker == self.controller(a.origin)
-                            && w.defender == self.controller(a.host))
-                            || (w.defender == self.controller(a.origin)
-                                && w.attacker == self.controller(a.host)))
-                })
-            });
             let host = &self.sites[a.host as usize];
             let surplus = (host.stocks.stock[1] - host.stocks.stock[0] * 18. * 12.).max(0.);
             let willing = affinity >= 0.2 + months as f32 * 0.025;
@@ -131,7 +176,7 @@ impl History {
                 && r.open
                 && r.flood_months == 0
                 && self.month - a.reported <= 18
-                && host.stocks.stock[3] <= 0.01;
+                && shortage <= 0.01;
             let amount = if allowed {
                 surplus
                     .min(a.population * 18. * 3.)
@@ -141,7 +186,7 @@ impl History {
             } else {
                 0.
             };
-            if amount < 18. && self.sponsor_religious_relief(&a) {
+            if amount < 18. && self.sponsor_religious_relief(a) {
                 let response = self.events.last().unwrap().id;
                 self.society.as_mut().unwrap().relocation.appeals[i].response = Some(response);
                 continue;
@@ -157,7 +202,7 @@ impl History {
                 "report too old"
             } else if !willing {
                 "ties too weak for this distance"
-            } else if amount < 18. || host.stocks.stock[3] > 0.01 {
+            } else if amount < 18. || shortage > 0.01 {
                 "insufficient safe host surplus"
             } else {
                 "host can afford a limited shipment"

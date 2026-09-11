@@ -112,7 +112,7 @@ These are pressure observations, not a copy of all decision state. Provisions,
 people, routes, political eligibility, household hunger, relationships and destination
 capacity still use response-stage state. Capacity and possession checks intentionally
 remain live, so sequential departures cannot spend or reserve the same stock twice.
-Relief and governance have not yet been converted to explicit observation records.
+Relief and governance pressure observations are described in the next increment below.
 
 The relocation fixture changes live shortage and production after capture and checks
 that remembered pressure uses the captured evidence. A stale observation is rejected
@@ -123,3 +123,40 @@ Follow-up verification on the same Quadro backend: the GPU relocation fixture
 passed, as did all three history-environment fixtures (25.91 seconds excluding
 compilation), including seeds 17, 81 and 256 and exact checkpoint/batch comparisons.
 Strict library Clippy passed. No new persistent fields or GPU readbacks are needed.
+
+
+## Relief and governance evidence (2026-09-11)
+
+Opening secular appeal decisions now capture pending reports, affinity, hostility
+and host shortage in a dated observation. Before processing, every captured appeal
+must still match the original report and remain unanswered. Replaying evidence
+from answered appeals or using evidence in another month fails before any transfer.
+Food surplus, freight capacity, route availability and host survival remain live
+checks: an earlier commitment can consume stock but cannot make a stale observation
+spend unavailable food. Religious sponsorship fallback retains its existing live
+eligibility and reservation rules; it is not yet a captured proposal system.
+
+Governance captures current shortage combined with the last completed social
+projection, office capacity and occupation pressure immediately before its monthly
+response. Observations carry both history and social-projection dates and site IDs.
+Payroll demand, available treasury, tax rate, administration and committed events
+remain response-stage inputs. Delivery and war events still update trust in the same
+month; a snapshot of pressures does not defer those causal events.
+
+Controlled tests mutate live pressure after capture and compare with unmodified
+controls. Governance additionally compares a fresh observation of the changed
+pressure, demonstrating that the observation boundary matters. Relief tests check
+that depleted actual food stocks block spending even with favorable evidence and
+that replaying an answered appeal cannot send a duplicate shipment.
+
+Policy audit: annual faction tax assignment occurs in `politics_year`, after monthly
+governance payroll/loyalty accounting and production. This port preserves that lag.
+There is still no general policy-effective-date queue; introducing one needs explicit
+rules for direct configuration changes, civic concessions and annual faction policy.
+These observation records are transient and add neither archive fields nor GPU reads.
+
+Verification: 62 ordinary library tests, two GPU governance fixtures, the GPU
+relocation/relief fixture, and all three history-environment fixtures passed on the
+Quadro RTX 5000 backend. Seeds 17, 81 and 256 retained exact frozen/living batch and
+checkpoint comparisons. Strict library Clippy, formatting and artifact checks passed.
+This is evidence for these timing and accounting contracts, not a new balance study.

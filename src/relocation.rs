@@ -880,6 +880,32 @@ mod tests {
             "relief_appeal_declined"
         );
         appeal.society.as_mut().unwrap().routes[r.id as usize].cost_km = 150.;
+        let mut captured_relief = appeal.clone();
+        let evidence = captured_relief.observe_relief();
+        captured_relief.sites[to].stocks.stock[3] = 1.;
+        captured_relief.answer_appeals_observed(&evidence).unwrap();
+        let mut expected_relief = appeal.clone();
+        expected_relief.answer_appeals();
+        assert_eq!(
+            serde_json::to_value(&captured_relief.shipments).unwrap(),
+            serde_json::to_value(&expected_relief.shipments).unwrap()
+        );
+        assert_eq!(
+            captured_relief.events.last().unwrap().kind,
+            expected_relief.events.last().unwrap().kind
+        );
+        // Already answered appeals cannot spend twice from the same captured evidence.
+        let before = serde_json::to_value(&captured_relief).unwrap();
+        assert!(captured_relief.answer_appeals_observed(&evidence).is_err());
+        assert_eq!(before, serde_json::to_value(&captured_relief).unwrap());
+        let mut depleted_relief = appeal.clone();
+        depleted_relief.sites[to].stocks.stock[1] = 0.;
+        depleted_relief.answer_appeals_observed(&evidence).unwrap();
+        assert_eq!(
+            depleted_relief.events.last().unwrap().kind,
+            "relief_appeal_declined"
+        );
+        assert!(depleted_relief.sites[to].stocks.stock[1] >= 0.);
         let mut poor = appeal.clone();
         poor.sites[to].stocks.stock[1] = 0.;
         poor.answer_appeals();

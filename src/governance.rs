@@ -3,6 +3,14 @@ use crate::{civilization::History, gpu::Generator};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
+/// Completed local evidence, separate from live payroll and political commitments.
+#[derive(Clone, Debug)]
+pub(crate) struct GovernanceObservations {
+    month: u32,
+    social_month: Option<u32>,
+    sites: Vec<(u32, [f32; 2], f32, f32)>,
+}
+
 // Read the last completed social observation; do not age its memory again here.
 // Maxima avoid counting the same hunger/displacement through multiple proxies.
 pub(crate) fn local_pressures(
@@ -205,13 +213,61 @@ impl History {
         }
         self.governance = Some(g);
     }
+    pub(crate) fn observe_governance(&self) -> GovernanceObservations {
+        GovernanceObservations {
+            month: self.month,
+            social_month: self
+                .society
+                .as_ref()
+                .and_then(|s| s.indicators.as_ref())
+                .map(|s| s.observed),
+            sites: self
+                .sites
+                .iter()
+                .map(|s| {
+                    (
+                        s.id,
+                        local_pressures(s.stocks.stock[3], self.social_indicators(s.id)),
+                        self.office_capacity(s.id),
+                        self.occupation_strength(s.id),
+                    )
+                })
+                .collect(),
+        }
+    }
+
+    pub(crate) fn governance_month_observed(
+        &mut self,
+        observations: &GovernanceObservations,
+    ) -> Result<()> {
+        ensure!(
+            observations.month == self.month,
+            "stale governance observations"
+        );
+        ensure!(
+            observations.social_month.is_none_or(|m| m <= self.month),
+            "future governance evidence"
+        );
+        ensure!(
+            observations.sites.len() == self.sites.len()
+                && observations
+                    .sites
+                    .iter()
+                    .zip(&self.sites)
+                    .all(|(o, s)| o.0 == s.id),
+            "governance observation site mismatch"
+        );
+        self.governance_month_inner(observations);
+        Ok(())
+    }
+
+    #[cfg(test)]
     pub(crate) fn governance_month(&mut self) {
-        let office_capacity: Vec<_> = (0..self.sites.len())
-            .map(|s| self.office_capacity(s as u32))
-            .collect();
-        let occupation: Vec<_> = (0..self.sites.len())
-            .map(|s| self.occupation_strength(s as u32))
-            .collect();
+        let observations = self.observe_governance();
+        self.governance_month_observed(&observations).unwrap();
+    }
+
+    fn governance_month_inner(&mut self, observations: &GovernanceObservations) {
         self.prepare_governance();
         let Some(mut g) = self.governance.take() else {
             return;
@@ -295,10 +351,7 @@ impl History {
             if self.sites[i].abandoned {
                 continue;
             }
-            let [hunger, disruption] = local_pressures(
-                self.sites[i].stocks.stock[3],
-                self.social_indicators(i as u32),
-            );
+            let (_, [hunger, disruption], office_capacity, occupation) = observations.sites[i];
             let a = &mut g.administrations[i];
             let foreign = a.controller != self.sites[i].civilization;
             let required = demands[i].1;
@@ -317,17 +370,17 @@ impl History {
             } else {
                 0
             };
-            let tax = council.tax_rate * (1. - a.autonomy * 0.75) * office_capacity[i];
-            a.loyalty = (a.loyalty + 0.008 * funded * office_capacity[i] + 0.006 * a.autonomy
-                - 0.004 * (1. - office_capacity[i])
-                - 0.002 * occupation[i]
+            let tax = council.tax_rate * (1. - a.autonomy * 0.75) * office_capacity;
+            a.loyalty = (a.loyalty + 0.008 * funded * office_capacity + 0.006 * a.autonomy
+                - 0.004 * (1. - office_capacity)
+                - 0.002 * occupation
                 - 0.012 * (1. - funded)
                 - 0.02 * hunger
                 - 0.008 * disruption
                 - tax * 0.08)
                 .clamp(0., 1.);
             a.unrest = (a.unrest
-                + 0.003 * occupation[i]
+                + 0.003 * occupation
                 + hunger * 0.03
                 + disruption * 0.012
                 + (1. - funded) * 0.012
@@ -380,7 +433,7 @@ impl History {
                     a.cause = Some(self.events.last().unwrap().id);
                 }
             }
-            if a.crisis_months >= 12 + (occupation[i] * 3.).ceil() as u32 {
+            if a.crisis_months >= 12 + (occupation * 3.).ceil() as u32 {
                 let previous = a.controller;
                 let restored = self.sites[i].civilization;
                 self.politics.as_mut().unwrap().controllers[i] = restored;
@@ -685,6 +738,28 @@ mod payroll_tests {
         a.loyalty = 0.3;
         a.unrest = 0.6;
         let baseline = h.clone();
+        let mut captured = baseline.clone();
+        let evidence = captured.observe_governance();
+        captured.sites[1].stocks.stock[3] = 1.;
+        captured.governance_month_observed(&evidence).unwrap();
+        let mut expected = baseline.clone();
+        expected.governance_month();
+        assert_eq!(
+            captured.governance.as_ref().unwrap().administrations[1].unrest,
+            expected.governance.as_ref().unwrap().administrations[1].unrest
+        );
+        let mut fresh = baseline.clone();
+        fresh.sites[1].stocks.stock[3] = 1.;
+        fresh.governance_month();
+        assert!(
+            fresh.governance.as_ref().unwrap().administrations[1].unrest
+                > captured.governance.as_ref().unwrap().administrations[1].unrest
+        );
+        captured.month += 1;
+        let before = serde_json::to_value(&captured).unwrap();
+        assert!(captured.governance_month_observed(&evidence).is_err());
+        assert_eq!(before, serde_json::to_value(&captured).unwrap());
+
         let c = &mut h
             .society
             .as_mut()
