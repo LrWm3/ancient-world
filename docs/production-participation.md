@@ -244,3 +244,19 @@ private work before applying a cap. Capping the entire fourth sector by newly
 available people would wrongly suppress work already paid and reserved upstream.
 The required counterfactual is no builders with preserved private workshop grants:
 construction should stop while the separately staffed workshop can still operate.
+
+
+Extraction balance protocol (model `0d8959f`): paired 30-year runs for seeds 17 and
+81 have started with terrain 32, ecology 16, one epoch, yield scale 0.5, living
+history, individual demography, workshops, agricultural participation and the new
+local kin-care behavior. Both arms use the same compiled model; only extraction
+participation changes. Commands:
+
+```sh
+target/release/examples/cultural_work_calibrate --seeds 17,81 --years 30 --individual-demography --workshop-refinement --agriculture-refinement --compare-resolution --household-diagnostics --output output/extraction-control.json
+target/release/examples/cultural_work_calibrate --seeds 17,81 --years 30 --individual-demography --workshop-refinement --agriculture-refinement --extraction-refinement --compare-resolution --household-diagnostics --output output/extraction-pilot.json
+```
+
+The runs are pending, not proof of balance. All-target Clippy, formatting and the
+source-only artifact check pass. Raw outputs and logs remain ignored. Construction
+participation and long-term population stability remain open worklist items.
