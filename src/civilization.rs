@@ -1172,6 +1172,12 @@ impl Generator {
             h.candidates.len() >= count as usize,
             "not enough habitable central-island sites"
         );
+        h.event(
+            "humanity_banished",
+            None,
+            None,
+            "What remains of humanity has been banished from the Ancient World.".into(),
+        );
         let mut choices = h.candidates.clone();
         for id in 0..count {
             let at = choices
