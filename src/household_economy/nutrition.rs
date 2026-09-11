@@ -90,6 +90,14 @@ impl History {
     /// Current-month realized entitlement, observed before demographic commit and
     /// later used unchanged by retail settlement. Aggregate mortality is untouched.
     pub(crate) fn household_mortality(&self, plans: &[RetailPlan]) -> BTreeMap<u32, f64> {
+        if !self
+            .society
+            .as_ref()
+            .and_then(|s| s.household_economy.as_ref())
+            .is_some_and(|e| e.individual_nutrition)
+        {
+            return BTreeMap::new();
+        }
         let mut hunger = BTreeMap::new();
         for plan in plans {
             let eaten = self.sites[plan.site].demography.ration_eaten[3] as f64;
@@ -137,7 +145,7 @@ impl History {
         else {
             return 1.;
         };
-        if e.observed.saturating_add(1) != self.month {
+        if !e.individual_nutrition || e.observed.saturating_add(1) != self.month {
             return 1.;
         }
         let Some(a) = household.and_then(|id| e.accounts.get(id as usize)) else {
@@ -185,6 +193,58 @@ mod tests {
                 .sum::<f64>(),
             10.
         );
+    }
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn scarcity_seed_256_never_reverses_workshop_production() {
+        use crate::{
+            catalog::Catalog,
+            config::Config,
+            gpu::{ContextGpu, Generator},
+        };
+        let mut g = Generator::new(
+            pollster::block_on(ContextGpu::headless()).unwrap(),
+            Config {
+                seed: 256,
+                resolution: 32,
+                ecology_resolution: 32,
+                crop_yield_scale: 0.33,
+                ..Default::default()
+            },
+            Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.run_epochs(1).unwrap();
+        g.found_civilizations(5).unwrap();
+        g.enable_society().unwrap();
+        g.enable_politics().unwrap();
+        g.enable_governance().unwrap();
+        g.enable_offices().unwrap();
+        g.enable_shipping().unwrap();
+        g.civilizations
+            .as_mut()
+            .unwrap()
+            .set_demographic_resolution(crate::resolution::Mode::Individual, true)
+            .unwrap();
+        for month in 1..=48 {
+            g.advance_history(1)
+                .unwrap_or_else(|e| panic!("month {month}: {e:#}"));
+            let h = g.civilizations.as_ref().unwrap();
+            assert!(h.population_residual().abs() < 1e-6);
+            for site in &h.sites {
+                assert!(site
+                    .economy
+                    .enterprise_used
+                    .iter()
+                    .all(|v| v.is_finite() && *v >= 0.));
+                assert!(site
+                    .economy
+                    .made
+                    .iter()
+                    .chain(&site.economy.used)
+                    .all(|v| v.is_finite() && *v >= 0.));
+            }
+        }
     }
     #[test]
     #[ignore = "requires hardware GPU"]
@@ -258,6 +318,39 @@ mod tests {
                 d.ration_eaten[3] = d.household_food[0];
             }
             let exposure = h.household_mortality(&plans);
+            let mut control = h.clone();
+            control
+                .society
+                .as_mut()
+                .unwrap()
+                .household_economy
+                .as_mut()
+                .unwrap()
+                .individual_nutrition = false;
+            assert!(control.household_mortality(&plans).is_empty());
+            assert_eq!(
+                serde_json::to_value(
+                    &h.society
+                        .as_ref()
+                        .unwrap()
+                        .household_economy
+                        .as_ref()
+                        .unwrap()
+                        .accounts
+                )
+                .unwrap(),
+                serde_json::to_value(
+                    &control
+                        .society
+                        .as_ref()
+                        .unwrap()
+                        .household_economy
+                        .as_ref()
+                        .unwrap()
+                        .accounts
+                )
+                .unwrap()
+            );
             h.settle_household_retail(plans);
             let e = h
                 .society
@@ -307,6 +400,47 @@ mod tests {
                 assert!((r.capacity + r.care - expected).abs() < 1e-6);
             }
             assert_eq!(h.household_work_nutrition(Some(accounts[1]), 1), 1.);
+            control.month = h.month;
+            control
+                .society
+                .as_mut()
+                .unwrap()
+                .household_economy
+                .as_mut()
+                .unwrap()
+                .accounts = h
+                .society
+                .as_ref()
+                .unwrap()
+                .household_economy
+                .as_ref()
+                .unwrap()
+                .accounts
+                .clone();
+            control
+                .society
+                .as_mut()
+                .unwrap()
+                .household_economy
+                .as_mut()
+                .unwrap()
+                .observed = h.month - 1;
+            assert_eq!(control.household_work_nutrition(Some(accounts[1]), 0), 1.);
+            let mut old = serde_json::to_value(
+                h.society
+                    .as_ref()
+                    .unwrap()
+                    .household_economy
+                    .as_ref()
+                    .unwrap(),
+            )
+            .unwrap();
+            old.as_object_mut().unwrap().remove("individual_nutrition");
+            assert!(
+                serde_json::from_value::<super::super::HouseholdEconomy>(old)
+                    .unwrap()
+                    .individual_nutrition
+            );
             let restored: History =
                 serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
             assert_eq!(

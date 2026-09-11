@@ -38,6 +38,9 @@ pub struct HouseholdEconomy {
     /// Older archives retain equal payroll allocation.
     #[serde(default)]
     pub occupational_payroll: bool,
+    /// Matched ablation: retain family retail but use age-band mortality and no personal hunger work penalty.
+    #[serde(default = "nutrition_enabled")]
+    pub individual_nutrition: bool,
     pub started: u32,
     pub observed: u32,
     pub common_share: f32,
@@ -52,10 +55,14 @@ pub struct HouseholdEconomy {
     #[serde(default)]
     pub access_episodes: Vec<[u32; 3]>,
 }
+fn nutrition_enabled() -> bool {
+    true
+}
 impl HouseholdEconomy {
     pub fn new(month: u32) -> Self {
         Self {
             occupational_payroll: true,
+            individual_nutrition: true,
             started: month,
             observed: month,
             common_share: 0.5,

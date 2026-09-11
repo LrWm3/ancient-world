@@ -301,6 +301,8 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
   // Conversions that shrink dry storage remain possible even in an overfull legacy yard.
   var expansion=0.;for(var k=0u;k<63u;k++){if catalog.goods[k].w<=0.{expansion+=recipe.output[k/4u][k%4u]-recipe.input[k/4u][k%4u];}}
   if e.logistics.w>.5 && expansion>0.{batches=min(batches,max(0.,e.logistics.x-e.logistics.y-dry_stock(e))/expansion);}
+  // Exhausted f32 labor can leave a tiny negative remainder. Never reverse a recipe.
+  batches=max(0.,batches);
   var inputs=vec3(0.);var outputs=vec3(0.);
   for(var k=0u;k<64u;k++){inputs+=catalog.goods[k].xyz*recipe.input[k/4u][k%4u]*batches;outputs+=catalog.goods[k].xyz*recipe.output[k/4u][k%4u]*batches;}
   let lost=max(vec3(0.),inputs-outputs);e.exchange.x-=lost.x;e.detritus+=vec4(0.,lost.yz,0.);
@@ -308,7 +310,7 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
   let deposited=select(0.,batches*recipe.work.w,e.extraction.y>.5);
   e.residue.x+=deposited;e.residue.y+=deposited;e.reserves.w-=deposited;
   completed[r]+=batches;
-  labor-=batches*unit_work;
+  labor=max(0.,labor-batches*unit_work);
   if wave==0u {e.tool_work.y+=batches*unit_work;}
   if tool_output>0. {e.tool_work.z+=batches*unit_work;e.tool_work.w+=batches*tool_output;}
   if !household{

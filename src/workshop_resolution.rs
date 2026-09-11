@@ -404,7 +404,7 @@ impl crate::civilization::History {
                 f.last_completed_work.is_finite()
                     && f.last_completed_work >= 0.
                     && f.last_completed_work <= s.granted + 1e-5,
-                "workshop execution exceeded its committed time"
+                "workshop {} site {} month {} invalid execution {} for committed {} (funded {}, closed {:?})", f.id, f.site, self.month, f.last_completed_work, s.granted, f.last_funded_work, f.closed
             );
             let used = f.last_completed_work.min(s.granted).max(0.);
             if s.mode == Mode::Individual {

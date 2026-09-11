@@ -159,3 +159,24 @@ suite passed 106 tests (94 hardware cases ignored by that command). Clippy with
 warnings denied and the repository artifact check passed. These checks include
 checkpoint consistency but do not establish long-run population balance under
 the new unequal food exposure.
+
+## Matched nutrition control
+
+`HouseholdEconomy.individual_nutrition` defaults to true, including archives that
+omit it. Setting it false at a completed monthly boundary retains membership-based
+food allocation, wages, wallets and individual birthdays, but omits household
+mortality overrides and the next-month personal hunger work penalty. Town disease
+and age-band mortality still apply. This isolates the feedback added by resident
+nutrition; it is not the older equal-size household economy.
+
+`cargo run --example nutrition_evaluate -- --years 20` compares both settings on
+seeds 17, 81 and 256 at crop yield scales 0.33 and 0.15. The example uses one
+geological epoch, frozen history, five requested civilizations and terrain/ecology
+resolution 32, with society, politics, governance, offices and shipping enabled.
+It writes monthly mediator measurements and resolution metrics to ignored
+`output/nutrition-evaluation.jsonl`. Long-run population differences must be read
+alongside immediate hunger/work/mortality changes; they are not isolated causal
+estimates after the worlds diverge.
+
+See [the scarcity comparison](household-nutrition-calibration.md) for the longer
+paired run, its negative-recipe regression, results and remaining balance limits.
