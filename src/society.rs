@@ -59,7 +59,10 @@ pub struct Household {
     pub name: String,
     /// Beneficial ownership of the site's private stocks, not additional inventory.
     pub share: f64,
+    /// Current head, or the last deceased head while the account is vacant.
     pub head: u32,
+    #[serde(default)]
+    pub vacant_since: Option<u32>,
     pub founded: u32,
     pub parent: Option<u32>,
     pub generation: u32,
@@ -308,7 +311,13 @@ impl Society {
                         && (f.site as usize) < h.sites.len()
                         && h.people
                             .get(f.head as usize)
-                            .is_some_and(|p| p.died.is_none())
+                            .is_some_and(|p| match f.vacant_since {
+                                Some(month) =>
+                                    month <= h.month
+                                        && month >= f.founded
+                                        && p.died.is_some_and(|d| d <= month),
+                                None => p.died.is_none(),
+                            })
                         && f.share.is_finite()
                         && f.share > 0.
                         && f.founded <= h.month
@@ -606,6 +615,7 @@ impl History {
                             ),
                         share: 1. / count as f64,
                         head,
+                        vacant_since: None,
                         founded: self.month,
                         parent: None,
                         generation: 0,
@@ -675,7 +685,12 @@ impl History {
         } else {
             Default::default()
         };
-        let successors = if self.named_demography.is_some() {
+        let successors = if self.named_demography.is_some()
+            || self
+                .society
+                .as_ref()
+                .is_some_and(|s| s.households.iter().any(|f| f.vacant_since.is_some()))
+        {
             self.resident_successors()
         } else {
             Default::default()
@@ -911,7 +926,8 @@ impl History {
                     }
                 }
                 let ruler = self.civilizations[site.civilization as usize].leader == old as u32;
-                let existing = if self.named_demography.is_some() {
+                let resident_mode = self.named_demography.is_some() || f.vacant_since.is_some();
+                let existing = if resident_mode {
                     successors.get(&f.id).and_then(|ids| {
                         ids.iter().copied().find(|id| {
                             !occupied.contains(id)
@@ -933,15 +949,27 @@ impl History {
                         && !self.military.duties.contains_key(id)
                 });
                 let id = existing.unwrap_or(self.people.len() as u32);
-                // Prefer a whole anonymous adult slot, then an elder slot. The
-                // ownership model still requires a living head when neither exists.
+                // Identification may use a whole anonymous adult or elder slot.
+                // Without one, retain the estate instead of fabricating a person.
                 let band = [1, 2].into_iter().find(|&b| {
                     (site.demography.ages[b].max(0.).floor() as u32)
                         > represented[f.site as usize][b]
                 });
-                let overhang =
-                    existing.is_none() && band.is_none() && self.named_demography.is_some();
-                let identified_age = if self.named_demography.is_some() && band == Some(2) {
+                if existing.is_none() && band.is_none() && resident_mode {
+                    if f.vacant_since.is_none() {
+                        f.vacant_since = Some(self.month);
+                        self.event("household_vacant", Some(f.site), None,
+                            format!("{} has no eligible resident representative or unrepresented adult/elder slot; ownership and the estate wallet are retained", f.name));
+                        self.events
+                            .last_mut()
+                            .unwrap()
+                            .subjects
+                            .extend([("person".into(), old as u32), ("household".into(), f.id)]);
+                    }
+                    continue;
+                }
+                let vacancy = f.vacant_since.take();
+                let identified_age = if resident_mode && band == Some(2) {
                     720
                 } else {
                     300
@@ -1004,14 +1032,14 @@ impl History {
                         f.name
                     ),
                 );
-                if overhang {
-                    self.event("succession_identity_overhang", Some(f.site), None,
-                        format!("Ownership account {} required a living representative, but no unrepresented adult or elder slot remained; {} is an explicit identity overhang, not a population import", f.id, self.people[id as usize].name));
+                if let Some(since) = vacancy {
+                    self.event("household_represented", Some(f.site), None,
+                        format!("{} again has a representative after {} months of vacancy; existing estate claims and wallet remain with the account", f.name, self.month.saturating_sub(since)));
                     self.events
                         .last_mut()
                         .unwrap()
                         .subjects
-                        .push(("person".into(), id));
+                        .extend([("person".into(), id), ("household".into(), f.id)]);
                 }
                 if ruler {
                     self.event(
@@ -1027,6 +1055,7 @@ impl History {
             }
         }
         self.society = Some(society);
+        self.resolve_council_vacancies();
     }
     pub(crate) fn social_year(&mut self) {
         let office_capacity: Vec<_> = (0..self.sites.len())

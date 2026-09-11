@@ -124,12 +124,16 @@ identification. Multiple identifications in a month see the reduced allowance.
 An anonymous elder representative is initialized at 60 instead of identifying an
 extra 25-year-old adult. These ages are estimates, not reconstructed birthdays.
 
-**The living-head invariant remains a gap.** Ownership accounts still cannot have a
-vacant head. If neither age band has a slot, the compatibility fallback identifies
-an adult and records `succession_identity_overhang` with the person and site. This
-never adds cohort population and is visible in the reconciliation report. It must
-not be described as a bounded complete census. Explicit vacant ownership accounts
-and their estate administration are needed to remove that fallback. Initial
-ownership setup and society-disabled leader replacement also retain representative
-identity creation. Service recruitment already requires anonymous adult slots;
-a single allocation interface across all these adapters remains future work.
+**Estates can now remain vacant.** If no existing adult or whole anonymous
+adult/elder slot is available, the account retains its last head as a historical
+reference and records `vacant_since`. No person or population is added. Later
+succession retries against current residents and slots, without accumulating a
+backlog of hypothetical successors. Claims and wallets stay with the account.
+[Estate vacancies](estate-vacancies.md) describes passive subsistence, business
+closure, recovery and separately vacant political leadership.
+
+Initial ownership setup and society-disabled leader replacement still retain
+representative identity creation. Service recruitment already requires anonymous
+adult slots; a single allocation interface across all these adapters remains
+future work. Ordinary employment and household consumption still use cohort
+proxies, not complete person rosters.

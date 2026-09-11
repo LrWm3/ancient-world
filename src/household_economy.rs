@@ -259,7 +259,10 @@ impl History {
             a.hunger = 0.;
             a.food_site = None;
             a.sector_wages = [0., 0., 0., a.employer_income];
-            if e.occupational_payroll && a.livelihood.is_none() {
+            if e.occupational_payroll
+                && a.livelihood.is_none()
+                && self.people[hh.head as usize].died.is_none()
+            {
                 let mut weights = [1.; 4];
                 if let Some(agent) = self
                     .culture

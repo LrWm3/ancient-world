@@ -659,8 +659,8 @@ impl Expeditions {
             + h.culture
                 .as_ref()
                 .and_then(|c| {
-                    c.agents
-                        .get(h.civilizations[sponsor as usize].leader as usize)
+                    h.living_civilization_leader(sponsor)
+                        .and_then(|id| c.agents.get(id as usize))
                 })
                 .map_or(0., |a| a.skills[3] * 0.05))
         .min(1.);

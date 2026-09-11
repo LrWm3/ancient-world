@@ -62,6 +62,46 @@ pub struct PopulationReconciliation {
     pub future_births: Vec<u32>,
 }
 impl History {
+    /// A polity can retain its last ruler's historical ID during an interregnum.
+    pub fn living_civilization_leader(&self, civilization: u32) -> Option<u32> {
+        let id = self.civilizations.get(civilization as usize)?.leader;
+        self.people
+            .get(id as usize)
+            .filter(|p| p.died.is_none())
+            .map(|_| id)
+    }
+    pub(crate) fn resolve_council_vacancies(&mut self) {
+        for civ in 0..self.civilizations.len() {
+            if self.living_civilization_leader(civ as u32).is_some() {
+                continue;
+            }
+            let candidate = self
+                .society
+                .as_ref()
+                .into_iter()
+                .flat_map(|s| &s.households)
+                .filter(|f| f.vacant_since.is_none())
+                .filter_map(|f| {
+                    let p = &self.people[f.head as usize];
+                    (p.civilization == civ as u32
+                        && i64::from(self.month) - i64::from(p.born) >= 216
+                        && matches!(self.person_presence(p.id).1, Presence::Resident(_)))
+                    .then_some((p.born, p.id, f.site))
+                })
+                .min();
+            if let Some((_, id, site)) = candidate {
+                let old = self.civilizations[civ].leader;
+                self.civilizations[civ].leader = id;
+                self.event("interim_leadership", Some(site), None,
+                    format!("{} became council caretaker after {}; the deceased ruler's estate was not transferred", self.people[id as usize].name, self.people[old as usize].name));
+                self.events
+                    .last_mut()
+                    .unwrap()
+                    .subjects
+                    .extend([("person".into(), id), ("person".into(), old)]);
+            }
+        }
+    }
     /// Stable local succession choices, observed before the society is temporarily taken
     /// out of History. Headship is an ownership role, not a newly invented family tie.
     pub(crate) fn resident_successors(&self) -> std::collections::BTreeMap<u32, Vec<u32>> {
@@ -576,7 +616,7 @@ mod gpu_tests {
             .events
             .iter()
             .any(|e| e.kind == "succession_identity_overhang"));
-        // The legacy living-head requirement is explicit when even that slot is gone.
+        // With both slots exhausted, preserve a vacant estate instead of a new person.
         empty.sites[0].demography.ages[2] = 0.;
         let mut resumed: History =
             serde_json::from_slice(&serde_json::to_vec(&empty).unwrap()).unwrap();
@@ -590,9 +630,166 @@ mod gpu_tests {
             empty
                 .events
                 .iter()
-                .filter(|e| e.kind == "succession_identity_overhang")
+                .filter(|e| e.kind == "household_vacant")
                 .count(),
             1
+        );
+        assert_eq!(empty.people.len(), count);
+        assert_eq!(
+            empty.society.as_ref().unwrap().households[account as usize].head,
+            old
+        );
+        assert_ne!(empty.living_civilization_leader(0), Some(old));
+        assert!(empty.living_civilization_leader(0).is_some());
+        assert!(empty.events.iter().any(|e| e.kind == "interim_leadership"));
+    }
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn vacant_estates_preserve_property_and_recover_without_inventing_residents() {
+        let mut g = world();
+        let cells = g.snapshot().unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        // Missing vacancy fields in older archives retain represented accounts.
+        let mut legacy = serde_json::to_value(&h.society.as_ref().unwrap().households[0]).unwrap();
+        legacy.as_object_mut().unwrap().remove("vacant_since");
+        let legacy: crate::society::Household = serde_json::from_value(legacy).unwrap();
+        assert_eq!(legacy.vacant_since, None);
+        h.month = 1;
+        let accounts: Vec<_> = h
+            .society
+            .as_ref()
+            .unwrap()
+            .households
+            .iter()
+            .filter(|a| a.site == 0)
+            .map(|a| (a.id, a.head, a.share))
+            .collect();
+        let civ = h.sites[0].civilization;
+        let last_ruler = h.civilizations[civ as usize].leader;
+        let population = h.sites[0].stocks.stock[0];
+        // Declared all-child population: no anonymous adult or elder slot exists.
+        // Identity deaths are a fixture input; no second population debit is requested.
+        h.sites[0].demography.ages[..3].copy_from_slice(&[population, 0., 0.]);
+        for &(_, head, _) in &accounts {
+            h.people[head as usize].died = Some(1);
+        }
+        let count = h.people.len();
+        let stocks = serde_json::to_value(h.sites[0].stocks).unwrap();
+        let money = h.economy_residuals();
+        h.social_month();
+        assert_eq!(h.people.len(), count);
+        assert_eq!(h.living_civilization_leader(civ), None);
+        assert_eq!(h.civilizations[civ as usize].leader, last_ruler);
+        assert_eq!(stocks, serde_json::to_value(h.sites[0].stocks).unwrap());
+        assert_eq!(money, h.economy_residuals());
+        for &(id, old, share) in &accounts {
+            let account = &h.society.as_ref().unwrap().households[id as usize];
+            assert_eq!(
+                (account.head, account.share, account.vacant_since),
+                (old, share, Some(1))
+            );
+            assert!(!h.household_available_for_relocation(id));
+        }
+        assert!(h.culture.as_ref().unwrap().site_people(h, 0).is_empty());
+        h.validate(&cells).unwrap();
+        let mut corrupt = h.clone();
+        corrupt.society.as_mut().unwrap().households[accounts[0].0 as usize].vacant_since = Some(2);
+        assert!(corrupt.validate(&cells).is_err());
+        let mut corrupt = h.clone();
+        corrupt.society.as_mut().unwrap().households[accounts[0].0 as usize].vacant_since = None;
+        assert!(corrupt.validate(&cells).is_err());
+        let mut legacy_mode = h.clone();
+        legacy_mode.set_named_demography(false).unwrap();
+        legacy_mode.social_month();
+        assert_eq!(legacy_mode.people.len(), count);
+        assert!(legacy_mode
+            .society
+            .as_ref()
+            .unwrap()
+            .households
+            .iter()
+            .filter(|a| a.site == 0)
+            .all(|a| a.vacant_since == Some(1)));
+        // Repeated boundaries neither mint successors nor repeat the vacancy event.
+        let events = h
+            .events
+            .iter()
+            .filter(|e| e.kind == "household_vacant")
+            .count();
+        let mut resumed: History =
+            serde_json::from_slice(&serde_json::to_vec(&*h).unwrap()).unwrap();
+        h.month = 2;
+        resumed.month = 2;
+        h.social_month();
+        resumed.social_month();
+        assert_eq!(
+            serde_json::to_value(&*h).unwrap(),
+            serde_json::to_value(&resumed).unwrap()
+        );
+        assert_eq!(h.people.len(), count);
+        assert_eq!(
+            h.events
+                .iter()
+                .filter(|e| e.kind == "household_vacant")
+                .count(),
+            events
+        );
+        // One newly available whole adult slot restores only one account. This is
+        // declared cohort aging, not a population import or a resurrected head.
+        h.sites[0].demography.ages[0] -= 1.;
+        h.sites[0].demography.ages[1] = 1.;
+        h.social_month();
+        assert_eq!(h.people.len(), count + 1);
+        assert_eq!(h.sites[0].stocks.stock[0], population);
+        assert_eq!(
+            h.society
+                .as_ref()
+                .unwrap()
+                .households
+                .iter()
+                .filter(|a| a.site == 0 && a.vacant_since.is_none())
+                .count(),
+            1
+        );
+        assert!(h.living_civilization_leader(civ).is_some());
+        assert!(accounts
+            .iter()
+            .all(|&(_, id, _)| h.people[id as usize].died == Some(1)));
+        h.validate(&cells).unwrap();
+    }
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn vacancy_checkpoint_matches_monthly_recovery() {
+        let mut g = world();
+        let h = g.civilizations.as_mut().unwrap();
+        h.month = 1;
+        for f in &h.society.as_ref().unwrap().households {
+            if f.site == 0 {
+                h.people[f.head as usize].died = Some(1);
+            }
+        }
+        let population = h.sites[0].stocks.stock[0];
+        h.sites[0].demography.ages[..3].copy_from_slice(&[population, 0., 0.]);
+        h.social_month();
+        assert!(h
+            .society
+            .as_ref()
+            .unwrap()
+            .households
+            .iter()
+            .any(|a| a.vacant_since.is_some()));
+        let file =
+            std::env::temp_dir().join(format!("estate-vacancy-{}.world", std::process::id()));
+        g.save(&file).unwrap();
+        let mut resumed = crate::gpu::Generator::load(g.gpu.clone(), &file).unwrap();
+        std::fs::remove_file(file).unwrap();
+        g.advance_history(24).unwrap();
+        for _ in 0..24 {
+            resumed.advance_history(1).unwrap();
+        }
+        assert_eq!(
+            serde_json::to_value(&g.civilizations).unwrap(),
+            serde_json::to_value(&resumed.civilizations).unwrap()
         );
     }
     #[test]

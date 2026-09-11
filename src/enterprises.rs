@@ -207,7 +207,9 @@ impl History {
             .resize(society.households.len(), HouseholdAccount::default());
         let mut residents = vec![vec![]; self.sites.len()];
         for hh in &society.households {
-            if !society.relocation.away(hh.id)
+            if hh.vacant_since.is_none()
+                && self.people[hh.head as usize].died.is_none()
+                && !society.relocation.away(hh.id)
                 && !society.relocation.lost_households.contains(&hh.id)
             {
                 residents[hh.site as usize].push(hh.id as usize);
@@ -221,6 +223,12 @@ impl History {
                 Some("operator policy ended")
             } else if site.abandoned || site.stocks.stock[0] <= 0. {
                 Some("settlement abandoned")
+            } else if society.households[f.owner as usize].vacant_since.is_some()
+                || self.people[society.households[f.owner as usize].head as usize]
+                    .died
+                    .is_some()
+            {
+                Some("ownership account has no living representative")
             } else if !residents[f.site as usize].contains(&(f.owner as usize)) {
                 Some("owner departed")
             } else if site.economy.workshop_types[0][3] < 0.5 {
@@ -820,6 +828,62 @@ mod tests {
         let mut bad = h.enterprises.as_ref().unwrap().clone();
         bad.firms[0].cash += 1.;
         assert!(bad.validate(h).is_err());
+    }
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn vacant_owner_closes_operator_and_returns_only_existing_cash() {
+        let mut g = world();
+        install(&mut g);
+        let h = g.civilizations.as_mut().unwrap();
+        h.month = 3;
+        h.prepare_enterprises();
+        h.settle_enterprises();
+        assert_eq!(h.enterprises.as_ref().unwrap().firms.len(), 1);
+        let owner = h.enterprises.as_ref().unwrap().firms[0].owner;
+        let cash = h.enterprises.as_ref().unwrap().firms[0].cash;
+        let before = h.household_account(owner).unwrap().cash;
+        let residual = h.economy_residuals();
+        let equipment = h.sites[0].economy.workshop;
+        h.month = 4;
+        let hh = &mut h.society.as_mut().unwrap().households[owner as usize];
+        hh.vacant_since = Some(4);
+        h.people[hh.head as usize].died = Some(4);
+        h.prepare_enterprises();
+        let f = &h.enterprises.as_ref().unwrap().firms[0];
+        assert_eq!(f.closed, Some(4));
+        assert_eq!(f.cash, 0.);
+        assert_eq!(h.household_account(owner).unwrap().cash, before + cash);
+        assert_eq!(h.sites[0].economy.workshop, equipment);
+        assert_eq!(h.sites[0].economy.enterprise_lease, [0.; 4]);
+        assert!((h.economy_residuals()[4] - residual[4]).abs() < 1e-6);
+        h.enterprises.as_ref().unwrap().validate(h).unwrap();
+        h.society
+            .as_ref()
+            .unwrap()
+            .household_economy
+            .as_ref()
+            .unwrap()
+            .validate(h)
+            .unwrap();
+        let returned = h.household_account(owner).unwrap().cash;
+        // A rich vacant account cannot open another company at the next entry date.
+        h.month = 12;
+        h.prepare_enterprises();
+        assert_eq!(h.household_account(owner).unwrap().cash, returned);
+        assert_eq!(h.enterprises.as_ref().unwrap().firms.len(), 1);
+        // Subsistence remains an aggregate resident entitlement. A dead head does
+        // not freeze dependents' access to the existing estate wallet.
+        let plans = h.prepare_household_retail();
+        assert!(h.household_account(owner).unwrap().need > 0.);
+        assert!(!plans.is_empty());
+        h.society
+            .as_ref()
+            .unwrap()
+            .household_economy
+            .as_ref()
+            .unwrap()
+            .validate(h)
+            .unwrap();
     }
     #[test]
     #[ignore = "requires hardware GPU"]

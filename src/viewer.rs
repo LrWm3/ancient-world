@@ -2028,10 +2028,9 @@ impl App {
                 if self.history_tab == 0 {
                 ui.label(if h.politics.is_some() { "Atlas colors show administration; white claims are disputed." } else { "Amber atlas dots are settlements; gray dots are ruins." });
                 for civ in &h.civilizations {
-                    ui.label(format!(
-                        "{} · led by {}",
-                        civ.name, h.people[civ.leader as usize].name
-                    ));
+                    ui.label(if h.living_civilization_leader(civ.id).is_some() {
+                        format!("{} · led by {}", civ.name, h.people[civ.leader as usize].name)
+                    } else { format!("{} · named leadership vacant · last ruler {}", civ.name, h.people[civ.leader as usize].name) });
                     if let Some(language) = &civ.language {
                         ui.collapsing(format!("{} naming language · {}", language.name, civ.name), |ui| {
                             ui.small("Fictional naming conventions only; no effect on beliefs, trade or politics.");
@@ -2339,12 +2338,9 @@ impl App {
                                         ui.small(format!("Latest wages by farming / forestry / mining / crafts: {:.1} / {:.1} / {:.1} / {:.1}", a.sector_wages[0], a.sector_wages[1], a.sector_wages[2], a.sector_wages[3]));
                                     }
                                 }
-                                ui.label(format!(
-                                    "{} · generation {} · led by {}",
-                                    family.name,
-                                    family.generation + 1,
-                                    h.people[family.head as usize].name
-                                ));
+                                ui.label(if let Some(since) = family.vacant_since {
+                                    format!("{} · unrepresented estate since month {} · last head {}", family.name, since, h.people[family.head as usize].name)
+                                } else { format!("{} · generation {} · led by {}", family.name, family.generation + 1, h.people[family.head as usize].name) });
                                 ui.small(format!(
                                     "{:.1} residents · {:.1}% of private stocks · cash share {:.1}",
                                     site.stocks.stock[0] as f64 * family.share,

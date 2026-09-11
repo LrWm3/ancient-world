@@ -264,9 +264,10 @@ a legacy mode. This improves alignment; it does not yet make named people the ce
 
 Ownership succession now prefers a present recorded child, another account member,
 or another local adult before identifying an unnamed resident. It checks adult and
-elder slots and records any remaining compatibility fallback as identity overhang.
+elder slots and preserves a vacant estate when no representative is available.
 Succession references no longer assume that the successor was created after the
 predecessor: valid references and an acyclic chain are required instead. See
 [resident succession](population-reconciliation.md#resident-succession) and
-[verification](resident-succession-verification.md). Vacant ownership accounts and a
-single allocator for all population adapters remain outstanding.
+[verification](resident-succession-verification.md). [Vacant ownership accounts](estate-vacancies.md)
+now retain property without inventing a head. A single allocator for all population
+adapters and complete rosters remain outstanding.

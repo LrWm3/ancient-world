@@ -779,6 +779,9 @@ impl History {
                     .iter()
                     .filter(|f| {
                         p.household_factions[f.id as usize] == faction
+                            && f.vacant_since.is_none()
+                            && self.people[f.head as usize].died.is_none()
+                            && !self.person_on_service(f.head)
                             && !self.society.as_ref().unwrap().relocation.away(f.id)
                             && !self.sites[f.site as usize].abandoned
                             && self.people[f.head as usize].civilization == civ as u32
@@ -938,10 +941,14 @@ impl History {
         let target_source = source(target);
         let origin_source = source(origin);
         let leader = self.civilizations[attacker as usize].leader;
-        let leader_source = crate::naming::Source {
-            kind: "person".into(),
-            id: leader,
-            name: self.people[leader as usize].name.clone(),
+        let leader_source = if self.people[leader as usize].died.is_none() {
+            crate::naming::Source {
+                kind: "person".into(),
+                id: leader,
+                name: self.people[leader as usize].name.clone(),
+            }
+        } else {
+            source(origin)
         };
         let name = self.civilizations[attacker as usize].naming(self.seed).war(
             id,

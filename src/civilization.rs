@@ -578,7 +578,13 @@ impl History {
                         && self
                             .people
                             .get(c.leader as usize)
-                            .is_some_and(|p| p.civilization == c.id && p.died.is_none())),
+                            .is_some_and(|p| p.civilization == c.id
+                                && (p.died.is_none()
+                                    || self.society.as_ref().is_some_and(|s| {
+                                        s.households
+                                            .iter()
+                                            .any(|f| f.head == c.leader && f.vacant_since.is_some())
+                                    })))),
             "invalid civilization leadership"
         );
         ensure!(

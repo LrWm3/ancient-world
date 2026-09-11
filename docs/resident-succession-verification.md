@@ -1,5 +1,8 @@
 # Resident succession verification
 
+This records the 33f8043 increment. The subsequent [estate vacancy change](estate-vacancies.md)
+removes the living-head fallback discussed below.
+
 Rust 1.89.0, Vulkan, Quadro RTX 5000 with Max-Q Design. Raw results and logs are
 ignored under output/. These checks test the toy model's identity and accounting
 rules; they are not demographic calibration against historical data.
