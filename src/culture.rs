@@ -640,41 +640,47 @@ impl History {
         cells: &[Cell],
         options: FoundingOptions,
         catalog: PatronCatalog,
+        surveyed_coasts: Option<BTreeMap<u32, Vec<u32>>>,
     ) -> Result<()> {
         options.validate()?;
         catalog.validate()?;
         let mut c = Culture::empty(self.month, false, options)?;
         c.catalog = catalog;
         let n = self.terrain_resolution;
-        let mut island_coasts: BTreeMap<u32, Vec<u32>> = BTreeMap::new();
-        // Connectivity labels use the same first-cell ID as civilization founding.
-        let mut visited = vec![false; cells.len()];
-        for start in 0..cells.len() {
-            if visited[start] || cells[start].meta[0] != 2 {
-                continue;
-            }
-            let mut queue = std::collections::VecDeque::from([start as u32]);
-            visited[start] = true;
-            let mut coast = vec![];
-            while let Some(id) = queue.pop_front() {
-                for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
-                    let j = grid::neighbor(id, n, dx, dy) as usize;
-                    if cells[j].meta[0] == 1
-                        && cells[j].water[0] > 0.25
-                        && cells[id as usize].water[0] < 0.25
-                    {
-                        coast.push(id);
-                    }
-                    if cells[j].meta[0] == 2 && !visited[j] {
-                        visited[j] = true;
-                        queue.push_back(j as u32);
+        let island_coasts = if let Some(coasts) = surveyed_coasts {
+            coasts
+        } else {
+            let mut island_coasts: BTreeMap<u32, Vec<u32>> = BTreeMap::new();
+            // Connectivity labels use the same first-cell ID as civilization founding.
+            let mut visited = vec![false; cells.len()];
+            for start in 0..cells.len() {
+                if visited[start] || cells[start].meta[0] != 2 {
+                    continue;
+                }
+                let mut queue = std::collections::VecDeque::from([start as u32]);
+                visited[start] = true;
+                let mut coast = vec![];
+                while let Some(id) = queue.pop_front() {
+                    for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
+                        let j = grid::neighbor(id, n, dx, dy) as usize;
+                        if cells[j].meta[0] == 1
+                            && cells[j].water[0] > 0.25
+                            && cells[id as usize].water[0] < 0.25
+                        {
+                            coast.push(id);
+                        }
+                        if cells[j].meta[0] == 2 && !visited[j] {
+                            visited[j] = true;
+                            queue.push_back(j as u32);
+                        }
                     }
                 }
+                coast.sort_unstable();
+                coast.dedup();
+                island_coasts.insert(start as u32, coast);
             }
-            coast.sort_unstable();
-            coast.dedup();
-            island_coasts.insert(start as u32, coast);
-        }
+            island_coasts
+        };
         let outer: Vec<u32> = cells
             .iter()
             .enumerate()
@@ -1936,12 +1942,17 @@ impl Generator {
         options.validate()?;
         catalog.validate()?;
         self.found_civilizations_base(count)?;
-        let cells = self.snapshot()?;
-        let result = self
-            .civilizations
-            .as_mut()
-            .unwrap()
-            .initialize_culture(&cells, options, catalog);
+        let result = (|| {
+            let cells = self.snapshot()?;
+            let coasts = self
+                .navigation_service()?
+                .map(|n| n.island_coasts())
+                .transpose()?;
+            self.civilizations
+                .as_mut()
+                .unwrap()
+                .initialize_culture(&cells, options, catalog, coasts)
+        })();
         if result.is_err() {
             self.civilizations = None;
         }

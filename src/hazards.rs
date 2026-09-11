@@ -40,6 +40,23 @@ fn countdown(value: &mut u32, exposed: bool) -> Option<bool> {
 
 impl History {
     pub(crate) fn environmental_month(&mut self, cells: &[Cell]) {
+        self.environmental_month_with_inspections(cells, None);
+    }
+    pub(crate) fn environmental_month_with_inspections(
+        &mut self,
+        cells: &[Cell],
+        inspections: Option<&[bool]>,
+    ) {
+        let expected = self.society.as_ref().map_or(0, |s| s.routes.len())
+            + self
+                .shipping
+                .as_ref()
+                .map_or(0, |s| s.ports.len() + s.lanes.len());
+        assert!(
+            inspections.is_none_or(|v| v.len() == expected),
+            "route inspection count mismatch"
+        );
+        let mut inspected = inspections.into_iter().flatten().copied();
         let Some(mut living) = self.living.take() else {
             return;
         };
@@ -166,10 +183,11 @@ impl History {
         }
         if let Some(society) = &mut self.society {
             for r in &mut society.routes {
-                let wet = r
-                    .cells
-                    .iter()
-                    .any(|&c| flood_depth(&cells[c as usize]) >= 0.25);
+                let wet = inspected.next().unwrap_or_else(|| {
+                    r.cells
+                        .iter()
+                        .any(|&c| flood_depth(&cells[c as usize]) >= 0.25)
+                });
                 if let Some(closed) = countdown(&mut r.flood_months, wet) {
                     records.push((
                         if closed {
@@ -195,11 +213,12 @@ impl History {
         }
         if let Some(shipping) = &mut self.shipping {
             for (id, p) in shipping.ports.iter_mut().enumerate() {
-                let wet = p
-                    .access
-                    .iter()
-                    .any(|&c| flood_depth(&cells[c as usize]) >= 0.25)
-                    || cells[p.water_cell as usize].water[0] <= 0.25;
+                let wet = inspected.next().unwrap_or_else(|| {
+                    p.access
+                        .iter()
+                        .any(|&c| flood_depth(&cells[c as usize]) >= 0.25)
+                        || cells[p.water_cell as usize].water[0] <= 0.25
+                });
                 if let Some(closed) = countdown(&mut p.flood_months, wet) {
                     records.push((
                         if closed {
@@ -221,7 +240,9 @@ impl History {
                 }
             }
             for (id, l) in shipping.lanes.iter_mut().enumerate() {
-                let shallow = l.cells.iter().any(|&c| cells[c as usize].water[0] <= 0.25);
+                let shallow = inspected
+                    .next()
+                    .unwrap_or_else(|| l.cells.iter().any(|&c| cells[c as usize].water[0] <= 0.25));
                 if let Some(closed) = countdown(&mut l.flood_months, shallow) {
                     records.push((
                         if closed {

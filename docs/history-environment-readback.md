@@ -13,9 +13,9 @@ GPU state, never this partially refreshed history view.
 |---|---|
 | Flood damage, resource registration, farm/fishery access, claims | Every settlement and its four cube-grid neighbors |
 | Expansion eligibility and prospective settlement access | Every current candidate and its four neighbors |
-| Road closures | All existing road cells |
-| Harbor and shipping closures | Port access paths, water cells, and sea lanes |
-| Expedition conditions and source validation | Frontier routes, including destinations, and discovery sources |
+| Road closures | GPU predicate summaries; full path cells only in CPU navigation reference mode |
+| Harbor and shipping closures | GPU predicate summaries; path cells only in CPU navigation reference mode |
+| Expedition conditions and source validation | Destinations and discovery sources; full routes in CPU navigation reference mode |
 | Resource source inspection | Registered source cells |
 
 The sample list is rebuilt, sorted, and deduplicated every month. Adding towns,
@@ -27,9 +27,8 @@ drops the pending view and retains existing incomplete-boundary behavior.
 Full refreshes remain on:
 
 - The first month after construction/load or explicit strategy changes.
-- Every annual update, before settlement expansion, shipping surveys and
-  expedition route discovery can search arbitrary terrain.
-- Pending road construction when society has not routed every existing site.
+- In **CPU navigation reference mode**, annual updates and pending road construction.
+  Default GPU navigation reads the current terrain buffers directly.
 - A changed terrain epoch/buffer or a dense sample list covering every cell.
 
 Terrain restoration and geological advancement invalidate the cache. History's
@@ -38,11 +37,14 @@ buffers are transient, not archive contents. A loaded checkpoint builds a fresh
 view without changing its simulated state.
 
 Unbounded route searches depend on current water, not merely static elevation.
-The annual full refresh deliberately preserves that behavior. Reducing those
-transfers further needs a separate navigation observation layer or GPU routing;
-using stale water to avoid the transfer would change the model.
+GPU navigation now preserves that current-water dependency without annual full
+readbacks. See [GPU navigation](gpu-navigation.md) for its algorithm, experiments,
+and remaining CPU responsibilities.
 
-## Verification and measurements
+## Earlier measurements, before GPU navigation
+
+The results below describe commit 2341743, which still used CPU route searches.
+Current GPU-navigation results are in [GPU navigation](gpu-navigation.md).
 
 The differential fixture starts both strategies from the same checkpoint, with
 16 founding settlements, society, politics, governance, shipping, expeditions,
@@ -111,12 +113,12 @@ is intentionally not part of world history or serialized configuration.
 ## Remaining costs and maintenance
 
 This does not remove the monthly GPU synchronization dependency, economic or
-budget readbacks, or annual full terrain refreshes. It retains one full terrain
+budget readbacks, or the initial full terrain refresh. It retains one full terrain
 array in CPU memory (264 MiB at terrain 512) and GPU observation/index buffers
 sized for the sampled cells. Buffer and dispatch limits are checked before use.
 
 The coverage contract is in `observed_cells` in `src/history_environment.rs`.
 New history consumers that read dynamic terrain outside that set must extend
 it or request a full refresh. The cached array must not be treated as a fully
-current planet. Future field packing and route reductions can reduce payloads
-further, but should retain the exact-reference comparisons.
+current planet. Future field packing can reduce payloads further, but should retain the
+full-readback comparisons. Route reductions are now implemented by GPU navigation.

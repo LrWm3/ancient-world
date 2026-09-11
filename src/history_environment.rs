@@ -1,6 +1,6 @@
 //! Private CPU terrain view for history. Static geography is cached; all cells
-//! consumed by monthly history are refreshed. Annual/unbounded searches refresh
-//! the whole view. Never expose this partially refreshed view as a world snapshot.
+//! consumed by monthly CPU history are refreshed. GPU navigation reads current
+//! terrain directly; CPU reference searches require a full annual refresh. Never expose this partially refreshed view as a world snapshot.
 use crate::{
     civilization::History,
     gpu::{Cell, Generator, CELL_BYTES},
@@ -146,7 +146,7 @@ impl Gather {
 /// Includes prospective settlements and their neighbors, not just occupied towns.
 /// Route cells are kept explicit in v1 rather than replacing hazard calculations
 /// with a differently ordered reduction.
-fn observed_cells(h: &History) -> Vec<u32> {
+fn observed_cells(h: &History, include_routes: bool) -> Vec<u32> {
     let mut ids = Vec::new();
     for cell in h
         .sites
@@ -159,23 +159,29 @@ fn observed_cells(h: &History) -> Vec<u32> {
             ids.push(grid::neighbor(cell, h.terrain_resolution, dx, dy));
         }
     }
-    if let Some(s) = &h.society {
-        for r in &s.routes {
-            ids.extend_from_slice(&r.cells);
+    if include_routes {
+        if let Some(s) = &h.society {
+            for r in &s.routes {
+                ids.extend_from_slice(&r.cells);
+            }
         }
-    }
-    if let Some(s) = &h.shipping {
-        for p in &s.ports {
-            ids.push(p.water_cell);
-            ids.extend_from_slice(&p.access);
-        }
-        for lane in &s.lanes {
-            ids.extend_from_slice(&lane.cells);
+        if let Some(s) = &h.shipping {
+            for p in &s.ports {
+                ids.push(p.water_cell);
+                ids.extend_from_slice(&p.access);
+            }
+            for lane in &s.lanes {
+                ids.extend_from_slice(&lane.cells);
+            }
         }
     }
     if let Some(x) = &h.expeditions {
         for r in &x.routes {
-            ids.extend_from_slice(&r.cells);
+            if include_routes {
+                ids.extend_from_slice(&r.cells);
+            } else if let Some(&cell) = r.cells.last() {
+                ids.push(cell);
+            }
         }
         if let Some(d) = &x.discoveries {
             ids.extend(d.sources.iter().map(|s| s.cell));
@@ -198,11 +204,19 @@ impl HistoryEnvironment {
             || self.terrain.len() != g.config.cells() as usize
             || self.epoch != g.progress.epoch
             || self.buffer != g.current
-            || month % 12 == 0
-            || h.society
-                .as_ref()
-                .is_some_and(|s| (s.routed_sites as usize) < h.sites.len());
-        let ids = if full { Vec::new() } else { observed_cells(h) };
+            || (g.navigation_mode == crate::navigation::NavigationMode::CpuReference
+                && (month % 12 == 0
+                    || h.society
+                        .as_ref()
+                        .is_some_and(|s| (s.routed_sites as usize) < h.sites.len())));
+        let ids = if full {
+            Vec::new()
+        } else {
+            observed_cells(
+                h,
+                g.navigation_mode == crate::navigation::NavigationMode::CpuReference,
+            )
+        };
         ensure!(
             ids.iter().all(|&id| id < g.config.cells()),
             "invalid history observation cell"

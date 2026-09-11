@@ -330,7 +330,8 @@ impl Expeditions {
             ensure!(
                 r.cells[..r.cells.len() - 1]
                     .iter()
-                    .all(|&i| cells[i as usize].meta[0] == 1 && cells[i as usize].water[0] > 0.25)
+                    .all(|&i| cells[i as usize].meta[0] == 1
+                        && (h.living.is_some() || cells[i as usize].water[0] > 0.25))
                     && r.cells
                         .last()
                         .is_some_and(|&i| cells[i as usize].meta[0] == 3
@@ -425,13 +426,27 @@ impl Expeditions {
         }
         Ok(())
     }
-    fn survey(&mut self, h: &History, cells: &[Cell], radius: f32) {
+    fn survey(
+        &mut self,
+        h: &History,
+        cells: &[Cell],
+        radius: f32,
+        navigation: Option<&crate::navigation::Navigation>,
+    ) -> Result<()> {
         let shipping = h.shipping.as_ref().unwrap();
         for i in self.surveyed_ports as usize..shipping.ports.len() {
             let p = &shipping.ports[i];
-            if let Some((cells, km)) =
-                crate::shipping::frontier_path(p.water_cell, h.terrain_resolution, radius, cells)
-            {
+            if let Some((cells, km)) = match navigation {
+                Some(nav) => {
+                    nav.route(p.water_cell, None, crate::navigation::RouteKind::Expedition)?
+                }
+                None => crate::shipping::frontier_path(
+                    p.water_cell,
+                    h.terrain_resolution,
+                    radius,
+                    cells,
+                ),
+            } {
                 self.routes.push(FrontierRoute {
                     port: i as u32,
                     cells,
@@ -441,6 +456,7 @@ impl Expeditions {
             }
         }
         self.surveyed_ports = shipping.ports.len() as u32;
+        Ok(())
     }
     fn launch(
         &mut self,
@@ -641,11 +657,16 @@ impl Expeditions {
     }
 }
 impl History {
-    pub(crate) fn expedition_year(&mut self, cells: &[Cell], radius: f32) {
+    pub(crate) fn expedition_year_with_navigation(
+        &mut self,
+        cells: &[Cell],
+        radius: f32,
+        navigation: Option<&crate::navigation::Navigation>,
+    ) -> Result<()> {
         let Some(mut x) = self.expeditions.take() else {
-            return;
+            return Ok(());
         };
-        x.survey(self, cells, radius);
+        x.survey(self, cells, radius, navigation)?;
         if x.rules.automatic {
             for route in 0..x.routes.len() {
                 let site = &self.sites[self.shipping.as_ref().unwrap().ports
@@ -699,6 +720,7 @@ impl History {
             }
         }
         self.expeditions = Some(x);
+        Ok(())
     }
     pub(crate) fn expedition_month(&mut self, cells: &[Cell]) {
         let Some(mut x) = self.expeditions.take() else {
@@ -1038,7 +1060,12 @@ impl Generator {
             next_launch: vec![h.month; h.civilizations.len()],
             discoveries: None,
         };
-        x.survey(&h, &cells, self.config.radius_km);
+        x.survey(
+            &h,
+            &cells,
+            self.config.radius_km,
+            self.navigation_service()?.as_deref(),
+        )?;
         h.expeditions = Some(x);
         h.event(
             "expedition_baseline",

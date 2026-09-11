@@ -90,3 +90,5 @@ pub mod vessels;
 pub mod civic_petitions;
 
 pub mod history_environment;
+
+pub mod navigation;

@@ -83,7 +83,7 @@ fn lake(c: &Cell) -> bool {
 }
 /// Dijkstra uses integer meters and stable cell ordering. Access terminates at the first
 /// reachable great-lake cell; sea searches cannot cross any land or exterior ocean.
-fn path(
+pub(crate) fn path(
     start: u32,
     end: Option<u32>,
     n: u32,
@@ -286,9 +286,19 @@ impl Shipping {
     }
 }
 impl History {
+    #[cfg(test)]
     pub(crate) fn shipping_year(&mut self, cells: &[Cell], radius: f32) {
+        self.shipping_year_with_navigation(cells, radius, None)
+            .expect("CPU shipping survey");
+    }
+    pub(crate) fn shipping_year_with_navigation(
+        &mut self,
+        cells: &[Cell],
+        radius: f32,
+        navigation: Option<&crate::navigation::Navigation>,
+    ) -> Result<()> {
         let Some(mut shipping) = self.shipping.take() else {
-            return;
+            return Ok(());
         };
         // Existing histories can have exhausted founding settlements beside prosperous
         // daughter towns. Prefer real construction reserves when establishing a harbor.
@@ -314,25 +324,39 @@ impl History {
             {
                 continue;
             }
-            if let Some((mut access, access_km)) = path(
-                self.sites[i].cell,
-                None,
-                self.terrain_resolution,
-                radius,
-                cells,
-                false,
-            ) {
+            if let Some((mut access, access_km)) = match navigation {
+                Some(nav) => nav.route(
+                    self.sites[i].cell,
+                    None,
+                    crate::navigation::RouteKind::Harbor,
+                )?,
+                None => path(
+                    self.sites[i].cell,
+                    None,
+                    self.terrain_resolution,
+                    radius,
+                    cells,
+                    false,
+                ),
+            } {
                 let water_cell = access.pop().unwrap();
                 let new = shipping.ports.len() as u32;
                 for (j, p) in shipping.ports.iter().enumerate() {
-                    if let Some((cells, km)) = path(
-                        p.water_cell,
-                        Some(water_cell),
-                        self.terrain_resolution,
-                        radius,
-                        cells,
-                        false,
-                    ) {
+                    if let Some((cells, km)) = match navigation {
+                        Some(nav) => nav.route(
+                            p.water_cell,
+                            Some(water_cell),
+                            crate::navigation::RouteKind::Sea,
+                        )?,
+                        None => path(
+                            p.water_cell,
+                            Some(water_cell),
+                            self.terrain_resolution,
+                            radius,
+                            cells,
+                            false,
+                        ),
+                    } {
                         shipping.lanes.push(SeaLane {
                             ports: [j as u32, new],
                             cells,
@@ -426,6 +450,7 @@ impl History {
         }
         self.shipping = Some(shipping);
         self.harbor_condition_events();
+        Ok(())
     }
     fn harbor_condition_events(&mut self) {
         let Some(mut shipping) = self.shipping.take() else {
@@ -610,7 +635,11 @@ impl Generator {
             ports: vec![],
             lanes: vec![],
         });
-        h.shipping_year(&cells, self.config.radius_km);
+        h.shipping_year_with_navigation(
+            &cells,
+            self.config.radius_km,
+            self.navigation_service()?.as_deref(),
+        )?;
         h.event(
             "shipping_baseline",
             None,

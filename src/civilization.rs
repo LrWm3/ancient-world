@@ -1015,65 +1015,74 @@ impl Generator {
         ensure!((1..=16).contains(&count), "choose 1–16 civilizations");
         let engine = Engine::new(self)?;
         engine.dispatch(self, true, self.config.cells());
-        let bytes = read_buffer(
-            &self.gpu,
-            &engine.prospects,
-            0,
-            self.config.cells() as u64 * 16,
-        )?;
-        let scores = bytemuck::cast_slice::<u8, [f32; 4]>(&bytes);
         let n = self.config.resolution;
-        // Sparse central-island connectivity and site selection use CPU graph traversal.
-        let mut islands = vec![u32::MAX; scores.len()];
-        for start in 0..scores.len() {
-            if scores[start][3] != 2. || islands[start] != u32::MAX {
-                continue;
-            }
-            let mut queue = std::collections::VecDeque::from([start as u32]);
-            islands[start] = start as u32;
-            while let Some(i) = queue.pop_front() {
-                for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
-                    let j = grid::neighbor(i, n, dx, dy) as usize;
-                    if scores[j][3] == 2. && islands[j] == u32::MAX {
-                        islands[j] = start as u32;
-                        queue.push_back(j as u32);
+        let terrain = self.snapshot()?;
+        let mut candidates = if let Some(nav) = self.navigation_service()? {
+            nav.candidates(
+                &engine.prospects,
+                self.config.settlement_plot_hectares as f64,
+            )?
+        } else {
+            let bytes = read_buffer(
+                &self.gpu,
+                &engine.prospects,
+                0,
+                self.config.cells() as u64 * 16,
+            )?;
+            let scores = bytemuck::cast_slice::<u8, [f32; 4]>(&bytes);
+            let n = self.config.resolution;
+            // Sparse central-island connectivity and site selection use CPU graph traversal.
+            let mut islands = vec![u32::MAX; scores.len()];
+            for start in 0..scores.len() {
+                if scores[start][3] != 2. || islands[start] != u32::MAX {
+                    continue;
+                }
+                let mut queue = std::collections::VecDeque::from([start as u32]);
+                islands[start] = start as u32;
+                while let Some(i) = queue.pop_front() {
+                    for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
+                        let j = grid::neighbor(i, n, dx, dy) as usize;
+                        if scores[j][3] == 2. && islands[j] == u32::MAX {
+                            islands[j] = start as u32;
+                            queue.push_back(j as u32);
+                        }
                     }
                 }
             }
-        }
-        let terrain = self.snapshot()?;
-        let mut candidates = Vec::new();
-        for (i, p) in scores.iter().enumerate() {
-            if p[0] > 450. {
-                let area =
-                    grid::solid_angle(i as u32, n) * (self.config.radius_km as f64 * 1000.).powi(2);
-                let coast = [(-1, 0), (1, 0), (0, -1), (0, 1)]
-                    .into_iter()
-                    .any(|(dx, dy)| {
-                        terrain[grid::neighbor(i as u32, n, dx, dy) as usize].meta[0] == 1
+            let mut candidates = Vec::new();
+            for (i, p) in scores.iter().enumerate() {
+                if p[0] > 450. {
+                    let area = grid::solid_angle(i as u32, n)
+                        * (self.config.radius_km as f64 * 1000.).powi(2);
+                    let coast = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+                        .into_iter()
+                        .any(|(dx, dy)| {
+                            terrain[grid::neighbor(i as u32, n, dx, dy) as usize].meta[0] == 1
+                        });
+                    use crate::naming::Landmark;
+                    let landmark = if coast {
+                        Landmark::Shore
+                    } else if terrain[i].water[3] > 1. {
+                        Landmark::Water
+                    } else if terrain[i].terrain[0] > 1000. {
+                        Landmark::Hill
+                    } else {
+                        Landmark::Field
+                    };
+                    candidates.push(Candidate {
+                        naming_landmark: Some(landmark),
+                        cell: i as u32,
+                        island: islands[i],
+                        yield_kg: p[0],
+                        hectares: (area / 10000. * 0.01)
+                            .min(self.config.settlement_plot_hectares as f64)
+                            as f32,
+                        score: p[1],
                     });
-                use crate::naming::Landmark;
-                let landmark = if coast {
-                    Landmark::Shore
-                } else if terrain[i].water[3] > 1. {
-                    Landmark::Water
-                } else if terrain[i].terrain[0] > 1000. {
-                    Landmark::Hill
-                } else {
-                    Landmark::Field
-                };
-                candidates.push(Candidate {
-                    naming_landmark: Some(landmark),
-                    cell: i as u32,
-                    island: islands[i],
-                    yield_kg: p[0],
-                    hectares: (area / 10000. * 0.01)
-                        .min(self.config.settlement_plot_hectares as f64)
-                        as f32,
-                    score: p[1],
-                });
+                }
             }
-        }
+            candidates
+        };
         candidates.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.cell.cmp(&b.cell)));
         let mut h = History {
             territorial_history: vec![],
@@ -1170,7 +1179,7 @@ impl Generator {
 
     // A supplied view must contain current observations for every cell consumed
     // by this transaction. HistoryEnvironment refreshes those cells each month;
-    // callers that perform unbounded surveys require a full view.
+    // GPU surveys read current world buffers; CPU reference surveys require a full view.
     fn advance_history_with_terrain(
         &mut self,
         months: u32,
@@ -1208,6 +1217,7 @@ impl Generator {
         let mut h = self.civilizations.as_ref().unwrap().clone();
         h.events = events;
         let operation = (|| -> Result<(Engine, f64)> {
+            let navigation = self.navigation_service()?;
             let engine = if let Some(e) = self
                 .history_engine
                 .take()
@@ -1236,7 +1246,11 @@ impl Generator {
                 }
             };
             for _ in 0..months {
-                h.prepare_society(terrain, self.config.radius_km);
+                h.prepare_society_with_navigation(
+                    terrain,
+                    self.config.radius_km,
+                    navigation.as_deref(),
+                )?;
                 h.prepare_politics(terrain);
                 h.prepare_governance();
                 ensure!(
@@ -1244,7 +1258,12 @@ impl Generator {
                     "civilization beta event limit reached"
                 );
                 h.month += 1;
-                h.environmental_month(terrain);
+                if let Some(nav) = navigation.as_ref().filter(|_| h.living.is_some()) {
+                    let inspections = nav.inspect_routes(&h)?;
+                    h.environmental_month_with_inspections(terrain, Some(&inspections));
+                } else {
+                    h.environmental_month(terrain);
+                }
                 h.relief_arrivals();
                 h.relocation_arrivals();
                 h.answer_appeals();
@@ -1327,21 +1346,37 @@ impl Generator {
                 h.governance_month();
                 if h.month % 12 == 0 {
                     h.annual(self.config.radius_km);
-                    h.prepare_society(terrain, self.config.radius_km);
+                    h.prepare_society_with_navigation(
+                        terrain,
+                        self.config.radius_km,
+                        navigation.as_deref(),
+                    )?;
                     h.prepare_politics(terrain);
                     h.prepare_governance();
                     h.politics_year();
                     h.sync_offices();
                     h.social_year();
-                    h.shipping_year(terrain, self.config.radius_km);
-                    h.expedition_year(terrain, self.config.radius_km);
+                    h.shipping_year_with_navigation(
+                        terrain,
+                        self.config.radius_km,
+                        navigation.as_deref(),
+                    )?;
+                    h.expedition_year_with_navigation(
+                        terrain,
+                        self.config.radius_km,
+                        navigation.as_deref(),
+                    )?;
                     h.governance_year();
                 }
                 h.sync_offices();
                 h.social_indicators_month();
                 h.record_timeline();
             }
-            h.prepare_society(terrain, self.config.radius_km);
+            h.prepare_society_with_navigation(
+                terrain,
+                self.config.radius_km,
+                navigation.as_deref(),
+            )?;
             h.prepare_politics(terrain);
             h.prepare_governance();
             self.prepare_economy(&mut h);

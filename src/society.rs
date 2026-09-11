@@ -387,9 +387,14 @@ impl History {
         }
         distances
     }
-    pub(crate) fn prepare_society(&mut self, cells: &[Cell], radius: f32) {
+    pub(crate) fn prepare_society_with_navigation(
+        &mut self,
+        cells: &[Cell],
+        radius: f32,
+        navigation: Option<&crate::navigation::Navigation>,
+    ) -> Result<()> {
         let Some(mut society) = self.society.take() else {
-            return;
+            return Ok(());
         };
         for site in &mut self.sites {
             if !society.households.iter().any(|f| f.site == site.id) {
@@ -474,13 +479,20 @@ impl History {
                     ))
             });
             for source in neighbors.into_iter().take(3) {
-                if let Some((path, cost)) = terrain_path(
-                    self.sites[source].cell,
-                    self.sites[target].cell,
-                    n,
-                    radius,
-                    cells,
-                ) {
+                if let Some((path, cost)) = match navigation {
+                    Some(nav) => nav.route(
+                        self.sites[source].cell,
+                        Some(self.sites[target].cell),
+                        crate::navigation::RouteKind::Road,
+                    )?,
+                    None => terrain_path(
+                        self.sites[source].cell,
+                        self.sites[target].cell,
+                        n,
+                        radius,
+                        cells,
+                    ),
+                } {
                     society.routes.push(Route {
                         id: society.routes.len() as u32,
                         from: source as u32,
@@ -497,6 +509,7 @@ impl History {
         }
         society.routed_sites = self.sites.len() as u32;
         self.society = Some(society);
+        Ok(())
     }
     pub(crate) fn social_month(&mut self) {
         self.weather_roads();
@@ -934,7 +947,7 @@ impl History {
     }
 }
 /// Dijkstra over actual dry central cells; slope and river crossings increase travel cost.
-fn terrain_path(
+pub(crate) fn terrain_path(
     start: u32,
     end: u32,
     n: u32,
@@ -1055,7 +1068,11 @@ impl Generator {
                 ..Default::default()
             },
         });
-        h.prepare_society(&cells, self.config.radius_km);
+        h.prepare_society_with_navigation(
+            &cells,
+            self.config.radius_km,
+            self.navigation_service()?.as_deref(),
+        )?;
         h.event(
             "social_baseline",
             None,

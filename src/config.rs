@@ -132,7 +132,8 @@ impl Config {
         6 * self.eco_resolution().pow(2)
     }
     pub fn estimated_bytes(&self) -> u64 {
-        self.cells() as u64 * (crate::gpu::CELL_BYTES * 2 + 32 + 32)
+        // Includes 20 bytes/cell of navigation workspace and a transient 32-byte survey record.
+        self.cells() as u64 * (crate::gpu::CELL_BYTES * 2 + 32 + 32 + 52)
             + self.eco_cells() as u64
                 * (crate::ecology::ECO_BYTES * 2 + crate::ecology::ENVIRONMENT_BYTES)
             + 32 * 1024 * 1024

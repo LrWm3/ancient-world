@@ -62,7 +62,7 @@ fn main() -> Result<()> {
                 residual = h
                     .economy_residuals()
                     .iter()
-                    .fold(residual, |a, v| a.max(v.abs() as f64));
+                    .fold(residual, |a, v| a.max(v.abs()));
                 let c = h.culture.as_ref().unwrap();
                 let gov = h.governance.as_ref().unwrap();
                 samples.push(json!({"year":year,"population":h.sites.iter().map(|s|s.stocks.stock[0] as f64).sum::<f64>(),
