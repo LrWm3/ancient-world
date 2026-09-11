@@ -75,12 +75,18 @@ allocation. Food records from another settlement are ignored after relocation.
 Staffing precedes the retail reset, so current production is not anticipated.
 
 Craft occupation familiarity and completed workshop practice influence stable hiring
-priority. Practice contributes `completed / (12 + completed)`, giving diminishing
-returns without changing recipe yields. Sparse agents use neutral ambition where
+priority. Each resident now retains completed worker-months for the four existing
+recipe families. A family counts its own practice fully and other/untyped practice
+at 20%; the score is `relevant / (12 + relevant)`. This gives diminishing returns
+and partial transfer between trades without changing recipe yields. Existing archives
+retain their total as untyped practice rather than receiving invented specializations.
+New work is assigned its family only when its commitment settles; paid idle time
+earns none. Family sums cannot exceed total completed work. The 20% transfer and
+12-month scale are game parameters, not measured skill acquisition. Sparse agents use neutral ambition where
 no traits were recorded. Offers remain bounded between zero and remaining capacity;
 zero pay produces no paid-work offer. These response constants are toy behavior
 parameters, not calibrated labor economics. Employers still post the existing
-food-indexed wage; competitive wage bargaining and family-specific skills are absent.
+food-indexed wage; competitive wage bargaining and skill-dependent output quality are absent.
 
 Hiring uses canonical site/family/firm order and person-ID ties. Commitments share
 the same personal time ledger as research and culture. Time already committed there
@@ -126,8 +132,9 @@ and workshop receipts, grants and comparison settings serialize with History.
   worlds still requires explicit roster reconciliation.
 - Richer birth eligibility and reproductive circumstances; births currently retain the
   community-level expectation and unknown-parent fallback.
-- Family-specific skills and employer wage competition; explicit coordination with
+- Employer wage competition, teaching and skill loss; explicit coordination with
   agricultural and other aggregate labor before removing the service ceiling.
+  Family-specific experience currently affects hiring, not technical output quality.
 - More subsystem-specific input revisions and reservation references as contracts
   become stable. Keep diagnostic summaries separate from behavioral feedback.
 

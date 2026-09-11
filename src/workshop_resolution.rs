@@ -29,12 +29,12 @@ pub(crate) struct Candidate {
     pub household: u32,
     ambition: f32,
     familiarity: f32,
-    practice: f32,
+    practice: [f32; 4],
     pressure: f32,
     reference_wage: f64,
 }
 impl Candidate {
-    pub(crate) fn at_wage(self, wage: f64) -> Offer {
+    pub(crate) fn at_wage(self, wage: f64, family: u32) -> Offer {
         // Toy response in food-price-relative currency units, bounded independently
         // of employer funding and the person's remaining time.
         let relative = (wage / self.reference_wage).max(0.);
@@ -42,7 +42,7 @@ impl Candidate {
         Offer {
             person: self.person,
             household: self.household,
-            score: self.familiarity + self.practice + 0.25 * self.ambition,
+            score: self.familiarity + self.practice[family as usize] + 0.25 * self.ambition,
             fraction: if wage <= 0. {
                 0.
             } else {
@@ -51,6 +51,13 @@ impl Candidate {
             },
         }
     }
+}
+fn practice_scores(total: f64, by_family: [f64; 4]) -> [f32; 4] {
+    std::array::from_fn(|family| {
+        // Includes untyped old work; this is a hiring score, not extra experience.
+        let relevant = by_family[family] + 0.2 * (total - by_family[family]).max(0.);
+        (relevant / (12. + relevant)) as f32
+    })
 }
 fn household_pressure(cash: f64, food_need: f64, hunger: f64, food_price: f64) -> f32 {
     // A two-month gross food bill is a buffer target, not a new inventory.
@@ -109,6 +116,7 @@ pub(crate) fn staffing_revision(f: &crate::enterprises::Firm) -> u64 {
             f.last_requested_work.to_bits(),
             f.last_funded_work.to_bits(),
             f.wage_rate.to_bits(),
+            u64::from(f.family),
         ]
         .into_iter()
         .chain(
@@ -237,7 +245,7 @@ impl crate::civilization::History {
                     household_pressure(a.cash, a.need, a.hunger, food_price)
                 });
             // Completed work, not merely time paid for, develops hiring familiarity.
-            let practice = (p.workshop_completed / (12. + p.workshop_completed)) as f32;
+            let practice = practice_scores(p.workshop_completed, p.workshop_practice);
             offers[site as usize].push(Candidate {
                 person: p.person,
                 household,
@@ -289,7 +297,7 @@ impl crate::civilization::History {
                     } else {
                         0.
                     };
-                    pool.settle(id, contribution as f32)?;
+                    pool.settle_workshop(id, contribution as f32, f.family)?;
                 }
             }
             state.commit(s.receipt(used, state.compare), &current)?;
@@ -302,13 +310,108 @@ impl crate::civilization::History {
 mod tests {
     use super::*;
     #[test]
+    fn specialization_changes_hiring_without_changing_time_or_inventing_old_trades() {
+        let base = Candidate {
+            person: 0,
+            household: 0,
+            ambition: 0.5,
+            familiarity: 0.,
+            practice: practice_scores(12., [12., 0., 0., 0.]),
+            pressure: 0.,
+            reference_wage: 36.,
+        };
+        let other = Candidate {
+            person: 1,
+            household: 1,
+            practice: practice_scores(12., [0., 12., 0., 0.]),
+            ..base
+        };
+        let mut pool = Participation {
+            month: Some(1),
+            ..Default::default()
+        };
+        for person in 0..2 {
+            pool.residents.insert(
+                person,
+                crate::participation::Resident {
+                    person,
+                    household: Some(person),
+                    presence: Presence::Resident(0),
+                    care: 0.,
+                    capacity: 0.8,
+                    committed: 0.,
+                    completed: [0.; 2],
+                    workshop_completed: 0.,
+                    workshop_practice: [0.; 4],
+                },
+            );
+        }
+        for family in 0..2 {
+            let mut branch = pool.clone();
+            let result = resolve(
+                &mut branch,
+                Boundary {
+                    month: 1,
+                    site: 0,
+                    subject: family,
+                    system: System::Workshop,
+                    revision: 0,
+                },
+                0.1,
+                &[other.at_wage(36., family), base.at_wage(36., family)],
+            );
+            assert_eq!(
+                branch.commitments[result.commitments[0] as usize].people[0].0,
+                family
+            );
+            assert!((result.granted - 0.1).abs() < 1e-6);
+        }
+        assert_eq!(base.at_wage(36., 0).fraction, base.at_wage(36., 1).fraction);
+        let legacy = practice_scores(12., [0.; 4]);
+        assert!(legacy.iter().all(|v| *v == legacy[0]));
+        assert!(legacy[0] > 0. && legacy[0] < base.practice[0]);
+    }
+    #[test]
+    fn learning_uses_completed_family_work_once_and_old_archives_stay_untyped() {
+        let mut pool = Participation {
+            month: Some(1),
+            ..Default::default()
+        };
+        let old = serde_json::json!({
+            "person":0, "household":0, "presence":{"Resident":0},
+            "care":0., "capacity":0.8, "committed":0., "completed":[0.,0.],
+            "workshop_completed":2.
+        });
+        let resident: crate::participation::Resident = serde_json::from_value(old).unwrap();
+        assert_eq!(resident.workshop_practice, [0.; 4]);
+        pool.residents.insert(0, resident);
+        let id = pool.reserve(1, 0, Activity::Workshop, &[0], 0.4).unwrap();
+        let before = serde_json::to_value(&pool).unwrap();
+        assert!(pool.settle_workshop(id, 0.2, 4).is_err());
+        assert_eq!(before, serde_json::to_value(&pool).unwrap());
+        pool.settle_workshop(id, 0.2, 2).unwrap();
+        let learned = pool.residents[&0].workshop_practice;
+        assert!((learned[2] - 0.2).abs() < 1e-6);
+        assert_eq!([learned[0], learned[1], learned[3]], [0.; 3]);
+        assert!((pool.residents[&0].workshop_completed - 2.2).abs() < 1e-6);
+        let before = serde_json::to_value(&pool).unwrap();
+        assert!(pool.settle_workshop(id, 0.2, 2).is_err());
+        assert_eq!(before, serde_json::to_value(&pool).unwrap());
+        let id = pool.reserve(1, 0, Activity::Workshop, &[0], 0.1).unwrap();
+        pool.settle_workshop(id, 0., 1).unwrap();
+        assert_eq!(learned, pool.residents[&0].workshop_practice);
+        let resumed: Participation =
+            serde_json::from_value(serde_json::to_value(&pool).unwrap()).unwrap();
+        assert_eq!(resumed.residents[&0].workshop_practice, learned);
+    }
+    #[test]
     fn offers_respond_to_pay_need_and_completed_practice() {
         let secure = Candidate {
             person: 0,
             household: 0,
             ambition: 0.5,
             familiarity: 0.,
-            practice: 0.,
+            practice: [0.; 4],
             pressure: household_pressure(1000., 18., 0., 2.),
             reference_wage: 36.,
         };
@@ -316,18 +419,21 @@ mod tests {
             pressure: household_pressure(0., 18., 1., 2.),
             ..secure
         };
-        assert!(strained.at_wage(36.).fraction > secure.at_wage(36.).fraction);
-        assert!(secure.at_wage(72.).fraction > secure.at_wage(18.).fraction);
-        assert_eq!(strained.at_wage(0.).fraction, 0.);
+        assert!(strained.at_wage(36., 0).fraction > secure.at_wage(36., 0).fraction);
+        assert!(secure.at_wage(72., 0).fraction > secure.at_wage(18., 0).fraction);
+        assert_eq!(strained.at_wage(0., 0).fraction, 0.);
         let skilled = Candidate {
-            practice: 0.8,
+            practice: [0.8; 4],
             ..secure
         };
-        assert!(skilled.at_wage(36.).score > secure.at_wage(36.).score);
-        assert_eq!(skilled.at_wage(36.).fraction, secure.at_wage(36.).fraction);
+        assert!(skilled.at_wage(36., 0).score > secure.at_wage(36., 0).score);
+        assert_eq!(
+            skilled.at_wage(36., 0).fraction,
+            secure.at_wage(36., 0).fraction
+        );
         for wage in [0., 0.01, 36., 1e9] {
             for candidate in [secure, strained, skilled] {
-                assert!((0. ..=1.).contains(&candidate.at_wage(wage).fraction));
+                assert!((0. ..=1.).contains(&candidate.at_wage(wage, 0).fraction));
             }
         }
     }
@@ -349,6 +455,7 @@ mod tests {
                     committed: 0.,
                     completed: [0.; 2],
                     workshop_completed: 0.,
+                    workshop_practice: [0.; 4],
                 },
             );
         }

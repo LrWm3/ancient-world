@@ -441,7 +441,7 @@ impl History {
                 let eligible: Vec<_> = offers[site]
                     .iter()
                     .filter(|o| residents[site].contains(&(o.household as usize)))
-                    .map(|o| o.at_wage(f.wage_rate))
+                    .map(|o| o.at_wage(f.wage_rate, f.family))
                     .collect();
                 self.participation.as_mut().map(|p| {
                     crate::workshop_resolution::resolve(
@@ -924,7 +924,7 @@ mod tests {
                 .iter()
                 .find(|o| o.person == person)
                 .unwrap()
-                .at_wage(36.)
+                .at_wage(36., 0)
         };
         assert!(offer(&pressured).fraction > offer(&secure).fraction);
         let score_before = offer(&secure).score;
@@ -1034,6 +1034,19 @@ mod tests {
         h.settle_workshop_resolutions().unwrap();
         let actual = h.participation.as_ref().unwrap().residents[&person].workshop_completed;
         assert!((actual - grants * 0.5).abs() < 1e-6);
+        let learned = h.participation.as_ref().unwrap().residents[&person].workshop_practice;
+        for (family, practice) in learned.iter().enumerate() {
+            let completed = h
+                .enterprises
+                .as_ref()
+                .unwrap()
+                .firms
+                .iter()
+                .filter(|f| f.family as usize == family)
+                .map(|f| f.last_completed_work)
+                .sum::<f64>();
+            assert!((practice - completed).abs() < 1e-6);
+        }
         assert!(h
             .resolution
             .as_ref()

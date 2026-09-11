@@ -153,3 +153,33 @@ labor forecasts are accurate. Existing service ceilings and finite employer dema
 can mask differences in individual willingness. Family-specific technical skills,
 competitive wages and allocation across all production sectors remain future work.
 The 12-month comparison-on/off batch-equivalence fixture also passes with the new offers.
+
+## Workshop family experience
+
+Completed personal workshop work now records one of the four existing recipe
+families. Matching experience contributes fully to hiring priority and other/untyped
+experience at 20%, with diminishing returns. It changes who receives a scarce shift,
+not the shift's wage, time or material yield.
+
+Four focused CPU tests pass:
+
+- Two equally motivated specialists exchange hiring priority when only the requested
+  workshop family changes. Total granted time remains identical.
+- Completed work credits its actual family; paid idle time credits none.
+- Invalid families and repeated settlement fail without changing the learning ledger.
+- Older resident records load with their total experience intact and zero invented
+  family allocations. Untyped experience provides the same modest benefit in all
+  families, and serialization preserves newly recorded practice.
+
+The enterprise fixture additionally compares family learning totals against actual
+settled firm work, retaining payroll, absence, stale-input and checkpoint assertions.
+The participation validator now rejects nonfinite/negative total experience and
+family allocations exceeding that total; the old total had lacked this check.
+
+No new seed calibration was performed for this increment. This remains a coarse
+hiring-experience proxy: no technical yield bonus, apprenticeships, skill decay or
+competitive wage negotiation. The transfer coefficient is a toy tuning choice.
+
+Full verification: `cargo test --lib -- --include-ignored` passed all 173 tests,
+including GPU fixtures, in 79.82 seconds. All-target Clippy with warnings denied,
+formatting and the repository artifact policy also passed.

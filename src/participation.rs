@@ -39,6 +39,10 @@ pub struct Resident {
     pub completed: [f64; 2],
     #[serde(default)]
     pub workshop_completed: f64,
+    /// Completed worker-months by the existing four recipe families. Older untyped
+    /// experience remains in workshop_completed; no historical trade is invented.
+    #[serde(default)]
+    pub workshop_practice: [f64; 4],
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Commitment {
@@ -112,6 +116,20 @@ impl Participation {
         Some(id)
     }
     pub fn settle(&mut self, id: u32, used: f32) -> Result<()> {
+        self.settle_work(id, used, None)
+    }
+    pub(crate) fn settle_workshop(&mut self, id: u32, used: f32, family: u32) -> Result<()> {
+        ensure!(
+            family < 4
+                && self
+                    .commitments
+                    .get(id as usize)
+                    .is_some_and(|c| c.activity == Activity::Workshop),
+            "invalid workshop learning assignment"
+        );
+        self.settle_work(id, used, Some(family as usize))
+    }
+    fn settle_work(&mut self, id: u32, used: f32, family: Option<usize>) -> Result<()> {
         let c = self
             .commitments
             .get_mut(id as usize)
@@ -132,6 +150,9 @@ impl Participation {
             let contribution = (share * c.used / c.granted) as f64;
             if category == 2 {
                 resident.workshop_completed += contribution;
+                if let Some(family) = family {
+                    resident.workshop_practice[family] += contribution;
+                }
             } else {
                 resident.completed[category] += contribution;
             }
@@ -157,7 +178,13 @@ impl Participation {
                         .all(|v| v.is_finite() && *v >= 0.)
                     && p.capacity + p.care <= 0.80001
                     && p.committed <= p.capacity + 1e-5
-                    && p.completed.iter().all(|v| v.is_finite() && *v >= 0.),
+                    && p.completed.iter().all(|v| v.is_finite() && *v >= 0.)
+                    && p.workshop_completed.is_finite()
+                    && p.workshop_completed >= 0.
+                    && p.workshop_practice
+                        .iter()
+                        .all(|v| v.is_finite() && *v >= 0.)
+                    && p.workshop_practice.iter().sum::<f64>() <= p.workshop_completed + 1e-6,
                 "invalid resident participation"
             );
             let committed: f32 = self
@@ -291,6 +318,7 @@ impl History {
                 committed: 0.,
                 completed: [0.; 2],
                 workshop_completed: 0.,
+                workshop_practice: [0.; 4],
             });
             entry.care = care;
             entry.household = household;
@@ -552,6 +580,7 @@ mod tests {
                             committed: 0.,
                             completed: [0.; 2],
                             workshop_completed: 0.,
+                            workshop_practice: [0.; 4],
                         },
                     )
                 })
