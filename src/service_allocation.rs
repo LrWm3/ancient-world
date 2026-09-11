@@ -15,6 +15,9 @@ pub struct Receipt {
     pub month: u32,
     pub site: u32,
     pub capacity: f32,
+    /// Opening participation mode; absent in older receipts or without the framework.
+    #[serde(default)]
+    pub resolution_mode: Option<crate::resolution::Mode>,
     pub policy: Policy,
     /// Research, culture. Requests are captured before either reserves work.
     pub requested: [f32; 2],
@@ -73,6 +76,13 @@ impl crate::civilization::History {
             .sites
             .iter()
             .map(|s| Receipt {
+                resolution_mode: self.resolution.as_ref().map(|_| {
+                    if self.participation.is_some() {
+                        crate::resolution::Mode::Individual
+                    } else {
+                        crate::resolution::Mode::Aggregate
+                    }
+                }),
                 policy: self.service_allocation.policy.clone(),
                 month: self.month,
                 site: s.id,
@@ -157,6 +167,10 @@ mod tests {
             h.participation = None;
             h.domestic = None;
             h.month = 12;
+            h.resolution = Some(crate::resolution::ResolutionState {
+                compare: true,
+                ..Default::default()
+            });
             // Ensure a real teaching opportunity rather than hoping a freshly
             // founded town happens to request cultural work this quarter.
             h.sync_culture();
@@ -274,6 +288,47 @@ mod tests {
             println!(
                 "seed {seed}: priority {:?}, weighted {:?}",
                 p.reserved, e.reserved
+            );
+            // Execute both systems once, then compare receipts on/off against
+            // the same resulting work and material state.
+            let mut without_comparison = equal.clone();
+            without_comparison.resolution.as_mut().unwrap().compare = false;
+            for h in [&mut equal, &mut without_comparison] {
+                h.sites[0].economy.labor[3] = 10.;
+                let mut d = h.expeditions.as_mut().unwrap().discoveries.take().unwrap();
+                d.month(h);
+                h.expeditions.as_mut().unwrap().discoveries = Some(d);
+                h.culture_month();
+                h.settle_participation().unwrap();
+                h.settle_learning_resolutions().unwrap();
+                h.resolution
+                    .as_ref()
+                    .unwrap()
+                    .validate(h.month, h.sites.len())
+                    .unwrap();
+            }
+            let receipts = &equal.resolution.as_ref().unwrap().receipts;
+            for system in [
+                crate::resolution::System::Research,
+                crate::resolution::System::Culture,
+            ] {
+                let r = receipts
+                    .iter()
+                    .find(|r| r.boundary.system == system && r.boundary.site == 0)
+                    .unwrap();
+                assert_eq!(r.metrics.len(), 3);
+                assert!(r.metrics[2].actual > 0., "fixture must complete real work");
+                assert!(r.metrics.iter().all(|m| m.unexplained().abs() < 1e-8));
+            }
+            let previous = serde_json::to_value(&equal.resolution).unwrap();
+            assert!(equal.settle_learning_resolutions().is_err());
+            assert_eq!(previous, serde_json::to_value(&equal.resolution).unwrap());
+            // Comparison bookkeeping cannot alter inventory, people, events or learning.
+            equal.resolution = None;
+            without_comparison.resolution = None;
+            assert_eq!(
+                serde_json::to_value(&equal).unwrap(),
+                serde_json::to_value(&without_comparison).unwrap()
             );
         }
     }

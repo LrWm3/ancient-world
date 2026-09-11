@@ -14,6 +14,8 @@ pub enum Mode {
 pub enum System {
     Demography,
     Workshop,
+    Research,
+    Culture,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Boundary {
@@ -70,7 +72,7 @@ pub struct ResolutionState {
     pub summaries: Vec<Summary>,
     pub compare: bool,
     pub workshop_individual: bool,
-    /// Only the latest month's receipts, bounded by sites and workshop families.
+    /// Only the latest month's receipts, bounded by sites and converted work categories.
     pub receipts: Vec<Receipt>,
 }
 impl ResolutionState {
@@ -141,11 +143,11 @@ impl ResolutionState {
     }
     pub(crate) fn validate(&self, month: u32, sites: usize) -> Result<()> {
         ensure!(
-            self.receipts.len() <= sites * 5,
+            self.receipts.len() <= sites * 7,
             "unbounded resolution receipts"
         );
         ensure!(
-            self.summaries.len() <= 32
+            self.summaries.len() <= 48
                 && self.summaries.iter().all(|s| [
                     s.expected,
                     s.actual,

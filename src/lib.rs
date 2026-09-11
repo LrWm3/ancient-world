@@ -96,6 +96,7 @@ pub mod navigation;
 mod freight;
 
 mod labor;
+mod learning_resolution;
 pub mod service_allocation;
 
 pub mod participation;

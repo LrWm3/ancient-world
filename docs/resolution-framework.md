@@ -2,7 +2,9 @@
 
 The first implementation keeps the five monthly phases and introduces a shared
 boundary, reconciliation receipt and commit guard for **demography and enterprise
-staffing**. Other history systems retain their existing contracts. This is a toy
+staffing**. [Research and cultural work](learning-resolution.md) now also record
+guarded work comparisons from their existing execution plans. Other history
+systems retain their existing contracts. This is a toy
 model comparison facility, not a claim of empirical calibration.
 
 ## Authority and data flow
