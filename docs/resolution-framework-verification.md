@@ -213,3 +213,47 @@ was added for this increment.
 Verification: all 175 library tests passed with `cargo test --lib -- --include-ignored`
 (including GPU fixtures) in 77.06 seconds. All-target Clippy with warnings denied,
 formatting and repository artifact checks passed.
+
+## Next-month employer wage offers
+
+Individual firms now retain vacancy memory and a pending wage multiplier. Productive
+shortages can raise the next offer only with paid revenue and a cash buffer. Idle
+or underpaid work lowers it. Existing cash-based hiring limits still reserve actual
+payroll; no projected income becomes spendable.
+
+The service quote and rent in refined mode use the local food-indexed reference,
+not the firm's bid. This closes a potential self-reinforcing reimbursement loop.
+Aggregate/legacy operation keeps its previous rule.
+
+Controlled checks cover:
+
+- Pending offers do not alter this month's posted multiplier; observations commit
+  at most once per month.
+- Productive shortages with reserves raise offers; idle work reduces them and
+  insufficient cash blocks a raise.
+- Hundreds of repeated decisions remain bounded and match serialized continuation.
+- Two posted wage levels with identical completed work produce identical service
+  revenue; enterprise accounting and personal settlement remain valid.
+
+The wage range and response rates are game balancing constraints, not empirical
+wage estimates. Firm order remains canonical rather than a simultaneous auction,
+and workers do not search distant employers in this increment.
+
+Verification: all 177 library tests passed with GPU fixtures enabled. The wage-policy
+fixture was then strengthened to hold vacancy pressure above the raise threshold
+while testing insufficient cash; that targeted rerun passed too. All-target Clippy
+with warnings denied and formatting passed.
+
+Ten-year living-history smoke runs used seeds 17, 81 and 256, terrain 32, ecology 16,
+one geological epoch, individual demography and refined workshops on Vulkan:
+
+| Seed | Resident population | Cohort overhang | Unresolved identities | Max absolute final normalized economy residual |
+|---|---:|---:|---:|---:|
+| 17 | 2,155 | 0 | 0 | 1.15e-6 |
+| 81 | 2,118 | 0 | 0 | 6.16e-7 |
+| 256 | 2,167 | 0 | 0 | 4.35e-7 |
+
+Reproduce with `cargo run --example cultural_work_calibrate -- --individual-demography --workshop-refinement --seeds 17,81,256 --years 10 --output output/workshop-wage-seeds.json`.
+Population totals match the earlier short workshop-offer runs. These smoke tests do
+not establish widespread wage competition or long-run balance; the controlled
+fixtures demonstrate the causal mechanism more directly.

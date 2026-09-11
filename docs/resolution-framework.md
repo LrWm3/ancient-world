@@ -102,7 +102,24 @@ Family sums cannot exceed total completed work. The 20% transfer and
 no traits were recorded. Offers remain bounded between zero and remaining capacity;
 zero pay produces no paid-work offer. These response constants are toy behavior
 parameters, not calibrated labor economics. Employers still post the existing
-food-indexed wage; competitive wage bargaining and skill-dependent output quality are absent.
+food-indexed wage reference. Refined firms now post bounded employer-specific wage
+multipliers, using completed prior-month hiring and production. Formal bargaining
+and skill-dependent output quality are absent.
+
+At settlement, firms remember vacancy pressure (75% prior memory, 25% new shortfall).
+A raise needs pressure above 0.15, at least 80% utilization, payment covering payroll,
+and three payrolls of remaining cash. It rises by at most 8% times remembered
+pressure. Low utilization (below 50%) or payments below payroll instead reduces
+the offer by 3%. The multiplier is bounded to 0.6–1.125 of the local wage reference;
+these are explicit toy safety limits. Changes are pending until the next posting,
+not retroactive adjustments to existing commitments.
+
+Refined service contracts quote 1.25 times the food-indexed reference independently
+of the firm's chosen wage. Rent also uses that reference. Thus raising wages cannot
+increase the fee paid by the town. The profitable raise ceiling depends on observed
+utilization. In aggregate/legacy mode the prior wage and fee rules remain.
+Employer offers still run in canonical firm order; there is no simultaneous labor
+auction or migration toward the globally highest wage.
 
 Hiring uses canonical site/family/firm order and person-ID ties. Commitments share
 the same personal time ledger as research and culture. Time already committed there
@@ -148,7 +165,7 @@ and workshop receipts, grants and comparison settings serialize with History.
   worlds still requires explicit roster reconciliation.
 - Richer birth eligibility and reproductive circumstances; births currently retain the
   community-level expectation and unknown-parent fallback.
-- Employer wage competition, dedicated teaching and skill loss; explicit coordination with
+- Simultaneous employer competition, dedicated teaching and skill loss; explicit coordination with
   agricultural and other aggregate labor before removing the service ceiling.
   Family-specific experience currently affects hiring, not technical output quality.
 - More subsystem-specific input revisions and reservation references as contracts

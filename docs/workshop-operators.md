@@ -144,3 +144,16 @@ or private inventory ownership are outside this increment's evidence.
 
 The [calibration and verification report](workshop-operator-calibration.md) retains
 all development and final seed comparisons, numerical tolerances and test scope.
+
+## Refined individual wage offers
+
+When individual workshop refinement is enabled, the wage reference remains
+18 times the local food price, but firms can post different bounded multipliers.
+Completed hiring shortfalls, utilization, payment and operating reserves determine
+a pending offer for the next month. The current month's prepaid commitments are
+unchanged. Service fees and rents stay tied to the reference, so a firm cannot
+raise its own reimbursement by bidding wages upward.
+
+See [resolution framework](resolution-framework.md) for the response rules and
+limits. The original wage-indexed fee rule above still describes aggregate/legacy
+operation. This is employer adaptation, not a competitive labor-market equilibrium.

@@ -8,8 +8,76 @@ use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
+/// Posted next-month labor offer; service prices remain independent of wage bids.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WagePolicy {
+    pub multiplier: f64,
+    pub pending: Option<f64>,
+    pub shortage: f64,
+    pub observed: Option<u32>,
+}
+impl Default for WagePolicy {
+    fn default() -> Self {
+        Self {
+            multiplier: 1.,
+            pending: None,
+            shortage: 0.,
+            observed: None,
+        }
+    }
+}
+impl WagePolicy {
+    fn observe(
+        &mut self,
+        month: u32,
+        work: [f64; 3],
+        cash: f64,
+        reference: f64,
+        paid_invoice: f64,
+    ) {
+        let [expected, hired, completed] = work;
+        if self.observed == Some(month) {
+            return;
+        }
+        self.observed = Some(month);
+        let vacancy = if expected > 1e-6 {
+            (1. - hired / expected).clamp(0., 1.)
+        } else {
+            0.
+        };
+        self.shortage = 0.75 * self.shortage + 0.25 * vacancy;
+        let utilization = if hired > 1e-6 {
+            (completed / hired).clamp(0., 1.)
+        } else {
+            0.
+        };
+        let payroll = hired * reference * self.multiplier;
+        // Raises need demonstrated productive work, payment and a cash buffer.
+        // The independent 1.25x service quote limits the affordable wage.
+        let profitable_ceiling = (1.25 * utilization * 0.9).clamp(0.6, 1.125);
+        let next = if self.shortage > 0.15
+            && utilization >= 0.8
+            && paid_invoice >= payroll
+            && cash >= 3. * payroll
+        {
+            (self.multiplier * (1. + 0.08 * self.shortage))
+                .min(profitable_ceiling)
+                .max(self.multiplier)
+        } else if utilization < 0.5 || paid_invoice < payroll {
+            self.multiplier * 0.97
+        } else {
+            self.multiplier
+        };
+        self.pending = Some(next.clamp(0.6, 1.125));
+    }
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Firm {
+    #[serde(default)]
+    pub wage_policy: Option<WagePolicy>,
+    /// None preserves legacy wage-indexed fees; refined contracts fix this at posting.
+    #[serde(default)]
+    pub service_rate: Option<f64>,
     #[serde(default)]
     pub staffing: Option<crate::workshop_resolution::Staffing>,
     pub id: u32,
@@ -57,6 +125,22 @@ impl Enterprises {
     pub fn validate(&self, h: &History) -> Result<()> {
         let mut occupied = BTreeSet::new();
         for (i, f) in self.firms.iter().enumerate() {
+            if let Some(p) = &f.wage_policy {
+                ensure!(
+                    p.multiplier.is_finite()
+                        && (0.6..=1.125).contains(&p.multiplier)
+                        && p.pending
+                            .is_none_or(|v| v.is_finite() && (0.6..=1.125).contains(&v))
+                        && p.shortage.is_finite()
+                        && (0. ..=1.).contains(&p.shortage)
+                        && p.observed.is_none_or(|m| m <= h.month),
+                    "invalid enterprise wage policy"
+                );
+            }
+            ensure!(
+                f.service_rate.is_none_or(|v| v.is_finite() && v >= 0.),
+                "invalid enterprise service quote"
+            );
             ensure!(
                 f.id as usize == i
                     && (f.site as usize) < h.sites.len()
@@ -346,6 +430,8 @@ impl History {
                     e.accounts[owner].capital_invested += capital;
                     let id = enterprises.firms.len() as u32;
                     enterprises.firms.push(Firm {
+                        wage_policy: None,
+                        service_rate: None,
                         staffing: None,
                         id,
                         site: site as u32,
@@ -393,11 +479,22 @@ impl History {
             let site = f.site as usize;
             let family = f.family as usize;
             let town = &mut self.sites[site];
-            f.wage_rate = 18. * town.economy.prices[crate::economy::FOOD].max(0.01) as f64;
+            let reference = 18. * town.economy.prices[crate::economy::FOOD].max(0.01) as f64;
+            if refine {
+                let policy = f.wage_policy.get_or_insert_with(Default::default);
+                if let Some(next) = policy.pending.take() {
+                    policy.multiplier = next;
+                }
+                f.wage_rate = reference * policy.multiplier;
+                f.service_rate = Some(reference * 1.25);
+            } else {
+                f.wage_rate = reference;
+                f.service_rate = None;
+            }
             let units = f
                 .leased_units
                 .min(town.economy.workshop_types[family][0] as f64);
-            let rent_request = (units * 0.08 * f.wage_rate).min(f.cash);
+            let rent_request = (units * 0.08 * reference).min(f.cash);
             let rent = deposit(&mut town.economy.finance[0], rent_request);
             f.cash -= rent;
             f.rent += rent;
@@ -557,7 +654,7 @@ impl History {
                 self.sites[f.site as usize].economy.enterprise_used[f.family as usize] as f64;
             f.last_completed_work = work;
             f.completed_work += work;
-            invoices[f.site as usize] += work * f.wage_rate * 1.25;
+            invoices[f.site as usize] += work * f.service_rate.unwrap_or(f.wage_rate * 1.25);
         }
         // Gather per-town invoices first. A common affordability factor prevents first-operator priority.
         let mut funds = vec![0.; self.sites.len()];
@@ -583,7 +680,7 @@ impl History {
             .filter(|(_, f)| f.closed.is_none())
         {
             let site = f.site as usize;
-            let invoice = f.last_completed_work * f.wage_rate * 1.25;
+            let invoice = f.last_completed_work * f.service_rate.unwrap_or(f.wage_rate * 1.25);
             let received = if invoices[site] <= 0. {
                 0.
             } else if last[site] == Some(i) {
@@ -605,6 +702,19 @@ impl History {
             } else {
                 0
             };
+            if let (Some(policy), Some(staff), Some(service)) =
+                (&mut f.wage_policy, &f.staffing, f.service_rate)
+            {
+                if staff.mode == crate::resolution::Mode::Individual {
+                    policy.observe(
+                        self.month,
+                        [staff.expected, f.last_funded_work, f.last_completed_work],
+                        f.cash,
+                        service / 1.25,
+                        received,
+                    );
+                }
+            }
             let reason = if f.distressed_months >= 3 {
                 Some("working capital exhausted")
             } else if f.idle_months >= 6 {
@@ -659,6 +769,107 @@ mod tests {
         economy::EconomyCatalog,
         gpu::{ContextGpu, Generator},
     };
+    #[test]
+    fn wage_offers_wait_for_next_posting_and_need_productive_affordable_shortage() {
+        let mut productive = WagePolicy::default();
+        productive.observe(1, [4., 1., 1.], 1000., 10., 12.5);
+        assert_eq!(productive.multiplier, 1.);
+        assert!(productive.pending.unwrap() > 1.);
+        let before = serde_json::to_value(&productive).unwrap();
+        productive.observe(1, [2., 1., 0.], 0., 10., 0.);
+        assert_eq!(before, serde_json::to_value(&productive).unwrap());
+        let mut idle = WagePolicy::default();
+        idle.observe(1, [2., 1., 0.], 1000., 10., 0.);
+        assert!(idle.pending.unwrap() < 1.);
+        let mut poor = WagePolicy::default();
+        poor.observe(1, [4., 1., 1.], 0., 10., 12.5);
+        assert_eq!(poor.pending, Some(1.));
+        let mut resumed: WagePolicy = serde_json::from_value(before).unwrap();
+        for month in 2..500 {
+            for p in [&mut productive, &mut resumed] {
+                p.multiplier = p.pending.take().unwrap();
+                p.observe(month, [2., 1., 1.], 1000., 10., 12.5);
+            }
+        }
+        assert_eq!(
+            serde_json::to_value(&productive).unwrap(),
+            serde_json::to_value(resumed).unwrap()
+        );
+        assert!(productive.pending.unwrap() <= 1.125);
+    }
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn posted_wage_changes_payroll_but_not_the_service_quote() {
+        let mut g = world();
+        install(&mut g);
+        g.enable_politics().unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        h.enable_individual_demography().unwrap();
+        h.set_workshop_refinement(true).unwrap();
+        h.month = 3;
+        h.begin_service_reservations();
+        h.prepare_enterprises();
+        h.settle_enterprises();
+        h.settle_workshop_resolutions().unwrap();
+        assert!(!h.enterprises.as_ref().unwrap().firms.is_empty());
+        h.month = 4;
+        h.begin_service_reservations();
+        let mut higher = h.clone();
+        for f in &mut h.enterprises.as_mut().unwrap().firms {
+            f.wage_policy.as_mut().unwrap().pending = Some(1.);
+        }
+        for f in &mut higher.enterprises.as_mut().unwrap().firms {
+            f.wage_policy.as_mut().unwrap().pending = Some(1.1);
+        }
+        h.prepare_enterprises();
+        higher.prepare_enterprises();
+        for (low, high) in h
+            .enterprises
+            .as_ref()
+            .unwrap()
+            .firms
+            .iter()
+            .zip(&higher.enterprises.as_ref().unwrap().firms)
+        {
+            if low.closed.is_none() {
+                assert!((high.wage_rate / low.wage_rate - 1.1).abs() < 1e-6);
+                assert_eq!(low.service_rate, high.service_rate);
+            }
+        }
+        // Hold completed production identical to isolate the contracted fee.
+        for (low, high) in h.sites.iter_mut().zip(&mut higher.sites) {
+            for family in 0..4 {
+                let used = low.economy.enterprise_plan[family]
+                    .min(high.economy.enterprise_plan[family])
+                    * 0.5;
+                low.economy.enterprise_used[family] = used;
+                high.economy.enterprise_used[family] = used;
+            }
+        }
+        h.settle_enterprises();
+        higher.settle_enterprises();
+        for (low, high) in h
+            .enterprises
+            .as_ref()
+            .unwrap()
+            .firms
+            .iter()
+            .zip(&higher.enterprises.as_ref().unwrap().firms)
+        {
+            assert!((low.revenue - high.revenue).abs() < 1e-6);
+        }
+        h.settle_workshop_resolutions().unwrap();
+        higher.settle_workshop_resolutions().unwrap();
+        h.enterprises.as_ref().unwrap().validate(h).unwrap();
+        higher
+            .enterprises
+            .as_ref()
+            .unwrap()
+            .validate(&higher)
+            .unwrap();
+    }
+
     #[test]
     #[ignore = "requires hardware GPU"]
     fn coworkers_learn_only_from_actual_shared_work_and_resume_identically() {

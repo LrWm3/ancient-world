@@ -149,6 +149,7 @@ pub(crate) fn staffing_revision(f: &crate::enterprises::Firm) -> u64 {
             f.last_requested_work.to_bits(),
             f.last_funded_work.to_bits(),
             f.wage_rate.to_bits(),
+            f.service_rate.unwrap_or(f.wage_rate * 1.25).to_bits(),
             u64::from(f.family),
         ]
         .into_iter()
