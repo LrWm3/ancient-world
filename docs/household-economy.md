@@ -180,3 +180,7 @@ estimates after the worlds diverge.
 
 See [the scarcity comparison](household-nutrition-calibration.md) for the longer
 paired run, its negative-recipe regression, results and remaining balance limits.
+
+The [food-access comparison](food-access-calibration.md) separates physical food
+gaps from entitlement/purchasing-power gaps, using the actual consumption boundary.
+It varies common access independently of crop yield, without adding food or cash.
