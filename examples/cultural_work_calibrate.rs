@@ -10,6 +10,8 @@ use serde_json::json;
 use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 #[derive(Parser)]
 struct Args {
+    #[arg(long)]
+    individual_demography: bool,
     /// Identify all whole residents at the initial boundary; does not replace cohort demography.
     #[arg(long)]
     resident_baseline: bool,
@@ -76,6 +78,12 @@ fn main() -> Result<()> {
         g.enable_expeditions()?;
         g.enable_discoveries()?;
         g.enable_living_history()?;
+        if args.individual_demography {
+            g.civilizations
+                .as_mut()
+                .unwrap()
+                .enable_individual_demography()?;
+        }
         if args.resident_baseline {
             g.civilizations
                 .as_mut()
@@ -144,7 +152,7 @@ fn main() -> Result<()> {
         std::fs::write(
             &args.output,
             serde_json::to_vec_pretty(
-                &json!({"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows}),
+                &json!({"individual_demography":args.individual_demography,"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows}),
             )?,
         )?;
     }

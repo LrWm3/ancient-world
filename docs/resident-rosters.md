@@ -2,7 +2,9 @@
 
 This increment makes named passengers explicit and provides an opt-in observation
 baseline for all currently unrepresented **whole** residents. Population still
-belongs to fractional GPU age cohorts. This is not yet individual demography.
+belongs to fractional GPU age cohorts in this baseline-only mode. The separate
+[opt-in individual demographic mode](individual-demography.md) transfers named
+birthdays, births and deaths to identities.
 
 ## Observing residents
 
@@ -46,11 +48,11 @@ Present passengers are unavailable for local work. Historical identity, membersh
 and ancestry survive arrival or return. Missing manifests in old archives retain the
 previous implicit account-travel behavior; no retrospective passenger list is claimed.
 Serialized manifests reject duplicate passengers, invalid ages/IDs, overlapping service
-and impossible age-cohort counts. Travel age bands remain frozen just as the existing
-in-transit cohorts do; birthdays are not another population transfer.
+and impossible age-cohort counts. Embarkation bands remain frozen in manifests. Individual mode adjusts surviving
+passengers' receiving cohorts for birthdays completed during travel.
 
 Provisions still feed the actual travel cohort and shortages debit its population.
-A bounded per-band carry assigns a portion of those already-counted deaths to known
+In legacy mode, a bounded per-band carry assigns a portion of those already-counted deaths to known
 passengers, weighted by their coverage. It never debits population twice. Complete
 journey extinction marks remaining passengers dead; they no longer remain immortal
 traveling identities. A dead account head leaves a vacant estate, preserving property
@@ -61,9 +63,10 @@ and original departure. Surviving passengers remain in the persisted manifest.
 
 Ownership accounts are still the relocation unit; independent domestic families do
 not yet split from them. The resident baseline does not invent guardians for unknown
-children. Complete ongoing resident authority needs individual births, aging and
-deaths, explicit family splits/merges, and roster-based labor/food accounting. Fixed
-birthdays and fractional cohort aging can still diverge, especially after a fully
-named baseline. The reconciliation report must expose that discrepancy.
+children. Individual births, aging and deaths are now available through an explicit
+mode; baseline-only worlds retain the old birthday/cohort discrepancy. Family
+splits/merges and fully roster-based labor/food accounting remain separate work.
+Broader long-history conversion coverage is needed before enabling individual mode
+by default. The reconciliation report exposes discrepancies in either mode.
 
 See [verification](resident-rosters-verification.md).

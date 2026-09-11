@@ -426,6 +426,12 @@ mod tests {
 /// Credits assign identities to deaths already debited by the GPU. No extra mortality.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct NamedDemography {
+    #[serde(default)]
+    pub individual: bool,
+    #[serde(default)]
+    pub birth_remainder: Vec<f64>,
+    #[serde(default)]
+    pub defense_remainder: Vec<f64>,
     pub month: Option<u32>,
     pub remainder: Vec<f64>,
     pub assigned: u64,
@@ -449,7 +455,7 @@ impl History {
         let Some(mut state) = self.named_demography.take() else {
             return;
         };
-        if state.month == Some(self.month) {
+        if state.individual || state.month == Some(self.month) {
             self.named_demography = Some(state);
             return;
         }
@@ -527,6 +533,24 @@ impl History {
 }
 impl NamedDemography {
     pub fn validate(&self, h: &History) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            !self.individual
+                || (h.society.is_some() && h.politics.is_some() && self.month.is_some()),
+            "individual demography requires membership and a completed baseline"
+        );
+        anyhow::ensure!(
+            self.birth_remainder.len() <= h.sites.len()
+                && self.defense_remainder.len() <= h.sites.len()
+                && self
+                    .defense_remainder
+                    .iter()
+                    .all(|v| v.is_finite() && (0. ..1.).contains(v))
+                && self
+                    .birth_remainder
+                    .iter()
+                    .all(|v| v.is_finite() && (0. ..1.).contains(v)),
+            "invalid individual birth carry"
+        );
         anyhow::ensure!(
             self.month.is_none_or(|m| m <= h.month)
                 && self.remainder.len() <= h.sites.len()

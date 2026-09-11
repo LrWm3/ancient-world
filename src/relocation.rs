@@ -259,23 +259,26 @@ impl History {
             for (k, ratio) in FOOD_CNP.iter().enumerate() {
                 origin.economy.external[k] -= eaten * *ratio as f32;
             }
-            if eaten + 0.001 < need {
-                let loss = 0.08 * (1. - eaten / need.max(0.001));
-                let dead = j.population() * loss;
-                for age in &mut j.cohorts {
-                    *age *= 1. - loss;
+            let loss = if eaten + 0.001 < need {
+                0.08 * (1. - eaten / need.max(0.001))
+            } else {
+                0.
+            };
+            if self.individual_demography_enabled() && j.roster.is_some() {
+                let (dead, anonymous) = self.individual_travel_losses(&mut j, loss);
+                self.sites[j.from as usize].stocks.people[1] += dead;
+                self.sites[j.from as usize].demography.health[2] += anonymous;
+            } else {
+                if loss > 0. {
+                    let dead = j.population() * loss;
+                    for age in &mut j.cohorts {
+                        *age *= 1. - loss;
+                    }
+                    self.sites[j.from as usize].stocks.people[1] += dead;
+                    self.sites[j.from as usize].demography.health[2] += dead;
                 }
-                origin.stocks.people[1] += dead;
-                origin.demography.health[2] += dead;
+                self.reconcile_travel_deaths(&mut j, loss);
             }
-            self.reconcile_travel_deaths(
-                &mut j,
-                if eaten + 0.001 < need {
-                    0.08 * (1. - eaten / need.max(0.001))
-                } else {
-                    0.
-                },
-            );
             if j.population() < 0.01 {
                 self.society
                     .as_mut()
@@ -397,6 +400,9 @@ impl History {
             j.to = j.from;
         }
         let report_destination = j.from;
+        if self.individual_demography_enabled() {
+            self.align_individual_arrival(&mut j);
+        }
         let pop = j.population();
         let target = &mut self.sites[j.to as usize];
         let old_pop = target.stocks.stock[0];

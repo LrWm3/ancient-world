@@ -44,6 +44,9 @@ fn demographic_month(i:u32,shortage:f32,food:f32)->vec2<f32> {
  let losses=old*min(vec3(.9),vec3(.0005,.0006,.003)+hunger*vec3(.06,.025,.05)+vec3(disease*.01));
  let born=old.y*.004*(1.-hunger.y)*(1.-disease);
  var weather=regional_weather(u32(src[i].habitat.z));if (p.options.w&2u)!=0u {let c=world[u32(src[i].habitat.z)];weather=clamp(c.climate.y/max(c.hydro.z,.001),0.,10.);}
+ // Identity-owned mode retains GPU ration/weather/disease work, but commits
+ // demographic transitions once on the CPU from actual resident identities.
+ if (p.options.w&4u)!=0u {d.ages=vec4(old,weather);d.health.x=disease;d.health.y=select(0.,d.health.y+1.,shortage>.02);demography[i]=d;return vec2(0.);}
  d.ages=vec4(max(vec3(0.),old-losses+vec3(born-mature,mature-retire,retire)),weather);
  d.health.x=disease;d.health.y=select(0.,d.health.y+1.,shortage>.02);d.health.z+=dot(losses,vec3(1.));demography[i]=d;
  return vec2(born,dot(losses,vec3(1.)));

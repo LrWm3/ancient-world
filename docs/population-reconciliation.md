@@ -162,3 +162,7 @@ New relocation journeys now carry named passenger manifests, and an opt-in resid
 observation baseline identifies all available whole residents without increasing
 population. See [resident rosters](resident-rosters.md) for compatibility, age-band
 constraints and the remaining cohort-authority gap.
+
+The [individual demographic mode](individual-demography.md) makes known birthdays
+and natural deaths authoritative, creates whole registered births, and leaves only
+explicit anonymous residuals under fractional cohort transitions. It is opt-in.

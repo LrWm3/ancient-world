@@ -695,6 +695,18 @@ impl History {
         } else {
             Default::default()
         };
+        let mut resident_defenders = vec![Vec::new(); self.sites.len()];
+        if self.individual_demography_enabled() {
+            for person in &self.people {
+                if crate::population_registry::age_band(self.month, person.born) == Some(1) {
+                    if let crate::participation::Presence::Resident(site) =
+                        self.person_presence(person.id).1
+                    {
+                        resident_defenders[site as usize].push(person.id);
+                    }
+                }
+            }
+        }
         let mut slots = crate::population_registry::ResidentSlots::new(self);
         let mut occupied: BTreeSet<u32> = self
             .society
@@ -851,9 +863,25 @@ impl History {
                 raid.equipment -= equipment_loss;
                 let expected = (defenders * 0.1).min(raid.soldiers * 0.2);
                 let casualties = self.military_losses(&mut raid, expected, "combat");
+                let expected_defense = (raid.soldiers * 0.05 * (1. - protection))
+                    .min(self.sites[raid.target as usize].demography.ages[1]);
+                let defender_losses = if self.individual_demography_enabled() {
+                    let ids = self.individual_defender_losses(
+                        raid.target,
+                        expected_defense,
+                        &resident_defenders[raid.target as usize],
+                    );
+                    for _ in &ids {
+                        slots.observe(raid.target, 1, false);
+                    }
+                    if !ids.is_empty() {
+                        self.events.last_mut().unwrap().causes.push(raid.cause);
+                    }
+                    ids.len() as f32
+                } else {
+                    expected_defense
+                };
                 let target = &mut self.sites[raid.target as usize];
-                let defender_losses =
-                    (raid.soldiers * 0.05 * (1. - protection)).min(target.demography.ages[1]);
                 target.demography.ages[1] -= defender_losses;
                 target.stocks.stock[0] -= defender_losses;
                 target.stocks.people[1] += defender_losses;

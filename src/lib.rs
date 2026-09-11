@@ -104,3 +104,5 @@ pub mod military;
 pub mod domestic;
 
 pub mod population_registry;
+
+mod individual_demography;

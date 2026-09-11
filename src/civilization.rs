@@ -1317,13 +1317,18 @@ impl Generator {
     ) -> Result<f64> {
         let production_started = std::time::Instant::now();
         let deaths_before: Vec<_> = h.sites.iter().map(|s| s.stocks.people[1]).collect();
+        let individual_observation = h.observe_individual_demography()?;
         engine.upload(self, h);
         engine.claim(self);
         engine.fish(self);
         engine.dispatch(self, false, h.sites.len() as u32);
         engine.read(self, h, true)?;
         h.settle_domestic_care();
-        h.assign_demographic_deaths(&deaths_before);
+        if let Some(observation) = individual_observation {
+            h.settle_individual_demography(observation)?;
+        } else {
+            h.assign_demographic_deaths(&deaths_before);
+        }
         h.settle_resources(extraction_allowances)?;
         h.settle_enterprises();
         h.storage_events();
@@ -1740,7 +1745,9 @@ impl Engine {
                 h.version,
                 h.economy_catalog.as_ref().map_or(0, |c| c.recipes.len()) as u32,
                 (g.config.solar_scale * g.config.crop_yield_scale).to_bits(),
-                u32::from(h.society.is_some()) | (u32::from(h.living.is_some()) << 1),
+                u32::from(h.society.is_some())
+                    | (u32::from(h.living.is_some()) << 1)
+                    | (u32::from(h.individual_demography_enabled()) << 2),
                 weather.drought_probability.to_bits(),
                 weather.drought_severity.to_bits(),
                 weather.regime_months,

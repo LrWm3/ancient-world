@@ -407,7 +407,11 @@ impl History {
         let social = self.society.as_ref().unwrap();
         for s in &self.sites {
             let i = s.id as usize;
-            p.birth_credit[i] += (s.stocks.people[0] - p.birth_observed[i]).max(0.);
+            if self.individual_demography_enabled() {
+                p.birth_credit[i] = 0.;
+            } else {
+                p.birth_credit[i] += (s.stocks.people[0] - p.birth_observed[i]).max(0.);
+            }
             p.birth_observed[i] = s.stocks.people[0];
         }
         let heads: BTreeSet<_> = social.households.iter().map(|f| f.head).collect();
