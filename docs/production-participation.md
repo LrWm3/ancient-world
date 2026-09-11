@@ -112,6 +112,55 @@ agricultural GPU fixtures pass (42.2 seconds together, including shader setup).
 The regular library suite passes 112 tests, with 101 hardware tests skipped by
 that invocation. All-target Clippy passes with warnings denied. These checks
 establish bounded participation, payroll and continuation in the fixtures, not
-population viability. Matched three-seed 30-year comparisons are evaluated below
-when complete; the century scarcity comparisons in the food-access document use
+population viability. The completed matched three-seed 30-year comparison follows; the century scarcity comparisons in the food-access document use
 the earlier model without this pilot.
+
+
+## Matched agricultural payroll / attendance comparison
+
+Model `db6d2cb`, Vulkan Quadro RTX 5000 Max-Q; terrain 32, ecology 16, one epoch,
+living history, yield scale 0.5, founding access enabled, resident-eligible payroll,
+individual demography and workshops, comparison receipts enabled. Each arm ran
+30 years for seeds 17, 81 and 256. Both reports finished all seeds. The only option
+changed between arms was agricultural refinement. These are game-balance tests,
+not fitted agricultural or demographic targets.
+
+| Seed | Control population | Agricultural population | Physical gap, control → agricultural | Access gap, control → agricultural | Hungry accounts at year 30, control → agricultural |
+|---|---:|---:|---:|---:|---:|
+| 17 | 1,486 | 1,540 | 0.0486% → 0.0428% | 3.7163% → 3.2045% | 61 → 63 |
+| 81 | 1,506 | 1,551 | 0.0004% → 0.0000% | 3.7454% → 3.2552% | 63 → 58 |
+| 256 | 1,683 | 1,591 | 0.0000% → 0.0000% | 3.3373% → 3.1826% | 59 → 50 |
+
+Food gaps divide cumulative monthly shortages by cumulative need. Hungry accounts
+have more than 10% unmet need in the **single closing month**, out of 240 accounts
+with positive needs in each run. They are not unique households ever hungry.
+All runs retain 16 active sites. Maximum monthly population residual is zero;
+normalized food residuals are at most 2.16e-7. The two material-production GPU
+regression fixtures also pass after the shader changes.
+
+At month 360, requested → granted agricultural worker-months are 594.324 → 585.077,
+588.256 → 576.622 and 614.678 → 605.399 for seeds 17, 81 and 256. Cultivated effort
+matches grants within GPU rounding. This snapshot shows remaining-capacity
+shortfalls without proving they were equally small in every preceding month.
+
+Access gaps improve across the three runs, but population rises in two and falls
+in seed 256. Seed 17 even has more hungry accounts in the closing month despite
+its lower cumulative access gap. The combined attendance/payroll intervention
+therefore is not a general population repair. It changes both household earnings
+and cultivation; do not attribute every later population difference to wages
+alone. Controlled absence/payroll fixtures establish those immediate connections;
+these multi-decade runs show their coupled outcomes. Other industries still use
+aggregate pay proxies, and ordinary retail still leaves substantial unmet need.
+
+Reproduce with `target/release/examples/cultural_work_calibrate --seeds 17,81,256
+--years 30 --individual-demography --workshop-refinement --compare-resolution
+--household-diagnostics --output output/agriculture-control.json`; add
+`--agriculture-refinement` and a different output filename for the pilot arm.
+Concurrent arm runtimes were 39.5–82.8 seconds per seed, including first-run GPU
+setup; no speedup claim is supported.
+
+Matched **100-year held-out** runs for seeds 409 and 1024 have now started with
+the same settings in both arms. Their outputs are ignored
+`output/agriculture-heldout-control.json` and `output/agriculture-heldout-pilot.json`.
+They are pending evidence, not an accepted long-run balance result. Preserve the
+opt-in pilot and the open population/income gate until those results are reviewed.
