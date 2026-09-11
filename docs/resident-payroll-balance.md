@@ -159,3 +159,33 @@ These are closing observations, not a sum of monthly cash balances. A three-seed
 30-year run (17, 81, 256; resident payroll, individual demography/workshops, yield
 0.5) is collecting them to distinguish distributional access from total production.
 Raw account rows remain ignored; conclusions will be summarized here.
+
+## Household distribution at year 30
+
+The three-seed diagnostic completed. Each row describes the **single closing
+month at year 30**, not the fraction of families ever hungry. Hungry here means
+more than 10% of that household's food need unmet. Only accounts with positive
+observed food need are included; currency is the game's abstract unit.
+
+| Seed | Population | Hungry / resident accounts | Hungry share of food need | Hungry share of current sector wages | Hungry cash | All resident cash |
+|---|---:|---:|---:|---:|---:|---:|
+| 17 | 1486 | 61 / 240 | 31.26% | 23.85% | 0.0059 | 109818.0 |
+| 81 | 1506 | 63 / 240 | 31.21% | 25.06% | 0.0077 | 112207.4 |
+| 256 | 1683 | 59 / 240 | 29.57% | 23.24% | 0.0069 | 106287.2 |
+
+The similar distribution across these seeds points toward household income access.
+It is an association, not an isolated wage-policy effect: local output, available
+work, household composition and prior saving all contribute. In seed 17, the top
+food-need quartile averaged 127.2 kg/month and 11.5% hunger; the lowest averaged
+59.3 kg and 2.2%. Their current aggregate sector wages differed by only 1.37 times
+while food needs differed by 2.15 times. Municipal payroll is still allocated
+largely by account/occupation proxies, not the number of actual contributing
+workers and dependents. The unfinished production/income integration should be
+evaluated against this pattern; the results do not justify an unconditional
+food-yield increase or claiming that current wages are individual earnings.
+
+Reproduction: `target/release/examples/cultural_work_calibrate --seeds 17,81,256
+--years 30 --individual-demography --workshop-refinement --compare-resolution
+--household-diagnostics --output output/household-distribution.json`.
+All-target Clippy and the source-only artifact check passed for this diagnostic
+increment. It changes observations, not model decisions.
