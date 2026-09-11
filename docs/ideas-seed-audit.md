@@ -52,7 +52,7 @@ New flooding still occurs after settlement. Dense seed 17's Galan has been conti
 
 This confirms the distinction introduced by the fix, but also its limit: towns do not yet build defenses or relocate in response. Persistent water was not artificially removed, and chronic inundation can remain socially unresolved for years. That is a stronger next target than further cosmetic flood events.
 
-## Ancient-continent expeditions: journeys work, discoveries matter too little
+## Ancient World expeditions: journeys work, discoveries matter too little
 
 The six ordinary worlds launch 253 voyages. At the century endpoints, 234 are returned, thirteen original parties have been rescued, two parties are lost and four voyages are still outward. Rescue-vessel returns and rescued original parties are distinct terminal records, not duplicate survivors. There are setbacks, repair, retreat and provision costs, but complete losses are uncommon under these settings.
 

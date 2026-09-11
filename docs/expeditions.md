@@ -1,4 +1,4 @@
-# Ancient-continent expeditions — v1 design
+# Ancient World expeditions — v1 design
 
 An explicit expedition baseline extends social history and shipping. Existing archives remain unchanged until enabled. Sparse expeditions run on the CPU alongside political graphs; dense ecology and settlement production remain on GPU.
 
@@ -16,7 +16,7 @@ Research returns charts, ecological observations or geological surveys rather th
 
 Archive routes, expedition rules, clocks, escrow, crew rosters, phase deadlines, objectives, provisions, casualties, findings, sponsor, cause links, knowledge and cooldowns. The history inspector shows voyages and enables launch/recall; CLI and multi-seed reports expose the same feature. Reports separate launches, returns, losses, rescues, knowledge, resident population and population away.
 
-Temporary camps do not establish civilizations, permanent settlements or territorial claims on the outer continent. This is an intentional setting rule: permanent colonization by the island civilizations is not a project goal. Separate civilizations native to the ancient continent remain an open design question, not a promised expedition feature. See [civilization scope](civilizations.md).
+Temporary camps do not establish civilizations, permanent settlements or territorial claims on the outer continent. This is an intentional setting rule: permanent colonization by the island civilizations is not a project goal. Separate civilizations native to the Ancient World remain an open design question, not a promised expedition feature. See [civilization scope](civilizations.md).
 
 New crews reference the existing person and kinship registry, while older voyages retain legacy crew identities; see [individual participation](individual-participation.md). Individual ship navigation, inland tactical pathfinding, foreign expeditions, or invasive-organism simulation are not implemented. [Specimen applications](discoveries.md) now provide finite fictional remedies and phosphorus processing. Regional observations use the saved environmental baseline unless [living history](living-history.md) is enabled, which updates ecological and weather exposure while retaining terrain geometry. [Crew competence](expedition-crews.md) now connects local preparation, specialists, experience and attrition to research, hazard resistance and repairs. There is one surveyed destination per harbor, and sailing currently advances distance and provisions without separate storm encounters. These limits keep the first expedition cycle testable.
 

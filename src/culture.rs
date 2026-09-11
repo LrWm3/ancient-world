@@ -717,7 +717,7 @@ impl History {
             .filter(|(_, v)| v.meta[0] == 3 && v.water[0] < 0.25)
             .map(|(i, _)| i as u32)
             .collect();
-        ensure!(!outer.is_empty(), "no ancient-continent patron origin");
+        ensure!(!outer.is_empty(), "no Ancient World patron origin");
         for i in 0..self.civilizations.len() {
             let site = &self.sites[i];
             let coasts = island_coasts
@@ -946,14 +946,14 @@ impl History {
                 p.returned_kg += p.provisions_kg;
                 p.provisions_kg = 0.;
                 let (site, name, cause) = (p.site, p.name.clone(), p.arrival_event);
-                let ev=c.log(self,"patron_departure",site,None,Some(pi as u32),None,Some(cause),format!("{name} returned to the ancient continent; the community must continue without its guide"));
+                let ev=c.log(self,"patron_departure",site,None,Some(pi as u32),None,Some(cause),format!("{name} returned to the Ancient World; the community must continue without its guide"));
                 c.account(
                     self,
                     pi as u32,
                     None,
                     vec![ev],
                     format!(
-                        "The patron's return to the ancient continent is commemorated as a charge to practice {}.",
+                        "The patron's return to the Ancient World is commemorated as a charge to practice {}.",
                         THEMES[c.traditions[pi].themes[0] as usize]
                     ),
                 );

@@ -11,7 +11,7 @@ use GPU navigation unless the caller selects the reference again.
 - Central-island component labeling, eligible settlement-candidate compaction,
   and coastal landing compaction. Minimum-cell component IDs remain stable.
 - Road pathfinding, settlement-to-harbor access, harbor-to-harbor sea lanes,
-  and expedition paths from the great lake to a dry ancient-continent landing.
+  and expedition paths from the great lake to a dry Ancient World landing.
 - Monthly road flood, harbor flood/shallow-water, and sea-lane shallow-water
   predicates. Only one integer per route/port returns to the CPU.
 

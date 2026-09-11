@@ -64,7 +64,7 @@ presence, existing work commitments, leadership exclusions and domestic care nee
 Sparse-population worlds may explicitly identify existing unnamed adults without
 adding population. There is still no sailing-storm or inland tactical route model.
 Permanent colonization is outside the island civilizations' intended scope;
-separate ancient-continent civilizations remain undecided (see
+separate Ancient World civilizations remain undecided (see
 [civilization scope](civilizations.md)).
 
 ## Assigning specialties to available recruits

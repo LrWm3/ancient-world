@@ -88,7 +88,7 @@ fn seed_ecology(@builtin(global_invocation_id) g:vec3<u32>) {
  for(var k=0u;k<3u;k++){s.pools[k]=vec4(.02,.0005,.00004,0.)*l;}
  s.pools[23]=vec4(.0001,.000003,.0000003,0.)*w;
  // Explicit pre-human founder inventory; smooth occupied patches, not monthly
- // spontaneous recruitment. W records ancient-continent founder ancestry share.
+ // spontaneous recruitment. W records Ancient World founder ancestry share.
  for(var k=0u;k<p.options.y;k++){
  let t=catalog[guild_offset()+k];let habitat=select(l,w,t.ids.y==1u);
  let phase=f32(p.dims.w%997u)*.017+f32(k)*2.399963;

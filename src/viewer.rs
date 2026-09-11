@@ -1903,7 +1903,7 @@ impl App {
                 }
                 if self.generator.civilizations.as_ref().is_some_and(|h| {
                     h.shipping.is_some() && h.governance.is_some() && h.expeditions.is_none()
-                }) && ui.button("Enable ancient-continent expeditions").clicked()
+                }) && ui.button("Enable Ancient World expeditions").clicked()
                 {
                     let result = self.generator.enable_expeditions();
                     self.report(
@@ -2483,7 +2483,7 @@ impl App {
                     });
                 }
                 if let Some(x)=&h.expeditions {
-                    ui.collapsing("Ancient-continent expeditions",|ui| {
+                    ui.collapsing("Ancient World expeditions",|ui| {
                         use crate::expeditions::{Objective,Phase};
                         let mut rules=x.rules.clone();
                         let changed=ui.checkbox(&mut rules.automatic,"Automatic wealthy-sponsor charters").changed()
@@ -2525,12 +2525,12 @@ impl App {
                 if self.history_tab == 1 {
                 if let Some(c) = &h.culture {
                     egui::CollapsingHeader::new("Founding patrons and living traditions").default_open(true).show(ui, |ui| {
-                        ui.small("Witnessed events and attributed religious accounts are separate. Patrons return to the ancient continent after their finite service; their mandate remains unknown.");
+                        ui.small("Witnessed events and attributed religious accounts are separate. Patrons return to the Ancient World after their finite service; their mandate remains unknown.");
                         if c.traditions.len() >= 256 { ui.label("Tradition capacity reached: further schisms are paused; existing traditions continue evolving."); }
                         egui::CollapsingHeader::new("Patrons").default_open(true).show(ui, |ui| {
                         for p in &c.patrons { egui::CollapsingHeader::new(&p.name).id_salt(("patron",p.id)).default_open(p.id == 0).show(ui, |ui| {
                             ui.label(format!("{} · origin {} / landing {} / {}",c.catalog.patrons[p.archetype as usize].kind,p.origin,p.landing,h.sites[p.site as usize].name));
-                            ui.label(format!("Return to ancient continent: month {} · {} · aid {:?}",p.departure_month,if p.departed.is_some(){"departed for the ancient continent"}else{"still guiding the island community"},p.effort));
+                            ui.label(format!("Return to Ancient World: month {} · {} · aid {:?}",p.departure_month,if p.departed.is_some(){"departed for the Ancient World"}else{"still guiding the island community"},p.effort));
                             ui.small(&c.catalog.patrons[p.archetype as usize].appearance);
                             ui.small(format!("Witnesses: {}", p.witnesses.iter().map(|&id| h.people[id as usize].name.as_str()).collect::<Vec<_>>().join(", ")));
                             if ui.small_button(format!("Read arrival #{}",p.arrival_event)).clicked(){self.history_tab=2; self.history_search=format!("#{}",p.arrival_event);}

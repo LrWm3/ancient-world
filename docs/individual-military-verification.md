@@ -91,7 +91,7 @@ resident demography is still cohort-based; active soldiers are counted separatel
 | 256 | 2606.55 | 16 | 3 | 35 | 3 | 0 | 470 | 5.874388e-06 |
 
 Soldiers still away in seed 81 have valid active campaigns and household duties;
-these are not missing returns. The worlds also completed 3, 22 and 0 ancient-continent
+these are not missing returns. The worlds also completed 3, 22 and 0 Ancient World
 voyages respectively, exercising military service alongside expedition recruitment.
 No total army loss occurred in these three worlds; that edge case is established
 by the controlled fixture rather than claimed as a natural ensemble observation.

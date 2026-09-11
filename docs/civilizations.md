@@ -1,11 +1,11 @@
 # Civilization history: current guide
 
 The simulated island civilizations establish permanent settlements only on the
-central islands by design. Permanent colonization of the ancient continent by
+central islands by design. Permanent colonization of the Ancient World by
 these civilizations is not a project goal. Expeditions and temporary camps provide
-contact with the ancient continent within that setting rule.
+contact with the Ancient World within that setting rule.
 
-Whether the ancient continent should host civilizations of its own remains under
+Whether the Ancient World should host civilizations of its own remains under
 discussion. They are not implemented, but neither are they a committed feature or
 an unfinished requirement.
 
@@ -24,7 +24,7 @@ implemented.
 | Markets, procurement and inter-island transport | [Shipping](shipping.md), [contracts](export-contracts.md), [supplier quotes](supplier-quotes.md) |
 | Patrons, beliefs, institutions and objects | [Foundings](patron-foundings.md), [institution capacity](institution-capacity.md) |
 | Witnessed help, reciprocal aid and dated knowledge | [Appeals](witnessed-relief.md), [religious relief](religious-relief.md) |
-| Ancient-continent expeditions and modest cultural finds | [Expeditions](expeditions.md), [specimens](discoveries.md), [heritage](heritage-expeditions.md) |
+| Ancient World expeditions and modest cultural finds | [Expeditions](expeditions.md), [specimens](discoveries.md), [heritage](heritage-expeditions.md) |
 | Environmental feedback during history | [Living history](living-history.md), [environmental returns](environmental-returns.md) |
 | Causal experiments and verification | [Cross-scale coupling](cross-scale-coupling.md), [model evidence](model-evidence.md) |
 

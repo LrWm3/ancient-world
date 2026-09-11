@@ -36,7 +36,7 @@ includes work that remains unimplemented.
 - [Managed farming, crafts and markets](economy.md)
 - [Experimental crop processes and price formation](crop-and-price-experiments.md)
 - [Managed land returning to the environment](environmental-returns.md)
-- [Ancient-continent expeditions — v1 design](expeditions.md)
+- [Ancient World expeditions — v1 design](expeditions.md)
 - [Funded repeat export contracts](export-contracts.md)
 - [Floods during living history](flood-history.md)
 - [Experimental food-security staffing](food-security-labor.md)
