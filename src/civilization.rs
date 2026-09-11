@@ -1189,6 +1189,179 @@ impl Generator {
     // A supplied view must contain current observations for every cell consumed
     // by this transaction. HistoryEnvironment refreshes those cells each month;
     // GPU surveys read current world buffers; CPU reference surveys require a full view.
+
+    // Monthly schedule: stage outputs are passed explicitly; see docs/monthly-schedule.md.
+    fn history_open_month(
+        &mut self,
+        h: &mut History,
+        engine: &Engine,
+        terrain: &[crate::gpu::Cell],
+        navigation: Option<&crate::navigation::Navigation>,
+    ) -> Result<Vec<[[f64; 2]; crate::economy::GOODS]>> {
+        h.prepare_society_with_navigation(terrain, self.config.radius_km, navigation)?;
+        h.prepare_politics(terrain);
+        h.prepare_governance();
+        ensure!(
+            h.events.len() < 1_000_000,
+            "civilization beta event limit reached"
+        );
+        h.month += 1;
+        if let Some(nav) = navigation.as_ref().filter(|_| h.living.is_some()) {
+            let inspections = nav.inspect_routes(h)?;
+            h.environmental_month_with_inspections(terrain, Some(&inspections));
+        } else {
+            h.environmental_month(terrain);
+        }
+        let deliveries = if h.version == 2 {
+            h.market_arrivals()
+        } else {
+            vec![]
+        };
+        h.relief_arrivals();
+        h.relocation_arrivals();
+        h.answer_appeals();
+        h.restore_returning_settlements();
+        self.prepare_economy(h);
+        if h.resources.is_some() && h.sites.iter().any(|s| s.economy.claim[3] < 0.5) {
+            engine.upload(self, h);
+            engine.claim(self);
+            engine.read(self, h, false)?;
+            h.register_resources(terrain, self.config.radius_km);
+        }
+        if h.economy_catalog
+            .as_ref()
+            .is_some_and(|c| c.materials.is_some())
+        {
+            for site in &mut h.sites {
+                let t = &terrain[site.cell as usize];
+                site.economy.extraction[2] = self
+                    .catalog
+                    .rocks
+                    .get(t.ids[0] as usize)
+                    .map_or(0.5, |r| r.hardness / 10.)
+                    .clamp(0.1, 1.);
+                site.economy.extraction[3] = h
+                    .resources
+                    .as_ref()
+                    .and_then(|r| r.sources.get(&site.cell))
+                    .map_or(0., |s| (s.extracted[0] / s.initial[0].max(1.)) as f32);
+            }
+        }
+        h.patron_aid_month();
+        // Snapshot actual cumulative crop harvest before this month's GPU work.
+        for site in &mut h.sites {
+            if site.lifecycle.harvest_observed.is_none() {
+                site.lifecycle.harvest_observed =
+                    Some(std::array::from_fn(|i| site.economy.crops[i][3]));
+            }
+            // Older archives retained frozen fractional cohorts in ruins.
+            if site.abandoned && site.stocks.stock[0] > 0. && site.stocks.stock[0] < 1. {
+                site.stocks.people[1] += site.stocks.stock[0];
+                site.demography.health[2] += site.stocks.stock[0];
+                site.stocks.stock[0] = 0.;
+                site.demography.ages[..3].fill(0.);
+            }
+        }
+        Ok(deliveries)
+    }
+    fn history_reserve_month(
+        &self,
+        h: &mut History,
+        terrain: &[crate::gpu::Cell],
+    ) -> (Vec<[f32; 2]>, Vec<crate::household_economy::RetailPlan>) {
+        h.prepare_discoveries();
+        h.reserve_cultural_work();
+        h.prepare_fisheries(terrain, self.config.eco_resolution());
+        let extraction_allowances = h.allocate_resources();
+        h.plan_production();
+        h.prepare_enterprises();
+        h.prepare_vessels();
+        let retail = h.prepare_household_retail();
+        (extraction_allowances, retail)
+    }
+    fn history_execute_month(
+        &self,
+        h: &mut History,
+        engine: &Engine,
+        extraction_allowances: &[[f32; 2]],
+        retail: Vec<crate::household_economy::RetailPlan>,
+    ) -> Result<f64> {
+        let production_started = std::time::Instant::now();
+        engine.upload(self, h);
+        engine.claim(self);
+        engine.fish(self);
+        engine.dispatch(self, false, h.sites.len() as u32);
+        engine.read(self, h, true)?;
+        h.settle_resources(extraction_allowances)?;
+        h.settle_enterprises();
+        h.storage_events();
+        h.housing_events();
+        h.waterworks_events();
+        h.settle_household_retail(retail);
+        let elapsed = production_started.elapsed().as_secs_f64() * 1000.;
+        Ok(elapsed)
+    }
+    fn history_respond_month(
+        &self,
+        h: &mut History,
+        terrain: &[crate::gpu::Cell],
+        navigation: Option<&crate::navigation::Navigation>,
+        deliveries: &[[[f64; 2]; crate::economy::GOODS]],
+    ) -> Result<()> {
+        if h.version == 2 {
+            h.market_decisions(self.config.radius_km, deliveries);
+        }
+        h.release_vessel_work();
+        h.release_cultural_work();
+        h.expedition_month(terrain);
+        h.relocation_departures();
+        h.settlement_lifecycle_month();
+        h.sync_offices();
+        h.social_month();
+        h.genealogy_month();
+        h.culture_month();
+        h.office_month();
+        h.governance_month();
+        if h.month % 12 == 0 {
+            h.annual(self.config.radius_km);
+            h.prepare_society_with_navigation(terrain, self.config.radius_km, navigation)?;
+            h.prepare_politics(terrain);
+            h.prepare_governance();
+            h.politics_year();
+            h.sync_offices();
+            h.social_year();
+            h.shipping_year_with_navigation(terrain, self.config.radius_km, navigation)?;
+            h.expedition_year_with_navigation(terrain, self.config.radius_km, navigation)?;
+            h.governance_year();
+        }
+        Ok(())
+    }
+    fn history_close_month(
+        &mut self,
+        h: &mut History,
+        engine: &Engine,
+        terrain: &[crate::gpu::Cell],
+        navigation: Option<&crate::navigation::Navigation>,
+        record: bool,
+    ) -> Result<()> {
+        h.prepare_society_with_navigation(terrain, self.config.radius_km, navigation)?;
+        h.prepare_politics(terrain);
+        h.prepare_governance();
+        self.prepare_economy(h);
+        engine.upload(self, h);
+        engine.claim(self);
+        engine.read(self, h, false)?;
+        h.register_resources(terrain, self.config.radius_km);
+        h.sync_culture();
+        h.sync_offices();
+        h.social_indicators_month();
+        if record && h.living.is_none() {
+            h.record_timeline();
+        }
+        h.validate(terrain)?;
+        self.validate_economic_grid(h)?;
+        Ok(())
+    }
     fn advance_history_with_terrain(
         &mut self,
         months: u32,
@@ -1254,149 +1427,19 @@ impl Generator {
                     &owned_terrain
                 }
             };
-            for _ in 0..months {
-                h.prepare_society_with_navigation(
-                    terrain,
-                    self.config.radius_km,
-                    navigation.as_deref(),
-                )?;
-                h.prepare_politics(terrain);
-                h.prepare_governance();
-                ensure!(
-                    h.events.len() < 1_000_000,
-                    "civilization beta event limit reached"
-                );
-                h.month += 1;
-                if let Some(nav) = navigation.as_ref().filter(|_| h.living.is_some()) {
-                    let inspections = nav.inspect_routes(&h)?;
-                    h.environmental_month_with_inspections(terrain, Some(&inspections));
-                } else {
-                    h.environmental_month(terrain);
-                }
-                h.relief_arrivals();
-                h.relocation_arrivals();
-                h.answer_appeals();
-                h.restore_returning_settlements();
-                self.prepare_economy(&mut h);
-                if h.resources.is_some() && h.sites.iter().any(|s| s.economy.claim[3] < 0.5) {
-                    engine.upload(self, &h);
-                    engine.claim(self);
-                    engine.read(self, &mut h, false)?;
-                    h.register_resources(terrain, self.config.radius_km);
-                }
-                if h.economy_catalog
-                    .as_ref()
-                    .is_some_and(|c| c.materials.is_some())
-                {
-                    for site in &mut h.sites {
-                        let t = &terrain[site.cell as usize];
-                        site.economy.extraction[2] = self
-                            .catalog
-                            .rocks
-                            .get(t.ids[0] as usize)
-                            .map_or(0.5, |r| r.hardness / 10.)
-                            .clamp(0.1, 1.);
-                        site.economy.extraction[3] = h
-                            .resources
-                            .as_ref()
-                            .and_then(|r| r.sources.get(&site.cell))
-                            .map_or(0., |s| (s.extracted[0] / s.initial[0].max(1.)) as f32);
-                    }
-                }
-                h.patron_aid_month();
-                // Snapshot actual cumulative crop harvest before this month's GPU work.
-                for site in &mut h.sites {
-                    if site.lifecycle.harvest_observed.is_none() {
-                        site.lifecycle.harvest_observed =
-                            Some(std::array::from_fn(|i| site.economy.crops[i][3]));
-                    }
-                    // Older archives retained frozen fractional cohorts in ruins.
-                    if site.abandoned && site.stocks.stock[0] > 0. && site.stocks.stock[0] < 1. {
-                        site.stocks.people[1] += site.stocks.stock[0];
-                        site.demography.health[2] += site.stocks.stock[0];
-                        site.stocks.stock[0] = 0.;
-                        site.demography.ages[..3].fill(0.);
-                    }
-                }
-                h.prepare_discoveries();
-                h.reserve_cultural_work();
-                h.prepare_fisheries(terrain, self.config.eco_resolution());
-                let extraction_allowances = h.allocate_resources();
-                h.plan_production();
-                h.prepare_enterprises();
-                h.prepare_vessels();
-                let retail = h.prepare_household_retail();
-                let production_started = std::time::Instant::now();
-                engine.upload(self, &h);
-                engine.claim(self);
-                engine.fish(self);
-                engine.dispatch(self, false, h.sites.len() as u32);
-                engine.read(self, &mut h, true)?;
-                h.settle_resources(&extraction_allowances)?;
-                h.settle_enterprises();
-                h.storage_events();
-                h.housing_events();
-                h.waterworks_events();
-                h.settle_household_retail(retail);
-                production_ms += production_started.elapsed().as_secs_f64() * 1000.;
-                if h.version == 2 {
-                    h.market_month(self.config.radius_km);
-                }
-                h.release_vessel_work();
-                h.release_cultural_work();
-                h.expedition_month(terrain);
-                h.relocation_departures();
-                h.settlement_lifecycle_month();
-                h.sync_offices();
-                h.social_month();
-                h.genealogy_month();
-                h.culture_month();
-                h.office_month();
-                h.governance_month();
-                if h.month % 12 == 0 {
-                    h.annual(self.config.radius_km);
-                    h.prepare_society_with_navigation(
-                        terrain,
-                        self.config.radius_km,
-                        navigation.as_deref(),
-                    )?;
-                    h.prepare_politics(terrain);
-                    h.prepare_governance();
-                    h.politics_year();
-                    h.sync_offices();
-                    h.social_year();
-                    h.shipping_year_with_navigation(
-                        terrain,
-                        self.config.radius_km,
-                        navigation.as_deref(),
-                    )?;
-                    h.expedition_year_with_navigation(
-                        terrain,
-                        self.config.radius_km,
-                        navigation.as_deref(),
-                    )?;
-                    h.governance_year();
-                }
-                h.sync_offices();
-                h.social_indicators_month();
-                h.record_timeline();
+            if months == 0 {
+                // Existing enable/import APIs use a zero-duration call to initialize claims.
+                self.history_close_month(&mut h, &engine, terrain, navigation.as_deref(), false)?;
             }
-            h.prepare_society_with_navigation(
-                terrain,
-                self.config.radius_km,
-                navigation.as_deref(),
-            )?;
-            h.prepare_politics(terrain);
-            h.prepare_governance();
-            self.prepare_economy(&mut h);
-            engine.upload(self, &h);
-            engine.claim(self);
-            engine.read(self, &mut h, false)?;
-            h.register_resources(terrain, self.config.radius_km);
-            h.sync_culture();
-            h.social_indicators_month();
-            h.validate(terrain)?;
-            self.validate_economic_grid(&h)?;
+            for _ in 0..months {
+                let deliveries =
+                    self.history_open_month(&mut h, &engine, terrain, navigation.as_deref())?;
+                let (extraction, retail) = self.history_reserve_month(&mut h, terrain);
+                production_ms +=
+                    self.history_execute_month(&mut h, &engine, &extraction, retail)?;
+                self.history_respond_month(&mut h, terrain, navigation.as_deref(), &deliveries)?;
+                self.history_close_month(&mut h, &engine, terrain, navigation.as_deref(), true)?;
+            }
             if h.version == 2 {
                 let mut e = self.gpu.device.create_command_encoder(&Default::default());
                 e.copy_buffer_to_buffer(
@@ -2124,6 +2167,7 @@ impl Generator {
             self.advance_history_with_terrain(1, Some(terrain))?;
             self.commit_environmental_returns()?;
             self.reconcile_managed_land();
+            self.civilizations.as_mut().unwrap().record_timeline();
             self.civilizations
                 .as_mut()
                 .unwrap()

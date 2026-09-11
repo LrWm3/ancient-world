@@ -995,7 +995,13 @@ impl History {
         (s.stocks.stock[0] * catalog.production.land_freight_kg_per_person - used - relief).max(0.)
     }
 
+    #[cfg(test)]
     pub(crate) fn market_month(&mut self, radius: f32) {
+        let observed = self.market_arrivals();
+        self.market_decisions(radius, &observed);
+    }
+
+    pub(crate) fn market_arrivals(&mut self) -> Vec<[[f64; 2]; GOODS]> {
         self.expire_export_contracts();
         let mut observed = vec![[[0_f64; 2]; GOODS]; self.sites.len()];
         let arrivals = std::mem::take(&mut self.cargo);
@@ -1091,6 +1097,10 @@ impl History {
                 self.cargo.push(c);
             }
         }
+        observed
+    }
+
+    pub(crate) fn market_decisions(&mut self, radius: f32, observed: &[[[f64; 2]; GOODS]]) {
         let Some(catalog) = self.economy_catalog.clone() else {
             return;
         };

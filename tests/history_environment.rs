@@ -146,3 +146,121 @@ fn gathered_history_matches_full_readbacks() {
         std::fs::remove_file(path).unwrap();
     }
 }
+
+#[test]
+#[ignore = "requires hardware GPU; full frozen-month schedule equivalence"]
+fn frozen_schedule_batch_and_checkpoint_equivalence() {
+    let gpu = pollster::block_on(ContextGpu::headless()).unwrap();
+    std::fs::create_dir_all("output").unwrap();
+    for seed in [17, 81, 256] {
+        let mut batch = Generator::new(
+            gpu.clone(),
+            Config {
+                seed,
+                resolution: 64,
+                ecology_resolution: 16,
+                ..Default::default()
+            },
+            Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        batch.advance_ecology().unwrap();
+        batch.found_civilizations(8).unwrap();
+        batch.enable_society().unwrap();
+        batch.enable_politics().unwrap();
+        batch.enable_governance().unwrap();
+        batch.enable_shipping().unwrap();
+        batch.enable_expeditions().unwrap();
+        batch.enable_shared_resources().unwrap();
+        let path = format!("output/schedule-{}-{seed}.world", std::process::id());
+        batch.save(std::path::Path::new(&path)).unwrap();
+        let mut single = Generator::load(gpu.clone(), std::path::Path::new(&path)).unwrap();
+        batch.advance_history(24).unwrap();
+        for _ in 0..24 {
+            single.advance_history(1).unwrap();
+        }
+        assert_same(&batch, &single, seed, 24);
+        single.save(std::path::Path::new(&path)).unwrap();
+        let mut resumed = Generator::load(gpu.clone(), std::path::Path::new(&path)).unwrap();
+        batch.advance_history(12).unwrap();
+        resumed.advance_history(5).unwrap();
+        resumed.advance_history(7).unwrap();
+        assert_same(&batch, &resumed, seed, 36);
+        let before = serde_json::to_value(&batch.civilizations).unwrap();
+        batch.advance_history(0).unwrap();
+        assert_eq!(before, serde_json::to_value(&batch.civilizations).unwrap());
+        std::fs::remove_file(path).unwrap();
+    }
+}
+
+#[test]
+#[ignore = "requires hardware GPU; arrival timing intervention"]
+fn due_food_cargo_prevents_current_consumption_shortage() {
+    use ancient_world::economy::{Cargo, FOOD};
+    let gpu = pollster::block_on(ContextGpu::headless()).unwrap();
+    std::fs::create_dir_all("output").unwrap();
+    let mut due = Generator::new(
+        gpu.clone(),
+        Config {
+            resolution: 64,
+            ecology_resolution: 16,
+            ..Default::default()
+        },
+        Catalog::bundled().unwrap(),
+    )
+    .unwrap();
+    due.found_civilizations(5).unwrap();
+    // Isolate arrival timing: identical cargo and source debit; only due date differs.
+    let h = due.civilizations.as_mut().unwrap();
+    h.society = None;
+    h.sites[1].stocks.stock[1] += h.sites[0].stocks.stock[1];
+    h.sites[0].stocks.stock[1] = 0.;
+    h.sites[0].stocks.habitat[0] = 0.;
+    let food = h.sites[1].stocks.stock[1].min(h.sites[0].stocks.stock[0] * 36.);
+    assert!(food > 0.);
+    h.sites[1].stocks.stock[1] -= food;
+    h.cargo.push(Cargo {
+        from: 1,
+        to: 0,
+        good: FOOD as u32,
+        kg: food,
+        paid: 1.,
+        arrives: h.month + 1,
+        freight_stops: vec![],
+        sea_lane: None,
+        weather_delay_months: 0,
+    });
+    let path = format!("output/schedule-arrival-{}.world", std::process::id());
+    due.save(std::path::Path::new(&path)).unwrap();
+    let mut later = Generator::load(gpu, std::path::Path::new(&path)).unwrap();
+    later
+        .civilizations
+        .as_mut()
+        .unwrap()
+        .cargo
+        .last_mut()
+        .unwrap()
+        .arrives += 1;
+    due.advance_history(1).unwrap();
+    later.advance_history(1).unwrap();
+    let a = &due.civilizations.as_ref().unwrap().sites[0].stocks;
+    let b = &later.civilizations.as_ref().unwrap().sites[0].stocks;
+    assert!(
+        a.ledger[1] > b.ledger[1],
+        "due grain must enter current consumption: {:?} {:?}",
+        a,
+        b
+    );
+    assert!(
+        a.stock[3] < b.stock[3],
+        "due grain must reduce current shortage"
+    );
+    assert!(later
+        .civilizations
+        .as_ref()
+        .unwrap()
+        .cargo
+        .iter()
+        .any(|c| c.to == 0 && c.kg == food));
+    std::fs::remove_file(path).unwrap();
+}

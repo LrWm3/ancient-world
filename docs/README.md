@@ -18,6 +18,7 @@ includes work that remains unimplemented.
 
 ## System guides and verification workflows
 
+- [Monthly schedule and timing contracts](monthly-schedule.md)
 - [Settlement timeline and causal event navigation](history-timeline.md)
 
 - [Household observance and local congregations](religious-pluralism.md)

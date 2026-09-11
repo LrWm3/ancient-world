@@ -572,6 +572,20 @@ mod tests {
         h
     }
     #[test]
+    fn reservation_phase_is_independent_of_claimant_iteration_order() {
+        let mut a = fixture();
+        let mut b = a.clone();
+        b.sites.reverse();
+        // IDs, not vector position, identify the explicitly returned reservation.
+        assert_eq!(a.allocate_resources(), b.allocate_resources());
+        for site in &a.sites {
+            let other = b.sites.iter().find(|s| s.id == site.id).unwrap();
+            assert_eq!(site.economy.reserves, other.economy.reserves);
+        }
+        assert_eq!(a.resources.as_ref().unwrap().sources[&0].remaining, [9.; 2]);
+    }
+
+    #[test]
     fn competing_claims_return_unused_allowances_and_do_not_replenish() {
         let mut h = fixture();
         let quotas = h.allocate_resources();
