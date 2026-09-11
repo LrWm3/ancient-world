@@ -1285,16 +1285,7 @@ impl Culture {
             let mut remaining_work = labor;
             // Reading and institutional instruction use this quarter's reserved work.
             // A book's physical survival matters: destroyed or remote objects cannot teach.
-            let readable = self.artifacts.iter().find_map(|a| {
-                a.topic
-                    .filter(|topic| {
-                        !a.destroyed
-                            && !a.lost
-                            && a.site == Some(site)
-                            && !self.agents[actor as usize].knowledge.contains(topic)
-                    })
-                    .map(|topic| (topic, Some(a.id), a.events.last().copied()))
-            });
+            let readable = self.readable_lesson(site, actor);
             let institution_lesson = if readable.is_none() {
                 self.work_plans
                     .get(si)
@@ -1337,8 +1328,27 @@ impl Culture {
                 let support = institution_lesson.map_or(0., |(_, teacher, _)| {
                     self.agents[teacher as usize].instruction_support()
                 });
+                let before = self.agents[actor as usize]
+                    .studies
+                    .get(&topic)
+                    .map_or(0., |s| s.progress);
                 let (completed, progress, previous) =
                     self.agents[actor as usize].study_topic(topic, support);
+                if let Some(outcome) = self
+                    .work_plans
+                    .get_mut(si)
+                    .and_then(|p| p.study_expectation.as_mut())
+                    .filter(|p| {
+                        p.lesson.student == actor
+                            && p.lesson.topic == topic
+                            && p.object == object
+                            && p.teacher == institution_lesson.map(|l| l.1)
+                            && p.institution == institution_lesson.map(|l| l.2)
+                    })
+                {
+                    outcome.lesson.actual_gain = progress - before;
+                    outcome.lesson.actual_acquisition = completed;
+                }
                 if let Some((_, teacher, _)) = institution_lesson {
                     self.agents[teacher as usize].instruction_work += 0.1;
                 }

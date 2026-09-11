@@ -737,6 +737,61 @@ mod tests {
             "institution closure does not erase personal skills"
         );
         c.institutions[institution as usize].active = true;
+        // Reservation captures a specific source and does not itself teach.
+        let mut predicted = c.clone();
+        predicted.work_plans = h
+            .sites
+            .iter()
+            .map(|s| predicted.plan_work(h, s.id))
+            .collect();
+        predicted.labor_budget = vec![0.; h.sites.len()];
+        let expectation = predicted.work_plans[0]
+            .study_expectation
+            .as_ref()
+            .unwrap()
+            .clone();
+        assert_eq!(expectation.teacher, Some(teacher));
+        assert_eq!(expectation.institution, Some(institution));
+        assert_eq!(expectation.object, None);
+        assert!(expectation.lesson.expected_gain > 0.);
+        let mut absent = predicted.clone();
+        let mut absent_history = h.clone();
+        absent_history.people[teacher as usize].died = Some(h.month);
+        absent.labor_budget[0] = 0.1;
+        absent.decisions(&mut absent_history);
+        assert_eq!(
+            absent.work_plans[0]
+                .study_expectation
+                .as_ref()
+                .unwrap()
+                .lesson
+                .actual_gain,
+            0.
+        );
+        let mut predicted_history = h.clone();
+        predicted.decisions(&mut predicted_history);
+        assert_eq!(
+            predicted.work_plans[0]
+                .study_expectation
+                .as_ref()
+                .unwrap()
+                .lesson
+                .actual_gain,
+            0.
+        );
+        predicted.labor_budget[0] = 0.1;
+        predicted.decisions(&mut predicted_history);
+        assert!(
+            (predicted.work_plans[0]
+                .study_expectation
+                .as_ref()
+                .unwrap()
+                .lesson
+                .actual_gain
+                - expectation.lesson.expected_gain)
+                .abs()
+                < 1e-6
+        );
         c.labor_budget = vec![0.; h.sites.len()];
         c.decisions(h);
         assert!(

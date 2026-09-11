@@ -124,3 +124,37 @@ progress and saved outcome fields. A CPU projection fixture checks read-only
 behavior and completion from prior partial study. All-target Clippy is clean.
 The full frozen-history checkpoint/batch fixture also passes after this change,
 including its three-seed monthly, batched and resumed comparisons.
+
+
+## Institutional and object study outcomes
+
+Requested study now captures the same conditional progress/acquisition projection
+as successor teaching, plus its source: a surviving local object's ID, or a
+local teacher and institution. Forecast and execution share the readable-object
+selection helper. A readable object keeps precedence over institutional teaching;
+this increment records that existing rule rather than changing it.
+
+`study_learning_gain` and `study_acquisition` enter the same cultural receipt,
+separately from successor metrics. Actual study is measured immediately around
+the action and recorded only for the projected student, topic and source. Work,
+fees, teaching experience, acquired knowledge and events still commit through
+the original action. Missing staff, lost sources and insufficient work leave
+zero actual learning. Old plans default to no study projection.
+
+The projections describe individually feasible requests before competing actions
+spend their shared grant; their sum is not a guaranteed joint outcome. A scarce
+0.125-worker-month cultural grant can fund study but not the following 0.1-month
+successor lesson. Their separate outcomes expose this ordering consequence while
+the ordinary labor receipt still accounts for unused work. Research processing,
+heritage interpretation and other cultural actions remain separate follow-ups.
+
+
+The four service-allocation tests pass, including three GPU seeds and a two-action
+scarcity case: funded object study delivers its projected gain, while the
+following unfunded successor lesson records zero. Comparison-on/off histories
+remain equal after removing resolution bookkeeping. The institutional GPU fixture
+checks captured teacher/institution identity, absence, zero funding and delivered
+progress, alongside the existing source/provenance checks. Regular library tests
+pass 114 cases (103 hardware tests skipped); all-target Clippy is clean. The full
+three-seed frozen-history fixture also passes monthly, batched and checkpoint
+continuation comparisons with the new study outcomes.

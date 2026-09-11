@@ -4,7 +4,16 @@ use super::*;
 /// A site's bounded bundle: actor and eligible named targets are fixed at Reserve.
 /// Material stocks remain live and must pass the action's execution checks.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StudyExpectation {
+    pub lesson: LessonExpectation,
+    pub object: Option<u32>,
+    pub teacher: Option<u32>,
+    pub institution: Option<u32>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WorkPlan {
+    #[serde(default)]
+    pub study_expectation: Option<StudyExpectation>,
     #[serde(default)]
     pub completed: f32,
     #[serde(default)]
@@ -30,6 +39,23 @@ pub struct WorkPlan {
     pub changed_identities: Vec<String>,
 }
 impl Culture {
+    pub(super) fn readable_lesson(
+        &self,
+        site: u32,
+        actor: u32,
+    ) -> Option<(u32, Option<u32>, Option<u64>)> {
+        self.artifacts.iter().find_map(|a| {
+            a.topic
+                .filter(|topic| {
+                    !a.destroyed
+                        && !a.lost
+                        && a.site == Some(site)
+                        && !self.agents[actor as usize].knowledge.contains(topic)
+                })
+                .map(|topic| (topic, Some(a.id), a.events.last().copied()))
+        })
+    }
+
     fn work_identities(
         &self,
         h: &History,
@@ -80,7 +106,30 @@ impl Culture {
                     self.agents[actor.unwrap() as usize].instruction_support(),
                 )
             });
+        let study_expectation = actor
+            .filter(|_| actions.iter().any(|(a, _)| a == "study"))
+            .and_then(|actor| {
+                if let Some((topic, object, _)) = self.readable_lesson(site, actor) {
+                    Some(StudyExpectation {
+                        lesson: self.agents[actor as usize].lesson_expectation(topic, 0.),
+                        object,
+                        teacher: None,
+                        institution: None,
+                    })
+                } else {
+                    institution_lesson.map(|(topic, teacher, institution)| StudyExpectation {
+                        lesson: self.agents[actor as usize].lesson_expectation(
+                            topic,
+                            self.agents[teacher as usize].instruction_support(),
+                        ),
+                        object: None,
+                        teacher: Some(teacher),
+                        institution: Some(institution),
+                    })
+                }
+            });
         WorkPlan {
+            study_expectation,
             successor_expectation,
             completed: 0.,
             commitment: None,

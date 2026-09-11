@@ -6,7 +6,7 @@ pub struct Study {
     pub progress: f32,
     pub source: Option<u64>,
 }
-/// Conditional outcome of one requested successor lesson, captured before allocation.
+/// Conditional outcome of one requested paid lesson, captured before allocation.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LessonExpectation {
     pub student: u32,

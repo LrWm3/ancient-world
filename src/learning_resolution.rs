@@ -110,28 +110,34 @@ impl crate::civilization::History {
                     resolution.compare,
                 )?;
                 if k == 1 && resolution.compare {
-                    if let Some(lesson) = self
+                    if let Some(plan) = self
                         .culture
                         .as_ref()
                         .and_then(|c| c.work_plans.iter().find(|p| p.site == r.site))
-                        .and_then(|p| p.successor_expectation.as_ref())
                     {
-                        receipt.metrics.extend([
-                            Metric {
-                                name: "successor_learning_gain".into(),
-                                unit: "topic fraction".into(),
-                                expected: lesson.expected_gain as f64,
-                                actual: lesson.actual_gain as f64,
-                                explained: vec![],
-                            },
-                            Metric {
-                                name: "successor_acquisition".into(),
-                                unit: "topics".into(),
-                                expected: f64::from(lesson.expected_acquisition),
-                                actual: f64::from(lesson.actual_acquisition),
-                                explained: vec![],
-                            },
-                        ]);
+                        for (prefix, lesson) in [
+                            ("successor", plan.successor_expectation.as_ref()),
+                            ("study", plan.study_expectation.as_ref().map(|s| &s.lesson)),
+                        ] {
+                            if let Some(lesson) = lesson {
+                                receipt.metrics.extend([
+                                    Metric {
+                                        name: format!("{prefix}_learning_gain"),
+                                        unit: "topic fraction".into(),
+                                        expected: lesson.expected_gain as f64,
+                                        actual: lesson.actual_gain as f64,
+                                        explained: vec![],
+                                    },
+                                    Metric {
+                                        name: format!("{prefix}_acquisition"),
+                                        unit: "topics".into(),
+                                        expected: f64::from(lesson.expected_acquisition),
+                                        actual: f64::from(lesson.actual_acquisition),
+                                        explained: vec![],
+                                    },
+                                ]);
+                            }
+                        }
                     }
                 }
                 let boundary = receipt.boundary.clone();

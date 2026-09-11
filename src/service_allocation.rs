@@ -183,6 +183,14 @@ mod tests {
             }
             let actor = people[(h.month / 3) as usize % people.len()];
             c.agents[actor as usize].knowledge.insert(0);
+            if seed == 81 {
+                // An existing finite object supplies a second, distinct learning action.
+                c.artifacts
+                    .iter_mut()
+                    .find(|a| a.site == Some(0))
+                    .unwrap()
+                    .topic = Some(1);
+            }
             h.culture = Some(c);
 
             h.expeditions
@@ -320,7 +328,11 @@ mod tests {
                 assert_eq!(
                     r.metrics.len(),
                     if system == crate::resolution::System::Culture {
-                        5
+                        if seed == 81 {
+                            7
+                        } else {
+                            5
+                        }
                     } else {
                         3
                     }
@@ -333,8 +345,21 @@ mod tests {
                         .iter()
                         .find(|m| m.name == "successor_learning_gain")
                         .unwrap();
-                    assert!(gain.expected > 0. && gain.actual > 0.);
-                    assert!((gain.actual - gain.expected).abs() < 1e-6);
+                    assert!(gain.expected > 0.);
+                    if seed == 81 {
+                        // Study runs first; the remaining grant cannot fund a second lesson.
+                        assert_eq!(gain.actual, 0.);
+                        let study = r
+                            .metrics
+                            .iter()
+                            .find(|m| m.name == "study_learning_gain")
+                            .unwrap();
+                        assert!(study.actual > 0.);
+                        assert!((study.actual - study.expected).abs() < 1e-6);
+                    } else {
+                        assert!(gain.actual > 0.);
+                        assert!((gain.actual - gain.expected).abs() < 1e-6);
+                    }
                 }
             }
             let previous = serde_json::to_value(&equal.resolution).unwrap();
