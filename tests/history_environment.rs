@@ -164,6 +164,14 @@ fn frozen_schedule_batch_and_checkpoint_equivalence() {
             Catalog::bundled().unwrap(),
         )
         .unwrap();
+        // Zero time must not initialize claims, read back terrain, or create history.
+        let reads = batch.history_readback_stats();
+        batch.advance_history(0).unwrap();
+        assert!(batch.civilizations.is_none());
+        assert_eq!(
+            batch.history_readback_stats().terrain_bytes,
+            reads.terrain_bytes
+        );
         batch.advance_ecology().unwrap();
         batch.found_civilizations(8).unwrap();
         batch.enable_society().unwrap();

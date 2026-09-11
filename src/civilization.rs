@@ -1308,13 +1308,14 @@ impl Generator {
         navigation: Option<&crate::navigation::Navigation>,
         deliveries: &[[[f64; 2]; crate::economy::GOODS]],
     ) -> Result<()> {
+        let relocation_observations = h.observe_relocation();
         if h.version == 2 {
             h.market_decisions(self.config.radius_km, deliveries);
         }
         h.release_vessel_work();
         h.release_cultural_work();
         h.expedition_month(terrain);
-        h.relocation_departures();
+        h.relocation_departures_observed(&relocation_observations)?;
         h.settlement_lifecycle_month();
         h.sync_offices();
         h.social_month();
@@ -1362,7 +1363,24 @@ impl Generator {
         self.validate_economic_grid(h)?;
         Ok(())
     }
+    /// Explicit setup used by economy migration and living-history activation.
+    /// Does not advance either clock or append a timeline sample.
+    fn initialize_history_boundary(&mut self) -> Result<()> {
+        self.run_history_schedule(0, None)
+    }
+
     fn advance_history_with_terrain(
+        &mut self,
+        months: u32,
+        terrain: Option<&[crate::gpu::Cell]>,
+    ) -> Result<()> {
+        if months == 0 {
+            return Ok(());
+        }
+        self.run_history_schedule(months, terrain)
+    }
+
+    fn run_history_schedule(
         &mut self,
         months: u32,
         terrain: Option<&[crate::gpu::Cell]>,
@@ -1428,7 +1446,7 @@ impl Generator {
                 }
             };
             if months == 0 {
-                // Existing enable/import APIs use a zero-duration call to initialize claims.
+                // Only the explicit initialization entry point submits a zero-length schedule.
                 self.history_close_month(&mut h, &engine, terrain, navigation.as_deref(), false)?;
             }
             for _ in 0..months {
@@ -1780,7 +1798,7 @@ impl Generator {
             "Managed plots reserved from ecology; tools and money declared as starting inventories"
                 .into(),
         );
-        if let Err(e) = self.advance_history(0) {
+        if let Err(e) = self.initialize_history_boundary() {
             self.civilizations = Some(previous);
             return Err(e);
         }
@@ -2012,7 +2030,7 @@ impl Generator {
         if h.living.is_some() {
             return self.validate_living_boundary();
         }
-        self.advance_history_snapshot(0)?;
+        self.initialize_history_boundary()?;
         let terrain = self.snapshot()?;
         let h = self.civilizations.as_mut().unwrap();
         h.candidates

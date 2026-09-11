@@ -3,6 +3,25 @@ use crate::{civilization::History, economy::FOOD_CNP};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
+/// Transient decision inputs captured after consumption, before response actions.
+/// Financial, food and housing capacity checks still use live reservations at commit.
+#[derive(Clone, Debug)]
+pub(crate) struct RelocationObservations {
+    month: u32,
+    social_month: Option<u32>,
+    sites: Vec<RelocationSiteObservation>,
+}
+#[derive(Clone, Debug)]
+struct RelocationSiteObservation {
+    id: u32,
+    shortage: f32,
+    production: f32,
+    crowded: bool,
+    migration_pressure: f32,
+    flooded: bool,
+    persistent_flood: bool,
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RelocationState {
@@ -335,7 +354,68 @@ impl History {
     }
 
     /// Seasonal hardship memory and admissions after this month's food/demography.
+    pub(crate) fn observe_relocation(&self) -> RelocationObservations {
+        RelocationObservations {
+            month: self.month,
+            social_month: self
+                .society
+                .as_ref()
+                .and_then(|s| s.indicators.as_ref())
+                .map(|s| s.observed),
+            sites: self
+                .sites
+                .iter()
+                .map(|s| {
+                    let social = self.social_indicators(s.id);
+                    let flood = self.living.as_ref().and_then(|l| l.floods.get(&s.id));
+                    RelocationSiteObservation {
+                        id: s.id,
+                        shortage: s.stocks.stock[3],
+                        production: s.stocks.stock[2],
+                        crowded: social.is_some_and(|c| c.housing[2] > 0.15),
+                        migration_pressure: social.map_or(0., |c| c.migration_pressure()),
+                        flooded: flood.is_some_and(|f| f.flooded),
+                        persistent_flood: flood.is_some_and(|f| f.persistent),
+                    }
+                })
+                .collect(),
+        }
+    }
+
+    pub(crate) fn relocation_departures_observed(
+        &mut self,
+        observations: &RelocationObservations,
+    ) -> Result<()> {
+        ensure!(
+            observations.month == self.month,
+            "stale relocation observations"
+        );
+        ensure!(
+            observations
+                .social_month
+                .is_none_or(|m| m <= observations.month),
+            "future social observations"
+        );
+        ensure!(
+            observations.sites.len() == self.sites.len()
+                && observations
+                    .sites
+                    .iter()
+                    .zip(&self.sites)
+                    .all(|(o, s)| o.id == s.id),
+            "relocation observation site mismatch"
+        );
+        self.relocation_departures_inner(observations);
+        Ok(())
+    }
+
+    #[cfg(test)]
     pub(crate) fn relocation_departures(&mut self) {
+        let observations = self.observe_relocation();
+        self.relocation_departures_observed(&observations).unwrap();
+    }
+
+    fn relocation_departures_inner(&mut self, observations: &RelocationObservations) {
         let Some(society) = &mut self.society else {
             return;
         };
@@ -345,8 +425,10 @@ impl History {
             .resize_with(self.sites.len(), Default::default);
         for s in &self.sites {
             let p = &mut society.relocation.sites[s.id as usize];
-            p.hungry = ((p.hungry << 1) | u32::from(s.stocks.stock[3] > 0.05)) & 0xffffff;
-            p.production[self.month as usize % 12] = s.stocks.stock[2];
+            p.hungry = ((p.hungry << 1)
+                | u32::from(observations.sites[s.id as usize].shortage > 0.05))
+                & 0xffffff;
+            p.production[self.month as usize % 12] = observations.sites[s.id as usize].production;
             p.observed_months = (p.observed_months + 1).min(12);
         }
         if !society.relocation.enabled || self.month % 3 != 0 {
@@ -361,14 +443,8 @@ impl History {
                 || pressure.observed_months < 12
                 || self.month < pressure.last_departure + 12
                 || (pressure.hungry.count_ones() < 6
-                    && !self
-                        .social_indicators(from as u32)
-                        .is_some_and(|c| c.housing[2] > 0.15)
-                    && !self
-                        .living
-                        .as_ref()
-                        .and_then(|l| l.floods.get(&(from as u32)))
-                        .is_some_and(|f| f.persistent))
+                    && !observations.sites[from].crowded
+                    && !observations.sites[from].persistent_flood)
             {
                 continue;
             }
@@ -406,9 +482,7 @@ impl History {
                             .as_ref()
                             .and_then(|e| e.accounts.get(hh.id as usize))
                             .map_or(0., |a| a.hunger as f32 * 0.2)
-                        + self
-                            .social_indicators(from as u32)
-                            .map_or(0., |c| c.migration_pressure() * 0.2);
+                        + observations.sites[from].migration_pressure * 0.2;
                     let tie = (hh.id.wrapping_mul(2654435761) ^ self.seed) % 100;
                     urgency + traits[0] * 0.35
                         > traits[4] * 0.25 + traits[5] * 0.3 + tie as f32 / 200.
@@ -470,17 +544,14 @@ impl History {
                     || t.abandoned
                     || tp.observed_months < 12
                     || tp.hungry.count_ones() > 1
-                    || t.stocks.stock[3] > 0.01
+                    || observations.sites[to as usize].shortage > 0.01
                     || !t.economy.housing_accepts(demand_pop)
                     || fertile_capacity < demand_pop
                     || t.stocks.habitat[1] * 2. < demand_pop
                     || t.stocks.stock[1] < demand_pop * 18. * 6.
                     || s.stocks.stock[1] < provisions + (s.stocks.stock[0] - pop) * 18.
-                    || self
-                        .living
-                        .as_ref()
-                        .and_then(|l| l.floods.get(&to))
-                        .is_some_and(|f| f.flooded || f.persistent)
+                    || (observations.sites[to as usize].flooded
+                        || observations.sites[to as usize].persistent_flood)
                     || self.politics.as_ref().is_some_and(|p| {
                         p.wars.iter().any(|w| {
                             w.ended.is_none()
@@ -632,6 +703,23 @@ mod tests {
         let expected = h.economy_residuals();
         let food = h.food_residual();
         let pop = h.population_residual();
+        // Decision evidence is immutable even if a later response edits live fields.
+        let mut observed = h.clone();
+        observed.society.as_mut().unwrap().relocation.enabled = false;
+        observed.sites[from].stocks.stock[3] = 0.5;
+        observed.sites[from].stocks.stock[2] = 123.;
+        let snapshot = observed.observe_relocation();
+        observed.sites[from].stocks.stock[3] = 0.;
+        observed.sites[from].stocks.stock[2] = 999.;
+        observed.relocation_departures_observed(&snapshot).unwrap();
+        let pressure = &observed.society.as_ref().unwrap().relocation.sites[from];
+        assert_eq!(pressure.hungry & 1, 1);
+        assert_eq!(pressure.production[observed.month as usize % 12], 123.);
+        observed.month += 1;
+        let before = serde_json::to_value(&observed).unwrap();
+        assert!(observed.relocation_departures_observed(&snapshot).is_err());
+        assert_eq!(before, serde_json::to_value(&observed).unwrap());
+
         let mut no_capacity = h.clone();
         no_capacity.society.as_mut().unwrap().relocation.sites[to].production = [0.; 12];
         no_capacity.relocation_departures();

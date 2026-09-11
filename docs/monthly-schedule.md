@@ -40,8 +40,8 @@ Reservations remain subsystem-specific; this is not a simultaneous global auctio
   reservations, not a simultaneous population-flow solver.
 - Events are committed alongside actions and can influence later stages. Closing
   records summaries; it does not defer provenance IDs or conceal same-month events.
-- Zero-duration frozen calls retain the existing initialization/claim synchronization
-  used by enable/import APIs, but do not advance clocks or record a new timeline.
+- Economy migration and living activation explicitly call `initialize_history_boundary`.
+  Zero-duration advancement no longer initializes or synchronizes economic claims.
   For positive durations, closing work runs per month, not per batch.
 - Living failure handling retains the existing incomplete-boundary marker; this
   port does not promise rollback of already-submitted GPU ecological work.
@@ -93,3 +93,33 @@ These tests establish schedule and continuation behavior on this backend, not
 cross-hardware equality, long-run balance, or universal actor-order independence.
 The port deliberately changes market arrival timing. It does not establish that
 new trajectories match the previous release, nor make every subsystem synchronous.
+
+
+## Explicit initialization and relocation observations (2026-09-11)
+
+Economy upgrade and living-history activation now invoke a named initialization
+entry point; public zero-month advancement no longer doubles as setup. Initialization
+still uses the common boundary transaction and accounting checks.
+
+Immediately after execution/settlement, before markets and expeditions respond,
+relocation captures a compact vector of shortage, production, crowding, migration
+pressure and flood flags. It records the current history month and the social
+projection's observation month. Departure processing rejects stale snapshots,
+future-dated social evidence and mismatched site identities before modifying state.
+This makes the existing social-projection lag explicit without a terrain readback.
+
+These are pressure observations, not a copy of all decision state. Provisions,
+people, routes, political eligibility, household hunger, relationships and destination
+capacity still use response-stage state. Capacity and possession checks intentionally
+remain live, so sequential departures cannot spend or reserve the same stock twice.
+Relief and governance have not yet been converted to explicit observation records.
+
+The relocation fixture changes live shortage and production after capture and checks
+that remembered pressure uses the captured evidence. A stale observation is rejected
+without changing history. Existing relocation conservation/admission checks and
+three-seed frozen/living continuation fixtures cover the integration.
+
+Follow-up verification on the same Quadro backend: the GPU relocation fixture
+passed, as did all three history-environment fixtures (25.91 seconds excluding
+compilation), including seeds 17, 81 and 256 and exact checkpoint/batch comparisons.
+Strict library Clippy passed. No new persistent fields or GPU readbacks are needed.
