@@ -190,15 +190,6 @@ impl History {
             s.economy.enterprise_plan = [0.; 4];
             s.economy.enterprise_used = [0.; 4];
         }
-        if let Some(e) = self
-            .society
-            .as_mut()
-            .and_then(|s| s.household_economy.as_mut())
-        {
-            for a in &mut e.accounts {
-                a.employer_income = 0.;
-            }
-        }
         let Some(mut enterprises) = self.enterprises.take() else {
             return;
         };
@@ -660,7 +651,7 @@ mod tests {
                                 if order == 0 {
                                     assert!(crew < 0.5);
                                 } else {
-                                    assert!(crew > 0.99);
+                                    assert!(crew > 0.099 && crew <= 0.100001);
                                 }
                             }
                         }

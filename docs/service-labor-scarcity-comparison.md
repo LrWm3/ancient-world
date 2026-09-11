@@ -1,5 +1,9 @@
 # Service labor scarcity: priority counterfactuals
 
+Historical baseline: these measurements describe commit `b92efbf`, before
+[bounded standby and early committed crews](committed-crew-reservations.md).
+The fixture on current main exercises the revised crew requests.
+
 ## Question and experiment
 
 Do inherited monthly priorities allocate scarce workers sensibly? The new common

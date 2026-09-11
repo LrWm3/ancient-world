@@ -1271,6 +1271,8 @@ impl Generator {
         h: &mut History,
         terrain: &[crate::gpu::Cell],
     ) -> (Vec<[f32; 2]>, Vec<crate::household_economy::RetailPlan>) {
+        h.begin_service_reservations();
+        h.prepare_committed_vessels();
         h.prepare_discoveries();
         h.reserve_cultural_work();
         h.prepare_fisheries(terrain, self.config.eco_resolution());

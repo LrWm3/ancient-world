@@ -31,20 +31,64 @@ impl Fleet {
         self.vessels.iter().map(|v| v.funded_work).sum()
     }
 }
+// Cargo already in transit reserves both endpoints, exactly as sea_capacity does.
+// Closed lanes still hold their cargo reservation; flooded ports cannot fund work.
+fn committed_port_loads(
+    shipping: &crate::shipping::Shipping,
+    cargo: &[crate::economy::Cargo],
+) -> Vec<f32> {
+    let mut loads = vec![0.; shipping.ports.len()];
+    for c in cargo {
+        if let Some(lane) = c.sea_lane.and_then(|id| shipping.lanes.get(id as usize)) {
+            for &port in &lane.ports {
+                loads[port as usize] += c.kg;
+            }
+        }
+    }
+    loads
+}
 impl History {
-    /// Employ resident households; reserve work from the same craft budget as other services.
+    /// Clear completed reservations once, before this month's service claims.
+    pub(crate) fn begin_service_reservations(&mut self) {
+        for site in &mut self.sites {
+            site.economy.external[3] = 0.;
+            site.economy.enterprise_plan = [0.; 4];
+        }
+        if let Some(e) = self
+            .society
+            .as_mut()
+            .and_then(|s| s.household_economy.as_mut())
+        {
+            for account in &mut e.accounts {
+                account.employer_income = 0.;
+            }
+        }
+        if let Some(shipping) = &mut self.shipping {
+            for port in &mut shipping.ports {
+                if let Some(fleet) = &mut port.fleet {
+                    for vessel in &mut fleet.vessels {
+                        vessel.funded_work = 0.;
+                        vessel.household = None;
+                    }
+                }
+            }
+        }
+    }
+    pub(crate) fn prepare_committed_vessels(&mut self) {
+        self.reserve_vessels(true);
+    }
     pub(crate) fn prepare_vessels(&mut self) {
+        self.reserve_vessels(false);
+    }
+    fn reserve_vessels(&mut self, committed_only: bool) {
         let Some(mut shipping) = self.shipping.take() else {
             return;
         };
-        for port in &mut shipping.ports {
+        let loads = committed_port_loads(&shipping, &self.cargo);
+        for (port_index, port) in shipping.ports.iter_mut().enumerate() {
             let Some(fleet) = &mut port.fleet else {
                 continue;
             };
-            for v in &mut fleet.vessels {
-                v.funded_work = 0.;
-                v.household = None;
-            }
             let site = port.site as usize;
             if self.sites[site].abandoned || port.commissioned.is_none() || port.flood_months > 0 {
                 continue;
@@ -94,14 +138,18 @@ impl History {
                 .accounts
                 .resize(society.households.len(), Default::default());
             let s = &mut self.sites[site];
-            let mut work_left = crate::labor::available(s, true, self.living.is_some());
+            let target = (loads[port_index] / 1000. + if committed_only { 0. } else { 0.1 })
+                .min(hulls as f32 * 0.25);
+            let mut work_left = crate::labor::available(s, true, self.living.is_some())
+                .min((target - fleet.work()).max(0.));
             let wage = 18. * s.economy.prices[crate::economy::FOOD].max(0.01) as f64;
             for (v, &hh) in fleet.vessels.iter_mut().take(hulls).zip(&ids) {
-                let work = 0.25_f32
+                let work = (0.25 - v.funded_work)
+                    .max(0.)
                     .min(work_left)
                     .min((s.economy.finance[0] as f64 / wage) as f32);
                 if work <= 0. {
-                    break;
+                    continue;
                 }
                 let paid = withdraw(&mut s.economy.finance[0], work as f64 * wage);
                 // Cash uses f32 while wallets retain the exact f64 debit. Rounding
@@ -109,7 +157,7 @@ impl History {
                 // beyond the crew reservation.
                 let actual = funded_work(paid, wage, work);
                 v.household = Some(hh as u32);
-                v.funded_work = actual;
+                v.funded_work += actual;
                 v.wages_paid += paid;
                 wallets.accounts[hh].cash += paid;
                 wallets.accounts[hh].wages += paid;
@@ -141,6 +189,67 @@ impl History {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn cargo_claims_use_actual_sea_endpoints() {
+        let shipping = crate::shipping::Shipping {
+            version: 1,
+            started: 0,
+            surveyed_sites: 3,
+            ports: (0..3)
+                .map(|site| crate::shipping::Port {
+                    site,
+                    fleet: None,
+                    work: None,
+                    access: vec![],
+                    water_cell: 0,
+                    access_km: 0.,
+                    assets: [0.; 3],
+                    commissioned: None,
+                    flood_months: 0,
+                })
+                .collect(),
+            lanes: vec![
+                crate::shipping::SeaLane {
+                    ports: [0, 1],
+                    cells: vec![],
+                    km: 1.,
+                    open: true,
+                    flood_months: 0,
+                },
+                crate::shipping::SeaLane {
+                    ports: [1, 2],
+                    cells: vec![],
+                    km: 1.,
+                    open: false,
+                    flood_months: 0,
+                },
+            ],
+        };
+        let cargo = |kg, sea_lane| crate::economy::Cargo {
+            freight_stops: vec![],
+            from: 0,
+            to: 2,
+            good: 0,
+            kg,
+            paid: 0.,
+            arrives: 4,
+            sea_lane,
+            weather_delay_months: 0,
+        };
+        let mut loads = vec![cargo(50., Some(0)), cargo(70., Some(1)), cargo(999., None)];
+        assert_eq!(
+            committed_port_loads(&shipping, &loads),
+            vec![50., 120., 70.]
+        );
+        loads.reverse();
+        assert_eq!(
+            committed_port_loads(&shipping, &loads),
+            vec![50., 120., 70.]
+        );
+        // Arrival removal releases the old commitment; inland cargo creates none.
+        loads.retain(|c| c.sea_lane.is_none());
+        assert_eq!(committed_port_loads(&shipping, &loads), vec![0.; 3]);
+    }
     #[test]
     fn rounded_wages_cannot_expand_reserved_labor() {
         let mut cash = 1_000_000f32;
@@ -209,7 +318,7 @@ mod tests {
         assert!(!fleet.vessels.is_empty());
         assert!(fleet.capacity() > 0.);
         let work = fleet.work();
-        assert!(work <= 1.00001);
+        assert!(work <= 0.100001, "idle ports hire only bounded standby");
         assert!(h.sites[site].economy.external[3] >= work);
         assert_eq!(
             h.shipping.as_ref().unwrap().ports[0].assets,
@@ -225,6 +334,7 @@ mod tests {
         h.sites[site].demography.ages[1] = 2.;
         h.sites[site].demography.health[0] = 0.5;
         h.sites[site].economy.enterprise_plan = [99.; 4]; // completed old plans
+        h.begin_service_reservations();
         h.prepare_discoveries();
         assert_eq!(h.sites[site].economy.enterprise_plan, [0.; 4]);
         h.reserve_cultural_work();
@@ -246,7 +356,76 @@ mod tests {
         assert!((total(h) - before).abs() < 1e-8);
         h.release_vessel_work();
         h.sites[site].economy.finance[0] = 0.;
+        h.begin_service_reservations();
         h.prepare_vessels();
         assert_eq!(h.shipping.as_ref().unwrap().ports[0].capacity(), 0.);
+
+        // Synthetic already-dispatched load: reserve both lane endpoints, and
+        // protect paid crews before quarterly discretionary activity.
+        assert!(h.shipping.as_ref().unwrap().ports.len() >= 2);
+        h.shipping
+            .as_mut()
+            .unwrap()
+            .lanes
+            .push(crate::shipping::SeaLane {
+                ports: [0, 1],
+                cells: vec![],
+                km: 1.,
+                open: true,
+                flood_months: 0,
+            });
+        let lane = h.shipping.as_ref().unwrap().lanes.len() as u32 - 1;
+        h.cargo.push(crate::economy::Cargo {
+            freight_stops: vec![],
+            from: site as u32,
+            to: h.shipping.as_ref().unwrap().ports[1].site,
+            good: crate::economy::FOOD as u32,
+            kg: 800.,
+            paid: 0.,
+            arrives: h.month + 2,
+            sea_lane: Some(lane),
+            weather_delay_months: 0,
+        });
+        h.sites[site].economy.finance[0] = 10000.;
+        h.sites[site].demography.ages[1] = 8.;
+        h.sites[site].demography.health[0] = 0.;
+        h.begin_service_reservations();
+        let before = total(h);
+        h.prepare_committed_vessels();
+        assert!((h.vessel_work(site as u32) - 0.8).abs() < 1e-5);
+        h.reserve_cultural_work();
+        assert!(
+            h.culture.as_ref().unwrap().labor_budget[site] <= 0.48001,
+            "culture {} external {} crew {} adults {}",
+            h.culture.as_ref().unwrap().labor_budget[site],
+            h.sites[site].economy.external[3],
+            h.vessel_work(site as u32),
+            h.sites[site].demography.ages[1]
+        );
+        h.prepare_enterprises();
+        let crew_income: f64 = h
+            .society
+            .as_ref()
+            .unwrap()
+            .household_economy
+            .as_ref()
+            .unwrap()
+            .accounts
+            .iter()
+            .map(|a| a.employer_income)
+            .sum();
+        assert!(
+            crew_income > 0.,
+            "enterprise preparation must retain earlier crew payroll"
+        );
+        h.prepare_vessels();
+        assert!(h.vessel_work(site as u32) >= 0.79999);
+        assert!(h.sites[site].economy.external[3] <= 1.280001);
+        assert!((total(h) - before).abs() < 1e-8);
+        let paid = total(h);
+        let work = h.vessel_work(site as u32);
+        h.prepare_vessels();
+        assert!((h.vessel_work(site as u32) - work).abs() < 1e-6);
+        assert!((total(h) - paid).abs() < 1e-8);
     }
 }

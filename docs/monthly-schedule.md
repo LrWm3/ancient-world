@@ -315,3 +315,13 @@ changes which activity is excluded, while abundant-workforce controls agree.
 The report distinguishes reserved work and staffed shipping capacity from completed
 production and deliveries. It recommends demand-aware requests before changing the
 production priority order; this experiment does not change that order.
+
+## Committed crew work before discretionary services
+
+[Committed crew reservations](committed-crew-reservations.md) replaces full idle
+fleet hiring with two passes. After clearing prior-month counters, the schedule
+funds existing sea-cargo commitments before research, culture and enterprises.
+The later crew pass only tops up to commitments plus a bounded 100 kg standby
+allowance. Both passes consume the same worker and treasury limits and accumulate
+one payroll record. This is a targeted priority change informed by scarcity tests,
+not a general priority auction or a new cargo travel model.
