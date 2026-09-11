@@ -102,3 +102,34 @@ away households. Existing traveler guards remain in force.
 The adapter reuses existing production readback; it adds no terrain snapshot or GPU
 transfer. [Verification and paired results](population-reconciliation-verification.md)
 record the improvement and remaining discrepancies.
+
+## Resident succession
+
+With the named-demography adapter enabled, ownership succession now searches
+existing adults before creating a representative. It prefers a recorded child,
+then a member of the same ownership account, then another resident of the town.
+Candidates must be at least 18 and physically present. Existing account heads and
+civilization leaders are excluded; birth date and stable ID break ties. A monthly
+occupied set prevents two accounts choosing the same successor. This remains a
+simple succession rule, not an individual consent or inheritance-law model.
+
+An appointed head joins the account's membership record at the same site. Recorded
+parents and unions are preserved; appointment does not invent descent. Population,
+property shares and inventories are not increased. An heir whose home is local but
+who is currently traveling is ineligible, including in the legacy heir path.
+
+If there is no eligible existing resident, the adapter checks whole unrepresented
+adult slots, then elder slots, using the same age-band reconciliation as birth
+identification. Multiple identifications in a month see the reduced allowance.
+An anonymous elder representative is initialized at 60 instead of identifying an
+extra 25-year-old adult. These ages are estimates, not reconstructed birthdays.
+
+**The living-head invariant remains a gap.** Ownership accounts still cannot have a
+vacant head. If neither age band has a slot, the compatibility fallback identifies
+an adult and records `succession_identity_overhang` with the person and site. This
+never adds cohort population and is visible in the reconciliation report. It must
+not be described as a bounded complete census. Explicit vacant ownership accounts
+and their estate administration are needed to remove that fallback. Initial
+ownership setup and society-disabled leader replacement also retain representative
+identity creation. Service recruitment already requires anonymous adult slots;
+a single allocation interface across all these adapters remains future work.

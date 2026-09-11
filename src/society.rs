@@ -662,16 +662,30 @@ impl History {
     }
     pub(crate) fn social_month(&mut self) {
         self.weather_roads();
-        let heirs: std::collections::BTreeMap<_, _> = self
-            .society
-            .as_ref()
-            .map(|s| {
-                s.households
-                    .iter()
-                    .map(|f| (f.head, self.genealogical_heir(f.head, f.site)))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let heirs: std::collections::BTreeMap<_, _> = if self.named_demography.is_none() {
+            self.society
+                .as_ref()
+                .map(|s| {
+                    s.households
+                        .iter()
+                        .map(|f| (f.head, self.genealogical_heir(f.head, f.site)))
+                        .collect()
+                })
+                .unwrap_or_default()
+        } else {
+            Default::default()
+        };
+        let successors = if self.named_demography.is_some() {
+            self.resident_successors()
+        } else {
+            Default::default()
+        };
+        let mut represented: Vec<_> = self
+            .population_reconciliation()
+            .sites
+            .into_iter()
+            .map(|s| s.known)
+            .collect();
         let mut occupied: BTreeSet<u32> = self
             .society
             .as_ref()
@@ -889,14 +903,49 @@ impl History {
                 if self.people[old].died.is_none() {
                     site.demography.health[2] -= 1.;
                     self.people[old].died = Some(self.month);
+                    if let Some(band) =
+                        crate::population_registry::age_band(self.month, self.people[old].born)
+                    {
+                        represented[f.site as usize][band] =
+                            represented[f.site as usize][band].saturating_sub(1);
+                    }
                 }
-                let existing = heirs.get(&(old as u32)).copied().flatten().filter(|id| {
+                let ruler = self.civilizations[site.civilization as usize].leader == old as u32;
+                let existing = if self.named_demography.is_some() {
+                    successors.get(&f.id).and_then(|ids| {
+                        ids.iter().copied().find(|id| {
+                            !occupied.contains(id)
+                                && (!ruler
+                                    || self.people[*id as usize].civilization == site.civilization)
+                                && self.people[*id as usize].died.is_none()
+                                && !self.person_duties.contains_key(id)
+                                && !self.military.duties.contains_key(id)
+                        })
+                    })
+                } else {
+                    heirs.get(&(old as u32)).copied().flatten()
+                }
+                .filter(|id| {
                     !occupied.contains(id)
+                        && (!ruler || self.people[*id as usize].civilization == site.civilization)
                         && self.people[*id as usize].died.is_none()
                         && !self.person_duties.contains_key(id)
                         && !self.military.duties.contains_key(id)
                 });
                 let id = existing.unwrap_or(self.people.len() as u32);
+                // Prefer a whole anonymous adult slot, then an elder slot. The
+                // ownership model still requires a living head when neither exists.
+                let band = [1, 2].into_iter().find(|&b| {
+                    (site.demography.ages[b].max(0.).floor() as u32)
+                        > represented[f.site as usize][b]
+                });
+                let overhang =
+                    existing.is_none() && band.is_none() && self.named_demography.is_some();
+                let identified_age = if self.named_demography.is_some() && band == Some(2) {
+                    720
+                } else {
+                    300
+                };
                 if existing.is_none() {
                     self.people.push(Person {
                         id,
@@ -909,17 +958,37 @@ impl History {
                                     .with_person(&self.people[old]),
                             ),
                         civilization: site.civilization,
-                        born: self.month as i32 - 300,
+                        born: self.month as i32 - identified_age,
                         died: None,
                         predecessor: Some(old as u32),
                     });
                 } else {
                     self.people[id as usize].predecessor = Some(old as u32);
                 }
+                if existing.is_none() {
+                    let band = crate::population_registry::age_band(
+                        self.month,
+                        self.people[id as usize].born,
+                    )
+                    .unwrap();
+                    represented[f.site as usize][band] += 1;
+                }
+                // Keep the membership lookup consistent with the new ownership role;
+                // recorded parents and unions are unchanged, and nobody changes site.
+                if let Some(politics) = &mut self.politics {
+                    if let Some(kin) = politics.kin.iter_mut().find(|k| k.person == id) {
+                        kin.household = f.id;
+                    } else {
+                        politics.kin.push(crate::politics::Kinship {
+                            person: id,
+                            household: f.id,
+                            parents: [None; 2],
+                        });
+                    }
+                }
                 occupied.insert(id);
                 f.head = id;
                 f.generation += 1;
-                let ruler = self.civilizations[site.civilization as usize].leader == old as u32;
                 if ruler {
                     self.civilizations[site.civilization as usize].leader = id;
                 }
@@ -935,6 +1004,15 @@ impl History {
                         f.name
                     ),
                 );
+                if overhang {
+                    self.event("succession_identity_overhang", Some(f.site), None,
+                        format!("Ownership account {} required a living representative, but no unrepresented adult or elder slot remained; {} is an explicit identity overhang, not a population import", f.id, self.people[id as usize].name));
+                    self.events
+                        .last_mut()
+                        .unwrap()
+                        .subjects
+                        .push(("person".into(), id));
+                }
                 if ruler {
                     self.event(
                         "succession",

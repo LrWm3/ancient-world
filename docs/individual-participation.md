@@ -259,3 +259,14 @@ representative births to unrepresented child slots and assign some freshly count
 GPU deaths to named residents of all ages. These assignments consume existing death
 credit without another population debit. Earlier age-70-only named mortality remains
 a legacy mode. This improves alignment; it does not yet make named people the census.
+
+## Reusing residents in succession
+
+Ownership succession now prefers a present recorded child, another account member,
+or another local adult before identifying an unnamed resident. It checks adult and
+elder slots and records any remaining compatibility fallback as identity overhang.
+Succession references no longer assume that the successor was created after the
+predecessor: valid references and an acyclic chain are required instead. See
+[resident succession](population-reconciliation.md#resident-succession) and
+[verification](resident-succession-verification.md). Vacant ownership accounts and a
+single allocator for all population adapters remain outstanding.

@@ -607,7 +607,8 @@ impl History {
             .iter()
             .filter(|k| {
                 k.parents.contains(&Some(old))
-                    && !self.person_on_service(k.person)
+                    && self.person_presence(k.person).1
+                        == crate::participation::Presence::Resident(site)
                     && social.households[k.household as usize].site == site
                     && !social.households.iter().any(|f| f.head == k.person)
             })

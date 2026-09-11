@@ -11,6 +11,35 @@ pub fn age_band(month: u32, born: i32) -> Option<usize> {
         _ => Some(2),
     }
 }
+/// IDs are creation order, not succession order. Reusing residents permits a
+/// predecessor with a larger ID; references must instead form an acyclic graph.
+pub(crate) fn valid_succession_links(people: &[crate::civilization::Person]) -> bool {
+    let mut state = vec![0u8; people.len()];
+    let mut path = Vec::new();
+    for start in 0..people.len() {
+        if state[start] != 0 {
+            continue;
+        }
+        path.clear();
+        let mut next = Some(start as u32);
+        while let Some(id) = next {
+            let i = id as usize;
+            if i >= people.len() || state[i] == 1 {
+                return false;
+            }
+            if state[i] == 2 {
+                break;
+            }
+            state[i] = 1;
+            path.push(i);
+            next = people[i].predecessor;
+        }
+        for &i in &path {
+            state[i] = 2;
+        }
+    }
+    true
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SiteReconciliation {
     pub site: u32,
@@ -33,6 +62,64 @@ pub struct PopulationReconciliation {
     pub future_births: Vec<u32>,
 }
 impl History {
+    /// Stable local succession choices, observed before the society is temporarily taken
+    /// out of History. Headship is an ownership role, not a newly invented family tie.
+    pub(crate) fn resident_successors(&self) -> std::collections::BTreeMap<u32, Vec<u32>> {
+        let Some(society) = &self.society else {
+            return Default::default();
+        };
+        let occupied: std::collections::BTreeSet<_> = society
+            .households
+            .iter()
+            .map(|f| f.head)
+            .chain(self.civilizations.iter().map(|c| c.leader))
+            .collect();
+        let parents: std::collections::BTreeMap<_, _> = self
+            .politics
+            .as_ref()
+            .into_iter()
+            .flat_map(|p| &p.kin)
+            .map(|k| (k.person, k.parents))
+            .collect();
+        let mut residents = vec![Vec::new(); self.sites.len()];
+        for person in &self.people {
+            if occupied.contains(&person.id) || i64::from(self.month) - i64::from(person.born) < 216
+            {
+                continue;
+            }
+            let (home, presence) = self.person_presence(person.id);
+            if let Presence::Resident(site) = presence {
+                residents[site as usize].push((person.id, home));
+            }
+        }
+        society
+            .households
+            .iter()
+            .map(|account| {
+                let mut candidates: Vec<_> = residents[account.site as usize]
+                    .iter()
+                    .map(|&(id, home)| {
+                        let child = parents
+                            .get(&id)
+                            .is_some_and(|p| p.contains(&Some(account.head)));
+                        let rank = if child {
+                            0
+                        } else if home == Some(account.id) {
+                            1
+                        } else {
+                            2
+                        };
+                        (rank, self.people[id as usize].born, id)
+                    })
+                    .collect();
+                candidates.sort_unstable();
+                (
+                    account.id,
+                    candidates.into_iter().map(|(_, _, id)| id).collect(),
+                )
+            })
+            .collect()
+    }
     /// Complete mutually exclusive classification of every existing identity at this boundary.
     /// This does not allocate names for unrepresented residents or change demographic stocks.
     pub fn population_reconciliation(&self) -> PopulationReconciliation {
@@ -80,6 +167,28 @@ impl History {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn succession_order_is_not_identity_creation_order() {
+        let mut people: Vec<_> = (0..3)
+            .map(|id| crate::civilization::Person {
+                id,
+                name: format!("Person {id}"),
+                civilization: 0,
+                born: -300,
+                died: None,
+                predecessor: None,
+            })
+            .collect();
+        people[0].predecessor = Some(2);
+        people[2].predecessor = Some(1);
+        assert!(valid_succession_links(&people));
+        people[1].predecessor = Some(0);
+        assert!(!valid_succession_links(&people));
+        people[1].predecessor = Some(3);
+        assert!(!valid_succession_links(&people));
+        people[1].predecessor = Some(1);
+        assert!(!valid_succession_links(&people));
+    }
     #[test]
     fn cohort_age_boundaries_do_not_overflow() {
         assert_eq!(age_band(0, 1), None);
@@ -337,6 +446,154 @@ mod gpu_tests {
         h.assign_demographic_deaths(&before);
         assert!(ids.iter().all(|id| h.people[*id as usize].died.is_none()));
         assert_eq!(h.named_demography.as_ref().unwrap().assigned, 1);
+    }
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn succession_reuses_present_people_and_reports_exhausted_slots() {
+        let mut g = world();
+        let h = g.civilizations.as_mut().unwrap();
+        h.month = 1;
+        let accounts: Vec<_> = h
+            .society
+            .as_ref()
+            .unwrap()
+            .households
+            .iter()
+            .filter(|a| a.site == 0)
+            .map(|a| (a.id, a.head))
+            .collect();
+        let (account, old) = accounts[0];
+        // An unrelated member and a younger recorded child are both real adults.
+        let add = |h: &mut History, born, parents| {
+            let id = h.people.len() as u32;
+            let mut person = h.people[old as usize].clone();
+            person.id = id;
+            person.born = born;
+            person.died = None;
+            h.people.push(person);
+            h.politics.as_mut().unwrap().kin.push(Kinship {
+                person: id,
+                household: account,
+                parents,
+            });
+            id
+        };
+        let member = add(h, -400, [None; 2]);
+        let child = add(h, -250, [Some(old), None]);
+        h.people[old as usize].died = Some(1);
+        let baseline = h.clone();
+        let count = h.people.len();
+        let stocks = serde_json::to_value(h.sites[0].stocks).unwrap();
+        h.social_month();
+        assert_eq!(
+            h.society.as_ref().unwrap().households[account as usize].head,
+            child
+        );
+        assert_eq!(h.people.len(), count);
+        assert_eq!(stocks, serde_json::to_value(h.sites[0].stocks).unwrap());
+        assert_eq!(
+            h.politics
+                .as_ref()
+                .unwrap()
+                .kin
+                .iter()
+                .find(|k| k.person == child)
+                .unwrap()
+                .parents,
+            [Some(old), None]
+        );
+        // A child at sea is not eligible; the existing unrelated member succeeds.
+        let mut away = baseline.clone();
+        away.person_duties.insert(
+            child,
+            crate::participation::TravelDuty {
+                voyage: 0,
+                origin: 0,
+                household: Some(account),
+            },
+        );
+        away.social_month();
+        assert_eq!(
+            away.society.as_ref().unwrap().households[account as usize].head,
+            member
+        );
+        assert_eq!(away.people.len(), count);
+        // A ruler's successor must satisfy the existing civilization membership
+        // invariant; appointment must not rewrite a migrant's cultural identity.
+        let mut foreign = baseline.clone();
+        foreign.people[member as usize].civilization = 1;
+        foreign.person_duties.insert(
+            child,
+            crate::participation::TravelDuty {
+                voyage: 0,
+                origin: 0,
+                household: Some(account),
+            },
+        );
+        foreign.social_month();
+        let ruler = foreign.civilizations[0].leader;
+        assert_ne!(ruler, member);
+        assert_eq!(foreign.people[member as usize].civilization, 1);
+        assert_eq!(foreign.people[ruler as usize].civilization, 0);
+        // An existing person can precede the deceased head in identity creation order.
+        let mut older = baseline.clone();
+        older.society.as_mut().unwrap().households[account as usize].head = child;
+        older.people[child as usize].died = Some(1);
+        older.people[old as usize].died = None;
+        older.social_month();
+        assert_eq!(
+            older.society.as_ref().unwrap().households[account as usize].head,
+            member
+        );
+        assert_eq!(older.people[member as usize].predecessor, Some(child));
+        assert!(valid_succession_links(&older.people));
+        // No duplicate successor when two ownership claims need heads in one month.
+        let mut simultaneous = baseline.clone();
+        simultaneous.people[accounts[1].1 as usize].died = Some(1);
+        simultaneous.social_month();
+        assert_eq!(simultaneous.people.len(), count);
+        let heads: Vec<_> = simultaneous
+            .society
+            .as_ref()
+            .unwrap()
+            .households
+            .iter()
+            .map(|a| a.head)
+            .collect();
+        let unique: std::collections::BTreeSet<_> = heads.iter().collect();
+        assert_eq!(unique.len(), heads.len());
+        // No known candidates: use an anonymous elder rather than overidentify adults.
+        let mut empty = baseline;
+        empty.people[member as usize].died = Some(1);
+        empty.people[child as usize].died = Some(1);
+        empty.sites[0].demography.ages[1] = 0.;
+        empty.sites[0].demography.ages[2] = 1.;
+        let mut elder = empty.clone();
+        elder.social_month();
+        let successor = elder.society.as_ref().unwrap().households[account as usize].head;
+        assert_eq!(age_band(1, elder.people[successor as usize].born), Some(2));
+        assert!(!elder
+            .events
+            .iter()
+            .any(|e| e.kind == "succession_identity_overhang"));
+        // The legacy living-head requirement is explicit when even that slot is gone.
+        empty.sites[0].demography.ages[2] = 0.;
+        let mut resumed: History =
+            serde_json::from_slice(&serde_json::to_vec(&empty).unwrap()).unwrap();
+        empty.social_month();
+        resumed.social_month();
+        assert_eq!(
+            serde_json::to_value(&empty).unwrap(),
+            serde_json::to_value(&resumed).unwrap()
+        );
+        assert_eq!(
+            empty
+                .events
+                .iter()
+                .filter(|e| e.kind == "succession_identity_overhang")
+                .count(),
+            1
+        );
     }
     #[test]
     #[ignore = "requires hardware GPU"]

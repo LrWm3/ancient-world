@@ -589,7 +589,9 @@ impl History {
                     && (p.civilization as usize) < self.civilizations.len()
                     && p.born <= self.month as i32
                     && p.died.is_none_or(|d| d <= self.month && d as i32 >= p.born)
-                    && p.predecessor.is_none_or(|id| (id as usize) < i)),
+                    && p.predecessor
+                        .is_none_or(|id| (id as usize) < self.people.len()))
+                && crate::population_registry::valid_succession_links(&self.people),
             "invalid historical figure"
         );
         ensure!(
