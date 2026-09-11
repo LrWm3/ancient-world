@@ -18,7 +18,7 @@ These are communal regional facilities, not placed buildings or privately owned 
 
 GPU fixtures compare equal physical investments in metalworks and kilns: only matching equipment increases tool production beyond household capacity. They also check shared household limits, nonnegative state, material accounting, idle wear, funded construction and checkpoint continuation. Idle investment was refined during implementation: declining demand must not automatically repair every existing facility forever.
 
-Seeds 17, 81 and 256 ran for 100 years at terrain/ecology edge 64 with living environments, discoveries, scarce-island defaults and cost-aware contracts. The current-build control disables only specialized workshops. Arrows show pooled → specialized capacity.
+Seeds 17, 81 and 256 ran for 100 years at terrain/ecology edge 64 with living environments, discoveries, scarce-inner-continent defaults and cost-aware contracts. The current-build control disables only specialized workshops. Arrows show pooled → specialized capacity.
 
 | Seed | Population | Shortage site-years | Tool sufficiency | Dry kg/person, specialized |
 |---|---:|---:|---:|---:|

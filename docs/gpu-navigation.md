@@ -8,7 +8,7 @@ use GPU navigation unless the caller selects the reference again.
 
 ## What moved
 
-- Central-island component labeling, eligible settlement-candidate compaction,
+- Inner-continent component labeling, eligible settlement-candidate compaction,
   and coastal landing compaction. Minimum-cell component IDs remain stable.
 - Road pathfinding, settlement-to-harbor access, harbor-to-harbor sea lanes,
   and expedition paths from the great lake to a dry Ancient World landing.

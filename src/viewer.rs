@@ -1542,11 +1542,11 @@ impl App {
                 .prefix("Radius km "),
         );
         ui.add(egui::Slider::new(&mut self.draft.axial_tilt, 0.0..=90.0).text("Tilt °"));
-        egui::CollapsingHeader::new("Island abundance").show(ui, |ui| {
+        egui::CollapsingHeader::new("Inner-continent abundance").show(ui, |ui| {
             ui.small("Applies when generating a new planet. Existing inventories are preserved.");
             ui.add(
                 egui::Slider::new(&mut self.draft.island_phosphorus_scale, 0.01..=1.)
-                    .text("Island phosphorus"),
+                    .text("Inner-continent phosphorus"),
             );
             ui.add(
                 egui::Slider::new(&mut self.draft.settlement_plot_hectares, 20. ..=5000.)
@@ -1623,7 +1623,7 @@ impl App {
 
     fn civilization_panel(&mut self, ui: &mut egui::Ui) {
         ui.small(
-            "Central-island societies. Living world couples seasonal ecology to social months.",
+            "Societies of the inner continents. Living world couples seasonal ecology to social months.",
         );
         if self.generator.civilizations.is_none() {
             ui.add(
@@ -2120,7 +2120,7 @@ impl App {
                     });
                 if let Some(s) = self.history_selection.and_then(|i| h.sites.get(i)) {
                     ui.label(format!(
-                        "{} · island {} · founded year {}",
+                        "{} · inner continent {} · founded year {}",
                         s.name,
                         s.island,
                         s.founded / 12
@@ -2539,7 +2539,7 @@ impl App {
                         egui::CollapsingHeader::new("Patrons").default_open(true).show(ui, |ui| {
                         for p in &c.patrons { egui::CollapsingHeader::new(&p.name).id_salt(("patron",p.id)).default_open(p.id == 0).show(ui, |ui| {
                             ui.label(format!("{} · origin {} / landing {} / {}",c.catalog.patrons[p.archetype as usize].kind,p.origin,p.landing,h.sites[p.site as usize].name));
-                            ui.label(format!("Return to Ancient World: month {} · {} · aid {:?}",p.departure_month,if p.departed.is_some(){"departed for the Ancient World"}else{"still guiding the island community"},p.effort));
+                            ui.label(format!("Return to Ancient World: month {} · {} · aid {:?}",p.departure_month,if p.departed.is_some(){"departed for the Ancient World"}else{"still guiding the community on the inner continents"},p.effort));
                             ui.small(&c.catalog.patrons[p.archetype as usize].appearance);
                             ui.small(format!("Witnesses: {}", p.witnesses.iter().map(|&id| h.people[id as usize].name.as_str()).collect::<Vec<_>>().join(", ")));
                             if ui.small_button(format!("Read arrival #{}",p.arrival_event)).clicked(){self.history_tab=2; self.history_search=format!("#{}",p.arrival_event);}

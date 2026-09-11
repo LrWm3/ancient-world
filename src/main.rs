@@ -19,7 +19,7 @@ struct Args {
     /// Disable startup systems and their dependents before founding.
     #[arg(long, value_enum, value_delimiter = ',')]
     disable_system: Vec<System>,
-    /// Found this many central-island civilizations (1–16), then optionally evolve history.
+    /// Found this many civilizations on the inner continents (1–16), then optionally evolve history.
     #[arg(long)]
     civilizations: Option<u32>,
     /// Editable patron archetypes for a new founding; the full catalog is archived.
@@ -43,7 +43,7 @@ struct Args {
     /// Establish local offices after enabling governance.
     #[arg(long)]
     offices: bool,
-    /// Enable surveyed inter-island shipping, requiring social history.
+    /// Enable surveyed shipping between the inner continents, requiring social history.
     #[arg(long)]
     shipping: bool,
     /// Enable finite research and rescue voyages (requires shipping and governance).

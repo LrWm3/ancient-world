@@ -142,7 +142,7 @@ epochs do not advance in these experiments. Access policies and catalog changes
 apply at completed boundaries. Ordinary monthly decisions continue in both branches.
 
 Initialization and boundary forcing: Earth-sized default radius/tilt, constrained
-central islands and enclosing continent, procedural geology/climate, declared
+inner continents and enclosing continent, procedural geology/climate, declared
 founding inventories, fixed geological terrain during the social interval. Monthly
 weather and ecology continue. No free tool stocks or aid are injected by the
 mine experiment. Legacy shared ore/clay processing is deliberately retained to

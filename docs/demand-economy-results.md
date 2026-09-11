@@ -1,6 +1,6 @@
 # Demand-driven economy evaluation
 
-Diagnostic terrain/ecology edge 64; monthly living history, scarce-island defaults. Stored goods exclude the separately tracked prepared-food reserve. Dry goods exclude edible raw stocks. Timber and flax growth is controlled at production; their existing stocks are retained. Excess incidental animal byproducts enter recorded compost.
+Diagnostic terrain/ecology edge 64; monthly living history, scarce-inner-continent defaults. Stored goods exclude the separately tracked prepared-food reserve. Dry goods exclude edible raw stocks. Timber and flax growth is controlled at production; their existing stocks are retained. Excess incidental animal byproducts enter recorded compost.
 
 | Seed | Years | Population | Dry kg/person | Wood tonnes | Flax tonnes | Shortage site-years | Deliveries | Residual | Seconds |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|

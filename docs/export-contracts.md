@@ -34,7 +34,7 @@ This increment introduces repeat export customers. Specialized workshop types, p
 
 ## Three paired century runs
 
-Quadro RTX 5000 Max-Q, terrain/ecology edge 64, seeds 17/81/256, living environment and discoveries, scarce-island defaults. The control disables only export contracts; workshop capital and adaptive staffing remain enabled.
+Quadro RTX 5000 Max-Q, terrain/ecology edge 64, seeds 17/81/256, living environment and discoveries, scarce-inner-continent defaults. The control disables only export contracts; workshop capital and adaptive staffing remain enabled.
 
 | Seed | Population control → contracts | Shortage site-years control → contracts | Tool sufficiency control → contracts | Dry kg/person | Installed workshop units |
 |---|---:|---:|---:|---:|---:|

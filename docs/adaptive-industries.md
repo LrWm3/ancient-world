@@ -1,6 +1,6 @@
 # Adaptive industrial staffing
 
-Towns now reassign workers toward feasible work instead of reserving fixed industrial shares after those industries have filled their orders. This extends demand-driven production; it does not change crop yields, island fertility, market funding, or storage limits.
+Towns now reassign workers toward feasible work instead of reserving fixed industrial shares after those industries have filled their orders. This extends demand-driven production; it does not change crop yields, inner-continent fertility, market funding, or storage limits.
 
 The GPU forecasts forestry, shared ore/clay extraction and recipes from orders, known techniques, existing materials, finite reserves and available storage. Shared ingredients are reserved once in the forecast. Feasible intermediate products can support subsequent jobs. Actual production still checks every material and labor limit; forecasts do not create inventory. Monthly rotation and gradual reassignment avoid permanent recipe priority and abrupt staffing changes.
 
@@ -12,7 +12,7 @@ New worlds enable `production.adaptive_labor`. Missing settings in archived cata
 
 ## Paired histories
 
-Quadro RTX 5000 Max-Q, diagnostic terrain/ecology edge 64, seeds 17/81/256, 100 years, living environment, discoveries, scarce-island defaults. These are whole histories: changing employment also changes later demography and political opportunities.
+Quadro RTX 5000 Max-Q, diagnostic terrain/ecology edge 64, seeds 17/81/256, 100 years, living environment, discoveries, scarce-inner-continent defaults. These are whole histories: changing employment also changes later demography and political opportunities.
 
 | Seed | Population fixed → adaptive | Shortage site-years fixed → adaptive | Dry kg/person adaptive | Unused craft share fixed → adaptive |
 |---|---:|---:|---:|---:|
@@ -22,7 +22,7 @@ Quadro RTX 5000 Max-Q, diagnostic terrain/ecology edge 64, seeds 17/81/256, 100 
 
 Craft shares are final-month unused/allocated craft labor, not annual unemployment. Farming occupies 91–97% of final-month allocated labor in these adaptive histories. Raw edible inventories are excluded from dry storage figures; prepared food has its own ledger. Between years 50 and 100, dry inventories per resident rose only from 10.41 to 10.48, 10.94 to 11.10, and 10.37 to 10.56 kg. Maximum observed relative accounting residual across both policies was below 2.45e-5.
 
-Adaptive staffing improves utilization and supports more people in these seeds, but does not eliminate scarcity. Shortages increased in two seeds, and tool sufficiency in seed 256 fell from 100% to 98.4%. The outcomes do not justify increasing island abundance. Spare craft capacity remains because staffing changes gradually, seasonal needs vary and the forecast can differ from actual completion.
+Adaptive staffing improves utilization and supports more people in these seeds, but does not eliminate scarcity. Shortages increased in two seeds, and tool sufficiency in seed 256 fell from 100% to 98.4%. The outcomes do not justify increasing Inner-continent abundance. Spare craft capacity remains because staffing changes gradually, seasonal needs vary and the forecast can differ from actual completion.
 
 Artifacts: `output/adaptive-staffing.json`, `output/fixed-staffing.json`, their saved worlds, and `output/adaptive-staffing-analysis.md`. Each adaptive run took 60–74 seconds; controls took 51–71 seconds. Runs overlapped other workloads, so these are elapsed observations, not isolated GPU benchmarks. Recorded adaptive history-stage totals were 19.7–22.1 seconds for social processing/validation and 13.2–14.9 seconds for production/readback. Social processing remains the largest of those measured history stages; these timings do not isolate the staffing shader cost.
 

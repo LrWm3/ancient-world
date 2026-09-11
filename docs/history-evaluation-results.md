@@ -80,7 +80,7 @@ Final-default detailed reports: [five founders](../output/history-tuned-five.md)
 cargo run -- --load output/civilization-mild.world
 ```
 
-## Inter-island shipping
+## Intercontinental shipping
 
 The next implementation adds [surveyed lake shipping](shipping.md), with material-funded harbors, shared cargo reservations, closure policies and actual trade contacts feeding diplomacy. Construction consumes existing goods; wear, cargo and money remain in the conservation ledgers. Initial port surveys prefer settlements with available construction reserves, which matters when importing old worlds with exhausted founding towns.
 
@@ -109,7 +109,7 @@ The year-400 `civilization-mild.world` archive exposed a placement defect in the
 | First-settlement prototype | 3365 | 1 | 0 | 0 |
 | Construction-reserve selection | 3361 | 2 | 344 | 8 |
 
-This is a port-placement comparison, not a shipping-on/off attribution of the century's population decline. The other three islands remain short of tools and cannot commission ports. Even the working ports lose capacity when replacement tools become scarce. The final managed conservation residuals remain below 4.65e-5 relative; no construction inventory is supplied artificially.
+This is a port-placement comparison, not a shipping-on/off attribution of the century's population decline. The other three inner continents remain short of tools and cannot commission ports. Even the working ports lose capacity when replacement tools become scarce. The final managed conservation residuals remain below 4.65e-5 relative; no construction inventory is supplied artificially.
 
 The earlier state is retained in `output/civilization-shipping-first-host.history.json`; the final state and events are in `output/civilization-shipping.history.json`. The final archive and desktop capture are `output/civilization-shipping.world` and `output/civilization-shipping.png`. Interactive UI checks additionally exercised the lane checkbox and observed the resulting `sea_lane_policy` event; captures are `output/shipping-inspector.png` and `output/shipping-inspector-closed.png`. That UI intervention was not saved into the example worlds.
 

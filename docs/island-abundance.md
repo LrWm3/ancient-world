@@ -1,13 +1,13 @@
-# Island abundance calibration
+# Inner-continent abundance calibration
 
-The previous realism pass bounded storage, but most islands still produced enough food to fill it. This pass separates finite natural nutrient supply, accessible settlement land, and attainable crop harvests.
+The previous realism pass bounded storage, but most inner continents still produced enough food to fill it. This pass separates finite natural nutrient supply, accessible settlement land, and attainable crop harvests.
 
 ## Controls
 
-New-world configuration and the explorer's **Island abundance** panel expose:
+New-world configuration and the explorer's **Inner-continent abundance** panel expose:
 
-- `island_phosphorus_scale`: scales initial island soil/detritus phosphorus and the phosphorus concentration used for island geological sources and subsequent geological imports. Rock, soil, water and climate distributions still vary geographically. Mixed ecological cells aggregate the scaled chemistry by actual land area. Outer land and aquatic starting inventories retain their previous rules. Nutrients arriving later through transport remain real transfers.
-- `settlement_plot_hectares`: caps each town's accessible managed footprint, formerly 5,000 hectares. The smaller reservation contains proportionally less woodland, ore, clay, soil nutrients and water. Unclaimed material stays in the surrounding ecology; founding does not delete it. The existing labor limit still controls cultivated area. This is an accessible local catchment, not a new bound on the island's total land area.
+- `island_phosphorus_scale`: scales initial inner continent soil/detritus phosphorus and the phosphorus concentration used for inner continent geological sources and subsequent geological imports. Rock, soil, water and climate distributions still vary geographically. Mixed ecological cells aggregate the scaled chemistry by actual land area. Outer land and aquatic starting inventories retain their previous rules. Nutrients arriving later through transport remain real transfers.
+- `settlement_plot_hectares`: caps each town's accessible managed footprint, formerly 5,000 hectares. The smaller reservation contains proportionally less woodland, ore, clay, soil nutrients and water. Unclaimed material stays in the surrounding ecology; founding does not delete it. The existing labor limit still controls cultivated area. This is an accessible local catchment, not a new bound on the inner continent's total land area.
 - `crop_yield_scale`: attainable managed crop production relative to the previous potential. It reduces production before nutrient/water uptake and ledger accounting. It does not remove harvested stocks, reduce incoming sunlight, or change the wild vegetation shader. Climate, soil, tools, labor, crop seasons and drought still determine actual yields.
 
 Archives save these settings. Missing fields in older archives restore the old values (1, 5,000 ha, 1), preserving their existing rules and inventory. The explorer applies abundance changes when generating a new planet; it does not retroactively drain existing stocks. The evaluator accepts matching `--island-phosphorus-scale`, `--settlement-plot-hectares` and `--crop-yield-scale` overrides.
@@ -18,11 +18,11 @@ Each trial uses seeds 17, 81 and 256, 64 cells per face for terrain and ecology,
 
 The first trial reduced phosphorus to 0.25 and plots to 160 hectares. It reduced managed phosphorus stocks substantially, but food reserves remained full and no shortages occurred. A 60-hectare trial introduced some scarcity (four food crises on seed 81, one on seed 256), but constraining land alone was insufficient across all seeds. The next two trials retained 160-hectare plots and compared attainable crop yields of 0.65 and 0.50.
 
-Lower phosphorus by itself barely changes standing wild plant carbon in this interval: phosphorus still exceeds plant demand in many places. The change reduces source inventories; it does not establish a phosphorus-limited wild ecosystem or create barren islands. Longer ecological histories and geological supply calibration remain necessary for that separate outcome.
+Lower phosphorus by itself barely changes standing wild plant carbon in this interval: phosphorus still exceeds plant demand in many places. The change reduces source inventories; it does not establish a phosphorus-limited wild ecosystem or create barren inner continents. Longer ecological histories and geological supply calibration remain necessary for that separate outcome.
 
 ## Verification
 
-GPU checks compare initial inventories at matching and coarse ecology resolutions: island phosphorus decreases, C/N are unchanged, and cells containing no island land retain identical starting inventories. Budget checks cover subsequent transfers. Configuration tests reject out-of-range/nonfinite settings and verify old-archive defaults. Seed histories validate their ledgers annually.
+GPU checks compare initial inventories at matching and coarse ecology resolutions: inner continent phosphorus decreases, C/N are unchanged, and cells containing no inner continent land retain identical starting inventories. Budget checks cover subsequent transfers. Configuration tests reject out-of-range/nonfinite settings and verify old-archive defaults. Seed histories validate their ledgers annually.
 
 The existing plot-withdrawal fixture explicitly uses its former 5,000-hectare diagnostic withdrawal: subtracting two whole-planet float32 inventories cannot accurately measure a tiny local nitrogen withdrawal to within 0.5% of that withdrawal. No solver budget tolerance was relaxed. The smaller real-world plots are covered by annual history and ecology ledgers in the seed trials.
 
@@ -61,7 +61,7 @@ Use crop yield 1 for the first two resource-only trials, with plots 160/60 ha re
 
 Two older non-seasonal civilization fixtures explicitly keep abundant settings because their purpose requires daughter towns and surplus relief donors. They start history directly from minimally initialized terrain; spontaneous expansion is no longer guaranteed under the new scarcity settings. Full generated, seasonal histories with the selected settings are evaluated separately above. Their conservation/checkpoint assertions were not relaxed.
 
-The final settings were also tested with five founders (one per island): seed 17 ends with 1,497 residents and eight towns, seed 81 with 1,508 and eleven, and seed 256 with 1,499 and ten. They record six, six and five food crises respectively, with no wars. All three retain active trade and viable populations. These additional runs bring validation to fifteen century-long trial histories. [Sparse-founder report](../output/island-abundance-sparse.md).
+The final settings were also tested with five founders (one per inner continent): seed 17 ends with 1,497 residents and eight towns, seed 81 with 1,508 and eleven, and seed 256 with 1,499 and ten. They record six, six and five food crises respectively, with no wars. All three retain active trade and viable populations. These additional runs bring validation to fifteen century-long trial histories. [Sparse-founder report](../output/island-abundance-sparse.md).
 
 The specimen-accounting fixtures also retain deliberately abundant supply settings so they can launch repeated voyages to the same finite outcrop. With the new defaults, one sponsor legitimately cannot afford that second expedition; changing the simulation to guarantee it would defeat the scarcity change. Its source-depletion, nutrient accounting and checkpoint assertions remain intact. New-default expedition affordability is exercised by the fifteen trial histories.
 

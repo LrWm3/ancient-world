@@ -24,17 +24,17 @@ Residents exclude expedition crews away. Deliveries and treaties are cumulative 
 
 ## Central civilization structure: working, growth too uniform
 
-Every permanent settlement in every saved world occupies the central-island geographic class. Every surveyed expedition endpoint occupies the enclosing continent. Temporary expedition camps remain distinct from permanent settlements.
+Every permanent settlement in every saved world occupies the inner-continent geographic class. Every surveyed expedition endpoint occupies the enclosing continent. Temporary expedition camps remain distinct from permanent settlements.
 
 All four sparse runs end with exactly three towns on each of five islands, and three towns per polity. Dense seed 17 has 3, 3, 12, 15 and 15 towns on its five islands; each of its sixteen polities still administers exactly three towns. Dense seed 81 has 6, 6, 9, 12 and 14 towns: one polity has two towns, the other fifteen have three.
 
-Thus multi-town governments and multiple polities per island work. However, the near-uniform two daughter villages per founder and narrow population range indicate that expansion thresholds and demographic schedules dominate geographic/economic variation in these runs. Town count is not yet a rich emergent settlement hierarchy.
+Thus multi-town governments and multiple polities per inner continent work. However, the near-uniform two daughter villages per founder and narrow population range indicate that expansion thresholds and demographic schedules dominate geographic/economic variation in these runs. Town count is not yet a rich emergent settlement hierarchy.
 
 Genealogy and institutions are active: sparse worlds have 376–384 recorded marriages and 1,052–1,066 people with recorded parents; dense worlds have 1,228–1,238 marriages and 3,413–3,436 with recorded parents. Successions, inheritance and faction shifts occur. These counts show functioning records and transitions; they do not establish that individual personalities or family rivalries drive major history.
 
 ## Markets and politics: responsive under pressure, quiet otherwise
 
-Inter-island commerce and denser international networks operate. The six ordinary worlds have no recorded food crises, no annual shortage site-years and no wars. Their ending aggregate food stocks correspond to roughly **15.5–18.4 years of demand** using the market's 18 kg/person/month reserve convention. This is a stock-to-demand ratio, not a claim that individual food batches are that old. It suggests that generous buffers can suppress the material pressures meant to differentiate histories.
+Intercontinental commerce and denser international networks operate. The six ordinary worlds have no recorded food crises, no annual shortage site-years and no wars. Their ending aggregate food stocks correspond to roughly **15.5–18.4 years of demand** using the market's 18 kg/person/month reserve convention. This is a stock-to-demand ratio, not a claim that individual food batches are that old. It suggests that generous buffers can suppress the material pressures meant to differentiate histories.
 
 The severe-drought control produces 14 food crises, three wars, three governance crises, three secessions and six annually observed controller changes. One explicit chain is:
 
@@ -64,7 +64,7 @@ Useful next content should respond to actual unmet needs and produce observable 
 
 ## Ecological distinction: partial support, not yet the full intended scale
 
-Endpoint area-weighted terrestrial producer carbon on the enclosing continent is approximately **1.71–1.91×** the central-island average across the four fresh geographies. Central shallow/deep underground producer biomass is zero; the outer continent retains both underground layers. This supports a regional ecological distinction.
+Endpoint area-weighted terrestrial producer carbon on the enclosing continent is approximately **1.71–1.91×** the inner-continent average across the four fresh geographies. Central shallow/deep underground producer biomass is zero; the outer continent retains both underground layers. This supports a regional ecological distinction.
 
 However, geochemical production is only **0.069–0.111%** of total outer terrestrial photosynthetic-plus-chemosynthetic production at these endpoints. About **1.6–2.5% of outer land area** has at least a 10% geochemical share, with a small absolute-production floor to exclude numerical near-zero ratios. A large share in a low-productivity cell does not imply a lush hotspot. Average outer underground carbon is only **0.00081–0.00108 kg/m²**, roughly 0.09–0.13% of its terrestrial producer biomass.
 

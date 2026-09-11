@@ -4,7 +4,7 @@
 
 **Current status:** new societies now use [managed farming, crafts and markets](../economy.md). This page describes the original version-one beta, which old saves can still resume until explicitly upgraded. The new model supersedes the food-proxy and frozen-farm limitations below.
 
-Central-island societies now have a runnable history loop: found villages, grow food, consume stores, grow or lose population, send relief, establish daughter settlements, replace leaders, and record dated events. The enclosing continent remains uninhabited.
+Inner-continent societies now have a runnable history loop: found villages, grow food, consume stores, grow or lose population, send relief, establish daughter settlements, replace leaders, and record dated events. The enclosing continent remains uninhabited.
 
 ## Try it
 
@@ -22,7 +22,7 @@ cargo run --release -- --headless --load output/civilizations.world \
 cargo run --release -- --load output/continued.world
 ```
 
-`--civilizations` accepts 1–16 founders and is only used once per world. Founders preferentially occupy separate connected central islands, subject to suitable dry agricultural land. Failure to find enough sites is reported. Regenerating a world starts a new environmental and social baseline.
+`--civilizations` accepts 1–16 founders and is only used once per world. Founders preferentially occupy separate connected inner continents, subject to suitable dry agricultural land. Failure to find enough sites is reported. Regenerating a world starts a new environmental and social baseline.
 
 ## Model and accounting
 
@@ -30,7 +30,7 @@ A GPU survey evaluates central land, climate, soil, water and elevation. GPU mon
 
 Population is a continuous cohort measured in population equivalents, not discrete individuals. Each founder starts with 120 people and twelve months of food. Monthly requirements are 18 kg food per person; cultivation is limited by labor and available farmland. Climate-derived crop yield receives reproducible monthly variation. Food spoils at 1% per month. Shortages reduce births and increase mortality. Settlements below one population equivalent become ruins.
 
-Annual decisions can send surplus food to needy settlements on the same island, with distance-based arrival delays and food reserved in transit. These are relief shipments, not priced market trade. Prosperous settlements can transfer 60 people and starting food into a nearby daughter settlement. Founding transfers happen at the annual boundary; migrant travel is not simulated yet. Named leadership records retain predecessor and death links, but stand for offices within the aggregate population rather than additional residents.
+Annual decisions can send surplus food to needy settlements on the same inner continent, with distance-based arrival delays and food reserved in transit. These are relief shipments, not priced market trade. Prosperous settlements can transfer 60 people and starting food into a nearby daughter settlement. Founding transfers happen at the annual boundary; migrant travel is not simulated yet. Named leadership records retain predecessor and death links, but stand for offices within the aggregate population rather than additional residents.
 
 The food ledger reconciles initial stocks plus production against consumption, spoilage, stored food and cargo in transit. The population ledger reconciles initial cohorts, births and deaths; founding migration transfers existing population. Relative residuals are displayed and validation rejects errors above 0.1%. Stocks must remain finite and nonnegative. Transactional history advancement commits only after validation, and seeded decisions depend on simulated time rather than execution speed.
 
@@ -38,7 +38,7 @@ The food ledger reconciles initial stocks plus production against consumption, s
 
 The environmental snapshot freezes when civilizations are founded. Geological advancement, ecology advancement and ecological scenario changes are rejected thereafter. Social years have their own monthly clock. Farm production is an agricultural proxy with a food budget; it does **not** yet withdraw carbon, nitrogen, phosphorus or water from planetary ecology. Monthly yield variation is not a live weather or crop-season simulation.
 
-Island connectivity derives from the terrain grid; this is not yet a canonical cross-resolution island identity. Routes use same-island membership and spherical distance, not roads or terrain pathfinding. Settlements are regional records, not generated buildings or excavatable local sites. There are no families, occupations, manufactured goods, money, inter-island shipping, diplomacy, warfare, religions or artifacts yet. These are tracked in the [civilization roadmap](civilizations.md).
+Island connectivity derives from the terrain grid; this is not yet a canonical cross-resolution island identity. Routes use same-continent membership and spherical distance, not roads or terrain pathfinding. Settlements are regional records, not generated buildings or excavatable local sites. There are no families, occupations, manufactured goods, money, intercontinental shipping, diplomacy, warfare, religions or artifacts yet. These are tracked in the [civilization roadmap](civilizations.md).
 
 Current bounds are 256 settlements, 2,048 separated founding candidates, 16 initial societies, 200,000 events, 1,000 years per advancement call and 10,000 years total. GPU allocation and individual buffer limits are checked before the survey. Sparse history uses host memory. Version-two world archives gain an optional version-one civilization section; older version-two worlds load without societies. The checksum includes history, and the maximum JSON header is 64 MiB. Invalid references, stocks, geography and provenance are rejected on load.
 

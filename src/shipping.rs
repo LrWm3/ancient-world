@@ -293,7 +293,10 @@ impl Shipping {
                 ];
                 ports.sort();
                 endpoints.sort();
-                ensure!(ports == endpoints, "maritime cargo uses unrelated islands");
+                ensure!(
+                    ports == endpoints,
+                    "maritime cargo uses unrelated inner continents"
+                );
             }
         }
         Ok(())

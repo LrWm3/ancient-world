@@ -69,7 +69,11 @@ impl Navigation {
         let rw = wgpu::BufferUsages::STORAGE
             | wgpu::BufferUsages::COPY_SRC
             | wgpu::BufferUsages::COPY_DST;
-        let distances = make("Navigation distances / island roots", count * 4, rw);
+        let distances = make(
+            "Navigation distances / inner-continent roots",
+            count * 4,
+            rw,
+        );
         let qa = make("Navigation frontier A", count * 4, rw);
         let qb = make("Navigation frontier B", count * 4, rw);
         let marks = make("Navigation frontier deduplication", count * 4, rw);
@@ -314,7 +318,7 @@ impl Navigation {
                 return Ok(());
             }
         }
-        anyhow::bail!("island labeling did not converge")
+        anyhow::bail!("inner-continent labeling did not converge")
     }
 }
 impl Generator {

@@ -18,7 +18,7 @@ mise exec rust@1.89.0 -- cargo run --release
 The explorer starts paused. Use **Evolve** or **Step** to advance generation. Drag
 the globe to orbit, drag the atlas to pan, scroll to zoom, and select a cell to
 inspect it. Defaults can be expensive; start with a smaller resolution if needed.
-Open **Civilizations beta** to experiment with island histories. New histories enable optional systems by default; expand **Optional systems** before
+Open **Civilizations beta** to experiment with histories on the inner continents. New histories enable optional systems by default; expand **Optional systems** before
 founding to change them.
 
 ```sh

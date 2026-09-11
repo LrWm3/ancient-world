@@ -1,6 +1,6 @@
 # Patron history acceptance results
 
-Evaluation runs use monthly living environments at terrain/ecology edge 64, sixteen initial arriving communities, and the existing scarce-island defaults. These are diagnostic history runs, not production-resolution GPU benchmarks. Local concurrent workloads affect wall times.
+Evaluation runs use monthly living environments at terrain/ecology edge 64, sixteen initial arriving communities, and the existing scarce-inner-continent defaults. These are diagnostic history runs, not production-resolution GPU benchmarks. Local concurrent workloads affect wall times.
 
 ## 200-year seed suite
 
@@ -103,7 +103,7 @@ Seed 81 reached the explicit 256-tradition capacity by year 500; further schisms
 
 ## Calibration
 
-The earlier `patron-transmission-long` histories fell to 40 and 95 people at year 500. Controlled continuations from the same seed-17 year-200 archive isolated an unsustainably high nitrogen-fixation energy cost. Over the next century, the old-cost control reached 1,346 people, finite tool recycling alone reached 1,375, and the calibrated fixation cost plus recycling reached 5,639. The last intervention had a maximum final residual of 1.55e-5. This is a regional game calibration: fixation still consumes production energy and atmospheric nitrogen is recorded as an external input. It is not a general island fertility multiplier.
+The earlier `patron-transmission-long` histories fell to 40 and 95 people at year 500. Controlled continuations from the same seed-17 year-200 archive isolated an unsustainably high nitrogen-fixation energy cost. Over the next century, the old-cost control reached 1,346 people, finite tool recycling alone reached 1,375, and the calibrated fixation cost plus recycling reached 5,639. The last intervention had a maximum final residual of 1.55e-5. This is a regional game calibration: fixation still consumes production energy and atmospheric nitrogen is recorded as an external input. It is not a general inner-continent fertility multiplier.
 
 The cost is editable as `fixation_cost_kg` in the agriculture catalog. Old catalogs retain 80; new worlds use 12. Worn tools recover 90% as scrap, and remelting with fuel recovers 90% of that metal. Both stages retain irreversible losses. Raw control files are `output/patron-recycling-control.json`, `output/patron-recycling-intervention.json`, and `output/patron-nitrogen-intervention.json`.
 

@@ -18,7 +18,7 @@ Fixtures exercise rejected and accepted quotes, margin and cash limits, expiry r
 
 ## Three paired century runs
 
-Seeds 17, 81 and 256 used terrain/ecology edge 64, living-world evolution, discoveries and scarce-island defaults on the Quadro RTX 5000 Max-Q. The control disables only supplier profitability. Arrows show control → cost-aware quotes.
+Seeds 17, 81 and 256 used terrain/ecology edge 64, living-world evolution, discoveries and scarce-inner-continent defaults on the Quadro RTX 5000 Max-Q. The control disables only supplier profitability. Arrows show control → cost-aware quotes.
 
 | Seed | Population | Shortage site-years | Tool sufficiency | Funding episodes | Dry kg/person, quotes |
 |---|---:|---:|---:|---:|---:|

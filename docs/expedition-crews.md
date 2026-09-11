@@ -63,7 +63,7 @@ Crews use shared person IDs and ownership-household membership. Recruitment chec
 presence, existing work commitments, leadership exclusions and domestic care needs.
 Sparse-population worlds may explicitly identify existing unnamed adults without
 adding population. There is still no sailing-storm or inland tactical route model.
-Permanent colonization is outside the island civilizations' intended scope;
+Permanent colonization is outside the civilizations of the inner continents' intended scope;
 separate Ancient World civilizations remain undecided (see
 [civilization scope](civilizations.md)).
 

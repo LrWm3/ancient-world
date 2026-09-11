@@ -732,7 +732,7 @@ impl History {
                 .get(&site.island)
                 .filter(|v| !v.is_empty())
                 .ok_or_else(|| {
-                    anyhow::anyhow!("no accessible island landing for founding group {i}")
+                    anyhow::anyhow!("no accessible inner-continent landing for founding group {i}")
                 })?;
             let landing = *coasts
                 .iter()
@@ -781,7 +781,7 @@ impl History {
                 site.economy.goods[3],
             );
             let sid = site.id;
-            self.event("patron_arrival",Some(sid),None,format!("{patron_name} guided {population:0.0} people from ancient region {origin} to island landing {landing}; voyage recorded as prologue. The guide's mandate is unknown."));
+            self.event("patron_arrival",Some(sid),None,format!("{patron_name} guided {population:0.0} people from ancient region {origin} to inner-continent landing {landing}; voyage recorded as prologue. The guide's mandate is unknown."));
             let ev = self.events.last().unwrap().id;
             self.events.last_mut().unwrap().subjects = vec![
                 ("patron".into(), i as u32),
@@ -1860,7 +1860,7 @@ impl Culture {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
-        // Completed cargo journeys carry actual inter-island contact, including
+        // Completed cargo journeys carry actual contact between inner continents, including
         // contact within the same tradition. Reverse teaching uses the same route.
         let mut deliveries = BTreeMap::new();
         for e in h

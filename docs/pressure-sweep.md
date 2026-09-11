@@ -4,7 +4,7 @@ Historical baseline: the lifecycle and post-collapse event fixes that followed t
 
 **Yes: the existing simulation can produce selective town collapse and complete demographic wipeouts without changing the abandonment rule.** Crop yield is the clearest difficulty control; land limits mainly change sustainable town size. Extreme tests also exposed incomplete post-collapse social cleanup and frontier-route validation failures.
 
-This experiment changes scenario configuration, not production, mortality, migration, or abandonment rules. The baseline retains specialized workshops, cost-aware export contracts, discoveries, shipping, living environments, and scarce-island defaults. Each world starts with 16 communities (1,920 population equivalents) on diagnostic terrain/ecology edge 64. Seeds are 17, 81 and 256.
+This experiment changes scenario configuration, not production, mortality, migration, or abandonment rules. The baseline retains specialized workshops, cost-aware export contracts, discoveries, shipping, living environments, and scarce-inner-continent defaults. Each world starts with 16 communities (1,920 population equivalents) on diagnostic terrain/ecology edge 64. Seeds are 17, 81 and 256.
 
 ## What counts as collapse
 

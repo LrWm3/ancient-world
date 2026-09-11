@@ -1,4 +1,4 @@
-//! Finite household journeys between existing communities on the same island.
+//! Finite household journeys between existing communities on the same inner continent.
 use crate::{civilization::History, economy::FOOD_CNP};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};

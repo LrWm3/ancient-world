@@ -15,7 +15,7 @@ Repeated validation preserves that first observation instead of overwriting it
 with zero. Action/category counts can overlap and do not represent distinct lost
 executed actions. Zero-grant bundles are excluded from cancellation-rate counts.
 
-Use the existing scarce-island default crop yield of 0.5, 16 initial civilizations,
+Use the existing scarce-inner-continent default crop yield of 0.5, 16 initial civilizations,
 one geological epoch, terrain edge 32 and ecology edge 16. Society, politics,
 governance, offices, shipping, expeditions, discoveries and living history are
 explicitly enabled. Other settings retain bundled defaults. Samples are taken every

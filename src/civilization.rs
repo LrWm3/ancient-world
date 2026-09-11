@@ -1067,7 +1067,7 @@ impl Generator {
             )?;
             let scores = bytemuck::cast_slice::<u8, [f32; 4]>(&bytes);
             let n = self.config.resolution;
-            // Sparse central-island connectivity and site selection use CPU graph traversal.
+            // Sparse inner-continent connectivity and site selection use CPU graph traversal.
             let mut islands = vec![u32::MAX; scores.len()];
             for start in 0..scores.len() {
                 if scores[start][3] != 2. || islands[start] != u32::MAX {
@@ -1174,7 +1174,7 @@ impl Generator {
         }
         ensure!(
             h.candidates.len() >= count as usize,
-            "not enough habitable central-island sites"
+            "not enough habitable sites on the inner continents"
         );
         h.event(
             "humanity_banished",

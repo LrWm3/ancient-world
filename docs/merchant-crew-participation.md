@@ -70,7 +70,7 @@ funding, fractional progress, missed intervals and opening idempotence.
   its allowance. No cash prevents hiring. Experienced eligible workers receive
   hiring priority. Death after reservation removes completed work and experience
   while retaining the prepaid household wage. Repeated settlement adds nothing.
-- The shipping integration test passes with actual inter-island cargo, endpoint
+- The shipping integration test passes with actual intercontinental cargo, endpoint
   reservations, lane closures and checkpoint continuation. All four discovery
   integration tests also pass with the new staffing path.
 - The regular library suite passes 104 tests (93 hardware-dependent tests skipped

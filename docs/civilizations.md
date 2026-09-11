@@ -1,7 +1,7 @@
 # Civilization history: current guide
 
-The simulated island civilizations establish permanent settlements only on the
-central islands by design. Permanent colonization of the Ancient World by
+Human settlements remain on the inner continents—the landmasses within the
+great lake—by design. Permanent colonization of the Ancient World by
 these civilizations is not a project goal. Expeditions and temporary camps provide
 contact with the Ancient World within that setting rule.
 
@@ -24,7 +24,7 @@ individual local gameplay.
 | Specialized industry, finite sources and processing | [Workshops](specialized-workshops.md), [shared resources](shared-resources.md), [minerals](mineral-processing.md), [alloys](alloy-processing.md) |
 | Families, factions, administration and conflict | [Society](society.md), [politics](politics.md), [governance](governance.md) |
 | Town condition, hardship and evacuation | [Site assets](site-assets.md), [social indicators](social-indicators.md), [lifecycle](settlement-lifecycle.md), [relocation](household-relocation.md) |
-| Markets, procurement and inter-island transport | [Shipping](shipping.md), [contracts](export-contracts.md), [supplier quotes](supplier-quotes.md) |
+| Markets, procurement and intercontinental transport | [Shipping](shipping.md), [contracts](export-contracts.md), [supplier quotes](supplier-quotes.md) |
 | Patrons, beliefs, institutions and objects | [Foundings](patron-foundings.md), [institution capacity](institution-capacity.md) |
 | Witnessed help, reciprocal aid and dated knowledge | [Appeals](witnessed-relief.md), [religious relief](religious-relief.md) |
 | Ancient World expeditions and modest cultural finds | [Expeditions](expeditions.md), [specimens](discoveries.md), [heritage](heritage-expeditions.md) |

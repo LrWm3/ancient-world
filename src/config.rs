@@ -64,7 +64,7 @@ impl Config {
         );
         ensure!(
             (0.01..=1.).contains(&self.island_phosphorus_scale),
-            "island phosphorus scale must be 0.01–1"
+            "inner-continent phosphorus scale must be 0.01–1"
         );
         ensure!(
             (20. ..=5000.).contains(&self.settlement_plot_hectares),

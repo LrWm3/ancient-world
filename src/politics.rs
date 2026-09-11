@@ -370,7 +370,7 @@ impl History {
         }
         if rebuild {
             // Bounded regional claims: occupied cells, dry immediate hinterland and
-            // surveyed road corridors. Unexplored island interiors remain unclaimed.
+            // surveyed road corridors. Unexplored inner-continent interiors remain unclaimed.
             let mut claims: BTreeMap<u32, BTreeSet<u32>> = BTreeMap::new();
             for s in &self.sites {
                 claims.entry(s.cell).or_default().insert(s.id);

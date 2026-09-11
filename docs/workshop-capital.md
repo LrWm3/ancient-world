@@ -32,7 +32,7 @@ Calibration rejected a backlog-only investment rule: the first seed-17 pilot ins
 
 ## Final paired results
 
-Quadro RTX 5000 Max-Q; diagnostic terrain/ecology edge 64; living environment, discoveries and scarce-island defaults; 100 years per seed. Both policies use demand orders and adaptive staffing.
+Quadro RTX 5000 Max-Q; diagnostic terrain/ecology edge 64; living environment, discoveries and scarce-inner-continent defaults; 100 years per seed. Both policies use demand orders and adaptive staffing.
 
 | Seed | Population control → workshops | Shortage site-years control → workshops | Dry kg/person | Installed units | Tool sufficiency control → workshops |
 |---|---:|---:|---:|---:|---:|

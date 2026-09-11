@@ -42,7 +42,7 @@ The current human migration path creates daughter settlements from populous, wel
 The next bounded implementation should therefore:
 
 1. Trigger relocation interest from repeated monthly hardship or sustained flood exposure; use seasonal history rather than year-end shortage alone.
-2. Find reachable, inhabited central-island destinations with spare food and productive capacity. Require travel provisions and transport capacity; an attractive destination is not automatically an accessible refuge.
+2. Find reachable, inhabited inner-continent destinations with spare food and productive capacity. Require travel provisions and transport capacity; an attractive destination is not automatically an accessible refuge.
 3. Move actual cohorts/households with finite belongings and costs. Preserve genealogy, affiliation and ownership records; avoid copying people, goods or money.
 4. Allow receiving communities to become crowded, refuse entry or struggle themselves. Evacuation should not guarantee survival or create food.
 5. Compare relocation enabled/disabled at yield 0.33 over 200 years: deaths, migration, premature abandonment, destination crowding, seasonal hunger, conservation and checkpoint continuation.

@@ -1,6 +1,6 @@
 # Patron foundings and living traditions
 
-New histories now start with named guides accompanying the initial human communities from the Ancient World. The voyage is a recorded prologue; settlements and daughter towns remain on the central islands. Existing histories receive an explicitly identified cultural baseline, without invented witnesses or retroactive patrons.
+New histories now start with named guides accompanying the initial human communities from the Ancient World. The voyage is a recorded prologue; settlements and daughter towns remain on the inner continents. Existing histories receive an explicitly identified cultural baseline, without invented witnesses or retroactive patrons.
 
 ## Running and inspecting
 

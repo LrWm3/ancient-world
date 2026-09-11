@@ -1,8 +1,8 @@
-# Central-island civilizations: implementation roadmap
+# Inner-continent civilizations: implementation roadmap
 
 > **Archived design / legacy reference — 2026-09-09.** This preserves the original proposal and its historical limitations; it is not the current implementation status or an active task list. See the [current civilization guide](../civilizations.md) and [documentation index](../README.md).
 
-Status: the [first civilization beta](civilization-beta.md) implements central-island founding, GPU habitat/food/demography, expansion, food relief, succession, events, inspection and persistence. The [economic expansion](../economy.md) now adds reserved ecological plots, nutrient-limited farming, labor, finite extraction, five craft recipes and paid same-island markets. The opt-in [social history extension](../society.md) adds age cohorts, seasonal grain, household shares and inheritance, terrain routes, councils, roads and provisioned raids. The optional [political extension](../politics.md) now records genealogy and marriages, competing council factions, regional territorial claims and provisioned conquest/repulse campaigns. The [governance extension](../governance.md) adds administrative wages, autonomy, legitimacy, secession and non-aggression agreements. The milestones below are archived ideas, not an active roadmap; complete individual demography, full crop/livestock catalogs, continuous planetary feedback, cultures, tactical/multi-front warfare and inter-island trade remain unimplemented.
+Status: the [first civilization beta](civilization-beta.md) implements inner-continent founding, GPU habitat/food/demography, expansion, food relief, succession, events, inspection and persistence. The [economic expansion](../economy.md) now adds reserved ecological plots, nutrient-limited farming, labor, finite extraction, five craft recipes and paid same-continent markets. The opt-in [social history extension](../society.md) adds age cohorts, seasonal grain, household shares and inheritance, terrain routes, councils, roads and provisioned raids. The optional [political extension](../politics.md) now records genealogy and marriages, competing council factions, regional territorial claims and provisioned conquest/repulse campaigns. The [governance extension](../governance.md) adds administrative wages, autonomy, legitimacy, secession and non-aggression agreements. The milestones below are archived ideas, not an active roadmap; complete individual demography, full crop/livestock catalogs, continuous planetary feedback, cultures, tactical/multi-front warfare and intercontinental trade remain unimplemented.
 
 ## Archived scope ideas
 
@@ -10,7 +10,7 @@ Build persistent societies whose settlements, people, institutions, resources an
 
 The reference is the persistent world spanning centuries, trade, nobility, institutions, material-dependent crafts and revisitable sites described by [Bay 12's features page](https://bay12games.com/dwarves/features.html). Bay 12's [2012 development log](https://www.bay12games.com/dwarves/dev_2012.html) also describes succession, births, historical figures, holdings and site retirement. These are sources of inspiration, not acceptance targets; the architecture and milestones below are proposals for this project, not claims about Dwarf Fortress's internal implementation.
 
-Civilizations appear **only on the central island continents**. This applies throughout history, not just initial seeding. The outer continent has no founded settlements, territorial claims, farming colonies, military bases or hidden starting societies. Ships may travel between eligible island ports across the great lake. Outer-continent expeditions are outside the initial scope and must never silently become settlement mechanisms.
+Civilizations appear **only on the inner continents**. This applies throughout history, not just initial seeding. The outer continent has no founded settlements, territorial claims, farming colonies, military bases or hidden starting societies. Ships may travel between eligible ports on the inner continents across the great lake. Outer-continent expeditions are outside the initial scope and must never silently become settlement mechanisms.
 
 ## Foundations to settle before the first society
 
@@ -56,7 +56,7 @@ Phase order: environment → production and inventory reservations → consumpti
 
 Add canonical island identities, the settlement eligibility predicate, deterministic naming, cultures, civilization records, site records and append-only typed events. Site types initially include villages, towns, hill forts, fishing ports and mining settlements. Score freshwater reliability, flood exposure, arable area, temperature, forest/ore access and transport. Place dispersed founders with finite households, tools and seed food, recording those starting inventories.
 
-Permit more than one society per island and allow empty unsuitable regions. Founding failures produce diagnostics rather than forcing towns onto ice, water or the outer continent. Territorial borders begin as travel-cost claims from inhabited sites, not ownership of an entire island.
+Permit more than one society per inner continent and allow empty unsuitable regions. Founding failures produce diagnostics rather than forcing towns onto ice, water or the outer continent. Territorial borders begin as travel-cost claims from inhabited sites, not ownership of an entire inner continent.
 
 Gate: hundreds of seeds place every settlement and claim on central land. Save/load preserves names and event IDs. A map click opens a site's founding record and links its founders and civilization. Deliberately requesting an outer-continent founding fails through the same API used by normal expansion.
 
@@ -82,11 +82,11 @@ Gate: a ruler's death transfers an office and property exactly once. A killed pa
 
 Implemented subset: [regional lake shipping](../shipping.md) now supplies actual surveyed sea paths, funded harbor assets, shared cargo capacity, closures and contact-driven diplomacy. Inland roads and intermediate-market trade are also implemented. Individual vessels/crews, navigable rivers, seasonal sailing, tolls, debt and piracy remain roadmap work.
 
-Build land routes through regional passes and river crossings, navigable river segments, ports and great-lake shipping between central islands. Roads and ships require materials, labor and maintenance. Travel time follows terrain, currents, season and vessel traits. Sea routes may cross water but can only establish eligible central-island ports.
+Build land routes through regional passes and river crossings, navigable river segments, ports and great-lake shipping between inner continents. Roads and ships require materials, labor and maintenance. Travel time follows terrain, currents, season and vessel traits. Sea routes may cross water but can only establish eligible inner-continent ports.
 
 Goods move in shipments with departure, transit and arrival state. Prices or barter values respond to scarcity and transport costs. Merchant companies, contracts, tolls, debt and piracy become extensions of the same ownership and event systems.
 
-Gate: closing a pass or losing a port interrupts dependent supply. Ships cannot teleport cargo, duplicate it after checkpointing, or found an outer shore colony. Separate islands remain economically distinct until real routes connect them.
+Gate: closing a pass or losing a port interrupts dependent supply. Ships cannot teleport cargo, duplicate it after checkpointing, or found an outer shore colony. Separate inner continents remain economically distinct until real routes connect them.
 
 ### 5. Politics, war and territorial change
 
