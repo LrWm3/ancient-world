@@ -292,7 +292,7 @@ construction interactions before choosing a broader allocation policy.
 the same plan after farming, forestry and mining. It requires extraction
 participation. It is off by default and old plans keep their earlier sector tags.
 
-The opening request is a policy ceiling: 20% of forecast craft work remaining
+The first construction increment used a policy ceiling: 20% of forecast craft work remaining
 after services and enterprise commitments, not an exact estimate of every project.
 Available residents receive bounded assignments after the other production sectors.
 The GPU caps its existing asset-work pool and workshop building/fitting by those
@@ -312,10 +312,9 @@ building attendance does not create structures or retroactively reassign time.
 
 This is still a partial production conversion. Informal crafts, water-system
 operation, fisheries and husbandry do not yet have complete individual assignments.
-The construction request ceiling may reserve more time than material/target demand
-can use; receipts expose that shortfall. A later exact project-demand forecast
-should be shared with GPU execution rather than duplicating recipe/asset formulas
-on the CPU. Broad labor priority and long-term food access remain balance questions.
+The original construction request ceiling reserved more time than material/target
+demand could use. The shared forecast increment below addresses that mismatch
+without duplicating asset formulas on the CPU. Broad labor priority and long-term food access remain balance questions.
 
 
 The balance runner now accumulates requested, granted and completed worker-months
@@ -362,3 +361,30 @@ the principal cause; add a shared feasible-project forecast before adjusting
 priority or increasing construction entitlement. Attendance remains prepaid, so
 unused work also affects who receives income. These two seeds do not establish
 long-term stability or justify a default-mode change.
+
+
+### Feasible construction forecast
+
+This increment replaces the 20% ceiling as the direct request with a GPU
+preview of the shared construction transaction. The ceiling remains a policy
+limit, but the request is only the work feasible within it, given opening
+materials, housing/storage/water targets, workshop fitting and prior water-service
+conditions. The preview applies wear and transfers to a local copy and discards
+them; execution alone commits physical changes. It returns one additional scalar
+in the existing 64-byte-per-site forecast, with no additional readback.
+
+Opening stocks precede this month's extraction, weather and retail. Their later
+changes can cause differences, so this is not an exact prediction of execution.
+In particular, fresh timber may wait until next month's building request when
+opening timber is absent. Live grants still cap construction, and already
+contracted workshop work remains protected. The prior broad-ceiling comparison
+above remains historical evidence; it does not describe the new forecast's
+balance until a new matched comparison completes.
+
+
+All four GPU forecast/attendance tests pass with this transaction, including an
+analytical one-place housing case (2 timber + 3 bricks, 0.2 worker-month), absent
+brick and absent target controls, and unchanged input inventories after preview.
+Monthly/batched checkpoint continuation passes; all-target Clippy, formatting and
+repository artifact checks pass. A fresh matched two-seed balance run is still
+required to measure utilization and household effects.

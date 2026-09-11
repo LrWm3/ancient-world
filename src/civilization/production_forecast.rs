@@ -13,6 +13,8 @@ pub struct ProductionLaborForecast {
     pub services: f32,
     /// Already requested private workshop work within crafting.
     pub enterprises: f32,
+    /// Feasible building work from opening stocks and targets, before new extraction.
+    pub construction: f32,
     /// Fishing from the input snapshot, not a fresh catch or fishing proposal.
     pub prior_fishing: f32,
     /// Current aggregate workforce before waterlogging and sector allocation.
@@ -49,6 +51,7 @@ impl Engine {
                     row.stock
                         .iter()
                         .chain(&row.habitat)
+                        .chain(&row.ledger)
                         .all(|x| x.is_finite() && *x >= 0.),
                     "invalid GPU labor forecast at site {}",
                     site.id
@@ -57,6 +60,7 @@ impl Engine {
                     month: h.month,
                     site: site.id,
                     sectors: row.stock,
+                    construction: row.ledger[0],
                     services: row.habitat[0],
                     enterprises: row.habitat[1],
                     prior_fishing: row.habitat[2],
@@ -143,6 +147,42 @@ mod tests {
         direct.sites[0].stocks.stock[0] = 0.;
         let zero = engine.forecast_labor(&g, &direct).unwrap();
         assert_eq!(zero[0].sectors, [0.; 4]);
+        assert_eq!(zero[0].construction, 0.);
+
+        // Analytical housing fixture: two timber + three bricks build one place
+        // using 0.2 worker-month; an unfunded target alone requests no builders.
+        let mut housing = g.civilizations.as_ref().unwrap().clone();
+        for site in &mut housing.sites {
+            site.economy = Economy::default();
+            site.economy.logistics[3] = 3.;
+            site.economy.housing_plan = [10., 0., 0., 1.];
+            site.economy.goods = [0.; 64];
+            site.economy.goods[0] = 2.;
+            site.economy.goods[5] = 3.;
+        }
+        let before = serde_json::to_value(&housing).unwrap();
+        let built = engine.forecast_labor(&g, &housing).unwrap();
+        assert!(built.iter().all(|r| (r.construction - 0.2).abs() < 1e-5));
+        let mut read = housing.clone();
+        engine.read(&g, &mut read, false).unwrap();
+        assert_eq!(serde_json::to_value(&read).unwrap(), before);
+        for site in &mut housing.sites {
+            site.economy.goods[5] = 0.;
+        }
+        assert!(engine
+            .forecast_labor(&g, &housing)
+            .unwrap()
+            .iter()
+            .all(|r| r.construction == 0.));
+        for site in &mut housing.sites {
+            site.economy.goods[5] = 3.;
+            site.economy.housing_plan[0] = 0.;
+        }
+        assert!(engine
+            .forecast_labor(&g, &housing)
+            .unwrap()
+            .iter()
+            .all(|r| r.construction == 0.));
     }
 }
 

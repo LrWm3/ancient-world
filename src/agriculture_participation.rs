@@ -158,7 +158,9 @@ impl History {
             forecasts.len() == self.sites.len()
                 && forecasts.iter().enumerate().all(|(i, f)| f.site == i as u32
                     && f.month == self.month
-                    && f.sectors.iter().all(|x| x.is_finite() && *x >= 0.)),
+                    && f.sectors.iter().all(|x| x.is_finite() && *x >= 0.)
+                    && f.construction.is_finite()
+                    && f.construction >= 0.),
             "stale agriculture forecast"
         );
         let mut plans = Vec::new();
@@ -189,7 +191,7 @@ impl History {
                 } else if sector == 0 {
                     f.sectors[0].min(site.stocks.habitat[1].max(0.) / 1.5)
                 } else if sector == 3 {
-                    (f.sectors[3] - f.services - f.enterprises).max(0.) * 0.2
+                    f.construction
                 } else {
                     f.sectors[sector]
                 };

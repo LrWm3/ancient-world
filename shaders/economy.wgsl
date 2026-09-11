@@ -117,58 +117,26 @@ fn forecast_labor(@builtin(global_invocation_id) g:vec3<u32>) {
  if src[i].stock.x>0. {
   let e=economies[i];
   row.stock=production_labor(i,e);
+  {
+   // Use opening stocks, not hypothetical new extraction or retail purchases.
+   var preview=e;preview.labor=row.stock;preview.construction_workers.x=1.;
+   preview.construction_workers.y=.2*max(0.,row.stock.w-e.exchange.w-dot(e.enterprise_plan,vec4(1.)));
+   let recovery=select(0.,clamp(e.soil.w,0.,1.),(p.options.w&2u)!=0u);
+   let built=building_work(preview,src[i],workers(i,src[i].stock.x)*(1.-.4*recovery));
+   row.ledger.x=built.economy.construction_workers.z;
+  }
   row.habitat=vec4(e.exchange.w,dot(e.enterprise_plan,vec4(1.)),e.fishery_plan.y+e.fishery_plan.z,workers(i,src[i].stock.x));
  }
  dst[i]=row;
 }
-fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
- var e=economies[i];let s=src[i];let t=world[u32(s.habitat.z)];let area=e.claim.y;
- let recovery=select(0.,clamp(e.soil.w,0.,1.),(p.options.w&2u)!=0u);
- let available_workers=workers(i,s.stock.x)*(1.-.4*recovery);e.labor=production_labor(i,e);
- if e.farm_workers.x>.5 {e.labor.x=min(e.labor.x,e.farm_workers.y);}
- if e.farm_workers.x>1.5 {e.labor.y=min(e.labor.y,e.extraction_workers.x);e.labor.z=min(e.labor.z,e.extraction_workers.y);e.extraction_workers.z=0.;e.extraction_workers.w=0.; }
- if e.logistics.w>3.5 {e.food_labor.x=mix(e.food_labor.x,e.food_labor.y,.25);}
- let rain=max(0.,t.hydro.z)*area/12000.*weather;
- e.water.z+=rain;e.water.x+=rain;
- let capacity=area*(.1+.4*e.policy.z)+select(0.,min(e.waterworks.x/2.,e.waterworks.y/4.),e.waterworks.w>.5);let runoff=max(0.,e.water.x-capacity);e.water.x-=runoff;e.water.w+=runoff;
- if e.land_return.x>.5 {
-  // Dissolved nutrient export is bounded by actual runoff and soil inventories.
-  let fraction=min(.05,runoff/max(area*.2,1.));let nutrients=e.soil.xyz*fraction;
-  e.soil-=vec4(nutrients,0.);e.exchange-=vec4(nutrients,0.);
-  e.return_flow+=vec4(nutrients,runoff);
- }
- if e.waterworks.w>.5 {
-  let need=s.stock.x*.09;let supplied=min(e.water.x,need);
-  e.water.x-=supplied;e.water.w+=supplied;e.water_service.x+=supplied;
-  e.water_service.y=clamp(1.-supplied/max(need,1e-6),0.,1.);
- }
- let release=min(e.reserves.x,e.reserves.x*.0000001);e.reserves.x-=release;e.soil.z+=release;
- let decay=e.detritus.xyz*.08;e.detritus-=vec4(decay,0.);e.soil+=vec4(0.,decay.yz,0.);e.exchange.x-=decay.x;
- let fixation_cost=max(1.,catalog.herds[0].z);
- let fixed=min(potential*.05/fixation_cost,area*.002/12.*e.policy.x*clamp((t.hydro.y+5.)/20.,0.,1.));
- e.soil.y+=fixed;e.exchange.y+=fixed;
- let tool_factor=.75+.25*clamp((e.goods[0].w+select(0.,e.goods[10].y+.6*e.goods[10].w,e.extraction.y>.5))/max(1.,s.stock.x*.5),0.,1.);
- e.production_probe.x=tool_factor;e.production_probe.z=e.goods[0].w+select(0.,e.goods[10].y+.6*e.goods[10].w,e.extraction.y>.5);e.production_probe.w=s.stock.x;
- var output=max(0.,potential*(1.-e.policy.x)*tool_factor*(1.-.5*recovery)-fixed*fixation_cost);
- if e.management.x>.5{output=0.;}
- let n=e.soil.y/.02;let ph=e.soil.z/.003;let water=e.water.x/.5;
- e.diagnostics.x=0.;if n<output{e.diagnostics.x=1.;}output=min(output,n);if ph<output{e.diagnostics.x=2.;}output=min(output,ph);if water<output{e.diagnostics.x=3.;}output=min(output,water);
- e.soil.y-=output*.02;e.soil.z-=output*.003;e.exchange.x+=output*.45;e.water.x-=output*.5;e.water.w+=output*.5;e.diagnostics.y=output;
- // Finite timber harvest; a regional woodland stock, not unlimited yield from cover.
- let wood_potential=min(e.labor.y*extraction_rate(e,0u),min(e.forest.x/.5,min(e.forest.y/.002,e.forest.z/.0002)));
- let wood=min(wood_potential,order_room(e,0u));
- if e.farm_workers.x>1.5 {e.extraction_workers.z=wood/extraction_rate(e,0u); }
- e.forest-=vec4(wood*vec3(.5,.002,.0002),0.);e.goods[0].x+=wood;e.made[0].x+=wood;
- // One mining workforce serves ore and clay. Rotate priority to avoid starving
- // either industry when both have orders; all policies obey the physical budget.
- var mining=e.labor.z;
- for(var extract=0u;extract<2u;extract++) {
- let mineral=(extract+p.dims.z)%2u;let good=select(ore_good(e),4u,mineral==1u);
- let rate=extraction_rate(e,mineral+1u);
- let quantity=min(min(e.reserves[mineral+1u],mining*rate),order_room(e,good));
- e.reserves[mineral+1u]-=quantity;e.goods[good/4u][good%4u]+=quantity;e.made[good/4u][good%4u]+=quantity;mining=max(0.,mining-quantity/rate);
- }
- if e.farm_workers.x>1.5 {e.extraction_workers.w=max(0.,e.labor.z-mining); }
+// Pure local transaction shared by forecast and execution. The caller decides
+// whether to persist its updated inventory; forecasting discards it.
+struct BuildingResult {
+ economy:Economy, labor:f32, industrial:f32, household:f32,
+ types:vec4<f32>, firms:vec4<f32>
+}
+fn building_work(input:Economy,s:Site,available_workers:f32)->BuildingResult {
+ var e=input;
  // Research workshops reserve staff before dispatch; no double-counted craft labor.
  var labor=max(0.,e.labor.w-e.exchange.w);
  if e.waterworks.w>.5 {
@@ -302,6 +270,62 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
    firm_capacity[j]=min(leased,e.enterprise_plan[j]);
   }
  }
+
+ return BuildingResult(e,labor,industrial_capacity,household_capacity,type_capacity,firm_capacity);
+}
+fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
+ var e=economies[i];let s=src[i];let t=world[u32(s.habitat.z)];let area=e.claim.y;
+ let recovery=select(0.,clamp(e.soil.w,0.,1.),(p.options.w&2u)!=0u);
+ let available_workers=workers(i,s.stock.x)*(1.-.4*recovery);e.labor=production_labor(i,e);
+ if e.farm_workers.x>.5 {e.labor.x=min(e.labor.x,e.farm_workers.y);}
+ if e.farm_workers.x>1.5 {e.labor.y=min(e.labor.y,e.extraction_workers.x);e.labor.z=min(e.labor.z,e.extraction_workers.y);e.extraction_workers.z=0.;e.extraction_workers.w=0.; }
+ if e.logistics.w>3.5 {e.food_labor.x=mix(e.food_labor.x,e.food_labor.y,.25);}
+ let rain=max(0.,t.hydro.z)*area/12000.*weather;
+ e.water.z+=rain;e.water.x+=rain;
+ let capacity=area*(.1+.4*e.policy.z)+select(0.,min(e.waterworks.x/2.,e.waterworks.y/4.),e.waterworks.w>.5);let runoff=max(0.,e.water.x-capacity);e.water.x-=runoff;e.water.w+=runoff;
+ if e.land_return.x>.5 {
+  // Dissolved nutrient export is bounded by actual runoff and soil inventories.
+  let fraction=min(.05,runoff/max(area*.2,1.));let nutrients=e.soil.xyz*fraction;
+  e.soil-=vec4(nutrients,0.);e.exchange-=vec4(nutrients,0.);
+  e.return_flow+=vec4(nutrients,runoff);
+ }
+ if e.waterworks.w>.5 {
+  let need=s.stock.x*.09;let supplied=min(e.water.x,need);
+  e.water.x-=supplied;e.water.w+=supplied;e.water_service.x+=supplied;
+  e.water_service.y=clamp(1.-supplied/max(need,1e-6),0.,1.);
+ }
+ let release=min(e.reserves.x,e.reserves.x*.0000001);e.reserves.x-=release;e.soil.z+=release;
+ let decay=e.detritus.xyz*.08;e.detritus-=vec4(decay,0.);e.soil+=vec4(0.,decay.yz,0.);e.exchange.x-=decay.x;
+ let fixation_cost=max(1.,catalog.herds[0].z);
+ let fixed=min(potential*.05/fixation_cost,area*.002/12.*e.policy.x*clamp((t.hydro.y+5.)/20.,0.,1.));
+ e.soil.y+=fixed;e.exchange.y+=fixed;
+ let tool_factor=.75+.25*clamp((e.goods[0].w+select(0.,e.goods[10].y+.6*e.goods[10].w,e.extraction.y>.5))/max(1.,s.stock.x*.5),0.,1.);
+ e.production_probe.x=tool_factor;e.production_probe.z=e.goods[0].w+select(0.,e.goods[10].y+.6*e.goods[10].w,e.extraction.y>.5);e.production_probe.w=s.stock.x;
+ var output=max(0.,potential*(1.-e.policy.x)*tool_factor*(1.-.5*recovery)-fixed*fixation_cost);
+ if e.management.x>.5{output=0.;}
+ let n=e.soil.y/.02;let ph=e.soil.z/.003;let water=e.water.x/.5;
+ e.diagnostics.x=0.;if n<output{e.diagnostics.x=1.;}output=min(output,n);if ph<output{e.diagnostics.x=2.;}output=min(output,ph);if water<output{e.diagnostics.x=3.;}output=min(output,water);
+ e.soil.y-=output*.02;e.soil.z-=output*.003;e.exchange.x+=output*.45;e.water.x-=output*.5;e.water.w+=output*.5;e.diagnostics.y=output;
+ // Finite timber harvest; a regional woodland stock, not unlimited yield from cover.
+ let wood_potential=min(e.labor.y*extraction_rate(e,0u),min(e.forest.x/.5,min(e.forest.y/.002,e.forest.z/.0002)));
+ let wood=min(wood_potential,order_room(e,0u));
+ if e.farm_workers.x>1.5 {e.extraction_workers.z=wood/extraction_rate(e,0u); }
+ e.forest-=vec4(wood*vec3(.5,.002,.0002),0.);e.goods[0].x+=wood;e.made[0].x+=wood;
+ // One mining workforce serves ore and clay. Rotate priority to avoid starving
+ // either industry when both have orders; all policies obey the physical budget.
+ var mining=e.labor.z;
+ for(var extract=0u;extract<2u;extract++) {
+ let mineral=(extract+p.dims.z)%2u;let good=select(ore_good(e),4u,mineral==1u);
+ let rate=extraction_rate(e,mineral+1u);
+ let quantity=min(min(e.reserves[mineral+1u],mining*rate),order_room(e,good));
+ e.reserves[mineral+1u]-=quantity;e.goods[good/4u][good%4u]+=quantity;e.made[good/4u][good%4u]+=quantity;mining=max(0.,mining-quantity/rate);
+ }
+ if e.farm_workers.x>1.5 {e.extraction_workers.w=max(0.,e.labor.z-mining); }
+ let building=building_work(e,s,available_workers);
+ e=building.economy;var labor=building.labor;
+ var industrial_capacity=building.industrial;var household_capacity=building.household;
+ var type_capacity=building.types;var firm_capacity=building.firms;
+ let specialized=e.workshop_types[0].w>.5;
 
  // The priority pass borrows from the same finite labor and capacity pools.
  // Blocked reservations expire within this dispatch; the ordinary pass gets all remaining work.
