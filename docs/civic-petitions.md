@@ -68,7 +68,7 @@ treaty. This gives existing relief another consequence beyond local survival.
 Petitions archive opening pressure, sponsor, represented faction, controller,
 requested and paid amounts, dates and causal events. Older archives initialize
 with no invented petitions. The governance inspector lists recent requests and
-outcomes. Sparse CPU records use the same monthly history boundary.
+outcomes, including a recorded resolution reason. Sparse CPU records use the same monthly history boundary.
 
 ## Limits
 
@@ -108,3 +108,14 @@ Reproduce with:
 CARGO_INCREMENTAL=0 cargo test --lib representation_delivery -- --ignored
 CARGO_INCREMENTAL=0 cargo test --test governance -- --ignored
 ```
+
+## Balance controls
+
+New petitions default on. The common system selector accepts
+`--disable-system civic-petitions` and `--enable-system civic-petitions`; governance is a
+prerequisite. Disabling proposals preserves pending requests and their
+eventual responses, rather than erasing obligations or their histories.
+Archives preserve the switch; older archives default it on.
+
+See [the matched balance report](civic-petitions-balance.md) for ensemble
+settings, results, a crew-pay rounding fix, and the limits of this comparison.

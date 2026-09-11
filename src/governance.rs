@@ -49,6 +49,8 @@ pub struct Treaty {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Governance {
+    #[serde(default = "petitions_on")]
+    pub petitions_enabled: bool,
     #[serde(default)]
     pub petitions: Vec<crate::civic_petitions::Petition>,
     /// Older histories retain scenario-only autonomy unless explicitly enabled.
@@ -60,6 +62,9 @@ pub struct Governance {
     pub relations: Vec<Relation>,
     pub treaties: Vec<Treaty>,
     pub event_cursor: usize,
+}
+fn petitions_on() -> bool {
+    true
 }
 fn pair(a: u32, b: u32) -> [u32; 2] {
     if a < b {
@@ -512,6 +517,7 @@ impl Generator {
             }
         }
         h.governance = Some(Governance {
+            petitions_enabled: true,
             petitions: vec![],
             negotiated_autonomy: true,
             version: 1,

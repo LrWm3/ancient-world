@@ -16,6 +16,10 @@ pub struct Vessel {
     pub funded_work: f32,
     pub wages_paid: f64,
 }
+fn funded_work(paid: f64, wage: f64, reserved: f32) -> f32 {
+    ((paid / wage) as f32).min(reserved)
+}
+
 impl Fleet {
     pub fn capacity(&self) -> f32 {
         self.vessels
@@ -107,7 +111,10 @@ impl History {
                     break;
                 }
                 let paid = withdraw(&mut s.economy.finance[0], work as f64 * wage);
-                let actual = (paid / wage) as f32;
+                // Cash uses f32 while wallets retain the exact f64 debit. Rounding
+                // may pay slightly above the quote; it cannot purchase work
+                // beyond the crew reservation.
+                let actual = funded_work(paid, wage, work);
                 v.household = Some(hh as u32);
                 v.funded_work = actual;
                 v.wages_paid += paid;
@@ -141,6 +148,20 @@ impl History {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn rounded_wages_cannot_expand_reserved_labor() {
+        let mut cash = 1_000_000f32;
+        let before = cash;
+        let wage = 0.18;
+        let reserved = 0.25;
+        let paid = withdraw(&mut cash, reserved as f64 * wage);
+        assert!(paid / wage > reserved as f64);
+        assert_eq!(funded_work(paid, wage, reserved), reserved);
+        assert_eq!(cash as f64 + paid, before as f64);
+        assert_eq!(funded_work(0., wage, reserved), 0.);
+        assert_eq!(funded_work(0.009, wage, reserved), 0.05);
+    }
+
     #[test]
     #[ignore = "requires hardware GPU"]
     fn crew_pay_conserves_money_and_reserves_finite_work() {

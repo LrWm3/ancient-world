@@ -32,6 +32,8 @@ pub struct Petition {
     pub pressure: f32,
     pub resolved: Option<u32>,
     pub outcome: Option<u64>,
+    #[serde(default)]
+    pub resolution_reason: Option<String>,
     pub honored: bool,
     pub paid: f64,
 }
@@ -58,6 +60,9 @@ pub(crate) fn propose(h: &mut History, c: &mut Culture) {
     let (Some(g), Some(politics), Some(society)) = (&h.governance, &h.politics, &h.society) else {
         return;
     };
+    if !g.petitions_enabled {
+        return;
+    }
     let mut proposals = vec![];
     for site in &h.sites {
         if site.abandoned
@@ -187,6 +192,7 @@ pub(crate) fn propose(h: &mut History, c: &mut Culture) {
             pressure,
             resolved: None,
             outcome: None,
+            resolution_reason: None,
             honored: false,
             paid: 0.,
         });
@@ -273,6 +279,22 @@ pub(crate) fn resolve(h: &mut History) {
             }
             p.paid = p.requested;
         }
+        let reason = if honored {
+            "delivered"
+        } else if h.sites[p.site as usize].abandoned {
+            "settlement unavailable"
+        } else if h.controller(p.site) != p.controller {
+            "controller changed"
+        } else if !valid {
+            "institution unavailable"
+        } else if !can_deliver {
+            "delivery channel unavailable"
+        } else if !willing {
+            "political opposition"
+        } else {
+            "insufficient council funds"
+        };
+        p.resolution_reason = Some(reason.into());
         p.honored = honored;
         p.resolved = Some(h.month);
         let a = &mut g.administrations[p.site as usize];
@@ -288,6 +310,7 @@ pub(crate) fn resolve(h: &mut History) {
             ("faction".into(), p.faction),
         ]);
         p.outcome = Some(ev.id);
+        ev.detail.push_str(&format!("; resolution: {reason}"));
         let c = h.culture.as_mut().unwrap();
         let institution = &c.institutions[p.institution as usize];
         if let Some(tradition) = institution.tradition {
@@ -417,6 +440,11 @@ mod tests {
                 "representation takes work"
             );
             c.labor_budget[site as usize] = 0.2;
+            h.governance.as_mut().unwrap().petitions_enabled = false;
+            propose(h, &mut c);
+            assert!(h.governance.as_ref().unwrap().petitions.is_empty());
+            assert_eq!(c.labor_budget[site as usize], 0.2);
+            h.governance.as_mut().unwrap().petitions_enabled = true;
             propose(h, &mut c);
             assert_eq!(h.governance.as_ref().unwrap().petitions.len(), 1);
             propose(h, &mut c);
@@ -490,6 +518,8 @@ mod tests {
                 .resolved
                 .is_none());
             h.month += 3;
+            // Turning off future proposals must not discard a pending response.
+            h.governance.as_mut().unwrap().petitions_enabled = false;
             let mut resumed: History =
                 serde_json::from_value(serde_json::to_value(&*h).unwrap()).unwrap();
             resolve(h);
@@ -505,6 +535,13 @@ mod tests {
                 "grant does not create food"
             );
             assert!(h.governance.as_ref().unwrap().petitions[0].honored);
+            assert_eq!(
+                h.governance.as_ref().unwrap().petitions[0]
+                    .resolution_reason
+                    .as_deref(),
+                Some("delivered")
+            );
+            h.governance.as_mut().unwrap().petitions_enabled = true;
             assert_eq!(h.culture.as_ref().unwrap().accounts.len(), accounts + 1);
             let credit_now = credit(h, h.politics.as_ref().unwrap(), site, 6);
             assert!(credit_now > 0.);
@@ -531,8 +568,10 @@ mod tests {
             assert_eq!(serde_json::to_value(restored).unwrap(), encoded);
             let mut old = encoded;
             old.as_object_mut().unwrap().remove("petitions");
+            old.as_object_mut().unwrap().remove("petitions_enabled");
             let old: crate::governance::Governance = serde_json::from_value(old).unwrap();
             assert!(old.petitions.is_empty());
+            assert!(old.petitions_enabled);
             let other = h
                 .sites
                 .iter()

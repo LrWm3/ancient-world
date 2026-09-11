@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 pub enum System {
     OccupationalPayroll,
     NegotiatedAutonomy,
+    CivicPetitions,
     AutomaticExpeditions,
     Society,
     Politics,
@@ -52,6 +53,7 @@ impl System {
     pub const ALL: &'static [Self] = &[
         Self::OccupationalPayroll,
         Self::NegotiatedAutonomy,
+        Self::CivicPetitions,
         Self::AutomaticExpeditions,
         Self::Society,
         Self::Politics,
@@ -99,6 +101,7 @@ impl System {
     fn requires(self) -> &'static [Self] {
         match self {
             Self::OccupationalPayroll => &[Self::Society],
+            Self::CivicPetitions => &[Self::Governance],
             Self::NegotiatedAutonomy => &[Self::Governance],
             Self::AutomaticExpeditions => &[Self::Expeditions],
             Self::Politics => &[Self::Society],
@@ -301,6 +304,13 @@ impl Generator {
         }
         if options.enabled(Governance) {
             self.set_negotiated_autonomy(options.enabled(NegotiatedAutonomy))?;
+            self.civilizations
+                .as_mut()
+                .unwrap()
+                .governance
+                .as_mut()
+                .unwrap()
+                .petitions_enabled = options.enabled(CivicPetitions);
         }
         if let Some(x) = self.civilizations.as_mut().unwrap().expeditions.as_mut() {
             x.rules.automatic = options.enabled(AutomaticExpeditions);
