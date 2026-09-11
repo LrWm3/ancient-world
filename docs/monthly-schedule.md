@@ -4,9 +4,9 @@ The schedule is a game rule, not a claim about historical time. All stages execu
 once per simulated month, independent of API batch size. No additional planetary
 readbacks or whole-world observation copies are introduced.
 
-## Audit and port
+## Current phases
 
-Previously, relief arrived before consumption but market cargo arrived afterward.
+Before the phase port, relief arrived before consumption but market cargo arrived afterward.
 Preparation, resource registration and culture synchronization also ran once after
 the API's monthly loop. Living ecology ran outside the history coordinator, with
 returns applied after the timeline had already been recorded.
@@ -19,7 +19,7 @@ Reservations remain subsystem-specific; this is not a simultaneous global auctio
 | --- | --- |
 | Open | Prepare society/politics/governance; increment month; activate due policies; inspect environmental disruption; settle due market cargo, relief and relocating households; answer appeals; restore sites; prepare economy and claims; refresh extraction inputs; patron assistance and legacy cohort cleanup. Arrival price observations are returned to the response stage. |
 | Reserve | Reset completed reservations; reserve known-family caregiving and open personal availability; fund crews for committed sea cargo; collect dated research and cultural work requests and apply their explicit service allocation policy, prepare fisheries, allocate extraction allowances, plan production, prepare enterprises and top up standby vessels, prepare household retail. The extraction and retail plans are explicitly passed to execution. Earlier allocation windows have priority; research/culture shares within their window follow the selected policy (see [service allocation](service-allocation.md)). |
-| Execute/settle | Upload committed inputs; claim, fish and run GPU production/consumption; read town results; settle caregiving once and remove its consumed service allowance; assign named identities to this dispatch's already-counted demographic losses; settle extraction and enterprises; storage, housing and waterworks; settle retail. No production policy chosen later in the month can retroactively change this dispatch. |
+| Execute/settle | Upload committed inputs; claim, fish and run GPU production/consumption; read town results; settle caregiving once and remove its consumed service allowance; settle the selected aggregate/individual demographic resolution, or assign named identities to already-counted losses in the legacy path; settle extraction and enterprises; storage, housing and waterworks; settle retail. No production policy chosen later in the month can retroactively change this dispatch. |
 | Respond | Quote markets and dispatch new cargo using opening delivery evidence; release vessel/cultural work; expeditions, relocation, site lifecycle, society, genealogy, culture, offices and governance. Annual politics/shipping/expeditions/governance run here when due. Events remain available to later consumers in this stage. |
 | Close | Synchronize society, politics, governance, economy, resource claims, culture and offices; refresh social indicators; validate. Frozen history records its timeline here. Living history then commits environmental returns, reconciles land, records its timeline and validates the coupled boundary. |
 
@@ -283,11 +283,13 @@ then multiplies by (1 − 0.4 × stress), with stress bounded to 0–1. Frozen h
 ignores that stress just as the production shader does. At most 20% of the result
 is available for these reservations; abandoned sites receive none.
 
-The explicit priority remains research, culture, enterprises, crews. Every later
-reservation subtracts existing external service work and enterprise plans. Enterprise
-allocation also retains its previous craft allowance as an additional cap. Stale
-enterprise plans are cleared with external reservations at the start of research
-preparation, before any current-month reservations. Previously research/culture
+At this increment the priority was research, culture, enterprises, crews.
+Subsequent changes added care and committed crews ahead of the research/culture
+window and [explicit sharing policies](service-allocation.md) within that window.
+Every reservation still subtracts existing external service work and enterprise
+plans. Enterprise allocation also retains its craft allowance as an additional cap.
+The reservation opening clears stale enterprise plans and external reservations
+before current-month service claims. Previously research/culture
 ignored illness and recovery; enterprises could reserve their old craft allowance
 without subtracting newly promised service work.
 
@@ -295,8 +297,8 @@ This unifies the ceiling, not the entire labor economy. GPU demand allocation,
 materials and recurring infrastructure work can still reduce completed enterprise
 work below paid shifts; payment remains for employment rather than guaranteed output.
 The 20% service ceiling is a game scheduling policy, and priority is intentionally
-not a simultaneous auction across all occupations. No extra readback or persistent
-archive field is introduced.
+not a simultaneous auction across all occupations. The shared-ceiling increment introduced no extra readback or persistent
+archive field; the later allocation pilot persists its policy and receipts.
 
 Fixtures cover workforce option flags, sickness, recovery, empty workforce and
 subtraction of earlier claims. The vessel fixture also exercises quarterly cultural

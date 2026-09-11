@@ -10,13 +10,16 @@ discussion. They are not implemented, but neither are they a committed feature o
 an unfinished requirement.
 
 History uses monthly resource and population accounting, with sparse CPU records
-for people, institutions, politics and events. Individual local gameplay is not
-implemented.
+for people, institutions, politics and events. Optional individual demographic and
+work resolution refine selected aggregate outcomes; they do not provide daily
+individual local gameplay.
 
 ## Implemented systems
 
 | Area | Current reference |
 |---|---|
+| Monthly timing and competing work claims | [Schedule](monthly-schedule.md), [allocation policies](service-allocation.md) |
+| Residents, personal work and demographic authority | [Participation](individual-participation.md), [rosters](resident-rosters.md), [resolution](resolution-framework.md), [care](domestic-participation.md) |
 | Managed production, household income and food access | [Economy](economy.md), [households](household-economy.md), [demand](demand-economy.md) |
 | Specialized industry, finite sources and processing | [Workshops](specialized-workshops.md), [shared resources](shared-resources.md), [minerals](mineral-processing.md), [alloys](alloy-processing.md) |
 | Families, factions, administration and conflict | [Society](society.md), [politics](politics.md), [governance](governance.md) |

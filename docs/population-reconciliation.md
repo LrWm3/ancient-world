@@ -1,10 +1,15 @@
-# Reconciling named people with population stocks
+# Named/cohort reconciliation and legacy identity admission
 
-The GPU's child, adult and elder cohorts still own population. Named people are
-incomplete historical identities with fixed birthdays, household links and physical
-presence. The two representations previously drifted far enough that a town could
-have more named adults than adult residents. This adapter measures that drift and
-closes two sources without deleting inconvenient identities or adding population.
+This guide describes the named-identity adapter for aggregate demographic worlds
+and its subsequent admission/roster extensions. It is not the authority contract
+for every history mode. Aggregate cohorts own population in the adapter described
+below; [individual mode](individual-demography.md) instead makes named birthdays,
+births and natural deaths authoritative. The [resolution framework](resolution-framework.md)
+also supports an aggregate CPU resolver through the shared commit path.
+
+Named identities and fractional cohorts can drift in aggregate mode. The adapter
+reports that drift and closes specific causes without deleting inconvenient
+identities or adding population. Its read-only report remains useful across modes.
 
 ## Read-only reconciliation
 
@@ -70,7 +75,7 @@ Local production has already happened when these deaths are assigned; later pers
 work must still check whether its actor survives. This is an explicit monthly timing
 choice, not a daily sequence.
 
-## Compatibility and remaining gaps
+## Aggregate-adapter compatibility and limits
 
 New histories enable NamedDemography. Older archives missing the field retain the
 legacy adapter until History::set_named_demography(true) is called at a completed
@@ -91,9 +96,9 @@ This is still **not a complete resident registry**:
 - Food consumption, ordinary employment, fertility and demographic totals remain
   aggregate. No complete biographies are invented for anonymous slots.
 
-The next authority transfer needs admission checks for remaining representative
-creation, explicit conversion of fractional stocks, and roster-backed movement
-before individual births/deaths replace the GPU cohort calculation.
+Subsequent work added shared admission checks, explicit whole-resident baselines,
+passenger manifests and opt-in individual births/deaths. See the follow-up links
+below. Those modes do not retroactively repair every incompatible older history.
 
 The new earlier death boundary also requires a relocation guard: an ownership account
 with a deceased head cannot depart before succession supplies a living representative.

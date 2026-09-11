@@ -27,9 +27,10 @@ into extra people. Old archives default to the previous mode.
    cannot spend another birth credit for the same newborns.
 
 The retained monthly mortality probabilities are `[.0005,.0006,.003]`, plus unmet
-ration fraction times `[.06,.025,.05]`, plus disease burden times `.01`. Birth
+ration fraction times `[.06,.025,.05]`, plus disease burden times `.01`. The aggregate reference birth
 expectation is opening adults × `.004` × adult ration sufficiency × `(1-disease)`.
-These are existing game parameters. Eligible recorded couples supply parentage
+Individual resolution then applies the age-structure refinement described below.
+These are game parameters. Eligible recorded couples supply parentage
 when available; other births record unknown parents. There is no pregnancy model.
 
 ## Transfers and persistence

@@ -9,18 +9,47 @@ commitments; some ambitions in them have been withdrawn.
 
 System guides describe mechanisms, controls and archive compatibility. Some include
 historical measurements; their test counts and calibration outcomes apply to the
-recorded runs, not automatically to today's revision. Older opt-in descriptions are superseded for new application histories by the
-[default-on startup options](system-options.md); saved histories retain their settings.
+recorded runs, not automatically to today's revision. For systems listed in the
+[startup options](system-options.md), older opt-in descriptions are superseded by
+default-on application startup. This does not enable every experimental Rust API
+mode: individual demography and weighted service allocation still require explicit
+selection. Saved histories retain their settings.
 
 The [spatial feature guide](spatial-features.md) describes the first adapters and
 expedition atlas routes. The broader [map-layer plan](spatial-features-plan.md)
 includes work that remains unimplemented.
 
-## System guides and verification workflows
+## Working on history systems
+
+Read [repository development guidance](../AGENTS.md) before changing a system.
+These guides describe different contracts; enabling participation does not by itself
+transfer population authority or choose a resource-sharing policy.
 
 - [Monthly schedule and timing contracts](monthly-schedule.md)
+- [Work execution and settlement boundaries](work-execution-boundaries.md)
+- [Explicit service allocation policies](service-allocation.md)
+- [Aggregate projections, individual resolution and reconciliation](resolution-framework.md)
+- [Known-person participation, travel and work](individual-participation.md)
+- [Resident rosters and relocation passengers](resident-rosters.md)
+- [Individual demographic authority](individual-demography.md)
+- [Domestic groups and caregiving](domestic-participation.md)
+- [Legacy named/cohort reconciliation and admission](population-reconciliation.md)
 - [Settlement timeline and causal event navigation](history-timeline.md)
 
+The population-related switches have different effects:
+
+| Mechanism | What it changes |
+| --- | --- |
+| Participation | Named availability and commitments for converted work; does not itself change demographic authority. |
+| Resident baseline | Identifies anonymous whole residents already counted in stocks; fractional residuals remain explicit. |
+| Individual demography | Makes named birthdays, births and natural deaths authoritative, with residual aggregate accounting. |
+| Resolution framework | Selects aggregate or individual outcomes through a shared demographic commit path, with optional comparison receipts; also supports refined workshop staffing. |
+| Service allocation policy | Chooses research/culture shares within a service window; does not replace personal matching or demographic resolution. |
+
+## System guides and verification workflows
+
+- [Names, languages and evolving vocabulary](naming-languages.md)
+- [Material choices for objects and institutional facilities](material-objects-and-facilities.md)
 - [Household observance and local congregations](religious-pluralism.md)
 - [Evidence-driven religious change](religious-dynamics.md)
 
@@ -90,6 +119,13 @@ includes work that remains unimplemented.
 
 These remain available for reproducibility. They are not unfinished design tasks.
 
+- [Resolution framework verification](resolution-framework-verification.md)
+- [Individual demographic verification](individual-demography-verification.md)
+- [Roster and relocation verification](resident-rosters-verification.md)
+- [Resident admission verification](resident-admission-verification.md)
+- [Domestic participation verification](domestic-participation-verification.md)
+- [Individual military verification](individual-military-verification.md)
+- [Individual travel verification](individual-travel-verification.md)
 - [GPU surveys, routes and history readback](gpu-navigation.md)
 - [Intermediate-town freight reservations](intermediate-freight.md)
 - [Measured GPU performance](benchmarks.md)

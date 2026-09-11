@@ -1,16 +1,20 @@
 # Individual participation
 
-The intended direction is a complete resident population with monthly activities.
-Shared participation covers cultural/research work, named expedition service and new military campaigns. It does **not** convert aggregate population into individual demography.
-Settlement cohorts still supply production, consumption, births, deaths, military
-manpower and expedition crew counts. Named participants are not added to those
-stocks. No new population or economic inventory is created by enabling this layer.
+Shared participation covers cultural/research work, refined workshop staffing,
+named expedition service and new military campaigns. Enabling it does not by itself
+convert aggregate population into individual demography. Population authority
+depends on the selected [demographic mode](individual-demography.md) and
+[resolution framework](resolution-framework.md). Production and food accounting
+still use settlement aggregates; named participants are not added to those stocks.
+
+This guide includes the successive participation extensions. For current timing
+and sharing rules, use the [monthly schedule](monthly-schedule.md) and
+[allocation policy guide](service-allocation.md).
 
 ## Identity and presence
 
 `History.participation` stores numeric person references, known household membership,
-opening-month presence, available capacity and cumulative completed cultural/research
-work. Existing heads and recorded kin supply membership. With participation enabled,
+opening-month presence, available capacity and cumulative completed work. Existing heads and recorded kin supply membership. With participation enabled,
 local cultural eligibility includes known adult family members, not only ownership
 heads. The number of site action grants remains bounded; additional candidates do
 not create additional labor. A living leader without a
@@ -19,10 +23,13 @@ residence stays unknown. Children and people aged 60 or older have no converted
 service-work capacity, matching the adult cohort workforce. Household relocation removes
 its known members from local eligibility; death and relocation are rechecked live.
 
-These are the existing ownership households, not newly reconstructed domestic families.
+These membership links refer to ownership households. The separate
+[domestic-group adapter](domestic-participation.md) observes recorded family ties
+and reserves caregiving; it does not replace economic ownership accounts.
 New expedition crews reference shared person IDs; older crew archives retain their
 separate identities. New military campaigns also have shared identities; legacy armies remain aggregate.
-The roster still cannot be used as a complete resident census. The explorer labels
+Participation alone does not establish a complete resident census; the
+[resident baseline](resident-rosters.md) explicitly identifies whole anonymous slots. The explorer labels
 it as a known-person roster and displays current presence separately from its opening
 observation.
 
@@ -53,9 +60,11 @@ aggregate labor after service reservations.
 - Unused commitments expire. They cannot be reassigned after execution or credited as
   productive experience. The layer does not introduce wages or change ownership.
 
-The existing phase order is retained: research reservations precede cultural work;
-execution remains in its existing subsystem stages. This is an explicit priority,
-not a simultaneous optimal assignment solver. No GPU readback or population update is
+Research and culture now forecast demand together under an explicit site allocation
+policy. Research-first remains the default; weighted sharing is opt-in. Personal
+matching still reserves research participants before cultural participants, and
+execution remains in its existing subsystem stages. Site shares are not a
+simultaneous optimal assignment of people. No GPU readback or population update is
 introduced by participation.
 
 ## Persistence and controls
@@ -70,15 +79,16 @@ The registry, current commitments and accumulated contributions are serialized.
 `History::participation_report()` and the service work report expose them; the culture
 explorer includes an Individual participation panel. Historical IDs are unchanged.
 
-## Next population-authority milestone
+## Population authority and remaining work
 
-Complete residents require domestic households distinct from ownership accounts,
-whole-person initialization with explicit rounding adjustments, individual food needs,
-and adapters for every population writer. Founding, birth, death, relocation, military
-recruitment and all demographic changes must reference the same people before the GPU
-cohort demographic update is disabled. Production can continue to receive aggregated
-labor from the new assignments. This implementation deliberately does not maintain a
-second purported full population alongside the current one.
+[Domestic groups](domestic-participation.md), [whole-resident identification and
+relocation manifests](resident-rosters.md), and [individual births, deaths and
+birthday transitions](individual-demography.md) have subsequent implementations.
+Individual demographic authority remains opt-in, with explicit fractional residuals
+and conversion checks for older stocks. Ordinary labor and food accounting are
+still aggregate; ownership-account relocation does not independently move domestic
+families. Broader conversion coverage and additional sector participation remain
+separate work.
 
 ## Expedition identity bridge
 
