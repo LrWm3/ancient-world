@@ -501,33 +501,70 @@ impl Discoveries {
         }
     }
 }
+// Read-only feasible work forecast; shared tools, fuel and writing stock are
+// deducted locally so multiple activities cannot each claim the same supplies.
+fn requested_work(h: &History, workshop: &Workshop, teachers: &[Workshop]) -> f32 {
+    let site = &h.sites[workshop.site as usize];
+    if site.abandoned || !workshop.enabled {
+        return 0.;
+    }
+    let budget =
+        crate::labor::available(site, h.society.is_some(), h.living.is_some()).min(2.) as f64;
+    let mut w = workshop.clone();
+    let mut tools = site.economy.goods[3] as f64;
+    let mut fuel = site.economy.goods[6] as f64;
+    let mut writing = h
+        .economy_catalog
+        .as_ref()
+        .and_then(|c| c.index("writing_material"))
+        .map_or(0., |g| site.economy.goods[g] as f64);
+    let mut work = 0.;
+    for k in 0..2 {
+        if budget - work >= 0.25
+            && h.month.is_multiple_of(12)
+            && w.studied[k] < 1.5 - 1e-8
+            && w.learned[k].is_none()
+            && writing >= 0.05
+            && teachers.iter().any(|t| {
+                t.site != w.site
+                    && !h.sites[t.site as usize].abandoned
+                    && (t.studied[k] >= 1.5 - 1e-8 || t.learned[k].is_some())
+                    && h.route_cost(t.site, w.site).is_some()
+            })
+        {
+            work += 0.25;
+            writing -= 0.05;
+            w.learned[k] = Some(0); // Forecast only; no historical discovery is committed.
+        }
+        let kg = w.samples[k]
+            .min(processing_limit(&w, k, site))
+            .min(tools / 0.1)
+            .min(fuel / 0.2)
+            .min((budget - work).max(0.) * 0.5);
+        work += kg * 2.;
+        tools -= kg * 0.1;
+        fuel -= kg * 0.2;
+    }
+    work.min(2.) as f32
+}
 impl History {
     pub(crate) fn prepare_discoveries(&mut self) {
-        if let Some(d) = self
+        let requests: Vec<_> = self
             .expeditions
             .as_ref()
             .and_then(|x| x.discoveries.as_ref())
-        {
-            for w in &d.workshops {
-                let s = &mut self.sites[w.site as usize];
-                if !s.abandoned
-                    && w.enabled
-                    && w.samples.iter().sum::<f64>() > 0.
-                    && s.economy.goods[3] >= 0.025
-                    && s.economy.goods[6] >= 0.05
-                {
-                    let wanted = (0..2)
-                        .map(|k| w.samples[k].min(processing_limit(w, k, s)))
-                        .sum::<f64>();
-                    let possible = wanted
-                        .min(s.economy.goods[3] as f64 / 0.1)
-                        .min(s.economy.goods[6] as f64 / 0.2);
-                    s.economy.external[3] +=
-                        crate::labor::available(s, self.society.is_some(), self.living.is_some())
-                            .min(2.)
-                            .min((possible * 2.) as f32);
-                }
-            }
+            .map(|d| {
+                d.workshops
+                    .iter()
+                    .map(|w| (w.site, requested_work(self, w, &d.workshops)))
+                    .collect()
+            })
+            .unwrap_or_default();
+        for (site, wanted) in requests {
+            let s = &mut self.sites[site as usize];
+            s.economy.external[3] +=
+                crate::labor::available(s, self.society.is_some(), self.living.is_some())
+                    .min(wanted);
         }
     }
 }
@@ -669,5 +706,31 @@ mod exchange_tests {
         assert!((samples - d.workshops[1].samples[1] - d.workshops[1].processed[1]).abs() < 1e-8);
         assert!((h.sites[1].economy.goods[good] - 0.95).abs() < 1e-6);
         assert!(d.worker_months <= d.worker_months_reserved + 1e-8);
+        let mut learner = d.workshops[1].clone();
+        learner.samples = [0.; 2];
+        learner.studied = [0.; 2];
+        learner.learned = [None; 2];
+        h.society.as_mut().unwrap().routes[0].open = false;
+        assert_eq!(requested_work(h, &learner, &d.workshops), 0.);
+        h.society.as_mut().unwrap().routes[0].open = true;
+        h.sites[1].economy.goods[good] = 0.;
+        assert_eq!(requested_work(h, &learner, &d.workshops), 0.);
+        h.sites[1].economy.goods[good] = 1.;
+        assert_eq!(requested_work(h, &learner, &d.workshops), 0.25);
+        // Learning alone no longer requires local samples, tools or fuel.
+        h.sites[1].economy.goods[3] = 0.;
+        h.sites[1].economy.goods[6] = 0.;
+        assert_eq!(requested_work(h, &learner, &d.workshops), 0.25);
+        d.workshops[1] = learner.clone();
+        h.sites[1].economy.external[3] = 0.25;
+        let before = d.worker_months;
+        d.month(h);
+        assert!(d.workshops[1].learned[1].is_some());
+        assert!((d.worker_months - before - 0.25).abs() < 1e-8);
+        learner.samples = [0., 4.];
+        assert_eq!(requested_work(h, &learner, &[]), 0.);
+        h.sites[1].economy.goods[3] = 0.001;
+        h.sites[1].economy.goods[6] = 1.;
+        assert!((requested_work(h, &learner, &[]) - 0.02).abs() < 1e-6);
     }
 }

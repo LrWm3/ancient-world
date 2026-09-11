@@ -339,10 +339,10 @@ mod tests {
         assert_eq!(h.sites[site].economy.enterprise_plan, [0.; 4]);
         h.reserve_cultural_work();
         let reserved = h.sites[site].economy.external[3];
-        assert!(reserved > 0. && reserved <= 0.240001);
+        assert!(reserved <= 0.240001);
         let before = total(h);
         h.prepare_vessels();
-        assert!(h.vessel_work(site as u32) < 1e-6);
+        assert!(h.vessel_work(site as u32) + reserved <= 0.240001);
         assert!((total(h) - before).abs() < 1e-8);
         h.release_vessel_work();
         h.release_cultural_work();

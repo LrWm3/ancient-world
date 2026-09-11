@@ -325,3 +325,13 @@ The later crew pass only tops up to commitments plus a bounded 100 kg standby
 allowance. Both passes consume the same worker and treasury limits and accumulate
 one payroll record. This is a targeted priority change informed by scarcity tests,
 not a general priority auction or a new cargo travel model.
+
+## Research and cultural action demand
+
+[Research and cultural work requests](research-cultural-work-requests.md) replaces
+the blanket cultural allowance with bounded opening-state requests. Research now
+includes feasible method-only learning and shares forecast tools/fuel across
+specimen kinds. Cultural completed-work accounting charges successful personal
+actions instead of automatically treating their entire grant as spent. These are
+forecasts with execution-time checks, not persistent exclusive action/resource
+reservations.

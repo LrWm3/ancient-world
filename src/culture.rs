@@ -7,6 +7,7 @@ use crate::{
 use anyhow::{ensure, Result};
 pub mod dynamics;
 mod practices;
+mod work_requests;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -1170,17 +1171,19 @@ impl Culture {
             if labor < 0.1 {
                 continue;
             }
-            self.labor_spent += labor as f64;
             if traits[2] > 0.7
                 && unit(h.seed, actor, h.month, 990) < 0.12
                 && self.pilgrimage(h, site, actor, labor)
             {
+                // Travel work is charged by the successful pilgrimage itself.
                 continue;
             }
             if self.recover_object(h, site, actor) {
+                self.labor_spent += 0.1;
                 continue;
             }
             if traits[3] > 0.6 && self.curate_specimen(h, site, actor) {
+                self.labor_spent += 0.1;
                 continue;
             }
             let mut remaining_work = labor;
@@ -1287,14 +1290,20 @@ impl Culture {
                 && unit(h.seed, actor, h.month, 993) < 0.08
                 && self.seek_office(h, site, actor)
             {
+                self.labor_spent += (labor - remaining_work + 0.1) as f64;
                 continue;
             }
             // Small donations are transfers, not extra community income.
             for ni in 0..self.institutions.len() {
                 let inst = &mut self.institutions[ni];
-                if inst.site != site || !inst.active {
+                if inst.site != site
+                    || !inst.active
+                    || remaining_work < 0.05
+                    || h.sites[si].economy.finance[0] <= 0.
+                {
                     continue;
                 }
+                remaining_work -= 0.05;
                 let donation = (h.sites[si].economy.finance[0] as f64 * 0.0005).min(2.);
                 h.sites[si].economy.finance[0] -= donation as f32;
                 inst.treasury += donation;
@@ -1610,7 +1619,13 @@ impl Culture {
                     a.custodian = Some(actor);
                     a.events.push(ev);
                     self.agents[actor as usize].goal = "possess a prestigious object".into();
+                    remaining_work -= 0.1;
                 }
+            }
+            let used = (labor - remaining_work).max(0.);
+            self.labor_spent += used as f64;
+            if used <= 0. {
+                continue;
             }
             self.agents[actor as usize].actions += 1;
             self.agents[actor as usize].skills[0] =
@@ -1888,6 +1903,7 @@ impl History {
         }
     }
     pub(crate) fn reserve_cultural_work(&mut self) {
+        self.sync_culture();
         let knowledge: Vec<u32> = self
             .culture
             .as_ref()
@@ -1898,6 +1914,19 @@ impl History {
                     .collect()
             })
             .unwrap_or_default();
+        let requests: Vec<f32> = self
+            .sites
+            .iter()
+            .map(|s| {
+                self.culture.as_ref().map_or(0., |c| {
+                    c.work_requests(self, s.id)
+                        .iter()
+                        .map(|r| r.1)
+                        .sum::<f32>()
+                        .min(0.5)
+                })
+            })
+            .collect();
         if let Some(c) = &mut self.culture {
             c.labor_budget = vec![0.; self.sites.len()];
             for (i, s) in self.sites.iter_mut().enumerate() {
@@ -1905,7 +1934,7 @@ impl History {
                 if self.month % 3 == 0 && !s.abandoned {
                     let available =
                         crate::labor::available(s, self.society.is_some(), self.living.is_some());
-                    let work = available.min(0.5);
+                    let work = available.min(requests[i]);
                     c.labor_budget[i] = work;
                     s.economy.external[3] += work;
                 }
@@ -1919,6 +1948,15 @@ impl History {
                     (s.economy.external[3] - c.labor_budget.get(i).copied().unwrap_or(0.)).max(0.);
             }
         }
+    }
+    /// Read-only requests at the current state; not a retrospective execution log.
+    pub fn cultural_work_requests(&self) -> serde_json::Value {
+        serde_json::json!(self.sites.iter().map(|s| {
+            let requests = self.culture.as_ref().map(|c| c.work_requests(self, s.id)).unwrap_or_default();
+            serde_json::json!({"site":s.id, "month":self.month,
+                "requests":requests.iter().map(|(action,work)| serde_json::json!({"action":action,"worker_months":work})).collect::<Vec<_>>(),
+                "requested_worker_months":requests.iter().map(|r|r.1).sum::<f32>().min(0.5)})
+        }).collect::<Vec<_>>())
     }
     pub fn cultural_summary(&self) -> serde_json::Value {
         self.culture.as_ref().map_or(serde_json::Value::Null,|c|serde_json::json!({"religious_relief":c.religious_relief,"patrons":c.patrons.len(),"departed":c.patrons.iter().filter(|p|p.departed.is_some()).count(),"aid_effort":c.patrons.iter().map(|p|p.effort.iter().sum::<f32>()).sum::<f32>(),"traditions":c.traditions.len(),"accounts":c.accounts.len(),"institutions":c.institutions.iter().filter(|n|n.active).count(),"institution_capacity":c.institutions.iter().filter_map(|n|n.capacity.as_ref().map(|capacity|serde_json::json!({"id":n.id,"site":n.site,"kind":n.kind,"eligible_local_members":c.institution_candidates(self,n.id).len(),"active":n.active,"operational":n.operational(),"capacity":capacity}))).collect::<Vec<_>>(),"artifacts":c.artifacts.len(),"practical_knowledge":self.sites.iter().map(|s|serde_json::json!({"site":s.id,"topic_mask":c.available_knowledge(self,s.id)})).collect::<Vec<_>>(),"knowledge_links":c.agents.iter().map(|a|a.knowledge.len()).sum::<usize>(),"relationships":c.agents.iter().map(|a|a.relations.len()).sum::<usize>(),"actions":c.agents.iter().map(|a|a.actions as u64).sum::<u64>(),"labor":c.labor_spent,"pilgrimages":self.events.iter().filter(|e|e.kind=="pilgrimage_returned").count(),"office_campaigns":self.events.iter().filter(|e|e.kind=="office_campaign").count(),"specimens":c.artifacts.iter().filter(|a|a.kind=="expedition specimen").count(),"lost_objects":c.artifacts.iter().filter(|a|a.lost && !a.destroyed).count(),"knowledge_sources":c.agents.iter().map(|a|a.knowledge_sources.len()).sum::<usize>()}))

@@ -56,6 +56,7 @@ impl Culture {
         if s.stocks.stock[1] < food + s.stocks.stock[0] * 18. * 3. || s.economy.goods[7] < 0.1 {
             return false;
         }
+        self.labor_spent += travel_work as f64;
         let source = &mut h.sites[site as usize];
         source.stocks.stock[1] -= food;
         source.stocks.ledger[1] += food;

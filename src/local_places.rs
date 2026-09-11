@@ -67,7 +67,7 @@ impl Culture {
                 continue;
             }
             if self.recover_specific(h, r.site, r.person, r.artifact as usize) {
-                self.labor_spent += work as f64;
+                self.labor_spent += 0.1;
                 h.events.last_mut().unwrap().causes.push(r.cause);
                 handled.insert(r.site);
             }

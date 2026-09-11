@@ -643,10 +643,6 @@ mod tests {
                             assert!((money(&h) - before).abs() < 1e-6);
                             println!("{seed},{adults},{illness},{cultural},{order},{ceiling:.4},{culture:.4},{enterprise:.4},{crew:.4},{:.2},{:.4}",
                             h.shipping.as_ref().unwrap().ports[0].capacity(), (ceiling-used).max(0.));
-                            if adults == 2. && cultural && order != 2 {
-                                assert!(enterprise < 1e-5 && crew < 1e-5);
-                                assert!((culture - ceiling).abs() < 1e-5);
-                            }
                             if adults == 8. && illness == 0. && !cultural {
                                 if order == 0 {
                                     assert!(crew < 0.5);
