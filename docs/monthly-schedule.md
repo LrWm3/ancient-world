@@ -17,7 +17,7 @@ Reservations remain subsystem-specific; this is not a simultaneous global auctio
 
 | Stage | Operations and visibility |
 | --- | --- |
-| Open | Prepare society/politics/governance; increment month; inspect environmental disruption; settle due market cargo, relief and relocating households; answer appeals; restore sites; prepare economy and claims; refresh extraction inputs; patron assistance and legacy cohort cleanup. Arrival price observations are returned to the response stage. |
+| Open | Prepare society/politics/governance; increment month; activate due policies; inspect environmental disruption; settle due market cargo, relief and relocating households; answer appeals; restore sites; prepare economy and claims; refresh extraction inputs; patron assistance and legacy cohort cleanup. Arrival price observations are returned to the response stage. |
 | Reserve | Prepare discoveries, reserve cultural work, prepare fisheries, allocate extraction allowances, plan production, prepare enterprises and vessels, prepare household retail. The extraction and retail plans are explicitly passed to execution. Earlier reservations have priority over later claims. |
 | Execute/settle | Upload committed inputs; claim, fish and run GPU production/consumption; read town results; settle extraction and enterprises; storage, housing and waterworks; settle retail. No production policy chosen later in the month can retroactively change this dispatch. |
 | Respond | Quote markets and dispatch new cargo using opening delivery evidence; release vessel/cultural work; expeditions, relocation, site lifecycle, society, genealogy, culture, offices and governance. Annual politics/shipping/expeditions/governance run here when due. Events remain available to later consumers in this stage. |
@@ -151,8 +151,8 @@ that replaying an answered appeal cannot send a duplicate shipment.
 
 Policy audit: annual faction tax assignment occurs in `politics_year`, after monthly
 governance payroll/loyalty accounting and production. This port preserves that lag.
-There is still no general policy-effective-date queue; introducing one needs explicit
-rules for direct configuration changes, civic concessions and annual faction policy.
+The tax policy timing increment below makes annual faction rates explicitly pending.
+There is still no general queue for direct configuration changes or civic concessions.
 These observation records are transient and add neither archive fields nor GPU reads.
 
 Verification: 62 ordinary library tests, two GPU governance fixtures, the GPU
@@ -160,3 +160,41 @@ relocation/relief fixture, and all three history-environment fixtures passed on 
 Quadro RTX 5000 backend. Seeds 17, 81 and 256 retained exact frozen/living batch and
 checkpoint comparisons. Strict library Clippy, formatting and artifact checks passed.
 This is evidence for these timing and accounting contracts, not a new balance study.
+
+
+## Tax policy activation (2026-09-11)
+
+Councils retain an active `tax_rate` and may have a `pending_tax` containing the new
+rate, decision month, effective month and decision event. Annual faction decisions
+schedule the next month's opening. They no longer immediately replace the active
+rate in the closing-year record. The opening stage activates due policy before
+relief, production, social taxation and governance consume state.
+
+Scheduling or activating a rate creates no money. Existing social taxation transfers
+and governance effective-tax pressure read only the active rate. Repeating an
+identical proposal does not delay activation; a revised proposal supersedes the
+pending rate. Returning to the active rate cancels the pending change. Decision,
+activation and cancellation events preserve links to preceding decisions.
+
+Pending policy is archived. Old councils without these fields keep their active rate
+and an unknown activation date; no historical decision is invented. Archive checks
+require finite bounded rates, past/current decision dates and the next-month pending
+deadline. `tax_effective_since` cannot be in the future. Initialization and zero-time
+calls do not activate pending decisions.
+
+This is an explicit schedule for annual faction tax policy, not a universal policy
+engine. Autonomy concessions and direct configuration edits retain their existing
+semantics. Shared spending priorities and broader policy categories remain separate
+work; they are not silently moved into the tax queue.
+
+Verification fixtures cover pre-boundary inactivity, activation once, unchanged money
+at activation, revised/cancelled proposals, old-council import and serialized pending
+continuation. The multi-seed history fixtures cross annual decisions and resume at month 24,
+including pending rates where decisions changed, checking exact batch/checkpoint
+outcomes. The small serialized fixture guarantees a pending rate is exercised.
+
+Tax timing verification on the Quadro backend: 64 ordinary library tests passed;
+the GPU expanded-faction fixture passed; all three history-environment fixtures
+passed (25.78 seconds excluding compilation), retaining exact seed 17/81/256
+batch/checkpoint comparisons. Strict Clippy passed after a boolean simplification;
+formatting and artifact checks passed. No new balance claims are made.

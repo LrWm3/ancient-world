@@ -64,13 +64,137 @@ pub struct Household {
     pub parent: Option<u32>,
     pub generation: u32,
 }
+/// A chosen rate is announced now and becomes active at a later monthly boundary.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PendingTaxPolicy {
+    pub rate: f32,
+    pub decided_month: u32,
+    pub effective_month: u32,
+    #[serde(default)]
+    pub cause: Option<u64>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Council {
     pub civilization: u32,
     pub treasury: f64,
     pub tax_rate: f32,
+    #[serde(default)]
+    pub pending_tax: Option<PendingTaxPolicy>,
+    /// None means an inherited baseline whose activation date is unknown.
+    #[serde(default)]
+    pub tax_effective_since: Option<u32>,
     pub relief_paid: f64,
 }
+impl Council {
+    fn plan_tax(&mut self, rate: f32, month: u32) -> bool {
+        if self.pending_tax.as_ref().is_some_and(|p| p.rate == rate) {
+            return false;
+        }
+        if self.tax_rate == rate {
+            self.pending_tax = None;
+            return false;
+        }
+        self.pending_tax = Some(PendingTaxPolicy {
+            rate,
+            decided_month: month,
+            effective_month: month + 1,
+            cause: None,
+        });
+        true
+    }
+
+    fn activate_tax(&mut self, month: u32) -> Option<PendingTaxPolicy> {
+        if self
+            .pending_tax
+            .as_ref()
+            .is_none_or(|p| p.effective_month > month)
+        {
+            return None;
+        }
+        let policy = self.pending_tax.take().unwrap();
+        self.tax_rate = policy.rate;
+        self.tax_effective_since = Some(month);
+        Some(policy)
+    }
+}
+
+impl History {
+    pub(crate) fn schedule_tax_policy(&mut self, civilization: usize, rate: f32) {
+        let previous = self.society.as_ref().unwrap().councils[civilization]
+            .pending_tax
+            .clone();
+        if self.society.as_mut().unwrap().councils[civilization].plan_tax(rate, self.month) {
+            self.event(
+                "tax_policy_scheduled",
+                None,
+                None,
+                format!(
+                    "Civilization {civilization} adopted a {:.1}% council rate effective month {}",
+                    rate * 100.,
+                    self.month + 1
+                ),
+            );
+            self.events
+                .last_mut()
+                .unwrap()
+                .subjects
+                .push(("civilization".into(), civilization as u32));
+            self.society.as_mut().unwrap().councils[civilization]
+                .pending_tax
+                .as_mut()
+                .unwrap()
+                .cause = Some(self.events.last().unwrap().id);
+            self.events
+                .last_mut()
+                .unwrap()
+                .causes
+                .extend(previous.and_then(|p| p.cause));
+        } else if previous.is_some()
+            && self.society.as_ref().unwrap().councils[civilization]
+                .pending_tax
+                .is_none()
+        {
+            self.event("tax_policy_cancelled", None, None,
+                format!("Civilization {civilization} retained its active council rate; pending change withdrawn"));
+            let event = self.events.last_mut().unwrap();
+            event
+                .subjects
+                .push(("civilization".into(), civilization as u32));
+            event.causes.extend(previous.and_then(|p| p.cause));
+        }
+    }
+
+    pub(crate) fn activate_monthly_policies(&mut self) {
+        let changes: Vec<_> = self.society.as_mut().map_or_else(Vec::new, |s| {
+            s.councils
+                .iter_mut()
+                .filter_map(|c| {
+                    c.activate_tax(self.month)
+                        .map(|rate| (c.civilization, rate))
+                })
+                .collect()
+        });
+        for (id, policy) in changes {
+            self.event(
+                "tax_policy_effective",
+                None,
+                None,
+                format!(
+                    "Civilization {id} council rate is now {:.1}%",
+                    policy.rate * 100.
+                ),
+            );
+            self.events
+                .last_mut()
+                .unwrap()
+                .subjects
+                .push(("civilization".into(), id));
+            self.events.last_mut().unwrap().causes.extend(policy.cause);
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Route {
     #[serde(default)]
@@ -158,7 +282,14 @@ impl Society {
                         && c.treasury >= 0.
                         && c.relief_paid.is_finite()
                         && c.relief_paid >= 0.
-                        && (0. ..=0.25).contains(&c.tax_rate)),
+                        && (0. ..=0.25).contains(&c.tax_rate)
+                        && c.tax_effective_since.is_none_or(|m| m <= h.month)
+                        && c.pending_tax
+                            .as_ref()
+                            .is_none_or(|p| (0. ..=0.25).contains(&p.rate)
+                                && p.decided_month <= h.month
+                                && p.effective_month == p.decided_month.saturating_add(1)
+                                && p.effective_month > h.month)),
             "invalid council"
         );
         ensure!(
@@ -1067,6 +1198,8 @@ impl Generator {
                     civilization: c.id,
                     treasury: 0.,
                     tax_rate: 0.03,
+                    pending_tax: None,
+                    tax_effective_since: None,
                     relief_paid: 0.,
                 })
                 .collect(),
@@ -1288,5 +1421,55 @@ mod tests {
                 == serde_json::to_vec(&b.civilizations).unwrap(),
             "in-transit checkpoint diverged"
         );
+    }
+}
+
+#[cfg(test)]
+mod policy_timing_tests {
+    use super::*;
+    fn council() -> Council {
+        Council {
+            civilization: 0,
+            treasury: 100.,
+            tax_rate: 0.03,
+            pending_tax: None,
+            tax_effective_since: None,
+            relief_paid: 0.,
+        }
+    }
+    #[test]
+    fn policy_waits_for_boundary_and_resumes_without_reapplying() {
+        let mut c = council();
+        assert!(c.plan_tax(0.1, 12));
+        assert_eq!(c.tax_rate, 0.03);
+        assert!(c.activate_tax(12).is_none());
+        let mut resumed: Council =
+            serde_json::from_slice(&serde_json::to_vec(&c).unwrap()).unwrap();
+        assert_eq!(c.activate_tax(13), resumed.activate_tax(13));
+        assert_eq!(c.tax_rate, 0.1);
+        assert_eq!(c.tax_effective_since, Some(13));
+        assert!(c.activate_tax(13).is_none());
+        assert!(c.activate_tax(14).is_none());
+        assert_eq!(
+            c.treasury, 100.,
+            "activating policy does not itself collect tax"
+        );
+    }
+    #[test]
+    fn revision_replaces_pending_rate_and_old_archives_keep_baseline() {
+        let mut c = council();
+        assert!(c.plan_tax(0.1, 12));
+        assert!(!c.plan_tax(0.1, 12));
+        assert!(c.plan_tax(0.05, 12));
+        assert_eq!(c.pending_tax.as_ref().unwrap().effective_month, 13);
+        assert!(!c.plan_tax(0.03, 12));
+        assert!(c.pending_tax.is_none());
+        let old: Council = serde_json::from_str(
+            r#"{"civilization":0,"treasury":100.0,"tax_rate":0.07,"relief_paid":0.0}"#,
+        )
+        .unwrap();
+        assert_eq!(old.tax_rate, 0.07);
+        assert!(old.pending_tax.is_none());
+        assert!(old.tax_effective_since.is_none());
     }
 }

@@ -1206,6 +1206,7 @@ impl Generator {
             "civilization beta event limit reached"
         );
         h.month += 1;
+        h.activate_monthly_policies();
         if let Some(nav) = navigation.as_ref().filter(|_| h.living.is_some()) {
             let inspections = nav.inspect_routes(h)?;
             h.environmental_month_with_inspections(terrain, Some(&inspections));

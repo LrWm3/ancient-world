@@ -801,8 +801,11 @@ impl History {
                     }
                 }
             }
-            self.society.as_mut().unwrap().councils[civ].tax_rate = crate::faction_interests::TAX
-                [p.factions[p.governing[civ] as usize].interest as usize];
+            self.schedule_tax_policy(
+                civ,
+                crate::faction_interests::TAX
+                    [p.factions[p.governing[civ] as usize].interest as usize],
+            );
         }
         self.politics = Some(p);
         // Escalation needs a recent material grievance, a contested corridor and supplies.
@@ -1130,6 +1133,7 @@ mod expanded_faction_tests {
             {
                 s.pressure = [1., 0., 1., 1.];
             }
+            h.activate_monthly_policies();
             h.politics_year();
         }
         let p = h.politics.as_ref().unwrap();
@@ -1143,7 +1147,10 @@ mod expanded_faction_tests {
             .any(|id| p.factions[*id as usize].interest == 6));
         for (c, id) in p.governing.iter().enumerate() {
             assert_eq!(
-                h.society.as_ref().unwrap().councils[c].tax_rate,
+                h.society.as_ref().unwrap().councils[c]
+                    .pending_tax
+                    .as_ref()
+                    .map_or(h.society.as_ref().unwrap().councils[c].tax_rate, |p| p.rate),
                 crate::faction_interests::TAX[p.factions[*id as usize].interest as usize]
             );
         }
@@ -1163,6 +1170,7 @@ mod expanded_faction_tests {
                 {
                     s.pressure = [0.; 4];
                 }
+                world.activate_monthly_policies();
                 world.politics_year();
             }
         }
