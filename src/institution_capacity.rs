@@ -152,6 +152,12 @@ impl crate::culture::Culture {
             }
             c.work += work as f64;
             self.labor_spent += work as f64;
+            crate::culture::work_requests::record_work(
+                &mut self.work_plans,
+                i as u32,
+                h.month,
+                work,
+            );
             let mut repair_work = 0.;
             let mut building_support = 1.;
             if let Some(b) = &mut c.building {

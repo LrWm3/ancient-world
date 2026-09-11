@@ -7,7 +7,7 @@ use crate::{
 use anyhow::{ensure, Result};
 pub mod dynamics;
 mod practices;
-mod work_requests;
+pub(crate) mod work_requests;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -991,13 +991,17 @@ impl History {
                 a.events.push(ev);
             }
         }
+        // Elections also consume the team's grant: check presence before that first consumer.
+        if self.participation.is_some() && self.month.is_multiple_of(3) {
+            c.validate_work_plans(self);
+        }
+        let spent_before = c.labor_spent;
         c.institutional_succession(self);
         if self.month % 3 == 0
             && (c.work_plans.is_empty()
                 || (c.work_receipt.month == self.month && !c.work_receipt.settled))
         {
             c.validate_work_plans(self);
-            let spent_before = c.labor_spent;
             c.maintain_institutions(self);
             crate::expedition_heritage::study(self, &mut c);
             crate::civic_petitions::propose(self, &mut c);
@@ -1210,6 +1214,7 @@ impl Culture {
                 && self.recover_object(h, site, actor)
             {
                 self.labor_spent += 0.1;
+                work_requests::record_work(&mut self.work_plans, site, h.month, 0.1);
                 continue;
             }
             if self.work_allowed(site, "specimen curation")
@@ -1217,6 +1222,7 @@ impl Culture {
                 && self.curate_specimen(h, site, actor)
             {
                 self.labor_spent += 0.1;
+                work_requests::record_work(&mut self.work_plans, site, h.month, 0.1);
                 continue;
             }
             let mut remaining_work = labor;
@@ -1352,6 +1358,12 @@ impl Culture {
                 && self.seek_office(h, site, actor)
             {
                 self.labor_spent += (labor - remaining_work + 0.1) as f64;
+                work_requests::record_work(
+                    &mut self.work_plans,
+                    site,
+                    h.month,
+                    labor - remaining_work + 0.1,
+                );
                 continue;
             }
             // Small donations are transfers, not extra community income.
@@ -1690,6 +1702,7 @@ impl Culture {
             }
             let used = (labor - remaining_work).max(0.);
             self.labor_spent += used as f64;
+            work_requests::record_work(&mut self.work_plans, site, h.month, used);
             if used <= 0. {
                 continue;
             }
@@ -1969,6 +1982,7 @@ impl History {
         }
     }
     pub(crate) fn reserve_cultural_work(&mut self) {
+        self.open_participation();
         self.sync_culture();
         let knowledge: Vec<u32> = self
             .culture
@@ -2008,7 +2022,31 @@ impl History {
                 if self.month % 3 == 0 && !s.abandoned {
                     let available =
                         crate::labor::available(s, self.society.is_some(), self.living.is_some());
-                    let work = available.min(requests[i]);
+                    let mut work = available.min(requests[i]);
+                    if let Some(state) = &mut self.participation {
+                        let p = &c.work_plans[i];
+                        let ids: Vec<_> = p
+                            .actor
+                            .into_iter()
+                            .chain(p.successor.map(|s| s.0))
+                            .chain(p.institution_lesson.map(|l| l.1))
+                            .chain(
+                                c.local_recoveries
+                                    .iter()
+                                    .filter(|r| r.site == s.id)
+                                    .map(|r| r.person),
+                            )
+                            .collect();
+                        let commitment = state.reserve(
+                            self.month,
+                            s.id,
+                            crate::participation::Activity::Culture,
+                            &ids,
+                            work,
+                        );
+                        work = commitment.map_or(0., |id| state.commitments[id as usize].granted);
+                        c.work_plans[i].commitment = commitment;
+                    }
                     c.work_plans[i].granted = work;
                     c.work_receipt.granted += work as f64;
                     c.labor_budget[i] = work;

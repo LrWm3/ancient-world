@@ -68,6 +68,12 @@ impl Culture {
             }
             if self.recover_specific(h, r.site, r.person, r.artifact as usize) {
                 self.labor_spent += 0.1;
+                crate::culture::work_requests::record_work(
+                    &mut self.work_plans,
+                    r.site,
+                    h.month,
+                    0.1,
+                );
                 h.events.last_mut().unwrap().causes.push(r.cause);
                 handled.insert(r.site);
             }

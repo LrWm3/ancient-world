@@ -124,10 +124,10 @@ Run from the repository root. The runner writes raw results only under ignored
 
 ```sh
 CARGO_INCREMENTAL=0 mise exec rust@1.89.0 -- cargo build --example cultural_work_calibrate
-target/debug/examples/cultural_work_calibrate --strict-identities --output output/cultural-work-baseline.json
-target/debug/examples/cultural_work_calibrate --output output/cultural-work-focused.json
-target/debug/examples/cultural_work_calibrate --strict-identities --seeds 409,1024 --years 200 --output output/cultural-work-heldout-strict.json
-target/debug/examples/cultural_work_calibrate --seeds 409,1024 --years 200 --output output/cultural-work-heldout-focused.json
+target/debug/examples/cultural_work_calibrate --legacy-participation --strict-identities --output output/cultural-work-baseline.json
+target/debug/examples/cultural_work_calibrate --legacy-participation --output output/cultural-work-focused.json
+target/debug/examples/cultural_work_calibrate --legacy-participation --strict-identities --seeds 409,1024 --years 200 --output output/cultural-work-heldout-strict.json
+target/debug/examples/cultural_work_calibrate --legacy-participation --seeds 409,1024 --years 200 --output output/cultural-work-heldout-focused.json
 python3 scripts/summarize_cultural_work.py output/cultural-work-baseline.json output/cultural-work-focused.json output/cultural-work-heldout-strict.json output/cultural-work-heldout-focused.json
 ```
 
@@ -135,3 +135,13 @@ The summarizer refuses incomplete reports. Event totals, cancellation categories
 ten-year observations and final economy residuals are retained locally for inspection.
 Knowledge-link totals include historical agent records, not just living teachers;
 artifact totals likewise count records rather than only usable surviving objects.
+
+The commands explicitly disable the subsequently added individual participation
+pilot, keeping this comparison focused on identity guards rather than personal
+capacity allocation.
+
+The individual-participation delivery subsequently included previously omitted
+institutional election work in the quarterly receipt. The table above retains the
+measurements made before that reporting correction; current reruns can therefore
+differ in work totals even with legacy participation selected. See
+[individual participation](individual-participation.md) for the new verification.

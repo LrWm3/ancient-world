@@ -100,3 +100,12 @@ do not establish long-run balance, arbitrary mid-month recovery, or cross-GPU
 identity. The conservative cultural cancellation rule can defer feasible work;
 its measured longer-term frequency is reported in
 [cultural work calibration](cultural-work-calibration.md).
+
+## Individual service participation
+
+New histories additionally share named participants between cultural and research
+reservations. Personal shares partition the existing site grant; the opening
+capacity snapshot cannot be refreshed to reuse a person later in the same month.
+Completed contributions persist with their person IDs. See
+[individual participation](individual-participation.md) for scope, controls and
+the remaining aggregate population authority.

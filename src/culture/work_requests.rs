@@ -5,6 +5,10 @@ use super::*;
 /// Material stocks remain live and must pass the action's execution checks.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WorkPlan {
+    #[serde(default)]
+    pub completed: f32,
+    #[serde(default)]
+    pub commitment: Option<u32>,
     pub month: u32,
     pub site: u32,
     pub actor: Option<u32>,
@@ -62,6 +66,8 @@ impl Culture {
         });
         let identities = self.work_identities(h, site, participants.as_deref());
         WorkPlan {
+            completed: 0.,
+            commitment: None,
             successor,
             institution_lesson,
             participants,
@@ -98,6 +104,8 @@ impl Culture {
                 Some("stale month")
             } else if h.sites[p.site as usize].abandoned {
                 Some("site abandoned")
+            } else if p.commitment.is_some() && h.personal_grant_live(p.commitment) <= 0. {
+                Some("participant unavailable")
             } else if !changed.is_empty() {
                 Some("actor or named target changed")
             } else {
@@ -368,6 +376,13 @@ impl Culture {
     }
 }
 
+/// Execution sites report completed labor directly; remaining budgets have mixed legacy meanings.
+pub(crate) fn record_work(plans: &mut [WorkPlan], site: u32, month: u32, work: f32) {
+    if let Some(p) = plans.get_mut(site as usize).filter(|p| p.month == month) {
+        p.completed += work;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -417,6 +432,20 @@ mod tests {
         c.decisions(h);
         assert!((c.labor_spent - before - 0.1).abs() < 1e-6);
         assert!(h.events.iter().any(|e| e.kind == "practice_taught"));
+        assert!((c.work_plans[0].completed - 0.1).abs() < 1e-6);
+        // Completion is explicit even when the legacy grant array is not decremented.
+        let commitment = c.work_plans[0].commitment.unwrap();
+        h.culture = Some(c.clone());
+        h.settle_participation().unwrap();
+        assert!(
+            (h.participation.as_ref().unwrap().commitments[commitment as usize].used - 0.1).abs()
+                < 1e-6
+        );
+        h.culture = None;
+
+        for p in &mut c.work_plans {
+            p.commitment = None;
+        }
         for a in &mut c.agents {
             a.knowledge.clear();
         }

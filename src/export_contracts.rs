@@ -276,6 +276,7 @@ mod tests {
         catalog.market.network_trade = false;
         catalog.production.supplier_profitability = false;
         History {
+            participation: None,
             territorial_history: vec![],
             enterprises: None,
             experimental_tool_reserves: Default::default(),

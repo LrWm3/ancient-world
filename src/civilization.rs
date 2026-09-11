@@ -147,6 +147,8 @@ pub struct Candidate {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct History {
     #[serde(default)]
+    pub participation: Option<crate::participation::Participation>,
+    #[serde(default)]
     pub territorial_history: Vec<crate::territory::Snapshot>,
     #[serde(default)]
     pub enterprises: Option<crate::enterprises::Enterprises>,
@@ -1095,6 +1097,7 @@ impl Generator {
         };
         candidates.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.cell.cmp(&b.cell)));
         let mut h = History {
+            participation: Some(Default::default()),
             territorial_history: vec![],
             enterprises: Some(Default::default()),
             experimental_tool_reserves: Default::default(),
@@ -1361,6 +1364,7 @@ impl Generator {
         h.register_resources(terrain, self.config.radius_km);
         h.sync_culture();
         h.sync_offices();
+        h.settle_participation()?;
         h.social_indicators_month();
         if record && h.living.is_none() {
             h.record_timeline();

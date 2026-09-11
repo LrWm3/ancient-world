@@ -140,6 +140,12 @@ impl Culture {
             *budget -= 0.05;
             let work = (before - *budget) as f64;
             self.labor_spent += work;
+            crate::culture::work_requests::record_work(
+                &mut self.work_plans,
+                site,
+                h.month,
+                work as f32,
+            );
             let m = self.institutions[i]
                 .capacity
                 .as_mut()

@@ -96,3 +96,5 @@ pub mod navigation;
 mod freight;
 
 mod labor;
+
+pub mod participation;

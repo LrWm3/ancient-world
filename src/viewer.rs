@@ -2577,6 +2577,19 @@ impl App {
                                 ui.label(format!("{}: {}",site.name,topics));
                             }
                         });
+                        ui.collapsing("Individual participation", |ui| {
+                            ui.small("Named residents share cultural and research work. Population and ordinary employment still use settlement cohorts.");
+                            if let Some(p)=&h.participation {
+                                ui.label(format!("Opening-month roster: {} known people · {} commitments",p.residents.len(),p.commitments.len()));
+                                for work in &p.commitments {
+                                    egui::CollapsingHeader::new(format!("{} · {:?}: {:.2} / {:.2} worker-months",h.sites[work.site as usize].name,work.activity,work.used,work.granted)).id_salt(("participation",work.month,work.site,format!("{:?}",work.activity))).show(ui,|ui| {
+                                        for &(id,time) in &work.people {ui.label(format!("{}: {:.2} reserved · current {:?}",h.people[id as usize].name,time,h.person_presence(id).1));}
+                                        if let Some(reason)=&work.cancellation {ui.small(reason);}
+                                        ui.small(if work.settled {"Settled; unused time expires"}else{"Awaiting execution"});
+                                    });
+                                }
+                            } else {ui.label("Legacy aggregate work mode");}
+                        });
                         ui.collapsing("People and learning", |ui| {
                             for a in c.agents.iter().filter(|a|a.actions>0).rev().take(32) { egui::CollapsingHeader::new(&h.people[a.person as usize].name).id_salt(("cultural_person",a.person)).show(ui,|ui| {
                                 ui.label(format!("{} · {}",a.occupation,a.goal));

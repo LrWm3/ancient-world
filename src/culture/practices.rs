@@ -57,6 +57,12 @@ impl Culture {
             return false;
         }
         self.labor_spent += travel_work as f64;
+        crate::culture::work_requests::record_work(
+            &mut self.work_plans,
+            site,
+            h.month,
+            travel_work,
+        );
         let source = &mut h.sites[site as usize];
         source.stocks.stock[1] -= food;
         source.stocks.ledger[1] += food;

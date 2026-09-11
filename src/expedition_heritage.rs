@@ -289,6 +289,7 @@ pub(crate) fn study(h: &mut History, c: &mut crate::culture::Culture) {
         }
         c.labor_budget[site as usize] -= 0.1;
         c.labor_spent += 0.1;
+        crate::culture::work_requests::record_work(&mut c.work_plans, site, h.month, 0.1);
         let comparison = c
             .artifacts
             .iter()

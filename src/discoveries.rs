@@ -18,6 +18,8 @@ pub struct Source {
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ResearchPlan {
+    #[serde(default)]
+    pub commitment: Option<u32>,
     pub receipt: crate::labor::WorkReceipt,
     pub teachers: [Option<u32>; 2],
     pub processing_kg: [f64; 2],
@@ -371,6 +373,11 @@ impl Discoveries {
         let teachers = self.workshops.clone();
         for w in &mut self.workshops {
             let site = w.site as usize;
+            let personal_limit = w
+                .work_plan
+                .as_ref()
+                .filter(|p| p.commitment.is_some())
+                .map_or(f32::MAX, |p| h.personal_grant_live(p.commitment));
             let s = &mut h.sites[site];
             let expired = w.remedy * 0.01;
             w.remedy -= expired;
@@ -389,7 +396,7 @@ impl Discoveries {
             let mut labor = (s.economy.external[3].min(s.economy.labor[3]).max(0.)) as f64;
             if let Some(p) = &w.work_plan {
                 labor = if p.receipt.month == h.month && !p.receipt.settled {
-                    labor.min(p.receipt.granted)
+                    labor.min(p.receipt.granted).min(personal_limit as f64)
                 } else {
                     0.
                 };
@@ -611,6 +618,7 @@ fn requested_work(h: &History, workshop: &Workshop, teachers: &[Workshop]) -> f3
 
 impl History {
     pub(crate) fn prepare_discoveries(&mut self) {
+        self.open_participation();
         let requests: Vec<_> = self
             .expeditions
             .as_ref()
@@ -623,10 +631,43 @@ impl History {
             })
             .unwrap_or_default();
         for (site, mut plan) in requests {
-            let s = &mut self.sites[site as usize];
-            let grant = crate::labor::available(s, self.society.is_some(), self.living.is_some())
-                .min(plan.receipt.requested as f32);
-            s.economy.external[3] += grant;
+            let mut grant = crate::labor::available(
+                &self.sites[site as usize],
+                self.society.is_some(),
+                self.living.is_some(),
+            )
+            .min(plan.receipt.requested as f32);
+            if let Some(state) = &mut self.participation {
+                let mut candidates: Vec<_> = state
+                    .residents
+                    .values()
+                    .filter(|p| {
+                        p.presence == crate::participation::Presence::Resident(site)
+                            && state.available(p.person) > 0.
+                    })
+                    .map(|p| {
+                        let interest = self
+                            .culture
+                            .as_ref()
+                            .and_then(|c| c.agents.get(p.person as usize))
+                            .map_or(0.5, |a| a.traits[3]);
+                        (p.person, interest as f64 + (p.completed[1] / 12.).min(1.))
+                    })
+                    .collect();
+                candidates.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
+                let ids: Vec<_> = candidates.into_iter().take(4).map(|p| p.0).collect();
+                plan.commitment = state.reserve(
+                    self.month,
+                    site,
+                    crate::participation::Activity::Research,
+                    &ids,
+                    grant,
+                );
+                grant = plan
+                    .commitment
+                    .map_or(0., |id| state.commitments[id as usize].granted);
+            }
+            self.sites[site as usize].economy.external[3] += grant;
             plan.receipt.granted = grant as f64;
             if let Some(w) = self
                 .expeditions

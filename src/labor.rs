@@ -101,6 +101,7 @@ impl crate::civilization::History {
     pub fn service_work_report(&self) -> serde_json::Value {
         serde_json::json!({
             "month": self.month,
+            "participation": self.participation_report(),
             "culture": self.culture.as_ref().map(|c| (&c.work_receipt, &c.work_plans)),
             "research": self.expeditions.as_ref().and_then(|x| x.discoveries.as_ref()).map(|d| d.workshops.iter().map(|w| (w.site, &w.work_plan)).collect::<Vec<_>>()),
             "workshops": self.enterprises.as_ref().map(|e| e.firms.iter().map(|f| serde_json::json!({"firm":f.id,"site":f.site,"requested":f.last_requested_work,"funded":f.last_funded_work,"completed":f.last_completed_work,"idle_paid":(f.last_funded_work-f.last_completed_work).max(0.)})).collect::<Vec<_>>()),
@@ -109,6 +110,9 @@ impl crate::civilization::History {
         })
     }
     pub(crate) fn validate_service_work(&self) -> anyhow::Result<()> {
+        if let Some(p) = &self.participation {
+            p.validate(self)?;
+        }
         for cargo in &self.cargo {
             anyhow::ensure!(
                 cargo
@@ -131,6 +135,14 @@ impl crate::civilization::History {
                     p.site as usize == i
                         && i < self.sites.len()
                         && p.month <= self.month
+                        && p.commitment
+                            .is_none_or(|id| self.participation.as_ref().is_some_and(|state| {
+                                state.commitments.get(id as usize).is_some_and(|c| {
+                                    c.month == p.month
+                                        && c.site == p.site
+                                        && c.activity == crate::participation::Activity::Culture
+                                })
+                            }))
                         && p.actor.is_none_or(|a| (a as usize) < self.people.len())
                         && p.participants.as_ref().is_none_or(|ids| ids
                             .iter()
@@ -139,9 +151,10 @@ impl crate::civilization::History {
                             .is_none_or(|(topic, teacher, institution)| topic < 12
                                 && (teacher as usize) < self.people.len()
                                 && (institution as usize) < c.institutions.len())
-                        && [p.granted, p.cancelled_work]
+                        && [p.granted, p.cancelled_work, p.completed]
                             .iter()
                             .all(|v| v.is_finite() && *v >= 0.)
+                        && (p.commitment.is_none() || p.completed <= p.granted + 1e-5)
                         && p.actions.iter().all(|(_, w)| w.is_finite() && *w >= 0.),
                     "invalid cultural work plan"
                 );
@@ -157,6 +170,16 @@ impl crate::civilization::History {
                     p.receipt.validate()?;
                     anyhow::ensure!(
                         p.receipt.month <= self.month
+                            && p.commitment.is_none_or(|id| self
+                                .participation
+                                .as_ref()
+                                .is_some_and(|state| state
+                                    .commitments
+                                    .get(id as usize)
+                                    .is_some_and(|c| c.month == p.receipt.month
+                                        && c.site == w.site
+                                        && c.activity
+                                            == crate::participation::Activity::Research)))
                             && p.teachers
                                 .iter()
                                 .all(|t| t.is_none_or(|id| (id as usize) < self.sites.len()))

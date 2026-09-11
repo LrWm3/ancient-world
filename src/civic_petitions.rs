@@ -156,6 +156,7 @@ pub(crate) fn propose(h: &mut History, c: &mut Culture) {
     for (site, controller, institution, faction, demand, pressure) in proposals {
         c.labor_budget[site as usize] -= 0.1;
         c.labor_spent += 0.1;
+        crate::culture::work_requests::record_work(&mut c.work_plans, site, h.month, 0.1);
         let requested = if demand == Demand::Autonomy {
             0.
         } else {
