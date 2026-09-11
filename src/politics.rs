@@ -408,10 +408,11 @@ impl History {
         }
         let heads: BTreeSet<_> = social.households.iter().map(|f| f.head).collect();
         for k in &p.kin {
+            let on_service = self.person_on_service(k.person);
             let person = &mut self.people[k.person as usize];
             let site = social.households[k.household as usize].site as usize;
             if !social.relocation.away(k.household)
-                && !self.person_duties.contains_key(&k.person)
+                && !on_service
                 && !heads.contains(&k.person)
                 && person.died.is_none()
                 && self.month as i32 - person.born >= 840
@@ -444,7 +445,7 @@ impl History {
                     let v = &self.people[k.person as usize];
                     let age = self.month as i32 - v.born;
                     !social.relocation.away(k.household)
-                        && !self.person_duties.contains_key(&k.person)
+                        && !self.person_on_service(k.person)
                         && v.died.is_none()
                         && !self.sites[social.households[k.household as usize].site as usize]
                             .abandoned
@@ -507,9 +508,7 @@ impl History {
         for index in 0..p.marriages.len() {
             let m = &p.marriages[index];
             if m.ended.is_some()
-                || m.partners
-                    .iter()
-                    .any(|id| self.person_duties.contains_key(id))
+                || m.partners.iter().any(|id| self.person_on_service(*id))
                 || m.partners.iter().any(|id| {
                     p.kin.iter().find(|k| k.person == *id).is_some_and(|k| {
                         let household =
@@ -596,7 +595,7 @@ impl History {
             .iter()
             .filter(|k| {
                 k.parents.contains(&Some(old))
-                    && !self.person_duties.contains_key(&k.person)
+                    && !self.person_on_service(k.person)
                     && social.households[k.household as usize].site == site
                     && !social.households.iter().any(|f| f.head == k.person)
             })
@@ -912,8 +911,12 @@ impl History {
             soldiers >= 3.,
             "insufficient adult manpower, tools or campaign provisions"
         );
-        let food = soldiers * 18. * (months * 2 + 3) as f32;
         let id = p.wars.len() as u32;
+        let recruits = self.recruit_service_people(origin, soldiers.floor() as usize, 3)?;
+        let soldiers = recruits.people.len() as f32;
+        let food = soldiers * 18. * (months * 2 + 3) as f32;
+        let raid_id = self.society.as_ref().unwrap().next_raid;
+        self.assign_military_people(raid_id, origin, &recruits.people);
         let source = |site: u32| crate::naming::Source {
             kind: "site".into(),
             id: site,
@@ -950,6 +953,7 @@ impl History {
                 soldiers
             ),
         );
+        self.record_recruitment(&recruits);
         let event = self.events.last_mut().unwrap();
         event.causes.push(cause);
         let declaration = event.id;
@@ -968,6 +972,8 @@ impl History {
         let raid_id = social.next_raid;
         social.next_raid += 1;
         social.raids.push(Raid {
+            members: Some(recruits.people),
+            loss_remainder: 0.,
             id: raid_id,
             origin,
             target,

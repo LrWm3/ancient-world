@@ -2392,6 +2392,15 @@ impl App {
                                 if r.occupation_until.is_some() { "occupying until" } else if r.returning { "returning" } else { "outbound" },
                                 r.arrives
                             ));
+                            if let Some(members) = &r.members {
+                                ui.collapsing(format!("{} named members of army {}", members.len(), r.id), |ui| {
+                                    for id in members {
+                                        let person = &h.people[*id as usize];
+                                        let career = &h.military.careers[id];
+                                        ui.small(format!("{} · {} campaigns · {} months served", person.name, career.campaigns, career.months_served));
+                                    }
+                                });
+                            } else { ui.small("Legacy aggregate army"); }
                         }
                     });
                 }

@@ -194,7 +194,7 @@ pub struct Expeditions {
     #[serde(default)]
     pub discoveries: Option<crate::discoveries::Discoveries>,
 }
-fn random(seed: u32, id: u32, month: u32, channel: u32) -> f32 {
+pub(crate) fn random(seed: u32, id: u32, month: u32, channel: u32) -> f32 {
     let mut x = seed
         ^ id.wrapping_mul(0x9e3779b9)
         ^ month.wrapping_mul(0x85ebca6b)
@@ -634,95 +634,10 @@ impl Expeditions {
             institution.is_some() || public || s.economy.finance[0] >= 4600.,
             "no wealthy public or private sponsor"
         );
-        // Choose real available adults before spending anything. Sparse historical people
-        // are a subset of the cohort population; this transfers eight, never creates eight.
-        let mut candidates: Vec<_> = h
-            .people
-            .iter()
-            .filter(|person| {
-                (180..660).contains(&(h.month as i32 - person.born))
-                    && h.person_presence(person.id).1
-                        == crate::participation::Presence::Resident(origin)
-                    && !h.civilizations.iter().any(|c| c.leader == person.id)
-                    && h.participation.as_ref().is_none_or(|p| {
-                        p.month != Some(h.month)
-                            || p.residents
-                                .get(&person.id)
-                                .is_none_or(|r| r.committed <= 1e-6)
-                    })
-            })
-            .map(|p| p.id)
-            .collect();
-        candidates.sort_by_key(|&person| random(h.seed, person, h.month, 211).to_bits());
-        candidates.truncate(8);
-        let named_adults = h
-            .people
-            .iter()
-            .filter(|person| {
-                (180..720).contains(&(h.month as i32 - person.born))
-                    && h.person_presence(person.id).1
-                        == crate::participation::Presence::Resident(origin)
-            })
-            .count();
-        let unnamed_adults = (h.sites[origin as usize].demography.ages[1].floor() as usize)
-            .saturating_sub(named_adults);
-        let identify = 8 - candidates.len();
-        ensure!(
-            identify <= unnamed_adults,
-            "fewer than eight uncommitted expedition adults"
-        );
-        let homes: Vec<_> = h
-            .society
-            .as_ref()
-            .unwrap()
-            .households
-            .iter()
-            .filter(|hh| hh.site == origin && !h.society.as_ref().unwrap().relocation.away(hh.id))
-            .map(|hh| hh.id)
-            .collect();
-        ensure!(
-            identify == 0 || !homes.is_empty(),
-            "no resident ownership account for unnamed crew"
-        );
-        ensure!(
-            h.politics
-                .as_ref()
-                .is_some_and(|p| p.kin.len() + identify <= 50000),
-            "genealogy registry cannot record recruited crew"
-        );
-        let first_identified = h.people.len() as u32;
-        for slot in 0..identify {
-            let person = h.people.len() as u32;
-            let civilization = h.sites[origin as usize].civilization;
-            let name = h.civilizations[civilization as usize]
-                .naming(h.seed)
-                .person_with(
-                    "person",
-                    person,
-                    &crate::naming::PersonalContext::local(
-                        &h.sites[origin as usize],
-                        h.culture.as_ref(),
-                    ),
-                );
-            h.people.push(crate::civilization::Person {
-                id: person,
-                name,
-                civilization,
-                born: h.month as i32 - 300 - (random(h.seed, person, h.month, 212) * 180.) as i32,
-                died: None,
-                predecessor: None,
-            });
-            h.politics
-                .as_mut()
-                .unwrap()
-                .kin
-                .push(crate::politics::Kinship {
-                    person,
-                    household: homes[slot % homes.len()],
-                    parents: [None; 2],
-                });
-            candidates.push(person);
-        }
+        let recruitment = h.recruit_service_people(origin, 8, 8)?;
+        let candidates = recruitment.people;
+        let identify = recruitment.identified;
+        let first_identified = recruitment.first_identified;
         if let Some(id) = institution {
             h.culture.as_mut().unwrap().institutions[id as usize].treasury -= 600.;
         } else if public {

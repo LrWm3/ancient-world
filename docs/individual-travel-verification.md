@@ -88,6 +88,10 @@ individual ordinary employment and biological aging at sea remain future work.
 
 ## Outstanding authority conversion
 
+This section records the expedition milestone. New military campaigns have since
+gained shared rosters, named losses and return accounting; see
+[military participation verification](individual-military-verification.md).
+
 The sparse named roster still is not a census. Domestic family groups must remain
 separate from the current ownership accounts. Complete initialization, individual
 food needs and births/deaths, military and general relocation membership, and

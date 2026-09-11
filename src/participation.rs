@@ -13,6 +13,7 @@ pub enum Activity {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Presence {
     Expedition(u32),
+    Military(u32),
     Resident(u32),
     Traveling(u32),
     Dead,
@@ -208,6 +209,9 @@ impl History {
         if let Some(duty) = self.person_duties.get(&person) {
             return (duty.household, Presence::Expedition(duty.voyage));
         }
+        if let Some(duty) = self.military.duties.get(&person) {
+            return (duty.household, Presence::Military(duty.army));
+        }
         if let Some((society, hh)) = self.society.as_ref().zip(household) {
             if society.relocation.away(hh) {
                 return (household, Presence::Traveling(hh));
@@ -349,6 +353,134 @@ impl History {
             }
         }
         Ok(())
+    }
+}
+
+/// A bounded identification step over existing cohort residents, not a population import.
+pub(crate) struct Recruitment {
+    pub people: Vec<u32>,
+    pub identified: usize,
+    pub first_identified: u32,
+}
+impl History {
+    pub(crate) fn recruit_service_people(
+        &mut self,
+        origin: u32,
+        maximum: usize,
+        minimum: usize,
+    ) -> Result<Recruitment> {
+        ensure!(
+            minimum > 0 && maximum >= minimum && (origin as usize) < self.sites.len(),
+            "invalid service recruitment request"
+        );
+        let maximum = maximum.min(
+            self.sites[origin as usize].demography.ages[1]
+                .floor()
+                .max(0.) as usize,
+        );
+        // Choose real available adults before spending anything. Sparse historical people
+        // are a subset of the cohort population; identification never adds population.
+        let mut candidates: Vec<_> = self
+            .people
+            .iter()
+            .filter(|person| {
+                (180..660).contains(&(self.month as i32 - person.born))
+                    && self.person_presence(person.id).1
+                        == crate::participation::Presence::Resident(origin)
+                    && !self.civilizations.iter().any(|c| c.leader == person.id)
+                    && self.participation.as_ref().is_none_or(|p| {
+                        p.month != Some(self.month)
+                            || p.residents
+                                .get(&person.id)
+                                .is_none_or(|r| r.committed <= 1e-6)
+                    })
+            })
+            .map(|p| p.id)
+            .collect();
+        candidates.sort_by_key(|&person| {
+            crate::expeditions::random(self.seed, person, self.month, 211).to_bits()
+        });
+        candidates.truncate(maximum);
+        let named_adults = self
+            .people
+            .iter()
+            .filter(|person| {
+                (180..720).contains(&(self.month as i32 - person.born))
+                    && self.person_presence(person.id).1
+                        == crate::participation::Presence::Resident(origin)
+            })
+            .count();
+        let unnamed_adults = (self.sites[origin as usize].demography.ages[1].floor() as usize)
+            .saturating_sub(named_adults);
+        let identify = (maximum - candidates.len()).min(unnamed_adults).min(
+            self.politics
+                .as_ref()
+                .map_or(0, |p| 50000usize.saturating_sub(p.kin.len())),
+        );
+        ensure!(
+            candidates.len() + identify >= minimum,
+            "insufficient uncommitted resident adults for service"
+        );
+        let homes: Vec<_> = self
+            .society
+            .as_ref()
+            .unwrap()
+            .households
+            .iter()
+            .filter(|hh| {
+                hh.site == origin && !self.society.as_ref().unwrap().relocation.away(hh.id)
+            })
+            .map(|hh| hh.id)
+            .collect();
+        ensure!(
+            identify == 0 || !homes.is_empty(),
+            "no resident ownership account for unnamed crew"
+        );
+        let first_identified = self.people.len() as u32;
+        for slot in 0..identify {
+            let person = self.people.len() as u32;
+            let civilization = self.sites[origin as usize].civilization;
+            let name = self.civilizations[civilization as usize]
+                .naming(self.seed)
+                .person_with(
+                    "person",
+                    person,
+                    &crate::naming::PersonalContext::local(
+                        &self.sites[origin as usize],
+                        self.culture.as_ref(),
+                    ),
+                );
+            self.people.push(crate::civilization::Person {
+                id: person,
+                name,
+                civilization,
+                born: self.month as i32
+                    - 300
+                    - (crate::expeditions::random(self.seed, person, self.month, 212) * 180.)
+                        as i32,
+                died: None,
+                predecessor: None,
+            });
+            self.politics
+                .as_mut()
+                .unwrap()
+                .kin
+                .push(crate::politics::Kinship {
+                    person,
+                    household: homes[slot % homes.len()],
+                    parents: [None; 2],
+                });
+            candidates.push(person);
+        }
+
+        Ok(Recruitment {
+            people: candidates,
+            identified: identify,
+            first_identified,
+        })
+    }
+    pub(crate) fn person_on_service(&self, person: u32) -> bool {
+        self.person_duties.contains_key(&person) || self.military.duties.contains_key(&person)
     }
 }
 

@@ -1,7 +1,7 @@
 # Individual participation
 
 The intended direction is a complete resident population with monthly activities.
-Shared participation covers cultural/research work and named expedition service. It does **not** convert aggregate population into individual demography.
+Shared participation covers cultural/research work, named expedition service and new military campaigns. It does **not** convert aggregate population into individual demography.
 Settlement cohorts still supply production, consumption, births, deaths, military
 manpower and expedition crew counts. Named participants are not added to those
 stocks. No new population or economic inventory is created by enabling this layer.
@@ -21,8 +21,8 @@ its known members from local eligibility; death and relocation are rechecked liv
 
 These are the existing ownership households, not newly reconstructed domestic families.
 New expedition crews reference shared person IDs; older crew archives retain their
-separate identities. The roster still cannot be used as a census or proof that all
-travelers, including armies, have individual identities. The explorer labels
+separate identities. New military campaigns also have shared identities; legacy armies remain aggregate.
+The roster still cannot be used as a complete resident census. The explorer labels
 it as a known-person roster and displays current presence separately from its opening
 observation.
 
@@ -101,7 +101,7 @@ into witnessed biographies.
 
 Travelers cannot perform local cultural/research work, marry or produce representative
 birth records at home, or consume local mortality credits. Existing ownership-account
-relocation waits if one of its members is on expedition. This is a temporary restriction
+relocation waits if one of its members is on expedition or military service. This is a temporary restriction
 of the ownership-household model, not the intended eventual treatment of independently
 moving domestic families. Named crew deaths update `Person.died`, preserve event
 subjects and allow household succession without a second population death. Survivors
@@ -203,3 +203,42 @@ target/debug/examples/cultural_work_calibrate --seeds 17,81,256 --years 100 --ou
 target/debug/examples/cultural_work_calibrate --legacy-participation --seeds 17,81,256 --years 100 --output output/individual-participation-legacy.json
 python3 scripts/summarize_cultural_work.py output/individual-participation-enabled.json output/individual-participation-legacy.json
 ```
+
+## Military identity bridge
+
+New raids and political campaigns select present, uncommitted adults through the
+same recruitment contract as expeditions. The food/tool/manpower limit is rounded
+down to a whole-person maximum. Recruitment can return a smaller available force,
+but requires at least three people; it never rounds up past the resource limit.
+Known people are reused before identifying unnamed cohort adults. Identification
+requires a kinship registry and an existing ownership account. With politics disabled,
+simple raids can recruit existing eligible ownership heads but cannot create
+additional kin records.
+
+Each active army has a live roster and each member has one military duty with origin,
+household and starting month. These duties remain authoritative even while the
+monthly army loop temporarily owns the raid list. Local work, marriage, representative
+births, local named mortality and ownership-household relocation exclude travelers.
+The population withdrawal remains the existing cohort transfer, now equal to roster
+length; the roster does not add a second stock.
+
+Expected fractional attacker losses accumulate in an army-level remainder. Only
+whole deaths remove people, clear duties and debit the existing population ledger.
+Death events identify the people and link to the campaign's preceding cause. They
+do not consume local demographic death credits. Survivors return to their previous
+household and town; people reaching 60 return to the elder cohort. Death and return
+events preserve identities after the live army record is removed.
+
+Military careers retain campaign counts and actual monthly service. Mean experience
+adds at most 15% to attack preparedness, reaching its cap after 120 service months
+per member. This is a bounded toy-game parameter, not additional manpower or a claim
+about historical combat. No military wage system is added here.
+
+Old armies without rosters keep fractional aggregate losses and returns. Validation
+rejects roster/manpower mismatches, dead or duplicate active members, missing/orphaned
+duties and simultaneous military/expedition service. The explorer lists army members
+and their careers. Local defenders, ordinary employment, domestic households and
+demographic births/deaths remain aggregate; this completes another population-writer
+adapter, not the complete-population conversion.
+
+Verification and limitations: [military participation](individual-military-verification.md).

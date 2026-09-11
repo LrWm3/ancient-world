@@ -217,6 +217,12 @@ impl Route {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Raid {
+    /// Living shared person IDs. None preserves legacy aggregate armies on import.
+    #[serde(default)]
+    pub members: Option<Vec<u32>>,
+    /// Fractional expected losses carried until a whole person is lost.
+    #[serde(default)]
+    pub loss_remainder: f32,
     /// Outbound itinerary duration; retained for the return leg, including multi-hop routes.
     #[serde(default)]
     pub travel_months: u32,
@@ -765,13 +771,111 @@ impl History {
             }
         }
 
+        let raids = std::mem::take(&mut society.raids);
+        for mut raid in raids {
+            self.advance_military_experience(&raid);
+            let consume = raid.food.min(raid.soldiers * 18.);
+            raid.food -= consume;
+            let origin = &mut self.sites[raid.origin as usize];
+            origin.stocks.ledger[1] += consume;
+            for (k, v) in FOOD_CNP.iter().enumerate() {
+                origin.economy.external[k] -= consume * *v as f32;
+            }
+            if consume + 0.001 < raid.soldiers * 18. {
+                let expected = raid.soldiers * 0.1;
+                self.military_losses(&mut raid, expected, "insufficient provisions");
+            }
+            if self.close_empty_army(&raid) {
+                continue;
+            }
+            if self.occupation_month(&mut raid, &society) {
+                society.raids.push(raid);
+                continue;
+            }
+            if raid.arrives <= self.month && raid.returning {
+                self.return_military_people(&raid);
+                let site = &mut self.sites[raid.origin as usize];
+                site.stocks.stock[1] += raid.food;
+                site.economy.goods[3] += raid.equipment;
+                self.event(
+                    "raid_return",
+                    Some(raid.origin),
+                    Some(raid.target),
+                    format!(
+                        "Raid {} returned with {:.0} survivors and {:.0} kg food",
+                        raid.id, raid.soldiers, raid.food
+                    ),
+                );
+                self.events.last_mut().unwrap().causes.push(raid.cause);
+                self.record_military_members(&raid);
+            } else if raid.arrives <= self.month {
+                if !self.campaign_authorized(&raid) {
+                    raid.returning = true;
+                    raid.arrives = self.month + raid.return_duration(&society);
+                    self.resolve_war(&raid, false);
+                    raid.cause = self.events.last().unwrap().id;
+                    society.raids.push(raid);
+                    continue;
+                }
+                let protection = self.patron_protection(raid.target);
+                let defenders = self.sites[raid.target as usize].demography.ages[1] * 0.15;
+                let won = raid.soldiers
+                    * self.military_preparedness(&raid)
+                    * (1. + (raid.equipment / raid.soldiers.max(1.)).min(1.) * 0.5)
+                    > defenders * (1.1 + protection);
+                let equipment_loss = raid.equipment * 0.15;
+                raid.equipment -= equipment_loss;
+                let expected = (defenders * 0.1).min(raid.soldiers * 0.2);
+                let casualties = self.military_losses(&mut raid, expected, "combat");
+                let target = &mut self.sites[raid.target as usize];
+                let defender_losses =
+                    (raid.soldiers * 0.05 * (1. - protection)).min(target.demography.ages[1]);
+                target.demography.ages[1] -= defender_losses;
+                target.stocks.stock[0] -= defender_losses;
+                target.stocks.people[1] += defender_losses;
+                let loot = if raid.war.is_none() || won {
+                    target.stocks.stock[1].min(raid.soldiers * 36.)
+                } else {
+                    0.
+                };
+                target.stocks.stock[1] -= loot;
+                self.sites[raid.origin as usize].economy.used[3] += equipment_loss;
+                self.sites[raid.origin as usize].economy.reserves[3] += equipment_loss;
+                raid.food += loot;
+                raid.returning = true;
+                raid.arrives = self.month + raid.return_duration(&society);
+                self.event(
+                    "raid_outcome",
+                    Some(raid.target),
+                    Some(raid.origin),
+                    format!(
+                        "Raid {}: {:0.0} attackers and {:0.0} defenders lost; {:0.0} kg food taken",
+                        raid.id, casualties, defender_losses, loot
+                    ),
+                );
+                if let Some(e) = self.events.last_mut() {
+                    e.causes.push(raid.cause);
+                    raid.cause = e.id;
+                }
+                if self.close_empty_army(&raid) {
+                    continue;
+                }
+                self.resolve_war(&raid, won);
+                if won {
+                    self.begin_occupation(&mut raid);
+                }
+                society.raids.push(raid);
+            } else {
+                society.raids.push(raid);
+            }
+        }
         // A named head's death uses accumulated cohort deaths, never an additional population decrement.
         for f in &mut society.households {
-            if society.relocation.away(f.id) || self.person_duties.contains_key(&f.head) {
+            if society.relocation.away(f.id) || self.person_on_service(f.head) {
                 continue;
             }
             let site = &mut self.sites[f.site as usize];
-            if site.abandoned {
+            if site.abandoned && self.people[f.head as usize].died.is_none() {
                 continue;
             }
             let old = f.head as usize;
@@ -779,16 +883,18 @@ impl History {
                 || (self.month as i32 - self.people[old].born >= 840
                     && site.demography.health[2] >= 1.)
             {
-                // A recorded expedition death already removed this person from the
+                // A recorded travel death already removed this person from the
                 // travelling population; succession must not spend a local death twice.
                 if self.people[old].died.is_none() {
                     site.demography.health[2] -= 1.;
                     self.people[old].died = Some(self.month);
                 }
-                let existing =
-                    heirs.get(&(old as u32)).copied().flatten().filter(|id| {
-                        !occupied.contains(id) && !self.person_duties.contains_key(id)
-                    });
+                let existing = heirs.get(&(old as u32)).copied().flatten().filter(|id| {
+                    !occupied.contains(id)
+                        && self.people[*id as usize].died.is_none()
+                        && !self.person_duties.contains_key(id)
+                        && !self.military.duties.contains_key(id)
+                });
                 let id = existing.unwrap_or(self.people.len() as u32);
                 if existing.is_none() {
                     self.people.push(Person {
@@ -839,99 +945,6 @@ impl History {
                         ),
                     );
                 }
-            }
-        }
-        let raids = std::mem::take(&mut society.raids);
-        for mut raid in raids {
-            let consume = raid.food.min(raid.soldiers * 18.);
-            raid.food -= consume;
-            let origin = &mut self.sites[raid.origin as usize];
-            origin.stocks.ledger[1] += consume;
-            for (k, v) in FOOD_CNP.iter().enumerate() {
-                origin.economy.external[k] -= consume * *v as f32;
-            }
-            if consume + 0.001 < raid.soldiers * 18. {
-                let dead = raid.soldiers * 0.1;
-                raid.soldiers -= dead;
-                origin.stocks.people[1] += dead;
-            }
-            if self.occupation_month(&mut raid, &society) {
-                society.raids.push(raid);
-                continue;
-            }
-            if raid.arrives <= self.month && raid.returning {
-                let site = &mut self.sites[raid.origin as usize];
-                site.stocks.stock[0] += raid.soldiers;
-                site.demography.ages[1] += raid.soldiers;
-                site.stocks.people[2] += raid.soldiers;
-                site.stocks.stock[1] += raid.food;
-                site.economy.goods[3] += raid.equipment;
-                self.event(
-                    "raid_return",
-                    Some(raid.origin),
-                    Some(raid.target),
-                    format!(
-                        "Raid {} returned with {:.0} survivors and {:.0} kg food",
-                        raid.id, raid.soldiers, raid.food
-                    ),
-                );
-                self.events.last_mut().unwrap().causes.push(raid.cause);
-            } else if raid.arrives <= self.month {
-                if !self.campaign_authorized(&raid) {
-                    raid.returning = true;
-                    raid.arrives = self.month + raid.return_duration(&society);
-                    self.resolve_war(&raid, false);
-                    raid.cause = self.events.last().unwrap().id;
-                    society.raids.push(raid);
-                    continue;
-                }
-                let protection = self.patron_protection(raid.target);
-                let target = &mut self.sites[raid.target as usize];
-                let defenders = target.demography.ages[1] * 0.15;
-                let won = raid.soldiers
-                    * (1. + (raid.equipment / raid.soldiers.max(1.)).min(1.) * 0.5)
-                    > defenders * (1.1 + protection);
-                let equipment_loss = raid.equipment * 0.15;
-                raid.equipment -= equipment_loss;
-                let casualties = (defenders * 0.1).min(raid.soldiers * 0.2);
-                raid.soldiers -= casualties;
-                let defender_losses =
-                    (raid.soldiers * 0.05 * (1. - protection)).min(target.demography.ages[1]);
-                target.demography.ages[1] -= defender_losses;
-                target.stocks.stock[0] -= defender_losses;
-                target.stocks.people[1] += defender_losses;
-                let loot = if raid.war.is_none() || won {
-                    target.stocks.stock[1].min(raid.soldiers * 36.)
-                } else {
-                    0.
-                };
-                target.stocks.stock[1] -= loot;
-                self.sites[raid.origin as usize].stocks.people[1] += casualties;
-                self.sites[raid.origin as usize].economy.used[3] += equipment_loss;
-                self.sites[raid.origin as usize].economy.reserves[3] += equipment_loss;
-                raid.food += loot;
-                raid.returning = true;
-                raid.arrives = self.month + raid.return_duration(&society);
-                self.event(
-                    "raid_outcome",
-                    Some(raid.target),
-                    Some(raid.origin),
-                    format!(
-                        "Raid {}: {:0.0} attackers and {:0.0} defenders lost; {:0.0} kg food taken",
-                        raid.id, casualties, defender_losses, loot
-                    ),
-                );
-                if let Some(e) = self.events.last_mut() {
-                    e.causes.push(raid.cause);
-                    raid.cause = e.id;
-                }
-                self.resolve_war(&raid, won);
-                if won {
-                    self.begin_occupation(&mut raid);
-                }
-                society.raids.push(raid);
-            } else {
-                society.raids.push(raid);
             }
         }
         self.society = Some(society);
@@ -1056,7 +1069,7 @@ impl History {
                 let months = (self.route_cost(i as u32, j as u32).unwrap() / 150.)
                     .ceil()
                     .max(1.) as u32;
-                let (men, food) = raid_muster(
+                let (men, _) = raid_muster(
                     self.sites[i].demography.ages[1],
                     self.sites[i].stocks.stock[1],
                     months,
@@ -1064,17 +1077,28 @@ impl History {
                 if men < 3. {
                     continue;
                 }
+                let Ok(recruits) = self.recruit_service_people(i as u32, men.floor() as usize, 3)
+                else {
+                    continue;
+                };
+                let men = recruits.people.len() as f32;
+                let food = (men * 18. * (months + 1) as f32).min(self.sites[i].stocks.stock[1]);
+                let id = self.society.as_ref().unwrap().next_raid;
+                self.assign_military_people(id, i as u32, &recruits.people);
                 let site = &mut self.sites[i];
                 site.stocks.stock[1] -= food;
                 site.stocks.stock[0] -= men;
                 site.demography.ages[1] -= men;
                 site.stocks.people[3] += men;
                 self.event("raid_departure",Some(i as u32),Some(j as u32),format!("Food crisis prompted a raid: {:0.0} residents mustered with {:0.0} kg provisions",men,food));
+                self.record_recruitment(&recruits);
                 let cause = self.events.len() as u64 - 1;
                 let society = self.society.as_mut().unwrap();
                 let id = society.next_raid;
                 society.next_raid += 1;
                 society.raids.push(Raid {
+                    members: Some(recruits.people),
+                    loss_remainder: 0.,
                     id,
                     origin: i as u32,
                     target: j as u32,

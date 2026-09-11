@@ -458,6 +458,11 @@ impl History {
                             .person_duties
                             .values()
                             .any(|d| d.household == Some(hh.id))
+                        && !self
+                            .military
+                            .duties
+                            .values()
+                            .any(|d| d.household == Some(hh.id))
                 })
                 .collect::<Vec<_>>();
             // Keep a local ownership representative; this v1 moves one household

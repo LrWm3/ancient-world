@@ -38,6 +38,10 @@ Reservations remain subsystem-specific; this is not a simultaneous global auctio
   intentionally different time scales; closing projections do not retroactively
   change departures. Migration remains sequential and bounded by existing capacity
   reservations, not a simultaneous population-flow solver.
+- Within society response, army rations, casualties and returns precede household
+  succession. A campaign death therefore settles ownership before closing validation.
+  Candidate heirs are rechecked for death or active service; inherited ownership
+  does not debit population or local death credit again.
 - Events are committed alongside actions and can influence later stages. Closing
   records summaries; it does not defer provenance IDs or conceal same-month events.
 - Economy migration and living activation explicitly call `initialize_history_boundary`.

@@ -236,7 +236,9 @@ mod tests {
         assert_eq!(shortage.occupation_strength(route.to), 0.);
         assert!(shortage
             .events
-            .last()
+            .iter()
+            .rev()
+            .find(|e| e.kind == "occupation_ended")
             .unwrap()
             .detail
             .contains("provisions reserved"));
@@ -259,7 +261,9 @@ mod tests {
         displaced.social_month();
         assert!(displaced
             .events
-            .last()
+            .iter()
+            .rev()
+            .find(|e| e.kind == "occupation_ended")
             .unwrap()
             .detail
             .contains("political access lost"));

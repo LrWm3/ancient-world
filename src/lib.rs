@@ -98,3 +98,5 @@ mod freight;
 mod labor;
 
 pub mod participation;
+
+pub mod military;

@@ -146,6 +146,8 @@ pub struct Candidate {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct History {
+    #[serde(default)]
+    pub military: crate::military::Military,
     /// Current named travel duties, independent of optional service-work accounting.
     #[serde(default)]
     pub person_duties: std::collections::BTreeMap<u32, crate::participation::TravelDuty>,
@@ -1102,6 +1104,7 @@ impl Generator {
         let mut h = History {
             participation: Some(Default::default()),
             person_duties: Default::default(),
+            military: Default::default(),
             territorial_history: vec![],
             enterprises: Some(Default::default()),
             experimental_tool_reserves: Default::default(),

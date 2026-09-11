@@ -1072,7 +1072,7 @@ impl Culture {
         people.dedup();
         people.retain(|&p| {
             h.people[p as usize].died.is_none()
-                && !h.person_duties.contains_key(&p)
+                && !h.person_on_service(p)
                 && h.month as i32 - h.people[p as usize].born >= 180
                 && (h.participation.is_none() || h.month as i32 - h.people[p as usize].born < 720)
         });

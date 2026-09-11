@@ -277,6 +277,7 @@ mod tests {
         catalog.production.supplier_profitability = false;
         History {
             person_duties: Default::default(),
+            military: Default::default(),
             participation: None,
             territorial_history: vec![],
             enterprises: None,
