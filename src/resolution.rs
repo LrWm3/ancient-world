@@ -18,6 +18,7 @@ pub enum System {
     Culture,
     DomesticCare,
     MerchantCrew,
+    Agriculture,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Boundary {
@@ -74,6 +75,8 @@ pub struct ResolutionState {
     pub summaries: Vec<Summary>,
     pub compare: bool,
     pub workshop_individual: bool,
+    #[serde(default)]
+    pub agriculture: Option<crate::agriculture_participation::Agriculture>,
     /// Only the latest month's receipts, bounded by sites and converted work categories.
     pub receipts: Vec<Receipt>,
 }
@@ -145,7 +148,7 @@ impl ResolutionState {
     }
     pub(crate) fn validate(&self, month: u32, sites: usize) -> Result<()> {
         ensure!(
-            self.receipts.len() <= sites * 9,
+            self.receipts.len() <= sites * 10,
             "unbounded resolution receipts"
         );
         ensure!(
@@ -213,7 +216,7 @@ impl crate::civilization::History {
                 !self
                     .resolution
                     .as_ref()
-                    .is_some_and(|s| s.workshop_individual),
+                    .is_some_and(|s| s.workshop_individual || s.agriculture.is_some()),
                 "disable workshop refinement before aggregate demography"
             );
             if let Some(n) = &mut self.named_demography {

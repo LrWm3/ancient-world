@@ -1,4 +1,5 @@
 struct Economy {
+ farm_workers:vec4<f32>,
  production_probe:vec4<f32>, food_labor:vec4<f32>,
  tool_craft:vec4<f32>, tool_work:vec4<f32>, tool_orders:array<vec4<f32>,16>,
  residue:vec4<f32>,
@@ -124,6 +125,7 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  var e=economies[i];let s=src[i];let t=world[u32(s.habitat.z)];let area=e.claim.y;
  let recovery=select(0.,clamp(e.soil.w,0.,1.),(p.options.w&2u)!=0u);
  let available_workers=workers(i,s.stock.x)*(1.-.4*recovery);e.labor=production_labor(i,e);
+ if e.farm_workers.x>.5 {e.labor.x=min(e.labor.x,e.farm_workers.y);}
  if e.logistics.w>3.5 {e.food_labor.x=mix(e.food_labor.x,e.food_labor.y,.25);}
  let rain=max(0.,t.hydro.z)*area/12000.*weather;
  e.water.z+=rain;e.water.x+=rain;
@@ -400,6 +402,10 @@ fn crop_canopy(phase:u32)->f32 {
  return array<f32,7>(.2,.6,1.,1.,.8,.4,.1)[phase];
 }
 // Managed growth and husbandry share finite land, water, feed and nutrients.
+fn farm_attendance(e:Economy)->f32 {
+ if e.farm_workers.x<.5 {return 1.;}
+ return clamp(e.farm_workers.y/max(e.farm_workers.w,.000001),0.,1.);
+}
 fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
  var e=input;let s=src[i];let t=world[u32(s.habitat.z)];let month=p.dims.z%12u;
  let temp=select(t.hydro.y,t.climate.x,(p.options.w&2u)!=0u);
@@ -410,7 +416,7 @@ fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
   let params=catalog.crops[j*2u];let growth_params=catalog.crops[j*2u+1u];let good=u32(params.x);let chemistry=catalog.goods[good].xyz;var c=e.crops[j];
   let seasonal=catalog.seasons[j];let harvest=(u32(demography[i].crops.z)+u32(growth_params.w))%12u;
   let phase=(month+12u-(harvest+6u)%12u)%12u;
-  if seasonal.x>0. && phase==0u {let planted=min(c.z,max(2.,s.stock.x*.02));c.z-=planted;c.y+=planted;}
+  if seasonal.x>0. && phase==0u {let planted=min(c.z,max(2.,s.stock.x*.02))*farm_attendance(e);c.z-=planted;c.y+=planted;}
   let habitat=clamp((temp-params.y)/10.,0.,1.)*clamp((params.z-temp)/10.,0.,1.)*clamp(moisture/params.w,0.,1.);
   // Every crop shares the same bounded total potential and 5% of land is pasture.
   var growth=potential*.95*c.x*growth_params.x*habitat*select(0.,1.,c.z>0.001||c.y>0.001);
@@ -451,11 +457,12 @@ fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
   let growth=max(0.,min(demands[j]*fulfilled,capacity));
   e.soil.y=max(0.,e.soil.y-growth*chemistry.y);e.soil.z=max(0.,e.soil.z-growth*chemistry.z);e.exchange.x+=growth*chemistry.x;e.water.x-=growth*growth_params.y;e.water.w+=growth*growth_params.y;c.y+=growth;e.agriculture.x+=growth;
   if month==harvest {
+   let lost=c.y*(1.-farm_attendance(e));c.y-=lost;e.detritus+=vec4(lost*chemistry,0.);
    if seasonal.x>0. {let residue=c.y*(1.-seasonal.y);c.y-=residue;e.detritus+=vec4(residue*chemistry,0.);}
    let seed=min(c.y*.05,max(2.,s.stock.x*.02));let harvested=max(0.,c.y-seed);e.goods[good/4u][good%4u]+=harvested;e.made[good/4u][good%4u]+=harvested;c.w+=harvested;c.z+=seed;c.y=0.;}
-  if seasonal.x==0. && month==(harvest+6u)%12u {let planted=min(c.z,max(2.,s.stock.x*.02));c.z-=planted;c.y+=planted;}
+  if seasonal.x==0. && month==(harvest+6u)%12u {let planted=min(c.z,max(2.,s.stock.x*.02))*farm_attendance(e);c.z-=planted;c.y+=planted;}
   // Purchased seed can establish a new daughter farm; no spontaneous imports.
-  if c.z+c.y<.001{let seed=min(2.,e.goods[good/4u][good%4u]);e.goods[good/4u][good%4u]-=seed;e.used[good/4u][good%4u]+=seed;c.z+=seed;}
+  if c.z+c.y<.001{let seed=min(2.,e.goods[good/4u][good%4u])*farm_attendance(e);e.goods[good/4u][good%4u]-=seed;e.used[good/4u][good%4u]+=seed;c.z+=seed;}
   e.crops[j]=c;
  }
  for(var j=0u;j<3u;j++){

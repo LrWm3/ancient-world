@@ -348,6 +348,9 @@ impl EconomyCatalog {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Economy {
+    /// Named agricultural attendance: enabled, granted, used, requested.
+    #[serde(default)]
+    pub farm_workers: [f32; 4],
     /// Last production inputs: tool multiplier, cultivated ha, effective tools kg, population.
     #[serde(default)]
     pub production_probe: [f32; 4],

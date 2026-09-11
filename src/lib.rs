@@ -116,3 +116,5 @@ mod workshop_resolution;
 pub mod heritage_renown;
 
 pub mod trade_contact;
+
+pub mod agriculture_participation;

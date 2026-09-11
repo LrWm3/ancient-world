@@ -49,7 +49,11 @@ fn month(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=g.x+g.y*65535u*64u;if i>=p.dims.y{return;}var s=src[i];if p.options.x==2u {economies[i].production_probe=vec4(0.);weather_storage(i);}if s.stock.x<=0. {s.stock.z=0.;dst[i]=s;return;}
  var weather=(.7+.6*f32(hash(p.dims.z^p.dims.w^u32(s.habitat.w)*7919u)&65535u)/65535.)*regional_weather(u32(s.habitat.z));
  if (p.options.w&2u)!=0u {let c=world[u32(s.habitat.z)];weather=clamp(c.climate.y/max(c.hydro.z,.001),0.,10.);}
- let cultivated=min(s.habitat.y,select(s.stock.x*select(.45,.465,p.options.x==2u),workers(i,s.stock.x)*worker_shares(economies[i],s.stock.x,workers(i,s.stock.x)*(1.-.4*select(0.,clamp(economies[i].soil.w,0.,1.),(p.options.w&2u)!=0u))).x*1.5,(p.options.w&1u)==1u)); // ha, capped by available labor
+ var cultivated=min(s.habitat.y,select(s.stock.x*select(.45,.465,p.options.x==2u),workers(i,s.stock.x)*worker_shares(economies[i],s.stock.x,workers(i,s.stock.x)*(1.-.4*select(0.,clamp(economies[i].soil.w,0.,1.),(p.options.w&2u)!=0u))).x*1.5,(p.options.w&1u)==1u)); // ha, capped by available labor
+ if p.options.x==2u && economies[i].farm_workers.x>.5 {
+  cultivated=min(cultivated,max(0.,economies[i].farm_workers.y)*1.5);
+  economies[i].farm_workers.z=cultivated/1.5;
+ }
  if p.options.x==2u {economies[i].production_probe.y=cultivated;}
  var produced=cultivated*s.habitat.x/12.*select(weather,min(weather,1.25),(p.options.w&2u)!=0u);
  if (p.options.w&2u)!=0u {let c=world[u32(s.habitat.z)];produced*=clamp((c.climate.x+5.)/20.,0.,1.)*clamp((45.-c.climate.x)/15.,0.,1.)*clamp(1.-flood_depth(c),0.,1.); }

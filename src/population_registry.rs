@@ -518,6 +518,10 @@ impl History {
     /// Toggle the named-identity adapter at a completed work boundary. Cohorts stay authoritative.
     pub fn set_named_demography(&mut self, enabled: bool) -> anyhow::Result<()> {
         anyhow::ensure!(
+            enabled || !self.agriculture_refinement_enabled(),
+            "disable agriculture refinement before named demography"
+        );
+        anyhow::ensure!(
             self.participation
                 .as_ref()
                 .is_none_or(|p| p.commitments.iter().all(|c| c.settled)),

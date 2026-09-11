@@ -1,7 +1,7 @@
 # Production participation boundary
 
-Production participation remains unfinished. Workshops already assign people;
-municipal agriculture, forestry, mining and construction still use pooled labor.
+Production participation remains unfinished. Workshops and the opt-in agriculture
+pilot assign people; forestry, mining and construction still use pooled labor.
 The [food-access controls](resident-payroll-balance.md) make this more consequential:
 account-weighted pay and actual household needs diverge. Multiplying wages by
 household size would not establish who worked or prevent overlapping assignments.
@@ -19,7 +19,7 @@ Forecasting writes only the existing output scratch buffer. It neither produces
 goods, removes nutrients, advances people, reserves work, pays wages nor updates
 prices. Each row reads back 64 bytes: at the 256-site cap, 16 KiB. No planetary
 terrain readback or new storage binding is required. The standalone inspection API
-creates a temporary engine; the intended monthly integration can use the cached
+creates a temporary engine; the agricultural monthly integration uses the cached
 engine's forecast method. This is not a measured performance improvement.
 
 The forecast is conditional on its supplied snapshot. It does not run weather
@@ -28,7 +28,7 @@ change the production planner's result. `prior_fishing` deliberately describes
 existing input, not a newly predicted catch. Do not pass the scratch output to
 ordinary stock settlement: a production dispatch must overwrite it first.
 
-## Remaining connection
+## Broader connection still needed
 
 At the Reserve boundary, collect the forecast after existing service, enterprise
 and vessel reservations. Match actual available residents against the remaining
@@ -61,5 +61,57 @@ cargo test material_integration_tests --lib -- --include-ignored --test-threads=
 The forecast fixture and both existing material-production GPU tests passed.
 The regular library suite passed 112 tests with 100 hardware tests skipped in that
 invocation; all-target Clippy with warnings denied, formatting and the source-only
-artifact check passed. Individual assignments and their wage effects remain
-unimplemented, so these results do not close the production integration gate.
+artifact check passed. These foundational checks did not test individual wage effects; the agriculture
+pilot below adds that connection for one sector. The broader gate remains open.
+
+## Agricultural attendance pilot
+
+An opt-in agricultural resolver now consumes the forecast inside Reserve, after
+service, enterprise and vessel reservations and before household retail. Enable it
+with `History::set_agriculture_refinement(true)` or the calibration runner's
+`--agriculture-refinement` (requires `--individual-demography` and
+`--workshop-refinement`). Aggregate mode remains available; older archives default
+to no agricultural resolver. Disabling dependent identity/workshop systems requires
+turning off agriculture first at a completed boundary.
+
+The resolver caps the request by cultivable land and distributes attendance
+proportionally over eligible residents' remaining capacity. Each grant uses the
+existing personal commitment ledger. It does not assign the same reserved time
+again to cultural work or a private workshop. The GPU then caps cultivated hectares
+and agricultural labor by granted attendance. Sowing and harvest collection use
+the fraction of requested attendance supplied; uncollected managed crops become
+local detritus, retaining their C/N/P. Legacy calendar crops retain their uncollected
+standing inventory. Growth is still the existing managed-land abstraction, not
+individual field operations or plant physiology.
+
+Farm payroll uses current grants as household earnings weights, replacing the
+account/occupation proxy **for the farm sector only**. The total municipal wage
+withdrawal remains bounded by town cash and policy. Workers can contribute communal
+attendance when no cash is available; neither attendance nor common entitlement
+creates money or food. Wages are prepaid before retail, and later unused attendance
+does not claw back food already purchased. Settlement records requested attendance,
+grants and cultivated worker-months in common resolution receipts. Production
+precedes this month's demographic deaths, so a subsequent death does not erase
+already performed agricultural work.
+
+Forestry, mining, construction, husbandry and fishing are still aggregate. Their
+pay shares retain existing proxies, and they do not yet have complete personal
+assignments. The GPU still bounds total sector allocations by its aggregate
+workforce; the farm cap can only reduce its agricultural allowance. This is a
+causal agriculture increment, not completion of all production participation.
+
+Plans and commitments persist together, reject stale or duplicate reservation,
+and settle once. The focused GPU fixture checks available versus fully committed
+residents, cultivation and harvest consequences, actual household recipients,
+finite payroll transfers, repeated settlement and save/load versus monthly/batched
+continuation. Long-run population and income balance must be compared separately.
+
+
+Pilot verification on the Quadro RTX 5000 Max-Q Vulkan backend: both forecast and
+agricultural GPU fixtures pass (42.2 seconds together, including shader setup).
+The regular library suite passes 112 tests, with 101 hardware tests skipped by
+that invocation. All-target Clippy passes with warnings denied. These checks
+establish bounded participation, payroll and continuation in the fixtures, not
+population viability. Matched three-seed 30-year comparisons are evaluated below
+when complete; the century scarcity comparisons in the food-access document use
+the earlier model without this pilot.

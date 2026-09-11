@@ -22,7 +22,11 @@ impl Engine {
     /// Call with the same completed Reserve inputs that matching will use.
     /// Reuses the production output buffer as scratch; execute must overwrite it
     /// before reading actual Stocks. Copies only 64 bytes per settlement.
-    fn forecast_labor(&self, g: &Generator, h: &History) -> Result<Vec<ProductionLaborForecast>> {
+    pub(super) fn forecast_labor(
+        &self,
+        g: &Generator,
+        h: &History,
+    ) -> Result<Vec<ProductionLaborForecast>> {
         if h.sites.is_empty() {
             return Ok(vec![]);
         }
@@ -139,5 +143,145 @@ mod tests {
         direct.sites[0].stocks.stock[0] = 0.;
         let zero = engine.forecast_labor(&g, &direct).unwrap();
         assert_eq!(zero[0].sectors, [0.; 4]);
+    }
+}
+
+#[cfg(test)]
+mod agriculture_tests {
+    use super::*;
+    use crate::{
+        participation::{Activity, Presence},
+        resolution::Mode,
+    };
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn agricultural_attendance_controls_cultivation_income_and_continuation() {
+        let mut g = Generator::new(
+            pollster::block_on(crate::gpu::ContextGpu::headless()).unwrap(),
+            crate::config::Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                seed: 17,
+                ..Default::default()
+            },
+            crate::catalog::Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.run_epochs(1).unwrap();
+        g.found_civilizations(5).unwrap();
+        g.enable_society().unwrap();
+        g.enable_politics().unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        h.set_demographic_resolution(Mode::Individual, true)
+            .unwrap();
+        h.set_workshop_refinement(true).unwrap();
+        h.set_agriculture_refinement(true).unwrap();
+        assert!(h.set_workshop_refinement(false).is_err());
+        let mut ready = h.clone();
+        ready.month += 1;
+        ready.begin_service_reservations();
+        // Declared standing wheat fixture: this month's harvest must also require attendance.
+        for site in &mut ready.sites {
+            site.demography.crops[2] = ready.month as f32;
+            site.economy.crops[0][1] = 100.;
+        }
+        let engine = Engine::new(&g).unwrap();
+        let forecast = engine.forecast_labor(&g, &ready).unwrap();
+        let mut busy = ready.clone();
+        let ids: Vec<_> = busy
+            .participation
+            .as_ref()
+            .unwrap()
+            .residents
+            .values()
+            .filter_map(|r| {
+                if let Presence::Resident(site) = r.presence {
+                    Some((r.person, site))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        for (id, site) in ids {
+            let pool = busy.participation.as_mut().unwrap();
+            let spare = pool.available(id);
+            pool.reserve(busy.month, site, Activity::Research, &[id], spare);
+        }
+        ready.reserve_agriculture(&forecast).unwrap();
+        busy.reserve_agriculture(&forecast).unwrap();
+        assert!(ready.sites.iter().any(|s| s.economy.farm_workers[1] > 0.));
+        assert!(busy.sites.iter().all(|s| s.economy.farm_workers[1] == 0.));
+        assert!(ready.set_agriculture_refinement(false).is_err());
+        assert!(ready.reserve_agriculture(&forecast).is_err());
+        let farm_weights = ready.agricultural_earnings().unwrap();
+        let money = |h: &History| {
+            h.sites
+                .iter()
+                .map(|s| s.economy.finance[0] as f64)
+                .sum::<f64>()
+                + h.society
+                    .as_ref()
+                    .unwrap()
+                    .household_economy
+                    .as_ref()
+                    .unwrap()
+                    .accounts
+                    .iter()
+                    .map(|a| a.cash)
+                    .sum::<f64>()
+        };
+        let before = money(&ready);
+        ready.prepare_household_retail();
+        assert!((money(&ready) - before).abs() < 1e-6);
+        let wallets = &ready
+            .society
+            .as_ref()
+            .unwrap()
+            .household_economy
+            .as_ref()
+            .unwrap()
+            .accounts;
+        assert!(wallets.iter().any(|a| a.sector_wages[0] > 0.));
+        for (id, a) in wallets.iter().enumerate() {
+            if !farm_weights.contains_key(&id) {
+                assert!(a.sector_wages[0] < 1e-6);
+            }
+        }
+        engine.upload(&g, &ready);
+        engine.dispatch(&g, false, ready.sites.len() as u32);
+        engine.read(&g, &mut ready, true).unwrap();
+        engine.upload(&g, &busy);
+        engine.dispatch(&g, false, busy.sites.len() as u32);
+        engine.read(&g, &mut busy, true).unwrap();
+        assert!(ready
+            .sites
+            .iter()
+            .any(|s| s.economy.production_probe[1] > 0.));
+        assert!(busy
+            .sites
+            .iter()
+            .all(|s| s.economy.production_probe[1] == 0.));
+        assert!(ready.sites.iter().any(|s| s.economy.crops[0][3] > 0.));
+        assert!(busy.sites.iter().all(|s| s.economy.crops[0][3] == 0.));
+        ready.settle_agriculture().unwrap();
+        let settled = serde_json::to_value(&ready.resolution).unwrap();
+        ready.settle_agriculture().unwrap();
+        assert_eq!(serde_json::to_value(&ready.resolution).unwrap(), settled);
+        ready.validate_agriculture().unwrap();
+        // Normal monthly pipeline, plus persistence and execution-speed equivalence.
+        g.advance_history(2).unwrap();
+        let path =
+            std::env::temp_dir().join(format!("farm-participation-{}.world", std::process::id()));
+        g.save(&path).unwrap();
+        let mut resumed = Generator::load(g.gpu.clone(), &path).unwrap();
+        std::fs::remove_file(path).unwrap();
+        g.advance_history(12).unwrap();
+        for _ in 0..12 {
+            resumed.advance_history(1).unwrap();
+        }
+        assert_eq!(
+            serde_json::to_value(&g.civilizations).unwrap(),
+            serde_json::to_value(&resumed.civilizations).unwrap()
+        );
     }
 }

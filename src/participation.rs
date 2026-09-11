@@ -11,6 +11,7 @@ pub enum Activity {
     Research,
     Workshop,
     MerchantCrew,
+    Agriculture,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Presence {
@@ -152,6 +153,7 @@ impl Participation {
             Activity::Research => 1,
             Activity::Workshop => 2,
             Activity::MerchantCrew => 3,
+            Activity::Agriculture => 4,
         };
         for &(person, share) in &c.people {
             let resident = self.residents.get_mut(&person).unwrap();
@@ -163,7 +165,7 @@ impl Participation {
                 if let Some(family) = family {
                     resident.workshop_practice[family] += contribution;
                 }
-            } else {
+            } else if category < 2 {
                 resident.completed[category] += contribution;
             }
         }
@@ -380,7 +382,7 @@ impl History {
                 !self
                     .resolution
                     .as_ref()
-                    .is_some_and(|r| r.workshop_individual),
+                    .is_some_and(|r| r.workshop_individual || r.agriculture.is_some()),
                 "disable workshop refinement before personal participation"
             );
             self.participation = None;

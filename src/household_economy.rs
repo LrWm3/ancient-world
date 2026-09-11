@@ -296,6 +296,7 @@ impl History {
         for s in &mut self.sites {
             s.demography.household_food = [0.; 4];
         }
+        let farm_earnings = self.agricultural_earnings();
         let member_counts = self.household_food_members();
         let complete_roster = self.individual_demography_enabled();
         let controllers = (0..self.sites.len())
@@ -374,6 +375,12 @@ impl History {
             );
             let price = s.economy.prices[crate::economy::FOOD].max(0.01) as f64;
             let mut municipal_work = s.economy.labor;
+            if let Some(earnings) = &farm_earnings {
+                municipal_work[0] = ids
+                    .iter()
+                    .map(|id| earnings.get(id).copied().unwrap_or(0.))
+                    .sum::<f64>() as f32;
+            }
             municipal_work[3] = (municipal_work[3] - vessel_work[i]).max(0.);
             municipal_work[3] =
                 (municipal_work[3] - s.economy.enterprise_plan.iter().sum::<f32>()).max(0.);
@@ -418,11 +425,15 @@ impl History {
             let weights = ids
                 .iter()
                 .map(|&id| {
-                    if e.occupational_payroll {
+                    let mut weights = if e.occupational_payroll {
                         e.accounts[id].livelihood.unwrap_or([1.; 4])
                     } else {
                         [1.; 4]
+                    };
+                    if let Some(earnings) = &farm_earnings {
+                        weights[0] = earnings.get(&id).copied().unwrap_or(0.);
                     }
+                    weights
                 })
                 .collect::<Vec<_>>();
             let eligible_ids: Vec<_> = eligible
@@ -447,7 +458,7 @@ impl History {
                     0.
                 } else if Some(j) == last_paid {
                     wage_left
-                } else if e.occupational_payroll {
+                } else if e.occupational_payroll || farm_earnings.is_some() {
                     paid_sectors[j].iter().sum::<f64>().min(wage_left)
                 } else {
                     payroll / eligible_ids.len() as f64
@@ -460,7 +471,7 @@ impl History {
                 wage_left -= wage;
                 dividend_left -= dividend;
                 let a = &mut e.accounts[id];
-                if e.occupational_payroll {
+                if e.occupational_payroll || farm_earnings.is_some() {
                     for (k, paid) in paid_sectors[j].iter().enumerate() {
                         a.sector_wages[k] += paid;
                     }

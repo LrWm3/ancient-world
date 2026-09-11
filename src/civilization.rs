@@ -501,6 +501,7 @@ impl History {
     pub fn validate(&self, cells: &[crate::gpu::Cell]) -> Result<()> {
         self.trade_contact.validate(self.month, self.sites.len())?;
         self.validate_service_work()?;
+        self.validate_agriculture()?;
         ensure!(
             self.civilizations
                 .iter()
@@ -1315,6 +1316,7 @@ impl Generator {
     fn history_reserve_month(
         &self,
         h: &mut History,
+        engine: &Engine,
         terrain: &[crate::gpu::Cell],
     ) -> Result<(Vec<[f32; 2]>, Vec<crate::household_economy::RetailPlan>)> {
         h.check_workshop_reservation_boundary()?;
@@ -1326,6 +1328,10 @@ impl Generator {
         h.plan_production();
         h.prepare_enterprises();
         h.prepare_vessels();
+        if h.agriculture_refinement_enabled() {
+            let forecast = engine.forecast_labor(self, h)?;
+            h.reserve_agriculture(&forecast)?;
+        }
         let retail = h.prepare_household_retail();
         Ok((extraction_allowances, retail))
     }
@@ -1352,6 +1358,7 @@ impl Generator {
         if !h.individual_demography_enabled() {
             h.assign_demographic_deaths(&deaths_before);
         }
+        h.settle_agriculture()?;
         h.settle_resources(extraction_allowances)?;
         h.settle_enterprises();
         h.settle_workshop_resolutions()?;
@@ -1519,7 +1526,7 @@ impl Generator {
             for _ in 0..months {
                 let deliveries =
                     self.history_open_month(&mut h, &engine, terrain, navigation.as_deref())?;
-                let (extraction, retail) = self.history_reserve_month(&mut h, terrain)?;
+                let (extraction, retail) = self.history_reserve_month(&mut h, &engine, terrain)?;
                 production_ms +=
                     self.history_execute_month(&mut h, &engine, &extraction, retail)?;
                 self.history_respond_month(&mut h, terrain, navigation.as_deref(), &deliveries)?;

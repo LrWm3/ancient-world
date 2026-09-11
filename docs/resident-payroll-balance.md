@@ -238,8 +238,8 @@ balance gate: only 46–59 residents remain. Unfunded access is consistently a l
 component of unmet need than physical shortage. This does not establish the
 isolated effect of removing the founding transition: the older scarcity-founding
 ensemble stopped on a succession failure and used earlier payroll behavior.
-A matched five-seed founding-transition rerun with resident payroll is therefore
-required. The earlier full-common-food control changes the ongoing entitlement,
+The matched five-seed founding-transition result with resident payroll is
+reported below. The earlier full-common-food control changes the ongoing entitlement,
 not merely its founding schedule.
 
 The command is recorded in [the integration protocol](integration-balance-followup.md).
@@ -247,3 +247,36 @@ The release model corresponds to `a323d84`; raw data are in ignored
 `output/scarcity-static-residents.json`. Per-seed elapsed times were 115.7–150.1
 seconds, with some concurrent GPU verification work, so these are not isolated
 performance benchmarks.
+
+
+## Matched founding-transition scarcity comparison
+
+The matching resident-payroll run now completes for all five seeds at yield 0.33,
+100 years, terrain 32 / ecology 16, one epoch, living history and individual
+residents/workshops. The model is the same `a323d84` release as the static-access
+comparison; the only intervention is enabling the founding common-access taper.
+
+| Seed | Static residents | Founding-transition residents | Transition active sites | Physical gap / need | Access gap / need | Maximum normalized food residual |
+|---|---:|---:|---:|---:|---:|---:|
+| 17 | 46 | 35 | 5 | 0.9464% | 5.9323% | 1.71e-6 |
+| 81 | 47 | 69 | 10 | 0.7159% | 5.7938% | 1.44e-6 |
+| 256 | 48 | 71 | 10 | 0.2318% | 5.7096% | 6.07e-7 |
+| 409 | 59 | 73 | 11 | 0.2147% | 5.8679% | 3.83e-7 |
+| 1024 | 49 | 58 | 10 | 0.8326% | 5.7731% | 1.03e-6 |
+
+Maximum monthly population residual is zero throughout. Access gaps fall in every
+pair, while physical gaps rise. Final population improves in four seeds and declines
+in seed 17; every run still has severe long-term decline. These are whole-run
+outcomes, not proof that a particular later birth or death was caused by the
+opening distribution. The transition helps initial access but does not repair the
+ongoing earnings/entitlement mismatch. It is not a substitute for the common-food
+control, which changes ongoing policy rather than only the opening years.
+
+Reproduce the transition arm with `target/release/examples/cultural_work_calibrate
+--seeds 17,81,256,409,1024 --years 100 --individual-demography
+--workshop-refinement --compare-resolution --crop-yield-scale 0.33
+--output output/scarcity-founding-residents.json`; add `--no-founding-access` for
+the static arm. All results were complete, not extrapolated from partial reports.
+Transition runtimes were 114.4–159.9 seconds per seed with concurrent verification;
+these are not isolated performance measurements. The agriculture participation
+pilot is absent from both arms and requires its own matched comparison.

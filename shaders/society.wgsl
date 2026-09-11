@@ -54,9 +54,9 @@ fn demographic_month(i:u32,shortage:f32,food:f32)->vec2<f32> {
 fn crop_calendar(i:u32,growth:f32)->f32 {
  var d=demography[i];d.crops.x+=growth;d.health.w=growth;var harvested=0.;
  let season=p.dims.z%12u;let harvest=u32(d.crops.z);
- if season==harvest {harvested=d.crops.x;d.crops.x=0.;let reserved=min(harvested*.05,src[i].stock.x);d.crops.y+=reserved;harvested-=reserved;}
+ if season==harvest {harvested=d.crops.x*farm_attendance(economies[i]);d.crops.x-=harvested;let reserved=min(harvested*.05,src[i].stock.x);d.crops.y+=reserved;harvested-=reserved;}
  if season==(harvest+6u)%12u {
-  let planted=min(d.crops.y,src[i].stock.x);d.crops.y-=planted;d.crops.w=clamp(planted/max(1.,src[i].stock.x),0.,1.);
+  let planted=min(d.crops.y,src[i].stock.x)*farm_attendance(economies[i]);d.crops.y-=planted;d.crops.w=clamp(planted/max(1.,src[i].stock.x),0.,1.);
   // Seed remains living crop inventory; growth converts it to standing biomass without creating matter.
   d.crops.x+=planted;
  }

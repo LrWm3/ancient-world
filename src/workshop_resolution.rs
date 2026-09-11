@@ -299,6 +299,10 @@ impl crate::civilization::History {
         Ok(())
     }
     pub fn set_workshop_refinement(&mut self, enabled: bool) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            enabled || !self.agriculture_refinement_enabled(),
+            "disable agriculture refinement before workshops"
+        );
         if !enabled && self.resolution.is_none() {
             return Ok(());
         }
