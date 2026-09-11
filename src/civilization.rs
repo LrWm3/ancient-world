@@ -1,4 +1,5 @@
 //! Civilization beta: GPU habitat/production/demography, sparse social history on CPU.
+mod daughter;
 use crate::{
     economy::{Cargo, Economy, EconomyCatalog, Recipe},
     gpu::{read_buffer, Generator, Stage},
@@ -1669,6 +1670,10 @@ impl History {
                 }
                 let civ = s.civilization;
                 let settlers = (s.stocks.stock[0] * 0.2).clamp(40., 90.);
+                if self.individual_demography_enabled() {
+                    self.found_resident_daughter(i, &c, settlers);
+                    continue;
+                }
                 let cohort_fraction = settlers / s.stocks.stock[0];
                 let mut migrant_ages = s.demography.ages;
                 for age in &mut migrant_ages[..3] {

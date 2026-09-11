@@ -145,3 +145,9 @@ relocated-household regression; all-target Clippy with warnings denied, formatti
 Git whitespace checks and repository artifact policy passed. The focused scarcity
 rerun is in progress; its result will update this record rather than silently
 replacing the failed baseline.
+
+The corrected seed-81 scarcity run completed 100 years with 23 residents, zero
+population residual and maximum normalized food residual 6.45e-7. This verifies
+that the displaced-ruler succession correction resolves the observed month-740
+failure, while the scarcity population outcome remains poor. Daughter founding
+is addressed separately in [resident daughter settlements](resident-daughter-founding.md).
