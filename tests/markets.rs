@@ -5,6 +5,7 @@ use ancient_world::{
 };
 fn network() -> History {
     History {
+        person_duties: Default::default(),
         participation: None,
         territorial_history: vec![],
         enterprises: None,

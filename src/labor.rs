@@ -110,6 +110,28 @@ impl crate::civilization::History {
         })
     }
     pub(crate) fn validate_service_work(&self) -> anyhow::Result<()> {
+        for (&person, duty) in &self.person_duties {
+            anyhow::ensure!(
+                self.people
+                    .get(person as usize)
+                    .is_some_and(|p| p.died.is_none())
+                    && self.sites.get(duty.origin as usize).is_some()
+                    && duty
+                        .household
+                        .is_none_or(|id| self.society.as_ref().is_some_and(|s| s
+                            .households
+                            .get(id as usize)
+                            .is_some_and(|hh| hh.site == duty.origin)
+                            && !s.relocation.away(id)))
+                    && self.expeditions.as_ref().is_some_and(|x| x
+                        .voyages
+                        .get(duty.voyage as usize)
+                        .is_some_and(|e| e.phase.active()
+                            && e.origin == duty.origin
+                            && e.crew.iter().any(|c| c.alive && c.person == Some(person)))),
+                "orphaned or invalid personal travel duty"
+            );
+        }
         if let Some(p) = &self.participation {
             p.validate(self)?;
         }

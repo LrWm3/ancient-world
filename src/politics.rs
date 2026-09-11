@@ -411,6 +411,7 @@ impl History {
             let person = &mut self.people[k.person as usize];
             let site = social.households[k.household as usize].site as usize;
             if !social.relocation.away(k.household)
+                && !self.person_duties.contains_key(&k.person)
                 && !heads.contains(&k.person)
                 && person.died.is_none()
                 && self.month as i32 - person.born >= 840
@@ -443,6 +444,7 @@ impl History {
                     let v = &self.people[k.person as usize];
                     let age = self.month as i32 - v.born;
                     !social.relocation.away(k.household)
+                        && !self.person_duties.contains_key(&k.person)
                         && v.died.is_none()
                         && !self.sites[social.households[k.household as usize].site as usize]
                             .abandoned
@@ -505,6 +507,9 @@ impl History {
         for index in 0..p.marriages.len() {
             let m = &p.marriages[index];
             if m.ended.is_some()
+                || m.partners
+                    .iter()
+                    .any(|id| self.person_duties.contains_key(id))
                 || m.partners.iter().any(|id| {
                     p.kin.iter().find(|k| k.person == *id).is_some_and(|k| {
                         let household =
@@ -591,6 +596,7 @@ impl History {
             .iter()
             .filter(|k| {
                 k.parents.contains(&Some(old))
+                    && !self.person_duties.contains_key(&k.person)
                     && social.households[k.household as usize].site == site
                     && !social.households.iter().any(|f| f.head == k.person)
             })

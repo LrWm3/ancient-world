@@ -1042,6 +1042,23 @@ impl Culture {
                     .filter(|hh| hh.site == site && !s.relocation.away(hh.id))
                     .map(|hh| hh.head),
             );
+            // Known adult family members can participate without becoming owners.
+            // Keep the legacy representative-only selection when participation is disabled.
+            if h.participation.is_some() {
+                if let Some(politics) = &h.politics {
+                    people.extend(
+                        politics
+                            .kin
+                            .iter()
+                            .filter(|k| {
+                                s.households
+                                    .get(k.household as usize)
+                                    .is_some_and(|hh| hh.site == site && !s.relocation.away(hh.id))
+                            })
+                            .map(|k| k.person),
+                    );
+                }
+            }
         }
         if h.society.is_none()
             && h.sites
@@ -1054,7 +1071,10 @@ impl Culture {
         people.sort_unstable();
         people.dedup();
         people.retain(|&p| {
-            h.people[p as usize].died.is_none() && h.month as i32 - h.people[p as usize].born >= 180
+            h.people[p as usize].died.is_none()
+                && !h.person_duties.contains_key(&p)
+                && h.month as i32 - h.people[p as usize].born >= 180
+                && (h.participation.is_none() || h.month as i32 - h.people[p as usize].born < 720)
         });
         people
     }

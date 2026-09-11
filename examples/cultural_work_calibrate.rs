@@ -116,7 +116,7 @@ fn main() -> Result<()> {
         for e in &h.events {
             *events.entry(e.kind.clone()).or_default() += 1;
         }
-        rows.push(json!({"seed":seed,"seconds":start.elapsed().as_secs_f64(),"samples":samples,"changed_identities":changes,"cancelled_actions":actions,"events":events,"residuals":h.economy_residuals()}));
+        rows.push(json!({"seed":seed,"seconds":start.elapsed().as_secs_f64(),"samples":samples,"changed_identities":changes,"cancelled_actions":actions,"events":events,"travel":h.expeditions.as_ref().map(|x|json!({"voyages":x.voyages.len(),"active_people":h.person_duties.len(),"identified_at_recruitment":x.voyages.iter().flat_map(|e|&e.crew).filter(|c|c.identified_from_cohort).filter_map(|c|c.person).collect::<std::collections::BTreeSet<_>>().len(),"crew_person_ids":x.voyages.iter().flat_map(|e|&e.crew).filter_map(|c|c.person).collect::<std::collections::BTreeSet<_>>().len()})),"residuals":h.economy_residuals()}));
         if let Some(parent) = args.output.parent() {
             std::fs::create_dir_all(parent)?;
         }

@@ -146,6 +146,9 @@ pub struct Candidate {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct History {
+    /// Current named travel duties, independent of optional service-work accounting.
+    #[serde(default)]
+    pub person_duties: std::collections::BTreeMap<u32, crate::participation::TravelDuty>,
     #[serde(default)]
     pub participation: Option<crate::participation::Participation>,
     #[serde(default)]
@@ -1098,6 +1101,7 @@ impl Generator {
         candidates.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.cell.cmp(&b.cell)));
         let mut h = History {
             participation: Some(Default::default()),
+            person_duties: Default::default(),
             territorial_history: vec![],
             enterprises: Some(Default::default()),
             experimental_tool_reserves: Default::default(),

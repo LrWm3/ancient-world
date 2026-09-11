@@ -767,7 +767,7 @@ impl History {
 
         // A named head's death uses accumulated cohort deaths, never an additional population decrement.
         for f in &mut society.households {
-            if society.relocation.away(f.id) {
+            if society.relocation.away(f.id) || self.person_duties.contains_key(&f.head) {
                 continue;
             }
             let site = &mut self.sites[f.site as usize];
@@ -775,17 +775,20 @@ impl History {
                 continue;
             }
             let old = f.head as usize;
-            if self.month as i32 - self.people[old].born >= 840
-                && site.demography.health[2] >= 1.
-                && self.people[old].died.is_none()
+            if self.people[old].died.is_some()
+                || (self.month as i32 - self.people[old].born >= 840
+                    && site.demography.health[2] >= 1.)
             {
-                site.demography.health[2] -= 1.;
-                self.people[old].died = Some(self.month);
-                let existing = heirs
-                    .get(&(old as u32))
-                    .copied()
-                    .flatten()
-                    .filter(|id| !occupied.contains(id));
+                // A recorded expedition death already removed this person from the
+                // travelling population; succession must not spend a local death twice.
+                if self.people[old].died.is_none() {
+                    site.demography.health[2] -= 1.;
+                    self.people[old].died = Some(self.month);
+                }
+                let existing =
+                    heirs.get(&(old as u32)).copied().flatten().filter(|id| {
+                        !occupied.contains(id) && !self.person_duties.contains_key(id)
+                    });
                 let id = existing.unwrap_or(self.people.len() as u32);
                 if existing.is_none() {
                     self.people.push(Person {

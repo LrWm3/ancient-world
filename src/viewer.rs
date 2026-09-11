@@ -2500,7 +2500,7 @@ impl App {
                                 if ui.button("Show planned route on atlas").clicked() { self.expedition_overlay=Some(e.id); self.history_window_open=false; self.journey_overlay=None; self.historical_territory=false; self.cameras[1]=Camera::atlas(); self.view_mode=2; }
                                 ui.small(if e.planned_cells.is_some() { "Route saved at departure; endpoint is the planned destination." } else { "Legacy route association; original route was not saved." });
                                 ui.small(format!("Specimens aboard: {:.2} kg resin · {:.2} kg phosphatic crust",e.samples[0],e.samples[1]));
-                                for c in &e.crew {ui.small(format!("{} · {} · {} · competence {:.0}%",c.name,c.role,if c.alive {"survivor"}else{"deceased"},c.expertise.unwrap_or(e.skill)*100.));}
+                                for c in &e.crew {ui.small(format!("{} · {} · {} · competence {:.0}% · {}",c.name,c.role,if c.alive {"survivor"}else{"deceased"},c.expertise.unwrap_or(e.skill)*100.,c.person.map_or_else(|| "legacy crew identity".into(), |id| format!("person {id} · {:?}",h.person_presence(id).1))));}
                                 if matches!(e.phase,Phase::Outward|Phase::Camp)&&ui.button("Recall expedition").clicked(){expedition_recall=Some(e.id);}
                                 if e.phase==Phase::Stranded&&e.objective!=Objective::Rescue&&ui.button("Fund rescue voyage").clicked(){expedition_launch=Some((e.route,Objective::Rescue,Some(e.id)));}
                             });

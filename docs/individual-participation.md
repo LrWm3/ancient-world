@@ -1,8 +1,7 @@
 # Individual participation
 
 The intended direction is a complete resident population with monthly activities.
-This first runnable increment implements shared participation for existing named
-people. It does **not** convert aggregate population into individual demography.
+Shared participation covers cultural/research work and named expedition service. It does **not** convert aggregate population into individual demography.
 Settlement cohorts still supply production, consumption, births, deaths, military
 manpower and expedition crew counts. Named participants are not added to those
 stocks. No new population or economic inventory is created by enabling this layer.
@@ -11,14 +10,19 @@ stocks. No new population or economic inventory is created by enabling this laye
 
 `History.participation` stores numeric person references, known household membership,
 opening-month presence, available capacity and cumulative completed cultural/research
-work. Existing heads and recorded kin supply membership. A living leader without a
+work. Existing heads and recorded kin supply membership. With participation enabled,
+local cultural eligibility includes known adult family members, not only ownership
+heads. The number of site action grants remains bounded; additional candidates do
+not create additional labor. A living leader without a
 household can be associated with the civilization's first active settlement. Unknown
-residence stays unknown. Children have no work capacity. Household relocation removes
+residence stays unknown. Children and people aged 60 or older have no converted
+service-work capacity, matching the adult cohort workforce. Household relocation removes
 its known members from local eligibility; death and relocation are rechecked live.
 
 These are the existing ownership households, not newly reconstructed domestic families.
-Expedition crew names remain separate identities. The roster therefore cannot be used
-as a census or proof that all travelers have individual identities. The explorer labels
+New expedition crews reference shared person IDs; older crew archives retain their
+separate identities. The roster still cannot be used as a census or proof that all
+travelers, including armies, have individual identities. The explorer labels
 it as a known-person roster and displays current presence separately from its opening
 observation.
 
@@ -71,10 +75,51 @@ explorer includes an Individual participation panel. Historical IDs are unchange
 Complete residents require domestic households distinct from ownership accounts,
 whole-person initialization with explicit rounding adjustments, individual food needs,
 and adapters for every population writer. Founding, birth, death, relocation, military
-recruitment and expedition casualties must all reference the same people before the GPU
+recruitment and all demographic changes must reference the same people before the GPU
 cohort demographic update is disabled. Production can continue to receive aggregated
 labor from the new assignments. This implementation deliberately does not maintain a
 second purported full population alongside the current one.
+
+## Expedition identity bridge
+
+New voyages choose eight present adults aged 15–54, excluding civilization leaders
+and people with any current-month service commitment. Existing identities are reused.
+When the sparse named roster is insufficient, recruitment can individually record
+unnamed adults already included in the town's adult stock. This is bounded by the
+adult cohort minus known present adults; it is not a birth or population import.
+The departure event explicitly records this initialization, unknown parents and an
+estimated starting age of 25–39. These recruits attach to existing ownership
+accounts; no domestic family relationships are invented.
+
+`History.person_duties` stores current voyage, origin and ownership-account references
+independently of the optional participation switch. Presence remains correct while
+expedition processing temporarily owns the voyage list. Rescue transfers each live
+person's duty to the rescuing voyage; historical manifests remain historical records.
+Validation rejects missing duties, duplicate active identities and orphaned duties.
+Legacy manifests without person IDs remain readable and are not retroactively turned
+into witnessed biographies.
+
+Travelers cannot perform local cultural/research work, marry or produce representative
+birth records at home, or consume local mortality credits. Existing ownership-account
+relocation waits if one of its members is on expedition. This is a temporary restriction
+of the ownership-household model, not the intended eventual treatment of independently
+moving domestic families. Named crew deaths update `Person.died`, preserve event
+subjects and allow household succession without a second population death. Survivors
+return to their original town, retain accumulated competence, and remember a field
+location they actually worked at. People crossing age 60 while away return to the
+elder cohort.
+
+The existing monthly voyage wage pool now remits to living participants' household
+wallets, with matching wage ledger entries. It comes from the existing expedition
+escrow. Legacy/unbanked crews keep the town-wallet path. Empty crews receive no wages.
+Ordinary household payroll is still aggregate; this does not convert every job.
+
+Launch requires installed, usable harbor capacity, not already-funded merchant
+shipping crews. The voyage reserves its own eight adults and outfitting materials.
+Ordinary shipping still requires funded vessel work. This distinction fixes a launch
+deadlock at structurally adequate ports with no current merchant cargo demand.
+
+See [travel verification](individual-travel-verification.md) for the new checks.
 
 ## Verification
 

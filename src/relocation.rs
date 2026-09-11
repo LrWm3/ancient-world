@@ -451,7 +451,14 @@ impl History {
             let homes = society
                 .households
                 .iter()
-                .filter(|hh| hh.site == from as u32 && !society.relocation.away(hh.id))
+                .filter(|hh| {
+                    hh.site == from as u32
+                        && !society.relocation.away(hh.id)
+                        && !self
+                            .person_duties
+                            .values()
+                            .any(|d| d.household == Some(hh.id))
+                })
                 .collect::<Vec<_>>();
             // Keep a local ownership representative; this v1 moves one household
             // per origin per year rather than performing whole-town evacuation.

@@ -42,6 +42,19 @@ pub struct Port {
     pub flood_months: u32,
 }
 impl Port {
+    /// Installed harbor handling capacity, independent of this month's merchant payroll.
+    pub fn harbor_capacity(&self) -> f32 {
+        if self.commissioned.is_none() || self.flood_months > 0 {
+            return 0.;
+        }
+        1000.
+            * self
+                .assets
+                .iter()
+                .zip(TARGET)
+                .map(|(a, t)| a / t)
+                .fold(1., f32::min)
+    }
     pub fn capacity(&self) -> f32 {
         if self.commissioned.is_none() || self.flood_months > 0 {
             return 0.;

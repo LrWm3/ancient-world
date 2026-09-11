@@ -12,10 +12,17 @@ pub enum Activity {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Presence {
+    Expedition(u32),
     Resident(u32),
     Traveling(u32),
     Dead,
     Unknown,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TravelDuty {
+    pub voyage: u32,
+    pub origin: u32,
+    pub household: Option<u32>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Resident {
@@ -198,6 +205,9 @@ impl History {
         if p.died.is_some() {
             return (household, Presence::Dead);
         }
+        if let Some(duty) = self.person_duties.get(&person) {
+            return (duty.household, Presence::Expedition(duty.voyage));
+        }
         if let Some((society, hh)) = self.society.as_ref().zip(household) {
             if society.relocation.away(hh) {
                 return (household, Presence::Traveling(hh));
@@ -235,7 +245,7 @@ impl History {
         for p in &self.people {
             let (household, presence) = self.person_presence(p.id);
             let capacity = match presence {
-                Presence::Resident(site) if self.month as i32 - p.born >= 180 => {
+                Presence::Resident(site) if (180..720).contains(&(self.month as i32 - p.born)) => {
                     0.8 * (1. - 0.5 * self.sites[site as usize].demography.health[0].clamp(0., 0.5))
                 }
                 _ => 0.,
@@ -544,5 +554,42 @@ mod tests {
             .residents
             .values()
             .any(|p| p.completed[1] > 0.));
+        // Participation must include known adult family members, not just owners.
+        let member = h.people.len() as u32;
+        let mut person_record = h.people[person as usize].clone();
+        person_record.id = member;
+        person_record.name = "Participation fixture member".into();
+        person_record.born = h.month as i32 - 240;
+        h.people.push(person_record);
+        h.politics
+            .as_mut()
+            .unwrap()
+            .kin
+            .push(crate::politics::Kinship {
+                person: member,
+                household,
+                parents: [None; 2],
+            });
+        h.sync_culture();
+        assert!(!h
+            .society
+            .as_ref()
+            .unwrap()
+            .households
+            .iter()
+            .any(|hh| hh.head == member));
+        assert!(h
+            .culture
+            .as_ref()
+            .unwrap()
+            .site_people(h, 0)
+            .contains(&member));
+        h.people[member as usize].born = h.month as i32 - 720;
+        assert!(!h
+            .culture
+            .as_ref()
+            .unwrap()
+            .site_people(h, 0)
+            .contains(&member));
     }
 }

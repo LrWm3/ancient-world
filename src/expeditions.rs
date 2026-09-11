@@ -68,6 +68,12 @@ pub enum Objective {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Crew {
+    /// Shared historical identity. Legacy archived crews retain None.
+    #[serde(default)]
+    pub person: Option<u32>,
+    /// Identity first recorded at recruitment; age is an explicit initialization estimate.
+    #[serde(default)]
+    pub identified_from_cohort: bool,
     /// None preserves the shared competence of older voyage records.
     #[serde(default)]
     pub expertise: Option<f32>,
@@ -271,6 +277,11 @@ fn casualty(h: &mut History, e: &mut Expedition, reason: &str) {
     let slot = (random(h.seed, e.id, h.month, 71) * alive as f32) as usize;
     if let Some(c) = e.crew.iter_mut().filter(|c| c.alive).nth(slot) {
         c.alive = false;
+        if let Some(person) = c.person {
+            h.people[person as usize].died = Some(h.month);
+            h.person_duties.remove(&person);
+        }
+        let person = c.person;
         let name = c.name.clone();
         h.sites[e.origin as usize].stocks.people[1] += 1.;
         record(
@@ -279,7 +290,51 @@ fn casualty(h: &mut History, e: &mut Expedition, reason: &str) {
             "expedition_casualty",
             format!("{name} died: {reason}"),
         );
+        if let Some(person) = person {
+            h.events
+                .last_mut()
+                .unwrap()
+                .subjects
+                .push(("person".into(), person));
+        }
     }
+}
+/// Monthly remittance from existing voyage escrow, split among living participants.
+/// Legacy or unbanked crew retain the town-wallet payment path.
+fn pay_crew(h: &mut History, e: &mut Expedition) {
+    let survivors = e.survivors();
+    if survivors == 0 {
+        return;
+    }
+    let budget = e.purse.min(20.);
+    let mut left = budget;
+    for (index, crew) in e.crew.iter().filter(|c| c.alive).enumerate() {
+        let wage = if index + 1 == survivors {
+            left
+        } else {
+            budget / survivors as f64
+        };
+        left -= wage;
+        let household = crew
+            .person
+            .and_then(|id| h.person_duties.get(&id))
+            .and_then(|d| d.household);
+        let account = household.and_then(|id| {
+            h.society
+                .as_mut()
+                .and_then(|s| s.household_economy.as_mut())
+                .and_then(|e| e.accounts.get_mut(id as usize))
+        });
+        if let Some(account) = account {
+            account.cash += wage;
+            account.wages += wage;
+            account.sector_wages[3] += wage;
+        } else {
+            h.sites[e.origin as usize].economy.finance[0] += wage as f32;
+        }
+    }
+    e.purse -= budget;
+    e.spent += budget;
 }
 fn refund(h: &mut History, e: &mut Expedition) {
     if let Some(id) = e.institution {
@@ -348,6 +403,7 @@ impl Expeditions {
             );
         }
         let mut active_names = std::collections::BTreeSet::new();
+        let mut active_people = std::collections::BTreeSet::new();
         for (id, e) in self.voyages.iter().enumerate() {
             ensure!(
                 e.id as usize == id
@@ -401,9 +457,35 @@ impl Expeditions {
             ensure!(
                 e.crew.iter().all(|c| !c.name.is_empty()
                     && !c.role.is_empty()
-                    && (!e.phase.active() || !c.alive || active_names.insert(c.name.clone()))),
+                    && (c.person.is_some()
+                        || !e.phase.active()
+                        || !c.alive
+                        || active_names.insert(c.name.clone()))),
                 "invalid or duplicated active crew"
             );
+            let mut roster = std::collections::BTreeSet::new();
+            for crew in &e.crew {
+                if let Some(person) = crew.person {
+                    ensure!(
+                        (person as usize) < h.people.len() && roster.insert(person),
+                        "invalid or duplicated crew person"
+                    );
+                    ensure!(
+                        crew.alive || h.people[person as usize].died.is_some(),
+                        "crew death missing historical identity death"
+                    );
+                    if e.phase.active() && crew.alive {
+                        ensure!(
+                            h.people[person as usize].died.is_none()
+                                && active_people.insert(person)
+                                && h.person_duties
+                                    .get(&person)
+                                    .is_some_and(|d| d.voyage == e.id && d.origin == e.origin),
+                            "crew identity missing or duplicated travel duty"
+                        );
+                    }
+                }
+            }
             ensure!(
                 e.samples.iter().all(|v| v.is_finite() && *v >= 0.)
                     && e.samples.iter().sum::<f64>() <= 24. + 1e-8
@@ -476,7 +558,12 @@ impl Expeditions {
         let p = &h.shipping.as_ref().unwrap().ports[r.port as usize];
         let origin = p.site;
         let sponsor = h.controller(origin);
-        ensure!(p.capacity() >= 500., "harbor lacks expedition capacity");
+        // This voyage reserves its own eight crew and outfitting materials below.
+        // Requiring currently paid merchant crews deadlocked ports with no trade cargo.
+        ensure!(
+            p.harbor_capacity() >= 500.,
+            "harbor lacks expedition capacity"
+        );
         let rescue_target = rescue.and_then(|id| self.voyages.get(id as usize));
         ensure!(
             if objective == Objective::Rescue {
@@ -547,6 +634,95 @@ impl Expeditions {
             institution.is_some() || public || s.economy.finance[0] >= 4600.,
             "no wealthy public or private sponsor"
         );
+        // Choose real available adults before spending anything. Sparse historical people
+        // are a subset of the cohort population; this transfers eight, never creates eight.
+        let mut candidates: Vec<_> = h
+            .people
+            .iter()
+            .filter(|person| {
+                (180..660).contains(&(h.month as i32 - person.born))
+                    && h.person_presence(person.id).1
+                        == crate::participation::Presence::Resident(origin)
+                    && !h.civilizations.iter().any(|c| c.leader == person.id)
+                    && h.participation.as_ref().is_none_or(|p| {
+                        p.month != Some(h.month)
+                            || p.residents
+                                .get(&person.id)
+                                .is_none_or(|r| r.committed <= 1e-6)
+                    })
+            })
+            .map(|p| p.id)
+            .collect();
+        candidates.sort_by_key(|&person| random(h.seed, person, h.month, 211).to_bits());
+        candidates.truncate(8);
+        let named_adults = h
+            .people
+            .iter()
+            .filter(|person| {
+                (180..720).contains(&(h.month as i32 - person.born))
+                    && h.person_presence(person.id).1
+                        == crate::participation::Presence::Resident(origin)
+            })
+            .count();
+        let unnamed_adults = (h.sites[origin as usize].demography.ages[1].floor() as usize)
+            .saturating_sub(named_adults);
+        let identify = 8 - candidates.len();
+        ensure!(
+            identify <= unnamed_adults,
+            "fewer than eight uncommitted expedition adults"
+        );
+        let homes: Vec<_> = h
+            .society
+            .as_ref()
+            .unwrap()
+            .households
+            .iter()
+            .filter(|hh| hh.site == origin && !h.society.as_ref().unwrap().relocation.away(hh.id))
+            .map(|hh| hh.id)
+            .collect();
+        ensure!(
+            identify == 0 || !homes.is_empty(),
+            "no resident ownership account for unnamed crew"
+        );
+        ensure!(
+            h.politics
+                .as_ref()
+                .is_some_and(|p| p.kin.len() + identify <= 50000),
+            "genealogy registry cannot record recruited crew"
+        );
+        let first_identified = h.people.len() as u32;
+        for slot in 0..identify {
+            let person = h.people.len() as u32;
+            let civilization = h.sites[origin as usize].civilization;
+            let name = h.civilizations[civilization as usize]
+                .naming(h.seed)
+                .person_with(
+                    "person",
+                    person,
+                    &crate::naming::PersonalContext::local(
+                        &h.sites[origin as usize],
+                        h.culture.as_ref(),
+                    ),
+                );
+            h.people.push(crate::civilization::Person {
+                id: person,
+                name,
+                civilization,
+                born: h.month as i32 - 300 - (random(h.seed, person, h.month, 212) * 180.) as i32,
+                died: None,
+                predecessor: None,
+            });
+            h.politics
+                .as_mut()
+                .unwrap()
+                .kin
+                .push(crate::politics::Kinship {
+                    person,
+                    household: homes[slot % homes.len()],
+                    parents: [None; 2],
+                });
+            candidates.push(person);
+        }
         if let Some(id) = institution {
             h.culture.as_mut().unwrap().institutions[id as usize].treasury -= 600.;
         } else if public {
@@ -582,6 +758,10 @@ impl Expeditions {
                 event.subjects.push(("patron".into(), patron));
             }
         }
+        if identify > 0 {
+            h.events.last_mut().unwrap().detail.push_str(&format!(
+                "; {identify} existing cohort adults first individually recorded, initialized age 25–39 years and unknown parents; no births or population imports"));
+        }
         let cause = h.events.last().unwrap().id;
         if let Some(target) = rescue_target {
             h.events.last_mut().unwrap().causes.push(target.cause);
@@ -590,7 +770,7 @@ impl Expeditions {
             .culture
             .as_ref()
             .map_or(0, |c| c.available_knowledge(h, origin));
-        let crew = [
+        let crew: Vec<_> = [
             "captain",
             "navigator",
             "naturalist",
@@ -602,27 +782,45 @@ impl Expeditions {
         ]
         .into_iter()
         .enumerate()
-        .map(|(i, role)| Crew {
-            expertise: Some(starting_expertise(
-                skill,
-                role,
-                local_knowledge,
-                random(h.seed, id, h.month, 80 + i as u32),
-            )),
-            name: h.civilizations[h.sites[origin as usize].civilization as usize]
-                .naming(h.seed)
-                .person_with(
-                    "crew",
-                    id * 16 + i as u32,
-                    &crate::naming::PersonalContext::local(
-                        &h.sites[origin as usize],
-                        h.culture.as_ref(),
-                    ),
+        .map(|(i, role)| {
+            let person = candidates[i];
+            let household = h.person_presence(person).0;
+            h.person_duties.insert(
+                person,
+                crate::participation::TravelDuty {
+                    voyage: id,
+                    origin,
+                    household,
+                },
+            );
+            let prior = h
+                .culture
+                .as_ref()
+                .and_then(|c| c.agents.get(person as usize))
+                .map_or(0., |a| a.skills[3]);
+            Crew {
+                person: Some(person),
+                identified_from_cohort: person >= first_identified,
+                expertise: Some(
+                    starting_expertise(
+                        skill,
+                        role,
+                        local_knowledge,
+                        random(h.seed, id, h.month, 80 + i as u32),
+                    )
+                    .max(prior),
                 ),
-            role: role.into(),
-            alive: true,
+                name: h.people[person as usize].name.clone(),
+                role: role.into(),
+                alive: true,
+            }
         })
         .collect();
+        h.events
+            .last_mut()
+            .unwrap()
+            .subjects
+            .extend(candidates.iter().map(|&p| ("person".into(), p)));
         self.voyages.push(Expedition {
             planned_cells: Some(self.routes[route as usize].cells.clone()),
             id,
@@ -738,10 +936,7 @@ impl History {
                 casualty(self, &mut e, "provisions exhausted");
             }
             spend_food(self, &mut e, required);
-            let wage = e.purse.min(20.);
-            e.purse -= wage;
-            e.spent += wage;
-            self.sites[e.origin as usize].economy.finance[0] += wage as f32;
+            pay_crew(self, &mut e);
             spend_tools(self, &mut e, 0.15);
             spend_wood(self, &mut e, 0.4);
             if e.survivors() == 0 {
@@ -775,6 +970,11 @@ impl History {
                     if t.phase == Phase::Stranded {
                         let survivors = t.survivors();
                         e.crew.extend(t.crew.iter().filter(|c| c.alive).cloned());
+                        for crew in t.crew.iter().filter(|c| c.alive) {
+                            if let Some(person) = crew.person {
+                                self.person_duties.get_mut(&person).unwrap().voyage = e.id;
+                            }
+                        }
                         e.food += t.food;
                         e.timber += t.timber;
                         e.tools += t.tools;
@@ -979,10 +1179,39 @@ impl History {
                         d.discard(self, &mut e);
                     }
                 }
+                for crew in e.crew.iter().filter(|c| c.alive) {
+                    if let Some(person) = crew.person {
+                        self.person_duties.remove(&person);
+                        if let Some(agent) = self
+                            .culture
+                            .as_mut()
+                            .and_then(|c| c.agents.get_mut(person as usize))
+                        {
+                            agent.skills[3] = agent.skills[3].max(crew.expertise.unwrap_or(0.));
+                            if e.field_months > 0 {
+                                if let Some(&cell) = e.planned_cells.as_ref().and_then(|p| p.last())
+                                {
+                                    agent.known_places.insert(cell);
+                                }
+                            }
+                        }
+                    }
+                }
                 let survivors = e.survivors() as f32;
+                let elders = e
+                    .crew
+                    .iter()
+                    .filter(|c| {
+                        c.alive
+                            && c.person.is_some_and(|id| {
+                                self.month as i32 - self.people[id as usize].born >= 720
+                            })
+                    })
+                    .count() as f32;
                 let s = &mut self.sites[e.origin as usize];
                 s.stocks.stock[0] += survivors;
-                s.demography.ages[1] += survivors;
+                s.demography.ages[1] += survivors - elders;
+                s.demography.ages[2] += elders;
                 s.stocks.people[2] += survivors;
                 s.stocks.stock[1] += e.food;
                 s.economy.goods[0] += e.timber;
@@ -1170,6 +1399,8 @@ mod crew_tests {
         ]
         .into_iter()
         .map(|role| Crew {
+            person: None,
+            identified_from_cohort: false,
             name: role.into(),
             role: role.into(),
             alive: true,

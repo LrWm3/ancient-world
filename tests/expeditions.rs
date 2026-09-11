@@ -45,7 +45,15 @@ fn launch(g: &mut Generator) -> u32 {
         .routes
         .len();
     (0..routes)
-        .find_map(|r| g.launch_expedition(r as u32, Objective::Ecology, None).ok())
+        .find_map(
+            |r| match g.launch_expedition(r as u32, Objective::Ecology, None) {
+                Ok(id) => Some(id),
+                Err(e) => {
+                    eprintln!("route {r}: {e}");
+                    None
+                }
+            },
+        )
         .expect("prosperous fixture must fund a voyage")
 }
 #[test]
@@ -61,8 +69,20 @@ fn voyages_conserve_and_deliver_knowledge_after_exact_checkpoint_continuation() 
         .unwrap()
         .voyages
         .is_empty());
+    let people_before = g.civilizations.as_ref().unwrap().people.len();
+    let population_before: f32 = g
+        .civilizations
+        .as_ref()
+        .unwrap()
+        .sites
+        .iter()
+        .map(|s| s.stocks.stock[0])
+        .sum();
     let id = launch(&mut g);
     let h = g.civilizations.as_ref().unwrap();
+    assert!(h.people.len() >= people_before && h.people.len() <= people_before + 8);
+    let population_after: f32 = h.sites.iter().map(|s| s.stocks.stock[0]).sum();
+    assert!((population_before - population_after - 8.).abs() < 0.01);
     let x = h.expeditions.as_ref().unwrap();
     let e = &x.voyages[id as usize];
     assert_eq!(
@@ -82,6 +102,28 @@ fn voyages_conserve_and_deliver_knowledge_after_exact_checkpoint_continuation() 
         serde_json::to_value(g.civilizations.as_ref().unwrap()).unwrap()
     );
     let initial_expertise: Vec<_> = e.crew.iter().map(|c| c.expertise.unwrap()).collect();
+    let original_people: Vec<_> = e.crew.iter().map(|c| c.person.unwrap()).collect();
+    let port = &h.shipping.as_ref().unwrap().ports[x.routes[e.route as usize].port as usize];
+    assert!(port.harbor_capacity() >= 500.);
+    assert!(
+        port.capacity() < 500.,
+        "fixture exercises launch without prepaid merchant crews"
+    );
+    for &person in &original_people {
+        assert_eq!(
+            h.person_presence(person).1,
+            ancient_world::participation::Presence::Expedition(id)
+        );
+    }
+    let mut disabled = h.clone();
+    disabled.set_individual_participation(false).unwrap();
+    assert_eq!(
+        disabled.person_presence(original_people[0]).1,
+        ancient_world::participation::Presence::Expedition(id)
+    );
+    let mut broken = h.clone();
+    broken.person_duties.remove(&original_people[0]);
+    assert!(broken.validate(&g.snapshot().unwrap()).is_err());
     let duration = x.routes[e.route as usize].travel_months * 2 + 10;
     assert_eq!(e.survivors(), 8);
     assert!(!e.confirmed);
@@ -202,6 +244,25 @@ fn voyages_conserve_and_deliver_knowledge_after_exact_checkpoint_continuation() 
     let x = h.expeditions.as_ref().unwrap();
     let e = &x.voyages[id as usize];
     assert_eq!(e.phase, Phase::Returned);
+    assert_eq!(
+        e.crew.iter().map(|c| c.person.unwrap()).collect::<Vec<_>>(),
+        original_people
+    );
+    for crew in &e.crew {
+        let person = crew.person.unwrap();
+        assert_eq!(
+            h.person_presence(person).1,
+            ancient_world::participation::Presence::Resident(e.origin)
+        );
+        if let Some(agent) = h
+            .culture
+            .as_ref()
+            .and_then(|c| c.agents.get(person as usize))
+        {
+            assert!(agent.skills[3] >= crew.expertise.unwrap());
+        }
+    }
+    assert!(h.person_duties.is_empty());
     let landfall = h
         .events
         .iter()
@@ -325,6 +386,14 @@ fn rescue_transfers_real_survivors_and_stores_and_recall_takes_time() {
     let x = h.expeditions.as_ref().unwrap();
     assert_eq!(x.voyages[id as usize].phase, Phase::Rescued);
     assert_eq!(x.voyages[rescue as usize].survivors(), 16);
+    let identities: std::collections::BTreeSet<_> = x.voyages[rescue as usize]
+        .crew
+        .iter()
+        .map(|c| c.person.unwrap())
+        .collect();
+    assert_eq!(identities.len(), 16);
+    assert_eq!(h.person_duties.len(), 16);
+    assert!(h.person_duties.values().all(|d| d.voyage == rescue));
     for (name, expertise) in rescued_expertise {
         assert_eq!(
             x.voyages[rescue as usize]
@@ -542,4 +611,74 @@ fn heritage_voyages_preserve_minor_finds_and_checkpoint_continuity() {
         duplicate.validate(&g.snapshot().unwrap()).is_err(),
         "duplicate recovery must fail validation"
     );
+}
+
+#[test]
+#[ignore = "requires hardware GPU"]
+fn named_casualty_and_crew_remittances_reach_people_and_households() {
+    let mut g = world();
+    // Occupy the known workers for this month. Recruitment may record genuinely
+    // unnamed cohort adults, but may not duplicate the already committed people.
+    let h = g.civilizations.as_mut().unwrap();
+    let p = h.participation.as_mut().unwrap();
+    let available: Vec<_> = p
+        .residents
+        .values()
+        .filter_map(|r| {
+            if let ancient_world::participation::Presence::Resident(site) = r.presence {
+                Some((r.person, site))
+            } else {
+                None
+            }
+        })
+        .collect();
+    for (person, site) in available {
+        if let Some(id) = p.reserve(
+            h.month,
+            site,
+            ancient_world::participation::Activity::Culture,
+            &[person],
+            p.available(person),
+        ) {
+            p.settle(id, 0.).unwrap();
+        }
+    }
+    let id = launch(&mut g);
+    let h = g.civilizations.as_mut().unwrap();
+    let e = &mut h.expeditions.as_mut().unwrap().voyages[id as usize];
+    let origin = e.origin as usize;
+    assert!(e.crew.iter().any(|c| c.identified_from_cohort));
+    // Conserved intervention: return the provisions to shore, stranding a hungry crew.
+    h.sites[origin].stocks.stock[1] += e.food;
+    e.food = 0.;
+    e.phase = Phase::Stranded;
+    e.due = h.month + 100;
+    let roster: Vec<_> = e.crew.iter().map(|c| c.person.unwrap()).collect();
+    let deaths_before = h.sites[origin].stocks.people[1];
+    g.advance_history(1).unwrap();
+    let h = g.civilizations.as_ref().unwrap();
+    let e = &h.expeditions.as_ref().unwrap().voyages[id as usize];
+    assert_eq!(e.survivors(), 7);
+    let dead = e.crew.iter().find(|c| !c.alive).unwrap().person.unwrap();
+    assert_eq!(h.people[dead as usize].died, Some(h.month));
+    assert!(!h.person_duties.contains_key(&dead));
+    assert_eq!(
+        h.person_presence(dead).1,
+        ancient_world::participation::Presence::Dead
+    );
+    assert!(h.events.iter().any(
+        |ev| ev.kind == "expedition_casualty" && ev.subjects.contains(&("person".into(), dead))
+    ));
+    assert!(h.sites[origin].stocks.people[1] >= deaths_before + 1.);
+    for person in roster.into_iter().filter(|p| *p != dead) {
+        assert_eq!(
+            h.person_presence(person).1,
+            ancient_world::participation::Presence::Expedition(id)
+        );
+        let household = h.person_duties[&person].household.unwrap();
+        if let Some(account) = h.household_account(household) {
+            assert!(account.wages >= 20. / 7.);
+        }
+    }
+    h.validate(&g.snapshot().unwrap()).unwrap();
 }
