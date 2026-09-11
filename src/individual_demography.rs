@@ -41,6 +41,9 @@ pub struct DemographicSnapshot {
     pub people: Option<Vec<(u32, usize, i32)>>,
     pub anonymous: [f64; 3],
     pub birth_carry: f64,
+    /// False in older snapshots: retain their original community birth expectation.
+    #[serde(default)]
+    pub age_structured_births: bool,
 }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct DemographicComparison {
@@ -103,7 +106,13 @@ impl DemographicSnapshot {
         use crate::resolution::Mode;
         self.validate()?;
         let run = |mode, people: &[(u32, usize, i32)]| {
-            self.projection.resolve(
+            let projection = if mode == Mode::Individual && self.age_structured_births {
+                self.projection
+                    .with_birth_age_structure(self.month, people, self.anonymous)
+            } else {
+                self.projection.clone()
+            };
+            projection.resolve(
                 mode,
                 self.seed,
                 self.month,
@@ -139,6 +148,30 @@ impl DemographicSnapshot {
     }
 }
 impl DemographicProjection {
+    // Adult cohorts cover ages 15–60; this toy birth opportunity window is 18–45.
+    // Normalize against a uniform adult age distribution, retaining the aggregate
+    // expectation for anonymous residents whose birthdays are not represented.
+    fn with_birth_age_structure(
+        &self,
+        month: u32,
+        people: &[(u32, usize, i32)],
+        anonymous: [f64; 3],
+    ) -> Self {
+        let mut refined = self.clone();
+        let eligible = people
+            .iter()
+            .filter(|&&(_, band, born)| {
+                band == 1 && (216..540).contains(&(i64::from(month) - i64::from(born)))
+            })
+            .count() as f64;
+        let reference_share = 324. / 540.;
+        refined.births *= if self.opening[1] > 0. {
+            (eligible + anonymous[1] * reference_share) / (self.opening[1] * reference_share)
+        } else {
+            0.
+        };
+        refined
+    }
     fn from_exposure(opening: [f64; 3], need: [f32; 4], eaten: [f32; 4], disease: f32) -> Self {
         let hunger: [f64; 3] = std::array::from_fn(|b| {
             if need[b] > 0. {
@@ -422,7 +455,7 @@ impl History {
             .collect();
         let possible_births: usize = adults
             .iter()
-            .map(|n| (n * 0.004 + 1.).ceil() as usize)
+            .map(|n| (n * 0.004 / (324. / 540.) + 1.).ceil() as usize)
             .sum();
         ensure!(
             !self.individual_demography_enabled()
@@ -483,7 +516,16 @@ impl History {
                 .and_then(|s| s.birth_remainder.get(site))
                 .copied()
                 .unwrap_or(0.);
-            let outcome = projection.resolve(
+            let resolved_projection = if individual {
+                projection.with_birth_age_structure(
+                    self.month,
+                    &people,
+                    observation.anonymous[site],
+                )
+            } else {
+                projection.clone()
+            };
+            let outcome = resolved_projection.resolve(
                 mode,
                 self.seed,
                 self.month,
@@ -512,7 +554,10 @@ impl History {
                         .iter()
                         .chain(projection.mortality.iter())
                         .map(|v| v.to_bits())
-                        .chain([projection.births.to_bits()]),
+                        .chain([
+                            projection.births.to_bits(),
+                            resolved_projection.births.to_bits(),
+                        ]),
                 ),
             };
             self.resolution
@@ -526,10 +571,16 @@ impl History {
                         unit: "people".into(),
                         expected: projection.births,
                         actual: outcome.births,
-                        explained: vec![(
-                            "whole-birth carry".into(),
-                            outcome.births - projection.births,
-                        )],
+                        explained: vec![
+                            (
+                                "resident birth-age structure".into(),
+                                resolved_projection.births - projection.births,
+                            ),
+                            (
+                                "whole-birth carry".into(),
+                                outcome.births - resolved_projection.births,
+                            ),
+                        ],
                     },
                     Metric {
                         name: "deaths".into(),
@@ -579,6 +630,7 @@ impl History {
                         people: individual.then_some(people),
                         anonymous: observation.anonymous[site],
                         birth_carry: carry,
+                        age_structured_births: individual,
                     });
             if let Some(snapshot) = &demographic_snapshot {
                 snapshot.validate()?;
@@ -633,7 +685,7 @@ impl History {
                     .marriages
                     .iter()
                     .enumerate()
-                    .find(|(_, m)| {
+                    .filter(|(_, m)| {
                         m.ended.is_none()
                             && m.children < 4
                             && self.month.saturating_sub(m.last_birth) >= 36
@@ -644,6 +696,14 @@ impl History {
                                             - i64::from(self.people[id as usize].born)),
                                     )
                             })
+                    })
+                    .min_by_key(|(_, m)| {
+                        let key = m.partners[0].wrapping_mul(31).wrapping_add(m.partners[1]);
+                        (
+                            crate::expeditions::random(self.seed, key, self.month, 0x42495254)
+                                .to_bits(),
+                            key,
+                        )
                     })
                     .map(|(i, m)| (i, m.partners));
                 let household = family
@@ -723,6 +783,59 @@ mod tests {
         gpu::{ContextGpu, Generator},
     };
     #[test]
+    fn birth_age_structure_changes_opportunity_without_inventing_families() {
+        let p = DemographicProjection {
+            opening: [0., 540., 0.],
+            mortality: [0.; 3],
+            births: 2.16,
+            aging: [0., 1.],
+        };
+        let uniform: Vec<_> = (0..540).map(|id| (id, 1, 1 - (180 + id as i32))).collect();
+        let balanced = p.with_birth_age_structure(1, &uniform, [0.; 3]);
+        assert!((balanced.births - p.births).abs() < 1e-12);
+        let older: Vec<_> = (0..540).map(|id| (id, 1, -600)).collect();
+        assert_eq!(p.with_birth_age_structure(1, &older, [0.; 3]).births, 0.);
+        let younger: Vec<_> = (0..540).map(|id| (id, 1, -300)).collect();
+        assert!((p.with_birth_age_structure(1, &younger, [0.; 3]).births - 3.6).abs() < 1e-12);
+        assert_eq!(
+            p.with_birth_age_structure(1, &[], p.opening).births,
+            p.births
+        );
+        // Birthday window is [18,45); a recent 15th birthday is not an opportunity.
+        for (age, expected) in [(215, 0.), (216, 1.), (539, 1.), (540, 0.)] {
+            let one = DemographicProjection {
+                opening: [0., 1., 0.],
+                births: 0.6,
+                aging: [0., 1. / 540.],
+                ..p.clone()
+            };
+            assert!(
+                (one.with_birth_age_structure(1, &[(0, 1, 1 - age)], [0.; 3])
+                    .births
+                    - expected)
+                    .abs()
+                    < 1e-12
+            );
+        }
+        let snapshot = DemographicSnapshot {
+            seed: 17,
+            month: 1,
+            projection: p,
+            people: Some(older),
+            anonymous: [0.; 3],
+            birth_carry: 0.9,
+            age_structured_births: true,
+        };
+        let comparison = snapshot.compare().unwrap();
+        assert_eq!(comparison.individual.unwrap().births, 0.);
+        assert_eq!(comparison.aggregate.births, 2.16);
+        // Old archived evidence must replay the old rule, not acquire new semantics.
+        let mut old = serde_json::to_value(&snapshot).unwrap();
+        old.as_object_mut().unwrap().remove("age_structured_births");
+        let old: DemographicSnapshot = serde_json::from_value(old).unwrap();
+        assert_eq!(old.compare().unwrap().individual.unwrap().births, 3.);
+    }
+    #[test]
     fn snapshot_replay_preserves_inputs_and_reports_birthday_difference() {
         let snapshot = DemographicSnapshot {
             seed: 17,
@@ -736,6 +849,7 @@ mod tests {
             people: Some(vec![(7, 0, -179)]),
             anonymous: [0.; 3],
             birth_carry: 0.,
+            age_structured_births: true,
         };
         let before = serde_json::to_value(&snapshot).unwrap();
         let result = snapshot.compare().unwrap();

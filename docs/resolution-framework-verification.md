@@ -294,3 +294,46 @@ Reproduce with `cargo run --example cultural_work_calibrate -- --individual-demo
 The short-run population totals remain unchanged from the previous wage-offer runs;
 the controlled matching fixtures provide the direct evidence of changed assignments.
 These runs do not establish labor-market equilibrium or long-run calibration.
+
+## Birth opportunity from resident ages
+
+Individual birth expectations now respond to the age distribution within the
+adult cohort. The analytical fixture holds adult count, food, disease and aggregate
+birth expectation fixed at 540 adults and 2.16 births/month. A uniform adult age
+distribution retains 2.16; all residents outside the 18–44 window produce zero;
+all residents within it produce 3.6 before whole-birth carry. Anonymous adults
+retain the original expectation. Exact 18th/45th birthday boundaries are covered.
+These outcomes follow a declared normalization assumption, not empirical fitting.
+
+The replay fixture verifies that an age-ineligible population with 0.9 carry has
+zero actual births, while the aggregate comparison remains 2.16. Removing the new
+snapshot rule flag reproduces the old three-birth result. Comparison receipts
+separate age-structure effects and fractional carry rather than attributing all
+change to rounding. Parent attribution no longer always chooses the first eligible
+recorded marriage; it uses a deterministic monthly ranking.
+
+The change does not make marriage records population-authoritative. They remain
+incomplete; unknown parents remain unknown. Pregnancy, family-specific fertility,
+and intentional reproductive decisions remain future work.
+
+Verification: all **180 library tests passed**, including hardware tests
+(`cargo test --lib -- --include-ignored`, 103.54 seconds). All-target Clippy with
+warnings denied, formatting, and the source-only artifact check passed. Existing
+same-state comparison, batch, and checkpoint tests remain green.
+
+Three ten-year runs used seeds 17, 81, 256, terrain 32, ecology 16, one geological
+epoch, individual demography and workshop refinement on the Quadro RTX 5000 Max-Q.
+
+| Seed | Final resident population | Previous increment | Cohort overhang | Unresolved identities | Max absolute normalized economic residual |
+|---|---:|---:|---:|---:|---:|
+| 17 | 2,173 | 2,155 | 0 | 0 | 6.40e-7 |
+| 81 | 2,127 | 2,118 | 0 | 0 | 7.05e-7 |
+| 256 | 2,178 | 2,167 | 0 | 0 | 5.26e-7 |
+
+The modest population differences are a smoke comparison against the preceding
+increment, not an isolated causal estimate: parent selection also changed and
+later events can diverge. The analytical same-state fixtures establish the direct
+age-structure effect. These short runs do not establish long-run demographic
+stability or empirically credible fertility. Reproduce with the command in
+`individual-demography.md`, adding `--workshop-refinement`; local raw results are
+ignored under `output/birth-age-*`.

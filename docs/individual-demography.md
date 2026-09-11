@@ -63,3 +63,29 @@ comparison receipts and a workshop participation pilot.
 See [verification](individual-demography-verification.md) for the original authority
 transition and [framework verification](resolution-framework-verification.md) for
 the subsequent integration.
+
+## Resident age structure and births
+
+Individual resolution now refines the community birth expectation using present
+residents aged 18–44 (216–539 months). The aggregate adult band spans 15–59, so
+opportunity is normalized against the eligible fraction of a uniform adult age
+distribution, `324 / 540`. Specifically, the aggregate birth expectation is
+multiplied by `(eligible named adults + anonymous adults * 0.6) / (opening adults
+* 0.6)`. Zero opening adults means zero opportunity. This is a toy demographic
+assumption, not a fertility model fitted to human populations.
+
+Anonymous fractions retain the aggregate assumption; an unrecorded marriage does
+not make a resident ineligible. Existing ration and disease effects remain in the
+aggregate projection and are not charged again. Whole births and fractional carry
+are applied after this refinement; the carry stays below one and cannot accumulate
+a backlog while opportunity is zero. Opportunity uses the opening roster and
+current birthdays, before mortality resolution, rather than pretending births are
+conceived and delivered instantaneously after deaths.
+
+Receipts distinguish age-structure effects from whole-birth carry. New comparison
+snapshots record the rule explicitly; old snapshots without that flag replay their
+original community expectation. Aggregate authority is unchanged. Eligible recorded
+parent pairs are selected by a stable seeded ranking rather than marriage-array
+order. Their existing spacing and child-count restrictions still govern attribution
+only. Unknown parentage remains unknown: this does not yet model pregnancy,
+partnership formation, family-specific nutrition, or reproductive choices.
