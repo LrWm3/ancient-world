@@ -42,10 +42,26 @@ and granted time from completed work. The latter is unused paid employment, not
 missing inventory. Comparisons never write ordinary historical events or alter
 random streams, grants, demographic carries or choices.
 
-This increment compares actual outcomes with the aggregate conditional projection.
-It does **not** run a complete alternative individual history in aggregate mode.
-Independent counterfactual histories remain separate runs; individualized shadow
-resolution from incomplete aggregate rosters would require explicit reconstruction.
+With comparison enabled, demographic receipts also retain a replayable
+`DemographicSnapshot`: opening stocks, completed ration/disease-derived projection,
+seed, month, birth carry, and (in individual mode) opening identities and birthdays.
+`snapshot.compare()?` runs both pure resolvers from those same inputs. The returned
+aggregate and individual outcomes include closing age stocks, births, deaths,
+birthday transitions, deceased IDs and remaining birth carry. No births are registered,
+no events emitted and no live state or random stream changed by replay.
+
+Only the latest month's inputs are retained, so snapshot storage scales with the
+current resident roster rather than elapsed history. Snapshots serialize with receipts;
+older receipts without them still load. Public replay types are available through
+`ancient_world::resolution`. Validation rejects duplicate identities, inconsistent
+age bands, mismatched population stocks and invalid numerical inputs.
+
+Aggregate-mode snapshots explicitly return an unavailable reason for individual
+replay: they do not invent a reconciled population from sparse named records.
+Independent long-running counterfactual histories remain separate runs. This tool
+isolates demographic resolution under identical completed exposure; it does not
+predict how an alternative population would have changed food consumption earlier
+in the month. Nor does it replay the full scheduler or workshop hiring.
 
 ## Workshop pilot
 
@@ -96,7 +112,8 @@ and workshop receipts, grants and comparison settings serialize with History.
 
 ## Next extensions
 
-- Snapshot comparison tools that run both resolvers without committing an alternative.
+- Extend snapshot comparisons beyond demography; individual replay from aggregate-only
+  worlds still requires explicit roster reconciliation.
 - Richer birth eligibility and reproductive circumstances; births currently retain the
   community-level expectation and unknown-parent fallback.
 - Skills, wages and household circumstances in work offers; explicit coordination

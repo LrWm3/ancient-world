@@ -86,6 +86,7 @@ pub(crate) fn staffing_revision(f: &crate::enterprises::Firm) -> u64 {
 impl Staffing {
     pub(crate) fn receipt(&self, used: f64, compare: bool) -> Receipt {
         Receipt {
+            demographic_snapshot: None,
             boundary: self.boundary.clone(),
             mode: self.mode,
             metrics: if compare {

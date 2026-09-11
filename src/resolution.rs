@@ -1,4 +1,7 @@
 //! Shared boundary contract. Projections never mutate inventories; one result commits.
+pub use crate::individual_demography::{
+    DemographicComparison, DemographicOutcome, DemographicProjection, DemographicSnapshot,
+};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
@@ -45,6 +48,9 @@ pub struct Receipt {
     pub boundary: Boundary,
     pub mode: Mode,
     pub metrics: Vec<Metric>,
+    /// Optional replay inputs; retained only with the latest monthly receipts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub demographic_snapshot: Option<DemographicSnapshot>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Summary {
@@ -151,6 +157,13 @@ impl ResolutionState {
             "invalid comparison summaries"
         );
         for (i, r) in self.receipts.iter().enumerate() {
+            if let Some(snapshot) = &r.demographic_snapshot {
+                ensure!(
+                    r.boundary.system == System::Demography && snapshot.month == r.boundary.month,
+                    "snapshot does not belong to receipt"
+                );
+                snapshot.validate()?;
+            }
             ensure!(
                 r.boundary.month <= month && (r.boundary.site as usize) < sites,
                 "invalid resolution boundary"
@@ -226,6 +239,7 @@ mod tests {
             boundary: b.clone(),
             mode: Mode::Aggregate,
             metrics: vec![],
+            demographic_snapshot: None,
         };
         let mut s = ResolutionState::default();
         let mut stale = b.clone();

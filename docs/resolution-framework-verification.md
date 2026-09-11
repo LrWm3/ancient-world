@@ -91,3 +91,32 @@ tests make the run timings unsuitable for performance claims. This verifies hist
 serialization/batching, not a new cross-backend or full-world archive equivalence
 study. Regional mode switching and richer individual reproductive behavior remain
 outside this increment.
+
+## Same-state demographic replay
+
+Added replayable latest-month inputs to comparison receipts. The public
+`DemographicSnapshot::compare()` runs the aggregate resolver and, when reconciled
+opening identities were captured, the individual resolver without committing either.
+Aggregate-only capture explicitly reports unavailable individual inputs.
+
+Verification:
+
+- Eight demographic tests passed, including the hardware GPU fixtures, using
+  `cargo test --lib individual_demography -- --include-ignored`.
+- Analytical birthday fixture: one child reaching adulthood becomes one adult in
+  individual resolution, versus 1/180 adult in aggregate resolution. Both preserve
+  total population exactly with zero mortality and births.
+- JSON replay produces identical outcomes and leaves snapshot inputs unchanged.
+  Duplicate identities, incorrect birthday bands, inconsistent roster totals and
+  nonfinite birth carry are rejected.
+- Twelve-month comparison enabled/disabled histories remain identical after removing
+  diagnostic state, in both demographic modes (including refined workshops in the
+  individual branch). Captured replay births, deaths and both aging transitions
+  match their actual committed receipts.
+- Existing checkpoint, old-archive admission, travel, defensive casualty and
+  conversion-rejection fixtures still pass.
+
+These are conditional one-month comparisons after food/disease exposure has already
+been computed. They do not model counterfactual food consumption or run an alternative
+full history. No new balance rates were introduced and no new long-run seed calibration
+was performed for this diagnostic-only increment.

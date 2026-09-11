@@ -21,15 +21,122 @@ pub struct DemographicProjection {
     pub births: f64,
     pub aging: [f64; 2],
 }
-#[derive(Clone, Debug)]
-struct DemographicOutcome {
-    ages: [f64; 3],
-    births: f64,
-    deaths: [f64; 3],
-    anonymous_deaths: f64,
-    dead: Vec<u32>,
-    carry: f64,
-    aging: [f64; 2],
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct DemographicOutcome {
+    pub ages: [f64; 3],
+    pub births: f64,
+    pub deaths: [f64; 3],
+    pub anonymous_deaths: f64,
+    pub dead: Vec<u32>,
+    pub carry: f64,
+    pub aging: [f64; 2],
+}
+/// Completed exposure and opening identities. Replay never touches History or its RNG.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct DemographicSnapshot {
+    pub seed: u32,
+    pub month: u32,
+    pub projection: DemographicProjection,
+    /// None means no reconciled roster was captured, not an empty population.
+    pub people: Option<Vec<(u32, usize, i32)>>,
+    pub anonymous: [f64; 3],
+    pub birth_carry: f64,
+}
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct DemographicComparison {
+    pub aggregate: DemographicOutcome,
+    pub individual: Option<DemographicOutcome>,
+    pub unavailable_reason: Option<String>,
+}
+impl DemographicSnapshot {
+    pub fn validate(&self) -> Result<()> {
+        let p = &self.projection;
+        ensure!(
+            self.month > 0 && self.month <= i32::MAX as u32,
+            "invalid snapshot month"
+        );
+        ensure!(
+            p.opening
+                .iter()
+                .chain(self.anonymous.iter())
+                .all(|v| v.is_finite() && *v >= 0.)
+                && p.mortality
+                    .iter()
+                    .all(|v| v.is_finite() && (0. ..=0.9).contains(v))
+                && p.births.is_finite()
+                && p.births >= 0.
+                && self.birth_carry.is_finite()
+                && (0. ..1.).contains(&self.birth_carry),
+            "invalid demographic snapshot stocks or rates"
+        );
+        ensure!(
+            p.aging == [p.opening[0] / 180., p.opening[1] / 540.],
+            "inconsistent aggregate aging projection"
+        );
+        if let Some(people) = &self.people {
+            ensure!(people.len() <= 50_000, "snapshot roster exceeds capacity");
+            let mut ids = std::collections::HashSet::new();
+            let mut counted = self.anonymous;
+            for &(id, band, born) in people {
+                ensure!(
+                    band < 3
+                        && ids.insert(id)
+                        && age_band(self.month - 1, born) == Some(band)
+                        && age_band(self.month, born).is_some(),
+                    "duplicate identity or invalid snapshot birthday"
+                );
+                counted[band] += 1.;
+            }
+            ensure!(
+                (0..3).all(|b| (counted[b] - p.opening[b]).abs() < 1e-6),
+                "snapshot roster does not reconcile with opening stocks"
+            );
+        } else {
+            ensure!(
+                self.anonymous == p.opening,
+                "unreconciled anonymous snapshot"
+            );
+        }
+        Ok(())
+    }
+    pub fn compare(&self) -> Result<DemographicComparison> {
+        use crate::resolution::Mode;
+        self.validate()?;
+        let run = |mode, people: &[(u32, usize, i32)]| {
+            self.projection.resolve(
+                mode,
+                self.seed,
+                self.month,
+                people,
+                self.anonymous,
+                self.birth_carry,
+            )
+        };
+        let aggregate = run(Mode::Aggregate, &[]);
+        let individual = self
+            .people
+            .as_ref()
+            .map(|people| run(Mode::Individual, people));
+        for outcome in std::iter::once(&aggregate).chain(individual.iter()) {
+            ensure!(
+                outcome.ages.iter().all(|v| v.is_finite() && *v >= 0.)
+                    && (outcome.ages.iter().sum::<f64>()
+                        - self.projection.opening.iter().sum::<f64>()
+                        - outcome.births
+                        + outcome.deaths.iter().sum::<f64>())
+                    .abs()
+                        < 1e-6,
+                "replayed demographic outcome violates population accounting"
+            );
+        }
+        Ok(DemographicComparison {
+            aggregate,
+            individual,
+            unavailable_reason: self.people.is_none().then(|| {
+                "No reconciled individual roster captured; no identities were invented".into()
+            }),
+        })
+    }
 }
 impl DemographicProjection {
     fn from_exposure(opening: [f64; 3], need: [f32; 4], eaten: [f32; 4], disease: f32) -> Self {
@@ -460,12 +567,29 @@ impl History {
             } else {
                 vec![]
             };
+            let demographic_snapshot =
+                self.resolution
+                    .as_ref()
+                    .unwrap()
+                    .compare
+                    .then(|| DemographicSnapshot {
+                        seed: self.seed,
+                        month: self.month,
+                        projection,
+                        people: individual.then_some(people),
+                        anonymous: observation.anonymous[site],
+                        birth_carry: carry,
+                    });
+            if let Some(snapshot) = &demographic_snapshot {
+                snapshot.validate()?;
+            }
             plans.push((
                 outcome,
                 Receipt {
                     boundary,
                     mode,
                     metrics,
+                    demographic_snapshot,
                 },
             ));
         }
@@ -599,6 +723,52 @@ mod tests {
         gpu::{ContextGpu, Generator},
     };
     #[test]
+    fn snapshot_replay_preserves_inputs_and_reports_birthday_difference() {
+        let snapshot = DemographicSnapshot {
+            seed: 17,
+            month: 1,
+            projection: DemographicProjection {
+                opening: [1., 0., 0.],
+                mortality: [0.; 3],
+                births: 0.,
+                aging: [1. / 180., 0.],
+            },
+            people: Some(vec![(7, 0, -179)]),
+            anonymous: [0.; 3],
+            birth_carry: 0.,
+        };
+        let before = serde_json::to_value(&snapshot).unwrap();
+        let result = snapshot.compare().unwrap();
+        assert_eq!(result.individual.as_ref().unwrap().ages, [0., 1., 0.]);
+        assert_eq!(result.aggregate.ages, [179. / 180., 1. / 180., 0.]);
+        let loaded: DemographicSnapshot = serde_json::from_value(before.clone()).unwrap();
+        assert_eq!(
+            serde_json::to_value(&result).unwrap(),
+            serde_json::to_value(loaded.compare().unwrap()).unwrap()
+        );
+        assert_eq!(before, serde_json::to_value(&snapshot).unwrap());
+
+        let mut invalid = snapshot.clone();
+        invalid.people.as_mut().unwrap().push((7, 0, -179));
+        assert!(invalid.compare().is_err());
+        invalid = snapshot.clone();
+        invalid.people.as_mut().unwrap()[0].2 = -180;
+        assert!(invalid.compare().is_err());
+        invalid = snapshot.clone();
+        invalid.anonymous[0] = 1.;
+        assert!(invalid.compare().is_err());
+        invalid = snapshot.clone();
+        invalid.birth_carry = f64::NAN;
+        assert!(invalid.compare().is_err());
+
+        let mut aggregate = snapshot;
+        aggregate.people = None;
+        aggregate.anonymous = aggregate.projection.opening;
+        let result = aggregate.compare().unwrap();
+        assert!(result.individual.is_none());
+        assert!(result.unavailable_reason.is_some());
+    }
+    #[test]
     fn projection_resolves_analytical_aggregate_and_whole_birthdays_without_mutation() {
         use crate::resolution::Mode;
         let p = DemographicProjection {
@@ -663,6 +833,24 @@ mod tests {
                 .iter()
                 .filter(|r| r.boundary.system == crate::resolution::System::Demography)
                 .all(|r| r.metrics.len() == 4));
+            for receipt in &actual.resolution.as_ref().unwrap().receipts {
+                if let Some(snapshot) = &receipt.demographic_snapshot {
+                    let replay = snapshot.compare().unwrap();
+                    let resolved = if mode == Mode::Individual {
+                        replay.individual.as_ref().unwrap()
+                    } else {
+                        assert!(replay.individual.is_none());
+                        &replay.aggregate
+                    };
+                    assert_eq!(resolved.births, receipt.metrics[0].actual);
+                    assert_eq!(
+                        resolved.deaths.iter().sum::<f64>(),
+                        receipt.metrics[1].actual
+                    );
+                    assert_eq!(resolved.aging[0], receipt.metrics[2].actual);
+                    assert_eq!(resolved.aging[1], receipt.metrics[3].actual);
+                }
+            }
             expected.resolution = None;
             actual.resolution = None;
             assert_eq!(
