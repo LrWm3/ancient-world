@@ -276,6 +276,7 @@ mod tests {
         catalog.market.network_trade = false;
         catalog.production.supplier_profitability = false;
         History {
+            resolution: None,
             person_duties: Default::default(),
             domestic: None,
             named_demography: None,

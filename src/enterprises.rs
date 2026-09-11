@@ -10,6 +10,8 @@ use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Firm {
+    #[serde(default)]
+    pub staffing: Option<crate::workshop_resolution::Staffing>,
     pub id: u32,
     pub site: u32,
     pub family: u32,
@@ -66,6 +68,56 @@ impl Enterprises {
                     && f.closed.is_none_or(|m| m >= f.founded && m <= h.month),
                 "invalid enterprise identity or clock"
             );
+            if let Some(staff) = &f.staffing {
+                ensure!(
+                    staff.boundary.month <= h.month
+                        && staff.boundary.site == f.site
+                        && staff.boundary.subject == f.id
+                        && staff.boundary.system == crate::resolution::System::Workshop,
+                    "invalid workshop resolution boundary"
+                );
+                ensure!(
+                    staff.expected.is_finite()
+                        && staff.granted.is_finite()
+                        && staff.expected >= 0.
+                        && staff.granted >= 0.
+                        && staff.granted <= staff.expected + 1e-5
+                        && (staff.granted - f.last_funded_work).abs() < 1e-4,
+                    "invalid workshop time grant"
+                );
+                ensure!(
+                    staff.wages.iter().all(|(id, w)| h
+                        .society
+                        .as_ref()
+                        .is_some_and(|s| (*id as usize) < s.households.len())
+                        && w.is_finite()
+                        && *w >= 0.),
+                    "invalid workshop wage recipients"
+                );
+                if staff.mode == crate::resolution::Mode::Individual {
+                    ensure!(
+                        (staff.wages.iter().map(|(_, w)| w).sum::<f64>() - staff.granted).abs()
+                            < 1e-5,
+                        "workshop wages lack actual participants"
+                    );
+                    if let Some(p) = h
+                        .participation
+                        .as_ref()
+                        .filter(|p| p.month == Some(staff.boundary.month))
+                    {
+                        let mut ids = BTreeSet::new();
+                        ensure!(
+                            staff.commitments.iter().all(|id| ids.insert(id)
+                                && p.commitments.get(*id as usize).is_some_and(|c| c.activity
+                                    == crate::participation::Activity::Workshop
+                                    && c.site == f.site
+                                    && c.month == staff.boundary.month
+                                    && (!staff.settled || c.settled))),
+                            "invalid workshop personal commitment"
+                        );
+                    }
+                }
+            }
             ensure!(
                 f.closed.is_some() || occupied.insert((f.site, f.family)),
                 "overlapping workshop leases"
@@ -187,6 +239,11 @@ impl History {
             "completed_work":firms.iter().map(|f|f.completed_work).sum::<f64>()})
     }
     pub(crate) fn prepare_enterprises(&mut self) {
+        let offers = self.workshop_offers();
+        let refine = self
+            .resolution
+            .as_ref()
+            .is_some_and(|r| r.workshop_individual);
         for s in &mut self.sites {
             s.economy.enterprise_lease = [0.; 4];
             s.economy.enterprise_plan = [0.; 4];
@@ -289,6 +346,7 @@ impl History {
                     e.accounts[owner].capital_invested += capital;
                     let id = enterprises.firms.len() as u32;
                     enterprises.firms.push(Firm {
+                        staffing: None,
                         id,
                         site: site as u32,
                         family: family as u32,
@@ -357,6 +415,57 @@ impl History {
             .zip(capacities)
             .map(|(&requests, capacity)| allocate_work(requests, capacity))
             .collect::<Vec<_>>();
+        let mut order: Vec<_> = enterprises
+            .firms
+            .iter()
+            .enumerate()
+            .filter(|(_, f)| f.closed.is_none())
+            .map(|(i, f)| ((f.site, f.family, f.id), i))
+            .collect();
+        order.sort_unstable();
+        for (_, i) in order {
+            let f = &mut enterprises.firms[i];
+            let site = f.site as usize;
+            let boundary = crate::resolution::Boundary {
+                month: self.month,
+                system: crate::resolution::System::Workshop,
+                site: f.site,
+                subject: f.id,
+                revision: crate::resolution::revision([
+                    f.cash.to_bits(),
+                    f.wage_rate.to_bits(),
+                    (grants[site][f.family as usize] as f64).to_bits(),
+                ]),
+            };
+            f.staffing = if refine {
+                let eligible: Vec<_> = offers[site]
+                    .iter()
+                    .filter(|o| residents[site].contains(&(o.household as usize)))
+                    .copied()
+                    .collect();
+                self.participation.as_mut().map(|p| {
+                    crate::workshop_resolution::resolve(
+                        p,
+                        boundary,
+                        grants[site][f.family as usize],
+                        &eligible,
+                    )
+                })
+            } else if self.resolution.is_some() {
+                let expected = grants[site][f.family as usize] as f64;
+                Some(crate::workshop_resolution::Staffing {
+                    boundary,
+                    mode: crate::resolution::Mode::Aggregate,
+                    expected,
+                    granted: expected,
+                    commitments: vec![],
+                    wages: vec![],
+                    settled: false,
+                })
+            } else {
+                None
+            };
+        }
         for f in enterprises.firms.iter_mut().filter(|f| f.closed.is_none()) {
             let site = f.site as usize;
             let family = f.family as usize;
@@ -364,7 +473,12 @@ impl History {
             let ids = &residents[site];
             let units = town.economy.enterprise_lease[family] as f64;
             let desired = desired_work[f.id as usize];
-            let work = grants[site][family] as f64;
+            let work = f
+                .staffing
+                .as_ref()
+                .map_or(grants[site][family] as f64, |s| {
+                    work_floor(s.granted) as f64
+                });
             let payroll = (work * f.wage_rate).min(f.cash);
             f.cash -= payroll;
             f.wages += payroll;
@@ -380,7 +494,17 @@ impl History {
             let weights = ids
                 .iter()
                 .map(|&id| {
-                    if e.occupational_payroll {
+                    if let Some(s) = f
+                        .staffing
+                        .as_ref()
+                        .filter(|s| s.mode == crate::resolution::Mode::Individual)
+                    {
+                        s.wages
+                            .iter()
+                            .filter(|(household, _)| *household as usize == id)
+                            .map(|(_, w)| *w)
+                            .sum()
+                    } else if e.occupational_payroll {
                         e.accounts[id].livelihood.unwrap_or([1.; 4])[3]
                     } else {
                         1.
@@ -389,16 +513,25 @@ impl History {
                 .collect::<Vec<_>>();
             let total = weights.iter().sum::<f64>();
             let mut remaining = payroll;
+            let last_paid = weights.iter().rposition(|w| *w > 0.);
             for (j, &id) in ids.iter().enumerate() {
-                let wage = if j + 1 == ids.len() {
+                let wage = if weights[j] <= 0. {
+                    0.
+                } else if Some(j) == last_paid {
                     remaining
                 } else {
-                    (payroll * weights[j] / total).min(remaining)
+                    (payroll * weights[j] / total.max(1e-12)).min(remaining)
                 };
                 remaining -= wage;
                 e.accounts[id].cash += wage;
                 e.accounts[id].wages += wage;
                 e.accounts[id].employer_income += wage;
+            }
+        }
+        for f in enterprises.firms.iter_mut().filter(|f| f.closed.is_none()) {
+            let revision = crate::workshop_resolution::staffing_revision(f);
+            if let Some(staff) = &mut f.staffing {
+                staff.boundary.revision = revision;
             }
         }
         self.enterprises = Some(enterprises);
@@ -724,6 +857,114 @@ mod tests {
         accounts.resize(count, HouseholdAccount::default());
         accounts[owner].cash += paid;
         accounts[owner].wages += paid;
+    }
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn individual_staffing_absence_changes_grants_and_pays_actual_households() {
+        let mut g = world();
+        install(&mut g);
+        g.enable_politics().unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        h.enable_individual_demography().unwrap();
+        h.set_workshop_refinement(true).unwrap();
+        h.resolution.as_mut().unwrap().compare = true;
+        h.month = 3;
+        h.begin_service_reservations();
+        let person = h
+            .participation
+            .as_ref()
+            .unwrap()
+            .residents
+            .values()
+            .find(|r| r.presence == crate::participation::Presence::Resident(0) && r.capacity > 0.)
+            .unwrap()
+            .person;
+        for r in h.participation.as_mut().unwrap().residents.values_mut() {
+            r.capacity = 0.;
+            r.care = 0.;
+        }
+        h.participation
+            .as_mut()
+            .unwrap()
+            .residents
+            .get_mut(&person)
+            .unwrap()
+            .capacity = 0.4;
+        let mut absent = h.clone();
+        absent
+            .participation
+            .as_mut()
+            .unwrap()
+            .residents
+            .get_mut(&person)
+            .unwrap()
+            .capacity = 0.;
+        let mut resumed: History =
+            serde_json::from_value(serde_json::to_value(&*h).unwrap()).unwrap();
+        h.prepare_enterprises();
+        resumed.prepare_enterprises();
+        absent.prepare_enterprises();
+        assert_eq!(
+            serde_json::to_value(&*h).unwrap(),
+            serde_json::to_value(resumed).unwrap()
+        );
+        let mut stale = h.clone();
+        stale.enterprises.as_mut().unwrap().firms[0].last_requested_work += 1.;
+        assert!(stale.settle_workshop_resolutions().is_err());
+        let grants = h
+            .enterprises
+            .as_ref()
+            .unwrap()
+            .firms
+            .iter()
+            .map(|f| f.last_funded_work)
+            .sum::<f64>();
+        assert!(grants > 0. && grants <= 0.4);
+        assert_eq!(
+            absent
+                .enterprises
+                .as_ref()
+                .unwrap()
+                .firms
+                .iter()
+                .map(|f| f.last_funded_work)
+                .sum::<f64>(),
+            0.
+        );
+        let household = h.participation.as_ref().unwrap().residents[&person]
+            .household
+            .unwrap() as usize;
+        let accounts = &h
+            .society
+            .as_ref()
+            .unwrap()
+            .household_economy
+            .as_ref()
+            .unwrap()
+            .accounts;
+        assert!(accounts[household].employer_income > 0.);
+        assert!(accounts
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i != household)
+            .all(|(_, a)| a.employer_income == 0.));
+        assert!(h.check_workshop_reservation_boundary().is_err());
+        // Controlled completed-work input; production itself is exercised by seed runs.
+        for site in &mut h.sites {
+            site.economy.enterprise_used = site.economy.enterprise_plan.map(|w| w * 0.5);
+        }
+        h.settle_enterprises();
+        h.settle_workshop_resolutions().unwrap();
+        let actual = h.participation.as_ref().unwrap().residents[&person].workshop_completed;
+        assert!((actual - grants * 0.5).abs() < 1e-6);
+        assert!(h
+            .resolution
+            .as_ref()
+            .unwrap()
+            .receipts
+            .iter()
+            .any(|r| r.boundary.system == crate::resolution::System::Workshop));
+        h.enterprises.as_ref().unwrap().validate(h).unwrap();
     }
     #[test]
     fn entry_requires_forecast_operating_profit_not_just_a_rich_founder() {

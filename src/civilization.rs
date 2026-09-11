@@ -147,6 +147,8 @@ pub struct Candidate {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct History {
     #[serde(default)]
+    pub resolution: Option<crate::resolution::ResolutionState>,
+    #[serde(default)]
     pub named_demography: Option<crate::population_registry::NamedDemography>,
     #[serde(default)]
     pub domestic: Option<crate::domestic::Domestic>,
@@ -1118,6 +1120,7 @@ impl Generator {
             person_duties: Default::default(),
             domestic: Some(Default::default()),
             named_demography: Some(Default::default()),
+            resolution: None,
             military: Default::default(),
             territorial_history: vec![],
             enterprises: Some(Default::default()),
@@ -1295,7 +1298,8 @@ impl Generator {
         &self,
         h: &mut History,
         terrain: &[crate::gpu::Cell],
-    ) -> (Vec<[f32; 2]>, Vec<crate::household_economy::RetailPlan>) {
+    ) -> Result<(Vec<[f32; 2]>, Vec<crate::household_economy::RetailPlan>)> {
+        h.check_workshop_reservation_boundary()?;
         h.begin_service_reservations();
         h.prepare_committed_vessels();
         h.prepare_discoveries();
@@ -1306,7 +1310,7 @@ impl Generator {
         h.prepare_enterprises();
         h.prepare_vessels();
         let retail = h.prepare_household_retail();
-        (extraction_allowances, retail)
+        Ok((extraction_allowances, retail))
     }
     fn history_execute_month(
         &self,
@@ -1326,11 +1330,13 @@ impl Generator {
         h.settle_domestic_care();
         if let Some(observation) = individual_observation {
             h.settle_individual_demography(observation)?;
-        } else {
+        }
+        if !h.individual_demography_enabled() {
             h.assign_demographic_deaths(&deaths_before);
         }
         h.settle_resources(extraction_allowances)?;
         h.settle_enterprises();
+        h.settle_workshop_resolutions()?;
         h.storage_events();
         h.housing_events();
         h.waterworks_events();
@@ -1492,7 +1498,7 @@ impl Generator {
             for _ in 0..months {
                 let deliveries =
                     self.history_open_month(&mut h, &engine, terrain, navigation.as_deref())?;
-                let (extraction, retail) = self.history_reserve_month(&mut h, terrain);
+                let (extraction, retail) = self.history_reserve_month(&mut h, terrain)?;
                 production_ms +=
                     self.history_execute_month(&mut h, &engine, &extraction, retail)?;
                 self.history_respond_month(&mut h, terrain, navigation.as_deref(), &deliveries)?;
@@ -1747,7 +1753,7 @@ impl Engine {
                 (g.config.solar_scale * g.config.crop_yield_scale).to_bits(),
                 u32::from(h.society.is_some())
                     | (u32::from(h.living.is_some()) << 1)
-                    | (u32::from(h.individual_demography_enabled()) << 2),
+                    | (u32::from(h.individual_demography_enabled() || h.resolution.is_some()) << 2),
                 weather.drought_probability.to_bits(),
                 weather.drought_severity.to_bits(),
                 weather.regime_months,

@@ -11,7 +11,101 @@ pub(crate) struct Observation {
     month: u32,
     people: Vec<Vec<(u32, usize)>>,
     anonymous: Vec<[f64; 3]>,
-    adults: Vec<f64>,
+    opening: Vec<[f64; 3]>,
+}
+/// Conditional expectation from opening cohorts and completed GPU exposures.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct DemographicProjection {
+    pub opening: [f64; 3],
+    pub mortality: [f64; 3],
+    pub births: f64,
+    pub aging: [f64; 2],
+}
+#[derive(Clone, Debug)]
+struct DemographicOutcome {
+    ages: [f64; 3],
+    births: f64,
+    deaths: [f64; 3],
+    anonymous_deaths: f64,
+    dead: Vec<u32>,
+    carry: f64,
+    aging: [f64; 2],
+}
+impl DemographicProjection {
+    fn from_exposure(opening: [f64; 3], need: [f32; 4], eaten: [f32; 4], disease: f32) -> Self {
+        let hunger: [f64; 3] = std::array::from_fn(|b| {
+            if need[b] > 0. {
+                (1. - eaten[b] / need[b]).clamp(0., 1.) as f64
+            } else {
+                0.
+            }
+        });
+        let disease = disease.clamp(0., 0.5) as f64;
+        Self {
+            opening,
+            mortality: std::array::from_fn(|b| {
+                [0.0005, 0.0006, 0.003][b] + hunger[b] * [0.06, 0.025, 0.05][b] + disease * 0.01
+            }),
+            births: opening[1] * 0.004 * (1. - hunger[1]) * (1. - disease),
+            aging: [opening[0] / 180., opening[1] / 540.],
+        }
+    }
+    fn resolve(
+        &self,
+        mode: crate::resolution::Mode,
+        seed: u32,
+        month: u32,
+        people: &[(u32, usize, i32)],
+        anonymous: [f64; 3],
+        carry: f64,
+    ) -> DemographicOutcome {
+        let individual = mode == crate::resolution::Mode::Individual;
+        let stock = if individual { anonymous } else { self.opening };
+        let losses: [f64; 3] = std::array::from_fn(|b| stock[b] * self.mortality[b]);
+        let mut aging = [stock[0] / 180., stock[1] / 540.];
+        let mut ages = [
+            stock[0] - losses[0] - aging[0],
+            stock[1] - losses[1] + aging[0] - aging[1],
+            stock[2] - losses[2] + aging[1],
+        ];
+        let mut deaths = losses;
+        let mut dead = Vec::new();
+        if individual {
+            for &(id, band, born) in people {
+                if (crate::expeditions::random(seed, id, month, 0x494e4444) as f64)
+                    < self.mortality[band]
+                {
+                    deaths[band] += 1.;
+                    dead.push(id);
+                } else {
+                    let now = age_band(month, born).unwrap();
+                    ages[now] += 1.;
+                    if band == 0 && now >= 1 {
+                        aging[0] += 1.;
+                    }
+                    if band <= 1 && now == 2 {
+                        aging[1] += 1.;
+                    }
+                }
+            }
+        }
+        let target = carry + self.births;
+        let births = if individual {
+            target.floor()
+        } else {
+            self.births
+        };
+        ages[0] += births;
+        DemographicOutcome {
+            ages,
+            births,
+            deaths,
+            anonymous_deaths: losses.iter().sum(),
+            dead,
+            carry: if individual { target.fract() } else { carry },
+            aging,
+        }
+    }
 }
 impl History {
     pub fn individual_demography_enabled(&self) -> bool {
@@ -41,6 +135,7 @@ impl History {
         state.month = Some(next.month);
         next.event("individual_demography_enabled", None, None,
             "Named residents now own birthdays, births and deaths; fractional unnamed residents remain explicit; population was not rounded or increased".into());
+        next.resolution.get_or_insert_with(Default::default);
         *self = next;
         Ok(())
     }
@@ -152,11 +247,12 @@ impl History {
         eligible
     }
     pub(crate) fn observe_individual_demography(&self) -> Result<Option<Observation>> {
-        if !self.individual_demography_enabled() {
+        if !self.individual_demography_enabled() && self.resolution.is_none() {
             return Ok(None);
         }
         ensure!(
-            self.named_demography.as_ref().unwrap().month != Some(self.month),
+            !self.individual_demography_enabled()
+                || self.named_demography.as_ref().unwrap().month != Some(self.month),
             "individual demographics already settled this month"
         );
         ensure!(
@@ -167,7 +263,11 @@ impl History {
             self.society.is_some() && self.politics.is_some(),
             "individual demography requires membership"
         );
-        for site in &self.sites {
+        for site in self
+            .sites
+            .iter()
+            .filter(|_| self.individual_demography_enabled())
+        {
             ensure!(
                 site.demography.ages[1] <= 0.
                     || self
@@ -183,7 +283,11 @@ impl History {
         }
         let mut people = vec![Vec::new(); self.sites.len()];
         let mut known = vec![[0u32; 3]; self.sites.len()];
-        for p in &self.people {
+        for p in self
+            .people
+            .iter()
+            .filter(|_| self.individual_demography_enabled())
+        {
             if let Presence::Resident(site) = self.person_presence(p.id).1 {
                 let band = age_band(self.month.saturating_sub(1), p.born)
                     .ok_or_else(|| anyhow::anyhow!("unsettled new resident birthday"))?;
@@ -214,68 +318,170 @@ impl History {
             .map(|n| (n * 0.004 + 1.).ceil() as usize)
             .sum();
         ensure!(
-            self.politics
-                .as_ref()
-                .is_some_and(|p| p.kin.len() + possible_births <= 50000),
+            !self.individual_demography_enabled()
+                || self
+                    .politics
+                    .as_ref()
+                    .is_some_and(|p| p.kin.len() + possible_births <= 50000),
             "individual birth batch exceeds membership capacity"
         );
         Ok(Some(Observation {
             month: self.month,
             people,
             anonymous,
-            adults,
+            opening: self
+                .sites
+                .iter()
+                .map(|s| std::array::from_fn(|b| s.demography.ages[b] as f64))
+                .collect(),
         }))
     }
     pub(crate) fn settle_individual_demography(&mut self, observation: Observation) -> Result<()> {
+        use crate::resolution::{Boundary, Metric, Mode, Receipt, System};
+        // Pre-framework archives may already own individual demographics.
+        self.resolution.get_or_insert_with(Default::default);
+        let individual = self.individual_demography_enabled();
+        let mode = if individual {
+            Mode::Individual
+        } else {
+            Mode::Aggregate
+        };
         ensure!(
             observation.month == self.month
-                && self.individual_demography_enabled()
-                && self.named_demography.as_ref().unwrap().month != Some(self.month),
+                && (!individual
+                    || self.named_demography.as_ref().unwrap().month != Some(self.month)),
             "stale or repeated individual demographic settlement"
         );
-        let mut state = self.named_demography.take().unwrap();
-        state.birth_remainder.resize(self.sites.len(), 0.);
+        let mut plans = Vec::new();
+        // Resolve and validate the whole batch before any identity or inventory changes.
         for site in 0..self.sites.len() {
             let d = self.sites[site].demography;
-            let hunger: [f64; 3] = std::array::from_fn(|b| {
-                if d.ration_need[b] > 0. {
-                    (1. - d.ration_eaten[b] / d.ration_need[b]).clamp(0., 1.) as f64
-                } else {
-                    0.
-                }
-            });
-            let disease = d.health[0].clamp(0., 0.5) as f64;
-            let rates: [f64; 3] = std::array::from_fn(|b| {
-                [0.0005, 0.0006, 0.003][b] + hunger[b] * [0.06, 0.025, 0.05][b] + disease * 0.01
-            });
-            let mut counts = [0.; 3];
-            let mut dead = Vec::new();
-            for &(id, band) in &observation.people[site] {
-                if (crate::expeditions::random(self.seed, id, self.month, 0x494e4444) as f64)
-                    < rates[band]
-                {
-                    self.people[id as usize].died = Some(self.month);
-                    dead.push(id);
-                } else {
-                    counts[age_band(self.month, self.people[id as usize].born).unwrap()] += 1.;
-                }
+            ensure!(
+                (0..3).all(|b| d.ages[b] as f64 == observation.opening[site][b]),
+                "demographic opening stocks changed before resolution"
+            );
+            let projection = DemographicProjection::from_exposure(
+                observation.opening[site],
+                d.ration_need,
+                d.ration_eaten,
+                d.health[0],
+            );
+            let people: Vec<_> = observation.people[site]
+                .iter()
+                .map(|&(id, band)| (id, band, self.people[id as usize].born))
+                .collect();
+            let carry = self
+                .named_demography
+                .as_ref()
+                .and_then(|s| s.birth_remainder.get(site))
+                .copied()
+                .unwrap_or(0.);
+            let outcome = projection.resolve(
+                mode,
+                self.seed,
+                self.month,
+                &people,
+                observation.anonymous[site],
+                carry,
+            );
+            ensure!(
+                outcome.ages.iter().all(|v| v.is_finite() && *v >= 0.)
+                    && (outcome.ages.iter().sum::<f64>()
+                        - projection.opening.iter().sum::<f64>()
+                        - outcome.births
+                        + outcome.deaths.iter().sum::<f64>())
+                    .abs()
+                        < 1e-6,
+                "demographic outcome violates population accounting"
+            );
+            let boundary = Boundary {
+                month: self.month,
+                system: System::Demography,
+                site: site as u32,
+                subject: 0,
+                revision: crate::resolution::revision(
+                    projection
+                        .opening
+                        .iter()
+                        .chain(projection.mortality.iter())
+                        .map(|v| v.to_bits())
+                        .chain([projection.births.to_bits()]),
+                ),
+            };
+            self.resolution
+                .as_ref()
+                .unwrap()
+                .check(&boundary, &boundary)?;
+            let metrics = if self.resolution.as_ref().unwrap().compare {
+                vec![
+                    Metric {
+                        name: "births".into(),
+                        unit: "people".into(),
+                        expected: projection.births,
+                        actual: outcome.births,
+                        explained: vec![(
+                            "whole-birth carry".into(),
+                            outcome.births - projection.births,
+                        )],
+                    },
+                    Metric {
+                        name: "deaths".into(),
+                        unit: "people".into(),
+                        expected: projection
+                            .opening
+                            .iter()
+                            .zip(projection.mortality)
+                            .map(|(n, r)| n * r)
+                            .sum(),
+                        actual: outcome.deaths.iter().sum(),
+                        explained: vec![],
+                    },
+                    Metric {
+                        name: "child_to_adult".into(),
+                        unit: "people".into(),
+                        expected: projection.aging[0],
+                        actual: outcome.aging[0],
+                        explained: vec![(
+                            "birthday and survival structure".into(),
+                            outcome.aging[0] - projection.aging[0],
+                        )],
+                    },
+                    Metric {
+                        name: "adult_to_elder".into(),
+                        unit: "people".into(),
+                        expected: projection.aging[1],
+                        actual: outcome.aging[1],
+                        explained: vec![(
+                            "birthday and survival structure".into(),
+                            outcome.aging[1] - projection.aging[1],
+                        )],
+                    },
+                ]
+            } else {
+                vec![]
+            };
+            plans.push((
+                outcome,
+                Receipt {
+                    boundary,
+                    mode,
+                    metrics,
+                },
+            ));
+        }
+        let mut state = self.named_demography.take().unwrap_or_default();
+        state.birth_remainder.resize(self.sites.len(), 0.);
+        for (site, (outcome, receipt)) in plans.into_iter().enumerate() {
+            let births = if individual {
+                outcome.births as usize
+            } else {
+                0
+            };
+            state.birth_remainder[site] = outcome.carry;
+            let dead = outcome.dead;
+            for &id in &dead {
+                self.people[id as usize].died = Some(self.month);
             }
-            let old = observation.anonymous[site];
-            let loss: [f64; 3] = std::array::from_fn(|b| old[b] * rates[b]);
-            let mature = old[0] / 180.;
-            let retire = old[1] / 540.;
-            let remaining = [
-                old[0] - loss[0] - mature,
-                old[1] - loss[1] + mature - retire,
-                old[2] - loss[2] + retire,
-            ];
-            for b in 0..3 {
-                counts[b] += remaining[b].max(0.);
-            }
-            let expected = observation.adults[site] * 0.004 * (1. - hunger[1]) * (1. - disease);
-            let target = state.birth_remainder[site] + expected;
-            let births = target.floor() as usize;
-            state.birth_remainder[site] = target.fract();
             let homes: Vec<_> = self
                 .society
                 .as_ref()
@@ -350,17 +556,21 @@ impl History {
                 }
                 born.push(id);
             }
-            counts[0] += births as f64;
             let s = &mut self.sites[site];
-            for (b, value) in counts.into_iter().enumerate() {
+            for (b, value) in outcome.ages.into_iter().enumerate() {
                 s.demography.ages[b] = value as f32;
             }
             s.stocks.stock[0] = s.demography.ages[..3].iter().sum();
-            s.stocks.people[0] += births as f32;
-            s.stocks.people[1] += dead.len() as f32 + loss.iter().sum::<f64>() as f32;
+            s.stocks.people[0] += outcome.births as f32;
+            s.stocks.people[1] += outcome.deaths.iter().sum::<f64>() as f32;
             // Only anonymous losses remain available for later identification.
-            s.demography.health[2] += loss.iter().sum::<f64>() as f32;
+            s.demography.health[2] += outcome.anonymous_deaths as f32;
             state.assigned += dead.len() as u64;
+            let current = receipt.boundary.clone();
+            self.resolution
+                .as_mut()
+                .unwrap()
+                .commit(receipt, &current)?;
             for (kind, ids) in [("individual_births", born), ("individual_deaths", dead)] {
                 if !ids.is_empty() {
                     self.event(kind,Some(site as u32),None,format!("{} individual transitions committed once to identities and population; rates use completed ration and disease exposure",ids.len()));
@@ -372,7 +582,9 @@ impl History {
                 }
             }
         }
-        state.month = Some(self.month);
+        if individual {
+            state.month = Some(self.month);
+        }
         self.named_demography = Some(state);
         Ok(())
     }
@@ -386,6 +598,94 @@ mod tests {
         config::Config,
         gpu::{ContextGpu, Generator},
     };
+    #[test]
+    fn projection_resolves_analytical_aggregate_and_whole_birthdays_without_mutation() {
+        use crate::resolution::Mode;
+        let p = DemographicProjection {
+            opening: [180., 540., 100.],
+            mortality: [0.; 3],
+            births: 0.75,
+            aging: [1., 1.],
+        };
+        let a = p.resolve(Mode::Aggregate, 17, 1, &[], [0.; 3], 0.5);
+        assert_eq!(a.ages, [179.75, 540., 101.]);
+        let b = p.resolve(
+            Mode::Individual,
+            17,
+            1,
+            &[(0, 0, -179)],
+            [179., 540., 100.],
+            0.5,
+        );
+        assert_eq!(b.births, 1.);
+        assert_eq!(b.carry, 0.25);
+        assert!((b.ages.iter().sum::<f64>() - 821.).abs() < 1e-9);
+        assert_eq!(p.opening, [180., 540., 100.]);
+    }
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn comparison_is_observational_in_both_authority_modes() {
+        use crate::resolution::Mode;
+        for mode in [Mode::Aggregate, Mode::Individual] {
+            let mut g = world();
+            g.civilizations
+                .as_mut()
+                .unwrap()
+                .set_demographic_resolution(mode, false)
+                .unwrap();
+            if mode == Mode::Individual {
+                g.civilizations
+                    .as_mut()
+                    .unwrap()
+                    .set_workshop_refinement(true)
+                    .unwrap();
+            }
+            let baseline = g.civilizations.clone();
+            g.advance_history(12).unwrap();
+            let mut expected = g.civilizations.clone().unwrap();
+            g.civilizations = baseline;
+            g.civilizations
+                .as_mut()
+                .unwrap()
+                .resolution
+                .as_mut()
+                .unwrap()
+                .compare = true;
+            for _ in 0..12 {
+                g.advance_history(1).unwrap();
+            }
+            let mut actual = g.civilizations.clone().unwrap();
+            assert!(actual
+                .resolution
+                .as_ref()
+                .unwrap()
+                .receipts
+                .iter()
+                .filter(|r| r.boundary.system == crate::resolution::System::Demography)
+                .all(|r| r.metrics.len() == 4));
+            expected.resolution = None;
+            actual.resolution = None;
+            assert_eq!(
+                serde_json::to_value(expected).unwrap(),
+                serde_json::to_value(actual).unwrap()
+            );
+        }
+    }
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn pre_framework_individual_archive_adopts_commit_ledger() {
+        let mut g = world();
+        g.civilizations
+            .as_mut()
+            .unwrap()
+            .enable_individual_demography()
+            .unwrap();
+        let mut archive = serde_json::to_value(g.civilizations.as_ref().unwrap()).unwrap();
+        archive.as_object_mut().unwrap().remove("resolution");
+        g.civilizations = Some(serde_json::from_value(archive).unwrap());
+        g.advance_history(1).unwrap();
+        assert!(g.civilizations.as_ref().unwrap().resolution.is_some());
+    }
     fn world() -> Generator {
         let mut g = Generator::new(
             pollster::block_on(ContextGpu::headless()).unwrap(),

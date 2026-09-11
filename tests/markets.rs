@@ -5,6 +5,7 @@ use ancient_world::{
 };
 fn network() -> History {
     History {
+        resolution: None,
         person_duties: Default::default(),
         domestic: None,
         named_demography: None,

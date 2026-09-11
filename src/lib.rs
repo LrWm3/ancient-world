@@ -106,3 +106,7 @@ pub mod domestic;
 pub mod population_registry;
 
 mod individual_demography;
+
+pub mod resolution;
+
+mod workshop_resolution;

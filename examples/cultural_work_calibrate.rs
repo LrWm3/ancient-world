@@ -10,6 +10,12 @@ use serde_json::json;
 use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 #[derive(Parser)]
 struct Args {
+    #[arg(long, conflicts_with = "individual_demography")]
+    aggregate_resolution: bool,
+    #[arg(long)]
+    compare_resolution: bool,
+    #[arg(long, requires = "individual_demography")]
+    workshop_refinement: bool,
     #[arg(long)]
     individual_demography: bool,
     /// Identify all whole residents at the initial boundary; does not replace cohort demography.
@@ -34,6 +40,10 @@ struct Args {
 }
 fn main() -> Result<()> {
     let args = Args::parse();
+    anyhow::ensure!(
+        !args.compare_resolution || args.individual_demography || args.aggregate_resolution,
+        "comparison requires a demographic resolution mode"
+    );
     anyhow::ensure!(args.years > 0 && args.years <= 500, "years must be 1..500");
     let gpu = pollster::block_on(ContextGpu::headless())?;
     let mut rows = vec![];
@@ -78,11 +88,24 @@ fn main() -> Result<()> {
         g.enable_expeditions()?;
         g.enable_discoveries()?;
         g.enable_living_history()?;
-        if args.individual_demography {
+        if args.individual_demography || args.aggregate_resolution {
             g.civilizations
                 .as_mut()
                 .unwrap()
-                .enable_individual_demography()?;
+                .set_demographic_resolution(
+                    if args.individual_demography {
+                        ancient_world::resolution::Mode::Individual
+                    } else {
+                        ancient_world::resolution::Mode::Aggregate
+                    },
+                    args.compare_resolution,
+                )?;
+        }
+        if args.workshop_refinement {
+            g.civilizations
+                .as_mut()
+                .unwrap()
+                .set_workshop_refinement(true)?;
         }
         if args.resident_baseline {
             g.civilizations
@@ -145,14 +168,14 @@ fn main() -> Result<()> {
         for e in &h.events {
             *events.entry(e.kind.clone()).or_default() += 1;
         }
-        rows.push(json!({"seed":seed,"seconds":start.elapsed().as_secs_f64(),"samples":samples,"changed_identities":changes,"cancelled_actions":actions,"events":events,"travel":h.expeditions.as_ref().map(|x|json!({"voyages":x.voyages.len(),"active_people":h.person_duties.len(),"identified_at_recruitment":x.voyages.iter().flat_map(|e|&e.crew).filter(|c|c.identified_from_cohort).filter_map(|c|c.person).collect::<std::collections::BTreeSet<_>>().len(),"crew_person_ids":x.voyages.iter().flat_map(|e|&e.crew).filter_map(|c|c.person).collect::<std::collections::BTreeSet<_>>().len()})),"military":{"active_people":h.military.duties.len(),"people_ever_served":h.military.careers.len(),"service_months":h.military.careers.values().map(|c|c.months_served as u64).sum::<u64>(),"named_deaths":h.events.iter().filter(|e|e.kind=="military_deaths").flat_map(|e|&e.subjects).filter(|(k,_)|k=="person").count()},"population_reconciliation":h.population_reconciliation(),"residuals":h.economy_residuals()}));
+        rows.push(json!({"seed":seed,"seconds":start.elapsed().as_secs_f64(),"samples":samples,"changed_identities":changes,"cancelled_actions":actions,"events":events,"travel":h.expeditions.as_ref().map(|x|json!({"voyages":x.voyages.len(),"active_people":h.person_duties.len(),"identified_at_recruitment":x.voyages.iter().flat_map(|e|&e.crew).filter(|c|c.identified_from_cohort).filter_map(|c|c.person).collect::<std::collections::BTreeSet<_>>().len(),"crew_person_ids":x.voyages.iter().flat_map(|e|&e.crew).filter_map(|c|c.person).collect::<std::collections::BTreeSet<_>>().len()})),"military":{"active_people":h.military.duties.len(),"people_ever_served":h.military.careers.len(),"service_months":h.military.careers.values().map(|c|c.months_served as u64).sum::<u64>(),"named_deaths":h.events.iter().filter(|e|e.kind=="military_deaths").flat_map(|e|&e.subjects).filter(|(k,_)|k=="person").count()},"resolution":h.resolution_report(),"population_reconciliation":h.population_reconciliation(),"residuals":h.economy_residuals()}));
         if let Some(parent) = args.output.parent() {
             std::fs::create_dir_all(parent)?;
         }
         std::fs::write(
             &args.output,
             serde_json::to_vec_pretty(
-                &json!({"individual_demography":args.individual_demography,"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows}),
+                &json!({"aggregate_resolution":args.aggregate_resolution,"compare_resolution":args.compare_resolution,"workshop_refinement":args.workshop_refinement,"individual_demography":args.individual_demography,"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows}),
             )?,
         )?;
     }

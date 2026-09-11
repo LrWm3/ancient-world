@@ -111,6 +111,9 @@ impl crate::civilization::History {
     }
     pub(crate) fn validate_service_work(&self) -> anyhow::Result<()> {
         self.military.validate(self)?;
+        if let Some(r) = &self.resolution {
+            r.validate(self.month, self.sites.len())?;
+        }
         if let Some(d) = &self.named_demography {
             d.validate(self)?;
         }

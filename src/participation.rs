@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 pub enum Activity {
     Culture,
     Research,
+    Workshop,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Presence {
@@ -36,6 +37,8 @@ pub struct Resident {
     pub capacity: f32,
     pub committed: f32,
     pub completed: [f64; 2],
+    #[serde(default)]
+    pub workshop_completed: f64,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Commitment {
@@ -122,10 +125,16 @@ impl Participation {
         let category = match c.activity {
             Activity::Culture => 0,
             Activity::Research => 1,
+            Activity::Workshop => 2,
         };
         for &(person, share) in &c.people {
-            self.residents.get_mut(&person).unwrap().completed[category] +=
-                (share * c.used / c.granted) as f64;
+            let resident = self.residents.get_mut(&person).unwrap();
+            let contribution = (share * c.used / c.granted) as f64;
+            if category == 2 {
+                resident.workshop_completed += contribution;
+            } else {
+                resident.completed[category] += contribution;
+            }
         }
         // Reservations, including unproductive time, remain unavailable until the next month.
         Ok(())
@@ -281,6 +290,7 @@ impl History {
                 capacity,
                 committed: 0.,
                 completed: [0.; 2],
+                workshop_completed: 0.,
             });
             entry.care = care;
             entry.household = household;
@@ -320,6 +330,13 @@ impl History {
             self.participation = Some(Default::default());
         }
         if !enabled {
+            ensure!(
+                !self
+                    .resolution
+                    .as_ref()
+                    .is_some_and(|r| r.workshop_individual),
+                "disable workshop refinement before personal participation"
+            );
             self.participation = None;
             if let Some(c) = &mut self.culture {
                 for p in &mut c.work_plans {
@@ -534,6 +551,7 @@ mod tests {
                             capacity: 0.8,
                             committed: 0.,
                             completed: [0.; 2],
+                            workshop_completed: 0.,
                         },
                     )
                 })

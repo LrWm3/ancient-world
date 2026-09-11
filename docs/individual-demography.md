@@ -56,4 +56,10 @@ residents retain approximate aging. Full default activation needs broader covera
 of old archives, colony creation, warfare and long histories. No exact continuation
 of the former fractional demographic trajectory is promised.
 
-See [verification](individual-demography-verification.md).
+The [projection and resolution framework](resolution-framework.md) now provides
+an aggregate alternative through the same demographic commit path, optional
+comparison receipts and a workshop participation pilot.
+
+See [verification](individual-demography-verification.md) for the original authority
+transition and [framework verification](resolution-framework-verification.md) for
+the subsequent integration.
