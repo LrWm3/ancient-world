@@ -147,6 +147,8 @@ pub struct Candidate {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct History {
     #[serde(default)]
+    pub service_allocation: crate::service_allocation::Allocation,
+    #[serde(default)]
     pub resolution: Option<crate::resolution::ResolutionState>,
     #[serde(default)]
     pub named_demography: Option<crate::population_registry::NamedDemography>,
@@ -1118,6 +1120,7 @@ impl Generator {
         let mut h = History {
             participation: Some(Default::default()),
             person_duties: Default::default(),
+            service_allocation: Default::default(),
             domestic: Some(Default::default()),
             named_demography: Some(Default::default()),
             resolution: None,
@@ -1302,8 +1305,7 @@ impl Generator {
         h.check_workshop_reservation_boundary()?;
         h.begin_service_reservations();
         h.prepare_committed_vessels();
-        h.prepare_discoveries();
-        h.reserve_cultural_work();
+        h.reserve_learning_services()?;
         h.prepare_fisheries(terrain, self.config.eco_resolution());
         let extraction_allowances = h.allocate_resources();
         h.plan_production();

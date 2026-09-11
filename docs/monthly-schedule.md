@@ -18,7 +18,7 @@ Reservations remain subsystem-specific; this is not a simultaneous global auctio
 | Stage | Operations and visibility |
 | --- | --- |
 | Open | Prepare society/politics/governance; increment month; activate due policies; inspect environmental disruption; settle due market cargo, relief and relocating households; answer appeals; restore sites; prepare economy and claims; refresh extraction inputs; patron assistance and legacy cohort cleanup. Arrival price observations are returned to the response stage. |
-| Reserve | Reset completed reservations; reserve known-family caregiving and open personal availability; fund crews for committed sea cargo; prepare dated research and cultural work requests, prepare fisheries, allocate extraction allowances, plan production, prepare enterprises and top up standby vessels, prepare household retail. The extraction and retail plans are explicitly passed to execution. Earlier reservations have priority over later claims. |
+| Reserve | Reset completed reservations; reserve known-family caregiving and open personal availability; fund crews for committed sea cargo; collect dated research and cultural work requests and apply their explicit service allocation policy, prepare fisheries, allocate extraction allowances, plan production, prepare enterprises and top up standby vessels, prepare household retail. The extraction and retail plans are explicitly passed to execution. Earlier allocation windows have priority; research/culture shares within their window follow the selected policy (see [service allocation](service-allocation.md)). |
 | Execute/settle | Upload committed inputs; claim, fish and run GPU production/consumption; read town results; settle caregiving once and remove its consumed service allowance; assign named identities to this dispatch's already-counted demographic losses; settle extraction and enterprises; storage, housing and waterworks; settle retail. No production policy chosen later in the month can retroactively change this dispatch. |
 | Respond | Quote markets and dispatch new cargo using opening delivery evidence; release vessel/cultural work; expeditions, relocation, site lifecycle, society, genealogy, culture, offices and governance. Annual politics/shipping/expeditions/governance run here when due. Events remain available to later consumers in this stage. |
 | Close | Synchronize society, politics, governance, economy, resource claims, culture and offices; refresh social indicators; validate. Frozen history records its timeline here. Living history then commits environmental returns, reconciles land, records its timeline and validates the coupled boundary. |
@@ -52,7 +52,7 @@ Reservations remain subsystem-specific; this is not a simultaneous global auctio
 
 ## Compatibility and verification
 
-Old archives need no new fields: observation and reservation values are transient.
+The original scheduler observations remain transient. The later service-allocation pilot adds a defaulted policy and latest-boundary receipts; older archives use research-first priority.
 Continuation uses the new timing rules, so old-version trajectories are not promised
 identical. Frozen batch/single-step/checkpoint tests compare complete history,
 terrain, ecology and clocks over annual boundaries on seeds 17, 81 and 256.

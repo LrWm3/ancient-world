@@ -278,6 +278,7 @@ mod tests {
         History {
             resolution: None,
             person_duties: Default::default(),
+            service_allocation: Default::default(),
             domestic: None,
             named_demography: None,
             military: Default::default(),

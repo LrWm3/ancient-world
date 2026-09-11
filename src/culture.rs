@@ -2046,9 +2046,25 @@ impl History {
             self.culture = Some(c);
         }
     }
+    #[cfg(test)]
     pub(crate) fn reserve_cultural_work(&mut self) {
         self.open_participation();
         self.sync_culture();
+        let plans = self.cultural_work_plans();
+        self.reserve_cultural_plans(plans, &[]);
+    }
+    pub(crate) fn cultural_work_plans(&self) -> Vec<work_requests::WorkPlan> {
+        self.sites
+            .iter()
+            .filter(|_| self.month.is_multiple_of(3))
+            .filter_map(|s| self.culture.as_ref().map(|c| c.plan_work(self, s.id)))
+            .collect()
+    }
+    pub(crate) fn reserve_cultural_plans(
+        &mut self,
+        plans: Vec<work_requests::WorkPlan>,
+        caps: &[f32],
+    ) {
         let knowledge: Vec<u32> = self
             .culture
             .as_ref()
@@ -2059,12 +2075,6 @@ impl History {
                     .collect()
             })
             .unwrap_or_default();
-        let plans: Vec<_> = self
-            .sites
-            .iter()
-            .filter(|_| self.month.is_multiple_of(3))
-            .filter_map(|s| self.culture.as_ref().map(|c| c.plan_work(self, s.id)))
-            .collect();
         let requests: Vec<f32> = self
             .sites
             .iter()
@@ -2087,7 +2097,9 @@ impl History {
                 if self.month % 3 == 0 && !s.abandoned {
                     let available =
                         crate::labor::available(s, self.society.is_some(), self.living.is_some());
-                    let mut work = available.min(requests[i]);
+                    let mut work = available
+                        .min(requests[i])
+                        .min(caps.get(i).copied().unwrap_or(f32::MAX));
                     if let Some(state) = &mut self.participation {
                         let p = &c.work_plans[i];
                         let ids: Vec<_> = p

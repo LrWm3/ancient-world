@@ -617,10 +617,14 @@ fn requested_work(h: &History, workshop: &Workshop, teachers: &[Workshop]) -> f3
 }
 
 impl History {
+    #[cfg(test)]
     pub(crate) fn prepare_discoveries(&mut self) {
         self.open_participation();
-        let requests: Vec<_> = self
-            .expeditions
+        let requests = self.discovery_work_plans();
+        self.reserve_discovery_plans(requests, &[]);
+    }
+    pub(crate) fn discovery_work_plans(&self) -> Vec<(u32, ResearchPlan)> {
+        self.expeditions
             .as_ref()
             .and_then(|x| x.discoveries.as_ref())
             .map(|d| {
@@ -629,14 +633,22 @@ impl History {
                     .map(|w| (w.site, plan_work(self, w, &d.workshops)))
                     .collect()
             })
-            .unwrap_or_default();
+            .unwrap_or_default()
+    }
+    pub(crate) fn reserve_discovery_plans(
+        &mut self,
+        requests: Vec<(u32, ResearchPlan)>,
+        caps: &[f32],
+    ) {
+        let mut remaining = caps.to_vec();
         for (site, mut plan) in requests {
             let mut grant = crate::labor::available(
                 &self.sites[site as usize],
                 self.society.is_some(),
                 self.living.is_some(),
             )
-            .min(plan.receipt.requested as f32);
+            .min(plan.receipt.requested as f32)
+            .min(remaining.get(site as usize).copied().unwrap_or(f32::MAX));
             if let Some(state) = &mut self.participation {
                 let mut candidates: Vec<_> = state
                     .residents
@@ -669,6 +681,9 @@ impl History {
             }
             self.sites[site as usize].economy.external[3] += grant;
             plan.receipt.granted = grant as f64;
+            if let Some(left) = remaining.get_mut(site as usize) {
+                *left = (*left - grant).max(0.);
+            }
             if let Some(w) = self
                 .expeditions
                 .as_mut()

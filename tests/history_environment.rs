@@ -180,6 +180,19 @@ fn frozen_schedule_batch_and_checkpoint_equivalence() {
         batch.enable_shipping().unwrap();
         batch.enable_expeditions().unwrap();
         batch.enable_shared_resources().unwrap();
+        // Exercise the new explicit allocation policy through the full scheduler,
+        // including actual archive restoration, while retaining a priority arm.
+        if seed != 81 {
+            batch
+                .civilizations
+                .as_mut()
+                .unwrap()
+                .service_allocation
+                .policy = ancient_world::service_allocation::Policy::Weighted {
+                research: 1.,
+                culture: 1.,
+            };
+        }
         let path = format!("output/schedule-{}-{seed}.world", std::process::id());
         batch.save(std::path::Path::new(&path)).unwrap();
         let mut single = Generator::load(gpu.clone(), std::path::Path::new(&path)).unwrap();
