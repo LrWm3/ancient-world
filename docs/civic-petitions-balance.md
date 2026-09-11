@@ -127,3 +127,6 @@ Small cash grants are not a substitute for grain delivery, and an honored
 learning request does not prove improved education. No petition threshold,
 grant amount or political-credit weight was changed solely to produce a
 desired success rate.
+
+Follow-up: [short-horizon causal tests](civic-petition-causality.md) isolate
+grant use, autonomy costs, household preferences and campaign prerequisites.
