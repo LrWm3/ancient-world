@@ -82,3 +82,5 @@ pub mod systems;
 pub mod spatial;
 
 pub mod territory;
+
+mod history_atlas;

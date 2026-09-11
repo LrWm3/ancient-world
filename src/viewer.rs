@@ -390,6 +390,9 @@ struct App {
     history_tab: u8,
     timeline_view: crate::history_timeline::TimelineView,
     political_overlay: bool,
+    historical_territory: bool,
+    history_window_open: bool,
+    journey_overlay: Option<u64>,
     expedition_overlay: Option<u32>,
     event_export_months: u32,
     territory_export_month: u32,
@@ -485,6 +488,9 @@ impl App {
             history_tab: 0,
             timeline_view: Default::default(),
             political_overlay: true,
+            historical_territory: false,
+            history_window_open: true,
+            journey_overlay: None,
             expedition_overlay: None,
             event_export_months: 120,
             territory_export_month: 0,
@@ -537,6 +543,9 @@ impl App {
         drop(renderer);
         self.maps = maps;
         self.expedition_overlay = None;
+        self.historical_territory = false;
+        self.history_window_open = true;
+        self.journey_overlay = None;
         self.draft = generator.config.clone();
         self.region = None;
         self.regional_selection = None;
@@ -659,7 +668,10 @@ impl App {
         if which == 1 {
             if let Some(history) = &self.generator.civilizations {
                 let camera = self.cameras[1];
-                if self.political_overlay && self.cultural_overlay == 0 {
+                if self.political_overlay
+                    && self.cultural_overlay == 0
+                    && !self.historical_territory
+                {
                     if let Some(p) = &history.politics {
                         let painter = ui.painter().with_clip_rect(response.rect);
                         for claim in &p.claims {
@@ -691,7 +703,7 @@ impl App {
                         }
                     }
                 }
-                for site in &history.sites {
+                for site in history.sites.iter().filter(|_| !self.historical_territory) {
                     let d =
                         crate::grid::cell_direction(site.cell, self.generator.config.resolution);
                     let q = egui::vec2(
@@ -729,6 +741,23 @@ impl App {
                         ui.painter().circle_filled(pos, 3., color);
                     }
                 }
+            }
+        }
+        if which == 1 {
+            if let Some(h) = &self.generator.civilizations {
+                crate::history_atlas::draw(
+                    ui.painter(),
+                    &crate::history_atlas::Projection {
+                        rect: response.rect,
+                        pan: self.cameras[1].pan,
+                        zoom: self.cameras[1].zoom,
+                        resolution: self.generator.config.resolution,
+                    },
+                    h,
+                    self.historical_territory
+                        .then_some(self.territory_export_month),
+                    self.journey_overlay,
+                );
             }
         }
         if response.dragged() {
@@ -790,6 +819,16 @@ impl eframe::App for App {
                     if h.culture.is_some() {
                         self.history_tab = 1;
                     }
+                    self.historical_territory = !h.territorial_history.is_empty();
+                    self.territory_export_month = h.month;
+                    self.journey_overlay = h
+                        .events
+                        .iter()
+                        .rev()
+                        .find(|e| e.planned_path.is_some())
+                        .map(|e| e.id);
+                    self.view_mode = 2;
+
                     if let Some(site) = h.sites.first() {
                         self.history_selection = Some(0);
                         let d = crate::grid::cell_direction(
@@ -800,6 +839,8 @@ impl eframe::App for App {
                             camera.focus(d);
                         }
                     }
+                    self.history_window_open = false;
+                    self.cameras[1] = Camera::atlas();
                 } else if let Ok(cells) = self.generator.snapshot() {
                     if let Some(id) = cells
                         .iter()
@@ -1127,6 +1168,81 @@ impl App {
             ui.add_space(14.);
             ui.separator();
             ui.label(egui::RichText::new("WORLD LAYERS").strong());
+            if let Some(h) = &self.generator.civilizations {
+                if ui.button("Open history window").clicked() {
+                    self.history_window_open = true;
+                }
+                if ui
+                    .checkbox(
+                        &mut self.historical_territory,
+                        "Historical territory on atlas",
+                    )
+                    .changed()
+                    && self.historical_territory
+                {
+                    self.view_mode = 2;
+                    self.history_window_open = false;
+                    self.expedition_overlay = None;
+                }
+                if self.historical_territory {
+                    ui.add(
+                        egui::Slider::new(&mut self.territory_export_month, 0..=h.month)
+                            .text("History month"),
+                    );
+                    ui.horizontal(|ui| {
+                        if ui.small_button("Previous change").clicked() {
+                            if let Some(s) = h
+                                .territorial_history
+                                .iter()
+                                .rev()
+                                .find(|s| s.month < self.territory_export_month)
+                            {
+                                self.territory_export_month = s.month;
+                            }
+                        }
+                        if ui.small_button("Next change").clicked() {
+                            if let Some(s) = h
+                                .territorial_history
+                                .iter()
+                                .find(|s| s.month > self.territory_export_month)
+                            {
+                                self.territory_export_month = s.month;
+                            }
+                        }
+                    });
+                }
+                egui::ComboBox::from_label("Saved household journey")
+                    .selected_text(
+                        self.journey_overlay
+                            .map_or("None".into(), |id| format!("Departure #{id}")),
+                    )
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.journey_overlay, None, "None");
+                        for e in h
+                            .events
+                            .iter()
+                            .rev()
+                            .filter(|e| e.planned_path.is_some())
+                            .take(128)
+                        {
+                            if ui
+                                .selectable_value(
+                                    &mut self.journey_overlay,
+                                    Some(e.id),
+                                    format!("#{} · Y{} M{}", e.id, e.month / 12, e.month % 12 + 1),
+                                )
+                                .clicked()
+                            {
+                                self.expedition_overlay = None;
+                                self.history_window_open = false;
+                                self.view_mode = 2;
+                                self.cameras[1] = Camera::atlas();
+                            }
+                        }
+                    });
+                ui.small("Latest 128 plans here; older plans are accessible through the timeline.");
+            }
+
             if self
                 .generator
                 .civilizations
@@ -1866,6 +1982,10 @@ impl App {
         }
     }
     fn history_window(&mut self, ctx: &egui::Context) {
+        if !self.history_window_open {
+            return;
+        }
+        let mut open = self.history_window_open;
         let Some(h) = &self.generator.civilizations else {
             return;
         };
@@ -1887,6 +2007,7 @@ impl App {
         let mut expedition_rules = None;
         let mut specimen_policy = None;
         egui::Window::new("Civilizations and history")
+            .open(&mut open)
             .default_width(480.)
             .default_height(600.)
             .vscroll(true)
@@ -2369,7 +2490,7 @@ impl App {
                                 if let Some(c)=&e.heritage { ui.label(&c.motive); if let Some(f)=&c.find { ui.small(&f.description); ui.small(format!("Recovered artifact: {:?}",f.artifact)); } }
                                 ui.label(format!("Departed Y{} M{} · next milestone month {} · {:.0} kg food · {:.1} kg tools · {:.1} kg timber · {:.0} money escrow",e.departed/12,e.departed%12+1,e.due,e.food,e.tools,e.timber,e.purse));
                                 ui.label(format!("{:.1} observation points · {} · effective research competence {:.0}%",e.findings,if e.confirmed {"delivered and confirmed"}else{"not confirmed at home"},e.research_skill()*100.));
-                                if ui.button("Show planned route on atlas").clicked() { self.expedition_overlay=Some(e.id); self.cameras[1]=Camera::atlas(); self.view_mode=2; }
+                                if ui.button("Show planned route on atlas").clicked() { self.expedition_overlay=Some(e.id); self.history_window_open=false; self.journey_overlay=None; self.historical_territory=false; self.cameras[1]=Camera::atlas(); self.view_mode=2; }
                                 ui.small(if e.planned_cells.is_some() { "Route saved at departure; endpoint is the planned destination." } else { "Legacy route association; original route was not saved." });
                                 ui.small(format!("Specimens aboard: {:.2} kg resin · {:.2} kg phosphatic crust",e.samples[0],e.samples[1]));
                                 for c in &e.crew {ui.small(format!("{} · {} · {} · competence {:.0}%",c.name,c.role,if c.alive {"survivor"}else{"deceased"},c.expertise.unwrap_or(e.skill)*100.));}
@@ -2473,6 +2594,16 @@ impl App {
                 }
                 if self.history_tab == 3 {
                     focus = self.timeline_view.show(ui, h, &mut self.history_selection);
+                    if let Some(id)=self.timeline_view.take_route_request() {
+                        self.journey_overlay=Some(id);
+                        self.history_window_open=false;
+                        self.expedition_overlay=None;
+                        self.territory_export_month=h.events[id as usize].month;
+                        self.historical_territory=true;
+                        self.view_mode=2;
+                        self.cameras[1]=Camera::atlas();
+                    }
+
                 }
                 if self.history_tab == 2 {
                 ui.label("Recorded events");
@@ -2519,6 +2650,7 @@ impl App {
                     });
                 }
             });
+        self.history_window_open &= open;
         if let Some((site, open)) = specimen_policy {
             let result = self.generator.set_specimen_workshop_open(site, open);
             self.report(result, "Workshop policy updated.");
@@ -2807,6 +2939,29 @@ impl App {
             ui.heading(LAYERS[self.layer as usize]);
             ui.label("Drag to explore · scroll to zoom · click to inspect");
         });
+        if self.historical_territory {
+            if let Some(h) = &self.generator.civilizations {
+                ui.label(match h.territory_at(self.territory_export_month) {
+                    Some(s)=>format!("Territory Y{} M{} · last change Y{} M{} · white: contested · colors: controllers",self.territory_export_month/12,self.territory_export_month%12+1,s.month/12,s.month%12+1),
+                    None=>"No territorial record for the selected month; no current claims substituted.".into(),
+                });
+            }
+            ui.small("Historical cells on current terrain. Claims are not continuous borders; terrain inspection remains current.");
+        }
+        if let Some(e) = self.journey_overlay.and_then(|id| {
+            self.generator
+                .civilizations
+                .as_ref()?
+                .events
+                .get(id as usize)
+        }) {
+            ui.small(format!(
+                "Blue: intended journey from event #{} · Y{} M{} · not a completed track",
+                e.id,
+                e.month / 12,
+                e.month % 12 + 1
+            ));
+        }
         ui.add_space(12.);
         let available = ui.available_size();
         let h = (available.y - 145.).max(180.);
@@ -3064,7 +3219,7 @@ pub fn run(
     .map_err(|e| anyhow::anyhow!("Desktop application: {e}"))
 }
 
-fn political_color(id: u32) -> egui::Color32 {
+pub(crate) fn political_color(id: u32) -> egui::Color32 {
     let hue = (id as f32 * 0.618_034) % 1.;
     egui::ecolor::Hsva::new(hue, 0.65, 0.95, 1.).into()
 }

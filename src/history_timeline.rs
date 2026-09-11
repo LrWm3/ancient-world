@@ -60,6 +60,7 @@ impl History {
 }
 #[derive(Default)]
 pub struct TimelineView {
+    route_request: Option<u64>,
     month: Option<u32>,
     site: Option<usize>,
     event: Option<u64>,
@@ -117,6 +118,9 @@ fn chart(
     });
 }
 impl TimelineView {
+    pub(crate) fn take_route_request(&mut self) -> Option<u64> {
+        self.route_request.take()
+    }
     /// Returns a recorded event anchor or current site cell; does not rewind the world.
     pub fn show(
         &mut self,
@@ -245,6 +249,9 @@ impl TimelineView {
             ui.separator();
             ui.label(format!("#{} · {} · {}", e.id, date(e.month), e.kind));
             ui.label(&e.detail);
+            if e.planned_path.is_some() && ui.button("Show saved journey on atlas").clicked() {
+                self.route_request = Some(e.id);
+            }
             if let Some(anchors) = &e.spatial {
                 ui.horizontal_wrapped(|ui| {
                     for anchor in anchors {

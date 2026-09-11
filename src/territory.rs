@@ -69,10 +69,11 @@ impl History {
         if month > self.month {
             return None;
         }
-        self.territorial_history
-            .iter()
-            .rev()
-            .find(|s| s.month <= month)
+        let end = self
+            .territorial_history
+            .partition_point(|s| s.month <= month);
+        end.checked_sub(1)
+            .map(|index| &self.territorial_history[index])
     }
     pub(crate) fn validate_territory(&self) -> Result<()> {
         let cells = 6 * self.terrain_resolution as u64 * self.terrain_resolution as u64;
@@ -197,5 +198,71 @@ mod tests {
         old.geojson().unwrap();
         assert!(g.spatial_territory(9).is_err());
         assert!(g.spatial_territory(13).is_err());
+        // Rendering must use historical owners, never the current controller array.
+        let draw = |h: &History, month, journey| {
+            let ctx = eframe::egui::Context::default();
+            ctx.run(Default::default(), |ctx| {
+                let painter = ctx.layer_painter(eframe::egui::LayerId::background());
+                crate::history_atlas::draw(
+                    &painter,
+                    &crate::history_atlas::Projection {
+                        rect: eframe::egui::Rect::from_min_size(
+                            eframe::egui::Pos2::ZERO,
+                            eframe::egui::vec2(720., 360.),
+                        ),
+                        pan: [0., 0.],
+                        zoom: 1.,
+                        resolution: 32,
+                    },
+                    h,
+                    month,
+                    journey,
+                );
+            })
+            .shapes
+        };
+        let circles = |shapes: Vec<eframe::egui::epaint::ClippedShape>| {
+            shapes
+                .into_iter()
+                .filter_map(|s| {
+                    if let eframe::egui::Shape::Circle(c) = s.shape {
+                        Some((c.center, c.radius, c.fill))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+        };
+        let before = circles(draw(g.civilizations.as_ref().unwrap(), Some(10), None));
+        g.civilizations
+            .as_mut()
+            .unwrap()
+            .politics
+            .as_mut()
+            .unwrap()
+            .controllers[0] = 2;
+        assert_eq!(
+            before,
+            circles(draw(g.civilizations.as_ref().unwrap(), Some(10), None))
+        );
+        let h = g.civilizations.as_mut().unwrap();
+        h.events[0].planned_path = Some(vec![
+            crate::grid::index([0.01, 0., -1.], 32),
+            crate::grid::index([-0.01, 0., -1.], 32),
+        ]);
+        let paths: Vec<_> = draw(h, None, Some(0))
+            .into_iter()
+            .filter_map(|s| {
+                if let eframe::egui::Shape::Path(p) = s.shape {
+                    Some(p)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert!(paths.len() >= 2);
+        assert!(paths
+            .iter()
+            .all(|p| p.points.windows(2).all(|w| (w[1] - w[0]).length() < 30.)));
     }
 }

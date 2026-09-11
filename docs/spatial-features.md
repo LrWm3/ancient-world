@@ -116,8 +116,7 @@ These footprints are not culture/faith maps and do not rewind terrain or ecology
 
 In file controls, choose **Territory month** (or **Use current history month**), then
 **Export recorded territory** to write `<checkpoint-name>.territory.geojson`.
-A missing baseline produces an error. Historical territory is exportable here;
-a dated interactive territory overlay remains future work. Storage grows with
+A missing baseline produces an error. Storage grows with
 changed snapshots; large long-run archive scaling has not yet been benchmarked.
 
 ## Export and limits
@@ -202,3 +201,38 @@ multi-seed evaluation of expedition outcomes.
 - Expedition checkpoint/batch fixture passed (6.14 s) with monthly territorial
   recording enabled. These cached fixture timings are not long-run benchmarks.
 - New territory export controls compile but have not been interactively inspected.
+
+## Historical atlas controls
+
+Under **World layers**, enable **Historical territory on atlas** and choose a month.
+**Previous change** and **Next change** jump between stored territorial revisions.
+Colored dots show recorded controllers and claims; white dots indicate contested
+cells. Current site and claim overlays are suppressed in this mode. The terrain
+background and cell inspector remain current, and claims are cell representatives,
+not continuous national boundaries. Dates before a recorded baseline display an
+unknown state rather than substituting current ownership.
+
+**Saved household journey** selects from the latest 128 recorded departure plans.
+Older plans remain accessible through the timeline's **Show saved journey on atlas**
+button, which also selects territory at the departure month. Blue lines and endpoint
+labels describe an intended route, not a completed travel track. Routes split at
+the dateline and follow atlas pan and zoom.
+
+Selecting a map overlay hides the history window to expose the map. The window
+can also be closed directly; **Open history window** restores it.
+
+### Atlas verification (2026-09-10)
+
+- Library suite: 58 passed, 54 hardware/extended tests ignored.
+- Targeted Vulkan territory/render fixture passed on the Quadro RTX 5000 (0.68 s).
+  Changing current ownership leaves the historical drawing unchanged; a synthetic
+  dateline-crossing journey produces short segments rather than a line across the map.
+- Projection fixture checks pan, zoom and wrapped longitude. Library Clippy passes
+  with warnings denied.
+- Desktop smoke loaded a seed-42, terrain-32/ecology-16, eight-settlement,
+  two-year world and captured the dated territory atlas successfully. The capture
+  was visually inspected. This small world had no household journey to inspect;
+  journey rendering was checked with the synthetic rendering fixture instead.
+- Generated world, logs and screenshot stay under ignored `output/`.
+  Long-history interactive performance and globe historical overlays remain untested
+  or unimplemented, respectively.

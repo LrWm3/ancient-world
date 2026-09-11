@@ -1,7 +1,7 @@
 # Shared spatial features and future map layers
 
 Status: staged design, based on repository review on 2026-09-10. The first
-[spatial adapters, survey coverage, event anchors, household route plans and territorial snapshots](spatial-features.md) are implemented, along with expedition atlas markers.
+[spatial adapters, survey coverage, event anchors, household route plans and territorial snapshots](spatial-features.md) are implemented, along with expedition atlas markers and dated territory/household-route atlas overlays.
 Monthly event-range and territorial exports exist; the broader revision registry,
 general temporal queries, polygon geometry and remaining adapters remain planned.
 
