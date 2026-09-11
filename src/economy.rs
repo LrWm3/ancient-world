@@ -671,6 +671,10 @@ impl Economy {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Cargo {
+    /// Distinct inland service sites reserved at dispatch, including intermediate towns.
+    /// Empty in older archives: retain the original endpoint/port footprint.
+    #[serde(default)]
+    pub freight_stops: Vec<u32>,
     pub from: u32,
     pub to: u32,
     pub good: u32,
@@ -957,7 +961,7 @@ impl History {
             .then_some(sites)
     }
 
-    /// Free origin/destination and harbor-approach carrying capacity, kg in transit.
+    /// Free inland service capacity, kg in transit, across archived stop footprints.
     /// Legacy towns retain unlimited capacity. Existing cargo survives capacity decline.
     pub fn land_freight_capacity(&self, site: u32) -> f32 {
         let Some(s) = self.sites.get(site as usize) else {
@@ -973,8 +977,12 @@ impl History {
             .cargo
             .iter()
             .filter(|c| {
-                self.freight_sites(c.from, c.to, c.sea_lane)
-                    .is_some_and(|sites| sites.contains(&site))
+                if c.freight_stops.is_empty() {
+                    self.freight_sites(c.from, c.to, c.sea_lane)
+                        .is_some_and(|sites| sites.contains(&site))
+                } else {
+                    c.freight_stops.contains(&site)
+                }
             })
             .map(|c| c.kg)
             .sum();
@@ -1204,6 +1212,7 @@ impl History {
         };
         let seas = network.as_ref().map(|roads| self.sea_quotes(roads));
         let site_count = self.sites.len();
+        let freight = self.trade_freight_stops(seas.as_deref(), network.is_some());
         let sea = move |a: usize, b: usize| seas.as_ref().and_then(|q| q[a * site_count + b]);
         let route = |h: &History, a: usize, b: usize| -> Option<f32> {
             if h.sites[a].island != h.sites[b].island {
@@ -1313,16 +1322,13 @@ impl History {
                     })
                     .filter(|&j| {
                         // A cheap supplier with committed carriers cannot block another offer.
-                        self.freight_sites(
-                            j as u32,
-                            buyer as u32,
-                            sea(j, buyer).map(|(_, lane)| lane),
-                        )
-                        .is_some_and(|sites| {
-                            sites
-                                .iter()
-                                .all(|&site| land_remaining[site as usize] >= 1.)
-                        })
+                        freight[j * site_count + buyer]
+                            .as_ref()
+                            .is_some_and(|sites| {
+                                sites
+                                    .iter()
+                                    .all(|&site| land_remaining[site as usize] >= 1.)
+                            })
                     })
                     .filter(|&j| {
                         let s = &self.sites[j];
@@ -1386,8 +1392,8 @@ impl History {
                             }
                     };
                     let sea_lane = sea(seller, buyer).map(|(_, lane)| lane);
-                    let freight_sites = self
-                        .freight_sites(seller as u32, buyer as u32, sea_lane)
+                    let freight_sites = freight[seller * site_count + buyer]
+                        .as_ref()
                         .expect("selected valid freight services");
                     let capacity = freight_sites
                         .iter()
@@ -1461,6 +1467,7 @@ impl History {
                     }
                     let arrives = self.month + (distance / 150.).ceil().max(1.) as u32;
                     self.cargo.push(Cargo {
+                        freight_stops: freight_sites.clone(),
                         sea_lane,
                         weather_delay_months: 0,
                         from: seller as u32,
@@ -1544,6 +1551,7 @@ mod freight_tests {
         // Cheaper supplier's carriers are already away with goods removed at dispatch.
         h.sites[1].economy.goods[3] -= 10.;
         h.cargo.push(Cargo {
+            freight_stops: vec![],
             from: 1,
             to: 3,
             good: 3,
@@ -1703,6 +1711,7 @@ mod freight_tests {
         let mut blocked = h.clone();
         blocked.sites[1].economy.goods[4] -= 3.;
         blocked.cargo.push(Cargo {
+            freight_stops: vec![],
             from: 1,
             to: 4,
             good: 4,

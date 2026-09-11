@@ -336,13 +336,22 @@ impl History {
     }
     /// Cargo retains its origin administration's transit restrictions after a sea leg.
     pub(crate) fn road_distances_from(&self, origin: usize, administration: u32) -> Vec<f32> {
+        self.road_tree_from(origin, administration).0
+    }
+    /// Stable predecessor tree shared by commercial distances and freight reservations.
+    pub(crate) fn road_tree_from(
+        &self,
+        origin: usize,
+        administration: u32,
+    ) -> (Vec<f32>, Vec<u32>) {
         let n = self.sites.len();
+        let mut parents = vec![u32::MAX; n];
         let empty = vec![f32::INFINITY; n];
         let Some(society) = &self.society else {
-            return empty;
+            return (empty, parents);
         };
         if self.sites[origin].abandoned || self.sites[origin].economy.policy[3] < 0.5 {
-            return empty;
+            return (empty, parents);
         }
         let hostile = |a: u32, b: u32| {
             self.politics.as_ref().is_some_and(|p| {
@@ -382,10 +391,13 @@ impl History {
                     continue;
                 }
                 let cost = r.cost_km / (1. + (r.road_bricks / 1000.).min(1.) as f32);
-                distances[v] = distances[v].min(distances[u] + cost);
+                if distances[u] + cost < distances[v] {
+                    distances[v] = distances[u] + cost;
+                    parents[v] = u as u32;
+                }
             }
         }
-        distances
+        (distances, parents)
     }
     pub(crate) fn prepare_society_with_navigation(
         &mut self,

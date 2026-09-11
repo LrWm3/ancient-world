@@ -1,5 +1,8 @@
 # Land freight reservations
 
+New networked cargo also reserves [intermediate service towns](intermediate-freight.md);
+the endpoint-only behavior below remains the fallback for older cargo records.
+
 Planned economies now treat `production.land_freight_kg_per_person` as simultaneous
 land cargo carrying capacity, rather than a fresh allowance at each quarterly
 market. The bundled value remains 20 kg per resident. Long journeys therefore tie

@@ -90,6 +90,7 @@ includes work that remains unimplemented.
 These remain available for reproducibility. They are not unfinished design tasks.
 
 - [GPU surveys, routes and history readback](gpu-navigation.md)
+- [Intermediate-town freight reservations](intermediate-freight.md)
 - [Measured GPU performance](benchmarks.md)
 - [Demand-driven economy evaluation](demand-economy-results.md)
 - [Expedition specimen evaluation](discovery-results.md)

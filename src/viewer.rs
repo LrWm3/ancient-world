@@ -2255,7 +2255,7 @@ impl App {
                             if e.storage[2] > 0. {
                                 ui.label(format!("Persistent yards {:.0} kg · warehouses {:.0} kg · timber/bricks {:.1}/{:.1} kg · cumulative wear {:.1} kg",e.storage[2],e.storage_capacity()-e.storage[2],e.storage[0],e.storage[1],e.storage_plan[1]));
                             }
-                            ui.label(format!("Free inland freight {:.1} kg · journeys reserve endpoints and sea-port approaches until arrival or loss", h.land_freight_capacity(s.id)));
+                            ui.label(format!("Free inland freight {:.1} kg · journeys reserve inland stops and sea-port approaches until arrival or loss", h.land_freight_capacity(s.id)));
                             ui.label(format!("Dry storage capacity {:.0} kg · unused craft labor {:.1} worker-months", e.logistics[0], e.logistics[2]));
                             if e.workshop_types[0][3] > 0.5 {
                                 for (j,name) in crate::production::WORKSHOP_NAMES.iter().enumerate() {

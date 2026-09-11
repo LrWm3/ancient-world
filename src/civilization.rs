@@ -683,6 +683,15 @@ impl History {
                         && c.from != c.to
                         && c.arrives > self.month
                         && c.weather_delay_months <= self.month
+                        && (c.freight_stops.is_empty()
+                            || (c.freight_stops.len() <= self.sites.len()
+                                && c.freight_stops.windows(2).all(|w| w[0] < w[1])
+                                && c.freight_stops
+                                    .iter()
+                                    .all(|&s| (s as usize) < self.sites.len())
+                                && self.freight_sites(c.from, c.to, c.sea_lane).is_some_and(
+                                    |ends| ends.iter().all(|s| c.freight_stops.contains(s))
+                                )))
                         && c.kg.is_finite()
                         && c.kg > 0.
                         && c.paid.is_finite()

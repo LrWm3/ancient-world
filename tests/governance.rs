@@ -138,6 +138,7 @@ fn delivered_cross_border_cargo_builds_trust_and_automatic_agreement() {
     h.sites[r.from as usize].economy.goods[3] -= 12.;
     for i in 0..120 {
         h.cargo.push(ancient_world::economy::Cargo {
+            freight_stops: vec![],
             sea_lane: None,
             weather_delay_months: 0,
             from: r.from,

@@ -1,5 +1,8 @@
 # Sea cargo also occupies inland transport services
 
+Update: new cargo now also reserves [intermediate inland stops](intermediate-freight.md).
+The endpoint/port-only membership below describes the earlier increment and legacy cargo.
+
 A harbor's available boat capacity no longer lets goods bypass a town's inland
 freight limits. Planned cargo reserves the origin and destination services. Sea
 cargo additionally reserves services at both ports, including a port used by another
