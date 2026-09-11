@@ -63,6 +63,9 @@ impl FoundingAccess {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HouseholdEconomy {
+    /// Old archives can retain the previous distribution for matched controls.
+    #[serde(default)]
+    pub resident_payroll: bool,
     /// Older archives retain equal payroll allocation.
     #[serde(default)]
     pub occupational_payroll: bool,
@@ -93,6 +96,7 @@ fn nutrition_enabled() -> bool {
 impl HouseholdEconomy {
     pub fn new(month: u32) -> Self {
         Self {
+            resident_payroll: true,
             occupational_payroll: true,
             individual_nutrition: true,
             started: month,
@@ -293,6 +297,7 @@ impl History {
             s.demography.household_food = [0.; 4];
         }
         let member_counts = self.household_food_members();
+        let complete_roster = self.individual_demography_enabled();
         let controllers = (0..self.sites.len())
             .map(|i| self.controller(i as u32) as usize)
             .collect::<Vec<_>>();
@@ -377,9 +382,32 @@ impl History {
                 .sum::<f32>()
                 .min(s.demography.ages[1])
                 .max(0.) as f64;
+            let eligible: Vec<_> = ids
+                .iter()
+                .map(|&id| {
+                    !e.resident_payroll
+                        || if complete_roster {
+                            member_counts
+                                .get(&id)
+                                .is_some_and(|m| m.iter().sum::<f64>() > 0.)
+                        } else {
+                            society.households[id].vacant_since.is_none()
+                                || member_counts
+                                    .get(&id)
+                                    .is_some_and(|m| m.iter().sum::<f64>() > 0.)
+                        }
+                })
+                .collect();
             let payroll_request =
                 (labor * 18. * price).min(s.economy.finance[0] as f64 * e.payroll_share as f64);
-            let payroll = withdraw(&mut s.economy.finance[0], payroll_request);
+            let payroll = withdraw(
+                &mut s.economy.finance[0],
+                if eligible.iter().any(|v| *v) {
+                    payroll_request
+                } else {
+                    0.
+                },
+            );
             let dividend_request = s.economy.finance[0] as f64 * e.dividend_share as f64;
             let dividends = withdraw(&mut s.economy.finance[0], dividend_request);
             let shares = ids
@@ -397,19 +425,32 @@ impl History {
                     }
                 })
                 .collect::<Vec<_>>();
-            let paid_sectors = sector_payroll(&weights, work, payroll);
+            let eligible_ids: Vec<_> = eligible
+                .iter()
+                .enumerate()
+                .filter_map(|(j, &yes)| yes.then_some(j))
+                .collect();
+            let eligible_weights: Vec<_> = eligible_ids.iter().map(|&j| weights[j]).collect();
+            let distribution = sector_payroll(&eligible_weights, work, payroll);
+            let mut paid_sectors = vec![[0.; 4]; ids.len()];
+            for (&j, paid) in eligible_ids.iter().zip(distribution) {
+                paid_sectors[j] = paid;
+            }
+            let last_paid = eligible_ids.last().copied();
             let mut wage_left = payroll;
             let mut dividend_left = dividends;
             let common_share = e.common_share_at(self.month, s.founded) as f64;
             let free = need * common_share;
             let mut demand = vec![];
             for (j, &id) in ids.iter().enumerate() {
-                let wage = if j + 1 == ids.len() {
+                let wage = if !eligible[j] {
+                    0.
+                } else if Some(j) == last_paid {
                     wage_left
                 } else if e.occupational_payroll {
                     paid_sectors[j].iter().sum::<f64>().min(wage_left)
                 } else {
-                    payroll / ids.len() as f64
+                    payroll / eligible_ids.len() as f64
                 };
                 let dividend = if j + 1 == ids.len() {
                     dividend_left
@@ -959,6 +1000,81 @@ mod tests {
             .unwrap()
             .validate(h)
             .unwrap();
+        // Retained estates are not municipal employees. No cash or ownership is erased.
+        let mut vacant = baseline.clone();
+        let absent = *ids.last().unwrap();
+        vacant.society.as_mut().unwrap().households[absent].vacant_since = Some(vacant.month);
+        let residents: Vec<_> = vacant
+            .participation
+            .as_ref()
+            .unwrap()
+            .residents
+            .values()
+            .filter(|r| r.household == Some(absent as u32))
+            .map(|r| r.person)
+            .collect();
+        for person in residents {
+            vacant.people[person as usize].died = Some(vacant.month);
+        }
+        let mut old = vacant.clone();
+        old.society
+            .as_mut()
+            .unwrap()
+            .household_economy
+            .as_mut()
+            .unwrap()
+            .resident_payroll = false;
+        let before = vacant.economy_residuals()[4];
+        vacant.prepare_household_retail();
+        old.prepare_household_retail();
+        assert_eq!(vacant.household_account(absent as u32).unwrap().wages, 0.);
+        assert!(old.household_account(absent as u32).unwrap().wages > 0.);
+        assert!((vacant.economy_residuals()[4] - before).abs() < 1e-6);
+        assert_eq!(
+            vacant.society.as_ref().unwrap().households[absent].share,
+            old.society.as_ref().unwrap().households[absent].share
+        );
+        let mut empty = baseline.clone();
+        for &id in &ids {
+            empty.society.as_mut().unwrap().households[id].vacant_since = Some(empty.month);
+        }
+        let people: Vec<_> = empty
+            .participation
+            .as_ref()
+            .unwrap()
+            .residents
+            .values()
+            .filter(|r| r.household.is_some_and(|hh| ids.contains(&(hh as usize))))
+            .map(|r| r.person)
+            .collect();
+        for person in people {
+            empty.people[person as usize].died = Some(empty.month);
+        }
+        let treasury = empty.sites[0].economy.finance[0];
+        empty.prepare_household_retail();
+        assert_eq!(
+            empty.sites[0].economy.finance[0], treasury,
+            "no resident recipients means no payroll debit"
+        );
+        let mut old_archive = serde_json::to_value(
+            empty
+                .society
+                .as_ref()
+                .unwrap()
+                .household_economy
+                .as_ref()
+                .unwrap(),
+        )
+        .unwrap();
+        old_archive
+            .as_object_mut()
+            .unwrap()
+            .remove("resident_payroll");
+        let loaded: HouseholdEconomy = serde_json::from_value(old_archive).unwrap();
+        assert!(
+            !loaded.resident_payroll,
+            "missing setting retains the legacy boundary"
+        );
         let mut legacy = baseline;
         legacy
             .society

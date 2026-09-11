@@ -76,3 +76,9 @@ commit, the first individual run had reached year 40 without a reported invarian
 failure. This is progress, not a completed balance finding: matched conditions,
 held-out seeds and the remaining years are still pending. No further behavioral
 expansion is justified by this partial run alone.
+
+The first two conditions subsequently completed all five century runs. They
+exposed severe individual-mode depopulation despite clean accounting. See the
+[resident payroll investigation](resident-payroll-balance.md) for the measured
+population and food-access differences, the verified empty-estate income bug,
+and the controls being run before accepting any balance conclusion.

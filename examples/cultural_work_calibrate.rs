@@ -10,6 +10,14 @@ use serde_json::json;
 use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 #[derive(Parser)]
 struct Args {
+    #[arg(long)]
+    legacy_resident_payroll: bool,
+    /// Ablate personal food exposure while retaining the same individual population.
+    #[arg(long)]
+    no_individual_nutrition: bool,
+    /// Override the long-run common entitlement without changing food production.
+    #[arg(long)]
+    common_share: Option<f32>,
     #[arg(long, default_value_t = 0.5)]
     crop_yield_scale: f32,
     /// Matched control: use the configured common share immediately from founding.
@@ -87,6 +95,44 @@ fn main() -> Result<()> {
             .unwrap()
             .set_named_demography(!args.legacy_named_demography)?;
         g.enable_society()?;
+        g.civilizations
+            .as_mut()
+            .unwrap()
+            .society
+            .as_mut()
+            .unwrap()
+            .household_economy
+            .as_mut()
+            .unwrap()
+            .resident_payroll = !args.legacy_resident_payroll;
+        if let Some(share) = args.common_share {
+            anyhow::ensure!(
+                share.is_finite() && (0. ..=1.).contains(&share),
+                "invalid common share"
+            );
+            g.civilizations
+                .as_mut()
+                .unwrap()
+                .society
+                .as_mut()
+                .unwrap()
+                .household_economy
+                .as_mut()
+                .unwrap()
+                .common_share = share;
+        }
+        if args.no_individual_nutrition {
+            g.civilizations
+                .as_mut()
+                .unwrap()
+                .society
+                .as_mut()
+                .unwrap()
+                .household_economy
+                .as_mut()
+                .unwrap()
+                .individual_nutrition = false;
+        }
         if args.no_founding_access {
             g.configure_founding_food_access(None)?;
         }
@@ -214,7 +260,7 @@ fn main() -> Result<()> {
         std::fs::write(
             &args.output,
             serde_json::to_vec_pretty(
-                &json!({"observation_interval_months":1,"food_fields":["need","available","funded","eaten","physical_gap","access_gap"],"crop_yield_scale":args.crop_yield_scale,"founding_access":!args.no_founding_access,"aggregate_resolution":args.aggregate_resolution,"compare_resolution":args.compare_resolution,"workshop_refinement":args.workshop_refinement,"individual_demography":args.individual_demography,"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows}),
+                &json!({"resident_payroll":!args.legacy_resident_payroll,"individual_nutrition":!args.no_individual_nutrition,"common_share_override":args.common_share,"observation_interval_months":1,"food_fields":["need","available","funded","eaten","physical_gap","access_gap"],"crop_yield_scale":args.crop_yield_scale,"founding_access":!args.no_founding_access,"aggregate_resolution":args.aggregate_resolution,"compare_resolution":args.compare_resolution,"workshop_refinement":args.workshop_refinement,"individual_demography":args.individual_demography,"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows}),
             )?,
         )?;
     }
