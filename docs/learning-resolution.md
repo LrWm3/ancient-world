@@ -180,8 +180,8 @@ unless a mechanism explicitly attributes them.
 The research receipt now holds three work metrics and six outcome metrics. Its
 bounded validator permits nine metrics for research; other receipt limits are
 unchanged. Old research plans without outcome fields remain readable and do not
-receive invented historical comparisons. Botanical processing, heritage actions
-and comparisons between learning channels remain unfinished.
+receive invented historical comparisons. Botanical comparisons are extended below; heritage actions and comparisons
+between learning channels remain unfinished.
 
 Verification for specimen outcomes: the GPU research fixture passes shared-tool
 scarcity, post-reservation tool loss, closed teaching contact and known-method
@@ -191,3 +191,32 @@ unchanged histories with comparison disabled. The regular library suite passes
 114 tests (103 hardware tests skipped); all-target Clippy is clean.
 The full frozen-history fixture also passes its three-seed monthly, batched and
 checkpoint-resumed comparisons with these outcomes present.
+
+
+## Botanical study and application
+
+Botanical plans distinguish destructive study from application for bast, pigment
+and planting samples, using kilograms of input. Actual use is captured at the
+existing material transfer, never inferred from a later inventory difference.
+Application input is deliberately not a promise of output: a planting trial can
+consume samples and labor while producing no seed in unsuitable habitat. The
+existing botanical output and C/N/P ledgers retain that distinction.
+
+Application requests now require the same destination catalog good as execution.
+Missing goods leave collections untouched rather than reserving work for an
+unexecutable application. Study remains possible before a destination exists.
+Shared tools, fuel and requested effort still bound all research claims. Research
+receipts now allow fifteen metrics; bounded summary capacity is 128 to accommodate
+the additional names across aggregate and individual modes. Other receipts remain
+bounded at eight metrics.
+
+Older plans without the botanical capture marker omit these six comparisons,
+rather than presenting zero as an observed result. The targeted GPU fixture checks
+planned versus actual study/application masses over four months, and retains its
+zero-work, unsuitable-habitat, resumed execution and material accounting cases.
+The three-seed service-allocation fixture still checks comparison-on/off history
+equivalence. Regular library tests pass 114 cases, with 103 hardware tests skipped.
+Missing-catalog application requests and absent legacy capture markers also pass
+the GPU fixture; all-target Clippy is clean after the compatibility change.
+The full three-seed frozen-history monthly/batch/checkpoint fixture passes with
+botanical comparisons enabled.

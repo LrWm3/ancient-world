@@ -334,7 +334,7 @@ mod tests {
                             5
                         }
                     } else {
-                        9
+                        15
                     }
                 );
                 assert!(r.metrics[2].actual > 0., "fixture must complete real work");

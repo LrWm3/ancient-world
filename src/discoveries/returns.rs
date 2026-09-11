@@ -136,6 +136,9 @@ pub(super) fn process(h: &mut History, w: &mut Workshop, cells: &[Cell], labor: 
         } else {
             kg * yield_fraction(composition)
         };
+        if let Some(outcomes) = w.work_plan.as_mut().and_then(|p| p.outcomes.as_mut()) {
+            outcomes.botanical_actual[k + if studying { 0 } else { 3 }] += kg;
+        }
         w.botanicals.stock[k] -= kg;
         w.botanicals.used[k] += kg;
         w.botanicals.output[k] += output;
@@ -437,9 +440,23 @@ mod tests {
                     &collections.workshops,
                 );
                 assert!(plan.botanical_kg.iter().any(|kg| *kg > 0.));
+                let expected = plan.outcomes.as_ref().unwrap().botanical_expected;
+                assert!(expected.iter().sum::<f64>() > 0.);
+                assert_eq!(plan.outcomes.as_ref().unwrap().botanical_actual, [0.; 6]);
                 collection_h.sites[0].economy.external[3] = plan.receipt.granted as f32;
                 collections.workshops[0].work_plan = Some(plan);
                 collections.month_in_environment(&mut collection_h, &cells);
+                let actual = collections.workshops[0]
+                    .work_plan
+                    .as_ref()
+                    .unwrap()
+                    .outcomes
+                    .as_ref()
+                    .unwrap()
+                    .botanical_actual;
+                for (a, e) in actual.into_iter().zip(expected) {
+                    assert!((a - e).abs() < 1e-7, "botanical request/execution mismatch");
+                }
                 collections.validate(&collection_h, &x, &cells).unwrap();
             }
             assert!(collections.workshops[0].botanicals.output[0] > 0.);
@@ -506,6 +523,18 @@ mod tests {
             cells[s.cell as usize].hydro[2] = 1000.;
             let cell_index = s.cell as usize;
             let opening = h.clone();
+            // Forecasting applications without their destination catalog must request no work.
+            let mut missing_catalog = h.clone();
+            missing_catalog.economy_catalog = None;
+            let missing_plan = super::plan_work(&missing_catalog, &w, &[]);
+            assert_eq!(missing_plan.botanical_kg, [0.; 3]);
+            let mut legacy = serde_json::to_value(&missing_plan).unwrap();
+            legacy["outcomes"]
+                .as_object_mut()
+                .unwrap()
+                .remove("botanical_captured");
+            let legacy: ResearchPlan = serde_json::from_value(legacy).unwrap();
+            assert!(!legacy.outcomes.unwrap().botanical_captured);
             let original = w.clone();
             assert_eq!(process(h, &mut w, &cells, &mut 0.), 0.);
             assert_eq!(w.botanicals.stock, original.botanicals.stock);

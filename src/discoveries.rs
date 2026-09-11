@@ -25,6 +25,12 @@ pub struct ResearchOutcomes {
     pub actual: [f64; 4],
     pub methods_expected: [bool; 2],
     pub methods_actual: [bool; 2],
+    #[serde(default)]
+    pub botanical_expected: [f64; 6],
+    #[serde(default)]
+    pub botanical_captured: bool,
+    #[serde(default)]
+    pub botanical_actual: [f64; 6],
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ResearchPlan {
@@ -222,6 +228,8 @@ impl Discoveries {
                             .expected
                             .iter()
                             .chain(&outcomes.actual)
+                            .chain(&outcomes.botanical_expected)
+                            .chain(&outcomes.botanical_actual)
                             .all(|v| v.is_finite() && *v >= 0.),
                         "invalid research outcomes"
                     );
@@ -672,7 +680,10 @@ impl Discoveries {
 // deducted locally so multiple activities cannot each claim the same supplies.
 fn plan_work(h: &History, workshop: &Workshop, teachers: &[Workshop]) -> ResearchPlan {
     let mut plan = ResearchPlan {
-        outcomes: Some(ResearchOutcomes::default()),
+        outcomes: Some(ResearchOutcomes {
+            botanical_captured: true,
+            ..Default::default()
+        }),
         ..Default::default()
     };
     plan.receipt.month = h.month;
@@ -740,7 +751,15 @@ fn plan_work(h: &History, workshop: &Workshop, teachers: &[Workshop]) -> Researc
             .min(tools / 0.1)
             .min(fuel / 0.2)
             .min((budget - work).max(0.) / 2.);
+        // Only plan an application if its destination good exists, as execution requires.
+        let studying = w.botanicals.studied[k] < 0.25 - 1e-8;
+        let supported = h
+            .economy_catalog
+            .as_ref()
+            .is_some_and(|c| c.index(["fiber", "writing_material", "flax"][k]).is_some());
+        let kg = if studying || supported { kg } else { 0. };
         plan.botanical_kg[k] = kg;
+        plan.outcomes.as_mut().unwrap().botanical_expected[k + if studying { 0 } else { 3 }] = kg;
         work += 2. * kg;
         tools -= 0.1 * kg;
         fuel -= 0.2 * kg;

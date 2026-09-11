@@ -135,6 +135,27 @@ impl crate::civilization::History {
                                 explained: vec![],
                             });
                         }
+                        if outcomes.botanical_captured {
+                            for (i, name) in [
+                                "bast_studied",
+                                "pigment_studied",
+                                "planting_samples_studied",
+                                "bast_applied",
+                                "pigment_applied",
+                                "planting_samples_applied",
+                            ]
+                            .into_iter()
+                            .enumerate()
+                            {
+                                receipt.metrics.push(Metric {
+                                    name: name.into(),
+                                    unit: "kg input".into(),
+                                    expected: outcomes.botanical_expected[i],
+                                    actual: outcomes.botanical_actual[i],
+                                    explained: vec![],
+                                });
+                            }
+                        }
                         for (i, name) in ["resin_method_acquired", "crust_method_acquired"]
                             .into_iter()
                             .enumerate()

@@ -155,7 +155,7 @@ impl ResolutionState {
             "unbounded resolution receipts"
         );
         ensure!(
-            self.summaries.len() <= 64
+            self.summaries.len() <= 128
                 && self.summaries.iter().all(|s| [
                     s.expected,
                     s.actual,
@@ -181,7 +181,7 @@ impl ResolutionState {
             ensure!(
                 r.metrics.len()
                     <= if r.boundary.system == System::Research {
-                        9
+                        15
                     } else {
                         8
                     }
