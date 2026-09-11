@@ -101,10 +101,29 @@ fn weather_storage(i:u32) {
  if e.storage_plan.w>.5 {e.logistics.x=warehouse_capacity(e);}
  economies[i]=e;
 }
+// Shared planner for the production dispatch and read-only participation forecasts.
+fn production_labor(i:u32,e:Economy)->vec4<f32> {
+ let recovery=select(0.,clamp(e.soil.w,0.,1.),(p.options.w&2u)!=0u);
+ let available_workers=workers(i,src[i].stock.x)*(1.-.4*recovery);
+ return available_workers*worker_shares(e,src[i].stock.x,available_workers);
+}
+@compute @workgroup_size(64)
+fn forecast_labor(@builtin(global_invocation_id) g:vec3<u32>) {
+ let i=g.x;if i>=p.dims.y{return;}
+ // Use only the output scratch buffer. No production, claims, fishing, wages,
+ // population transitions or weather-storage wear occur in this pass.
+ var row=Site(vec4(0.),vec4(0.),vec4(0.),vec4(0.));
+ if src[i].stock.x>0. {
+  let e=economies[i];
+  row.stock=production_labor(i,e);
+  row.habitat=vec4(e.exchange.w,dot(e.enterprise_plan,vec4(1.)),e.fishery_plan.y+e.fishery_plan.z,workers(i,src[i].stock.x));
+ }
+ dst[i]=row;
+}
 fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  var e=economies[i];let s=src[i];let t=world[u32(s.habitat.z)];let area=e.claim.y;
  let recovery=select(0.,clamp(e.soil.w,0.,1.),(p.options.w&2u)!=0u);
- let available_workers=workers(i,s.stock.x)*(1.-.4*recovery);e.labor=available_workers*worker_shares(e,s.stock.x,available_workers);
+ let available_workers=workers(i,s.stock.x)*(1.-.4*recovery);e.labor=production_labor(i,e);
  if e.logistics.w>3.5 {e.food_labor.x=mix(e.food_labor.x,e.food_labor.y,.25);}
  let rain=max(0.,t.hydro.z)*area/12000.*weather;
  e.water.z+=rain;e.water.x+=rain;

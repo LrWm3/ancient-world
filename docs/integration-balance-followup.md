@@ -96,4 +96,8 @@ target/release/examples/cultural_work_calibrate --seeds 17,81,256,409,1024 \
 
 This explicitly retains resident-eligible payroll. Earlier failures and controls
 used different payroll switches; compare reported switches before attributing a
-difference to founding entitlement alone. Completion and outcomes remain pending.
+difference to founding entitlement alone. All five static-access runs now complete; the [balance report](resident-payroll-balance.md) records their severe decline and clean population accounting. A matched founding-transition rerun with the same resident payroll is needed before attributing differences to the transition.
+
+The matched transition-enabled rerun is now running with the same release binary
+and command, omitting `--no-founding-access` and writing
+`output/scarcity-founding-residents.json`. No outcome is claimed until it completes.

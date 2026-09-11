@@ -216,3 +216,34 @@ Terrain resolution 32, ecology 16, one geological epoch, crop yield scale 0.5,
 living history. Raw results remain ignored. Next balance comparisons should vary
 income and entitlement while holding production fixed, and include held-out seeds;
 actual production participation remains a separate unfinished integration.
+
+## Static-access scarcity ensemble
+
+All five century runs now complete with individual demography/workshops,
+resident-eligible payroll, crop yield scale 0.33 and the founding access transition
+disabled. The communal share stays at 0.5 from the opening. Other settings match
+the small-grid living-history protocol above. Both food gaps below are summed
+across every month before dividing by total need, rather than sampled annually.
+
+| Seed | Residents at 100 years | Active sites | Physical gap / need | Access gap / need | Maximum normalized food residual |
+|---|---:|---:|---:|---:|---:|
+| 17 | 46 | 5 | 0.6017% | 6.2807% | 5.72e-7 |
+| 81 | 47 | 5 | 0.3784% | 6.3787% | 1.02e-6 |
+| 256 | 48 | 10 | 0.1864% | 5.8539% | 1.57e-6 |
+| 409 | 59 | 13 | 0.1607% | 6.3083% | 1.03e-6 |
+| 1024 | 49 | 6 | 0.5929% | 6.1699% | 1.44e-6 |
+
+Maximum population residual is zero in every run. The result fails the population
+balance gate: only 46–59 residents remain. Unfunded access is consistently a larger
+component of unmet need than physical shortage. This does not establish the
+isolated effect of removing the founding transition: the older scarcity-founding
+ensemble stopped on a succession failure and used earlier payroll behavior.
+A matched five-seed founding-transition rerun with resident payroll is therefore
+required. The earlier full-common-food control changes the ongoing entitlement,
+not merely its founding schedule.
+
+The command is recorded in [the integration protocol](integration-balance-followup.md).
+The release model corresponds to `a323d84`; raw data are in ignored
+`output/scarcity-static-residents.json`. Per-seed elapsed times were 115.7–150.1
+seconds, with some concurrent GPU verification work, so these are not isolated
+performance benchmarks.

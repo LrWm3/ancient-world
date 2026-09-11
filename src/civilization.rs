@@ -1,5 +1,6 @@
 //! Civilization beta: GPU habitat/production/demography, sparse social history on CPU.
 mod daughter;
+mod production_forecast;
 use crate::{
     economy::{Cargo, Economy, EconomyCatalog, Recipe},
     gpu::{read_buffer, Generator, Stage},
@@ -7,6 +8,7 @@ use crate::{
     society::{Demography, Society},
 };
 use anyhow::{ensure, Result};
+pub use production_forecast::ProductionLaborForecast;
 use serde::{Deserialize, Serialize};
 use wgpu::util::DeviceExt;
 const LIMIT: usize = 256;
@@ -769,6 +771,7 @@ pub(crate) struct Engine {
     claim: wgpu::ComputePipeline,
     fish: wgpu::ComputePipeline,
     adaptive_fish: wgpu::ComputePipeline,
+    labor_forecast: wgpu::ComputePipeline,
     economic: wgpu::Buffer,
     ecological: wgpu::Buffer,
     demographic: wgpu::Buffer,
@@ -1001,6 +1004,7 @@ impl Engine {
         let claim = pipeline("claim_plots");
         let fish = pipeline("fish_plots");
         let adaptive_fish = pipeline("adaptive_fish_plots");
+        let labor_forecast = pipeline("forecast_labor");
         if let Some(e) = pollster::block_on(d.pop_error_scope()) {
             anyhow::bail!("civilization shader: {e}");
         }
@@ -1017,6 +1021,7 @@ impl Engine {
             claim,
             fish,
             adaptive_fish,
+            labor_forecast,
             economic,
             ecological,
             demographic,

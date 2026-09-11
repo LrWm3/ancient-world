@@ -65,6 +65,7 @@ The population-related switches have different effects:
 - [Cross-scale coupling and counterfactuals](cross-scale-coupling.md)
 - [Perishable cargo during flood delays](delayed-cargo-spoilage.md)
 - [Demand-driven town production](demand-economy.md)
+- [Production participation and GPU labor forecasts](production-participation.md)
 - [Finite expedition specimens and local applications](discoveries.md)
 - [Ecological model and tuning](ecology.md)
 - [Illness and effective work](illness-and-work.md)
