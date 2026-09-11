@@ -151,3 +151,11 @@ population residual and maximum normalized food residual 6.45e-7. This verifies
 that the displaced-ruler succession correction resolves the observed month-740
 failure, while the scarcity population outcome remains poor. Daughter founding
 is addressed separately in [resident daughter settlements](resident-daughter-founding.md).
+
+The runner's opt-in `--household-diagnostics` adds account-level observations to
+its decadal samples: dated food site, need, common/purchased food, hunger, cash,
+current sector wages and cumulative wages, relief, dividends and food spending.
+These are closing observations, not a sum of monthly cash balances. A three-seed
+30-year run (17, 81, 256; resident payroll, individual demography/workshops, yield
+0.5) is collecting them to distinguish distributional access from total production.
+Raw account rows remain ignored; conclusions will be summarized here.
