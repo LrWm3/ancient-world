@@ -9,10 +9,12 @@ explicit design assumptions.
 Subsequent work changed [shared crop-resource allocation](crop-resource-competition.md)
 in both modes. The historical comparison below predates that change.
 
-This increment adds two independently selectable alternatives. **Neither is enabled
-by default.** Controlled comparisons exposed severe crop underproduction and large
-staple-price drift. Keeping them experimental is an evaluation result, not evidence
-that the default is scientifically correct.
+The seasonal preset and adaptive quotes remain independently selectable.
+The original failures below are retained as historical evidence; the
+[revisit](crop-price-revisit.md) documents corrections and new runs.
+Seasonal crops require an explicit catalog selection. Adaptive pricing is enabled
+by the desktop/CLI default-on system choices; the low-level bundled economy catalog
+retains its legacy price setting. Networked trade is enabled in that catalog.
 
 ## Seasonal crop processes
 
@@ -21,8 +23,12 @@ the existing monthly calendar and crop inventories:
 
 1. Six months before the crop's harvest month, transfer existing seed to standing
    crop. Seed in storage cannot support growth.
-2. Multiply potential growth by a seven-month canopy proxy
-   `[0.2, 0.6, 1, 1, 0.8, 0.4, 0.1]`. Growth is zero outside this season.
+2. Distribute the survey's annual harvest potential over a seven-month canopy proxy
+   `[0.2, 0.6, 1, 1, 0.8, 0.4, 0.1]`, whose sum is 4.1.
+   The monthly input is annual potential divided by twelve, so the multiplier is
+   `canopy × 12 / 4.1 / harvest_index`. The harvest-index denominator converts
+   harvest potential into required whole-crop biomass, including residues.
+   Growth is zero outside this season; all biomass requires finite N/P/water.
 3. Apply the existing temperature response, then cap growth by available soil N/P
    and stored water. The old additional rainfall-suitability multiplier is omitted
    in this mode; rainfall still enters the water inventory upstream.
@@ -64,7 +70,7 @@ With `[market] adaptive_prices = true`, CPU monthly quotes depend on:
   is excluded because spoilage can change its paid/kg without a price negotiation.
 - Treasury and resident-household cash, discounting unfunded desired stock.
 
-For previous price `p`, stock `s`, target `t`, cash `M`, estimated cost `c` and
+For previous price `p`, stock `s`, target `t`, allocated cash `M`, estimated cost `c` and
 observed delivery price `v`, the implemented rules are:
 
 ```text
@@ -73,29 +79,31 @@ scarcity = clamp((t-s) / max(t+s, 1), -1, 1)
 shortage = max(t-s, 0)
 f = clamp(M / max(shortage*p, 0.0001), 0, 1) [1 if no shortage]
 d = min(scarcity,0) + max(scarcity,0)*f - (1-f) [last term only if shortage]
-cost_signal = clamp(log(c/p), -1, 1) [0 if no estimate]
-trade_signal = clamp(log(v/p), -1, 1) [0 if no delivery]
-delta = clamp(0.08*d + 0.08*(min(cost_signal,0)+max(cost_signal,0)*f)
-              + 0.12*trade_signal, -0.15, 0.15)
+anchor = c if an independent production cost exists, otherwise catalog base price
+desired = anchor × exp(0.8*d)
+log_target = 0.7*log(desired) + 0.3*log(v) [log(desired) if no delivery]
+delta = clamp(0.2*(log_target-log(p)), -0.15, 0.15)
 p_next = clamp(p * exp(delta), 0.0001, 1000000)
 ```
 
-The rate limit controls adjustment speed, replacing the permanent 0.4–4× base-price
-band in this mode. Absolute numerical guards remain. Costs read a completed price
+Cash is shared among goods in proportion to the cost of their stock shortfalls.
+Scarcity shifts the target quote instead of compounding a monthly inflation rate.
+A stored good's own quote is no longer treated as independent cost evidence.
+Abandoned-town quotes stop updating. The rate limit controls adjustment speed. Absolute numerical guards remain. Costs read a completed price
 snapshot, so iterating goods cannot feed an earlier quote back into a later one.
 Quotes and delivery observations do not transfer money. Existing dispatch still
 reserves inventory, payment and route capacity.
 
 This is a bounded price-adjustment hypothesis, **not a market-clearing solution**.
-Cash is a stock, not monthly effective demand. The same cash participates in multiple
-quote signals (actual purchases still share a finite budget). A desired warehouse
+Cash remains a stock, not monthly effective demand. Quote budgets share that stock,
+while actual purchases independently reserve finite payment at dispatch. A desired warehouse
 reserve is not a willingness-to-pay curve. Existing labor cost is still the
 `18 × food price` opportunity-cost proxy, not observed wages; raw-material estimates
 retain a base-price component. Household payroll, common-share and relief rules have
 not been replaced. Observing deliveries does not independently identify a good's
 underlying value.
 
-## Controlled evaluation, 2026-09-10
+## Original failed evaluation, 2026-09-10
 
 Hardware: Quadro RTX 5000 Max-Q, Vulkan; Rust 1.89, optimized test profile.
 Terrain 64, ecology 32, one geological epoch with one ecological year, eight founding
@@ -169,7 +177,7 @@ extending the seasonal fixture, its checkpoint/batch comparison passed separatel
 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and the repository
 artifact-policy check passed. These are implementation checks, not calibration success.
 
-Before promoting either experiment: isolate crop-process changes, measure monthly
+The original follow-up recommendations were to isolate crop-process changes, measure monthly
 harvest/consumption and first-harvest gaps, fit plausible land/food budgets, then evaluate
 held-out seeds. For prices, distinguish funded orders and consumption flows from reserve
 targets, share purchasing budgets among goods, and diagnose producer prices separately

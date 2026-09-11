@@ -691,6 +691,7 @@ fn adaptive_quote(
     cost: Option<f32>,
     delivered: Option<f32>,
     purchasing_capacity: f32,
+    reference: f32,
 ) -> f32 {
     let scarcity = if target > 0. {
         ((target - stock) / (target + stock).max(1.)).clamp(-1., 1.)
@@ -699,12 +700,6 @@ fn adaptive_quote(
     } else {
         0.
     };
-    let cost_signal = cost
-        .filter(|c| *c > 0.)
-        .map_or(0., |c| (c / previous).ln().clamp(-1., 1.));
-    let trade_signal = delivered
-        .filter(|v| *v > 0.)
-        .map_or(0., |v| (v / previous).ln().clamp(-1., 1.));
     let shortage = (target - stock).max(0.);
     let funded = if shortage > 0. {
         (purchasing_capacity / (shortage * previous).max(0.0001)).clamp(0., 1.)
@@ -713,10 +708,17 @@ fn adaptive_quote(
     };
     let demand =
         scarcity.min(0.) + scarcity.max(0.) * funded - f32::from(shortage > 0.) * (1. - funded);
-    let adjustment = (0.08 * demand
-        + 0.08 * (cost_signal.min(0.) + cost_signal.max(0.) * funded)
-        + 0.12 * trade_signal)
-        .clamp(-0.15, 0.15);
+    // Scarcity shifts a supported quote; it is not a fresh inflation rate every month.
+    // Catalog reference is a nominal anchor where no independent production cost exists.
+    let anchor = cost
+        .filter(|v| v.is_finite() && *v > 0.)
+        .unwrap_or(reference)
+        .max(0.0001);
+    let desired = anchor * (0.8 * demand).exp();
+    let evidence = delivered
+        .filter(|v| v.is_finite() && *v > 0.)
+        .map_or(desired.ln(), |v| 0.7 * desired.ln() + 0.3 * v.ln());
+    let adjustment = (0.2 * (evidence - previous.max(0.0001).ln())).clamp(-0.15, 0.15);
     (previous * adjustment.exp()).clamp(0.0001, 1e6)
 }
 impl History {
@@ -1103,18 +1105,58 @@ impl History {
                 }
             }
         }
+        let quote_targets: Vec<Vec<f32>> = self
+            .sites
+            .iter()
+            .map(|s| {
+                catalog
+                    .goods
+                    .iter()
+                    .enumerate()
+                    .map(|(k, _)| {
+                        if s.economy.logistics[3] > 0.5 {
+                            if k == FOOD {
+                                s.stocks.stock[0] * 18. * 6.
+                            } else {
+                                s.economy.targets[k]
+                            }
+                        } else {
+                            s.stocks.stock[0] * if k == 3 { 0.5 } else { 2. }
+                        }
+                    })
+                    .collect()
+            })
+            .collect();
+        let quote_orders: Vec<Vec<f32>> = self
+            .sites
+            .iter()
+            .enumerate()
+            .map(|(i, s)| {
+                quote_targets[i]
+                    .iter()
+                    .enumerate()
+                    .map(|(k, target)| {
+                        if catalog.goods[k].id.starts_with("reserved_") {
+                            return 0.;
+                        }
+                        let stock = if k == FOOD {
+                            s.stocks.stock[1]
+                        } else {
+                            s.economy.goods[k]
+                        };
+                        (target - stock).max(0.) * s.economy.prices[k].max(0.0001)
+                    })
+                    .collect()
+            })
+            .collect();
         // Prices are local offers, not equilibrium solutions or money transfers.
         for s in &mut self.sites {
+            if s.abandoned || s.stocks.stock[0] <= 0. {
+                continue;
+            }
+            let order_total: f32 = quote_orders[s.id as usize].iter().sum();
             for (k, good) in catalog.goods.iter().enumerate() {
-                let target = if s.economy.logistics[3] > 0.5 {
-                    if k == FOOD {
-                        s.stocks.stock[0] * 18. * 6.
-                    } else {
-                        s.economy.targets[k]
-                    }
-                } else {
-                    s.stocks.stock[0] * if k == 3 { 0.5 } else { 2. }
-                };
+                let target = quote_targets[s.id as usize][k];
                 if catalog.market.adaptive_prices {
                     let stock = if k == FOOD {
                         s.stocks.stock[1]
@@ -1128,7 +1170,9 @@ impl History {
                         target,
                         costs[s.id as usize][k],
                         (trade[1] > 0.).then(|| (trade[0] / trade[1]) as f32),
-                        purchasing[s.id as usize],
+                        purchasing[s.id as usize] * quote_orders[s.id as usize][k]
+                            / order_total.max(0.0001),
+                        good.base_price,
                     );
                     continue;
                 }
@@ -1748,21 +1792,32 @@ mod adaptive_price_tests {
     #[test]
     fn quotes_respond_to_costs_and_paid_evidence_without_catalog_price_ceiling() {
         assert_eq!(
-            adaptive_quote(10., 100., 100., Some(10.), Some(10.), 1e12),
+            adaptive_quote(10., 100., 100., Some(10.), Some(10.), 1e12, 10.),
             10.
         );
-        let ordinary = adaptive_quote(10., 100., 100., Some(10.), None, 1e12);
-        assert!(adaptive_quote(10., 100., 100., Some(20.), None, 1e12) > ordinary);
-        assert!(adaptive_quote(10., 100., 100., None, Some(5.), 1e12) < ordinary);
-        assert!(adaptive_quote(10., 200., 100., None, None, 1e12) < ordinary);
-        assert!(adaptive_quote(10., 0., 100., Some(20.), None, 0.) < 10.);
+        let ordinary = adaptive_quote(10., 100., 100., Some(10.), None, 1e12, 10.);
+        assert!(adaptive_quote(10., 100., 100., Some(20.), None, 1e12, 10.) > ordinary);
+        assert!(adaptive_quote(10., 100., 100., None, Some(5.), 1e12, 10.) < ordinary);
+        assert!(adaptive_quote(10., 200., 100., None, None, 1e12, 10.) < ordinary);
+        assert!(adaptive_quote(10., 0., 100., Some(20.), None, 0., 10.) < 10.);
         let mut scarce = 10.;
         for _ in 0..24 {
-            scarce = adaptive_quote(scarce, 0., 100., None, None, 1e12);
+            scarce = adaptive_quote(scarce, 0., 100., None, None, 1e12, 10.);
         }
-        assert!(scarce > 40. && scarce.is_finite());
+        assert!(scarce > 10. && scarce < 23.);
+        let settled = scarce;
+        for _ in 0..1200 {
+            scarce = adaptive_quote(scarce, 0., 100., None, None, 1e12, 10.);
+        }
+        assert!((scarce - settled).abs() < 0.2);
+        // Recover a checkpoint containing the previous experiment's inflated quote.
+        let mut inherited = 10_000.;
+        for _ in 0..600 {
+            inherited = adaptive_quote(inherited, 0., 100., None, None, 1e12, 10.);
+        }
+        assert!((inherited - scarce).abs() < 0.001);
         for previous in [0.0001, 1., 100., 1e6] {
-            let q = adaptive_quote(previous, 0., 1e9, Some(1e6), Some(1e6), 1e12);
+            let q = adaptive_quote(previous, 0., 1e9, Some(1e6), Some(1e6), 1e12, 10.);
             assert!(q <= previous * 0.15_f32.exp() + 0.001);
         }
         let mut legacy = serde_json::to_value(EconomyCatalog::bundled().unwrap()).unwrap();

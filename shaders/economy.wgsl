@@ -396,7 +396,10 @@ fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
   if seasonal.x>0. {
    // Crop-equivalent standing mass, normalized to a common 0.45 kg-C budget.
    // Stored seed is dormant. Monthly phenology is a calendar proxy, not thermal time.
-   let canopy=crop_canopy(phase);
+   // The survey supplies annual harvest potential, not whole-plant biomass.
+   // Distribute it over the canopy calendar and include the biomass required
+   // for residues. All of that biomass still consumes finite N/P/water.
+   let canopy=crop_canopy(phase)*(12./4.1)/max(seasonal.y,.05);
    let thermal=clamp((temp-params.y)/10.,0.,1.)*clamp((params.z-temp)/10.,0.,1.);
    growth=potential*.95*c.x*growth_params.x*(.45/max(chemistry.x,.01))*thermal*canopy*f32(c.y>.001);
    let frost=c.y*seasonal.w*clamp((params.y-temp)/10.,0.,1.);

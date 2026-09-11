@@ -88,3 +88,7 @@ in that command). After the final zero-demand diagnostic guard, the reversed-ord
 and seasonal continuation fixtures passed again. Clippy with warnings denied,
 formatting and the source-only artifact checks passed. No raw experiment output
 or binary archives were committed.
+
+The later [crop and price revisit](crop-price-revisit.md) corrects seasonal annual-budget
+scaling and quote drift, with new multi-seed and long-run results. Earlier failed
+calibration results above describe the implementation at that time.

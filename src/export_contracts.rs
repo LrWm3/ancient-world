@@ -30,6 +30,8 @@ pub struct ExportContract {
 }
 impl History {
     /// Replacement-cost quote. Labor is a food-valued opportunity cost, not paid wages.
+    /// Returns None without a modeled extraction/recipe cost; a stored item's own
+    /// asking price is not independent evidence of its production cost.
     pub fn supplier_unit_cost(&self, site: usize, good: usize) -> Option<f32> {
         self.supplier_cost_for_quantity(site, good, 1.)
     }
@@ -87,10 +89,7 @@ impl History {
                 (inputs + r.work[0] * (labor + upkeep)) / r.output[good]
             })
             .min_by(f32::total_cmp);
-        raw.into_iter()
-            .chain(recipe)
-            .min_by(f32::total_cmp)
-            .or_else(|| (e.goods[good] > 0.).then(|| price(good)))
+        raw.into_iter().chain(recipe).min_by(f32::total_cmp)
     }
     pub(crate) fn observe_export_delivery(&mut self, cargo: &Cargo) {
         let Some(catalog) = &self.economy_catalog else {

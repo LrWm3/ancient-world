@@ -301,6 +301,7 @@ fn multi_hop_cargo_is_reserved_once_and_existing_contract_survives_closure() {
     h.sites[a as usize].economy.goods[3] += tools;
     let mut catalog = h.economy_catalog.clone().unwrap();
     catalog.recipes.clear();
+    catalog.market.adaptive_prices = true;
     catalog.weather = Default::default();
     g.configure_economy(catalog).unwrap();
     g.advance_history(3).unwrap();

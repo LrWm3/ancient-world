@@ -1043,9 +1043,22 @@ fn stored_seed_is_dormant_and_a_full_season_conserves_material() {
 #[ignore = "requires hardware GPU; paired 50-year model evaluation"]
 fn seasonal_crops_and_adaptive_prices_seed_comparison() {
     let gpu = pollster::block_on(ContextGpu::headless()).unwrap();
-    for seed in [17, 81, 256] {
+    let seeds: Vec<u32> = std::env::var("CROP_PRICE_SEEDS")
+        .ok()
+        .map(|v| v.split(',').map(|v| v.parse().unwrap()).collect())
+        .unwrap_or_else(|| vec![17, 81, 256]);
+    let months: u32 = std::env::var("CROP_PRICE_MONTHS")
+        .ok()
+        .map(|v| v.parse().unwrap())
+        .unwrap_or(600);
+    let combined = std::env::var_os("CROP_PRICE_COMBINED_ONLY").is_some();
+    let living = std::env::var_os("CROP_PRICE_LIVING").is_some();
+    for seed in seeds {
         let variants = [(false, false), (true, false), (false, true), (true, true)];
         for (crops, prices) in variants {
+            if combined && !(crops && prices) {
+                continue;
+            }
             let mut g = Generator::new(
                 gpu.clone(),
                 Config {
@@ -1079,7 +1092,21 @@ fn seasonal_crops_and_adaptive_prices_seed_comparison() {
             g.enable_politics().unwrap();
             g.enable_governance().unwrap();
             g.enable_shipping().unwrap();
-            g.advance_history(600).unwrap();
+            if living {
+                g.enable_living_history().unwrap();
+            }
+            if std::env::var_os("CROP_PRICE_MONTHLY").is_some() {
+                for month in 1..=months {
+                    g.advance_history(1).unwrap();
+                    if month <= 36 || month % 120 == 0 {
+                        let h = g.civilizations.as_ref().unwrap();
+                        let s = &h.sites[0];
+                        println!("month={month} seed={seed} seasonal={crops} adaptive={prices} pop={} food={} growth={} crop={:?} water={} labor={:?} cultivated={} shortage={}", s.stocks.stock[0],s.stocks.stock[1],s.economy.agriculture[0],s.economy.crops[0],s.economy.water[0],s.economy.labor,s.economy.production_probe[1],s.stocks.stock[3]);
+                    }
+                }
+            } else {
+                g.advance_history(months).unwrap();
+            }
             let h = g.civilizations.as_ref().unwrap();
             let population: f32 = h.sites.iter().map(|s| s.stocks.stock[0]).sum();
             let harvest: f32 = h
@@ -1104,6 +1131,29 @@ fn seasonal_crops_and_adaptive_prices_seed_comparison() {
                 .map(f64::abs)
                 .fold(0., f64::max);
             assert!(residual < 0.001, "seed {seed}: {residual}");
+            let sales = h.events.iter().filter(|e| e.kind == "market_sale").count();
+            let wheat_range = h
+                .sites
+                .iter()
+                .filter(|s| !s.abandoned)
+                .fold([f32::INFINITY, 0_f32], |r, s| {
+                    [r[0].min(s.economy.prices[8]), r[1].max(s.economy.prices[8])]
+                });
+            // Game-regression acceptance for these ordinary reference worlds:
+            // balanced ledgers alone must not count a total collapse as success.
+            assert!(
+                h.sites
+                    .iter()
+                    .any(|s| !s.abandoned && s.stocks.stock[0] >= 20.),
+                "seed {seed}: no viable settlement after {months} months"
+            );
+            if prices {
+                assert!(
+                    wheat_range[1] < 100.,
+                    "seed {seed}: unsupported staple quote drift {wheat_range:?}"
+                );
+            }
+            println!("sales={sales} active_wheat_range={wheat_range:?}");
             println!("seed={seed} seasonal={crops} adaptive_prices={prices} population={population:.1} occupied={} harvested_food_equivalent={harvest:.1} wheat_price={:.3} tools_price={:.3} residual={residual:.7}",h.sites.iter().filter(|s|!s.abandoned).count(),h.sites[0].economy.prices[8],h.sites[0].economy.prices[3]);
         }
     }

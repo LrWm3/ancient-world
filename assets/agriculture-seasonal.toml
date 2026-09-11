@@ -1,4 +1,4 @@
-# EXPERIMENTAL: seasonal crop processes; founding food budgets not yet recalibrated.
+# Seasonal crop processes: annual survey harvest distributed over a canopy calendar.
 # Trait values are explicit game hypotheses, not measured cultivar parameters.
 version = 1
 # Regional game calibration: kg crop potential consumed per kg fixed nitrogen.

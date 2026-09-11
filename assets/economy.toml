@@ -95,7 +95,7 @@ work = [0.15,0.0,2.0,0.0]
 
 # Commercial reserves: kg/person; tools retain 150% of the buyer target.
 [market]
-# Experimental cost/delivery quotes; paired tests still show excessive staple-price drift.
+# Legacy API default; application system options enable anchored cost/delivery quotes.
 adaptive_prices = false
 network_trade = true
 max_distance_km = 3000.0
