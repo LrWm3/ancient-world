@@ -23,7 +23,7 @@ mise exec rust@1.89.0 -- cargo run --release -- \
 
 This advances the seasonal environment, not geological epochs. Elevation, tectonics, regional terrain, river routes and basin geometry stay fixed. Living storms now cause finite river overflow and local ponding, with town damage, transport closures and recovery; see [flood history](flood-history.md). It does not rebuild shared lake surfaces or model channel migration or terrain erosion during social time. The optional [environmental return connection](environmental-returns.md) routes managed runoff downstream and returns abandoned plots to ecology. Legacy histories keep their existing behavior until explicitly enabled. Specimen collection retains its finite accessible-source inventory, with no new regrowth mechanism.
 
-The first implementation creates a fresh history engine each month to prevent stale ecology writes. This adds CPU/GPU transfer overhead relative to snapshot history; monthly play is bounded, but large year increments can block the UI. No scientific timescale equivalence between geological epochs and social years is implied.
+The history engine is reused while its catalog and terrain buffer remain compatible. Before production, it refreshes its ecology buffer from the canonical GPU state. Each living month takes one full terrain GPU-to-CPU snapshot after ecology advances, shared by flood checks and the history transaction; this snapshot is never reused across months. Other production and validation readbacks remain. Large year increments can still block the UI. No scientific timescale equivalence between geological epochs and social years is implied.
 
 ## Verification
 

@@ -177,6 +177,8 @@ pub fn device_descriptor(adapter: &wgpu::Adapter) -> wgpu::DeviceDescriptor<'sta
     }
 }
 pub struct Generator {
+    #[cfg(test)]
+    pub(crate) terrain_snapshot_count: std::sync::atomic::AtomicU64,
     pub(crate) return_pipeline: Option<wgpu::ComputePipeline>,
     pub(crate) history_engine: Option<crate::civilization::Engine>,
     pub civilizations: Option<crate::civilization::History>,
@@ -382,6 +384,8 @@ impl Generator {
         }
         let ecology = crate::ecology::Ecology::new(&gpu, &config)?;
         let mut s = Self {
+            #[cfg(test)]
+            terrain_snapshot_count: Default::default(),
             civilizations: None,
             history_engine: None,
             return_pipeline: None,
@@ -867,6 +871,9 @@ impl Generator {
         Ok(bytemuck::pod_read_unaligned(&bytes))
     }
     pub fn snapshot(&self) -> Result<Vec<Cell>> {
+        #[cfg(test)]
+        self.terrain_snapshot_count
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let bytes = read_buffer(
             &self.gpu,
             &self.buffers[self.current],

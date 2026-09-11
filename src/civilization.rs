@@ -1165,6 +1165,16 @@ impl Generator {
         Ok(())
     }
     fn advance_history_snapshot(&mut self, months: u32) -> Result<()> {
+        self.advance_history_with_terrain(months, None)
+    }
+
+    // A supplied snapshot must be from the current completed ecological step.
+    // Borrow it only for this transaction; never cache terrain across months.
+    fn advance_history_with_terrain(
+        &mut self,
+        months: u32,
+        terrain: Option<&[crate::gpu::Cell]>,
+    ) -> Result<()> {
         let history_started = std::time::Instant::now();
         let mut production_ms = 0.;
         ensure!(
@@ -1216,17 +1226,24 @@ impl Generator {
                 Engine::new(self)?
             };
             let setup_ms = setup_started.elapsed().as_secs_f64() * 1000.;
-            let terrain = self.snapshot()?;
+            let owned_terrain;
+            let terrain = match terrain {
+                Some(terrain) => terrain,
+                None => {
+                    owned_terrain = self.snapshot()?;
+                    &owned_terrain
+                }
+            };
             for _ in 0..months {
-                h.prepare_society(&terrain, self.config.radius_km);
-                h.prepare_politics(&terrain);
+                h.prepare_society(terrain, self.config.radius_km);
+                h.prepare_politics(terrain);
                 h.prepare_governance();
                 ensure!(
                     h.events.len() < 1_000_000,
                     "civilization beta event limit reached"
                 );
                 h.month += 1;
-                h.environmental_month(&terrain);
+                h.environmental_month(terrain);
                 h.relief_arrivals();
                 h.relocation_arrivals();
                 h.answer_appeals();
@@ -1236,7 +1253,7 @@ impl Generator {
                     engine.upload(self, &h);
                     engine.claim(self);
                     engine.read(self, &mut h, false)?;
-                    h.register_resources(&terrain, self.config.radius_km);
+                    h.register_resources(terrain, self.config.radius_km);
                 }
                 if h.economy_catalog
                     .as_ref()
@@ -1274,7 +1291,7 @@ impl Generator {
                 }
                 h.prepare_discoveries();
                 h.reserve_cultural_work();
-                h.prepare_fisheries(&terrain, self.config.eco_resolution());
+                h.prepare_fisheries(terrain, self.config.eco_resolution());
                 let extraction_allowances = h.allocate_resources();
                 h.plan_production();
                 h.prepare_enterprises();
@@ -1298,7 +1315,7 @@ impl Generator {
                 }
                 h.release_vessel_work();
                 h.release_cultural_work();
-                h.expedition_month(&terrain);
+                h.expedition_month(terrain);
                 h.relocation_departures();
                 h.settlement_lifecycle_month();
                 h.sync_offices();
@@ -1309,31 +1326,31 @@ impl Generator {
                 h.governance_month();
                 if h.month % 12 == 0 {
                     h.annual(self.config.radius_km);
-                    h.prepare_society(&terrain, self.config.radius_km);
-                    h.prepare_politics(&terrain);
+                    h.prepare_society(terrain, self.config.radius_km);
+                    h.prepare_politics(terrain);
                     h.prepare_governance();
                     h.politics_year();
                     h.sync_offices();
                     h.social_year();
-                    h.shipping_year(&terrain, self.config.radius_km);
-                    h.expedition_year(&terrain, self.config.radius_km);
+                    h.shipping_year(terrain, self.config.radius_km);
+                    h.expedition_year(terrain, self.config.radius_km);
                     h.governance_year();
                 }
                 h.sync_offices();
                 h.social_indicators_month();
                 h.record_timeline();
             }
-            h.prepare_society(&terrain, self.config.radius_km);
-            h.prepare_politics(&terrain);
+            h.prepare_society(terrain, self.config.radius_km);
+            h.prepare_politics(terrain);
             h.prepare_governance();
             self.prepare_economy(&mut h);
             engine.upload(self, &h);
             engine.claim(self);
             engine.read(self, &mut h, false)?;
-            h.register_resources(&terrain, self.config.radius_km);
+            h.register_resources(terrain, self.config.radius_km);
             h.sync_culture();
             h.social_indicators_month();
-            h.validate(&terrain)?;
+            h.validate(terrain)?;
             self.validate_economic_grid(&h)?;
             if h.version == 2 {
                 let mut e = self.gpu.device.create_command_encoder(&Default::default());
@@ -2049,15 +2066,16 @@ impl Generator {
                 &self.config,
                 &self.catalog,
             )?;
-            // A fresh history engine reads the current canonical environment each month.
-            // It commits its farm withdrawals before the next ecological dispatch.
+            // Share this month's fresh terrain between flood checks and history.
+            // The engine separately refreshes ecology and commits farm withdrawals
+            // before the next ecological dispatch.
             let terrain = self.snapshot()?;
             self.civilizations
                 .as_mut()
                 .unwrap()
                 .candidates
                 .retain(|c| crate::hazards::flood_depth(&terrain[c.cell as usize]) < 0.25);
-            self.advance_history_snapshot(1)?;
+            self.advance_history_with_terrain(1, Some(&terrain))?;
             self.commit_environmental_returns()?;
             self.reconcile_managed_land();
             self.civilizations
@@ -2222,6 +2240,48 @@ impl History {
 mod lifecycle_tests {
     use super::*;
     use crate::{catalog::Catalog, config::Config, gpu::ContextGpu};
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn living_history_reads_terrain_once_per_month() {
+        use std::sync::atomic::Ordering::Relaxed;
+        let mut g = Generator::new(
+            pollster::block_on(ContextGpu::headless()).unwrap(),
+            Config {
+                resolution: 64,
+                ecology_resolution: 16,
+                ..Default::default()
+            },
+            Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.advance_ecology().unwrap();
+        g.found_civilizations(5).unwrap();
+        g.enable_society().unwrap();
+        g.terrain_snapshot_count.store(0, Relaxed);
+        g.advance_history(2).unwrap();
+        assert_eq!(
+            g.terrain_snapshot_count.load(Relaxed),
+            1,
+            "frozen history needs only one terrain snapshot per batch"
+        );
+        g.enable_living_history().unwrap();
+        g.terrain_snapshot_count.store(0, Relaxed);
+        g.advance_history(0).unwrap();
+        assert_eq!(g.terrain_snapshot_count.load(Relaxed), 0);
+        g.advance_history(3).unwrap();
+        assert_eq!(
+            g.terrain_snapshot_count.load(Relaxed),
+            3,
+            "each living month needs one fresh snapshot, shared by flood checks and history"
+        );
+        g.advance_history(1).unwrap();
+        assert_eq!(
+            g.terrain_snapshot_count.load(Relaxed),
+            4,
+            "a later call must not reuse stale terrain"
+        );
+    }
 
     #[test]
     #[ignore = "requires hardware GPU"]

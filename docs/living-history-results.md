@@ -19,3 +19,36 @@ The regression suite passed 56 tests including GPU fixtures. The two living-hist
 Desktop validation loaded the upgraded archive, advanced one month with Step, played several months, and paused. Both ecological and social clocks advanced, the map updated, and the saved archive was left unchanged. [Control screenshot](../output/living-controls.png).
 
 See [design and limits](living-history.md). The current biological outcomes remain an initial coupling baseline rather than a completed calibration of living civilization history.
+
+## Terrain readback reuse (September 2026)
+
+Living history previously read the entire terrain twice per month: once after
+GPU ecology for flood checks, then again inside the history transaction. The
+transaction now borrows the first snapshot. No terrain mutation occurs between
+those consumers; the engine's ecology refresh remains a separate GPU copy.
+Snapshots are not cached across months, and transaction validation and failure
+handling retain their previous ordering.
+
+At 176 bytes per terrain cell, removing one readback saves 66 MiB at 256 cells
+per face edge, 264 MiB at 512, and 1,056 MiB at 1024 per simulated month. These
+are calculated transfer reductions, not measured end-to-end speedups. Other
+GPU readbacks and the one-time living-mode initialization remain.
+
+Verified on Quadro RTX 5000 Max-Q / Vulkan, terrain 64 and ecology 16:
+
+- A test-only snapshot counter confirms three living months perform three
+  terrain snapshots, a subsequent month performs one more, and zero months
+  perform none. Frozen history still reads once per batch.
+- Both existing living-history GPU fixtures pass: shared drought forcing,
+  environmental change, conservation, exact checkpoint/batch continuation,
+  and rejection of incomplete boundaries.
+- Ordinary library tests: 60 passed; 63 hardware fixtures skipped. The three
+  relevant GPU fixtures above were run explicitly, not inferred from this count.
+
+Reproduce:
+
+```sh
+CARGO_INCREMENTAL=0 mise exec rust@1.89.0 -- cargo test --lib living_history_reads_terrain_once_per_month -- --ignored
+CARGO_INCREMENTAL=0 mise exec rust@1.89.0 -- cargo test --test living -- --ignored
+CARGO_INCREMENTAL=0 mise exec rust@1.89.0 -- cargo test --lib
+```
