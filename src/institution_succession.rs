@@ -219,6 +219,8 @@ mod tests {
                 knowledge: Default::default(),
                 known_places: Default::default(),
                 knowledge_sources: Default::default(),
+                studies: Default::default(),
+                instruction_work: 0.,
                 last_campaign: None,
                 relations: Default::default(),
                 actions: 0,

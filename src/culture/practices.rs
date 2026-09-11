@@ -509,9 +509,15 @@ mod tests {
         let spent = c.labor_spent;
         c.labor_budget[0] = 0.1;
         c.decisions(h);
+        assert!(!c.agents[student as usize].knowledge.contains(&4));
+        assert!(c.agents[student as usize].studies[&4].progress > 0.);
+        assert_eq!(c.succession_lesson(h, 0, actor).unwrap().0, student);
+        // Separate fixture grants represent successive paid lessons.
+        c.decisions(h);
+        c.decisions(h);
         assert!(c.agents[student as usize].knowledge.contains(&4));
         assert!(!c.agents[student as usize].knowledge.contains(&0));
-        assert!((c.labor_spent - spent - 0.1).abs() < 1e-7);
+        assert!((c.labor_spent - spent - 0.3).abs() < 1e-7);
         assert_eq!(h.sites[0].economy.finance[0], cash);
         assert_eq!(h.sites[0].economy.goods, goods);
         let event = h
@@ -652,6 +658,37 @@ mod tests {
         );
         c.labor_budget[site as usize] = 0.1;
         c.decisions(h);
+        assert!(!c.agents[actor as usize].knowledge.contains(&4));
+        let partial_source = c.agents[actor as usize].studies[&4].source.unwrap();
+        h.people[teacher as usize].died = Some(h.month);
+        assert_eq!(
+            c.available_knowledge(h, site),
+            0,
+            "partial study cannot replace the last teacher"
+        );
+        let progress = c.agents[actor as usize].studies[&4].progress;
+        c.decisions(h);
+        assert_eq!(
+            c.agents[actor as usize].studies[&4].progress, progress,
+            "absent source cannot advance study"
+        );
+        h.people[teacher as usize].died = None;
+        let mut resumed: Culture =
+            serde_json::from_value(serde_json::to_value(&c).unwrap()).unwrap();
+        let mut resumed_history = h.clone();
+        c.decisions(h);
+        c.decisions(h);
+        resumed.decisions(&mut resumed_history);
+        resumed.decisions(&mut resumed_history);
+        assert_eq!(
+            serde_json::to_value(&c).unwrap(),
+            serde_json::to_value(&resumed).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_value(&h.events).unwrap(),
+            serde_json::to_value(&resumed_history.events).unwrap()
+        );
+        assert!(h.events.iter().any(|e| e.causes.contains(&partial_source)));
         assert!(c.agents[actor as usize].knowledge.contains(&4));
         let learned = c.agents[actor as usize].knowledge_sources[&4];
         assert!(h.events[learned as usize].causes.contains(&source));
@@ -678,6 +715,9 @@ mod tests {
         assert!(!books.agents[actor as usize].knowledge.contains(&4));
         books.artifacts[book].destroyed = false;
         books.artifacts[book].lost = false;
+        books.decisions(h);
+        assert!(!books.agents[actor as usize].knowledge.contains(&4));
+        books.decisions(h);
         books.decisions(h);
         assert!(books.agents[actor as usize].knowledge.contains(&4));
         let reading = books.agents[actor as usize].knowledge_sources[&4];

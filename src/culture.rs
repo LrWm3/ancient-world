@@ -6,7 +6,9 @@ use crate::{
 };
 use anyhow::{ensure, Result};
 pub mod dynamics;
+mod learning;
 mod practices;
+pub use learning::Study;
 pub(crate) mod work_requests;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -190,6 +192,10 @@ pub struct Agent {
     pub known_places: BTreeSet<u32>,
     #[serde(default)]
     pub knowledge_sources: BTreeMap<u32, u64>,
+    #[serde(default)]
+    pub studies: BTreeMap<u32, Study>,
+    #[serde(default)]
+    pub instruction_work: f32,
     #[serde(default)]
     pub last_campaign: Option<u64>,
     pub relations: BTreeMap<u32, f32>,
@@ -391,6 +397,14 @@ impl Culture {
                         .iter()
                         .all(|(k, event)| a.knowledge.contains(k)
                             && (*event as usize) < h.events.len())
+                    && a.instruction_work.is_finite()
+                    && a.instruction_work >= 0.
+                    && a.studies.iter().all(|(&topic, study)| topic < 12
+                        && study.progress.is_finite()
+                        && (0. ..=1.).contains(&study.progress)
+                        && study
+                            .source
+                            .is_none_or(|event| (event as usize) < h.events.len()))
                     && a.last_campaign.is_none_or(|event| h
                         .events
                         .get(event as usize)
@@ -581,6 +595,8 @@ impl Culture {
                 relations: BTreeMap::new(),
                 known_places: BTreeSet::new(),
                 knowledge_sources: BTreeMap::new(),
+                studies: BTreeMap::new(),
+                instruction_work: 0.,
                 last_campaign: None,
                 actions: 0,
             });
@@ -1141,10 +1157,22 @@ impl Culture {
             .into_iter()
             .filter(|&p| p != actor && !self.agents[p as usize].knowledge.contains(&topic))
             .min_by(|&a, &b| {
-                self.agents[a as usize]
-                    .knowledge
-                    .len()
-                    .cmp(&self.agents[b as usize].knowledge.len())
+                self.agents[b as usize]
+                    .studies
+                    .get(&topic)
+                    .map_or(0., |s| s.progress)
+                    .total_cmp(
+                        &self.agents[a as usize]
+                            .studies
+                            .get(&topic)
+                            .map_or(0., |s| s.progress),
+                    )
+                    .then_with(|| {
+                        self.agents[a as usize]
+                            .knowledge
+                            .len()
+                            .cmp(&self.agents[b as usize].knowledge.len())
+                    })
                     .then_with(|| {
                         unit(h.seed, a, h.month, 992).total_cmp(&unit(h.seed, b, h.month, 992))
                     })
@@ -1297,7 +1325,14 @@ impl Culture {
                 lesson.filter(|_| remaining_work >= 0.1 && self.work_allowed(site, "study"))
             {
                 remaining_work -= 0.1;
-                self.agents[actor as usize].knowledge.insert(topic);
+                let support = institution_lesson.map_or(0., |(_, teacher, _)| {
+                    self.agents[teacher as usize].instruction_support()
+                });
+                let (completed, progress, previous) =
+                    self.agents[actor as usize].study_topic(topic, support);
+                if let Some((_, teacher, _)) = institution_lesson {
+                    self.agents[teacher as usize].instruction_work += 0.1;
+                }
                 let channel = institution_lesson.map_or_else(
                     || "an accessible document".to_string(),
                     |(_, teacher, institution)| {
@@ -1310,15 +1345,16 @@ impl Culture {
                 );
                 self.log(
                     h,
-                    "knowledge_studied",
+                    if completed { "knowledge_studied" } else { "knowledge_study_progress" },
                     site,
                     Some(actor),
                     None,
                     object,
                     cause,
                     format!(
-                        "{} learned {} through {channel}, using reserved study work",
-                        h.people[actor as usize].name, TOPICS[topic as usize]
+                        "{} studied {} through {channel}, using reserved study work; progress {:.0}%, practical access {}",
+                        h.people[actor as usize].name, TOPICS[topic as usize], progress * 100.,
+                        if completed { "acquired" } else { "not yet acquired" }
                     ),
                 );
                 let event = h.events.last_mut().unwrap();
@@ -1326,9 +1362,12 @@ impl Culture {
                     event.subjects.push(("person".into(), teacher));
                     event.subjects.push(("institution".into(), institution));
                 }
-                self.agents[actor as usize]
-                    .knowledge_sources
-                    .insert(topic, event.id);
+                if let Some(previous) = previous {
+                    if !event.causes.contains(&previous) {
+                        event.causes.push(previous);
+                    }
+                }
+                self.agents[actor as usize].study_source(topic, event.id, completed);
             }
             let successor = self
                 .work_plans
@@ -1342,24 +1381,27 @@ impl Culture {
                     && !self.agents[*student as usize].knowledge.contains(topic)
             }) {
                 remaining_work -= 0.1;
-                self.agents[student as usize].knowledge.insert(topic);
+                let support = self.agents[actor as usize].instruction_support();
+                let (completed, progress, previous) =
+                    self.agents[student as usize].study_topic(topic, support);
+                self.agents[actor as usize].instruction_work += 0.1;
                 self.agents[actor as usize].relations.insert(student, 0.5);
                 self.agents[student as usize].relations.insert(actor, 0.5);
                 self.agents[actor as usize].goal = "teach a successor".into();
                 self.log(
                         h,
-                        "practice_taught",
+                        if completed { "practice_taught" } else { "practice_instruction" },
                         site,
                         Some(actor),
                         None,
                         None,
                         None,
                         format!(
-                            "{} taught {} to {}; {} local adult holder(s) before instruction, prioritizing scarce practical knowledge",
+                            "{} instructed {} to {}; {} local adult holder(s) before instruction, prioritizing scarce practical knowledge; progress {:.0}%, practical access {}",
                             h.people[actor as usize].name,
                             TOPICS[topic as usize],
                             h.people[student as usize].name,
-                            holders
+                            holders, progress * 100., if completed { "acquired" } else { "not yet acquired" }
                         ),
                     );
                 let event = h.events.last_mut().unwrap();
@@ -1367,9 +1409,12 @@ impl Culture {
                 if let Some(&cause) = self.agents[actor as usize].knowledge_sources.get(&topic) {
                     event.causes.push(cause);
                 }
-                self.agents[student as usize]
-                    .knowledge_sources
-                    .insert(topic, event.id);
+                if let Some(previous) = previous {
+                    if !event.causes.contains(&previous) {
+                        event.causes.push(previous);
+                    }
+                }
+                self.agents[student as usize].study_source(topic, event.id, completed);
             }
             if self.work_allowed(site, "office campaign")
                 && remaining_work >= 0.1
@@ -2093,7 +2138,7 @@ impl History {
         }).collect::<Vec<_>>())
     }
     pub fn cultural_summary(&self) -> serde_json::Value {
-        self.culture.as_ref().map_or(serde_json::Value::Null,|c|serde_json::json!({"religious_relief":c.religious_relief,"patrons":c.patrons.len(),"departed":c.patrons.iter().filter(|p|p.departed.is_some()).count(),"aid_effort":c.patrons.iter().map(|p|p.effort.iter().sum::<f32>()).sum::<f32>(),"traditions":c.traditions.len(),"accounts":c.accounts.len(),"institutions":c.institutions.iter().filter(|n|n.active).count(),"institution_capacity":c.institutions.iter().filter_map(|n|n.capacity.as_ref().map(|capacity|serde_json::json!({"id":n.id,"site":n.site,"kind":n.kind,"eligible_local_members":c.institution_candidates(self,n.id).len(),"active":n.active,"operational":n.operational(),"capacity":capacity}))).collect::<Vec<_>>(),"artifacts":c.artifacts.len(),"practical_knowledge":self.sites.iter().map(|s|serde_json::json!({"site":s.id,"topic_mask":c.available_knowledge(self,s.id)})).collect::<Vec<_>>(),"knowledge_links":c.agents.iter().map(|a|a.knowledge.len()).sum::<usize>(),"relationships":c.agents.iter().map(|a|a.relations.len()).sum::<usize>(),"actions":c.agents.iter().map(|a|a.actions as u64).sum::<u64>(),"labor":c.labor_spent,"pilgrimages":self.events.iter().filter(|e|e.kind=="pilgrimage_returned").count(),"office_campaigns":self.events.iter().filter(|e|e.kind=="office_campaign").count(),"specimens":c.artifacts.iter().filter(|a|a.kind=="expedition specimen").count(),"lost_objects":c.artifacts.iter().filter(|a|a.lost && !a.destroyed).count(),"knowledge_sources":c.agents.iter().map(|a|a.knowledge_sources.len()).sum::<usize>()}))
+        self.culture.as_ref().map_or(serde_json::Value::Null,|c|serde_json::json!({"religious_relief":c.religious_relief,"patrons":c.patrons.len(),"departed":c.patrons.iter().filter(|p|p.departed.is_some()).count(),"aid_effort":c.patrons.iter().map(|p|p.effort.iter().sum::<f32>()).sum::<f32>(),"traditions":c.traditions.len(),"accounts":c.accounts.len(),"institutions":c.institutions.iter().filter(|n|n.active).count(),"institution_capacity":c.institutions.iter().filter_map(|n|n.capacity.as_ref().map(|capacity|serde_json::json!({"id":n.id,"site":n.site,"kind":n.kind,"eligible_local_members":c.institution_candidates(self,n.id).len(),"active":n.active,"operational":n.operational(),"capacity":capacity}))).collect::<Vec<_>>(),"artifacts":c.artifacts.len(),"practical_knowledge":self.sites.iter().map(|s|serde_json::json!({"site":s.id,"topic_mask":c.available_knowledge(self,s.id)})).collect::<Vec<_>>(),"partial_studies":c.agents.iter().map(|a|a.studies.iter().filter(|(topic,_)|!a.knowledge.contains(topic)).count()).sum::<usize>(),"instruction_work":c.agents.iter().map(|a|a.instruction_work as f64).sum::<f64>(),"knowledge_links":c.agents.iter().map(|a|a.knowledge.len()).sum::<usize>(),"relationships":c.agents.iter().map(|a|a.relations.len()).sum::<usize>(),"actions":c.agents.iter().map(|a|a.actions as u64).sum::<u64>(),"labor":c.labor_spent,"pilgrimages":self.events.iter().filter(|e|e.kind=="pilgrimage_returned").count(),"office_campaigns":self.events.iter().filter(|e|e.kind=="office_campaign").count(),"specimens":c.artifacts.iter().filter(|a|a.kind=="expedition specimen").count(),"lost_objects":c.artifacts.iter().filter(|a|a.lost && !a.destroyed).count(),"knowledge_sources":c.agents.iter().map(|a|a.knowledge_sources.len()).sum::<usize>()}))
     }
 }
 impl Generator {

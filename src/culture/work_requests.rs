@@ -40,7 +40,7 @@ impl Culture {
             .filter(|p| participants.is_none_or(|ids| ids.contains(p)))
             .collect();
         serde_json::json!({
-            "people": people.iter().map(|&p| (p, self.agents.get(p as usize).map(|a| &a.knowledge))).collect::<Vec<_>>(),
+            "people": people.iter().map(|&p| (p, self.agents.get(p as usize).map(|a| (&a.knowledge, &a.studies, a.instruction_work)))).collect::<Vec<_>>(),
             "recoveries": self.local_recoveries.iter().filter(|r| r.site == site).collect::<Vec<_>>(),
             "faith": people.iter().map(|&p| self.resident_tradition(h, site, p)).collect::<Vec<_>>(),
             "objects": self.artifacts.iter().filter(|a| a.site.is_some_and(|s| h.sites[s as usize].cell == h.sites[site as usize].cell)).map(|a| (a.id, a.site, a.custodian, &a.owner, a.topic, a.lost, a.destroyed)).collect::<Vec<_>>(),
@@ -431,7 +431,7 @@ mod tests {
         let before = c.labor_spent;
         c.decisions(h);
         assert!((c.labor_spent - before - 0.1).abs() < 1e-6);
-        assert!(h.events.iter().any(|e| e.kind == "practice_taught"));
+        assert!(h.events.iter().any(|e| e.kind == "practice_instruction"));
         assert!((c.work_plans[0].completed - 0.1).abs() < 1e-6);
         // Completion is explicit even when the legacy grant array is not decremented.
         let commitment = c.work_plans[0].commitment.unwrap();
