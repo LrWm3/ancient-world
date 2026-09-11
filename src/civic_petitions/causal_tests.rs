@@ -93,6 +93,7 @@ fn pending(h: &mut History, demand: Demand) {
         resolved: None,
         outcome: None,
         resolution_reason: None,
+        responding_faction: None,
         honored: false,
         paid: 0.,
     });
@@ -444,4 +445,123 @@ fn escalation_requires_grievance_access_claim_and_finite_supplies() {
         assert!(ready.events[war.cause as usize].causes.contains(&cause));
         assert_eq!(ready.society.as_ref().unwrap().raids[0].soldiers, 10.);
     }
+}
+
+#[test]
+#[ignore = "requires hardware GPU"]
+fn faction_accountability_remembers_the_responder_after_turnover() {
+    let mut h = fixture(17);
+    pending(&mut h, Demand::Learning);
+    let controller = h.controller(0) as usize;
+    let opponent = h
+        .politics
+        .as_ref()
+        .unwrap()
+        .factions
+        .iter()
+        .find(|f| f.civilization == controller as u32 && f.interest == 2)
+        .unwrap()
+        .id;
+    h.politics.as_mut().unwrap().governing[controller] = opponent;
+    h.month += 9; // Valid but opposed petition expires after twelve months.
+    let before = money(&h);
+    resolve(&mut h);
+    let p = &h.governance.as_ref().unwrap().petitions[0];
+    assert!(!p.honored);
+    assert_eq!(p.responding_faction, Some(opponent));
+    assert_eq!(p.resolution_reason.as_deref(), Some("political opposition"));
+    assert_eq!(money(&h), before);
+    let advocate = p.faction;
+    assert_eq!(credit(&h, h.politics.as_ref().unwrap(), 0, 3), 0.);
+    assert!(credit(&h, h.politics.as_ref().unwrap(), 0, 2) < 0.);
+    h.politics.as_mut().unwrap().governing[controller] = advocate;
+    assert!(credit(&h, h.politics.as_ref().unwrap(), 0, 2) < 0.);
+    assert_eq!(credit(&h, h.politics.as_ref().unwrap(), 0, 3), 0.);
+    let resumed: History = serde_json::from_slice(&serde_json::to_vec(&h).unwrap()).unwrap();
+    assert_eq!(
+        credit(&h, h.politics.as_ref().unwrap(), 0, 2),
+        credit(&resumed, resumed.politics.as_ref().unwrap(), 0, 2)
+    );
+    validate(&h, &h.governance.as_ref().unwrap().petitions).unwrap();
+}
+
+#[test]
+#[ignore = "requires hardware GPU"]
+fn faction_alignment_responds_to_food_access_with_identical_town_stocks() {
+    let mut fed = fixture(81);
+    let household_sites: Vec<_> = fed
+        .society
+        .as_ref()
+        .unwrap()
+        .households
+        .iter()
+        .map(|hh| hh.site)
+        .collect();
+    let wallets = fed
+        .society
+        .as_mut()
+        .unwrap()
+        .household_economy
+        .as_mut()
+        .unwrap();
+    wallets.observed = fed.month;
+    wallets
+        .accounts
+        .resize(household_sites.len(), Default::default());
+    for (a, site) in wallets.accounts.iter_mut().zip(household_sites) {
+        a.food_site = Some(site);
+        a.need = 100.;
+        a.hunger = 0.;
+    }
+    for f in &mut fed.politics.as_mut().unwrap().factions {
+        f.cohesion = 1.;
+    }
+    let mut hungry = fed.clone();
+    for a in &mut hungry
+        .society
+        .as_mut()
+        .unwrap()
+        .household_economy
+        .as_mut()
+        .unwrap()
+        .accounts
+    {
+        a.hunger = 1.;
+    }
+    let mut stale = hungry.clone();
+    stale
+        .society
+        .as_mut()
+        .unwrap()
+        .household_economy
+        .as_mut()
+        .unwrap()
+        .observed -= 1;
+    for h in [&mut fed, &mut hungry, &mut stale] {
+        h.politics_year();
+    }
+    let bread = |h: &History| {
+        let p = h.politics.as_ref().unwrap();
+        p.household_factions
+            .iter()
+            .filter(|&&id| p.factions[id as usize].interest == 6)
+            .count()
+    };
+    assert!(bread(&hungry) > bread(&fed));
+    assert_eq!(
+        bread(&stale),
+        bread(&fed),
+        "stale access is not current evidence"
+    );
+    assert_eq!(
+        fed.sites
+            .iter()
+            .map(|s| s.economy.goods)
+            .collect::<Vec<_>>(),
+        hungry
+            .sites
+            .iter()
+            .map(|s| s.economy.goods)
+            .collect::<Vec<_>>()
+    );
 }

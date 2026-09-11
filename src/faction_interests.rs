@@ -21,6 +21,13 @@ pub fn name(interest: u32) -> &'static str {
 pub fn resists_autonomy(interest: u32) -> bool {
     matches!(interest, 2 | 7 | 8)
 }
+/// Completed household access dominates current appeal; remembered town hardship
+/// retains a smaller solidarity effect. Missing retail observations use the town proxy.
+pub fn food_pressure(town: f32, household: Option<f32>) -> f32 {
+    household
+        .map_or(town, |h| 0.75 * h + 0.25 * town)
+        .clamp(0., 1.)
+}
 /// Shared local conditions: hunger, inequality, disruption, war, craft, trade, piety, curiosity.
 pub fn appeal(k: usize, x: [f32; 8]) -> f32 {
     let [hunger, inequality, disruption, war, craft, trade, piety, curiosity] = x;
@@ -49,6 +56,14 @@ pub fn cohesion(k: usize, previous: f32, pressure: f32, leader_changed: bool) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn household_access_changes_politics_without_changing_production() {
+        let conditions = |h| [food_pressure(0., Some(h)), 0., 0., 0., 0., 0., 0., 0.];
+        assert!(appeal(6, conditions(1.)) > appeal(0, conditions(1.)));
+        assert!(appeal(6, conditions(0.)) < appeal(0, conditions(0.)));
+        assert_eq!(food_pressure(0.8, None), 0.8);
+        assert!(food_pressure(1., Some(0.)) < food_pressure(1., Some(1.)));
+    }
     #[test]
     fn crisis_movements_rise_then_fragment_without_dice() {
         let calm = [0.; 8];

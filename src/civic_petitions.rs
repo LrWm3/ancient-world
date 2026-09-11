@@ -34,6 +34,10 @@ pub struct Petition {
     pub outcome: Option<u64>,
     #[serde(default)]
     pub resolution_reason: Option<String>,
+    /// Administration responsible at resolution, not whoever governs at scoring time.
+    /// Legacy records leave attribution unknown.
+    #[serde(default)]
+    pub responding_faction: Option<u32>,
     pub honored: bool,
     pub paid: f64,
 }
@@ -45,17 +49,70 @@ pub fn credit(h: &History, politics: &crate::politics::Politics, site: u32, inte
         p.site == site
             && p.resolved.is_some()
             && p.controller == politics.controllers[site as usize]
-            && politics.factions[p.faction as usize].interest == interest
+            && (politics.factions[p.faction as usize].interest == interest
+                || p.responding_faction
+                    .is_some_and(|id| politics.factions[id as usize].interest == interest))
     }) else {
         return 0.;
     };
     let age = h.month.saturating_sub(p.resolved.unwrap()) as f32;
-    if p.honored {
-        0.25 / (1. + age / 60.)
+    let advocate = politics.factions[p.faction as usize].interest == interest;
+    let responsible = p
+        .responding_faction
+        .is_some_and(|id| politics.factions[id as usize].interest == interest);
+    outcome_credit(
+        advocate,
+        responsible,
+        p.honored,
+        p.resolution_reason.as_deref(),
+    ) / (1. + age / 60.)
+}
+
+/// Successful representation earns credit; refusal does not discredit an opposition
+/// advocate. A valid administration bears responsibility for refusal or underfunding.
+fn outcome_credit(advocate: bool, responsible: bool, honored: bool, reason: Option<&str>) -> f32 {
+    if honored {
+        if advocate || responsible {
+            0.25
+        } else {
+            0.
+        }
+    } else if responsible
+        && matches!(
+            reason,
+            Some("political opposition" | "insufficient council funds")
+        )
+    {
+        -0.15
     } else {
-        -0.15 / (1. + age / 60.)
+        0.
     }
 }
+#[cfg(test)]
+mod accountability_tests {
+    use super::*;
+    #[test]
+    fn faction_credit_follows_responsibility_not_petition_authorship() {
+        assert_eq!(
+            outcome_credit(true, false, false, Some("political opposition")),
+            0.
+        );
+        assert!(outcome_credit(false, true, false, Some("political opposition")) < 0.);
+        assert!(outcome_credit(true, true, false, Some("insufficient council funds")) < 0.);
+        assert_eq!(
+            outcome_credit(false, true, false, Some("controller changed")),
+            0.
+        );
+        assert!(outcome_credit(true, false, true, Some("delivered")) > 0.);
+        assert!(outcome_credit(false, true, true, Some("delivered")) > 0.);
+        assert_eq!(
+            outcome_credit(true, false, false, None),
+            0.,
+            "legacy failure has no fabricated responsible government"
+        );
+    }
+}
+
 pub(crate) fn propose(h: &mut History, c: &mut Culture) {
     let (Some(g), Some(politics), Some(society)) = (&h.governance, &h.politics, &h.society) else {
         return;
@@ -195,6 +252,7 @@ pub(crate) fn propose(h: &mut History, c: &mut Culture) {
             resolved: None,
             outcome: None,
             resolution_reason: None,
+            responding_faction: None,
             honored: false,
             paid: 0.,
         });
@@ -296,6 +354,7 @@ pub(crate) fn resolve(h: &mut History) {
         } else {
             "insufficient council funds"
         };
+        p.responding_faction = valid.then_some(governing);
         p.resolution_reason = Some(reason.into());
         p.honored = honored;
         p.resolved = Some(h.month);
@@ -311,6 +370,11 @@ pub(crate) fn resolve(h: &mut History) {
             ("institution".into(), p.institution),
             ("faction".into(), p.faction),
         ]);
+        if let Some(government) = p.responding_faction {
+            if government != p.faction {
+                ev.subjects.push(("faction".into(), government));
+            }
+        }
         p.outcome = Some(ev.id);
         ev.detail.push_str(&format!("; resolution: {reason}"));
         let c = h.culture.as_mut().unwrap();
@@ -337,6 +401,14 @@ pub(crate) fn validate(h: &History, petitions: &[Petition]) -> anyhow::Result<()
                 && h.culture
                     .as_ref()
                     .is_some_and(|c| (p.institution as usize) < c.institutions.len())
+                && p.responding_faction.is_none_or(|id| {
+                    p.resolved.is_some()
+                        && h.politics.as_ref().is_some_and(|x| {
+                            x.factions
+                                .get(id as usize)
+                                .is_some_and(|f| f.civilization == p.controller)
+                        })
+                })
                 && p.opened <= h.month
                 && p.pressure.is_finite()
                 && (0. ..=1.2).contains(&p.pressure)

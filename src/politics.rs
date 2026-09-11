@@ -619,6 +619,17 @@ impl History {
             .min_by_key(|v| (v.born, v.id))
             .map(|v| v.id)
     }
+    /// Political participation requires a present, occupied household with a living head.
+    /// Ownership of an abandoned estate alone does not confer an active vote.
+    pub(crate) fn political_household_eligible(&self, f: &crate::society::Household) -> bool {
+        let society = self.society.as_ref().unwrap();
+        f.vacant_since.is_none()
+            && !society.relocation.away(f.id)
+            && !society.relocation.lost_households.contains(&f.id)
+            && !self.sites[f.site as usize].abandoned
+            && self.people[f.head as usize].died.is_none()
+            && !self.person_on_service(f.head)
+    }
     pub(crate) fn politics_year(&mut self) {
         let Some(mut p) = self.politics.take() else {
             return;
@@ -644,9 +655,7 @@ impl History {
                 .iter()
                 .filter(|f| {
                     self.sites[f.site as usize].civilization == civ as u32
-                        && !self.society.as_ref().unwrap().relocation.away(f.id)
-                        && !self.sites[f.site as usize].abandoned
-                        && self.people[f.head as usize].died.is_none()
+                        && self.political_household_eligible(f)
                 })
                 .collect();
             let mut conditions = Vec::new();
@@ -661,12 +670,28 @@ impl History {
                     .map_or([s.stocks.stock[3], 0., 0., 0.], |c| c.pressure);
                 let traits = a.map_or([0.5; 6], |a| a.traits);
                 let workers = s.economy.labor.iter().sum::<f32>().max(1.);
+                let account = self
+                    .society
+                    .as_ref()
+                    .unwrap()
+                    .household_economy
+                    .as_ref()
+                    .filter(|e| e.observed == self.month)
+                    .and_then(|e| e.accounts.get(f.id as usize))
+                    .filter(|a| a.food_site == Some(f.site) && a.need > 0.);
+                let hunger = crate::faction_interests::food_pressure(
+                    pressure[0],
+                    account.map(|a| a.hunger as f32),
+                );
+                let craft = account.map_or((s.economy.labor[3] / workers).clamp(0., 1.), |a| {
+                    (a.sector_wages[3] / a.sector_wages.iter().sum::<f64>().max(1.)) as f32
+                });
                 conditions.push([
-                    pressure[0].clamp(0., 1.),
+                    hunger,
                     pressure[3],
                     pressure[2],
                     f32::from(threat),
-                    (s.economy.labor[3] / workers).clamp(0., 1.),
+                    craft,
                     (s.economy.finance[2] / s.economy.finance[1].max(1.)).clamp(0., 1.),
                     traits[2],
                     traits[3],
@@ -678,9 +703,18 @@ impl History {
                 let organizer = residents
                     .iter()
                     .zip(&conditions)
+                    .filter(|(f, _)| p.household_factions[f.id as usize] == id as u32)
                     .max_by(|(a, x), (b, y)| {
-                        crate::faction_interests::appeal(k, **x)
-                            .total_cmp(&crate::faction_interests::appeal(k, **y))
+                        let score = |f: &crate::society::Household, x: [f32; 8]| {
+                            crate::faction_interests::appeal(k, x)
+                                + if faction.organizer == Some(f.head) {
+                                    0.5
+                                } else {
+                                    0.
+                                }
+                        };
+                        score(a, **x)
+                            .total_cmp(&score(b, **y))
                             .then_with(|| b.id.cmp(&a.id))
                     })
                     .map(|(f, _)| f.head);
@@ -720,30 +754,16 @@ impl History {
                     p.household_factions[f.id as usize] = ids[best] as u32;
                 }
             }
-            drop(residents);
-            for (k, support, pressure) in fragments {
-                self.event("faction_fragmentation",self.sites.iter().find(|s|s.civilization==civ as u32).map(|s|s.id),None,format!("{}: {} lost cohesion after organizing pressure fell or leadership changed; prior support {:.0}%, pressure {:.2}",self.civilizations[civ].name,crate::faction_interests::NAMES[k],support*100.,pressure));
-            }
-            for f in &self.society.as_ref().unwrap().households {
+            for (f, x) in residents.iter().zip(&conditions) {
                 let s = &self.sites[f.site as usize];
-                if self.society.as_ref().unwrap().relocation.away(f.id) {
-                    continue;
-                }
-                if s.civilization != civ as u32 {
-                    continue;
-                }
                 let interest =
                     p.factions[p.household_factions[f.id as usize] as usize].interest as usize;
                 let threat = p.wars.iter().any(|w| {
                     w.ended.is_none() && (w.attacker == civ as u32 || w.defender == civ as u32)
                 });
                 let urgency = match interest {
-                    0 => {
-                        1. + self.social_indicators(s.id).map_or(s.stocks.stock[3], |c| {
-                            0.5 * s.stocks.stock[3] + 0.5 * c.pressure[0]
-                        }) * 4.
-                    }
-                    1 => 1. + s.economy.finance[2] / s.economy.finance[1].max(1.),
+                    0 | 6 => 1. + 4. * x[0],
+                    1 => 1. + x[5],
                     2 | 8 => 1. + if threat { 2. } else { 0. },
                     _ => 1.,
                 };
@@ -751,6 +771,10 @@ impl History {
                     * s.stocks.stock[0]
                     * urgency.min(5.)
                     * p.factions[ids[interest]].cohesion;
+            }
+            drop(residents);
+            for (k, support, pressure) in fragments {
+                self.event("faction_fragmentation",self.sites.iter().find(|s|s.civilization==civ as u32).map(|s|s.id),None,format!("{}: {} lost cohesion after organizing pressure fell or leadership changed; prior support {:.0}%, pressure {:.2}",self.civilizations[civ].name,crate::faction_interests::NAMES[k],support*100.,pressure));
             }
             let sum = votes.iter().sum::<f32>().max(1.);
             for (j, v) in votes.iter().enumerate() {
@@ -772,7 +796,6 @@ impl History {
                 && p.factions[faction as usize].support
                     > p.factions[p.governing[civ] as usize].support + 0.05
             {
-                p.governing[civ] = faction;
                 if let Some(f) = self
                     .society
                     .as_ref()
@@ -781,11 +804,7 @@ impl History {
                     .iter()
                     .filter(|f| {
                         p.household_factions[f.id as usize] == faction
-                            && f.vacant_since.is_none()
-                            && self.people[f.head as usize].died.is_none()
-                            && !self.person_on_service(f.head)
-                            && !self.society.as_ref().unwrap().relocation.away(f.id)
-                            && !self.sites[f.site as usize].abandoned
+                            && self.political_household_eligible(f)
                             && self.people[f.head as usize].civilization == civ as u32
                     })
                     .max_by(|a, b| {
@@ -801,6 +820,7 @@ impl History {
                     })
                 {
                     let leader = f.head;
+                    p.governing[civ] = faction;
                     self.civilizations[civ].leader = leader;
                     self.event(
                         "faction_shift",
@@ -1188,6 +1208,46 @@ mod expanded_faction_tests {
                 crate::faction_interests::TAX[p.factions[*id as usize].interest as usize]
             );
         }
+        // Inactive property holders cannot vote, organize, or install a government.
+        let mut inactive = h.clone();
+        let old_government = inactive.politics.as_ref().unwrap().governing.clone();
+        let old_leaders: Vec<_> = inactive.civilizations.iter().map(|c| c.leader).collect();
+        for hh in &mut inactive.society.as_mut().unwrap().households {
+            hh.vacant_since = Some(inactive.month);
+        }
+        inactive.politics_year();
+        assert!(inactive
+            .politics
+            .as_ref()
+            .unwrap()
+            .factions
+            .iter()
+            .all(|f| f.support == 0. && (f.interest < 6 || f.organizer.is_none())));
+        assert_eq!(
+            inactive.politics.as_ref().unwrap().governing,
+            old_government
+        );
+        assert_eq!(
+            inactive
+                .civilizations
+                .iter()
+                .map(|c| c.leader)
+                .collect::<Vec<_>>(),
+            old_leaders
+        );
+        // A living estate with a dead head is likewise not a political participant.
+        let mut deceased = h.clone();
+        for person in &mut deceased.people {
+            person.died = Some(deceased.month);
+        }
+        deceased.politics_year();
+        assert!(deceased
+            .politics
+            .as_ref()
+            .unwrap()
+            .factions
+            .iter()
+            .all(|f| f.support == 0.));
         let mut resumed: History =
             serde_json::from_slice(&serde_json::to_vec(&h).unwrap()).unwrap();
         for _ in 0..8 {

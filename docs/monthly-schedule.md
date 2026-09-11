@@ -42,6 +42,10 @@ Reservations remain subsystem-specific; this is not a simultaneous global auctio
   succession. A campaign death therefore settles ownership before closing validation.
   Candidate heirs are rechecked for death or active service; inherited ownership
   does not debit population or local death credit again.
+- Annual faction decisions read current completed household retail observations
+  (same month and site) alongside prior-Close remembered town pressure. Petition
+  credit uses the recorded responding faction, so later council turnover cannot
+  reassign responsibility for an earlier response.
 - Events are committed alongside actions and can influence later stages. Closing
   records summaries; it does not defer provenance IDs or conceal same-month events.
 - Economy migration and living activation explicitly call `initialize_history_boundary`.

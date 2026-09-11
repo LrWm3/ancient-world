@@ -64,3 +64,11 @@ improves learning outcomes. School readiness is not knowledge acquisition.
 Longer matched branches with separate credit, grant and autonomy ablations
 remain useful before adjusting political weights. No production coefficients
 were changed in this test pass.
+
+
+The subsequent [faction update](faction-interests.md#household-access-and-political-accountability-september-2026)
+records which administration resolved each petition. Refusal/underfunding now
+penalizes that administration rather than an opposition advocate. A matched
+turnover fixture checks that responsibility remains attached to the original
+responder after a government change; the existing delivery/contact fixture
+continues to test the production allegiance path.
