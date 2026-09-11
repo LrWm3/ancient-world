@@ -67,10 +67,20 @@ in the month. Nor does it replay the full scheduler or workshop hiring.
 
 Existing firms forecast affordable shifts after lease costs. Existing shared service
 capacity, funding and demand remain constraints. In refined mode, present named
-adults offer a fraction of their uncommitted time. Ambition influences that fraction;
-craft occupation familiarity and ambition influence stable hiring priority. Sparse
-agents use a neutral default where no traits were recorded. This is a deliberately
-small preference model, not a full employment market or household utility solver.
+adults offer a fraction of their uncommitted time. Ambition and household cash/food
+pressure influence that fraction, evaluated against the employer's actual wage
+relative to the local food-price wage reference. Cash pressure uses a two-month gross
+food bill as a buffer target; hunger uses the previous completed household food
+allocation. Food records from another settlement are ignored after relocation.
+Staffing precedes the retail reset, so current production is not anticipated.
+
+Craft occupation familiarity and completed workshop practice influence stable hiring
+priority. Practice contributes `completed / (12 + completed)`, giving diminishing
+returns without changing recipe yields. Sparse agents use neutral ambition where
+no traits were recorded. Offers remain bounded between zero and remaining capacity;
+zero pay produces no paid-work offer. These response constants are toy behavior
+parameters, not calibrated labor economics. Employers still post the existing
+food-indexed wage; competitive wage bargaining and family-specific skills are absent.
 
 Hiring uses canonical site/family/firm order and person-ID ties. Commitments share
 the same personal time ledger as research and culture. Time already committed there
@@ -81,8 +91,8 @@ shifts neither receive GPU labor grants nor pay wages.
 GPU recipes retain authority over physical output and material consumption. Actual
 completed work settles personal commitments and lifetime workshop practice totals.
 It changes firm revenue, household purchasing power, stocks and subsequent planning
-through existing paths. Practice totals do not yet increase skill or efficiency.
-The four enterprise workshop families participate; other production labor and vessel
+through existing paths. Practice now improves hiring priority, but does not increase
+physical output per hour or technical efficiency. The four enterprise workshop families participate; other production labor and vessel
 crews still rely on their existing aggregate allowances. The aggregate service ceiling
 remains in this pilot, so named employment is not yet a complete resident labor model.
 
@@ -116,8 +126,8 @@ and workshop receipts, grants and comparison settings serialize with History.
   worlds still requires explicit roster reconciliation.
 - Richer birth eligibility and reproductive circumstances; births currently retain the
   community-level expectation and unknown-parent fallback.
-- Skills, wages and household circumstances in work offers; explicit coordination
-  with agricultural and other aggregate labor before removing the service ceiling.
+- Family-specific skills and employer wage competition; explicit coordination with
+  agricultural and other aggregate labor before removing the service ceiling.
 - More subsystem-specific input revisions and reservation references as contracts
   become stable. Keep diagnostic summaries separate from behavioral feedback.
 

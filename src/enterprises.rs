@@ -441,7 +441,7 @@ impl History {
                 let eligible: Vec<_> = offers[site]
                     .iter()
                     .filter(|o| residents[site].contains(&(o.household as usize)))
-                    .copied()
+                    .map(|o| o.at_wage(f.wage_rate))
                     .collect();
                 self.participation.as_mut().map(|p| {
                     crate::workshop_resolution::resolve(
@@ -890,6 +890,83 @@ mod tests {
             .get_mut(&person)
             .unwrap()
             .capacity = 0.4;
+        // Opening household circumstances and completed practice reach actual
+        // candidates; retail resets these food records only after staffing.
+        let household = h.participation.as_ref().unwrap().residents[&person]
+            .household
+            .unwrap();
+        let mut pressured = h.clone();
+        let account = &mut pressured
+            .society
+            .as_mut()
+            .unwrap()
+            .household_economy
+            .as_mut()
+            .unwrap()
+            .accounts[household as usize];
+        account.food_site = Some(0);
+        account.need = (account.cash + 1000.) * 100.;
+        account.hunger = 1.;
+        let mut secure = pressured.clone();
+        let account = &mut secure
+            .society
+            .as_mut()
+            .unwrap()
+            .household_economy
+            .as_mut()
+            .unwrap()
+            .accounts[household as usize];
+        // Keep cash identical: otherwise enterprise founding capital changes too.
+        account.need = 0.;
+        account.hunger = 0.;
+        let offer = |world: &History| {
+            world.workshop_offers()[0]
+                .iter()
+                .find(|o| o.person == person)
+                .unwrap()
+                .at_wage(36.)
+        };
+        assert!(offer(&pressured).fraction > offer(&secure).fraction);
+        let score_before = offer(&secure).score;
+        secure
+            .participation
+            .as_mut()
+            .unwrap()
+            .residents
+            .get_mut(&person)
+            .unwrap()
+            .workshop_completed = 12.;
+        assert!(offer(&secure).score > score_before);
+        // Demand caps can hide a willingness difference; isolate a labor shortage.
+        for world in [&mut pressured, &mut secure] {
+            world
+                .participation
+                .as_mut()
+                .unwrap()
+                .residents
+                .get_mut(&person)
+                .unwrap()
+                .capacity = 0.001;
+        }
+        pressured.prepare_enterprises();
+        secure.prepare_enterprises();
+        let paid = |world: &History| {
+            world
+                .enterprises
+                .as_ref()
+                .unwrap()
+                .firms
+                .iter()
+                .map(|f| f.last_funded_work)
+                .sum::<f64>()
+        };
+        assert!(
+            paid(&pressured) > paid(&secure),
+            "pressured {}, secure {}",
+            paid(&pressured),
+            paid(&secure)
+        );
+
         let mut absent = h.clone();
         absent
             .participation

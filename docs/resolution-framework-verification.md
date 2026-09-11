@@ -120,3 +120,36 @@ These are conditional one-month comparisons after food/disease exposure has alre
 been computed. They do not model counterfactual food consumption or run an alternative
 full history. No new balance rates were introduced and no new long-run seed calibration
 was performed for this diagnostic-only increment.
+
+## Workshop offers: completed practice, pay and household pressure
+
+Offers now use actual posted wages relative to local food prices, household cash
+buffers and last completed food-access records. Completed workshop practice improves
+hiring priority with diminishing returns; paid idle time does not. Physical recipe
+yields and firm wage-setting rules are unchanged.
+
+Controlled checks cover monotonic wage/pressure responses, zero-pay refusal, bounded
+offers and practice-based priority. The enterprise fixture compares food-pressure
+records with identical cash and business capital under constrained personal capacity.
+An earlier fixture changed household cash as well and confounded enterprise entry
+funding with labor willingness; it was corrected rather than treated as evidence of
+a labor effect. The original absence, payroll-recipient, stale reservation, checkpoint
+and work-settlement checks remain part of that fixture.
+
+Three ten-year living-history runs used terrain 32, ecology 16, one geological epoch,
+individual demography and workshop refinement on the Quadro RTX 5000 Vulkan backend:
+
+| Seed | Resident population | Local cohort overhang | Unresolved identities | Max absolute final normalized economy residual |
+|---|---:|---:|---:|---:|
+| 17 | 2,155 | 0 | 0 | 1.15e-6 |
+| 81 | 2,118 | 0 | 0 | 6.16e-7 |
+| 256 | 2,167 | 0 | 0 | 4.38e-7 |
+
+Reproduction:
+`cargo run --example cultural_work_calibrate -- --individual-demography --workshop-refinement --seeds 17,81,256 --years 10 --output output/workshop-offer-seeds.json`
+
+These are smoke checks, not a matched long-run calibration or evidence that aggregate
+labor forecasts are accurate. Existing service ceilings and finite employer demand
+can mask differences in individual willingness. Family-specific technical skills,
+competitive wages and allocation across all production sectors remain future work.
+The 12-month comparison-on/off batch-equivalence fixture also passes with the new offers.

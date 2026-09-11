@@ -22,6 +22,46 @@ pub(crate) struct Offer {
     pub score: f32,
     pub fraction: f32,
 }
+/// An opening-state candidate; evaluated against the employer's actual wage.
+#[derive(Clone, Copy)]
+pub(crate) struct Candidate {
+    pub person: u32,
+    pub household: u32,
+    ambition: f32,
+    familiarity: f32,
+    practice: f32,
+    pressure: f32,
+    reference_wage: f64,
+}
+impl Candidate {
+    pub(crate) fn at_wage(self, wage: f64) -> Offer {
+        // Toy response in food-price-relative currency units, bounded independently
+        // of employer funding and the person's remaining time.
+        let relative = (wage / self.reference_wage).max(0.);
+        let pay_response = (relative / (1. + relative)) as f32;
+        Offer {
+            person: self.person,
+            household: self.household,
+            score: self.familiarity + self.practice + 0.25 * self.ambition,
+            fraction: if wage <= 0. {
+                0.
+            } else {
+                ((0.25 + 0.25 * self.ambition + 0.5 * self.pressure) * (0.5 + pay_response))
+                    .clamp(0., 1.)
+            },
+        }
+    }
+}
+fn household_pressure(cash: f64, food_need: f64, hunger: f64, food_price: f64) -> f32 {
+    // A two-month gross food bill is a buffer target, not a new inventory.
+    let buffer = 2. * food_need.max(0.) * food_price;
+    let cash_pressure = if buffer > 0. {
+        (1. - cash.max(0.) / buffer).clamp(0., 1.)
+    } else {
+        0.
+    };
+    (0.7 * cash_pressure + 0.3 * hunger.clamp(0., 1.)) as f32
+}
 /// Explicit stable hiring priority; storage order never determines who gets the shift.
 pub(crate) fn resolve(
     pool: &mut Participation,
@@ -158,7 +198,7 @@ impl crate::civilization::History {
             .workshop_individual = enabled;
         Ok(())
     }
-    pub(crate) fn workshop_offers(&self) -> Vec<Vec<Offer>> {
+    pub(crate) fn workshop_offers(&self) -> Vec<Vec<Candidate>> {
         let mut offers = vec![vec![]; self.sites.len()];
         if !self
             .resolution
@@ -183,13 +223,29 @@ impl crate::civilization::History {
                 .and_then(|c| c.agents.iter().find(|a| a.person == p.person));
             let interest = agent.map_or(0.5, |a| a.traits[0]);
             let familiar = agent.map_or(0., |a| f32::from(a.occupation.contains("craft")));
-            // Paid workshop participation competes with personal commitments. The
-            // unoffered fraction remains discretionary; no invented output bonus.
-            offers[site as usize].push(Offer {
+            let food_price =
+                self.sites[site as usize].economy.prices[crate::economy::FOOD].max(0.01) as f64;
+            let account = self
+                .society
+                .as_ref()
+                .and_then(|s| s.household_economy.as_ref())
+                .and_then(|e| e.accounts.get(household as usize));
+            // Do not carry old settlement food exposure across a relocation.
+            let pressure = account
+                .filter(|a| a.food_site == Some(site))
+                .map_or(0., |a| {
+                    household_pressure(a.cash, a.need, a.hunger, food_price)
+                });
+            // Completed work, not merely time paid for, develops hiring familiarity.
+            let practice = (p.workshop_completed / (12. + p.workshop_completed)) as f32;
+            offers[site as usize].push(Candidate {
                 person: p.person,
                 household,
-                score: interest + familiar,
-                fraction: 0.5 + 0.5 * interest,
+                ambition: interest.clamp(0., 1.),
+                familiarity: familiar,
+                practice,
+                pressure,
+                reference_wage: 18. * food_price,
             });
         }
         offers
@@ -245,6 +301,36 @@ impl crate::civilization::History {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn offers_respond_to_pay_need_and_completed_practice() {
+        let secure = Candidate {
+            person: 0,
+            household: 0,
+            ambition: 0.5,
+            familiarity: 0.,
+            practice: 0.,
+            pressure: household_pressure(1000., 18., 0., 2.),
+            reference_wage: 36.,
+        };
+        let strained = Candidate {
+            pressure: household_pressure(0., 18., 1., 2.),
+            ..secure
+        };
+        assert!(strained.at_wage(36.).fraction > secure.at_wage(36.).fraction);
+        assert!(secure.at_wage(72.).fraction > secure.at_wage(18.).fraction);
+        assert_eq!(strained.at_wage(0.).fraction, 0.);
+        let skilled = Candidate {
+            practice: 0.8,
+            ..secure
+        };
+        assert!(skilled.at_wage(36.).score > secure.at_wage(36.).score);
+        assert_eq!(skilled.at_wage(36.).fraction, secure.at_wage(36.).fraction);
+        for wage in [0., 0.01, 36., 1e9] {
+            for candidate in [secure, strained, skilled] {
+                assert!((0. ..=1.).contains(&candidate.at_wage(wage).fraction));
+            }
+        }
+    }
     #[test]
     fn staffing_uses_remaining_time_and_stable_priority() {
         let mut pool = Participation {
