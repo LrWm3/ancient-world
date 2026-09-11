@@ -1,4 +1,4 @@
-//! Agriculture pilot: existing GPU request -> named attendance -> bounded cultivation.
+//! Shared farming/extraction pilot: GPU request -> named attendance -> bounded production.
 use crate::{
     civilization::{History, ProductionLaborForecast},
     participation::{Activity, Presence},
@@ -10,10 +10,15 @@ use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Agriculture {
+    #[serde(default)]
+    pub extraction: bool,
     pub plans: Vec<FarmPlan>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FarmPlan {
+    /// 0 farming, 1 forestry, 2 mining; legacy plans are farming.
+    #[serde(default)]
+    pub sector: usize,
     pub month: u32,
     pub site: u32,
     pub requested: f32,
@@ -38,6 +43,35 @@ impl History {
         self.resolution
             .as_ref()
             .is_some_and(|r| r.agriculture.is_some())
+    }
+    pub fn extraction_refinement_enabled(&self) -> bool {
+        self.resolution
+            .as_ref()
+            .and_then(|r| r.agriculture.as_ref())
+            .is_some_and(|a| a.extraction)
+    }
+    pub fn set_extraction_refinement(&mut self, enabled: bool) -> Result<()> {
+        let a = self
+            .resolution
+            .as_mut()
+            .and_then(|r| r.agriculture.as_mut());
+        let Some(a) = a else {
+            ensure!(
+                !enabled,
+                "extraction participation requires agriculture participation"
+            );
+            return Ok(());
+        };
+        ensure!(
+            a.plans.iter().all(|p| p.settled),
+            "production work remains unsettled"
+        );
+        a.extraction = enabled;
+        for s in &mut self.sites {
+            s.economy.extraction_workers = [0.; 4];
+            s.economy.farm_workers[0] = 0.;
+        }
+        Ok(())
     }
     pub fn set_agriculture_refinement(&mut self, enabled: bool) -> Result<()> {
         ensure!(
@@ -68,6 +102,7 @@ impl History {
         }
         for s in &mut self.sites {
             s.economy.farm_workers = [0.; 4];
+            s.economy.extraction_workers = [0.; 4];
         }
         Ok(())
     }
@@ -99,60 +134,75 @@ impl History {
             "stale agriculture forecast"
         );
         let mut plans = Vec::new();
+        let extraction = self.extraction_refinement_enabled();
+        for site in &mut self.sites {
+            site.economy.extraction_workers = [0.; 4];
+        }
         for f in forecasts {
-            let site = &self.sites[f.site as usize];
-            let wanted = if site.abandoned {
-                0.
-            } else {
-                f.sectors[0].min(site.stocks.habitat[1].max(0.) / 1.5)
-            };
-            let pool = self.participation.as_ref().unwrap();
-            let people: Vec<_> = pool
-                .residents
-                .values()
-                .filter_map(|r| {
-                    let hh = r.household?;
-                    let household = self.society.as_ref()?.households.get(hh as usize)?;
-                    (r.presence == Presence::Resident(f.site)
-                        && household.site == f.site
-                        && pool.available(r.person) > 1e-6)
-                        .then_some((r.person, hh, pool.available(r.person)))
-                })
-                .collect();
-            let available: f32 = people.iter().map(|r| r.2).sum();
-            let fraction = (wanted / available.max(1e-6)).min(1.);
-            let mut plan = FarmPlan {
-                month: self.month,
-                site: f.site,
-                requested: wanted,
-                assignments: vec![],
-                settled: false,
-            };
-            let mut left = wanted;
-            for (person, household, capacity) in people {
-                let grant = (capacity * fraction).min(left);
-                if let Some(commitment) = self.participation.as_mut().unwrap().reserve(
-                    self.month,
-                    f.site,
-                    Activity::Agriculture,
-                    &[person],
-                    grant,
-                ) {
-                    let granted = self.participation.as_ref().unwrap().commitments
-                        [commitment as usize]
-                        .granted;
-                    plan.assignments.push(FarmAssignment {
-                        person,
-                        household,
-                        commitment,
-                        granted,
-                        used: 0.,
-                    });
-                    left = (left - granted).max(0.);
+            for sector in 0..if extraction { 3 } else { 1 } {
+                let site = &self.sites[f.site as usize];
+                let wanted = if site.abandoned {
+                    0.
+                } else if sector == 0 {
+                    f.sectors[0].min(site.stocks.habitat[1].max(0.) / 1.5)
+                } else {
+                    f.sectors[sector]
+                };
+                let pool = self.participation.as_ref().unwrap();
+                let people: Vec<_> = pool
+                    .residents
+                    .values()
+                    .filter_map(|r| {
+                        let hh = r.household?;
+                        let household = self.society.as_ref()?.households.get(hh as usize)?;
+                        (r.presence == Presence::Resident(f.site)
+                            && household.site == f.site
+                            && pool.available(r.person) > 1e-6)
+                            .then_some((r.person, hh, pool.available(r.person)))
+                    })
+                    .collect();
+                let available: f32 = people.iter().map(|r| r.2).sum();
+                let fraction = (wanted / available.max(1e-6)).min(1.);
+                let mut plan = FarmPlan {
+                    sector,
+                    month: self.month,
+                    site: f.site,
+                    requested: wanted,
+                    assignments: vec![],
+                    settled: false,
+                };
+                let mut left = wanted;
+                for (person, household, capacity) in people {
+                    let grant = (capacity * fraction).min(left);
+                    if let Some(commitment) = self.participation.as_mut().unwrap().reserve(
+                        self.month,
+                        f.site,
+                        activity(sector),
+                        &[person],
+                        grant,
+                    ) {
+                        let granted = self.participation.as_ref().unwrap().commitments
+                            [commitment as usize]
+                            .granted;
+                        plan.assignments.push(FarmAssignment {
+                            person,
+                            household,
+                            commitment,
+                            granted,
+                            used: 0.,
+                        });
+                        left = (left - granted).max(0.);
+                    }
                 }
+                if sector == 0 {
+                    self.sites[f.site as usize].economy.farm_workers =
+                        [if extraction { 2. } else { 1. }, plan.granted(), 0., wanted];
+                } else {
+                    self.sites[f.site as usize].economy.extraction_workers[sector - 1] =
+                        plan.granted();
+                }
+                plans.push(plan);
             }
-            self.sites[f.site as usize].economy.farm_workers = [1., plan.granted(), 0., wanted];
-            plans.push(plan);
         }
         self.resolution
             .as_mut()
@@ -165,11 +215,17 @@ impl History {
     }
     /// Prepaid attendance weights. A later production shortfall does not claw back food already bought.
     pub(crate) fn agricultural_earnings(&self) -> Option<BTreeMap<usize, f64>> {
+        self.production_earnings(0)
+    }
+    pub(crate) fn production_earnings(&self, sector: usize) -> Option<BTreeMap<usize, f64>> {
         let a = self.resolution.as_ref()?.agriculture.as_ref()?;
+        if sector > 0 && !a.extraction {
+            return None;
+        }
         Some(
             a.plans
                 .iter()
-                .filter(|p| p.month == self.month && !p.settled)
+                .filter(|p| p.month == self.month && !p.settled && p.sector == sector)
                 .flat_map(|p| &p.assignments)
                 .fold(BTreeMap::new(), |mut m, a| {
                     *m.entry(a.household as usize).or_default() += a.granted as f64;
@@ -188,7 +244,12 @@ impl History {
                 }
                 ensure!(p.month == self.month, "stale agriculture settlement");
                 let granted = p.granted();
-                let used = self.sites[p.site as usize].economy.farm_workers[2];
+                let economy = &self.sites[p.site as usize].economy;
+                let used = if p.sector == 0 {
+                    economy.farm_workers[2]
+                } else {
+                    economy.extraction_workers[p.sector + 1]
+                };
                 ensure!(
                     used.is_finite() && used >= 0. && used <= granted + 1e-4,
                     "agriculture exceeded attendance"
@@ -204,7 +265,7 @@ impl History {
                 let state = self.resolution.as_mut().unwrap();
                 let boundary = Boundary {
                     month: self.month,
-                    system: System::Agriculture,
+                    system: [System::Agriculture, System::Forestry, System::Mining][p.sector],
                     site: p.site,
                     subject: p.site,
                     revision: crate::resolution::revision([
@@ -215,19 +276,29 @@ impl History {
                 let metrics = if state.compare {
                     vec![
                         Metric {
-                            name: "agriculture_attendance".into(),
+                            name: if p.sector == 0 {
+                                "agriculture_attendance"
+                            } else {
+                                "extraction_attendance"
+                            }
+                            .into(),
                             unit: "worker-months".into(),
                             expected: p.requested as f64,
                             actual: granted as f64,
                             explained: vec![],
                         },
                         Metric {
-                            name: "cultivation_work".into(),
+                            name: if p.sector == 0 {
+                                "cultivation_work"
+                            } else {
+                                "extraction_work"
+                            }
+                            .into(),
                             unit: "worker-months".into(),
                             expected: granted as f64,
                             actual: used as f64,
                             explained: vec![(
-                                "unused cultivation attendance".into(),
+                                "unused production attendance".into(),
                                 (used - granted) as f64,
                             )],
                         },
@@ -274,7 +345,8 @@ impl History {
             ensure!(
                 p.month <= self.month
                     && (p.site as usize) < self.sites.len()
-                    && sites.insert(p.site)
+                    && p.sector < 3
+                    && sites.insert((p.site, p.sector))
                     && p.requested.is_finite()
                     && p.requested >= 0.
                     && p.granted() <= p.requested + 1e-4,
@@ -300,7 +372,7 @@ impl History {
                         .get(row.commitment as usize)
                         .ok_or_else(|| anyhow::anyhow!("missing agricultural commitment"))?;
                     ensure!(
-                        c.activity == Activity::Agriculture
+                        c.activity == activity(p.sector)
                             && c.site == p.site
                             && c.people == vec![(row.person, row.granted)]
                             && c.settled == p.settled
@@ -312,4 +384,8 @@ impl History {
         }
         Ok(())
     }
+}
+
+fn activity(sector: usize) -> Activity {
+    [Activity::Agriculture, Activity::Forestry, Activity::Mining][sector]
 }

@@ -156,6 +156,14 @@ mod agriculture_tests {
     #[test]
     #[ignore = "requires hardware GPU"]
     fn agricultural_attendance_controls_cultivation_income_and_continuation() {
+        attendance_fixture(false);
+    }
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn extraction_attendance_controls_output_income_and_continuation() {
+        attendance_fixture(true);
+    }
+    fn attendance_fixture(extraction: bool) {
         let mut g = Generator::new(
             pollster::block_on(crate::gpu::ContextGpu::headless()).unwrap(),
             crate::config::Config {
@@ -176,6 +184,7 @@ mod agriculture_tests {
             .unwrap();
         h.set_workshop_refinement(true).unwrap();
         h.set_agriculture_refinement(true).unwrap();
+        h.set_extraction_refinement(extraction).unwrap();
         assert!(h.set_workshop_refinement(false).is_err());
         let mut ready = h.clone();
         ready.month += 1;
@@ -184,6 +193,12 @@ mod agriculture_tests {
         for site in &mut ready.sites {
             site.demography.crops[2] = ready.month as f32;
             site.economy.crops[0][1] = 100.;
+            if extraction {
+                site.economy.forest = [5000., 20., 2., 0.];
+                site.economy.reserves[1] = 100.;
+                site.economy.reserves[2] = 100.;
+                site.economy.logistics[3] = 0.; // no stock-target suppression
+            }
         }
         let engine = Engine::new(&g).unwrap();
         let forecast = engine.forecast_labor(&g, &ready).unwrap();
@@ -214,6 +229,19 @@ mod agriculture_tests {
         assert!(ready.set_agriculture_refinement(false).is_err());
         assert!(ready.reserve_agriculture(&forecast).is_err());
         let farm_weights = ready.agricultural_earnings().unwrap();
+        let extraction_weights = [ready.production_earnings(1), ready.production_earnings(2)];
+        if extraction {
+            assert!(ready.set_extraction_refinement(false).is_err());
+            assert!(ready
+                .sites
+                .iter()
+                .any(|s| s.economy.extraction_workers[0] > 0.
+                    && s.economy.extraction_workers[1] > 0.));
+            assert!(busy
+                .sites
+                .iter()
+                .all(|s| s.economy.extraction_workers == [0.; 4]));
+        }
         let money = |h: &History| {
             h.sites
                 .iter()
@@ -247,6 +275,17 @@ mod agriculture_tests {
                 assert!(a.sector_wages[0] < 1e-6);
             }
         }
+        if extraction {
+            for (sector, weights) in extraction_weights.iter().enumerate() {
+                let weights = weights.as_ref().unwrap();
+                assert!(wallets.iter().any(|a| a.sector_wages[sector + 1] > 0.));
+                for (id, account) in wallets.iter().enumerate() {
+                    if !weights.contains_key(&id) {
+                        assert!(account.sector_wages[sector + 1] < 1e-6);
+                    }
+                }
+            }
+        }
         engine.upload(&g, &ready);
         engine.dispatch(&g, false, ready.sites.len() as u32);
         engine.read(&g, &mut ready, true).unwrap();
@@ -263,6 +302,24 @@ mod agriculture_tests {
             .all(|s| s.economy.production_probe[1] == 0.));
         assert!(ready.sites.iter().any(|s| s.economy.crops[0][3] > 0.));
         assert!(busy.sites.iter().all(|s| s.economy.crops[0][3] == 0.));
+        if extraction {
+            assert!(ready
+                .sites
+                .iter()
+                .any(|s| s.economy.extraction_workers[2] > 0.));
+            assert!(ready
+                .sites
+                .iter()
+                .any(|s| s.economy.extraction_workers[3] > 0.));
+            assert!(busy
+                .sites
+                .iter()
+                .all(|s| s.economy.extraction_workers == [0.; 4]));
+            assert!(busy
+                .sites
+                .iter()
+                .all(|s| s.economy.reserves[1] == 100. && s.economy.reserves[2] == 100.));
+        }
         ready.settle_agriculture().unwrap();
         let settled = serde_json::to_value(&ready.resolution).unwrap();
         ready.settle_agriculture().unwrap();

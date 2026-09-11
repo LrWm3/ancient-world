@@ -297,6 +297,7 @@ impl History {
             s.demography.household_food = [0.; 4];
         }
         let farm_earnings = self.agricultural_earnings();
+        let extraction_earnings = [self.production_earnings(1), self.production_earnings(2)];
         let member_counts = self.household_food_members();
         let complete_roster = self.individual_demography_enabled();
         let controllers = (0..self.sites.len())
@@ -381,6 +382,14 @@ impl History {
                     .map(|id| earnings.get(id).copied().unwrap_or(0.))
                     .sum::<f64>() as f32;
             }
+            for (sector, earnings) in extraction_earnings.iter().enumerate() {
+                if let Some(earnings) = earnings {
+                    municipal_work[sector + 1] = ids
+                        .iter()
+                        .map(|id| earnings.get(id).copied().unwrap_or(0.))
+                        .sum::<f64>() as f32;
+                }
+            }
             municipal_work[3] = (municipal_work[3] - vessel_work[i]).max(0.);
             municipal_work[3] =
                 (municipal_work[3] - s.economy.enterprise_plan.iter().sum::<f32>()).max(0.);
@@ -432,6 +441,11 @@ impl History {
                     };
                     if let Some(earnings) = &farm_earnings {
                         weights[0] = earnings.get(&id).copied().unwrap_or(0.);
+                    }
+                    for (sector, earnings) in extraction_earnings.iter().enumerate() {
+                        if let Some(earnings) = earnings {
+                            weights[sector + 1] = earnings.get(&id).copied().unwrap_or(0.);
+                        }
                     }
                     weights
                 })

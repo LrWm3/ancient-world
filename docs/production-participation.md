@@ -1,7 +1,8 @@
 # Production participation boundary
 
 Production participation remains unfinished. Workshops and the opt-in agriculture
-pilot assign people; forestry, mining and construction still use pooled labor.
+pilot assign people; an opt-in extension now assigns forestry/mining workers too.
+Construction still uses pooled labor.
 The [food-access controls](resident-payroll-balance.md) make this more consequential:
 account-weighted pay and actual household needs diverge. Multiplying wages by
 household size would not establish who worked or prevent overlapping assignments.
@@ -94,8 +95,8 @@ grants and cultivated worker-months in common resolution receipts. Production
 precedes this month's demographic deaths, so a subsequent death does not erase
 already performed agricultural work.
 
-Forestry, mining, construction, husbandry and fishing are still aggregate. Their
-pay shares retain existing proxies, and they do not yet have complete personal
+With agricultural refinement alone, forestry, mining, construction, husbandry
+and fishing remain aggregate. Their pay shares retain existing proxies, and they do not yet have complete personal
 assignments. The GPU still bounds total sector allocations by its aggregate
 workforce; the farm cap can only reduce its agricultural allowance. This is a
 causal agriculture increment, not completion of all production participation.
@@ -189,3 +190,57 @@ Reproduce each arm using the 30-year command above with `--seeds 409,1024
 --years 100` and separate filenames. Completed raw results are ignored
 `output/agriculture-heldout-control.json` and `output/agriculture-heldout-pilot.json`.
 No incomplete runs were extrapolated or excluded from this comparison.
+
+
+## Forestry and mining participation
+
+The production attendance plan now optionally includes forestry and mining.
+Enable `History::set_extraction_refinement(true)` after agricultural refinement,
+or add `--extraction-refinement` to its calibration command. New and old histories
+leave this extension off unless selected. Agricultural refinement remains its
+prerequisite so the same resident cannot contribute a full anonymous farm shift
+and then receive an additional named extraction shift.
+
+One existing GPU forecast supplies all three sector requests. At each site, after
+the existing service/workshop/crew reservations, farming matches first, forestry
+second and mining third. Each distributes its request proportionally over the
+remaining eligible personal capacity. This is an explicit food-first priority,
+not a fair-share policy; earlier reservations can starve later extraction under
+scarcity. There is no extra terrain readback or separate extraction forecast.
+
+GPU grants cap forest and mining labor. Forestry reports timber removed divided
+by its tool-dependent extraction rate. Mining reports the work consumed by ore
+and clay together, preserving their existing alternating priority. Existing
+source inventories, orders, tool difficulty, territorial claims and source
+settlement still constrain physical output. Unused attendance does not become
+output or retroactively fund another monthly activity. Household forestry/mining
+wage shares now follow their actual granted participants; the finite municipal
+payroll pool and prepaid-attendance semantics remain unchanged.
+
+The saved plan retains the historic agricultural container for archive
+compatibility, with a sector tag (old plans default to farming). Separate common
+resolution receipts identify Agriculture, Forestry and Mining and record requested,
+granted and productive work. Construction, fisheries and husbandry still require
+their own conversions; this extension does not claim their anonymous labor has
+been reconciled with actual people. Construction in particular shares a service
+pool with infrastructure operation and cannot simply reuse the mining output rule.
+
+The focused extraction fixture compares available residents with fully committed
+ones, checks remaining ore/clay under zero attendance, wages to assigned households,
+productive work, duplicate reservation/settlement and checkpoint/batch continuation.
+All three forecast/attendance GPU tests and both material-production GPU
+regressions pass on Vulkan; the ordinary library suite passes 113 tests with
+102 GPU tests skipped in that invocation. A matched balance comparison still
+needs to establish whether the additional attendance and wage changes improve
+whole-history behavior.
+
+
+Construction boundary review: `ecological_production` starts its remaining craft
+pool after `exchange.w` services, then operates waterworks, spends a bounded
+asset-work share on urgent shelter, water-system recovery, housing and storage,
+fits workshop assets, and executes recipes/private workshop plans. A construction
+conversion must split public operation/building attendance from already named
+private work before applying a cap. Capping the entire fourth sector by newly
+available people would wrongly suppress work already paid and reserved upstream.
+The required counterfactual is no builders with preserved private workshop grants:
+construction should stop while the separately staffed workshop can still operate.

@@ -34,6 +34,8 @@ struct Args {
     workshop_refinement: bool,
     #[arg(long, requires_all = ["individual_demography", "workshop_refinement"])]
     agriculture_refinement: bool,
+    #[arg(long, requires = "agriculture_refinement")]
+    extraction_refinement: bool,
     #[arg(long)]
     individual_demography: bool,
     /// Identify all whole residents at the initial boundary; does not replace cohort demography.
@@ -186,6 +188,12 @@ fn main() -> Result<()> {
         let (mut funded, mut cancelled) = (0u64, 0u64);
         let mut food = [0f64; 6];
         let mut max_population_residual = 0f64;
+        if args.extraction_refinement {
+            g.civilizations
+                .as_mut()
+                .unwrap()
+                .set_extraction_refinement(true)?;
+        }
         let mut max_food_residual = 0f64;
         for month in 1..=args.years * 12 {
             if let Err(error) = g.advance_history(1) {
@@ -311,7 +319,7 @@ fn main() -> Result<()> {
         std::fs::write(
             &args.output,
             serde_json::to_vec_pretty(
-                &json!({"agriculture_refinement":args.agriculture_refinement,"household_diagnostics":args.household_diagnostics,"resident_payroll":!args.legacy_resident_payroll,"individual_nutrition":!args.no_individual_nutrition,"common_share_override":args.common_share,"observation_interval_months":1,"food_fields":["need","available","funded","eaten","physical_gap","access_gap"],"crop_yield_scale":args.crop_yield_scale,"founding_access":!args.no_founding_access,"aggregate_resolution":args.aggregate_resolution,"compare_resolution":args.compare_resolution,"workshop_refinement":args.workshop_refinement,"individual_demography":args.individual_demography,"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows}),
+                &json!({"extraction_refinement":args.extraction_refinement,"agriculture_refinement":args.agriculture_refinement,"household_diagnostics":args.household_diagnostics,"resident_payroll":!args.legacy_resident_payroll,"individual_nutrition":!args.no_individual_nutrition,"common_share_override":args.common_share,"observation_interval_months":1,"food_fields":["need","available","funded","eaten","physical_gap","access_gap"],"crop_yield_scale":args.crop_yield_scale,"founding_access":!args.no_founding_access,"aggregate_resolution":args.aggregate_resolution,"compare_resolution":args.compare_resolution,"workshop_refinement":args.workshop_refinement,"individual_demography":args.individual_demography,"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows}),
             )?,
         )?;
     }

@@ -1,5 +1,5 @@
 struct Economy {
- farm_workers:vec4<f32>,
+ farm_workers:vec4<f32>, extraction_workers:vec4<f32>,
  production_probe:vec4<f32>, food_labor:vec4<f32>,
  tool_craft:vec4<f32>, tool_work:vec4<f32>, tool_orders:array<vec4<f32>,16>,
  residue:vec4<f32>,
@@ -126,6 +126,7 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  let recovery=select(0.,clamp(e.soil.w,0.,1.),(p.options.w&2u)!=0u);
  let available_workers=workers(i,s.stock.x)*(1.-.4*recovery);e.labor=production_labor(i,e);
  if e.farm_workers.x>.5 {e.labor.x=min(e.labor.x,e.farm_workers.y);}
+ if e.farm_workers.x>1.5 {e.labor.y=min(e.labor.y,e.extraction_workers.x);e.labor.z=min(e.labor.z,e.extraction_workers.y);e.extraction_workers.z=0.;e.extraction_workers.w=0.; }
  if e.logistics.w>3.5 {e.food_labor.x=mix(e.food_labor.x,e.food_labor.y,.25);}
  let rain=max(0.,t.hydro.z)*area/12000.*weather;
  e.water.z+=rain;e.water.x+=rain;
@@ -156,6 +157,7 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  // Finite timber harvest; a regional woodland stock, not unlimited yield from cover.
  let wood_potential=min(e.labor.y*extraction_rate(e,0u),min(e.forest.x/.5,min(e.forest.y/.002,e.forest.z/.0002)));
  let wood=min(wood_potential,order_room(e,0u));
+ if e.farm_workers.x>1.5 {e.extraction_workers.z=wood/extraction_rate(e,0u); }
  e.forest-=vec4(wood*vec3(.5,.002,.0002),0.);e.goods[0].x+=wood;e.made[0].x+=wood;
  // One mining workforce serves ore and clay. Rotate priority to avoid starving
  // either industry when both have orders; all policies obey the physical budget.
@@ -166,6 +168,7 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  let quantity=min(min(e.reserves[mineral+1u],mining*rate),order_room(e,good));
  e.reserves[mineral+1u]-=quantity;e.goods[good/4u][good%4u]+=quantity;e.made[good/4u][good%4u]+=quantity;mining=max(0.,mining-quantity/rate);
  }
+ if e.farm_workers.x>1.5 {e.extraction_workers.w=max(0.,e.labor.z-mining); }
  // Research workshops reserve staff before dispatch; no double-counted craft labor.
  var labor=max(0.,e.labor.w-e.exchange.w);
  if e.waterworks.w>.5 {
