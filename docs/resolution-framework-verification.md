@@ -257,3 +257,40 @@ Reproduce with `cargo run --example cultural_work_calibrate -- --individual-demo
 Population totals match the earlier short workshop-offer runs. These smoke tests do
 not establish widespread wage competition or long-run balance; the controlled
 fixtures demonstrate the causal mechanism more directly.
+
+## Local employer matching
+
+Refined firms now post all affordable labor grants before matching residents.
+Applicants rank local jobs by pay relative to the local reference plus a modest
+family-experience preference. Each round sends one application per available
+resident; firms accept by skill and stable identity ties. Rejected and partly hired
+residents can try another employer, for at most the number of local jobs.
+
+Controlled tests exercise higher-pay attraction, matching-skill preference, a zero
+funded grant, absence from the job's settlement, fallback after rejection, finite
+personal capacity and invariance to job/candidate array order. Existing enterprise
+payroll, family learning, wage-quote, checkpoint and comparison fixtures run through
+the new matcher.
+
+This does not change physical recipes, grant cash budgets, service prices or
+population authority. It does not claim stable matching: earlier accepted work is
+retained, a resident tries a given employer only once, and there is no distant job
+search or endogenous wage negotiation within the matching round. Those constraints
+can leave some jobs unfilled even when some discretionary time remains.
+
+Verification: all 179 library tests passed with GPU fixtures enabled in 100.36 seconds.
+All-target Clippy with warnings denied, formatting and artifact checks passed.
+
+Ten-year living-history runs (individual demography and refined workshops, terrain
+32, ecology 16, one geological epoch, Vulkan) completed:
+
+| Seed | Resident population | Cohort overhang | Unresolved identities | Max absolute final normalized economy residual |
+|---|---:|---:|---:|---:|
+| 17 | 2,155 | 0 | 0 | 1.15e-6 |
+| 81 | 2,118 | 0 | 0 | 6.16e-7 |
+| 256 | 2,167 | 0 | 0 | 4.35e-7 |
+
+Reproduce with `cargo run --example cultural_work_calibrate -- --individual-demography --workshop-refinement --seeds 17,81,256 --years 10 --output output/workshop-market-seeds.json`.
+The short-run population totals remain unchanged from the previous wage-offer runs;
+the controlled matching fixtures provide the direct evidence of changed assignments.
+These runs do not establish labor-market equilibrium or long-run calibration.

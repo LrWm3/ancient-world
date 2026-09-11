@@ -157,3 +157,9 @@ raise its own reimbursement by bidding wages upward.
 See [resolution framework](resolution-framework.md) for the response rules and
 limits. The original wage-indexed fee rule above still describes aggregate/legacy
 operation. This is employer adaptation, not a competitive labor-market equilibrium.
+
+Local refined hiring now gathers all posted jobs before matching residents in
+bounded application rounds. Pay and relevant experience affect which firm receives
+an application; firms choose among applicants by skill. Rejected or partially hired
+residents may approach another employer. See the resolution framework for exact
+tie-breaking, time limits and the remaining matching simplifications.

@@ -118,10 +118,22 @@ Refined service contracts quote 1.25 times the food-indexed reference independen
 of the firm's chosen wage. Rent also uses that reference. Thus raising wages cannot
 increase the fee paid by the town. The profitable raise ceiling depends on observed
 utilization. In aggregate/legacy mode the prior wage and fee rules remain.
-Employer offers still run in canonical firm order; there is no simultaneous labor
-auction or migration toward the globally highest wage.
+Local hiring now uses bounded proposal rounds after all firms post affordable
+quotes. A resident ranks jobs by wage/reference plus 0.25 times relevant experience,
+then applies to one employer per round. Employers rank that round's applicants by
+family skill and ambition, with person-ID ties. Rejected or partly accepted applicants
+can try another job in the next round. Each job is tried at most once per resident;
+with four workshop families this needs at most four rounds.
 
-Hiring uses canonical site/family/firm order and person-ID ties. Commitments share
+An accepted assignment reserves real remaining time immediately. Since each resident
+has only one application per round, employers cannot double-book the same time.
+Neither job grants nor cash budgets expand during matching. Canonical IDs break exact
+preference ties and keep input-array order from deciding the result. Residents may
+split time across jobs, but retained assignments are not displaced by later applicants.
+This is a bounded local matching rule, not a stable-market equilibrium or a global
+job search. Firms can still underfill due to preference, willingness or eligibility.
+
+Commitments share
 the same personal time ledger as research and culture. Time already committed there
 cannot staff workshops. Payroll goes to actual participating ownership accounts,
 including paid idle time, and is deducted from the firm's existing cash. Zero-staff
@@ -165,7 +177,7 @@ and workshop receipts, grants and comparison settings serialize with History.
   worlds still requires explicit roster reconciliation.
 - Richer birth eligibility and reproductive circumstances; births currently retain the
   community-level expectation and unknown-parent fallback.
-- Simultaneous employer competition, dedicated teaching and skill loss; explicit coordination with
+- Dedicated teaching, skill loss and broader labor-market matching; explicit coordination with
   agricultural and other aggregate labor before removing the service ceiling.
   Family-specific experience currently affects hiring, not technical output quality.
 - More subsystem-specific input revisions and reservation references as contracts

@@ -142,6 +142,84 @@ pub(crate) fn resolve(
     }
     result
 }
+/// An already affordable job quote. Market matching cannot expand its work grant.
+pub(crate) struct Job {
+    pub boundary: Boundary,
+    pub expected: f32,
+    pub wage: f64,
+    pub family: u32,
+}
+/// Bounded proposal rounds. Each resident applies to at most one employer per round;
+/// employers choose among applicants using family skill, then stable identity ties.
+pub(crate) fn resolve_market(
+    pool: &mut Participation,
+    jobs: &[Job],
+    candidates: &[Candidate],
+) -> Vec<Staffing> {
+    let mut jobs: Vec<_> = jobs.iter().collect();
+    jobs.sort_by_key(|j| (j.boundary.site, j.boundary.subject));
+    let mut candidates = candidates.to_vec();
+    candidates.sort_by_key(|c| c.person);
+    let mut tried = vec![std::collections::BTreeSet::new(); candidates.len()];
+    let mut results: Vec<_> = jobs
+        .iter()
+        .map(|job| Staffing {
+            boundary: job.boundary.clone(),
+            mode: Mode::Individual,
+            expected: job.expected as f64,
+            granted: 0.,
+            commitments: vec![],
+            wages: vec![],
+            settled: false,
+        })
+        .collect();
+    // Each person can try every local job once, including after a partial acceptance.
+    for _ in 0..jobs.len() {
+        let mut proposals = vec![Vec::new(); jobs.len()];
+        let mut any = false;
+        for (person_index, candidate) in candidates.iter().enumerate() {
+            if pool.available(candidate.person) <= 1e-6 {
+                continue;
+            }
+            let mut best: Option<(usize, f64)> = None;
+            for (index, job) in jobs.iter().enumerate() {
+                if tried[person_index].contains(&index)
+                    || job.wage <= 0.
+                    || job.expected as f64 - results[index].granted <= 1e-6
+                    || pool
+                        .residents
+                        .get(&candidate.person)
+                        .is_none_or(|r| r.presence != Presence::Resident(job.boundary.site))
+                {
+                    continue;
+                }
+                let preference = job.wage / candidate.reference_wage
+                    + 0.25 * candidate.practice[job.family as usize] as f64;
+                // Jobs are in stable identity order, which resolves exact ties.
+                if best.is_none_or(|(_, score)| preference > score) {
+                    best = Some((index, preference));
+                }
+            }
+            if let Some((index, _)) = best {
+                tried[person_index].insert(index);
+                proposals[index].push(candidate.at_wage(jobs[index].wage, jobs[index].family));
+                any = true;
+            }
+        }
+        if !any {
+            break;
+        }
+        for (index, applicants) in proposals.iter().enumerate() {
+            let result = &mut results[index];
+            let remaining = (result.expected - result.granted).max(0.) as f32;
+            let assigned = resolve(pool, result.boundary.clone(), remaining, applicants);
+            result.granted += assigned.granted;
+            result.commitments.extend(assigned.commitments);
+            result.wages.extend(assigned.wages);
+        }
+    }
+    results
+}
 /// Revision of the reserved execution inputs, recomputed before settlement.
 pub(crate) fn staffing_revision(f: &crate::enterprises::Firm) -> u64 {
     crate::resolution::revision(
@@ -375,6 +453,113 @@ impl crate::civilization::History {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn market_fixture() -> (Participation, Candidate, Vec<Job>) {
+        let mut pool = Participation {
+            month: Some(1),
+            ..Default::default()
+        };
+        pool.residents.insert(
+            0,
+            crate::participation::Resident {
+                person: 0,
+                household: Some(0),
+                presence: Presence::Resident(0),
+                care: 0.,
+                capacity: 0.1,
+                committed: 0.,
+                completed: [0.; 2],
+                workshop_completed: 0.,
+                workshop_practice: [0.; 4],
+                workshop_learning: [0.; 4],
+            },
+        );
+        let worker = Candidate {
+            person: 0,
+            household: 0,
+            ambition: 1.,
+            familiarity: 0.,
+            practice: [0.; 4],
+            pressure: 1.,
+            reference_wage: 36.,
+        };
+        let jobs = (0..2)
+            .map(|id| Job {
+                boundary: Boundary {
+                    month: 1,
+                    site: 0,
+                    subject: id,
+                    system: System::Workshop,
+                    revision: 0,
+                },
+                expected: 0.1,
+                wage: if id == 0 { 36. } else { 72. },
+                family: id,
+            })
+            .collect();
+        (pool, worker, jobs)
+    }
+    #[test]
+    fn local_job_choice_responds_to_pay_skill_access_and_funding() {
+        let (pool, worker, mut jobs) = market_fixture();
+        let mut branch = pool.clone();
+        let result = resolve_market(&mut branch, &jobs, &[worker]);
+        assert_eq!(result[0].granted, 0.);
+        assert!((result[1].granted - 0.1).abs() < 1e-6);
+        jobs[1].expected = 0.;
+        let result = resolve_market(&mut pool.clone(), &jobs, &[worker]);
+        assert!((result[0].granted - 0.1).abs() < 1e-6);
+        assert_eq!(result[1].granted, 0.);
+        jobs[1].expected = 0.1;
+        jobs[1].wage = 39.6;
+        let specialist = Candidate {
+            practice: [1., 0., 0., 0.],
+            ..worker
+        };
+        let result = resolve_market(&mut pool.clone(), &jobs, &[specialist]);
+        assert!((result[0].granted - 0.1).abs() < 1e-6);
+        assert_eq!(result[1].granted, 0.);
+        let mut absent = pool;
+        absent.residents.get_mut(&0).unwrap().presence = Presence::Resident(1);
+        assert!(resolve_market(&mut absent, &jobs, &[worker])
+            .iter()
+            .all(|s| s.granted == 0.));
+    }
+    #[test]
+    fn rejected_applicants_try_alternatives_without_order_or_time_leaks() {
+        let (mut pool, worker, mut jobs) = market_fixture();
+        pool.residents.get_mut(&0).unwrap().capacity = 0.2;
+        let mut second = pool.residents[&0].clone();
+        second.person = 1;
+        second.household = Some(1);
+        pool.residents.insert(1, second);
+        let other = Candidate {
+            person: 1,
+            household: 1,
+            ..worker
+        };
+        jobs[0].expected = 0.4;
+        let mut reordered = pool.clone();
+        let result = resolve_market(&mut pool, &jobs, &[worker, other]);
+        assert!(result[0]
+            .wages
+            .iter()
+            .any(|(household, work)| *household == 1 && *work > 0.));
+        assert!(result.iter().all(|s| s.granted <= s.expected + 1e-6));
+        assert!(pool
+            .residents
+            .values()
+            .all(|r| r.committed <= r.capacity + 1e-6));
+        jobs.reverse();
+        let again = resolve_market(&mut reordered, &jobs, &[other, worker]);
+        assert_eq!(
+            serde_json::to_value(&result).unwrap(),
+            serde_json::to_value(again).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_value(pool).unwrap(),
+            serde_json::to_value(reordered).unwrap()
+        );
+    }
     #[test]
     fn peer_learning_requires_shared_completed_work_and_bounds_mentor_capacity() {
         let mentor = (0, 0.2, 0.8, 0.);

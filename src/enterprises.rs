@@ -520,6 +520,39 @@ impl History {
             .map(|(i, f)| ((f.site, f.family, f.id), i))
             .collect();
         order.sort_unstable();
+        let mut matched = std::collections::BTreeMap::new();
+        if refine {
+            for site in 0..self.sites.len() {
+                let jobs: Vec<_> = order
+                    .iter()
+                    .map(|(_, i)| &enterprises.firms[*i])
+                    .filter(|f| f.site as usize == site)
+                    .map(|f| crate::workshop_resolution::Job {
+                        boundary: crate::resolution::Boundary {
+                            month: self.month,
+                            system: crate::resolution::System::Workshop,
+                            site: f.site,
+                            subject: f.id,
+                            revision: 0,
+                        },
+                        expected: grants[site][f.family as usize],
+                        wage: f.wage_rate,
+                        family: f.family,
+                    })
+                    .collect();
+                let eligible: Vec<_> = offers[site]
+                    .iter()
+                    .filter(|o| residents[site].contains(&(o.household as usize)))
+                    .copied()
+                    .collect();
+                if let Some(pool) = &mut self.participation {
+                    for staff in crate::workshop_resolution::resolve_market(pool, &jobs, &eligible)
+                    {
+                        matched.insert(staff.boundary.subject, staff);
+                    }
+                }
+            }
+        }
         for (_, i) in order {
             let f = &mut enterprises.firms[i];
             let site = f.site as usize;
@@ -535,19 +568,7 @@ impl History {
                 ]),
             };
             f.staffing = if refine {
-                let eligible: Vec<_> = offers[site]
-                    .iter()
-                    .filter(|o| residents[site].contains(&(o.household as usize)))
-                    .map(|o| o.at_wage(f.wage_rate, f.family))
-                    .collect();
-                self.participation.as_mut().map(|p| {
-                    crate::workshop_resolution::resolve(
-                        p,
-                        boundary,
-                        grants[site][f.family as usize],
-                        &eligible,
-                    )
-                })
+                matched.remove(&f.id)
             } else if self.resolution.is_some() {
                 let expected = grants[site][f.family as usize] as f64;
                 Some(crate::workshop_resolution::Staffing {
