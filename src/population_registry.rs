@@ -11,6 +11,56 @@ pub fn age_band(month: u32, born: i32) -> Option<usize> {
         _ => Some(2),
     }
 }
+/// Pass-local admission ledger. Construct before temporarily taking society/politics;
+/// discard after the pass. Stocks remain authoritative and are checked on each claim.
+pub(crate) struct ResidentSlots {
+    known: Vec<[u32; 3]>,
+}
+fn whole_slots(stock: f64, known: u32) -> u32 {
+    if !stock.is_finite() || stock < 0. {
+        return 0;
+    }
+    (stock.floor() as u32).saturating_sub(known)
+}
+impl ResidentSlots {
+    pub(crate) fn new(history: &History) -> Self {
+        Self {
+            known: history
+                .population_reconciliation()
+                .sites
+                .into_iter()
+                .map(|s| s.known)
+                .collect(),
+        }
+    }
+    pub(crate) fn available(&self, site: u32, band: usize, stock: f32) -> u32 {
+        self.known
+            .get(site as usize)
+            .and_then(|s| s.get(band))
+            .map_or(0, |&known| whole_slots(stock as f64, known))
+    }
+    pub(crate) fn reserve(&mut self, site: u32, band: usize, stock: f32, count: u32) -> bool {
+        if !stock.is_finite()
+            || stock < 0.
+            || site as usize >= self.known.len()
+            || band >= 3
+            || count > self.available(site, band, stock)
+        {
+            return false;
+        }
+        self.known[site as usize][band] += count;
+        true
+    }
+    /// Record legacy representative creation/death without changing demographic stocks.
+    pub(crate) fn observe(&mut self, site: u32, band: usize, added: bool) {
+        let known = &mut self.known[site as usize][band];
+        *known = if added {
+            known.saturating_add(1)
+        } else {
+            known.saturating_sub(1)
+        };
+    }
+}
 /// IDs are creation order, not succession order. Reusing residents permits a
 /// predecessor with a larger ID; references must instead form an acyclic graph.
 pub(crate) fn valid_succession_links(people: &[crate::civilization::Person]) -> bool {
@@ -196,8 +246,7 @@ impl History {
         }
         for site in &mut result.sites {
             for i in 0..3 {
-                site.unrepresented_slots[i] =
-                    (site.cohorts[i].floor().max(0.) as u32).saturating_sub(site.known[i]);
+                site.unrepresented_slots[i] = whole_slots(site.cohorts[i], site.known[i]);
                 site.overhang[i] = (site.known[i] as f64 - site.cohorts[i]).max(0.);
             }
         }
@@ -207,6 +256,30 @@ impl History {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn admission_is_local_whole_bounded_and_atomic() {
+        let mut slots = ResidentSlots {
+            known: vec![[1, 2, 0], [0; 3]],
+        };
+        assert_eq!(slots.available(0, 1, 3.9), 1);
+        assert!(!slots.reserve(0, 1, 3.9, 2));
+        assert_eq!(slots.available(0, 1, 3.9), 1);
+        assert!(slots.reserve(0, 1, 3.9, 1));
+        assert!(!slots.reserve(0, 1, 3.9, 1));
+        assert_eq!(slots.available(0, 1, 2.), 0);
+        assert_eq!(slots.available(1, 1, 3.), 3);
+        assert_eq!(slots.available(0, 2, 3.), 3);
+        for stock in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -1.] {
+            assert_eq!(slots.available(1, 0, stock), 0);
+            assert!(!slots.reserve(1, 0, stock, 0));
+        }
+        assert!(!slots.reserve(2, 0, 10., 0));
+        assert!(!slots.reserve(0, 3, 10., 0));
+        slots.observe(0, 1, false);
+        assert_eq!(slots.available(0, 1, 3.), 1);
+        assert!(slots.reserve(0, 1, 3., 1));
+        assert_eq!(whole_slots(0.999, 0), 0);
+    }
     #[test]
     fn succession_order_is_not_identity_creation_order() {
         let mut people: Vec<_> = (0..3)
@@ -383,6 +456,43 @@ mod gpu_tests {
         g.enable_society().unwrap();
         g.enable_politics().unwrap();
         g
+    }
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn succession_and_service_cannot_identify_the_same_last_slot() {
+        let mut g = world();
+        let h = g.civilizations.as_mut().unwrap();
+        h.month = 1;
+        let ruler = h.civilizations[0].leader;
+        // All other local adults are beyond service-recruitment age. They remain
+        // real residents and must still consume adult identity slots.
+        let local: Vec<_> = h
+            .people
+            .iter()
+            .filter(|p| h.person_presence(p.id).1 == Presence::Resident(0))
+            .map(|p| p.id)
+            .collect();
+        for id in local {
+            h.people[id as usize].born = h.month as i32 - 660;
+        }
+        h.people[ruler as usize].died = Some(h.month);
+        let known = h.population_reconciliation().sites[0].known;
+        h.sites[0].demography.ages[1] = known[1] as f32 + 1.;
+        h.sites[0].demography.ages[2] = known[2] as f32;
+        let before = h.sites[0].demography.ages;
+        h.social_month();
+        assert_ne!(h.civilizations[0].leader, ruler);
+        assert_eq!(
+            h.population_reconciliation().sites[0].unrepresented_slots[1],
+            0
+        );
+        let people = h.people.len();
+        // A fresh subsystem ledger sees the newly identified successor. The
+        // ruler is ineligible for service; recruitment cannot name another adult.
+        assert!(h.recruit_service_people(0, 1, 1).is_err());
+        assert_eq!(h.people.len(), people);
+        assert_eq!(h.sites[0].demography.ages, before);
+        assert_eq!(h.population_reconciliation().sites[0].overhang[1], 0.);
     }
     #[test]
     #[ignore = "requires hardware GPU"]

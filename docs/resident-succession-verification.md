@@ -1,5 +1,9 @@
 # Resident succession verification
 
+Follow-up: the three library failures recorded below are addressed in
+[resident admission and regression verification](resident-admission-verification.md).
+The results below describe the earlier increment.
+
 This records the 33f8043 increment. The subsequent [estate vacancy change](estate-vacancies.md)
 removes the living-head fallback discussed below.
 

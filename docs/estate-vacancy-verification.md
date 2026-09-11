@@ -1,5 +1,9 @@
 # Estate vacancy verification
 
+Follow-up: the three library failures recorded below are addressed in
+[resident admission and regression verification](resident-admission-verification.md).
+The results below describe the earlier increment.
+
 Rust 1.89.0; Vulkan on the Quadro RTX 5000 with Max-Q Design. Generated logs and
 world archives remain outside Git. This is verification of toy accounting and
 identity rules, not historical or demographic calibration.

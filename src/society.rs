@@ -695,12 +695,7 @@ impl History {
         } else {
             Default::default()
         };
-        let mut represented: Vec<_> = self
-            .population_reconciliation()
-            .sites
-            .into_iter()
-            .map(|s| s.known)
-            .collect();
+        let mut slots = crate::population_registry::ResidentSlots::new(self);
         let mut occupied: BTreeSet<u32> = self
             .society
             .as_ref()
@@ -921,8 +916,7 @@ impl History {
                     if let Some(band) =
                         crate::population_registry::age_band(self.month, self.people[old].born)
                     {
-                        represented[f.site as usize][band] =
-                            represented[f.site as usize][band].saturating_sub(1);
+                        slots.observe(f.site, band, false);
                     }
                 }
                 let ruler = self.civilizations[site.civilization as usize].leader == old as u32;
@@ -951,10 +945,9 @@ impl History {
                 let id = existing.unwrap_or(self.people.len() as u32);
                 // Identification may use a whole anonymous adult or elder slot.
                 // Without one, retain the estate instead of fabricating a person.
-                let band = [1, 2].into_iter().find(|&b| {
-                    (site.demography.ages[b].max(0.).floor() as u32)
-                        > represented[f.site as usize][b]
-                });
+                let band = [1, 2]
+                    .into_iter()
+                    .find(|&b| slots.available(f.site, b, site.demography.ages[b]) > 0);
                 if existing.is_none() && band.is_none() && resident_mode {
                     if f.vacant_since.is_none() {
                         f.vacant_since = Some(self.month);
@@ -975,6 +968,10 @@ impl History {
                     300
                 };
                 if existing.is_none() {
+                    if resident_mode {
+                        let band = band.expect("resident slot checked before admission");
+                        assert!(slots.reserve(f.site, band, site.demography.ages[band], 1));
+                    }
                     self.people.push(Person {
                         id,
                         name: self.civilizations[site.civilization as usize]
@@ -999,7 +996,9 @@ impl History {
                         self.people[id as usize].born,
                     )
                     .unwrap();
-                    represented[f.site as usize][band] += 1;
+                    if !resident_mode {
+                        slots.observe(f.site, band, true);
+                    }
                 }
                 // Keep the membership lookup consistent with the new ownership role;
                 // recorded parents and unions are unchanged, and nobody changes site.

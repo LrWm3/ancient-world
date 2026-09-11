@@ -1775,16 +1775,28 @@ mod freight_tests {
         assert_eq!(totals(h).0, before.0);
         assert!((totals(h).1 - before.1).abs() < 0.01);
         for c in &mut h.cargo {
+            // Prescribe both the delivery date and remaining travel, then pay
+            // attention to every monthly interval rather than skipping quarters.
             c.arrives = 12;
+            c.voyage_clock = Some(crate::vessels::VoyageClock {
+                month: h.month,
+                remaining: (12 - h.month) as f32,
+            });
         }
         let mut resumed: History =
             serde_json::from_value(serde_json::to_value(&*h).unwrap()).unwrap();
-        for month in [6, 9] {
+        for month in 4..12 {
             h.month = month;
             resumed.month = month;
             h.market_month(6371.);
             resumed.market_month(6371.);
             assert_eq!(h.cargo.len(), 1);
+            assert_eq!(h.cargo[0].arrives, 12);
+            assert_eq!(
+                h.cargo[0].voyage_clock.as_ref().unwrap().remaining,
+                (12 - month) as f32
+            );
+            assert_eq!(h.land_freight_capacity(1), 0.);
         }
         assert_eq!(
             serde_json::to_value(&*h).unwrap(),

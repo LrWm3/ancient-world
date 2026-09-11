@@ -83,16 +83,17 @@ This is still **not a complete resident registry**:
 - Cohorts age gradually through fractional transfers; named people cross age bands
   on birthdays. Exact agreement cannot be expected from those two rules.
 - Ownership-account relocation is not yet a roster of independently moving families.
-- Succession and other identity-producing adapters can still identify representatives
-  without a common census allocator. They need conversion before claiming a census.
+- Birth identification, service recruitment and resident succession share admission
+  checks, but initial ownership setup and society-disabled leader replacement still
+  create representative identities outside that contract.
 - Cohort losses may outrun the sampled named share locally. Existing overhang is
   reported, not resolved by inventing deaths or moving people between towns.
 - Food consumption, ordinary employment, fertility and demographic totals remain
   aggregate. No complete biographies are invented for anonymous slots.
 
-The next authority transfer needs one shared resident allocator, explicit conversion
-of fractional stocks, and roster-backed movement before individual births/deaths
-replace the GPU cohort calculation.
+The next authority transfer needs admission checks for remaining representative
+creation, explicit conversion of fractional stocks, and roster-backed movement
+before individual births/deaths replace the GPU cohort calculation.
 
 The new earlier death boundary also requires a relocation guard: an ownership account
 with a deceased head cannot depart before succession supplies a living representative.
@@ -134,6 +135,23 @@ closure, recovery and separately vacant political leadership.
 
 Initial ownership setup and society-disabled leader replacement still retain
 representative identity creation. Service recruitment already requires anonymous
-adult slots; a single allocation interface across all these adapters remains
-future work. Ordinary employment and household consumption still use cohort
+adult slots. Ordinary employment and household consumption still use cohort
 proxies, not complete person rosters.
+
+## Shared admission contract
+
+`ResidentSlots` now supplies the same whole-slot calculation to genealogy, service
+recruitment and succession. It snapshots known resident counts before a subsystem
+can temporarily remove household or kinship context from History. Each claim checks
+current authoritative stock, not a saved allowance: a loss during the pass can
+reduce availability. Reservations are all-or-nothing and consume only the requested
+site and age band. Nonfinite or negative stocks cannot authorize identification.
+
+The ledger is temporary and never serialized. A later subsystem constructs a fresh
+ledger from identities actually created earlier, so it cannot reuse an anonymous
+slot already named by succession or recruitment. Existing identities require no
+new slot. Legacy creation/death observations adjust the temporary count only; they
+never modify population stock. Legacy birth/succession compatibility remains explicit.
+
+This is a shared admission rule, not a complete census or a new demographic model.
+See [admission and regression verification](resident-admission-verification.md).

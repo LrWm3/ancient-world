@@ -825,6 +825,9 @@ mod flood_tests {
         let mut g = Generator::new(
             pollster::block_on(ContextGpu::headless()).unwrap(),
             Config {
+                // Isolate reservoir drainage: seasonal warming must not evaporate
+                // part of the prescribed pulse before its exact half-release.
+                axial_tilt: 0.,
                 resolution: 64,
                 ecology_resolution: 64,
                 ..Default::default()
@@ -919,6 +922,8 @@ mod flood_tests {
             false,
         );
         let drained = g.snapshot().unwrap()[i];
+        assert!(drained.budget[0].abs() < 1e-6);
+        assert!(drained.budget[1].abs() < 1e-6);
         assert!((drained.water[0] - 0.3).abs() < 1e-5);
         assert!((drained.life[3] - 0.3).abs() < 1e-5);
         assert!((drained.water[0] + drained.life[3] - after.water[0]).abs() < 1e-6);

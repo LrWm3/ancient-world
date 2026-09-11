@@ -419,17 +419,9 @@ impl History {
             }
         }
         let mut candidates = chosen;
-        let named_adults = self
-            .people
-            .iter()
-            .filter(|person| {
-                (180..720).contains(&(self.month as i32 - person.born))
-                    && self.person_presence(person.id).1
-                        == crate::participation::Presence::Resident(origin)
-            })
-            .count();
-        let unnamed_adults = (self.sites[origin as usize].demography.ages[1].floor() as usize)
-            .saturating_sub(named_adults);
+        let mut slots = crate::population_registry::ResidentSlots::new(self);
+        let unnamed_adults =
+            slots.available(origin, 1, self.sites[origin as usize].demography.ages[1]) as usize;
         let identify = (maximum - candidates.len()).min(unnamed_adults).min(
             self.politics
                 .as_ref()
@@ -453,6 +445,15 @@ impl History {
         ensure!(
             identify == 0 || !homes.is_empty(),
             "no resident ownership account for unnamed crew"
+        );
+        ensure!(
+            slots.reserve(
+                origin,
+                1,
+                self.sites[origin as usize].demography.ages[1],
+                identify as u32
+            ),
+            "resident admission changed during service recruitment"
         );
         let first_identified = self.people.len() as u32;
         for slot in 0..identify {

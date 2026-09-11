@@ -742,7 +742,9 @@ mod harbor_tests {
         h.month += 12;
         h.sites[origin].economy.logistics[2] = 4.;
         h.shipping_year(&cells, 6371.);
-        assert!(h.shipping.as_ref().unwrap().ports[0].capacity() > 999.);
+        assert!(h.shipping.as_ref().unwrap().ports[0].harbor_capacity() > 999.);
+        // A built harbor supplies handling capacity, not an automatically staffed fleet.
+        assert_eq!(h.shipping.as_ref().unwrap().ports[0].capacity(), 0.);
         h.sites[origin].abandoned = true;
         for _ in 0..35 {
             h.month += 12;
@@ -750,7 +752,7 @@ mod harbor_tests {
         }
         let p = &h.shipping.as_ref().unwrap().ports[0];
         assert!(p.work.as_ref().unwrap().impaired);
-        assert!((p.capacity() - 1000. * 0.98f32.powi(35)).abs() < 0.01);
+        assert!((p.harbor_capacity() - 1000. * 0.98f32.powi(35)).abs() < 0.01);
         let mut resumed: History =
             serde_json::from_slice(&serde_json::to_vec(&h).unwrap()).unwrap();
         for world in [&mut *h, &mut resumed] {
