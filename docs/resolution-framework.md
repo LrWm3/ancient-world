@@ -175,8 +175,8 @@ and workshop receipts, grants and comparison settings serialize with History.
 
 - Extend snapshot comparisons beyond demography; individual replay from aggregate-only
   worlds still requires explicit roster reconciliation.
-- Richer birth eligibility and reproductive circumstances; births currently retain the
-  community-level expectation and unknown-parent fallback.
+- Richer reproductive circumstances; resident ages now refine the community birth
+  expectation, while unrecorded parents remain unknown.
 - Dedicated teaching, skill loss and broader labor-market matching; explicit coordination with
   agricultural and other aggregate labor before removing the service ceiling.
   Family-specific experience currently affects hiring, not technical output quality.

@@ -164,6 +164,51 @@ fn team_skill(crew: &[Crew], legacy: f32, role: &str) -> f32 {
     };
     (0.5 * general + 0.5 * specialist).clamp(0., 1.)
 }
+const CREW_ROLES: [&str; 8] = [
+    "captain",
+    "navigator",
+    "naturalist",
+    "engineer",
+    "guard",
+    "guard",
+    "porter",
+    "porter",
+];
+
+// Only completed, surviving voyage records are passed here. Role-specific practice
+// transfers fully; a different specialty supplies at most half its competence.
+fn veteran_expertise(crew: &Crew, person: u32, role: &str) -> f32 {
+    if !crew.alive || crew.person != Some(person) {
+        return 0.;
+    }
+    crew.expertise.unwrap_or(0.) * if crew.role == role { 1. } else { 0.5 }
+}
+
+// Eight-person local assignment: maximize total prepared competence without
+// recruiting extra people or assigning anyone twice. Sorted IDs break equal optima.
+fn assign_crew_roles(mut candidates: [(u32, [f32; 8]); 8]) -> [(u32, f32); 8] {
+    candidates.sort_by_key(|c| c.0);
+    let mut best = [0f64; 256];
+    for mask in (0usize..255).rev() {
+        let role = mask.count_ones() as usize;
+        best[mask] = (0..8)
+            .filter(|i| mask & (1 << i) == 0)
+            .map(|i| f64::from(candidates[i].1[role]) + best[mask | (1 << i)])
+            .fold(f64::NEG_INFINITY, f64::max);
+    }
+    let mut mask = 0usize;
+    std::array::from_fn(|role| {
+        let i = (0..8)
+            .find(|&i| {
+                mask & (1 << i) == 0
+                    && f64::from(candidates[i].1[role]) + best[mask | (1 << i)] == best[mask]
+            })
+            .unwrap();
+        mask |= 1 << i;
+        (candidates[i].0, candidates[i].1[role])
+    })
+}
+
 fn starting_expertise(base: f32, role: &str, knowledge: u32, variation: f32) -> f32 {
     let topic = match role {
         "captain" | "navigator" => 3,
@@ -685,52 +730,60 @@ impl Expeditions {
             .culture
             .as_ref()
             .map_or(0, |c| c.available_knowledge(h, origin));
-        let crew: Vec<_> = [
-            "captain",
-            "navigator",
-            "naturalist",
-            "engineer",
-            "guard",
-            "guard",
-            "porter",
-            "porter",
-        ]
-        .into_iter()
-        .enumerate()
-        .map(|(i, role)| {
+        let assignments = assign_crew_roles(std::array::from_fn(|i| {
             let person = candidates[i];
-            let household = h.person_presence(person).0;
-            h.person_duties.insert(
-                person,
-                crate::participation::TravelDuty {
-                    voyage: id,
-                    origin,
-                    household,
-                },
-            );
             let prior = h
                 .culture
                 .as_ref()
                 .and_then(|c| c.agents.get(person as usize))
-                .map_or(0., |a| a.skills[3]);
-            Crew {
-                person: Some(person),
-                identified_from_cohort: person >= first_identified,
-                expertise: Some(
-                    starting_expertise(
-                        skill,
-                        role,
-                        local_knowledge,
-                        random(h.seed, id, h.month, 80 + i as u32),
-                    )
-                    .max(prior),
-                ),
-                name: h.people[person as usize].name.clone(),
-                role: role.into(),
-                alive: true,
-            }
-        })
-        .collect();
+                .map_or(0., |a| a.skills[3] * 0.5);
+            let expertise = std::array::from_fn(|slot| {
+                let role = CREW_ROLES[slot];
+                // Duplicate guard/porter slots use identical preparation. Randomness
+                // follows the person and specialty, not incoming roster order.
+                let role_key = CREW_ROLES.iter().position(|r| *r == role).unwrap() as u32;
+                let veteran = self
+                    .voyages
+                    .iter()
+                    .filter(|e| e.phase == Phase::Returned)
+                    .flat_map(|e| &e.crew)
+                    .map(|c| veteran_expertise(c, person, role))
+                    .fold(0., f32::max);
+                starting_expertise(
+                    skill,
+                    role,
+                    local_knowledge,
+                    random(h.seed, person, h.month, 80 + role_key),
+                )
+                .max(prior)
+                .max(veteran)
+            });
+            (person, expertise)
+        }));
+        let crew: Vec<_> = CREW_ROLES
+            .into_iter()
+            .enumerate()
+            .map(|(i, role)| {
+                let (person, expertise) = assignments[i];
+                let household = h.person_presence(person).0;
+                h.person_duties.insert(
+                    person,
+                    crate::participation::TravelDuty {
+                        voyage: id,
+                        origin,
+                        household,
+                    },
+                );
+                Crew {
+                    person: Some(person),
+                    identified_from_cohort: person >= first_identified,
+                    expertise: Some(expertise),
+                    name: h.people[person as usize].name.clone(),
+                    role: role.into(),
+                    alive: true,
+                }
+            })
+            .collect();
         h.events
             .last_mut()
             .unwrap()
@@ -1300,6 +1353,60 @@ impl Generator {
 #[cfg(test)]
 mod crew_tests {
     use super::*;
+    #[test]
+    fn role_assignment_preserves_people_and_uses_complementary_specialists() {
+        let mut candidates: [(u32, [f32; 8]); 8] = std::array::from_fn(|i| {
+            let mut skill = [0.; 8];
+            skill[i] = 0.8;
+            (i as u32, skill)
+        });
+        // Greedily making person 0 captain wastes the only strong navigator.
+        candidates[0].1[0] = 0.9;
+        candidates[0].1[1] = 1.;
+        candidates[1].1[0] = 0.8;
+        candidates[1].1[1] = 0.1;
+        let matched = assign_crew_roles(candidates);
+        assert_eq!(matched[0], (1, 0.8));
+        assert_eq!(matched[1], (0, 1.));
+        let mut ids = matched.map(|c| c.0);
+        ids.sort();
+        assert_eq!(ids, [0, 1, 2, 3, 4, 5, 6, 7]);
+        candidates.reverse();
+        assert_eq!(assign_crew_roles(candidates), matched);
+        let equal = std::array::from_fn(|i| (7 - i as u32, [0.5; 8]));
+        assert_eq!(
+            assign_crew_roles(equal).map(|c| c.0),
+            [0, 1, 2, 3, 4, 5, 6, 7]
+        );
+        // Removing a specialist reduces the assigned competence; matching cannot
+        // manufacture skill to keep the previous outcome.
+        candidates.iter_mut().find(|c| c.0 == 0).unwrap().1[1] = 0.;
+        let reduced = assign_crew_roles(candidates);
+        assert!(reduced.iter().map(|c| c.1).sum::<f32>() < matched.iter().map(|c| c.1).sum());
+    }
+
+    #[test]
+    fn veteran_specialty_is_personal_and_survives_archive_roundtrip() {
+        let mut veteran = Crew {
+            person: Some(17),
+            identified_from_cohort: false,
+            expertise: Some(0.9),
+            name: "Veteran".into(),
+            role: "engineer".into(),
+            alive: true,
+        };
+        assert_eq!(veteran_expertise(&veteran, 17, "engineer"), 0.9);
+        assert_eq!(veteran_expertise(&veteran, 17, "navigator"), 0.45);
+        assert_eq!(veteran_expertise(&veteran, 18, "engineer"), 0.);
+        let loaded: Crew = serde_json::from_value(serde_json::to_value(&veteran).unwrap()).unwrap();
+        assert_eq!(veteran_expertise(&loaded, 17, "engineer"), 0.9);
+        veteran.alive = false;
+        assert_eq!(veteran_expertise(&veteran, 17, "engineer"), 0.);
+        veteran.alive = true;
+        veteran.expertise = None;
+        assert_eq!(veteran_expertise(&veteran, 17, "engineer"), 0.);
+    }
+
     #[test]
     fn specialist_loss_reduces_capacity_and_experience_survives_transfer() {
         let mut crew: Vec<_> = [

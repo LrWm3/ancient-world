@@ -59,14 +59,40 @@ skill; no earlier training is fabricated. New charter rosters use the new rules.
 Casualty selection and the revised repair rule apply to continuing histories, so
 this is not a promise of identical futures across software versions.
 
-Crews still represent withdrawn aggregate adults rather than genealogy-linked
-household members. There is no reserve of recruitable named veterans, and this
-increment does not add sailing storms or inland tactical routes. Permanent
-colonization is outside the island civilizations' intended scope; separate
-ancient-continent civilizations remain undecided (see [civilization scope](civilizations.md)).
-Experience returns through the existing delivered
-findings/expedition-preparation feedback, while individual crew records preserve
-what happened to the expedition.
+Crews use shared person IDs and ownership-household membership. Recruitment checks
+presence, existing work commitments, leadership exclusions and domestic care needs.
+Sparse-population worlds may explicitly identify existing unnamed adults without
+adding population. There is still no sailing-storm or inland tactical route model.
+Permanent colonization is outside the island civilizations' intended scope;
+separate ancient-continent civilizations remain undecided (see
+[civilization scope](civilizations.md)).
+
+## Assigning specialties to available recruits
+
+Once the existing recruitment rules supply eight people, a small assignment solver
+allocates the eight roles to maximize their combined prepared competence. It searches
+256 subsets rather than assigning roles by incoming roster order. Each person gets
+one role; canonical person IDs break equal optima. The two guard and two porter slots
+are interchangeable. Preparation variation is keyed by person, month and specialty,
+so merely reordering recruits cannot grant different abilities.
+
+A living member's competence in a returned voyage supplies their full prior score
+for the same specialty and half for another specialty. Recorded general expedition
+skill supplies half its score. The starting preparation rule still provides a floor;
+this is a toy transfer-of-experience rule, not evidence of professional training.
+Rescued members acquire returned-voyage evidence when their rescue voyage gets home.
+Legacy anonymous crews cannot provide experience to a newly named person.
+
+This makes repeat service useful in a particular specialty instead of treating a
+veteran engineer as an equally experienced navigator. The existing research, hazard
+and repair calculations consume the assigned competence. The assignment cannot add
+workers, bypass care or absence restrictions, increase stores, or duplicate work.
+It selects roles within the recruited group; recruitment itself does not yet search
+the whole town for a globally optimal crew or model voluntary applications.
+
+Assigned roles and competence use existing archived crew fields, so no new archive
+state is needed. Continuing voyages retain their assignments. New launches can differ
+from older software, including when recruits have no prior voyages.
 
 ## Verification
 
@@ -152,3 +178,36 @@ python3 scripts/evaluate_enterprises.py \
 
 The shared evaluation harness retains its employer-oriented filename; the crew
 summary extracts expedition outcomes from those verified trajectories.
+
+## Individual role assignment verification
+
+The complementary-specialists fixture gives one recruit captain/navigation scores
+of 0.9/1.0 and another 0.8/0.1. Assignment makes the second recruit captain and the
+first navigator, instead of wasting the navigator through a greedy captain-first
+choice. Removing navigation competence lowers the resulting team score. Reversing
+the input order produces identical assignments; equally prepared recruits use
+canonical person IDs. Every recruit occupies exactly one slot.
+
+A separate fixture checks that recorded engineering competence 0.9 transfers as
+0.9 to engineering and 0.45 to navigation. Another identity, a dead crew record,
+and a legacy record without competence contribute zero. Serialization preserves
+the same specialty evidence. These are controlled checks of the toy rules, not
+claims about optimal real-world crew selection or measured training effects.
+
+Verification for this increment: **182/182 library tests passed**, including
+hardware tests (103.33 seconds), and **6/6 expedition integration tests passed**
+(59.01 seconds). The latter cover actual voyage delivery and checkpoint continuity,
+rescue and recall, starvation losses, institutional escrow/refunds, heritage finds,
+and named casualties/household remittances. All-target Clippy with warnings denied,
+formatting, whitespace and repository artifact checks passed. Commands:
+
+```sh
+CARGO_INCREMENTAL=0 mise exec rust@1.89.0 -- cargo test --lib -- --include-ignored
+CARGO_INCREMENTAL=0 mise exec rust@1.89.0 -- cargo test --test expeditions -- --include-ignored --test-threads=1
+CARGO_INCREMENTAL=0 mise exec rust@1.89.0 -- cargo clippy --all-targets -- -D warnings
+```
+
+These runs used the available Vulkan GPU. No new multi-seed balance or
+cross-hardware claims accompany this increment; the fifty-year table above belongs
+to the earlier competence implementation. Raw logs remain ignored under
+`output/expedition-assignment-*`.
