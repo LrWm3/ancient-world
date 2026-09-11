@@ -8,12 +8,17 @@ to no recognition records; prior voyages are not retroactively awarded fame.
 
 ## Witnesses and bounded effects
 
-Recognition begins at the receiving port. During cultural Respond, it spreads
-over passable settlement routes from witnesses who received it before this month.
-The update gathers recipients before applying them: repeated calls cannot spread
-another hop within the same month. Closed routes and abandoned endpoints do not
-transmit. Route access is a contact proxy, not a simulation of messenger journeys
-or news volume. Records retain one first-receipt date per observing settlement.
+Recognition begins at the receiving port. During cultural Respond, completed
+commerce of at least one kilogram on a settlement pair in the current month
+provides a contact opportunity. Land and sea deliveries both count; an unused
+route does not. Only witnesses who knew the achievement before this month can
+transmit, and recipients are gathered before applying changes. Repeated calls
+cannot spread a second hop in the same month. Abandoned endpoints do not transmit.
+
+This is a traffic-supported social contact rule, not news carried in a particular
+cargo hold: the prior completed witness snapshot supplies the news, without
+reconstructing what the crew knew at dispatch. A completed delivery still counts
+if its route subsequently closes. Each observer retains its first-receipt date.
 
 Weight is the returning fraction of the crew, divided by
 (1 + months since return / 120). Late news does not refresh the achievement.

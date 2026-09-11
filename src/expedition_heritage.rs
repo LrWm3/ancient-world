@@ -665,6 +665,14 @@ mod tests {
             .collect();
         h.month += 1;
         crate::heritage_renown::spread(h, &mut c);
+        assert_eq!(
+            crate::heritage_renown::score(&c, middle, h.month, |_| true),
+            0.,
+            "route without traffic carries no news"
+        );
+        h.trade_contact.observe(h.month, site, middle, 100.);
+        h.trade_contact.observe(h.month, middle, far, 100.);
+        crate::heritage_renown::spread(h, &mut c);
         assert!(crate::heritage_renown::score(&c, middle, h.month, |_| true) > 0.);
         assert_eq!(
             crate::heritage_renown::score(&c, far, h.month, |_| true),
@@ -701,6 +709,7 @@ mod tests {
             serde_json::from_slice(&serde_json::to_vec(&c).unwrap()).unwrap();
         h.society.as_mut().unwrap().routes[1].open = true;
         h.month += 1;
+        h.trade_contact.observe(h.month, middle, far, 100.);
         crate::heritage_renown::spread(h, &mut c);
         crate::heritage_renown::spread(h, &mut resumed);
         assert_eq!(

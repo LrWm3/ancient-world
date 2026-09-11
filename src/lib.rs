@@ -114,3 +114,5 @@ pub mod resolution;
 mod workshop_resolution;
 
 pub mod heritage_renown;
+
+pub mod trade_contact;

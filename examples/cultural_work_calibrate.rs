@@ -1,4 +1,4 @@
-//! Quarterly observations; raw outputs belong under ignored output/.
+//! Monthly accounting with decadal summaries; raw outputs belong under ignored output/.
 use ancient_world::{
     catalog::Catalog,
     config::Config,
@@ -10,6 +10,11 @@ use serde_json::json;
 use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 #[derive(Parser)]
 struct Args {
+    #[arg(long, default_value_t = 0.5)]
+    crop_yield_scale: f32,
+    /// Matched control: use the configured common share immediately from founding.
+    #[arg(long)]
+    no_founding_access: bool,
     #[arg(long, conflicts_with = "individual_demography")]
     aggregate_resolution: bool,
     #[arg(long)]
@@ -53,6 +58,7 @@ fn main() -> Result<()> {
             gpu.clone(),
             Config {
                 seed: *seed,
+                crop_yield_scale: args.crop_yield_scale,
                 resolution: args.resolution,
                 ecology_resolution: 16,
                 ..Default::default()
@@ -81,6 +87,9 @@ fn main() -> Result<()> {
             .unwrap()
             .set_named_demography(!args.legacy_named_demography)?;
         g.enable_society()?;
+        if args.no_founding_access {
+            g.configure_founding_food_access(None)?;
+        }
         g.enable_politics()?;
         g.enable_governance()?;
         g.enable_offices()?;
@@ -118,11 +127,41 @@ fn main() -> Result<()> {
         let mut actions = BTreeMap::<String, u64>::new();
         let (mut requested, mut granted, mut used, mut cancelled_work) = (0., 0., 0., 0.);
         let (mut funded, mut cancelled) = (0u64, 0u64);
-        for quarter in 1..=args.years * 4 {
-            g.advance_history(3)
-                .with_context(|| format!("seed {seed}, quarter {quarter}"))?;
+        let mut food = [0f64; 6];
+        let mut max_population_residual = 0f64;
+        let mut max_food_residual = 0f64;
+        for month in 1..=args.years * 12 {
+            g.advance_history(1)
+                .with_context(|| format!("seed {seed}, month {month}"))?;
             let h = g.civilizations.as_ref().unwrap();
             let c = h.culture.as_ref().unwrap();
+            max_population_residual = max_population_residual.max(h.population_residual().abs());
+            max_food_residual = max_food_residual.max(h.food_residual().abs());
+            for site in &h.sites {
+                let d = &site.demography;
+                if d.household_food[1] <= 0.5 {
+                    continue;
+                }
+                let need = d.ration_need[3] as f64;
+                let available = d.household_food[2] as f64;
+                let eaten = d.ration_eaten[3] as f64;
+                let physical = (need - available).max(0.);
+                let access = (need.min(available) - eaten).max(0.);
+                anyhow::ensure!(
+                    (need - eaten - physical - access).abs() <= 1e-4 * (1. + need),
+                    "food gap decomposition failed"
+                );
+                for (total, value) in food.iter_mut().zip([
+                    need,
+                    available,
+                    d.household_food[0] as f64,
+                    eaten,
+                    physical,
+                    access,
+                ]) {
+                    *total += value;
+                }
+            }
             if let Some(p) = &h.participation {
                 let completed: f64 = p.residents.values().map(|r| r.completed[0]).sum();
                 anyhow::ensure!(
@@ -157,9 +196,9 @@ fn main() -> Result<()> {
                     }
                 }
             }
-            if quarter % 40 == 0 || quarter == args.years * 4 {
-                let row = json!({"year":quarter/4,"domestic":h.domestic.as_ref().map(|d|json!({"groups":d.units.iter().filter(|u|u.ended.is_none()).count(),"members":d.membership.len(),"completed":d.care_completed,"care":d.care})),"funded_bundles":funded,"cancelled_bundles":cancelled,"requested":requested,"granted":granted,"used":used,"cancelled_work":cancelled_work,"population":h.sites.iter().map(|s|s.stocks.stock[0] as f64).sum::<f64>(),"active_sites":h.sites.iter().filter(|s|!s.abandoned).count(),"institutions":c.institutions.iter().filter(|n|n.active).count(),"knowledge_links":c.agents.iter().map(|a|a.knowledge.len()).sum::<usize>(),"artifacts":c.artifacts.len(),"individuals":h.participation.as_ref().map(|p|json!({"known":p.residents.len(),"available_adults":p.residents.values().filter(|r|r.capacity>0.).count(),"culture_work":p.residents.values().map(|r|r.completed[0]).sum::<f64>(),"research_work":p.residents.values().map(|r|r.completed[1]).sum::<f64>()}))});
-                eprintln!("seed {seed}: {} years, cancelled {cancelled}/{funded}, work {used:.1}/{granted:.1}, {:.1}s",quarter/4,start.elapsed().as_secs_f64());
+            if month % 120 == 0 || month == args.years * 12 {
+                let row = json!({"year":month/12,"food_totals":food,"max_population_residual":max_population_residual,"max_food_residual":max_food_residual,"recent_trade_pairs":h.trade_contact.receipts.len(),"heritage_recognitions":c.heritage_renown.len(),"heritage_witnesses":c.heritage_renown.iter().map(|r|r.witnesses.len()).sum::<usize>(),"domestic":h.domestic.as_ref().map(|d|json!({"groups":d.units.iter().filter(|u|u.ended.is_none()).count(),"members":d.membership.len(),"completed":d.care_completed,"care":d.care})),"funded_bundles":funded,"cancelled_bundles":cancelled,"requested":requested,"granted":granted,"used":used,"cancelled_work":cancelled_work,"population":h.sites.iter().map(|s|s.stocks.stock[0] as f64).sum::<f64>(),"active_sites":h.sites.iter().filter(|s|!s.abandoned).count(),"institutions":c.institutions.iter().filter(|n|n.active).count(),"knowledge_links":c.agents.iter().map(|a|a.knowledge.len()).sum::<usize>(),"artifacts":c.artifacts.len(),"individuals":h.participation.as_ref().map(|p|json!({"known":p.residents.len(),"available_adults":p.residents.values().filter(|r|r.capacity>0.).count(),"culture_work":p.residents.values().map(|r|r.completed[0]).sum::<f64>(),"research_work":p.residents.values().map(|r|r.completed[1]).sum::<f64>()}))});
+                eprintln!("seed {seed}: {} years, cancelled {cancelled}/{funded}, work {used:.1}/{granted:.1}, {:.1}s",month/12,start.elapsed().as_secs_f64());
                 samples.push(row);
             }
         }
@@ -175,7 +214,7 @@ fn main() -> Result<()> {
         std::fs::write(
             &args.output,
             serde_json::to_vec_pretty(
-                &json!({"aggregate_resolution":args.aggregate_resolution,"compare_resolution":args.compare_resolution,"workshop_refinement":args.workshop_refinement,"individual_demography":args.individual_demography,"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows}),
+                &json!({"observation_interval_months":1,"food_fields":["need","available","funded","eaten","physical_gap","access_gap"],"crop_yield_scale":args.crop_yield_scale,"founding_access":!args.no_founding_access,"aggregate_resolution":args.aggregate_resolution,"compare_resolution":args.compare_resolution,"workshop_refinement":args.workshop_refinement,"individual_demography":args.individual_demography,"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows}),
             )?,
         )?;
     }

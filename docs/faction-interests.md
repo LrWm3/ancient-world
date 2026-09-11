@@ -115,8 +115,9 @@ It does not assume every shortage is a harvest failure.
 Artisan appeal uses the craft share of this month's paid sector wages when the
 same current household observation exists, falling back to town planned labor in
 legacy/no-retail histories. Paid work is not necessarily productive work; this
-is an earnings-interest proxy, not measured artisan output. Merchant appeal still
-uses the bounded cumulative-sales proxy and needs a separate recent-trade measure.
+is an earnings-interest proxy, not measured artisan output. Merchant appeal now uses [recent completed trade](recent-trade-contact.md),
+normalized by local population; imports and exports both count and observations
+expire after twelve months. It is commercial exposure, not household profit.
 Household voting remains property weighted, not one-person-one-vote.
 
 Petitions now retain the responding faction at resolution. Honored petitions give

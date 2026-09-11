@@ -5,6 +5,7 @@ use ancient_world::{
 };
 fn network() -> History {
     History {
+        trade_contact: Default::default(),
         resolution: None,
         person_duties: Default::default(),
         service_allocation: Default::default(),
@@ -339,6 +340,17 @@ fn multi_hop_cargo_is_reserved_once_and_existing_contract_survives_closure() {
         && e.month == cargo.arrives
         && e.site == Some(c)
         && e.other == Some(a)));
+    let receipt = h
+        .trade_contact
+        .receipts
+        .iter()
+        .find(|r| r.month == cargo.arrives && r.from == a && r.to == c)
+        .expect("actual delivery contributes recent contact even after route closure");
+    assert!(receipt.kg >= cargo.kg as f64);
+    assert!(h
+        .trade_contact
+        .links(cargo.arrives)
+        .any(|pair| pair == (a, c)));
     assert!(h.economy_residuals().iter().all(|v| v.abs() < 0.001));
 }
 

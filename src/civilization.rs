@@ -147,6 +147,8 @@ pub struct Candidate {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct History {
     #[serde(default)]
+    pub trade_contact: crate::trade_contact::TradeContact,
+    #[serde(default)]
     pub service_allocation: crate::service_allocation::Allocation,
     #[serde(default)]
     pub resolution: Option<crate::resolution::ResolutionState>,
@@ -494,6 +496,7 @@ impl History {
         (self.initial_population + born - died - living) / (self.initial_population + born).max(1.)
     }
     pub fn validate(&self, cells: &[crate::gpu::Cell]) -> Result<()> {
+        self.trade_contact.validate(self.month, self.sites.len())?;
         self.validate_service_work()?;
         ensure!(
             self.civilizations
@@ -1118,6 +1121,7 @@ impl Generator {
         };
         candidates.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.cell.cmp(&b.cell)));
         let mut h = History {
+            trade_contact: Default::default(),
             participation: Some(Default::default()),
             person_duties: Default::default(),
             service_allocation: Default::default(),
@@ -1243,6 +1247,7 @@ impl Generator {
             "civilization beta event limit reached"
         );
         h.month += 1;
+        h.trade_contact.prune(h.month);
         h.activate_monthly_policies();
         if let Some(nav) = navigation.as_ref().filter(|_| h.living.is_some()) {
             let inspections = nav.inspect_routes(h)?;

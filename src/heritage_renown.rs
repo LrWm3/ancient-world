@@ -31,14 +31,13 @@ impl Recognition {
     }
 }
 
-/// Completed-snapshot rumor diffusion: at most one passable route edge per month.
-/// Route contact is a proxy; this does not yet count individual messengers.
+/// Completed-snapshot rumor diffusion through this month's delivered commerce.
+/// Traffic supplies a social contact opportunity, not a simulated onboard messenger.
 pub fn spread(h: &History, c: &mut Culture) {
-    let Some(s) = &h.society else { return };
     for r in &mut c.heritage_renown {
         let mut next = vec![];
-        for route in s.routes.iter().filter(|r| r.passable()) {
-            for (from, to) in [(route.from, route.to), (route.to, route.from)] {
+        for (a, b) in h.trade_contact.links(h.month) {
+            for (from, to) in [(a, b), (b, a)] {
                 if !h.sites[from as usize].abandoned
                     && !h.sites[to as usize].abandoned
                     && r.witnesses

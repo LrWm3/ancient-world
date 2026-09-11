@@ -692,7 +692,8 @@ impl History {
                     pressure[2],
                     f32::from(threat),
                     craft,
-                    (s.economy.finance[2] / s.economy.finance[1].max(1.)).clamp(0., 1.),
+                    self.trade_contact
+                        .exposure(s.id, self.month, s.stocks.stock[0]),
                     traits[2],
                     traits[3],
                 ]);

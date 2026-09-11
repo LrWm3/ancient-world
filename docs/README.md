@@ -83,6 +83,8 @@ The population-related switches have different effects:
 - [Land freight reservations](land-freight-reservations.md)
 - [Governance and diplomacy](governance.md)
 - [Expanded political interests](faction-interests.md)
+- [Recent trade contact shared by politics and heritage](recent-trade-contact.md)
+- [Current integration worklist and remaining gaps](integration-worklist.md)
 - [Local hardship and political consent](governance-pressure.md)
 - [Founding, religious and literary expeditions](heritage-expeditions.md)
 - [History experiments and regional weather](history-evaluation.md)
