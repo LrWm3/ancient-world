@@ -297,3 +297,54 @@ library tests passed (108 hardware tests ignored); four targeted GPU fixtures
 passed, including the three-seed allocation case; all-target Clippy passed with
 warnings denied; the full frozen monthly/batched/checkpoint comparison passed on
 seeds 17/81/256. Local logs are ignored `output/service-object-*.log`.
+
+
+## Captured petition hearings
+
+Institutional representation now forecasts the same pressure/constituency score
+used for petition eligibility before reserving work. The dated request captures
+the institution, faction, controller, demand, pressure, institutional speaker and
+one represented household head. A score below the existing threshold no longer
+requests a speculative hearing merely because an institution has members.
+
+The hearing uses the shared room ledger: one occupant when the speaker represents
+their own household, otherwise two, for 0.1 month; actual work is 0.1 worker-month.
+These are abstract service units. Within an institution, heritage studies precede
+hearings, which precede lessons, matching their existing execution order. A room
+denial removes hearing demand before shared research/culture work allocation.
+Named speakers and representatives enter personal work matching.
+
+Execution cannot switch to a newly better-scoring institution or faction. It
+rechecks that the captured parties remain present and represented, the controller
+is unchanged, the demand remains eligible, and the room grant is still usable.
+Only then does it consume work, record the named people in the event and open a
+petition. Council resolution and its finite transfers remain later operations;
+opening a petition does not itself transfer money.
+
+Existing histories without captured cultural service plans keep the legacy direct
+path. An older dated service plan lacking a hearing does not gain an invented
+reservation; it can forecast a hearing at its next normal planning boundary.
+The wider operational gate, cooldown and pressure thresholds remain in force.
+This does not yet integrate visitors or relief dispatch with room reservations.
+
+
+The hearing fixture runs seeds 7 and 17 through actual planning, participant
+reservation and petition execution. Missing opening space receives no hearing
+grant; loss after reservation or death of the captured speaker opens no
+petition and spends no hearing work. Usable space opens one petition for 0.1 work;
+repeated execution cannot duplicate it. Captured plans reproduce the same cultural
+and governance state after serialization. The existing petition-resolution checks
+continue to exercise finite funding, political credit and failed commitments.
+
+A separate capacity fixture puts a two-person hearing and two-person lesson in a
+0.3 room-month budget. The hearing gets 0.2 room-months, the lesson is denied, and
+only 0.1 worker-month remains feasible; increasing room-time to 0.4 permits both.
+This controlled case establishes competition, not the desired long-run balance.
+
+
+Hearing integration verification: 125 regular library tests passed (108 hardware
+tests ignored), ten targeted tests passed including GPU petition/learning/heritage
+consumers and matched allocation, all-target Clippy passed with warnings denied,
+and full frozen monthly/batched/checkpoint equivalence passed on seeds 17/81/256
+(10.96 seconds test execution). Local logs are ignored
+`output/hearing-service-*.log`. A sustained balance comparison remains open.

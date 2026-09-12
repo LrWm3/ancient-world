@@ -274,6 +274,18 @@ impl crate::civilization::History {
                                 })
                             }))
                         && p.actor.is_none_or(|a| (a as usize) < self.people.len())
+                        && p.hearing.as_ref().is_none_or(|q| q.site == p.site
+                            && q.pressure.is_finite()
+                            && q.pressure >= 0.
+                            && (q.controller as usize) < self.civilizations.len()
+                            && (q.institution as usize) < c.institutions.len()
+                            && c.institutions[q.institution as usize].site == p.site
+                            && (q.speaker as usize) < self.people.len()
+                            && (q.representative as usize) < self.people.len()
+                            && self
+                                .politics
+                                .as_ref()
+                                .is_some_and(|pol| (q.faction as usize) < pol.factions.len()))
                         && p.object_dependencies.as_ref().is_none_or(|ids| ids
                             .iter()
                             .enumerate()

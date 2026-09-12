@@ -32,6 +32,8 @@ pub struct WorkPlan {
     #[serde(default)]
     pub services: Option<Vec<crate::institution_services::Plan>>,
     #[serde(default)]
+    pub hearing: Option<crate::civic_petitions::Hearing>,
+    #[serde(default)]
     pub funding: Option<crate::institution_funding::Budget>,
     /// Captured ordering policy; old plans do not invent an allocation history.
     #[serde(default)]
@@ -170,12 +172,7 @@ impl WorkPlan {
                     .iter()
                     .flat_map(|p| &p.receipts)
                     .filter(|r| r.granted > 0.)
-                    .map(|r| match r.service {
-                        crate::institution_services::Service::Lesson { teacher, .. } => teacher,
-                        crate::institution_services::Service::HeritageStudy { author, .. } => {
-                            author
-                        }
-                    })
+                    .flat_map(|r| r.service.people().into_iter().flatten())
                     .collect()
             },
         )
@@ -283,7 +280,19 @@ impl Culture {
             .into_iter()
             .map(|(a, w)| (a.into(), w))
             .collect();
-        let services = self.plan_service_space(h, site, actor, institution_lesson, &actions);
+        let hearing = actions
+            .iter()
+            .any(|(a, _)| a == "petition hearing")
+            .then(|| crate::civic_petitions::forecast(h, self, site))
+            .flatten();
+        let services = self.plan_service_space(
+            h,
+            site,
+            actor,
+            institution_lesson,
+            &actions,
+            hearing.as_ref(),
+        );
         let participants = self.focused_work_identities.then(|| {
             let mut ids: Vec<_> = actor
                 .into_iter()
@@ -293,12 +302,7 @@ impl Culture {
                         .iter()
                         .flat_map(|p| &p.receipts)
                         .filter(|r| r.granted > 0.)
-                        .map(|r| match r.service {
-                            crate::institution_services::Service::Lesson { teacher, .. } => teacher,
-                            crate::institution_services::Service::HeritageStudy {
-                                author, ..
-                            } => author,
-                        }),
+                        .flat_map(|r| r.service.people().into_iter().flatten()),
                 )
                 .collect();
             ids.sort_unstable();
@@ -343,7 +347,11 @@ impl Culture {
                 if actions.iter().any(|(a, _)| {
                     !matches!(
                         a.as_str(),
-                        "study" | "heritage study" | "teach successor" | "charity"
+                        "study"
+                            | "heritage study"
+                            | "teach successor"
+                            | "charity"
+                            | "petition hearing"
                     )
                 }) {
                     return None;
@@ -476,6 +484,7 @@ impl Culture {
         WorkPlan {
             space_feasible_work,
             services: Some(services),
+            hearing,
             funding: self.plan_institution_funding(h, site),
             institution_priority: h.participation.as_ref().map(|_| self.institution_priority),
             institution_work_policy: h
@@ -794,20 +803,8 @@ impl Culture {
         {
             requests.push(("ownership dispute", 0.1));
         }
-        // Institutional petition eligibility is evaluated by its existing scoring
-        // function at execution. Request a bounded hearing only with representation.
-        if h.governance.as_ref().is_some_and(|g| {
-            g.petitions_enabled
-                && !g
-                    .petitions
-                    .iter()
-                    .any(|p| p.site == site && (p.resolved.is_none() || h.month < p.opened + 60))
-        }) && h.politics.is_some()
-            && self
-                .institutions
-                .iter()
-                .any(|n| n.site == site && n.operational() && n.members.contains(&actor))
-        {
+        // The same read-only scorer supplies the dated hearing's represented parties.
+        if crate::civic_petitions::forecast(h, self, site).is_some() {
             requests.push(("petition hearing", 0.1));
         }
         requests

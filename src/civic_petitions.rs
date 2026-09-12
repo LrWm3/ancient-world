@@ -113,18 +113,36 @@ mod accountability_tests {
     }
 }
 
-pub(crate) fn propose(h: &mut History, c: &mut Culture) {
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Hearing {
+    pub site: u32,
+    pub controller: u32,
+    pub institution: u32,
+    pub faction: u32,
+    pub demand: Demand,
+    pub pressure: f32,
+    pub speaker: u32,
+    pub representative: u32,
+}
+impl Hearing {
+    pub(crate) fn service(&self) -> crate::institution_services::Service {
+        crate::institution_services::Service::PetitionHearing {
+            faction: self.faction,
+            speaker: self.speaker,
+            representative: self.representative,
+        }
+    }
+}
+fn candidates(h: &History, c: &Culture, target: u32) -> Vec<Hearing> {
     let (Some(g), Some(politics), Some(society)) = (&h.governance, &h.politics, &h.society) else {
-        return;
+        return vec![];
     };
     if !g.petitions_enabled {
-        return;
+        return vec![];
     }
     let mut proposals = vec![];
-    for site in &h.sites {
+    for site in h.sites.iter().filter(|s| s.id == target) {
         if site.abandoned
-            || !c.work_allowed(site.id, "petition hearing")
-            || c.labor_budget.get(site.id as usize).copied().unwrap_or(0.) < 0.1
             || g.petitions
                 .iter()
                 .rev()
@@ -135,10 +153,12 @@ pub(crate) fn propose(h: &mut History, c: &mut Culture) {
         let pressure =
             crate::governance::local_pressures(site.stocks.stock[3], h.social_indicators(site.id));
         let controller = h.controller(site.id);
-        let mut best = None;
-        for institution in c.institutions.iter().filter(|n| {
-            n.site == site.id && n.operational() && h.people[n.leader as usize].died.is_none()
-        }) {
+        let present = c.site_people(h, site.id);
+        for institution in c
+            .institutions
+            .iter()
+            .filter(|n| n.site == site.id && n.operational() && present.contains(&n.leader))
+        {
             let themes = institution
                 .tradition
                 .and_then(|id| c.traditions.get(id as usize))
@@ -159,10 +179,11 @@ pub(crate) fn propose(h: &mut History, c: &mut Culture) {
                             && institution.members.contains(&hh.head)
                             && politics.household_factions.get(hh.id as usize) == Some(&faction.id)
                     })
-                    .count();
-                if represented == 0 {
+                    .map(|hh| hh.head)
+                    .find(|id| present.contains(id));
+                let Some(representative) = represented else {
                     continue;
-                }
+                };
                 let demand = match faction.interest {
                     0 | 5 | 6 => Demand::Relief,
                     3 | 4 => Demand::Learning,
@@ -201,16 +222,72 @@ pub(crate) fn propose(h: &mut History, c: &mut Culture) {
                 if score < 0.3 {
                     continue;
                 }
-                if best.as_ref().is_none_or(|(old, _, _, _)| score > *old) {
-                    best = Some((score, institution.id, faction.id, demand));
-                }
+                proposals.push(Hearing {
+                    site: site.id,
+                    controller,
+                    institution: institution.id,
+                    faction: faction.id,
+                    demand,
+                    pressure: score,
+                    speaker: institution.leader,
+                    representative,
+                });
             }
         }
-        if let Some((pressure, institution, faction, demand)) = best {
-            proposals.push((site.id, controller, institution, faction, demand, pressure));
-        }
     }
-    for (site, controller, institution, faction, demand, pressure) in proposals {
+    proposals
+}
+pub(crate) fn forecast(h: &History, c: &Culture, site: u32) -> Option<Hearing> {
+    candidates(h, c, site)
+        .into_iter()
+        .reduce(|a, b| if b.pressure > a.pressure { b } else { a })
+}
+
+pub(crate) fn propose(h: &mut History, c: &mut Culture) {
+    let proposals: Vec<_> = h
+        .sites
+        .iter()
+        .filter_map(|site| {
+            if !c.work_allowed(site.id, "petition hearing")
+                || c.labor_budget.get(site.id as usize).copied().unwrap_or(0.) < 0.1
+            {
+                return None;
+            }
+            if let Some(plan) = c
+                .work_plans
+                .get(site.id as usize)
+                .filter(|p| p.services.is_some())
+            {
+                let request = plan.hearing.as_ref()?;
+                candidates(h, c, site.id)
+                    .iter()
+                    .any(|live| {
+                        live.controller == request.controller
+                            && live.institution == request.institution
+                            && live.faction == request.faction
+                            && live.demand == request.demand
+                            && live.speaker == request.speaker
+                            && live.representative == request.representative
+                    })
+                    .then_some(request.clone())
+            } else {
+                forecast(h, c, site.id)
+            }
+        })
+        .collect();
+    for request in proposals {
+        let Hearing {
+            site,
+            controller,
+            institution,
+            faction,
+            demand,
+            pressure,
+            ..
+        } = request;
+        if !c.consume_service_space(h.month, site, institution, request.service()) {
+            continue;
+        }
         c.labor_budget[site as usize] -= 0.1;
         c.labor_spent += 0.1;
         crate::culture::work_requests::record_work(&mut c.work_plans, site, h.month, 0.1);
@@ -239,6 +316,10 @@ pub(crate) fn propose(h: &mut History, c: &mut Culture) {
             ("institution".into(), institution),
             ("faction".into(), faction),
         ]);
+        ev.subjects.push(("person".into(), request.speaker));
+        if request.representative != request.speaker {
+            ev.subjects.push(("person".into(), request.representative));
+        }
         h.governance.as_mut().unwrap().petitions.push(Petition {
             site,
             controller,
@@ -507,6 +588,95 @@ mod tests {
                 dues: 0.,
                 expenses: 0.,
             });
+            // Captured hearing requests use actual room/work reservations.
+            for (lost_at_open, lost_after, absent) in [
+                (false, false, false),
+                (true, false, false),
+                (false, true, false),
+                (false, false, true),
+            ] {
+                let mut run = h.clone();
+                run.culture = Some(c.clone());
+                run.sync_culture();
+                let mut culture = run.culture.take().unwrap();
+                for agent in &mut culture.agents {
+                    agent.traits = [0.; 6];
+                    agent.knowledge.clear();
+                }
+                for town in &mut run.sites {
+                    town.economy.finance[0] = 0.;
+                }
+                let room = culture.artifacts.len() as u32;
+                culture.artifacts.push(crate::culture::Artifact {
+                    id: room,
+                    name: "Declared hearing room".into(),
+                    kind: "institutional foundation".into(),
+                    creator: None,
+                    owner: crate::culture::Owner::Institution(institution),
+                    claims: vec![],
+                    site: Some(site),
+                    custodian: None,
+                    materials: vec![(0, 20.)], // Declared fixture inventory.
+                    topic: None,
+                    tradition: None,
+                    events: vec![],
+                    destroyed: false,
+                    lost: lost_at_open,
+                });
+                culture.institutions[institution as usize].capacity =
+                    Some(crate::institution_capacity::Capacity {
+                        building: Some(crate::institution_capacity::MeetingPlace::new(room)),
+                        ..crate::institution_capacity::Capacity::new(run.month)
+                    });
+                run.culture = Some(culture);
+                run.open_participation();
+                let plans = run.cultural_work_plans();
+                let request = plans[site as usize]
+                    .hearing
+                    .clone()
+                    .expect("represented demand");
+                assert_eq!(request.institution, institution);
+                run.reserve_cultural_plans(plans, &vec![0.5; run.sites.len()]);
+                let mut culture = run.culture.take().unwrap();
+                let room_plan = culture.work_plans[site as usize]
+                    .services
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .find(|p| p.institution == institution)
+                    .unwrap();
+                let receipt = room_plan
+                    .receipts
+                    .iter()
+                    .find(|r| r.service == request.service())
+                    .unwrap();
+                assert_eq!(receipt.granted > 0., !lost_at_open);
+                if lost_after {
+                    culture.artifacts[room as usize].lost = true;
+                }
+                if absent {
+                    run.people[request.speaker as usize].died = Some(run.month);
+                }
+                let mut resumed: Culture =
+                    serde_json::from_value(serde_json::to_value(&culture).unwrap()).unwrap();
+                let mut resumed_run = run.clone();
+                let before = culture.labor_spent;
+                propose(&mut run, &mut culture);
+                propose(&mut resumed_run, &mut resumed);
+                let expected = usize::from(!lost_at_open && !lost_after && !absent);
+                assert_eq!(run.governance.as_ref().unwrap().petitions.len(), expected);
+                assert!((culture.labor_spent - before - expected as f64 * 0.1).abs() < 1e-5);
+                assert_eq!(
+                    serde_json::to_value(&culture).unwrap(),
+                    serde_json::to_value(&resumed).unwrap()
+                );
+                assert_eq!(
+                    serde_json::to_value(&run.governance).unwrap(),
+                    serde_json::to_value(&resumed_run.governance).unwrap()
+                );
+                propose(&mut run, &mut culture);
+                assert_eq!(run.governance.as_ref().unwrap().petitions.len(), expected);
+            }
             c.labor_budget = vec![0.; h.sites.len()];
             propose(h, &mut c);
             assert!(

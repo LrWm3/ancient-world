@@ -8,6 +8,11 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Service {
+    PetitionHearing {
+        faction: u32,
+        speaker: u32,
+        representative: u32,
+    },
     Lesson {
         student: u32,
         teacher: u32,
@@ -17,6 +22,20 @@ pub enum Service {
         artifact: u32,
         author: u32,
     },
+}
+
+impl Service {
+    pub(crate) fn people(self) -> [Option<u32>; 2] {
+        match self {
+            Self::Lesson { teacher, .. } => [Some(teacher), None],
+            Self::HeritageStudy { author, .. } => [Some(author), None],
+            Self::PetitionHearing {
+                speaker,
+                representative,
+                ..
+            } => [Some(speaker), Some(representative)],
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -250,6 +269,7 @@ impl crate::culture::Culture {
         actor: Option<u32>,
         lesson: Option<(u32, u32, u32)>,
         actions: &[(String, f32)],
+        hearing: Option<&crate::civic_petitions::Hearing>,
     ) -> Vec<Plan> {
         let mut requests = Vec::new();
         let present = self.site_people(h, site);
@@ -307,6 +327,25 @@ impl crate::culture::Culture {
                     ));
                 }
             }
+        }
+        // Within an institution: heritage, then hearings, then lessons, as at execution.
+        if let Some(hearing) = hearing {
+            let position = requests
+                .iter()
+                .position(|(_, service, _)| matches!(service, Service::Lesson { .. }))
+                .unwrap_or(requests.len());
+            requests.insert(
+                position,
+                (
+                    hearing.institution,
+                    hearing.service(),
+                    if hearing.speaker == hearing.representative {
+                        1.
+                    } else {
+                        2.
+                    },
+                ),
+            );
         }
         let mut plans: Vec<Plan> = Vec::new();
         for (institution, service, occupants) in requests {
@@ -383,6 +422,13 @@ pub(crate) fn feasible_work(
                 }
             }
             "study" if lesson_needs_room && !lesson => None,
+            "petition hearing"
+                if !plans.iter().flat_map(|p| &p.receipts).any(|r| {
+                    r.granted > 0. && matches!(r.service, Service::PetitionHearing { .. })
+                }) =>
+            {
+                None
+            }
             _ => Some(*work),
         })
         .sum::<f32>()
@@ -432,6 +478,23 @@ pub(crate) fn validate_work_plan(
             );
             seen.push(r.service);
             let valid = match r.service {
+                Service::PetitionHearing {
+                    faction,
+                    speaker,
+                    representative,
+                } => {
+                    (speaker as usize) < people
+                        && (representative as usize) < people
+                        && p.hearing.as_ref().is_some_and(|q| {
+                            q.site == p.site
+                                && q.institution == plan.institution
+                                && q.faction == faction
+                                && q.speaker == speaker
+                                && q.representative == representative
+                        })
+                        && p.actions.iter().any(|(a, _)| a == "petition hearing")
+                        && r.occupants == if speaker == representative { 1. } else { 2. }
+                }
                 Service::Lesson {
                     student,
                     teacher,
@@ -531,6 +594,32 @@ mod tests {
         assert!(!p.settle((12, 1, 3), b, 1., true));
         assert_eq!(p.receipts.iter().map(|r| r.used).sum::<f64>(), 0.);
     }
+    #[test]
+    fn hearings_and_lessons_share_room_time_before_work_allocation() {
+        let hearing = Service::PetitionHearing {
+            faction: 0,
+            speaker: 4,
+            representative: 5,
+        };
+        let actions = vec![("petition hearing".into(), 0.1), ("study".into(), 0.1)];
+        let mut p = Plan::new(12, 0, 0, 0.3);
+        p.group_space = Some(2.);
+        let first = p.reserve(hearing, 2., 0.1).unwrap();
+        let second = p.reserve(lesson(1), 2., 0.1).unwrap();
+        assert_eq!(p.receipts[first].granted, 0.2);
+        assert_eq!(p.receipts[second].granted, 0.);
+        assert_eq!(feasible_work(&actions, &[p.clone()], true), 0.1);
+        assert!(p.settle_with_group_space((12, 0, 0), first, 0.3, 2., true));
+        assert!(!p.settle_with_group_space((12, 0, 0), first, 0.3, 2., true));
+        assert!(!p.settle_with_group_space((12, 0, 0), second, 0.3, 2., true));
+        p.validate().unwrap();
+        let mut ample = Plan::new(12, 0, 0, 0.4);
+        ample.group_space = Some(2.);
+        ample.reserve(hearing, 2., 0.1);
+        ample.reserve(lesson(1), 2., 0.1);
+        assert_eq!(feasible_work(&actions, &[ample], true), 0.2);
+    }
+
     #[test]
     fn room_denials_filter_demand_before_the_work_ceiling() {
         let mut p = Plan::new(12, 0, 0, 0.5);
