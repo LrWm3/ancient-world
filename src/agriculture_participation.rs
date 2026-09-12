@@ -46,7 +46,16 @@ impl FarmPlan {
             <= self.requested as f64 + 1e-4
     }
     pub fn granted(&self) -> f32 {
-        self.assignments.iter().map(|a| a.granted).sum()
+        // GPU allowance must not exceed the sum of the actual stored commitments.
+        round_work_down(self.assignments.iter().map(|a| a.granted as f64).sum())
+    }
+}
+fn round_work_down(value: f64) -> f32 {
+    let rounded = value as f32;
+    if rounded as f64 > value && rounded > 0. {
+        f32::from_bits(rounded.to_bits() - 1)
+    } else {
+        rounded
     }
 }
 impl History {
@@ -227,9 +236,9 @@ impl History {
                     assignments: vec![],
                     settled: false,
                 };
-                let mut left = wanted;
+                let mut left = wanted as f64;
                 for (person, household, capacity) in people {
-                    let grant = (capacity * fraction).min(left);
+                    let grant = round_work_down(((capacity * fraction) as f64).min(left));
                     if let Some(commitment) = self.participation.as_mut().unwrap().reserve(
                         self.month,
                         f.site,
@@ -247,7 +256,7 @@ impl History {
                             granted,
                             used: 0.,
                         });
-                        left = (left - granted).max(0.);
+                        left = (left - granted as f64).max(0.);
                     }
                 }
                 if sector == 0 {
@@ -472,6 +481,36 @@ fn activity(sector: usize) -> Activity {
 mod grant_audit_tests {
     use super::*;
     #[test]
+    fn long_run_worker_count_cannot_overdraw_the_allowance() {
+        let wanted = 160f32 / 1.5;
+        let people = vec![0.8f32; 399];
+        let fraction = wanted / people.iter().sum::<f32>();
+        let mut old_left = wanted;
+        let mut old_sum = 0f64;
+        let mut left = wanted as f64;
+        let mut sum = 0f64;
+        for capacity in people {
+            let old = (capacity * fraction).min(old_left);
+            old_sum += old as f64;
+            old_left = (old_left - old).max(0.);
+            let grant = round_work_down(((capacity * fraction) as f64).min(left));
+            assert!(grant as f64 <= left);
+            assert!(grant <= capacity);
+            sum += grant as f64;
+            left = (left - grant as f64).max(0.);
+        }
+        assert!(
+            old_sum > wanted as f64 + 1e-4,
+            "fixture reproduces real accumulated overgrant"
+        );
+        assert!(sum <= wanted as f64);
+        assert!(
+            wanted as f64 - sum < 1e-4,
+            "rounding must not withhold meaningful work"
+        );
+        assert!(round_work_down(sum) as f64 <= sum);
+    }
+    #[test]
     fn many_resident_grants_do_not_create_a_false_overallocation() {
         // This scale occurs at the 160 / 1.5 land ceiling in the century run.
         let requested = 160f32 / 1.5;
@@ -493,7 +532,7 @@ mod grant_audit_tests {
                 .collect(),
         };
         assert!(
-            plan.granted() > plan.requested + 1e-4,
+            plan.assignments.iter().map(|a| a.granted).sum::<f32>() > plan.requested + 1e-4,
             "legacy f32 reduction must reject this fixture"
         );
         assert!(plan.grants_within_request());

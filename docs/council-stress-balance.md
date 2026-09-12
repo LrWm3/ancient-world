@@ -56,3 +56,30 @@ present, and economic residuals remain below 0.001 in their native units.
 
 This exercises resource-funded war under the policies. It does not establish
 long-run wartime fiscal balance or prove that one policy improves war outcomes.
+
+## Detected failure: actual farm-work over-allocation
+
+The existing-support seed 1024 stops at month 1688 (140 years plus eight months).
+Its requested farming allowance is 106.666664 worker-months, but the stored
+individual grants sum to 106.66677019000053. The float32 display sum is lower,
+106.66662; this is actual accumulated over-allocation, not merely a display/audit
+sum problem. Seeds 17 and 81 complete 200 years in that arm. The failed seed's
+140-year sample is not treated as a 200-year result.
+
+A 399-worker fixture reproduces the fault with an identical 160/1.5 allowance and
+0.8 capacity per worker. Repeated float32 subtraction can leave positive apparent
+capacity after actual commitments exceed the total. The correction retains the
+remaining allowance in double precision, rounds each individual grant downward,
+and similarly bounds the GPU allowance by the double-precision sum of actual
+commitments. It preserves the validation tolerance rather than accepting excess.
+Both the new true-overgrant fixture and the previous false-audit-sum fixture pass.
+
+For the corrected stress comparison, use isolated source `b9ed7bf` plus the
+`src/agriculture_participation.rs` allocator patch. Do not include the intervening
+husbandry, continuing-study or captured-route changes when interpreting the council
+policy comparison. Corrected runs and final results are pending.
+
+The cash-gap seed 1024 also fails, at month 2200, with stored grants
+106.66678148508072 against the same 106.666664 request. Both policies therefore
+expose the allocator fault. The corrected three GPU agriculture/extraction/
+construction fixtures pass, including wage attribution and saved continuation.
