@@ -166,6 +166,47 @@ impl crate::civilization::History {
                 "future cultural work receipt"
             );
             for (i, p) in c.work_plans.iter().enumerate() {
+                if let Some(plans) = &p.upkeep {
+                    anyhow::ensure!(
+                        plans.len() <= c.institutions.len(),
+                        "unbounded upkeep plans"
+                    );
+                    for (j, u) in plans.iter().enumerate() {
+                        anyhow::ensure!(
+                            (u.institution as usize) < c.institutions.len()
+                                && c.institutions[u.institution as usize].site == p.site
+                                && !plans[..j].iter().any(|v| v.institution == u.institution)
+                                && [u.requested, u.granted, u.used]
+                                    .iter()
+                                    .all(|v| v.is_finite() && *v >= 0.)
+                                && u.used <= u.granted + 1e-6
+                                && u.granted <= u.requested + 1e-6
+                                && u.members
+                                    .iter()
+                                    .all(|&id| (id as usize) < self.people.len())
+                                && u.commitment.is_none_or(|id| self
+                                    .participation
+                                    .as_ref()
+                                    .is_some_and(|state| state
+                                        .commitments
+                                        .get(id as usize)
+                                        .is_some_and(|a| a.month == p.month
+                                            && a.site == p.site
+                                            && a.activity
+                                                == crate::participation::Activity::Culture
+                                            && a.people.len() == 1
+                                            && u.members.contains(&a.people[0].0)
+                                            && (a.granted - u.granted).abs() < 1e-6)))
+                                && (u.commitment.is_some() || u.granted == 0.),
+                            "invalid institutional work plan"
+                        );
+                    }
+                    anyhow::ensure!(
+                        plans.iter().map(|u| u.granted).sum::<f32>() <= p.granted + 1e-5
+                            && plans.iter().map(|u| u.used).sum::<f32>() <= p.completed + 1e-5,
+                        "upkeep exceeds cultural work"
+                    );
+                }
                 anyhow::ensure!(
                     p.site as usize == i
                         && i < self.sites.len()

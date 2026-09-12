@@ -11,7 +11,19 @@ pub struct StudyExpectation {
     pub institution: Option<u32>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct UpkeepPlan {
+    pub institution: u32,
+    pub members: Vec<u32>,
+    pub requested: f32,
+    pub commitment: Option<u32>,
+    pub granted: f32,
+    pub used: f32,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WorkPlan {
+    /// Separate institutional teams; None preserves older/aggregate bundled plans.
+    #[serde(default)]
+    pub upkeep: Option<Vec<UpkeepPlan>>,
     #[serde(default)]
     pub study_expectation: Option<StudyExpectation>,
     #[serde(default)]
@@ -128,7 +140,34 @@ impl Culture {
                     })
                 }
             });
+        let upkeep = h.participation.as_ref().map(|_| {
+            self.institutions
+                .iter()
+                .filter(|n| n.site == site && n.active)
+                .filter_map(|n| {
+                    let capacity = n.capacity.as_ref()?;
+                    let members: Vec<_> = people
+                        .iter()
+                        .copied()
+                        .filter(|p| n.members.contains(p))
+                        .collect();
+                    (h.month.is_multiple_of(3)
+                        && !h.sites[site as usize].abandoned
+                        && capacity.observed < h.month
+                        && !members.is_empty())
+                    .then(|| UpkeepPlan {
+                        institution: n.id,
+                        members,
+                        requested: self.upkeep_work_limit(n),
+                        commitment: None,
+                        granted: 0.,
+                        used: 0.,
+                    })
+                })
+                .collect()
+        });
         WorkPlan {
+            upkeep,
             study_expectation,
             successor_expectation,
             completed: 0.,

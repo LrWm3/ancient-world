@@ -412,6 +412,7 @@ impl History {
             if let Some(c) = &mut self.culture {
                 for p in &mut c.work_plans {
                     p.commitment = None;
+                    p.upkeep = None;
                 }
             }
             if let Some(d) = self
@@ -438,9 +439,22 @@ impl History {
         };
         if let Some(c) = &self.culture {
             for p in &c.work_plans {
+                if p.month == self.month {
+                    for u in p.upkeep.iter().flatten() {
+                        if let Some(id) = u.commitment {
+                            if !state.commitments[id as usize].settled {
+                                state.settle(id, u.used)?;
+                            }
+                        }
+                    }
+                }
                 if let Some(id) = p.commitment.filter(|_| p.month == self.month) {
                     if !state.commitments[id as usize].settled {
-                        let used = p.completed;
+                        let used = (p.completed
+                            - p.upkeep
+                                .as_ref()
+                                .map_or(0., |plans| plans.iter().map(|p| p.used).sum::<f32>()))
+                        .max(0.);
                         state.commitments[id as usize].cancellation = p.cancellation.clone();
                         state.settle(id, used)?;
                     }

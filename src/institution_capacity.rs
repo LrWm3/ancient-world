@@ -88,6 +88,24 @@ impl crate::culture::Institution {
     }
 }
 impl crate::culture::Culture {
+    pub(crate) fn upkeep_work_limit(&self, n: &crate::culture::Institution) -> f32 {
+        let large = n
+            .capacity
+            .as_ref()
+            .and_then(|c| c.building.as_ref())
+            .is_some_and(|b| {
+                b.facility.is_some()
+                    || self.artifacts[b.artifact as usize]
+                        .materials
+                        .iter()
+                        .any(|&(g, mass)| g == 5 && mass >= HALL_BRICKS_KG)
+            });
+        if large {
+            0.125
+        } else {
+            0.025
+        }
+    }
     pub(crate) fn maintain_institutions(&mut self, h: &mut crate::civilization::History) {
         // Membership can outlive local residence. Only present adult representatives
         // provide staffing; empty institutions do not reserve the shared work allowance.
@@ -130,8 +148,26 @@ impl crate::culture::Culture {
                 } else {
                     0.025
                 };
+            let assigned = self.work_plans.get(i).and_then(|p| p.upkeep.as_ref());
             let work = if h.sites[i].abandoned || living == 0 {
                 0.
+            } else if let Some(plans) = assigned {
+                plans
+                    .iter()
+                    .find(|p| p.institution == n.id)
+                    .map_or(0., |p| {
+                        let eligible = p
+                            .commitment
+                            .and_then(|id| h.participation.as_ref()?.commitments.get(id as usize))
+                            .is_some_and(|c| c.people.iter().all(|(id, _)| n.members.contains(id)));
+                        if eligible {
+                            h.personal_grant_live(p.commitment)
+                                .min(p.granted)
+                                .min(work_limit)
+                        } else {
+                            0.
+                        }
+                    })
             } else {
                 (available.get(i).copied().unwrap_or(0.) / counts[i].max(1) as f32).min(work_limit)
             };
@@ -147,7 +183,11 @@ impl crate::culture::Culture {
             n.treasury -= paid;
             n.expenses += paid;
             c.paid += paid;
-            if let Some(b) = self.labor_budget.get_mut(i) {
+            if let Some(plans) = self.work_plans.get_mut(i).and_then(|p| p.upkeep.as_mut()) {
+                if let Some(p) = plans.iter_mut().find(|p| p.institution == n.id) {
+                    p.used = work;
+                }
+            } else if let Some(b) = self.labor_budget.get_mut(i) {
                 *b = (*b - work).max(0.);
             }
             c.work += work as f64;
@@ -797,6 +837,125 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn named_upkeep_uses_members_once_and_survives_unrelated_actor_absence() {
+        use crate::{
+            catalog::Catalog,
+            config::Config,
+            culture::{Institution, InstitutionKind},
+            gpu::{ContextGpu, Generator},
+        };
+        let mut g = Generator::new(
+            pollster::block_on(ContextGpu::headless()).unwrap(),
+            Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                ..Default::default()
+            },
+            Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        g.enable_society().unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        h.set_individual_participation(true).unwrap();
+        h.month = 3;
+        h.begin_service_reservations();
+        h.sync_culture();
+        let local = h.culture.as_ref().unwrap().site_people(h, 0);
+        assert!(local.len() >= 2);
+        let member = local[0];
+        h.sites[0].economy.finance[0] -= 25.;
+        h.culture.as_mut().unwrap().institutions.push(Institution {
+            capacity: Some(Capacity::new(0)),
+            id: 0,
+            name: "Staffed school".into(),
+            kind: InstitutionKind::Scholarly,
+            site: 0,
+            tradition: None,
+            leader: member,
+            members: vec![member],
+            treasury: 25.,
+            active: true,
+            founded: 0,
+            knowledge: Default::default(),
+            property: vec![],
+            dues: 25.,
+            expenses: 0.,
+        });
+        let opening = h.clone();
+        for scenario in 0..3 {
+            let blocked = scenario == 1;
+            let mut case = opening.clone();
+            if blocked {
+                let p = case.participation.as_mut().unwrap();
+                p.reserve(
+                    case.month,
+                    0,
+                    crate::participation::Activity::Research,
+                    &[member],
+                    p.available(member),
+                )
+                .unwrap();
+            }
+            let plans = case.cultural_work_plans();
+            case.reserve_cultural_plans(plans, &vec![0.5; case.sites.len()]);
+            let plan = &case.culture.as_ref().unwrap().work_plans[0];
+            let u = &plan.upkeep.as_ref().unwrap()[0];
+            assert_eq!(u.granted > 0., !blocked);
+            if let Some(id) = u.commitment {
+                assert_eq!(
+                    case.participation.as_ref().unwrap().commitments[id as usize].people[0].0,
+                    member
+                );
+            }
+            let mut restored: crate::civilization::History =
+                serde_json::from_value(serde_json::to_value(&case).unwrap()).unwrap();
+            for run in [&mut case, &mut restored] {
+                let mut c = run.culture.take().unwrap();
+                if scenario == 2 {
+                    c.institutions[0].members.clear();
+                }
+                // Cancellation of the unrelated action bundle must not erase a member's upkeep.
+                c.work_plans[0].cancellation = Some("unrelated actor absent".into());
+                c.labor_budget[0] = 0.;
+                let money = run.sites[0].economy.finance[0] as f64 + c.institutions[0].treasury;
+                c.maintain_institutions(run);
+                assert_eq!(
+                    c.institutions[0].capacity.as_ref().unwrap().work > 0.,
+                    scenario == 0
+                );
+                assert_eq!(
+                    money,
+                    run.sites[0].economy.finance[0] as f64 + c.institutions[0].treasury
+                );
+                let after = serde_json::to_value(&c).unwrap();
+                c.maintain_institutions(run);
+                assert_eq!(after, serde_json::to_value(&c).unwrap());
+                run.culture = Some(c);
+                run.settle_participation().unwrap();
+                let p = &run.culture.as_ref().unwrap().work_plans[0];
+                if let Some(id) = p.commitment {
+                    assert_eq!(
+                        run.participation.as_ref().unwrap().commitments[id as usize].used,
+                        0.
+                    );
+                }
+                if let Some(id) = p.upkeep.as_ref().unwrap()[0].commitment {
+                    assert_eq!(
+                        run.participation.as_ref().unwrap().commitments[id as usize].used > 0.,
+                        scenario == 0
+                    );
+                }
+            }
+            assert_eq!(
+                serde_json::to_value(&case).unwrap(),
+                serde_json::to_value(&restored).unwrap()
+            );
+        }
     }
 
     #[test]

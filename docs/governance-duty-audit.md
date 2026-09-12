@@ -120,3 +120,32 @@ all non-resolution history identical, and duplicate receipt rejection leaves the
 whole history unchanged. Legacy plans without expectations emit no comparison.
 All 114 regular library tests pass (104 hardware tests skipped); the three-seed
 frozen monthly/batched/checkpoint fixture also passes with the new receipts.
+
+## Institution-specific upkeep teams
+
+In named-participation mode, quarterly cultural plans now capture each due
+institution's local members and upkeep request. Within the granted cultural
+allowance, upkeep reserves first in stable institution order; each institution
+selects its available member with the most remaining personal capacity, using ID
+order to break ties. This is a bounded initial priority, not fair allocation across
+institutions. Other cultural actions reserve the remainder with their existing team.
+
+The institution executes only its own live member grant, rechecking membership and
+presence. Its work is recorded inside total cultural completion but is subtracted
+from the generic team's completion before personal settlement. Money and building
+materials still transfer through the original upkeep code once. Cancellation of
+an unrelated cultural actor does not erase the institution's separate reservation.
+Unused time expires; later production cannot reuse it. Aggregate mode and older
+plans without separate upkeep assignments retain the bundled behavior.
+
+This supplies named attendance for upkeep; it does not yet split elections or
+other administrative actions into their own teams, introduce staff salaries, or
+replace member counts used to estimate an institution's organizational support.
+
+Verification: all three hardware upkeep fixtures pass. The new fixture checks
+occupied members, membership revoked after reservation, unrelated actor cancellation,
+unchanged total money, no duplicate upkeep, zero upkeep work attributed to the
+generic team, and serialization of reserved plans. The three-seed service-allocation
+fixture and frozen batch/single/checkpoint fixture pass. The regular suite passes
+114 tests with 105 hardware tests skipped. These checks establish accounting and
+continuation behavior, not long-run balance of the new upkeep priority.
