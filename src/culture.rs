@@ -256,6 +256,9 @@ pub struct Artifact {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Culture {
+    /// Last completed annual informal-contact selection boundary.
+    #[serde(default)]
+    pub contact_learning_month: Option<u32>,
     /// Institutions purchase the writing supplies used for heritage interpretation.
     #[serde(default)]
     pub funded_heritage_study: bool,
@@ -314,6 +317,7 @@ fn focused_work_default() -> bool {
 impl Culture {
     fn empty(month: u32, legacy: bool, options: FoundingOptions) -> Result<Self> {
         Ok(Self {
+            contact_learning_month: None,
             funded_heritage_study: false,
             institution_working_core: false,
             institutional_students: false,
@@ -355,6 +359,7 @@ impl Culture {
         ensure!(
             self.version == 1
                 && self.started <= h.month
+                && self.contact_learning_month.is_none_or(|m| m <= h.month)
                 && self.site_faith.len() == h.sites.len()
                 && self.agents.len() <= h.people.len(),
             "invalid cultural clock or dimensions"
@@ -2021,6 +2026,8 @@ impl Culture {
         let religious_routes = routes.clone();
         let mut counted = BTreeSet::new();
         // Transmission reads completed knowledge at the opening of this pass.
+        let new_learning_boundary = self.contact_learning_month.is_none_or(|m| m < h.month);
+        self.contact_learning_month = Some(h.month);
         let opening_knowledge: Vec<_> = self
             .agents
             .iter()
@@ -2041,32 +2048,35 @@ impl Culture {
             if a != b && *years < 5 {
                 continue;
             }
+            if !new_learning_boundary {
+                continue;
+            }
             let teachers = self.site_people(h, from);
             let students = self.site_people(h, to);
-            if let (Some(&teacher), Some(&student)) = (teachers.first(), students.first()) {
-                if let Some(topic) = opening_knowledge[teacher as usize]
-                    .0
-                    .difference(&self.agents[student as usize].knowledge)
-                    .next()
-                    .copied()
-                {
-                    let Some((completed, progress, previous)) =
-                        self.agents[student as usize].observe_topic(topic, h.month, 0.025)
-                    else {
-                        continue;
-                    };
-                    for n in &mut self.institutions {
-                        if completed
-                            && n.site == from
-                            && n.active
-                            && n.kind == InstitutionKind::Scholarly
-                            && n.members.len() < 24
-                            && !n.members.contains(&student)
-                        {
-                            n.members.push(student);
-                        }
+            if let Some((teacher, student, topic)) = learning::observation_candidate(
+                &self.agents,
+                &teachers,
+                &students,
+                h.month,
+                |teacher, topic| opening_knowledge[teacher as usize].0.contains(&topic),
+            ) {
+                let Some((completed, progress, previous)) =
+                    self.agents[student as usize].observe_topic(topic, h.month, 0.025)
+                else {
+                    continue;
+                };
+                for n in &mut self.institutions {
+                    if completed
+                        && n.site == from
+                        && n.active
+                        && n.kind == InstitutionKind::Scholarly
+                        && n.members.len() < 24
+                        && !n.members.contains(&student)
+                    {
+                        n.members.push(student);
                     }
-                    self.log(
+                }
+                self.log(
                         h,
                         if completed { "knowledge_contact" } else { "knowledge_contact_progress" },
                         to,
@@ -2083,18 +2093,17 @@ impl Culture {
                             if completed { "acquired" } else { "not yet acquired" }
                         ),
                     );
-                    let event = h.events.last_mut().unwrap();
-                    event.subjects.push(("person".into(), teacher));
-                    if let Some(&cause) = opening_knowledge[teacher as usize].1.get(&topic) {
-                        event.causes.push(cause);
-                    }
-                    if let Some(previous) = previous {
-                        if !event.causes.contains(&previous) {
-                            event.causes.push(previous);
-                        }
-                    }
-                    self.agents[student as usize].study_source(topic, event.id, completed);
+                let event = h.events.last_mut().unwrap();
+                event.subjects.push(("person".into(), teacher));
+                if let Some(&cause) = opening_knowledge[teacher as usize].1.get(&topic) {
+                    event.causes.push(cause);
                 }
+                if let Some(previous) = previous {
+                    if !event.causes.contains(&previous) {
+                        event.causes.push(previous);
+                    }
+                }
+                self.agents[student as usize].study_source(topic, event.id, completed);
             }
         }
         self.advance_religious_dynamics(h, &religious_routes);

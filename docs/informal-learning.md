@@ -89,3 +89,6 @@ cargo clippy --all-targets -- -D warnings
 
 These are mechanism and continuation checks. No long-run knowledge-diversity or
 economic-balance calibration was performed in this increment.
+
+The subsequent [encounter-selection increment](informal-learning-selection.md)
+removes first-resident bottlenecks without changing these progress rates.

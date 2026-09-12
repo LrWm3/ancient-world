@@ -30,6 +30,45 @@ impl Study {
         completed
     }
 }
+/// Select one feasible informal encounter. Stable person IDs resolve ties; an
+/// in-progress topic wins over starting another. `knows` can read an opening
+/// snapshot so newly acquired knowledge cannot relay within this contact pass.
+pub(super) fn observation_candidate(
+    agents: &[Agent],
+    teachers: &[u32],
+    students: &[u32],
+    month: u32,
+    knows: impl Fn(u32, u32) -> bool,
+) -> Option<(u32, u32, u32)> {
+    let mut students = students.to_vec();
+    students.sort_unstable();
+    students.dedup();
+    for student in students {
+        let a = &agents[student as usize];
+        if a.last_learning_exposure.is_some_and(|m| m >= month) {
+            continue;
+        }
+        let mut topics: Vec<u32> = (0..12).filter(|t| !a.knowledge.contains(t)).collect();
+        topics.sort_by(|a_topic, b_topic| {
+            let progress = |t: &u32| a.studies.get(t).map_or(0., |s| s.progress);
+            progress(b_topic)
+                .total_cmp(&progress(a_topic))
+                .then(a_topic.cmp(b_topic))
+        });
+        for topic in topics {
+            if let Some(teacher) = teachers
+                .iter()
+                .copied()
+                .filter(|&teacher| teacher != student && knows(teacher, topic))
+                .min()
+            {
+                return Some((teacher, student, topic));
+            }
+        }
+    }
+    None
+}
+
 impl Agent {
     pub(super) fn lesson_expectation(&self, topic: u32, support: f32) -> LessonExpectation {
         let mut study = self.studies.get(&topic).cloned().unwrap_or_default();
@@ -106,6 +145,41 @@ mod tests {
             actions: 0,
         }
     }
+    #[test]
+    fn encounters_find_relevant_people_preserve_opening_sources_and_resume_study() {
+        let mut agents = vec![agent(); 4];
+        for (i, a) in agents.iter_mut().enumerate() {
+            a.person = i as u32;
+        }
+        agents[1].knowledge = BTreeSet::from([4, 9]);
+        agents[2].knowledge = BTreeSet::from([4, 9]); // First student has nothing to learn.
+        agents[3].studies.insert(
+            9,
+            Study {
+                progress: 0.4,
+                source: Some(7),
+            },
+        );
+        let opening: Vec<_> = agents.iter().map(|a| a.knowledge.clone()).collect();
+        let before = serde_json::to_value(&agents).unwrap();
+        let pick = |agents: &[Agent], teachers: &[u32], students: &[u32]| {
+            observation_candidate(agents, teachers, students, 12, |p, t| {
+                opening[p as usize].contains(&t)
+            })
+        };
+        assert_eq!(pick(&agents, &[0, 1], &[2, 3]), Some((1, 3, 9)));
+        assert_eq!(pick(&agents, &[1, 0], &[3, 2]), Some((1, 3, 9)));
+        assert_eq!(serde_json::to_value(&agents).unwrap(), before);
+        assert!(pick(&agents, &[0], &[3]).is_none());
+        agents[0].knowledge.insert(9); // Learned this pass: not an opening source.
+        assert!(pick(&agents, &[0], &[3]).is_none());
+        agents[3].observe_topic(9, 12, 0.025).unwrap();
+        assert!(pick(&agents, &[0, 1], &[2, 3]).is_none());
+        let restored: Vec<Agent> =
+            serde_json::from_value(serde_json::to_value(&agents).unwrap()).unwrap();
+        assert!(pick(&restored, &[0, 1], &[2, 3]).is_none());
+    }
+
     #[test]
     fn informal_exposure_is_partial_bounded_and_combines_with_paid_study() {
         let mut a = agent();

@@ -89,21 +89,20 @@ impl Culture {
                 .push_str("; visiting a recovered heritage object");
         }
         let mut learned = None;
-        let teacher = self.site_people(h, destination).first().copied();
-        if let Some(teacher) = teacher {
-            if let Some(topic) = self.agents[teacher as usize]
-                .knowledge
-                .difference(&self.agents[actor as usize].knowledge)
-                .next()
-                .copied()
+        let teachers = self.site_people(h, destination);
+        if let Some((teacher, _, topic)) = learning::observation_candidate(
+            &self.agents,
+            &teachers,
+            &[actor],
+            h.month,
+            |teacher, topic| self.agents[teacher as usize].knowledge.contains(&topic),
+        ) {
+            // Observation during an already funded visit, not a second paid lesson.
+            if let Some((completed, progress, previous)) =
+                self.agents[actor as usize].observe_topic(topic, h.month, 0.05)
             {
-                // Observation during an already funded visit, not a second paid lesson.
-                if let Some((completed, progress, previous)) =
-                    self.agents[actor as usize].observe_topic(topic, h.month, 0.05)
-                {
-                    learned = Some((teacher, topic, completed, progress, previous));
-                    self.agents[actor as usize].relations.insert(teacher, 0.5);
-                }
+                learned = Some((teacher, topic, completed, progress, previous));
+                self.agents[actor as usize].relations.insert(teacher, 0.5);
             }
         }
         self.agents[actor as usize]
@@ -558,7 +557,27 @@ mod tests {
             .iter()
             .any(|e| e.kind == "knowledge_contact_progress" && e.site == Some(route.to)));
         let prior = open.agents[student as usize].studies[&4].progress;
+        let contacts = |h: &History| {
+            h.events
+                .iter()
+                .filter(|e| e.kind == "knowledge_contact_progress" || e.kind == "knowledge_contact")
+                .count()
+        };
+        let prior_contacts = contacts(&open_h);
+        let mut resumed: Culture =
+            serde_json::from_value(serde_json::to_value(&open).unwrap()).unwrap();
+        let mut old = serde_json::to_value(&resumed).unwrap();
+        old.as_object_mut()
+            .unwrap()
+            .remove("contact_learning_month");
+        assert!(serde_json::from_value::<Culture>(old)
+            .unwrap()
+            .contact_learning_month
+            .is_none());
+        resumed.year(&mut open_h);
+        assert_eq!(contacts(&open_h), prior_contacts);
         open.year(&mut open_h);
+        assert_eq!(contacts(&open_h), prior_contacts);
         assert_eq!(open.agents[student as usize].studies[&4].progress, prior);
         // A witnessed arrival before the closure remains real historical contact.
         let mut delivered_h = h.clone();
@@ -1517,7 +1536,13 @@ mod tests {
         c.traditions[majority as usize].sacred_site = site;
         c.traditions[faith as usize].sacred_site = destination;
         assert_eq!(c.resident_tradition(h, site, actor), Some(faith));
-        let teacher = c.site_people(h, destination)[0] as usize;
+        let teachers = c.site_people(h, destination);
+        assert!(teachers.len() >= 2);
+        for &teacher in &teachers {
+            c.agents[teacher as usize].knowledge.clear();
+        }
+        // The first resident is not a source; the visitor must find a later one.
+        let teacher = teachers[1] as usize;
         c.agents[teacher].knowledge = BTreeSet::from([11]);
         c.agents[actor as usize].knowledge.remove(&11);
         c.agents[actor as usize].studies.remove(&11);
