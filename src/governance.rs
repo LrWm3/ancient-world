@@ -57,6 +57,8 @@ pub struct Treaty {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Governance {
+    #[serde(default)]
+    pub artifact_petitions: Vec<crate::artifact_petitions::Petition>,
     #[serde(default = "petitions_on")]
     pub petitions_enabled: bool,
     #[serde(default)]
@@ -142,6 +144,7 @@ impl Governance {
             .any(|t| t.parties == pair(a, b) && t.signed <= month && month < t.expires)
     }
     pub fn validate(&self, h: &History) -> Result<()> {
+        crate::artifact_petitions::validate(h, &self.artifact_petitions)?;
         crate::civic_petitions::validate(h, &self.petitions)?;
         ensure!(
             h.politics.is_some()
@@ -601,6 +604,7 @@ impl Generator {
             }
         }
         h.governance = Some(Governance {
+            artifact_petitions: vec![],
             petitions_enabled: true,
             petitions: vec![],
             negotiated_autonomy: true,

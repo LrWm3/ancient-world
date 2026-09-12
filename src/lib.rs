@@ -128,3 +128,5 @@ mod military_supply;
 #[cfg(test)]
 mod continuity_fixture;
 pub mod institution_relocation;
+
+pub mod artifact_petitions;

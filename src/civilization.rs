@@ -1398,6 +1398,7 @@ impl Generator {
         h.genealogy_month();
         h.culture_month();
         h.office_month();
+        h.resolve_artifact_petitions();
         let governance_observations = h.observe_governance();
         h.governance_month_observed(&governance_observations)?;
         if h.month % 12 == 0 {
