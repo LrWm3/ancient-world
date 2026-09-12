@@ -1264,6 +1264,7 @@ impl Generator {
         h.month += 1;
         h.trade_contact.prune(h.month);
         h.activate_monthly_policies();
+        h.peace_payments();
         h.institution_arrivals();
         h.contagion_month();
         if let Some(nav) = navigation.as_ref().filter(|_| h.living.is_some()) {

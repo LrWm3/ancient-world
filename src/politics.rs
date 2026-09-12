@@ -931,7 +931,9 @@ impl History {
                 .iter()
                 .any(|w| ((w.attacker == attacker && w.defender == defender)
                     || (w.attacker == defender && w.defender == attacker))
-                    && w.ended.is_none_or(|m| self.month.saturating_sub(m) < 120)),
+                    && w.ended
+                        .is_none_or(|m| w.outcome != "peace obligations breached"
+                            && self.month.saturating_sub(m) < 120)),
             "active war or ten-year truce"
         );
         let distance = self
@@ -1064,6 +1066,9 @@ impl History {
             return;
         };
         let w = &mut p.wars[id as usize];
+        if w.ended.is_some() {
+            return;
+        }
         let valid = p.controllers[raid.target as usize] == w.defender
             && p.controllers[raid.origin as usize] == w.attacker;
         if won && valid {

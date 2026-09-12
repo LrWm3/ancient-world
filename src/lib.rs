@@ -134,3 +134,5 @@ pub mod artifact_petitions;
 pub mod route_warnings;
 
 pub mod contagion;
+
+pub mod peace;
