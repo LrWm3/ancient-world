@@ -37,6 +37,8 @@ pub struct AidMemory {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct LocalMemory {
     #[serde(default)]
+    pub warnings: Vec<crate::route_warnings::Warning>,
+    #[serde(default)]
     pub aid: Vec<AidMemory>,
     pub reports: Vec<Report>,
     /// A practical custom, separate from patron ancestry and religious affiliation.
@@ -117,6 +119,7 @@ impl LocalMemory {
             .map_or(1., |r| r.preference(month))
     }
     pub fn validate(&self, h: &History) -> Result<()> {
+        crate::route_warnings::validate(h, &self.warnings)?;
         let mut aid_pairs = std::collections::BTreeSet::new();
         for a in &self.aid {
             ensure!(
@@ -215,6 +218,9 @@ impl History {
             c.religious_relief
                 .memory
                 .preference(observer, destination, self.month)
+                * c.religious_relief
+                    .memory
+                    .route_preference(observer, destination, self.month)
         })
     }
 }

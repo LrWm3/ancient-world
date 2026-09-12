@@ -58,6 +58,8 @@ pub struct TravelRoster {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Journey {
     #[serde(default)]
+    pub warning: Option<crate::route_warnings::Encounter>,
+    #[serde(default)]
     pub roster: Option<TravelRoster>,
     pub household: u32,
     pub from: u32,
@@ -309,6 +311,12 @@ impl History {
             if self.month < j.arrives || !accessible {
                 if self.month >= j.arrives && !j.blocked {
                     j.blocked = true;
+                    j.warning = Some(crate::route_warnings::Encounter {
+                        from: j.from,
+                        to: j.to,
+                        observed: self.month,
+                        cause: j.cause,
+                    });
                     self.relocation_event(
                         "household_journey_blocked",
                         &j,
@@ -463,6 +471,21 @@ impl History {
             );
         }
         let cause = self.events.last().unwrap().id;
+        if let (Some(c), Some(encounter)) = (&mut self.culture, j.warning.clone()) {
+            c.religious_relief
+                .memory
+                .route_warning(crate::route_warnings::Warning {
+                    observer: j.to,
+                    received: self.month,
+                    arrival: cause,
+                    encounter,
+                });
+            self.events
+                .last_mut()
+                .unwrap()
+                .detail
+                .push_str("; survivors brought a dated warning about the route closure");
+        }
         self.remember_arrival(
             j.to,
             report_destination,
@@ -789,6 +812,7 @@ impl History {
                 let society = self.society.as_mut().unwrap();
                 society.relocation.sites[from].last_departure = self.month;
                 society.relocation.journeys.push(Journey {
+                    warning: None,
                     roster: Some(TravelRoster {
                         passengers: roster
                             .into_iter()
@@ -1031,6 +1055,38 @@ mod tests {
                     .unwrap();
             }
         }
+        // A temporary closure is known only to the travelers until they arrive.
+        let mut warned = h.clone();
+        warned.society.as_mut().unwrap().routes[j.route as usize].open = false;
+        warned.month = j.arrives;
+        warned.relocation_arrivals().unwrap();
+        assert!(warned
+            .culture
+            .as_ref()
+            .unwrap()
+            .religious_relief
+            .memory
+            .warnings
+            .is_empty());
+        assert!(warned.household_relocations().unwrap().journeys[0]
+            .warning
+            .is_some());
+        warned.society.as_mut().unwrap().routes[j.route as usize].open = true;
+        for _ in 0..24 {
+            warned.month += 1;
+            warned.relocation_arrivals().unwrap();
+            if warned.household_relocations().unwrap().journeys.is_empty() {
+                break;
+            }
+        }
+        assert!(!warned
+            .culture
+            .as_ref()
+            .unwrap()
+            .religious_relief
+            .memory
+            .warnings
+            .is_empty());
         // A blocked journey exhausts its own food and eventually its real cohort.
         // Its known passengers must not remain immortal Traveling identities.
         let mut stranded = h.clone();

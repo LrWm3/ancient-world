@@ -824,6 +824,7 @@ mod tests {
             .relocation
             .journeys
             .push(crate::relocation::Journey {
+                warning: None,
                 roster: Some(Default::default()),
                 household: hh.id,
                 from: hh.site,
