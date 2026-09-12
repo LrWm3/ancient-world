@@ -221,3 +221,23 @@ regular library suite passes 114 tests (105 hardware tests skipped).
 
 The full frozen-history fixture also retains monthly/batched/checkpoint equality
 on seeds 17, 81 and 256 with minimum useful grants enabled.
+
+## Scoped institution priority controls
+
+`Culture.institution_priority` offers `Stable` (the default) and `Rotating` priority
+within each institutional action class. Election requests still precede upkeep,
+and both remain inside the cultural allowance. Stable sorts by institution ID;
+Rotating rotates that sorted request list by `(month / 3 + site) % request_count`.
+This changes who gets first access, not total labor or money. Ineligible members
+and below-minimum requests still cannot reserve work.
+
+Each dated work plan captures the selected policy and ordered requests. A policy
+change applies to newly planned work, not existing grants. Older cultures default
+to Stable; older plans retain their recorded order without inventing a policy.
+The service report exposes both configuration and dated plans. The balance runner
+accepts `--rotating-institutions` and records it in run metadata. Aggregate cultural
+work retains its existing sharing rule.
+
+Rotation is an experiment in access, not a guarantee of institutional viability.
+Its fairness also depends on which requests remain eligible over time; changing
+request sets or shared member availability can change the distribution.

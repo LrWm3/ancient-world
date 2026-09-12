@@ -24,6 +24,9 @@ pub struct InstitutionWorkPlan {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WorkPlan {
+    /// Captured ordering policy; old plans do not invent an allocation history.
+    #[serde(default)]
+    pub institution_priority: Option<crate::institution_capacity::Priority>,
     /// Separate institutional teams; None preserves older/aggregate bundled plans.
     #[serde(default)]
     pub upkeep: Option<Vec<InstitutionWorkPlan>>,
@@ -161,7 +164,7 @@ impl Culture {
                     })
                 }
             });
-        let upkeep = h.participation.as_ref().map(|_| {
+        let mut upkeep: Option<Vec<InstitutionWorkPlan>> = h.participation.as_ref().map(|_| {
             self.institutions
                 .iter()
                 .filter(|n| n.site == site && n.active)
@@ -188,7 +191,7 @@ impl Culture {
                 })
                 .collect()
         });
-        let elections = h.participation.as_ref().map(|_| {
+        let mut elections: Option<Vec<InstitutionWorkPlan>> = h.participation.as_ref().map(|_| {
             self.institutions
                 .iter()
                 .filter(|n| n.site == site && n.active)
@@ -212,7 +215,11 @@ impl Culture {
                 })
                 .collect()
         });
+        for plans in [&mut elections, &mut upkeep].into_iter().flatten() {
+            self.institution_priority.order(plans, h.month, site);
+        }
         WorkPlan {
+            institution_priority: h.participation.as_ref().map(|_| self.institution_priority),
             upkeep,
             elections,
             study_expectation,

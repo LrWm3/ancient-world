@@ -257,6 +257,8 @@ pub struct Artifact {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Culture {
     #[serde(default)]
+    pub institution_priority: crate::institution_capacity::Priority,
+    #[serde(default)]
     pub heritage_renown: Vec<crate::heritage_renown::Recognition>,
     /// Restrict personal identity guards to the planned participants. False is a calibration control.
     #[serde(default = "focused_work_default")]
@@ -297,6 +299,7 @@ fn focused_work_default() -> bool {
 impl Culture {
     fn empty(month: u32, legacy: bool, options: FoundingOptions) -> Result<Self> {
         Ok(Self {
+            institution_priority: Default::default(),
             heritage_renown: vec![],
             focused_work_identities: true,
             work_plans: vec![],

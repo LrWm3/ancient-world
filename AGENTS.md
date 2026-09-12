@@ -89,3 +89,10 @@ both the shared allowance and an eligible participant's availability **before**
 reserving. An unfundable election should leave capacity for divisible upkeep;
 reserving and later expiring a known-unusable partial grant needlessly starves
 other work. Execution still rechecks eligibility and the required grant.
+
+`Culture.institution_priority` is a second scoped allocation example: Stable or
+Rotating priority within election and upkeep requests. Dated plans capture the
+policy and order; execution consumes their grants. Keep the same opening requests
+and total allowance when comparing policies. The controlled comparison in
+`docs/institution-allocation-balance.md` shows why equal turns do not by themselves
+guarantee viable outcomes under severe scarcity.

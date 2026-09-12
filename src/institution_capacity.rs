@@ -1,5 +1,27 @@
 //! Persistent institutional readiness, supported by finite quarterly work and money.
 use serde::{Deserialize, Serialize};
+/// Priority within each institutional action class; elections still precede upkeep.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Priority {
+    #[default]
+    Stable,
+    Rotating,
+}
+impl Priority {
+    pub(crate) fn order(
+        self,
+        plans: &mut [crate::culture::work_requests::InstitutionWorkPlan],
+        month: u32,
+        site: u32,
+    ) {
+        plans.sort_by_key(|p| p.institution);
+        if self == Self::Rotating && !plans.is_empty() {
+            let offset = (month / 3 + site) as usize % plans.len();
+            plans.rotate_left(offset);
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Capacity {
     #[serde(default)]
@@ -961,6 +983,130 @@ mod tests {
             assert_eq!(
                 serde_json::to_value(&case).unwrap(),
                 serde_json::to_value(&restored).unwrap()
+            );
+        }
+        let mut legacy = serde_json::to_value(&opening).unwrap();
+        legacy["culture"]
+            .as_object_mut()
+            .unwrap()
+            .remove("institution_priority");
+        let restored: crate::civilization::History = serde_json::from_value(legacy).unwrap();
+        assert_eq!(
+            restored.culture.as_ref().unwrap().institution_priority,
+            Priority::Stable
+        );
+        // Matched twelve-quarter allocation trial: four equally staffed institutions.
+        for cap in [0.025, 0.05] {
+            for priority in [Priority::Stable, Priority::Rotating] {
+                let mut run = opening.clone();
+                run.culture.as_mut().unwrap().institutions[0].members = local[..2].to_vec();
+                for id in 1..4 {
+                    let mut n = run.culture.as_ref().unwrap().institutions[0].clone();
+                    n.id = id;
+                    n.name = format!("Allocation school {id}");
+                    run.sites[0].economy.finance[0] -= 25.;
+                    run.culture.as_mut().unwrap().institutions.push(n);
+                }
+                run.culture.as_mut().unwrap().institution_priority = priority;
+                let money = run.sites[0].economy.finance[0] as f64
+                    + run
+                        .culture
+                        .as_ref()
+                        .unwrap()
+                        .institutions
+                        .iter()
+                        .map(|n| n.treasury)
+                        .sum::<f64>();
+                for quarter in 1..=12 {
+                    run.month = quarter * 3;
+                    run.begin_service_reservations();
+                    run.sync_culture();
+                    let plans = run.cultural_work_plans();
+                    assert_eq!(plans[0].institution_priority, Some(priority));
+                    run.reserve_cultural_plans(plans, &vec![cap; run.sites.len()]);
+                    let mut resumed: crate::civilization::History =
+                        serde_json::from_value(serde_json::to_value(&run).unwrap()).unwrap();
+                    for case in [&mut run, &mut resumed] {
+                        case.release_cultural_work();
+                        let mut c = case.culture.take().unwrap();
+                        let before = c.labor_spent;
+                        c.maintain_institutions(case);
+                        c.work_receipt.settle(c.labor_spent - before);
+                        case.culture = Some(c);
+                        case.settle_participation().unwrap();
+                        case.validate_service_work().unwrap();
+                    }
+                    assert_eq!(
+                        serde_json::to_value(&run).unwrap(),
+                        serde_json::to_value(&resumed).unwrap()
+                    );
+                }
+                let c = run.culture.as_ref().unwrap();
+                let work: Vec<_> = c
+                    .institutions
+                    .iter()
+                    .map(|n| n.capacity.as_ref().unwrap().work)
+                    .collect();
+                let readiness: Vec<_> = c
+                    .institutions
+                    .iter()
+                    .map(|n| n.capacity.as_ref().unwrap().readiness)
+                    .collect();
+                let operational = c.institutions.iter().filter(|n| n.operational()).count();
+                assert!((work.iter().sum::<f64>() - cap as f64 * 12.).abs() < 1e-6);
+                assert_eq!(
+                    money,
+                    run.sites[0].economy.finance[0] as f64
+                        + c.institutions.iter().map(|n| n.treasury).sum::<f64>()
+                );
+                if priority == Priority::Rotating {
+                    assert!(work.iter().all(|w| (w - cap as f64 * 3.).abs() < 1e-6));
+                    assert_eq!(operational, if cap == 0.025 { 0 } else { 4 });
+                } else {
+                    assert_eq!(operational, if cap == 0.025 { 1 } else { 2 });
+                }
+                println!("institution priority={priority:?} cap={cap:.3} work={work:?} readiness={readiness:?} operational={operational}");
+            }
+        }
+    }
+
+    #[test]
+    fn priorities_are_reproducible_and_independent_of_input_order() {
+        use crate::culture::work_requests::InstitutionWorkPlan;
+        let original: Vec<_> = (0..4)
+            .map(|institution| InstitutionWorkPlan {
+                institution,
+                members: vec![0],
+                requested: 0.025,
+                minimum: 0.,
+                commitment: None,
+                granted: 0.,
+                used: 0.,
+            })
+            .collect();
+        for priority in [Priority::Stable, Priority::Rotating] {
+            let restored: Priority =
+                serde_json::from_value(serde_json::to_value(priority).unwrap()).unwrap();
+            let mut first = [0; 4];
+            for quarter in 1..=12 {
+                let mut a = original.clone();
+                let mut b = original.clone();
+                b.reverse();
+                priority.order(&mut a, quarter * 3, 0);
+                restored.order(&mut b, quarter * 3, 0);
+                assert_eq!(
+                    serde_json::to_value(&a).unwrap(),
+                    serde_json::to_value(&b).unwrap()
+                );
+                first[a[0].institution as usize] += 1;
+            }
+            assert_eq!(
+                first,
+                if priority == Priority::Stable {
+                    [12, 0, 0, 0]
+                } else {
+                    [3, 3, 3, 3]
+                }
             );
         }
     }
