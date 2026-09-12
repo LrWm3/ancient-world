@@ -47,8 +47,8 @@ pub mod social_state;
 pub mod household_economy;
 
 pub mod institution_capacity;
-pub mod institution_services;
 pub mod institution_funding;
+pub mod institution_services;
 pub mod institution_succession;
 
 pub mod regional_mining;
@@ -124,3 +124,7 @@ pub mod agriculture_participation;
 mod kin_support;
 
 mod military_supply;
+
+#[cfg(test)]
+mod continuity_fixture;
+pub mod institution_relocation;

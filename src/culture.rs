@@ -256,6 +256,8 @@ pub struct Artifact {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Culture {
+    #[serde(default)]
+    pub relocations: Vec<crate::institution_relocation::Move>,
     /// Last completed annual informal-contact selection boundary.
     #[serde(default)]
     pub contact_learning_month: Option<u32>,
@@ -320,6 +322,7 @@ fn focused_work_default() -> bool {
 impl Culture {
     fn empty(month: u32, legacy: bool, options: FoundingOptions) -> Result<Self> {
         Ok(Self {
+            relocations: vec![],
             contact_learning_month: None,
             funded_heritage_study: false,
             institution_working_core: false,
@@ -357,6 +360,7 @@ impl Culture {
         })
     }
     pub fn validate(&self, h: &History, cells: &[Cell]) -> Result<()> {
+        crate::institution_relocation::validate(self, h)?;
         crate::heritage_renown::validate(self, h)?;
         self.options.validate()?;
         self.catalog.validate()?;
@@ -1991,6 +1995,13 @@ impl Culture {
     }
     fn year(&mut self, h: &mut History) {
         for i in 0..self.institutions.len() {
+            if self
+                .relocations
+                .iter()
+                .any(|m| m.institution == i as u32 && m.arrived.is_none())
+            {
+                continue;
+            }
             let site = self.institutions[i].site;
             let people = self.site_people(h, site);
             let institution = &self.institutions[i];

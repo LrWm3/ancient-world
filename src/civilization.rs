@@ -1258,6 +1258,7 @@ impl Generator {
         h.month += 1;
         h.trade_contact.prune(h.month);
         h.activate_monthly_policies();
+        h.institution_arrivals();
         if let Some(nav) = navigation.as_ref().filter(|_| h.living.is_some()) {
             let inspections = nav.inspect_routes(h)?;
             h.environmental_month_with_inspections(terrain, Some(&inspections));
