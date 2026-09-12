@@ -629,6 +629,7 @@ mod tests {
         }
         h.sites[0].economy.goods[3] -= 12.;
         h.cargo.push(crate::economy::Cargo {
+            infection: None,
             voyage_clock: None,
             freight_edges: vec![],
             freight_stops: vec![],

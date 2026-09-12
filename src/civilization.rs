@@ -150,6 +150,8 @@ pub struct Candidate {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct History {
     #[serde(default)]
+    pub contagion: Option<crate::contagion::Contagion>,
+    #[serde(default)]
     pub trade_contact: crate::trade_contact::TradeContact,
     #[serde(default)]
     pub service_allocation: crate::service_allocation::Allocation,
@@ -499,6 +501,9 @@ impl History {
         (self.initial_population + born - died - living) / (self.initial_population + born).max(1.)
     }
     pub fn validate(&self, cells: &[crate::gpu::Cell]) -> Result<()> {
+        if let Some(d) = &self.contagion {
+            d.validate(self)?;
+        }
         self.trade_contact.validate(self.month, self.sites.len())?;
         self.validate_service_work()?;
         self.validate_agriculture()?;
@@ -1130,6 +1135,7 @@ impl Generator {
         };
         candidates.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.cell.cmp(&b.cell)));
         let mut h = History {
+            contagion: Some(Default::default()),
             trade_contact: Default::default(),
             participation: Some(Default::default()),
             person_duties: Default::default(),
@@ -1259,6 +1265,7 @@ impl Generator {
         h.trade_contact.prune(h.month);
         h.activate_monthly_policies();
         h.institution_arrivals();
+        h.contagion_month();
         if let Some(nav) = navigation.as_ref().filter(|_| h.living.is_some()) {
             let inspections = nav.inspect_routes(h)?;
             h.environmental_month_with_inspections(terrain, Some(&inspections));
@@ -1439,6 +1446,7 @@ impl Generator {
         h.settle_care_resolutions()?;
         h.settle_office_resolutions()?;
         h.social_indicators_month();
+        h.capture_infection_contacts();
         if record && h.living.is_none() {
             h.record_timeline();
         }

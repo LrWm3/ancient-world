@@ -132,3 +132,5 @@ pub mod institution_relocation;
 pub mod artifact_petitions;
 
 pub mod route_warnings;
+
+pub mod contagion;

@@ -1095,6 +1095,7 @@ mod tests {
             .relocation
             .journeys
             .push(crate::relocation::Journey {
+                infection: None,
                 warning: None,
                 roster: None,
                 household: hh,

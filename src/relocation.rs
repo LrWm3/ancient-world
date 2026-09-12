@@ -58,6 +58,8 @@ pub struct TravelRoster {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Journey {
     #[serde(default)]
+    pub infection: Option<crate::contagion::Pool>,
+    #[serde(default)]
     pub warning: Option<crate::route_warnings::Encounter>,
     #[serde(default)]
     pub roster: Option<TravelRoster>,
@@ -285,6 +287,7 @@ impl History {
                 }
                 self.reconcile_travel_deaths(&mut j, loss);
             }
+            self.infection_travel_losses(&mut j);
             comparison.observe(&j, individual, before, eaten);
             if j.population() < 0.01 {
                 self.society
@@ -469,6 +472,9 @@ impl History {
                 &j,
                 format!("Household returned with {pop:.2} survivors and remaining belongings"),
             );
+        }
+        if let Some(pool) = j.infection.clone() {
+            self.infection_arrival(j.to, pool, pop);
         }
         let cause = self.events.last().unwrap().id;
         if let (Some(c), Some(encounter)) = (&mut self.culture, j.warning.clone()) {
@@ -809,9 +815,11 @@ impl History {
                     (self.sites[from].stocks.stock[1] / (report_population.max(1.) * 18.))
                         .clamp(0., 24.),
                 );
+                let infection = self.infection_departure(from as u32, people);
                 let society = self.society.as_mut().unwrap();
                 society.relocation.sites[from].last_departure = self.month;
                 society.relocation.journeys.push(Journey {
+                    infection,
                     warning: None,
                     roster: Some(TravelRoster {
                         passengers: roster

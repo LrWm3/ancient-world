@@ -681,6 +681,8 @@ impl Economy {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Cargo {
     #[serde(default)]
+    pub infection: Option<crate::contagion::Exposure>,
+    #[serde(default)]
     pub voyage_clock: Option<crate::vessels::VoyageClock>,
     /// Distinct inland service sites reserved at dispatch, including intermediate towns.
     /// Empty in older archives: retain the original endpoint/port footprint.
@@ -1065,6 +1067,9 @@ impl History {
                 continue;
             }
             if c.arrives <= self.month {
+                if let Some(exposure) = &c.infection {
+                    self.infectious_contact(c.to, exposure);
+                }
                 self.observe_export_delivery(&c);
                 self.observe_lexical_trade(c.from, c.to, c.kg);
                 self.trade_contact
@@ -1517,6 +1522,7 @@ impl History {
                     }
                     let arrives = self.month + (distance / 150.).ceil().max(1.) as u32;
                     self.cargo.push(Cargo {
+                        infection: None,
                         voyage_clock: sea_lane.map(|_| crate::vessels::VoyageClock {
                             month: self.month,
                             remaining: (arrives - self.month) as f32,
@@ -1606,6 +1612,7 @@ mod freight_tests {
         // Cheaper supplier's carriers are already away with goods removed at dispatch.
         h.sites[1].economy.goods[3] -= 10.;
         h.cargo.push(Cargo {
+            infection: None,
             voyage_clock: None,
             freight_edges: vec![],
             freight_stops: vec![],
@@ -1768,6 +1775,7 @@ mod freight_tests {
         let mut blocked = h.clone();
         blocked.sites[1].economy.goods[4] -= 3.;
         blocked.cargo.push(Cargo {
+            infection: None,
             voyage_clock: None,
             freight_edges: vec![],
             freight_stops: vec![],

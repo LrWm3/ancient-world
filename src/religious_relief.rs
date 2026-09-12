@@ -495,6 +495,7 @@ mod tests {
         let occupied = total_capacity - 25.;
         constrained.sites[host as usize].economy.initial[0] += occupied;
         constrained.cargo.push(crate::economy::Cargo {
+            infection: None,
             from: host,
             to: origin,
             good: 0,

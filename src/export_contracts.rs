@@ -276,6 +276,7 @@ mod tests {
         catalog.market.network_trade = false;
         catalog.production.supplier_profitability = false;
         History {
+            contagion: None,
             trade_contact: Default::default(),
             resolution: None,
             person_duties: Default::default(),
@@ -348,6 +349,7 @@ mod tests {
     }
     fn evidence(h: &mut History) {
         let delivery = Cargo {
+            infection: None,
             voyage_clock: None,
             freight_edges: vec![],
             freight_stops: vec![],
