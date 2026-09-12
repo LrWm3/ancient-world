@@ -629,6 +629,8 @@ impl Culture {
                 .is_some_and(|g| s.economy.goods[g] >= 0.05)
             && self.institutions.iter().any(|n| {
                 n.site == site
+                    && (!self.funded_heritage_study
+                        || crate::expedition_heritage::can_fund_study(h, site, n.treasury))
                     && n.operational()
                     && matches!(
                         n.kind,

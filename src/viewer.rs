@@ -2502,6 +2502,15 @@ impl App {
                         for e in x.voyages.iter().rev().take(24) {
                             ui.collapsing(format!("Expedition {} · {:?} · {:?} · {}/{} survivors",e.id,e.objective,e.phase,e.survivors(),e.crew.len()),|ui| {
                                 if let Some(c)=&e.heritage { ui.label(&c.motive); if let Some(f)=&c.find { ui.small(&f.description); ui.small(format!("Recovered artifact: {:?} · {} dated institutional readings",f.artifact,f.studies.len())); } }
+                                if let Some(find) = e.heritage.as_ref().and_then(|c| c.find.as_ref()) {
+                                    for study in &find.studies {
+                                        if let Some(funding) = &study.funding {
+                                            if let Some(payer) = h.culture.as_ref().and_then(|c| c.institutions.get(funding.institution as usize)) {
+                                                ui.small(format!("Y{} M{} · {} paid {:.2} for {:.3} kg of study supplies", study.month / 12, study.month % 12 + 1, payer.name, funding.paid, funding.kg));
+                                            }
+                                        }
+                                    }
+                                }
                                 ui.label(format!("Departed Y{} M{} · next milestone month {} · {:.0} kg food · {:.1} kg tools · {:.1} kg timber · {:.0} money escrow",e.departed/12,e.departed%12+1,e.due,e.food,e.tools,e.timber,e.purse));
                                 ui.label(format!("{:.1} observation points · {} · effective research competence {:.0}%",e.findings,if e.confirmed {"delivered and confirmed"}else{"not confirmed at home"},e.research_skill()*100.));
                                 if ui.button("Show planned route on atlas").clicked() { self.expedition_overlay=Some(e.id); self.history_window_open=false; self.journey_overlay=None; self.historical_territory=false; self.cameras[1]=Camera::atlas(); self.view_mode=2; }

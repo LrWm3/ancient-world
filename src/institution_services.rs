@@ -355,6 +355,8 @@ impl crate::culture::Culture {
         if actions.iter().any(|(a, _)| a == "heritage study") {
             if let Some(n) = self.institutions.iter().find(|n| {
                 n.site == site
+                    && (!self.funded_heritage_study
+                        || crate::expedition_heritage::can_fund_study(h, site, n.treasury))
                     && n.operational()
                     && matches!(
                         n.kind,

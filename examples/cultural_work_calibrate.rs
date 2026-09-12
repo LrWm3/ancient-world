@@ -10,6 +10,9 @@ use serde_json::json;
 use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 #[derive(Parser)]
 struct Args {
+    /// Have institutions buy writing supplies for heritage interpretation.
+    #[arg(long)]
+    funded_heritage_study: bool,
     /// Separate core operating space from whole-membership expansion demand.
     #[arg(long)]
     institution_working_core: bool,
@@ -148,6 +151,13 @@ fn main() -> Result<()> {
             .as_mut()
             .unwrap()
             .institution_working_core = args.institution_working_core;
+        g.civilizations
+            .as_mut()
+            .unwrap()
+            .culture
+            .as_mut()
+            .unwrap()
+            .funded_heritage_study = args.funded_heritage_study;
         if args.named_institution_administration {
             g.civilizations
                 .as_mut()
@@ -589,6 +599,15 @@ fn main() -> Result<()> {
                 eprintln!("seed {seed}: {} years, cancelled {cancelled}/{funded}, work {used:.1}/{granted:.1}, {:.1}s",month/12,start.elapsed().as_secs_f64());
                 let society = h.society.as_ref().unwrap();
                 let accounts = &society.household_economy.as_ref().unwrap().accounts;
+                let heritage_funding: Vec<_> = h
+                    .expeditions
+                    .iter()
+                    .flat_map(|x| &x.voyages)
+                    .filter_map(|v| v.heritage.as_ref()?.find.as_ref())
+                    .flat_map(|f| &f.studies)
+                    .filter_map(|s| s.funding.as_ref())
+                    .collect();
+                row["heritage_study_funding"] = json!({"studies": heritage_funding.len(), "paid": heritage_funding.iter().map(|f| f.paid).sum::<f64>(), "writing_kg": heritage_funding.iter().map(|f| f.kg as f64).sum::<f64>()});
                 row["household_fiscal"] = json!({
                     "family_recipient_households": accounts.iter().filter(|a| a.family_received>0.).count(),
                     "family_donor_households": accounts.iter().filter(|a| a.family_sent>0.).count(),
@@ -621,6 +640,7 @@ fn main() -> Result<()> {
             std::fs::create_dir_all(parent)?;
         }
         let mut report = json!({"institution_funding_fields":["requested","conditional_ceiling","paid"],"institution_funding_unit":"abstract currency","operating_institutions":args.operating_institutions,"institution_work_classes":["election","upkeep","administration"],"institution_work_fields":["requested","granted","used"],"institution_work_unit":"worker-months","rotating_institutions":args.rotating_institutions,"construction_refinement":args.construction_refinement,"extraction_refinement":args.extraction_refinement,"agriculture_refinement":args.agriculture_refinement,"household_diagnostics":args.household_diagnostics,"resident_payroll":!args.legacy_resident_payroll,"individual_nutrition":!args.no_individual_nutrition,"household_mortality":!args.no_individual_nutrition && !args.no_household_mortality,"common_share_override":args.common_share,"observation_interval_months":1,"mortality_diagnostic_rows":["age_band_exposure","household_exposure"],"mortality_age_bands":["child","adult","elder"],"production_sectors":["farming","forestry","mining","construction"],"production_work_fields":["requested","granted","completed"],"production_work_unit":"worker-months","food_fields":["need","available","funded","eaten","physical_gap","access_gap"],"crop_yield_scale":args.crop_yield_scale,"founding_access":!args.no_founding_access,"aggregate_resolution":args.aggregate_resolution,"compare_resolution":args.compare_resolution,"workshop_refinement":args.workshop_refinement,"individual_demography":args.individual_demography,"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows});
+        report["funded_heritage_study"] = json!(args.funded_heritage_study);
         report["institution_working_core"] = json!(args.institution_working_core);
         report["institutional_students"] = json!(args.institutional_students);
         report["family_support"] = json!(args.family_support);

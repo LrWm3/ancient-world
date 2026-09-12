@@ -60,6 +60,54 @@ impl FindCategory {
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StudyFunding {
+    pub institution: u32,
+    pub good: String,
+    pub kg: f32,
+    pub paid: f64,
+}
+struct Purchase {
+    good: usize,
+    remaining: f32,
+    kg: f32,
+    cash: f32,
+    paid: f64,
+}
+fn writing_batch(stock: f32) -> Option<(f32, f32)> {
+    if !stock.is_finite() || stock < 0.05 {
+        return None;
+    }
+    let mut remaining = stock - 0.05;
+    if stock - remaining > 0.05 {
+        remaining = f32::from_bits(remaining.to_bits() + 1).min(stock);
+    }
+    let kg = stock - remaining;
+    (kg > 0.).then_some((remaining, kg))
+}
+
+fn purchase(h: &History, site: u32, treasury: f64) -> Option<Purchase> {
+    let good = h.economy_catalog.as_ref()?.index("writing_material")?;
+    let e = &h.sites.get(site as usize)?.economy;
+    let (remaining, kg) = writing_batch(e.goods[good])?;
+    let cost = kg as f64 * e.prices[good] as f64;
+    if !cost.is_finite() || cost <= 0. || cost > treasury {
+        return None;
+    }
+    let mut cash = e.finance[0];
+    let paid = crate::household_economy::deposit(&mut cash, cost);
+    (paid > 0. && paid <= treasury).then_some(Purchase {
+        good,
+        remaining,
+        kg,
+        cash,
+        paid,
+    })
+}
+pub(crate) fn can_fund_study(h: &History, site: u32, treasury: f64) -> bool {
+    purchase(h, site, treasury).is_some()
+}
+
 pub fn charter(h: &History, origin: u32, objective: Objective) -> Result<Option<Charter>> {
     if !matches!(
         objective,
@@ -283,6 +331,24 @@ pub(crate) fn validate(h: &History, voyages: &[Expedition]) -> Result<()> {
                     "invalid heritage study schedule"
                 );
                 for s in &f.studies {
+                    if let Some(funding) = &s.funding {
+                        ensure!(
+                            funding.good == "writing_material"
+                                && funding.kg.is_finite()
+                                && funding.kg > 0.
+                                && funding.kg <= 0.05
+                                && funding.paid.is_finite()
+                                && funding.paid > 0.
+                                && h.events.get(s.event as usize).is_some_and(|e| e
+                                    .subjects
+                                    .contains(&("institution".into(), funding.institution)))
+                                && culture
+                                    .institutions
+                                    .get(funding.institution as usize)
+                                    .is_some_and(|n| n.expenses + 1e-8 >= funding.paid),
+                            "invalid heritage study funding"
+                        );
+                    }
                     ensure!(
                         s.month <= h.month
                             && (s.site as usize) < h.sites.len()
@@ -367,6 +433,7 @@ pub(crate) fn study(h: &mut History, c: &mut crate::culture::Culture) {
             selected.is_none_or(|(institution, author)| {
                 n.id == institution && n.leader == author && present.contains(&author)
             }) && n.site == site
+                && (!c.funded_heritage_study || can_fund_study(h, site, n.treasury))
                 && n.operational()
                 && matches!(
                     n.kind,
@@ -388,6 +455,18 @@ pub(crate) fn study(h: &mut History, c: &mut crate::culture::Culture) {
         if h.sites[site as usize].economy.goods[good] < 0.05 {
             continue;
         }
+        let Some((remaining, kg)) = writing_batch(h.sites[site as usize].economy.goods[good])
+        else {
+            continue;
+        };
+        let funded = if c.funded_heritage_study {
+            let Some(quote) = purchase(h, site, n.treasury) else {
+                continue;
+            };
+            Some(quote)
+        } else {
+            None
+        };
         if !c.consume_service_space(
             h.month,
             site,
@@ -400,9 +479,24 @@ pub(crate) fn study(h: &mut History, c: &mut crate::culture::Culture) {
             continue;
         }
         let e = &mut h.sites[site as usize].economy;
-        e.goods[good] -= 0.05;
-        e.used[good] += 0.05;
-        e.reserves[3] += 0.05;
+
+        let funding = funded.map(|q| {
+            debug_assert_eq!(q.good, good);
+            debug_assert_eq!(q.remaining, remaining);
+            e.finance[0] = q.cash;
+            let n = &mut c.institutions[institution as usize];
+            n.treasury -= q.paid;
+            n.expenses += q.paid;
+            StudyFunding {
+                institution,
+                good: "writing_material".into(),
+                kg: q.kg,
+                paid: q.paid,
+            }
+        });
+        e.goods[good] = remaining;
+        e.used[good] += kg;
+        e.reserves[3] += kg;
         for (k, r) in h
             .economy_catalog
             .as_ref()
@@ -411,7 +505,7 @@ pub(crate) fn study(h: &mut History, c: &mut crate::culture::Culture) {
             .into_iter()
             .enumerate()
         {
-            e.detritus[k] += 0.05 * r;
+            e.detritus[k] += kg * r;
         }
         c.labor_budget[site as usize] -= 0.1;
         c.labor_spent += 0.1;
@@ -468,6 +562,7 @@ pub(crate) fn study(h: &mut History, c: &mut crate::culture::Culture) {
             site,
             author,
             comparison,
+            funding,
         });
     }
     h.expeditions = Some(x);
@@ -480,11 +575,26 @@ pub struct Study {
     pub site: u32,
     pub author: u32,
     pub comparison: Option<u32>,
+    #[serde(default)]
+    pub funding: Option<StudyFunding>,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn writing_batches_never_overdraw_or_charge_unrepresentable_stock() {
+        for stock in [0., 0.049, 0.05, 1., 123., 10000., 1_000_000., f32::INFINITY] {
+            if let Some((remaining, kg)) = writing_batch(stock) {
+                assert!(remaining >= 0. && kg > 0. && kg <= 0.05);
+                assert_eq!(stock - remaining, kg);
+            } else {
+                assert!(!(0.05..1_000_000.).contains(&stock));
+            }
+        }
+        assert!(writing_batch(1_000_000.).is_none());
+        assert!(writing_batch(f32::NAN).is_none());
+    }
     #[test]
     #[ignore = "requires hardware GPU"]
     fn heritage_study_requires_access_work_and_preserves_prior_readings() {
@@ -605,6 +715,74 @@ mod tests {
                 .studies
                 .len()
         };
+        // Financed study has one payer and cannot buy missing work, access or stock.
+        for blocked in 0..5 {
+            let mut run = h.clone();
+            let mut culture = c.clone();
+            culture.funded_heritage_study = true;
+            culture.work_plans.clear();
+            culture.labor_budget[site as usize] = if blocked == 3 { 0. } else { 0.1 };
+            culture.institutions.last_mut().unwrap().treasury = if blocked == 1 { 0. } else { 10. };
+            run.sites[site as usize].economy.prices[good] = 2.;
+            if blocked == 2 {
+                run.sites[site as usize].economy.goods[good] = 0.;
+            }
+            if blocked == 4 {
+                culture.artifacts[id as usize].lost = true;
+            }
+            let money = run.sites[site as usize].economy.finance[0] as f64
+                + culture.institutions.last().unwrap().treasury;
+            let stock = run.sites[site as usize].economy.goods[good];
+            let mut restored_h: History =
+                serde_json::from_value(serde_json::to_value(&run).unwrap()).unwrap();
+            let mut restored_c =
+                serde_json::from_value(serde_json::to_value(&culture).unwrap()).unwrap();
+            study(&mut run, &mut culture);
+            study(&mut restored_h, &mut restored_c);
+            assert_eq!(
+                serde_json::to_value(&run).unwrap(),
+                serde_json::to_value(&restored_h).unwrap()
+            );
+            assert_eq!(
+                serde_json::to_value(&culture).unwrap(),
+                serde_json::to_value(&restored_c).unwrap()
+            );
+            assert_eq!(count(&run), usize::from(blocked == 0));
+            assert_eq!(
+                money,
+                run.sites[site as usize].economy.finance[0] as f64
+                    + culture.institutions.last().unwrap().treasury
+            );
+            if blocked == 0 {
+                let receipt = &run.expeditions.as_ref().unwrap().voyages[0]
+                    .heritage
+                    .as_ref()
+                    .unwrap()
+                    .find
+                    .as_ref()
+                    .unwrap()
+                    .studies[0];
+                let funding = receipt.funding.as_ref().unwrap();
+                assert!(funding.paid > 0. && funding.paid <= 0.101);
+                assert_eq!(
+                    funding.kg,
+                    stock - run.sites[site as usize].economy.goods[good]
+                );
+                assert_eq!(culture.institutions.last().unwrap().expenses, funding.paid);
+                let mut old = serde_json::to_value(receipt).unwrap();
+                old.as_object_mut().unwrap().remove("funding");
+                assert!(serde_json::from_value::<Study>(old)
+                    .unwrap()
+                    .funding
+                    .is_none());
+            } else {
+                assert_eq!(stock, run.sites[site as usize].economy.goods[good]);
+                assert_eq!(culture.institutions.last().unwrap().expenses, 0.);
+            }
+            let before = serde_json::to_value((&run, &culture)).unwrap();
+            study(&mut run, &mut culture);
+            assert_eq!(before, serde_json::to_value((&run, &culture)).unwrap());
+        }
         // New plans capture the same find, author and physical room at Reserve.
         let mut planned_history = h.clone();
         let mut planned_culture = c.clone();
@@ -625,6 +803,8 @@ mod tests {
         for condition in [0.25, 0.99] {
             let mut run = planned_history.clone();
             let mut culture = planned_culture.clone();
+            culture.funded_heritage_study = true;
+            run.sites[site as usize].economy.prices[good] = 2.;
             let people = culture.site_people(&run, site);
             let student = people[((run.month / 3 + site) as usize) % people.len()];
             let teacher = *people.iter().find(|&&p| p != student).unwrap();
@@ -689,6 +869,28 @@ mod tests {
             let before = run.sites[site as usize].economy.goods[good];
             let grant = culture.work_plans[site as usize].granted;
             assert_eq!(grant, if condition == 0.25 { 0.4 } else { 0.5 });
+            // A quote is not escrow: losing funding after reservation consumes no room/work.
+            let mut poor_run = run.clone();
+            let mut poor_culture = culture.clone();
+            let payer = poor_culture.institutions.last_mut().unwrap();
+            let moved = crate::household_economy::deposit(
+                &mut poor_run.sites[site as usize].economy.finance[0],
+                payer.treasury,
+            );
+            payer.treasury -= moved;
+            payer.expenses += moved;
+            let unused_work = poor_culture.labor_budget.clone();
+            study(&mut poor_run, &mut poor_culture);
+            assert_eq!(count(&poor_run), 0);
+            assert_eq!(poor_run.sites[site as usize].economy.goods[good], before);
+            assert_eq!(poor_culture.labor_budget, unused_work);
+            assert!(poor_culture.work_plans[site as usize]
+                .services
+                .as_ref()
+                .unwrap()
+                .iter()
+                .flat_map(|p| &p.receipts)
+                .all(|r| r.used == 0.));
             let mut resumed_run = run.clone();
             let mut resumed_culture =
                 serde_json::from_value(serde_json::to_value(&culture).unwrap()).unwrap();

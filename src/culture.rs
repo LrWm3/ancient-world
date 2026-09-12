@@ -256,6 +256,9 @@ pub struct Artifact {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Culture {
+    /// Institutions purchase the writing supplies used for heritage interpretation.
+    #[serde(default)]
+    pub funded_heritage_study: bool,
     /// Evaluate operating space for at most two local members; services retain room limits.
     #[serde(default)]
     pub institution_working_core: bool,
@@ -311,6 +314,7 @@ fn focused_work_default() -> bool {
 impl Culture {
     fn empty(month: u32, legacy: bool, options: FoundingOptions) -> Result<Self> {
         Ok(Self {
+            funded_heritage_study: false,
             institution_working_core: false,
             institutional_students: false,
             institution_priority: Default::default(),

@@ -197,6 +197,14 @@ fn frozen_schedule_batch_and_checkpoint_equivalence() {
             .as_mut()
             .unwrap()
             .institution_working_core = seed != 81;
+        batch
+            .civilizations
+            .as_mut()
+            .unwrap()
+            .culture
+            .as_mut()
+            .unwrap()
+            .funded_heritage_study = seed != 81;
         // Exercise the new explicit allocation policy through the full scheduler,
         // including actual archive restoration, while retaining a priority arm.
         if seed != 81 {
