@@ -270,6 +270,10 @@ fn main() -> Result<()> {
         let mut max_food_residual = 0f64;
         let mut mortality_by_age = [[0f64; 3]; 2];
         let mut demographic_months = 0u64;
+        let mut service_room = [[0f64; 4]; 3];
+        let mut service_counts = [[0u64; 4]; 3];
+        let mut opening_relief_room = 0f64;
+        let mut opening_relief_dispatches = 0u64;
         let mut institution_work = [[0f64; 3]; 3];
         let mut institution_funding = [0f64; 3];
         let mut institution_funding_attempts = [0u64; 2];
@@ -387,11 +391,52 @@ fn main() -> Result<()> {
                     );
                 }
             }
+            for mission in c
+                .religious_relief
+                .missions
+                .iter()
+                .filter(|m| m.dispatched == h.month)
+            {
+                if let Some(room) = &mission.room {
+                    opening_relief_room += room.used;
+                    opening_relief_dispatches += 1;
+                }
+            }
             requested += c.work_receipt.requested;
             granted += c.work_receipt.granted;
             used += c.work_receipt.used;
             for p in &c.work_plans {
                 anyhow::ensure!(p.month == h.month, "stale institutional diagnostic");
+                for plan in p.services.iter().flatten() {
+                    anyhow::ensure!(
+                        plan.month == h.month && plan.closed,
+                        "service diagnostics require a closed current plan"
+                    );
+                    for r in &plan.receipts {
+                        use ancient_world::institution_services::Service;
+                        let k = match r.service {
+                            Service::Lesson { .. } => 0,
+                            Service::HeritageStudy { .. } => 1,
+                            Service::PetitionHearing { .. } => 2,
+                        };
+                        for (total, value) in service_room[k].iter_mut().zip([
+                            r.requested,
+                            r.opening_grant(),
+                            r.granted,
+                            r.used,
+                        ]) {
+                            *total += value;
+                        }
+                        for (total, positive) in service_counts[k].iter_mut().zip([
+                            true,
+                            r.opening_grant() > 0.,
+                            r.granted > 0.,
+                            r.used > 0.,
+                        ]) {
+                            *total += u64::from(positive);
+                        }
+                    }
+                }
                 if let Some(b) = &p.funding {
                     for r in &b.requests {
                         if r.ceiling > 0. {
@@ -465,8 +510,12 @@ fn main() -> Result<()> {
                 // Preserve the actual gates and stocks behind the operational count.
                 // These are read-only samples, not additional monthly updates.
                 let institution_state = h.institution_state_report();
-                let row = json!({"institution_funding_attempts":institution_funding_attempts,"institution_funding":institution_funding,"institution_state":institution_state,"institution_work":institution_work,"institution_multi_request_quarters":institution_multi_request_quarters,"institution_shortfall_quarters":institution_shortfall_quarters,"operational_institutions":c.institutions.iter().filter(|n| n.operational()).count(),"production_work":production_work,"household_observations":household_observations,"year":month/12,"food_totals":food,"max_population_residual":max_population_residual,"max_food_residual":max_food_residual,"recent_trade_pairs":h.trade_contact.receipts.len(),"demographic_site_months":demographic_months,"expected_deaths_by_age":mortality_by_age,"ages":(0..3).map(|b|h.sites.iter().map(|s|s.demography.ages[b] as f64).sum::<f64>()).collect::<Vec<_>>(),"heritage_recognitions":c.heritage_renown.len(),"heritage_witnesses":c.heritage_renown.iter().map(|r|r.witnesses.len()).sum::<usize>(),"domestic":h.domestic.as_ref().map(|d|json!({"groups":d.units.iter().filter(|u|u.ended.is_none()).count(),"members":d.membership.len(),"completed":d.care_completed,"care":d.care})),"funded_bundles":funded,"cancelled_bundles":cancelled,"requested":requested,"granted":granted,"used":used,"cancelled_work":cancelled_work,"population":h.sites.iter().map(|s|s.stocks.stock[0] as f64).sum::<f64>(),"active_sites":h.sites.iter().filter(|s|!s.abandoned).count(),"institutions":c.institutions.iter().filter(|n|n.active).count(),"knowledge_links":c.agents.iter().map(|a|a.knowledge.len()).sum::<usize>(),"artifacts":c.artifacts.len(),"individuals":h.participation.as_ref().map(|p|json!({"known":p.residents.len(),"available_adults":p.residents.values().filter(|r|r.capacity>0.).count(),"culture_work":p.residents.values().map(|r|r.completed[0]).sum::<f64>(),"research_work":p.residents.values().map(|r|r.completed[1]).sum::<f64>()}))});
+                let mut row = json!({"institution_funding_attempts":institution_funding_attempts,"institution_funding":institution_funding,"institution_state":institution_state,"institution_work":institution_work,"institution_multi_request_quarters":institution_multi_request_quarters,"institution_shortfall_quarters":institution_shortfall_quarters,"operational_institutions":c.institutions.iter().filter(|n| n.operational()).count(),"production_work":production_work,"household_observations":household_observations,"year":month/12,"food_totals":food,"max_population_residual":max_population_residual,"max_food_residual":max_food_residual,"recent_trade_pairs":h.trade_contact.receipts.len(),"demographic_site_months":demographic_months,"expected_deaths_by_age":mortality_by_age,"ages":(0..3).map(|b|h.sites.iter().map(|s|s.demography.ages[b] as f64).sum::<f64>()).collect::<Vec<_>>(),"heritage_recognitions":c.heritage_renown.len(),"heritage_witnesses":c.heritage_renown.iter().map(|r|r.witnesses.len()).sum::<usize>(),"domestic":h.domestic.as_ref().map(|d|json!({"groups":d.units.iter().filter(|u|u.ended.is_none()).count(),"members":d.membership.len(),"completed":d.care_completed,"care":d.care})),"funded_bundles":funded,"cancelled_bundles":cancelled,"requested":requested,"granted":granted,"used":used,"cancelled_work":cancelled_work,"population":h.sites.iter().map(|s|s.stocks.stock[0] as f64).sum::<f64>(),"active_sites":h.sites.iter().filter(|s|!s.abandoned).count(),"institutions":c.institutions.iter().filter(|n|n.active).count(),"knowledge_links":c.agents.iter().map(|a|a.knowledge.len()).sum::<usize>(),"artifacts":c.artifacts.len(),"individuals":h.participation.as_ref().map(|p|json!({"known":p.residents.len(),"available_adults":p.residents.values().filter(|r|r.capacity>0.).count(),"culture_work":p.residents.values().map(|r|r.completed[0]).sum::<f64>(),"research_work":p.residents.values().map(|r|r.completed[1]).sum::<f64>()}))});
                 eprintln!("seed {seed}: {} years, cancelled {cancelled}/{funded}, work {used:.1}/{granted:.1}, {:.1}s",month/12,start.elapsed().as_secs_f64());
+                row["service_room"] = json!(service_room);
+                row["service_counts"] = json!(service_counts);
+                row["opening_relief_room"] = json!(opening_relief_room);
+                row["opening_relief_dispatches"] = json!(opening_relief_dispatches);
                 samples.push(row);
             }
         }
@@ -480,6 +529,12 @@ fn main() -> Result<()> {
             std::fs::create_dir_all(parent)?;
         }
         let mut report = json!({"institution_funding_fields":["requested","conditional_ceiling","paid"],"institution_funding_unit":"abstract currency","operating_institutions":args.operating_institutions,"institution_work_classes":["election","upkeep","administration"],"institution_work_fields":["requested","granted","used"],"institution_work_unit":"worker-months","rotating_institutions":args.rotating_institutions,"construction_refinement":args.construction_refinement,"extraction_refinement":args.extraction_refinement,"agriculture_refinement":args.agriculture_refinement,"household_diagnostics":args.household_diagnostics,"resident_payroll":!args.legacy_resident_payroll,"individual_nutrition":!args.no_individual_nutrition,"household_mortality":!args.no_individual_nutrition && !args.no_household_mortality,"common_share_override":args.common_share,"observation_interval_months":1,"mortality_diagnostic_rows":["age_band_exposure","household_exposure"],"mortality_age_bands":["child","adult","elder"],"production_sectors":["farming","forestry","mining","construction"],"production_work_fields":["requested","granted","completed"],"production_work_unit":"worker-months","food_fields":["need","available","funded","eaten","physical_gap","access_gap"],"crop_yield_scale":args.crop_yield_scale,"founding_access":!args.no_founding_access,"aggregate_resolution":args.aggregate_resolution,"compare_resolution":args.compare_resolution,"workshop_refinement":args.workshop_refinement,"individual_demography":args.individual_demography,"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows});
+        report["service_classes"] = json!(["lesson", "heritage_study", "petition_hearing"]);
+        report["service_fields"] =
+            json!(["requested", "opening_space_granted", "work_backed", "used"]);
+        report["service_room_unit"] = json!("room-months");
+        report["service_counts_unit"] = json!("requests");
+        report["opening_relief_room_unit"] = json!("room-months");
         report["essential_institution_work"] = json!(args.essential_institution_work);
         report["institution_funding_attempt_fields"] =
             json!(["positive_ceiling_requests", "collection_executed"]);

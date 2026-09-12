@@ -1,7 +1,10 @@
 # Institutional space and service review
 
 This records the current implementation and the next integration boundary. It is
-a partial service-capacity integration; consumers beyond lessons and heritage study remain unconverted.
+a partial service-capacity integration: lessons, heritage studies, petition hearings
+and religious dispatch share dated room capacity; visitors and other consumers
+still need review. The sections below retain the sequence of implementation and
+its measured limitations.
 
 ## Current coupling
 
@@ -391,3 +394,29 @@ room, hearing, learning, heritage and allocation checks passed; all-target Clipp
 passed with warnings denied; full frozen monthly/batched/checkpoint equivalence
 passed on seeds 17/81/256 (10.85 seconds test execution). General verification
 logs are ignored `output/relief-space-*.log`.
+
+
+## Separating space, work and completion
+
+Service receipts preserve `space_granted` independently from the final
+work-backed `granted`. Matching an unavailable participant may reduce the latter
+to zero without erasing the opening room decision. Validation checks both grants;
+legacy receipts without the new field fall back to their retained final grant,
+without inventing earlier acceptance. Opening capacity cannot be reused by a late
+request after matching has reduced another grant.
+
+The cultural balance runner now accumulates requested, opening-space-granted,
+work-backed and used room-months, plus counts at each stage, separately for
+lessons, heritage study and petition hearings. It samples only closed plans at
+the current monthly boundary. Religious dispatch occupancy is reported separately
+because it executes in Open before these plans. These measurements are read-only.
+
+A request missing from the ledger may have failed the operational or eligibility
+gate before planning. Zero recorded room denials therefore does not demonstrate
+that rooms are sufficient for the population or that institutions are healthy.
+
+Verification for these diagnostics: 126 regular library tests passed (109
+hardware tests ignored in that run), all 13 targeted service checks passed,
+all-target Clippy passed with warnings denied, and the full frozen
+monthly/batched/checkpoint comparison passed for seeds 17/81/256. The release
+balance runner built successfully.

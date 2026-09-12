@@ -44,11 +44,17 @@ pub struct Receipt {
     pub occupants: f64,
     pub duration: f64,
     pub requested: f64,
+    /// Opening room grant, retained when later work matching reduces `granted`.
+    #[serde(default)]
+    pub space_granted: Option<f64>,
     pub granted: f64,
     pub used: f64,
     pub settled: bool,
 }
 impl Receipt {
+    pub fn opening_grant(&self) -> f64 {
+        self.space_granted.unwrap_or(self.granted)
+    }
     pub fn released(&self) -> f64 {
         if self.settled {
             self.granted - self.used
@@ -105,7 +111,7 @@ impl Plan {
         if !requested.is_finite() {
             return None;
         }
-        let reserved: f64 = self.receipts.iter().map(|r| r.granted).sum();
+        let reserved: f64 = self.receipts.iter().map(Receipt::opening_grant).sum();
         let granted = if occupants <= self.group_space.unwrap_or(self.opening_space)
             && requested <= (self.opening_space - reserved).max(0.)
         {
@@ -119,6 +125,7 @@ impl Plan {
             occupants,
             duration,
             requested,
+            space_granted: Some(granted),
             granted,
             used: 0.,
             settled: false,
@@ -182,15 +189,24 @@ impl Plan {
         );
         for (i, r) in self.receipts.iter().enumerate() {
             anyhow::ensure!(
-                [r.occupants, r.duration, r.requested, r.granted, r.used]
-                    .iter()
-                    .all(|v| v.is_finite() && *v >= 0.)
+                [
+                    r.occupants,
+                    r.duration,
+                    r.requested,
+                    r.opening_grant(),
+                    r.granted,
+                    r.used
+                ]
+                .iter()
+                .all(|v| v.is_finite() && *v >= 0.)
                     && r.occupants > 0.
                     && r.duration > 0.
                     && r.duration <= 1.
                     && r.requested == r.occupants * r.duration
+                    && (r.opening_grant() == 0. || r.opening_grant() == r.requested)
+                    && r.granted <= r.opening_grant()
                     && (r.granted == 0. || r.granted == r.requested)
-                    && (r.granted == 0.
+                    && (r.opening_grant() == 0.
                         || r.occupants <= self.group_space.unwrap_or(self.opening_space))
                     && (r.used == 0. || r.used == r.granted)
                     && (r.used == 0. || r.settled)
@@ -202,7 +218,11 @@ impl Plan {
             );
         }
         anyhow::ensure!(
-            self.receipts.iter().map(|r| r.granted).sum::<f64>() <= self.opening_space + 1e-12,
+            self.receipts
+                .iter()
+                .map(Receipt::opening_grant)
+                .sum::<f64>()
+                <= self.opening_space + 1e-12,
             "institutional services exceed opening space"
         );
         Ok(())
@@ -653,6 +673,35 @@ mod tests {
         assert!(!p.settle((12, 1, 3), b, 1., true));
         assert_eq!(p.receipts.iter().map(|r| r.used).sum::<f64>(), 0.);
     }
+    #[test]
+    fn opening_space_survives_work_denial_and_checkpointing() {
+        let mut plan = Plan::new(12, 0, 0, 0.2);
+        plan.group_space = Some(2.);
+        let id = plan.reserve(lesson(1), 2., 0.1).unwrap();
+        plan.receipts[id].granted = 0.; // Personal matching cannot fill the request.
+        let late = plan.reserve(lesson(2), 2., 0.1).unwrap();
+        assert_eq!(
+            plan.receipts[late].granted, 0.,
+            "no new opening entitlement after matching"
+        );
+        plan.close(12);
+        plan.validate().unwrap();
+        let restored: Plan = serde_json::from_value(serde_json::to_value(&plan).unwrap()).unwrap();
+        assert_eq!(restored.receipts[id].opening_grant(), 0.2);
+        assert_eq!(restored.receipts[id].granted, 0.);
+        let mut legacy = serde_json::to_value(&restored.receipts[id]).unwrap();
+        legacy.as_object_mut().unwrap().remove("space_granted");
+        let legacy: Receipt = serde_json::from_value(legacy).unwrap();
+        assert_eq!(
+            legacy.opening_grant(),
+            0.,
+            "old receipts have no invented opening grant"
+        );
+        let mut corrupt = plan.clone();
+        corrupt.receipts[id].space_granted = Some(-1.);
+        assert!(corrupt.validate().is_err());
+    }
+
     #[test]
     fn hearings_and_lessons_share_room_time_before_work_allocation() {
         let hearing = Service::PetitionHearing {
