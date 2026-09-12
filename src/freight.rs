@@ -2,19 +2,87 @@
 use crate::civilization::History;
 use std::collections::BTreeMap;
 
+#[derive(Clone, Default)]
+pub(crate) struct FreightPath {
+    pub stops: Vec<u32>,
+    pub edges: Vec<[u32; 2]>,
+}
+impl FreightPath {
+    fn road(stops: Vec<u32>) -> Self {
+        let edges = stops
+            .windows(2)
+            .map(|w| [w[0].min(w[1]), w[0].max(w[1])])
+            .collect();
+        Self { stops, edges }
+    }
+    fn extend(&mut self, other: Self) {
+        self.stops.extend(other.stops);
+        self.edges.extend(other.edges);
+    }
+    fn normalize(&mut self) {
+        self.stops.sort_unstable();
+        self.stops.dedup();
+        self.edges.sort_unstable();
+        self.edges.dedup();
+    }
+}
+
 type RoadTree = (Vec<f32>, Vec<u32>);
 impl History {
+    /// Free kg in transit on an undirected corridor. Opposite directions share it.
+    /// Legacy unmaintained roads and unplanned endpoint economies keep their old limit.
+    pub fn road_freight_capacity(&self, edge: [u32; 2]) -> f32 {
+        let edge = [edge[0].min(edge[1]), edge[0].max(edge[1])];
+        let Some(society) = &self.society else {
+            return 0.;
+        };
+        let Some(catalog) = &self.economy_catalog else {
+            return 0.;
+        };
+        let gross = |site: u32| {
+            self.sites.get(site as usize).map_or(0., |s| {
+                if s.economy.logistics[3] <= 0.5 {
+                    f32::INFINITY
+                } else {
+                    s.stocks.stock[0] * catalog.production.land_freight_kg_per_person
+                }
+            })
+        };
+        // The graph stores settlement predecessors, not parallel-road identities.
+        // Treat parallel roads as one corridor with the best available surface.
+        let capacity = society
+            .routes
+            .iter()
+            .filter(|r| [r.from.min(r.to), r.from.max(r.to)] == edge && r.passable())
+            .map(|r| {
+                if r.upkeep.is_none() {
+                    f32::INFINITY
+                } else {
+                    gross(edge[0]).min(gross(edge[1]))
+                        * (0.5 + 0.5 * (r.road_bricks / 1000.).clamp(0., 1.) as f32)
+                }
+            })
+            .fold(0_f32, f32::max);
+        let used: f32 = self
+            .cargo
+            .iter()
+            .filter(|c| c.freight_edges.contains(&edge))
+            .map(|c| c.kg)
+            .sum();
+        (capacity - used).max(0.)
+    }
+
     /// Build once per market quarter, not once per good. Reuse trees per origin
     /// and transit administration; sea approaches retain the seller's permissions.
     pub(crate) fn trade_freight_stops(
         &self,
         seas: Option<&[Option<(f32, u32)>]>,
         network: bool,
-    ) -> Vec<Option<Vec<u32>>> {
+    ) -> Vec<Option<FreightPath>> {
         let n = self.sites.len();
         let mut result = vec![None; n * n];
         let mut trees: BTreeMap<(u32, u32), RoadTree> = BTreeMap::new();
-        let mut path = |start: u32, end: u32, administration: u32| -> Option<(f32, Vec<u32>)> {
+        let mut path = |start: u32, end: u32, administration: u32| -> Option<(f32, FreightPath)> {
             let (distances, parents) = trees
                 .entry((start, administration))
                 .or_insert_with(|| self.road_tree_from(start as usize, administration));
@@ -31,7 +99,7 @@ impl History {
                 }
                 stops.push(at);
             }
-            Some((distance, stops))
+            Some((distance, FreightPath::road(stops)))
         };
         for a in 0..n {
             for b in 0..n {
@@ -40,9 +108,12 @@ impl History {
                     continue;
                 };
                 let mut stops = if !network {
-                    ends.to_vec()
+                    FreightPath {
+                        stops: ends.to_vec(),
+                        edges: vec![],
+                    }
                 } else if lane.is_some() {
-                    let mut best: Option<(f32, Vec<u32>)> = None;
+                    let mut best: Option<(f32, FreightPath)> = None;
                     for (p, q) in [(ends[2], ends[3]), (ends[3], ends[2])] {
                         let admin = self.controller(a as u32);
                         if let (Some((d1, mut first)), Some((d2, second))) =
@@ -65,8 +136,7 @@ impl History {
                     };
                     stops
                 };
-                stops.sort_unstable();
-                stops.dedup();
+                stops.normalize();
                 result[a * n + b] = Some(stops);
             }
         }
@@ -82,6 +152,16 @@ mod tests {
         config::Config,
         gpu::{ContextGpu, Generator},
     };
+
+    #[test]
+    fn sea_approaches_keep_edges_without_inventing_a_land_crossing() {
+        let mut path = FreightPath::road(vec![0, 1, 2]);
+        path.extend(FreightPath::road(vec![4, 3]));
+        path.extend(FreightPath::road(vec![2, 1]));
+        path.normalize();
+        assert_eq!(path.stops, vec![0, 1, 2, 3, 4]);
+        assert_eq!(path.edges, vec![[0, 1], [1, 2], [3, 4]]);
+    }
 
     #[test]
     #[ignore = "requires hardware GPU to initialize the history fixture"]
@@ -157,6 +237,52 @@ mod tests {
                 )
             };
             let before = total(h);
+            // Identical town carriers; only maintained road surface differs.
+            for (bricks, expected) in [(0., 1.5), (1000., 3.)] {
+                let mut road = h.clone();
+                for r in &mut road.society.as_mut().unwrap().routes {
+                    r.upkeep = Some(crate::road_upkeep::RoadUpkeep::new(0));
+                    r.road_bricks = bricks;
+                }
+                road.month = 3;
+                road.market_month(6371.);
+                assert_eq!(road.cargo.len(), 1);
+                assert_eq!(road.cargo[0].kg, expected);
+                assert_eq!(road.cargo[0].freight_edges, vec![[0, 1], [1, 2]]);
+                assert_eq!(road.road_freight_capacity([1, 0]), 0.);
+                assert_eq!(road.land_freight_capacity(1), 3. - expected);
+                assert_eq!(total(&road).0, before.0);
+                assert!((total(&road).1 - before.1).abs() < 0.01);
+                // Both directions/goods reserve the same physical corridor.
+                road.sites[0].economy.targets[4] = 20.;
+                road.sites[2].economy.goods[4] = 100.;
+                road.month = 6;
+                road.market_month(6371.);
+                assert_eq!(road.cargo.len(), 1);
+                let arrival = road.cargo[0].arrives;
+                // Closing/reopening does not erase a claim; surface loss can overcommit
+                // existing cargo but never grants negative or additional capacity.
+                road.society.as_mut().unwrap().routes[0].flood_months = 1;
+                assert_eq!(road.road_freight_capacity([0, 1]), 0.);
+                road.society.as_mut().unwrap().routes[0].flood_months = 0;
+                road.society.as_mut().unwrap().routes[0].road_bricks = 0.;
+                assert_eq!(road.road_freight_capacity([0, 1]), 0.);
+                let mut saved: History =
+                    serde_json::from_slice(&serde_json::to_vec(&road).unwrap()).unwrap();
+                for state in [&mut road, &mut saved] {
+                    for site in &mut state.sites {
+                        site.economy.policy[3] = 0.;
+                    }
+                    state.month = arrival;
+                    state.market_month(6371.);
+                    assert!(state.cargo.is_empty());
+                    assert_eq!(state.road_freight_capacity([0, 1]), 1.5);
+                }
+                assert_eq!(
+                    serde_json::to_value(&road).unwrap(),
+                    serde_json::to_value(&saved).unwrap()
+                );
+            }
             let mut bypass = h.clone();
             bypass.society.as_mut().unwrap().routes = roads(3);
             h.month = 3;
@@ -164,6 +290,13 @@ mod tests {
             assert_eq!(h.cargo.len(), 1);
             assert_eq!(h.cargo[0].kg, 3.);
             assert_eq!(h.cargo[0].freight_stops, vec![0, 1, 2]);
+            assert_eq!(h.cargo[0].freight_edges, vec![[0, 1], [1, 2]]);
+            let mut old = serde_json::to_value(&h.cargo[0]).unwrap();
+            old.as_object_mut().unwrap().remove("freight_edges");
+            assert!(serde_json::from_value::<crate::economy::Cargo>(old)
+                .unwrap()
+                .freight_edges
+                .is_empty());
             assert_eq!(h.land_freight_capacity(1), 0.);
             assert_eq!(h.land_freight_capacity(3), 10.);
             assert_eq!(total(h).0, before.0);

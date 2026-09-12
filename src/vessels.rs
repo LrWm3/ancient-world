@@ -376,6 +376,7 @@ mod tests {
         };
         let cargo = |kg, sea_lane| crate::economy::Cargo {
             voyage_clock: None,
+            freight_edges: vec![],
             freight_stops: vec![],
             from: 0,
             to: 2,
@@ -530,6 +531,7 @@ mod tests {
         let lane = h.shipping.as_ref().unwrap().lanes.len() as u32 - 1;
         h.cargo.push(crate::economy::Cargo {
             voyage_clock: None,
+            freight_edges: vec![],
             freight_stops: vec![],
             from: site as u32,
             to: h.shipping.as_ref().unwrap().ports[1].site,

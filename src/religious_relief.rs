@@ -504,6 +504,7 @@ mod tests {
             sea_lane: None,
             weather_delay_months: 0,
             voyage_clock: None,
+            freight_edges: vec![],
             freight_stops: vec![host, origin],
         });
         constrained.sites[origin as usize].stocks.stock[1] -= 5.;

@@ -712,6 +712,10 @@ impl History {
                         && c.from != c.to
                         && c.arrives > self.month
                         && c.weather_delay_months <= self.month
+                        && c.freight_edges.windows(2).all(|w| w[0] < w[1])
+                        && c.freight_edges.iter().all(|e| e[0] < e[1]
+                            && (e[1] as usize) < self.sites.len()
+                            && e.iter().all(|s| c.freight_stops.contains(s)))
                         && (c.freight_stops.is_empty()
                             || (c.freight_stops.len() <= self.sites.len()
                                 && c.freight_stops.windows(2).all(|w| w[0] < w[1])

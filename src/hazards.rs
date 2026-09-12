@@ -469,6 +469,7 @@ mod tests {
         delivery.sites[route.from as usize].stocks.stock[1] -= 10.;
         delivery.cargo.push(crate::economy::Cargo {
             voyage_clock: None,
+            freight_edges: vec![],
             freight_stops: vec![],
             from: route.from,
             to: route.to,
@@ -527,6 +528,7 @@ mod tests {
             }
             lost.cargo.push(crate::economy::Cargo {
                 voyage_clock: None,
+                freight_edges: vec![],
                 freight_stops: vec![],
                 from: route.from,
                 to: route.to,
@@ -572,6 +574,7 @@ mod tests {
             }
             perishables.cargo.push(crate::economy::Cargo {
                 voyage_clock: None,
+                freight_edges: vec![],
                 freight_stops: vec![],
                 from: route.from,
                 to: route.to,

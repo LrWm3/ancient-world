@@ -686,6 +686,9 @@ pub struct Cargo {
     /// Empty in older archives: retain the original endpoint/port footprint.
     #[serde(default)]
     pub freight_stops: Vec<u32>,
+    /// Sorted unique undirected road corridors captured at dispatch, excluding sea legs.
+    #[serde(default)]
+    pub freight_edges: Vec<[u32; 2]>,
     pub from: u32,
     pub to: u32,
     pub good: u32,
@@ -1237,6 +1240,15 @@ impl History {
         let seas = network.as_ref().map(|roads| self.sea_quotes(roads));
         let site_count = self.sites.len();
         let freight = self.trade_freight_stops(seas.as_deref(), network.is_some());
+        let edges: std::collections::BTreeSet<_> = freight
+            .iter()
+            .flatten()
+            .flat_map(|p| p.edges.iter().copied())
+            .collect();
+        let mut road_remaining: std::collections::BTreeMap<_, _> = edges
+            .into_iter()
+            .map(|edge| (edge, self.road_freight_capacity(edge)))
+            .collect();
         let sea = move |a: usize, b: usize| seas.as_ref().and_then(|q| q[a * site_count + b]);
         let route = |h: &History, a: usize, b: usize| -> Option<f32> {
             if h.sites[a].island != h.sites[b].island {
@@ -1350,8 +1362,10 @@ impl History {
                             .as_ref()
                             .is_some_and(|sites| {
                                 sites
+                                    .stops
                                     .iter()
                                     .all(|&site| land_remaining[site as usize] >= 1.)
+                                    && sites.edges.iter().all(|e| road_remaining[e] >= 1.)
                             })
                     })
                     .filter(|&j| {
@@ -1420,9 +1434,17 @@ impl History {
                         .as_ref()
                         .expect("selected valid freight services");
                     let capacity = freight_sites
+                        .stops
                         .iter()
                         .map(|&site| land_remaining[site as usize])
                         .fold(f32::INFINITY, f32::min)
+                        .min(
+                            freight_sites
+                                .edges
+                                .iter()
+                                .map(|e| road_remaining[e])
+                                .fold(f32::INFINITY, f32::min),
+                        )
                         .min(sea_lane.map_or(f32::INFINITY, |lane| self.sea_capacity(lane)));
                     let e = &self.sites[buyer].economy;
                     let space = if e.logistics[3] > 0.5
@@ -1459,10 +1481,11 @@ impl History {
                     if amount < 1. {
                         continue;
                     }
-                    for (i, &site) in freight_sites.iter().enumerate() {
-                        if !freight_sites[..i].contains(&site) {
-                            land_remaining[site as usize] -= amount;
-                        }
+                    for &site in &freight_sites.stops {
+                        land_remaining[site as usize] -= amount;
+                    }
+                    for edge in &freight_sites.edges {
+                        *road_remaining.get_mut(edge).unwrap() -= amount;
                     }
                     let cost = amount * price;
                     let reserved_payment = if let Some(i) = contract {
@@ -1495,7 +1518,8 @@ impl History {
                             month: self.month,
                             remaining: (arrives - self.month) as f32,
                         }),
-                        freight_stops: freight_sites.clone(),
+                        freight_edges: freight_sites.edges.clone(),
+                        freight_stops: freight_sites.stops.clone(),
                         sea_lane,
                         weather_delay_months: 0,
                         from: seller as u32,
@@ -1580,6 +1604,7 @@ mod freight_tests {
         h.sites[1].economy.goods[3] -= 10.;
         h.cargo.push(Cargo {
             voyage_clock: None,
+            freight_edges: vec![],
             freight_stops: vec![],
             from: 1,
             to: 3,
@@ -1741,6 +1766,7 @@ mod freight_tests {
         blocked.sites[1].economy.goods[4] -= 3.;
         blocked.cargo.push(Cargo {
             voyage_clock: None,
+            freight_edges: vec![],
             freight_stops: vec![],
             from: 1,
             to: 4,

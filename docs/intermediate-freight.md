@@ -37,7 +37,9 @@ rejects duplicate, invalid or missing endpoint/port entries in nonempty footprin
 
 ## Limits
 
-This reserves settlement transport services, **not individual road edges**.
+This increment reserves settlement transport services. The subsequent
+[road-corridor extension](road-freight-capacity.md) adds shared road reservations
+for new networked cargo.
 Reservations conservatively cover the whole journey until delivery; there is no
 per-leg release, cargo position, intermediate toll payment or carrier employment
 market. Existing delivery/closure behavior remains unchanged. Capacity does not

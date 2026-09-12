@@ -2375,6 +2375,10 @@ impl App {
                                     r.road_bricks
                                 ),
                             );
+                            let free = h.road_freight_capacity([r.from, r.to]);
+                            if free.is_finite() {
+                                ui.small(format!("Road corridor: {free:.1} kg free cargo capacity"));
+                            }
                             if r.flood_months > 0 { ui.small(format!("Flood closure: {} dry monthly steps until reopening", r.flood_months)); }
                             if let Some(c) = &r.upkeep { ui.small(format!("Weathered {:.1} kg · road work {:.2} worker-months · {}",c.lost_kg,c.work,if c.impaired {"deteriorated"}else{"maintained or developing"})); }
                             if open != r.open {

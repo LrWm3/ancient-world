@@ -330,6 +330,7 @@ fn due_food_cargo_prevents_current_consumption_shortage() {
         kg: food,
         paid: 1.,
         arrives: h.month + 1,
+        freight_edges: vec![],
         freight_stops: vec![],
         sea_lane: None,
         weather_delay_months: 0,
