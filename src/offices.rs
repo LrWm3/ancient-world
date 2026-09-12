@@ -452,6 +452,40 @@ mod tests {
         assert_eq!(plan.work.used, 0.);
         assert_eq!(plan.work.granted, plan.work.released);
         plan.work.validate().unwrap();
+        // Comparison is observational, including partial, absent and ended-tenure work.
+        for mut case in [h.clone(), unavailable, partial, scarce, changed] {
+            case.resolution = Some(crate::resolution::ResolutionState {
+                compare: true,
+                ..Default::default()
+            });
+            let mut silent = case.clone();
+            silent.resolution.as_mut().unwrap().compare = false;
+            case.settle_office_resolutions().unwrap();
+            silent.settle_office_resolutions().unwrap();
+            let receipts = &case.resolution.as_ref().unwrap().receipts;
+            assert!(!receipts.is_empty());
+            assert!(receipts
+                .iter()
+                .all(|r| r.metrics.len() == 3
+                    && r.metrics.iter().all(|m| m.actual <= m.expected + 1e-6)));
+            let before = serde_json::to_value(&case).unwrap();
+            assert!(case.settle_office_resolutions().is_err());
+            assert_eq!(before, serde_json::to_value(&case).unwrap());
+            case.resolution = None;
+            silent.resolution = None;
+            assert_eq!(
+                serde_json::to_value(&case).unwrap(),
+                serde_json::to_value(silent).unwrap()
+            );
+            let service = case.offices.as_mut().unwrap().service.as_mut().unwrap();
+            // Legacy archives have no captured opening expectation.
+            for plan in &mut service.plans {
+                plan.allowance = None;
+            }
+            case.resolution = Some(Default::default());
+            case.settle_office_resolutions().unwrap();
+            assert!(case.resolution.as_ref().unwrap().receipts.is_empty());
+        }
     }
 
     #[test]

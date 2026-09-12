@@ -87,7 +87,7 @@ separate salary contract. Records persist under `Offices.service` and appear in
 `service_work_report`. Disabling participation requires disabling office service
 first at a completed boundary.
 
-Institution-specific upkeep assignments, comparison-framework receipts and broader
+Institution-specific upkeep assignments, governance outcome comparisons and broader
 allocation calibration remain open. This is an initial bounded participation
 path, not a completed conversion of government staffing.
 
@@ -97,5 +97,26 @@ settlement rejection, unchanged finance and serialized continuation. The regular
 library suite passes 114 tests (104 hardware tests skipped). The full frozen
 history fixture passes monthly/batched/checkpoint continuation on three seeds,
 with the pilot enabled for 17/256 and a legacy arm for 81. All-target Clippy is
-clean. No scarcity balance or shared-resolution comparison is implied by these
-boundary checks.
+clean. These boundary checks do not establish scarcity balance. The subsequent
+work-comparison extension is described below.
+
+## Office comparison boundary
+
+The opt-in office pilot captures the town's labor allowance during Reserve, before
+matching its holder. Close records three shared resolution metrics: request versus
+town allowance, allowance versus named reservation, and reservation versus used
+work. The receipt identifies the opening holder and controller. It observes the
+settled commitment rather than rereading a successor's capacity or applying service
+a second time. These are conditional work comparisons, not a replay of an alternate
+aggregate government or a forecast of tax revenue.
+
+Comparison can be disabled without changing execution. Plans from older archives
+without a captured allowance do not manufacture an opening expectation. Institutional
+upkeep teams and broader governance outcome comparisons remain unfinished.
+
+Verification of the comparison extension: the GPU office fixture checks full,
+partial, unavailable, town-starved and ended-tenure plans; comparison-on/off leaves
+all non-resolution history identical, and duplicate receipt rejection leaves the
+whole history unchanged. Legacy plans without expectations emit no comparison.
+All 114 regular library tests pass (104 hardware tests skipped); the three-seed
+frozen monthly/batched/checkpoint fixture also passes with the new receipts.

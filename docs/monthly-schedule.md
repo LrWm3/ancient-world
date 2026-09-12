@@ -378,3 +378,7 @@ settles after GPU production, before demographic losses, and its delivered work
 informs the later governance response. No grant or returned time is reused to
 rerun production. New officeholders do not inherit predecessors' completed work.
 The default remains disabled; this priority needs scarcity calibration.
+
+Office-service comparisons are recorded at Close from the settled dated plan,
+including its opening town allowance and holder. Enabling comparisons adds no
+reservation, payment or capacity update.

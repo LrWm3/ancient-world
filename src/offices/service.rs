@@ -13,6 +13,9 @@ pub struct Plan {
     pub holder: u32,
     pub commitment: Option<u32>,
     pub work: WorkReceipt,
+    /// Opening town allowance, before matching the holder. Absent in older plans.
+    #[serde(default)]
+    pub allowance: Option<f64>,
 }
 impl History {
     pub fn set_office_service(&mut self, enabled: bool) -> Result<()> {
@@ -93,6 +96,7 @@ impl History {
                 controller,
                 holder,
                 commitment,
+                allowance: Some(allowance as f64),
                 work: WorkReceipt {
                     month: self.month,
                     requested: wanted as f64,
@@ -108,6 +112,43 @@ impl History {
             .as_mut()
             .unwrap()
             .plans = plans;
+        Ok(())
+    }
+    pub(crate) fn settle_office_resolutions(&mut self) -> Result<()> {
+        let Some(mut resolution) = self.resolution.clone() else {
+            return Ok(());
+        };
+        let Some(service) = self.offices.as_ref().and_then(|o| o.service.as_ref()) else {
+            return Ok(());
+        };
+        // Observe completed work only. Stage the entire batch before publishing it.
+        for p in &service.plans {
+            let Some(allowance) = p.allowance else {
+                continue;
+            };
+            ensure!(
+                p.work.month == self.month && p.work.settled,
+                "office comparison requires current completed work"
+            );
+            let mut receipt = crate::learning_resolution::outcome(
+                p.work.month,
+                p.site,
+                crate::resolution::System::OfficeService,
+                crate::resolution::Mode::Individual,
+                [p.work.requested, allowance, p.work.granted, p.work.used],
+                resolution.compare,
+            )?;
+            receipt.boundary.subject = p.holder;
+            receipt.boundary.revision = crate::resolution::revision([
+                receipt.boundary.revision,
+                p.holder as u64,
+                p.controller as u64,
+            ]);
+            let boundary = receipt.boundary.clone();
+            resolution.commit(receipt, &boundary)?;
+        }
+        resolution.validate(self.month, self.sites.len())?;
+        self.resolution = Some(resolution);
         Ok(())
     }
     pub(crate) fn settle_office_service(&mut self) -> Result<()> {
@@ -169,6 +210,15 @@ impl Service {
         );
         for (i, p) in self.plans.iter().enumerate() {
             p.work.validate()?;
+            if let Some(allowance) = p.allowance {
+                ensure!(
+                    allowance.is_finite()
+                        && allowance >= 0.
+                        && allowance <= p.work.requested + 1e-6
+                        && p.work.granted <= allowance + 1e-6,
+                    "invalid opening office allowance"
+                );
+            }
             if p.work.month == h.month {
                 if let Some(id) = p.commitment {
                     let c = h

@@ -1431,6 +1431,7 @@ impl Generator {
         h.settle_participation()?;
         h.settle_learning_resolutions()?;
         h.settle_care_resolutions()?;
+        h.settle_office_resolutions()?;
         h.social_indicators_month();
         if record && h.living.is_none() {
             h.record_timeline();

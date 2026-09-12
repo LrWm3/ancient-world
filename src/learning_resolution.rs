@@ -3,7 +3,7 @@
 use crate::resolution::{Boundary, Metric, Mode, Receipt, System};
 use anyhow::{ensure, Result};
 
-fn outcome(
+pub(crate) fn outcome(
     month: u32,
     site: u32,
     system: System,
