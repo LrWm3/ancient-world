@@ -85,6 +85,10 @@ impl Resources {
                 s.ore_good.is_none_or(|k| matches!(k, 1 | 32..=37)),
                 "invalid source good"
             );
+            ensure!(
+                s.depletion_events[0].is_none() || s.depletion_events[0] != s.depletion_events[1],
+                "distinct source pools require distinct depletion events"
+            );
             for (kind, event) in s.depletion_events.iter().enumerate() {
                 if let Some(event) = event {
                     ensure!(
@@ -699,6 +703,44 @@ mod tests {
             evidence
         );
     }
+    #[test]
+    fn depletion_retains_subgram_stock_and_separate_pool_evidence() {
+        let mut h = fixture();
+        let quotas = h.allocate_resources();
+        for site in &mut h.sites {
+            site.economy.reserves[1] = 0.0002;
+            site.economy.reserves[2] = 0.;
+        }
+        h.settle_resources(&quotas).unwrap();
+        let source = &h.resources.as_ref().unwrap().sources[&0];
+        assert!(source.remaining[0] > 0. && source.remaining[0] < 0.001);
+        assert_eq!(source.remaining[1], 0.);
+        let events = source.depletion_events;
+        assert!(events.iter().all(Option::is_some));
+        assert_ne!(events[0], events[1]);
+        assert!(h.resources.as_ref().unwrap().residual() < 1e-12);
+        h.resources
+            .as_ref()
+            .unwrap()
+            .validate(&h, &[Cell::default()])
+            .unwrap();
+        h.resources
+            .as_mut()
+            .unwrap()
+            .sources
+            .get_mut(&0)
+            .unwrap()
+            .depletion_events[1] = events[0];
+        assert!(h
+            .resources
+            .as_ref()
+            .unwrap()
+            .validate(&h, &[Cell::default()])
+            .unwrap_err()
+            .to_string()
+            .contains("distinct source pools"));
+    }
+
     #[test]
     fn regional_control_conserves_and_releases_shared_source() {
         let mut h = fixture();

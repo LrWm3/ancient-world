@@ -16,6 +16,13 @@ class ActiveArrearsTests(unittest.TestCase):
     def test_legacy_is_unknown(self):
         self.assertEqual(arrears(self.sample()), (900, None))
 
+    def test_invalid_counters_are_rejected_including_inactive_sites(self):
+        for value in (-1, float('nan'), float('inf'), True, 1.5):
+            sample = self.sample(active_site_ids=[1])
+            sample['administrations'][0]['unpaid_months'] = value
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                arrears(sample)
+
     def test_invalid_metadata_is_rejected(self):
         for ids in ([1, 1], [2], [-1], [True], [1.0], None):
             with self.subTest(ids=ids), self.assertRaises(ValueError):

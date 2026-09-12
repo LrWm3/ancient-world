@@ -23,6 +23,9 @@ def compare(baseline, treatment, allowed):
     rows = []
     indexed = []
     for report in (baseline, treatment):
+        seeds = report['seeds']
+        if not seeds or len(set(seeds)) != len(seeds):
+            raise ValueError('empty or duplicate declared seeds')
         by_seed = {run['seed']: run for run in report['runs']}
         if len(by_seed) != len(report['runs']) or set(by_seed) != set(report['seeds']):
             raise ValueError('missing or duplicate seed results')
@@ -32,7 +35,10 @@ def compare(baseline, treatment, allowed):
     for seed in sorted(indexed[0]):
         pair = []
         for by_seed, report in zip(indexed, (baseline, treatment)):
-            sample = by_seed[seed]['samples'][-1]
+            samples = by_seed[seed]['samples']
+            if not samples:
+                raise ValueError('missing observation samples')
+            sample = samples[-1]
             if sample['year'] != report['years']:
                 raise ValueError('run does not reach declared horizon')
             food = sample['food_totals']

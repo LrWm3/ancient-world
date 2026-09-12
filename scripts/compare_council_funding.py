@@ -9,7 +9,10 @@ from compare_food_access import compare
 def arrears(sample):
     """Separate retained historical counters from currently active administrations."""
     administrations = sample['administrations']
-    stored = max((a['unpaid_months'] for a in administrations), default=0)
+    counters = [a['unpaid_months'] for a in administrations]
+    if any(type(value) is not int or value < 0 for value in counters):
+        raise ValueError('invalid unpaid-month counter')
+    stored = max(counters, default=0)
     if 'active_site_ids' not in sample:
         return stored, None  # Older reports cannot establish this retrospectively.
     ids = sample['active_site_ids']
@@ -32,7 +35,7 @@ def main():
         for report in (baseline, treatment):
             for run in report['runs']:
                 arrears(run['samples'][-1])
-    except (ValueError, KeyError, TypeError) as error:
+    except (ValueError, KeyError, IndexError, TypeError) as error:
         parser.error(str(error))
     print('| Seed | Arm | Population | Food access gap % | Admin unpaid % | Longest stored unpaid streak | Longest active unpaid streak | Relief withheld by allowance |')
     print('|---|---|---:|---:|---:|---:|---:|---:|')

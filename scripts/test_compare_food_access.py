@@ -39,6 +39,17 @@ class ComparisonTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 compare(self.report, trial, set())
 
+    def test_rejects_empty_ensembles_duplicate_declarations_and_no_samples(self):
+        for mutate in (
+            lambda r: r.update(seeds=[], runs=[]),
+            lambda r: r.update(seeds=[17, 17]),
+            lambda r: r['runs'][0].update(samples=[]),
+        ):
+            report = copy.deepcopy(self.report)
+            mutate(report)
+            with self.assertRaises(ValueError):
+                compare(report, report, set())
+
     def test_recent_interval_exposes_late_decline_and_deprivation(self):
         report = copy.deepcopy(self.report)
         run = report['runs'][0]
