@@ -1,7 +1,7 @@
 # Institutional space and service review
 
 This records the current implementation and the next integration boundary. It is
-not a claim that shared room scheduling is already connected to history.
+a partial service-capacity integration; consumers beyond lessons and heritage study remain unconverted.
 
 ## Current coupling
 
@@ -110,8 +110,43 @@ failed work cannot reopen allocation retroactively. Increased space cannot enlar
 old grants, while damaged space can invalidate unexecuted groups. Closing releases
 unexecuted grants. The ledger does not supply actors, labor, money or materials.
 
-This foundation is not yet wired into cultural plans or service consumers. Next:
-capture heritage's institution/author/artifact selection at Reserve, jointly check
-minimum work, allocate both service types, and expose their settlement receipts.
-The existing operational/readiness gate remains unchanged until other consumers
-have explicit capacity contracts.
+New cultural work plans now capture both service types. Heritage selection records
+institution, author and artifact at the opening boundary; the author joins focused
+identity checks and named participant reservations. The common cultural work grant
+limits room grants to tasks with at least 0.1 available worker-months. These remain
+conditional task allowances: earlier cultural consumers may still exhaust work,
+and execution rechecks work and writing materials before consuming room capacity.
+
+Heritage study executes before lessons, preserving the existing Respond order.
+A lesson occupies two room units for 0.1 month; heritage study occupies one for
+0.1 month. These are explicit toy scheduling parameters, not measured class sizes
+or working hours. Legacy meeting places map to two units scaled by condition;
+component facilities use their actual usable capacity. Lost, destroyed or remote
+premises provide no capacity. Original material inventories remain unchanged.
+
+Receipt use precedes actual study, with cultural settlement in Respond releasing
+unused grants. The existing
+`service_work_report` query and archive carry the service receipts. Old archived
+plans with no service field retain their former execution path; newly reserved
+plans use the new rules in both aggregate and individual modes. Manuscript-only
+learning does not acquire an institutional room requirement.
+
+Other service consumers and small-working-core readiness are still unfinished.
+The shared operational/readiness gate remains unchanged until those consumers
+have explicit capacity contracts. Full scheduler continuation and matched-history
+calibration of this new behavior remain required before drawing balance conclusions.
+
+Verification for the consumer integration: all 121 regular library tests pass,
+as do Clippy across all targets and the two hardware-backed learning/heritage
+fixtures. The learning fixture verifies that loss of its declared finite room
+prevents progress and spending, then releases the unused grant at settlement.
+The heritage fixture opens named participation before reservation and compares
+intact/lost premises with the same writing stock and work; duplicate execution
+cannot consume supplies twice. Its legacy no-plan path retains prior readings.
+The full monthly/batched/checkpoint comparison is tracked separately.
+
+An existing limitation remains: generic cultural identity validation can cancel
+a whole bundle when local objects change. The new live room check does not remove
+that broader cancellation rule. Narrowing cancellation to the affected service,
+validating room receipts on archive import, and testing competing actual consumers
+under constrained space remain follow-up verification/integration work.

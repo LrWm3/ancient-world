@@ -737,6 +737,32 @@ mod tests {
             "institution closure does not erase personal skills"
         );
         c.institutions[institution as usize].active = true;
+        // Declare a finite existing-stock room for the service-space fixture.
+        let room = c.artifacts.len() as u32;
+        let materials = vec![(0, 20.)];
+        h.sites[site as usize].economy.goods[0] += 20.; // Declared fixture input.
+        h.sites[site as usize].economy.goods[0] -= 20.;
+        c.artifacts.push(Artifact {
+            id: room,
+            name: "Fixture school room".into(),
+            kind: "institutional foundation".into(),
+            creator: None,
+            owner: Owner::Institution(institution),
+            claims: vec![],
+            site: Some(site),
+            custodian: None,
+            materials,
+            topic: None,
+            tradition: None,
+            events: vec![],
+            destroyed: false,
+            lost: false,
+        });
+        c.institutions[institution as usize].capacity =
+            Some(crate::institution_capacity::Capacity {
+                building: Some(crate::institution_capacity::MeetingPlace::new(room)),
+                ..crate::institution_capacity::Capacity::new(h.month)
+            });
         // Reservation captures a specific source and does not itself teach.
         let mut predicted = c.clone();
         predicted.work_plans = h
@@ -754,6 +780,30 @@ mod tests {
         assert_eq!(expectation.institution, Some(institution));
         assert_eq!(expectation.object, None);
         assert!(expectation.lesson.expected_gain > 0.);
+        let mut damaged = predicted.clone();
+        let mut damaged_history = h.clone();
+        damaged.artifacts[room as usize].destroyed = true;
+        damaged.labor_budget[0] = 0.1;
+        let spent = damaged.labor_spent;
+        damaged.decisions(&mut damaged_history);
+        assert_eq!(
+            damaged.work_plans[0]
+                .study_expectation
+                .as_ref()
+                .unwrap()
+                .lesson
+                .actual_gain,
+            0.
+        );
+        assert_eq!(damaged.labor_spent, spent);
+        // Production cancellation leaves its grant unused until cultural settlement.
+        for plan in damaged.work_plans[0].services.as_mut().unwrap() {
+            plan.close(h.month);
+        }
+        let receipt = &damaged.work_plans[0].services.as_ref().unwrap()[0].receipts[0];
+        assert!(receipt.settled);
+        assert_eq!(receipt.used, 0.);
+        assert!(receipt.released() > 0.);
         let mut absent = predicted.clone();
         let mut absent_history = h.clone();
         absent_history.people[teacher as usize].died = Some(h.month);

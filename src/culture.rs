@@ -1044,6 +1044,13 @@ impl History {
             crate::civic_petitions::propose(self, &mut c);
             c.decisions(self);
             c.execute_institution_administration(self);
+            for plan in &mut c.work_plans {
+                if let Some(services) = &mut plan.services {
+                    for service in services {
+                        service.close(self.month);
+                    }
+                }
+            }
             c.work_receipt.settle(c.labor_spent - spent_before);
         }
         if self.month % 12 == 0 {
@@ -1334,9 +1341,22 @@ impl Culture {
                     )
                 })
             });
-            if let Some((topic, object, cause)) =
-                lesson.filter(|_| remaining_work >= 0.1 && self.work_allowed(site, "study"))
-            {
+            if let Some((topic, object, cause)) = lesson.filter(|_| {
+                remaining_work >= 0.1
+                    && self.work_allowed(site, "study")
+                    && institution_lesson.is_none_or(|(topic, teacher, institution)| {
+                        self.consume_service_space(
+                            h.month,
+                            site,
+                            institution,
+                            crate::institution_services::Service::Lesson {
+                                student: actor,
+                                teacher,
+                                topic,
+                            },
+                        )
+                    })
+            }) {
                 remaining_work -= 0.1;
                 let support = institution_lesson.map_or(0., |(_, teacher, _)| {
                     self.agents[teacher as usize].instruction_support()
@@ -2192,6 +2212,19 @@ impl History {
                             .chain(p.successor.map(|s| s.0))
                             .chain(p.institution_lesson.map(|l| l.1))
                             .chain(
+                                p.services
+                                    .iter()
+                                    .flatten()
+                                    .flat_map(|p| &p.receipts)
+                                    .filter_map(|r| match r.service {
+                                        crate::institution_services::Service::HeritageStudy {
+                                            author,
+                                            ..
+                                        } => Some(author),
+                                        _ => None,
+                                    }),
+                            )
+                            .chain(
                                 c.local_recoveries
                                     .iter()
                                     .filter(|r| r.site == s.id)
@@ -2207,6 +2240,18 @@ impl History {
                         );
                         work = commitment.map_or(0., |id| state.commitments[id as usize].granted);
                         c.work_plans[i].commitment = commitment;
+                    }
+                    let mut service_work = work;
+                    if let Some(plans) = &mut c.work_plans[i].services {
+                        for plan in plans {
+                            for receipt in &mut plan.receipts {
+                                if receipt.granted > 0. && service_work >= 0.1 {
+                                    service_work -= 0.1;
+                                } else {
+                                    receipt.granted = 0.;
+                                }
+                            }
+                        }
                     }
                     c.work_plans[i].granted = work + institution_granted;
                     c.work_receipt.granted += (work + institution_granted) as f64;

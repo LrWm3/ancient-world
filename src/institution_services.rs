@@ -144,6 +144,148 @@ impl Plan {
     }
 }
 
+/// Current physically accessible space; legacy meeting places have two abstract
+/// room units. Their old material inventories are not increased by this mapping.
+pub(crate) fn usable(c: &crate::culture::Culture, institution: u32, site: u32) -> f64 {
+    let Some(n) = c
+        .institutions
+        .get(institution as usize)
+        .filter(|n| n.site == site && n.operational())
+    else {
+        return 0.;
+    };
+    let Some(b) = n.capacity.as_ref().and_then(|c| c.building.as_ref()) else {
+        return 0.;
+    };
+    if !c
+        .artifacts
+        .get(b.artifact as usize)
+        .is_some_and(|a| a.site == Some(site) && !a.lost && !a.destroyed)
+    {
+        return 0.;
+    }
+    b.facility.as_ref().map_or_else(
+        || {
+            if b.construction_remaining == 0. {
+                2. * b.condition as f64
+            } else {
+                0.
+            }
+        },
+        |f| f.usable() as f64,
+    )
+}
+
+impl crate::culture::Culture {
+    pub(crate) fn plan_service_space(
+        &self,
+        h: &crate::civilization::History,
+        site: u32,
+        actor: Option<u32>,
+        lesson: Option<(u32, u32, u32)>,
+        actions: &[(String, f32)],
+    ) -> Vec<Plan> {
+        let mut requests = Vec::new();
+        let present = self.site_people(h, site);
+        if actions.iter().any(|(a, _)| a == "heritage study") {
+            if let Some(n) = self.institutions.iter().find(|n| {
+                n.site == site
+                    && n.operational()
+                    && matches!(
+                        n.kind,
+                        crate::culture::InstitutionKind::Scholarly
+                            | crate::culture::InstitutionKind::Religious
+                    )
+                    && present.contains(&n.leader)
+            }) {
+                if let Some(x) = &h.expeditions {
+                    for find in x
+                        .voyages
+                        .iter()
+                        .filter_map(|v| v.heritage.as_ref()?.find.as_ref())
+                    {
+                        if find.studies.len() >= 3
+                            || find.studies.last().is_some_and(|s| h.month < s.month + 60)
+                        {
+                            continue;
+                        }
+                        if let Some(artifact) = find.artifact.filter(|&id| {
+                            self.artifacts
+                                .get(id as usize)
+                                .is_some_and(|a| a.site == Some(site) && !a.lost && !a.destroyed)
+                        }) {
+                            requests.push((
+                                n.id,
+                                Service::HeritageStudy {
+                                    artifact,
+                                    author: n.leader,
+                                },
+                                1.,
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        if actions.iter().any(|(a, _)| a == "study") {
+            if let (Some(student), Some((topic, teacher, institution))) = (actor, lesson) {
+                if self.readable_lesson(site, student).is_none() {
+                    requests.push((
+                        institution,
+                        Service::Lesson {
+                            student,
+                            teacher,
+                            topic,
+                        },
+                        2.,
+                    ));
+                }
+            }
+        }
+        let mut plans: Vec<Plan> = Vec::new();
+        for (institution, service, occupants) in requests {
+            let index = plans
+                .iter()
+                .position(|p| p.institution == institution)
+                .unwrap_or_else(|| {
+                    plans.push(Plan::new(
+                        h.month,
+                        site,
+                        institution,
+                        usable(self, institution, site),
+                    ));
+                    plans.len() - 1
+                });
+            plans[index].reserve(service, occupants, 0.1);
+        }
+        plans
+    }
+
+    pub(crate) fn consume_service_space(
+        &mut self,
+        month: u32,
+        site: u32,
+        institution: u32,
+        service: Service,
+    ) -> bool {
+        let live = usable(self, institution, site);
+        let Some(plans) = self
+            .work_plans
+            .get_mut(site as usize)
+            .and_then(|p| p.services.as_mut())
+        else {
+            return true;
+        };
+        let Some(plan) = plans.iter_mut().find(|p| p.institution == institution) else {
+            return false;
+        };
+        let Some(id) = plan.receipts.iter().position(|r| r.service == service) else {
+            return false;
+        };
+        plan.settle((month, site, institution), id, live, true)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -343,8 +343,30 @@ pub(crate) fn study(h: &mut History, c: &mut crate::culture::Culture) {
         {
             continue;
         }
+        let captured = c
+            .work_plans
+            .get(site as usize)
+            .and_then(|p| p.services.as_ref());
+        let selected = captured.and_then(|plans| {
+            plans.iter().find_map(|p| {
+                p.receipts.iter().find_map(|r| match r.service {
+                    crate::institution_services::Service::HeritageStudy { artifact, author }
+                        if artifact == id =>
+                    {
+                        Some((p.institution, author))
+                    }
+                    _ => None,
+                })
+            })
+        });
+        if captured.is_some() && selected.is_none() {
+            continue;
+        }
+        let present = c.site_people(h, site);
         let Some(n) = c.institutions.iter().find(|n| {
-            n.site == site
+            selected.is_none_or(|(institution, author)| {
+                n.id == institution && n.leader == author && present.contains(&author)
+            }) && n.site == site
                 && n.operational()
                 && matches!(
                     n.kind,
@@ -363,10 +385,21 @@ pub(crate) fn study(h: &mut History, c: &mut crate::culture::Culture) {
         else {
             continue;
         };
-        let e = &mut h.sites[site as usize].economy;
-        if e.goods[good] < 0.05 {
+        if h.sites[site as usize].economy.goods[good] < 0.05 {
             continue;
         }
+        if !c.consume_service_space(
+            h.month,
+            site,
+            institution,
+            crate::institution_services::Service::HeritageStudy {
+                artifact: id,
+                author,
+            },
+        ) {
+            continue;
+        }
+        let e = &mut h.sites[site as usize].economy;
         e.goods[good] -= 0.05;
         e.used[good] += 0.05;
         e.reserves[3] += 0.05;
@@ -481,6 +514,7 @@ mod tests {
         g.enable_expeditions().unwrap();
         let h = g.civilizations.as_mut().unwrap();
         h.month = 12;
+        h.sync_culture();
         let mut c = h.culture.take().unwrap();
         let mut a = c.artifacts[0].clone();
         a.kind = "ancient ceramic fragment".into();
@@ -571,6 +605,50 @@ mod tests {
                 .studies
                 .len()
         };
+        // New plans capture the same find, author and physical room at Reserve.
+        let mut planned_history = h.clone();
+        let mut planned_culture = c.clone();
+        let mut room = planned_culture.artifacts[id as usize].clone();
+        room.id = planned_culture.artifacts.len() as u32;
+        room.kind = "fixture meeting place".into();
+        room.materials = vec![(0, 20.)]; // Declared finite room input, separate from find.
+        let room_id = room.id;
+        planned_culture.artifacts.push(room);
+        planned_culture.institutions.last_mut().unwrap().capacity =
+            Some(crate::institution_capacity::Capacity {
+                building: Some(crate::institution_capacity::MeetingPlace::new(room_id)),
+                ..crate::institution_capacity::Capacity::new(h.month)
+            });
+        planned_history.culture = Some(planned_culture);
+        planned_history.open_participation();
+        let plans = planned_history.cultural_work_plans();
+        planned_history.reserve_cultural_plans(plans, &vec![0.5; h.sites.len()]);
+        let planned_culture = planned_history.culture.take().unwrap();
+        assert!(planned_culture.work_plans[site as usize].services.as_ref().unwrap().iter()
+            .flat_map(|p| &p.receipts).any(|r| matches!(r.service,
+                crate::institution_services::Service::HeritageStudy { artifact, .. } if artifact == id)));
+        for failed in [false, true] {
+            let mut run = planned_history.clone();
+            let mut culture = planned_culture.clone();
+            // Explicit bounded work isolates room availability from production.
+            culture.labor_budget[site as usize] = 0.1;
+            if failed {
+                culture.artifacts[room_id as usize].destroyed = true;
+            }
+            let before = run.sites[site as usize].economy.goods[good];
+            study(&mut run, &mut culture);
+            assert_eq!(count(&run), usize::from(!failed));
+            assert!(
+                (before
+                    - run.sites[site as usize].economy.goods[good]
+                    - if failed { 0. } else { 0.05 })
+                .abs()
+                    < 1e-6
+            );
+            let after = run.sites[site as usize].economy.goods[good];
+            study(&mut run, &mut culture);
+            assert_eq!(run.sites[site as usize].economy.goods[good], after);
+        }
         study(h, &mut c);
         assert_eq!(count(h), 0);
         c.labor_budget[site as usize] = 0.5;

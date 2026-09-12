@@ -24,6 +24,9 @@ pub struct InstitutionWorkPlan {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WorkPlan {
+    /// None preserves archived plans created before room reservations.
+    #[serde(default)]
+    pub services: Option<Vec<crate::institution_services::Plan>>,
     #[serde(default)]
     pub funding: Option<crate::institution_funding::Budget>,
     /// Captured ordering policy; old plans do not invent an allocation history.
@@ -188,7 +191,7 @@ impl WorkPlan {
     }
 }
 impl Culture {
-    pub(super) fn readable_lesson(
+    pub(crate) fn readable_lesson(
         &self,
         site: u32,
         actor: u32,
@@ -231,22 +234,32 @@ impl Culture {
             .copied();
         let successor = actor.and_then(|a| self.succession_lesson(h, site, a));
         let institution_lesson = actor.and_then(|a| self.institutional_lesson(h, site, a));
-        let participants = self.focused_work_identities.then(|| {
-            let mut ids: Vec<_> = actor
-                .into_iter()
-                .chain(successor.map(|s| s.0))
-                .chain(institution_lesson.map(|l| l.1))
-                .collect();
-            ids.sort_unstable();
-            ids.dedup();
-            ids
-        });
-        let identities = self.work_identities(h, site, participants.as_deref());
         let actions: Vec<(String, f32)> = self
             .work_requests(h, site)
             .into_iter()
             .map(|(a, w)| (a.into(), w))
             .collect();
+        let services = self.plan_service_space(h, site, actor, institution_lesson, &actions);
+        let participants = self.focused_work_identities.then(|| {
+            let mut ids: Vec<_> =
+                actor
+                    .into_iter()
+                    .chain(successor.map(|s| s.0))
+                    .chain(institution_lesson.map(|l| l.1))
+                    .chain(services.iter().flat_map(|p| &p.receipts).filter_map(
+                        |r| match r.service {
+                            crate::institution_services::Service::HeritageStudy {
+                                author, ..
+                            } => Some(author),
+                            _ => None,
+                        },
+                    ))
+                    .collect();
+            ids.sort_unstable();
+            ids.dedup();
+            ids
+        });
+        let identities = self.work_identities(h, site, participants.as_deref());
         let successor_expectation = successor
             .filter(|_| actions.iter().any(|(a, _)| a == "teach successor"))
             .map(|(student, topic, _)| {
@@ -362,6 +375,7 @@ impl Culture {
             self.institution_priority.order(plans, h.month, site);
         }
         WorkPlan {
+            services: Some(services),
             funding: self.plan_institution_funding(h, site),
             institution_priority: h.participation.as_ref().map(|_| self.institution_priority),
             institution_work_policy: h
