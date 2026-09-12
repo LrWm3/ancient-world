@@ -49,3 +49,29 @@ off. Only `--continuing-students` differs. The runner now separately records
 institutional requests, requests with unfinished progress, actual progress,
 progressing lessons and acquired topics; manuscript study is excluded from these
 institutional counters. Reports stay under `output/continuing-study-{control,enabled}.json`.
+
+## Completed three-seed comparison
+
+All six histories complete. The strict food-access comparator accepts only the
+`continuing_students` metadata difference. These runs used the selection code
+before the equivalent present-person lookup reuse, and precede the husbandry
+attendance change. Concurrent runtime is not a performance benchmark.
+
+| Seed | Progressing institutional lessons | Acquired topics | Unfinished-topic requests | Endpoint knowledge links | Population |
+|---|---:|---:|---:|---:|---:|
+| 17 | 73 → 73 | 24 → 31 | 38 → 45 | 5,932 → 5,938 | 1,846 → 1,846 |
+| 81 | 79 → 80 | 20 → 29 | 39 → 49 | 5,945 → 5,954 | 2,000 → 1,998 |
+| 256 | 56 → 56 | 15 → 18 | 38 → 42 | 5,923 → 5,926 | 2,026 → 2,026 |
+
+The useful result is more completed topics from nearly the same number of actual
+lessons. Knowledge-link totals include other channels and historical people, so
+are not a count of living competent workers. All worlds retain sixteen active
+sites. Maximum monthly population residual is zero; maximum food residual is below
+2.7e-7; endpoint economic residuals are below 3.4e-6 in their reported units.
+
+Cumulative food-access gaps change 2.2765→2.2755%, 1.9486→1.9469% and
+2.0877→2.0877%. Seed 17 has the same 0.0437% physical gap in both arms; the other
+two have none. Every arm still declines during years 20–30. This is a targeted
+learning improvement, not a population or food fix. Keep it available as an
+opt-in policy; larger institutions, multi-site branches, sustained enrollment
+records and competition with absent teachers remain broader work.
