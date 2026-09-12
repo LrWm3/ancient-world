@@ -383,9 +383,9 @@ Office-service comparisons are recorded at Close from the settled dated plan,
 including its opening town allowance and holder. Enabling comparisons adds no
 reservation, payment or capacity update.
 
-In named cultural participation, due institutional upkeep reserves local members
-first within the culture grant, with remaining capacity going to the generic
-cultural team. Upkeep executes in the existing quarterly response, recording its
+In named cultural participation, planned institutional elections reserve a local
+convener first, followed by upkeep members, within the culture grant. Remaining
+capacity goes to the generic cultural team. Upkeep executes in the existing quarterly response, recording its
 work inside total cultural completion; personal settlement subtracts that work
 from the generic team and settles each institution's own commitment. Released
 upkeep reservations expire rather than returning to already completed production.

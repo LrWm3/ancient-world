@@ -166,7 +166,16 @@ impl crate::civilization::History {
                 "future cultural work receipt"
             );
             for (i, p) in c.work_plans.iter().enumerate() {
-                if let Some(plans) = &p.upkeep {
+                let assignments: Vec<_> =
+                    p.institution_work().filter_map(|u| u.commitment).collect();
+                anyhow::ensure!(
+                    assignments
+                        .iter()
+                        .enumerate()
+                        .all(|(j, id)| Some(*id) != p.commitment && !assignments[..j].contains(id)),
+                    "personal commitment assigned to multiple cultural actions"
+                );
+                for plans in [&p.elections, &p.upkeep].into_iter().flatten() {
                     anyhow::ensure!(
                         plans.len() <= c.institutions.len(),
                         "unbounded upkeep plans"
@@ -204,9 +213,14 @@ impl crate::civilization::History {
                     anyhow::ensure!(
                         plans.iter().map(|u| u.granted).sum::<f32>() <= p.granted + 1e-5
                             && plans.iter().map(|u| u.used).sum::<f32>() <= p.completed + 1e-5,
-                        "upkeep exceeds cultural work"
+                        "institution assignment exceeds cultural work"
                     );
                 }
+                anyhow::ensure!(
+                    p.institution_work().map(|u| u.granted).sum::<f32>() <= p.granted + 1e-5
+                        && p.institution_work().map(|u| u.used).sum::<f32>() <= p.completed + 1e-5,
+                    "institution teams exceed total cultural work"
+                );
                 anyhow::ensure!(
                     p.site as usize == i
                         && i < self.sites.len()

@@ -2145,10 +2145,10 @@ impl History {
                     let mut work = available
                         .min(requests[i])
                         .min(caps.get(i).copied().unwrap_or(f32::MAX));
-                    let mut upkeep_granted = 0.;
+                    let mut institution_granted = 0.;
                     if let Some(state) = &mut self.participation {
-                        if let Some(plans) = &mut c.work_plans[i].upkeep {
-                            for p in plans {
+                        if c.work_plans[i].upkeep.is_some() || c.work_plans[i].elections.is_some() {
+                            for p in c.work_plans[i].institution_work_mut() {
                                 let member = p.members.iter().copied().max_by(|a, b| {
                                     state
                                         .available(*a)
@@ -2167,13 +2167,18 @@ impl History {
                                 p.granted = p
                                     .commitment
                                     .map_or(0., |id| state.commitments[id as usize].granted);
-                                upkeep_granted += p.granted;
+                                institution_granted += p.granted;
                                 work = (work - p.granted).max(0.);
                             }
                             let other_requested = c.work_plans[i]
                                 .actions
                                 .iter()
-                                .filter(|(action, _)| action != "institution upkeep")
+                                .filter(|(action, _)| {
+                                    !(action == "institution upkeep"
+                                        && c.work_plans[i].upkeep.is_some()
+                                        || action == "institution election"
+                                            && c.work_plans[i].elections.is_some())
+                                })
                                 .map(|(_, w)| *w)
                                 .sum::<f32>();
                             work = work.min(other_requested);
@@ -2201,10 +2206,10 @@ impl History {
                         work = commitment.map_or(0., |id| state.commitments[id as usize].granted);
                         c.work_plans[i].commitment = commitment;
                     }
-                    c.work_plans[i].granted = work + upkeep_granted;
-                    c.work_receipt.granted += (work + upkeep_granted) as f64;
+                    c.work_plans[i].granted = work + institution_granted;
+                    c.work_receipt.granted += (work + institution_granted) as f64;
                     c.labor_budget[i] = work;
-                    s.economy.external[3] += work + upkeep_granted;
+                    s.economy.external[3] += work + institution_granted;
                 }
             }
         }
@@ -2216,8 +2221,7 @@ impl History {
                     - c.labor_budget.get(i).copied().unwrap_or(0.)
                     - c.work_plans
                         .get(i)
-                        .and_then(|p| p.upkeep.as_ref())
-                        .map_or(0., |plans| plans.iter().map(|p| p.granted).sum::<f32>()))
+                        .map_or(0., |p| p.institution_work().map(|u| u.granted).sum::<f32>()))
                 .max(0.);
             }
         }

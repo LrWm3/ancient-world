@@ -149,7 +149,11 @@ impl crate::culture::Culture {
                     0.025
                 };
             let assigned = self.work_plans.get(i).and_then(|p| p.upkeep.as_ref());
-            let work = if h.sites[i].abandoned || living == 0 {
+            let stale = self
+                .work_plans
+                .get(i)
+                .is_some_and(|p| p.upkeep.is_some() && p.month != h.month);
+            let work = if h.sites[i].abandoned || living == 0 || stale {
                 0.
             } else if let Some(plans) = assigned {
                 plans
@@ -887,7 +891,7 @@ mod tests {
             expenses: 0.,
         });
         let opening = h.clone();
-        for scenario in 0..3 {
+        for scenario in 0..4 {
             let blocked = scenario == 1;
             let mut case = opening.clone();
             if blocked {
@@ -916,6 +920,9 @@ mod tests {
                 serde_json::from_value(serde_json::to_value(&case).unwrap()).unwrap();
             for run in [&mut case, &mut restored] {
                 let mut c = run.culture.take().unwrap();
+                if scenario == 3 {
+                    c.work_plans[0].month -= 3;
+                }
                 if scenario == 2 {
                     c.institutions[0].members.clear();
                 }

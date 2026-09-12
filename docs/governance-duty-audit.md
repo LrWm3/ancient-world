@@ -125,7 +125,8 @@ frozen monthly/batched/checkpoint fixture also passes with the new receipts.
 
 In named-participation mode, quarterly cultural plans now capture each due
 institution's local members and upkeep request. Within the granted cultural
-allowance, upkeep reserves first in stable institution order; each institution
+allowance, planned elections reserve first, then upkeep, each in stable institution
+order; each institution
 selects its available member with the most remaining personal capacity, using ID
 order to break ties. This is a bounded initial priority, not fair allocation across
 institutions. Other cultural actions reserve the remainder with their existing team.
@@ -138,8 +139,8 @@ an unrelated cultural actor does not erase the institution's separate reservatio
 Unused time expires; later production cannot reuse it. Aggregate mode and older
 plans without separate upkeep assignments retain the bundled behavior.
 
-This supplies named attendance for upkeep; it does not yet split elections or
-other administrative actions into their own teams, introduce staff salaries, or
+This supplies named attendance for upkeep and election convening; it does not yet
+split other administrative actions into their own teams, introduce staff salaries, or
 replace member counts used to estimate an institution's organizational support.
 
 Verification: all three hardware upkeep fixtures pass. The new fixture checks
@@ -149,3 +150,34 @@ generic team, and serialization of reserved plans. The three-seed service-alloca
 fixture and frozen batch/single/checkpoint fixture pass. The regular suite passes
 114 tests with 105 hardware tests skipped. These checks establish accounting and
 continuation behavior, not long-run balance of the new upkeep priority.
+
+## Election convening
+
+Quarterly named plans now capture an election request only for an already vacant
+mandate with eligible local members. One of those members reserves the 0.05
+worker-month convening task before upkeep and the generic cultural team. The
+ballot still represents all eligible local members; it does not simulate each
+voter's time or imply the convener controls their votes.
+
+Execution requires the full grant and a still-eligible, present convener. A partial
+grant expires unused. Membership or faith changes can invalidate that assignment.
+Vacancies discovered during response do not obtain retroactive work; they wait
+for a subsequent quarter's request. Contested ballots retain the existing rule
+requiring a second paid-work deliberation. Old plans without election assignments
+retain the bundled path, and aggregate mode remains available.
+
+Election and upkeep execution also reject stale dated assignments before looking
+up a personal commitment. Commitment slots are reused each month; an old plan must
+not accidentally consume a new month's grant at the same numeric slot.
+
+Verification of election assignments: all four hardware institution fixtures pass.
+They cover funded convening, insufficient grants, loss of convener eligibility,
+unrelated cultural cancellation, stale plans referencing otherwise valid slots,
+duplicate action assignment rejection, single settlement and saved-plan equality.
+The legacy ballot/runoff fixture remains enabled. The matched three-seed
+learning-allocation fixture also passes. No long-run claim about election frequency
+or upkeep starvation follows from these boundary tests.
+
+The integrated frozen schedule also passes full monthly/batched/checkpoint equality
+on seeds 17, 81 and 256 after the election extension. The regular library suite
+passes 114 tests (105 hardware tests skipped).

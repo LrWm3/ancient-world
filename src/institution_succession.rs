@@ -132,13 +132,39 @@ impl Culture {
             let votes = ballot(&self.agents, &self.institutions[i].kind, &electorate);
             let (winner, count) = votes[0];
             let share = count as f32 / electorate.len() as f32;
-            let budget = self.labor_budget.get_mut(site as usize);
-            let Some(budget) = budget.filter(|b| **b >= 0.05) else {
+            if self
+                .work_plans
+                .get(site as usize)
+                .is_some_and(|p| p.elections.is_some() && p.month != h.month)
+            {
                 continue;
+            }
+            let assigned = self
+                .work_plans
+                .get_mut(site as usize)
+                .and_then(|p| p.elections.as_mut());
+            let work = if let Some(plans) = assigned {
+                let Some(p) = plans.iter_mut().find(|p| p.institution == i as u32) else {
+                    continue;
+                };
+                let eligible = p
+                    .commitment
+                    .and_then(|id| h.participation.as_ref()?.commitments.get(id as usize))
+                    .is_some_and(|c| c.people.iter().all(|(id, _)| electorate.contains(id)));
+                if !eligible || h.personal_grant_live(p.commitment).min(p.granted) < 0.05 {
+                    continue;
+                }
+                p.used = 0.05;
+                p.used as f64
+            } else {
+                let budget = self.labor_budget.get_mut(site as usize);
+                let Some(budget) = budget.filter(|b| **b >= 0.05) else {
+                    continue;
+                };
+                let before = *budget;
+                *budget -= 0.05;
+                (before - *budget) as f64
             };
-            let before = *budget;
-            *budget -= 0.05;
-            let work = (before - *budget) as f64;
             self.labor_spent += work;
             crate::culture::work_requests::record_work(
                 &mut self.work_plans,
@@ -388,5 +414,97 @@ mod tests {
             ballot(&c.agents, &InstitutionKind::Scholarly, &voters)[0],
             (members[1], 2)
         );
+        // Named conveners use their own grant; ballot computation remains aggregate.
+        h.culture = Some(c);
+        h.set_individual_participation(true).unwrap();
+        h.month = 12;
+        h.begin_service_reservations();
+        h.sync_culture();
+        let mandate = h.culture.as_mut().unwrap().institutions[0]
+            .capacity
+            .as_mut()
+            .unwrap()
+            .mandate
+            .as_mut()
+            .unwrap();
+        mandate.holder = None;
+        mandate.observed = 9;
+        mandate.vacant_since = Some(9);
+        let opening = h.clone();
+        for scenario in 0..4 {
+            let mut run = opening.clone();
+            let plans = run.cultural_work_plans();
+            run.reserve_cultural_plans(
+                plans,
+                &vec![if scenario == 1 { 0.04 } else { 0.5 }; run.sites.len()],
+            );
+            run.validate_service_work().unwrap();
+            if scenario == 0 {
+                let mut duplicate = run.clone();
+                let p = &mut duplicate.culture.as_mut().unwrap().work_plans[0];
+                let upkeep = &p.upkeep.as_ref().unwrap()[0];
+                let commitment = upkeep.commitment;
+                let granted = upkeep.granted;
+                let election = &mut p.elections.as_mut().unwrap()[0];
+                election.commitment = commitment;
+                election.granted = granted;
+                assert!(duplicate.validate_service_work().is_err());
+            }
+            let mut resumed: History =
+                serde_json::from_value(serde_json::to_value(&run).unwrap()).unwrap();
+            for case in [&mut run, &mut resumed] {
+                let mut c = case.culture.take().unwrap();
+                if scenario == 3 {
+                    c.work_plans[0].month -= 3;
+                }
+                let id = c.work_plans[0].elections.as_ref().unwrap()[0]
+                    .commitment
+                    .unwrap();
+                let convener =
+                    case.participation.as_ref().unwrap().commitments[id as usize].people[0].0;
+                if scenario == 2 {
+                    c.institutions[0].members.retain(|&p| p != convener);
+                }
+                c.work_plans[0].cancellation = Some("unrelated cultural work cancelled".into());
+                c.labor_budget[0] = 0.;
+                let finance = case.sites[0].economy.finance;
+                c.institutional_succession(case);
+                let used = c.work_plans[0].elections.as_ref().unwrap()[0].used;
+                assert_eq!(used > 0., scenario == 0);
+                assert_eq!(
+                    c.institutions[0]
+                        .capacity
+                        .as_ref()
+                        .unwrap()
+                        .mandate
+                        .as_ref()
+                        .unwrap()
+                        .holder
+                        .is_some(),
+                    scenario == 0
+                );
+                assert_eq!(case.sites[0].economy.finance, finance);
+                let before = serde_json::to_value(&c).unwrap();
+                c.institutional_succession(case);
+                assert_eq!(before, serde_json::to_value(&c).unwrap());
+                case.culture = Some(c);
+                case.settle_participation().unwrap();
+                assert_eq!(
+                    case.participation.as_ref().unwrap().commitments[id as usize].used,
+                    used
+                );
+                let p = &case.culture.as_ref().unwrap().work_plans[0];
+                if let Some(generic) = p.commitment {
+                    assert_eq!(
+                        case.participation.as_ref().unwrap().commitments[generic as usize].used,
+                        0.
+                    );
+                }
+            }
+            assert_eq!(
+                serde_json::to_value(&run).unwrap(),
+                serde_json::to_value(&resumed).unwrap()
+            );
+        }
     }
 }

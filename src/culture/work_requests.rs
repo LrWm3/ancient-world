@@ -11,7 +11,7 @@ pub struct StudyExpectation {
     pub institution: Option<u32>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct UpkeepPlan {
+pub struct InstitutionWorkPlan {
     pub institution: u32,
     pub members: Vec<u32>,
     pub requested: f32,
@@ -23,7 +23,9 @@ pub struct UpkeepPlan {
 pub struct WorkPlan {
     /// Separate institutional teams; None preserves older/aggregate bundled plans.
     #[serde(default)]
-    pub upkeep: Option<Vec<UpkeepPlan>>,
+    pub upkeep: Option<Vec<InstitutionWorkPlan>>,
+    #[serde(default)]
+    pub elections: Option<Vec<InstitutionWorkPlan>>,
     #[serde(default)]
     pub study_expectation: Option<StudyExpectation>,
     #[serde(default)]
@@ -49,6 +51,22 @@ pub struct WorkPlan {
     pub cancelled_work: f32,
     #[serde(default)]
     pub changed_identities: Vec<String>,
+}
+impl WorkPlan {
+    pub(crate) fn institution_work(&self) -> impl Iterator<Item = &InstitutionWorkPlan> {
+        self.elections
+            .iter()
+            .flatten()
+            .chain(self.upkeep.iter().flatten())
+    }
+    pub(crate) fn institution_work_mut(
+        &mut self,
+    ) -> impl Iterator<Item = &mut InstitutionWorkPlan> {
+        self.elections
+            .iter_mut()
+            .flatten()
+            .chain(self.upkeep.iter_mut().flatten())
+    }
 }
 impl Culture {
     pub(super) fn readable_lesson(
@@ -155,7 +173,7 @@ impl Culture {
                         && !h.sites[site as usize].abandoned
                         && capacity.observed < h.month
                         && !members.is_empty())
-                    .then(|| UpkeepPlan {
+                    .then(|| InstitutionWorkPlan {
                         institution: n.id,
                         members,
                         requested: self.upkeep_work_limit(n),
@@ -166,8 +184,32 @@ impl Culture {
                 })
                 .collect()
         });
+        let elections = h.participation.as_ref().map(|_| {
+            self.institutions
+                .iter()
+                .filter(|n| n.site == site && n.active)
+                .filter_map(|n| {
+                    let m = n.capacity.as_ref()?.mandate.as_ref()?;
+                    let members = self.institution_candidates(h, n.id);
+                    (h.month.is_multiple_of(3)
+                        && !h.sites[site as usize].abandoned
+                        && m.holder.is_none()
+                        && m.observed < h.month
+                        && !members.is_empty())
+                    .then_some(InstitutionWorkPlan {
+                        institution: n.id,
+                        members,
+                        requested: 0.05,
+                        commitment: None,
+                        granted: 0.,
+                        used: 0.,
+                    })
+                })
+                .collect()
+        });
         WorkPlan {
             upkeep,
+            elections,
             study_expectation,
             successor_expectation,
             completed: 0.,
@@ -252,7 +294,11 @@ impl Culture {
                     });
                     requests.push(("institution upkeep", if large { 0.125 } else { 0.025 }));
                 }
-                if c.mandate.as_ref().is_some_and(|m| m.holder.is_none()) {
+                if c.mandate
+                    .as_ref()
+                    .is_some_and(|m| m.holder.is_none() && m.observed < h.month)
+                    && !self.institution_candidates(h, n.id).is_empty()
+                {
                     requests.push(("institution election", 0.05));
                 }
             }
