@@ -412,3 +412,13 @@ Respond and observe actual food/attrition before combat, occupation and return.
 The coordinator propagates duplicate-boundary errors before social mutations;
 receipts do not debit resources or conflate battle losses with shortage losses.
 See [army supply comparisons](military-supply-comparison.md).
+
+## Council funding scopes
+
+The opt-in [administration allowance](council-administration-allowance.md) captures
+current administrative cost in Reserve and limits household relief accordingly.
+It leaves actual governance payment in Respond. The retained money is not escrow;
+other intervening transfers and changed population/control can alter coverage.
+Annual taxes and town support still follow monthly administration. A separate
+cash-gap support policy changes the size of the annual eligible request, not its
+timing. Actual tax and support receipts identify that annual boundary.

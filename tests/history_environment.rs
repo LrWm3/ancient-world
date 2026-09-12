@@ -188,6 +188,15 @@ fn frozen_schedule_batch_and_checkpoint_equivalence() {
                 .society
                 .as_mut()
                 .unwrap()
+                .town_support_policy =
+                ancient_world::household_economy::council_allocation::TownSupportPolicy::CashGap;
+            batch
+                .civilizations
+                .as_mut()
+                .unwrap()
+                .society
+                .as_mut()
+                .unwrap()
                 .household_economy
                 .as_mut()
                 .unwrap()

@@ -6,6 +6,25 @@ pub enum Policy {
     Existing,
     ProtectAdministration,
 }
+/// Annual emergency town support is distinct from household purchasing assistance.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TownSupportPolicy {
+    #[default]
+    Existing,
+    CashGap,
+}
+impl TownSupportPolicy {
+    pub(crate) fn request(self, population: f32, cash: f32, hunger: f32) -> f64 {
+        if hunger <= 0.05 {
+            return 0.;
+        }
+        let target = population as f64 * 10.;
+        match self {
+            Self::Existing => target,
+            Self::CashGap => (target - cash as f64).max(0.),
+        }
+    }
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Receipt {
     pub month: u32,
@@ -95,6 +114,15 @@ pub(super) fn validate(
 mod tests {
     use super::*;
     #[test]
+    fn town_support_requires_both_hunger_and_a_cash_gap() {
+        let p = TownSupportPolicy::CashGap;
+        assert_eq!(p.request(100., 1500., 0.2), 0.);
+        assert_eq!(p.request(100., 600., 0.2), 400.);
+        assert_eq!(p.request(100., 0., 0.2), 1000.);
+        assert_eq!(p.request(100., 0., 0.), 0.);
+        assert_eq!(TownSupportPolicy::Existing.request(100., 1500., 0.2), 1000.);
+    }
+    #[test]
     fn scarce_cash_and_inactive_claims() {
         let quote = |p, cash, admin, need| Receipt::quote(7, 0, p, cash, admin, need, 0.5);
         assert_eq!(quote(Policy::Existing, 10., 8., 100.).relief_granted, 5.);
@@ -128,6 +156,89 @@ mod tests {
 #[cfg(test)]
 mod integration {
     use super::*;
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn annual_support_retains_tax_when_town_already_has_cash() {
+        use crate::{
+            catalog::Catalog,
+            config::Config,
+            gpu::{ContextGpu, Generator},
+        };
+        let mut g = Generator::new(
+            pollster::block_on(ContextGpu::headless()).unwrap(),
+            Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                ..Default::default()
+            },
+            Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        g.enable_society().unwrap();
+        g.enable_politics().unwrap();
+        g.enable_governance().unwrap();
+        let mut h = g.civilizations.take().unwrap();
+        h.month = 12;
+        for s in &mut h.sites {
+            s.stocks.stock[0] = 100.;
+            s.stocks.stock[3] = 0.2;
+            s.economy.finance[0] = 1500.;
+        }
+        for c in &mut h.society.as_mut().unwrap().councils {
+            c.treasury = 0.;
+            c.tax_rate = 0.1;
+        }
+        let mut corrected = h.clone();
+        corrected.society.as_mut().unwrap().town_support_policy = TownSupportPolicy::CashGap;
+        let mut restored: crate::civilization::History =
+            serde_json::from_value(serde_json::to_value(&corrected).unwrap()).unwrap();
+        let initial_money = corrected.economy_residuals()[4];
+        h.social_year();
+        corrected.social_year();
+        restored.social_year();
+        assert_eq!(
+            serde_json::to_value(&corrected).unwrap(),
+            serde_json::to_value(&restored).unwrap()
+        );
+        assert!((corrected.economy_residuals()[4] - initial_money).abs() < 1e-4);
+        let taxes = &corrected.society.as_ref().unwrap().council_funding.taxes;
+        for (old, new) in h
+            .society
+            .as_ref()
+            .unwrap()
+            .council_funding
+            .taxes
+            .iter()
+            .zip(taxes)
+        {
+            assert!(new.paid > 0.);
+            assert_eq!(old.paid, new.paid);
+            assert!(old.support_paid > 0.);
+            assert_eq!(new.support_requested, 0.);
+            assert_eq!(new.support_paid, 0.);
+        }
+        // Truly cash-poor towns remain eligible and cannot receive more than their gap.
+        corrected.month += 12;
+        for s in &mut corrected.sites {
+            s.economy.finance[0] = 50.;
+            s.stocks.stock[3] = 0.2;
+        }
+        for c in &mut corrected.society.as_mut().unwrap().councils {
+            c.treasury = 100.;
+        }
+        let opening = corrected.economy_residuals()[4];
+        corrected.social_year();
+        assert!(corrected
+            .society
+            .as_ref()
+            .unwrap()
+            .council_funding
+            .taxes
+            .iter()
+            .all(|r| r.support_paid > 0. && r.support_paid <= r.support_requested));
+        assert!((corrected.economy_residuals()[4] - opening).abs() < 1e-4);
+    }
     #[test]
     #[ignore = "requires hardware GPU"]
     fn protection_trades_relief_for_actual_administration_and_resumes() {

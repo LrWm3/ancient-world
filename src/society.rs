@@ -273,6 +273,10 @@ pub struct TaxReceipt {
     pub autonomy: f32,
     pub office_capacity: f32,
     pub paid: f32,
+    #[serde(default)]
+    pub support_requested: f64,
+    #[serde(default)]
+    pub support_paid: f64,
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct FundingTotals {
@@ -296,6 +300,8 @@ impl FundingTotals {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Society {
+    #[serde(default)]
+    pub town_support_policy: crate::household_economy::council_allocation::TownSupportPolicy,
     #[serde(default)]
     pub council_funding: CouncilFunding,
     #[serde(default)]
@@ -344,6 +350,13 @@ impl Society {
                     && t.paid
                         == t.opening_cash * t.rate * (1. - t.autonomy * 0.75) * t.office_capacity,
                 "invalid tax collection observation"
+            );
+            ensure!(
+                [t.support_requested, t.support_paid]
+                    .iter()
+                    .all(|v| v.is_finite() && *v >= 0.)
+                    && t.support_paid <= t.support_requested + 1e-6 * (1. + t.support_requested),
+                "invalid emergency support observation"
             );
             previous_tax_site = Some(t.site);
         }
@@ -1217,18 +1230,35 @@ impl History {
                 autonomy,
                 office_capacity: office_capacity[s.id as usize],
                 paid: tax,
+                support_requested: 0.,
+                support_paid: 0.,
             });
             s.economy.finance[0] -= tax;
             council.treasury += tax as f64;
             if s.stocks.stock[3] > 0.05 {
-                let relief = council.treasury.min(s.stocks.stock[0] as f64 * 10.) as f32;
+                let request = society.town_support_policy.request(
+                    s.stocks.stock[0],
+                    s.economy.finance[0],
+                    s.stocks.stock[3],
+                );
+                let budget = council.treasury.min(request);
+                let mut relief = budget as f32;
+                if society.town_support_policy
+                    == crate::household_economy::council_allocation::TownSupportPolicy::CashGap
+                    && relief as f64 > budget
+                {
+                    relief = f32::from_bits(relief.to_bits().saturating_sub(1));
+                }
                 council.treasury = (council.treasury - relief as f64).max(0.);
                 s.economy.finance[0] += relief;
                 council.relief_paid += relief as f64;
                 society
                     .council_funding
                     .emergency_town_support
-                    .record(s.stocks.stock[0] as f64 * 10., relief as f64);
+                    .record(request, relief as f64);
+                let receipt = society.council_funding.taxes.last_mut().unwrap();
+                receipt.support_requested = request;
+                receipt.support_paid = relief as f64;
             }
         }
         let planned = self
@@ -1464,6 +1494,7 @@ impl Generator {
             "society requires an economy without an existing social baseline"
         );
         h.society = Some(Society {
+            town_support_policy: Default::default(),
             council_funding: Default::default(),
             household_economy: Some(crate::household_economy::HouseholdEconomy::new(h.month)),
             indicators: Some(crate::social_state::SocialState {

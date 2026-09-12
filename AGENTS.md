@@ -104,3 +104,18 @@ upkeep member's commitment. It uses the original request and shared allowance;
 execution order is unchanged. See `WorkPlan::reserve_institution_work` and
 [institutional operating budgets](docs/institution-operating-budgets.md). Preserve
 minimum useful grants and live participant limits when extending this pattern.
+
+Council money has another scoped example in
+`src/household_economy/council_allocation.rs` and
+[the administration allowance](docs/council-administration-allowance.md).
+`ProtectAdministration` caps household relief against a current administrative
+forecast; it does not escrow funds or guarantee Respond-phase payment. Keep
+forecast, grant and actual transfer separate, and compare household food access
+with completed service payments. The allowance-only century comparison is mixed;
+do not assume protecting a reserve improves outcomes.
+
+Annual town support is a different claim: `Society.town_support_policy` can
+request either the legacy hunger-triggered ceiling or the gap to a working-cash
+target. It retains annual timing and shared council money. Tax/support observations
+record the actual boundary, rather than treating ending treasury as evidence of
+revenue adequacy. These policies do not establish universal council allocation.

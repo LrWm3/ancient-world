@@ -2357,6 +2357,7 @@ impl App {
                                 council.tax_rate * 100.,
                                 council.relief_paid
                             ));
+                            ui.small(format!("Annual town-support policy: {:?}", society.town_support_policy));
                             if let Some(e) = &society.household_economy {
                                 let policy = council.distribution.unwrap_or_else(||
                                     crate::household_economy::policy::DistributionPolicy::baseline(e));

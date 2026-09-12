@@ -10,6 +10,9 @@ use serde_json::json;
 use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 #[derive(Parser)]
 struct Args {
+    /// Annual hunger-triggered town support covers only the gap to its cash target.
+    #[arg(long)]
+    cash_gap_town_support: bool,
     /// Limit household relief to cash remaining after this month's forecast administration.
     #[arg(long)]
     protect_administration: bool,
@@ -233,6 +236,16 @@ fn main() -> Result<()> {
             .as_mut()
             .unwrap()
             .political_distribution = !args.fixed_distribution;
+        if args.cash_gap_town_support {
+            g.civilizations
+                .as_mut()
+                .unwrap()
+                .society
+                .as_mut()
+                .unwrap()
+                .town_support_policy =
+                ancient_world::household_economy::council_allocation::TownSupportPolicy::CashGap;
+        }
         if args.protect_administration {
             g.civilizations
                 .as_mut()
@@ -744,6 +757,7 @@ fn main() -> Result<()> {
             "paid",
             "withheld_by_allowance"
         ]);
+        report["cash_gap_town_support"] = json!(args.cash_gap_town_support);
         report["protect_administration"] = json!(args.protect_administration);
         report["political_distribution"] = json!(!args.fixed_distribution);
         report["household_relief_share_override"] = json!(args.household_relief_share);
