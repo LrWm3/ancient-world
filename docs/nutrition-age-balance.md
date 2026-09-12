@@ -59,3 +59,43 @@ fixture. The mortality-only control suppresses personal mortality entries while
 preserving the measured hunger work factor; its disabled state survives archive
 round-trip and older archives default to enabled. The fixture retains food-wallet
 and exposure checks. All-target Clippy passes with warnings denied.
+
+## First completed pair: seed 409 (ensemble still running)
+
+The runs use diagnostic commit `574abd5`; subsequent mortality-only controls do
+not alter the already-running processes. Both seed-409 centuries completed;
+seed 1024 is pending in each ensemble. Do not interpret this as a completed
+held-out ensemble.
+
+| Measure at 100 years | Personal nutrition | Combined nutrition ablation |
+|---|---:|---:|
+| Residents | 735 | 568 |
+| Children / adults / elders | 201 / 429 / 105 | 175 / 314 / 79 |
+| Committed demographic births | 3,513 | 3,216 |
+| Committed demographic deaths | 4,698 | 4,568 |
+| Cumulative physical food gap | 0% | 0% |
+| Cumulative access gap | 3.705% | 5.001% |
+| Maximum monthly population residual | 0 | 0 |
+
+Both retain sixteen sites. Food residuals stay below 4e-7. Personal nutrition
+reproduces the preceding construction run's 735 residents, supporting that the
+added diagnostics did not change this trajectory. Neither trajectory stabilizes.
+
+Within the personal run's completed snapshots, summed expected deaths from
+age-band exposure are 1,321.93 children, 1,505.71 adults and 1,221.33 elders.
+Substituting actual household exposure yields 1,951.86, 1,249.96 and 1,504.01.
+Thus unequal access shifts conditional mortality toward dependents and away from
+adults. These are same-snapshot calculations; the separate ablation world has
+already diverged and cannot isolate that immediate mediator on its own.
+
+At the final observation, 37 of 227 households with food needs have more than
+10% unmet need. Together they have 2,184 kg monthly need, about 479.62 currency
+units of current sector wages, and only 0.0021 currency units left after retail.
+This is an endpoint observation, not proof that these particular households were
+hungry throughout the century. It supports investigating dependent-household
+entitlements and income rather than increasing physical food abundance.
+
+The combined ablation worsens the endpoint and access gap. Disabling personal
+nutrition is therefore not supported as a repair. Mortality-only and bounded
+common-entitlement comparisons are the next useful controls; current defaults
+remain unchanged pending the second seed and further evidence.
