@@ -451,3 +451,7 @@ Consequently a selected non-head can have a teacher and still fail the faith gat
 before secular study requests are emitted. The final two observations distinguish
 this exclusion; this diagnostic increment does not change affiliation or actor
 selection behavior.
+
+Follow-up: the [household affiliation correction](household-cultural-affiliation.md)
+replaces the head-only lookup with canonical membership and presence. The earlier
+funnel observations above remain results from the pre-correction source.

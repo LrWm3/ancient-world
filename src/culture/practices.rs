@@ -357,6 +357,103 @@ mod tests {
     }
     #[test]
     #[ignore = "requires hardware GPU"]
+    fn adult_kin_use_household_faith_and_can_request_instruction() {
+        let mut g = world();
+        g.enable_politics().unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        h.set_individual_participation(true).unwrap();
+        let household = h
+            .society
+            .as_ref()
+            .unwrap()
+            .households
+            .iter()
+            .find(|hh| hh.site == 0)
+            .unwrap()
+            .clone();
+        let teacher = household.head;
+        // Declare one sparse adult family identity, without making them an owner.
+        let student = h.people.len() as u32;
+        let mut person = h.people[teacher as usize].clone();
+        person.id = student;
+        person.name = "Fixture learner".into();
+        person.born = h.month as i32 - 240;
+        person.died = None;
+        h.people.push(person);
+        h.politics
+            .as_mut()
+            .unwrap()
+            .kin
+            .push(crate::politics::Kinship {
+                person: student,
+                household: household.id,
+                parents: [Some(teacher), None],
+            });
+        let mut c = h.culture.take().unwrap();
+        c.sync(h);
+        let faith = (c.site_faith[0] + 1) % c.traditions.len() as u32;
+        c.household_faith[household.id as usize] = faith;
+        assert_eq!(c.resident_tradition(h, 0, teacher), Some(faith));
+        assert_eq!(c.resident_tradition(h, 0, student), Some(faith));
+        assert_ne!(Some(c.site_faith[0]), c.resident_tradition(h, 0, student));
+        c.agents[student as usize].knowledge.clear();
+        c.agents[teacher as usize].knowledge.insert(4);
+        let id = c.institutions.len() as u32;
+        c.institutions.push(Institution {
+            capacity: None,
+            id,
+            name: "Family instruction fixture".into(),
+            kind: InstitutionKind::Scholarly,
+            site: 0,
+            tradition: None,
+            members: vec![teacher, student],
+            leader: teacher,
+            treasury: 0.,
+            active: true,
+            founded: h.month,
+            knowledge: [4].into_iter().collect(),
+            property: vec![],
+            dues: 0.,
+            expenses: 0.,
+        });
+        let index = c
+            .site_people(h, 0)
+            .iter()
+            .position(|p| *p == student)
+            .unwrap();
+        h.month = (index as u32) * 3;
+        let plan = c.plan_work(h, 0);
+        assert_eq!(plan.actor, Some(student));
+        assert!(plan.actions.iter().any(|(a, _)| a == "study"));
+        assert_eq!(plan.lesson_opportunities.unwrap()[5], 1);
+        let restored: Culture = serde_json::from_value(serde_json::to_value(&c).unwrap()).unwrap();
+        assert_eq!(restored.resident_tradition(h, 0, student), Some(faith));
+        assert_eq!(c.resident_tradition(h, 1, student), None);
+        h.person_duties.insert(
+            student,
+            crate::participation::TravelDuty {
+                voyage: 0,
+                origin: 0,
+                household: Some(household.id),
+            },
+        );
+        assert_eq!(c.resident_tradition(h, 0, student), None);
+        h.person_duties.remove(&student);
+        h.people[student as usize].died = Some(h.month);
+        assert_eq!(c.resident_tradition(h, 0, student), None);
+        h.people[student as usize].died = None;
+        h.society.as_mut().unwrap().households[household.id as usize].site = 1;
+        assert_eq!(c.resident_tradition(h, 0, student), None);
+        assert_eq!(c.resident_tradition(h, 1, student), Some(faith));
+        c.household_faith.clear();
+        assert_eq!(
+            c.resident_tradition(h, 1, student),
+            None,
+            "no invented majority affiliation"
+        );
+    }
+    #[test]
+    #[ignore = "requires hardware GPU"]
     fn contact_completion_cannot_relay_across_two_routes_in_one_year() {
         let mut g = world();
         let h = g.civilizations.as_mut().unwrap();

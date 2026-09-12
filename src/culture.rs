@@ -1131,9 +1131,11 @@ impl Culture {
             return None;
         }
         if let Some(society) = &h.society {
-            let household = society.households.iter().find(|hh| {
-                hh.site == site && hh.head == actor && !society.relocation.away(hh.id)
-            })?;
+            let (household, presence) = h.person_presence(actor);
+            if presence != crate::participation::Presence::Resident(site) {
+                return None;
+            }
+            let household = society.households.get(household? as usize)?;
             self.household_faith.get(household.id as usize).copied()
         } else {
             self.site_faith.get(site as usize).copied()
