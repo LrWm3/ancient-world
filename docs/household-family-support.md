@@ -121,3 +121,8 @@ of policy overhead. Only human-readable summaries are committed.
 python3 scripts/compare_food_access.py output/family-support-base.json \
   output/family-support-pilot.json --allow-difference family_support
 ```
+
+The subsequent [held-out century comparison](family-support-century.md) completes
+seeds 256 and 409. Support retains 1,338/1,322 residents versus 708/712 controls,
+with zero physical food shortages, but both support arms still decline in the
+last decade. This extends the evidence without closing the population gate.

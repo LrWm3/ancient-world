@@ -1,7 +1,7 @@
 import copy
 import unittest
 
-from compare_food_access import compare
+from compare_food_access import compare, recent_interval
 
 
 class ComparisonTests(unittest.TestCase):
@@ -38,6 +38,42 @@ class ComparisonTests(unittest.TestCase):
             mutate(trial)
             with self.assertRaises(ValueError):
                 compare(self.report, trial, set())
+
+    def test_recent_interval_exposes_late_decline_and_deprivation(self):
+        report = copy.deepcopy(self.report)
+        run = report['runs'][0]
+        run['samples'].insert(0, {
+            'year': 20, 'population': 150,
+            'food_totals': [80, 75, 75, 75, 5, 0],
+        })
+        interval = recent_interval(report, run)
+        self.assertEqual(interval['population_change'], -50)
+        self.assertEqual(interval['physical_gap_pct'], 25)
+        self.assertEqual(interval['access_gap_pct'], 50)
+        self.assertEqual(interval['food_need'], 20)
+        self.assertIsNone(recent_interval(self.report, self.report['runs'][0]))
+        for mutate in (
+            lambda r: r['samples'][0].update(year=30),
+            lambda r: r['samples'][0].update(population=float('nan')),
+            lambda r: r['samples'][0].update(food_totals=[101, 0, 0, 0, 0, 0]),
+            lambda r: r['samples'][0].update(food_totals=[80, 75, 75, 75, 5, 1]),
+        ):
+            broken = copy.deepcopy(run)
+            mutate(broken)
+            with self.assertRaises(ValueError):
+                recent_interval(report, broken)
+
+    def test_no_recent_population_or_need_has_no_invented_percentage(self):
+        report = copy.deepcopy(self.report)
+        run = report['runs'][0]
+        run['samples'][0]['population'] = 0
+        before = copy.deepcopy(run['samples'][0])
+        before['year'] = 20
+        run['samples'].insert(0, before)
+        interval = recent_interval(report, run)
+        self.assertEqual(interval['population_change'], 0)
+        self.assertIsNone(interval['population_change_pct'])
+        self.assertIsNone(interval['access_gap_pct'])
 
 
 if __name__ == '__main__':
