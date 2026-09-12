@@ -29,6 +29,22 @@ impl FreightPath {
 
 type RoadTree = (Vec<f32>, Vec<u32>);
 impl History {
+    /// Respect the captured corridor, not an unreserved alternative path. A
+    /// removed historical edge has no current flood observation; do not invent one.
+    pub(crate) fn freight_path_flooded(&self, edges: &[[u32; 2]]) -> bool {
+        let Some(society) = &self.society else {
+            return false;
+        };
+        edges.iter().any(|edge| {
+            let mut matching = society
+                .routes
+                .iter()
+                .filter(|r| r.open && [r.from.min(r.to), r.from.max(r.to)] == *edge)
+                .peekable();
+            matching.peek().is_some() && matching.all(|r| r.flood_months > 0)
+        })
+    }
+
     /// Free kg in transit on an undirected corridor. Opposite directions share it.
     /// Legacy unmaintained roads and unplanned endpoint economies keep their old limit.
     pub fn road_freight_capacity(&self, edge: [u32; 2]) -> f32 {
@@ -260,6 +276,44 @@ mod tests {
                 road.market_month(6371.);
                 assert_eq!(road.cargo.len(), 1);
                 let arrival = road.cargo[0].arrives;
+                let mut held = road.clone();
+                held.society.as_mut().unwrap().routes[0].flood_months = 1;
+                let mut alternatives: Vec<crate::society::Route> = roads(3);
+                for r in &mut alternatives {
+                    r.id += 2;
+                }
+                held.society.as_mut().unwrap().routes.extend(alternatives);
+                assert!(held.freight_path_flooded(&held.cargo[0].freight_edges));
+                assert!(!held.freight_path_flooded(&[[0, 3], [2, 3]]));
+                assert!(
+                    !held.freight_path_flooded(&[]),
+                    "old cargo has no invented corridor"
+                );
+                let mut restored: History =
+                    serde_json::from_value(serde_json::to_value(&held).unwrap()).unwrap();
+                for state in [&mut held, &mut restored] {
+                    state.month = arrival;
+                    state.market_arrivals();
+                    assert_eq!(state.cargo.len(), 1);
+                    assert_eq!(state.cargo[0].weather_delay_months, 1);
+                    assert_eq!(state.cargo[0].arrives, arrival + 1);
+                    assert_eq!(state.cargo[0].freight_edges, vec![[0, 1], [1, 2]]);
+                    assert_eq!(total(state), total(&road));
+                    state.market_arrivals();
+                    assert_eq!(
+                        state.cargo[0].weather_delay_months, 1,
+                        "same-month observation cannot charge a second delay"
+                    );
+                    state.society.as_mut().unwrap().routes[0].flood_months = 0;
+                    state.month += 1;
+                    state.market_arrivals();
+                    assert!(state.cargo.is_empty());
+                    assert_eq!(total(state), total(&road));
+                }
+                assert_eq!(
+                    serde_json::to_value(held).unwrap(),
+                    serde_json::to_value(restored).unwrap()
+                );
                 // Closing/reopening does not erase a claim; surface loss can overcommit
                 // existing cargo but never grants negative or additional capacity.
                 road.society.as_mut().unwrap().routes[0].flood_months = 1;

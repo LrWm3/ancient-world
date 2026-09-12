@@ -1021,7 +1021,10 @@ impl History {
         let mut observed = vec![[[0_f64; 2]; GOODS]; self.sites.len()];
         let arrivals = std::mem::take(&mut self.cargo);
         for mut c in arrivals {
-            if c.arrives <= self.month && self.flood_blocks_delivery(c.from, c.to, c.sea_lane) {
+            if c.arrives <= self.month
+                && (self.freight_path_flooded(&c.freight_edges)
+                    || self.flood_blocks_delivery(c.from, c.to, c.sea_lane))
+            {
                 if c.weather_delay_months == 0 {
                     self.event("cargo_weather_delay", Some(c.to), Some(c.from), format!("{:.1} kg cargo held by flooded transport access; goods remain in transit; purchase was paid at dispatch", c.kg));
                 }

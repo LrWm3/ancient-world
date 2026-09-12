@@ -43,8 +43,7 @@ pairs, valid settlements and membership in the captured stop footprint.
 
 ## Remaining limits
 
-Reservations cover the whole journey, not only its current leg. Intermediate road
-closure does not introduce new delivery-delay rules in this increment. Relief,
+Reservations cover the whole journey, not only its current leg. Captured-corridor flooding now delays due delivery, as described below. Relief,
 armies and expeditions do not yet compete in this road ledger. Capacity exhaustion
 does not search a second-best path to the same supplier. Corridor capacity has not
 yet been evaluated in a natural long-run balance ensemble. Local road geometry,
@@ -77,3 +76,26 @@ cargo test --test markets --test shipping --test history_environment -- --includ
 
 All-target Clippy passes with warnings denied. Repository artifact and diff checks
 pass. Generated outputs stay under ignored `output/`.
+
+
+## Captured-corridor flooding follow-up
+
+Due market cargo now also checks its captured road edges. If all currently open
+parallel roads on one captured corridor are flooded, the cargo remains in transit
+under the existing monthly delay/spoilage/termination rules. An open route through
+a different town does not silently replace its reservation. Reopening permits
+delivery and releases the original footprint. This observation does not reserve
+extra capacity or debit a second purchase; repeated observation within the same
+month cannot add a second delay.
+
+The existing endpoint/lane flood checks remain. Empty legacy footprints and removed
+historical edges do not invent flood observations. This does not implement political
+seizure, leg-by-leg vehicle position or capacity-aware rerouting. Future rerouting
+must move the actual reservations before using the alternative corridor.
+
+Both focused freight tests pass, including three seeds. The new scenario closes
+a reserved edge while another route remains open, verifies that tools remain held
+with unchanged goods/money and unchanged footprints, then reopens and delivers.
+Serialized continuation is identical. All eight market tests, shipping conservation/closure/continuation, and all three
+history-environment tests also pass, including monthly/batched/checkpoint and
+gathered/full observation equivalence.
