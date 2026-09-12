@@ -268,6 +268,9 @@ pub struct Culture {
     /// On alternate quarters, prefer present institutional students with a source.
     #[serde(default)]
     pub institutional_students: bool,
+    /// On half of institutional turns, favor feasible unfinished study.
+    #[serde(default)]
+    pub continuing_students: bool,
     #[serde(default)]
     pub institution_priority: crate::institution_capacity::Priority,
     #[serde(default)]
@@ -321,6 +324,7 @@ impl Culture {
             funded_heritage_study: false,
             institution_working_core: false,
             institutional_students: false,
+            continuing_students: false,
             institution_priority: Default::default(),
             institution_work_policy: Default::default(),
             institution_funding: Default::default(),
@@ -1235,25 +1239,59 @@ impl Culture {
         n: &Institution,
         actor: u32,
     ) -> Option<(u32, u32, u32)> {
-        present
+        let mut candidates = present
             .iter()
             .copied()
             .filter(|p| *p != actor && n.members.contains(p))
-            .find_map(|teacher| {
+            .flat_map(|teacher| {
                 self.agents[teacher as usize]
                     .knowledge
                     .intersection(&n.knowledge)
-                    .find(|topic| !self.agents[actor as usize].knowledge.contains(topic))
-                    .map(|&topic| (topic, teacher, n.id))
+                    .filter(|topic| !self.agents[actor as usize].knowledge.contains(topic))
+                    .map(move |&topic| (topic, teacher, n.id))
+            });
+        if self.continuing_students {
+            candidates.max_by(|a, b| {
+                self.lesson_progress(actor, a.0)
+                    .total_cmp(&self.lesson_progress(actor, b.0))
+                    .then_with(|| b.cmp(a))
             })
+        } else {
+            candidates.next()
+        }
+    }
+    fn lesson_progress(&self, actor: u32, topic: u32) -> f32 {
+        self.agents[actor as usize]
+            .studies
+            .get(&topic)
+            .map_or(0., |s| s.progress)
     }
     fn institutional_lesson(&self, h: &History, site: u32, actor: u32) -> Option<(u32, u32, u32)> {
         let present = self.site_people(h, site);
-        self.institutions
+        self.institutional_lesson_present(&present, site, actor)
+    }
+    fn institutional_lesson_present(
+        &self,
+        present: &[u32],
+        site: u32,
+        actor: u32,
+    ) -> Option<(u32, u32, u32)> {
+        let mut candidates = self
+            .institutions
             .iter()
             .filter(|n| n.operational() && n.site == site && n.members.contains(&actor))
-            .find_map(|n| self.lesson_source(&present, n, actor))
+            .filter_map(|n| self.lesson_source(present, n, actor));
+        if self.continuing_students {
+            candidates.max_by(|a, b| {
+                self.lesson_progress(actor, a.0)
+                    .total_cmp(&self.lesson_progress(actor, b.0))
+                    .then_with(|| b.cmp(a))
+            })
+        } else {
+            candidates.next()
+        }
     }
+
     /// Read-only Reserve observations: present people, local members, students with
     /// a present source (ignoring operation), with an operational source, selected
     /// actor with that source, and selected actor also passing the faith gate.

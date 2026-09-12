@@ -29,6 +29,8 @@ pub struct WorkPlan {
     pub lesson_opportunities: Option<[u32; 6]>,
     #[serde(default)]
     pub institutional_students: Option<bool>,
+    #[serde(default)]
+    pub continuing_students: Option<bool>,
     /// Uncapped opening demand after room exclusions, before personal matching.
     /// None preserves the unfiltered requests of older plans.
     #[serde(default)]
@@ -281,17 +283,30 @@ impl Culture {
         if self.institutional_students && (h.month / 3 + site).is_multiple_of(2) {
             // Start at the ordinary rotation, retaining alternating general-purpose turns.
             // This is opportunity selection, not a grant or a promise of instruction.
-            if let Some(student) = people
+            let candidates = people
                 .iter()
                 .cycle()
                 .skip(offset)
                 .take(people.len())
                 .copied()
-                .find(|&p| {
-                    self.resident_tradition(h, site, p).is_some()
-                        && self.institutional_lesson(h, site, p).is_some()
-                })
-            {
+                .filter_map(|p| {
+                    self.resident_tradition(h, site, p)?;
+                    let lesson = self.institutional_lesson_present(people, site, p)?;
+                    Some((p, self.lesson_progress(p, lesson.0)))
+                });
+            // Completion preference receives half the institutional turns, leaving
+            // the other half on rotating admission and all general turns intact.
+            let continuation = self.continuing_students && (h.month / 3 + site).is_multiple_of(4);
+            let mut selected = None;
+            for (person, progress) in candidates {
+                if selected.is_none_or(|(_, best)| continuation && progress > best) {
+                    selected = Some((person, progress));
+                }
+                if !continuation {
+                    break;
+                }
+            }
+            if let Some((student, _)) = selected {
                 return Some(student);
             }
         }
@@ -511,6 +526,7 @@ impl Culture {
         WorkPlan {
             lesson_opportunities: Some(self.lesson_opportunities(h, site, actor)),
             institutional_students: Some(self.institutional_students),
+            continuing_students: Some(self.continuing_students),
             space_feasible_work,
             services: Some(services),
             hearing,

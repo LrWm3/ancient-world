@@ -31,6 +31,9 @@ struct Args {
     /// Prefer eligible institutional students on alternate cultural quarters.
     #[arg(long)]
     institutional_students: bool,
+    /// Favor unfinished study on half the institutional student turns.
+    #[arg(long, requires = "institutional_students")]
+    continuing_students: bool,
     /// Fund basic upkeep and member administration before additional repairs.
     #[arg(long, requires = "named_institution_administration")]
     essential_institution_work: bool,
@@ -159,6 +162,13 @@ fn main() -> Result<()> {
             .as_mut()
             .unwrap()
             .institutional_students = args.institutional_students;
+        g.civilizations
+            .as_mut()
+            .unwrap()
+            .culture
+            .as_mut()
+            .unwrap()
+            .continuing_students = args.continuing_students;
         g.civilizations
             .as_mut()
             .unwrap()
@@ -412,6 +422,7 @@ fn main() -> Result<()> {
         let mut demographic_months = 0u64;
         let mut lesson_opportunities = [0u64; 6];
         let mut lesson_observations = 0u64;
+        let mut institutional_learning = [0f64; 5];
         let mut service_room = [[0f64; 4]; 3];
         let mut service_counts = [[0u64; 4]; 3];
         let mut agriculture_audit_rounding_cases = 0u64;
@@ -578,6 +589,22 @@ fn main() -> Result<()> {
             used += c.work_receipt.used;
             for p in &c.work_plans {
                 anyhow::ensure!(p.month == h.month, "stale institutional diagnostic");
+                if let Some(study) = p
+                    .study_expectation
+                    .as_ref()
+                    .filter(|s| s.institution.is_some())
+                {
+                    let lesson = &study.lesson;
+                    for (total, value) in institutional_learning.iter_mut().zip([
+                        1.,
+                        f64::from(lesson.opening_progress > 0.),
+                        lesson.actual_gain as f64,
+                        f64::from(lesson.actual_gain > 0.),
+                        f64::from(lesson.actual_acquisition),
+                    ]) {
+                        *total += value;
+                    }
+                }
                 if let Some(counts) = p.lesson_opportunities {
                     lesson_observations += 1;
                     for (total, count) in lesson_opportunities.iter_mut().zip(counts) {
@@ -743,6 +770,7 @@ fn main() -> Result<()> {
                 });
                 row["lesson_opportunities"] = json!(lesson_opportunities);
                 row["lesson_observations"] = json!(lesson_observations);
+                row["institutional_learning"] = json!(institutional_learning);
                 row["service_room"] = json!(service_room);
                 row["service_counts"] = json!(service_counts);
                 row["opening_relief_room"] = json!(opening_relief_room);
@@ -766,6 +794,7 @@ fn main() -> Result<()> {
         report["funded_heritage_study"] = json!(args.funded_heritage_study);
         report["institution_working_core"] = json!(args.institution_working_core);
         report["institutional_students"] = json!(args.institutional_students);
+        report["continuing_students"] = json!(args.continuing_students);
         report["family_support"] = json!(args.family_support);
         report["council_relief_fields"] = json!([
             "requested",
@@ -789,6 +818,13 @@ fn main() -> Result<()> {
         report["political_distribution"] = json!(!args.fixed_distribution);
         report["household_relief_share_override"] = json!(args.household_relief_share);
         report["household_relief_target_override"] = json!(args.household_relief_target);
+        report["institutional_learning_fields"] = json!([
+            "requests",
+            "unfinished_requests",
+            "actual_progress",
+            "progressing_lessons",
+            "acquired_topics"
+        ]);
         report["lesson_opportunity_fields"] = json!([
             "present",
             "local_members",

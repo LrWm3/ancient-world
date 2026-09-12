@@ -820,6 +820,88 @@ mod tests {
             c.institutional_lesson(h, site, actor),
             Some((4, teacher, institution))
         );
+        // Continuation changes selection, never the amount of progress or available work.
+        let mut continuing = c.clone();
+        continuing.institutional_students = true;
+        continuing.continuing_students = true;
+        assert!(people.len() >= 3);
+        let student = *people
+            .iter()
+            .find(|&&p| p != actor && p != teacher)
+            .unwrap();
+        continuing.institutions[institution as usize]
+            .members
+            .push(student);
+        continuing.institutions[institution as usize]
+            .knowledge
+            .insert(5);
+        continuing.agents[teacher as usize].knowledge.insert(5);
+        continuing.agents[student as usize].studies.insert(
+            5,
+            super::super::learning::Study {
+                progress: 0.8,
+                source: Some(source),
+            },
+        );
+        let mut opening = h.clone();
+        opening.month = 0;
+        assert_eq!(
+            continuing.institutional_lesson(&opening, site, student),
+            Some((5, teacher, institution))
+        );
+        let preferred = continuing.plan_work(&opening, site);
+        assert_eq!(preferred.actor, Some(student));
+        assert_eq!(preferred.granted, 0.);
+        assert_eq!(preferred.continuing_students, Some(true));
+        assert_eq!(
+            continuing.agents[student as usize].studies[&5].progress,
+            0.8
+        );
+        let restored: Culture =
+            serde_json::from_value(serde_json::to_value(&continuing).unwrap()).unwrap();
+        assert_eq!(
+            serde_json::to_value(restored.plan_work(&opening, site)).unwrap(),
+            serde_json::to_value(&preferred).unwrap()
+        );
+        let mut legacy = serde_json::to_value(&continuing).unwrap();
+        legacy
+            .as_object_mut()
+            .unwrap()
+            .remove("continuing_students");
+        assert!(
+            !serde_json::from_value::<Culture>(legacy)
+                .unwrap()
+                .continuing_students
+        );
+        let mut rotation = continuing.clone();
+        rotation.continuing_students = false;
+        assert_eq!(rotation.plan_work(&opening, site).actor, Some(actor));
+        // Rotation turns and generic turns retain their admission opportunity.
+        opening.month = 6;
+        assert_eq!(
+            continuing.plan_work(&opening, site).actor,
+            rotation.plan_work(&opening, site).actor
+        );
+        opening.month = 3;
+        assert_eq!(
+            continuing.plan_work(&opening, site).actor,
+            rotation.plan_work(&opening, site).actor
+        );
+        opening.month = 0;
+        continuing.agents[teacher as usize].knowledge.remove(&5);
+        assert_eq!(
+            continuing.institutional_lesson(&opening, site, student),
+            Some((4, teacher, institution)),
+            "unfinished study cannot manufacture a source"
+        );
+        assert_eq!(continuing.plan_work(&opening, site).actor, Some(actor));
+        continuing.agents[teacher as usize].knowledge.insert(5);
+        continuing.agents[student as usize].knowledge.insert(5);
+        assert_eq!(
+            continuing.plan_work(&opening, site).actor,
+            Some(actor),
+            "mastery releases continuation priority"
+        );
         let before = serde_json::to_value(&c).unwrap();
         let opportunity = c.lesson_opportunities(h, site, Some(actor));
         assert_eq!(opportunity, [people.len() as u32, 2, 1, 1, 1, 1]);

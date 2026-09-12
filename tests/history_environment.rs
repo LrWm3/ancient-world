@@ -219,6 +219,14 @@ fn frozen_schedule_batch_and_checkpoint_equivalence() {
             .culture
             .as_mut()
             .unwrap()
+            .continuing_students = seed != 81;
+        batch
+            .civilizations
+            .as_mut()
+            .unwrap()
+            .culture
+            .as_mut()
+            .unwrap()
             .institution_working_core = seed != 81;
         batch
             .civilizations
