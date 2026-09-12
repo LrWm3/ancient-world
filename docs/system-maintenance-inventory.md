@@ -1,6 +1,6 @@
 # Existing systems and last recorded work
 
-Inventory date: **2026-09-12**. Source inventory baseline: `b3e91b5`.
+Inventory date: **2026-09-12**. Source inventory baseline: `78f8c7e`.
 
 This is a maintenance inventory of implemented systems, grouped by responsibility.
 It includes the startup switches in [system options](system-options.md) and broader
@@ -83,8 +83,8 @@ library subsystems. Related options share rows; archived proposals are excluded.
 | **Institution capacity, funding, duties and room allocation**<br>[institution_capacity.rs](../src/institution_capacity.rs), [institution_funding.rs](../src/institution_funding.rs), [institution_services.rs](../src/institution_services.rs) | 2026-09-12 · `33ba2db` — Fund heritage interpretation from institutional treasuries | 2026-09-12 · `a069655` — Separate institutional operating space from membership expansion demand | [institution-capacity](institution-capacity.md), [institution-operating-budgets](institution-operating-budgets.md), [institution-service-space-review](institution-service-space-review.md), [institution-service-balance](institution-service-balance.md), [institution-working-core](institution-working-core.md), [institution-allocation-balance](institution-allocation-balance.md) |
 | **Institution succession and mandates**<br>[institution_succession.rs](../src/institution_succession.rs) | 2026-09-11 · `cbf552e` — Leave infeasible election grants available for useful work | 2026-09-10 · `f431224` — Ancient World: source snapshot with summarized verification | [institutional-succession](institutional-succession.md) |
 | **Learning, successor teaching and continuing study**<br>[culture/learning.rs](../src/culture/learning.rs) | 2026-09-12 · `0a6a03d` — Find eligible informal learners and preserve contact boundaries | 2026-09-12 · `32afbd9` — Record matched institutional study completion results | [knowledge-continuity](knowledge-continuity.md), [knowledge-succession](knowledge-succession.md), [informal-learning-selection](informal-learning-selection.md), [institution-student-selection](institution-student-selection.md), [institution-continuing-study](institution-continuing-study.md) |
-| **Expeditions, automatic missions and named crews**<br>[expeditions.rs](../src/expeditions.rs) | 2026-09-11 · `e54dd81` — Connect witnessed heritage recoveries to local renown and pilgrimage | 2026-09-11 · `57de102` — Standardize great-lake landmass terminology as inner continents | [expeditions](expeditions.md), [expedition-results](expedition-results.md), [expedition-crews](expedition-crews.md) |
-| **Discoveries, specimen research and applications**<br>[discoveries.rs](../src/discoveries.rs), [discoveries](../src/discoveries) | 2026-09-11 · `4dff636` — Compare botanical study and application inputs at monthly resolution boundaries | 2026-09-11 · `5adb2f0` — Fix discovery study precision deadlock and restore voyage integration tests | [discoveries](discoveries.md), [discovery-results](discovery-results.md), [expedition-returns](expedition-returns.md) |
+| **Expeditions, automatic missions and named crews**<br>[expeditions.rs](../src/expeditions.rs) | 2026-09-12 · `78f8c7e` — Keep expedition skill transfer specific to civilian specialties | 2026-09-12 · `78f8c7e` — Keep expedition skill transfer specific to civilian specialties | [expeditions](expeditions.md), [expedition-results](expedition-results.md), [expedition-crews](expedition-crews.md) |
+| **Discoveries, specimen research and applications**<br>[discoveries.rs](../src/discoveries.rs), [discoveries](../src/discoveries) | 2026-09-12 · `f5823e9` — Keep stored remedies available when specimen research is paused | 2026-09-12 · `f5823e9` — Keep stored remedies available when specimen research is paused | [discoveries](discoveries.md), [discovery-results](discovery-results.md), [expedition-returns](expedition-returns.md) |
 | **Heritage expeditions, renown, stewardship and study funding**<br>[expedition_heritage.rs](../src/expedition_heritage.rs), [heritage_renown.rs](../src/heritage_renown.rs) | 2026-09-12 · `240ccf3` — Use usable heritage routes and validate lake settings before dispatch | 2026-09-12 · `08453d9` — Require ownership-connected present hosts for heritage visits | [heritage-expeditions](heritage-expeditions.md), [heritage-renown](heritage-renown.md), [heritage-stewardship](heritage-stewardship.md), [heritage-study-funding](heritage-study-funding.md) |
 | **Historical places, objects and canonical recovery**<br>[local_places.rs](../src/local_places.rs) | 2026-09-11 · `b09e326` — Add shared individual participation for cultural and research work | 2026-09-12 · `dd2350b` — Preserve canonical source depletion as historical evidence | [regional-historical-places](regional-historical-places.md), [source-depletion-evidence](source-depletion-evidence.md) |
 | **Names, languages and vocabulary evolution**<br>[naming.rs](../src/naming.rs), [naming](../src/naming) | 2026-09-12 · `e2f89cc` — Reserve shared road corridors for networked market cargo | 2026-09-12 · `f181964` — Broaden patron and shared naming vocabularies and conventions | [naming-languages](naming-languages.md), [lexicon-evolution](lexicon-evolution.md) |
@@ -460,3 +460,128 @@ also checks that correction against the five resource fixtures.
 
 Final resource rerun: **5 passed**. All-target Clippy with warnings denied,
 repository artifact policy and whitespace checks passed.
+
+## New oldest-first ten-system batch (opening `19d5491`)
+
+This is a new batch, not an extension of the completed five reviews above.
+Source timestamps determine order; a reviewed row is excluded for the remainder
+of this batch even when retained unchanged. Thus unchanged systems can recur
+across batches. The first ten at the opening revision are:
+
+| # | System | Opening source revision |
+| --- | --- | --- |
+| 1 | Sunlight and seasonal illumination | `7308c9f` |
+| 2 | Mineral/alloy processing and tool access | `3b9526a` |
+| 3 | Living history and environment observations | `8e2d9c6` |
+| 4 | Historical places, objects and canonical recovery | `b09e326` |
+| 5 | Expeditions, automatic missions and named crews | `e54dd81` |
+| 6 | Navigation, spatial features and territory | `57de102` |
+| 7 | Discoveries, specimen research and applications | `4dff636` |
+| 8 | Local offices and completed public service | `bd02945` |
+| 9 | Institution succession and mandates | `cbf552e` |
+| 10 | Housing, storage, waterworks and recovery | `4727d02` |
+
+### Reviews and decisions
+
+1. **Sunlight — retain.** Re-read the short shader and checked unchanged consumer
+   units/clock contracts against the preceding review. Hemisphere phase, polar
+   guards and circular-orbit daily integration remain appropriate for the toy.
+   Re-ran the independent GPU quadrature fixture; no new change justified.
+2. **Alloys/tools — retain.** Re-read activation, catalog preparation, stable ore
+   identity, residue capacity and boundary-only restricted custody. The repaired
+   local-only alloy fixtures passed again. No new physical rule justified;
+   restricted custody remains an intervention, not an ongoing import cap.
+3. **Environment observations — retain.** Rechecked the same source revision's
+   month guard, consumer set and cache invalidation against the previous audit.
+   Re-ran full/gathered and continuation comparisons. The private partial cache
+   still must not be exposed as a full terrain snapshot.
+4. **Local places — retain.** Traced recovery request validation into cultural
+   plan validation and execution. Survey seed/clocks/object contents, local
+   residence, unique pending object/site and current survivability are checked.
+   Unfunded requests wait; unavailable residents/objects cancel. Successful work
+   changes custody of the canonical object without clearing ownership claims or
+   minting materials. This remains parent-cell co-location, not local travel.
+5. **Expeditions — correct unrelated skill transfer.** Recruitment preserved
+   specialties but return assigned every survivor's competence to craftsmanship,
+   which fed later craft and institution decisions. Limit civilian transfer to
+   engineering/craft and navigation/survey counterparts after fieldwork; retain
+   all other role experience in existing personal voyage records. Initial civilian
+   preparation uses the same mapping. Stores, crew identities and veteran-role
+   continuity remain on the existing paths. Old skills are not rewritten.
+6. **Navigation/spatial/territory — retain.** Reviewed frontier convergence and
+   reconstruction guards, island labeling, route-query shape checks, cell/world
+   references and dated territorial revisions. No route is returned as success
+   when convergence fails. Same-month territory recording replaces only that
+   boundary; overlaps and older control are retained. Spatial features are
+   references/coverage, not new claims or physical stocks. Rounded path costs
+   may differ from CPU searches; verification must check traversability as well
+   as cost, not require path identity.
+7. **Discoveries — preserve care during research closure.** Policy prose promises
+   stored remedies remain usable while research is paused, but execution skipped
+   treatment along with processing. Separate existing-stock treatment from
+   research execution. Keep expiration and consumption in the C/N/P ledger;
+   abandoned sites still receive no treatment. Teacher contact is a method-copying
+   opportunity, not a newly funded teacher service or loss of known methods on
+   workshop closure.
+8. **Offices — retain.** Reviewed holder eligibility, controller changes, terms,
+   quarterly selection and dated named-service reservations. Delivered capacity
+   requires the same current holder/controller and completed work. Invalid
+   settlement batches preflight before spending personal commitments; released
+   time cannot be reused in already-completed GPU production. The unnamed-staff
+   floor and suitability scores remain explicit toy rules.
+9. **Institution mandates — retain.** Reviewed present-member eligibility,
+   religious affiliation, vacancy, quarterly ballots, minimum useful convening
+   work and causal events. Membership alone does not confer local authority;
+   stale or insufficient grants do not elect a leader. Ties use stable IDs and
+   a divided ballot requires another paid deliberation. This is not a detailed
+   electoral process; the second deliberation can select a plurality winner.
+10. **Town assets/production — retain.** Reviewed finite baseline allowances,
+    incoming cargo versus physical inventories, funded contract forecasts,
+    upstream recipe recursion guards, material substitution and migration-aware
+    housing requests. Existing structures retain condition and historical capacity;
+    event thresholds suppress minor monthly changes. Procurement is a forecast,
+    not a promise of this month's production. No new asset rule justified by
+    this review; targeted persistence and water-service checks follow below.
+
+### Verification
+
+Fresh checks use the available Vulkan GPU, with generated files and raw logs under
+ignored `output/oldest10-*`. They are controlled correctness/integration fixtures,
+not a new long-run balance ensemble or a cross-hardware portability claim.
+
+| Review | Fresh targeted result |
+| --- | --- |
+| Sunlight | 1 GPU quadrature fixture passed |
+| Alloys/tools | 2 GPU alloy fixtures passed; custody review uses prior fixture evidence |
+| Living environment | 3 GPU gathered/full and continuation fixtures passed |
+| Canonical local recovery | 1 GPU paid recovery/continuation fixture passed |
+| Expeditions | All 6 GPU cases passed across the funded suite and final rescue/recall rerun; 1 new ordinary skill-transfer fixture passed |
+| Navigation and territory | 1 three-seed GPU route comparison and 1 territorial-history fixture passed |
+| Discoveries | 1 GPU research/treatment fixture passed, including paused-workshop and abandoned-site controls |
+| Offices | 3 GPU selection/service/continuation fixtures passed |
+| Institution mandates | 1 GPU vacancy, funding and continuation fixture passed |
+| Town assets | 1 housing, 1 storage and 2 waterworks GPU fixtures passed |
+
+All 24 targeted GPU fixtures passed across the documented runs. The ordinary
+library suite passed **144 tests**, with **117 hardware/explicit fixtures ignored**
+by that command; the targeted runs above execute the relevant ignored cases.
+All-target Clippy with warnings denied passed. Repository artifact policy and
+whitespace checks passed before the final documentation commit. The two behavior changes are
+`f5823e9` (stored remedies during research closure) and `78f8c7e`
+(role-specific expedition skill transfer).
+
+The initial expedition GPU run failed all six fixtures before crew assignment:
+its twenty-year "prosperous" setup lacked tools and/or sponsor cash under current
+balance. This is not evidence that the skill change broke travel. The fixture now
+explicitly imports 200 kg ordinary tools and 5,000 currency per town, recording
+initial stocks, cash and C/N/P, and validates the world before launch. Actual
+harbor, crew and civilian-reserve checks remain active. These tests establish
+voyage accounting under funded conditions, not natural expedition affordability.
+The previously repaired alloy fixtures similarly keep their local markets closed.
+
+The funded expedition suite then passed five cases; the sixth completed its rescue
+but lacked food and sponsor capital for a third voyage after another five years.
+That recall subcase now transfers existing neighboring food and town cash to its
+origin/council before launch. It passes without weakening launch requirements;
+the subsequent history validation still checks conservation. This fixture setup
+does not establish that towns naturally replenish repeated expedition costs.
