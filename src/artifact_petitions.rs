@@ -22,6 +22,8 @@ pub struct Petition {
     pub resolved: Option<u32>,
     pub outcome: String,
     pub paid: f64,
+    #[serde(default)]
+    pub recipient_household: Option<u32>,
 }
 fn local(h: &History, owner: &Owner, site: u32) -> bool {
     let Some(c) = &h.culture else { return false };
@@ -113,8 +115,100 @@ impl History {
                 resolved: None,
                 outcome: String::new(),
                 paid: 0.,
+                recipient_household: None,
             });
         Ok(())
+    }
+    /// Credit an existing represented claimant's account, never a substitute recipient.
+    fn compensate_artifact_claim(
+        &mut self,
+        payer: u32,
+        claimant: &Owner,
+        site: u32,
+        price: f64,
+    ) -> (f64, Option<u32>) {
+        enum Wallet {
+            Institution(u32),
+            Community(u32),
+            Household(u32),
+        }
+        let wallet = match *claimant {
+            Owner::Institution(id) => Wallet::Institution(id),
+            Owner::Community(id) => Wallet::Community(id),
+            Owner::Person(id) => {
+                let (household, presence) = self.person_presence(id);
+                if presence != crate::participation::Presence::Resident(site) {
+                    return (0., None);
+                }
+                let Some(household) = household else {
+                    return (0., None);
+                };
+                Wallet::Household(household)
+            }
+        };
+        let before = match wallet {
+            Wallet::Institution(id) => self
+                .culture
+                .as_ref()
+                .and_then(|c| c.institutions.get(id as usize))
+                .map(|n| n.treasury),
+            Wallet::Community(id) => self
+                .sites
+                .get(id as usize)
+                .map(|s| s.economy.finance[0] as f64),
+            Wallet::Household(id) => self
+                .society
+                .as_ref()
+                .and_then(|s| s.household_economy.as_ref())
+                .and_then(|e| e.accounts.get(id as usize))
+                .map(|a| a.cash),
+        };
+        let Some(before) = before else {
+            return (0., None);
+        };
+        let after = if matches!(wallet, Wallet::Community(_)) {
+            (before + price) as f32 as f64
+        } else {
+            before + price
+        };
+        let credit = after - before;
+        if !after.is_finite()
+            || credit <= 0.
+            || !self.culture.as_ref().is_some_and(|c| {
+                c.institutions
+                    .get(payer as usize)
+                    .is_some_and(|n| n.treasury >= credit)
+            })
+        {
+            return (0., None);
+        }
+        let n = &mut self.culture.as_mut().unwrap().institutions[payer as usize];
+        n.treasury -= credit;
+        n.expenses += credit;
+        let household = match wallet {
+            Wallet::Institution(id) => {
+                self.culture.as_mut().unwrap().institutions[id as usize].treasury = after;
+                None
+            }
+            Wallet::Community(id) => {
+                self.sites[id as usize].economy.finance[0] = after as f32;
+                None
+            }
+            Wallet::Household(id) => {
+                let account = &mut self
+                    .society
+                    .as_mut()
+                    .unwrap()
+                    .household_economy
+                    .as_mut()
+                    .unwrap()
+                    .accounts[id as usize];
+                account.cash = after;
+                account.legal_compensation_received += credit;
+                Some(id)
+            }
+        };
+        (credit, household)
     }
     pub(crate) fn resolve_artifact_petitions(&mut self) {
         let Some(mut g) = self.governance.take() else {
@@ -174,7 +268,9 @@ impl History {
                     && !a.destroyed
                     && current_controller == p.controller
                     && p.consent.contains(&a.owner)
-                    && a.claims.iter().all(|o| p.consent.contains(o))
+                    && p.consent.contains(&p.claimant)
+                    && (matches!(p.remedy, Remedy::Compensation(_))
+                        || a.claims.iter().all(|o| p.consent.contains(o)))
                     && a.custodian
                         .is_none_or(|i| p.consent.contains(&Owner::Person(i)))
                     && local(self, &p.owner, p.site)
@@ -202,33 +298,19 @@ impl History {
                         Remedy::Compensation(price) => {
                             // Institutions can buy out claims using their existing treasury.
                             if let Owner::Institution(payer) = p.owner {
-                                let credit = match p.claimant {
-                                    Owner::Institution(_) => price,
-                                    _ => {
-                                        let before = self.sites[p.site as usize].economy.finance[0];
-                                        (before as f64 + price) as f32 as f64 - before as f64
-                                    }
-                                };
-                                let c = self.culture.as_mut().unwrap();
-                                if credit > 0. && c.institutions[payer as usize].treasury >= credit
-                                {
-                                    c.institutions[payer as usize].treasury -= credit;
-                                    c.institutions[payer as usize].expenses += credit;
-                                    match p.claimant {
-                                        Owner::Institution(i) => {
-                                            c.institutions[i as usize].treasury += credit
-                                        }
-                                        _ => {
-                                            self.sites[p.site as usize].economy.finance[0] =
-                                                (self.sites[p.site as usize].economy.finance[0]
-                                                    as f64
-                                                    + credit)
-                                                    as f32
-                                        }
-                                    }
-                                    c.artifacts[p.artifact as usize].claims.clear();
-                                    p.paid = credit;
-                                    p.outcome = "claims released for paid compensation".into();
+                                let (paid, household) = self.compensate_artifact_claim(
+                                    payer,
+                                    &p.claimant,
+                                    p.site,
+                                    price,
+                                );
+                                if paid > 0. {
+                                    self.culture.as_mut().unwrap().artifacts[p.artifact as usize]
+                                        .claims
+                                        .retain(|owner| owner != &p.claimant);
+                                    p.paid = paid;
+                                    p.recipient_household = household;
+                                    p.outcome = "claim released for paid compensation".into();
                                 }
                             }
                         }
@@ -266,7 +348,11 @@ pub(crate) fn validate(h: &History, petitions: &[Petition]) -> Result<()> {
                 && p.resolved.is_none_or(|m| m > p.opened && m <= h.month)
                 && (p.cause as usize) < h.events.len()
                 && p.paid.is_finite()
-                && p.paid >= 0.,
+                && p.paid >= 0.
+                && p.recipient_household.is_none_or(|id| h
+                    .society
+                    .as_ref()
+                    .is_some_and(|s| (id as usize) < s.households.len())),
             "invalid artifact petition"
         );
         if let Remedy::Compensation(p) = p.remedy {
@@ -370,5 +456,116 @@ mod tests {
         );
         let terrain = g.snapshot().unwrap();
         h.validate(&terrain).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod compensation_tests {
+    use super::*;
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn compensation_reaches_household_and_preserves_other_claims() {
+        let mut g = crate::continuity_fixture::world();
+        g.configure_household_economy(0.5, 0.2, 0.01).unwrap();
+        g.advance_history(1).unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        h.set_office_service(true).unwrap();
+        let members = h.culture.as_ref().unwrap().site_people(h, 0);
+        let person = members[0];
+        let household = h.person_presence(person).0.unwrap();
+        let id = h.culture.as_ref().unwrap().institutions.len() as u32;
+        let funds = h.sites[0].economy.finance[0].min(100.);
+        assert!(funds > 14.);
+        h.sites[0].economy.finance[0] -= funds;
+        h.culture
+            .as_mut()
+            .unwrap()
+            .institutions
+            .push(crate::culture::Institution {
+                id,
+                name: "Claimant fixture house".into(),
+                kind: crate::culture::InstitutionKind::Merchant,
+                site: 0,
+                tradition: None,
+                leader: person,
+                members,
+                treasury: funds as f64,
+                active: true,
+                founded: h.month,
+                knowledge: Default::default(),
+                property: vec![],
+                dues: 0.,
+                expenses: 0.,
+                capacity: None,
+            });
+        let town = h.sites[0].economy.finance[0];
+        let wallet = h.household_account(household).unwrap().cash;
+        let mut no_wallet = h.clone();
+        no_wallet.society.as_mut().unwrap().household_economy = None;
+        assert_eq!(
+            no_wallet
+                .compensate_artifact_claim(id, &Owner::Person(person), 0, 3.)
+                .0,
+            0.
+        );
+        assert_eq!(
+            no_wallet.culture.as_ref().unwrap().institutions[id as usize].treasury,
+            funds as f64
+        );
+        assert_eq!(
+            h.compensate_artifact_claim(id, &Owner::Person(person), 0, 1e8)
+                .0,
+            0.
+        );
+        let (paid, recipient) = h.compensate_artifact_claim(id, &Owner::Person(person), 0, 3.);
+        assert_eq!(recipient, Some(household));
+        assert_eq!(h.household_account(household).unwrap().cash - wallet, paid);
+        assert_eq!(h.sites[0].economy.finance[0], town);
+        assert_eq!(
+            h.culture.as_ref().unwrap().institutions[id as usize].treasury,
+            funds as f64 - paid
+        );
+        let c = h.culture.as_mut().unwrap();
+        let artifact = c.artifacts.len() as u32;
+        c.institutions[id as usize].property.push(artifact);
+        c.artifacts.push(crate::culture::Artifact {
+            id: artifact,
+            name: "Contested object".into(),
+            kind: "keepsake".into(),
+            creator: None,
+            owner: Owner::Institution(id),
+            claims: vec![Owner::Person(person), Owner::Community(0)],
+            site: Some(0),
+            custodian: None,
+            materials: vec![],
+            topic: None,
+            tradition: None,
+            events: vec![],
+            destroyed: false,
+            lost: false,
+        });
+        h.petition_artifact(
+            artifact,
+            Owner::Person(person),
+            Remedy::Compensation(11.),
+            vec![Owner::Institution(id), Owner::Person(person)],
+        )
+        .unwrap();
+        g.advance_history(1).unwrap();
+        let h = g.civilizations.as_ref().unwrap();
+        let p = h
+            .governance
+            .as_ref()
+            .unwrap()
+            .artifact_petitions
+            .last()
+            .unwrap();
+        assert_eq!(p.recipient_household, Some(household));
+        assert!((p.paid - 11.).abs() < 1e-8);
+        assert_eq!(
+            h.culture.as_ref().unwrap().artifacts[artifact as usize].claims,
+            vec![Owner::Community(0)]
+        );
+        h.validate(&g.snapshot().unwrap()).unwrap();
     }
 }

@@ -10,6 +10,9 @@ pub use family_support::{FamilyGift, FamilySupportPolicy};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct HouseholdAccount {
+    /// Actual title-settlement receipts, separate from earnings and relief.
+    #[serde(default)]
+    pub legal_compensation_received: f64,
     /// Relative earnings weights, not extra workers or skill-owned production.
     #[serde(default)]
     pub livelihood: Option<[f64; 4]>,
@@ -193,6 +196,7 @@ impl HouseholdEconomy {
             );
             ensure!(
                 [
+                    a.legal_compensation_received,
                     a.family_received,
                     a.family_sent,
                     a.capital_invested,
@@ -221,7 +225,12 @@ impl HouseholdEconomy {
                 "invalid household food allocation"
             );
             ensure!(
-                (a.cash - a.wages - a.dividends - a.relief - a.family_received
+                (a.cash
+                    - a.wages
+                    - a.dividends
+                    - a.relief
+                    - a.family_received
+                    - a.legal_compensation_received
                     + a.family_sent
                     + a.food_spending
                     + a.estate_returned
@@ -233,6 +242,7 @@ impl HouseholdEconomy {
                             + a.wages
                             + a.dividends
                             + a.relief
+                            + a.legal_compensation_received
                             + a.family_received
                             + a.family_sent
                             + a.capital_invested
