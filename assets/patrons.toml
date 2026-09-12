@@ -131,3 +131,14 @@ habitat = "wetland"
 aid_strength = 0.3
 teaching = 11
 theme = 3
+
+[[patrons]]
+id = "human_guide"
+name = "Human guide"
+kind = "intelligent"
+appearance = "An ordinary human traveler from the Ancient World."
+communication = "speech"
+habitat = "coast"
+aid_strength = 0.25
+teaching = 0
+theme = 0

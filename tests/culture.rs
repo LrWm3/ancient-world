@@ -11,8 +11,12 @@ fn patron_catalog_and_inverse_service_are_bounded() {
     assert_eq!(c.patrons.iter().filter(|p| p.kind == "animal").count(), 8);
     assert_eq!(
         c.patrons.iter().filter(|p| p.kind == "intelligent").count(),
-        4
+        5
     );
+    let human = c.patrons.iter().find(|p| p.id == "human_guide").unwrap();
+    assert_eq!(human.name, "Human guide");
+    assert_eq!(human.kind, "intelligent");
+    assert!(human.appearance.contains("ordinary human"));
     let o = FoundingOptions::default();
     for v in [0.85, 1., 1.15] {
         assert!(o.duration(false, 1., v) < o.duration(false, 0., v));
