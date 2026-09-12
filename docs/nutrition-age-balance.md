@@ -43,3 +43,19 @@ Outputs are ignored `output/nutrition-age-personal.json` and
 `output/nutrition-age-cohort.json`; corresponding logs remain local.
 Both ensembles were launched after the diagnostic example built successfully and
 passed Clippy with warnings denied. Results are pending; no defaults have changed.
+
+## Independent follow-up control
+
+The runner also accepts `--no-household-mortality`, which retains household retail
+and the personal hunger work penalty but uses age-band mortality. It conflicts
+with `--no-individual-nutrition` to keep experimental intent explicit.
+`HouseholdEconomy.household_mortality` is persisted and defaults true for existing
+archives; the original combined nutrition switch remains the master switch.
+Neither control changes default behavior. This allows a follow-up to distinguish
+redistributed mortality exposure from the work/income feedback.
+
+Verification: all three nutrition tests pass, including the GPU funded-food
+fixture. The mortality-only control suppresses personal mortality entries while
+preserving the measured hunger work factor; its disabled state survives archive
+round-trip and older archives default to enabled. The fixture retains food-wallet
+and exposure checks. All-target Clippy passes with warnings denied.

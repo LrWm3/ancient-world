@@ -94,7 +94,7 @@ impl History {
             .society
             .as_ref()
             .and_then(|s| s.household_economy.as_ref())
-            .is_some_and(|e| e.individual_nutrition)
+            .is_some_and(|e| e.individual_nutrition && e.household_mortality)
         {
             return BTreeMap::new();
         }
@@ -319,6 +319,16 @@ mod tests {
                 d.ration_eaten[3] = d.household_food[0];
             }
             let exposure = h.household_mortality(&plans);
+            let mut mortality_only = h.clone();
+            mortality_only
+                .society
+                .as_mut()
+                .unwrap()
+                .household_economy
+                .as_mut()
+                .unwrap()
+                .household_mortality = false;
+            assert!(mortality_only.household_mortality(&plans).is_empty());
             let mut control = h.clone();
             control
                 .society
@@ -427,6 +437,32 @@ mod tests {
                 .unwrap()
                 .observed = h.month - 1;
             assert_eq!(control.household_work_nutrition(Some(accounts[1]), 0), 1.);
+            let mut mortality_only = h.clone();
+            mortality_only
+                .society
+                .as_mut()
+                .unwrap()
+                .household_economy
+                .as_mut()
+                .unwrap()
+                .household_mortality = false;
+            assert!(h.household_work_nutrition(Some(accounts[1]), 0) < 1.);
+            assert_eq!(
+                mortality_only.household_work_nutrition(Some(accounts[1]), 0),
+                h.household_work_nutrition(Some(accounts[1]), 0)
+            );
+            let restored: History =
+                serde_json::from_value(serde_json::to_value(&mortality_only).unwrap()).unwrap();
+            assert!(
+                !restored
+                    .society
+                    .as_ref()
+                    .unwrap()
+                    .household_economy
+                    .as_ref()
+                    .unwrap()
+                    .household_mortality
+            );
             let mut old = serde_json::to_value(
                 h.society
                     .as_ref()
@@ -437,6 +473,12 @@ mod tests {
             )
             .unwrap();
             old.as_object_mut().unwrap().remove("individual_nutrition");
+            old.as_object_mut().unwrap().remove("household_mortality");
+            assert!(
+                serde_json::from_value::<super::super::HouseholdEconomy>(old.clone())
+                    .unwrap()
+                    .household_mortality
+            );
             assert!(
                 serde_json::from_value::<super::super::HouseholdEconomy>(old)
                     .unwrap()

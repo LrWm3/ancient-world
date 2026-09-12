@@ -72,6 +72,9 @@ pub struct HouseholdEconomy {
     /// Matched ablation: retain family retail but use age-band mortality and no personal hunger work penalty.
     #[serde(default = "nutrition_enabled")]
     pub individual_nutrition: bool,
+    /// Independent ablation of household mortality; hunger still affects work.
+    #[serde(default = "nutrition_enabled")]
+    pub household_mortality: bool,
     pub started: u32,
     pub observed: u32,
     /// Long-run common entitlement; founding access may temporarily raise it.
@@ -99,6 +102,7 @@ impl HouseholdEconomy {
             resident_payroll: true,
             occupational_payroll: true,
             individual_nutrition: true,
+            household_mortality: true,
             started: month,
             observed: month,
             common_share: 0.5,
