@@ -932,6 +932,10 @@ impl History {
                 society.raids.push(raid);
                 continue;
             }
+            if self.siege_month(&mut raid, &society) {
+                society.raids.push(raid);
+                continue;
+            }
             if raid.arrives <= self.month && raid.returning {
                 self.return_military_people(&raid);
                 let site = &mut self.sites[raid.origin as usize];

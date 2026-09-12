@@ -85,7 +85,15 @@ impl History {
             .filter(|c| c.freight_edges.contains(&edge))
             .map(|c| c.kg)
             .sum();
-        (capacity - used).max(0.)
+        let military: f32 = self
+            .military
+            .siege
+            .supplies
+            .iter()
+            .filter(|s| [s.from.min(s.to), s.from.max(s.to)] == edge)
+            .map(|s| s.food)
+            .sum();
+        (capacity - used - military).max(0.)
     }
 
     /// Build once per market quarter, not once per good. Reuse trees per origin

@@ -136,3 +136,5 @@ pub mod route_warnings;
 pub mod contagion;
 
 pub mod peace;
+
+pub mod siege;

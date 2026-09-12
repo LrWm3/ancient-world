@@ -133,6 +133,12 @@ impl History {
         let mut raids = std::mem::take(&mut society.raids);
         for r in &mut raids {
             if r.war == Some(p.war) && !r.returning {
+                for siege in &mut self.military.siege.sieges {
+                    if siege.army == r.id && siege.ended.is_none() {
+                        siege.ended = Some(self.month);
+                        siege.reason = "negotiated peace".into();
+                    }
+                }
                 r.returning = true;
                 r.occupation_until = None;
                 r.arrives = self.month + r.return_duration(society);
@@ -247,7 +253,7 @@ pub(crate) fn validate(h: &History, terms: &[Peace]) -> Result<()> {
                 && p.paid() <= p.total + 1e-6
                 && (p.cause as usize) < h.events.len()
                 && p.accepted.is_some() == p.treaty.is_some()
-                && p.accepted.is_some() == !p.receipts.is_empty()
+                && p.accepted.is_some() != p.receipts.is_empty()
                 && p.treaty
                     .is_none_or(|id| h.governance.as_ref().is_some_and(|g| g
                         .treaties

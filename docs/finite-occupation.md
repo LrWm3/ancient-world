@@ -29,8 +29,9 @@ local offices, autonomy, household pressures and cultural identity remain involv
 links withdrawal. The explorer labels stationed armies and their assignment end.
 
 This adds a supply-limited occupation phase, not a permanent regiment system.
-Recruitment/reinforcement, shipment-based military resupply, siege engines, blockades,
-unit experience and separately resolved return-path hazards remain open. Historical
+A later [siege and military freight extension](supply-limited-sieges.md) adds
+shipment-based resupply and land encirclement. Recruitment/reinforcement, siege
+engines, naval blockades and separately resolved return-path hazards remain open. Historical
 phases persist as events after the army demobilizes; no idle permanent manpower pool
 is created. Existing civilian displacement continues through household journeys.
 

@@ -914,6 +914,11 @@ impl History {
                     (s.demography.crops[0] as f64 + s.demography.crops[1] as f64) * FOOD_CNP[k];
             }
         }
+        for s in &self.military.siege.supplies {
+            for k in 0..3 {
+                held[k] += s.food as f64 * FOOD_CNP[k];
+            }
+        }
         for s in &self.shipments {
             for k in 0..3 {
                 held[k] += s.food_kg as f64 * FOOD_CNP[k];
@@ -980,6 +985,9 @@ impl History {
     /// Free inland service capacity, kg in transit, across archived stop footprints.
     /// Legacy towns retain unlimited capacity. Existing cargo survives capacity decline.
     pub fn land_freight_capacity(&self, site: u32) -> f32 {
+        if self.besieged(site) {
+            return 0.;
+        }
         let Some(s) = self.sites.get(site as usize) else {
             return 0.;
         };
@@ -1008,7 +1016,19 @@ impl History {
             .filter(|c| c.from == site || c.to == site)
             .map(|c| c.food_kg)
             .sum();
-        (s.stocks.stock[0] * catalog.production.land_freight_kg_per_person - used - relief).max(0.)
+        let military: f32 = self
+            .military
+            .siege
+            .supplies
+            .iter()
+            .filter(|c| c.from == site || c.to == site)
+            .map(|c| c.food)
+            .sum();
+        (s.stocks.stock[0] * catalog.production.land_freight_kg_per_person
+            - used
+            - relief
+            - military)
+            .max(0.)
     }
 
     #[cfg(test)]
@@ -1023,6 +1043,11 @@ impl History {
         let mut observed = vec![[[0_f64; 2]; GOODS]; self.sites.len()];
         let arrivals = std::mem::take(&mut self.cargo);
         for mut c in arrivals {
+            if c.arrives <= self.month && c.sea_lane.is_none() && self.besieged(c.to) {
+                c.arrives = self.month + 1;
+                self.cargo.push(c);
+                continue;
+            }
             if c.arrives <= self.month
                 && (self.freight_path_flooded(&c.freight_edges)
                     || self.flood_blocks_delivery(c.from, c.to, c.sea_lane))

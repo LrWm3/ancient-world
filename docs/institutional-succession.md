@@ -172,3 +172,10 @@ economic summaries; `summarize_institution_succession.py` extracts the instituti
 results. The follow-through repeats seed 17 with `--years 51`. Broader seed and
 hardship ensembles, branch formation and differentiated officer powers remain
 future work.
+
+A subsequent [funded relocation mechanism](institution-relocation.md) can preserve
+a displaced institution at a destination with existing members. Its identity and
+portable property survive transit. Branch services and autonomous destination
+selection remain future work. See [the continuity checks](continuity-expansion.md)
+for the current source-only reproduction procedure; the historical compressed
+evidence directories referenced above are no longer stored in Git.

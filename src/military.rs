@@ -7,6 +7,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Military {
+    #[serde(default)]
+    pub siege: crate::siege::State,
     pub duties: BTreeMap<u32, Duty>,
     pub careers: BTreeMap<u32, Career>,
 }
@@ -24,6 +26,7 @@ pub struct Career {
 }
 impl Military {
     pub fn validate(&self, h: &History) -> Result<()> {
+        self.siege.validate(h)?;
         let mut present = BTreeSet::new();
         if let Some(s) = &h.society {
             for raid in &s.raids {
@@ -196,6 +199,7 @@ impl History {
         if raid.soldiers > 0. {
             return false;
         }
+        self.end_siege(raid.id, "army lost");
         let site = &mut self.sites[raid.origin as usize];
         site.stocks.ledger[1] += raid.food;
         for (k, v) in crate::economy::FOOD_CNP.iter().enumerate() {

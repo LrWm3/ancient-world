@@ -77,3 +77,7 @@ exercised in an interactive window.
 
 [Artifact retention policy](evidence/README.md) include
 commands and the exact source fingerprints used for these checks.
+
+The later [contagion extension](contagious-illness.md) adds SEIR partitions and
+traveler exposure. Infectious prevalence feeds this same burden index; the
+existing work and demographic paths still apply the consequences once.

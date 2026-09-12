@@ -85,6 +85,7 @@ impl History {
                     && !a.lost
                     && Some(a.id) != building
                     && a.kind != "institutional foundation"
+                    && a.kind != "fortification"
             })
             .map(|a| a.id)
             .collect();

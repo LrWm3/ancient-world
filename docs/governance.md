@@ -33,7 +33,7 @@ Neighboring administrations with sufficient trust and repeated trade can automat
 
 The inspector also offers an explicit scenario agreement between two parties through `Generator::sign_nonaggression(a, b, months)`. This represents mutual agreement, rather than a demand with an implemented negotiation dialogue. Terms must be between one and fifty years. `Generator::set_autonomy(site, fraction)` applies the local policy scenario.
 
-Non-aggression agreements block both automatic and scenario war declarations until their expiry month. Expiry is recorded once and opens the possibility of war again; peace is not permanent. Reliable trading partners may renew at a later annual review. There is no treaty-breaking, alliance intervention, tribute treaty or negotiated settlement of an active war yet. Existing cargo continues to follow its original transit contract.
+Non-aggression agreements block both automatic and scenario war declarations until their expiry month. Expiry is recorded once and opens the possibility of war again; peace is not permanent. Reliable trading partners may renew at a later annual review. The later [negotiated peace extension](negotiated-peace.md) supports active-war settlement, actual installments and breach of payment obligations. Autonomous bargaining, alliance intervention and general tribute treaties remain absent. Existing cargo continues to follow its original transit contract.
 
 ## Inspector, persistence and verification
 

@@ -442,6 +442,13 @@ impl History {
                 .sum::<f64>();
         let stored = stored
             + self
+                .military
+                .siege
+                .supplies
+                .iter()
+                .map(|s| s.food as f64)
+                .sum::<f64>()
+            + self
                 .sites
                 .iter()
                 .map(|s| s.demography.crops[0] as f64 + s.demography.crops[1] as f64)
@@ -1273,6 +1280,7 @@ impl Generator {
         } else {
             h.environmental_month(terrain);
         }
+        h.military_supply_arrivals();
         let deliveries = if h.version == 2 {
             h.market_arrivals()
         } else {
@@ -1337,6 +1345,7 @@ impl Generator {
         h.prepare_committed_vessels();
         h.reserve_learning_services()?;
         h.reserve_office_service()?;
+        h.reserve_defense_work();
         h.prepare_fisheries(terrain, self.config.eco_resolution());
         let extraction_allowances = h.allocate_resources();
         h.plan_production();
@@ -1366,6 +1375,7 @@ impl Generator {
         engine.read(self, h, true)?;
         h.settle_domestic_care();
         h.settle_office_service()?;
+        h.settle_defense_work()?;
         if let Some(observation) = individual_observation {
             let mortality = h.household_mortality(&retail);
             h.settle_individual_demography(observation, &mortality)?;
@@ -2372,6 +2382,11 @@ impl History {
     pub(crate) fn relief_arrivals(&mut self) {
         let arrivals = std::mem::take(&mut self.shipments);
         for mut shipment in arrivals {
+            if shipment.arrives <= self.month && self.besieged(shipment.to) {
+                shipment.arrives = self.month + 1;
+                self.shipments.push(shipment);
+                continue;
+            }
             if shipment.arrives <= self.month
                 && (self.flood_blocks_delivery(shipment.from, shipment.to, None)
                     || shipment.relief_route.is_some_and(|id| {

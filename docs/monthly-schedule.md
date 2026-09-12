@@ -422,3 +422,19 @@ other intervening transfers and changed population/control can alter coverage.
 Annual taxes and town support still follow monthly administration. A separate
 cash-gap support policy changes the size of the annual eligible request, not its
 timing. Actual tax and support receipts identify that annual boundary.
+
+## Continuity additions
+
+Institutional relocations arrive in Open; their owned portable property remains
+in transit until arrival. Artifact petitions filed at a completed boundary can be
+heard in a later Respond phase only with completed local office service. Received
+route warnings cannot influence the departure that originally generated them.
+
+Contagion advances once in Open against the previous completed population, with
+travel exposure merged on arrival and population partitions reconciled at Close.
+It feeds the existing health burden rather than debiting a second mortality term.
+Peace installments also settle in Open and therefore precede other council claims.
+Military freight arrives before army rations. Defensive construction reserves
+bounded work after office reservations and settles in Execute; active land sieges
+begin/advance after ordinary army rations in Respond. New encirclement affects
+subsequent deliveries, not cargo already delivered earlier that month.
