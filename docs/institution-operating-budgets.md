@@ -402,6 +402,6 @@ intermediate population advantage is not consistent across decades.
 After both processes finish, check complete ensembles and matched metadata with:
 
 ```sh
-python3 scripts/compare_food_access.py output/institution-essential-heldout-control-100.json \\
+python3 scripts/compare_food_access.py output/institution-essential-heldout-control-100.json \
   output/institution-essential-heldout-treatment-100.json --allow-difference essential_institution_work
 ```
