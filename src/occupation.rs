@@ -200,9 +200,9 @@ mod tests {
         let mut uninterrupted = h.clone();
         for _ in 0..12 {
             uninterrupted.month += 1;
-            uninterrupted.social_month();
+            uninterrupted.social_month().unwrap();
             continued.month += 1;
-            continued.social_month();
+            continued.social_month().unwrap();
         }
         assert_eq!(
             serde_json::to_value(&uninterrupted).unwrap(),
@@ -229,7 +229,7 @@ mod tests {
             shortage.sites[route.from as usize].economy.external[k] -= removed * *v as f32;
         }
         shortage.month += 1;
-        shortage.social_month();
+        shortage.social_month().unwrap();
         let r = &shortage.society.as_ref().unwrap().raids[0];
         assert!(r.returning && r.occupation_until.is_none());
         assert!(r.soldiers < raid.soldiers);
@@ -258,7 +258,7 @@ mod tests {
         displaced.politics.as_mut().unwrap().controllers[route.to as usize] =
             h.sites[route.to as usize].civilization;
         displaced.month += 1;
-        displaced.social_month();
+        displaced.social_month().unwrap();
         assert!(displaced
             .events
             .iter()

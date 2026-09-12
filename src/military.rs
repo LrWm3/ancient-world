@@ -277,6 +277,7 @@ mod tests {
         assert!((h.population_residual() - before).abs() < 1e-5);
         let mut raid = h.society.as_ref().unwrap().raids[0].clone();
         let members = raid.members.clone().unwrap();
+        crate::military_supply::verify_supply_comparison(h);
         assert!(members.len() >= 3);
         assert!(members
             .iter()
@@ -313,6 +314,7 @@ mod tests {
         }
         let mut legacy: History = serde_json::from_value(old).unwrap();
         legacy.military.validate(&legacy).unwrap();
+        crate::military_supply::verify_supply_comparison(&legacy);
         let mut legacy_raid = legacy.society.as_ref().unwrap().raids[0].clone();
         assert_eq!(
             legacy.military_losses(&mut legacy_raid, 0.25, "legacy fixture"),

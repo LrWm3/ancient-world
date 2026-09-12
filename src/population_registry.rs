@@ -663,7 +663,7 @@ mod gpu_tests {
         h.sites[0].demography.ages[1] = known[1] as f32 + 1.;
         h.sites[0].demography.ages[2] = known[2] as f32;
         let before = h.sites[0].demography.ages;
-        h.social_month();
+        h.social_month().unwrap();
         assert_ne!(h.civilizations[0].leader, ruler);
         assert_eq!(
             h.population_reconciliation().sites[0].unrepresented_slots[1],
@@ -817,7 +817,7 @@ mod gpu_tests {
         let baseline = h.clone();
         let count = h.people.len();
         let stocks = serde_json::to_value(h.sites[0].stocks).unwrap();
-        h.social_month();
+        h.social_month().unwrap();
         assert_eq!(
             h.society.as_ref().unwrap().households[account as usize].head,
             child
@@ -845,7 +845,7 @@ mod gpu_tests {
                 household: Some(account),
             },
         );
-        away.social_month();
+        away.social_month().unwrap();
         assert_eq!(
             away.society.as_ref().unwrap().households[account as usize].head,
             member
@@ -863,7 +863,7 @@ mod gpu_tests {
                 household: Some(account),
             },
         );
-        foreign.social_month();
+        foreign.social_month().unwrap();
         let ruler = foreign.civilizations[0].leader;
         assert_ne!(ruler, member);
         assert_eq!(foreign.people[member as usize].civilization, 1);
@@ -873,7 +873,7 @@ mod gpu_tests {
         occupied_site.society.as_mut().unwrap().households[account as usize].site = 1;
         occupied_site.people[child as usize].civilization = 1;
         let occupying_ruler = occupied_site.civilizations[1].leader;
-        occupied_site.social_month();
+        occupied_site.social_month().unwrap();
         assert_eq!(occupied_site.civilizations[0].leader, member);
         assert_eq!(occupied_site.civilizations[1].leader, occupying_ruler);
         assert_eq!(occupied_site.people[member as usize].civilization, 0);
@@ -884,7 +884,7 @@ mod gpu_tests {
         older.society.as_mut().unwrap().households[account as usize].head = child;
         older.people[child as usize].died = Some(1);
         older.people[old as usize].died = None;
-        older.social_month();
+        older.social_month().unwrap();
         assert_eq!(
             older.society.as_ref().unwrap().households[account as usize].head,
             member
@@ -894,7 +894,7 @@ mod gpu_tests {
         // No duplicate successor when two ownership claims need heads in one month.
         let mut simultaneous = baseline.clone();
         simultaneous.people[accounts[1].1 as usize].died = Some(1);
-        simultaneous.social_month();
+        simultaneous.social_month().unwrap();
         assert_eq!(simultaneous.people.len(), count);
         let heads: Vec<_> = simultaneous
             .society
@@ -913,7 +913,7 @@ mod gpu_tests {
         empty.sites[0].demography.ages[1] = 0.;
         empty.sites[0].demography.ages[2] = 1.;
         let mut elder = empty.clone();
-        elder.social_month();
+        elder.social_month().unwrap();
         let successor = elder.society.as_ref().unwrap().households[account as usize].head;
         assert_eq!(age_band(1, elder.people[successor as usize].born), Some(2));
         assert!(!elder
@@ -924,8 +924,8 @@ mod gpu_tests {
         empty.sites[0].demography.ages[2] = 0.;
         let mut resumed: History =
             serde_json::from_slice(&serde_json::to_vec(&empty).unwrap()).unwrap();
-        empty.social_month();
-        resumed.social_month();
+        empty.social_month().unwrap();
+        resumed.social_month().unwrap();
         assert_eq!(
             serde_json::to_value(&empty).unwrap(),
             serde_json::to_value(&resumed).unwrap()
@@ -980,7 +980,7 @@ mod gpu_tests {
         let count = h.people.len();
         let stocks = serde_json::to_value(h.sites[0].stocks).unwrap();
         let money = h.economy_residuals();
-        h.social_month();
+        h.social_month().unwrap();
         assert_eq!(h.people.len(), count);
         assert_eq!(h.living_civilization_leader(civ), None);
         assert_eq!(h.civilizations[civ as usize].leader, last_ruler);
@@ -1004,7 +1004,7 @@ mod gpu_tests {
         assert!(corrupt.validate(&cells).is_err());
         let mut legacy_mode = h.clone();
         legacy_mode.set_named_demography(false).unwrap();
-        legacy_mode.social_month();
+        legacy_mode.social_month().unwrap();
         assert_eq!(legacy_mode.people.len(), count);
         assert!(legacy_mode
             .society
@@ -1024,8 +1024,8 @@ mod gpu_tests {
             serde_json::from_slice(&serde_json::to_vec(&*h).unwrap()).unwrap();
         h.month = 2;
         resumed.month = 2;
-        h.social_month();
-        resumed.social_month();
+        h.social_month().unwrap();
+        resumed.social_month().unwrap();
         assert_eq!(
             serde_json::to_value(&*h).unwrap(),
             serde_json::to_value(&resumed).unwrap()
@@ -1042,7 +1042,7 @@ mod gpu_tests {
         // declared cohort aging, not a population import or a resurrected head.
         h.sites[0].demography.ages[0] -= 1.;
         h.sites[0].demography.ages[1] = 1.;
-        h.social_month();
+        h.social_month().unwrap();
         assert_eq!(h.people.len(), count + 1);
         assert_eq!(h.sites[0].stocks.stock[0], population);
         assert_eq!(
@@ -1074,7 +1074,7 @@ mod gpu_tests {
         }
         let population = h.sites[0].stocks.stock[0];
         h.sites[0].demography.ages[..3].copy_from_slice(&[population, 0., 0.]);
-        h.social_month();
+        h.social_month().unwrap();
         assert!(h
             .society
             .as_ref()

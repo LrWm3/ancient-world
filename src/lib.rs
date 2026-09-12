@@ -122,3 +122,5 @@ pub mod trade_contact;
 pub mod agriculture_participation;
 
 mod kin_support;
+
+mod military_supply;

@@ -1389,7 +1389,7 @@ impl Generator {
         h.relocation_departures_observed(&relocation_observations)?;
         h.settlement_lifecycle_month();
         h.sync_offices();
-        h.social_month();
+        h.social_month()?;
         h.genealogy_month();
         h.culture_month();
         h.office_month();
@@ -2538,7 +2538,7 @@ mod lifecycle_tests {
         h.sites[0].lifecycle.harvest_observed = Some([0.; 6]);
         h.sites[0].economy.crops[1][3] = 15.;
         h.sites[0].stocks.stock[2] = 999.; // Food total is not the crop harvest.
-        h.social_month();
+        h.social_month().unwrap();
         let harvests = h
             .events
             .iter()
@@ -2547,7 +2547,7 @@ mod lifecycle_tests {
         assert_eq!(harvests.len(), 1);
         assert!(harvests[0].detail.contains("15.0 kg"));
         assert!(!harvests[0].detail.contains("999"));
-        h.social_month();
+        h.social_month().unwrap();
         assert_eq!(
             h.events
                 .iter()
@@ -2590,7 +2590,7 @@ mod lifecycle_tests {
         let start = h.events.len();
         for month in 1..=240 {
             h.month = 960 + month;
-            h.social_month();
+            h.social_month().unwrap();
             h.genealogy_month();
             h.culture_month();
         }

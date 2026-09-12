@@ -404,3 +404,9 @@ upkeep reservations expire rather than returning to already completed production
 window: capture resident kin links, credit payroll/dividends, allocate gifts from
 opening surplus wallets, then request council relief and set funded consumption.
 It does not move the monthly phases or settle transfers a second time in Respond.
+
+Army supply comparisons capture opening armies at the start of `social_month` in
+Respond and observe actual food/attrition before combat, occupation and return.
+The coordinator propagates duplicate-boundary errors before social mutations;
+receipts do not debit resources or conflate battle losses with shortage losses.
+See [army supply comparisons](military-supply-comparison.md).

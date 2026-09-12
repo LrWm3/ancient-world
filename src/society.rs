@@ -670,7 +670,8 @@ impl History {
         self.society = Some(society);
         Ok(())
     }
-    pub(crate) fn social_month(&mut self) {
+    pub(crate) fn social_month(&mut self) -> Result<()> {
+        let mut supply_comparison = crate::military_supply::SupplyComparison::capture(self)?;
         self.weather_roads();
         let heirs: std::collections::BTreeMap<_, _> = if self.named_demography.is_none() {
             self.society
@@ -714,7 +715,7 @@ impl History {
             .map(|s| s.households.iter().map(|f| f.head).collect())
             .unwrap_or_default();
         let Some(mut society) = self.society.take() else {
-            return;
+            return Ok(());
         };
         for i in 0..self.sites.len() {
             if self.sites[i].abandoned {
@@ -809,6 +810,7 @@ impl History {
 
         let raids = std::mem::take(&mut society.raids);
         for mut raid in raids {
+            let before_supply = raid.soldiers;
             self.advance_military_experience(&raid);
             let consume = raid.food.min(raid.soldiers * 18.);
             raid.food -= consume;
@@ -821,6 +823,7 @@ impl History {
                 let expected = raid.soldiers * 0.1;
                 self.military_losses(&mut raid, expected, "insufficient provisions");
             }
+            supply_comparison.observe(&raid, raid.members.is_some(), before_supply, consume);
             if self.close_empty_army(&raid) {
                 continue;
             }
@@ -1089,6 +1092,8 @@ impl History {
         }
         self.society = Some(society);
         self.resolve_council_vacancies();
+        supply_comparison.settle(self)?;
+        Ok(())
     }
     pub(crate) fn social_year(&mut self) {
         let office_capacity: Vec<_> = (0..self.sites.len())
