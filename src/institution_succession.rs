@@ -431,6 +431,73 @@ mod tests {
         mandate.observed = 9;
         mandate.vacant_since = Some(9);
         let opening = h.clone();
+        // A cap below a complete ballot must remain available to divisible upkeep.
+        for cap in [0., 0.01, 0.025, 0.04, 0.05, 0.075, 0.1, 0.5] {
+            let mut run = opening.clone();
+            let plans = run.cultural_work_plans();
+            run.reserve_cultural_plans(plans, &vec![cap; run.sites.len()]);
+            let mut c = run.culture.take().unwrap();
+            let election_grant = c.work_plans[0].elections.as_ref().unwrap()[0].granted;
+            let upkeep_grant = c.work_plans[0].upkeep.as_ref().unwrap()[0].granted;
+            assert_eq!(election_grant > 0., cap >= 0.05);
+            let expected_upkeep = (cap - election_grant).min(0.025);
+            assert!((upkeep_grant - expected_upkeep).abs() < 1e-6);
+            let generic = c.labor_budget[0];
+            c.institutional_succession(&mut run);
+            c.maintain_institutions(&mut run);
+            let election_used = c.work_plans[0].elections.as_ref().unwrap()[0].used;
+            let upkeep_used = c.work_plans[0].upkeep.as_ref().unwrap()[0].used;
+            assert_eq!(election_used, election_grant);
+            assert_eq!(upkeep_used, upkeep_grant);
+            assert_eq!(c.labor_budget[0], generic);
+            assert!(c.work_plans[0].granted <= cap + 1e-6);
+            println!(
+                "institution cap={cap:.3} election={election_used:.3} upkeep={upkeep_used:.3}"
+            );
+            run.culture = Some(c);
+            run.settle_participation().unwrap();
+            run.validate_service_work().unwrap();
+            if cap == 0.05 {
+                run.month += 3;
+                run.begin_service_reservations();
+                run.sync_culture();
+                let plans = run.cultural_work_plans();
+                run.reserve_cultural_plans(plans, &vec![cap; run.sites.len()]);
+                let mut c = run.culture.take().unwrap();
+                assert!(c.work_plans[0].elections.as_ref().unwrap().is_empty());
+                c.institutional_succession(&mut run);
+                c.maintain_institutions(&mut run);
+                assert!((c.work_plans[0].upkeep.as_ref().unwrap()[0].used - 0.025).abs() < 1e-6);
+                run.culture = Some(c);
+                run.settle_participation().unwrap();
+                run.validate_service_work().unwrap();
+            }
+        }
+        // Personal capacity, as well as the shared pool, can make a ballot infeasible.
+        let mut tired = opening.clone();
+        let eligible = tired
+            .culture
+            .as_ref()
+            .unwrap()
+            .institution_candidates(&tired, 0);
+        for person in eligible {
+            let state = tired.participation.as_mut().unwrap();
+            let available = state.available(person);
+            state
+                .reserve(
+                    tired.month,
+                    0,
+                    crate::participation::Activity::Research,
+                    &[person],
+                    available - 0.03,
+                )
+                .unwrap();
+        }
+        let plans = tired.cultural_work_plans();
+        tired.reserve_cultural_plans(plans, &vec![0.5; tired.sites.len()]);
+        let p = &tired.culture.as_ref().unwrap().work_plans[0];
+        assert_eq!(p.elections.as_ref().unwrap()[0].granted, 0.);
+        assert!((p.upkeep.as_ref().unwrap()[0].granted - 0.025).abs() < 1e-6);
         for scenario in 0..4 {
             let mut run = opening.clone();
             let plans = run.cultural_work_plans();
@@ -448,7 +515,12 @@ mod tests {
                 let election = &mut p.elections.as_mut().unwrap()[0];
                 election.commitment = commitment;
                 election.granted = granted;
-                assert!(duplicate.validate_service_work().is_err());
+                election.minimum = 0.; // Isolate the duplicate guard from minimum validation.
+                assert!(duplicate
+                    .validate_service_work()
+                    .unwrap_err()
+                    .to_string()
+                    .contains("multiple cultural actions"));
             }
             let mut resumed: History =
                 serde_json::from_value(serde_json::to_value(&run).unwrap()).unwrap();
@@ -457,13 +529,12 @@ mod tests {
                 if scenario == 3 {
                     c.work_plans[0].month -= 3;
                 }
-                let id = c.work_plans[0].elections.as_ref().unwrap()[0]
-                    .commitment
-                    .unwrap();
-                let convener =
-                    case.participation.as_ref().unwrap().commitments[id as usize].people[0].0;
+                let id = c.work_plans[0].elections.as_ref().unwrap()[0].commitment;
+                let convener = id.map(|id| {
+                    case.participation.as_ref().unwrap().commitments[id as usize].people[0].0
+                });
                 if scenario == 2 {
-                    c.institutions[0].members.retain(|&p| p != convener);
+                    c.institutions[0].members.retain(|&p| Some(p) != convener);
                 }
                 c.work_plans[0].cancellation = Some("unrelated cultural work cancelled".into());
                 c.labor_budget[0] = 0.;
@@ -490,7 +561,9 @@ mod tests {
                 case.culture = Some(c);
                 case.settle_participation().unwrap();
                 assert_eq!(
-                    case.participation.as_ref().unwrap().commitments[id as usize].used,
+                    id.map_or(0., |id| case.participation.as_ref().unwrap().commitments
+                        [id as usize]
+                        .used),
                     used
                 );
                 let p = &case.culture.as_ref().unwrap().work_plans[0];

@@ -185,9 +185,11 @@ impl crate::civilization::History {
                             (u.institution as usize) < c.institutions.len()
                                 && c.institutions[u.institution as usize].site == p.site
                                 && !plans[..j].iter().any(|v| v.institution == u.institution)
-                                && [u.requested, u.granted, u.used]
+                                && [u.requested, u.minimum, u.granted, u.used]
                                     .iter()
                                     .all(|v| v.is_finite() && *v >= 0.)
+                                && u.minimum <= u.requested
+                                && (u.granted == 0. || u.granted >= u.minimum)
                                 && u.used <= u.granted + 1e-6
                                 && u.granted <= u.requested + 1e-6
                                 && u.members

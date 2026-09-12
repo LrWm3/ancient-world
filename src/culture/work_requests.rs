@@ -15,6 +15,9 @@ pub struct InstitutionWorkPlan {
     pub institution: u32,
     pub members: Vec<u32>,
     pub requested: f32,
+    /// Do not reserve an indivisible task below this amount. Legacy plans default to zero.
+    #[serde(default)]
+    pub minimum: f32,
     pub commitment: Option<u32>,
     pub granted: f32,
     pub used: f32,
@@ -177,6 +180,7 @@ impl Culture {
                         institution: n.id,
                         members,
                         requested: self.upkeep_work_limit(n),
+                        minimum: 0.,
                         commitment: None,
                         granted: 0.,
                         used: 0.,
@@ -200,6 +204,7 @@ impl Culture {
                         institution: n.id,
                         members,
                         requested: 0.05,
+                        minimum: 0.05,
                         commitment: None,
                         granted: 0.,
                         used: 0.,

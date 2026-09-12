@@ -82,3 +82,10 @@ include inactive-demand and unavailable-participant controls, and verify finite
 budgets and continuation consistency. Inspect completed work as well as grants:
 more even shares can fail to complete indivisible tasks. Record results and limits
 in Markdown; conservation and determinism alone do not establish good balance.
+
+For indivisible work, see institutional election requests in
+`src/culture/work_requests.rs`: check the request's minimum useful grant against
+both the shared allowance and an eligible participant's availability **before**
+reserving. An unfundable election should leave capacity for divisible upkeep;
+reserving and later expiring a known-unusable partial grant needlessly starves
+other work. Execution still rechecks eligibility and the required grant.

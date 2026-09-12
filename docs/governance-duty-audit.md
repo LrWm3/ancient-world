@@ -159,8 +159,10 @@ worker-month convening task before upkeep and the generic cultural team. The
 ballot still represents all eligible local members; it does not simulate each
 voter's time or imply the convener controls their votes.
 
-Execution requires the full grant and a still-eligible, present convener. A partial
-grant expires unused. Membership or faith changes can invalidate that assignment.
+New election requests declare their complete 0.05-worker-month minimum. Reservation
+checks both remaining town allowance and convener availability before committing
+time; an infeasible ballot leaves the allowance available for upkeep or other work.
+Execution still requires the full grant and a still-eligible, present convener. Membership or faith changes can invalidate that assignment.
 Vacancies discovered during response do not obtain retroactive work; they wait
 for a subsequent quarter's request. Contested ballots retain the existing rule
 requiring a second paid-work deliberation. Old plans without election assignments
@@ -181,3 +183,41 @@ or upkeep starvation follows from these boundary tests.
 The integrated frozen schedule also passes full monthly/batched/checkpoint equality
 on seeds 17, 81 and 256 after the election extension. The regular library suite
 passes 114 tests (105 hardware tests skipped).
+
+## Minimum useful institutional grants
+
+The initial election-first pilot could reserve 0.04 worker-months for a ballot that
+required 0.05, leaving no allowance for useful upkeep. Institutional work requests
+now carry a minimum: 0.05 for elections and zero for divisible upkeep. This is a
+feasibility check inside the existing cultural allocation window, not a change to
+monthly execution order or a new global allocation policy. Old captured plans
+default to zero minimum and retain their already-made reservations.
+
+A controlled school-vacancy fixture on the Quadro RTX 5000 tested these cultural
+allowances (worker-months per quarter). These are completed institution-specific
+actions; any generic cultural grant is separate.
+
+| Allowance | Election completed | Upkeep completed |
+|---:|---:|---:|
+| 0 | 0 | 0 |
+| 0.010 | 0 | 0.010 |
+| 0.025 | 0 | 0.025 |
+| 0.040 | 0 | 0.025 |
+| 0.050 | 0.050 | 0 |
+| 0.075 | 0.050 | 0.025 |
+| 0.100 | 0.050 | 0.025 |
+| 0.500 | 0.050 | 0.025 |
+
+The personal-availability intervention also leaves upkeep funded when every
+eligible convener has less than the ballot minimum, even with ample town allowance.
+The 0.05 threshold is intentionally discontinuous: a completed election takes
+priority over upkeep that quarter. This fixes wasted partial ballots; it does not
+establish fairness across many institutions or long-run demographic balance.
+
+With the 0.05 allowance held fixed, the next-quarter fixture completes upkeep after
+the mandate is filled and no further election is requested. All four institution
+hardware fixtures and the three-seed learning-allocation comparison pass; the
+regular library suite passes 114 tests (105 hardware tests skipped).
+
+The full frozen-history fixture also retains monthly/batched/checkpoint equality
+on seeds 17, 81 and 256 with minimum useful grants enabled.

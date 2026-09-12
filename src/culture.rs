@@ -2156,6 +2156,10 @@ impl History {
                                         .then_with(|| b.cmp(a))
                                 });
                                 p.commitment = member.and_then(|id| {
+                                    let feasible = p.requested.min(work).min(state.available(id));
+                                    if feasible < p.minimum {
+                                        return None;
+                                    }
                                     state.reserve(
                                         self.month,
                                         s.id,
