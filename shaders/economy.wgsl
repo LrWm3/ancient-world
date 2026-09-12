@@ -504,15 +504,19 @@ fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
  for(var j=0u;j<3u;j++){
   var a=e.herds[j];if a.x<=0.{continue;}
   let body=vec3(.25,.04,.003);let feed_good=u32(catalog.herds[j].y);let feed_chem=catalog.goods[feed_good].xyz;
-  let need=a.x*.08;let taken=min(need,e.goods[feed_good/4u][feed_good%4u]);e.goods[feed_good/4u][feed_good%4u]-=taken;e.used[feed_good/4u][feed_good%4u]+=taken;e.agriculture.y+=taken;
+  // Existing farm attendance covers husbandry as well as crop work. Feed is
+  // stored ration delivered by workers, not a modeled free-grazing resource.
+  // Biological loss continues without attendants; collection and slaughter do not.
+  let attendance=farm_attendance(e);
+  let need=a.x*.08;let taken=min(need*attendance,e.goods[feed_good/4u][feed_good%4u]);e.goods[feed_good/4u][feed_good%4u]-=taken;e.used[feed_good/4u][feed_good%4u]+=taken;e.agriculture.y+=taken;
   let fed=taken/max(need,.001);let carrying=max(1.,e.claim.y/10000.*.1*20.);
   let gain=min(a.x*.015*fed*clamp(1.-a.x/carrying,0.,1.),min(taken*feed_chem.x/body.x,min(taken*feed_chem.y/body.y,taken*feed_chem.z/body.z))*.4);
   var leftover=max(vec3(0.),taken*feed_chem-gain*body);a.x+=gain;a.y+=gain;
   let dead=min(a.x,a.x*(.002+(1.-fed)*.04));a.x-=dead;a.z+=dead;e.detritus+=vec4(dead*body,0.);
   let product=u32(catalog.herds[j].x);let chemistry=catalog.goods[product].xyz;
-  let made=min(a.x*.015*fed,min(leftover.x/max(chemistry.x,.0001),min(leftover.y/max(chemistry.y,.0001),leftover.z/max(chemistry.z,.0001))));
+  let made=min(a.x*.015*fed*attendance,min(leftover.x/max(chemistry.x,.0001),min(leftover.y/max(chemistry.y,.0001),leftover.z/max(chemistry.z,.0001))));
   leftover-=made*chemistry;e.goods[product/4u][product%4u]+=made;e.made[product/4u][product%4u]+=made;a.w+=made;
-  let slaughter=min(a.x,a.x*select(.01,.03,fed<.5)*select(0.,1.,fed<.5||a.x>carrying*.75));
+  let slaughter=min(a.x,a.x*select(.01,.03,fed<.5)*select(0.,1.,fed<.5||a.x>carrying*.75))*attendance;
   a.x-=slaughter;a.z+=slaughter;
   let meat=slaughter*.6;let hides=slaughter*.1;e.goods[6].x+=meat;e.made[6].x+=meat;e.goods[4].w+=hides;e.made[4].w+=hides;
   e.detritus+=vec4(max(vec3(0.),slaughter*body-meat*catalog.goods[24].xyz-hides*catalog.goods[19].xyz),0.);

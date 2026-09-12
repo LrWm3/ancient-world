@@ -74,4 +74,10 @@ is the first increment. Its eight century histories are complete: cash-gap town
 support improves administrative coverage in both seeds and removes the long ending
 unpaid streak, but food/population effects are mixed. Both pilots remain opt-in.
 The next [three-seed, 200-year weather-stress comparison](council-stress-balance.md)
-is running. Items 3–9 have not yet been addressed in this follow-up series.
+is running; funded-war accounting and continuation pass under the council policies.
+Item 3 has a bounded [continuing-study increment](institution-continuing-study.md):
+three matched thirty-year comparisons acquire more topics from nearly the same
+lesson counts. Multi-site branches and permanent enrollment remain larger work.
+Item 4 is now testing [husbandry attendance](husbandry-attendance.md); it does not
+claim that crews are physically aboard ships. Items 5–9 still await their next
+implementation/review increment in this follow-up series.

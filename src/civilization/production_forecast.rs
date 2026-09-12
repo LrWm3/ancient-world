@@ -341,6 +341,15 @@ mod agriculture_tests {
                 }
             }
         }
+        // Aggregate staffing remains the full-attendance control; it does not
+        // borrow the busy residents' named commitments or pay another wage.
+        let mut aggregate = busy.clone();
+        for site in &mut aggregate.sites {
+            site.economy.farm_workers = [0.; 4];
+        }
+        engine.upload(&g, &aggregate);
+        engine.dispatch(&g, false, aggregate.sites.len() as u32);
+        engine.read(&g, &mut aggregate, true).unwrap();
         engine.upload(&g, &ready);
         engine.dispatch(&g, false, ready.sites.len() as u32);
         engine.read(&g, &mut ready, true).unwrap();
@@ -355,6 +364,39 @@ mod agriculture_tests {
             .sites
             .iter()
             .all(|s| s.economy.production_probe[1] == 0.));
+        let herd_products = |h: &History| {
+            h.sites
+                .iter()
+                .flat_map(|s| s.economy.herds)
+                .map(|a| a[3] as f64)
+                .sum::<f64>()
+        };
+        assert!(herd_products(&ready) > 0.);
+        assert_eq!(
+            herd_products(&busy),
+            0.,
+            "absent attendants cannot collect animal products"
+        );
+        assert!(
+            herd_products(&aggregate) >= herd_products(&ready),
+            "aggregate attendance remains the unrestricted control"
+        );
+        assert_eq!(
+            busy.sites
+                .iter()
+                .map(|s| s.economy.agriculture[1])
+                .sum::<f32>(),
+            0.,
+            "nobody delivers stored feed without farm attendance"
+        );
+        assert!(ready.sites.iter().any(|s| s.economy.agriculture[1] > 0.));
+        assert!(
+            busy.sites
+                .iter()
+                .flat_map(|s| s.economy.herds)
+                .any(|a| a[2] > 0.),
+            "unattended herds still experience biological mortality"
+        );
         assert!(ready.sites.iter().any(|s| s.economy.crops[0][3] > 0.));
         assert!(busy.sites.iter().all(|s| s.economy.crops[0][3] == 0.));
         if extraction {
