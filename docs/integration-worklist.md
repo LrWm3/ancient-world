@@ -70,4 +70,8 @@ The next series retains the priority order from the user-approved review:
 Each item needs its own bounded implementation/review and evidence before being
 marked addressed. This sequence does not declare every larger extension in the
 roadmap complete. The [council allowance pilot](council-administration-allowance.md)
-is the first increment; balance results are still pending.
+is the first increment. Its eight century histories are complete: cash-gap town
+support improves administrative coverage in both seeds and removes the long ending
+unpaid streak, but food/population effects are mixed. Both pilots remain opt-in.
+The next [three-seed, 200-year weather-stress comparison](council-stress-balance.md)
+is running. Items 3–9 have not yet been addressed in this follow-up series.

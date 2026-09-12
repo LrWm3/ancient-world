@@ -20,10 +20,10 @@ mixed outcome.
 Build `cargo build --example cultural_work_calibrate`, then:
 
 ```sh
-target/debug/examples/cultural_work_calibrate --seeds 17,81,1024 --years 200 \\
-  --resolution 32 --crop-yield-scale 0.5 --individual-demography \\
-  --workshop-refinement --agriculture-refinement --extraction-refinement \\
-  --construction-refinement --compare-resolution --household-diagnostics \\
+target/debug/examples/cultural_work_calibrate --seeds 17,81,1024 --years 200 \
+  --resolution 32 --crop-yield-scale 0.5 --individual-demography \
+  --workshop-refinement --agriculture-refinement --extraction-refinement \
+  --construction-refinement --compare-resolution --household-diagnostics \
   --family-support --weather-stress --output output/council-stress-existing.json
 ```
 
@@ -42,5 +42,5 @@ separate work.
 
 ## Status
 
-The one-year seed-17 smoke test completes with 1,955 residents and records all four forcing values correctly. Example Clippy passes with warnings denied. The longer ensemble is pending. Report failed or incomplete
+The one-year seed-17 smoke test completes with 1,955 residents and records all four forcing values correctly. Example Clippy passes with warnings denied. The six-run, three-seed 200-year ensemble has started; results remain pending. Report failed or incomplete
 histories separately; never count their last surviving sample as a 200-year result.

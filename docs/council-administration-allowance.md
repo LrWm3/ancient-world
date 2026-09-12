@@ -136,3 +136,52 @@ All-target Clippy passes with warnings denied. The existing explicit market
 fixture needed the new default policy field; its economic assumptions are unchanged.
 The matched cash-gap century comparisons remain pending at this implementation
 commit. Neither policy is enabled by default on this evidence alone.
+
+## Completed cash-gap and combined comparisons
+
+All eight histories now complete: existing, allowance-only, cash-gap-only and both
+policies, each on seeds 256/409 for a century. The cash-gap arms use `3bd13d2`
+implementation; their new tax/support observations do not change the existing
+policy path. The first pair predates the `cash_gap_town_support` report key and
+uses the original support rule; comparisons explicitly acknowledge that metadata
+difference. The later weather-stress runner addition is not enabled in these runs.
+
+| Seed | Policy | Population | Cumulative purchasing gap | Administrative demand unpaid | Longest ending unpaid streak |
+|---|---|---:|---:|---:|---:|
+| 256 | Existing | 2,511 | 2.0209% | 6.929% | 84 months |
+| 256 | Allowance | 2,558 | 2.0164% | 5.214% | 96 months |
+| 256 | Cash gap | 2,616 | 1.9967% | 3.996% | 2 months |
+| 256 | Both | 2,538 | 1.9684% | 3.696% | 1 month |
+| 409 | Existing | 2,647 | 2.0056% | 7.776% | 1 month |
+| 409 | Allowance | 2,630 | 2.0061% | 7.845% | 2 months |
+| 409 | Cash gap | 2,576 | 2.0485% | 7.638% | 2 months |
+| 409 | Both | 2,487 | 2.0973% | 7.899% | 1 month |
+
+The cash-gap policy resolves the long ending underpayment episode in the sampled
+seed and improves century-wide administrative coverage in both. It does not
+uniformly improve population or household access. In the final decade, cash-gap
+population still rises by 112/20, but purchasing gaps are 2.4461/2.5353%, higher
+than the existing-policy 2.0639/2.1442%. Adding the allowance changes those late
+gaps to 1.9727/2.5151%, with population increases of 149/57, but lower century-end
+population than cash-gap-only in both seeds. Do not choose a policy from only its
+best endpoint or assume the funding change caused every later divergence directly.
+
+At the cash-gap year-100 tax boundary, the original problematic town in seed 256
+pays 65.86 from 4,323.08 town cash and requests **zero** emergency working-capital
+support. That direct mediator supports the code-level diagnosis of unnecessary
+refunds; the transfer fixture demonstrates the legacy refund from identical stocks.
+It does not mean every annual support transfer was unnecessary.
+
+All arms retain sixteen active sites, zero physical food shortage and zero maximum
+monthly population residual. Maximum monthly food residual stays below 1.7e-6.
+No arm launches an expedition or records military service; this experiment does
+not establish campaign funding resilience. Raw comparisons use the same two
+scripts and explicitly allow only the policy switches being compared.
+
+**Decision:** keep both policies opt-in. The annual cash-gap rule is the stronger
+candidate for broader evaluation, because it corrects an identifiable request
+problem and improves service funding without a monthly treasury floor. The next
+[held-out stress comparison](council-stress-balance.md) tests that candidate alone.
+Remaining fiscal work includes costed emergency projects, competing multi-town
+annual requests and local recovery under war/expedition demand. These are not
+closed by the eight successful accounting runs.
