@@ -45,6 +45,9 @@ pub struct Plan {
     pub site: u32,
     pub institution: u32,
     pub opening_space: f64,
+    /// Largest usable working-group space; None retains old continuous-size plans.
+    #[serde(default)]
+    pub group_space: Option<f64>,
     pub receipts: Vec<Receipt>,
     pub closed: bool,
 }
@@ -59,6 +62,7 @@ impl Plan {
             } else {
                 0.
             },
+            group_space: None,
             receipts: Vec::new(),
             closed: false,
         }
@@ -83,7 +87,7 @@ impl Plan {
             return None;
         }
         let reserved: f64 = self.receipts.iter().map(|r| r.granted).sum();
-        let granted = if occupants <= self.opening_space
+        let granted = if occupants <= self.group_space.unwrap_or(self.opening_space)
             && requested <= (self.opening_space - reserved).max(0.)
         {
             requested
@@ -113,6 +117,17 @@ impl Plan {
         live_space: f64,
         eligible: bool,
     ) -> bool {
+        self.settle_with_group_space(boundary, id, live_space, live_space, eligible)
+    }
+
+    pub fn settle_with_group_space(
+        &mut self,
+        boundary: (u32, u32, u32),
+        id: usize,
+        live_space: f64,
+        live_group_space: f64,
+        eligible: bool,
+    ) -> bool {
         if self.closed || boundary != (self.month, self.site, self.institution) {
             return false;
         }
@@ -124,7 +139,8 @@ impl Plan {
         if eligible
             && live_space.is_finite()
             && r.granted > 0.
-            && r.occupants <= live_space
+            && live_group_space.is_finite()
+            && r.occupants <= live_group_space
             && r.granted <= (live_space.min(self.opening_space) - used).max(0.)
         {
             r.used = r.granted;
@@ -138,7 +154,11 @@ impl Plan {
     /// compared with today's building: damage and repairs legitimately change it.
     pub fn validate(&self) -> anyhow::Result<()> {
         anyhow::ensure!(
-            self.opening_space.is_finite() && self.opening_space >= 0.,
+            self.opening_space.is_finite()
+                && self.opening_space >= 0.
+                && self
+                    .group_space
+                    .is_none_or(|space| space.is_finite() && space >= 0.),
             "invalid service opening space"
         );
         for (i, r) in self.receipts.iter().enumerate() {
@@ -151,7 +171,8 @@ impl Plan {
                     && r.duration <= 1.
                     && r.requested == r.occupants * r.duration
                     && (r.granted == 0. || r.granted == r.requested)
-                    && (r.granted == 0. || r.occupants <= self.opening_space)
+                    && (r.granted == 0.
+                        || r.occupants <= self.group_space.unwrap_or(self.opening_space))
                     && (r.used == 0. || r.used == r.granted)
                     && (r.used == 0. || r.settled)
                     && (!self.closed || r.settled)
@@ -178,35 +199,46 @@ impl Plan {
     }
 }
 
-/// Current physically accessible space; legacy meeting places have two abstract
-/// room units. Their old material inventories are not increased by this mapping.
-pub(crate) fn usable(c: &crate::culture::Culture, institution: u32, site: u32) -> f64 {
+/// Available room-months and the largest usable group's nominal capacity.
+/// Wear reduces time availability; it does not shrink a two-person room to an
+/// unusable 1.99-person group. Rooms below 25% condition provide neither.
+/// Legacy meeting places have two abstract units without adding material stocks.
+pub(crate) fn space(c: &crate::culture::Culture, institution: u32, site: u32) -> (f64, f64) {
     let Some(n) = c
         .institutions
         .get(institution as usize)
         .filter(|n| n.site == site && n.operational())
     else {
-        return 0.;
+        return (0., 0.);
     };
     let Some(b) = n.capacity.as_ref().and_then(|c| c.building.as_ref()) else {
-        return 0.;
+        return (0., 0.);
     };
     if !c
         .artifacts
         .get(b.artifact as usize)
         .is_some_and(|a| a.site == Some(site) && !a.lost && !a.destroyed)
     {
-        return 0.;
+        return (0., 0.);
     }
     b.facility.as_ref().map_or_else(
         || {
             if b.construction_remaining == 0. {
-                2. * b.condition as f64
+                (2. * b.condition as f64, 2.)
             } else {
-                0.
+                (0., 0.)
             }
         },
-        |f| f.usable() as f64,
+        |f| {
+            f.rooms
+                .iter()
+                .filter(|r| {
+                    r.remaining_work == 0. && r.capacity > 0. && r.usable() >= 0.25 * r.capacity
+                })
+                .fold((0., 0_f64), |(time, group), r| {
+                    (time + r.usable() as f64, group.max(r.capacity as f64))
+                })
+        },
     )
 }
 
@@ -282,12 +314,10 @@ impl crate::culture::Culture {
                 .iter()
                 .position(|p| p.institution == institution)
                 .unwrap_or_else(|| {
-                    plans.push(Plan::new(
-                        h.month,
-                        site,
-                        institution,
-                        usable(self, institution, site),
-                    ));
+                    let (time, group) = space(self, institution, site);
+                    let mut plan = Plan::new(h.month, site, institution, time);
+                    plan.group_space = Some(group);
+                    plans.push(plan);
                     plans.len() - 1
                 });
             plans[index].reserve(service, occupants, 0.1);
@@ -302,7 +332,7 @@ impl crate::culture::Culture {
         institution: u32,
         service: Service,
     ) -> bool {
-        let live = usable(self, institution, site);
+        let (live, group) = space(self, institution, site);
         let Some(plans) = self
             .work_plans
             .get_mut(site as usize)
@@ -316,7 +346,12 @@ impl crate::culture::Culture {
         let Some(id) = plan.receipts.iter().position(|r| r.service == service) else {
             return false;
         };
-        plan.settle((month, site, institution), id, live, true)
+        let group = if plan.group_space.is_some() {
+            group
+        } else {
+            live
+        };
+        plan.settle_with_group_space((month, site, institution), id, live, group, true)
     }
 }
 
@@ -471,6 +506,8 @@ mod tests {
         original.validate().unwrap();
         let corruptions: Vec<fn(&mut Plan)> = vec![
             |p| p.opening_space = -1.,
+            |p| p.group_space = Some(-1.),
+            |p| p.group_space = Some(1.),
             |p| p.opening_space = 1.,
             |p| {
                 for r in &mut p.receipts {

@@ -120,8 +120,8 @@ and execution rechecks work and writing materials before consuming room capacity
 Heritage study executes before lessons, preserving the existing Respond order.
 A lesson occupies two room units for 0.1 month; heritage study occupies one for
 0.1 month. These are explicit toy scheduling parameters, not measured class sizes
-or working hours. Legacy meeting places map to two units scaled by condition;
-component facilities use their actual usable capacity. Lost, destroyed or remote
+or working hours. Legacy meeting places provide a two-person group and room-time scaled by condition;
+component facilities use their usable room-time and largest usable nominal room. Lost, destroyed or remote
 premises provide no capacity. Original material inventories remain unchanged.
 
 Receipt use precedes actual study, with cultural settlement in Respond releasing
@@ -149,8 +149,7 @@ The full frozen monthly/batched/checkpoint comparison also passes on seeds
 
 An existing limitation remains: generic cultural identity validation can cancel
 a whole bundle when local objects change. The new live room check does not remove
-that broader cancellation rule. Narrowing cancellation to the affected service and testing competing actual consumers
-under constrained space remain follow-up verification/integration work.
+that broader cancellation rule. Narrowing cancellation to the affected service remains follow-up integration work.
 
 Archive validation now checks finite room arithmetic, indivisible grants,
 once-only settlement state, duplicate service identities, shared opening capacity,
@@ -160,7 +159,7 @@ service receipts retain their compatibility path. Opening room stocks are histor
 observations: validation does not require a subsequently damaged building or dead
 author to remain usable. Execution still performs the live checks.
 
-The validation fixtures reject ten malformed ledger variants (including overbooked
+The validation fixtures reject twelve malformed ledger variants (including overbooked
 space and partial indivisible grants), plus six serialized cultural-plan mutations
 covering wrong boundary, missing source IDs and absent work backing. The real
 heritage consumer passes these checks with both intact and destroyed premises;
@@ -170,3 +169,47 @@ With archive validation enabled, all 122 regular library tests, the heritage GPU
 fixture, Clippy across all targets, and the repeated three-seed frozen
 monthly/batched/checkpoint comparison pass. These establish consistency and
 continuation, not balanced institutional service volumes.
+
+## Group size versus available room-time
+
+The consumer comparison exposed a discontinuity: using condition-scaled space for
+both time and group size prevented a two-person lesson in a two-unit room after
+even minimal wear. New plans now capture separate `group_space` and opening
+room-months. A usable room retains its nominal group size, while wear reduces
+available room-time. Component rooms below 25% condition or still under construction
+contribute neither. Time adds across usable rooms, but a working group must fit the
+largest individual room. The institution's existing operational gate still applies.
+Old plans lacking `group_space` retain the earlier continuous-size interpretation.
+
+This is a toy capacity rule, not an estimate of real classroom sizes or opening
+hours. It keeps repairs useful without treating slight wear as immediate closure.
+It also makes the two limits independently testable. At healthy capacity, the
+0.5 cultural work ceiling usually binds before room-time; room-time becomes a real
+constraint under damage and can support more consumers as they are integrated.
+
+The GPU heritage fixture captures four finite finds and one actual teacher/student
+lesson, reserves through the ordinary participant/work path, executes heritage
+then teaching, and compares the same opening requests and resources:
+
+| Room condition | Group capacity | Available room-months | Finds studied | Lesson progress | Room-months used | Writing material consumed |
+|---|---:|---:|---:|---|---:|---:|
+| 0.25 | 2 | 0.50 | 4 | None | 0.40 | 0.20 |
+| 0.99 | 2 | 1.98 | 4 | Positive | 0.60 | 0.20 |
+
+Both stay within 0.5 worker-months. Under damage, heritage-first allocation leaves
+0.1 room-month, below the lesson's indivisible 0.2 requirement. With adequate
+maintenance, the lesson also completes. The separate learning fixture now uses
+0.99 condition and still teaches, while destruction prevents progress.
+
+Known limitation: generic cultural bundle matching can still reserve time for
+a room-denied candidate alongside other actions. That time cannot produce a
+denied service and is accounted as unused; filtering such requests before shared
+work allocation is a remaining integration improvement. No global work ceiling or
+service duration was increased to force these outcomes.
+
+Both competing-consumer cases reproduce identical culture state, event records
+and town goods after serializing their captured plans and continuing execution.
+All 122 regular tests and Clippy across all targets pass with the separated
+capacity fields; the focused hardware suite includes both actual service consumers.
+The repeated full frozen monthly/batched/checkpoint comparison also passes on
+seeds 17/81/256 with this change.

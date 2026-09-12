@@ -619,6 +619,122 @@ mod tests {
                 building: Some(crate::institution_capacity::MeetingPlace::new(room_id)),
                 ..crate::institution_capacity::Capacity::new(h.month)
             });
+        // Four finds and one lesson share the ordinary 0.5-work ceiling. A
+        // damaged but operational two-person room has only 0.5 room-months;
+        // the heritage-first execution order then leaves too little for a lesson.
+        for condition in [0.25, 0.99] {
+            let mut run = planned_history.clone();
+            let mut culture = planned_culture.clone();
+            let people = culture.site_people(&run, site);
+            let student = people[((run.month / 3 + site) as usize) % people.len()];
+            let teacher = *people.iter().find(|&&p| p != student).unwrap();
+            for agent in &mut culture.agents {
+                agent.knowledge.clear();
+                agent.knowledge_sources.clear();
+                agent.studies.clear();
+                agent.traits = [0.; 6];
+            }
+            for a in &mut culture.artifacts {
+                a.topic = None;
+            }
+            for n in &mut culture.institutions {
+                n.active = false;
+            }
+            let n = culture.institutions.last_mut().unwrap();
+            n.active = true;
+            n.leader = teacher;
+            n.members = people.clone();
+            n.knowledge = [4].into_iter().collect();
+            n.capacity
+                .as_mut()
+                .unwrap()
+                .building
+                .as_mut()
+                .unwrap()
+                .condition = condition;
+            culture.agents[teacher as usize].knowledge.insert(4);
+            for _ in 1..4 {
+                let mut fragment = culture.artifacts[id as usize].clone();
+                fragment.id = culture.artifacts.len() as u32;
+                let mut voyage = run.expeditions.as_ref().unwrap().voyages[0].clone();
+                voyage.id = run.expeditions.as_ref().unwrap().voyages.len() as u32;
+                voyage
+                    .heritage
+                    .as_mut()
+                    .unwrap()
+                    .find
+                    .as_mut()
+                    .unwrap()
+                    .artifact = Some(fragment.id);
+                culture.artifacts.push(fragment); // Declared additional finite fixture finds.
+                run.expeditions.as_mut().unwrap().voyages.push(voyage);
+            }
+            run.culture = Some(culture);
+            run.open_participation();
+            let plans = run.cultural_work_plans();
+            run.reserve_cultural_plans(plans, &vec![0.5; run.sites.len()]);
+            let mut culture = run.culture.take().unwrap();
+            let before = run.sites[site as usize].economy.goods[good];
+            let grant = culture.work_plans[site as usize].granted;
+            assert!(grant <= 0.5);
+            let mut resumed_run = run.clone();
+            let mut resumed_culture =
+                serde_json::from_value(serde_json::to_value(&culture).unwrap()).unwrap();
+            study(&mut run, &mut culture);
+            culture.decisions(&mut run);
+            study(&mut resumed_run, &mut resumed_culture);
+            resumed_culture.decisions(&mut resumed_run);
+            assert_eq!(
+                serde_json::to_value(&culture).unwrap(),
+                serde_json::to_value(&resumed_culture).unwrap()
+            );
+            assert_eq!(
+                serde_json::to_value(&run.events).unwrap(),
+                serde_json::to_value(&resumed_run.events).unwrap()
+            );
+            assert_eq!(
+                run.sites[site as usize].economy.goods,
+                resumed_run.sites[site as usize].economy.goods
+            );
+            let reads: usize = run
+                .expeditions
+                .as_ref()
+                .unwrap()
+                .voyages
+                .iter()
+                .map(|v| {
+                    v.heritage
+                        .as_ref()
+                        .unwrap()
+                        .find
+                        .as_ref()
+                        .unwrap()
+                        .studies
+                        .len()
+                })
+                .sum();
+            assert_eq!(reads, 4);
+            assert!((before - run.sites[site as usize].economy.goods[good] - 0.2).abs() < 1e-6);
+            let gain = culture.work_plans[site as usize]
+                .study_expectation
+                .as_ref()
+                .unwrap()
+                .lesson
+                .actual_gain;
+            assert_eq!(gain > 0., condition > 0.25);
+            let services = culture.work_plans[site as usize].services.as_ref().unwrap();
+            let room = services.iter().find(|p| p.receipts.len() == 5).unwrap();
+            assert_eq!(room.group_space, Some(2.));
+            let used: f64 = room.receipts.iter().map(|r| r.used).sum();
+            assert!((used - if condition == 0.25 { 0.4 } else { 0.6 }).abs() < 1e-6);
+            assert!(used <= room.opening_space);
+            crate::institution_services::validate_work_plan(
+                &culture.work_plans[site as usize],
+                &culture,
+                run.people.len(),
+            )
+            .unwrap();
+        }
         planned_history.culture = Some(planned_culture);
         planned_history.open_participation();
         let plans = planned_history.cultural_work_plans();

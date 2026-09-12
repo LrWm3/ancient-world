@@ -760,7 +760,10 @@ mod tests {
         });
         c.institutions[institution as usize].capacity =
             Some(crate::institution_capacity::Capacity {
-                building: Some(crate::institution_capacity::MeetingPlace::new(room)),
+                building: Some(crate::institution_capacity::MeetingPlace {
+                    condition: 0.99, // Minor wear reduces service time, not the two-person group.
+                    ..crate::institution_capacity::MeetingPlace::new(room)
+                }),
                 ..crate::institution_capacity::Capacity::new(h.month)
             });
         // Reservation captures a specific source and does not itself teach.

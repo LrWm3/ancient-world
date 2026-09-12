@@ -1251,7 +1251,7 @@ impl Culture {
         }
         None
     }
-    fn decisions(&mut self, h: &mut History) {
+    pub(crate) fn decisions(&mut self, h: &mut History) {
         self.validate_work_plans(h);
         let recovered_sites = self.process_local_recoveries(h);
         for si in 0..h.sites.len() {
