@@ -7,7 +7,7 @@ was introduced.
 | Addition | Implemented connection | Remaining scope |
 | --- | --- | --- |
 | [Institution relocation](institution-relocation.md) | Funded journey moves accessible portable property to existing destination members, preserving institutional identity and treasury | Autonomous relocation planning and multi-site branch services |
-| [Artifact petitions](artifact-petitions.md) | Later completed office service hears a consent-based title return or finite institutional compensation | Contested evidence/guilt, private bank accounts and case-specific court staffing |
+| [Artifact petitions](artifact-petitions.md) | Later completed office service hears a consent-based title return or finite institutional compensation | Contested evidence/guilt, personal wallets separate from households, and case-specific court staffing |
 | [Route warnings](traveling-route-warnings.md) | Surviving relocating households deliver observed closures; local aging evidence changes destination preference | Merchant warning channels, occupation and outbreak reports |
 | [Contagion](contagious-illness.md) | Conserved SEIR partitions, relocating populations and dated cargo contacts feed existing illness consequences | Military/expedition partitions, multiple diseases and empirical calibration |
 | [Peace](negotiated-peace.md) | Bilateral acceptance funds first payment, orders traveling withdrawal, and creates enforceable monthly dues | Autonomous bargaining, territorial exchanges and third-party enforcement |
@@ -57,3 +57,25 @@ validation and exact 18-month batch/checkpoint comparison. Earlier contagion
 verification includes 12-month batch/checkpoint equality and a 1,200-month closed
 compartment conservation case. This is intentionally narrower than running every
 ignored integration test in the repository.
+
+## First refinement pass
+
+Two integration gaps were addressed after the initial six commits:
+
+- Institutional compensation now reaches the claimant's actual existing household
+  wallet when applicable. Dedicated compensation receipts participate in household
+  cash reconciliation. Missing wallets and insufficient funds leave claims intact;
+  buying out one claim leaves unrelated claims attached to the object.
+- Land encirclement now checks the cargo's captured intermediate stops and road
+  approaches, including inland portions of sea journeys. Direct port-to-port sea
+  access remains open. Relief checks both land endpoints.
+
+The first household fixture failed the existing cash reconciliation check after
+wallet balances changed without an income receipt. Adding the explicit legal
+compensation ledger fixed that accounting gap; no tolerance was loosened.
+
+The repeated `check_continuity.py` run passed 146 ordinary library tests and all
+11 focused checks (nine hardware-backed, two unit checks). The two new hardware
+fixtures cover household payment/remaining claims and intermediate-route access,
+respectively. The latter also checks once-only delivery and serialized continuation.
+These remain controlled mechanism tests, not a long-run balance study.

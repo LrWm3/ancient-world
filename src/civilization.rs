@@ -2382,7 +2382,9 @@ impl History {
     pub(crate) fn relief_arrivals(&mut self) {
         let arrivals = std::mem::take(&mut self.shipments);
         for mut shipment in arrivals {
-            if shipment.arrives <= self.month && self.besieged(shipment.to) {
+            if shipment.arrives <= self.month
+                && (self.besieged(shipment.from) || self.besieged(shipment.to))
+            {
                 shipment.arrives = self.month + 1;
                 self.shipments.push(shipment);
                 continue;

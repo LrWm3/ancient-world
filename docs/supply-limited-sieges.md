@@ -28,10 +28,11 @@ an immediate battle. Once breached, the ordinary battle model resumes. A force
 withdraws when continuing would consume its return provision margin, or political
 access is lost. A second simultaneous besieger is not supported.
 
-Active encirclement blocks land freight into the town, including due commercial
-cargo and relief. Those deliveries retain their inventories and wait; this first
-siege delay does not add spoilage beyond existing weather delay rules. Sea cargo
-can still arrive. There is no naval blockade or added civilian casualty roll:
+Active encirclement blocks land freight through the town, including due
+commercial cargo whose captured itinerary uses it as an intermediate stop and
+relief at either endpoint. Those deliveries retain their inventories and wait; this first
+siege delay does not add spoilage beyond existing weather delay rules. Direct sea cargo
+can still arrive; captured inland approaches remain subject to encirclement. There is no naval blockade or added civilian casualty roll:
 existing food access and demographic accounting remain responsible for shortages.
 
 `send_military_supply(army, kg)` dispatches actual food to an established siege or
@@ -58,3 +59,10 @@ conserved shared-freight dispatch, and compares a depleted army's withdrawal wit
 the funded baseline. It then accepts peace, verifies returning supply, and compares
 18 months batched with checkpoint-resumed monthly execution. All standard food,
 population and economic ledger validation remains enabled.
+
+A controlled access fixture checks an encircled intermediate junction, an
+unrelated road, a direct sea delivery and a sea journey with an inland approach.
+Blocked cargo retains its quantity and payment; lifting the siege permits one
+delivery, with matching serialized continuation and food accounting. The fixture
+isolates route access; it does not model physical progress along individual road
+segments. Existing journeys reserve their entire captured itinerary until arrival.

@@ -1043,7 +1043,7 @@ impl History {
         let mut observed = vec![[[0_f64; 2]; GOODS]; self.sites.len()];
         let arrivals = std::mem::take(&mut self.cargo);
         for mut c in arrivals {
-            if c.arrives <= self.month && c.sea_lane.is_none() && self.besieged(c.to) {
+            if c.arrives <= self.month && self.siege_blocks_cargo(&c) {
                 c.arrives = self.month + 1;
                 self.cargo.push(c);
                 continue;

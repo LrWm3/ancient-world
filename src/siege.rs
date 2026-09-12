@@ -235,6 +235,22 @@ impl History {
             }
         }
     }
+    /// The itinerary is a captured reservation, not a new path found after dispatch.
+    /// A besieged port alone does not prevent direct sea delivery, but an inland
+    /// approach through that port still uses blocked land access.
+    pub(crate) fn siege_blocks_cargo(&self, c: &crate::economy::Cargo) -> bool {
+        if c.freight_edges
+            .iter()
+            .any(|e| e.iter().any(|s| self.besieged(*s)))
+        {
+            return true;
+        }
+        c.sea_lane.is_none()
+            && (self.besieged(c.from)
+                || self.besieged(c.to)
+                || c.freight_stops.iter().any(|s| self.besieged(*s)))
+    }
+
     pub fn besieged(&self, site: u32) -> bool {
         self.military
             .siege
@@ -544,6 +560,74 @@ impl crate::gpu::Generator {
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn encircled_junction_holds_captured_cargo_without_a_naval_blockade() {
+        let mut g = crate::continuity_fixture::world();
+        let h = g.civilizations.as_mut().unwrap();
+        h.military.siege.sieges.push(super::Siege {
+            army: 900,
+            site: 1,
+            started: h.month,
+            observed: h.month,
+            ended: None,
+            cause: 0,
+            reason: String::new(),
+        });
+        let parcel = crate::economy::Cargo {
+            infection: None,
+            voyage_clock: None,
+            freight_stops: vec![0, 1, 2],
+            freight_edges: vec![[0, 1], [1, 2]],
+            from: 0,
+            to: 2,
+            good: crate::economy::FOOD as u32,
+            kg: 10.,
+            paid: 1.,
+            arrives: h.month,
+            sea_lane: None,
+            weather_delay_months: 0,
+        };
+        assert!(h.siege_blocks_cargo(&parcel));
+        let mut direct_sea = parcel.clone();
+        direct_sea.from = 1;
+        direct_sea.freight_edges.clear();
+        direct_sea.freight_stops = vec![1, 2];
+        direct_sea.sea_lane = Some(0);
+        assert!(!h.siege_blocks_cargo(&direct_sea));
+        let mut sea_approach = direct_sea.clone();
+        sea_approach.freight_edges = vec![[0, 1]];
+        assert!(h.siege_blocks_cargo(&sea_approach));
+        let mut unrelated = parcel.clone();
+        unrelated.freight_stops = vec![0, 2];
+        unrelated.freight_edges = vec![[0, 2]];
+        assert!(!h.siege_blocks_cargo(&unrelated));
+        // Real dispatch transfer; synthetic encirclement isolates the access mediator.
+        h.sites[0].stocks.stock[1] -= 10.;
+        h.sites[2].economy.finance[0] -= 1.;
+        h.sites[0].economy.finance[0] += 1.;
+        h.cargo.push(parcel);
+        let destination = h.sites[2].stocks.stock[1];
+        h.market_arrivals();
+        assert_eq!(h.sites[2].stocks.stock[1], destination);
+        assert_eq!(h.cargo.len(), 1);
+        assert_eq!(h.cargo[0].kg, 10.);
+        assert!(h.food_residual().abs() < 0.001);
+        let mut resumed: crate::civilization::History =
+            serde_json::from_slice(&serde_json::to_vec(&*h).unwrap()).unwrap();
+        for history in [&mut *h, &mut resumed] {
+            history.month += 1;
+            history.end_siege(900, "lifted");
+            history.market_arrivals();
+            assert!(history.cargo.is_empty());
+            assert!((history.sites[2].stocks.stock[1] - destination - 10.).abs() < 0.01);
+            assert!(history.food_residual().abs() < 0.001);
+        }
+        assert_eq!(
+            serde_json::to_value(&*h).unwrap(),
+            serde_json::to_value(&resumed).unwrap()
+        );
+    }
     #[test]
     #[ignore = "requires hardware GPU"]
     fn built_defenses_delay_war_and_real_resupply_competes_with_freight() {
