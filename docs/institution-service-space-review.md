@@ -424,3 +424,30 @@ balance runner built successfully.
 The [matched 30-year service report](institution-service-balance.md) records
 completed runs on seeds 17/81/256 under both funding policies, including sparse
 request counts and the upstream eligibility limits those counters cannot explain.
+
+## Opening lesson opportunities
+
+Dated work plans now retain an optional six-count observation: people returned by
+`site_people`, members of local institutions, students with a present teacher of
+an institution-held topic they lack, students with such a teacher in an operational
+institution, whether the selected actor has such a source, and whether that actor
+also passes the existing faith gate. Each person is counted at most once per
+stage even if multiple institutions or teachers qualify. Inactive institutions
+can contribute to the source-available stage but not the operational stage.
+
+These observations use the same source-selection helper as actual institutional
+lessons. They grant no work, generate no lessons, and change no actor selection.
+They measure the existing cultural candidate population, which must not be
+interpreted as every resident automatically requesting education. Missing fields
+in old archives stay absent; earlier opportunities are not reconstructed.
+The balance runner sums these person-opportunities over dated site plans and
+reports the observation count. These sums are not counts of unique people or
+completed sessions. Manuscript and successor learning remain separate channels.
+
+Inspection also identifies a specific boundary worth testing next: with society
+present, `resident_tradition` currently resolves a household only by `hh.head`,
+while `site_people` includes known adult kin when participation is enabled.
+Consequently a selected non-head can have a teacher and still fail the faith gate
+before secular study requests are emitted. The final two observations distinguish
+this exclusion; this diagnostic increment does not change affiliation or actor
+selection behavior.

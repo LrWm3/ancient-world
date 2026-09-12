@@ -704,8 +704,45 @@ mod tests {
             c.institutional_lesson(h, site, actor),
             Some((4, teacher, institution))
         );
+        let before = serde_json::to_value(&c).unwrap();
+        let opportunity = c.lesson_opportunities(h, site, Some(actor));
+        assert_eq!(opportunity, [people.len() as u32, 2, 1, 1, 1, 1]);
+        assert_eq!(
+            serde_json::to_value(&c).unwrap(),
+            before,
+            "observation does not mutate culture"
+        );
+        assert_eq!(
+            c.lesson_opportunities(h, site, Some(teacher))[4],
+            0,
+            "selecting the knowledgeable teacher misses the eligible student"
+        );
+        c.institutions[institution as usize].active = false;
+        assert_eq!(
+            c.lesson_opportunities(h, site, Some(actor)),
+            [people.len() as u32, 2, 1, 0, 0, 0],
+            "operation is separate from available knowledge"
+        );
+        c.institutions[institution as usize].active = true;
+        let plan = c.plan_work(h, site);
+        assert_eq!(plan.lesson_opportunities, Some(opportunity));
+        let restored: super::super::work_requests::WorkPlan =
+            serde_json::from_value(serde_json::to_value(&plan).unwrap()).unwrap();
+        assert_eq!(restored.lesson_opportunities, Some(opportunity));
+        let mut legacy = serde_json::to_value(&plan).unwrap();
+        legacy
+            .as_object_mut()
+            .unwrap()
+            .remove("lesson_opportunities");
+        let legacy: super::super::work_requests::WorkPlan = serde_json::from_value(legacy).unwrap();
+        assert!(legacy.lesson_opportunities.is_none());
         assert_eq!(c.available_knowledge(h, site), 1 << 4);
         h.people[teacher as usize].died = Some(h.month);
+        assert_eq!(
+            c.lesson_opportunities(h, site, Some(actor))[2],
+            0,
+            "dead teachers are not unrealized teaching opportunities"
+        );
         assert_eq!(c.institutional_lesson(h, site, actor), None);
         assert_eq!(
             c.available_knowledge(h, site),

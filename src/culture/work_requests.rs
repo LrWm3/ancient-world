@@ -24,6 +24,9 @@ pub struct InstitutionWorkPlan {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WorkPlan {
+    /// Opening lesson opportunity funnel; absent in legacy plans. No capacity is granted.
+    #[serde(default)]
+    pub lesson_opportunities: Option<[u32; 6]>,
     /// Uncapped opening demand after room exclusions, before personal matching.
     /// None preserves the unfiltered requests of older plans.
     #[serde(default)]
@@ -482,6 +485,7 @@ impl Culture {
                 .is_some_and(|s| s.institution.is_some()),
         ));
         WorkPlan {
+            lesson_opportunities: Some(self.lesson_opportunities(h, site, actor)),
             space_feasible_work,
             services: Some(services),
             hearing,

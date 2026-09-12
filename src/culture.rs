@@ -1210,24 +1210,66 @@ impl Culture {
             })?;
         Some((student, topic, holders[topic as usize]))
     }
+    fn lesson_source(
+        &self,
+        present: &[u32],
+        n: &Institution,
+        actor: u32,
+    ) -> Option<(u32, u32, u32)> {
+        present
+            .iter()
+            .copied()
+            .filter(|p| *p != actor && n.members.contains(p))
+            .find_map(|teacher| {
+                self.agents[teacher as usize]
+                    .knowledge
+                    .intersection(&n.knowledge)
+                    .find(|topic| !self.agents[actor as usize].knowledge.contains(topic))
+                    .map(|&topic| (topic, teacher, n.id))
+            })
+    }
     fn institutional_lesson(&self, h: &History, site: u32, actor: u32) -> Option<(u32, u32, u32)> {
         let present = self.site_people(h, site);
         self.institutions
             .iter()
             .filter(|n| n.operational() && n.site == site && n.members.contains(&actor))
-            .find_map(|n| {
-                present
-                    .iter()
-                    .copied()
-                    .filter(|p| *p != actor && n.members.contains(p))
-                    .find_map(|teacher| {
-                        self.agents[teacher as usize]
-                            .knowledge
-                            .intersection(&n.knowledge)
-                            .find(|topic| !self.agents[actor as usize].knowledge.contains(topic))
-                            .map(|&topic| (topic, teacher, n.id))
-                    })
-            })
+            .find_map(|n| self.lesson_source(&present, n, actor))
+    }
+    /// Read-only Reserve observations: present people, local members, students with
+    /// a present source (ignoring operation), with an operational source, selected
+    /// actor with that source, and selected actor also passing the faith gate.
+    /// Counts describe opportunities, not requests, assigned work or learned topics.
+    fn lesson_opportunities(&self, h: &History, site: u32, actor: Option<u32>) -> [u32; 6] {
+        let present = self.site_people(h, site);
+        let local: Vec<_> = self
+            .institutions
+            .iter()
+            .filter(|n| n.site == site)
+            .collect();
+        let mut result = [present.len() as u32, 0, 0, 0, 0, 0];
+        for &student in &present {
+            let mut member = false;
+            let mut source = false;
+            let mut operational = false;
+            for n in &local {
+                if !n.members.contains(&student) {
+                    continue;
+                }
+                member = true;
+                if self.lesson_source(&present, n, student).is_some() {
+                    source = true;
+                    operational |= n.operational();
+                }
+            }
+            result[1] += u32::from(member);
+            result[2] += u32::from(source);
+            result[3] += u32::from(operational);
+            if actor == Some(student) && operational {
+                result[4] = 1;
+                result[5] = u32::from(self.resident_tradition(h, site, student).is_some());
+            }
+        }
+        result
     }
     fn living_interpreter(&self, h: &History, tradition: u32) -> Option<(u32, u32)> {
         // Preserve diaspora traditions even when the original sacred site is ruined.
