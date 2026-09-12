@@ -36,6 +36,12 @@ struct Args {
     /// Override the long-run common entitlement without changing food production.
     #[arg(long)]
     common_share: Option<f32>,
+    /// Override the existing finite council-to-household relief budget.
+    #[arg(long, requires = "household_relief_target")]
+    household_relief_share: Option<f32>,
+    /// Dietary entitlement targeted by council relief, without changing common food.
+    #[arg(long, requires = "household_relief_share")]
+    household_relief_target: Option<f32>,
     #[arg(long, default_value_t = 0.5)]
     crop_yield_scale: f32,
     /// Matched control: use the configured common share immediately from founding.
@@ -82,6 +88,15 @@ fn main() -> Result<()> {
         "comparison requires a demographic resolution mode"
     );
     anyhow::ensure!(args.years > 0 && args.years <= 500, "years must be 1..500");
+    for value in [args.household_relief_share, args.household_relief_target]
+        .into_iter()
+        .flatten()
+    {
+        anyhow::ensure!(
+            value.is_finite() && (0. ..=1.).contains(&value),
+            "household relief fractions must be in 0..1"
+        );
+    }
     let gpu = pollster::block_on(ContextGpu::headless())?;
     let mut rows = vec![];
     for seed in &args.seeds {
@@ -181,6 +196,22 @@ fn main() -> Result<()> {
                 .as_mut()
                 .unwrap()
                 .common_share = share;
+        }
+        if let (Some(share), Some(target)) =
+            (args.household_relief_share, args.household_relief_target)
+        {
+            let e = g
+                .civilizations
+                .as_mut()
+                .unwrap()
+                .society
+                .as_mut()
+                .unwrap()
+                .household_economy
+                .as_mut()
+                .unwrap();
+            e.relief_share = share;
+            e.relief_target = target;
         }
         if args.no_individual_nutrition {
             g.civilizations
@@ -520,6 +551,17 @@ fn main() -> Result<()> {
                 let institution_state = h.institution_state_report();
                 let mut row = json!({"institution_funding_attempts":institution_funding_attempts,"institution_funding":institution_funding,"institution_state":institution_state,"institution_work":institution_work,"institution_multi_request_quarters":institution_multi_request_quarters,"institution_shortfall_quarters":institution_shortfall_quarters,"operational_institutions":c.institutions.iter().filter(|n| n.operational()).count(),"production_work":production_work,"household_observations":household_observations,"year":month/12,"food_totals":food,"max_population_residual":max_population_residual,"max_food_residual":max_food_residual,"recent_trade_pairs":h.trade_contact.receipts.len(),"demographic_site_months":demographic_months,"expected_deaths_by_age":mortality_by_age,"ages":(0..3).map(|b|h.sites.iter().map(|s|s.demography.ages[b] as f64).sum::<f64>()).collect::<Vec<_>>(),"heritage_recognitions":c.heritage_renown.len(),"heritage_witnesses":c.heritage_renown.iter().map(|r|r.witnesses.len()).sum::<usize>(),"domestic":h.domestic.as_ref().map(|d|json!({"groups":d.units.iter().filter(|u|u.ended.is_none()).count(),"members":d.membership.len(),"completed":d.care_completed,"care":d.care})),"funded_bundles":funded,"cancelled_bundles":cancelled,"requested":requested,"granted":granted,"used":used,"cancelled_work":cancelled_work,"population":h.sites.iter().map(|s|s.stocks.stock[0] as f64).sum::<f64>(),"active_sites":h.sites.iter().filter(|s|!s.abandoned).count(),"institutions":c.institutions.iter().filter(|n|n.active).count(),"knowledge_links":c.agents.iter().map(|a|a.knowledge.len()).sum::<usize>(),"artifacts":c.artifacts.len(),"individuals":h.participation.as_ref().map(|p|json!({"known":p.residents.len(),"available_adults":p.residents.values().filter(|r|r.capacity>0.).count(),"culture_work":p.residents.values().map(|r|r.completed[0]).sum::<f64>(),"research_work":p.residents.values().map(|r|r.completed[1]).sum::<f64>()}))});
                 eprintln!("seed {seed}: {} years, cancelled {cancelled}/{funded}, work {used:.1}/{granted:.1}, {:.1}s",month/12,start.elapsed().as_secs_f64());
+                let society = h.society.as_ref().unwrap();
+                let accounts = &society.household_economy.as_ref().unwrap().accounts;
+                row["household_fiscal"] = json!({
+                    "cumulative_relief": accounts.iter().map(|a| a.relief).sum::<f64>(),
+                    "cumulative_wages": accounts.iter().map(|a| a.wages).sum::<f64>(),
+                    "cumulative_food_spending": accounts.iter().map(|a| a.food_spending).sum::<f64>(),
+                    "wallet_cash": accounts.iter().map(|a| a.cash).sum::<f64>(),
+                    "council_treasury": society.councils.iter().map(|c| c.treasury).sum::<f64>(),
+                    "council_relief_paid": society.councils.iter().map(|c| c.relief_paid).sum::<f64>(),
+                    "town_cash": h.sites.iter().map(|s| s.economy.finance[0] as f64).sum::<f64>(),
+                });
                 row["lesson_opportunities"] = json!(lesson_opportunities);
                 row["lesson_observations"] = json!(lesson_observations);
                 row["service_room"] = json!(service_room);
@@ -539,6 +581,8 @@ fn main() -> Result<()> {
             std::fs::create_dir_all(parent)?;
         }
         let mut report = json!({"institution_funding_fields":["requested","conditional_ceiling","paid"],"institution_funding_unit":"abstract currency","operating_institutions":args.operating_institutions,"institution_work_classes":["election","upkeep","administration"],"institution_work_fields":["requested","granted","used"],"institution_work_unit":"worker-months","rotating_institutions":args.rotating_institutions,"construction_refinement":args.construction_refinement,"extraction_refinement":args.extraction_refinement,"agriculture_refinement":args.agriculture_refinement,"household_diagnostics":args.household_diagnostics,"resident_payroll":!args.legacy_resident_payroll,"individual_nutrition":!args.no_individual_nutrition,"household_mortality":!args.no_individual_nutrition && !args.no_household_mortality,"common_share_override":args.common_share,"observation_interval_months":1,"mortality_diagnostic_rows":["age_band_exposure","household_exposure"],"mortality_age_bands":["child","adult","elder"],"production_sectors":["farming","forestry","mining","construction"],"production_work_fields":["requested","granted","completed"],"production_work_unit":"worker-months","food_fields":["need","available","funded","eaten","physical_gap","access_gap"],"crop_yield_scale":args.crop_yield_scale,"founding_access":!args.no_founding_access,"aggregate_resolution":args.aggregate_resolution,"compare_resolution":args.compare_resolution,"workshop_refinement":args.workshop_refinement,"individual_demography":args.individual_demography,"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows});
+        report["household_relief_share_override"] = json!(args.household_relief_share);
+        report["household_relief_target_override"] = json!(args.household_relief_target);
         report["lesson_opportunity_fields"] = json!([
             "present",
             "local_members",
