@@ -420,3 +420,7 @@ hardware tests ignored in that run), all 13 targeted service checks passed,
 all-target Clippy passed with warnings denied, and the full frozen
 monthly/batched/checkpoint comparison passed for seeds 17/81/256. The release
 balance runner built successfully.
+
+The [matched 30-year service report](institution-service-balance.md) records
+completed runs on seeds 17/81/256 under both funding policies, including sparse
+request counts and the upstream eligibility limits those counters cannot explain.
