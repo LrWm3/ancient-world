@@ -644,6 +644,14 @@ fn main() -> Result<()> {
                     .iter()
                     .filter(|e| e.kind == "distribution_policy_effective")
                     .count());
+                row["council_funding"] = json!(society.council_funding);
+                row["civic_petitions"] = json!(h.governance.as_ref().map(|g| &g.petitions));
+                row["administrations"] = json!(h.governance.as_ref().map(|g| &g.administrations));
+                row["road_state"] = json!({
+                    "routes": society.routes.len(),
+                    "passable": society.routes.iter().filter(|r| r.passable()).count(),
+                    "bricks": society.routes.iter().map(|r| r.road_bricks).sum::<f64>(),
+                });
                 row["household_fiscal"] = json!({
                     "family_recipient_households": accounts.iter().filter(|a| a.family_received>0.).count(),
                     "family_donor_households": accounts.iter().filter(|a| a.family_sent>0.).count(),

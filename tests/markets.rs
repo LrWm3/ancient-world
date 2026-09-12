@@ -67,6 +67,7 @@ fn network() -> History {
         expeditions: None,
         living: None,
         society: Some(Society {
+            council_funding: Default::default(),
             household_economy: None,
             indicators: None,
             version: 1,

@@ -252,8 +252,38 @@ pub struct Raid {
     #[serde(default)]
     pub equipment: f32,
 }
+/// Observational totals at actual council payment boundaries. Currency is abstract.
+/// Imported histories start a new diagnostic baseline; these never drive decisions.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct CouncilFunding {
+    pub administration: FundingTotals,
+    pub roads: FundingTotals,
+    pub emergency_town_support: FundingTotals,
+}
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct FundingTotals {
+    pub requested: f64,
+    pub paid: f64,
+    pub shortfall: f64,
+    pub requests: u64,
+    /// Count requests below 90% funding, matching the administrative crisis threshold.
+    pub underfunded: u64,
+}
+impl FundingTotals {
+    pub(crate) fn record(&mut self, requested: f64, paid: f64) {
+        self.requested += requested;
+        self.paid += paid;
+        self.shortfall += (requested - paid).max(0.);
+        if requested > 0. {
+            self.requests += 1;
+            self.underfunded += u64::from(paid / requested < 0.9);
+        }
+    }
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Society {
+    #[serde(default)]
+    pub council_funding: CouncilFunding,
     #[serde(default)]
     pub household_economy: Option<crate::household_economy::HouseholdEconomy>,
     #[serde(default)]
@@ -1142,6 +1172,10 @@ impl History {
                 council.treasury = (council.treasury - relief as f64).max(0.);
                 s.economy.finance[0] += relief;
                 council.relief_paid += relief as f64;
+                society
+                    .council_funding
+                    .emergency_town_support
+                    .record(s.stocks.stock[0] as f64 * 10., relief as f64);
             }
         }
         let planned = self
@@ -1174,8 +1208,10 @@ impl History {
                     site.economy.logistics[2].max(0.) * 100.
                 } else {
                     f32::INFINITY
-                })
-                .min((council.treasury / 2.) as f32);
+                });
+            // Feasible materials and work before the cash cap, not hypothetical road demand.
+            let requested_cash = bricks as f64 * 2.;
+            let bricks = bricks.min((council.treasury / 2.) as f32);
             // Credit only material actually withdrawn from the f32 inventory.
             let before = site.economy.goods[5];
             let remaining = (before as f64 - bricks as f64).max(0.);
@@ -1193,6 +1229,10 @@ impl History {
             }
             council.treasury = (council.treasury - bricks as f64 * 2.).max(0.);
             site.economy.finance[0] += bricks * 2.;
+            society
+                .council_funding
+                .roads
+                .record(requested_cash, bricks as f64 * 2.);
         }
         self.society = Some(society);
         self.road_condition_events();
@@ -1371,6 +1411,7 @@ impl Generator {
             "society requires an economy without an existing social baseline"
         );
         h.society = Some(Society {
+            council_funding: Default::default(),
             household_economy: Some(crate::household_economy::HouseholdEconomy::new(h.month)),
             indicators: Some(crate::social_state::SocialState {
                 started: h.month,

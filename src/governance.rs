@@ -371,6 +371,12 @@ impl History {
                 0
             };
             let tax = council.tax_rate * (1. - a.autonomy * 0.75) * office_capacity;
+            self.society
+                .as_mut()
+                .unwrap()
+                .council_funding
+                .administration
+                .record(required as f64, paid as f64);
             a.loyalty = (a.loyalty + 0.008 * funded * office_capacity + 0.006 * a.autonomy
                 - 0.004 * (1. - office_capacity)
                 - 0.002 * occupation
@@ -973,6 +979,17 @@ mod payroll_tests {
                 - before.governance.as_ref().unwrap().administrations[1].wages_paid,
             2.
         );
+        let audit = &h.society.as_ref().unwrap().council_funding.administration;
+        let prior = &before
+            .society
+            .as_ref()
+            .unwrap()
+            .council_funding
+            .administration;
+        assert!((audit.requested - prior.requested - (h.sites.len() as f64 + 3.)).abs() < 1e-6);
+        assert!((audit.paid - prior.paid - 2.5).abs() < 1e-6);
+        assert!((audit.shortfall - prior.shortfall - (h.sites.len() as f64 + 0.5)).abs() < 1e-6);
+        assert_eq!(audit.underfunded - prior.underfunded, h.sites.len() as u64);
         assert_eq!(admins[0].unpaid_months, 1);
         assert_eq!(admins[1].unpaid_months, 1);
         assert!((cash(h) - total).abs() < 0.001);

@@ -187,5 +187,41 @@ mod tests {
             serde_json::to_vec(&h).unwrap(),
             serde_json::to_vec(&resumed).unwrap()
         );
+
+        // Audit only buildable work: cash shortage and absent bricks are distinct.
+        for site in &mut h.sites {
+            site.economy.finance[0] = 0.;
+            site.stocks.stock[3] = 0.;
+        }
+        let controller = h.controller(from) as usize;
+        let society = h.society.as_mut().unwrap();
+        for council in &mut society.councils {
+            council.treasury = 0.;
+        }
+        society.councils[controller].treasury = 40.;
+        for route in &mut society.routes {
+            route.open = false;
+        }
+        let route = &mut society.routes[0];
+        route.open = true;
+        route.flood_months = 0;
+        route.road_bricks = 500.;
+        let site = &mut h.sites[from as usize];
+        site.abandoned = false;
+        site.economy.goods[5] = 100.;
+        site.economy.logistics[2] = 1.;
+        let mut no_material = h.clone();
+        no_material.sites[from as usize].economy.goods[5] = 0.;
+        h.social_year();
+        let receipt = &h.society.as_ref().unwrap().council_funding.roads;
+        assert_eq!(receipt.requested, 200.);
+        assert_eq!(receipt.paid, 40.);
+        assert_eq!(receipt.shortfall, 160.);
+        assert_eq!(receipt.underfunded, 1);
+        assert_eq!(h.society.as_ref().unwrap().routes[0].road_bricks, 520.);
+        no_material.social_year();
+        let receipt = &no_material.society.as_ref().unwrap().council_funding.roads;
+        assert_eq!(receipt.requested, 0.);
+        assert_eq!(receipt.underfunded, 0);
     }
 }
