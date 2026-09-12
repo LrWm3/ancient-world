@@ -217,6 +217,8 @@ impl History {
                 let kg = surplus
                     .min(appeal.population * 18. * 3.)
                     .min(3000. / months as f32)
+                    .min(self.land_freight_capacity(appeal.host))
+                    .min(self.land_freight_capacity(appeal.origin))
                     .min((budget / price as f64) as f32);
                 // Match the exact representable municipal receipt, never overdraw the payer.
                 let receipt = (host.economy.finance[0] + kg * price) - host.economy.finance[0];
@@ -473,6 +475,120 @@ mod tests {
             cause: 0,
             response: None,
         };
+        // Commercial cargo and earlier secular aid occupy the same endpoint pool.
+        let mut constrained = h.clone();
+        constrained.cargo.clear();
+        constrained.shipments.clear();
+        let smallest = constrained.sites[host as usize].stocks.stock[0]
+            .min(constrained.sites[origin as usize].stocks.stock[0]);
+        constrained
+            .economy_catalog
+            .as_mut()
+            .unwrap()
+            .production
+            .land_freight_kg_per_person = 40. / smallest;
+        constrained.sites[host as usize].economy.logistics[3] = 1.;
+        constrained.sites[origin as usize].economy.logistics[3] = 1.;
+        let total_capacity = constrained
+            .land_freight_capacity(host)
+            .min(constrained.land_freight_capacity(origin));
+        let occupied = total_capacity - 25.;
+        constrained.sites[host as usize].economy.initial[0] += occupied;
+        constrained.cargo.push(crate::economy::Cargo {
+            from: host,
+            to: origin,
+            good: 0,
+            kg: occupied,
+            paid: 0.,
+            arrives: h.month + 3,
+            sea_lane: None,
+            weather_delay_months: 0,
+            voyage_clock: None,
+            freight_stops: vec![host, origin],
+        });
+        constrained.sites[origin as usize].stocks.stock[1] -= 5.;
+        constrained.shipments.push(Shipment {
+            from: origin,
+            to: host,
+            food_kg: 5.,
+            arrives: h.month + 2,
+            weather_delay_months: 0,
+            appeal_cause: None,
+            relief_route: None,
+        });
+        assert!(
+            (constrained
+                .land_freight_capacity(host)
+                .min(constrained.land_freight_capacity(origin))
+                - 20.)
+                .abs()
+                < 0.001
+        );
+        let mut blocked = constrained.clone();
+        blocked.cargo[0].kg += 3.;
+        blocked.sites[host as usize].economy.initial[0] += 3.;
+        let blocked_before = serde_json::to_value(&blocked).unwrap();
+        assert!(
+            !blocked.sponsor_religious_relief(&appeal),
+            "less than a useful consignment remains"
+        );
+        assert_eq!(
+            blocked_before,
+            serde_json::to_value(&blocked).unwrap(),
+            "failed freight claim spends nothing"
+        );
+        let food_before = constrained.sites[host as usize].stocks.stock[1];
+        let cash_before = constrained.sites[host as usize].economy.finance[0];
+        let treasury_before =
+            constrained.culture.as_ref().unwrap().institutions[institution as usize].treasury;
+        let mut resumed: History =
+            serde_json::from_value(serde_json::to_value(&constrained).unwrap()).unwrap();
+        assert!(constrained.sponsor_religious_relief(&appeal));
+        assert!(resumed.sponsor_religious_relief(&appeal));
+        assert_eq!(
+            serde_json::to_value(&constrained).unwrap(),
+            serde_json::to_value(&resumed).unwrap()
+        );
+        let dispatched = constrained.shipments.last().unwrap().food_kg;
+        assert!((dispatched - 20.).abs() < 0.001);
+        assert!(
+            (food_before - constrained.sites[host as usize].stocks.stock[1] - dispatched).abs()
+                < 0.001
+        );
+        let paid = constrained.sites[host as usize].economy.finance[0] - cash_before;
+        assert!(
+            (treasury_before
+                - constrained.culture.as_ref().unwrap().institutions[institution as usize]
+                    .treasury
+                - paid as f64)
+                .abs()
+                < 0.001
+        );
+        assert!(
+            constrained
+                .land_freight_capacity(host)
+                .min(constrained.land_freight_capacity(origin))
+                < 0.001
+        );
+        // Actual commercial delivery frees only its share. Relief remains reserved
+        // until its separate shipment-settlement path processes the pending records.
+        let delivered_before = constrained.sites[origin as usize].economy.goods[0];
+        constrained.month += 3;
+        constrained.market_arrivals();
+        assert!(constrained.cargo.is_empty());
+        assert!(
+            (constrained.sites[origin as usize].economy.goods[0] - delivered_before - occupied)
+                .abs()
+                < 0.001
+        );
+        assert!(
+            (constrained
+                .land_freight_capacity(host)
+                .min(constrained.land_freight_capacity(origin))
+                - occupied)
+                .abs()
+                < 0.001
+        );
         let mut missing = h.clone();
         missing.culture.as_mut().unwrap().artifacts[room as usize].lost = true;
         let before = serde_json::to_value(&missing).unwrap();
