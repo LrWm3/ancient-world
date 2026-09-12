@@ -119,3 +119,81 @@ This does not yet prove that more donations alone restore service: usable-space
 requirements, building repairs, local staffing, succession and the timing of
 fundraising must be held or varied explicitly in the next controlled comparison.
 The annual/decadal snapshots also do not measure every quarterly cash shortfall.
+
+## Funding and usable-space intervention fixture
+
+The next controlled comparison isolates two limits, with four locally present
+adult members of a merchant house (space demand 8), 0.125 worker-months of upkeep
+per quarter, zero environmental disruption, and twelve quarterly updates. Rooms
+start completed and use timber walls and roofing with catalog-like mass, wear and
+work coefficients. Opening building material is withdrawn from a declared stock
+of 1,000 kg timber. Cash is either zero or 32, transferred from a town's fixed
+1,000-unit total; no arm receives extra money during execution.
+
+The small room has capacity 2 and the adequate room capacity 8. Prices, staffing,
+labor and other conditions are identical. The budget cannot afford an extension
+in this fixture; the test explicitly checks that no second room appears. Thus
+funding is not silently also a usable-space intervention. Repairs still consume
+real stock and put equal replaced mass into waste while preserving embodied
+material.
+
+The fixture checks all four outcomes, cash and repair-mass accounting, full dated
+state equality after quarterly serialization, and equal 1.5 worker-months of total
+upkeep per arm. It also validates each facility against the ordinary archive
+constraints. Run with `cargo test --lib
+funding_and_usable_space_jointly_limit_institution_recovery -- --ignored --nocapture`.
+
+Boundary reporting now uses the same present-adult membership query as upkeep.
+`History::institution_state_report()` exposes local membership, demanded and usable
+space, coverage, and the underlying institution state; the service-work report
+and balance runner both use it. Living members are reported separately. These
+are current observations, not the exact inputs to an earlier quarterly update.
+Legacy buildings have no capacity-based space observation and retain their existing
+condition-based support rule.
+
+| Room capacity | Opening institution cash | Readiness after 12 quarters | Final condition | Administration paid | Replaced timber (kg) | Operational |
+|---:|---:|---:|---:|---:|---:|---|
+| 2 | 0 | 0 | 0.904 | 0 | 0 | No |
+| 2 | 32 | 0.140 | 1.000 | 6 | 2.208 | No |
+| 8 | 0 | 0 | 0.904 | 0 | 0 | No |
+| 8 | 32 | 1.000 | 1.000 | 6 | 8.832 | Yes |
+
+This is a joint limitation: paying fees and maintaining the small room does not
+restore the organization, and adequate space without fee payment does not restore
+it either. More upkeep labor is not the missing input in this fixture. With no
+disruption, readiness needs support above 0.4 to grow; the small room can provide
+only 0.25 coverage. The rule can therefore shut down an otherwise well-maintained
+organization solely because its membership outgrew its premises.
+
+This motivates reviewing both operating-budget requests and how institutional
+service scales with space. It does **not** justify free cash, free extensions,
+retroactive labor or a global readiness bonus. Whole-history interventions should
+reserve explicit transfers, preserve competing claims on town funds, and observe
+actual local demand before deciding whether to change that rule.
+
+Verification for this increment: five hardware institutional tests pass, as do
+115 regular library tests (106 hardware tests excluded from the ordinary run).
+
+### Actual local coverage in seed 17
+
+The 30-year rerun with shared boundary observations again matches every preexisting
+seed-17 report field exactly, excluding elapsed time and the added observations.
+It reports:
+
+| Year | Institutions | Local adult membership range | Space coverage range | Coverage below 0.4 with at least two local adults | Fewer than two local adults |
+|---|---:|---|---|---:|---:|
+| 10 | 26 | 11–60 | 0.037–0.373 | 26 | 0 |
+| 20 | 32 | 7–64 | 0.023–1.000 | 31 | 0 |
+| 30 | 32 | 0–38 | 0.020–1.000 | 26 | 3 |
+
+Thus the space limitation is present in ordinary history, not only in a crafted
+fixture. At year 10 every institution has staffing but insufficient coverage to
+maintain readiness even with a full fee. At year 30 two institutions have no
+local adult members and one has only one; surviving members alone hid this loss.
+Later snapshots can have better coverage simply because membership declined, so
+coverage improvement is not necessarily successful expansion. These are snapshots
+of current gates, not a reconstructed causal decomposition of all earlier updates.
+
+The example builds, all-target Clippy passes with warnings denied, formatting and
+repository artifact checks pass. No simulation defaults or service rules changed
+in this diagnostic increment.

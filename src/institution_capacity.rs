@@ -109,6 +109,34 @@ impl crate::culture::Institution {
             })
     }
 }
+impl crate::civilization::History {
+    /// Read-only boundary observations, not forecasts or additional service updates.
+    /// Use the same present-adult membership rule as institutional upkeep.
+    pub fn institution_state_report(&self) -> Vec<serde_json::Value> {
+        let Some(culture) = &self.culture else {
+            return vec![];
+        };
+        let present: Vec<_> = self
+            .sites
+            .iter()
+            .map(|s| culture.site_people(self, s.id))
+            .collect();
+        culture.institutions.iter().map(|n| {
+            let local = present[n.site as usize].iter().filter(|p| n.members.contains(p)).count();
+            let facility = n.capacity.as_ref().and_then(|c| c.building.as_ref()).and_then(|b| b.facility.as_ref());
+            serde_json::json!({
+                "institution": n,
+                "operational": n.operational(),
+                "living_members": n.members.iter().filter(|id| self.people[**id as usize].died.is_none()).count(),
+                "local_adult_members": local,
+                "space_demand": crate::facilities::demand(&n.kind, local),
+                "usable_space": facility.map(|f| f.usable()),
+                "space_coverage": facility.map(|f| (f.usable() / crate::facilities::demand(&n.kind, local)).clamp(0., 1.)),
+            })
+        }).collect()
+    }
+}
+
 impl crate::culture::Culture {
     pub(crate) fn upkeep_work_limit(&self, n: &crate::culture::Institution) -> f32 {
         let large = n
@@ -416,6 +444,191 @@ impl crate::culture::Culture {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn funding_and_usable_space_jointly_limit_institution_recovery() {
+        use crate::{
+            catalog::Catalog,
+            config::Config,
+            culture::{Artifact, Institution, InstitutionKind, Owner},
+            facilities::{Component, Facility, Room},
+            gpu::{ContextGpu, Generator},
+        };
+        let mut g = Generator::new(
+            pollster::block_on(ContextGpu::headless()).unwrap(),
+            Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                ..Default::default()
+            },
+            Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        g.enable_society().unwrap();
+        let baseline = g.civilizations.as_ref().unwrap();
+        let members: Vec<_> = baseline
+            .culture
+            .as_ref()
+            .unwrap()
+            .site_people(baseline, 0)
+            .into_iter()
+            .take(4)
+            .collect();
+        assert_eq!(members.len(), 4);
+        let mut outcomes = vec![];
+        for capacity in [2., 8.] {
+            for funding in [0., 32.] {
+                let mut h = baseline.clone();
+                let mut c = h.culture.take().unwrap();
+                // Declared finite fixture stocks. No production, travel or demography.
+                let e = &mut h.sites[0].economy;
+                e.goods.fill(0.);
+                e.goods[0] = 1000.;
+                e.prices.fill(1.);
+                e.finance[0] = 1000. - funding as f32;
+                e.soil[3] = 0.;
+                let facility = Facility {
+                    rooms: vec![Room {
+                        method: "fixture timber room".into(),
+                        capacity,
+                        remaining_work: 0.,
+                        components: vec![
+                            Component {
+                                good: 0,
+                                kg: 10. * capacity,
+                                condition: 1.,
+                                wear: 0.006,
+                                work: 0.06 * capacity,
+                            },
+                            Component {
+                                good: 0,
+                                kg: 4. * capacity,
+                                condition: 1.,
+                                wear: 0.008,
+                                work: 0.02 * capacity,
+                            },
+                        ],
+                    }],
+                    ..Default::default()
+                };
+                let materials = facility.embodied();
+                e.goods[0] -= materials[0].1;
+                let artifact = c.artifacts.len() as u32;
+                c.artifacts.push(Artifact {
+                    id: artifact,
+                    name: "Finite fixture room".into(),
+                    kind: "institutional foundation".into(),
+                    creator: None,
+                    owner: Owner::Institution(0),
+                    claims: vec![],
+                    site: Some(0),
+                    custodian: None,
+                    materials,
+                    topic: None,
+                    tradition: None,
+                    events: vec![],
+                    destroyed: false,
+                    lost: false,
+                });
+                c.institutions = vec![Institution {
+                    capacity: Some(Capacity {
+                        building: Some(MeetingPlace::facility(artifact, facility)),
+                        ..Capacity::new(0)
+                    }),
+                    id: 0,
+                    name: "Fixture merchant house".into(),
+                    kind: InstitutionKind::Merchant,
+                    site: 0,
+                    tradition: None,
+                    leader: members[0],
+                    members: members.clone(),
+                    treasury: funding,
+                    active: true,
+                    founded: 0,
+                    knowledge: Default::default(),
+                    property: vec![artifact],
+                    dues: funding,
+                    expenses: 0.,
+                }];
+                c.work_plans.clear(); // Isolate executed upkeep from reservation policy.
+                c.labor_budget = vec![0.; h.sites.len()];
+                let goods = h.sites[0].economy.goods[0];
+                let waste = h.sites[0].economy.reserves[3];
+                for quarter in 1..=12 {
+                    h.month = quarter * 3;
+                    c.labor_budget[0] = 0.125;
+                    let mut resumed_h = h.clone();
+                    let mut resumed_c: crate::culture::Culture =
+                        serde_json::from_slice(&serde_json::to_vec(&c).unwrap()).unwrap();
+                    c.maintain_institutions(&mut h);
+                    resumed_c.maintain_institutions(&mut resumed_h);
+                    assert_eq!(
+                        serde_json::to_value(&c).unwrap(),
+                        serde_json::to_value(&resumed_c).unwrap()
+                    );
+                    assert_eq!(
+                        serde_json::to_value(&h).unwrap(),
+                        serde_json::to_value(&resumed_h).unwrap()
+                    );
+                    assert_eq!(
+                        h.sites[0].economy.finance[0] as f64 + c.institutions[0].treasury,
+                        1000.
+                    );
+                }
+                let n = &c.institutions[0];
+                let state = n.capacity.as_ref().unwrap();
+                let b = state.building.as_ref().unwrap();
+                assert!((state.work - 1.5).abs() < 1e-6);
+                assert!(b.facility.as_ref().unwrap().valid(
+                    h.economy_catalog.as_ref().unwrap(),
+                    &c.artifacts[artifact as usize]
+                ));
+                assert_eq!(
+                    b.facility.as_ref().unwrap().rooms.len(),
+                    1,
+                    "funding must not buy extra space in this fixture"
+                );
+                assert!(
+                    (goods as f64 - h.sites[0].economy.goods[0] as f64 - b.repaired_kg).abs()
+                        < 1e-5
+                );
+                assert!(
+                    (h.sites[0].economy.reserves[3] as f64 - waste as f64 - b.repaired_kg).abs()
+                        < 1e-5
+                );
+                assert_eq!(
+                    c.artifacts[artifact as usize].materials,
+                    vec![(0, capacity * 14.)]
+                );
+                eprintln!("capacity={capacity}, funding={funding}, readiness={}, condition={}, fee={}, repairs={}, operational={}", state.readiness, b.condition, state.paid, b.repaired_kg, n.operational());
+                if funding == 0. {
+                    assert_eq!(state.paid, 0.);
+                    assert_eq!(b.repaired_kg, 0.);
+                } else {
+                    assert_eq!(state.paid, 6.);
+                    assert!(b.condition > 0.99);
+                }
+                outcomes.push(n.operational());
+                h.culture = Some(c.clone());
+                let observations = h.institution_state_report();
+                assert_eq!(observations[0]["local_adult_members"], 4);
+                assert_eq!(observations[0]["space_demand"], 8.);
+                assert_eq!(observations[0]["operational"], n.operational());
+                // Remote membership survives, but cannot inflate local staffing or demand.
+                h.sites[0].abandoned = true;
+                let absent = h.institution_state_report();
+                assert_eq!(absent[0]["local_adult_members"], 0);
+                assert_eq!(absent[0]["living_members"], 4);
+                assert_eq!(
+                    serde_json::to_value(h.culture.as_ref().unwrap()).unwrap(),
+                    serde_json::to_value(&c).unwrap()
+                );
+            }
+        }
+        assert_eq!(outcomes, vec![false, false, false, true]);
+    }
+
     #[test]
     #[ignore = "requires hardware GPU"]
     fn upkeep_conserves_cash_and_work_and_recovers_after_neglect() {
