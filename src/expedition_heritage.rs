@@ -1134,6 +1134,43 @@ mod tests {
             crate::heritage_renown::destination(&c, h, middle, 0, 1.),
             Some((site, artifact))
         );
+        // Nearby space alone does not expose private or foreign institutional objects.
+        let host = c.institutions.last().unwrap().id;
+        let unrelated = h
+            .society
+            .as_ref()
+            .unwrap()
+            .households
+            .iter()
+            .find(|hh| hh.site == middle)
+            .unwrap()
+            .head;
+        let original_owner = c.artifacts[artifact as usize].owner.clone();
+        for (owner, custodian, accessible) in [
+            (Owner::Institution(host), None, true),
+            (Owner::Institution(u32::MAX), None, false),
+            (Owner::Person(author), None, true),
+            (Owner::Person(unrelated), None, false),
+            (Owner::Community(site), Some(author), true),
+            (Owner::Community(site), Some(unrelated), false),
+            (Owner::Community(middle), None, false),
+        ] {
+            c.artifacts[artifact as usize].owner = owner;
+            c.artifacts[artifact as usize].custodian = custodian;
+            assert_eq!(
+                crate::heritage_renown::destination(&c, h, middle, 0, 1.).is_some(),
+                accessible
+            );
+        }
+        c.artifacts[artifact as usize].owner = original_owner;
+        c.artifacts[artifact as usize].custodian = None;
+        let leader = c.institutions[host as usize].leader;
+        c.institutions[host as usize].leader = unrelated;
+        assert_eq!(
+            crate::heritage_renown::destination(&c, h, middle, 0, 1.),
+            None
+        );
+        c.institutions[host as usize].leader = leader;
         c.artifacts[artifact as usize].lost = true;
         assert_eq!(
             crate::heritage_renown::destination(&c, h, middle, 0, 1.),

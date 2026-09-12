@@ -72,6 +72,30 @@ pub fn score(
     total / (1. + total)
 }
 
+/// A local steward is an access proxy, not an ownership transfer or a paid visit.
+/// Institutional property requires its own host; private objects require the
+/// owner's participation. A named physical custodian must also be present.
+fn hosts(a: &crate::culture::Artifact, n: &crate::culture::Institution, present: &[u32]) -> bool {
+    use crate::culture::{InstitutionKind, Owner};
+    a.site == Some(n.site)
+        && !a.lost
+        && !a.destroyed
+        && n.operational()
+        && matches!(
+            n.kind,
+            InstitutionKind::Religious | InstitutionKind::Scholarly
+        )
+        && present.contains(&n.leader)
+        && a.custodian.is_none_or(|p| present.contains(&p))
+        && match a.owner {
+            Owner::Community(site) => site == n.site,
+            Owner::Institution(id) => id == n.id,
+            Owner::Person(id) => {
+                present.contains(&id) && (n.leader == id || n.members.contains(&id))
+            }
+        }
+}
+
 /// Visitors require actual accessible custody and maintained scholarly/religious space.
 pub fn destination(
     c: &Culture,
@@ -86,19 +110,12 @@ pub fn destination(
         .filter_map(|r| {
             let a = c.artifacts.get(r.artifact as usize)?;
             let site = a.site?;
+            let present = c.site_people(h, site);
             if a.lost
                 || a.destroyed
                 || site == observer
                 || h.sites[site as usize].abandoned
-                || !c.institutions.iter().any(|n| {
-                    n.site == site
-                        && n.operational()
-                        && matches!(
-                            n.kind,
-                            crate::culture::InstitutionKind::Religious
-                                | crate::culture::InstitutionKind::Scholarly
-                        )
-                })
+                || !c.institutions.iter().any(|n| hosts(a, n, &present))
             {
                 return None;
             }
