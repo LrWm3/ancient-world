@@ -577,9 +577,16 @@ impl Generator {
         let mut converged = false;
         let mut iterations = 0;
         let limit = self.config.lake_iteration_limit();
-        for _ in 0..limit / 16 {
+        let poll_passes = self.config.lake_poll_passes;
+        ensure!(
+            matches!(poll_passes, 16 | 32 | 64 | 128),
+            "invalid lake polling interval"
+        );
+        while iterations < limit {
             let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
-            for step in 0..16 {
+            // The explicit iteration ceiling still wins over a larger polling batch.
+            // All permitted limits and intervals are even, preserving scratch parity.
+            for step in 0..poll_passes.min(limit - iterations) {
                 encoder.clear_buffer(&self.flags, 0, None);
                 let mut pass = encoder.begin_compute_pass(&Default::default());
                 pass.set_pipeline(

@@ -132,6 +132,7 @@ struct Params {
     event: [u32; 4],
     storms: [f32; 4],
     abundance: [f32; 4],
+    thermal: [f32; 4],
 }
 #[derive(Clone, Debug, Serialize)]
 pub struct RegionReport {
@@ -346,6 +347,7 @@ impl Ecology {
                 config.solar_scale,
             ],
             storms: self.living_storms,
+            thermal: [config.aquatic_thermal_width_c, 0., 0., 0.],
             abundance: [
                 config.island_phosphorus_scale,
                 f32::from(catalog.producer_competition),
@@ -1622,13 +1624,16 @@ mod wildlife_tests {
         cell.pools[40][0] = 101.;
         g.config.solar_scale = 0.;
         let mut outcomes = Vec::new();
-        for (enabled, encoded, food) in [
-            (false, 131., 1.),
-            (true, 101., 1.),
-            (true, 131., 1.),
-            (true, 131., 0.),
+        for (enabled, encoded, food, width) in [
+            (false, 131., 1., 15.),
+            (true, 101., 1., 15.),
+            (true, 131., 1., 15.),
+            (true, 131., 0., 15.),
+            (true, 131., 1., 30.),
+            (true, 131., 0., 30.),
         ] {
             g.config.wildlife_ecotypes = enabled;
+            g.config.aquatic_thermal_width_c = width;
             cell.pools[40][1] = encoded;
             cell.pools[13][0] = food;
             cell.pools[13][1] = food * 0.12;
@@ -1647,7 +1652,11 @@ mod wildlife_tests {
             let traits = &g.catalog.guilds[9];
             let effective = available * available * traits.diet[0].weight
                 / (available + traits.animal_prey_refuge);
-            let fit = if enabled && encoded == 131. { 0.2 } else { 1. };
+            let fit = if enabled && encoded == 131. {
+                1. / (1. + (30. / width).powi(2))
+            } else {
+                1.
+            };
             let bite = 0.01 * traits.feeding / 12. * fit * effective
                 / (effective + traits.food_half_saturation);
             let growth = bite * traits.assimilation;
@@ -1674,6 +1683,11 @@ mod wildlife_tests {
         assert_eq!(outcomes[0], outcomes[1]);
         assert!(outcomes[2] < outcomes[1]);
         assert!(outcomes[3] < outcomes[2]);
+        assert!(outcomes[4] > outcomes[2] && outcomes[4] < outcomes[1]);
+        assert_eq!(
+            outcomes[3], outcomes[5],
+            "wider tolerance cannot replace prey"
+        );
         // Traits are real checkpoint state, not reconstructed from current climate.
         let path =
             std::env::temp_dir().join(format!("thermal-ecotypes-{}.world", std::process::id()));
@@ -1681,6 +1695,7 @@ mod wildlife_tests {
         let mut resumed = Generator::load(g.gpu.clone(), &path).unwrap();
         std::fs::remove_file(&path).unwrap();
         assert!(resumed.config.wildlife_ecotypes);
+        assert_eq!(resumed.config.aquatic_thermal_width_c, 30.);
         for _ in 0..3 {
             g.advance_ecology().unwrap();
             resumed.advance_ecology().unwrap();

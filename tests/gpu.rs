@@ -356,6 +356,23 @@ fn secondary_lakes_share_surface_and_conserve_volume_across_seam() {
     assert_eq!(result[dry as usize].water[0], 0.);
     g.equilibrate_lakes().unwrap();
     assert!((volume(&g.snapshot().unwrap()) - before).abs() / before < 0.0001);
+    for interval in [32, 64, 128] {
+        g.config.lake_poll_passes = interval;
+        g.restore_cells(&cells, 0).unwrap();
+        g.equilibrate_lakes().unwrap();
+        let compared = g.snapshot().unwrap();
+        assert!((volume(&compared) - before).abs() / before < 0.0001);
+        assert_eq!(compared[dry as usize].water[0], 0.);
+        for &i in &ids {
+            assert!((compared[i as usize].water[0] - result[i as usize].water[0]).abs() < 0.002);
+        }
+        // A short explicit ceiling cannot be enlarged by the polling interval.
+        g.config.max_lake_iterations = 16;
+        g.restore_cells(&cells, 0).unwrap();
+        let _ = g.equilibrate_lakes();
+        assert_eq!(g.progress.lake_iterations, 16);
+        g.config.max_lake_iterations = 0;
+    }
 }
 
 #[test]

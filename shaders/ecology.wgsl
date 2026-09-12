@@ -1,7 +1,7 @@
 struct Eco { pools:array<vec4<f32>,41> }
 struct Env { fields:array<vec4<f32>,25> }
 struct Entry { a:vec4<f32>,b:vec4<f32>,c:vec4<f32>,d:vec4<f32>,ids:vec4<u32> }
-struct Params {dims:vec4<u32>,physical:vec4<f32>,counts:vec4<u32>,options:vec4<u32>,event:vec4<u32>,storms:vec4<f32>,abundance:vec4<f32>}
+struct Params {dims:vec4<u32>,physical:vec4<f32>,counts:vec4<u32>,options:vec4<u32>,event:vec4<u32>,storms:vec4<f32>,abundance:vec4<f32>,thermal:vec4<f32>}
 @group(0) @binding(0) var<storage,read_write> terrain:array<Cell>;
 @group(0) @binding(1) var<storage,read_write> environment:array<Env>;
 @group(0) @binding(2) var<storage,read> src:array<Eco>;
@@ -76,9 +76,9 @@ fn total(s:Eco)->vec3<f32> {var t=vec3(0.);for(var k=0u;k<26u;k++){t+=s.pools[k]
 // A compact inherited regional trait, not a species identity or nutrient stock.
 fn ecotypes_enabled()->bool {return (u32(p.abundance.z)&2u)!=0u;}
 fn thermal_preference(s:Eco,k:u32)->f32 {return s.pools[38u+k/4u][k%4u];}
-fn thermal_match(encoded:f32,temperature:f32)->f32 {
+fn thermal_match(encoded:f32,temperature:f32,aquatic:bool)->f32 {
  if !ecotypes_enabled()||encoded==0. {return 1.;}
- let mismatch=(temperature-(encoded-81.))/15.;
+ let mismatch=(temperature-(encoded-81.))/select(15.,p.thermal.x,aquatic);
  return 1./(1.+mismatch*mismatch);
 }
 fn founder_preference(i:u32,k:u32,e:Env)->f32 {
@@ -304,7 +304,7 @@ fn biology(@builtin(global_invocation_id) g:vec3<u32>) {
  if ecotypes_enabled()&&preference_temperature==0.&&s.pools[slot].x>0. {
  preference_temperature=founder_preference(i,k,e); // Explicit first-use baseline for old stocks.
  s.pools[38u+k/4u][k%4u]=preference_temperature;}
- let demand=s.pools[slot].x*t.b.x*dt*thermal_match(preference_temperature,e.fields[1].x);
+ let demand=s.pools[slot].x*t.b.x*dt*thermal_match(preference_temperature,e.fields[1].x,t.ids.y==1u);
  var weighted=0.;var preference:array<f32,4>;let refuge=bitcast<f32>(t.ids.x);
  for(var d=0u;d<4u;d++){let prey=u32(t.c[d]);let food=s.pools[prey].x;
  // Rare animal prey use refuges / are less worth pursuing. Plants retain their

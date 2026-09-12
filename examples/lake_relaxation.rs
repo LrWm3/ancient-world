@@ -23,6 +23,11 @@ struct Args {
     /// Zero uses the automatic resolution-scaled budget.
     #[arg(long, default_value_t = 0)]
     max_lake_iterations: u32,
+    #[arg(long, default_value_t = 16)]
+    lake_poll_passes: u32,
+    /// Optional local output for field-by-field comparison; never commit raw cells.
+    #[arg(long)]
+    output_cells: Option<PathBuf>,
 }
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
@@ -30,6 +35,7 @@ fn main() -> anyhow::Result<()> {
         resolution: args.resolution,
         seed: args.seed,
         max_lake_iterations: args.max_lake_iterations,
+        lake_poll_passes: args.lake_poll_passes,
         ..Default::default()
     };
     config.validate()?;
@@ -75,6 +81,14 @@ fn main() -> anyhow::Result<()> {
     let before = volume(&cells);
     let result = g.equilibrate_lakes();
     let after = g.snapshot()?;
+    if let Some(path) = &args.output_cells {
+        std::fs::write(path, bytemuck::cast_slice(&after))?;
+    }
+    println!(
+        "poll_passes={} polls={}",
+        args.lake_poll_passes,
+        g.progress.lake_iterations.div_ceil(args.lake_poll_passes)
+    );
     println!("iterations={} wall_ms={} changed={} max_unresolved_change_m={} relative_volume_error={:.9e}",
         g.progress.lake_iterations, g.progress.stage_ms["secondary_lakes_wall"],
         g.progress.lake_changed_cells, g.progress.lake_max_change_m,

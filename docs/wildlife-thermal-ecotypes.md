@@ -118,3 +118,46 @@ separate `WILDLIFE_OUTPUT=output/wildlife/thermal-0-1200.json` (or `thermal-1-12
 and `cargo run --example wildlife_evaluate -- 1200 32`. Raw outputs remain ignored.
 The fixture commands are `cargo test --lib ecology::wildlife_tests -- --ignored`
 and `cargo test --test ecology -- --include-ignored --test-threads=1`.
+
+## Aquatic thermal-width sensitivity (2026-09-12)
+
+`Config.aquatic_thermal_width_c` now controls the aquatic feeding half-response
+width, bounded to 1–60 °C. Default and old archives retain 15 °C. Land guilds retain
+15 °C independently. This setting is inert when thermal ecotypes are disabled.
+It changes feeding demand, not available prey, assimilation bounds, maintenance
+costs, nutrient inventories or migration. The temperature is still the regional
+environmental proxy, not a depth-resolved lake-temperature model.
+
+Nine fresh runs compare disabled ecotypes, enabled width 15, and enabled width 30
+using the century protocol above. Seeds, catalogs and opening wildlife reports
+match exactly; generated spatial world IDs differ as expected. No other simulation
+configuration differs. Lake predator share of aquatic consumer carbon is:
+
+| Seed | Disabled | Width 15 | Width 30 | Predator carbon, 30/15 |
+| --- | ---: | ---: | ---: | ---: |
+| 17 | 0.9669% | 0.4734% | 0.6004% | 1.290 |
+| 81 | 1.0151% | 0.3851% | 0.6806% | 1.793 |
+| 256 | 0.8117% | 0.3007% | 0.4585% | 1.530 |
+
+Width 30 reduces the sharp loss without eliminating the thermal constraint:
+predator carbon remains 32–42% below the disabled arm. All lake predator occupancy
+fractions remain 1 at the report threshold. Across all nine runs maximum relative
+C/N/P residuals are 1.74e-5 / 3.68e-6 / 3.07e-7, water 1.43e-7; all endpoints are
+finite and nonnegative. Runs overlap the council ensemble, so their elapsed times
+are not presented as performance comparisons.
+
+The expanded analytical GPU fixture checks both widths: a 30 °C mismatch gives
+feeding factors 0.2 and 0.5 respectively; absent prey prevents the wider response
+from creating growth. It also checks trait adjustment and continuation with width
+30 restored from the archive. Configuration checks reject invalid/nonfinite widths
+and preserve the legacy default.
+
+**Decision:** retain width 15 and opt-in ecotypes. This establishes sensitivity,
+not a preferred ecosystem target. A wider response cannot repair missing depth
+habitats or multiple coexisting ecotypes. Compare those mechanisms and larger
+grids before promoting a new default simply because it supports more predators.
+
+Set `WILDLIFE_AQUATIC_THERMAL_WIDTH=15` or `30` alongside
+`WILDLIFE_CLOSED_ONLY=1 WILDLIFE_ECOTYPES=1` and a separate `WILDLIFE_OUTPUT`, then
+run `target/debug/examples/wildlife_evaluate 1200 32`. Use ecotypes `0` for the
+negative control. Build the example first; retain generated JSON only in `output/`.

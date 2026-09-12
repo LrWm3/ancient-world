@@ -35,6 +35,11 @@ fn main() -> Result<()> {
         .nth(7)
         .map(|v| v.parse::<f32>())
         .transpose()?;
+    let aquatic_thermal_width_c = std::env::var("WILDLIFE_AQUATIC_THERMAL_WIDTH")
+        .ok()
+        .map(|s| s.parse::<f32>())
+        .transpose()?
+        .unwrap_or(15.);
     let gpu = pollster::block_on(ContextGpu::headless())?;
     let mut rows = vec![];
     let seeds = std::env::args()
@@ -87,6 +92,7 @@ fn main() -> Result<()> {
                     ecology_resolution: resolution / 2,
                     ecology_years_per_epoch: 1,
                     wildlife_open_barriers: false,
+                    aquatic_thermal_width_c,
                     ..Default::default()
                 },
                 catalog,

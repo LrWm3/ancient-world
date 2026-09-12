@@ -13,6 +13,8 @@ pub struct Config {
     pub wildlife_open_barriers: bool,
     /// Experimental inherited thermal preferences; aggregate guild identity is unchanged.
     pub wildlife_ecotypes: bool,
+    /// Half-response temperature mismatch for aquatic ecotype feeding (toy degrees C).
+    pub aquatic_thermal_width_c: f32,
     pub lake_mixing: f32,
     pub solar_scale: f32,
     #[serde(default = "legacy_unit_scale")]
@@ -32,6 +34,8 @@ pub struct Config {
     pub max_drainage_iterations: u32,
     /// Zero selects a resolution-scaled, bounded surface-water relaxation budget.
     pub max_lake_iterations: u32,
+    /// Convergence readback interval; changes numerical stopping points, not physical time.
+    pub lake_poll_passes: u32,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -43,6 +47,7 @@ impl Default for Config {
             ecology_years_per_epoch: 10,
             wildlife_open_barriers: false,
             wildlife_ecotypes: false,
+            aquatic_thermal_width_c: 15.,
             lake_mixing: 1.,
             solar_scale: 1.,
             island_phosphorus_scale: 0.25,
@@ -58,12 +63,21 @@ impl Default for Config {
             climate_cycles: 32,
             max_drainage_iterations: 16384,
             max_lake_iterations: 0,
+            lake_poll_passes: 16,
         }
     }
 }
 impl Config {
     pub fn validate(&self) -> Result<()> {
         self.systems.validate()?;
+        ensure!(
+            matches!(self.lake_poll_passes, 16 | 32 | 64 | 128),
+            "lake polling must be 16, 32, 64 or 128 passes"
+        );
+        ensure!(
+            (1. ..=60.).contains(&self.aquatic_thermal_width_c),
+            "aquatic thermal width must be finite and within 1..60 degrees C"
+        );
         ensure!(
             self.max_lake_iterations == 0
                 || ((16..=1048576).contains(&self.max_lake_iterations)
@@ -170,6 +184,21 @@ fn legacy_plot_hectares() -> f32 {
 mod lake_budget_tests {
     use super::*;
     #[test]
+    fn aquatic_width_is_bounded_and_legacy_compatible() {
+        let legacy: Config = toml::from_str("seed = 42").unwrap();
+        assert_eq!(legacy.aquatic_thermal_width_c, 15.);
+        for width in [1., 15., 30., 60., 0., 61., f32::NAN, f32::INFINITY] {
+            let c = Config {
+                aquatic_thermal_width_c: width,
+                ..Default::default()
+            };
+            assert_eq!(
+                c.validate().is_ok(),
+                width.is_finite() && (1. ..=60.).contains(&width)
+            );
+        }
+    }
+    #[test]
     fn automatic_lake_budget_scales_without_changing_explicit_limits() {
         for (resolution, expected) in [(16, 16384), (256, 65536), (512, 262144), (1024, 1048576)] {
             let config = Config {
@@ -188,5 +217,16 @@ mod lake_budget_tests {
         assert!(config.validate().is_err());
         let legacy: Config = toml::from_str("seed = 42").unwrap();
         assert_eq!(legacy.max_lake_iterations, 0);
+        assert_eq!(legacy.lake_poll_passes, 16);
+        for interval in [0, 15, 16, 32, 64, 128, 256] {
+            let config = Config {
+                lake_poll_passes: interval,
+                ..Default::default()
+            };
+            assert_eq!(
+                config.validate().is_ok(),
+                matches!(interval, 16 | 32 | 64 | 128)
+            );
+        }
     }
 }
