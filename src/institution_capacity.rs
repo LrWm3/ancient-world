@@ -116,6 +116,21 @@ impl crate::culture::Institution {
             })
     }
 }
+fn operating_space(
+    kind: &crate::culture::InstitutionKind,
+    members: usize,
+    working_core: bool,
+) -> f32 {
+    crate::facilities::demand(
+        kind,
+        if working_core {
+            members.min(2)
+        } else {
+            members
+        },
+    )
+}
+
 impl crate::civilization::History {
     /// Read-only boundary observations, not forecasts or additional service updates.
     /// Use the same present-adult membership rule as institutional upkeep.
@@ -137,6 +152,8 @@ impl crate::civilization::History {
                 "living_members": n.members.iter().filter(|id| self.people[**id as usize].died.is_none()).count(),
                 "local_adult_members": local,
                 "space_demand": crate::facilities::demand(&n.kind, local),
+                "operating_space_demand": operating_space(&n.kind, local, culture.institution_working_core),
+                "operating_space_coverage": facility.map(|f| (f.usable() / operating_space(&n.kind, local, culture.institution_working_core)).clamp(0., 1.)),
                 "usable_space": facility.map(|f| f.usable()),
                 "space_coverage": facility.map(|f| (f.usable() / crate::facilities::demand(&n.kind, local)).clamp(0., 1.)),
             })
@@ -304,7 +321,9 @@ impl crate::culture::Culture {
                         b.condition = 0.;
                     }
                     building_support = if accessible {
-                        (f.usable() / crate::facilities::demand(&n.kind, living)).clamp(0., 1.)
+                        (f.usable()
+                            / operating_space(&n.kind, living, self.institution_working_core))
+                        .clamp(0., 1.)
                     } else {
                         0.
                     };
@@ -489,10 +508,11 @@ mod tests {
             .collect();
         assert_eq!(members.len(), 4);
         let mut outcomes = vec![];
-        for capacity in [2., 8.] {
+        for (working_core, capacity) in [(false, 2.), (false, 8.), (true, 2.), (true, 8.)] {
             for funding in [0., 32.] {
                 let mut h = baseline.clone();
                 let mut c = h.culture.take().unwrap();
+                c.institution_working_core = working_core;
                 // Declared finite fixture stocks. No production, travel or demography.
                 let e = &mut h.sites[0].economy;
                 e.goods.fill(0.);
@@ -626,6 +646,10 @@ mod tests {
                 let observations = h.institution_state_report();
                 assert_eq!(observations[0]["local_adult_members"], 4);
                 assert_eq!(observations[0]["space_demand"], 8.);
+                assert_eq!(
+                    observations[0]["operating_space_demand"],
+                    if working_core { 4. } else { 8. }
+                );
                 assert_eq!(observations[0]["operational"], n.operational());
                 // Remote membership survives, but cannot inflate local staffing or demand.
                 h.sites[0].abandoned = true;
@@ -638,7 +662,10 @@ mod tests {
                 );
             }
         }
-        assert_eq!(outcomes, vec![false, false, false, true]);
+        assert_eq!(
+            outcomes,
+            vec![false, false, false, true, false, true, false, true]
+        );
     }
 
     #[test]

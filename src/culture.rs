@@ -256,6 +256,9 @@ pub struct Artifact {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Culture {
+    /// Evaluate operating space for at most two local members; services retain room limits.
+    #[serde(default)]
+    pub institution_working_core: bool,
     /// On alternate quarters, prefer present institutional students with a source.
     #[serde(default)]
     pub institutional_students: bool,
@@ -308,6 +311,7 @@ fn focused_work_default() -> bool {
 impl Culture {
     fn empty(month: u32, legacy: bool, options: FoundingOptions) -> Result<Self> {
         Ok(Self {
+            institution_working_core: false,
             institutional_students: false,
             institution_priority: Default::default(),
             institution_work_policy: Default::default(),
