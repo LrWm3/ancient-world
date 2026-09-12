@@ -25,7 +25,7 @@ of target coverage (capped at 100%); its dividend target falls to zero.
 Each annual decision moves at most 5 points for common/payroll/coverage, 2 for
 relief and 0.5 for dividends. No decision is made without observed household need.
 Reviews cannot replace outstanding proposals or run twice in one month. The rates
-are initial game settings; long-run balance remains unverified.
+are initial game settings; wider balance remains open; see the [two-seed century comparison](distribution-policy-century.md).
 
 ## Timing, money and food
 
@@ -95,3 +95,5 @@ The cultural evaluation runner exposes `--fixed-distribution` and records
 effective and pending shares, treasury and cumulative activation count. The
 control is serialized; the boundary fixture verifies that disabling proposals
 creates no decision or event.
+
+The [completed century comparison](distribution-policy-century.md) finds improved population retention and positive final-decade growth in both tested seeds, with much thinner council reserves.

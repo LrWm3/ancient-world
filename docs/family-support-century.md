@@ -96,3 +96,5 @@ stays opt-in.
 
 Four Python comparison tests pass. This increment changes report analysis and
 records completed experiments; it makes no Rust simulation change.
+
+A subsequent [political distribution comparison](distribution-policy-century.md) retains family support in both arms and reverses final-decade decline in these seeds by allowing council distribution shares to change. It also exposes thinner council reserves; this does not invalidate the fixed-policy results above.

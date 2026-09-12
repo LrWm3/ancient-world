@@ -50,3 +50,5 @@ samples cannot establish monthly maxima or prove an absent mechanism was exercis
 
 Council household distribution now follows [dated political policies](household-distribution-politics.md).
 Controlled timing and retail tests cover this connection; long-run political food-access balance remains open.
+
+The [political distribution century comparison](distribution-policy-century.md) now completes seeds 256/409: final-decade population change switches from −24/−40 to +147/+71. A production-grant validation rounding failure was corrected without changing allocation arithmetic. Council reserves shrink sharply; fiscal stress, longer horizons and broader-seed balance remain open.
