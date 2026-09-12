@@ -93,7 +93,8 @@ fn flow(@builtin(global_invocation_id) g:vec3<u32>) {
 @compute @workgroup_size(8,8)
 fn habitat(@builtin(global_invocation_id) g:vec3<u32>) {
  if any(g.xy>=vec2(u.dims.x)){return;}let i=g.y*u.dims.x+g.x;var c=src[i];var slope=0.;
- for(var k=0u;k<8u;k++){let j=adjacent(i,k);if j!=NONE{slope=max(slope,abs(c.surface.x-src[j].surface.x)/sqrt(c.surface.w));}}
+ // Eight-neighbor gradients use the corresponding horizontal distance.
+ for(var k=0u;k<8u;k++){let j=adjacent(i,k);if j!=NONE{let distance=sqrt(c.surface.w)*select(1.,1.41421356,k>=4u);slope=max(slope,abs(c.surface.x-src[j].surface.x)/distance);}}
  c.surface.z=clamp(c.surface.z/(1.+slope*8.)+log(1.+c.water.z)*.025,.01,4.);
  // Keep rock inheritance, select soil by alluvial deposition and slope.
  if c.water.z>1e6&&u.counts.z>1u {c.ids.y=1u;}

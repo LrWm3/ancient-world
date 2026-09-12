@@ -14,6 +14,9 @@ pub struct Report {
 }
 impl Report {
     pub fn weight(&self, month: u32) -> f32 {
+        if month < self.received || month < self.observed {
+            return 0.;
+        }
         1. / (1. + month.saturating_sub(self.observed) as f32 / 12.)
     }
     pub fn preference(&self, month: u32) -> f32 {
@@ -41,6 +44,9 @@ pub struct LocalMemory {
 }
 impl LocalMemory {
     pub fn record_aid(&mut self, recipient: u32, donor: u32, month: u32, cause: u64, kg: f32) {
+        if recipient == donor || !kg.is_finite() || kg < 0. {
+            return;
+        }
         let i = self
             .aid
             .iter()
@@ -76,19 +82,28 @@ impl LocalMemory {
     pub fn reciprocity(&self, recipient: u32, donor: u32, month: u32) -> f32 {
         self.aid
             .iter()
-            .find(|a| a.recipient == recipient && a.donor == donor)
+            .find(|a| a.recipient == recipient && a.donor == donor && a.received <= month)
             .map_or(0., |a| {
                 let confidence = a.successes as f32 / (2. + a.successes as f32 + a.failures as f32);
                 0.25 * confidence / (1. + month.saturating_sub(a.received) as f32 / 120.)
             })
     }
     pub fn remember(&mut self, report: Report) {
+        if report.observer == report.destination
+            || report.observed > report.received
+            || !report.food_months.is_finite()
+            || !(0. ..=24.).contains(&report.food_months)
+        {
+            return;
+        }
         if let Some(old) = self
             .reports
             .iter_mut()
             .find(|r| r.observer == report.observer && r.destination == report.destination)
         {
-            if report.observed >= old.observed {
+            // Resolve equal observation dates by causal event order, not caller order.
+            // Replaying the same event must not move its recorded arrival date.
+            if (report.observed, report.cause) > (old.observed, old.cause) {
                 *old = report;
             }
         } else {
@@ -223,6 +238,75 @@ mod tests {
             serde_json::from_str(&serde_json::to_string(&m).unwrap()).unwrap();
         assert_eq!(restored.aid[0].successes, 2);
     }
+    #[test]
+    fn testimony_and_aid_cannot_influence_queries_before_arrival() {
+        let mut m = LocalMemory::default();
+        let r = Report {
+            observer: 0,
+            destination: 1,
+            observed: 10,
+            received: 12,
+            food_months: 24.,
+            cause: 3,
+        };
+        m.remember(r.clone());
+        assert_eq!(m.preference(0, 1, 11), 1.);
+        assert!(m.preference(0, 1, 12) > 1.);
+        m.remember(Report {
+            received: 18,
+            ..r.clone()
+        });
+        assert_eq!(m.reports[0].received, 12, "replay cannot postpone arrival");
+        let newer = Report {
+            food_months: 0.,
+            cause: 4,
+            ..r.clone()
+        };
+        m.remember(newer.clone());
+        let mut reversed = LocalMemory::default();
+        reversed.remember(newer);
+        reversed.remember(r);
+        assert_eq!(
+            serde_json::to_value(&m).unwrap(),
+            serde_json::to_value(&reversed).unwrap()
+        );
+        assert!(m.preference(0, 1, 12) < 1.);
+        m.record_aid(0, 1, 12, 5, 100.);
+        assert_eq!(m.reciprocity(0, 1, 11), 0.);
+        assert!(m.reciprocity(0, 1, 12) > 0.);
+        let restored: LocalMemory =
+            serde_json::from_value(serde_json::to_value(&m).unwrap()).unwrap();
+        assert_eq!(restored.preference(0, 1, 11), 1.);
+        assert_eq!(restored.reciprocity(0, 1, 11), 0.);
+    }
+    #[test]
+    fn invalid_memory_inputs_do_not_create_local_evidence() {
+        let mut m = LocalMemory::default();
+        for kg in [-1., f32::NAN, f32::INFINITY] {
+            m.record_aid(0, 1, 1, 0, kg);
+        }
+        m.record_aid(0, 0, 1, 0, 100.);
+        for food in [-1., 25., f32::NAN, f32::INFINITY] {
+            m.remember(Report {
+                observer: 0,
+                destination: 1,
+                observed: 1,
+                received: 1,
+                food_months: food,
+                cause: 0,
+            });
+        }
+        m.remember(Report {
+            observer: 0,
+            destination: 1,
+            observed: 2,
+            received: 1,
+            food_months: 6.,
+            cause: 0,
+        });
+        assert!(m.reports.is_empty() && m.aid.is_empty() && m.mutual_aid_sites.is_empty());
+    }
+
     #[test]
     fn reports_are_local_dated_and_do_not_refresh_from_old_testimony() {
         let mut m = LocalMemory::default();

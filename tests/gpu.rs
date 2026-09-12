@@ -484,7 +484,34 @@ fn regional_fields_have_acyclic_routes_and_accounted_runoff() {
             incoming[j] += 1;
             branching |= incoming[j] > 1;
         }
+        // Independent geometric slope: diagonals have longer horizontal runs.
+        let mut slope = 0_f32;
+        for y in (i / n).saturating_sub(1)..=(i / n + 1).min(n - 1) {
+            for x in (i % n).saturating_sub(1)..=(i % n + 1).min(n - 1) {
+                let j = y * n + x;
+                if i == j {
+                    continue;
+                }
+                let dx = x as f32 - (i % n) as f32;
+                let dy = y as f32 - (i / n) as f32;
+                let distance = ((dx * dx + dy * dy) * c.surface[3]).sqrt();
+                slope = slope.max((c.surface[0] - region.cells[j].surface[0]).abs() / distance);
+            }
+        }
+        let inherited_soil = parent[c.route[2] as usize].terrain[2].max(0.02);
+        let soil =
+            (inherited_soil / (1. + slope * 8.) + (1. + c.water[2]).ln() * 0.025).clamp(0.01, 4.);
+        assert!(
+            (c.surface[2] - soil).abs() < 2e-6,
+            "slope-adjusted soil at {i}: {} vs {soil}",
+            c.surface[2]
+        );
         if c.ids[2] != NONE {
+            let cover = (c.climate[2] * (1. - slope) * (c.climate[1] / 800.).min(1.)).clamp(0., 1.);
+            assert!(
+                (c.climate[3] - cover).abs() < 2e-6,
+                "slope-adjusted cover at {i}"
+            );
             let plant = &g.catalog.plants[c.ids[2] as usize];
             assert!(c.climate[0] >= plant.temp_min && c.climate[0] <= plant.temp_max);
             assert!(c.climate[1] >= plant.rain_min && c.climate[1] <= plant.rain_max);

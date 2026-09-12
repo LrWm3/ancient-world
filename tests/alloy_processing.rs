@@ -30,6 +30,9 @@ fn world(seed: u32) -> Generator {
     }
     g.restore_cells(&terrain, 0).unwrap();
     for s in &mut g.civilizations.as_mut().unwrap().sites {
+        // These are local feedstock controls: otherwise imports can supply tin
+        // or ore to the deliberately unsupported town.
+        s.economy.policy[3] = 0.;
         s.economy.reserves[1] = 100.;
         s.economy.goods[6] += 100.;
         s.economy.initial[6] += 100.;
@@ -70,6 +73,11 @@ fn residues_limit_processing_persist_in_ruins_and_survive_checkpoints() {
         open.advance_history(12).unwrap();
         let h = g.civilizations.as_ref().unwrap();
         for (i, s) in h.sites.iter().enumerate() {
+            assert_eq!(
+                &s.economy.finance[2..],
+                &[0., 0.],
+                "local fixture must not trade"
+            );
             let deposit = s.economy.residue[0];
             if i < 4 {
                 assert!((deposit - 1.).abs() < 1e-4);
@@ -166,6 +174,7 @@ fn bronze_requires_both_metals_and_wears_into_its_own_scrap() {
     }
     g.advance_history(12).unwrap();
     let h = g.civilizations.as_ref().unwrap();
+    assert!(h.sites.iter().all(|s| s.economy.finance[2..] == [0., 0.]));
     assert_eq!(h.sites[0].economy.made[40], 0.);
     assert_eq!(h.sites[0].economy.made[41], 0.);
     assert!(h.sites[0].economy.made[43] > 0.);
