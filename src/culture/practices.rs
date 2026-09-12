@@ -32,17 +32,7 @@ impl Culture {
         if site == destination || h.sites[destination as usize].abandoned {
             return false;
         }
-        let km = h
-            .society
-            .as_ref()
-            .and_then(|s| {
-                s.routes.iter().find(|r| {
-                    r.passable()
-                        && ((r.from == site && r.to == destination)
-                            || (r.to == site && r.from == destination))
-                })
-            })
-            .map(|r| r.cost_km);
+        let km = crate::heritage_renown::visit_distance(h, site, destination);
         let Some(km) = km else {
             return false;
         };
@@ -1638,7 +1628,16 @@ mod tests {
         assert_eq!(h.sites[site as usize].stocks.stock[1], food_before);
         assert_eq!(h.sites[site as usize].economy.goods[7], offerings_before);
         h.society.as_mut().unwrap().routes[route.id as usize].flood_months = 0;
+        // A long first route must not hide the affordable parallel caravan path.
+        let routes = &mut h.society.as_mut().unwrap().routes;
+        routes[route.id as usize].cost_km = 1800.;
+        let mut alternative = route.clone();
+        alternative.id = routes.len() as u32;
+        routes.push(alternative);
         assert!(c.pilgrimage(h, site, actor, 1.));
+        let routes = &mut h.society.as_mut().unwrap().routes;
+        routes.pop();
+        routes[route.id as usize].cost_km = route.cost_km;
         assert!(!c.agents[actor as usize].knowledge.contains(&11));
         assert!(c.agents[actor as usize].studies[&11].progress > 0.);
         assert!(c.agents[actor as usize].studies[&11].source.is_some());

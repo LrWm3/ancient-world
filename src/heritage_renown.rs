@@ -96,6 +96,20 @@ fn hosts(a: &crate::culture::Artifact, n: &crate::culture::Institution, present:
         }
 }
 
+/// Shared direct-caravan quote for destination selection and actual visitor work.
+pub(crate) fn visit_distance(h: &History, from: u32, to: u32) -> Option<f32> {
+    h.society
+        .as_ref()?
+        .routes
+        .iter()
+        .filter(|r| {
+            r.passable() && ((r.from == from && r.to == to) || (r.to == from && r.from == to))
+        })
+        .map(|r| r.cost_km)
+        .filter(|km| km.is_finite() && *km >= 0.)
+        .min_by(f32::total_cmp)
+}
+
 /// Visitors require actual accessible custody and maintained scholarly/religious space.
 pub fn destination(
     c: &Culture,
@@ -119,12 +133,8 @@ pub fn destination(
             {
                 return None;
             }
-            let route = h.society.as_ref()?.routes.iter().find(|q| {
-                q.passable()
-                    && ((q.from == observer && q.to == site)
-                        || (q.to == observer && q.from == site))
-            })?;
-            if route.cost_km * 2. / 1200. > work.min(1.) {
+            let km = visit_distance(h, observer, site)?;
+            if km * 2. / 1200. > work.min(1.) {
                 return None;
             }
             Some((r, site))

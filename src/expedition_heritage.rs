@@ -1134,6 +1134,21 @@ mod tests {
             crate::heritage_renown::destination(&c, h, middle, 0, 1.),
             Some((site, artifact))
         );
+        let mut alternative = h.society.as_ref().unwrap().routes[0].clone();
+        alternative.id = 2;
+        h.society.as_mut().unwrap().routes[0].cost_km = 1800.;
+        h.society.as_mut().unwrap().routes.push(alternative);
+        assert_eq!(
+            crate::heritage_renown::destination(&c, h, middle, 0, 1.),
+            Some((site, artifact))
+        );
+        h.society.as_mut().unwrap().routes[2].flood_months = 1;
+        assert_eq!(
+            crate::heritage_renown::destination(&c, h, middle, 0, 1.),
+            None
+        );
+        h.society.as_mut().unwrap().routes.pop();
+        h.society.as_mut().unwrap().routes[0].cost_km = 100.;
         // Nearby space alone does not expose private or foreign institutional objects.
         let host = c.institutions.last().unwrap().id;
         let unrelated = h

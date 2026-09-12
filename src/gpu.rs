@@ -552,6 +552,8 @@ impl Generator {
     /// Relax connected water through actual neighboring saddles, with conservative
     /// area-weighted transfers. Never shares water across a dry internal ridge.
     pub fn equilibrate_lakes(&mut self) -> Result<()> {
+        // Public runtime settings must be valid before invalidating caches or dispatching.
+        self.config.validate()?;
         self.history_environment = None;
         self.navigation = None;
         let start = Instant::now();

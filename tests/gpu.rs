@@ -587,6 +587,19 @@ fn lake_budget_failure_preserves_water_and_can_be_resumed() {
     };
     let initial = volume(&cells);
     g.restore_cells(&cells, 0).unwrap();
+    let opening_progress = serde_json::to_value(&g.progress).unwrap();
+    for (limit, poll) in [(17, 16), (16, 0)] {
+        g.config.max_lake_iterations = limit;
+        g.config.lake_poll_passes = poll;
+        assert!(g.equilibrate_lakes().is_err());
+        assert_eq!(serde_json::to_value(&g.progress).unwrap(), opening_progress);
+        let unchanged = g.snapshot().unwrap();
+        assert_eq!(
+            bytemuck::cast_slice::<Cell, u8>(&unchanged),
+            bytemuck::cast_slice::<Cell, u8>(&cells)
+        );
+    }
+    g.config.lake_poll_passes = 16;
     g.config.max_lake_iterations = 16;
     assert!(g
         .equilibrate_lakes()
