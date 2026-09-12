@@ -337,8 +337,8 @@ impl History {
                 .collect(),
             ..Default::default()
         };
-        for person in &self.people {
-            match self.person_presence(person.id).1 {
+        for (person, (_, presence)) in self.people.iter().zip(self.person_presences()) {
+            match presence {
                 Presence::Dead => result.dead += 1,
                 Presence::Expedition(_) => result.expedition += 1,
                 Presence::Military(_) => result.military += 1,

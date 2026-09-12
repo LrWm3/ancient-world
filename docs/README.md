@@ -138,6 +138,7 @@ These remain available for reproducibility. They are not unfinished design tasks
 - [GPU surveys, routes and history readback](gpu-navigation.md)
 - [Intermediate-town freight reservations](intermediate-freight.md)
 - [Measured GPU performance](benchmarks.md)
+- [Mature history performance profile](history-performance-profile.md)
 - [Demand-driven economy evaluation](demand-economy-results.md)
 - [Expedition specimen evaluation](discovery-results.md)
 - [Expedition v1 evaluation](expedition-results.md)

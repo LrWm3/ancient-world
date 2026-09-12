@@ -461,16 +461,14 @@ impl History {
         }
         let mut people = vec![Vec::new(); self.sites.len()];
         let mut known = vec![[0u32; 3]; self.sites.len()];
-        for p in self
-            .people
-            .iter()
-            .filter(|_| self.individual_demography_enabled())
-        {
-            if let Presence::Resident(site) = self.person_presence(p.id).1 {
-                let band = age_band(self.month.saturating_sub(1), p.born)
-                    .ok_or_else(|| anyhow::anyhow!("unsettled new resident birthday"))?;
-                people[site as usize].push((p.id, band));
-                known[site as usize][band] += 1;
+        if self.individual_demography_enabled() {
+            for (p, (_, presence)) in self.people.iter().zip(self.person_presences()) {
+                if let Presence::Resident(site) = presence {
+                    let band = age_band(self.month.saturating_sub(1), p.born)
+                        .ok_or_else(|| anyhow::anyhow!("unsettled new resident birthday"))?;
+                    people[site as usize].push((p.id, band));
+                    known[site as usize][band] += 1;
+                }
             }
         }
         let mut anonymous = Vec::new();

@@ -108,7 +108,11 @@ fn need(age: i32, disease: f32) -> f64 {
 }
 
 fn capacity(h: &History, person: u32, site: u32) -> f32 {
-    if h.person_presence(person).1 == Presence::Resident(site)
+    capacity_with_presence(h, person, site, h.person_presence(person).1)
+}
+
+fn capacity_with_presence(h: &History, person: u32, site: u32, presence: Presence) -> f32 {
+    if presence == Presence::Resident(site)
         && (180..720).contains(&(h.month as i32 - h.people[person as usize].born))
     {
         0.8 * (1. - 0.5 * h.sites[site as usize].demography.health[0].clamp(0., 0.5))
@@ -152,9 +156,9 @@ impl History {
         let homes: BTreeMap<_, _> = self
             .people
             .iter()
-            .filter(|p| p.died.is_none())
-            .filter_map(|p| {
-                let (account, presence) = self.person_presence(p.id);
+            .zip(self.person_presences())
+            .filter(|(p, _)| p.died.is_none())
+            .filter_map(|(p, (account, presence))| {
                 let home = account
                     .and_then(|id| {
                         self.society
@@ -329,6 +333,30 @@ impl History {
                     .sum()
             })
     }
+    /// Ordered reduction for participation opening; the scalar query stays live
+    /// for individual decisions made after this boundary.
+    pub(crate) fn domestic_care_totals(&self) -> Vec<f32> {
+        let mut totals = vec![0.; self.people.len()];
+        if let Some(c) = self
+            .domestic
+            .as_ref()
+            .filter(|d| d.enabled)
+            .and_then(|d| d.care.as_ref())
+            .filter(|c| c.receipt.month == self.month)
+        {
+            // Iterator::sum for floats starts at -0.0. Preserve even empty
+            // reductions byte-for-byte with domestic_care_for.
+            totals.fill(-0.0);
+            for row in &c.rows {
+                for &(person, work) in &row.carers {
+                    if let Some(total) = totals.get_mut(person as usize) {
+                        *total += work;
+                    }
+                }
+            }
+        }
+        totals
+    }
     /// A proposed departure must leave enough present caregivers, not just an ownership head.
     pub(crate) fn domestic_departure_allowed(&self, person: u32, leaving: &[u32]) -> bool {
         let Some(d) = self.domestic.as_ref().filter(|d| d.enabled) else {
@@ -383,12 +411,14 @@ impl History {
             .as_ref()
             .is_none_or(|c| c.receipt.month != self.month)
         {
+            // No presence-affecting mutations occur while constructing these rows.
+            let presences = self.person_presences();
             let mut rows = vec![];
             for unit in d.units.iter().filter(|u| u.ended.is_none()) {
                 let demand: f64 = unit
                     .members
                     .iter()
-                    .filter(|p| self.person_presence(**p).1 == Presence::Resident(unit.home))
+                    .filter(|p| presences[**p as usize].1 == Presence::Resident(unit.home))
                     .map(|p| {
                         need(
                             self.month as i32 - self.people[*p as usize].born,
@@ -403,7 +433,8 @@ impl History {
                     .members
                     .iter()
                     .filter_map(|p| {
-                        let cap = capacity(self, *p, unit.home);
+                        let cap =
+                            capacity_with_presence(self, *p, unit.home, presences[*p as usize].1);
                         (cap > 0.).then_some((*p, cap))
                     })
                     .collect();

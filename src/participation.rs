@@ -185,6 +185,16 @@ impl Participation {
             self.month.is_none_or(|m| m <= h.month),
             "future participation month"
         );
+        // Preserve each person's addition order while avoiding a scan of every
+        // commitment for every resident. Invalid IDs are rejected below.
+        let mut committed_totals = vec![0.0_f32; h.people.len()];
+        for c in &self.commitments {
+            for &(id, amount) in &c.people {
+                if let Some(total) = committed_totals.get_mut(id as usize) {
+                    *total += amount;
+                }
+            }
+        }
         for (&id, p) in &self.residents {
             ensure!(
                 id == p.person
@@ -212,13 +222,7 @@ impl Participation {
                         .all(|v| v.is_finite() && (0. ..=1.).contains(v)),
                 "invalid resident participation"
             );
-            let committed: f32 = self
-                .commitments
-                .iter()
-                .flat_map(|c| &c.people)
-                .filter(|(who, _)| *who == id)
-                .map(|(_, v)| v)
-                .sum();
+            let committed = committed_totals[id as usize];
             ensure!(
                 (committed - p.committed).abs() < 1e-4,
                 "personal commitment ledger mismatch"
@@ -247,9 +251,6 @@ impl Participation {
 impl History {
     /// Sparse known membership only: Unknown is preferable to inventing a residence.
     pub fn person_presence(&self, person: u32) -> (Option<u32>, Presence) {
-        let Some(p) = self.people.get(person as usize) else {
-            return (None, Presence::Unknown);
-        };
         let household = self
             .society
             .as_ref()
@@ -267,6 +268,47 @@ impl History {
                         .map(|k| k.household)
                 })
             });
+        self.person_presence_in_household(person, household)
+    }
+
+    /// A fresh, call-local membership index for immutable bulk observations.
+    /// Heads take precedence over kin; first matches retain the scalar query's
+    /// semantics. Never carry this index across mutations or schedule phases.
+    pub(crate) fn person_presences(&self) -> Vec<(Option<u32>, Presence)> {
+        let mut households = vec![None; self.people.len()];
+        if let Some(society) = &self.society {
+            for hh in &society.households {
+                if let Some(slot) = households.get_mut(hh.head as usize) {
+                    slot.get_or_insert(hh.id);
+                }
+            }
+        }
+        if let Some(politics) = &self.politics {
+            for kin in &politics.kin {
+                if let Some(slot) = households.get_mut(kin.person as usize) {
+                    slot.get_or_insert(kin.household);
+                }
+            }
+        }
+        self.people
+            .iter()
+            .map(|p| {
+                self.person_presence_in_household(
+                    p.id,
+                    households.get(p.id as usize).copied().flatten(),
+                )
+            })
+            .collect()
+    }
+
+    fn person_presence_in_household(
+        &self,
+        person: u32,
+        household: Option<u32>,
+    ) -> (Option<u32>, Presence) {
+        let Some(p) = self.people.get(person as usize) else {
+            return (None, Presence::Unknown);
+        };
         if p.died.is_some() {
             return (household, Presence::Dead);
         }
@@ -324,8 +366,8 @@ impl History {
         }
         state.month = Some(self.month);
         state.commitments.clear();
-        for p in &self.people {
-            let (household, presence) = self.person_presence(p.id);
+        let care_totals = self.domestic_care_totals();
+        for (p, (household, presence)) in self.people.iter().zip(self.person_presences()) {
             let capacity = match presence {
                 Presence::Resident(site) if (180..720).contains(&(self.month as i32 - p.born)) => {
                     0.8 * (1. - 0.5 * self.sites[site as usize].demography.health[0].clamp(0., 0.5))
@@ -333,7 +375,7 @@ impl History {
                 }
                 _ => 0.,
             };
-            let care = self.domestic_care_for(p.id).min(capacity);
+            let care = care_totals[p.id as usize].min(capacity);
             let capacity = (capacity - care).max(0.);
             let entry = state.residents.entry(p.id).or_insert(Resident {
                 person: p.id,
@@ -688,6 +730,165 @@ mod tests {
             serde_json::to_value(q).unwrap()
         );
     }
+    fn assert_bulk_presence(h: &History) {
+        assert_eq!(
+            h.person_presences(),
+            h.people
+                .iter()
+                .map(|p| h.person_presence(p.id))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn bulk_presence_preserves_precedence_and_refreshes_after_movement() {
+        use crate::{
+            catalog::Catalog,
+            config::Config,
+            gpu::{ContextGpu, Generator},
+        };
+        let mut g = Generator::new(
+            pollster::block_on(ContextGpu::headless()).unwrap(),
+            Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                seed: 17,
+                ..Default::default()
+            },
+            Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        g.enable_society().unwrap();
+        g.enable_politics().unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        h.identify_resident_baseline().unwrap();
+        h.set_domestic_households(true).unwrap();
+        h.reserve_domestic_care();
+        assert_eq!(
+            h.domestic_care_totals()
+                .iter()
+                .map(|v| v.to_bits())
+                .collect::<Vec<_>>(),
+            h.people
+                .iter()
+                .map(|p| h.domestic_care_for(p.id).to_bits())
+                .collect::<Vec<_>>()
+        );
+        assert_bulk_presence(h);
+        let hh = h.society.as_ref().unwrap().households[0].clone();
+        let person = hh.head;
+        // A contradictory kin record must not override a head's household.
+        h.politics.as_mut().unwrap().kin.insert(
+            0,
+            crate::politics::Kinship {
+                person,
+                household: 1,
+                parents: [None; 2],
+            },
+        );
+        assert_eq!(h.person_presence(person).0, Some(hh.id));
+        assert_bulk_presence(h);
+        h.military.duties.insert(
+            person,
+            crate::military::Duty {
+                army: 0,
+                origin: hh.site,
+                household: Some(hh.id),
+                started: 0,
+            },
+        );
+        assert_bulk_presence(h);
+        h.person_duties.insert(
+            person,
+            TravelDuty {
+                voyage: 0,
+                origin: hh.site,
+                household: Some(hh.id),
+            },
+        );
+        assert_eq!(
+            h.person_presences()[person as usize].1,
+            Presence::Expedition(0)
+        );
+        h.people[person as usize].died = Some(h.month);
+        assert_bulk_presence(h);
+        assert_eq!(h.person_presences()[person as usize].1, Presence::Dead);
+        h.people[person as usize].died = None;
+        h.person_duties.clear();
+        h.military.duties.clear();
+        h.society
+            .as_mut()
+            .unwrap()
+            .relocation
+            .journeys
+            .push(crate::relocation::Journey {
+                roster: Some(Default::default()),
+                household: hh.id,
+                from: hh.site,
+                to: 1,
+                route: 0,
+                departed: 0,
+                arrives: 1,
+                cohorts: [0.; 3],
+                food: 0.,
+                cash: 0.,
+                tools: 0.,
+                cause: 0,
+                blocked: false,
+                returning: false,
+                seek_help: false,
+                report_population: 0.,
+                report_food_months: None,
+            });
+        // Empty partial roster leaves the head home; adding him makes him travel.
+        assert_eq!(
+            h.person_presences()[person as usize].1,
+            Presence::Resident(hh.site)
+        );
+        assert_bulk_presence(h);
+        h.society.as_mut().unwrap().relocation.journeys[0]
+            .roster
+            .as_mut()
+            .unwrap()
+            .passengers
+            .push(crate::relocation::Passenger { person, band: 1 });
+        assert_eq!(
+            h.person_presences()[person as usize].1,
+            Presence::Traveling(hh.id)
+        );
+        assert_bulk_presence(h);
+        h.society.as_mut().unwrap().relocation.journeys.clear();
+        h.society
+            .as_mut()
+            .unwrap()
+            .relocation
+            .lost_households
+            .insert(hh.id);
+        assert_bulk_presence(h);
+        assert_eq!(h.person_presences()[person as usize].1, Presence::Unknown);
+        h.society
+            .as_mut()
+            .unwrap()
+            .relocation
+            .lost_households
+            .clear();
+        h.society.as_mut().unwrap().households[0].site = 1;
+        assert_bulk_presence(h);
+        assert_eq!(
+            h.person_presences()[person as usize].1,
+            Presence::Resident(1)
+        );
+        h.sites[1].abandoned = true;
+        assert_bulk_presence(h);
+        assert_eq!(h.person_presences()[person as usize].1, Presence::Unknown);
+        h.society = None;
+        h.politics = None;
+        assert_bulk_presence(h); // Civil leaders' fallback and unaffiliated people.
+        assert_eq!(h.person_presence(u32::MAX), (None, Presence::Unknown));
+    }
+
     #[test]
     #[ignore = "requires hardware GPU"]
     fn personal_absence_and_shared_work_change_actual_research() {
@@ -734,6 +935,17 @@ mod tests {
             .unwrap()
             .reserve(h.month, 0, Activity::Research, &[person], 0.6)
             .unwrap();
+        let audit = h.participation.as_ref().unwrap();
+        audit.validate(h).unwrap();
+        let mut broken = audit.clone();
+        broken.residents.get_mut(&person).unwrap().committed -= 0.1;
+        assert!(broken.validate(h).is_err());
+        let mut broken = audit.clone();
+        broken.commitments[id as usize].people[0].0 = u32::MAX;
+        assert!(broken.validate(h).is_err());
+        let mut broken = audit.clone();
+        broken.commitments[id as usize].people[0].1 = f32::NAN;
+        assert!(broken.validate(h).is_err());
         assert!(h.personal_grant_live(Some(id)) > 0.);
         h.people[person as usize].died = Some(12);
         assert_eq!(h.personal_grant_live(Some(id)), 0.);
