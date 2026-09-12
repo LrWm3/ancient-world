@@ -2335,6 +2335,7 @@ impl App {
                             for family in society.households.iter().filter(|f| f.site == site.id) {
                                 if let Some(a)=h.household_account(family.id) {
                                     ui.small(format!("{} wallet {:.1} · lifetime wages {:.1}, dividends {:.1}, relief {:.1}, food spending {:.1} · latest food: common {:.1} + bought {:.1} / need {:.1}",family.name,a.cash,a.wages,a.dividends,a.relief,a.food_spending,a.common_food,a.purchased_food,a.need));
+                                    ui.small(format!("Family support received {:.1} · given {:.1}", a.family_received, a.family_sent));
                                     if a.livelihood.is_some() {
                                         ui.small(format!("Latest wages by farming / forestry / mining / crafts: {:.1} / {:.1} / {:.1} / {:.1}", a.sector_wages[0], a.sector_wages[1], a.sector_wages[2], a.sector_wages[3]));
                                     }

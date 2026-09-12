@@ -120,3 +120,5 @@ pub mod heritage_renown;
 pub mod trade_contact;
 
 pub mod agriculture_participation;
+
+mod kin_support;

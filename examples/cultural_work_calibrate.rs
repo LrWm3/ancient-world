@@ -28,6 +28,9 @@ struct Args {
     /// Retain dated household food/income observations for distributional diagnosis.
     #[arg(long)]
     household_diagnostics: bool,
+    /// Local kin gifts from surplus household wallets, before council relief.
+    #[arg(long)]
+    family_support: bool,
     #[arg(long)]
     legacy_resident_payroll: bool,
     /// Ablate personal food exposure while retaining the same individual population.
@@ -206,6 +209,19 @@ fn main() -> Result<()> {
                 .as_mut()
                 .unwrap()
                 .common_share = share;
+        }
+        if args.family_support {
+            g.civilizations
+                .as_mut()
+                .unwrap()
+                .society
+                .as_mut()
+                .unwrap()
+                .household_economy
+                .as_mut()
+                .unwrap()
+                .family_support =
+                Some(ancient_world::household_economy::FamilySupportPolicy::default());
         }
         if let (Some(share), Some(target)) =
             (args.household_relief_share, args.household_relief_target)
@@ -564,6 +580,10 @@ fn main() -> Result<()> {
                 let society = h.society.as_ref().unwrap();
                 let accounts = &society.household_economy.as_ref().unwrap().accounts;
                 row["household_fiscal"] = json!({
+                    "family_recipient_households": accounts.iter().filter(|a| a.family_received>0.).count(),
+                    "family_donor_households": accounts.iter().filter(|a| a.family_sent>0.).count(),
+                    "cumulative_family_received": accounts.iter().map(|a| a.family_received).sum::<f64>(),
+                    "cumulative_family_sent": accounts.iter().map(|a| a.family_sent).sum::<f64>(),
                     "cumulative_relief": accounts.iter().map(|a| a.relief).sum::<f64>(),
                     "cumulative_wages": accounts.iter().map(|a| a.wages).sum::<f64>(),
                     "cumulative_food_spending": accounts.iter().map(|a| a.food_spending).sum::<f64>(),
@@ -592,6 +612,7 @@ fn main() -> Result<()> {
         }
         let mut report = json!({"institution_funding_fields":["requested","conditional_ceiling","paid"],"institution_funding_unit":"abstract currency","operating_institutions":args.operating_institutions,"institution_work_classes":["election","upkeep","administration"],"institution_work_fields":["requested","granted","used"],"institution_work_unit":"worker-months","rotating_institutions":args.rotating_institutions,"construction_refinement":args.construction_refinement,"extraction_refinement":args.extraction_refinement,"agriculture_refinement":args.agriculture_refinement,"household_diagnostics":args.household_diagnostics,"resident_payroll":!args.legacy_resident_payroll,"individual_nutrition":!args.no_individual_nutrition,"household_mortality":!args.no_individual_nutrition && !args.no_household_mortality,"common_share_override":args.common_share,"observation_interval_months":1,"mortality_diagnostic_rows":["age_band_exposure","household_exposure"],"mortality_age_bands":["child","adult","elder"],"production_sectors":["farming","forestry","mining","construction"],"production_work_fields":["requested","granted","completed"],"production_work_unit":"worker-months","food_fields":["need","available","funded","eaten","physical_gap","access_gap"],"crop_yield_scale":args.crop_yield_scale,"founding_access":!args.no_founding_access,"aggregate_resolution":args.aggregate_resolution,"compare_resolution":args.compare_resolution,"workshop_refinement":args.workshop_refinement,"individual_demography":args.individual_demography,"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows});
         report["institutional_students"] = json!(args.institutional_students);
+        report["family_support"] = json!(args.family_support);
         report["household_relief_share_override"] = json!(args.household_relief_share);
         report["household_relief_target_override"] = json!(args.household_relief_target);
         report["lesson_opportunity_fields"] = json!([

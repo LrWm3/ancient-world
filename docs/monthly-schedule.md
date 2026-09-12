@@ -397,3 +397,10 @@ capacity goes to the generic cultural team. Upkeep executes in the existing quar
 work inside total cultural completion; personal settlement subtracts that work
 from the generic team and settles each institution's own commitment. Released
 upkeep reservations expire rather than returning to already completed production.
+
+## Optional local family cash support
+
+[Family support](household-family-support.md) uses the existing Reserve retail
+window: capture resident kin links, credit payroll/dividends, allocate gifts from
+opening surplus wallets, then request council relief and set funded consumption.
+It does not move the monthly phases or settle transfers a second time in Respond.

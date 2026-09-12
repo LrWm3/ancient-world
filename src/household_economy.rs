@@ -2,7 +2,9 @@
 use crate::civilization::History;
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+mod family_support;
 mod nutrition;
+pub use family_support::{FamilyGift, FamilySupportPolicy};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct HouseholdAccount {
@@ -18,6 +20,10 @@ pub struct HouseholdAccount {
     /// Wages paid by employers this month; already included in cumulative wages.
     #[serde(default)]
     pub employer_income: f64,
+    #[serde(default)]
+    pub family_received: f64,
+    #[serde(default)]
+    pub family_sent: f64,
     pub cash: f64,
     pub wages: f64,
     #[serde(default)]
@@ -89,6 +95,13 @@ pub struct HouseholdEconomy {
     pub relief_share: f32,
     #[serde(default)]
     pub relief_target: f32,
+    /// Opt-in, local transfers of existing family wallets before council relief.
+    #[serde(default)]
+    pub family_support: Option<FamilySupportPolicy>,
+    #[serde(default)]
+    pub family_support_month: Option<u32>,
+    #[serde(default)]
+    pub family_gifts: Vec<FamilyGift>,
     pub accounts: Vec<HouseholdAccount>,
     #[serde(default)]
     pub access_episodes: Vec<[u32; 3]>,
@@ -111,6 +124,9 @@ impl HouseholdEconomy {
             dividend_share: 0.01,
             relief_share: 0.05,
             relief_target: 0.75,
+            family_support: None,
+            family_support_month: None,
+            family_gifts: vec![],
             accounts: vec![],
             access_episodes: vec![],
         }
@@ -152,6 +168,7 @@ impl HouseholdEconomy {
                 && self.access_episodes.iter().all(|v| v[2] <= 1),
             "invalid household access episodes"
         );
+        family_support::validate(self, h)?;
         for a in &self.accounts {
             ensure!(
                 a.livelihood.is_none_or(|weights| weights
@@ -163,6 +180,8 @@ impl HouseholdEconomy {
             );
             ensure!(
                 [
+                    a.family_received,
+                    a.family_sent,
                     a.capital_invested,
                     a.capital_returned,
                     a.employer_income,
@@ -189,7 +208,8 @@ impl HouseholdEconomy {
                 "invalid household food allocation"
             );
             ensure!(
-                (a.cash - a.wages - a.dividends - a.relief
+                (a.cash - a.wages - a.dividends - a.relief - a.family_received
+                    + a.family_sent
                     + a.food_spending
                     + a.estate_returned
                     + a.capital_invested
@@ -200,6 +220,8 @@ impl HouseholdEconomy {
                             + a.wages
                             + a.dividends
                             + a.relief
+                            + a.family_received
+                            + a.family_sent
                             + a.capital_invested
                             + a.capital_returned),
                 "household cash ledger does not reconcile"
@@ -304,6 +326,7 @@ impl History {
         let extraction_earnings = [self.production_earnings(1), self.production_earnings(2)];
         let building_earnings = self.production_earnings(3);
         let member_counts = self.household_food_members();
+        let family_links = family_support::links(self);
         let complete_roster = self.individual_demography_enabled();
         let controllers = (0..self.sites.len())
             .map(|i| self.controller(i as u32) as usize)
@@ -555,6 +578,7 @@ impl History {
                 price,
             });
         }
+        family_support::settle(e, &plans, &family_links, self.month);
         // Gather all requests before spending any council budget: town ordering does not
         // confer first access to relief. Only the gap below the policy target is eligible.
         let mut requests = vec![vec![]; society.councils.len()];
