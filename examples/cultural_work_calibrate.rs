@@ -750,6 +750,12 @@ fn main() -> Result<()> {
                 row["council_funding"] = json!(society.council_funding);
                 row["civic_petitions"] = json!(h.governance.as_ref().map(|g| &g.petitions));
                 row["administrations"] = json!(h.governance.as_ref().map(|g| &g.administrations));
+                row["active_site_ids"] = json!(h
+                    .sites
+                    .iter()
+                    .filter(|s| !s.abandoned)
+                    .map(|s| s.id)
+                    .collect::<Vec<_>>());
                 row["road_state"] = json!({
                     "routes": society.routes.len(),
                     "passable": society.routes.iter().filter(|r| r.passable()).count(),
