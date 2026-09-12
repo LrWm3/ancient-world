@@ -203,6 +203,24 @@ fn veteran_expertise(crew: &Crew, person: u32, role: &str) -> f32 {
     crew.expertise.unwrap_or(0.) * if crew.role == role { 1. } else { 0.5 }
 }
 
+// Only specialties with an established civilian skill counterpart transfer.
+// Other experience remains in the returned crew record, used by veteran_expertise.
+fn civilian_skill(role: &str) -> Option<usize> {
+    match role {
+        "engineer" => Some(3),
+        "navigator" => Some(1),
+        _ => None,
+    }
+}
+fn returned_practice(skills: &mut [f32; 4], crew: &Crew, field_months: u32) {
+    if !crew.alive || field_months == 0 {
+        return;
+    }
+    if let (Some(slot), Some(expertise)) = (civilian_skill(&crew.role), crew.expertise) {
+        skills[slot] = skills[slot].max(expertise);
+    }
+}
+
 // Eight-person local assignment: maximize total prepared competence without
 // recruiting extra people or assigning anyone twice. Sorted IDs break equal optima.
 fn assign_crew_roles(mut candidates: [(u32, [f32; 8]); 8]) -> [(u32, f32); 8] {
@@ -767,13 +785,17 @@ impl Expeditions {
             .map_or(0, |c| c.available_knowledge(h, origin));
         let assignments = assign_crew_roles(std::array::from_fn(|i| {
             let person = candidates[i];
-            let prior = h
-                .culture
-                .as_ref()
-                .and_then(|c| c.agents.get(person as usize))
-                .map_or(0., |a| a.skills[3] * 0.5);
             let expertise = std::array::from_fn(|slot| {
                 let role = CREW_ROLES[slot];
+                let prior = civilian_skill(role)
+                    .and_then(|slot| {
+                        h.culture
+                            .as_ref()?
+                            .agents
+                            .get(person as usize)
+                            .map(|a| a.skills[slot] * 0.5)
+                    })
+                    .unwrap_or(0.);
                 // Duplicate guard/porter slots use identical preparation. Randomness
                 // follows the person and specialty, not incoming roster order.
                 let role_key = CREW_ROLES.iter().position(|r| *r == role).unwrap() as u32;
@@ -1208,7 +1230,7 @@ impl History {
                             .as_mut()
                             .and_then(|c| c.agents.get_mut(person as usize))
                         {
-                            agent.skills[3] = agent.skills[3].max(crew.expertise.unwrap_or(0.));
+                            returned_practice(&mut agent.skills, crew, e.field_months);
                             if e.field_months > 0 {
                                 if let Some(&cell) = e.planned_cells.as_ref().and_then(|p| p.last())
                                 {
@@ -1436,6 +1458,42 @@ mod crew_tests {
         candidates.iter_mut().find(|c| c.0 == 0).unwrap().1[1] = 0.;
         let reduced = assign_crew_roles(candidates);
         assert!(reduced.iter().map(|c| c.1).sum::<f32>() < matched.iter().map(|c| c.1).sum());
+    }
+
+    #[test]
+    fn civilian_practice_requires_matching_specialty_and_completed_fieldwork() {
+        for role in CREW_ROLES {
+            let mut crew = Crew {
+                person: Some(17),
+                identified_from_cohort: false,
+                expertise: Some(0.8),
+                name: "Returner".into(),
+                role: role.into(),
+                alive: true,
+            };
+            let mut skills = [0.1; 4];
+            returned_practice(&mut skills, &crew, 0);
+            assert_eq!(skills, [0.1; 4], "recalled without fieldwork");
+            crew.alive = false;
+            returned_practice(&mut skills, &crew, 6);
+            assert_eq!(skills, [0.1; 4]);
+            crew.alive = true;
+            returned_practice(&mut skills, &crew, 6);
+            let expected = match role {
+                "engineer" => [0.1, 0.1, 0.1, 0.8],
+                "navigator" => [0.1, 0.8, 0.1, 0.1],
+                _ => [0.1; 4],
+            };
+            assert_eq!(
+                skills, expected,
+                "{role} cannot train unrelated civilian skills"
+            );
+            // All roles still retain their personal expedition specialty.
+            assert_eq!(veteran_expertise(&crew, 17, role), 0.8);
+            crew.expertise = None;
+            returned_practice(&mut skills, &crew, 6);
+            assert_eq!(skills, expected, "legacy rosters do not invent skill");
+        }
     }
 
     #[test]

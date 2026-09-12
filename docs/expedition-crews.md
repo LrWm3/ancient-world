@@ -77,8 +77,10 @@ are interchangeable. Preparation variation is keyed by person, month and special
 so merely reordering recruits cannot grant different abilities.
 
 A living member's competence in a returned voyage supplies their full prior score
-for the same specialty and half for another specialty. Recorded general expedition
-skill supplies half its score. The starting preparation rule still provides a floor;
+for the same specialty and half for another specialty. Civilian craftsmanship
+supplies half its score to engineering preparation; the existing survey/contact
+skill supplies half to navigation. Other roles do not inherit craftsmanship. The starting preparation rule still
+provides a floor;
 this is a toy transfer-of-experience rule, not evidence of professional training.
 Rescued members acquire returned-voyage evidence when their rescue voyage gets home.
 Legacy anonymous crews cannot provide experience to a newly named person.
@@ -211,3 +213,13 @@ These runs used the available Vulkan GPU. No new multi-seed balance or
 cross-hardware claims accompany this increment; the fifty-year table above belongs
 to the earlier competence implementation. Raw logs remain ignored under
 `output/expedition-assignment-*`.
+
+## Civilian practice on return
+
+Returning engineers can retain their field competence as craftsmanship and
+navigators as survey/contact skill, provided the voyage completed field work.
+Other specialties remain in the person's returned crew record for future
+recruitment; they no longer make guards, porters or naturalists into master
+craftworkers. A recall before fieldwork and legacy rosters without competence
+supply no civilian skill. This remains a coarse transfer rule, not training time
+accounting; existing archived skills are not retroactively reduced.
