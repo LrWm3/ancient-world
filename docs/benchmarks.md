@@ -1,8 +1,13 @@
 # Measured GPU performance
 
-For the current CPU-heavy living-history workload, see the
-[mature history perf/Nsight profile](history-performance-profile.md). The world-generation
-measurements below are historical and cover a different workload.
+Current measurements:
+
+- [Default-resolution generation profile](default-generation-performance.md)
+  (512 terrain / 256 ecology, including a second-epoch lake-convergence failure).
+- [Mature history perf/Nsight profile](history-performance-profile.md)
+  (small-grid CPU-heavy living history).
+
+The world-generation measurements below are historical and cover an older build.
 
 Measured 2026-09-06 on the 16 GB Quadro RTX 5000 with Max-Q Design, NVIDIA driver 595.84, Vulkan, Rust 1.89, optimized development build. Each run creates seed 42 and advances one geological epoch plus ten ecological years (120 months), with 256² ecology. Both columns use the refined terrain, geology, lake solver, nutrient recovery/excretion and catalog calibration. These historical timing runs preceded the stored-lake evaporation correction, true regional generation and the subsequent neighbor-based basin solver. They do not measure the current hydrology build. An isolated reference build restored the original transport, full-cell drainage, neighbor-only basin labeling and redundant aggregation; the comparison isolates these optimizations.
 
