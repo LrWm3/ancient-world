@@ -11,9 +11,13 @@ impl History {
             .as_ref()
             .map(|p| p.kin.iter().map(|k| (k.person, k.parents)).collect())
             .unwrap_or_default();
-        // Only households with no dependent-care demand supply volunteers in v1.
-        // Each helper offers to one household, retaining the unique-carer contract.
-        let occupied: BTreeSet<_> = rows.iter().map(|r| r.unit).collect();
+        // Protect family care first; only fully covered units may offer spare time.
+        // Freeze this eligibility before assistance so received help cannot be relayed.
+        let occupied: BTreeSet<_> = rows
+            .iter()
+            .filter(|r| r.need - r.granted > 1e-6)
+            .map(|r| r.unit)
+            .collect();
         let mut helpers: Vec<_> = domestic
             .units
             .iter()
@@ -40,7 +44,13 @@ impl History {
             })
             .collect();
         for (person, site) in helpers {
-            let cap = capacity(self, person, site);
+            let committed: f32 = rows
+                .iter()
+                .flat_map(|r| &r.carers)
+                .filter(|(p, _)| *p == person)
+                .map(|(_, w)| *w)
+                .sum();
+            let cap = (capacity(self, person, site) - committed).max(0.);
             if cap <= 0. {
                 continue;
             }

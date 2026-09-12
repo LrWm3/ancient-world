@@ -598,7 +598,7 @@ impl Domestic {
                 "incomplete care projections"
             );
             ensure!(c.receipt.month <= h.month, "future domestic care");
-            let mut carers = BTreeSet::new();
+            let mut carers: BTreeMap<u32, (u32, f64)> = BTreeMap::new();
             for r in &c.rows {
                 ensure!(
                     (r.unit as usize) < self.units.len()
@@ -612,13 +612,20 @@ impl Domestic {
                             < 1e-5,
                     "invalid care allocation"
                 );
+                let mut row_carers = BTreeSet::new();
                 for &(p, w) in &r.carers {
                     ensure!(
                         (p as usize) < h.people.len()
-                            && carers.insert(p)
+                            && row_carers.insert(p)
                             && w.is_finite()
                             && (0. ..=0.80001).contains(&w),
                         "invalid or duplicate caregiver"
+                    );
+                    let entry = carers.entry(p).or_insert((r.site, 0.));
+                    entry.1 += w as f64;
+                    ensure!(
+                        entry.0 == r.site && entry.1 <= 0.80001,
+                        "caregiver exceeds shared capacity or works across towns"
                     );
                 }
             }
@@ -722,6 +729,93 @@ mod tests {
         );
         assert_eq!(economy, serde_json::to_value(h.sites[0].economy).unwrap());
         assert_eq!(stocks, serde_json::to_value(h.sites[0].stocks).unwrap());
+        // Caring for one's own child need not prohibit helping an isolated neighbor.
+        let mut sharing = h.clone();
+        let neighbor = sharing.people.len() as u32;
+        let mut neighbor_person = sharing.people[child as usize].clone();
+        neighbor_person.id = neighbor;
+        sharing.people.push(neighbor_person);
+        sharing.politics.as_mut().unwrap().kin.push(Kinship {
+            person: neighbor,
+            household: account,
+            parents: [None, None],
+        });
+        for agent in &mut sharing.culture.as_mut().unwrap().agents {
+            agent.relations.clear();
+            agent.traits[1] = 0.;
+        }
+        sharing.culture.as_mut().unwrap().agents[a as usize].traits[1] = 1.;
+        sharing.culture.as_mut().unwrap().agents[a as usize]
+            .relations
+            .insert(neighbor, 1.);
+        sharing.sync_domestic();
+        let mut family_only = sharing.clone();
+        family_only.domestic.as_mut().unwrap().neighbor_help = false;
+        family_only.open_participation();
+        assert!((family_only.domestic_care_for(a) - 0.06).abs() < 1e-6);
+        let mut scarce_family = sharing.clone();
+        let free = crate::labor::available(&scarce_family.sites[0], true, false);
+        scarce_family.sites[0].economy.external[3] += free - 0.06;
+        scarce_family.open_participation();
+        let scarce_rows = &scarce_family
+            .domestic
+            .as_ref()
+            .unwrap()
+            .care
+            .as_ref()
+            .unwrap()
+            .rows;
+        assert!(scarce_rows.iter().find(|r| r.unit == unit).unwrap().granted < 0.07);
+        assert!(scarce_rows
+            .iter()
+            .filter(|r| r.unit != unit)
+            .all(|r| r.granted < 1e-6));
+        let mut resumed_sharing: History =
+            serde_json::from_value(serde_json::to_value(&sharing).unwrap()).unwrap();
+        sharing.open_participation();
+        resumed_sharing.open_participation();
+        assert!((sharing.domestic_care_for(a) - 0.16).abs() < 1e-6);
+        assert!(
+            (sharing.participation.as_ref().unwrap().residents[&a].capacity - 0.64).abs() < 1e-6
+        );
+        let plan = sharing.domestic.as_ref().unwrap().care.as_ref().unwrap();
+        assert!((plan.rows.iter().find(|r| r.unit == unit).unwrap().granted - 0.12).abs() < 1e-6);
+        assert!((plan.receipt.granted - 0.22).abs() < 1e-6);
+        sharing
+            .domestic
+            .as_ref()
+            .unwrap()
+            .validate(&sharing)
+            .unwrap();
+        let mut overbooked = sharing.domestic.clone().unwrap();
+        let overbooked_plan = overbooked.care.as_mut().unwrap();
+        overbooked_plan.projections.clear();
+        for row in &mut overbooked_plan.rows {
+            for (person, work) in &mut row.carers {
+                if *person == a {
+                    *work = 0.5;
+                }
+            }
+            row.granted = row.carers.iter().map(|(_, work)| *work as f64).sum();
+            row.need = row.granted;
+        }
+        overbooked_plan.receipt.requested = overbooked_plan.rows.iter().map(|r| r.need).sum();
+        overbooked_plan.receipt.granted = overbooked_plan.receipt.requested;
+        assert!(overbooked
+            .validate(&sharing)
+            .unwrap_err()
+            .to_string()
+            .contains("shared capacity"));
+        for world in [&mut sharing, &mut resumed_sharing] {
+            world.sites[0].economy.labor[3] = 0.22;
+            world.settle_domestic_care();
+            world.domestic.as_ref().unwrap().validate(world).unwrap();
+        }
+        assert_eq!(
+            serde_json::to_value(&sharing).unwrap(),
+            serde_json::to_value(&resumed_sharing).unwrap()
+        );
+        assert!((sharing.domestic.as_ref().unwrap().care_completed - 0.22).abs() < 1e-6);
         let mut exposed = h.clone();
         exposed.sites[0].demography.health[0] = 0.5;
         exposed.open_participation();
