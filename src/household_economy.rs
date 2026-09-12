@@ -70,6 +70,9 @@ impl FoundingAccess {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HouseholdEconomy {
+    /// Allow annual politics to propose new distribution shares. Disabling stops new proposals; already scheduled changes still activate.
+    #[serde(default = "nutrition_enabled")]
+    pub political_distribution: bool,
     /// Old archives can retain the previous distribution for matched controls.
     #[serde(default)]
     pub resident_payroll: bool,
@@ -113,6 +116,7 @@ fn nutrition_enabled() -> bool {
 impl HouseholdEconomy {
     pub fn new(month: u32) -> Self {
         Self {
+            political_distribution: true,
             resident_payroll: true,
             occupational_payroll: true,
             individual_nutrition: true,

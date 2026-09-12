@@ -10,6 +10,9 @@ use serde_json::json;
 use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 #[derive(Parser)]
 struct Args {
+    /// Keep initial distribution shares fixed while leaving elections and tax politics active.
+    #[arg(long)]
+    fixed_distribution: bool,
     /// Have institutions buy writing supplies for heritage interpretation.
     #[arg(long)]
     funded_heritage_study: bool,
@@ -214,6 +217,16 @@ fn main() -> Result<()> {
             .as_mut()
             .unwrap()
             .resident_payroll = !args.legacy_resident_payroll;
+        g.civilizations
+            .as_mut()
+            .unwrap()
+            .society
+            .as_mut()
+            .unwrap()
+            .household_economy
+            .as_mut()
+            .unwrap()
+            .political_distribution = !args.fixed_distribution;
         if let Some(share) = args.common_share {
             anyhow::ensure!(
                 share.is_finite() && (0. ..=1.).contains(&share),
@@ -608,6 +621,17 @@ fn main() -> Result<()> {
                     .filter_map(|s| s.funding.as_ref())
                     .collect();
                 row["heritage_study_funding"] = json!({"studies": heritage_funding.len(), "paid": heritage_funding.iter().map(|f| f.paid).sum::<f64>(), "writing_kg": heritage_funding.iter().map(|f| f.kg as f64).sum::<f64>()});
+                row["distribution_policies"] = json!(society.councils.iter().map(|c| json!({
+                    "civilization":c.civilization,
+                    "active":c.distribution.unwrap_or_else(|| ancient_world::household_economy::policy::DistributionPolicy::baseline(society.household_economy.as_ref().unwrap())),
+                    "pending":c.pending_distribution,
+                    "treasury":c.treasury,
+                })).collect::<Vec<_>>());
+                row["distribution_changes"] = json!(h
+                    .events
+                    .iter()
+                    .filter(|e| e.kind == "distribution_policy_effective")
+                    .count());
                 row["household_fiscal"] = json!({
                     "family_recipient_households": accounts.iter().filter(|a| a.family_received>0.).count(),
                     "family_donor_households": accounts.iter().filter(|a| a.family_sent>0.).count(),
@@ -644,6 +668,7 @@ fn main() -> Result<()> {
         report["institution_working_core"] = json!(args.institution_working_core);
         report["institutional_students"] = json!(args.institutional_students);
         report["family_support"] = json!(args.family_support);
+        report["political_distribution"] = json!(!args.fixed_distribution);
         report["household_relief_share_override"] = json!(args.household_relief_share);
         report["household_relief_target_override"] = json!(args.household_relief_target);
         report["lesson_opportunity_fields"] = json!([

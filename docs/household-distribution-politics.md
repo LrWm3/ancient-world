@@ -80,3 +80,18 @@ Verification run (2026-09-12, Quadro RTX 5000 / Vulkan):
   food deficits and eventual retail policies use the same political jurisdiction.
 
 No century-scale balance claim is made for this change.
+
+
+## Matched fixed-policy control
+
+Set `HouseholdEconomy.political_distribution = false` to stop new political
+distribution proposals without disabling elections, taxes, family support or
+retail. It defaults to true, including archives missing the field. Existing active
+policies remain in force and already scheduled changes still activate. For a
+fixed-initial-policy counterfactual, disable it before advancing history.
+
+The cultural evaluation runner exposes `--fixed-distribution` and records
+`political_distribution` in report metadata. Decadal samples retain each council's
+effective and pending shares, treasury and cumulative activation count. The
+control is serialized; the boundary fixture verifies that disabling proposals
+creates no decision or event.

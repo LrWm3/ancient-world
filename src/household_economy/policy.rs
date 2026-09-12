@@ -110,6 +110,9 @@ impl History {
         let Some(e) = &s.household_economy else {
             return;
         };
+        if !e.political_distribution {
+            return;
+        }
         let council = &s.councils[civ];
         if council.pending_distribution.is_some() || council.distribution_review == Some(self.month)
         {
@@ -251,6 +254,33 @@ mod tests {
             a.cash = 0.;
         }
         let old = h.clone();
+        let mut frozen = h.clone();
+        frozen
+            .society
+            .as_mut()
+            .unwrap()
+            .household_economy
+            .as_mut()
+            .unwrap()
+            .political_distribution = false;
+        frozen.propose_distribution(civ, 6);
+        assert!(frozen.society.as_ref().unwrap().councils[civ]
+            .pending_distribution
+            .is_none());
+        assert_eq!(frozen.events.len(), h.events.len());
+        let frozen: History =
+            serde_json::from_slice(&serde_json::to_vec(&frozen).unwrap()).unwrap();
+        assert!(
+            !frozen
+                .society
+                .as_ref()
+                .unwrap()
+                .household_economy
+                .as_ref()
+                .unwrap()
+                .political_distribution
+        );
+
         h.propose_distribution(civ, 6);
         assert!(h.society.as_ref().unwrap().councils[civ]
             .distribution
