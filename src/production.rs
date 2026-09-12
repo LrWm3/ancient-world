@@ -374,7 +374,8 @@ impl History {
                             continue;
                         }
                         let target = crate::facilities::demand(&n.kind, local);
-                        for (good, mass) in f.repair_order(e, n.treasury, 0.1) {
+                        // Procurement precedes the due fee; repair_budget then protects the next.
+                        for (good, mass) in f.repair_order(e, (n.treasury - 0.5).max(0.), 0.1) {
                             planner.request(good as usize, mass);
                         }
                         if f.remaining() == 0. && f.condition() >= 0.8 && target - f.planned() >= 2.

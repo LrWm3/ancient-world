@@ -216,3 +216,29 @@ and writing `output/institution-named-control-30.json`. Add
 python3 scripts/compare_food_access.py output/institution-named-control-30.json \
   output/institution-named-treatment-30.json --allow-difference named_institution_administration
 ```
+
+## Repair reserve enforcement
+
+Repairs now leave up to 0.5 currency in the institution's existing treasury for
+its next administration fee. This is a spending limit, not a second account or a
+guaranteed future donation. The currently due fee still executes first; a treasury
+below that fee can still be exhausted by administration. Room components and
+older brick foundations use the same remaining-cash rule.
+
+Procurement runs before the due fee, so it subtracts that expected fee before
+quoting against the shared repair budget. Repair execution reads actual remaining
+cash and available materials. Extra timber or bricks already in the town cannot
+expand the repair budget. Limited reserves can therefore trade slower building
+repair for one additional funded quarter. This does not solve low service-space
+coverage or recurring income shortages.
+
+The new surplus-stock test failed on the prior implementation (a 0.25 reserve was
+fully consumed), then passed with the cap. It covers opening repair balances 0,
+0.25, 0.5, 0.75 and 5, checks cash and embodied-material accounting, and exercises
+payment of the subsequent fee. A quarterly institution fixture also tests the
+older brick path, two paid quarters followed by depletion, and serialized
+continuation. The previous quote-only fixture remains as a supply-limited control.
+
+Verification for this increment: 117 regular library tests, seven institutional
+hardware tests, and the full frozen monthly/batched/checkpoint test (seeds 17, 81,
+256) pass. The surplus-material boundary test is included in the regular suite.

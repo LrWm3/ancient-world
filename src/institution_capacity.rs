@@ -343,13 +343,18 @@ impl crate::culture::Culture {
                             .min(0.1)
                             .min(work / replacement_work)
                             .min(h.sites[i].economy.goods[5] / embodied)
-                            .min((n.treasury / (embodied as f64 * price)) as f32);
+                            .min(
+                                (crate::facilities::repair_budget(n.treasury)
+                                    / (embodied as f64 * price))
+                                    as f32,
+                            );
                         // Debit exactly the representable stock withdrawal. The same mass of
                         // old brick leaves the foundation as waste; its embodied mass stays fixed.
                         let old = h.sites[i].economy.goods[5];
-                        let mut remaining =
-                            (old as f64 - improvement as f64 * embodied as f64).max(0.) as f32;
-                        if old as f64 - remaining as f64 > improvement as f64 * embodied as f64 {
+                        let wanted = (improvement as f64 * embodied as f64)
+                            .min(crate::facilities::repair_budget(n.treasury) / price);
+                        let mut remaining = (old as f64 - wanted).max(0.) as f32;
+                        if old as f64 - remaining as f64 > wanted {
                             remaining = f32::from_bits(remaining.to_bits() + 1).min(old);
                         }
                         let mass = old as f64 - remaining as f64;
@@ -748,6 +753,42 @@ mod tests {
         c.institutions[0].capacity.as_mut().unwrap().building = Some(MeetingPlace::new(artifact));
         h.sites[0].economy.goods[5] = 10.;
         h.sites[0].economy.goods[5] -= 2.;
+        // Surplus bricks must not turn the next fee into repair spending. Exercise the
+        // actual quarterly consumer, including a serialized boundary and eventual depletion.
+        {
+            let mut run = h.clone();
+            let mut culture = c.clone();
+            culture.institutions[0].treasury = 1.;
+            run.sites[0].economy.finance[0] = 1000.;
+            run.sites[0].economy.prices[5] = 2.;
+            run.sites[0].economy.soil[3] = 1.;
+            let paid_before = culture.institutions[0].capacity.as_ref().unwrap().paid;
+            let bricks = run.sites[0].economy.goods[5];
+            for quarter in 1..=3 {
+                run.month += 3;
+                culture.labor_budget.fill(0.5);
+                let mut resumed_run = run.clone();
+                let mut resumed: crate::culture::Culture =
+                    serde_json::from_slice(&serde_json::to_vec(&culture).unwrap()).unwrap();
+                culture.maintain_institutions(&mut run);
+                resumed.maintain_institutions(&mut resumed_run);
+                assert_eq!(
+                    serde_json::to_value(&culture).unwrap(),
+                    serde_json::to_value(&resumed).unwrap()
+                );
+                assert_eq!(
+                    serde_json::to_value(&run).unwrap(),
+                    serde_json::to_value(&resumed_run).unwrap()
+                );
+                let n = &culture.institutions[0];
+                assert_eq!(
+                    n.capacity.as_ref().unwrap().paid - paid_before,
+                    (quarter as f64 * 0.5).min(1.)
+                );
+                assert_eq!(n.treasury + run.sites[0].economy.finance[0] as f64, 1001.);
+                assert_eq!(run.sites[0].economy.goods[5], bricks);
+            }
+        }
         // Neglect damages the actual place even when its organizational memory survives.
         h.sites[0].economy.soil[3] = 1.;
         for _ in 0..10 {

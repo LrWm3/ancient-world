@@ -20,6 +20,19 @@ impl Component {
         (self.wear * (1. + 10. * disruption.clamp(0., 1.))).min(1.)
     }
 }
+/// Repair inputs are measured after the currently due administration fee.
+/// Keep one subsequent fee in the existing account; this is not a new cash stock.
+pub(crate) fn repair_budget(treasury: f64) -> f64 {
+    (treasury - 0.5).max(0.)
+}
+fn affordable_mass(cash: f64, price: f64) -> f32 {
+    let bound = cash / price;
+    let mut mass = bound as f32;
+    if mass as f64 > bound {
+        mass = f32::from_bits(mass.to_bits().saturating_sub(1));
+    }
+    mass
+}
 const INVESTMENT_QUARTERS: f64 = 80.;
 const WORK_VALUE: f64 = 20.;
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -214,9 +227,10 @@ impl Facility {
         }
     }
     /// Next quarter's bounded repairs, quoted against one shared cash/work allowance.
-    /// This requests supplies only; actual repairs still withdraw and pay at the boundary.
+    /// Treasury is after the currently due fee. This requests supplies only;
+    /// actual repairs still withdraw and pay at the boundary.
     pub fn repair_order(&self, e: &Economy, treasury: f64, work: f32) -> Vec<(u32, f32)> {
-        let mut cash = (treasury - 0.5).max(0.);
+        let mut cash = repair_budget(treasury);
         let mut labor = work.max(0.);
         let mut goods = std::collections::BTreeMap::new();
         for r in &self.rooms {
@@ -310,8 +324,12 @@ impl Facility {
                     .min(0.1)
                     .min(available / p.work)
                     .min(e.goods[g] / p.kg)
-                    .min((*treasury / (p.kg as f64 * price)) as f32);
-                let mass = take(e, g, p.kg * improvement);
+                    .min((repair_budget(*treasury) / (p.kg as f64 * price)) as f32);
+                let mass = take(
+                    e,
+                    g,
+                    (p.kg * improvement).min(affordable_mass(repair_budget(*treasury), price)),
+                );
                 let actual = mass / p.kg;
                 let payment = pay(e, treasury, mass as f64 * price);
                 spent += payment;
@@ -424,6 +442,43 @@ mod tests {
             let room = choose(&c, &e, 8., 10000.).unwrap();
             assert!(room.method.starts_with(wall_name), "{}", room.method);
             assert_eq!(room.components[1].good as usize, roof);
+        }
+    }
+    #[test]
+    fn surplus_stock_cannot_consume_next_administration_fee() {
+        let c = EconomyCatalog::bundled().unwrap();
+        for opening in [0., 0.25, 0.5, 0.75, 5.] {
+            let mut e = stocks();
+            let mut f = Facility::found(choose(&c, &e, 4., 1000.).unwrap(), &mut e);
+            for r in &mut f.rooms {
+                r.remaining_work = 0.;
+                for p in &mut r.components {
+                    p.condition = 0.5;
+                }
+            }
+            let embodied = f.embodied();
+            let before: f64 = e.goods.iter().map(|&v| v as f64).sum();
+            let money = e.finance[0] as f64 + opening;
+            let mut cash = opening;
+            let (_, mass, paid, _, expanded) = f.advance(&mut e, &c, &mut cash, 0.1, 4.);
+            assert!(
+                cash >= opening.min(0.5),
+                "opening={opening}, remaining={cash}"
+            );
+            assert_eq!(money, e.finance[0] as f64 + cash);
+            assert_eq!(paid, opening - cash);
+            assert!(!expanded);
+            assert_eq!(embodied, f.embodied());
+            assert!((before - e.goods.iter().map(|&v| v as f64).sum::<f64>() - mass).abs() < 1e-5);
+            if opening <= 0.5 {
+                assert_eq!(mass, 0.);
+            } else {
+                assert!(mass > 0.);
+            }
+            // Existing reserves can fund the following fee without any new income.
+            let fee = pay(&mut e, &mut cash, 0.5);
+            assert_eq!(fee, opening.min(0.5));
+            assert_eq!(money, e.finance[0] as f64 + cash);
         }
     }
     #[test]
