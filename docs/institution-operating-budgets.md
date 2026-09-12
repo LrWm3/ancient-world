@@ -328,3 +328,49 @@ frozen monthly/batched/checkpoint comparison passes on seeds 17, 81 and 256;
 seed 256 enables essential-first, named administration, operating funding and
 rotating within-class priority together. These checks establish implementation and
 continuation behavior; natural calibration is separate.
+
+## Essential-first: matched 30-year comparison
+
+Implementation `21b617e`, seeds 17/81, both arms using that executable and the same
+settings as the reserve comparison above. Only `--essential-institution-work`
+differs. Both processes complete and the metadata/completion checker passes. The
+refreshed full-upkeep-first runs reproduce all earlier per-seed fields exactly
+apart from elapsed time, verifying the default allocation refactor preserved those
+observed histories.
+
+| Seed / work policy | Population | Operational / active institutions | Funding collected | Fees paid | Repairs paid |
+|---|---:|---:|---:|---:|---:|
+| 17 / full upkeep first | 1,940 | 0 / 32 | 716.53 | 468.99 | 1,047.53 |
+| 17 / essential first | 1,918 | 6 / 31 | 2,432.18 | 1,266.50 | 1,710.26 |
+| 81 / full upkeep first | 2,011 | 0 / 32 | 792.76 | 456.52 | 1,135.24 |
+| 81 / essential first | 2,002 | 9 / 32 | 2,588.12 | 1,247.50 | 1,916.15 |
+
+Essential-first executes 1,834/1,835 and 1,793/1,794 positive-ceiling collections,
+versus 221/2,915 and 206/2,744 in the controls. It collects over 99.9% of cumulative
+ceilings and largely eliminates repeated unmet operating requests. Completed
+administration increases from 18.95/17.20 to 126.70/124.90 worker-months. Completed
+upkeep falls from 427.50/401.125 to 206.725/203.425, while both fee payments and
+repair expenditure increase. Actual institutional formation and membership also
+diverge, so lower cumulative work is not a fixed-organization efficiency estimate.
+
+This is the first tested allocation change in this series to leave operational
+institutions at year 30. It supports the narrow diagnosis that reserving repair
+work before collection can undermine the funding needed to use that work. It does
+not establish universal superiority: population declines slightly relative to the
+controls, food-access gaps worsen from 1.9967% → 2.0226% and 1.8860% → 1.9411%,
+and most institutions remain nonoperational. Keep the policy opt-in while reviewing
+service-space limits and evaluating longer held-out histories.
+
+All sixteen sites stay active. Maximum population residual is zero; maximum food
+partition residual is 2.67e-7; absolute terminal relative economy residual is at
+most 2.46e-6. Both arms ran on the Quadro RTX 5000, with portions overlapping;
+elapsed times are not a performance comparison.
+
+Reproduce the prior named-administration command with output
+`output/institution-essential-control-30.json`. Add `--essential-institution-work`
+for `output/institution-essential-treatment-30.json`, then compare:
+
+```sh
+python3 scripts/compare_food_access.py output/institution-essential-control-30.json \
+  output/institution-essential-treatment-30.json --allow-difference essential_institution_work
+```
