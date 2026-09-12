@@ -94,6 +94,8 @@ fn main() -> Result<()> {
             g.run_epochs(1)?;
             let before = g.ecology.wildlife_report(&gpu, &g.config)?;
             g.config.wildlife_open_barriers = open;
+            // Matched opening stocks; traits initialize on the first biological step.
+            g.config.wildlife_ecotypes = std::env::var("WILDLIFE_ECOTYPES").as_deref() == Ok("1");
             let start = std::time::Instant::now();
             let mut timings = std::collections::BTreeMap::<String, f64>::new();
             let mut trajectory = Vec::new();

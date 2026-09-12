@@ -66,8 +66,9 @@ pub const COMPARTMENTS: [&str; 26] = [
 #[repr(C)]
 #[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct EcoCell {
+    /// Pools 38–40: twelve thermal preferences, Celsius + 81; zero means uninitialized.
     /// Guilds 5–16: xyz are C/N/P, w is outer-associated founder ancestry fraction.
-    pub pools: [[f32; 4]; 38],
+    pub pools: [[f32; 4]; 41],
 }
 impl Default for EcoCell {
     fn default() -> Self {
@@ -75,6 +76,13 @@ impl Default for EcoCell {
     }
 }
 impl EcoCell {
+    pub fn wildlife_temperature(&self, guild: usize) -> Option<f32> {
+        if guild >= 12 || self.pools[guild + 5][0] <= 0. {
+            return None;
+        }
+        let value = self.pools[38 + guild / 4][guild % 4];
+        (value > 0.).then_some(value - 81.)
+    }
     pub fn inventory(&self) -> [f64; 3] {
         std::array::from_fn(|k| self.pools[..STOCKS].iter().map(|p| p[k] as f64).sum())
     }
@@ -341,7 +349,8 @@ impl Ecology {
             abundance: [
                 config.island_phosphorus_scale,
                 f32::from(catalog.producer_competition),
-                f32::from(config.wildlife_open_barriers),
+                (u32::from(config.wildlife_open_barriers)
+                    | (u32::from(config.wildlife_ecotypes) << 1)) as f32,
                 config.axial_tilt.to_radians(), // abundance.w: solar obliquity
             ],
             counts: catalog.counts(),
@@ -788,12 +797,19 @@ pub fn validate(cells: &[EcoCell]) -> Result<()> {
             "invalid ecological producer index at {i}"
         );
         ensure!(
-            c.pools[32..].iter().all(|p| p[..2]
+            c.pools[32..38].iter().all(|p| p[..2]
                 .iter()
                 .all(|id| *id >= 0. && *id <= 256. && id.fract() == 0.)
                 && (0. ..=1.).contains(&p[2])
                 && (p[3] == 0. || p[3] == 1.)),
             "invalid producer composition at {i}"
+        );
+        ensure!(
+            c.pools[38..41]
+                .iter()
+                .flatten()
+                .all(|t| *t == 0. || (1. ..=141.).contains(t)),
+            "invalid wildlife thermal preference at {i}"
         );
         ensure!(
             (0. ..=1.).contains(&c.pools[24][3]),
@@ -1060,7 +1076,7 @@ mod hotspot_tests {
     }
 }
 
-/// Neutral ancestry tracer, not a species count or an evolved trait.
+/// Regional guild stocks, neutral ancestry and optional thermal preferences.
 #[derive(Clone, Debug, Serialize)]
 pub struct WildlifeReport {
     pub baseline: u32,
@@ -1068,6 +1084,9 @@ pub struct WildlifeReport {
     /// Ocean, great lake, central land, outer land; kg carbon by guild.
     pub carbon_kg: [[f64; 12]; 4],
     pub outer_founder_fraction: [[f64; 12]; 4],
+    /// Carbon-weighted temperature preference and spatial SD; None without recorded traits.
+    pub thermal_mean_c: [[Option<f64>; 12]; 4],
+    pub thermal_sd_c: [[Option<f64>; 12]; 4],
     /// Area with >1e-10 kg C/m², divided by geographic region area.
     pub occupied_fraction: [[f64; 12]; 4],
     /// C/N/P in compartments 0–25, area-weighted with the same coarse region estimate.
@@ -1088,10 +1107,13 @@ impl Ecology {
             month: self.clock.month,
             carbon_kg: [[0.; 12]; 4],
             outer_founder_fraction: [[0.; 12]; 4],
+            thermal_mean_c: [[None; 12]; 4],
+            thermal_sd_c: [[None; 12]; 4],
             occupied_fraction: [[0.; 12]; 4],
             compartment_cnp_kg: [[[0.; 3]; 26]; 4],
         };
         let mut areas = [0.; 4];
+        let mut thermal = [[[0.; 3]; 12]; 4];
         for (c, raw) in cells
             .iter()
             .zip(bytes.chunks_exact(ENVIRONMENT_BYTES as usize))
@@ -1110,6 +1132,12 @@ impl Ecology {
                     // Region allocation is a coarse-cell estimate, not fine-scale occupancy.
                     let carbon = c.pools[k + 5][0] as f64 * a * fraction;
                     report.carbon_kg[r][k] += carbon;
+                    if let Some(t) = c.wildlife_temperature(k) {
+                        let t = f64::from(t);
+                        thermal[r][k][0] += carbon;
+                        thermal[r][k][1] += carbon * t;
+                        thermal[r][k][2] += carbon * t * t;
+                    }
                     report.outer_founder_fraction[r][k] += carbon * c.pools[k + 5][3] as f64;
                     if c.pools[k + 5][0] > 1e-10 {
                         report.occupied_fraction[r][k] += fraction * a;
@@ -1119,6 +1147,12 @@ impl Ecology {
         }
         for (r, area) in areas.iter().enumerate() {
             for k in 0..12 {
+                let [mass, first, second] = thermal[r][k];
+                if mass > 0. {
+                    let mean = first / mass;
+                    report.thermal_mean_c[r][k] = Some(mean);
+                    report.thermal_sd_c[r][k] = Some((second / mass - mean * mean).max(0.).sqrt());
+                }
                 report.outer_founder_fraction[r][k] /= report.carbon_kg[r][k].max(1e-30);
                 report.occupied_fraction[r][k] /= area.max(1.);
             }
@@ -1481,6 +1515,7 @@ mod wildlife_tests {
     #[ignore = "requires hardware GPU"]
     fn fine_edges_block_false_coastal_bridges_and_preserve_ancestry() {
         let mut g = fixture();
+        g.config.wildlife_ecotypes = true;
         g.run_epochs(1).unwrap();
         let mut terrain = g.snapshot().unwrap();
         for c in &mut terrain {
@@ -1515,6 +1550,7 @@ mod wildlife_tests {
             c.pools[1] = [1., 0.12, 0.015, 0.];
         }
         cells[i].pools[5] = [1., 0.12, 0.015, 1.];
+        cells[i].pools[38][0] = 81.;
         g.restore_ecology(&cells).unwrap();
         dispatch(&mut g, "transport");
         assert_eq!(
@@ -1544,10 +1580,12 @@ mod wildlife_tests {
         let arrived = g.ecology.snapshot(&g.gpu, &g.config).unwrap();
         assert!(arrived[j].pools[5][0] > 0.);
         assert_eq!(arrived[j].pools[5][3], 1.);
+        assert_eq!(arrived[j].wildlife_temperature(0), Some(0.));
         let b = g.ecology.budget(&g.gpu, &g.config).unwrap();
         assert!(b.relative_error.iter().all(|x| *x < 2e-6));
         // Equal source/destination carbon, different ancestry: analytical two-box mix.
         cells[j].pools[5] = [1., 0.12, 0.015, 0.];
+        cells[j].pools[38][0] = 111.;
         g.restore_ecology(&cells).unwrap();
         dispatch(&mut g, "transport");
         let mixed = g.ecology.snapshot(&g.gpu, &g.config).unwrap();
@@ -1563,5 +1601,110 @@ mod wildlife_tests {
         let flux = (1. / 12.) * 0.1 * (0.6 / (0.6 + 0.01));
         let expected = flux * ea.fields[3][0].min(eb.fields[3][0]) / eb.fields[3][0];
         assert!((mixed[j].pools[5][3] - expected).abs() < 1e-7);
+        assert!((mixed[j].wildlife_temperature(0).unwrap() - 30. * (1. - expected)).abs() < 2e-5);
+    }
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn thermal_ecotypes_constrain_feeding_and_persist() {
+        let mut g = fixture();
+        g.run_epochs(1).unwrap();
+        let count = g.config.eco_cells() as usize;
+        let mut env = Environment {
+            fields: [[0.; 4]; 25],
+        };
+        env.fields[0][1] = 1.;
+        env.fields[1] = [20., 1000., 1., 0.];
+        env.fields[3][0] = 1.;
+        let mut cell = EcoCell::default();
+        cell.pools[31] = [0., 0., 1., 0.];
+        cell.pools[13] = [1., 0.12, 0.015, 0.];
+        cell.pools[14] = [0.01, 0.0012, 0.00015, 0.];
+        cell.pools[40][0] = 101.;
+        g.config.solar_scale = 0.;
+        let mut outcomes = Vec::new();
+        for (enabled, encoded, food) in [
+            (false, 131., 1.),
+            (true, 101., 1.),
+            (true, 131., 1.),
+            (true, 131., 0.),
+        ] {
+            g.config.wildlife_ecotypes = enabled;
+            cell.pools[40][1] = encoded;
+            cell.pools[13][0] = food;
+            cell.pools[13][1] = food * 0.12;
+            cell.pools[13][2] = food * 0.015;
+            g.restore_ecology(&vec![cell; count]).unwrap();
+            g.gpu.queue.write_buffer(
+                &g.ecology.environment,
+                0,
+                bytemuck::cast_slice(&vec![env; count]),
+            );
+            dispatch(&mut g, "biology");
+            let after = g.ecology.snapshot(&g.gpu, &g.config).unwrap();
+            validate(&after).unwrap();
+            let c = after[0];
+            let available = food * (1. - 0.02 / 12.);
+            let traits = &g.catalog.guilds[9];
+            let effective = available * available * traits.diet[0].weight
+                / (available + traits.animal_prey_refuge);
+            let fit = if enabled && encoded == 131. { 0.2 } else { 1. };
+            let bite = 0.01 * traits.feeding / 12. * fit * effective
+                / (effective + traits.food_half_saturation);
+            let growth = bite * traits.assimilation;
+            let expected = (0.01 + growth) * (1. - traits.maintenance / 12.) * (1. - 0.02 / 12.);
+            assert!(
+                (c.pools[14][0] - expected).abs() < 1e-7,
+                "{} vs {expected}",
+                c.pools[14][0]
+            );
+            let expected_temperature = if enabled {
+                encoded + (101. - encoded) * 0.02 * growth / (0.01 + growth)
+            } else {
+                encoded
+            };
+            assert!((c.pools[40][1] - expected_temperature).abs() < 2e-5);
+            assert!(
+                g.ecology
+                    .budget(&g.gpu, &g.config)
+                    .unwrap()
+                    .within_tolerance
+            );
+            outcomes.push(c.pools[14][0]);
+        }
+        assert_eq!(outcomes[0], outcomes[1]);
+        assert!(outcomes[2] < outcomes[1]);
+        assert!(outcomes[3] < outcomes[2]);
+        // Traits are real checkpoint state, not reconstructed from current climate.
+        let path =
+            std::env::temp_dir().join(format!("thermal-ecotypes-{}.world", std::process::id()));
+        g.save(&path).unwrap();
+        let mut resumed = Generator::load(g.gpu.clone(), &path).unwrap();
+        std::fs::remove_file(&path).unwrap();
+        assert!(resumed.config.wildlife_ecotypes);
+        for _ in 0..3 {
+            g.advance_ecology().unwrap();
+            resumed.advance_ecology().unwrap();
+        }
+        assert_eq!(
+            bytemuck::cast_slice::<EcoCell, u8>(&g.ecology.snapshot(&g.gpu, &g.config).unwrap()),
+            bytemuck::cast_slice::<EcoCell, u8>(
+                &resumed.ecology.snapshot(&g.gpu, &g.config).unwrap()
+            )
+        );
+        g.scenario(None, Intervention::RemoveGuild(9)).unwrap();
+        assert!(g
+            .ecology
+            .snapshot(&g.gpu, &g.config)
+            .unwrap()
+            .iter()
+            .all(|c| c.pools[40][1] == 0.));
+        g.scenario(None, Intervention::RestoreGuild(9)).unwrap();
+        g.advance_ecology().unwrap();
+        assert!(g
+            .ecology
+            .snapshot(&g.gpu, &g.config)
+            .unwrap()
+            .iter()
+            .all(|c| c.pools[14][0] == 0. && c.pools[40][1] == 0.));
     }
 }

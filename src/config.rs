@@ -11,6 +11,8 @@ pub struct Config {
     pub ecology_years_per_epoch: u32,
     /// Diagnostic ablation: allow wildlife across all neighboring habitats.
     pub wildlife_open_barriers: bool,
+    /// Experimental inherited thermal preferences; aggregate guild identity is unchanged.
+    pub wildlife_ecotypes: bool,
     pub lake_mixing: f32,
     pub solar_scale: f32,
     #[serde(default = "legacy_unit_scale")]
@@ -38,6 +40,7 @@ impl Default for Config {
             ecology_resolution: 256,
             ecology_years_per_epoch: 10,
             wildlife_open_barriers: false,
+            wildlife_ecotypes: false,
             lake_mixing: 1.,
             solar_scale: 1.,
             island_phosphorus_scale: 0.25,

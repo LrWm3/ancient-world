@@ -72,7 +72,7 @@ Month values are absolute ecological time and must fall within the requested eco
 
 ## Archive format
 
-Current saves use version 7 with a 400-byte environment record containing conditional geological habitats, growth diagnostics and wildlife edge conductance. Versions 2–6 remain readable without resetting inventories. See [wildlife assembly](wildlife-assembly.md) for the new ancestry baseline. See [geochemical habitats](geochemical-habitats.md) for the current schema and calibration.
+Current saves use version 8 with a 656-byte ecological cell and a 400-byte environment record. The added ecological metadata supports the opt-in [thermal ecotype pilot](wildlife-thermal-ecotypes.md); environment records retain conditional geological habitats, growth diagnostics and wildlife edge conductance. Versions 2–7 remain readable without resetting inventories. See [wildlife assembly](wildlife-assembly.md) for the new ancestry baseline. See [geochemical habitats](geochemical-habitats.md) for the current schema and calibration.
 
 Version two uses `ANCIENT2`, an eight-byte little-endian metadata length, JSON metadata, terrain cells, ecological cells, environment cells, fine routed payloads, and an eight-byte FNV checksum. Field names, units, grid sizes, catalogs, both clocks, and scenario history are included. The inactive ping-pong buffers need not be saved; every pass writes its complete output. Checkpoint loading validates the payload before upload.
 

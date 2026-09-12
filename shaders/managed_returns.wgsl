@@ -1,4 +1,4 @@
-struct Eco {pools:array<vec4<f32>,38>}
+struct Eco {pools:array<vec4<f32>,41>}
 struct Transfer {ids:vec4<u32>,flow:vec4<f32>}
 @group(0) @binding(0) var<storage,read_write> river:array<vec4<f32>>;
 @group(0) @binding(1) var<storage,read_write> ecology:array<Eco>;

@@ -3083,6 +3083,14 @@ impl App {
                 ));
             }
             ui.small(format!("Layer biomass C: {:.3} / {:.3} / {:.3} / {:.3} / {:.3} · H₂ {:.4} kg/m² · reactive rock {:.1} kg/m²",e.pools[0][0],e.pools[1][0],e.pools[2][0],e.pools[3][0],e.pools[4][0],e.pools[26][0],e.pools[26][2]));
+            ui.collapsing("Wildlife thermal preferences (pilot)", |ui| {
+                for k in 0..12 {
+                    if let Some(t) = e.wildlife_temperature(k) {
+                        ui.small(format!("{}: {t:.1} °C", crate::ecology::GUILD_NAMES[k]));
+                    }
+                }
+                ui.small("Regional population traits; not named species or individual animals.");
+            });
             ui.collapsing("Wildlife origins", |ui| {
                 if self.generator.ecology.clock.wildlife_baseline == 0 {
                     ui.small("Legacy fauna: founder ancestry was not recorded.");

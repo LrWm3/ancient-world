@@ -131,3 +131,10 @@ within-cell habitat connectivity before claiming per-island endemism. Add specia
 diets and environmental tolerances before adaptation; keep geological energy entering
 animals through real producer/prey stocks. Formal species splitting comes after those
 mechanisms, not as random names applied to the neutral tracer.
+
+## Later increment
+
+The opt-in [thermal ecotype pilot](wildlife-thermal-ecotypes.md) adds persistent
+regional temperature preferences and growth-linked adjustment. This supersedes
+the absence of any persistent trait described above; it does not add species
+identities or genetic populations. Current archives use version 8.

@@ -12,7 +12,7 @@ struct Economy {
  soil:vec4<f32>, detritus:vec4<f32>, forest:vec4<f32>, reserves:vec4<f32>, exchange:vec4<f32>, baseline:vec4<f32>, water:vec4<f32>, finance:vec4<f32>, labor:vec4<f32>, claim:vec4<f32>, diagnostics:vec4<f32>, policy:vec4<f32>,
  fishery:vec4<f32>, fishery_plan:vec4<f32>, fishery_config:vec4<f32>, fishery_stats:vec4<f32>, fishery_traps:vec4<f32>, fishery_choice:vec4<f32>, waterworks_recovery:vec4<f32>,
 }
-struct Eco {pools:array<vec4<f32>,38>}
+struct Eco {pools:array<vec4<f32>,41>}
 struct Recipe {input:array<vec4<f32>,16>, output:array<vec4<f32>,16>, work:vec4<f32>}
 @group(0) @binding(5) var<storage,read_write> economies:array<Economy>;
 @group(0) @binding(6) var<storage,read_write> ecology:array<Eco>;

@@ -484,7 +484,7 @@ fn version_three_environment_upgrade_preserves_stocks_and_continuation() {
     let data = std::fs::read(&path).unwrap();
     let len = u64::from_le_bytes(data[8..16].try_into().unwrap()) as usize;
     let mut header: serde_json::Value = serde_json::from_slice(&data[16..16 + len]).unwrap();
-    assert_eq!(header["version"], 7);
+    assert_eq!(header["version"], 8);
     header["version"] = 3.into();
     let metadata = serde_json::to_vec(&header).unwrap();
     let terrain_bytes = g.config.cells() as usize * ancient_world::gpu::CELL_BYTES as usize;
@@ -781,80 +781,88 @@ fn aquatic_feeding_traits_validate_and_old_diets_default() {
 
 #[test]
 #[ignore = "requires hardware GPU"]
-fn version_six_environment_upgrade_preserves_stocks_and_continuation() {
-    let mut g = make(16, 8);
-    g.catalog.producer_competition = false;
-    // Old worlds had no column inventory. Keep that baseline throughout this fixture.
-    let mut initial = g.snapshot().unwrap();
-    for c in &mut initial {
-        c.strata = [0.; 4];
+fn version_six_and_seven_upgrade_preserves_stocks_and_continuation() {
+    for version in [6, 7] {
+        let mut g = make(16, 8);
+        g.catalog.producer_competition = false;
+        // Old worlds had no column inventory. Keep that baseline throughout this fixture.
+        let mut initial = g.snapshot().unwrap();
+        for c in &mut initial {
+            c.strata = [0.; 4];
+        }
+        g.restore_cells(&initial, 0).unwrap();
+        g.run_epochs(1).unwrap();
+        let path =
+            std::env::temp_dir().join(format!("ecology-v{version}-{}.world", std::process::id()));
+        g.save(&path).unwrap();
+        let data = std::fs::read(&path).unwrap();
+        let len = u64::from_le_bytes(data[8..16].try_into().unwrap()) as usize;
+        let mut header: serde_json::Value = serde_json::from_slice(&data[16..16 + len]).unwrap();
+        assert_eq!(header["version"], 8);
+        header["version"] = version.into();
+        header["config"]
+            .as_object_mut()
+            .unwrap()
+            .remove("wildlife_ecotypes");
+        header["ecology"]
+            .as_object_mut()
+            .unwrap()
+            .remove("wildlife_baseline");
+        let metadata = serde_json::to_vec(&header).unwrap();
+        let terrain_bytes = g.config.cells() as usize * ancient_world::gpu::CELL_BYTES as usize;
+        let prefix = terrain_bytes
+            + g.config.eco_cells() as usize * ancient_world::ecology::ECO_BYTES as usize;
+        let stride = ancient_world::ecology::ENVIRONMENT_BYTES as usize;
+        let env_end = 16 + len + prefix + g.config.eco_cells() as usize * stride;
+        let mut payload = vec![];
+        for c in data[16 + len..16 + len + terrain_bytes]
+            .chunks_exact(ancient_world::gpu::CELL_BYTES as usize)
+        {
+            payload.extend(c);
+        }
+        for cell in data[16 + len + terrain_bytes..16 + len + prefix]
+            .chunks_exact(ancient_world::ecology::ECO_BYTES as usize)
+        {
+            payload.extend(&cell[..608]);
+        }
+        for env in data[16 + len + prefix..env_end].chunks_exact(stride) {
+            payload.extend(&env[..if version == 6 { 352 } else { 400 }]);
+        }
+        payload.extend(&data[env_end..data.len() - 8]);
+        let checksum = metadata
+            .iter()
+            .chain(&payload)
+            .fold(0xcbf29ce484222325u64, |h, b| {
+                (h ^ *b as u64).wrapping_mul(0x100000001b3)
+            });
+        let mut old = b"ANCIENT2".to_vec();
+        old.extend((metadata.len() as u64).to_le_bytes());
+        old.extend(metadata);
+        old.extend(payload);
+        old.extend(checksum.to_le_bytes());
+        std::fs::write(&path, old).unwrap();
+        let mut loaded = Generator::load(g.gpu.clone(), &path).unwrap();
+        let exact = |a: &Generator, b: &Generator| {
+            assert_eq!(
+                bytemuck::cast_slice::<_, u8>(&a.ecology.snapshot(&a.gpu, &a.config).unwrap()),
+                bytemuck::cast_slice::<_, u8>(&b.ecology.snapshot(&b.gpu, &b.config).unwrap())
+            );
+            assert_eq!(
+                bytemuck::cast_slice::<_, u8>(&a.snapshot().unwrap()),
+                bytemuck::cast_slice::<_, u8>(&b.snapshot().unwrap())
+            );
+        };
+        exact(&g, &loaded);
+        assert_eq!(loaded.ecology.clock.wildlife_baseline, 0);
+        assert!(!loaded.config.wildlife_ecotypes);
+        for _ in 0..12 {
+            g.advance_ecology().unwrap();
+            loaded.advance_ecology().unwrap();
+        }
+        exact(&g, &loaded);
+        conserved(&loaded, 5e-5);
+        std::fs::remove_file(path).unwrap();
     }
-    g.restore_cells(&initial, 0).unwrap();
-    g.run_epochs(1).unwrap();
-    let path = std::env::temp_dir().join(format!("ecology-v6-{}.world", std::process::id()));
-    g.save(&path).unwrap();
-    let data = std::fs::read(&path).unwrap();
-    let len = u64::from_le_bytes(data[8..16].try_into().unwrap()) as usize;
-    let mut header: serde_json::Value = serde_json::from_slice(&data[16..16 + len]).unwrap();
-    assert_eq!(header["version"], 7);
-    header["version"] = 6.into();
-    header["ecology"]
-        .as_object_mut()
-        .unwrap()
-        .remove("wildlife_baseline");
-    let metadata = serde_json::to_vec(&header).unwrap();
-    let terrain_bytes = g.config.cells() as usize * ancient_world::gpu::CELL_BYTES as usize;
-    let prefix =
-        terrain_bytes + g.config.eco_cells() as usize * ancient_world::ecology::ECO_BYTES as usize;
-    let stride = ancient_world::ecology::ENVIRONMENT_BYTES as usize;
-    let env_end = 16 + len + prefix + g.config.eco_cells() as usize * stride;
-    let mut payload = vec![];
-    for c in data[16 + len..16 + len + terrain_bytes]
-        .chunks_exact(ancient_world::gpu::CELL_BYTES as usize)
-    {
-        payload.extend(c);
-    }
-    for cell in data[16 + len + terrain_bytes..16 + len + prefix]
-        .chunks_exact(ancient_world::ecology::ECO_BYTES as usize)
-    {
-        payload.extend(cell);
-    }
-    for env in data[16 + len + prefix..env_end].chunks_exact(stride) {
-        payload.extend(&env[..352]);
-    }
-    payload.extend(&data[env_end..data.len() - 8]);
-    let checksum = metadata
-        .iter()
-        .chain(&payload)
-        .fold(0xcbf29ce484222325u64, |h, b| {
-            (h ^ *b as u64).wrapping_mul(0x100000001b3)
-        });
-    let mut old = b"ANCIENT2".to_vec();
-    old.extend((metadata.len() as u64).to_le_bytes());
-    old.extend(metadata);
-    old.extend(payload);
-    old.extend(checksum.to_le_bytes());
-    std::fs::write(&path, old).unwrap();
-    let mut loaded = Generator::load(g.gpu.clone(), &path).unwrap();
-    let exact = |a: &Generator, b: &Generator| {
-        assert_eq!(
-            bytemuck::cast_slice::<_, u8>(&a.ecology.snapshot(&a.gpu, &a.config).unwrap()),
-            bytemuck::cast_slice::<_, u8>(&b.ecology.snapshot(&b.gpu, &b.config).unwrap())
-        );
-        assert_eq!(
-            bytemuck::cast_slice::<_, u8>(&a.snapshot().unwrap()),
-            bytemuck::cast_slice::<_, u8>(&b.snapshot().unwrap())
-        );
-    };
-    exact(&g, &loaded);
-    assert_eq!(loaded.ecology.clock.wildlife_baseline, 0);
-    for _ in 0..12 {
-        g.advance_ecology().unwrap();
-        loaded.advance_ecology().unwrap();
-    }
-    exact(&g, &loaded);
-    conserved(&loaded, 5e-5);
-    std::fs::remove_file(path).unwrap();
 }
 
 #[test]

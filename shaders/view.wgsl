@@ -4,7 +4,7 @@ struct Entry { a:vec4<f32>,b:vec4<f32>,c:vec4<f32>,d:vec4<f32>,ids:vec4<u32> }
 @group(0) @binding(1) var<storage,read> catalog:array<Entry>;
 @group(0) @binding(2) var<uniform> v:View;
 @group(0) @binding(3) var output:texture_storage_2d<rgba8unorm,write>;
-struct Eco { pools:array<vec4<f32>,38> }
+struct Eco { pools:array<vec4<f32>,41> }
 @group(0) @binding(4) var<storage,read> ecology:array<Eco>;
 const PI:f32=3.14159265359;
 fn index(d:vec3<f32>)->u32 {

@@ -72,10 +72,17 @@ impl Generator {
             .map(str::to_string),
         );
         ecological_fields.extend((0..6).map(|k| format!("producer composition {k}: first ID+1, second ID+1, first biomass fraction, initialized")));
+        ecological_fields.extend((0..3).map(|k| {
+            format!(
+                "wildlife thermal preferences {}–{}: Celsius + 81; zero uninitialized",
+                k * 4,
+                k * 4 + 3
+            )
+        }));
         let header=Header {
-            version:7,civilizations:self.civilizations.clone(),ecology:Some(self.ecology.clock.clone()),ecological_fields,
+            version:8,civilizations:self.civilizations.clone(),ecology:Some(self.ecology.clock.clone()),ecological_fields,
             planet:self.planet_state()?, config:self.config.clone(), catalog:self.catalog.clone(), progress:self.progress.clone(),
-            grid:"cube-sphere; faces +X,-X,+Y,-Y,+Z,-Z; row-major cells; payload: terrain[176 bytes/cell; final vec4: top/middle/basement thickness and cumulative removed bedrock in m], ecology[608 bytes/ecocell; final six vec4 are producer composition metadata], environment[400 bytes/ecocell; habitat fractions, conditional habitats, last-step diagnostics, wildlife edge conductance], routed C/N/P/water[16 bytes/cell, kg/kg/kg/m3]".into(),
+            grid:"cube-sphere; faces +X,-X,+Y,-Y,+Z,-Z; row-major cells; payload: terrain[176 bytes/cell; final vec4: top/middle/basement thickness and cumulative removed bedrock in m], ecology[656 bytes/ecocell; pools 32–37 producer composition; pools 38–40 wildlife thermal preferences], environment[400 bytes/ecocell; habitat fractions, conditional habitats, last-step diagnostics, wildlife edge conductance], routed C/N/P/water[16 bytes/cell, kg/kg/kg/m3]".into(),
             units:"terrain:m,m,m,Myr; climate:C,mm/year,mm,m/s; water:m,m,m,m3/s; life:fraction,fraction,g/kg,m/step; geology:stress,km,probability,m; hydro:spill_m,mean_C,mean_mm/year,net_m/step; budget:rain_m,evap_m,eroded_m,deposited_m; ecological stocks normalized by total cell area, with separate land/water compartments; source-rock fourth component records total local water inventory including routed water; civilization v2 managed C/N/P and goods in kg, water in m3, plots in m2, cash in abstract currency, recipe labor in worker-months".into(),
             rng:"counter hash(seed, cell, epoch, stream); ecological forcing keyed by month; no hidden mutable RNG".into()
         };
@@ -155,7 +162,7 @@ impl Generator {
             (if legacy {
                 header.version == 1
             } else {
-                (2..=7).contains(&header.version)
+                (2..=8).contains(&header.version)
             }) && header.progress.stage == Stage::Boundary,
             "unsupported or incomplete checkpoint"
         );
@@ -164,8 +171,10 @@ impl Generator {
         } else {
             160
         };
-        let eco_stride = if header.version >= 5 {
+        let eco_stride = if header.version >= 8 {
             crate::ecology::ECO_BYTES as usize
+        } else if header.version >= 5 {
+            608
         } else {
             512
         };
