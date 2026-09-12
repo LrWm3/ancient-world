@@ -374,3 +374,34 @@ for `output/institution-essential-treatment-30.json`, then compare:
 python3 scripts/compare_food_access.py output/institution-essential-control-30.json \
   output/institution-essential-treatment-30.json --allow-difference essential_institution_work
 ```
+
+## Held-out century evaluation in progress
+
+The same `21b617e` executable is evaluating seeds 409 and 1024 for 100 years with
+all settings from the 30-year policy comparison unchanged except seed list and
+history length. Both arms run concurrently; timings are not benchmarks. The
+reports are `output/institution-essential-heldout-control-100.json` and
+`output/institution-essential-heldout-treatment-100.json`.
+
+Seed 409 has reached its 100-year boundary in both arms. The ensemble remains
+incomplete while seed 1024 runs; do not treat these as the complete held-out result.
+
+| Seed 409 boundary | Full-upkeep-first population | Essential-first population | Operational institutions, control → treatment |
+|---|---:|---:|---|
+| Year 30 | 1,997 | 2,020 | 0 / 32 → 6 / 32 |
+| Year 60 | 1,873 | 1,833 | 0 / 32 → 23 / 32 |
+| Year 100 | 1,588 | 1,610 | 0 / 32 → 16 / 34 |
+
+At year 100, cumulative food-access gaps are 2.6133% → 2.5712%, and all sixteen
+sites remain active. Maximum population residual is zero. Maximum food partition
+residual is 1.10e-6 and the largest absolute terminal relative economic residual
+is 1.34e-5 across the two seed-409 histories. Essential-first retains operational
+institutions at this longer horizon but does not stabilize population, and its
+intermediate population advantage is not consistent across decades.
+
+After both processes finish, check complete ensembles and matched metadata with:
+
+```sh
+python3 scripts/compare_food_access.py output/institution-essential-heldout-control-100.json \\
+  output/institution-essential-heldout-treatment-100.json --allow-difference essential_institution_work
+```
