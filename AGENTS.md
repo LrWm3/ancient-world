@@ -91,8 +91,16 @@ reserving and later expiring a known-unusable partial grant needlessly starves
 other work. Execution still rechecks eligibility and the required grant.
 
 `Culture.institution_priority` is a second scoped allocation example: Stable or
-Rotating priority within election and upkeep requests. Dated plans capture the
+Rotating priority within election, upkeep and administration requests. Dated plans capture the
 policy and order; execution consumes their grants. Keep the same opening requests
 and total allowance when comparing policies. The controlled comparison in
 `docs/institution-allocation-balance.md` shows why equal turns do not by themselves
 guarantee viable outcomes under severe scarcity.
+
+`Culture.institution_work_policy` separates priority between institutional duties
+from member ordering within a duty. The opt-in `EssentialFirst` policy grants
+basic upkeep and named administration before adding repair time to the same
+upkeep member's commitment. It uses the original request and shared allowance;
+execution order is unchanged. See `WorkPlan::reserve_institution_work` and
+[institutional operating budgets](docs/institution-operating-budgets.md). Preserve
+minimum useful grants and live participant limits when extending this pattern.

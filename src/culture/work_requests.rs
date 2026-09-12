@@ -29,6 +29,8 @@ pub struct WorkPlan {
     /// Captured ordering policy; old plans do not invent an allocation history.
     #[serde(default)]
     pub institution_priority: Option<crate::institution_capacity::Priority>,
+    #[serde(default)]
+    pub institution_work_policy: Option<crate::institution_capacity::WorkPolicy>,
     /// Separate institutional teams; None preserves older/aggregate bundled plans.
     #[serde(default)]
     pub upkeep: Option<Vec<InstitutionWorkPlan>>,
@@ -62,7 +64,112 @@ pub struct WorkPlan {
     #[serde(default)]
     pub changed_identities: Vec<String>,
 }
+impl InstitutionWorkPlan {
+    // Reserve once, then optionally enlarge that same member's assignment in this window.
+    // Never move it to a different person or extend a completed/stale commitment.
+    fn reserve_up_to(
+        &mut self,
+        state: &mut crate::participation::Participation,
+        month: u32,
+        site: u32,
+        ceiling: f32,
+        available: &mut f32,
+    ) {
+        let wanted = (ceiling.min(self.requested) - self.granted)
+            .max(0.)
+            .min(*available);
+        if wanted <= 0. {
+            return;
+        }
+        let before = self.granted;
+        if let Some(id) = self.commitment {
+            let Some(c) = state.commitments.get(id as usize) else {
+                return;
+            };
+            if state.month != Some(month)
+                || c.month != month
+                || c.site != site
+                || c.settled
+                || c.used > 0.
+                || c.cancellation.is_some()
+                || c.activity != crate::participation::Activity::Culture
+                || c.people.len() != 1
+            {
+                return;
+            }
+            let person = c.people[0].0;
+            if !self.members.contains(&person)
+                || state
+                    .residents
+                    .get(&person)
+                    .is_none_or(|r| r.presence != crate::participation::Presence::Resident(site))
+            {
+                return;
+            }
+            let extra = wanted.min(state.available(person));
+            state.residents.get_mut(&person).unwrap().committed += extra;
+            let c = &mut state.commitments[id as usize];
+            c.people[0].1 += extra;
+            c.granted += extra;
+            self.granted = c.granted;
+        } else {
+            let member = self.members.iter().copied().max_by(|a, b| {
+                state
+                    .available(*a)
+                    .total_cmp(&state.available(*b))
+                    .then_with(|| b.cmp(a))
+            });
+            self.commitment = member.and_then(|id| {
+                if wanted.min(state.available(id)) < self.minimum {
+                    return None;
+                }
+                state.reserve(
+                    month,
+                    site,
+                    crate::participation::Activity::Culture,
+                    &[id],
+                    wanted,
+                )
+            });
+            self.granted = self
+                .commitment
+                .map_or(0., |id| state.commitments[id as usize].granted);
+        }
+        *available = (*available - (self.granted - before)).max(0.);
+    }
+}
 impl WorkPlan {
+    pub(crate) fn reserve_institution_work(
+        &mut self,
+        state: &mut crate::participation::Participation,
+        month: u32,
+        site: u32,
+        available: &mut f32,
+    ) -> f32 {
+        if self.month != month || self.site != site {
+            return 0.;
+        }
+        let essential = self.institution_work_policy
+            == Some(crate::institution_capacity::WorkPolicy::EssentialFirst)
+            && self.administration.is_some();
+        let elections = self.elections.as_ref().map_or(0, Vec::len);
+        let upkeep_end = elections + self.upkeep.as_ref().map_or(0, Vec::len);
+        for (index, p) in self.institution_work_mut().enumerate() {
+            let ceiling = if essential && (elections..upkeep_end).contains(&index) {
+                0.025
+            } else {
+                p.requested
+            };
+            p.reserve_up_to(state, month, site, ceiling, available);
+        }
+        if essential {
+            for p in self.upkeep.iter_mut().flatten() {
+                p.reserve_up_to(state, month, site, p.requested, available);
+            }
+        }
+        self.institution_work().map(|p| p.granted).sum()
+    }
+
     pub(crate) fn institution_work(&self) -> impl Iterator<Item = &InstitutionWorkPlan> {
         self.elections
             .iter()
@@ -257,6 +364,10 @@ impl Culture {
         WorkPlan {
             funding: self.plan_institution_funding(h, site),
             institution_priority: h.participation.as_ref().map(|_| self.institution_priority),
+            institution_work_policy: h
+                .participation
+                .as_ref()
+                .map(|_| self.institution_work_policy),
             upkeep,
             elections,
             administration,
@@ -968,5 +1079,94 @@ mod tests {
             stale.work_plans[0].cancellation.as_deref(),
             Some("stale month")
         );
+    }
+}
+
+#[cfg(test)]
+mod allocation_tests {
+    use super::*;
+    use crate::{institution_capacity::WorkPolicy, participation::Participation};
+    #[test]
+    fn essential_work_competes_with_repairs_without_extra_people_or_time() {
+        for cap in [0., 0.024, 0.05, 0.075, 0.1, 0.175, 0.25] {
+            for policy in [WorkPolicy::FullUpkeepFirst, WorkPolicy::EssentialFirst] {
+                // Import an older empty plan: no allocation policy is fabricated.
+                let mut plan: WorkPlan = serde_json::from_value(serde_json::json!({
+                    "month":3,"site":0,"actor":null,"successor":null,
+                    "actions":[],"identities":null,"cancellation":null
+                }))
+                .unwrap();
+                assert!(plan.institution_work_policy.is_none());
+                plan.institution_work_policy = Some(policy);
+                let request = |work, minimum| InstitutionWorkPlan {
+                    institution: 0,
+                    members: vec![7],
+                    requested: work,
+                    minimum,
+                    commitment: None,
+                    granted: 0.,
+                    used: 0.,
+                };
+                plan.upkeep = Some(vec![request(0.125, 0.)]);
+                plan.administration = Some(vec![request(0.05, 0.05)]);
+                let mut state = Participation {
+                    month: Some(3),
+                    ..Default::default()
+                };
+                state.residents.insert(
+                    7,
+                    serde_json::from_value(serde_json::json!({
+                        "person":7,"household":null,"presence":{"Resident":0},
+                        "capacity":0.2,"committed":0.,"completed":[0.,0.]
+                    }))
+                    .unwrap(),
+                );
+                let mut available = cap;
+                let used = plan.reserve_institution_work(&mut state, 3, 0, &mut available);
+                assert!(used <= cap + 1e-6 && used <= 0.175001);
+                assert!((used + available - cap).abs() < 1e-6);
+                assert!((state.residents[&7].committed - used).abs() < 1e-6);
+                assert!(state.commitments.len() <= 2);
+                if cap == 0.1 {
+                    let a = plan.administration.as_ref().unwrap()[0].granted;
+                    assert_eq!(
+                        a,
+                        if policy == WorkPolicy::EssentialFirst {
+                            0.05
+                        } else {
+                            0.
+                        }
+                    );
+                }
+                // Exact decimal sums can fall just below an indivisible f32 minimum.
+                // The larger allowance is the ample-capacity control.
+                if cap > 0.175 {
+                    assert!((used - 0.175).abs() < 1e-6);
+                }
+                let mut resumed: Participation =
+                    serde_json::from_slice(&serde_json::to_vec(&state).unwrap()).unwrap();
+                for (index, c) in state.commitments.clone().iter().enumerate() {
+                    state.settle(index as u32, c.granted).unwrap();
+                    resumed.settle(index as u32, c.granted).unwrap();
+                }
+                assert_eq!(
+                    serde_json::to_value(&state).unwrap(),
+                    serde_json::to_value(&resumed).unwrap()
+                );
+                let before = serde_json::to_value(&state).unwrap();
+                for p in plan
+                    .institution_work_mut()
+                    .filter(|p| p.commitment.is_some())
+                {
+                    let mut extra = 1.;
+                    p.reserve_up_to(&mut state, 3, 0, p.requested, &mut extra);
+                }
+                assert_eq!(
+                    before,
+                    serde_json::to_value(&state).unwrap(),
+                    "settled grants cannot grow"
+                );
+            }
+        }
     }
 }

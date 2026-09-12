@@ -103,6 +103,7 @@ impl crate::civilization::History {
             "month": self.month,
             "participation": self.participation_report(),
             "learning_allocation": self.service_allocation,
+            "institution_work_policy": self.culture.as_ref().map(|c| c.institution_work_policy),
             "institution_priority": self.culture.as_ref().map(|c| c.institution_priority),
             "institution_state": self.institution_state_report(),
             "institution_funding": self.culture.as_ref().map(|c| c.institution_funding),

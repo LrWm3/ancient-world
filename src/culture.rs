@@ -259,6 +259,8 @@ pub struct Culture {
     #[serde(default)]
     pub institution_priority: crate::institution_capacity::Priority,
     #[serde(default)]
+    pub institution_work_policy: crate::institution_capacity::WorkPolicy,
+    #[serde(default)]
     pub institution_funding: crate::institution_funding::Policy,
     #[serde(default)]
     pub named_administration: bool,
@@ -304,6 +306,7 @@ impl Culture {
     fn empty(month: u32, legacy: bool, options: FoundingOptions) -> Result<Self> {
         Ok(Self {
             institution_priority: Default::default(),
+            institution_work_policy: Default::default(),
             institution_funding: Default::default(),
             named_administration: false,
             heritage_renown: vec![],
@@ -2165,32 +2168,8 @@ impl History {
                             || c.work_plans[i].elections.is_some()
                             || c.work_plans[i].administration.is_some()
                         {
-                            for p in c.work_plans[i].institution_work_mut() {
-                                let member = p.members.iter().copied().max_by(|a, b| {
-                                    state
-                                        .available(*a)
-                                        .total_cmp(&state.available(*b))
-                                        .then_with(|| b.cmp(a))
-                                });
-                                p.commitment = member.and_then(|id| {
-                                    let feasible = p.requested.min(work).min(state.available(id));
-                                    if feasible < p.minimum {
-                                        return None;
-                                    }
-                                    state.reserve(
-                                        self.month,
-                                        s.id,
-                                        crate::participation::Activity::Culture,
-                                        &[id],
-                                        p.requested.min(work),
-                                    )
-                                });
-                                p.granted = p
-                                    .commitment
-                                    .map_or(0., |id| state.commitments[id as usize].granted);
-                                institution_granted += p.granted;
-                                work = (work - p.granted).max(0.);
-                            }
+                            institution_granted = c.work_plans[i]
+                                .reserve_institution_work(state, self.month, s.id, &mut work);
                             let other_requested = c.work_plans[i]
                                 .actions
                                 .iter()

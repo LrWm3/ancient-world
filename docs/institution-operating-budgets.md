@@ -291,3 +291,40 @@ Reproduce using the named-administration command above with output
 python3 scripts/compare_food_access.py output/institution-named-treatment-30.json \
   output/institution-repair-reserve-30.json
 ```
+
+## Essential-service allocation pilot
+
+`Culture.institution_work_policy = EssentialFirst` with named administration enabled
+changes allocation within the existing institutional service window. The runner
+exposes `--essential-institution-work`, requiring
+`--named-institution-administration`. `FullUpkeepFirst` remains the default,
+including older archives. Each dated work plan captures its policy.
+
+Both policies receive the same election, upkeep and administration requests and
+share the same finite site allowance and member availability. Essential-first
+reserves election work, up to 0.025 basic upkeep per institution, then 0.05
+administration assignments. Remaining time extends the same upkeep member's grant
+for repairs up to the original request. The extension cannot reassign the member,
+change the month, reuse completed work, or exceed personal capacity. Unfundable
+minimum administration grants leave time available for repairs. Stable/rotating
+order still applies within each request class.
+
+Only reservation priorities change. Actual upkeep, collection, financial transfers
+and Close settlement retain their existing order and live guards. This policy may
+improve collection while slowing repairs; it cannot fix inadequate buildings or
+missing qualified members. Keep it opt-in pending controlled and natural balance
+comparisons rather than declaring essential-first universally preferable.
+
+Verification: seven allowance levels compare the policies against identical
+requests and one shared participant. With 0.10 worker-months, full-upkeep-first
+grants 0.10 upkeep and no administration; essential-first grants 0.05 upkeep and
+0.05 administration. With ample time both fully grant the same 0.175 request.
+Below-minimum floating-point allowances remain unallocated rather than rounding up
+an indivisible task. Participant commitments sum to the same bounded site grant,
+serialized settlement matches, and settled grants cannot be enlarged.
+
+All 118 regular library tests and seven institutional GPU tests pass. The full
+frozen monthly/batched/checkpoint comparison passes on seeds 17, 81 and 256;
+seed 256 enables essential-first, named administration, operating funding and
+rotating within-class priority together. These checks establish implementation and
+continuation behavior; natural calibration is separate.

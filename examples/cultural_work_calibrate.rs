@@ -10,6 +10,9 @@ use serde_json::json;
 use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 #[derive(Parser)]
 struct Args {
+    /// Fund basic upkeep and member administration before additional repairs.
+    #[arg(long, requires = "named_institution_administration")]
+    essential_institution_work: bool,
     /// Assign an institution member to administration independently of the generic culture bundle.
     #[arg(long, conflicts_with = "legacy_participation")]
     named_institution_administration: bool,
@@ -115,6 +118,16 @@ fn main() -> Result<()> {
                 .as_mut()
                 .unwrap()
                 .named_administration = true;
+        }
+        if args.essential_institution_work {
+            g.civilizations
+                .as_mut()
+                .unwrap()
+                .culture
+                .as_mut()
+                .unwrap()
+                .institution_work_policy =
+                ancient_world::institution_capacity::WorkPolicy::EssentialFirst;
         }
         if args.operating_institutions {
             g.civilizations
@@ -467,6 +480,7 @@ fn main() -> Result<()> {
             std::fs::create_dir_all(parent)?;
         }
         let mut report = json!({"institution_funding_fields":["requested","conditional_ceiling","paid"],"institution_funding_unit":"abstract currency","operating_institutions":args.operating_institutions,"institution_work_classes":["election","upkeep","administration"],"institution_work_fields":["requested","granted","used"],"institution_work_unit":"worker-months","rotating_institutions":args.rotating_institutions,"construction_refinement":args.construction_refinement,"extraction_refinement":args.extraction_refinement,"agriculture_refinement":args.agriculture_refinement,"household_diagnostics":args.household_diagnostics,"resident_payroll":!args.legacy_resident_payroll,"individual_nutrition":!args.no_individual_nutrition,"household_mortality":!args.no_individual_nutrition && !args.no_household_mortality,"common_share_override":args.common_share,"observation_interval_months":1,"mortality_diagnostic_rows":["age_band_exposure","household_exposure"],"mortality_age_bands":["child","adult","elder"],"production_sectors":["farming","forestry","mining","construction"],"production_work_fields":["requested","granted","completed"],"production_work_unit":"worker-months","food_fields":["need","available","funded","eaten","physical_gap","access_gap"],"crop_yield_scale":args.crop_yield_scale,"founding_access":!args.no_founding_access,"aggregate_resolution":args.aggregate_resolution,"compare_resolution":args.compare_resolution,"workshop_refinement":args.workshop_refinement,"individual_demography":args.individual_demography,"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows});
+        report["essential_institution_work"] = json!(args.essential_institution_work);
         report["institution_funding_attempt_fields"] =
             json!(["positive_ceiling_requests", "collection_executed"]);
         report["named_institution_administration"] = json!(args.named_institution_administration);

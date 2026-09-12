@@ -1,5 +1,12 @@
 //! Persistent institutional readiness, supported by finite quarterly work and money.
 use serde::{Deserialize, Serialize};
+/// Distribution between institutional duties; it does not change execution timing.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WorkPolicy {
+    #[default]
+    FullUpkeepFirst,
+    EssentialFirst,
+}
 /// Priority within each institutional action class; elections still precede upkeep.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Priority {

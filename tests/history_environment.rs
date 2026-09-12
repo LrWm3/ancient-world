@@ -240,6 +240,15 @@ fn frozen_schedule_batch_and_checkpoint_equivalence() {
                 .as_mut()
                 .unwrap()
                 .named_administration = true;
+            batch
+                .civilizations
+                .as_mut()
+                .unwrap()
+                .culture
+                .as_mut()
+                .unwrap()
+                .institution_work_policy =
+                ancient_world::institution_capacity::WorkPolicy::EssentialFirst;
         }
         let path = format!("output/schedule-{}-{seed}.world", std::process::id());
         batch.save(std::path::Path::new(&path)).unwrap();
