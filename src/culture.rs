@@ -256,6 +256,9 @@ pub struct Artifact {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Culture {
+    /// On alternate quarters, prefer present institutional students with a source.
+    #[serde(default)]
+    pub institutional_students: bool,
     #[serde(default)]
     pub institution_priority: crate::institution_capacity::Priority,
     #[serde(default)]
@@ -305,6 +308,7 @@ fn focused_work_default() -> bool {
 impl Culture {
     fn empty(month: u32, legacy: bool, options: FoundingOptions) -> Result<Self> {
         Ok(Self {
+            institutional_students: false,
             institution_priority: Default::default(),
             institution_work_policy: Default::default(),
             institution_funding: Default::default(),

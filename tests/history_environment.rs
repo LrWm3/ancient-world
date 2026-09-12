@@ -180,6 +180,15 @@ fn frozen_schedule_batch_and_checkpoint_equivalence() {
         batch.enable_shipping().unwrap();
         batch.enable_expeditions().unwrap();
         batch.enable_shared_resources().unwrap();
+        // Exercise saved opportunity selection while retaining ordinary rotation in seed 81.
+        batch
+            .civilizations
+            .as_mut()
+            .unwrap()
+            .culture
+            .as_mut()
+            .unwrap()
+            .institutional_students = seed != 81;
         // Exercise the new explicit allocation policy through the full scheduler,
         // including actual archive restoration, while retaining a priority arm.
         if seed != 81 {

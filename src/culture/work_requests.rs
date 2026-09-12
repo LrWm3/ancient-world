@@ -27,6 +27,8 @@ pub struct WorkPlan {
     /// Opening lesson opportunity funnel; absent in legacy plans. No capacity is granted.
     #[serde(default)]
     pub lesson_opportunities: Option<[u32; 6]>,
+    #[serde(default)]
+    pub institutional_students: Option<bool>,
     /// Uncapped opening demand after room exclusions, before personal matching.
     /// None preserves the unfiltered requests of older plans.
     #[serde(default)]
@@ -271,11 +273,33 @@ impl Culture {
             "institutions": self.institutions.iter().filter(|n| n.site == site).map(|n| (n.id, n.leader, &n.members, &n.knowledge, n.active)).collect::<Vec<_>>(),
         })
     }
+    fn work_actor(&self, h: &History, site: u32, people: &[u32]) -> Option<u32> {
+        if people.is_empty() || people.iter().any(|&p| p as usize >= self.agents.len()) {
+            return None;
+        }
+        let offset = (h.month / 3 + site) as usize % people.len();
+        if self.institutional_students && (h.month / 3 + site).is_multiple_of(2) {
+            // Start at the ordinary rotation, retaining alternating general-purpose turns.
+            // This is opportunity selection, not a grant or a promise of instruction.
+            if let Some(student) = people
+                .iter()
+                .cycle()
+                .skip(offset)
+                .take(people.len())
+                .copied()
+                .find(|&p| {
+                    self.resident_tradition(h, site, p).is_some()
+                        && self.institutional_lesson(h, site, p).is_some()
+                })
+            {
+                return Some(student);
+            }
+        }
+        Some(people[offset])
+    }
     pub(super) fn plan_work(&self, h: &History, site: u32) -> WorkPlan {
         let people = self.site_people(h, site);
-        let actor = people
-            .get((h.month / 3 + site) as usize % people.len().max(1))
-            .copied();
+        let actor = self.work_actor(h, site, &people);
         let successor = actor.and_then(|a| self.succession_lesson(h, site, a));
         let institution_lesson = actor.and_then(|a| self.institutional_lesson(h, site, a));
         let actions: Vec<(String, f32)> = self
@@ -486,6 +510,7 @@ impl Culture {
         ));
         WorkPlan {
             lesson_opportunities: Some(self.lesson_opportunities(h, site, actor)),
+            institutional_students: Some(self.institutional_students),
             space_feasible_work,
             services: Some(services),
             hearing,
@@ -508,9 +533,7 @@ impl Culture {
             object_dependencies,
             month: h.month,
             site,
-            actor: people
-                .get((h.month / 3 + site) as usize % people.len().max(1))
-                .copied(),
+            actor,
             actions,
             identities,
             cancellation: None,
@@ -632,7 +655,7 @@ impl Culture {
                 }
             }
         }
-        let Some(&actor) = people.get(((h.month / 3 + site) as usize) % people.len().max(1)) else {
+        let Some(actor) = self.work_actor(h, site, &people) else {
             return requests;
         };
         let Some(faith) = self.resident_tradition(h, site, actor) else {

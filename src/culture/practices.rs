@@ -809,6 +809,50 @@ mod tests {
             before,
             "observation does not mutate culture"
         );
+        // The rotating actor already knows the topic; another local member can learn it.
+        let mut focused = c.clone();
+        focused.agents[actor as usize].knowledge.insert(4);
+        focused.agents[teacher as usize].knowledge.clear();
+        let ordinary = focused.plan_work(h, site);
+        assert_eq!(ordinary.actor, Some(actor));
+        assert!(!ordinary.actions.iter().any(|(action, _)| action == "study"));
+        focused.institutional_students = true;
+        let requested = focused.plan_work(h, site);
+        assert_eq!(requested.actor, Some(teacher));
+        assert!(requested
+            .actions
+            .iter()
+            .any(|(action, _)| action == "study"));
+        assert_eq!(requested.institution_lesson, Some((4, actor, institution)));
+        assert_eq!(requested.institutional_students, Some(true));
+        assert_eq!(requested.granted, 0., "selection does not assign labor");
+        let saved: Culture =
+            serde_json::from_value(serde_json::to_value(&focused).unwrap()).unwrap();
+        assert_eq!(
+            serde_json::to_value(saved.plan_work(h, site)).unwrap(),
+            serde_json::to_value(&requested).unwrap()
+        );
+        let mut old = serde_json::to_value(&focused).unwrap();
+        old.as_object_mut()
+            .unwrap()
+            .remove("institutional_students");
+        let old: Culture = serde_json::from_value(old).unwrap();
+        assert!(!old.institutional_students);
+        let mut general_turn = h.clone();
+        general_turn.month += 3;
+        assert_eq!(
+            focused.plan_work(&general_turn, site).actor,
+            Some(people[((general_turn.month / 3 + site) as usize) % people.len()])
+        );
+        focused.institutions[institution as usize].active = false;
+        assert_eq!(focused.plan_work(h, site).actor, Some(actor));
+        focused.institutions[institution as usize].active = true;
+        focused.agents[teacher as usize].knowledge.insert(4);
+        assert_eq!(
+            focused.plan_work(h, site).actor,
+            Some(actor),
+            "no unknown topic means no opportunity"
+        );
         assert_eq!(
             c.lesson_opportunities(h, site, Some(teacher))[4],
             0,
