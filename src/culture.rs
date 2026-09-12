@@ -259,6 +259,8 @@ pub struct Culture {
     #[serde(default)]
     pub institution_priority: crate::institution_capacity::Priority,
     #[serde(default)]
+    pub institution_funding: crate::institution_funding::Policy,
+    #[serde(default)]
     pub heritage_renown: Vec<crate::heritage_renown::Recognition>,
     /// Restrict personal identity guards to the planned participants. False is a calibration control.
     #[serde(default = "focused_work_default")]
@@ -300,6 +302,7 @@ impl Culture {
     fn empty(month: u32, legacy: bool, options: FoundingOptions) -> Result<Self> {
         Ok(Self {
             institution_priority: Default::default(),
+            institution_funding: Default::default(),
             heritage_renown: vec![],
             focused_work_identities: true,
             work_plans: vec![],
@@ -1469,7 +1472,7 @@ impl Culture {
             // Small donations are transfers, not extra community income.
             let administration = self.work_allowed(site, "institution administration");
             for ni in 0..self.institutions.len() {
-                let inst = &mut self.institutions[ni];
+                let inst = &self.institutions[ni];
                 if !administration
                     || inst.site != site
                     || !inst.active
@@ -1478,11 +1481,11 @@ impl Culture {
                 {
                     continue;
                 }
+                if self.collect_institution_funding(h, site, ni).is_none() {
+                    continue;
+                }
                 remaining_work -= 0.05;
-                let donation = (h.sites[si].economy.finance[0] as f64 * 0.0005).min(2.);
-                h.sites[si].economy.finance[0] -= donation as f32;
-                inst.treasury += donation;
-                inst.dues += donation;
+                let inst = &mut self.institutions[ni];
                 let fee = if inst.capacity.is_none() {
                     inst.treasury.min(0.5)
                 } else {

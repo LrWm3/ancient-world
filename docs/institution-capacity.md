@@ -12,6 +12,10 @@ Support is capped by staffing, paid upkeep, administrative work and usable space
 
 Below 25% readiness, institutional lessons and merchant-house expedition sponsorship stop. An impairment notice records the crossing; recovery is announced at 60% to avoid repeated threshold notices. Individual teaching and other expedition sponsors retain their own requirements. Low capacity preserves institutional identity, knowledge and property.
 
+See the opt-in [operating-budget pilot](institution-operating-budgets.md) for dated,
+work-dependent funding requests and their limits. Funding does not itself remove
+the usable-space requirement.
+
 ## Compatibility
 
 Archives without capacity state retain their original rules. Archives with old meeting places retain their embodied materials: either the early two-kg token foundation or the later fixed 2,000-kg hall. They receive no free materials or rewritten historical construction events.

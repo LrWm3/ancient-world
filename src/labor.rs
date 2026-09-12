@@ -105,6 +105,7 @@ impl crate::civilization::History {
             "learning_allocation": self.service_allocation,
             "institution_priority": self.culture.as_ref().map(|c| c.institution_priority),
             "institution_state": self.institution_state_report(),
+            "institution_funding": self.culture.as_ref().map(|c| c.institution_funding),
             "office_service": self.offices.as_ref().and_then(|o| o.service.as_ref()),
             "culture": self.culture.as_ref().map(|c| (&c.work_receipt, &c.work_plans)),
             "research": self.expeditions.as_ref().and_then(|x| x.discoveries.as_ref()).map(|d| d.workshops.iter().map(|w| (w.site, &w.work_plan)).collect::<Vec<_>>()),
@@ -168,6 +169,9 @@ impl crate::civilization::History {
                 "future cultural work receipt"
             );
             for (i, p) in c.work_plans.iter().enumerate() {
+                if let Some(b) = &p.funding {
+                    b.validate(&c.institutions, p.site)?;
+                }
                 let assignments: Vec<_> =
                     p.institution_work().filter_map(|u| u.commitment).collect();
                 anyhow::ensure!(

@@ -24,6 +24,8 @@ pub struct InstitutionWorkPlan {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WorkPlan {
+    #[serde(default)]
+    pub funding: Option<crate::institution_funding::Budget>,
     /// Captured ordering policy; old plans do not invent an allocation history.
     #[serde(default)]
     pub institution_priority: Option<crate::institution_capacity::Priority>,
@@ -219,6 +221,7 @@ impl Culture {
             self.institution_priority.order(plans, h.month, site);
         }
         WorkPlan {
+            funding: self.plan_institution_funding(h, site),
             institution_priority: h.participation.as_ref().map(|_| self.institution_priority),
             upkeep,
             elections,
@@ -545,6 +548,169 @@ pub(crate) fn record_work(plans: &mut [WorkPlan], site: u32, month: u32, work: f
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn institution_operating_requests_require_work_and_commit_cash_once() {
+        use crate::{institution_capacity::Capacity, institution_funding::Policy};
+        let mut g = Generator::new(
+            pollster::block_on(crate::gpu::ContextGpu::headless()).unwrap(),
+            crate::config::Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                ..Default::default()
+            },
+            crate::catalog::Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        g.enable_society().unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        h.month = 12;
+        let mut c = h.culture.take().unwrap();
+        c.sync(h);
+        for a in &mut c.agents {
+            a.knowledge.clear();
+            a.traits = [0.; 6];
+        }
+        let members: Vec<_> = c.site_people(h, 0).into_iter().take(2).collect();
+        assert_eq!(members.len(), 2);
+        c.institutions = (0..2)
+            .map(|id| Institution {
+                capacity: Some(Capacity::new(0)),
+                id,
+                name: format!("Budget fixture {id}"),
+                kind: InstitutionKind::Scholarly,
+                site: 0,
+                tradition: None,
+                members: members.clone(),
+                leader: members[0],
+                treasury: 0.,
+                active: true,
+                founded: 0,
+                knowledge: Default::default(),
+                property: vec![],
+                dues: 0.,
+                expenses: 0.,
+            })
+            .collect();
+        c.institution_funding = Policy::Operating;
+        h.sites[0].economy.finance[0] = 100.;
+        let before = serde_json::to_value(&h).unwrap();
+        let planned = c.plan_institution_funding(h, 0).unwrap();
+        assert_eq!(before, serde_json::to_value(&h).unwrap());
+        assert_eq!(planned.pool, 0.5);
+        assert!(planned
+            .requests
+            .iter()
+            .all(|r| r.ceiling == 0.25 && r.target == 2.));
+        planned.validate(&c.institutions, 0).unwrap();
+        let mut invalid = planned.clone();
+        invalid.requests[0].paid = 1.;
+        assert!(invalid.validate(&c.institutions, 0).is_err());
+        c.work_plans = h.sites.iter().map(|s| c.plan_work(h, s.id)).collect();
+        c.work_plans[0].actions = vec![("institution administration".into(), 0.1)];
+        c.labor_budget = vec![0.; h.sites.len()];
+        let mut unfunded = c.clone();
+        unfunded.decisions(h);
+        assert_eq!(h.sites[0].economy.finance[0], 100.);
+        assert!(unfunded.institutions.iter().all(|n| n.treasury == 0.));
+        // A late change of policy does not replace captured operating ceilings.
+        c.institution_funding = Policy::Legacy;
+        c.labor_budget[0] = 0.1;
+        let mut resumed: Culture =
+            serde_json::from_slice(&serde_json::to_vec(&c).unwrap()).unwrap();
+        let mut resumed_h = h.clone();
+        let opening = c.clone();
+        c.decisions(h);
+        resumed.decisions(&mut resumed_h);
+        assert_eq!(
+            serde_json::to_value(&c).unwrap(),
+            serde_json::to_value(&resumed).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_value(&h).unwrap(),
+            serde_json::to_value(&resumed_h).unwrap()
+        );
+        assert_eq!(h.sites[0].economy.finance[0], 99.5);
+        assert!(c.institutions.iter().all(|n| n.treasury == 0.25));
+        assert!((c.labor_spent - opening.labor_spent - 0.1).abs() < 1e-6);
+        c.work_plans[0]
+            .funding
+            .as_ref()
+            .unwrap()
+            .validate(&c.institutions, 0)
+            .unwrap();
+        let money = h.sites[0].economy.finance[0] as f64
+            + c.institutions.iter().map(|n| n.treasury).sum::<f64>();
+        assert_eq!(money, 100.);
+        let cash = h.sites[0].economy.finance[0];
+        c.decisions(h);
+        assert_eq!(cash, h.sites[0].economy.finance[0]);
+        assert!((c.labor_spent - opening.labor_spent - 0.1).abs() < 1e-6);
+        let mut scarce = opening.clone();
+        let mut scarce_h = resumed_h.clone();
+        scarce_h.sites[0].economy.finance[0] = 0.125;
+        scarce.decisions(&mut scarce_h);
+        assert_eq!(scarce_h.sites[0].economy.finance[0], 0.);
+        assert_eq!(
+            scarce.institutions.iter().map(|n| n.treasury).sum::<f64>(),
+            0.125
+        );
+        let mut stale = opening.clone();
+        scarce_h.month += 1;
+        scarce_h.sites[0].economy.finance[0] = 100.;
+        stale.decisions(&mut scarce_h);
+        assert_eq!(scarce_h.sites[0].economy.finance[0], 100.);
+        let mut filled = opening.clone();
+        filled.institutions[0].treasury = 2.;
+        assert_eq!(filled.collect_institution_funding(h, 0, 0), Some(0.));
+        assert_eq!(filled.institutions[0].treasury, 2.);
+        let mut inactive = opening.clone();
+        inactive.institutions[0].active = false;
+        let untouched = h.sites[0].economy.finance[0];
+        assert_eq!(inactive.collect_institution_funding(h, 0, 0), None);
+        assert_eq!(untouched, h.sites[0].economy.finance[0]);
+        let mut moved = opening.clone();
+        moved.institutions[0].site = 1;
+        assert_eq!(moved.collect_institution_funding(h, 0, 0), None);
+        // Old captured plans retain the old donation schedule; fractional credits balance.
+        let mut old = serde_json::to_value(&opening.work_plans[0]).unwrap();
+        old.as_object_mut().unwrap().remove("funding");
+        let mut legacy = opening.clone();
+        legacy.work_plans[0] = serde_json::from_value(old).unwrap();
+        let start = h.sites[0].economy.finance[0];
+        legacy.collect_institution_funding(h, 0, 0).unwrap();
+        assert_eq!(
+            start as f64,
+            h.sites[0].economy.finance[0] as f64 + legacy.institutions[0].treasury
+        );
+        // Quote the actual old building, but never subsidize an inaccessible one.
+        legacy.institution_funding = Policy::Operating;
+        let mut building = legacy.artifacts[0].clone();
+        building.id = legacy.artifacts.len() as u32;
+        building.owner = Owner::Institution(0);
+        building.site = Some(0);
+        building.materials = vec![(5, 2000.)];
+        building.lost = false;
+        building.destroyed = false;
+        let id = building.id;
+        legacy.artifacts.push(building);
+        legacy.institutions[0].capacity.as_mut().unwrap().building =
+            Some(crate::institution_capacity::MeetingPlace::new(id));
+        h.sites[0].economy.soil[3] = 0.;
+        let quote = legacy.plan_institution_funding(h, 0).unwrap();
+        assert!(
+            (quote.requests[0].target - (2. + 20. * h.sites[0].economy.prices[5].max(0.01) as f64))
+                .abs()
+                < 1e-6
+        );
+        legacy.artifacts[id as usize].lost = true;
+        assert_eq!(
+            legacy.plan_institution_funding(h, 0).unwrap().requests[0].target,
+            2.
+        );
+    }
+
     #[test]
     #[ignore = "requires hardware GPU"]
     fn requests_follow_people_knowledge_and_materials() {

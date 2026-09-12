@@ -224,6 +224,14 @@ fn frozen_schedule_batch_and_checkpoint_equivalence() {
                 .as_mut()
                 .unwrap()
                 .institution_priority = ancient_world::institution_capacity::Priority::Rotating;
+            batch
+                .civilizations
+                .as_mut()
+                .unwrap()
+                .culture
+                .as_mut()
+                .unwrap()
+                .institution_funding = ancient_world::institution_funding::Policy::Operating;
         }
         let path = format!("output/schedule-{}-{seed}.world", std::process::id());
         batch.save(std::path::Path::new(&path)).unwrap();
