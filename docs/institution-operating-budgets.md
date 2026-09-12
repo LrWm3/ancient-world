@@ -59,3 +59,67 @@ quarter and must not be interpreted as distinct annual expenses.
 The representable-withdrawal correction also applies to legacy donations. The old
 formula and work schedule remain, but exact old-version trajectories are not
 promised. Matched policy comparisons must use the same new executable.
+
+## First matched 30-year comparison
+
+Implementation `4404756`, seeds 17 and 81, terrain 32/ecology 16, one geological
+epoch, sixteen founders, living history, crop yield 0.5, common-food share **0.65
+as a test intervention**, individual demography and workshop/agriculture/
+extraction/construction refinement, with resolution comparison enabled. Both arms
+use this executable; only `--operating-institutions` differs. Stable institutional
+work priority remains in use, and named office service is not enabled.
+
+| Seed / policy | Year-30 population | Institutional dues including founding cash | Administration fees paid | Repairs paid | Operational / active institutions |
+|---|---:|---:|---:|---:|---|
+| 17 / legacy | 1,956 | 1,065.32 | 411.32 | 651.49 | 0 / 32 |
+| 17 / operating | 1,939 | 1,348.28 | 372.62 | 975.65 | 0 / 32 |
+| 81 / legacy | 1,996 | 1,061.05 | 397.71 | 663.34 | 0 / 32 |
+| 81 / operating | 1,986 | 1,394.36 | 365.22 | 1,029.14 | 0 / 32 |
+
+The operating arms request 16,253.52 / 17,066.20 cumulatively, receive conditional
+ceilings of 14,908.68 / 14,961.48, and actually collect 548.28 / 594.36 (3.68% /
+3.97% of those ceilings). Those sums repeat unmet reserve requests across quarters;
+they are not distinct annual bills. The 32 founding cash transfers add 800 to
+the dues column.
+
+More collection did not improve administrative continuity: fee payments fell,
+repair expenditure rose, and all 32 institutions still had readiness below 0.25
+in both seeds and both arms. Poor building condition affected 22 → 23 institutions
+in seed 17 and 21 → 21 in seed 81. Treasuries were again nearly empty at year 30.
+The pilot does not establish healthier institutions or justify changing defaults.
+
+Only a small fraction of quoted funding was executed. The next integration should
+measure which requests actually received administration work and why others did
+not, then give those duties explicit participant assignments where appropriate.
+The present report cannot separate missing work, canceled bundles, changing reserve
+need and later cash shortages as causes of every uncollected ceiling. Repair
+spending versus future fee reserves and usable-space service scaling also need
+review; simply raising the ceiling is not supported by these observations.
+
+All sixteen sites remain active. Monthly food access gaps rise slightly: 1.9453% →
+1.9537% and 1.8991% → 1.9459%. Maximum population residual is zero; maximum monthly
+food partition residual is 2.34e-7, and the largest absolute terminal relative
+economic residual is 2.60e-6. Both ensembles finish successfully in about 59–63
+seconds per seed on the Quadro RTX 5000. This is short game-balance evidence, not
+a stability claim.
+
+Reproduce the control with:
+
+```sh
+cargo build --example cultural_work_calibrate
+target/debug/examples/cultural_work_calibrate --seeds 17,81 --years 30 \
+  --common-share 0.65 --individual-demography --workshop-refinement \
+  --agriculture-refinement --extraction-refinement --construction-refinement \
+  --compare-resolution --output output/institution-funding-control-30.json
+```
+
+Add `--operating-institutions` and change the output path to
+`output/institution-funding-operating-30.json` for the treatment. The comparison
+checker verifies complete reports and matched metadata:
+
+```sh
+python3 scripts/compare_food_access.py output/institution-funding-control-30.json \
+  output/institution-funding-operating-30.json --allow-difference operating_institutions
+```
+
+Raw outputs remain ignored; this document retains the settings, results and limits.
