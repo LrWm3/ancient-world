@@ -21,9 +21,39 @@ pub struct Receipt {
     pub policy: Policy,
     /// Research, culture. Requests are captured before either reserves work.
     pub requested: [f32; 2],
+    /// Known feasible demand before either claimant reserves work.
+    #[serde(default)]
+    pub feasible: Option<[f32; 2]>,
     pub allocated: [f32; 2],
     /// Actual reservations can be smaller due to individual availability.
     pub reserved: [f32; 2],
+}
+
+impl Receipt {
+    pub fn feasible_requests(&self) -> [f32; 2] {
+        self.feasible.unwrap_or(self.requested)
+    }
+    pub fn validate(&self) -> anyhow::Result<()> {
+        self.policy.allocate(0., [0.; 2])?;
+        let feasible = self.feasible_requests();
+        anyhow::ensure!(
+            self.capacity.is_finite()
+                && self.capacity >= 0.
+                && self
+                    .requested
+                    .iter()
+                    .chain(&feasible)
+                    .chain(&self.allocated)
+                    .chain(&self.reserved)
+                    .all(|x| x.is_finite() && *x >= 0.)
+                && (0..2).all(|k| feasible[k] <= self.requested[k] + 1e-5
+                    && self.allocated[k] <= feasible[k] + 1e-5
+                    && self.reserved[k] <= self.allocated[k] + 1e-5)
+                && self.allocated.iter().sum::<f32>() <= self.capacity + 1e-5,
+            "invalid service allocation receipt"
+        );
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -88,6 +118,7 @@ impl crate::civilization::History {
                 site: s.id,
                 capacity: crate::labor::available(s, self.society.is_some(), self.living.is_some()),
                 requested: [0., 0.],
+                feasible: None,
                 allocated: [0.; 2],
                 reserved: [0.; 2],
             })
@@ -96,14 +127,15 @@ impl crate::civilization::History {
             receipts[*site as usize].requested[0] += plan.receipt.requested as f32;
         }
         for plan in &culture {
-            receipts[plan.site as usize].requested[1] =
-                plan.actions.iter().map(|(_, w)| *w).sum::<f32>().min(0.5);
+            let r = &mut receipts[plan.site as usize];
+            r.requested[1] = plan.raw_work();
+            r.feasible = Some([r.requested[0], plan.feasible_work()]);
         }
         for r in &mut receipts {
             r.allocated = self
                 .service_allocation
                 .policy
-                .allocate(r.capacity, r.requested)?;
+                .allocate(r.capacity, r.feasible_requests())?;
         }
         let research_caps: Vec<_> = receipts.iter().map(|r| r.allocated[0]).collect();
 
@@ -116,7 +148,7 @@ impl crate::civilization::History {
         // old remaining-capacity behavior even when personal matching falls short.
         if matches!(self.service_allocation.policy, Policy::ResearchFirst) {
             for r in &mut receipts {
-                r.allocated[1] = r.requested[1].min((r.capacity - r.reserved[0]).max(0.));
+                r.allocated[1] = r.feasible_requests()[1].min((r.capacity - r.reserved[0]).max(0.));
                 r.allocated[0] = r.reserved[0];
             }
         }
@@ -384,6 +416,49 @@ mod tests {
             );
         }
     }
+    #[test]
+    fn feasible_demand_releases_work_to_the_competing_claim() {
+        let policy = Policy::Weighted {
+            research: 1.,
+            culture: 1.,
+        };
+        let mut receipt = Receipt {
+            month: 12,
+            site: 0,
+            capacity: 1.,
+            resolution_mode: None,
+            policy,
+            requested: [1., 0.5],
+            feasible: Some([1., 0.4]),
+            allocated: [0.; 2],
+            reserved: [0.; 2],
+        };
+        let unfiltered = receipt
+            .policy
+            .allocate(receipt.capacity, receipt.requested)
+            .unwrap();
+        receipt.allocated = receipt
+            .policy
+            .allocate(receipt.capacity, receipt.feasible_requests())
+            .unwrap();
+        receipt.reserved = receipt.allocated;
+        receipt.validate().unwrap();
+        assert_eq!(unfiltered, [0.5, 0.5]);
+        assert_eq!(receipt.allocated, [0.6, 0.4]);
+        assert_eq!(receipt.requested, [1., 0.5]);
+        let restored: Receipt =
+            serde_json::from_value(serde_json::to_value(&receipt).unwrap()).unwrap();
+        assert_eq!(restored.feasible_requests(), receipt.feasible_requests());
+        let mut old = serde_json::to_value(&receipt).unwrap();
+        old.as_object_mut().unwrap().remove("feasible");
+        let old: Receipt = serde_json::from_value(old).unwrap();
+        assert_eq!(old.feasible_requests(), receipt.requested);
+        let mut invalid = restored;
+        invalid.allocated = unfiltered;
+        invalid.reserved = unfiltered;
+        assert!(invalid.validate().is_err());
+    }
+
     #[test]
     fn policies_change_shares_and_redistribute_unused_demand() {
         let balanced = Policy::Weighted {

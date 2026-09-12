@@ -118,6 +118,17 @@ impl crate::civilization::History {
     }
     pub(crate) fn validate_service_work(&self) -> anyhow::Result<()> {
         self.service_allocation.policy.allocate(0., [0.; 2])?;
+        for (i, r) in self.service_allocation.receipts.iter().enumerate() {
+            r.validate()?;
+            anyhow::ensure!(
+                r.month <= self.month
+                    && (r.site as usize) < self.sites.len()
+                    && !self.service_allocation.receipts[..i]
+                        .iter()
+                        .any(|p| p.site == r.site),
+                "invalid service allocation boundary"
+            );
+        }
         self.military.validate(self)?;
         if let Some(r) = &self.resolution {
             r.validate(self.month, self.sites.len())?;
@@ -247,7 +258,11 @@ impl crate::civilization::History {
                     "institution teams exceed total cultural work"
                 );
                 anyhow::ensure!(
-                    p.site as usize == i
+                    p.space_feasible_work.is_none_or(|work| work.is_finite()
+                        && work >= 0.
+                        && work <= p.actions.iter().map(|(_, w)| *w).sum::<f32>() + 1e-5
+                        && p.granted <= p.feasible_work() + 1e-5)
+                        && p.site as usize == i
                         && i < self.sites.len()
                         && p.month <= self.month
                         && p.commitment

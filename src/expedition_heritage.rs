@@ -671,12 +671,24 @@ mod tests {
             }
             run.culture = Some(culture);
             run.open_participation();
-            let plans = run.cultural_work_plans();
+            let mut plans = run.cultural_work_plans();
+            // Isolate these real study requests from optional administrative or
+            // personal actions that could legitimately use the remaining time.
+            let p = &mut plans[site as usize];
+            p.actions
+                .retain(|(a, _)| a == "study" || a == "heritage study");
+            p.space_feasible_work = Some(crate::institution_services::feasible_work(
+                &p.actions,
+                p.services.as_ref().unwrap(),
+                true,
+            ));
+            assert_eq!(p.raw_work(), 0.5);
+            assert_eq!(p.feasible_work(), if condition == 0.25 { 0.4 } else { 0.5 });
             run.reserve_cultural_plans(plans, &vec![0.5; run.sites.len()]);
             let mut culture = run.culture.take().unwrap();
             let before = run.sites[site as usize].economy.goods[good];
             let grant = culture.work_plans[site as usize].granted;
-            assert!(grant <= 0.5);
+            assert_eq!(grant, if condition == 0.25 { 0.4 } else { 0.5 });
             let mut resumed_run = run.clone();
             let mut resumed_culture =
                 serde_json::from_value(serde_json::to_value(&culture).unwrap()).unwrap();

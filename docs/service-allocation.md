@@ -29,17 +29,19 @@ with history; each receipt also captures the policy used at that boundary.
 - ResearchFirst gives research first access and offers its unused capacity to
   culture after individual matching.
 - Weighted distributes capacity according to positive weights, caps shares at
-  requested demand, and redistributes excess entitlement to the other claimant.
+  feasible demand, and redistributes excess entitlement to the other claimant.
 - Invalid capacity, demand and weights are rejected.
 - The existing shared service ceiling and individual availability remain hard
   limits. Allocation creates neither time, goods nor money.
 
 Forecasts are retained as the plans passed to reservation, rather than being
-recomputed after another system spends capacity. Request amounts are feasible
-forecasts, already limited by existing planning assumptions and service capacity;
-they are not estimates of unlimited latent demand.
+recomputed after another system spends capacity. Receipts distinguish original
+requests from known feasible demand. Cultural feasibility excludes lessons and
+heritage studies denied captured room space before applying the existing 0.5 work
+ceiling; research retains its existing planning limits. These are not estimates
+of unlimited latent demand, and feasible work still needs eligible participants.
 
-The service-work report includes site/month, policy, opening capacity, requests,
+The service-work report includes site/month, policy, opening capacity, original and feasible requests,
 allocated caps and actual reservations. Execution receipts continue to report
 used and released work separately. Under strict priority the final research cap
 is reduced to its matched reservation before unused capacity is offered to
@@ -119,3 +121,10 @@ checkpoint-resumed 5+7 months. The existing check compares complete history and
 terrain/ecology state. This establishes scheduling/continuation consistency;
 the controlled fixture above, rather than these ordinary worlds, establishes
 that competing requests actually receive different shares.
+
+
+Room-feasibility filtering is covered by the controlled damaged/maintained school
+and heritage cases in [the service-space review](institution-service-space-review.md).
+A weighted allocation fixture confirms that excluded cultural demand releases an
+entitlement to research before either reserves it. This does not add a second
+allocation round for weighted claims that later fail personal matching.

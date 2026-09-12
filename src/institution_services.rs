@@ -355,6 +355,39 @@ impl crate::culture::Culture {
     }
 }
 
+/// Filter only room-dependent demand, before the site's 0.5 work ceiling.
+/// Other cultural actions keep their existing eligibility rules.
+pub(crate) fn feasible_work(
+    actions: &[(String, f32)],
+    plans: &[Plan],
+    lesson_needs_room: bool,
+) -> f32 {
+    let mut studies = plans
+        .iter()
+        .flat_map(|p| &p.receipts)
+        .filter(|r| r.granted > 0. && matches!(r.service, Service::HeritageStudy { .. }))
+        .count();
+    let lesson = plans
+        .iter()
+        .flat_map(|p| &p.receipts)
+        .any(|r| r.granted > 0. && matches!(r.service, Service::Lesson { .. }));
+    actions
+        .iter()
+        .filter_map(|(action, work)| match action.as_str() {
+            "heritage study" => {
+                if studies > 0 {
+                    studies -= 1;
+                    Some(*work)
+                } else {
+                    None
+                }
+            }
+            "study" if lesson_needs_room && !lesson => None,
+            _ => Some(*work),
+        })
+        .sum::<f32>()
+}
+
 /// Validate references and work backing as well as the independent room ledger.
 /// Deceased authors and destroyed objects remain legitimate historical references.
 pub(crate) fn validate_work_plan(
@@ -498,6 +531,34 @@ mod tests {
         assert!(!p.settle((12, 1, 3), b, 1., true));
         assert_eq!(p.receipts.iter().map(|r| r.used).sum::<f64>(), 0.);
     }
+    #[test]
+    fn room_denials_filter_demand_before_the_work_ceiling() {
+        let mut p = Plan::new(12, 0, 0, 0.5);
+        p.group_space = Some(2.);
+        let mut actions = Vec::new();
+        for artifact in 0..4 {
+            p.reserve(
+                Service::HeritageStudy {
+                    artifact,
+                    author: 7,
+                },
+                1.,
+                0.1,
+            );
+            actions.push(("heritage study".into(), 0.1));
+        }
+        p.reserve(lesson(1), 2., 0.1);
+        actions.push(("study".into(), 0.1));
+        assert_eq!(feasible_work(&actions, &[p.clone()], true), 0.4);
+        assert_eq!(feasible_work(&actions, &[p.clone()], false), 0.5);
+        assert_eq!(feasible_work(&actions, &[], true), 0.);
+        assert_eq!(feasible_work(&actions, &[], false), 0.1);
+        // Other genuine requests can fill the freed allowance; subtracting from
+        // an already capped 0.5 total would incorrectly remove this opportunity.
+        actions.push(("charity".into(), 0.2));
+        assert_eq!(feasible_work(&actions, &[p], true), 0.6);
+    }
+
     #[test]
     fn corrupted_receipts_are_rejected_after_deserialization() {
         let mut original = Plan::new(12, 1, 3, 2.);

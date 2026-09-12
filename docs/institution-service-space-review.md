@@ -201,11 +201,9 @@ Both stay within 0.5 worker-months. Under damage, heritage-first allocation leav
 maintenance, the lesson also completes. The separate learning fixture now uses
 0.99 condition and still teaches, while destruction prevents progress.
 
-Known limitation: generic cultural bundle matching can still reserve time for
-a room-denied candidate alongside other actions. That time cannot produce a
-denied service and is accounted as unused; filtering such requests before shared
-work allocation is a remaining integration improvement. No global work ceiling or
-service duration was increased to force these outcomes.
+Room-denied requests are now filtered before shared work allocation, as described
+below. No global work ceiling or service duration was increased to force these
+outcomes.
 
 Both competing-consumer cases reproduce identical culture state, event records
 and town goods after serializing their captured plans and continuing execution.
@@ -213,3 +211,51 @@ All 122 regular tests and Clippy across all targets pass with the separated
 capacity fields; the focused hardware suite includes both actual service consumers.
 The repeated full frozen monthly/batched/checkpoint comparison also passes on
 seeds 17/81/256 with this change.
+
+
+## Feasible work before allocation (2026-09-12)
+
+Captured room grants now filter cultural demand before research and culture share
+work. Receipts retain both original demand and the amount remaining after known
+room exclusions. The dated work plan stores the uncapped filtered amount so other
+legitimate actions can still fill the existing 0.5 worker-month ceiling. Older
+plans without this field retain their previous interpretation.
+
+Denied lessons and heritage studies cannot recruit service-only teachers/authors.
+If a named institutional duty cannot find a member, its allowance cannot leak into
+a room-denied generic task. Personal matching and execution still enforce their
+own live constraints; this is not a forecast of guaranteed completion.
+
+Controlled evidence:
+
+- Four heritage studies plus one lesson request 0.5 worker-months. Damaged space
+  permits 0.4 and maintained space permits 0.5; actual reservations match those
+  amounts while preserving the previous outputs and material use.
+- Equal-weight research/culture claims of 1.0/0.5 against one worker-month become
+  allocations of 0.6/0.4 when only 0.4 cultural work has space, instead of 0.5/0.5.
+  This is an allocation fixture, not a measured long-run research gain.
+- An unavailable-member upkeep request plus a room-denied lesson reserves zero
+  generic work. Manuscript study and unrelated actions retain their demands.
+- New receipt fields serialize, missing fields retain legacy defaults, and invalid
+  allocations are rejected at boundary validation.
+
+Remaining work includes narrower cancellation when an unrelated object changes,
+other service consumers (hearings, visitors, relief), and sustained balance tests.
+This change does not remove the whole-institution operational gate or introduce
+same-month recycling of work released after execution.
+
+
+Verification on the Quadro RTX 5000 Max-Q / Vulkan:
+
+- `cargo test --lib`: 124 passed, 108 hardware tests ignored.
+- Targeted library run with `--include-ignored --test-threads=1`: nine passed,
+  covering room receipts, both actual service consumers, feasible allocation,
+  and the matched research/culture fixture on seeds 17/81/256.
+- `cargo clippy --all-targets -- -D warnings`: passed.
+- `cargo test --test history_environment frozen_schedule_batch_and_checkpoint_equivalence -- --ignored --nocapture`:
+  passed on seeds 17/81/256 (11.52 seconds test execution). This compares monthly,
+  batched and resumed complete histories; it is not a new long-run balance study.
+
+Raw local logs are under ignored `output/service-feasibility-*`; no generated
+results are committed. The focused consumer fixtures also compare serialized
+captured plans and continued state.

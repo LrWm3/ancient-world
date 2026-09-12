@@ -766,6 +766,41 @@ mod tests {
                 }),
                 ..crate::institution_capacity::Capacity::new(h.month)
             });
+        // An unfillable duty must not fund a lesson already denied physical space.
+        let mut blocked_history = h.clone();
+        let mut blocked = c.clone();
+        blocked.artifacts[room as usize].lost = true;
+        let mut plans: Vec<_> = blocked_history
+            .sites
+            .iter()
+            .map(|s| blocked.plan_work(&blocked_history, s.id))
+            .collect();
+        let plan = &mut plans[site as usize];
+        plan.actions = vec![("study".into(), 0.1), ("institution upkeep".into(), 0.125)];
+        plan.elections = None;
+        plan.administration = None;
+        plan.upkeep = Some(vec![super::super::work_requests::InstitutionWorkPlan {
+            institution,
+            members: vec![],
+            requested: 0.125,
+            minimum: 0.,
+            commitment: None,
+            granted: 0.,
+            used: 0.,
+        }]);
+        plan.space_feasible_work = Some(crate::institution_services::feasible_work(
+            &plan.actions,
+            plan.services.as_ref().unwrap(),
+            true,
+        ));
+        assert_eq!(plan.feasible_work(), 0.125);
+        blocked_history.culture = Some(blocked);
+        blocked_history.open_participation();
+        assert!(blocked_history.participation.is_some());
+        blocked_history.reserve_cultural_plans(plans, &vec![0.5; h.sites.len()]);
+        let plan = &blocked_history.culture.as_ref().unwrap().work_plans[site as usize];
+        assert_eq!(plan.granted, 0.);
+        assert!(plan.commitment.is_none());
         // Reservation captures a specific source and does not itself teach.
         let mut predicted = c.clone();
         predicted.work_plans = h

@@ -24,6 +24,10 @@ pub struct InstitutionWorkPlan {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WorkPlan {
+    /// Uncapped opening demand after room exclusions, before personal matching.
+    /// None preserves the unfiltered requests of older plans.
+    #[serde(default)]
+    pub space_feasible_work: Option<f32>,
     /// None preserves archived plans created before room reservations.
     #[serde(default)]
     pub services: Option<Vec<crate::institution_services::Plan>>,
@@ -142,6 +146,38 @@ impl InstitutionWorkPlan {
     }
 }
 impl WorkPlan {
+    pub(crate) fn raw_work(&self) -> f32 {
+        self.actions.iter().map(|(_, w)| *w).sum::<f32>().min(0.5)
+    }
+    pub(crate) fn feasible_work(&self) -> f32 {
+        self.space_feasible_work
+            .unwrap_or_else(|| self.raw_work())
+            .min(0.5)
+    }
+    pub(crate) fn room_denied_work(&self) -> f32 {
+        self.space_feasible_work.map_or(0., |feasible| {
+            (self.actions.iter().map(|(_, w)| *w).sum::<f32>() - feasible).max(0.)
+        })
+    }
+    pub(crate) fn service_people(&self) -> Vec<u32> {
+        self.services.as_ref().map_or_else(
+            || self.institution_lesson.map(|l| l.1).into_iter().collect(),
+            |plans| {
+                plans
+                    .iter()
+                    .flat_map(|p| &p.receipts)
+                    .filter(|r| r.granted > 0.)
+                    .map(|r| match r.service {
+                        crate::institution_services::Service::Lesson { teacher, .. } => teacher,
+                        crate::institution_services::Service::HeritageStudy { author, .. } => {
+                            author
+                        }
+                    })
+                    .collect()
+            },
+        )
+    }
+
     pub(crate) fn reserve_institution_work(
         &mut self,
         state: &mut crate::participation::Participation,
@@ -241,20 +277,22 @@ impl Culture {
             .collect();
         let services = self.plan_service_space(h, site, actor, institution_lesson, &actions);
         let participants = self.focused_work_identities.then(|| {
-            let mut ids: Vec<_> =
-                actor
-                    .into_iter()
-                    .chain(successor.map(|s| s.0))
-                    .chain(institution_lesson.map(|l| l.1))
-                    .chain(services.iter().flat_map(|p| &p.receipts).filter_map(
-                        |r| match r.service {
+            let mut ids: Vec<_> = actor
+                .into_iter()
+                .chain(successor.map(|s| s.0))
+                .chain(
+                    services
+                        .iter()
+                        .flat_map(|p| &p.receipts)
+                        .filter(|r| r.granted > 0.)
+                        .map(|r| match r.service {
+                            crate::institution_services::Service::Lesson { teacher, .. } => teacher,
                             crate::institution_services::Service::HeritageStudy {
                                 author, ..
-                            } => Some(author),
-                            _ => None,
-                        },
-                    ))
-                    .collect();
+                            } => author,
+                        }),
+                )
+                .collect();
             ids.sort_unstable();
             ids.dedup();
             ids
@@ -374,7 +412,15 @@ impl Culture {
         {
             self.institution_priority.order(plans, h.month, site);
         }
+        let space_feasible_work = Some(crate::institution_services::feasible_work(
+            &actions,
+            &services,
+            study_expectation
+                .as_ref()
+                .is_some_and(|s| s.institution.is_some()),
+        ));
         WorkPlan {
+            space_feasible_work,
             services: Some(services),
             funding: self.plan_institution_funding(h, site),
             institution_priority: h.participation.as_ref().map(|_| self.institution_priority),

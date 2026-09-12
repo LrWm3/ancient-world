@@ -2160,11 +2160,7 @@ impl History {
         let requests: Vec<f32> = self
             .sites
             .iter()
-            .map(|s| {
-                plans.get(s.id as usize).map_or(0., |p| {
-                    p.actions.iter().map(|(_, w)| *w).sum::<f32>().min(0.5)
-                })
-            })
+            .map(|s| plans.get(s.id as usize).map_or(0., |p| p.raw_work()))
             .collect();
         if let Some(c) = &mut self.culture {
             c.work_plans = plans;
@@ -2181,6 +2177,7 @@ impl History {
                         crate::labor::available(s, self.society.is_some(), self.living.is_some());
                     let mut work = available
                         .min(requests[i])
+                        .min(c.work_plans[i].feasible_work())
                         .min(caps.get(i).copied().unwrap_or(f32::MAX));
                     let mut institution_granted = 0.;
                     if let Some(state) = &mut self.participation {
@@ -2203,27 +2200,17 @@ impl History {
                                 })
                                 .map(|(_, w)| *w)
                                 .sum::<f32>();
-                            work = work.min(other_requested);
+                            // A failed named duty cannot lend work to a room-denied service.
+                            work = work.min(
+                                (other_requested - c.work_plans[i].room_denied_work()).max(0.),
+                            );
                         }
                         let p = &c.work_plans[i];
                         let ids: Vec<_> = p
                             .actor
                             .into_iter()
                             .chain(p.successor.map(|s| s.0))
-                            .chain(p.institution_lesson.map(|l| l.1))
-                            .chain(
-                                p.services
-                                    .iter()
-                                    .flatten()
-                                    .flat_map(|p| &p.receipts)
-                                    .filter_map(|r| match r.service {
-                                        crate::institution_services::Service::HeritageStudy {
-                                            author,
-                                            ..
-                                        } => Some(author),
-                                        _ => None,
-                                    }),
-                            )
+                            .chain(p.service_people())
                             .chain(
                                 c.local_recoveries
                                     .iter()
