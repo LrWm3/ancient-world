@@ -259,3 +259,41 @@ Verification on the Quadro RTX 5000 Max-Q / Vulkan:
 Raw local logs are under ignored `output/service-feasibility-*`; no generated
 results are committed. The focused consumer fixtures also compare serialized
 captured plans and continued state.
+
+
+## Explicit object dependencies
+
+Focused plans containing only study, heritage study, successor teaching and/or
+charity capture their known source objects and institutional rooms. A change to
+an unrelated local object no longer cancels those plans. Moving, losing or
+reassigning a captured object still changes the snapshot; replacing its room on
+the institution also invalidates the plan. People, faith, institution leadership
+and recovery guards retain their existing rules.
+
+Study execution uses the captured manuscript or institutional lesson rather than
+switching to a newly available book. The source recorded in the outcome therefore
+remains the source requested at reservation. Missing manuscripts do not trigger
+fallback teaching from a different institution.
+
+Plans containing other actions still take the conservative site-wide object
+snapshot. In particular, recovery, ownership disputes and other dynamically
+selected targets need explicit dependencies before their guards can be narrowed.
+Old plans without an object-dependency field retain that broad interpretation.
+This is scoped cancellation, not independent per-action work commitments: a
+changed required source can still cancel other actions in its bundle.
+
+
+The controlled learning fixture contrasts identical opening plans with and without
+a newly readable unrelated manuscript. Focused guards preserve the planned
+institutional teacher and exactly the baseline learning gain; the broad legacy
+control cancels. A replacement room invalidates its original grant. Serializing
+the focused plan before execution preserves complete cultural state after the
+same intervention. Existing required-object destruction and absent-teacher cases
+still prevent progress.
+
+
+Verification for the object-dependency increment (same Vulkan GPU): 124 regular
+library tests passed (108 hardware tests ignored); four targeted GPU fixtures
+passed, including the three-seed allocation case; all-target Clippy passed with
+warnings denied; the full frozen monthly/batched/checkpoint comparison passed on
+seeds 17/81/256. Local logs are ignored `output/service-object-*.log`.

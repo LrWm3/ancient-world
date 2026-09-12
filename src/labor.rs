@@ -274,6 +274,11 @@ impl crate::civilization::History {
                                 })
                             }))
                         && p.actor.is_none_or(|a| (a as usize) < self.people.len())
+                        && p.object_dependencies.as_ref().is_none_or(|ids| ids
+                            .iter()
+                            .enumerate()
+                            .all(|(j, id)| (*id as usize) < c.artifacts.len()
+                                && !ids[..j].contains(id)))
                         && p.participants.as_ref().is_none_or(|ids| ids
                             .iter()
                             .all(|&id| (id as usize) < self.people.len()))

@@ -266,7 +266,7 @@ pub struct Culture {
     pub named_administration: bool,
     #[serde(default)]
     pub heritage_renown: Vec<crate::heritage_renown::Recognition>,
-    /// Restrict personal identity guards to the planned participants. False is a calibration control.
+    /// Focus guards on planned participants and supported object dependencies. False is a calibration control.
     #[serde(default = "focused_work_default")]
     pub focused_work_identities: bool,
     #[serde(default)]
@@ -1305,30 +1305,52 @@ impl Culture {
             let mut remaining_work = labor;
             // Reading and institutional instruction use this quarter's reserved work.
             // A book's physical survival matters: destroyed or remote objects cannot teach.
-            let readable = self.readable_lesson(site, actor);
-            let institution_lesson = if readable.is_none() {
-                self.work_plans
-                    .get(si)
-                    .map_or_else(
-                        || self.institutional_lesson(h, site, actor),
-                        |p| p.institution_lesson,
-                    )
-                    .filter(|(topic, teacher, institution)| {
-                        people.contains(teacher)
-                            && self.agents[*teacher as usize].knowledge.contains(topic)
-                            && self
-                                .institutions
-                                .get(*institution as usize)
-                                .is_some_and(|n| {
-                                    n.operational()
-                                        && n.site == site
-                                        && n.members.contains(&actor)
-                                        && n.members.contains(teacher)
-                                })
-                    })
-            } else {
-                None
-            };
+            let captured_study = self
+                .work_plans
+                .get(si)
+                .and_then(|p| p.study_expectation.as_ref());
+            let readable = captured_study.map_or_else(
+                || self.readable_lesson(site, actor),
+                |study| {
+                    study
+                        .object
+                        .and_then(|id| self.artifacts.get(id as usize))
+                        .filter(|a| {
+                            !a.lost
+                                && !a.destroyed
+                                && a.site == Some(site)
+                                && a.topic == Some(study.lesson.topic)
+                                && !self.agents[actor as usize]
+                                    .knowledge
+                                    .contains(&study.lesson.topic)
+                        })
+                        .map(|a| (study.lesson.topic, Some(a.id), a.events.last().copied()))
+                },
+            );
+            let institution_lesson =
+                if readable.is_none() && captured_study.is_none_or(|s| s.object.is_none()) {
+                    self.work_plans
+                        .get(si)
+                        .map_or_else(
+                            || self.institutional_lesson(h, site, actor),
+                            |p| p.institution_lesson,
+                        )
+                        .filter(|(topic, teacher, institution)| {
+                            people.contains(teacher)
+                                && self.agents[*teacher as usize].knowledge.contains(topic)
+                                && self
+                                    .institutions
+                                    .get(*institution as usize)
+                                    .is_some_and(|n| {
+                                        n.operational()
+                                            && n.site == site
+                                            && n.members.contains(&actor)
+                                            && n.members.contains(teacher)
+                                    })
+                        })
+                } else {
+                    None
+                };
             let lesson = readable.or_else(|| {
                 institution_lesson.map(|(topic, teacher, _)| {
                     (

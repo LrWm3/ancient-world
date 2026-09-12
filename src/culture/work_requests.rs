@@ -59,6 +59,9 @@ pub struct WorkPlan {
     pub successor_expectation: Option<LessonExpectation>,
     #[serde(default)]
     pub participants: Option<Vec<u32>>,
+    /// Explicit object dependencies; None keeps the legacy site-wide guard.
+    #[serde(default)]
+    pub object_dependencies: Option<Vec<u32>>,
     #[serde(default)]
     pub institution_lesson: Option<(u32, u32, u32)>,
     pub actions: Vec<(String, f32)>,
@@ -249,6 +252,7 @@ impl Culture {
         h: &History,
         site: u32,
         participants: Option<&[u32]>,
+        objects: Option<&[u32]>,
     ) -> serde_json::Value {
         let people: Vec<_> = self
             .site_people(h, site)
@@ -257,9 +261,13 @@ impl Culture {
             .collect();
         serde_json::json!({
             "people": people.iter().map(|&p| (p, self.agents.get(p as usize).map(|a| (&a.knowledge, &a.studies, a.instruction_work)))).collect::<Vec<_>>(),
+            "buildings": self.institutions.iter().filter_map(|n| {
+                let b = n.capacity.as_ref()?.building.as_ref()?;
+                objects.is_some_and(|ids| ids.contains(&b.artifact)).then_some((n.id, b.artifact))
+            }).collect::<Vec<_>>(),
             "recoveries": self.local_recoveries.iter().filter(|r| r.site == site).collect::<Vec<_>>(),
             "faith": people.iter().map(|&p| self.resident_tradition(h, site, p)).collect::<Vec<_>>(),
-            "objects": self.artifacts.iter().filter(|a| a.site.is_some_and(|s| h.sites[s as usize].cell == h.sites[site as usize].cell)).map(|a| (a.id, a.site, a.custodian, &a.owner, a.topic, a.lost, a.destroyed)).collect::<Vec<_>>(),
+            "objects": self.artifacts.iter().filter(|a| objects.map_or_else(|| a.site.is_some_and(|s| h.sites[s as usize].cell == h.sites[site as usize].cell), |ids| ids.contains(&a.id))).map(|a| (a.id, a.site, a.custodian, &a.owner, a.topic, a.lost, a.destroyed)).collect::<Vec<_>>(),
             "institutions": self.institutions.iter().filter(|n| n.site == site).map(|n| (n.id, n.leader, &n.members, &n.knowledge, n.active)).collect::<Vec<_>>(),
         })
     }
@@ -297,7 +305,6 @@ impl Culture {
             ids.dedup();
             ids
         });
-        let identities = self.work_identities(h, site, participants.as_deref());
         let successor_expectation = successor
             .filter(|_| actions.iter().any(|(a, _)| a == "teach successor"))
             .map(|(student, topic, _)| {
@@ -328,6 +335,53 @@ impl Culture {
                     })
                 }
             });
+        // Only narrow guards for actions whose object dependencies are explicit.
+        // Unknown/dynamic-target actions retain the full local object snapshot.
+        let object_dependencies = self
+            .focused_work_identities
+            .then(|| {
+                if actions.iter().any(|(a, _)| {
+                    !matches!(
+                        a.as_str(),
+                        "study" | "heritage study" | "teach successor" | "charity"
+                    )
+                }) {
+                    return None;
+                }
+                let mut ids: Vec<_> = study_expectation
+                    .as_ref()
+                    .and_then(|s| s.object)
+                    .into_iter()
+                    .collect();
+                for plan in &services {
+                    if let Some(b) = self.institutions[plan.institution as usize]
+                        .capacity
+                        .as_ref()
+                        .and_then(|c| c.building.as_ref())
+                    {
+                        ids.push(b.artifact);
+                    }
+                    for receipt in &plan.receipts {
+                        if let crate::institution_services::Service::HeritageStudy {
+                            artifact,
+                            ..
+                        } = receipt.service
+                        {
+                            ids.push(artifact);
+                        }
+                    }
+                }
+                ids.sort_unstable();
+                ids.dedup();
+                Some(ids)
+            })
+            .flatten();
+        let identities = self.work_identities(
+            h,
+            site,
+            participants.as_deref(),
+            object_dependencies.as_deref(),
+        );
         let mut upkeep: Option<Vec<InstitutionWorkPlan>> = h.participation.as_ref().map(|_| {
             self.institutions
                 .iter()
@@ -438,6 +492,7 @@ impl Culture {
             successor,
             institution_lesson,
             participants,
+            object_dependencies,
             month: h.month,
             site,
             actor: people
@@ -457,9 +512,15 @@ impl Culture {
             if p.cancellation.is_some() {
                 continue;
             }
-            let current = self.work_identities(h, p.site, p.participants.as_deref());
+            let current = self.work_identities(
+                h,
+                p.site,
+                p.participants.as_deref(),
+                p.object_dependencies.as_deref(),
+            );
             let changed: Vec<String> = ["people", "faith", "objects", "institutions", "recoveries"]
                 .into_iter()
+                .chain(p.object_dependencies.as_ref().map(|_| "buildings"))
                 .filter(|key| p.identities[*key] != current[*key])
                 .map(str::to_owned)
                 .collect();

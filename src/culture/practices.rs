@@ -818,6 +818,96 @@ mod tests {
         assert_eq!(expectation.institution, Some(institution));
         assert_eq!(expectation.object, None);
         assert!(expectation.lesson.expected_gain > 0.);
+        // A late manuscript must neither revoke this lesson nor replace its teacher.
+        let mut scoped_history = h.clone();
+        scoped_history.sites[site as usize].economy.finance[0] = 0.;
+        let mut scoped = c.clone();
+        let unrelated = scoped.artifacts.len() as u32;
+        let mut book = scoped.artifacts[room as usize].clone();
+        book.id = unrelated;
+        book.name = "Declared fixture manuscript".into();
+        book.kind = "manuscript".into();
+        book.materials = vec![(0, 1.)]; // Declared fixture inventory.
+        book.topic = None;
+        scoped.artifacts.push(book);
+        scoped.work_plans = scoped_history
+            .sites
+            .iter()
+            .map(|s| scoped.plan_work(&scoped_history, s.id))
+            .collect();
+        assert_eq!(
+            scoped.work_plans[site as usize].object_dependencies,
+            Some(vec![room])
+        );
+        scoped.labor_budget = vec![0.; h.sites.len()];
+        scoped.labor_budget[site as usize] = 0.1;
+        let mut baseline = scoped.clone();
+        baseline.decisions(&mut scoped_history.clone());
+        let mut legacy = scoped.clone();
+        legacy.focused_work_identities = false;
+        legacy.work_plans = scoped_history
+            .sites
+            .iter()
+            .map(|s| legacy.plan_work(&scoped_history, s.id))
+            .collect();
+        assert!(legacy.work_plans[site as usize]
+            .object_dependencies
+            .is_none());
+        scoped.artifacts[unrelated as usize].topic = Some(4);
+        legacy.artifacts[unrelated as usize].topic = Some(4);
+        legacy.validate_work_plans(&scoped_history);
+        assert!(legacy.work_plans[site as usize].cancellation.is_some());
+        let mut restored: Culture =
+            serde_json::from_value(serde_json::to_value(&scoped).unwrap()).unwrap();
+        scoped.decisions(&mut scoped_history.clone());
+        restored.decisions(&mut scoped_history.clone());
+        assert!(scoped.work_plans[site as usize].cancellation.is_none());
+        let outcome = scoped.work_plans[site as usize]
+            .study_expectation
+            .as_ref()
+            .unwrap();
+        assert!(outcome.lesson.actual_gain > 0.);
+        assert_eq!(outcome.teacher, Some(teacher));
+        assert_eq!(outcome.object, None);
+        assert_eq!(
+            outcome.lesson.actual_gain,
+            baseline.work_plans[site as usize]
+                .study_expectation
+                .as_ref()
+                .unwrap()
+                .lesson
+                .actual_gain
+        );
+        assert_eq!(
+            serde_json::to_value(&scoped).unwrap(),
+            serde_json::to_value(&restored).unwrap()
+        );
+        // A different building cannot inherit the old room grant.
+        let mut replaced = c.clone();
+        replaced
+            .artifacts
+            .push(scoped.artifacts[unrelated as usize].clone());
+        replaced.artifacts[unrelated as usize].topic = None;
+        replaced.work_plans = scoped_history
+            .sites
+            .iter()
+            .map(|s| replaced.plan_work(&scoped_history, s.id))
+            .collect();
+        assert_eq!(
+            replaced.work_plans[site as usize].object_dependencies,
+            Some(vec![room])
+        );
+        replaced.institutions[institution as usize]
+            .capacity
+            .as_mut()
+            .unwrap()
+            .building
+            .as_mut()
+            .unwrap()
+            .artifact = unrelated;
+        replaced.labor_budget = vec![0.1; h.sites.len()];
+        replaced.validate_work_plans(&scoped_history);
+        assert!(replaced.work_plans[site as usize].cancellation.is_some());
         let mut damaged = predicted.clone();
         let mut damaged_history = h.clone();
         damaged.artifacts[room as usize].destroyed = true;
