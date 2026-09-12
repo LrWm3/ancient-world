@@ -42,7 +42,7 @@ Commands use `target/debug/examples/cultural_work_calibrate` with:
 Outputs are ignored `output/nutrition-age-personal.json` and
 `output/nutrition-age-cohort.json`; corresponding logs remain local.
 Both ensembles were launched after the diagnostic example built successfully and
-passed Clippy with warnings denied. Results are pending; no defaults have changed.
+passed Clippy with warnings denied. The completed results and follow-ups are below; no defaults have changed.
 
 ## Independent follow-up control
 
@@ -60,12 +60,11 @@ preserving the measured hunger work factor; its disabled state survives archive
 round-trip and older archives default to enabled. The fixture retains food-wallet
 and exposure checks. All-target Clippy passes with warnings denied.
 
-## First completed pair: seed 409 (ensemble still running)
+## Seed 409 century comparison
 
 The runs use diagnostic commit `574abd5`; subsequent mortality-only controls do
-not alter the already-running processes. Both seed-409 centuries completed;
-seed 1024 is pending in each ensemble. Do not interpret this as a completed
-held-out ensemble.
+not alter the already-running processes. Both seed-409 centuries completed first; the completed seed-1024 pair is
+reported below.
 
 | Measure at 100 years | Personal nutrition | Combined nutrition ablation |
 |---|---:|---:|
@@ -98,4 +97,59 @@ entitlements and income rather than increasing physical food abundance.
 The combined ablation worsens the endpoint and access gap. Disabling personal
 nutrition is therefore not supported as a repair. Mortality-only and bounded
 common-entitlement comparisons are the next useful controls; current defaults
-remain unchanged pending the second seed and further evidence.
+remain unchanged pending the food-access comparison and further evidence.
+
+## Follow-up comparisons
+
+A 30-year seed-409 run using `d659261` with `--no-household-mortality` completed
+against the existing 30-year samples of the two century histories.
+The default-enabled new control changes no other behavior. Its local output is
+`output/nutrition-age-mortality-only.json`.
+
+The entitlement comparison now runs seeds 409/1024 for 30 years with the existing
+`--common-share 0.65` control, retaining crop yield 0.5 and all personal
+production/nutrition systems. Its local output is `output/nutrition-access-65.json`.
+This changes the distribution of existing food, not the ecological or production
+inputs. The 0.65 value is a game-balance probe between the current 0.5 and the
+previous full-common-food ablation, not a proposed default or historical estimate.
+
+
+| Seed 409 at 30 years | Personal nutrition | Both effects disabled | Mortality only disabled |
+|---|---:|---:|---:|
+| Residents | 1,609 | 1,529 | 1,438 |
+| Children / adults / elders | 463 / 833 / 313 | 462 / 788 / 279 | 424 / 748 / 266 |
+| Cumulative food access gap | 3.325% | 4.469% | 4.785% |
+| Physical food gap | 0% | 0% | 0% |
+
+All three have zero monthly population residual and food residual below 2.6e-7
+at this horizon. Removing the work penalty improves the mortality-ablation
+endpoint by 91 residents, but the full personal model still performs best in
+this seed. These interacting trajectories do not justify replacing household
+mortality or removing work feedback as the population repair. The next comparison
+therefore targets access to existing food. Longer and additional-seed evidence
+remains necessary; no default has changed.
+
+
+## Completed second century pair: seed 1024
+
+Both ensemble reports now declare complete.
+
+| Measure at 100 years | Personal nutrition | Combined nutrition ablation |
+|---|---:|---:|
+| Residents | 615 | 452 |
+| Children / adults / elders | 172 / 345 / 98 | 137 / 252 / 63 |
+| Committed births / deaths | 3,167 / 4,471 | 2,830 / 4,298 |
+| Cumulative physical food gap | 0.0666% | 0.0602% |
+| Cumulative access gap | 3.752% | 5.106% |
+
+Both retain sixteen sites and zero monthly population residual; maximum food
+residual remains below 3.1e-7. Personal nutrition reproduces the earlier
+construction century's 615 residents. Its age-band expected deaths are
+1,218.44 / 1,405.65 / 1,210.52; household exposure changes these to
+1,785.10 / 1,155.34 / 1,516.87. The dependent/adult exposure difference repeats.
+
+Across these two seeds, removing the combined nutrition effects worsens both
+remaining population and food access. This is evidence against that proposed
+repair, not evidence that the personal model is well balanced. The continuing
+0.65 common-share comparison tests an actual entitlement adjustment; population
+stability and the wider integration worklist remain open.
