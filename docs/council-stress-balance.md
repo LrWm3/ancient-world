@@ -42,8 +42,10 @@ separate work.
 
 ## Status
 
-The one-year seed-17 smoke test completes with 1,955 residents and records all four forcing values correctly. Example Clippy passes with warnings denied. The six-run, three-seed 200-year ensemble has started; results remain pending. Report failed or incomplete
-histories separately; never count their last surviving sample as a 200-year result.
+The one-year seed-17 smoke test completes with 1,955 residents and records all four
+forcing values correctly. The original ensemble fails as recorded below; the
+isolated corrected ensemble completes all six histories below. Failed or incomplete histories
+are separate from completed 200-year results.
 
 ## Funded campaign boundary check
 
@@ -77,9 +79,78 @@ Both the new true-overgrant fixture and the previous false-audit-sum fixture pas
 For the corrected stress comparison, use isolated source `b9ed7bf` plus the
 `src/agriculture_participation.rs` allocator patch. Do not include the intervening
 husbandry, continuing-study or captured-route changes when interpreting the council
-policy comparison. Corrected runs and final results are pending.
+policy comparison. The completed corrected results are reported below.
 
 The cash-gap seed 1024 also fails, at month 2200, with stored grants
 106.66678148508072 against the same 106.666664 request. Both policies therefore
 expose the allocator fault. The corrected three GPU agriculture/extraction/
 construction fixtures pass, including wage attribution and saved continuation.
+
+## Interpreting funding observations
+
+The administrative record can retain unpaid-month counters after a site becomes
+inactive. The comparison script labels its maximum as a **stored** streak; it is
+not automatically the current service gap of an occupied town. Use cumulative
+actual requested, paid and shortfall totals to assess coverage, and report active
+settlement counts separately. Differences in survival also change service demand.
+An ending treasury alone cannot establish either adequate revenue or unnecessary
+reserves.
+
+The allocator correction is not trajectory-neutral. In seed 17, both original and
+corrected policy arms match population and completed cultural work at year 10,
+but later discrete outcomes diverge. The existing-support endpoint changes from
+1,144 to 1,073 residents; cash-gap support changes from 1,501 to 1,165. These are
+original-versus-corrected code comparisons, not treatment effects. The new policy
+comparison must use corrected source for **both** arms. The bounded-grant proof
+and fixtures justify fixing the overdraw; they do not establish insensitivity to
+small allocation changes or identify every subsequent causal branch.
+
+## Completed corrected ensemble
+
+All six histories exit successfully at 200 years. The isolated executable uses
+`b9ed7bf` plus the allocator change committed as `00f1fa9`, without later husbandry,
+freight, continuing-study or heritage changes. Both arms run seeds **1024, 17, 81**
+in that order to verify the formerly failing seed first. All other protocol
+settings above match. Strict comparison scripts accept only the declared
+`cash_gap_town_support` difference and verify complete monthly-observed endpoints.
+
+Food gaps are cumulative shares of required food: physical supply shortage and
+unmet purchasing access are separate. Administrative shortfall is cumulative
+unpaid/requested cost. Population change is the final observed decade, years
+190–200. Active sites are endpoint counts, not a survival fraction of a fixed
+initial roster.
+
+| Seed | Support | Population | Change 190–200 | Active towns | Physical food gap | Access gap | Admin unpaid |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 17 | Existing | 1,073 | −25 | 9 | 0.8020% | 2.3460% | 9.972% |
+| 17 | Cash gap | 1,165 | −4 | 8 | 0.8276% | 2.3129% | 4.629% |
+| 81 | Existing | 1,489 | −84 | 12 | 0.7769% | 2.0759% | 10.334% |
+| 81 | Cash gap | 1,470 | +69 | 10 | 0.9421% | 1.9978% | 4.765% |
+| 1024 | Existing | 1,465 | −37 | 11 | 1.0469% | 2.0315% | 15.407% |
+| 1024 | Cash gap | 1,424 | +85 | 9 | 0.9670% | 2.0676% | 5.377% |
+
+**Interpretation:** cash-gap requests improve administrative payment coverage in
+all three seeds and improve the final decade's population change. They do not
+uniformly improve food supply, purchasing access or ending population. Every
+treatment has fewer active towns. Retain the opt-in policy; improved fiscal
+coverage alone does not justify selecting it as the universally better setting.
+Two positive final decades are not proof of a stable long-run population.
+
+The histories record 131–175 regional drought events and 4–8 abandonment events
+per run. Road-flood closures occur in the seed-1024 pair. There are **zero actual
+expedition voyages and zero people serving in military cohorts** in every run:
+those enabled systems were not exercised by this balance ensemble. The separately
+funded campaign fixture above covers accounting/continuation, not long wartime
+balance. Heritage effects are checked in their own finite-recovery fixture.
+
+Maximum monthly population residual is **zero** in every run. Maximum reported
+food residual is **1.584e-6**; the largest absolute ending economic residual across
+the reported native-unit ledgers is **2.395e-5**. These small residuals support the
+accounting checks, not a claim that the policy or resulting histories are ideal.
+No unresolved simulation error is accepted to complete the corrected ensemble.
+
+These processes overlap other validation and are briefly paused during the lake
+microbenchmark; their wall times are not comparative performance evidence. Raw
+JSON/logs remain local as `output/council-corrected-{existing,cash-gap}.*`.
+Reproduction uses the protocol above with the corrected source and seed order,
+then runs both comparison scripts with `--allow-difference cash_gap_town_support`.

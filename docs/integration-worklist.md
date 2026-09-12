@@ -11,7 +11,7 @@ or a successful balance run.
 | Connection | Current implementation | Remaining commitment / review |
 |---|---|---|
 | Population and household authority | Individual demography, resident rosters, roster relocation, [whole-household daughter founding](resident-daughter-founding.md) and household nutrition exist | [Five matched century histories expose severe individual decline](resident-payroll-balance.md); the repaired common-food century completes with 7,019 residents, identifying access as a major cause; resolve income/exposure/age-structure causes and held-out comparisons before closing this gate; both matched nutrition centuries retain more residents with personal exposure (735/615 versus 568/452); household exposure shifts expected mortality toward children/elders; the 0.65 common-share probe retains 1,756/1,704 after a century and reduces access gaps, but both still decline ([evidence](nutrition-age-balance.md)) |
-| Production participation | Workshops assign people and return wages; the [agriculture pilot](production-participation.md) now connects GPU forecasts, personal attendance, cultivation/harvest limits and farm payroll | Three matched 30-year seeds improve food access but have mixed population outcomes; both held-out centuries slow decline (691–767 residents versus 87–89) without stabilizing it. The opt-in forestry/mining extension now shares personal capacity and pays assigned households; five GPU fixtures pass; the two-seed 30-year extraction comparison has mixed population/access outcomes. Construction attendance, payroll and preservation of contracted workshops pass GPU boundary/continuation fixtures; the matched construction comparison has mixed population/access effects and only 13–17% utilization of granted builder time; a shared GPU feasible-project forecast now replaces the ceiling-only request and passes analytical and continuation fixtures; two new matched seeds reduce builder reservations by 83–87% while preserving nearly all completed work, but population/access remain mixed; held-out centuries retain 615–735 residents versus 595–665 controls without stabilizing decline; fishing/husbandry remain aggregate. Preserve aggregate mode |
+| Production participation | Workshops assign people and return wages; the [agriculture pilot](production-participation.md) now connects GPU forecasts, personal attendance, cultivation/harvest limits and farm payroll | Three matched 30-year seeds improve food access but have mixed population outcomes; both held-out centuries slow decline (691–767 residents versus 87–89) without stabilizing it. The opt-in forestry/mining extension now shares personal capacity and pays assigned households; five GPU fixtures pass; the two-seed 30-year extraction comparison has mixed population/access outcomes. Construction attendance, payroll and preservation of contracted workshops pass GPU boundary/continuation fixtures; the matched construction comparison has mixed population/access effects and only 13–17% utilization of granted builder time; a shared GPU feasible-project forecast now replaces the ceiling-only request and passes analytical and continuation fixtures; two new matched seeds reduce builder reservations by 83–87% while preserving nearly all completed work, but population/access remain mixed; held-out centuries retain 615–735 residents versus 595–665 controls without stabilizing decline; fishing remains aggregate; [husbandry attendance](husbandry-attendance.md) now bounds managed feeding, collection and slaughter by granted farm participation. Preserve aggregate mode |
 | Merchant crews | Named paid endpoint crews, bounded commitments and experience | Conditional pooled-budget forecasts and named/aggregate outcome receipts now accompany both reservation windows; six vessel tests and shipping integration pass, including saved/batched continuation. Onboard presence is a separate larger extension, not already implemented |
 | Research and culture | Dated requests, personal commitments and comparison receipts | Successor teaching now captures conditional progress/acquisition expectations and action-specific actual outcomes (analytical, funding and three-seed allocation tests pass); institutional/object study now captures source-specific outcomes (absence, funding and competing-action fixtures pass); specimen research now records requested/actual study, processing outputs and method acquisition (scarcity, lost tools, closed contact, output and three-seed comparison tests pass); botanical study/application now records input expectations separately from physical output (four-month GPU, missing-catalog, archive and three-seed allocation fixtures pass); [Informal encounter selection](informal-learning-selection.md) now finds later eligible sources/learners and favors continuing study, while preserving opening-source knowledge and once-per-boundary selection; 23 culture checks pass. Other cultural actions, cross-channel outcome comparisons and long-run learning distribution remain open |
 | Domestic care | Family and relationship-based neighbor care, personal time costs and comparison receipts | Local parent/child and sibling support now crosses domestic-unit boundaries with estrangement and finite-work limits; five focused tests pass. [Spare-time family assistance](domestic-surplus-assistance.md) now permits helpers with fully covered dependents to share remaining personal capacity without reducing family grants. Cross-town support needs explicit travel/remittances; unmet care retains departure constraints and has no added health penalty |
@@ -55,7 +55,7 @@ The [political distribution century comparison](distribution-policy-century.md) 
 
 ## Ordered follow-up after the performance pass
 
-The next series retains the priority order from the user-approved review:
+This series follows the priority order from the user-approved review:
 
 1. Council administration versus household assistance: inspect funding and test a scoped allowance.
 2. Broader integrated balance, including disruption and longer/held-out histories.
@@ -73,8 +73,10 @@ roadmap complete. The [council allowance pilot](council-administration-allowance
 is the first increment. Its eight century histories are complete: cash-gap town
 support improves administrative coverage in both seeds and removes the long ending
 unpaid streak, but food/population effects are mixed. Both pilots remain opt-in.
-The next [three-seed, 200-year weather-stress comparison](council-stress-balance.md)
-is running; funded-war accounting and continuation pass under the council policies.
+The [three-seed, 200-year weather-stress comparison](council-stress-balance.md)
+now completes all six corrected histories: administrative coverage improves across
+the three treatment seeds, but ending population is mixed and fewer towns remain
+active. Funded-war accounting and continuation pass under the council policies.
 Item 3 has a bounded [continuing-study increment](institution-continuing-study.md):
 three matched thirty-year comparisons acquire more topics from nearly the same
 lesson counts. Multi-site branches and permanent enrollment remain larger work.
@@ -84,11 +86,18 @@ Item 5 makes [captured-road flooding](road-freight-capacity.md) hold actual carg
 rather than silently using an unreserved alternative; market, shipping and
 scheduler checks pass. Shared military/relief corridors and explicit rerouting
 remain broader work. Item 6 adds [persistent source depletion evidence](source-depletion-evidence.md)
-without claiming ancestry through mixed/transformed goods. Items 7–9 still await
-their next implementation/review increment in this follow-up series.
+without claiming ancestry through mixed/transformed goods. Item 7 adds [aquatic thermal-width sensitivity](wildlife-thermal-ecotypes.md): nine matched century runs show the predator response, while defaults remain unchanged. Item 8 adds [ownership-connected heritage hosts](heritage-stewardship.md), with presence/custody fixtures. Item 9 completes a [lake polling comparison](lake-polling-review.md): 75% fewer checks yield only 0.52% lower fixed-work solver time; the default remains unchanged and synchronous responsiveness remains larger work.
 
 The longer council ensemble found a real farm-grant over-allocation at month 1688
 in seed 1024 (existing support), and month 2200 (cash-gap support). Those arms are
 failed, not complete. The allocator correction passes the reproducing analytical
 fixture and three GPU attendance/continuation fixtures; isolated corrected balance
-runs are the next verification step. See the stress report for exact provenance.
+runs now all complete. See the stress report for source provenance, failed original
+runs and changed trajectories after the numerical correction.
+
+
+All nine areas have received their bounded implementation/review increment in this
+pass. [The consolidated report](integrated-followup-pass.md) links decisions and
+verification. This does not close the broader roadmap: transformed-good ancestry,
+permanent enrollment, onboard crews, shared military/relief corridors, staffed
+heritage visits and asynchronous lake advancement remain explicit larger work.

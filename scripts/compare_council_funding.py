@@ -17,7 +17,7 @@ def main():
         compare(baseline, treatment, set(args.allow_difference))
     except (ValueError, KeyError, TypeError) as error:
         parser.error(str(error))
-    print('| Seed | Arm | Population | Food access gap % | Admin unpaid % | Longest ending unpaid streak | Relief withheld by allowance |')
+    print('| Seed | Arm | Population | Food access gap % | Admin unpaid % | Longest stored unpaid streak | Relief withheld by allowance |')
     print('|---|---|---:|---:|---:|---:|---:|')
     for report, label in ((baseline, 'baseline'), (treatment, 'treatment')):
         for run in report['runs']:
@@ -28,6 +28,7 @@ def main():
             print(f"| {run['seed']} | {label} | {s['population']:.0f} | "
                   f"{100*s['food_totals'][5]/s['food_totals'][0]:.4f} | {gap:.3f} | "
                   f"{max((a['unpaid_months'] for a in s['administrations']), default=0)} | {relief[4]:.3f} |")
+    print('\nStored arrears may include inactive sites; use requested/paid totals for funding coverage.')
     print('\nEnding annual tax boundaries (not monthly revenue forecasts):')
     print('\n| Seed | Arm | Site | Opening town cash | Rate | Office capacity | Autonomy | Tax paid | Ending admin unpaid months |')
     print('|---|---|---|---:|---:|---:|---:|---:|---:|')
