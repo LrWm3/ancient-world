@@ -22,6 +22,10 @@ includes work that remains unimplemented. See also
 
 ## Working on history systems
 
+The [system maintenance inventory](system-maintenance-inventory.md) lists existing
+systems, their latest committed source and documentation work, and pending local
+changes. It distinguishes recorded activity from a formal review.
+
 Read [repository development guidance](../AGENTS.md) before changing a system.
 These guides describe different contracts; enabling participation does not by itself
 transfer population authority or choose a resource-sharing policy.
