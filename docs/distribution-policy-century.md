@@ -150,7 +150,9 @@ Clippy across all targets and repository artifact checks pass.
 Keep the political-policy defaults for now. The result is substantially better
 than fixed distribution in these two scenarios, but persistent late purchasing
 gaps around 2% and thin council reserves remain. Two seeds at resolution 32/16 and
-a century horizon do not establish a universal equilibrium. Before increasing
-harvest yields or relaxing mortality, test reserve-aware relief and fiscal
-responses under disruptions, then longer horizons and additional seeds. The
-current targets were not retuned against these results.
+a century horizon do not establish a universal equilibrium. The [council-funding follow-up](council-funding-balance.md) now measures actual
+requests: century-wide administrative coverage improves in both seeds, but late
+coverage worsens in one. No petition closes for lack of council funds. Keep the
+population gains while investigating local tax collection and comparing explicit
+basic-service funding against household assistance; do not target a larger idle
+treasury as an end in itself. These observations do not retune the policy targets.
