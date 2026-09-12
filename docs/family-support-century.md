@@ -78,7 +78,7 @@ isolates the direct cash-to-funded-food effect.
 ## What still needs explanation
 
 Code inspection identifies several coupled demographic responses. In
-`individual_demography::Projection::from_exposure` and household personal mortality,
+`individual_demography::DemographicProjection::from_exposure` and household personal mortality,
 monthly baseline death risks are augmented by food shortage times age-specific
 coefficients `[0.06, 0.025, 0.05]`. A persistent 0.05 household shortage therefore
 adds 0.003 to monthly child mortality before disease. These are toy coefficients,

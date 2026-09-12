@@ -2,6 +2,9 @@
 
 Households hold real cash wallets, separate from settlement operating cash and beneficial ownership of communal assets. New societies enable this model; older archives default to no household economy and retain pooled consumption until explicitly configured. No cash is minted at initialization.
 
+The percentages below are initial defaults. Annual politics can now change them
+per controlling council; see [household distribution policies](household-distribution-politics.md).
+
 Each monthly production step has two CPU bookends around the existing GPU work:
 
 1. Pay a finite payroll from settlement cash, capped by allocated adult labor and 20% of available cash. Allocate payroll among resident households using the industry-linked rule below; older policies retain equal division. Pay ownership-weighted dividends from 1% of the remaining cash.

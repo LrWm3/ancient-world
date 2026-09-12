@@ -13,6 +13,9 @@ mise exec rust@1.89.0 -- cargo run -- --load output/civilization-politics.world
 
 To extend a saved social world, omit `--civilizations` and `--society`. To resume an already political world, omit `--politics` as well.
 
+Councils now revise [household distribution policies](household-distribution-politics.md)
+from governing interests and completed household food deficits, effective next month.
+
 ## Families and inheritance
 
 Genealogy now stores two parent references for recorded new births, household affiliation, dated marriages, union dissolution on death, and children. Annual marriage matching pairs eligible local adults and excludes shared ancestors within three generations. Reproductive unions have a simplified age window, minimum three-year birth spacing, and at most four recorded children. These are explicit game rules, without sex-specific fertility, pregnancy, divorce or cultural marriage-law catalogs.

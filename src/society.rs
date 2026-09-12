@@ -79,6 +79,12 @@ pub struct PendingTaxPolicy {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Council {
+    #[serde(default)]
+    pub distribution: Option<crate::household_economy::policy::DistributionPolicy>,
+    #[serde(default)]
+    pub pending_distribution: Option<crate::household_economy::policy::PendingDistribution>,
+    #[serde(default)]
+    pub distribution_review: Option<u32>,
     pub civilization: u32,
     pub treasury: f64,
     pub tax_rate: f32,
@@ -169,6 +175,7 @@ impl History {
     }
 
     pub(crate) fn activate_monthly_policies(&mut self) {
+        self.activate_distribution();
         let changes: Vec<_> = self.society.as_mut().map_or_else(Vec::new, |s| {
             s.councils
                 .iter_mut()
@@ -287,6 +294,15 @@ impl Society {
                     .iter()
                     .enumerate()
                     .all(|(i, c)| c.civilization == i as u32
+                        && c.distribution.is_none_or(|p| p.valid())
+                        && c.distribution_review.is_none_or(|m| m <= h.month)
+                        && c.pending_distribution
+                            .as_ref()
+                            .is_none_or(|p| p.policy.valid()
+                                && p.decided <= h.month
+                                && p.effective == p.decided.saturating_add(1)
+                                && p.effective > h.month
+                                && h.events.iter().any(|e| e.id == p.cause))
                         && c.treasury.is_finite()
                         && c.treasury >= 0.
                         && c.relief_paid.is_finite()
@@ -1372,6 +1388,9 @@ impl Generator {
                     treasury: 0.,
                     tax_rate: 0.03,
                     pending_tax: None,
+                    distribution: None,
+                    pending_distribution: None,
+                    distribution_review: None,
                     tax_effective_since: None,
                     relief_paid: 0.,
                 })
@@ -1610,6 +1629,9 @@ mod policy_timing_tests {
             treasury: 100.,
             tax_rate: 0.03,
             pending_tax: None,
+            distribution: None,
+            pending_distribution: None,
+            distribution_review: None,
             tax_effective_since: None,
             relief_paid: 0.,
         }

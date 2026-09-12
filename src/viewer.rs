@@ -2357,6 +2357,14 @@ impl App {
                                 council.tax_rate * 100.,
                                 council.relief_paid
                             ));
+                            if let Some(e) = &society.household_economy {
+                                let policy = council.distribution.unwrap_or_else(||
+                                    crate::household_economy::policy::DistributionPolicy::baseline(e));
+                                ui.label(policy.description());
+                                if let Some(p) = &council.pending_distribution {
+                                    ui.label(format!("From month {}: {}", p.effective, p.policy.description()));
+                                }
+                            }
                         }
                     });
                     ui.collapsing("Routes and expeditions", |ui| {

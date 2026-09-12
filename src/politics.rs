@@ -856,7 +856,16 @@ impl History {
                     [p.factions[p.governing[civ] as usize].interest as usize],
             );
         }
+        let distribution_governments: Vec<_> = p
+            .governing
+            .iter()
+            .map(|&id| p.factions[id as usize].interest as usize)
+            .collect();
         self.politics = Some(p);
+        // Restore controllers before aggregating the governed households' food deficit.
+        for (civ, interest) in distribution_governments.into_iter().enumerate() {
+            self.propose_distribution(civ, interest);
+        }
         // Escalation needs a recent material grievance, a contested corridor and supplies.
         let pairs: Vec<_> = self
             .society

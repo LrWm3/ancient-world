@@ -47,3 +47,6 @@ Completed increments retain tests, evidence and commits; unresolved work stays l
 The first evaluation measures current integrated behavior. It is game-balance
 assessment, not empirical calibration against historical observations. Annual
 samples cannot establish monthly maxima or prove an absent mechanism was exercised.
+
+Council household distribution now follows [dated political policies](household-distribution-politics.md).
+Controlled timing and retail tests cover this connection; long-run political food-access balance remains open.

@@ -459,6 +459,9 @@ mod tests {
             a.cash -= returned;
             a.estate_returned += returned;
         }
+        // Isolate family gifts from policies adopted during the fixture's history.
+        base.override_distribution(false);
+        base.override_distribution(true);
         assert_eq!(links(&base).len(), 1);
         let mut control = base.clone();
         control

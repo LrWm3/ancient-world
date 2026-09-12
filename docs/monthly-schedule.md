@@ -46,6 +46,8 @@ Reservations remain subsystem-specific; this is not a simultaneous global auctio
   (same month and site) alongside prior-Close remembered town pressure. Petition
   credit uses the recorded responding faction, so later council turnover cannot
   reassign responsibility for an earlier response.
+- Annual politics also schedules [council household-distribution policies](household-distribution-politics.md);
+  next Open activates them before retail reservations. They cannot change completed consumption.
 - Events are committed alongside actions and can influence later stages. Closing
   records summaries; it does not defer provenance IDs or conceal same-month events.
 - Economy migration and living activation explicitly call `initialize_history_boundary`.

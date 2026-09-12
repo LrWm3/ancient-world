@@ -4,6 +4,7 @@ use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 mod family_support;
 mod nutrition;
+pub mod policy;
 pub use family_support::{FamilyGift, FamilySupportPolicy};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -337,6 +338,14 @@ impl History {
         let Some(e) = society.household_economy.as_mut() else {
             return vec![];
         };
+        let policies: Vec<_> = society
+            .councils
+            .iter()
+            .map(|c| {
+                c.distribution
+                    .unwrap_or_else(|| policy::DistributionPolicy::baseline(e))
+            })
+            .collect();
         e.accounts
             .resize(society.households.len(), HouseholdAccount::default());
         let mut residents = vec![vec![]; self.sites.len()];
@@ -388,6 +397,7 @@ impl History {
         let mut plans = vec![];
         for (i, ids) in residents.into_iter().enumerate() {
             let s = &mut self.sites[i];
+            let policy = policies[controllers[i]];
             if ids.is_empty() || s.abandoned || s.stocks.stock[0] <= 0. {
                 continue;
             }
@@ -456,7 +466,7 @@ impl History {
                 })
                 .collect();
             let payroll_request =
-                (labor * 18. * price).min(s.economy.finance[0] as f64 * e.payroll_share as f64);
+                (labor * 18. * price).min(s.economy.finance[0] as f64 * policy.payroll as f64);
             let payroll = withdraw(
                 &mut s.economy.finance[0],
                 if eligible.iter().any(|v| *v) {
@@ -465,7 +475,7 @@ impl History {
                     0.
                 },
             );
-            let dividend_request = s.economy.finance[0] as f64 * e.dividend_share as f64;
+            let dividend_request = s.economy.finance[0] as f64 * policy.dividends as f64;
             let dividends = withdraw(&mut s.economy.finance[0], dividend_request);
             let shares = ids
                 .iter()
@@ -517,7 +527,11 @@ impl History {
             let last_paid = eligible_ids.last().copied();
             let mut wage_left = payroll;
             let mut dividend_left = dividends;
-            let common_share = e.common_share_at(self.month, s.founded) as f64;
+            let common_share = e
+                .founding_access
+                .filter(|_| s.founded == 0)
+                .map_or(policy.common, |p| p.share(self.month, policy.common))
+                as f64;
             let free = need * common_share;
             let mut demand = vec![];
             for (j, &id) in ids.iter().enumerate() {
@@ -586,7 +600,10 @@ impl History {
             for &id in &p.ids {
                 let a = &e.accounts[id];
                 let common_share = p.free / p.need.max(1e-12);
-                let target = (e.relief_target as f64 - common_share).max(0.) * a.need * p.price;
+                let target = (policies[controllers[p.site]].food_target as f64 - common_share)
+                    .max(0.)
+                    * a.need
+                    * p.price;
                 let request = (target - a.cash).max(0.);
                 if request > 0. {
                     requests[controllers[p.site]].push((id, request));
@@ -595,7 +612,8 @@ impl History {
         }
         for (council, requests) in society.councils.iter_mut().zip(requests) {
             let demand = requests.iter().map(|r| r.1).sum::<f64>();
-            let budget = (council.treasury * e.relief_share as f64).min(demand);
+            let budget = (council.treasury * policies[council.civilization as usize].relief as f64)
+                .min(demand);
             let grants =
                 apportion_relief(&requests.iter().map(|r| r.1).collect::<Vec<_>>(), budget);
             let paid = grants.iter().sum::<f64>();
@@ -775,7 +793,8 @@ impl crate::gpu::Generator {
         e.common_share = common_share;
         e.payroll_share = payroll_share;
         e.dividend_share = dividend_share;
-        h.event("household_distribution_policy",None,None,format!("Common food entitlement {:.0}% of need; monthly payroll capped at {:.0}% of settlement cash and dividends at {:.0}% of remaining cash; wallets begin with no invented capital",common_share*100.,payroll_share*100.,dividend_share*100.));
+        h.override_distribution(false);
+        h.event("household_distribution_policy",None,None,format!("Common food entitlement {:.0}% of need; monthly payroll capped at {:.0}% of settlement cash and dividends at {:.0}% of remaining cash; explicit override cancels pending council distribution changes; wallets begin with no invented capital",common_share*100.,payroll_share*100.,dividend_share*100.));
         Ok(())
     }
 }
@@ -808,7 +827,8 @@ impl crate::gpu::Generator {
             .ok_or_else(|| anyhow::anyhow!("enable household economy first"))?;
         e.relief_share = treasury_share;
         e.relief_target = food_target;
-        h.event("household_distribution_policy",None,None,format!("Targeted food relief may spend {:.0}% of monthly council treasury to support {:.0}% dietary entitlement; towns share the budget in proportion to unmet purchasing power",treasury_share*100.,food_target*100.));
+        h.override_distribution(true);
+        h.event("household_distribution_policy",None,None,format!("Targeted food relief may spend {:.0}% of monthly council treasury to support {:.0}% dietary entitlement; towns share the budget in proportion to unmet purchasing power; explicit override cancels pending council distribution changes",treasury_share*100.,food_target*100.));
         Ok(())
     }
 }
