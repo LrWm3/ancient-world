@@ -10,6 +10,9 @@ use serde_json::json;
 use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 #[derive(Parser)]
 struct Args {
+    /// Sustained storm/drought stress using the same bounded forcing as scheduler fixtures.
+    #[arg(long)]
+    weather_stress: bool,
     /// Annual hunger-triggered town support covers only the gap to its cash target.
     #[arg(long)]
     cash_gap_town_support: bool,
@@ -338,6 +341,20 @@ fn main() -> Result<()> {
         g.enable_expeditions()?;
         g.enable_discoveries()?;
         g.enable_living_history()?;
+        if args.weather_stress {
+            let weather = &mut g
+                .civilizations
+                .as_mut()
+                .unwrap()
+                .economy_catalog
+                .as_mut()
+                .unwrap()
+                .weather;
+            weather.drought_probability = 0.5;
+            weather.drought_severity = 0.9;
+            weather.storm_probability = 0.5;
+            weather.storm_multiplier = 4.;
+        }
         if args.individual_demography || args.aggregate_resolution {
             g.civilizations
                 .as_mut()
@@ -757,6 +774,16 @@ fn main() -> Result<()> {
             "paid",
             "withheld_by_allowance"
         ]);
+        report["weather_stress"] = json!(args.weather_stress);
+        report["weather_parameters"] = json!(
+            g.civilizations
+                .as_ref()
+                .unwrap()
+                .economy_catalog
+                .as_ref()
+                .unwrap()
+                .weather
+        );
         report["cash_gap_town_support"] = json!(args.cash_gap_town_support);
         report["protect_administration"] = json!(args.protect_administration);
         report["political_distribution"] = json!(!args.fixed_distribution);
