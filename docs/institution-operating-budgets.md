@@ -375,33 +375,70 @@ python3 scripts/compare_food_access.py output/institution-essential-control-30.j
   output/institution-essential-treatment-30.json --allow-difference essential_institution_work
 ```
 
-## Held-out century evaluation in progress
+## Completed held-out century evaluation
 
-The same `21b617e` executable is evaluating seeds 409 and 1024 for 100 years with
-all settings from the 30-year policy comparison unchanged except seed list and
-history length. Both arms run concurrently; timings are not benchmarks. The
-reports are `output/institution-essential-heldout-control-100.json` and
-`output/institution-essential-heldout-treatment-100.json`.
+The same `21b617e` executable evaluated seeds 409 and 1024 for 100 years.
+Both processes exited successfully and the completion/metadata comparison passes;
+only `essential_institution_work` differs between arms. Settings retain terrain
+32, ecology 16, one geological epoch, sixteen founders, crop yield 0.5, living
+history, individual demography, workshop/agriculture/extraction/construction
+refinement, operating funding and named administration. Common share 0.65 is a
+test intervention, not the default. Within-class ordering is stable; office
+service is not enabled. Both arms ran concurrently on the Quadro RTX 5000;
+timings are not benchmarks.
 
-Seed 409 has reached its 100-year boundary in both arms. The ensemble remains
-incomplete while seed 1024 runs; do not treat these as the complete held-out result.
+| Seed / policy | Population | Operational / active institutions | Funding collected | Fees paid | Repairs paid |
+|---|---:|---:|---:|---:|---:|
+| 409 / full upkeep first | 1,588 | 0 / 32 | 4,193.56 | 1,210.86 | 3,746.78 |
+| 409 / essential first | 1,610 | 16 / 34 | 15,251.79 | 5,818.50 | 10,058.28 |
+| 1024 / full upkeep first | 1,562 | 0 / 34 | 3,626.16 | 1,246.01 | 3,198.10 |
+| 1024 / essential first | 1,638 | 14 / 34 | 14,931.17 | 5,809.50 | 9,801.93 |
 
-| Seed 409 boundary | Full-upkeep-first population | Essential-first population | Operational institutions, control → treatment |
-|---|---:|---:|---|
-| Year 30 | 1,997 | 2,020 | 0 / 32 → 6 / 32 |
-| Year 60 | 1,873 | 1,833 | 0 / 32 → 23 / 32 |
-| Year 100 | 1,588 | 1,610 | 0 / 32 → 16 / 34 |
+Essential-first executes 10,649/10,662 and 10,689/10,696 positive-ceiling
+collections, versus 1,054/11,662 and 1,080/11,788. Collected funding exceeds
+99.8% of cumulative conditional ceilings in both treatments. This supports the
+intended immediate mechanism: basic upkeep and administration can secure funding
+before additional repair time competes for the remaining labor.
 
-At year 100, cumulative food-access gaps are 2.6133% → 2.5712%, and all sixteen
-sites remain active. Maximum population residual is zero. Maximum food partition
-residual is 1.10e-6 and the largest absolute terminal relative economic residual
-is 1.34e-5 across the two seed-409 histories. Essential-first retains operational
-institutions at this longer horizon but does not stabilize population, and its
-intermediate population advantage is not consistent across decades.
+Cumulative food-access gaps improve from 2.6133% to 2.5712% and from 2.6492%
+to 2.6138%. Physical food gaps are zero in seed 409 and 0.0508% to 0.0483% in
+seed 1024. All sixteen sites remain active in each history. Maximum population
+residual is zero, maximum food partition residual is 1.10e-6, and the largest
+absolute terminal relative economic residual is 1.37e-5.
 
-After both processes finish, check complete ensembles and matched metadata with:
+There are downstream differences beyond operational counts: petition events
+increase from 0 to 18 and 1 to 39; honored petitions increase from 0 to 1 and
+0 to 9. Study-progress events increase from 2 to 42 and 0 to 40; completed
+`knowledge_studied` events increase from zero to six and three. These study
+counters also include manuscript study, so they are not counts of institutional
+lessons or a measure of public education. Long histories diverge in membership,
+formation and other choices; not every later change isolates one causal mediator.
+
+Population still declines. Seed 409's population comparison even changes direction:
+1,997 to 2,020 at year 30, 1,873 to 1,833 at year 60, then 1,588 to 1,610 at
+year 100. Together with the slightly worse 30-year seed-17/81 outcomes, these
+results justify retaining the policy as an opt-in experiment rather than declaring
+a general balance fix. The next integration is explicit shared service capacity
+for lessons and heritage study, as described in the
+[service-space review](institution-service-space-review.md).
+
+Reproduce with:
+
+```sh
+target/debug/examples/cultural_work_calibrate --seeds 409,1024 --years 100 \
+  --common-share 0.65 --individual-demography --workshop-refinement \
+  --agriculture-refinement --extraction-refinement --construction-refinement \
+  --compare-resolution --operating-institutions --named-institution-administration \
+  --output output/institution-essential-heldout-control-100.json
+```
+
+Repeat with `--essential-institution-work` and output
+`output/institution-essential-heldout-treatment-100.json`, then compare:
 
 ```sh
 python3 scripts/compare_food_access.py output/institution-essential-heldout-control-100.json \
   output/institution-essential-heldout-treatment-100.json --allow-difference essential_institution_work
 ```
+
+Raw JSON reports remain under ignored `output/`; this summary is the committed
+record. Concurrent elapsed times must not be used to infer policy performance.
