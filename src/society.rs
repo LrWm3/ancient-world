@@ -256,9 +256,23 @@ pub struct Raid {
 /// Imported histories start a new diagnostic baseline; these never drive decisions.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct CouncilFunding {
+    /// Latest annual collection boundary; observations never supply spendable revenue.
+    #[serde(default)]
+    pub taxes: Vec<TaxReceipt>,
     pub administration: FundingTotals,
     pub roads: FundingTotals,
     pub emergency_town_support: FundingTotals,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TaxReceipt {
+    pub month: u32,
+    pub site: u32,
+    pub council: u32,
+    pub opening_cash: f32,
+    pub rate: f32,
+    pub autonomy: f32,
+    pub office_capacity: f32,
+    pub paid: f32,
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct FundingTotals {
@@ -305,6 +319,34 @@ fn traversable(c: &Cell) -> bool {
 impl Society {
     pub fn validate(&self, h: &History, cells: &[Cell]) -> Result<()> {
         self.relocation.validate(h)?;
+        let mut previous_tax_site = None;
+        for t in &self.council_funding.taxes {
+            ensure!(
+                t.month <= h.month
+                    && (t.site as usize) < h.sites.len()
+                    && (t.council as usize) < self.councils.len()
+                    && previous_tax_site.is_none_or(|p| p < t.site),
+                "invalid tax observation boundary"
+            );
+            ensure!(
+                [
+                    t.opening_cash,
+                    t.rate,
+                    t.autonomy,
+                    t.office_capacity,
+                    t.paid
+                ]
+                .iter()
+                .all(|v| v.is_finite() && *v >= 0.)
+                    && t.rate <= 0.25
+                    && t.autonomy <= 1.
+                    && t.office_capacity <= 1.
+                    && t.paid
+                        == t.opening_cash * t.rate * (1. - t.autonomy * 0.75) * t.office_capacity,
+                "invalid tax collection observation"
+            );
+            previous_tax_site = Some(t.site);
+        }
         if let Some(e) = &self.household_economy {
             e.validate(h)?;
         }
@@ -1151,6 +1193,7 @@ impl History {
         let controllers: Vec<_> = (0..self.sites.len())
             .map(|s| self.controller(s as u32))
             .collect();
+        society.council_funding.taxes.clear();
         for s in &mut self.sites {
             if s.abandoned {
                 continue;
@@ -1165,6 +1208,16 @@ impl History {
                 * council.tax_rate
                 * (1. - autonomy * 0.75)
                 * office_capacity[s.id as usize];
+            society.council_funding.taxes.push(TaxReceipt {
+                month: self.month,
+                site: s.id,
+                council: council.civilization,
+                opening_cash: s.economy.finance[0],
+                rate: council.tax_rate,
+                autonomy,
+                office_capacity: office_capacity[s.id as usize],
+                paid: tax,
+            });
             s.economy.finance[0] -= tax;
             council.treasury += tax as f64;
             if s.stocks.stock[3] > 0.05 {

@@ -52,3 +52,22 @@ Council household distribution now follows [dated political policies](household-
 Controlled timing and retail tests cover this connection; long-run political food-access balance remains open.
 
 The [political distribution century comparison](distribution-policy-century.md) now completes seeds 256/409: final-decade population change switches from −24/−40 to +147/+71. A production-grant validation rounding failure was corrected without changing allocation arithmetic. Council reserves shrink sharply; fiscal stress, longer horizons and broader-seed balance remain open.
+
+## Ordered follow-up after the performance pass
+
+The next series retains the priority order from the user-approved review:
+
+1. Council administration versus household assistance: inspect funding and test a scoped allowance.
+2. Broader integrated balance, including disruption and longer/held-out histories.
+3. Institutional enrollment, service selection and shared capacity.
+4. Remaining individual participation and travel/outcome comparisons.
+5. Shared logistics capacity, alternative routing and maintenance.
+6. Transformed-material provenance and historical-place continuity.
+7. Wildlife predator balance and regional differentiation.
+8. Heritage stewardship and expedition consequences.
+9. Lake solver iteration cost and responsiveness.
+
+Each item needs its own bounded implementation/review and evidence before being
+marked addressed. This sequence does not declare every larger extension in the
+roadmap complete. The [council allowance pilot](council-administration-allowance.md)
+is the first increment; balance results are still pending.

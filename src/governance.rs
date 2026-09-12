@@ -81,6 +81,36 @@ fn pair(a: u32, b: u32) -> [u32; 2] {
         [b, a]
     }
 }
+/// Shared quote for opening relief protection and later actual administration.
+/// Opening population/control can change before Respond; this is a forecast.
+pub(crate) fn administration_cost(
+    population: f32,
+    abandoned: bool,
+    foreign: bool,
+    autonomy: f32,
+) -> f32 {
+    if abandoned {
+        0.
+    } else {
+        population * if foreign { 0.04 } else { 0.01 } * (1. - autonomy * 0.5)
+    }
+}
+impl History {
+    pub(crate) fn administration_forecast(&self) -> Vec<f64> {
+        let mut requests = vec![0.; self.society.as_ref().map_or(0, |s| s.councils.len())];
+        if let Some(g) = &self.governance {
+            for (s, a) in self.sites.iter().zip(&g.administrations) {
+                requests[a.controller as usize] += administration_cost(
+                    s.stocks.stock[0],
+                    s.abandoned,
+                    a.controller != s.civilization,
+                    a.autonomy,
+                ) as f64;
+            }
+        }
+        requests
+    }
+}
 /// Snapshot commitments before paying any town. Round down so allocated f32
 /// payments cannot exceed either the entitlement or a council's f64 treasury.
 fn payroll_plan(demands: &[(usize, f32)], treasuries: &[f64]) -> Vec<f32> {
@@ -324,17 +354,12 @@ impl History {
             .iter()
             .zip(&g.administrations)
             .map(|(s, a)| {
-                let required = if s.abandoned {
-                    0.
-                } else {
-                    s.stocks.stock[0]
-                        * if a.controller != s.civilization {
-                            0.04
-                        } else {
-                            0.01
-                        }
-                        * (1. - a.autonomy * 0.5)
-                };
+                let required = administration_cost(
+                    s.stocks.stock[0],
+                    s.abandoned,
+                    a.controller != s.civilization,
+                    a.autonomy,
+                );
                 (a.controller as usize, required)
             })
             .collect();

@@ -10,6 +10,9 @@ use serde_json::json;
 use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 #[derive(Parser)]
 struct Args {
+    /// Limit household relief to cash remaining after this month's forecast administration.
+    #[arg(long)]
+    protect_administration: bool,
     /// Keep initial distribution shares fixed while leaving elections and tax politics active.
     #[arg(long)]
     fixed_distribution: bool,
@@ -230,6 +233,19 @@ fn main() -> Result<()> {
             .as_mut()
             .unwrap()
             .political_distribution = !args.fixed_distribution;
+        if args.protect_administration {
+            g.civilizations
+                .as_mut()
+                .unwrap()
+                .society
+                .as_mut()
+                .unwrap()
+                .household_economy
+                .as_mut()
+                .unwrap()
+                .council_allocation =
+                ancient_world::household_economy::council_allocation::Policy::ProtectAdministration;
+        }
         if let Some(share) = args.common_share {
             anyhow::ensure!(
                 share.is_finite() && (0. ..=1.).contains(&share),
@@ -346,6 +362,7 @@ fn main() -> Result<()> {
         let (mut requested, mut granted, mut used, mut cancelled_work) = (0., 0., 0., 0.);
         let (mut funded, mut cancelled) = (0u64, 0u64);
         let mut food = [0f64; 6];
+        let mut council_relief = [0f64; 5];
         let mut max_population_residual = 0f64;
         if args.extraction_refinement {
             g.civilizations
@@ -495,6 +512,24 @@ fn main() -> Result<()> {
                         (completed - d.worker_months).abs() <= 0.001 + d.worker_months * 1e-6,
                         "personal and research lifetime work disagree"
                     );
+                }
+            }
+            if let Some(e) = h
+                .society
+                .as_ref()
+                .and_then(|s| s.household_economy.as_ref())
+            {
+                for r in &e.council_allocations {
+                    anyhow::ensure!(r.month == h.month, "stale council allocation observation");
+                    for (total, v) in council_relief.iter_mut().zip([
+                        r.relief_requested,
+                        r.relief_ceiling,
+                        r.relief_granted,
+                        r.relief_paid,
+                        r.relief_ceiling - r.relief_granted,
+                    ]) {
+                        *total += v;
+                    }
                 }
             }
             for mission in c
@@ -647,6 +682,14 @@ fn main() -> Result<()> {
                     .iter()
                     .filter(|e| e.kind == "distribution_policy_effective")
                     .count());
+                row["council_relief_totals"] = json!(council_relief);
+                row["council_allocations"] = json!(
+                    society
+                        .household_economy
+                        .as_ref()
+                        .unwrap()
+                        .council_allocations
+                );
                 row["council_funding"] = json!(society.council_funding);
                 row["civic_petitions"] = json!(h.governance.as_ref().map(|g| &g.petitions));
                 row["administrations"] = json!(h.governance.as_ref().map(|g| &g.administrations));
@@ -694,6 +737,14 @@ fn main() -> Result<()> {
         report["institution_working_core"] = json!(args.institution_working_core);
         report["institutional_students"] = json!(args.institutional_students);
         report["family_support"] = json!(args.family_support);
+        report["council_relief_fields"] = json!([
+            "requested",
+            "ceiling",
+            "granted",
+            "paid",
+            "withheld_by_allowance"
+        ]);
+        report["protect_administration"] = json!(args.protect_administration);
         report["political_distribution"] = json!(!args.fixed_distribution);
         report["household_relief_share_override"] = json!(args.household_relief_share);
         report["household_relief_target_override"] = json!(args.household_relief_target);

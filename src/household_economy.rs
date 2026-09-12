@@ -2,6 +2,7 @@
 use crate::civilization::History;
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+pub mod council_allocation;
 mod family_support;
 mod nutrition;
 pub mod policy;
@@ -70,6 +71,10 @@ impl FoundingAccess {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HouseholdEconomy {
+    #[serde(default)]
+    pub council_allocation: council_allocation::Policy,
+    #[serde(default)]
+    pub council_allocations: Vec<council_allocation::Receipt>,
     /// Allow annual politics to propose new distribution shares. Disabling stops new proposals; already scheduled changes still activate.
     #[serde(default = "nutrition_enabled")]
     pub political_distribution: bool,
@@ -116,6 +121,8 @@ fn nutrition_enabled() -> bool {
 impl HouseholdEconomy {
     pub fn new(month: u32) -> Self {
         Self {
+            council_allocation: council_allocation::Policy::default(),
+            council_allocations: vec![],
             political_distribution: true,
             resident_payroll: true,
             occupational_payroll: true,
@@ -173,6 +180,7 @@ impl HouseholdEconomy {
                 && self.access_episodes.iter().all(|v| v[2] <= 1),
             "invalid household access episodes"
         );
+        council_allocation::validate(&self.council_allocations, h)?;
         family_support::validate(self, h)?;
         for a in &self.accounts {
             ensure!(
@@ -332,6 +340,7 @@ impl History {
         let building_earnings = self.production_earnings(3);
         let member_counts = self.household_food_members();
         let family_links = family_support::links(self);
+        let administration_forecast = self.administration_forecast();
         let complete_roster = self.individual_demography_enabled();
         let controllers = (0..self.sites.len())
             .map(|i| self.controller(i as u32) as usize)
@@ -614,10 +623,19 @@ impl History {
                 }
             }
         }
+        e.council_allocations.clear();
         for (council, requests) in society.councils.iter_mut().zip(requests) {
             let demand = requests.iter().map(|r| r.1).sum::<f64>();
-            let budget = (council.treasury * policies[council.civilization as usize].relief as f64)
-                .min(demand);
+            let receipt = council_allocation::Receipt::quote(
+                self.month,
+                council.civilization,
+                e.council_allocation,
+                council.treasury,
+                administration_forecast[council.civilization as usize],
+                demand,
+                policies[council.civilization as usize].relief as f64,
+            );
+            let budget = receipt.relief_granted;
             let grants =
                 apportion_relief(&requests.iter().map(|r| r.1).collect::<Vec<_>>(), budget);
             let paid = grants.iter().sum::<f64>();
@@ -627,6 +645,10 @@ impl History {
             }
             council.treasury -= paid;
             council.relief_paid += paid;
+            e.council_allocations.push(council_allocation::Receipt {
+                relief_paid: paid,
+                ..receipt
+            });
         }
         for p in &mut plans {
             for (j, &id) in p.ids.iter().enumerate() {

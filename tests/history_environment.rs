@@ -180,6 +180,20 @@ fn frozen_schedule_batch_and_checkpoint_equivalence() {
         batch.enable_shipping().unwrap();
         batch.enable_expeditions().unwrap();
         batch.enable_shared_resources().unwrap();
+        if seed != 81 {
+            batch
+                .civilizations
+                .as_mut()
+                .unwrap()
+                .society
+                .as_mut()
+                .unwrap()
+                .household_economy
+                .as_mut()
+                .unwrap()
+                .council_allocation =
+                ancient_world::household_economy::council_allocation::Policy::ProtectAdministration;
+        }
         // Exercise saved opportunity selection while retaining ordinary rotation in seed 81.
         batch
             .civilizations

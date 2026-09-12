@@ -2361,6 +2361,12 @@ impl App {
                                 let policy = council.distribution.unwrap_or_else(||
                                     crate::household_economy::policy::DistributionPolicy::baseline(e));
                                 ui.label(policy.description());
+                                if let Some(r) = e.council_allocations.iter().find(|r| r.council == council.civilization) {
+                                    ui.small(format!("Month {} council allocation {:?}: administration forecast {:.2}, household relief {:.2} requested / {:.2} granted / {:.2} paid", r.month, r.policy, r.administration_forecast, r.relief_requested, r.relief_granted, r.relief_paid));
+                                }
+                                if let Some(t) = society.council_funding.taxes.iter().find(|t| t.site == site.id) {
+                                    ui.small(format!("Month {} tax paid {:.2} from {:.2} town cash; office capacity {:.0}%", t.month, t.paid, t.opening_cash, t.office_capacity * 100.));
+                                }
                                 if let Some(p) = &council.pending_distribution {
                                     ui.label(format!("From month {}: {}", p.effective, p.policy.description()));
                                 }
