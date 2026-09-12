@@ -1,0 +1,45 @@
+# Household nutrition and age-structure comparison
+
+## Question
+
+The held-out construction histories retain only 615–735 residents after a century.
+Aggregate food-access gaps do not show which age groups bear deprivation. Before
+changing crop output or demographic rates, compare the existing personal-nutrition
+mechanism with its existing ablation.
+
+The personal mortality adapter replaces each represented resident's age-band food
+exposure with household food exposure; it does not add both hunger penalties.
+The ablation also removes the following month's personal hunger work penalty, so
+this experiment estimates their combined effect, not mortality alone. Both runs
+retain actual residents, household retail, birth-age structure and the same food
+production rules.
+
+## Protocol
+
+Use seeds 409 and 1024 for 100 years, terrain resolution 32, ecology 16, one
+geological epoch, 16 founding civilizations, crop yield scale 0.5 and living
+history. Enable individual demography, workshop, agriculture, extraction and
+construction refinement, comparison receipts and household diagnostics. The
+control adds `--no-individual-nutrition`.
+
+The example now accumulates expected deaths by child/adult/elder band from every
+completed demographic snapshot, separately for age-band exposure and household
+exposure. Anonymous residents retain age-band exposure. The report also includes
+current age populations and the count of observed site-months. These are summed
+conditional expectations, not observed deaths or an independent demographic model.
+Read them alongside actual birth/death resolution summaries, food-access gaps,
+household observations and population residuals.
+
+Commands use `target/debug/examples/cultural_work_calibrate` with:
+
+```sh
+--seeds 409,1024 --years 100 --resolution 32 --crop-yield-scale 0.5 \
+--individual-demography --workshop-refinement --agriculture-refinement \
+--extraction-refinement --construction-refinement --compare-resolution \
+--household-diagnostics
+```
+
+Outputs are ignored `output/nutrition-age-personal.json` and
+`output/nutrition-age-cohort.json`; corresponding logs remain local.
+Both ensembles were launched after the diagnostic example built successfully and
+passed Clippy with warnings denied. Results are pending; no defaults have changed.

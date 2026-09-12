@@ -204,6 +204,8 @@ fn main() -> Result<()> {
         }
         let mut production_work = [[0f64; 3]; 4];
         let mut max_food_residual = 0f64;
+        let mut mortality_by_age = [[0f64; 3]; 2];
+        let mut demographic_months = 0u64;
         for month in 1..=args.years * 12 {
             if let Err(error) = g.advance_history(1) {
                 // The history transaction may have rolled back while ecology already
@@ -232,6 +234,36 @@ fn main() -> Result<()> {
             }
             let h = g.civilizations.as_ref().unwrap();
             let c = h.culture.as_ref().unwrap();
+            if let Some(resolution) = &h.resolution {
+                for receipt in &resolution.receipts {
+                    let Some(snapshot) = &receipt.demographic_snapshot else {
+                        continue;
+                    };
+                    anyhow::ensure!(snapshot.month == h.month, "stale demographic diagnostic");
+                    demographic_months += 1;
+                    let projection = &snapshot.projection;
+                    let mut personal = std::array::from_fn::<_, 3, _>(|b| {
+                        snapshot.anonymous[b] * projection.mortality[b]
+                    });
+                    if let Some(people) = &snapshot.people {
+                        for (id, band, _) in people {
+                            personal[*band] += snapshot
+                                .personal_mortality
+                                .get(id)
+                                .copied()
+                                .unwrap_or(projection.mortality[*band]);
+                        }
+                    } else {
+                        personal = std::array::from_fn(|b| {
+                            projection.opening[b] * projection.mortality[b]
+                        });
+                    }
+                    for (b, value) in personal.into_iter().enumerate() {
+                        mortality_by_age[0][b] += projection.opening[b] * projection.mortality[b];
+                        mortality_by_age[1][b] += value;
+                    }
+                }
+            }
             max_population_residual = max_population_residual.max(h.population_residual().abs());
             max_food_residual = max_food_residual.max(h.food_residual().abs());
             if let Some(a) = h.resolution.as_ref().and_then(|r| r.agriculture.as_ref()) {
@@ -323,7 +355,7 @@ fn main() -> Result<()> {
                         })).collect::<Vec<_>>()
                             })
                     });
-                let row = json!({"production_work":production_work,"household_observations":household_observations,"year":month/12,"food_totals":food,"max_population_residual":max_population_residual,"max_food_residual":max_food_residual,"recent_trade_pairs":h.trade_contact.receipts.len(),"heritage_recognitions":c.heritage_renown.len(),"heritage_witnesses":c.heritage_renown.iter().map(|r|r.witnesses.len()).sum::<usize>(),"domestic":h.domestic.as_ref().map(|d|json!({"groups":d.units.iter().filter(|u|u.ended.is_none()).count(),"members":d.membership.len(),"completed":d.care_completed,"care":d.care})),"funded_bundles":funded,"cancelled_bundles":cancelled,"requested":requested,"granted":granted,"used":used,"cancelled_work":cancelled_work,"population":h.sites.iter().map(|s|s.stocks.stock[0] as f64).sum::<f64>(),"active_sites":h.sites.iter().filter(|s|!s.abandoned).count(),"institutions":c.institutions.iter().filter(|n|n.active).count(),"knowledge_links":c.agents.iter().map(|a|a.knowledge.len()).sum::<usize>(),"artifacts":c.artifacts.len(),"individuals":h.participation.as_ref().map(|p|json!({"known":p.residents.len(),"available_adults":p.residents.values().filter(|r|r.capacity>0.).count(),"culture_work":p.residents.values().map(|r|r.completed[0]).sum::<f64>(),"research_work":p.residents.values().map(|r|r.completed[1]).sum::<f64>()}))});
+                let row = json!({"production_work":production_work,"household_observations":household_observations,"year":month/12,"food_totals":food,"max_population_residual":max_population_residual,"max_food_residual":max_food_residual,"recent_trade_pairs":h.trade_contact.receipts.len(),"demographic_site_months":demographic_months,"expected_deaths_by_age":mortality_by_age,"ages":(0..3).map(|b|h.sites.iter().map(|s|s.demography.ages[b] as f64).sum::<f64>()).collect::<Vec<_>>(),"heritage_recognitions":c.heritage_renown.len(),"heritage_witnesses":c.heritage_renown.iter().map(|r|r.witnesses.len()).sum::<usize>(),"domestic":h.domestic.as_ref().map(|d|json!({"groups":d.units.iter().filter(|u|u.ended.is_none()).count(),"members":d.membership.len(),"completed":d.care_completed,"care":d.care})),"funded_bundles":funded,"cancelled_bundles":cancelled,"requested":requested,"granted":granted,"used":used,"cancelled_work":cancelled_work,"population":h.sites.iter().map(|s|s.stocks.stock[0] as f64).sum::<f64>(),"active_sites":h.sites.iter().filter(|s|!s.abandoned).count(),"institutions":c.institutions.iter().filter(|n|n.active).count(),"knowledge_links":c.agents.iter().map(|a|a.knowledge.len()).sum::<usize>(),"artifacts":c.artifacts.len(),"individuals":h.participation.as_ref().map(|p|json!({"known":p.residents.len(),"available_adults":p.residents.values().filter(|r|r.capacity>0.).count(),"culture_work":p.residents.values().map(|r|r.completed[0]).sum::<f64>(),"research_work":p.residents.values().map(|r|r.completed[1]).sum::<f64>()}))});
                 eprintln!("seed {seed}: {} years, cancelled {cancelled}/{funded}, work {used:.1}/{granted:.1}, {:.1}s",month/12,start.elapsed().as_secs_f64());
                 samples.push(row);
             }
@@ -340,7 +372,7 @@ fn main() -> Result<()> {
         std::fs::write(
             &args.output,
             serde_json::to_vec_pretty(
-                &json!({"construction_refinement":args.construction_refinement,"extraction_refinement":args.extraction_refinement,"agriculture_refinement":args.agriculture_refinement,"household_diagnostics":args.household_diagnostics,"resident_payroll":!args.legacy_resident_payroll,"individual_nutrition":!args.no_individual_nutrition,"common_share_override":args.common_share,"observation_interval_months":1,"production_sectors":["farming","forestry","mining","construction"],"production_work_fields":["requested","granted","completed"],"production_work_unit":"worker-months","food_fields":["need","available","funded","eaten","physical_gap","access_gap"],"crop_yield_scale":args.crop_yield_scale,"founding_access":!args.no_founding_access,"aggregate_resolution":args.aggregate_resolution,"compare_resolution":args.compare_resolution,"workshop_refinement":args.workshop_refinement,"individual_demography":args.individual_demography,"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows}),
+                &json!({"construction_refinement":args.construction_refinement,"extraction_refinement":args.extraction_refinement,"agriculture_refinement":args.agriculture_refinement,"household_diagnostics":args.household_diagnostics,"resident_payroll":!args.legacy_resident_payroll,"individual_nutrition":!args.no_individual_nutrition,"common_share_override":args.common_share,"observation_interval_months":1,"mortality_diagnostic_rows":["age_band_exposure","household_exposure"],"mortality_age_bands":["child","adult","elder"],"production_sectors":["farming","forestry","mining","construction"],"production_work_fields":["requested","granted","completed"],"production_work_unit":"worker-months","food_fields":["need","available","funded","eaten","physical_gap","access_gap"],"crop_yield_scale":args.crop_yield_scale,"founding_access":!args.no_founding_access,"aggregate_resolution":args.aggregate_resolution,"compare_resolution":args.compare_resolution,"workshop_refinement":args.workshop_refinement,"individual_demography":args.individual_demography,"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows}),
             )?,
         )?;
     }
