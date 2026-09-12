@@ -261,6 +261,8 @@ pub struct Culture {
     #[serde(default)]
     pub institution_funding: crate::institution_funding::Policy,
     #[serde(default)]
+    pub named_administration: bool,
+    #[serde(default)]
     pub heritage_renown: Vec<crate::heritage_renown::Recognition>,
     /// Restrict personal identity guards to the planned participants. False is a calibration control.
     #[serde(default = "focused_work_default")]
@@ -303,6 +305,7 @@ impl Culture {
         Ok(Self {
             institution_priority: Default::default(),
             institution_funding: Default::default(),
+            named_administration: false,
             heritage_renown: vec![],
             focused_work_identities: true,
             work_plans: vec![],
@@ -1037,6 +1040,7 @@ impl History {
             crate::expedition_heritage::study(self, &mut c);
             crate::civic_petitions::propose(self, &mut c);
             c.decisions(self);
+            c.execute_institution_administration(self);
             c.work_receipt.settle(c.labor_spent - spent_before);
         }
         if self.month % 12 == 0 {
@@ -1470,7 +1474,11 @@ impl Culture {
                 continue;
             }
             // Small donations are transfers, not extra community income.
-            let administration = self.work_allowed(site, "institution administration");
+            let administration = self.work_allowed(site, "institution administration")
+                && self
+                    .work_plans
+                    .get(si)
+                    .is_none_or(|p| p.administration.is_none());
             for ni in 0..self.institutions.len() {
                 let inst = &self.institutions[ni];
                 if !administration
@@ -2153,7 +2161,10 @@ impl History {
                         .min(caps.get(i).copied().unwrap_or(f32::MAX));
                     let mut institution_granted = 0.;
                     if let Some(state) = &mut self.participation {
-                        if c.work_plans[i].upkeep.is_some() || c.work_plans[i].elections.is_some() {
+                        if c.work_plans[i].upkeep.is_some()
+                            || c.work_plans[i].elections.is_some()
+                            || c.work_plans[i].administration.is_some()
+                        {
                             for p in c.work_plans[i].institution_work_mut() {
                                 let member = p.members.iter().copied().max_by(|a, b| {
                                     state
@@ -2187,7 +2198,9 @@ impl History {
                                     !(action == "institution upkeep"
                                         && c.work_plans[i].upkeep.is_some()
                                         || action == "institution election"
-                                            && c.work_plans[i].elections.is_some())
+                                            && c.work_plans[i].elections.is_some()
+                                        || action == "institution administration"
+                                            && c.work_plans[i].administration.is_some())
                                 })
                                 .map(|(_, w)| *w)
                                 .sum::<f32>();

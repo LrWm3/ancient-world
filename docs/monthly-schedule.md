@@ -54,6 +54,14 @@ Reservations remain subsystem-specific; this is not a simultaneous global auctio
 - Living failure handling retains the existing incomplete-boundary marker; this
   port does not promise rollback of already-submitted GPU ecological work.
 
+With named institutional administration enabled, Reserve assigns institution members
+from the existing cultural allowance after election and upkeep requests. Respond
+executes upkeep and generic cultural actions before settling those administration
+assignments. Their new knowledge therefore cannot invalidate generic opening plans;
+their collected funds are available for later work, not retroactive upkeep. A
+generic bundle cancellation does not cancel an independently eligible member duty.
+See [institutional operating budgets](institution-operating-budgets.md).
+
 ## Compatibility and verification
 
 The original scheduler observations remain transient. The later service-allocation pilot adds a defaulted policy and latest-boundary receipts; older archives use research-first priority.

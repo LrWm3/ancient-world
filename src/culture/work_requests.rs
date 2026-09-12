@@ -35,6 +35,8 @@ pub struct WorkPlan {
     #[serde(default)]
     pub elections: Option<Vec<InstitutionWorkPlan>>,
     #[serde(default)]
+    pub administration: Option<Vec<InstitutionWorkPlan>>,
+    #[serde(default)]
     pub study_expectation: Option<StudyExpectation>,
     #[serde(default)]
     pub completed: f32,
@@ -66,6 +68,7 @@ impl WorkPlan {
             .iter()
             .flatten()
             .chain(self.upkeep.iter().flatten())
+            .chain(self.administration.iter().flatten())
     }
     pub(crate) fn institution_work_mut(
         &mut self,
@@ -74,6 +77,7 @@ impl WorkPlan {
             .iter_mut()
             .flatten()
             .chain(self.upkeep.iter_mut().flatten())
+            .chain(self.administration.iter_mut().flatten())
     }
 }
 impl Culture {
@@ -217,7 +221,37 @@ impl Culture {
                 })
                 .collect()
         });
-        for plans in [&mut elections, &mut upkeep].into_iter().flatten() {
+        let mut administration =
+            (self.named_administration && h.participation.is_some()).then(|| {
+                self.institutions
+                    .iter()
+                    .filter(|n| n.site == site && n.active)
+                    .filter_map(|n| {
+                        let members: Vec<_> = people
+                            .iter()
+                            .copied()
+                            .filter(|p| n.members.contains(p))
+                            .collect();
+                        (h.month.is_multiple_of(3)
+                            && !h.sites[site as usize].abandoned
+                            && h.sites[site as usize].economy.finance[0] > 0.
+                            && !members.is_empty())
+                        .then_some(InstitutionWorkPlan {
+                            institution: n.id,
+                            members,
+                            requested: 0.05,
+                            minimum: 0.05,
+                            commitment: None,
+                            granted: 0.,
+                            used: 0.,
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            });
+        for plans in [&mut elections, &mut upkeep, &mut administration]
+            .into_iter()
+            .flatten()
+        {
             self.institution_priority.order(plans, h.month, site);
         }
         WorkPlan {
@@ -225,6 +259,7 @@ impl Culture {
             institution_priority: h.participation.as_ref().map(|_| self.institution_priority),
             upkeep,
             elections,
+            administration,
             study_expectation,
             successor_expectation,
             completed: 0.,
@@ -429,15 +464,24 @@ impl Culture {
         {
             requests.push(("office campaign", 0.1));
         }
+        let named_admin = self.named_administration && h.participation.is_some();
         let offices = self
             .institutions
             .iter()
-            .filter(|n| n.site == site && n.active)
+            .filter(|n| {
+                n.site == site
+                    && n.active
+                    && (!named_admin || n.members.iter().any(|p| people.contains(p)))
+            })
             .count();
         if offices > 0 && s.economy.finance[0] > 0. {
             requests.push((
                 "institution administration",
-                (offices as f32 * 0.05).max(0.1),
+                if named_admin {
+                    offices as f32 * 0.05
+                } else {
+                    (offices as f32 * 0.05).max(0.1)
+                },
             ));
         }
         let kind = if traits[2] > 0.65 {

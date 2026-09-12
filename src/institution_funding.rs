@@ -147,6 +147,72 @@ impl crate::culture::Culture {
             requests,
         ))
     }
+    /// Independent member assignments settle after upkeep and generic cultural actions.
+    /// New institutional knowledge must not invalidate their captured opening plans.
+    pub(crate) fn execute_institution_administration(
+        &mut self,
+        h: &mut crate::civilization::History,
+    ) {
+        for site in 0..self.work_plans.len() {
+            if self.work_plans[site].month != h.month || h.sites[site].abandoned {
+                continue;
+            }
+            let count = self.work_plans[site]
+                .administration
+                .as_ref()
+                .map_or(0, Vec::len);
+            for index in 0..count {
+                let p = &self.work_plans[site].administration.as_ref().unwrap()[index];
+                let Some(n) = self.institutions.get(p.institution as usize) else {
+                    continue;
+                };
+                if !n.active
+                    || n.site as usize != site
+                    || p.used > 0.
+                    || p.granted < 0.05
+                    || h.personal_grant_live(p.commitment) < 0.05
+                {
+                    continue;
+                }
+                let actor = p
+                    .commitment
+                    .and_then(|id| h.participation.as_ref()?.commitments.get(id as usize))
+                    .and_then(|c| c.people.first())
+                    .map(|(id, _)| *id);
+                let Some(actor) = actor.filter(|id| {
+                    n.members.contains(id) && self.site_people(h, site as u32).contains(id)
+                }) else {
+                    continue;
+                };
+                let ni = p.institution as usize;
+                if self
+                    .collect_institution_funding(h, site as u32, ni)
+                    .is_none()
+                {
+                    continue;
+                }
+                let n = &mut self.institutions[ni];
+                // Legacy organizations without capacity retain their immediate fee rule.
+                if n.capacity.is_none() {
+                    let fee = n.treasury.min(0.5);
+                    n.treasury -= fee;
+                    n.expenses += fee;
+                    h.sites[site].economy.finance[0] += fee as f32;
+                }
+                n.knowledge
+                    .extend(self.agents[actor as usize].knowledge.iter().copied());
+                self.work_plans[site].administration.as_mut().unwrap()[index].used = 0.05;
+                self.labor_spent += 0.05f32 as f64;
+                crate::culture::work_requests::record_work(
+                    &mut self.work_plans,
+                    site as u32,
+                    h.month,
+                    0.05,
+                );
+            }
+        }
+    }
+
     /// Called only after the existing administration action passes work/actor guards.
     /// A captured operating request cannot fall back to the legacy donation rule.
     pub(crate) fn collect_institution_funding(
@@ -160,7 +226,7 @@ impl crate::culture::Culture {
             return None;
         }
         let plan = self.work_plans.get_mut(site as usize)?;
-        if plan.month != h.month || plan.cancellation.is_some() {
+        if plan.month != h.month || (plan.cancellation.is_some() && plan.administration.is_none()) {
             return None;
         }
         let request = if let Some(budget) = &mut plan.funding {
@@ -201,6 +267,158 @@ impl crate::culture::Culture {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn named_administration_uses_member_work_once_despite_unrelated_cancellation() {
+        use crate::{
+            catalog::Catalog,
+            config::Config,
+            culture::{Institution, InstitutionKind},
+            gpu::{ContextGpu, Generator},
+            institution_capacity::Capacity,
+        };
+        let mut g = Generator::new(
+            pollster::block_on(ContextGpu::headless()).unwrap(),
+            Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                ..Default::default()
+            },
+            Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        g.enable_society().unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        h.set_individual_participation(true).unwrap();
+        h.month = 3;
+        h.begin_service_reservations();
+        h.sync_culture();
+        let member = h.culture.as_ref().unwrap().site_people(h, 0)[0];
+        let c = h.culture.as_mut().unwrap();
+        c.named_administration = true;
+        c.institution_funding = Policy::Operating;
+        c.agents[member as usize].knowledge.insert(11);
+        c.institutions = vec![Institution {
+            capacity: Some(Capacity::new(0)),
+            id: 0,
+            name: "Named administration fixture".into(),
+            kind: InstitutionKind::Scholarly,
+            site: 0,
+            tradition: None,
+            members: vec![member],
+            leader: member,
+            treasury: 0.,
+            active: true,
+            founded: 0,
+            knowledge: Default::default(),
+            property: vec![],
+            dues: 0.,
+            expenses: 0.,
+        }];
+        h.sites[0].economy.finance[0] = 100.;
+        let opening = h.clone();
+        // Normal, too-small shared grant, no grant, prior employment, revoked membership,
+        // death after reservation, and stale captured month.
+        for scenario in 0..7 {
+            let mut case = opening.clone();
+            if scenario == 3 {
+                let state = case.participation.as_mut().unwrap();
+                state
+                    .reserve(
+                        case.month,
+                        0,
+                        crate::participation::Activity::Research,
+                        &[member],
+                        state.available(member),
+                    )
+                    .unwrap();
+            }
+            let cap = match scenario {
+                1 => 0.074,
+                2 => 0.,
+                _ => 0.075,
+            };
+            let plans = case.cultural_work_plans();
+            case.reserve_cultural_plans(plans, &vec![cap; case.sites.len()]);
+            let u = &case.culture.as_ref().unwrap().work_plans[0]
+                .administration
+                .as_ref()
+                .unwrap()[0];
+            assert_eq!(u.granted > 0., !matches!(scenario, 1..=3));
+            if u.granted > 0. {
+                assert!((u.granted - 0.05).abs() < 1e-6);
+            }
+            let mut resumed: crate::civilization::History =
+                serde_json::from_slice(&serde_json::to_vec(&case).unwrap()).unwrap();
+            for run in [&mut case, &mut resumed] {
+                run.release_cultural_work();
+                let mut c = run.culture.take().unwrap();
+                c.work_plans[0].cancellation = Some("unrelated cultural actor unavailable".into());
+                c.labor_budget.fill(0.);
+                if scenario == 4 {
+                    c.institutions[0].members.clear();
+                }
+                if scenario == 5 {
+                    run.people[member as usize].died = Some(run.month);
+                }
+                if scenario == 6 {
+                    c.work_plans[0].month -= 3;
+                }
+                c.maintain_institutions(run);
+                c.execute_institution_administration(run);
+                let performed = scenario == 0;
+                let p = &c.work_plans[0];
+                let u = &p.administration.as_ref().unwrap()[0];
+                assert_eq!(u.used > 0., performed);
+                assert_eq!(c.institutions[0].treasury, if performed { 0.5 } else { 0. });
+                assert_eq!(c.institutions[0].knowledge.contains(&11), performed);
+                assert_eq!(
+                    run.sites[0].economy.finance[0] as f64 + c.institutions[0].treasury,
+                    100.
+                );
+                let after = serde_json::to_value(&c).unwrap();
+                let cash = run.sites[0].economy.finance[0];
+                c.execute_institution_administration(run);
+                assert_eq!(after, serde_json::to_value(&c).unwrap());
+                assert_eq!(cash, run.sites[0].economy.finance[0]);
+                run.culture = Some(c);
+                run.settle_participation().unwrap();
+                if scenario != 6 {
+                    run.validate_service_work().unwrap();
+                }
+                if performed {
+                    let c = run.culture.as_ref().unwrap();
+                    let u = &c.work_plans[0].administration.as_ref().unwrap()[0];
+                    let grant = &run.participation.as_ref().unwrap().commitments
+                        [u.commitment.unwrap() as usize];
+                    assert!((grant.used - 0.05).abs() < 1e-6);
+                    assert_eq!(grant.people[0].0, member);
+                    let mut invalid = run.clone();
+                    invalid.culture.as_mut().unwrap().work_plans[0]
+                        .administration
+                        .as_mut()
+                        .unwrap()[0]
+                        .used = 0.;
+                    assert!(invalid.validate_service_work().is_err());
+                }
+            }
+            assert_eq!(
+                serde_json::to_value(&case).unwrap(),
+                serde_json::to_value(&resumed).unwrap()
+            );
+        }
+        let mut old = serde_json::to_value(opening.culture.as_ref().unwrap()).unwrap();
+        old.as_object_mut().unwrap().remove("named_administration");
+        let old: crate::culture::Culture = serde_json::from_value(old).unwrap();
+        assert!(!old.named_administration);
+        let plans = opening.cultural_work_plans();
+        let mut old = serde_json::to_value(&plans[0]).unwrap();
+        old.as_object_mut().unwrap().remove("administration");
+        let old: crate::culture::work_requests::WorkPlan = serde_json::from_value(old).unwrap();
+        assert!(old.administration.is_none());
+    }
+
     #[test]
     fn requests_share_a_bounded_pool_without_order_bias() {
         let row = |id, need| Request {

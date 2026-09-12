@@ -27,10 +27,10 @@ institution, and persists through checkpoints. Inactive, moved or canceled targe
 cannot collect. Legacy plans lacking a funding quote use the existing small-donation
 schedule; changing the policy after planning does not change captured requests.
 
-This pilot does not add a second source of money, reserve new personal time, or
-change the schedule. Fundraising still competes within the generic cultural action
-bundle, and realized collection can retain execution-order effects when live cash
-or administration work is scarce. The next review must distinguish requested
+This funding policy does not add a second source of money. Without the optional
+named-administration pilot below, fundraising still competes within the generic
+cultural action bundle. Realized collection can retain execution-order effects
+when live cash or administration work is scarce. The next review must distinguish requested
 funding, work actually provided, money collected, and service delivered. More
 money alone cannot fix insufficient usable space; see the controlled comparison
 in [institution allocation balance](institution-allocation-balance.md).
@@ -123,3 +123,43 @@ python3 scripts/compare_food_access.py output/institution-funding-control-30.jso
 ```
 
 Raw outputs remain ignored; this document retains the settings, results and limits.
+
+## Named administration pilot
+
+`Culture.named_administration = true` with individual participation enabled assigns
+an eligible local institution member to quarterly administration. The balance
+runner exposes `--named-institution-administration`. It remains opt-in; aggregate
+histories and older archives retain generic administration.
+
+Reserve captures separate dated requests of 0.05 worker-months per institution.
+Election convening precedes upkeep, which precedes administration; the existing
+stable/rotating policy orders requests within each class. Grants still share the
+existing site allowance and each person's available time. An assignment needs its
+full minimum grant before reserving; it cannot silently borrow another person's
+work. Generic cultural work receives the remaining allowance.
+
+In Respond, upkeep and generic cultural actions execute first. Named administration
+then rechecks the assigned member's presence and membership and collects only the
+captured funding ceiling and available cash. A canceled generic action bundle does
+not cancel this separately assigned duty. The assigned member supplies knowledge;
+it becomes visible after generic actions so it cannot invalidate their captured
+opening identities. Completed administration consumes its grant once; absence,
+stale plans and membership loss leave it unused. Close settles the commitment and
+checks that settled operating requests have matching completed administration.
+
+Reports distinguish positive-ceiling funding requests from executed collections,
+and report requested, granted and used institution work separately for elections,
+upkeep and administration. Executed collection can pay zero if cash or need has
+changed. This does not protect next quarter's fees from repairs, increase usable
+space, or establish balanced institutional survival.
+
+The named-administration fixture passes seven controlled cases: normal service,
+insufficient minimum grant, no allowance, member fully committed elsewhere,
+revoked membership, death after reservation and stale month. It checks exact cash
+transfers, participant knowledge, no duplicate execution, completed work, invalid
+payment receipts and serialized continuation. All seven institutional GPU tests
+and 116 regular library tests pass (108 hardware tests remain ignored in an
+ordinary library run). The full frozen scheduler monthly/batch/checkpoint test
+passes on seeds 17, 81 and 256, with seed 256 enabling named administration and
+operating funding together. These are implementation checks; natural balance
+comparisons remain a separate requirement.

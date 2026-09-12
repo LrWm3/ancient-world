@@ -10,6 +10,9 @@ use serde_json::json;
 use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 #[derive(Parser)]
 struct Args {
+    /// Assign an institution member to administration independently of the generic culture bundle.
+    #[arg(long, conflicts_with = "legacy_participation")]
+    named_institution_administration: bool,
     /// Quote proportional institution operating budgets against bounded town funding.
     #[arg(long)]
     operating_institutions: bool,
@@ -104,6 +107,15 @@ fn main() -> Result<()> {
             .as_mut()
             .unwrap()
             .focused_work_identities = !args.strict_identities;
+        if args.named_institution_administration {
+            g.civilizations
+                .as_mut()
+                .unwrap()
+                .culture
+                .as_mut()
+                .unwrap()
+                .named_administration = true;
+        }
         if args.operating_institutions {
             g.civilizations
                 .as_mut()
@@ -245,10 +257,11 @@ fn main() -> Result<()> {
         let mut max_food_residual = 0f64;
         let mut mortality_by_age = [[0f64; 3]; 2];
         let mut demographic_months = 0u64;
-        let mut institution_work = [[0f64; 3]; 2];
+        let mut institution_work = [[0f64; 3]; 3];
         let mut institution_funding = [0f64; 3];
-        let mut institution_multi_request_quarters = [0u64; 2];
-        let mut institution_shortfall_quarters = [0u64; 2];
+        let mut institution_funding_attempts = [0u64; 2];
+        let mut institution_multi_request_quarters = [0u64; 3];
+        let mut institution_shortfall_quarters = [0u64; 3];
         for month in 1..=args.years * 12 {
             if let Err(error) = g.advance_history(1) {
                 // The history transaction may have rolled back while ecology already
@@ -368,6 +381,10 @@ fn main() -> Result<()> {
                 anyhow::ensure!(p.month == h.month, "stale institutional diagnostic");
                 if let Some(b) = &p.funding {
                     for r in &b.requests {
+                        if r.ceiling > 0. {
+                            institution_funding_attempts[0] += 1;
+                            institution_funding_attempts[1] += u64::from(r.settled);
+                        }
                         for (total, value) in
                             institution_funding
                                 .iter_mut()
@@ -377,7 +394,10 @@ fn main() -> Result<()> {
                         }
                     }
                 }
-                for (k, plans) in [&p.elections, &p.upkeep].into_iter().enumerate() {
+                for (k, plans) in [&p.elections, &p.upkeep, &p.administration]
+                    .into_iter()
+                    .enumerate()
+                {
                     if let Some(plans) = plans {
                         let requested = plans.iter().map(|u| u.requested as f64).sum::<f64>();
                         let granted = plans.iter().map(|u| u.granted as f64).sum::<f64>();
@@ -432,7 +452,7 @@ fn main() -> Result<()> {
                 // Preserve the actual gates and stocks behind the operational count.
                 // These are read-only samples, not additional monthly updates.
                 let institution_state = h.institution_state_report();
-                let row = json!({"institution_funding":institution_funding,"institution_state":institution_state,"institution_work":institution_work,"institution_multi_request_quarters":institution_multi_request_quarters,"institution_shortfall_quarters":institution_shortfall_quarters,"operational_institutions":c.institutions.iter().filter(|n| n.operational()).count(),"production_work":production_work,"household_observations":household_observations,"year":month/12,"food_totals":food,"max_population_residual":max_population_residual,"max_food_residual":max_food_residual,"recent_trade_pairs":h.trade_contact.receipts.len(),"demographic_site_months":demographic_months,"expected_deaths_by_age":mortality_by_age,"ages":(0..3).map(|b|h.sites.iter().map(|s|s.demography.ages[b] as f64).sum::<f64>()).collect::<Vec<_>>(),"heritage_recognitions":c.heritage_renown.len(),"heritage_witnesses":c.heritage_renown.iter().map(|r|r.witnesses.len()).sum::<usize>(),"domestic":h.domestic.as_ref().map(|d|json!({"groups":d.units.iter().filter(|u|u.ended.is_none()).count(),"members":d.membership.len(),"completed":d.care_completed,"care":d.care})),"funded_bundles":funded,"cancelled_bundles":cancelled,"requested":requested,"granted":granted,"used":used,"cancelled_work":cancelled_work,"population":h.sites.iter().map(|s|s.stocks.stock[0] as f64).sum::<f64>(),"active_sites":h.sites.iter().filter(|s|!s.abandoned).count(),"institutions":c.institutions.iter().filter(|n|n.active).count(),"knowledge_links":c.agents.iter().map(|a|a.knowledge.len()).sum::<usize>(),"artifacts":c.artifacts.len(),"individuals":h.participation.as_ref().map(|p|json!({"known":p.residents.len(),"available_adults":p.residents.values().filter(|r|r.capacity>0.).count(),"culture_work":p.residents.values().map(|r|r.completed[0]).sum::<f64>(),"research_work":p.residents.values().map(|r|r.completed[1]).sum::<f64>()}))});
+                let row = json!({"institution_funding_attempts":institution_funding_attempts,"institution_funding":institution_funding,"institution_state":institution_state,"institution_work":institution_work,"institution_multi_request_quarters":institution_multi_request_quarters,"institution_shortfall_quarters":institution_shortfall_quarters,"operational_institutions":c.institutions.iter().filter(|n| n.operational()).count(),"production_work":production_work,"household_observations":household_observations,"year":month/12,"food_totals":food,"max_population_residual":max_population_residual,"max_food_residual":max_food_residual,"recent_trade_pairs":h.trade_contact.receipts.len(),"demographic_site_months":demographic_months,"expected_deaths_by_age":mortality_by_age,"ages":(0..3).map(|b|h.sites.iter().map(|s|s.demography.ages[b] as f64).sum::<f64>()).collect::<Vec<_>>(),"heritage_recognitions":c.heritage_renown.len(),"heritage_witnesses":c.heritage_renown.iter().map(|r|r.witnesses.len()).sum::<usize>(),"domestic":h.domestic.as_ref().map(|d|json!({"groups":d.units.iter().filter(|u|u.ended.is_none()).count(),"members":d.membership.len(),"completed":d.care_completed,"care":d.care})),"funded_bundles":funded,"cancelled_bundles":cancelled,"requested":requested,"granted":granted,"used":used,"cancelled_work":cancelled_work,"population":h.sites.iter().map(|s|s.stocks.stock[0] as f64).sum::<f64>(),"active_sites":h.sites.iter().filter(|s|!s.abandoned).count(),"institutions":c.institutions.iter().filter(|n|n.active).count(),"knowledge_links":c.agents.iter().map(|a|a.knowledge.len()).sum::<usize>(),"artifacts":c.artifacts.len(),"individuals":h.participation.as_ref().map(|p|json!({"known":p.residents.len(),"available_adults":p.residents.values().filter(|r|r.capacity>0.).count(),"culture_work":p.residents.values().map(|r|r.completed[0]).sum::<f64>(),"research_work":p.residents.values().map(|r|r.completed[1]).sum::<f64>()}))});
                 eprintln!("seed {seed}: {} years, cancelled {cancelled}/{funded}, work {used:.1}/{granted:.1}, {:.1}s",month/12,start.elapsed().as_secs_f64());
                 samples.push(row);
             }
@@ -446,12 +466,11 @@ fn main() -> Result<()> {
         if let Some(parent) = args.output.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(
-            &args.output,
-            serde_json::to_vec_pretty(
-                &json!({"institution_funding_fields":["requested","conditional_ceiling","paid"],"institution_funding_unit":"abstract currency","operating_institutions":args.operating_institutions,"institution_work_classes":["election","upkeep"],"institution_work_fields":["requested","granted","used"],"institution_work_unit":"worker-months","rotating_institutions":args.rotating_institutions,"construction_refinement":args.construction_refinement,"extraction_refinement":args.extraction_refinement,"agriculture_refinement":args.agriculture_refinement,"household_diagnostics":args.household_diagnostics,"resident_payroll":!args.legacy_resident_payroll,"individual_nutrition":!args.no_individual_nutrition,"household_mortality":!args.no_individual_nutrition && !args.no_household_mortality,"common_share_override":args.common_share,"observation_interval_months":1,"mortality_diagnostic_rows":["age_band_exposure","household_exposure"],"mortality_age_bands":["child","adult","elder"],"production_sectors":["farming","forestry","mining","construction"],"production_work_fields":["requested","granted","completed"],"production_work_unit":"worker-months","food_fields":["need","available","funded","eaten","physical_gap","access_gap"],"crop_yield_scale":args.crop_yield_scale,"founding_access":!args.no_founding_access,"aggregate_resolution":args.aggregate_resolution,"compare_resolution":args.compare_resolution,"workshop_refinement":args.workshop_refinement,"individual_demography":args.individual_demography,"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows}),
-            )?,
-        )?;
+        let mut report = json!({"institution_funding_fields":["requested","conditional_ceiling","paid"],"institution_funding_unit":"abstract currency","operating_institutions":args.operating_institutions,"institution_work_classes":["election","upkeep","administration"],"institution_work_fields":["requested","granted","used"],"institution_work_unit":"worker-months","rotating_institutions":args.rotating_institutions,"construction_refinement":args.construction_refinement,"extraction_refinement":args.extraction_refinement,"agriculture_refinement":args.agriculture_refinement,"household_diagnostics":args.household_diagnostics,"resident_payroll":!args.legacy_resident_payroll,"individual_nutrition":!args.no_individual_nutrition,"household_mortality":!args.no_individual_nutrition && !args.no_household_mortality,"common_share_override":args.common_share,"observation_interval_months":1,"mortality_diagnostic_rows":["age_band_exposure","household_exposure"],"mortality_age_bands":["child","adult","elder"],"production_sectors":["farming","forestry","mining","construction"],"production_work_fields":["requested","granted","completed"],"production_work_unit":"worker-months","food_fields":["need","available","funded","eaten","physical_gap","access_gap"],"crop_yield_scale":args.crop_yield_scale,"founding_access":!args.no_founding_access,"aggregate_resolution":args.aggregate_resolution,"compare_resolution":args.compare_resolution,"workshop_refinement":args.workshop_refinement,"individual_demography":args.individual_demography,"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows});
+        report["institution_funding_attempt_fields"] =
+            json!(["positive_ceiling_requests", "collection_executed"]);
+        report["named_institution_administration"] = json!(args.named_institution_administration);
+        std::fs::write(&args.output, serde_json::to_vec_pretty(&report)?)?;
     }
     Ok(())
 }

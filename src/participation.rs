@@ -414,6 +414,7 @@ impl History {
                     p.commitment = None;
                     p.upkeep = None;
                     p.elections = None;
+                    p.administration = None;
                 }
             }
             if let Some(d) = self
