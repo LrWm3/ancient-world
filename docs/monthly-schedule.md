@@ -367,3 +367,14 @@ shortage. Current work grants are not retroactively reduced. Demographic replay
 snapshots persist personal mortality probabilities alongside aggregate rates;
 aggregate comparisons still use the aggregate projection. Old snapshots without
 these inputs retain their previous age-band behavior.
+
+
+## Optional office attendance
+
+The [office-service pilot](governance-duty-audit.md) reserves after learning
+services and before fisheries/resource/enterprise production planning. Its grant
+uses both named availability and the existing external service allowance. It
+settles after GPU production, before demographic losses, and its delivered work
+informs the later governance response. No grant or returned time is reused to
+rerun production. New officeholders do not inherit predecessors' completed work.
+The default remains disabled; this priority needs scarcity calibration.

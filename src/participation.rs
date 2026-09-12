@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Activity {
+    Governance,
     Culture,
     Research,
     Workshop,
@@ -159,7 +160,8 @@ impl Participation {
             Activity::Agriculture
             | Activity::Forestry
             | Activity::Mining
-            | Activity::Construction => 4,
+            | Activity::Construction
+            | Activity::Governance => 4,
         };
         for &(person, share) in &c.people {
             let resident = self.residents.get_mut(&person).unwrap();
@@ -374,6 +376,10 @@ impl History {
     }
     /// Change modes only at a completed personal-work boundary. This does not convert population.
     pub fn set_individual_participation(&mut self, enabled: bool) -> Result<()> {
+        ensure!(
+            enabled || self.offices.as_ref().is_none_or(|o| o.service.is_none()),
+            "disable office service before personal participation"
+        );
         ensure!(
             self.participation
                 .as_ref()

@@ -62,3 +62,40 @@ reserving government work first is a policy choice, not automatically fair.
 
 The audit identifies actual gaps; it does not close named administration,
 institutional action assignments, multi-site branches or multiple officer roles.
+
+## Opt-in office service pilot
+
+`History::set_office_service(true)` enables monthly holder attendance, requiring
+personal participation. Existing histories and defaults retain the preceding
+capacity behavior. The pilot requests 0.1 worker-month per eligible office,
+reserving after care, committed crews and learning, before later production
+reservations. This ordering is an explicit initial priority, not a general claim
+that administrative work outranks production.
+
+The same grant consumes personal availability and the shared service allowance.
+GPU production sees the reservation; settlement removes it only after production
+has honored it. Unused time expires. Service settles before demographic losses in
+Execute, and the existing later governance response reads the completed result.
+A different holder/controller cannot inherit the old grant. A newly appointed
+holder waits for a subsequent monthly reservation.
+
+Only the holder's increment above the existing 0.5 unnamed-staff capacity scales
+with delivered/requested work. That residual staffing remains aggregate. Office
+service does not repeat governance funding, household wages or tax transfers; it
+adds an attendance requirement to existing office duties. It currently has no
+separate salary contract. Records persist under `Offices.service` and appear in
+`service_work_report`. Disabling participation requires disabling office service
+first at a completed boundary.
+
+Institution-specific upkeep assignments, comparison-framework receipts and broader
+allocation calibration remain open. This is an initial bounded participation
+path, not a completed conversion of government staffing.
+
+Verification: the GPU office fixture passes occupied personal capacity, shared
+labor exhaustion, partial attendance, changed tenure, duplicate reservation and
+settlement rejection, unchanged finance and serialized continuation. The regular
+library suite passes 114 tests (104 hardware tests skipped). The full frozen
+history fixture passes monthly/batched/checkpoint continuation on three seeds,
+with the pilot enabled for 17/256 and a legacy arm for 81. All-target Clippy is
+clean. No scarcity balance or shared-resolution comparison is implied by these
+boundary checks.

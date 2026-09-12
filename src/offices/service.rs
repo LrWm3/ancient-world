@@ -1,0 +1,218 @@
+//! Opt-in named office attendance; funding remains owned by governance.
+use super::*;
+use crate::{labor::WorkReceipt, participation::Activity};
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct Service {
+    pub plans: Vec<Plan>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Plan {
+    pub site: u32,
+    pub controller: u32,
+    pub holder: u32,
+    pub commitment: Option<u32>,
+    pub work: WorkReceipt,
+}
+impl History {
+    pub fn set_office_service(&mut self, enabled: bool) -> Result<()> {
+        ensure!(
+            self.participation
+                .as_ref()
+                .is_none_or(|p| p.commitments.iter().all(|c| c.settled)),
+            "finish personal work before changing office service"
+        );
+        ensure!(
+            !enabled || self.participation.is_some(),
+            "office service requires personal participation"
+        );
+        let offices = self
+            .offices
+            .as_mut()
+            .ok_or_else(|| anyhow::anyhow!("enable offices first"))?;
+        ensure!(
+            offices
+                .service
+                .as_ref()
+                .is_none_or(|s| s.plans.iter().all(|p| p.work.settled)),
+            "finish office work before changing service"
+        );
+        if enabled {
+            offices.service.get_or_insert_with(Default::default);
+        } else {
+            offices.service = None;
+        }
+        Ok(())
+    }
+    pub(crate) fn reserve_office_service(&mut self) -> Result<()> {
+        let Some(service) = self.offices.as_ref().and_then(|o| o.service.as_ref()) else {
+            return Ok(());
+        };
+        ensure!(
+            self.participation.is_some(),
+            "office service lost personal participation"
+        );
+        ensure!(
+            service
+                .plans
+                .iter()
+                .all(|p| p.work.settled && p.work.month < self.month),
+            "stale office reservation"
+        );
+        let holders: Vec<_> = self
+            .offices
+            .as_ref()
+            .unwrap()
+            .seats
+            .iter()
+            .filter_map(|o| {
+                let holder = o.holder()?;
+                (o.controller == self.controller(o.site)
+                    && self
+                        .office_candidates(o.site, o.controller, o.selection)
+                        .contains(&holder))
+                .then_some((o.site, o.controller, holder))
+            })
+            .collect();
+        let mut plans = vec![];
+        for (site, controller, holder) in holders {
+            let wanted = 0.1f32;
+            let allowance = crate::labor::available(
+                &self.sites[site as usize],
+                self.society.is_some(),
+                self.living.is_some(),
+            )
+            .min(wanted);
+            let state = self.participation.as_mut().unwrap();
+            let commitment =
+                state.reserve(self.month, site, Activity::Governance, &[holder], allowance);
+            let grant = commitment.map_or(0., |id| state.commitments[id as usize].granted);
+            self.sites[site as usize].economy.external[3] += grant;
+            plans.push(Plan {
+                site,
+                controller,
+                holder,
+                commitment,
+                work: WorkReceipt {
+                    month: self.month,
+                    requested: wanted as f64,
+                    granted: grant as f64,
+                    ..Default::default()
+                },
+            });
+        }
+        self.offices
+            .as_mut()
+            .unwrap()
+            .service
+            .as_mut()
+            .unwrap()
+            .plans = plans;
+        Ok(())
+    }
+    pub(crate) fn settle_office_service(&mut self) -> Result<()> {
+        let Some(service) = self.offices.as_ref().and_then(|o| o.service.as_ref()) else {
+            return Ok(());
+        };
+        let plans = service.plans.clone();
+        // Validate the entire batch before consuming any commitments.
+        service.validate(self)?;
+        ensure!(
+            plans
+                .iter()
+                .all(|p| p.work.month == self.month && !p.work.settled),
+            "stale office settlement"
+        );
+        for (index, p) in plans.iter().enumerate() {
+            ensure!(
+                p.work.month == self.month && !p.work.settled,
+                "stale office settlement"
+            );
+            let office = &self.offices.as_ref().unwrap().seats[p.site as usize];
+            let live = office.holder() == Some(p.holder)
+                && office.controller == p.controller
+                && self.controller(p.site) == p.controller;
+            let used = if live {
+                self.personal_grant_live(p.commitment)
+                    .min(p.work.granted as f32)
+            } else {
+                0.
+            };
+            if let Some(id) = p.commitment {
+                self.participation
+                    .as_mut()
+                    .ok_or_else(|| anyhow::anyhow!("missing office participants"))?
+                    .settle(id, used)?;
+            }
+            // GPU production has already honored the reserved allowance. Expired
+            // time cannot be recycled into this month's production.
+            self.sites[p.site as usize].economy.external[3] =
+                (self.sites[p.site as usize].economy.external[3] - p.work.granted as f32).max(0.);
+            self.offices
+                .as_mut()
+                .unwrap()
+                .service
+                .as_mut()
+                .unwrap()
+                .plans[index]
+                .work
+                .settle(used as f64);
+        }
+        Ok(())
+    }
+}
+impl Service {
+    pub(super) fn validate(&self, h: &History) -> Result<()> {
+        ensure!(
+            h.participation.is_some() && self.plans.len() <= h.sites.len(),
+            "invalid office service state"
+        );
+        for (i, p) in self.plans.iter().enumerate() {
+            p.work.validate()?;
+            if p.work.month == h.month {
+                if let Some(id) = p.commitment {
+                    let c = h
+                        .participation
+                        .as_ref()
+                        .and_then(|s| s.commitments.get(id as usize))
+                        .ok_or_else(|| anyhow::anyhow!("missing office commitment"))?;
+                    ensure!(
+                        c.month == p.work.month
+                            && c.site == p.site
+                            && c.activity == Activity::Governance
+                            && c.people.len() == 1
+                            && c.people[0].0 == p.holder
+                            && (c.granted as f64 - p.work.granted).abs() < 1e-6
+                            && c.settled == p.work.settled,
+                        "office commitment mismatch"
+                    );
+                } else {
+                    ensure!(p.work.granted == 0., "unassigned office grant");
+                }
+            }
+            ensure!(
+                (p.site as usize) < h.sites.len()
+                    && (p.holder as usize) < h.people.len()
+                    && p.work.month <= h.month
+                    && p.work.requested <= 0.10001
+                    && !self.plans[..i].iter().any(|other| other.site == p.site),
+                "invalid office service plan"
+            );
+        }
+        Ok(())
+    }
+    pub(super) fn delivered(&self, month: u32, site: u32, holder: u32, controller: u32) -> f32 {
+        self.plans
+            .iter()
+            .find(|p| {
+                p.site == site
+                    && p.holder == holder
+                    && p.controller == controller
+                    && p.work.month == month
+                    && p.work.settled
+            })
+            .map_or(0., |p| {
+                (p.work.used / p.work.requested.max(1e-12)).clamp(0., 1.) as f32
+            })
+    }
+}

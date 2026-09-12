@@ -1,4 +1,5 @@
 //! Sparse local offices. Authority references existing administrations and treasuries.
+pub mod service;
 use crate::{
     civilization::History,
     gpu::{Generator, Stage},
@@ -41,12 +42,17 @@ impl Office {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Offices {
+    #[serde(default)]
+    pub service: Option<service::Service>,
     pub started: u32,
     pub last_decision: Option<u32>,
     pub seats: Vec<Office>,
 }
 impl Offices {
     pub fn validate(&self, h: &History) -> Result<()> {
+        if let Some(service) = &self.service {
+            service.validate(h)?;
+        }
         ensure!(
             h.governance.is_some()
                 && h.culture.is_some()
@@ -150,7 +156,10 @@ impl History {
             .as_ref()
             .and_then(|c| c.agents.get(p as usize))
             .map_or(0., |a| a.knowledge.len().min(12) as f32 / 12.);
-        0.75 + 0.25 * breadth
+        let capacity = 0.75 + 0.25 * breadth;
+        offices.service.as_ref().map_or(capacity, |s| {
+            0.5 + (capacity - 0.5) * s.delivered(self.month, site, p, o.controller)
+        })
     }
     pub(crate) fn sync_offices(&mut self) {
         let Some(mut offices) = self.offices.take() else {
@@ -311,6 +320,7 @@ impl Generator {
         }
         h.sync_culture();
         h.offices = Some(Offices {
+            service: None,
             started: h.month,
             last_decision: None,
             seats: vec![],
@@ -343,6 +353,107 @@ mod tests {
         g.civilizations.as_mut().unwrap().sync_culture();
         g
     }
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn named_service_reserves_once_and_bounds_office_capacity() {
+        let mut g = world();
+        g.enable_offices().unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        h.set_individual_participation(true).unwrap();
+        h.set_office_service(true).unwrap();
+        h.month += 1;
+        h.begin_service_reservations();
+        let holder = h.offices.as_ref().unwrap().seats[0].holder().unwrap();
+        let opening = h.clone();
+        let finance = h.sites[0].economy.finance;
+        let external = h.sites[0].economy.external[3];
+        assert_eq!(h.office_capacity(0), 0.5);
+        h.reserve_office_service().unwrap();
+        assert!(h.reserve_office_service().is_err());
+        let p = &h.offices.as_ref().unwrap().service.as_ref().unwrap().plans[0];
+        assert_eq!(p.holder, holder);
+        assert!(p.work.granted > 0.);
+        assert!((h.sites[0].economy.external[3] - external - p.work.granted as f32).abs() < 1e-6);
+        let mut resumed: History =
+            serde_json::from_value(serde_json::to_value(&*h).unwrap()).unwrap();
+        h.settle_office_service().unwrap();
+        resumed.settle_office_service().unwrap();
+        assert_eq!(
+            serde_json::to_value(&*h).unwrap(),
+            serde_json::to_value(&resumed).unwrap()
+        );
+        assert!(h.office_capacity(0) > 0.5);
+        assert_eq!(h.sites[0].economy.finance, finance);
+        assert!((h.sites[0].economy.external[3] - external).abs() < 1e-6);
+        assert!(h.settle_office_service().is_err());
+        assert!(h.set_individual_participation(false).is_err());
+        let mut unavailable = opening.clone();
+        let available = unavailable
+            .participation
+            .as_ref()
+            .unwrap()
+            .available(holder);
+        unavailable
+            .participation
+            .as_mut()
+            .unwrap()
+            .reserve(
+                unavailable.month,
+                0,
+                crate::participation::Activity::Research,
+                &[holder],
+                available,
+            )
+            .unwrap();
+        unavailable.reserve_office_service().unwrap();
+        unavailable.settle_office_service().unwrap();
+        assert_eq!(unavailable.office_capacity(0), 0.5);
+        let mut partial = opening.clone();
+        let available = partial.participation.as_ref().unwrap().available(holder);
+        partial
+            .participation
+            .as_mut()
+            .unwrap()
+            .reserve(
+                partial.month,
+                0,
+                crate::participation::Activity::Research,
+                &[holder],
+                available - 0.05,
+            )
+            .unwrap();
+        partial.reserve_office_service().unwrap();
+        partial.settle_office_service().unwrap();
+        assert!(
+            partial.office_capacity(0) > 0.5 && partial.office_capacity(0) < h.office_capacity(0)
+        );
+        let mut scarce = opening.clone();
+        scarce.sites[0].economy.external[3] = 1e6;
+        scarce.reserve_office_service().unwrap();
+        scarce.settle_office_service().unwrap();
+        assert_eq!(scarce.office_capacity(0), 0.5);
+        let mut changed = opening;
+        changed.reserve_office_service().unwrap();
+        changed.offices.as_mut().unwrap().seats[0]
+            .tenures
+            .last_mut()
+            .unwrap()
+            .ended = Some(changed.month);
+        changed.settle_office_service().unwrap();
+        assert_eq!(changed.office_capacity(0), 0.5);
+        let plan = &changed
+            .offices
+            .as_ref()
+            .unwrap()
+            .service
+            .as_ref()
+            .unwrap()
+            .plans[0];
+        assert_eq!(plan.work.used, 0.);
+        assert_eq!(plan.work.granted, plan.work.released);
+        plan.work.validate().unwrap();
+    }
+
     #[test]
     #[ignore = "requires hardware GPU"]
     fn selection_jurisdiction_and_tax_capacity_have_conserved_consequences() {

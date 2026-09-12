@@ -199,6 +199,22 @@ fn frozen_schedule_batch_and_checkpoint_equivalence() {
             .unwrap()
             .set_demographic_resolution(ancient_world::resolution::Mode::Aggregate, seed != 81)
             .unwrap();
+        // Exercise office attendance in two seeds while retaining a legacy arm.
+        if seed != 81 {
+            batch.enable_offices().unwrap();
+            batch
+                .civilizations
+                .as_mut()
+                .unwrap()
+                .set_individual_participation(true)
+                .unwrap();
+            batch
+                .civilizations
+                .as_mut()
+                .unwrap()
+                .set_office_service(true)
+                .unwrap();
+        }
         let path = format!("output/schedule-{}-{seed}.world", std::process::id());
         batch.save(std::path::Path::new(&path)).unwrap();
         let mut single = Generator::load(gpu.clone(), std::path::Path::new(&path)).unwrap();

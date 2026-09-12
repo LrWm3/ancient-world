@@ -103,6 +103,7 @@ impl crate::civilization::History {
             "month": self.month,
             "participation": self.participation_report(),
             "learning_allocation": self.service_allocation,
+            "office_service": self.offices.as_ref().and_then(|o| o.service.as_ref()),
             "culture": self.culture.as_ref().map(|c| (&c.work_receipt, &c.work_plans)),
             "research": self.expeditions.as_ref().and_then(|x| x.discoveries.as_ref()).map(|d| d.workshops.iter().map(|w| (w.site, &w.work_plan)).collect::<Vec<_>>()),
             "workshops": self.enterprises.as_ref().map(|e| e.firms.iter().map(|f| serde_json::json!({"firm":f.id,"site":f.site,"requested":f.last_requested_work,"funded":f.last_funded_work,"completed":f.last_completed_work,"idle_paid":(f.last_funded_work-f.last_completed_work).max(0.)})).collect::<Vec<_>>()),

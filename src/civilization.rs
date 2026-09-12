@@ -1323,6 +1323,7 @@ impl Generator {
         h.begin_service_reservations();
         h.prepare_committed_vessels();
         h.reserve_learning_services()?;
+        h.reserve_office_service()?;
         h.prepare_fisheries(terrain, self.config.eco_resolution());
         let extraction_allowances = h.allocate_resources();
         h.plan_production();
@@ -1351,6 +1352,7 @@ impl Generator {
         engine.dispatch(self, false, h.sites.len() as u32);
         engine.read(self, h, true)?;
         h.settle_domestic_care();
+        h.settle_office_service()?;
         if let Some(observation) = individual_observation {
             let mortality = h.household_mortality(&retail);
             h.settle_individual_demography(observation, &mortality)?;
