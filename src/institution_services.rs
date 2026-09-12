@@ -134,6 +134,40 @@ impl Plan {
         }
     }
 
+    /// Structural checks for persisted receipts. Historical opening space is not
+    /// compared with today's building: damage and repairs legitimately change it.
+    pub fn validate(&self) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            self.opening_space.is_finite() && self.opening_space >= 0.,
+            "invalid service opening space"
+        );
+        for (i, r) in self.receipts.iter().enumerate() {
+            anyhow::ensure!(
+                [r.occupants, r.duration, r.requested, r.granted, r.used]
+                    .iter()
+                    .all(|v| v.is_finite() && *v >= 0.)
+                    && r.occupants > 0.
+                    && r.duration > 0.
+                    && r.duration <= 1.
+                    && r.requested == r.occupants * r.duration
+                    && (r.granted == 0. || r.granted == r.requested)
+                    && (r.granted == 0. || r.occupants <= self.opening_space)
+                    && (r.used == 0. || r.used == r.granted)
+                    && (r.used == 0. || r.settled)
+                    && (!self.closed || r.settled)
+                    && !self.receipts[..i]
+                        .iter()
+                        .any(|other| other.service == r.service),
+                "invalid institutional service receipt"
+            );
+        }
+        anyhow::ensure!(
+            self.receipts.iter().map(|r| r.granted).sum::<f64>() <= self.opening_space + 1e-12,
+            "institutional services exceed opening space"
+        );
+        Ok(())
+    }
+
     pub fn close(&mut self, month: u32) {
         if month == self.month {
             for r in &mut self.receipts {
@@ -286,6 +320,93 @@ impl crate::culture::Culture {
     }
 }
 
+/// Validate references and work backing as well as the independent room ledger.
+/// Deceased authors and destroyed objects remain legitimate historical references.
+pub(crate) fn validate_work_plan(
+    p: &crate::culture::work_requests::WorkPlan,
+    c: &crate::culture::Culture,
+    people: usize,
+) -> anyhow::Result<()> {
+    let Some(plans) = &p.services else {
+        return Ok(());
+    };
+    anyhow::ensure!(
+        plans.len() <= c.institutions.len(),
+        "unbounded service plans"
+    );
+    let mut seen = Vec::new();
+    let mut granted = 0.;
+    let mut used = 0.;
+    for (i, plan) in plans.iter().enumerate() {
+        plan.validate()?;
+        anyhow::ensure!(
+            plan.month == p.month
+                && plan.site == p.site
+                && c.institutions
+                    .get(plan.institution as usize)
+                    .is_some_and(|n| n.site == p.site)
+                && !plans[..i]
+                    .iter()
+                    .any(|other| other.institution == plan.institution)
+                && plan.receipts.len() <= c.artifacts.len().saturating_add(1),
+            "invalid institutional service boundary"
+        );
+        for r in &plan.receipts {
+            anyhow::ensure!(
+                !seen.iter().any(|other| match (*other, r.service) {
+                    (
+                        Service::HeritageStudy { artifact: a, .. },
+                        Service::HeritageStudy { artifact: b, .. },
+                    ) => a == b,
+                    _ => *other == r.service,
+                }),
+                "duplicate institutional service"
+            );
+            seen.push(r.service);
+            let valid = match r.service {
+                Service::Lesson {
+                    student,
+                    teacher,
+                    topic,
+                } => {
+                    (student as usize) < people
+                        && (teacher as usize) < people
+                        && student != teacher
+                        && (topic as usize) < crate::culture::TOPICS.len()
+                        && p.actor == Some(student)
+                        && p.institution_lesson == Some((topic, teacher, plan.institution))
+                        && p.actions.iter().any(|(a, _)| a == "study")
+                        && r.occupants == 2.
+                }
+                Service::HeritageStudy { artifact, author } => {
+                    (artifact as usize) < c.artifacts.len()
+                        && (author as usize) < people
+                        && p.actions.iter().any(|(a, _)| a == "heritage study")
+                        && r.occupants == 1.
+                }
+            };
+            anyhow::ensure!(
+                valid && r.duration == 0.1,
+                "invalid institutional service source or duration"
+            );
+            if r.granted > 0. {
+                granted += 0.1;
+            }
+            if r.used > 0. {
+                used += 0.1;
+            }
+        }
+    }
+    let duties: f32 = p.institution_work().map(|u| u.granted).sum();
+    let duty_used: f32 = p.institution_work().map(|u| u.used).sum();
+    anyhow::ensure!(
+        granted + duties as f64 <= p.granted as f64 + 1e-5
+            && used + duty_used as f64 <= p.completed as f64 + 1e-5,
+        "institutional services lack cultural work backing"
+    );
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -342,6 +463,43 @@ mod tests {
         assert!(!p.settle((12, 1, 3), b, 1., true));
         assert_eq!(p.receipts.iter().map(|r| r.used).sum::<f64>(), 0.);
     }
+    #[test]
+    fn corrupted_receipts_are_rejected_after_deserialization() {
+        let mut original = Plan::new(12, 1, 3, 2.);
+        original.reserve(lesson(1), 2., 0.5);
+        original.reserve(lesson(2), 2., 0.5);
+        original.validate().unwrap();
+        let corruptions: Vec<fn(&mut Plan)> = vec![
+            |p| p.opening_space = -1.,
+            |p| p.opening_space = 1.,
+            |p| {
+                for r in &mut p.receipts {
+                    r.duration = 1.;
+                    r.requested = 2.;
+                    r.granted = 2.;
+                }
+            },
+            |p| p.receipts[0].duration = 2.,
+            |p| p.receipts[0].requested = 0.5,
+            |p| p.receipts[0].granted = 0.5,
+            |p| p.receipts[0].used = 0.5,
+            |p| p.receipts[0].used = 1.,
+            |p| p.closed = true,
+            |p| p.receipts[1].service = p.receipts[0].service,
+        ];
+        for corrupt in corruptions {
+            let mut p = original.clone();
+            corrupt(&mut p);
+            let restored: Plan = serde_json::from_value(serde_json::to_value(p).unwrap()).unwrap();
+            assert!(restored.validate().is_err());
+        }
+        original.receipts[0].granted = 0.; // Unfunded conditional request is valid.
+        original.close(12);
+        original.validate().unwrap();
+        original.opening_space = f64::INFINITY;
+        assert!(original.validate().is_err());
+    }
+
     #[test]
     fn continuation_and_close_preserve_receipts() {
         let mut p = Plan::new(12, 1, 3, 2.);

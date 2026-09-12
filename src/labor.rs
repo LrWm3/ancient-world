@@ -171,6 +171,7 @@ impl crate::civilization::History {
                 "future cultural work receipt"
             );
             for (i, p) in c.work_plans.iter().enumerate() {
+                crate::institution_services::validate_work_plan(p, c, self.people.len())?;
                 if let Some(b) = &p.funding {
                     b.validate(&c.institutions, p.site)?;
                     if let Some(administration) = &p.administration {

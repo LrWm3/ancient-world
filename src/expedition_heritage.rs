@@ -637,6 +637,44 @@ mod tests {
             }
             let before = run.sites[site as usize].economy.goods[good];
             study(&mut run, &mut culture);
+            crate::institution_services::validate_work_plan(
+                &culture.work_plans[site as usize],
+                &culture,
+                run.people.len(),
+            )
+            .unwrap();
+            for corruption in 0..6 {
+                let mut invalid = culture.work_plans[site as usize].clone();
+                let plan = &mut invalid.services.as_mut().unwrap()[0];
+                match corruption {
+                    0 => plan.site = u32::MAX,
+                    1 => plan.month += 1,
+                    2 => plan.institution = u32::MAX,
+                    3 => {
+                        plan.receipts[0].service =
+                            crate::institution_services::Service::HeritageStudy {
+                                artifact: u32::MAX,
+                                author,
+                            }
+                    }
+                    4 => {
+                        plan.receipts[0].service =
+                            crate::institution_services::Service::HeritageStudy {
+                                artifact: id,
+                                author: u32::MAX,
+                            }
+                    }
+                    _ => invalid.granted = 0.,
+                }
+                let restored =
+                    serde_json::from_value(serde_json::to_value(invalid).unwrap()).unwrap();
+                assert!(crate::institution_services::validate_work_plan(
+                    &restored,
+                    &culture,
+                    run.people.len()
+                )
+                .is_err());
+            }
             assert_eq!(count(&run), usize::from(!failed));
             assert!(
                 (before

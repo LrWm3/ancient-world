@@ -133,8 +133,9 @@ learning does not acquire an institutional room requirement.
 
 Other service consumers and small-working-core readiness are still unfinished.
 The shared operational/readiness gate remains unchanged until those consumers
-have explicit capacity contracts. Full scheduler continuation and matched-history
-calibration of this new behavior remain required before drawing balance conclusions.
+have explicit capacity contracts. The full frozen scheduler monthly/batched/checkpoint comparison passes on seeds
+17/81/256. Matched-history calibration of the new service behavior remains
+required before drawing balance conclusions.
 
 Verification for the consumer integration: all 121 regular library tests pass,
 as do Clippy across all targets and the two hardware-backed learning/heritage
@@ -143,10 +144,29 @@ prevents progress and spending, then releases the unused grant at settlement.
 The heritage fixture opens named participation before reservation and compares
 intact/lost premises with the same writing stock and work; duplicate execution
 cannot consume supplies twice. Its legacy no-plan path retains prior readings.
-The full monthly/batched/checkpoint comparison is tracked separately.
+The full frozen monthly/batched/checkpoint comparison also passes on seeds
+17/81/256.
 
 An existing limitation remains: generic cultural identity validation can cancel
 a whole bundle when local objects change. The new live room check does not remove
-that broader cancellation rule. Narrowing cancellation to the affected service,
-validating room receipts on archive import, and testing competing actual consumers
+that broader cancellation rule. Narrowing cancellation to the affected service and testing competing actual consumers
 under constrained space remain follow-up verification/integration work.
+
+Archive validation now checks finite room arithmetic, indivisible grants,
+once-only settlement state, duplicate service identities, shared opening capacity,
+source references, captured site/month/institution, configured task dimensions,
+and the cultural work backing both grants and completed service. Old plans without
+service receipts retain their compatibility path. Opening room stocks are historical
+observations: validation does not require a subsequently damaged building or dead
+author to remain usable. Execution still performs the live checks.
+
+The validation fixtures reject ten malformed ledger variants (including overbooked
+space and partial indivisible grants), plus six serialized cultural-plan mutations
+covering wrong boundary, missing source IDs and absent work backing. The real
+heritage consumer passes these checks with both intact and destroyed premises;
+unused capacity remains a legitimate historical receipt.
+
+With archive validation enabled, all 122 regular library tests, the heritage GPU
+fixture, Clippy across all targets, and the repeated three-seed frozen
+monthly/batched/checkpoint comparison pass. These establish consistency and
+continuation, not balanced institutional service volumes.
