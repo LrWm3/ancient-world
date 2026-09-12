@@ -127,6 +127,10 @@ pub struct Progress {
     #[serde(default)]
     pub lake_iterations: u32,
     #[serde(default)]
+    pub lake_changed_cells: u32,
+    #[serde(default)]
+    pub lake_max_change_m: f32,
+    #[serde(default)]
     pub climate_converged: bool,
     pub stage_ms: BTreeMap<String, f64>,
     pub timestamp_supported: bool,
@@ -335,7 +339,10 @@ impl Generator {
         });
         let mut pipelines = BTreeMap::new();
         for name in [
-            "pool_step",
+            "pool_init",
+            "pool_even",
+            "pool_odd",
+            "pool_scatter",
             "initialize",
             "tectonics",
             "drain_init",
@@ -411,6 +418,8 @@ impl Generator {
                 changed: 0,
                 climate_cycles: 0,
                 lake_iterations: 0,
+                lake_changed_cells: 0,
+                lake_max_change_m: 0.,
                 climate_converged: false,
                 stage_ms: BTreeMap::new(),
                 timestamp_supported: timestamp,
@@ -549,28 +558,61 @@ impl Generator {
         self.gpu
             .queue
             .write_buffer(&self.uniform, 0, bytemuck::bytes_of(&self.params()));
+        let mut init = self.gpu.device.create_command_encoder(&Default::default());
+        {
+            let mut pass = init.begin_compute_pass(&Default::default());
+            pass.set_pipeline(&self.pipelines["pool_init"]);
+            pass.set_bind_group(0, &self.groups[self.current], &[]);
+            pass.dispatch_workgroups(self.config.resolution / 8, self.config.resolution / 8, 6);
+        }
+        self.gpu.queue.submit(Some(init.finish()));
+        // Reuse one tiny staging allocation throughout this solve. The flag copy
+        // joins the existing batch submission; map_buffer unmaps before reuse.
+        let readback = self.gpu.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Lake convergence readback"),
+            size: 16,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let mut converged = false;
         let mut iterations = 0;
-        // Vegetation-driven terrain changes can create slowly communicating basins.
-        // Keep the same convergence criterion, with room for longer relaxation.
-        for _ in 0..1024 {
+        let limit = self.config.lake_iteration_limit();
+        for _ in 0..limit / 16 {
             let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
-            for _ in 0..16 {
+            for step in 0..16 {
                 encoder.clear_buffer(&self.flags, 0, None);
                 let mut pass = encoder.begin_compute_pass(&Default::default());
-                pass.set_pipeline(&self.pipelines["pool_step"]);
+                pass.set_pipeline(
+                    &self.pipelines[if step % 2 == 0 {
+                        "pool_even"
+                    } else {
+                        "pool_odd"
+                    }],
+                );
                 pass.set_bind_group(0, &self.groups[self.current], &[]);
                 pass.dispatch_workgroups(self.config.resolution / 8, self.config.resolution / 8, 6);
-                self.current = 1 - self.current;
                 iterations += 1;
             }
+            encoder.copy_buffer_to_buffer(&self.flags, 0, &readback, 0, 16);
             self.gpu.queue.submit(Some(encoder.finish()));
-            let flags = read_buffer(&self.gpu, &self.flags, 0, 16)?;
+            let flags = map_buffer(&self.gpu.device, &readback)?;
+            self.progress.lake_changed_cells = u32::from_le_bytes(flags[..4].try_into()?);
+            self.progress.lake_max_change_m = f32::from_le_bytes(flags[4..8].try_into()?);
             if u32::from_le_bytes(flags[..4].try_into()?) == 0 {
                 converged = true;
                 break;
             }
         }
+        // Every batch has an even number of passes: the completed state is side zero.
+        let mut scatter = self.gpu.device.create_command_encoder(&Default::default());
+        {
+            let mut pass = scatter.begin_compute_pass(&Default::default());
+            pass.set_pipeline(&self.pipelines["pool_scatter"]);
+            pass.set_bind_group(0, &self.groups[self.current], &[]);
+            pass.dispatch_workgroups(self.config.resolution / 8, self.config.resolution / 8, 6);
+        }
+        self.gpu.queue.submit(Some(scatter.finish()));
+        self.current = 1 - self.current;
         *self
             .progress
             .stage_ms
@@ -579,7 +621,7 @@ impl Generator {
         self.progress.lake_iterations = iterations;
         if !converged {
             let message =
-                format!("secondary lake surface flow unresolved after {iterations} iterations");
+                format!("secondary lake surface flow unresolved after {iterations} iterations: {} cells still changing, maximum change {} m", self.progress.lake_changed_cells, self.progress.lake_max_change_m);
             self.error = Some(message.clone());
             anyhow::bail!(message);
         }

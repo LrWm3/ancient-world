@@ -462,24 +462,40 @@ fn climate_check(@builtin(global_invocation_id) g:vec3<u32>) {
 }
 fn secondary(c:Cell)->bool { return c.tags.x>=2u && c.routing.z>=2u && c.routing.z!=NONE && c.hydro.x>c.terrain.x+.05; }
 fn lake_weight(i:u32)->f32 { return area(i)/(4.*PI*p.physical.x*p.physical.x*1e6/f32(6u*p.dims.x*p.dims.x))*4096.; }
-// Finite-volume surface relaxation. A dry saddle is a physical barrier, regardless
-// of priority-flood labels. Each edge reads a frozen state; four outflows can never
-// consume more than 96% of the source inventory.
-fn pool_transfer(i:u32,j:u32)->f32 {
- let a=src[i];let b=src[j];if a.water.x<=0.||a.tags.x<2u{return 0.;}
- let same_pool=secondary(a)&&secondary(b)&&a.routing.z==b.routing.z;
- let overflow=a.routing.x==j && a.terrain.x+a.water.x>a.hydro.x+.0001;
+// Reuse the drainage/reduction scratch: water depth, terrain, area weight, spill.
+// Static geometry is prepared once; relaxation never copies the full Cell.
+@compute @workgroup_size(8,8)
+fn pool_init(@builtin(global_invocation_id) g:vec3<u32>) {
+ let i=cell_id(g);let c=src[i];scratch[i]=vec4(c.water.x,c.terrain.x,lake_weight(i),c.hydro.x);
+}
+// Frozen edge fluxes conserve area-weighted water. Four outflows consume at most
+// 96% of the source inventory. Dry saddles remain physical barriers.
+fn pool_transfer(i:u32,j:u32,offset:u32)->f32 {
+ let a=scratch[offset+i];let b=scratch[offset+j];if a.x<=0.||src[i].tags.x<2u{return 0.;}
+ let same_pool=secondary(src[i])&&secondary(src[j])&&src[i].routing.z==src[j].routing.z;
+ let overflow=src[i].routing.x==j && a.y+a.x>a.w+.0001;
  if !same_pool&&!overflow{return 0.;}
- var head=a.terrain.x+a.water.x-max(a.terrain.x,b.terrain.x+b.water.x);
- if !same_pool {head=min(head,a.terrain.x+a.water.x-a.hydro.x);}
- if head<=max(.0005,max(abs(a.terrain.x),abs(b.terrain.x))*.0000005){return 0.;}
- let aa=lake_weight(i);let ab=lake_weight(j);
- return min(a.water.x*aa*.24,head*aa*ab/(aa+ab)*.48);
+ var head=a.y+a.x-max(a.y,b.y+b.x);
+ if !same_pool {head=min(head,a.y+a.x-a.w);}
+ if head<=max(.0005,max(abs(a.y),abs(b.y))*.0000005){return 0.;}
+ return min(a.x*a.z*.24,head*a.z*b.z/(a.z+b.z)*.48);
+}
+fn pool_compact(i:u32,side:u32) {
+ let count=6u*p.dims.x*p.dims.x;let offset=side*count;
+ let old=scratch[offset+i];var c=old;var net=0.;
+ for(var k=0u;k<4u;k++){let j=neighbor(i,k);net+=pool_transfer(j,i,offset)-pool_transfer(i,j,offset);}
+ c.x=max(0.,c.x+net/c.z);
+ let change=abs(c.x-old.x);
+ if change>max(.0005,max(abs(c.y),abs(c.x))*.0000005) {
+  atomicAdd(&flags.changed,1u);atomicMax(&flags.invalid,bitcast<u32>(change));
+ }
+ scratch[(1u-side)*count+i]=c;
 }
 @compute @workgroup_size(8,8)
-fn pool_step(@builtin(global_invocation_id) g:vec3<u32>) {
- let i=cell_id(g);var c=src[i];var net=0.;
- for(var k=0u;k<4u;k++){let j=neighbor(i,k);net+=pool_transfer(j,i)-pool_transfer(i,j);}
- let delta=net/lake_weight(i);c.water.x=max(0.,c.water.x+delta);
- if abs(c.water.x-src[i].water.x)>max(.0005,max(abs(c.terrain.x),abs(c.water.x))*.0000005) {atomicAdd(&flags.changed,1u);}dst[i]=c;
+fn pool_even(@builtin(global_invocation_id) g:vec3<u32>) {pool_compact(cell_id(g),0u);}
+@compute @workgroup_size(8,8)
+fn pool_odd(@builtin(global_invocation_id) g:vec3<u32>) {pool_compact(cell_id(g),1u);}
+@compute @workgroup_size(8,8)
+fn pool_scatter(@builtin(global_invocation_id) g:vec3<u32>) {
+ let i=cell_id(g);var c=src[i];c.water.x=scratch[i].x;dst[i]=c;
 }

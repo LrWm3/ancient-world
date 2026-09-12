@@ -541,3 +541,55 @@ fn default_climate_reaches_a_periodic_seasonal_state() {
     g.run_epochs(1).unwrap();
     assert!(!g.progress.climate_converged);
 }
+
+#[test]
+#[ignore = "requires a hardware GPU"]
+fn lake_budget_failure_preserves_water_and_can_be_resumed() {
+    let mut g = make(16, 42);
+    let mut cells = g.snapshot().unwrap();
+    for c in &mut cells {
+        c.meta[0] = 2;
+        c.terrain[0] = 300.;
+        c.hydro[0] = 300.;
+        c.water[0] = 0.;
+        c.routing = [NONE, 0, NONE, 0];
+    }
+    // Long closed channel: sixteen passes cannot spread its initial water.
+    for x in 1..15 {
+        let c = &mut cells[8 * 16 + x];
+        c.terrain[0] = 100.;
+        c.hydro[0] = 300.;
+        c.routing[2] = 130;
+    }
+    cells[8 * 16 + 1].water[0] = 100.;
+    let volume = |cs: &[Cell]| {
+        cs.iter()
+            .enumerate()
+            .map(|(i, c)| c.water[0] as f64 * grid::solid_angle(i as u32, 16))
+            .sum::<f64>()
+    };
+    let initial = volume(&cells);
+    g.restore_cells(&cells, 0).unwrap();
+    g.config.max_lake_iterations = 16;
+    assert!(g
+        .equilibrate_lakes()
+        .unwrap_err()
+        .to_string()
+        .contains("cells still changing"));
+    assert_eq!(g.progress.lake_iterations, 16);
+    assert!(g.progress.lake_changed_cells > 0);
+    assert!(g.progress.lake_max_change_m > 0.0005);
+    let partial = g.snapshot().unwrap();
+    assert!((volume(&partial) - initial).abs() / initial < 1e-4);
+    g.restore_cells(&partial, 0).unwrap();
+    g.config.max_lake_iterations = 0;
+    g.equilibrate_lakes().unwrap();
+    assert_eq!(g.progress.lake_changed_cells, 0);
+    let result = g.snapshot().unwrap();
+    assert!((volume(&result) - initial).abs() / initial < 1e-4);
+    for (mut after, before) in result.into_iter().zip(cells) {
+        assert!(after.water[0].is_finite() && after.water[0] >= 0.);
+        after.water[0] = before.water[0];
+        assert_eq!(bytemuck::bytes_of(&after), bytemuck::bytes_of(&before));
+    }
+}

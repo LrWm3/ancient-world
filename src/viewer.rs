@@ -2968,8 +2968,11 @@ impl App {
     fn diagnostics(&self, ui: &mut egui::Ui) {
         ui.label(&self.generator.gpu.adapter_name);
         ui.small(format!(
-            "Lake surface relaxation: {} passes",
-            self.generator.progress.lake_iterations
+            "Lake surface relaxation: {} / {} passes · {} unresolved cells · {:.6} m max unresolved change",
+            self.generator.progress.lake_iterations,
+            self.generator.config.lake_iteration_limit(),
+            self.generator.progress.lake_changed_cells,
+            self.generator.progress.lake_max_change_m
         ));
         ui.small(format!(
             "{} cells · {:.0} MiB estimated",

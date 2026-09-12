@@ -189,7 +189,7 @@ fn main() -> Result<()> {
                 catalog.clone(),
             )?;
             generator.run_epochs(args.epochs)?;
-            let report = serde_json::json!({"resolution":n,"cells":generator.config.cells(),"epochs":args.epochs,"seconds":start.elapsed().as_secs_f64(),"estimated_gpu_bytes":generator.config.estimated_bytes(),"gpu":gpu.adapter_name,"timings":generator.progress.stage_ms,"gpu_timestamps":generator.progress.timestamp_supported});
+            let report = serde_json::json!({"resolution":n,"cells":generator.config.cells(),"epochs":args.epochs,"seconds":start.elapsed().as_secs_f64(),"estimated_gpu_bytes":generator.config.estimated_bytes(),"gpu":gpu.adapter_name,"timings":generator.progress.stage_ms,"gpu_timestamps":generator.progress.timestamp_supported,"lake_iterations":generator.progress.lake_iterations,"lake_changed_cells":generator.progress.lake_changed_cells,"lake_max_change_m":generator.progress.lake_max_change_m});
             println!("{report}");
             reports.push(report);
         }
@@ -353,7 +353,7 @@ fn main() -> Result<()> {
     }
     println!(
         "{}",
-        serde_json::json!({"epochs":generator.progress.epoch,"cells":generator.config.cells(),"seconds":start.elapsed().as_secs_f64(),"stage_ms":generator.progress.stage_ms,"gpu_timestamps":generator.progress.timestamp_supported})
+        serde_json::json!({"epochs":generator.progress.epoch,"cells":generator.config.cells(),"seconds":start.elapsed().as_secs_f64(),"stage_ms":generator.progress.stage_ms,"gpu_timestamps":generator.progress.timestamp_supported,"lake_iterations":generator.progress.lake_iterations,"lake_changed_cells":generator.progress.lake_changed_cells,"lake_max_change_m":generator.progress.lake_max_change_m})
     );
     Ok(())
 }

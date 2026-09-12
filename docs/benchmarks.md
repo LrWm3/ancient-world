@@ -3,7 +3,8 @@
 Current measurements:
 
 - [Default-resolution generation profile](default-generation-performance.md)
-  (512 terrain / 256 ecology, including a second-epoch lake-convergence failure).
+  (512 terrain / 256 ecology; original lake failure, diagnosis and successful
+  three-epoch continuation with compact lake relaxation).
 - [Mature history perf/Nsight profile](history-performance-profile.md)
   (small-grid CPU-heavy living history).
 

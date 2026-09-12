@@ -30,6 +30,8 @@ pub struct Config {
     pub climate_iterations: u32,
     pub climate_cycles: u32,
     pub max_drainage_iterations: u32,
+    /// Zero selects a resolution-scaled, bounded surface-water relaxation budget.
+    pub max_lake_iterations: u32,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -55,12 +57,19 @@ impl Default for Config {
             climate_iterations: 24,
             climate_cycles: 32,
             max_drainage_iterations: 16384,
+            max_lake_iterations: 0,
         }
     }
 }
 impl Config {
     pub fn validate(&self) -> Result<()> {
         self.systems.validate()?;
+        ensure!(
+            self.max_lake_iterations == 0
+                || ((16..=1048576).contains(&self.max_lake_iterations)
+                    && self.max_lake_iterations % 16 == 0),
+            "lake iteration limit must be zero (automatic) or a multiple of 16 in 16–1048576"
+        );
         ensure!(
             (0.1..=1.).contains(&self.crop_yield_scale),
             "crop yield scale must be 0.1–1"
@@ -131,6 +140,13 @@ impl Config {
     pub fn eco_resolution(&self) -> u32 {
         self.ecology_resolution.min(self.resolution)
     }
+    pub fn lake_iteration_limit(&self) -> u32 {
+        if self.max_lake_iterations == 0 {
+            self.resolution.saturating_mul(self.resolution).max(16384)
+        } else {
+            self.max_lake_iterations
+        }
+    }
     pub fn eco_cells(&self) -> u32 {
         6 * self.eco_resolution().pow(2)
     }
@@ -148,4 +164,29 @@ fn legacy_unit_scale() -> f32 {
 }
 fn legacy_plot_hectares() -> f32 {
     5000.
+}
+
+#[cfg(test)]
+mod lake_budget_tests {
+    use super::*;
+    #[test]
+    fn automatic_lake_budget_scales_without_changing_explicit_limits() {
+        for (resolution, expected) in [(16, 16384), (256, 65536), (512, 262144), (1024, 1048576)] {
+            let config = Config {
+                resolution,
+                ..Default::default()
+            };
+            assert_eq!(config.lake_iteration_limit(), expected);
+        }
+        let mut config = Config {
+            max_lake_iterations: 32,
+            ..Default::default()
+        };
+        assert_eq!(config.lake_iteration_limit(), 32);
+        assert!(config.validate().is_ok());
+        config.max_lake_iterations = 17;
+        assert!(config.validate().is_err());
+        let legacy: Config = toml::from_str("seed = 42").unwrap();
+        assert_eq!(legacy.max_lake_iterations, 0);
+    }
 }
