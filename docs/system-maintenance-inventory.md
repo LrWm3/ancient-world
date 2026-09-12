@@ -1,6 +1,6 @@
 # Existing systems and last recorded work
 
-Inventory date: **2026-09-12**. Source inventory baseline: `d98b6b5`.
+Inventory date: **2026-09-12**. Source inventory baseline: `fae9fb5`.
 
 This is a maintenance inventory of implemented systems, grouped by responsibility.
 It includes the startup switches in [system options](system-options.md) and broader
@@ -28,7 +28,7 @@ library subsystems. Related options share rows; archived proposals are excluded.
 | **Wildlife assembly, trophic balance and thermal ecotypes**<br>[ecology.rs](../src/ecology.rs), [shaders/ecology.wgsl](../shaders/ecology.wgsl) | 2026-09-12 · `3d244c8` — Add measured aquatic thermal and lake polling sensitivity controls | 2026-09-12 · `3d244c8` — Add measured aquatic thermal and lake polling sensitivity controls | [wildlife-assembly](wildlife-assembly.md), [wildlife-trophic-stability](wildlife-trophic-stability.md), [wildlife-thermal-ecotypes](wildlife-thermal-ecotypes.md) |
 | **Living history and environment observations**<br>[history_environment.rs](../src/history_environment.rs), [shaders/history_environment.wgsl](../shaders/history_environment.wgsl) | 2026-09-10 · `8e2d9c6` — Move history surveys and terrain route searches onto GPU | 2026-09-10 · `8e2d9c6` — Move history surveys and terrain route searches onto GPU | [living-history](living-history.md), [living-history-results](living-history-results.md), [history-environment-readback](history-environment-readback.md) |
 | **Flood hazards and delayed cargo spoilage**<br>[hazards.rs](../src/hazards.rs) | 2026-09-12 · `e2f89cc` — Reserve shared road corridors for networked market cargo | 2026-09-10 · `f431224` — Ancient World: source snapshot with summarized verification | [flood-history](flood-history.md), [flood-seed-audit](flood-seed-audit.md), [delayed-cargo-spoilage](delayed-cargo-spoilage.md) |
-| **Finite resources, regional mining and depletion evidence**<br>[resources.rs](../src/resources.rs), [regional_mining.rs](../src/regional_mining.rs) | 2026-09-12 · `dd2350b` — Preserve canonical source depletion as historical evidence | 2026-09-12 · `dd2350b` — Preserve canonical source depletion as historical evidence | [shared-resources](shared-resources.md), [regional-mining-control](regional-mining-control.md), [source-depletion-evidence](source-depletion-evidence.md) |
+| **Finite resources, regional mining and depletion evidence**<br>[resources.rs](../src/resources.rs), [regional_mining.rs](../src/regional_mining.rs) | 2026-09-12 · `fae9fb5` — Validate depletion evidence and reject malformed balance ensembles | 2026-09-12 · `dd2350b` — Preserve canonical source depletion as historical evidence | [shared-resources](shared-resources.md), [regional-mining-control](regional-mining-control.md), [source-depletion-evidence](source-depletion-evidence.md) |
 | **Environmental returns and abandoned land recovery**<br>[environmental_returns.rs](../src/environmental_returns.rs), [shaders/managed_returns.wgsl](../shaders/managed_returns.wgsl) | 2026-09-12 · `f68a1ae` — Add opt-in regional wildlife thermal preferences and migration inheritance | 2026-09-10 · `f431224` — Ancient World: source snapshot with summarized verification | [environmental-returns](environmental-returns.md), [cross-scale-coupling](cross-scale-coupling.md) |
 
 ## History and population
@@ -96,7 +96,7 @@ library subsystems. Related options share rows; archived proposals are excluded.
 | **Explorer, atlas and history timeline**<br>[viewer.rs](../src/viewer.rs), [history_atlas.rs](../src/history_atlas.rs), [history_timeline.rs](../src/history_timeline.rs), [shaders/view.wgsl](../shaders/view.wgsl) | 2026-09-12 · `3bd13d2` — Bound emergency town support by actual working-cash gaps | 2026-09-10 · `2760bf1` — Add recorded settlement timeline with causal event navigation | [history-timeline](history-timeline.md) |
 | **Configuration, catalogs, startup options and CLI**<br>[config.rs](../src/config.rs), [catalog.rs](../src/catalog.rs), [systems.rs](../src/systems.rs), [main.rs](../src/main.rs) | 2026-09-12 · `3d244c8` — Add measured aquatic thermal and lake polling sensitivity controls | 2026-09-10 · `7e0e655` — Enable optional systems by default for new application histories with explicit overrides | [system-options](system-options.md) |
 | **Archives and checkpoint persistence**<br>[storage.rs](../src/storage.rs) | 2026-09-12 · `f68a1ae` — Add opt-in regional wildlife thermal preferences and migration inheritance | 2026-09-11 · `384607d` — Staff merchant vessels with bounded named participation and household wages | [living-history](living-history.md), [resolution-framework](resolution-framework.md) |
-| **Integrated evaluation, balance and evidence tooling**<br>[scripts/run_integration_balance.py](../scripts/run_integration_balance.py), [scripts/integrated_history.py](../scripts/integrated_history.py), [scripts/compare_integrated_history.py](../scripts/compare_integrated_history.py), [scripts/check_repository_artifacts.py](../scripts/check_repository_artifacts.py) | 2026-09-11 · `8fc146d` — Connect politics and heritage to recent trade and launch broader balance audit | 2026-09-12 · `fa57363` — Record completed integrated follow-up and corrected stress ensemble | [model-evidence](model-evidence.md), [integrated-calibration](integrated-calibration.md), [integration-balance-followup](integration-balance-followup.md), [council-stress-balance](council-stress-balance.md), [history-performance-profile](history-performance-profile.md) |
+| **Integrated evaluation, balance and evidence tooling**<br>[scripts/run_integration_balance.py](../scripts/run_integration_balance.py), [scripts/integrated_history.py](../scripts/integrated_history.py), [scripts/compare_integrated_history.py](../scripts/compare_integrated_history.py), [scripts/check_repository_artifacts.py](../scripts/check_repository_artifacts.py), [scripts/compare_food_access.py](../scripts/compare_food_access.py), [scripts/compare_council_funding.py](../scripts/compare_council_funding.py) | 2026-09-12 · `fae9fb5` — Validate depletion evidence and reject malformed balance ensembles | 2026-09-12 · `fa57363` — Record completed integrated follow-up and corrected stress ensemble | [model-evidence](model-evidence.md), [integrated-calibration](integrated-calibration.md), [integration-balance-followup](integration-balance-followup.md), [council-stress-balance](council-stress-balance.md), [history-performance-profile](history-performance-profile.md) |
 
 
 ## Workspace provenance
@@ -211,3 +211,112 @@ remain opt-in); the four focused GPU tests described above were run explicitly.
 Both grant regressions are included in the ordinary suite. All-target Clippy
 passed with warnings denied, as did the four report tests, source-artifact
 policy and whitespace checks. Generated run data and logs remain ignored.
+
+## Ten-system review pass (2026-09-12)
+
+Fresh pass beginning at `e90e4b2`; the previous five iterations are not counted
+again. Each entry below identifies a bounded review, not whole-system completion.
+Verification results follow after execution.
+
+1. **Council evidence validation.** Reviewed `compare_council_funding.arrears`.
+   Active-site IDs were validated, but negative, fractional or nonfinite stored
+   counters could still be rendered as evidence. Reject these, including counters
+   belonging to inactive sites; months must be nonnegative integers. The CLI also
+   handles missing indexed observations as input errors. No council policy changes.
+
+2. **Matched food-access ensembles.** Reviewed `compare_food_access.compare`.
+   Comparing two empty ensembles could succeed, and duplicate declared seeds
+   disappeared through set conversion. Reject both and give an explicit error
+   for runs without observations. These checks strengthen the evidence boundary;
+   no food or demographic model changes.
+
+3. **Finite extraction evidence.** Reviewed resource allowance settlement,
+   depletion thresholds and archive validation. Add a fixture that consumes both
+   pools while retaining a subgram ore remainder: depletion is evidence, not a
+   stock deletion. Ore and clay generate distinct events; validation now rejects
+   reuse of one event for both pools. This does not establish complete material
+   provenance: event text still carries the material label, so typed identification
+   of swapped historical references remains a possible future improvement.
+
+4. **Reserved freight corridors — retain.** Reviewed `freight_path_flooded`,
+   corridor normalization/capacity and the actual arrival fixture. Cargo retains
+   its reserved edges rather than selecting an unreserved detour; flood delay
+   retains goods and capacity and cannot repeat within one month. Existing
+   serialized continuation checks cover resumed delivery. No new routing rule is
+   warranted here. Missing historical edges still have no invented flood
+   observation; closed-route embargo semantics are outside this flood review.
+
+5. **Managed husbandry participation — retain.** Reviewed `farm_attendance`,
+   feed delivery, collection and slaughter in `economy.wgsl`, plus the production
+   attendance fixture. Granted farm attendance bounds managed activities while
+   biological mortality continues without workers. Aggregate staffing is the
+   explicit control. No extra worker pool or wage is introduced. This shares farm
+   attendance across crops and animals; it is not a distinct husbandry occupation
+   allocation, and that larger granularity change is not justified by this review.
+
+6. **Learning projections and informal contact — retain.** Reviewed
+   `culture/learning.rs`: lesson forecasts clone opening study state, paid
+   execution advances actual progress, and informal exposure is capped across
+   topics/channels once per month. Candidate selection can use opening knowledge,
+   preventing newly acquired topics relaying within the same contact pass.
+   Preserve these contracts. The pacing constants remain game choices; bounded
+   transmission does not imply a realistic theory of education.
+
+7. **Institutional operating work — retain.** Reviewed
+   `reserve_institution_work` and `reserve_up_to`. Essential-first grants basic
+   upkeep and administration before expanding repairs on the same commitment.
+   Expansion rejects stale, settled, used, cancelled, absent or ineligible
+   participants; minimum useful grants apply before creating commitments.
+   Existing scarcity fixtures compare both policies with identical capacities and
+   checkpoint settlement. No schedule or default-policy change warranted; this
+   scoped policy does not solve sharing across all public services.
+
+8. **Heritage visitation integration — retain.** Rechecked destination selection
+   against actual pilgrimage execution after `240ccf3`. Both use the same
+   cheapest passable direct route. Destination recognition still needs accessible
+   custody, an ownership-connected present host and faith relevance; actual
+   travel consumes work, food and offerings. Keep the implementation. A direct
+   caravan quote is not a multi-hop itinerary or an independently simulated
+   travelling population.
+
+9. **Lake solver failure and restart — retain.** Reviewed preflight validation,
+   even scratch-buffer batches, convergence flag readback, partial-state scatter
+   and error handling. The conservative unfinished state is available for
+   explicit restore/resume; exhausted budgets never report convergence.
+   Keep current tolerance and poll defaults. A failed generator remains in its
+   error state until explicit restoration; simply editing the limit is not a
+   general recovery protocol. This review does not resolve synchronous UI waits.
+
+10. **Wildlife thermal configuration and food limits — retain.** Reviewed
+    configuration validation/defaults, uploaded thermal width, feeding demand,
+    finite prey subtraction, assimilation and C/N/P-limited growth. Thermal
+    preferences change opportunity, not nutrient stocks, and wider tolerance
+    cannot replace absent prey. Retain the opt-in pilot and current width pending
+    stronger balance evidence. Regional environmental temperature is still a
+    proxy, not depth-specific lake temperature or a full species model.
+
+### Verification of the ten iterations
+
+Implementation changes: `fae9fb5`. No parameter tuning or production equations
+changed in this pass.
+
+| Iteration | Executed evidence | Result |
+| --- | --- | --- |
+| 1 | Five council-report unit tests, including corrupt inactive counters; rerendered the corrected 200-year comparison | Passed |
+| 2 | Five food-access comparison tests, including empty/duplicate/no-observation cases; rerendered the same matched ensemble | Passed |
+| 3 | Four resource fixtures: claimant order, finite settlement, subgram/separate-event evidence, regional control | Passed |
+| 4 | GPU `junction_capacity_is_reserved_until_delivery_even_after_rerouting`, including flood hold, same-month delay guard and continuation; ordinary sea-approach topology fixture | Passed |
+| 5 | GPU `agricultural_attendance_controls_cultivation_income_and_continuation`, including absent-worker and aggregate controls, herd products/feed/mortality and continuation | Passed |
+| 6 | Four `culture::learning::tests` covering opening forecasts, partial work, encounter selection and bounded exposure | Passed |
+| 7 | `essential_work_competes_with_repairs_without_extra_people_or_time`: seven capacities, both policies, no excess grants and saved settlement | Passed |
+| 8 | Both GPU heritage-access and pilgrimage execution fixtures | Passed |
+| 9 | GPU lake budget failure/preservation/resume fixture and ordinary configuration budget/poll tests | Passed |
+| 10 | GPU thermal feeding/persistence fixture and ordinary thermal configuration/default test | Passed |
+
+The full ordinary library suite passed **140 tests**, with 117 hardware tests
+remaining opt-in; **six focused GPU tests** were explicitly executed above.
+This is scoped verification, not a new multi-seed balance ensemble. Raw logs and
+rendered comparisons are ignored under `output/review10-*`.
+All-target Clippy with warnings denied, repository artifact policy and whitespace
+checks also passed. Seven scoped reviews retained current behavior with the
+limitations above; three produced implementation or validation improvements.
