@@ -43,3 +43,11 @@ mise exec rust@1.89.0 -- cargo run --release -- --headless \
 Hardware fixtures cover source exhaustion across repeat voyages, finite fertilizer, rescue and loss manifests, independent workshop closure, demand-driven processing, research before production, useful treatment, malformed inventory rejection, and exact same-backend checkpoint continuation.
 
 [Measured outcomes and refinement](discovery-results.md) document the seed suites and validation. The final evaluator reports and inspectable worlds use `output/discoveries-final`; `output/discoveries-initial` retains the first prototype measurements.
+
+## Paused research and stored remedies
+
+Closing a workshop stops research and processing, including their work requests.
+Existing remedies still expire and can be consumed by residents of an occupied
+site. An abandoned site retains/loses stock through existing expiration but does
+not receive treatment. This separation matches the workshop policy message;
+closing research cannot preserve remedies against spoilage or create free doses.

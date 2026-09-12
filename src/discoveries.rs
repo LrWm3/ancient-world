@@ -124,6 +124,33 @@ fn event(h: &mut History, site: u32, cause: Option<u64>, kind: &str, text: Strin
         h.events.last_mut().unwrap().causes.push(cause);
     }
 }
+// Research closure does not close household access to already-made remedies.
+// Call once after expiration; occupied open workshops may first produce a new batch.
+fn apply_stored_remedy(h: &mut History, w: &mut Workshop) -> f64 {
+    let s = &mut h.sites[w.site as usize];
+    let mut consumed = 0.;
+    if s.demography.health[0] > 0.01 && s.stocks.stock[0] > 0. {
+        let demand = s.stocks.stock[0] as f64 * 0.005;
+        let used = w.remedy.min(demand);
+        w.remedy -= used;
+        consumed = used;
+        s.demography.health[0] = (s.demography.health[0] - (0.02 * used / demand) as f32).max(0.);
+        for k in 0..3 {
+            s.economy.external[k] -= (used * CNP[0][k]) as f32;
+        }
+        if used > 0. {
+            event(
+                h,
+                w.site,
+                w.causes[0],
+                "specimen_treatment",
+                format!("Consumed {used:.2} kg fictional remedy; reduced local disease burden"),
+            );
+        }
+    }
+    consumed
+}
+
 impl Discoveries {
     pub fn new(started: u32) -> Self {
         Self {
@@ -503,6 +530,9 @@ impl Discoveries {
                     p.receipt.settle(0.);
                     p.cancellation = Some("workshop closed or site abandoned".into());
                 }
+                if !s.abandoned {
+                    self.remedy_used += apply_stored_remedy(h, w);
+                }
                 continue;
             }
             // The GPU has reserved this labor from its normal craft budget for this month.
@@ -650,29 +680,7 @@ impl Discoveries {
                     }
                 }
             }
-            let s = &mut h.sites[site];
-            if s.demography.health[0] > 0.01 && s.stocks.stock[0] > 0. {
-                let demand = s.stocks.stock[0] as f64 * 0.005;
-                let used = w.remedy.min(demand);
-                w.remedy -= used;
-                self.remedy_used += used;
-                s.demography.health[0] =
-                    (s.demography.health[0] - (0.02 * used / demand) as f32).max(0.);
-                for k in 0..3 {
-                    s.economy.external[k] -= (used * CNP[0][k]) as f32;
-                }
-                if used > 0. {
-                    event(
-                        h,
-                        w.site,
-                        w.causes[0],
-                        "specimen_treatment",
-                        format!(
-                            "Consumed {used:.2} kg fictional remedy; reduced local disease burden"
-                        ),
-                    );
-                }
-            }
+            self.remedy_used += apply_stored_remedy(h, w);
         }
     }
 }
@@ -1105,6 +1113,58 @@ mod exchange_tests {
         for (a, b) in actual.actual.iter().zip(predicted.expected) {
             assert!((a - b).abs() < 1e-7);
         }
+        // Closing research preserves access to already produced remedies.
+        // Open and closed controls have no research resources/work and identical patients.
+        let mut care_open = producing.clone();
+        let mut care_world = world.clone();
+        for w in &mut care_open.workshops {
+            w.work_plan = None;
+            w.samples = [0.; 2];
+            w.batches = [0; 2];
+            w.remedy = 1.;
+            let site = &mut care_world.sites[w.site as usize];
+            site.economy.external[3] = 0.;
+            site.demography.health[0] = 0.2;
+        }
+        let mut care_closed = care_open.clone();
+        let mut closed_world = care_world.clone();
+        for w in &mut care_closed.workshops {
+            w.enabled = false;
+        }
+        let before_work = care_closed.worker_months;
+        let initial_used = care_closed.remedy_used;
+        let initial_expired = care_closed.remedy_expired;
+        let stored: f64 = care_closed.workshops.iter().map(|w| w.remedy).sum();
+        care_open.month(&mut care_world);
+        care_closed.month(&mut closed_world);
+        assert!(care_closed.remedy_used > initial_used);
+        assert_eq!(care_closed.remedy_used, care_open.remedy_used);
+        assert_eq!(care_closed.remedy_expired, care_open.remedy_expired);
+        assert_eq!(care_closed.worker_months, before_work);
+        let remaining: f64 = care_closed.workshops.iter().map(|w| w.remedy).sum();
+        assert!(
+            (stored
+                - remaining
+                - (care_closed.remedy_used - initial_used)
+                - (care_closed.remedy_expired - initial_expired))
+                .abs()
+                < 1e-9
+        );
+        for (a, b) in care_world.sites.iter().zip(&closed_world.sites) {
+            assert_eq!(a.demography.health, b.demography.health);
+            assert_eq!(a.economy.external, b.economy.external);
+        }
+        let mut abandoned = care_closed.clone();
+        for site in &mut closed_world.sites {
+            site.abandoned = true;
+        }
+        let used = abandoned.remedy_used;
+        abandoned.month(&mut closed_world);
+        assert_eq!(
+            abandoned.remedy_used, used,
+            "no patients at abandoned sites"
+        );
+
         let restored: ResearchPlan = serde_json::from_value(
             serde_json::to_value(producing.workshops[1].work_plan.as_ref().unwrap()).unwrap(),
         )
