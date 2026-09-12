@@ -47,6 +47,7 @@ pub mod social_state;
 pub mod household_economy;
 
 pub mod institution_capacity;
+pub mod institution_services;
 pub mod institution_funding;
 pub mod institution_succession;
 

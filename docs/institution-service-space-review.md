@@ -1,7 +1,7 @@
 # Institutional space and service review
 
 This records the current implementation and the next integration boundary. It is
-not a claim that shared room scheduling is already implemented.
+not a claim that shared room scheduling is already connected to history.
 
 ## Current coupling
 
@@ -93,3 +93,25 @@ It cannot consume a Respond grant retroactively. Its integration needs a declare
 opening allowance or a previously prepared dispatch authorization, with a matched
 comparison for any change in aid timing. The teaching/study pilot can stay within
 the existing cultural Reserve/Respond window without that additional timing change.
+
+## Reservation ledger foundation
+
+`institution_services::Plan` now supplies a standalone, serializable ledger keyed
+by month, site and institution. Typed lesson and heritage-study requests carry
+their actual subject IDs. An indivisible working group must fit the opening usable
+space, and its occupants multiplied by its duration must fit remaining monthly
+room capacity. Request order is explicit; denied requests leave space for smaller
+ones. This is abstract capacity, not an assertion about floor area or daily room
+schedules.
+
+Execution checks the captured boundary, live space and caller-provided eligibility.
+It records used and released grants once. The first settlement ends reservation;
+failed work cannot reopen allocation retroactively. Increased space cannot enlarge
+old grants, while damaged space can invalidate unexecuted groups. Closing releases
+unexecuted grants. The ledger does not supply actors, labor, money or materials.
+
+This foundation is not yet wired into cultural plans or service consumers. Next:
+capture heritage's institution/author/artifact selection at Reserve, jointly check
+minimum work, allocate both service types, and expose their settlement receipts.
+The existing operational/readiness gate remains unchanged until other consumers
+have explicit capacity contracts.
