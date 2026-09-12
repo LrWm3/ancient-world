@@ -36,6 +36,15 @@ pub struct FarmAssignment {
     pub used: f32,
 }
 impl FarmPlan {
+    /// Audit stored contributions in double precision: an f32 reduction over many
+    /// residents can cross the tolerance even when their actual grants do not.
+    pub fn grants_within_request(&self) -> bool {
+        self.assignments
+            .iter()
+            .map(|a| a.granted as f64)
+            .sum::<f64>()
+            <= self.requested as f64 + 1e-4
+    }
     pub fn granted(&self) -> f32 {
         self.assignments.iter().map(|a| a.granted).sum()
     }
@@ -411,8 +420,10 @@ impl History {
                     && sites.insert((p.site, p.sector))
                     && p.requested.is_finite()
                     && p.requested >= 0.
-                    && p.granted() <= p.requested + 1e-4,
-                "invalid agriculture plan"
+                    && p.grants_within_request(),
+                "invalid agriculture plan: site {}, sector {}, month {}, requested {}, f32 grant {}, stored grants {}",
+                p.site, p.sector, p.month, p.requested, p.granted(),
+                p.assignments.iter().map(|a| a.granted as f64).sum::<f64>()
             );
             for row in &p.assignments {
                 ensure!(
@@ -455,4 +466,40 @@ fn activity(sector: usize) -> Activity {
         Activity::Mining,
         Activity::Construction,
     ][sector]
+}
+
+#[cfg(test)]
+mod grant_audit_tests {
+    use super::*;
+    #[test]
+    fn many_resident_grants_do_not_create_a_false_overallocation() {
+        // This scale occurs at the 160 / 1.5 land ceiling in the century run.
+        let requested = 160f32 / 1.5;
+        let grant = requested / 121.;
+        let mut plan = FarmPlan {
+            sector: 0,
+            month: 1122,
+            site: 0,
+            requested,
+            settled: false,
+            assignments: (0..121)
+                .map(|person| FarmAssignment {
+                    person,
+                    household: 0,
+                    commitment: person,
+                    granted: grant,
+                    used: 0.,
+                })
+                .collect(),
+        };
+        assert!(
+            plan.granted() > plan.requested + 1e-4,
+            "legacy f32 reduction must reject this fixture"
+        );
+        assert!(plan.grants_within_request());
+        plan.assignments[0].granted += 0.001;
+        assert!(!plan.grants_within_request(), "real excess must still fail");
+        plan.assignments[0].granted = f32::NAN;
+        assert!(!plan.grants_within_request());
+    }
 }

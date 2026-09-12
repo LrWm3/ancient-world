@@ -364,6 +364,7 @@ fn main() -> Result<()> {
         let mut lesson_observations = 0u64;
         let mut service_room = [[0f64; 4]; 3];
         let mut service_counts = [[0u64; 4]; 3];
+        let mut agriculture_audit_rounding_cases = 0u64;
         let mut opening_relief_room = 0f64;
         let mut opening_relief_dispatches = 0u64;
         let mut institution_work = [[0f64; 3]; 3];
@@ -398,6 +399,16 @@ fn main() -> Result<()> {
                 return Err(error).with_context(|| format!("seed {seed}, month {month}"));
             }
             let h = g.civilizations.as_ref().unwrap();
+            if let Some(a) = h.resolution.as_ref().and_then(|r| r.agriculture.as_ref()) {
+                for p in &a.plans {
+                    if p.granted() > p.requested + 1e-4 && p.grants_within_request() {
+                        agriculture_audit_rounding_cases += 1;
+                        eprintln!("seed {seed}, month {month}: grant audit rounding, site {}, sector {}, requested {}, f32 {}, stored {}",
+                            p.site,p.sector,p.requested,p.granted(),
+                            p.assignments.iter().map(|a|a.granted as f64).sum::<f64>());
+                    }
+                }
+            }
             let c = h.culture.as_ref().unwrap();
             if let Some(resolution) = &h.resolution {
                 for receipt in &resolution.receipts {
@@ -627,6 +638,7 @@ fn main() -> Result<()> {
                     "pending":c.pending_distribution,
                     "treasury":c.treasury,
                 })).collect::<Vec<_>>());
+                row["agriculture_audit_rounding_cases"] = json!(agriculture_audit_rounding_cases);
                 row["distribution_changes"] = json!(h
                     .events
                     .iter()
