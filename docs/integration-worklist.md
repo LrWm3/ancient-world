@@ -78,6 +78,17 @@ is running; funded-war accounting and continuation pass under the council polici
 Item 3 has a bounded [continuing-study increment](institution-continuing-study.md):
 three matched thirty-year comparisons acquire more topics from nearly the same
 lesson counts. Multi-site branches and permanent enrollment remain larger work.
-Item 4 is now testing [husbandry attendance](husbandry-attendance.md); it does not
-claim that crews are physically aboard ships. Items 5–9 still await their next
-implementation/review increment in this follow-up series.
+Item 4 closes the unstaffed [husbandry task gap](husbandry-attendance.md), with
+three GPU attendance/continuation fixtures; it does not claim onboard ship crews.
+Item 5 makes [captured-road flooding](road-freight-capacity.md) hold actual cargo
+rather than silently using an unreserved alternative; market, shipping and
+scheduler checks pass. Shared military/relief corridors and explicit rerouting
+remain broader work. Item 6 adds [persistent source depletion evidence](source-depletion-evidence.md)
+without claiming ancestry through mixed/transformed goods. Items 7–9 still await
+their next implementation/review increment in this follow-up series.
+
+The longer council ensemble found a real farm-grant over-allocation at month 1688
+in seed 1024 (existing support), and month 2200 (cash-gap support). Those arms are
+failed, not complete. The allocator correction passes the reproducing analytical
+fixture and three GPU attendance/continuation fixtures; isolated corrected balance
+runs are the next verification step. See the stress report for exact provenance.

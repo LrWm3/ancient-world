@@ -20,7 +20,7 @@ reduce animal output, so individual histories are not promised to match older
 versions. This change follows, and is not included in, the council/institution
 ensembles started earlier in this work series.
 
-Verification is being extended in the production attendance fixture: available
+The production attendance fixture compares: available
 farmers, all residents occupied elsewhere, and aggregate staffing share the same
 opening herd and goods. Checks require finite feed use, no unstaffed products,
 continued biological loss, real household earnings and batch/reload consistency.

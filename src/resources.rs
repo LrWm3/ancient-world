@@ -25,6 +25,9 @@ pub struct Source {
     pub remaining: [f64; 2],
     pub extracted: [f64; 2],
     pub legacy_baseline: bool,
+    /// First observed crossing below one gram of ore/clay; never an inventory debit.
+    #[serde(default)]
+    pub depletion_events: [Option<u64>; 2],
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Resources {
@@ -82,6 +85,21 @@ impl Resources {
                 s.ore_good.is_none_or(|k| matches!(k, 1 | 32..=37)),
                 "invalid source good"
             );
+            for (kind, event) in s.depletion_events.iter().enumerate() {
+                if let Some(event) = event {
+                    ensure!(
+                        s.remaining[kind] < 0.001
+                            && h.events.get(*event as usize).is_some_and(|e| {
+                                e.kind == "source_depleted"
+                                    && e.month <= h.month
+                                    && e.site
+                                        .and_then(|id| h.sites.get(id as usize))
+                                        .is_some_and(|site| site.cell == id)
+                            }),
+                        "invalid source depletion evidence"
+                    );
+                }
+            }
             if let Some(id) = s.mineral.as_deref() {
                 let expected = crate::metallurgy::ore_slot(id, self.alloy_processing);
                 ensure!(
@@ -235,6 +253,7 @@ impl History {
                     remaining: initial,
                     extracted: [0.; 2],
                     legacy_baseline: false,
+                    depletion_events: [None; 2],
                 }
             });
             if !r.mineral_catalog.is_empty() && r.sources[&s.cell].ore_good == Some(1) {
@@ -304,6 +323,7 @@ impl History {
         let Some(r) = &mut self.resources else {
             return Ok(());
         };
+        let mut depleted = BTreeSet::new();
         for s in &mut self.sites {
             let source = r.sources.get_mut(&s.cell).expect("registered source");
             for k in 0..2 {
@@ -314,8 +334,16 @@ impl History {
                     "invalid GPU extraction withdrawal"
                 );
                 let used = before - after;
+                let opening = source.remaining[k];
                 source.remaining[k] -= used;
                 source.extracted[k] += used;
+                if used > 0.
+                    && opening >= 0.001
+                    && source.remaining[k] < 0.001
+                    && source.depletion_events[k].is_none()
+                {
+                    depleted.insert((s.cell, k));
+                }
                 if let Some(m) = r.regional_mines.get_mut(&s.cell) {
                     ensure!(m.site == s.id || used == 0., "regional ownership violated");
                     m.extracted[k] += used;
@@ -329,6 +357,29 @@ impl History {
             .filter(|s| s.economy.residue[1] > 0. && !r.residue_events.contains_key(&s.id))
             .map(|s| (s.id, s.economy.residue[0]))
             .collect();
+        for (cell, kind) in depleted {
+            // One canonical source marker, independent of claimant iteration order.
+            // The site is a location anchor, not credit for the final extraction.
+            let site = self
+                .sites
+                .iter()
+                .filter(|s| s.cell == cell)
+                .map(|s| s.id)
+                .min()
+                .unwrap();
+            let source = &self.resources.as_ref().unwrap().sources[&cell];
+            let material = if kind == 0 { "ore" } else { "clay" };
+            let text = format!("Shared {material} source at planet cell {cell} fell below one gram after {:.3} kg of recorded extraction across its claimants; {:.6} kg remains in the canonical stock", source.extracted[kind], source.remaining[kind]);
+            let event = self.events.len() as u64;
+            self.event("source_depleted", Some(site), None, text);
+            self.resources
+                .as_mut()
+                .unwrap()
+                .sources
+                .get_mut(&cell)
+                .unwrap()
+                .depletion_events[kind] = Some(event);
+        }
         for (site, mass) in newly_deposited {
             let id = self.events.len() as u64;
             self.event("processing_residue",Some(site),None,format!("Mineral processing established a persistent on-site residue deposit ({mass:.2} kg); finite disposal space limits further work"));
@@ -375,6 +426,7 @@ impl Generator {
                 remaining: [0.; 2],
                 extracted: [0.; 2],
                 legacy_baseline: true,
+                depletion_events: [None; 2],
             });
             for k in 0..2 {
                 let mass = s.economy.reserves[k + 1] as f64;
@@ -563,6 +615,7 @@ mod tests {
             remaining: [9., 9.],
             extracted: [0.; 2],
             legacy_baseline: true,
+            depletion_events: [None; 2],
         };
         h.resources = Some(Resources {
             sources: BTreeMap::from([(0, source)]),
@@ -604,6 +657,34 @@ mod tests {
         h.settle_resources(&quotas).unwrap();
         assert_eq!(h.resources.as_ref().unwrap().sources[&0].remaining[0], 0.);
         assert_eq!(h.resources.as_ref().unwrap().residual(), 0.);
+        let evidence = h.resources.as_ref().unwrap().sources[&0].depletion_events;
+        assert!(evidence[0].is_some());
+        assert!(evidence[1].is_none());
+        assert_eq!(
+            h.events[evidence[0].unwrap() as usize].kind,
+            "source_depleted"
+        );
+        let mut resumed: History =
+            serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
+        let q = resumed.allocate_resources();
+        resumed.settle_resources(&q).unwrap();
+        assert_eq!(
+            resumed.resources.as_ref().unwrap().sources[&0].depletion_events,
+            evidence
+        );
+        assert_eq!(
+            resumed.events.len(),
+            h.events.len(),
+            "already depleted pools cannot repeat the event"
+        );
+        let mut old = serde_json::to_value(&h.resources.as_ref().unwrap().sources[&0]).unwrap();
+        old.as_object_mut().unwrap().remove("depletion_events");
+        assert_eq!(
+            serde_json::from_value::<Source>(old)
+                .unwrap()
+                .depletion_events,
+            [None; 2]
+        );
         // A new claim in the same cell cannot reseed its exhausted ore.
         let mut third = h.sites[0].clone();
         third.id = 2;
@@ -613,6 +694,10 @@ mod tests {
         h.register_resources(&[Cell::default()], 6371.);
         assert_eq!(h.resources.as_ref().unwrap().sources[&0].remaining[0], 0.);
         assert_eq!(h.sites[2].economy.reserves[1], 0.);
+        assert_eq!(
+            h.resources.as_ref().unwrap().sources[&0].depletion_events,
+            evidence
+        );
     }
     #[test]
     fn regional_control_conserves_and_releases_shared_source() {
