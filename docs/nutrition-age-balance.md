@@ -188,3 +188,29 @@ values and the food-gap partition. It does not infer causality or accept a parti
 run as completed. Two focused tests cover known percentages and rejection of
 partial, duplicate, missing, nonfinite and inconsistent results. The command
 reproduces both completed nutrition-century rows above.
+
+
+## Completed 0.65 century extension
+
+Both seeds complete, and each first-three-sample sequence exactly equals its
+preceding 30-year run, including household diagnostics and cumulative ledgers.
+
+| Seed | Population, 0.5 → 0.65 | Access gap %, 0.5 → 0.65 | Physical gap %, 0.5 → 0.65 |
+|---|---:|---:|---:|
+| 409 | 735 → 1,756 | 3.705 → 2.553 | 0 → 0 |
+| 1024 | 615 → 1,704 | 3.752 → 2.580 | 0.0666 → 0.0490 |
+
+All retain sixteen sites and zero monthly population residual. Maximum food
+residual remains below 8.6e-7. From year 50 to 100, populations fall from
+1,986 to 1,756 and from 1,886 to 1,704. The change substantially slows decline
+without stabilizing it; the population gate therefore remains open.
+
+The comparison script requires acknowledgment of `common_share_override` and
+`household_mortality`: the latter metadata key was absent from the older baseline,
+whose code already used household mortality. The new run has it explicitly true.
+This is a metadata addition, not a second behavioral intervention. These runs
+used `d659261`; the subsequently implemented office pilot was not enabled.
+
+Next calibration should use additional seeds and distinguish ongoing deprivation
+from ordinary age/disease mortality. A permanent global 0.65 default is not yet
+selected; policy differences and economic access mechanisms remain available.
