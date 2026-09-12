@@ -161,3 +161,66 @@ fn delivered_cross_border_cargo_builds_trust_and_automatic_agreement() {
         .any(|e| e.kind == "treaty_signed" && !e.causes.is_empty()));
     assert!(h.economy_residuals().iter().all(|v| v.abs() < 0.001));
 }
+
+#[test]
+#[ignore = "requires hardware GPU; actual funded campaign under council policy variants"]
+fn council_allocation_campaigns_conserve_and_resume() {
+    use ancient_world::household_economy::council_allocation::{Policy, TownSupportPolicy};
+    for (support, allowance) in [
+        (TownSupportPolicy::Existing, Policy::Existing),
+        (TownSupportPolicy::CashGap, Policy::Existing),
+        (TownSupportPolicy::CashGap, Policy::ProtectAdministration),
+    ] {
+        let mut g = world();
+        let h = g.civilizations.as_mut().unwrap();
+        let society = h.society.as_mut().unwrap();
+        society.town_support_policy = support;
+        society
+            .household_economy
+            .as_mut()
+            .unwrap()
+            .council_allocation = allowance;
+        let route = society
+            .routes
+            .iter()
+            .find(|r| r.cost_km < 900.)
+            .unwrap()
+            .clone();
+        let war = g.declare_war(route.from, route.to).unwrap();
+        // Funding and people come from the existing founding inventory, not test gifts.
+        assert!(!g
+            .civilizations
+            .as_ref()
+            .unwrap()
+            .society
+            .as_ref()
+            .unwrap()
+            .raids
+            .is_empty());
+        let path = std::path::PathBuf::from(format!(
+            "output/council-campaign-{}-{:?}-{:?}.world",
+            std::process::id(),
+            support,
+            allowance
+        ));
+        std::fs::create_dir_all("output").unwrap();
+        g.save(&path).unwrap();
+        let mut resumed = Generator::load(g.gpu.clone(), &path).unwrap();
+        std::fs::remove_file(&path).unwrap();
+        g.advance_history(36).unwrap();
+        for _ in 0..36 {
+            resumed.advance_history(1).unwrap();
+        }
+        assert_eq!(
+            serde_json::to_value(&g.civilizations).unwrap(),
+            serde_json::to_value(&resumed.civilizations).unwrap()
+        );
+        let h = g.civilizations.as_ref().unwrap();
+        assert!(h.politics.as_ref().unwrap().wars[war as usize]
+            .ended
+            .is_some());
+        assert!(h.economy_residuals().iter().all(|r| r.abs() < 0.001));
+        h.validate(&g.snapshot().unwrap()).unwrap();
+        assert!(!h.society.as_ref().unwrap().council_funding.taxes.is_empty());
+    }
+}

@@ -44,3 +44,15 @@ separate work.
 
 The one-year seed-17 smoke test completes with 1,955 residents and records all four forcing values correctly. Example Clippy passes with warnings denied. The six-run, three-seed 200-year ensemble has started; results remain pending. Report failed or incomplete
 histories separately; never count their last surviving sample as a 200-year result.
+
+## Funded campaign boundary check
+
+`cargo test --test governance council_allocation_campaigns_conserve_and_resume -- --ignored`
+passes on Vulkan. A real affordable campaign is launched before saving in each of
+three variants: existing support, cash-gap support, and cash-gap plus the monthly
+administration allowance. Thirty-six months in one batch match thirty-six single
+steps after reload. The war ends; complete histories match, tax observations are
+present, and economic residuals remain below 0.001 in their native units.
+
+This exercises resource-funded war under the policies. It does not establish
+long-run wartime fiscal balance or prove that one policy improves war outcomes.
