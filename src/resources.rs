@@ -327,16 +327,55 @@ impl History {
         let Some(r) = &mut self.resources else {
             return Ok(());
         };
+        // Validate the entire GPU result before debiting any canonical source.
+        // A bad later claimant must not leave earlier settlements partly committed.
+        ensure!(
+            allowances.len() == self.sites.len(),
+            "extraction allowance shape mismatch"
+        );
+        let mut ids = BTreeSet::new();
+        let mut withdrawals = BTreeMap::<u32, [f64; 2]>::new();
+        for s in &self.sites {
+            ensure!(
+                (s.id as usize) < allowances.len() && ids.insert(s.id),
+                "invalid extraction claimant identity"
+            );
+            let source = r
+                .sources
+                .get(&s.cell)
+                .ok_or_else(|| anyhow::anyhow!("unregistered extraction source"))?;
+            let total = withdrawals.entry(s.cell).or_default();
+            for k in 0..2 {
+                let before = allowances[s.id as usize][k] as f64;
+                let after = s.economy.reserves[k + 1] as f64;
+                ensure!(
+                    before.is_finite()
+                        && before >= 0.
+                        && after.is_finite()
+                        && after >= 0.
+                        && after <= before,
+                    "invalid GPU extraction withdrawal"
+                );
+                let used = before - after;
+                ensure!(
+                    r.regional_mines
+                        .get(&s.cell)
+                        .is_none_or(|m| m.site == s.id || used == 0.),
+                    "regional ownership violated"
+                );
+                total[k] += used;
+                ensure!(
+                    source.remaining[k].is_finite() && total[k] <= source.remaining[k],
+                    "extraction exceeds shared source"
+                );
+            }
+        }
         let mut depleted = BTreeSet::new();
         for s in &mut self.sites {
             let source = r.sources.get_mut(&s.cell).expect("registered source");
             for k in 0..2 {
                 let before = allowances[s.id as usize][k] as f64;
                 let after = s.economy.reserves[k + 1] as f64;
-                ensure!(
-                    after.is_finite() && after >= 0. && after <= before,
-                    "invalid GPU extraction withdrawal"
-                );
                 let used = before - after;
                 let opening = source.remaining[k];
                 source.remaining[k] -= used;
@@ -349,7 +388,6 @@ impl History {
                     depleted.insert((s.cell, k));
                 }
                 if let Some(m) = r.regional_mines.get_mut(&s.cell) {
-                    ensure!(m.site == s.id || used == 0., "regional ownership violated");
                     m.extracted[k] += used;
                 }
                 s.economy.reserves[k + 1] = 0.;
@@ -703,6 +741,32 @@ mod tests {
             evidence
         );
     }
+    #[test]
+    fn invalid_extraction_batch_leaves_all_claimants_uncommitted() {
+        for case in 0..4 {
+            let mut h = fixture();
+            let mut quotas = h.allocate_resources();
+            h.sites[0].economy.reserves[1] = 0.;
+            match case {
+                0 => h.sites[1].economy.reserves[2] = -1.,
+                1 => {
+                    quotas[0][0] = 9.;
+                    quotas[1][0] = 9.;
+                    h.sites[1].economy.reserves[1] = 0.;
+                }
+                2 => {
+                    quotas.pop();
+                }
+                _ => {
+                    h.sites[1].cell = 1;
+                }
+            }
+            let before = serde_json::to_value(&h).unwrap();
+            assert!(h.settle_resources(&quotas).is_err(), "case {case}");
+            assert_eq!(serde_json::to_value(&h).unwrap(), before, "case {case}");
+        }
+    }
+
     #[test]
     fn depletion_retains_subgram_stock_and_separate_pool_evidence() {
         let mut h = fixture();
