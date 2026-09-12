@@ -153,3 +153,38 @@ remaining population and food access. This is evidence against that proposed
 repair, not evidence that the personal model is well balanced. The continuing
 0.65 common-share comparison tests an actual entitlement adjustment; population
 stability and the wider integration worklist remain open.
+
+
+## Completed 0.65 entitlement probe, 30 years
+
+Both seeds completed using `d659261`. The intervention changes only the configured
+long-run common share, retaining the founding transition and finite food stocks.
+
+| Seed | Population, 0.5 → 0.65 | Access gap %, 0.5 → 0.65 | Physical gap %, 0.5 → 0.65 |
+|---|---:|---:|---:|
+| 409 | 1,609 → 2,018 | 3.325 → 1.936 | 0 → 0 |
+| 1024 | 1,529 → 1,926 | 3.173 → 2.042 | 0.1489 → 0.1525 |
+
+All retain sixteen sites. Maximum population residual is zero; food residuals
+stay below 2.2e-7. The intervention does not increase crop potential, yet materially
+improves access and population. Physical shortages remain nearly unchanged.
+
+This is not stability: 0.65 populations fall from 2,083/2,038 at year 10 to
+2,018/1,926 at year 30. A 100-year extension on the same seeds is now running in
+`output/nutrition-access-65-century.json`; it must reproduce the first 30 years
+before its later outcomes are used. No default share has changed.
+
+## Reproducing matched tables
+
+```sh
+python3 scripts/compare_food_access.py output/nutrition-age-personal.json \
+  output/nutrition-age-cohort.json --allow-difference individual_nutrition
+python3 -m unittest discover -s scripts -p test_compare_food_access.py
+```
+
+The comparison command requires complete monthly reports, matching seeds and
+explicitly acknowledged metadata differences; it checks endpoint horizons, finite
+values and the food-gap partition. It does not infer causality or accept a partial
+run as completed. Two focused tests cover known percentages and rejection of
+partial, duplicate, missing, nonfinite and inconsistent results. The command
+reproduces both completed nutrition-century rows above.
