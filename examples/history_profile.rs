@@ -36,13 +36,23 @@ fn main() -> Result<()> {
     let fingerprint = bytes.iter().fold(14695981039346656037u64, |hash, b| {
         (hash ^ *b as u64).wrapping_mul(1099511628211)
     });
+    // Fingerprinting readbacks and serialization are outside the timed monthly loop.
+    let terrain = g.snapshot()?;
+    let ecology = g.ecology.snapshot(&g.gpu, &g.config)?;
+    let hash = |bytes: &[u8]| {
+        bytes.iter().fold(14695981039346656037u64, |hash, b| {
+            (hash ^ *b as u64).wrapping_mul(1099511628211)
+        })
+    };
+    let terrain_fingerprint = format!("{:016x}", hash(bytemuck::cast_slice(&terrain)));
+    let ecology_fingerprint = format!("{:016x}", hash(bytemuck::cast_slice(&ecology)));
     let rss = std::fs::read_to_string("/proc/self/status")
         .unwrap_or_default()
         .lines()
         .find(|l| l.starts_with("VmHWM:"))
         .unwrap_or("unavailable")
         .to_owned();
-    let report = serde_json::json!({"refreshed_economy":args.len()==5,"samples":samples,"population":h.sites.iter().map(|s|s.stocks.stock[0] as f64).sum::<f64>(),"input":args[1],"months":months,"seconds":elapsed,"history_fingerprint":format!("{fingerprint:016x}"),"history_bytes":bytes.len(),"people":h.people.len(),"events":h.events.len(),"culture":h.cultural_summary(),"peak_host_memory":rss,"timings_ms":g.progress.stage_ms,"residuals":h.economy_residuals()});
+    let report = serde_json::json!({"terrain_fingerprint":terrain_fingerprint,"ecology_fingerprint":ecology_fingerprint,"refreshed_economy":args.len()==5,"samples":samples,"population":h.sites.iter().map(|s|s.stocks.stock[0] as f64).sum::<f64>(),"input":args[1],"months":months,"seconds":elapsed,"history_fingerprint":format!("{fingerprint:016x}"),"history_bytes":bytes.len(),"people":h.people.len(),"events":h.events.len(),"culture":h.cultural_summary(),"peak_host_memory":rss,"timings_ms":g.progress.stage_ms,"residuals":h.economy_residuals()});
     std::fs::write(&args[3], serde_json::to_vec_pretty(&report)?)?;
     if args.len() == 5 {
         g.save(std::path::Path::new(&args[3]).with_extension("world"))?;

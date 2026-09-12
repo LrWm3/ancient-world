@@ -95,6 +95,9 @@ struct Args {
     resolution: u32,
     #[arg(long, default_value = "output/cultural-work-baseline.json")]
     output: PathBuf,
+    /// Save each completed seed for reproducible continuation profiling (outside the timed run).
+    #[arg(long)]
+    save_final: bool,
 }
 fn main() -> Result<()> {
     let args = Args::parse();
@@ -682,6 +685,9 @@ fn main() -> Result<()> {
         rows.push(json!({"seed":seed,"seconds":start.elapsed().as_secs_f64(),"samples":samples,"changed_identities":changes,"cancelled_actions":actions,"events":events,"travel":h.expeditions.as_ref().map(|x|json!({"voyages":x.voyages.len(),"active_people":h.person_duties.len(),"identified_at_recruitment":x.voyages.iter().flat_map(|e|&e.crew).filter(|c|c.identified_from_cohort).filter_map(|c|c.person).collect::<std::collections::BTreeSet<_>>().len(),"crew_person_ids":x.voyages.iter().flat_map(|e|&e.crew).filter_map(|c|c.person).collect::<std::collections::BTreeSet<_>>().len()})),"military":{"active_people":h.military.duties.len(),"people_ever_served":h.military.careers.len(),"service_months":h.military.careers.values().map(|c|c.months_served as u64).sum::<u64>(),"named_deaths":h.events.iter().filter(|e|e.kind=="military_deaths").flat_map(|e|&e.subjects).filter(|(k,_)|k=="person").count()},"resolution":h.resolution_report(),"population_reconciliation":h.population_reconciliation(),"residuals":h.economy_residuals()}));
         if let Some(parent) = args.output.parent() {
             std::fs::create_dir_all(parent)?;
+        }
+        if args.save_final {
+            g.save(args.output.with_extension(format!("{seed}.world")))?;
         }
         let mut report = json!({"institution_funding_fields":["requested","conditional_ceiling","paid"],"institution_funding_unit":"abstract currency","operating_institutions":args.operating_institutions,"institution_work_classes":["election","upkeep","administration"],"institution_work_fields":["requested","granted","used"],"institution_work_unit":"worker-months","rotating_institutions":args.rotating_institutions,"construction_refinement":args.construction_refinement,"extraction_refinement":args.extraction_refinement,"agriculture_refinement":args.agriculture_refinement,"household_diagnostics":args.household_diagnostics,"resident_payroll":!args.legacy_resident_payroll,"individual_nutrition":!args.no_individual_nutrition,"household_mortality":!args.no_individual_nutrition && !args.no_household_mortality,"common_share_override":args.common_share,"observation_interval_months":1,"mortality_diagnostic_rows":["age_band_exposure","household_exposure"],"mortality_age_bands":["child","adult","elder"],"production_sectors":["farming","forestry","mining","construction"],"production_work_fields":["requested","granted","completed"],"production_work_unit":"worker-months","food_fields":["need","available","funded","eaten","physical_gap","access_gap"],"crop_yield_scale":args.crop_yield_scale,"founding_access":!args.no_founding_access,"aggregate_resolution":args.aggregate_resolution,"compare_resolution":args.compare_resolution,"workshop_refinement":args.workshop_refinement,"individual_demography":args.individual_demography,"resident_baseline":args.resident_baseline,"legacy_named_demography":args.legacy_named_demography,"no_domestic_care":args.no_domestic_care,"legacy_participation":args.legacy_participation,"strict_identities":args.strict_identities,"years":args.years,"resolution":args.resolution,"ecology_resolution":16,"epochs":1,"seeds":args.seeds,"gpu":gpu.adapter_name,"complete":rows.len()==args.seeds.len(),"runs":rows});
         report["funded_heritage_study"] = json!(args.funded_heritage_study);
