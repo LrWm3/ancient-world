@@ -107,3 +107,46 @@ matching. Mixed-bundle cancellation still merits narrower attribution. Visitors,
 relief labor/shared freight and a controlled working-core versus whole-membership
 readiness comparison remain unfinished. This result completes the capacity
 measurement increment, not the broader integration worklist.
+
+
+## Follow-up: request funnel (source `c538094`)
+
+The essential-first arm was rerun with the same seeds, 30-year duration and
+configuration using opening lesson observations. No policy or actor-selection
+rule changed. To reproduce, use the essential arm above and write to
+`output/lesson-funnel-essential-30.json`.
+
+Counts sum people over quarterly opening site plans, so a person may contribute
+repeatedly over time. Every seed has 1,920 site-plan observations (16 sites times
+120 quarters). They are not unique students, and no capacity is reserved by the
+observation itself.
+
+| Seed | Present candidates | Local members | Present source | Operational source | Selected with source | Also passes faith gate |
+|---|---:|---:|---:|---:|---:|---:|
+| 17 | 134,208 | 72,021 | 6,380 | 48 | 0 | 0 |
+| 81 | 134,743 | 76,109 | 6,678 | 249 | 4 | 4 |
+| 256 | 136,849 | 77,284 | 4,739 | 656 | 8 | 8 |
+
+All three runs completed successfully. Every prior per-seed report field matched
+its earlier essential-first run exactly after excluding elapsed time and the new
+diagnostics. This checks sampled outcomes, event totals and ledgers; it is not a
+claim that every unreported historical record was compared.
+
+Most opportunities with a present source fail the operational requirement.
+The rotating actor captures only a small share of those that remain. These
+person-opportunity counts do not establish that all missed students could have
+been taught: they share teachers, space and work, and other activities compete.
+They justify a controlled opportunity-aware selection comparison before simply
+increasing room capacity.
+
+The final two columns measure the additional faith gate. Inspection shows that
+its household-head lookup differs from the broader adult-kin actor population;
+any observed exclusions should be addressed using real membership and affiliation,
+not by assigning a student's faith from the town majority. The diagnostic change
+leaves this behavior intact. In these three runs the final two columns are equal:
+no selected source-qualified student was excluded by that gate. Its impact on
+other cultural actions is not measured by this lesson-specific observation.
+
+Verification: 126 regular tests, the expanded GPU learning fixture, all-target
+Clippy with warnings denied, and frozen monthly/batched/checkpoint equivalence
+on seeds 17/81/256 passed. No generated logs or raw reports were committed.
