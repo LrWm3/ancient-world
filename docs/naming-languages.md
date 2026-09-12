@@ -9,7 +9,7 @@ politics, cultural affiliation or migration.
 
 ## How it works
 
-`src/naming.rs` contains a shared 200-root invented proto-vocabulary, loosely inspired
+`src/naming.rs` contains a shared 319-root invented proto-vocabulary, loosely inspired
 by classical word shapes. Each civilization's seed chooses consistent rules for
 palatalization, intervocalic lenition, initial f, final m/s loss, kt/ai/oi changes,
 vowels and preferred compound form. Rules apply in a fixed order. Vowel shifts
@@ -22,8 +22,8 @@ words. A civilization favors one form, with seeded exceptions; order may reverse
 or rotate. Referenced proper names contribute a selected word (up to 12 characters),
 not always the first word. These fragments are not sound-shifted twice.
 
-Personal naming chooses among four weighted conventions: 30% aspiration, 20%
-nature pairing, 20% local livelihood, and 30% commemoration. Unavailable contextual
+Personal naming chooses among five weighted conventions: 20% aspiration, 10%
+celebration, 20% nature pairing, 20% local livelihood, and 30% commemoration. Unavailable contextual
 conventions fall back to aspiration. Local production above 1 kg makes associated
 materials and occupations eligible; this describes a naming association, not the
 person's own profession. Commemoration chooses among supplied references with
@@ -31,7 +31,7 @@ weights: each parent/predecessor 6, home town 3, local tradition 3, its patron 2
 and each of up to four active local institutions 1. Initial founders without these
 records use unreferenced conventions. There is no scan of distant or future names.
 
-The 200 roots include seasons, weather, plants, animals, landforms, materials,
+The 319 roots include seasons, weather, plants, animals, landforms, materials,
 occupations, virtues, rituals and social purposes. Entity naming heads also vary:
 for example home/hearth/refuge, league/people/fellowship, or memory/song/oath.
 Those are naming conventions, not additional legal statuses or historical events.
@@ -48,9 +48,9 @@ historical fact or an assertion that an artifact's supposed origin is true.
 |---|---|
 | Civilization | Founder's recorded personal name + league |
 | Town | Initial survey landmark + home; daughter towns also reference the civilization's earliest site |
-| Person | Weighted aspiration, nature, actual local production, town, tradition, patron, institution, parent or predecessor associations |
+| Person | Weighted aspiration, celebration, nature, actual local production, town, tradition, patron, institution, parent or predecessor associations |
 | Household | Founding household head + house |
-| Patron | Human language's guide/journey name, with the existing archetype epithet |
+| Patron | Weighted homeland imagery, guiding role, character quality, symbolic pairing or single emblem, followed by the archetype epithet |
 | Founding tradition | Patron + memory |
 | Schism | Actual reformer + covenant |
 | Religious institution | Affiliated tradition + sanctuary |
@@ -189,3 +189,43 @@ checks declaration/peace labels, legacy fallback, full checkpoint continuation a
 unchanged population/food/economic conservation assertions. All 53 ordinary library
 tests passed (52 hardware tests ignored); Clippy with warnings denied, formatting
 and the repository artifact check passed.
+
+
+## Broader symbolic draw
+
+The shared name pools now contain 32 qualities and 175 emblems. New roots include
+mineral textures, shore and river features, insects, trees, tools, instruments,
+textiles, household objects, emotions and social occasions. Personal names retain
+contextual references and add celebratory pairings such as hospitality, awakening,
+joy or promise with an emblem. These meanings are naming imagery, not assertions
+about a newborn's job or a future event.
+
+Patrons have five seeded conventions: 30% homeland imagery with a quality, 20%
+emblem with a guiding role, 20% quality with an emblem, 20% paired emblems and 10%
+a single emblem. Homeland imagery draws from the catalog habitat; other forms use
+the shared pools. Intelligent and animal patrons have overlapping role vocabularies.
+The generated label is a community's name for its patron, not proof of its anatomy,
+powers or personality. The species/archetype remains a separate appended epithet.
+
+Naming heads for towns, civilizations, institutions, traditions and artifacts now
+have more alternatives. Gifts, manuscripts and journey associations also vary.
+All choices use naming-specific hashes, record their actual concepts and lexical
+sources, and retain the existing spelling, compounding and historical-reference
+mechanisms. An existing name record is returned unchanged; newly needed roots are
+added to older languages without replacing their stored roots. New worlds and
+future coinages may differ from previous builds.
+
+The five-seed patron fixture generates 1,000 names and reaches 218 distinct
+concepts across all five conventions. The contextual personal-name fixture draws
+10,000 names: 1,947 aspirational, 986 celebratory, 1,977 nature, 2,019 livelihood
+and 3,071 commemorative. These counts check the seeded draw, not whether every
+name sounds good. Collision fallback is now tested with deliberately collapsed
+sounds rather than assuming a particular vocabulary size will exhaust it.
+
+Verification for the broader draw: all ten ordinary naming checks passed;
+127 regular library tests passed (109 hardware tests ignored in that run); the
+named-history/context/checkpoint GPU fixture passed on seeds 17/81/256;
+all-target Clippy passed with warnings denied. Example generated patron labels:
+`Sili Link` (silence + lynx), `Cherora` (lake + herald), and `Ama` (flame), before
+the existing species epithet is appended. Raw test output stays under ignored
+`output/broader-names-*.log`.

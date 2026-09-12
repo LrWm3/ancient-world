@@ -5,6 +5,121 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 const ROOTS: &[(&str, &str)] = &[
+    ("islet", "insela"),
+    ("canopy", "komara"),
+    ("daring", "valora"),
+    ("humble", "humila"),
+    ("serene", "placida"),
+    ("ardent", "ardera"),
+    ("nimble", "levika"),
+    ("solemn", "gravena"),
+    ("playful", "lusira"),
+    ("prudent", "kavena"),
+    ("hopeful", "sperina"),
+    ("unyielding", "firama"),
+    ("tender", "dulena"),
+    ("secretive", "keluma"),
+    ("echo", "ekora"),
+    ("silence", "silenta"),
+    ("dream", "somira"),
+    ("wonder", "mirava"),
+    ("riddle", "enigma"),
+    ("horizon", "oriza"),
+    ("comet", "kometa"),
+    ("eclipse", "eklira"),
+    ("halo", "aurela"),
+    ("lightning", "fulgura"),
+    ("rainbow", "irida"),
+    ("monsoon", "mavora"),
+    ("breeze", "zefera"),
+    ("dew", "rosina"),
+    ("hail", "grandina"),
+    ("sleet", "nivera"),
+    ("glacier", "glakara"),
+    ("gorge", "ravena"),
+    ("ravine", "karuna"),
+    ("terrace", "gradara"),
+    ("estuary", "estuara"),
+    ("delta", "deltana"),
+    ("shoal", "vadina"),
+    ("reef", "korala"),
+    ("lagoon", "taluna"),
+    ("springwater", "fontara"),
+    ("cascade", "kaskara"),
+    ("rapids", "vortina"),
+    ("inlet", "sinara"),
+    ("dune", "dunara"),
+    ("basalt", "basalara"),
+    ("obsidian", "obsira"),
+    ("quartz", "krista"),
+    ("jade", "jadira"),
+    ("mica", "mikara"),
+    ("garnet", "graneta"),
+    ("cypress", "kuparisa"),
+    ("juniper", "junira"),
+    ("yew", "taxara"),
+    ("alder", "alnera"),
+    ("hazel", "korila"),
+    ("heather", "erika"),
+    ("lily", "lilena"),
+    ("lotus", "lotara"),
+    ("iris", "irisa"),
+    ("sedge", "kareka"),
+    ("lichen", "likena"),
+    ("coral", "koralina"),
+    ("ibis", "ibira"),
+    ("kestrel", "kestara"),
+    ("gull", "larina"),
+    ("tern", "stera"),
+    ("kingfisher", "alkena"),
+    ("lynx", "linka"),
+    ("marten", "martena"),
+    ("ibex", "ibara"),
+    ("bison", "bisara"),
+    ("seal", "fokana"),
+    ("eel", "angula"),
+    ("sturgeon", "akipra"),
+    ("beetle", "skaraba"),
+    ("cicada", "zikara"),
+    ("spider", "aranea"),
+    ("silk", "serika"),
+    ("needle", "akula"),
+    ("spindle", "fusara"),
+    ("loom", "telara"),
+    ("chisel", "skalpa"),
+    ("anvil", "inkuda"),
+    ("plough", "aratra"),
+    ("basket", "kanistra"),
+    ("cup", "kalika"),
+    ("mirror", "spekula"),
+    ("flute", "tibira"),
+    ("lyre", "lirena"),
+    ("mask", "persona"),
+    ("tapestry", "tapeta"),
+    ("threshold", "limena"),
+    ("courtyard", "atrina"),
+    ("arcade", "arkada"),
+    ("commons", "komuna"),
+    ("council", "konsila"),
+    ("kinship", "parena"),
+    ("hospitality", "hospira"),
+    ("lullaby", "nannara"),
+    ("lament", "elega"),
+    ("parable", "fabula"),
+    ("verse", "versena"),
+    ("respite", "pausa"),
+    ("beacon", "farena"),
+    ("harbor", "limarae"),
+    ("watcher", "skopira"),
+    ("wanderer", "errana"),
+    ("companion", "komera"),
+    ("herald", "keruka"),
+    ("mediator", "mesara"),
+    ("awakening", "evela"),
+    ("farewell", "valeta"),
+    ("sorrow", "dolara"),
+    ("joy", "gaudia"),
+    ("harmony", "konkora"),
     ("of", "na"),
     ("war", "belora"),
     ("campaign", "strateia"),
@@ -211,6 +326,18 @@ const ROOTS: &[(&str, &str)] = &[
     ("remembrance", "memorina"),
 ];
 const VIRTUES: &[&str] = &[
+    "daring",
+    "humble",
+    "serene",
+    "ardent",
+    "nimble",
+    "solemn",
+    "playful",
+    "prudent",
+    "hopeful",
+    "unyielding",
+    "tender",
+    "secretive",
     "bright",
     "steadfast",
     "kind",
@@ -233,15 +360,181 @@ const VIRTUES: &[&str] = &[
     "honest",
 ];
 const EMBLEMS: &[&str] = &[
-    "dawn", "star", "reed", "oak", "stone", "water", "fire", "wind", "silver", "gold", "grove",
-    "hill", "moon", "rain", "snow", "mist", "thunder", "dusk", "ember", "tide", "river", "cliff",
-    "valley", "willow", "pine", "birch", "fern", "blossom", "thorn", "heron", "raven", "lark",
-    "owl", "fox", "deer", "otter", "bee", "pearl", "amber", "flint", "song", "lantern", "spring",
-    "sun", "cloud", "frost", "summer", "autumn", "winter", "night", "ash", "flame", "wave", "foam",
-    "current", "brook", "marsh", "fen", "pool", "lake", "sea", "ridge", "peak", "cave", "hollow",
-    "meadow", "heath", "cedar", "moss", "seed", "root", "leaf", "vine", "orchard", "apple", "pear",
-    "olive", "fig", "crane", "swallow", "wren", "eagle", "hawk", "wolf", "hare", "badger", "bear",
-    "moth", "salmon", "trout", "carp", "shell", "bell", "ribbon", "mantle", "banner",
+    "echo",
+    "silence",
+    "dream",
+    "wonder",
+    "riddle",
+    "horizon",
+    "comet",
+    "eclipse",
+    "halo",
+    "lightning",
+    "rainbow",
+    "monsoon",
+    "breeze",
+    "dew",
+    "hail",
+    "sleet",
+    "glacier",
+    "gorge",
+    "ravine",
+    "terrace",
+    "estuary",
+    "delta",
+    "shoal",
+    "reef",
+    "lagoon",
+    "springwater",
+    "cascade",
+    "rapids",
+    "inlet",
+    "dune",
+    "basalt",
+    "obsidian",
+    "quartz",
+    "jade",
+    "mica",
+    "garnet",
+    "cypress",
+    "juniper",
+    "yew",
+    "alder",
+    "hazel",
+    "heather",
+    "lily",
+    "lotus",
+    "iris",
+    "sedge",
+    "lichen",
+    "coral",
+    "ibis",
+    "kestrel",
+    "gull",
+    "tern",
+    "kingfisher",
+    "lynx",
+    "marten",
+    "ibex",
+    "bison",
+    "seal",
+    "eel",
+    "sturgeon",
+    "beetle",
+    "cicada",
+    "spider",
+    "silk",
+    "needle",
+    "spindle",
+    "loom",
+    "chisel",
+    "anvil",
+    "plough",
+    "basket",
+    "cup",
+    "mirror",
+    "flute",
+    "lyre",
+    "mask",
+    "tapestry",
+    "threshold",
+    "courtyard",
+    "dawn",
+    "star",
+    "reed",
+    "oak",
+    "stone",
+    "water",
+    "fire",
+    "wind",
+    "silver",
+    "gold",
+    "grove",
+    "hill",
+    "moon",
+    "rain",
+    "snow",
+    "mist",
+    "thunder",
+    "dusk",
+    "ember",
+    "tide",
+    "river",
+    "cliff",
+    "valley",
+    "willow",
+    "pine",
+    "birch",
+    "fern",
+    "blossom",
+    "thorn",
+    "heron",
+    "raven",
+    "lark",
+    "owl",
+    "fox",
+    "deer",
+    "otter",
+    "bee",
+    "pearl",
+    "amber",
+    "flint",
+    "song",
+    "lantern",
+    "spring",
+    "sun",
+    "cloud",
+    "frost",
+    "summer",
+    "autumn",
+    "winter",
+    "night",
+    "ash",
+    "flame",
+    "wave",
+    "foam",
+    "current",
+    "brook",
+    "marsh",
+    "fen",
+    "pool",
+    "lake",
+    "sea",
+    "ridge",
+    "peak",
+    "cave",
+    "hollow",
+    "meadow",
+    "heath",
+    "cedar",
+    "moss",
+    "seed",
+    "root",
+    "leaf",
+    "vine",
+    "orchard",
+    "apple",
+    "pear",
+    "olive",
+    "fig",
+    "crane",
+    "swallow",
+    "wren",
+    "eagle",
+    "hawk",
+    "wolf",
+    "hare",
+    "badger",
+    "bear",
+    "moth",
+    "salmon",
+    "trout",
+    "carp",
+    "shell",
+    "bell",
+    "ribbon",
+    "mantle",
+    "banner",
 ];
 fn hash(mut x: u32) -> u32 {
     x = (x ^ (x >> 16)).wrapping_mul(0x7feb352d);
@@ -552,7 +845,8 @@ impl Language {
         let emblem = EMBLEMS[hash(q ^ 1) as usize % EMBLEMS.len()];
         let other = EMBLEMS[hash(q ^ 2) as usize % EMBLEMS.len()];
         // Weighted conventions: 30% aspiration, 20% nature, 20% local livelihood,
-        // 30% commemoration. Missing context falls back to an aspirational name.
+        // 30% commemoration. A third of the aspiration share uses celebration imagery.
+        // Missing context falls back to an aspirational name.
         let mut source = None;
         let (meanings, style) = match hash(q ^ 3) % 10 {
             3..=4 => (vec![emblem, other], "nature pairing"),
@@ -575,9 +869,72 @@ impl Language {
                 }
                 (vec![virtue, emblem], "commemorative")
             }
+            0 => (
+                vec![
+                    [
+                        "feast",
+                        "song",
+                        "promise",
+                        "kinship",
+                        "awakening",
+                        "joy",
+                        "harmony",
+                        "hospitality",
+                    ][hash(q ^ 6) as usize % 8],
+                    other,
+                ],
+                "celebratory",
+            ),
             _ => (vec![virtue, emblem], "aspirational"),
         };
         let name = self.coin(&key, &meanings, source);
+        let record = self.names.get_mut(&key).unwrap();
+        record.form = format!("{style}; {}", record.form);
+        name
+    }
+    /// A community's symbolic name for its guide, not a claim about anatomy or powers.
+    /// Habitat contributes to some names; most draw from the wider shared lexicon.
+    pub fn patron(&mut self, id: u32, habitat: &str, intelligent: bool) -> String {
+        let key = format!("patron:{id}");
+        if let Some(r) = self.names.get(&key) {
+            return r.name.clone();
+        }
+        let q = hash(self.seed ^ key_hash(&key) ^ 0x70617472);
+        let emblem = EMBLEMS[q as usize % EMBLEMS.len()];
+        let other = EMBLEMS[hash(q ^ 1) as usize % EMBLEMS.len()];
+        let quality = VIRTUES[hash(q ^ 2) as usize % VIRTUES.len()];
+        let habitat_words: &[&str] = match habitat {
+            "lake" => &["lake", "current", "reed", "islet", "mist", "pearl"],
+            "wetland" => &["sedge", "lotus", "heron", "marsh", "pool", "willow"],
+            "forest" => &["grove", "lichen", "cedar", "fern", "root", "canopy"],
+            "volcanic" => &["obsidian", "ember", "basalt", "ash", "garnet", "flame"],
+            "coast" => &["tide", "coral", "reef", "gull", "horizon", "foam"],
+            _ => EMBLEMS,
+        };
+        let local = habitat_words[hash(q ^ 3) as usize % habitat_words.len()];
+        let roles: &[&str] = if intelligent {
+            &[
+                "guide", "herald", "witness", "mediator", "wanderer", "keeper",
+            ]
+        } else {
+            &[
+                "guide",
+                "watcher",
+                "companion",
+                "wanderer",
+                "shelter",
+                "beacon",
+            ]
+        };
+        let role = roles[hash(q ^ 4) as usize % roles.len()];
+        let (meanings, style) = match hash(q ^ 5) % 10 {
+            0..=2 => (vec![local, quality], "homeland imagery"),
+            3..=4 => (vec![emblem, role], "guide epithet"),
+            5..=6 => (vec![quality, emblem], "character epithet"),
+            7..=8 => (vec![emblem, other], "symbolic pairing"),
+            _ => (vec![other], "single emblem"),
+        };
+        let name = self.coin(&key, &meanings, None);
         let record = self.names.get_mut(&key).unwrap();
         record.form = format!("{style}; {}", record.form);
         name
@@ -606,13 +963,75 @@ impl Language {
     /// Alternative naming heads, not assertions about the entity's legal status.
     pub fn descriptor<'a>(&self, key: &str, base: &'a str) -> &'a str {
         let options: &[&str] = match base {
-            "home" => &["home", "home", "hearth", "shelter", "refuge"],
-            "league" => &["league", "league", "people", "assembly", "fellowship"],
-            "sanctuary" => &["sanctuary", "sanctuary", "vigil", "covenant", "circle"],
-            "market" => &["market", "market", "crossing", "fellowship", "house"],
-            "learning" => &["learning", "learning", "memory", "witness", "circle"],
-            "craft" => &["craft", "craft", "hall", "house", "fellowship"],
-            "memory" => &["memory", "memory", "remembrance", "song", "oath"],
+            "home" => &[
+                "home",
+                "home",
+                "hearth",
+                "shelter",
+                "refuge",
+                "haven",
+                "threshold",
+                "commons",
+            ],
+            "league" => &[
+                "league",
+                "league",
+                "people",
+                "assembly",
+                "fellowship",
+                "council",
+                "covenant",
+                "kinship",
+            ],
+            "sanctuary" => &[
+                "sanctuary",
+                "sanctuary",
+                "vigil",
+                "covenant",
+                "circle",
+                "beacon",
+                "harmony",
+                "shelter",
+            ],
+            "market" => &[
+                "market",
+                "market",
+                "crossing",
+                "fellowship",
+                "house",
+                "commons",
+                "courtyard",
+                "hospitality",
+            ],
+            "learning" => &[
+                "learning", "learning", "memory", "witness", "circle", "riddle", "parable",
+                "wonder",
+            ],
+            "craft" => &[
+                "craft",
+                "craft",
+                "hall",
+                "house",
+                "fellowship",
+                "courtyard",
+                "assembly",
+                "kinship",
+            ],
+            "memory" => &[
+                "memory",
+                "memory",
+                "remembrance",
+                "song",
+                "oath",
+                "echo",
+                "verse",
+                "lament",
+            ],
+            "gift" => &["gift", "gift", "promise", "joy", "remembrance", "wonder"],
+            "book" => &["book", "book", "verse", "parable", "witness", "memory"],
+            "journey" => &[
+                "journey", "journey", "path", "crossing", "horizon", "return",
+            ],
             _ => return base,
         };
         options[hash(self.seed ^ key_hash(key) ^ 0x68656164) as usize % options.len()]
@@ -807,6 +1226,64 @@ impl crate::civilization::Civilization {
 mod tests {
     use super::*;
     #[test]
+    fn broad_patron_draw_is_traceable_and_preserves_archived_names() {
+        let habitats = ["lake", "wetland", "forest", "volcanic", "coast"];
+        let mut concepts = BTreeSet::new();
+        let mut styles = BTreeSet::new();
+        for seed in [17, 81, 256, 409, 1024] {
+            let mut l = Language::new(seed, 0);
+            assert_eq!(l.roots.len(), ROOTS.len(), "root concepts must be unique");
+            for concept in VIRTUES.iter().chain(EMBLEMS) {
+                assert!(l.roots.contains_key(*concept), "missing {concept}");
+            }
+            for id in 0..200 {
+                let name = l.patron(id, habitats[id as usize % habitats.len()], id % 3 == 0);
+                assert!(!name.chars().any(|c| c.is_ascii_digit()));
+                assert!(name.len() < 100);
+                let record = &l.names[&format!("patron:{id}")];
+                assert!(record.meanings.iter().all(|m| l.roots.contains_key(m)));
+                concepts.extend(record.meanings.iter().cloned());
+                styles.insert(record.form.split(';').next().unwrap().to_string());
+                if id < 3 {
+                    eprintln!("seed {seed}: {name} — {}", record.meanings.join(" + "));
+                }
+                assert_eq!(
+                    l.patron(id, "forest", false),
+                    name,
+                    "saved labels never change"
+                );
+            }
+            let mut restored: Language =
+                serde_json::from_str(&serde_json::to_string(&l).unwrap()).unwrap();
+            for id in 200..220 {
+                assert_eq!(
+                    l.patron(id, "coast", true),
+                    restored.patron(id, "coast", true)
+                );
+            }
+            let legacy = l.coin("patron:999", &["guide", "journey"], None);
+            l.roots.remove("lullaby");
+            assert_eq!(l.patron(999, "volcanic", false), legacy);
+            l.patron(1000, "forest", false);
+            assert!(
+                l.roots.contains_key("lullaby"),
+                "new coinages extend old vocabularies"
+            );
+        }
+        assert_eq!(styles.len(), 5);
+        assert!(
+            concepts.len() > 120,
+            "only {} concepts reached",
+            concepts.len()
+        );
+        eprintln!(
+            "patron draw: {} concepts, {} conventions; {} roots",
+            concepts.len(),
+            styles.len(),
+            ROOTS.len()
+        );
+    }
+    #[test]
     fn wars_keep_context_and_names_across_vocabulary_changes() {
         let site = |id, name: &str| Source {
             kind: "site".into(),
@@ -952,6 +1429,8 @@ mod tests {
         }
         assert_eq!(sources.len(), 5);
         assert_eq!(forms.len(), 5);
+        assert!((800..1200).contains(&styles["celebratory"]));
+        assert!((1700..2300).contains(&styles["aspirational"]));
         assert!((2500..3500).contains(&styles["commemorative"]));
         assert!((1500..2500).contains(&styles["local livelihood"]));
         assert_eq!(
@@ -971,7 +1450,7 @@ mod tests {
                 resumed.person_with("person", id, &context)
             );
         }
-        // Deliberately exhaust simple bynames; no identity number may leak into a label.
+        // Stress repeated base names; no identity number may leak into a label.
         for id in 0..3000 {
             let n = l.coin(&format!("fixture:{id}"), &["bright"], None);
             assert!(!n.chars().any(|c| c.is_ascii_digit()));
@@ -985,7 +1464,17 @@ mod tests {
                 .len(),
             3000
         );
-        assert!(l
+        // Force phonetic collapse independently of vocabulary size, so this still
+        // exercises the fallback when the available byname pool expands.
+        let mut collapsed = Language::new(17, 0);
+        for root in collapsed.roots.values_mut() {
+            *root = "a".into();
+        }
+        for id in 0..32 {
+            let n = collapsed.coin(&format!("fixture:{id}"), &["bright"], None);
+            assert!(!n.chars().any(|c| c.is_ascii_digit()));
+        }
+        assert!(collapsed
             .names
             .values()
             .any(|r| r.meanings.iter().any(|m| m.contains("untranslated"))));

@@ -781,10 +781,10 @@ impl History {
                 .duration(a.kind == "intelligent", a.aid_strength, variance);
             let patron_name = format!(
                 "{} the {}",
-                self.civilizations[i].naming(self.seed).coin(
-                    &format!("patron:{i}"),
-                    &["guide", "journey"],
-                    None
+                self.civilizations[i].naming(self.seed).patron(
+                    i as u32,
+                    &a.habitat,
+                    a.kind == "intelligent"
                 ),
                 a.name
             );
