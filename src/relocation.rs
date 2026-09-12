@@ -2,6 +2,7 @@
 use crate::{civilization::History, economy::FOOD_CNP};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+mod comparison;
 
 /// Transient decision inputs captured after consumption, before response actions.
 /// Financial, food and housing capacity checks still use live reservations at commit.
@@ -240,12 +241,15 @@ impl History {
     }
 
     /// Complete/hold funded journeys before resident production. Travelers produce nothing.
-    pub(crate) fn relocation_arrivals(&mut self) {
+    pub(crate) fn relocation_arrivals(&mut self) -> Result<()> {
+        let mut comparison = comparison::TravelComparison::capture(self)?;
         let Some(society) = &mut self.society else {
-            return;
+            return Ok(());
         };
         let journeys = std::mem::take(&mut society.relocation.journeys);
         for mut j in journeys {
+            let before = j.population();
+            let individual = self.individual_demography_enabled() && j.roster.is_some();
             let need = j
                 .cohorts
                 .iter()
@@ -264,7 +268,7 @@ impl History {
             } else {
                 0.
             };
-            if self.individual_demography_enabled() && j.roster.is_some() {
+            if individual {
                 let (dead, anonymous) = self.individual_travel_losses(&mut j, loss);
                 self.sites[j.from as usize].stocks.people[1] += dead;
                 self.sites[j.from as usize].demography.health[2] += anonymous;
@@ -279,6 +283,7 @@ impl History {
                 }
                 self.reconcile_travel_deaths(&mut j, loss);
             }
+            comparison.observe(&j, individual, before, eaten);
             if j.population() < 0.01 {
                 self.society
                     .as_mut()
@@ -334,6 +339,7 @@ impl History {
             }
             self.finish_relocation(j);
         }
+        comparison.settle(self)
     }
     fn reconcile_travel_deaths(&mut self, j: &mut Journey, loss: f32) {
         let extinct = j.population() < 0.01;
@@ -961,17 +967,83 @@ mod tests {
             .unwrap()
             .validate(&malformed)
             .is_err());
+        // Compare the same traveling cohort with and without read-only receipts.
+        for individual in [false, true] {
+            for provisioned in [false, true] {
+                let mut observed = h.clone();
+                observed.month = 25;
+                observed.named_demography.as_mut().unwrap().individual = individual;
+                observed.resolution = Some(crate::resolution::ResolutionState::default());
+                observed.society.as_mut().unwrap().routes[j.route as usize].open = false;
+                if !provisioned {
+                    observed.society.as_mut().unwrap().relocation.journeys[0].food = 0.;
+                }
+                let opening = observed.household_relocations().unwrap().journeys[0].clone();
+                let mut plain = observed.clone();
+                plain.resolution = None;
+                let mut restored: History =
+                    serde_json::from_value(serde_json::to_value(&observed).unwrap()).unwrap();
+                plain.relocation_arrivals().unwrap();
+                observed.relocation_arrivals().unwrap();
+                restored.relocation_arrivals().unwrap();
+                assert_eq!(
+                    serde_json::to_value(&observed).unwrap(),
+                    serde_json::to_value(&restored).unwrap()
+                );
+                let r = &observed.resolution.as_ref().unwrap().receipts[0];
+                assert_eq!(
+                    r.boundary.system,
+                    crate::resolution::System::RelocationTravel
+                );
+                assert_eq!(
+                    r.mode,
+                    if individual {
+                        crate::resolution::Mode::Individual
+                    } else {
+                        crate::resolution::Mode::Aggregate
+                    }
+                );
+                let expected_deaths = if provisioned {
+                    0.
+                } else {
+                    opening.population() as f64 * 0.08
+                };
+                assert!((r.metrics[1].expected - expected_deaths).abs() < 1e-6);
+                assert_eq!(r.metrics[0].expected, r.metrics[0].actual);
+                assert!(
+                    (r.metrics[1].actual + r.metrics[2].actual - opening.population() as f64).abs()
+                        < 1e-6
+                );
+                if !individual {
+                    assert!((r.metrics[1].actual - expected_deaths).abs() < 1e-5);
+                }
+                let mut physical = serde_json::to_value(&observed).unwrap();
+                physical["resolution"] = serde_json::Value::Null;
+                assert_eq!(physical, serde_json::to_value(&plain).unwrap());
+                let before_repeat = serde_json::to_value(&observed).unwrap();
+                assert!(observed.relocation_arrivals().is_err());
+                assert_eq!(before_repeat, serde_json::to_value(&observed).unwrap());
+                observed
+                    .resolution
+                    .as_ref()
+                    .unwrap()
+                    .validate(observed.month, observed.sites.len())
+                    .unwrap();
+            }
+        }
         // A blocked journey exhausts its own food and eventually its real cohort.
         // Its known passengers must not remain immortal Traveling identities.
         let mut stranded = h.clone();
+        stranded.resolution = Some(crate::resolution::ResolutionState::default());
         stranded.society.as_mut().unwrap().routes[j.route as usize].open = false;
         let mut resumed: History =
             serde_json::from_value(serde_json::to_value(&stranded).unwrap()).unwrap();
         let pop_budget = stranded.population_residual();
+        let traveling_at_start = stranded.household_relocations().unwrap().journeys[0].population();
         for month in 25..225 {
             for world in [&mut stranded, &mut resumed] {
                 world.month = month;
-                world.relocation_arrivals();
+                world.relocation_arrivals().unwrap();
             }
         }
         assert_eq!(
@@ -983,6 +1055,24 @@ mod tests {
             .unwrap()
             .journeys
             .is_empty());
+        let loss_summary = stranded
+            .resolution
+            .as_ref()
+            .unwrap()
+            .summaries
+            .iter()
+            .find(|r| {
+                r.system == crate::resolution::System::RelocationTravel && r.name == "travel_deaths"
+            })
+            .unwrap();
+        assert!((loss_summary.actual - traveling_at_start as f64).abs() < 1e-5);
+        assert!(loss_summary.samples > 1);
+        stranded
+            .resolution
+            .as_ref()
+            .unwrap()
+            .validate(stranded.month, stranded.sites.len())
+            .unwrap();
         assert!(manifest
             .passengers
             .iter()
@@ -1030,7 +1120,7 @@ mod tests {
         lost_shelter.sites[to].economy.housing_plan[3] = 1.;
         lost_shelter.month = j.arrives;
         let residents = lost_shelter.sites[to].stocks.stock[0];
-        lost_shelter.relocation_arrivals();
+        lost_shelter.relocation_arrivals().unwrap();
         assert_eq!(lost_shelter.sites[to].stocks.stock[0], residents);
         assert!(lost_shelter.household_relocations().unwrap().journeys[0].returning);
         assert!(lost_shelter
@@ -1098,7 +1188,7 @@ mod tests {
         assert!(appeal.household_relocations().unwrap().appeals.is_empty());
         for month in 25..=j.arrives {
             appeal.month = month;
-            appeal.relocation_arrivals();
+            appeal.relocation_arrivals().unwrap();
             if month < j.arrives {
                 assert!(appeal.household_relocations().unwrap().appeals.is_empty());
             }
@@ -1377,7 +1467,7 @@ mod tests {
         lost.society.as_mut().unwrap().routes[r.id as usize].open = false;
         for month in 25..=j.arrives + 180 {
             lost.month = month;
-            lost.relocation_arrivals();
+            lost.relocation_arrivals().unwrap();
         }
         assert!(lost.household_relocations().unwrap().journeys.is_empty());
         assert!(lost
@@ -1395,7 +1485,7 @@ mod tests {
         returned.sites[to].abandoned = true;
         for month in 25..=j.arrives * 2 - 24 {
             returned.month = month;
-            returned.relocation_arrivals();
+            returned.relocation_arrivals().unwrap();
         }
         assert!(returned
             .household_relocations()
@@ -1416,7 +1506,7 @@ mod tests {
         blocked.society.as_mut().unwrap().routes[r.id as usize].open = false;
         for month in 25..=j.arrives + 30 {
             blocked.month = month;
-            blocked.relocation_arrivals();
+            blocked.relocation_arrivals().unwrap();
         }
         assert!(blocked.household_relocations().unwrap().journeys[0].population() < j.population());
         assert!(blocked
@@ -1430,7 +1520,7 @@ mod tests {
         }
         blocked.society.as_mut().unwrap().routes[r.id as usize].open = true;
         blocked.month += 1;
-        blocked.relocation_arrivals();
+        blocked.relocation_arrivals().unwrap();
         assert!(blocked.household_relocations().unwrap().journeys.is_empty());
         // Policy affects new departures, never strands an already funded journey.
         h.set_household_relocation(false).unwrap();
@@ -1439,8 +1529,8 @@ mod tests {
         for month in 25..=j.arrives {
             h.month = month;
             resumed.month = month;
-            h.relocation_arrivals();
-            resumed.relocation_arrivals();
+            h.relocation_arrivals().unwrap();
+            resumed.relocation_arrivals().unwrap();
             h.culture_month();
             resumed.culture_month();
         }

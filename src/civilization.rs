@@ -1266,7 +1266,7 @@ impl Generator {
             vec![]
         };
         h.relief_arrivals();
-        h.relocation_arrivals();
+        h.relocation_arrivals()?;
         let relief_observations = h.observe_relief();
         h.answer_appeals_observed(&relief_observations)?;
         h.restore_returning_settlements();
