@@ -345,7 +345,7 @@ impl History {
                 .get(&s.cell)
                 .ok_or_else(|| anyhow::anyhow!("unregistered extraction source"))?;
             let total = withdrawals.entry(s.cell).or_default();
-            for k in 0..2 {
+            for (k, withdrawn) in total.iter_mut().enumerate() {
                 let before = allowances[s.id as usize][k] as f64;
                 let after = s.economy.reserves[k + 1] as f64;
                 ensure!(
@@ -363,9 +363,9 @@ impl History {
                         .is_none_or(|m| m.site == s.id || used == 0.),
                     "regional ownership violated"
                 );
-                total[k] += used;
+                *withdrawn += used;
                 ensure!(
-                    source.remaining[k].is_finite() && total[k] <= source.remaining[k],
+                    source.remaining[k].is_finite() && *withdrawn <= source.remaining[k],
                     "extraction exceeds shared source"
                 );
             }
