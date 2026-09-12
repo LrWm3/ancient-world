@@ -242,3 +242,52 @@ continuation. The previous quote-only fixture remains as a supply-limited contro
 Verification for this increment: 117 regular library tests, seven institutional
 hardware tests, and the full frozen monthly/batched/checkpoint test (seeds 17, 81,
 256) pass. The surplus-material boundary test is included in the regular suite.
+
+The next allocation review should distinguish basic upkeep from repair work:
+`upkeep_work_limit` reserves up to 0.125 worker-months per facility, although its
+administrative component is 0.025. Those combined requests precede 0.05-member
+fundraising assignments. A scarce window can therefore grant repair capacity while
+leaving collection unassigned. Compare an explicit essential-service allocation
+against the same requests, total allowance and member availability before changing
+priority; do not silently increase labor or infer that equal grants will improve
+all institutions. Space-limited readiness needs a separate service-capacity review.
+
+## Repair reserve: matched 30-year comparison
+
+The pre-fix named-administration results above (`576ab70`) are the baseline;
+`4727d02` supplies the corrected execution and procurement rule. Seeds 17/81 and
+all runner settings match: operating funding and named administration enabled,
+common share 0.65 as a test intervention, individual demography and four production
+refinements, terrain 32/ecology 16, one geological epoch, sixteen founders and
+living history. The report checker verifies both completed reports and matching
+metadata. This is a before/after code comparison, not a policy toggle within one
+executable.
+
+| Seed / repair rule | Year-30 population | Funding collected | Administration fees paid | Repairs paid | Operational institutions |
+|---|---:|---:|---:|---:|---:|
+| 17 / before | 1,948 | 839.22 | 408.18 | 1,231.03 | 0 / 32 |
+| 17 / reserve enforced | 1,940 | 716.53 | 468.99 | 1,047.53 | 0 / 32 |
+| 81 / before | 2,018 | 815.86 | 388.50 | 1,227.36 | 0 / 32 |
+| 81 / reserve enforced | 2,011 | 792.76 | 456.52 | 1,135.24 | 0 / 32 |
+
+Fee payments increase by 15% / 18%; repair spending falls. The controlled fixture
+establishes the direct reserve mechanism; divergent later collection and population
+are integrated outcomes, not proof of a single causal path. All institutions remain
+nonoperational at year 30. Administration completes 18.95 / 17.20 worker-months
+against unchanged demands of 171.15 / 160.65, so the earlier allocation bottleneck
+remains. The fix is retained for consistent spending limits, not presented as a
+successful institutional balance solution.
+
+All sixteen sites stay active. Food-access gaps increase slightly, 1.9817% →
+1.9967% and 1.8662% → 1.8860%. Maximum population residual remains zero, food
+partition residual is at most 2.67e-7, and absolute terminal relative economic
+residual is at most 2.35e-6 across both versions. New runs finish in about 62–66
+seconds per seed. No funds, materials or work were injected during these runs.
+
+Reproduce using the named-administration command above with output
+`output/institution-repair-reserve-30.json`, then compare:
+
+```sh
+python3 scripts/compare_food_access.py output/institution-named-treatment-30.json \
+  output/institution-repair-reserve-30.json
+```
