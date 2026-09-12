@@ -382,7 +382,8 @@ impl Culture {
             );
         }
         self.validate_local_recoveries(h)?;
-        self.religious_relief.validate(h, self.institutions.len())?;
+        self.religious_relief
+            .validate(h, self.institutions.len(), self.artifacts.len())?;
         self.religious_dynamics.validate(h, self.traditions.len())?;
         for (i, t) in self.traditions.iter().enumerate() {
             ensure!(

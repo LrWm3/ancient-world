@@ -15,6 +15,9 @@ pub struct ReligiousRelief {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Mission {
+    /// Consumed in Open; later cultural reservations see only remaining room-time.
+    #[serde(default)]
+    pub room: Option<crate::institution_services::OpeningUse>,
     pub institution: u32,
     pub host: u32,
     pub recipient: u32,
@@ -37,10 +40,18 @@ pub struct Mission {
     pub report_food_months: Option<f32>,
 }
 impl ReligiousRelief {
-    pub fn validate(&self, h: &History, institutions: usize) -> Result<()> {
+    pub fn validate(&self, h: &History, institutions: usize, objects: usize) -> Result<()> {
         self.memory.validate(h)?;
         let mut responses = std::collections::BTreeSet::new();
+        let mut room_boundaries = std::collections::BTreeSet::new();
         for m in &self.missions {
+            ensure!(
+                m.room
+                    .as_ref()
+                    .is_none_or(|r| r.valid(objects)
+                        && room_boundaries.insert((m.institution, m.dispatched))),
+                "invalid opening service use"
+            );
             ensure!(
                 (m.institution as usize) < institutions
                     && (m.host as usize) < h.sites.len()
@@ -169,6 +180,7 @@ impl History {
         let surplus = (host.stocks.stock[1] - host.stocks.stock[0] * 18. * 6.).max(0.);
         let price = host.economy.prices[crate::economy::FOOD].max(0.01);
         let witness_faith = c.household_faith.get(appeal.household as usize).copied();
+        let present = c.site_people(self, appeal.host);
         let candidate = c
             .institutions
             .iter()
@@ -176,6 +188,7 @@ impl History {
                 n.site == appeal.host
                     && n.kind == InstitutionKind::Religious
                     && n.operational()
+                    && present.contains(&n.leader)
                     && !c
                         .religious_relief
                         .missions
@@ -183,6 +196,12 @@ impl History {
                         .any(|m| m.institution == n.id && m.dispatched == self.month)
             })
             .filter_map(|n| {
+                let room = crate::institution_services::opening_dispatch(
+                    c,
+                    n.id,
+                    appeal.host,
+                    self.month,
+                )?;
                 let t = n.tradition.and_then(|t| c.traditions.get(t as usize))?;
                 let hospitality = t.themes.contains(&0);
                 let learned = c
@@ -205,10 +224,10 @@ impl History {
                     return None;
                 }
                 let kg = kg.min(receipt / price);
-                (kg >= 18.).then_some((n.id, kg, receipt))
+                (kg >= 18.).then_some((n.id, kg, receipt, room))
             })
             .max_by(|a, b| a.1.total_cmp(&b.1).then_with(|| b.0.cmp(&a.0)));
-        let Some((institution, kg, paid)) = candidate else {
+        let Some((institution, kg, paid, room)) = candidate else {
             return false;
         };
         let reciprocal = c.institutions[institution as usize]
@@ -242,6 +261,7 @@ impl History {
             .religious_relief
             .missions
             .push(Mission {
+                room: Some(room),
                 institution,
                 host: appeal.host,
                 recipient: appeal.origin,
@@ -327,6 +347,7 @@ mod tests {
     use super::*;
     fn mission(host: u32, recipient: u32, delivered: Option<f32>, reciprocal: bool) -> Mission {
         Mission {
+            room: None,
             institution: 0,
             host,
             recipient,
@@ -342,6 +363,169 @@ mod tests {
             report_food_months: None,
         }
     }
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn opening_dispatch_consumes_room_time_before_cultural_reservations() {
+        use crate::{
+            catalog::Catalog,
+            config::Config,
+            gpu::{ContextGpu, Generator},
+        };
+        let mut g = Generator::new(
+            pollster::block_on(ContextGpu::headless()).unwrap(),
+            Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                seed: 17,
+                ..Default::default()
+            },
+            Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        g.enable_society().unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        h.month = 12;
+        h.sync_culture();
+        let host = 0;
+        let origin = 1;
+        let hh = h
+            .society
+            .as_ref()
+            .unwrap()
+            .households
+            .iter()
+            .find(|hh| hh.site == host)
+            .unwrap()
+            .clone();
+        let route = h.society.as_ref().unwrap().routes.len() as u32;
+        h.society
+            .as_mut()
+            .unwrap()
+            .routes
+            .push(crate::society::Route {
+                id: route,
+                from: host,
+                to: origin,
+                cells: vec![h.sites[0].cell, h.sites[1].cell],
+                cost_km: 150.,
+                open: true,
+                flood_months: 0,
+                upkeep: None,
+                road_bricks: 0.,
+            });
+        h.sites[0].stocks.stock[1] = h.sites[0].stocks.stock[0] * 108. + 1000.;
+        h.sites[0].stocks.stock[3] = 0.;
+        h.sites[0].economy.prices[crate::economy::FOOD] = 2.;
+        let c = h.culture.as_mut().unwrap();
+        c.religious_relief.enabled = true;
+        let faith = c.site_faith[0];
+        c.traditions[faith as usize].themes[0] = 0;
+        let institution = c.institutions.len() as u32;
+        let room = c.artifacts.len() as u32;
+        c.artifacts.push(crate::culture::Artifact {
+            id: room,
+            name: "Declared dispatch room".into(),
+            kind: "institutional foundation".into(),
+            creator: None,
+            owner: crate::culture::Owner::Institution(institution),
+            claims: vec![],
+            site: Some(host),
+            custodian: None,
+            materials: vec![(0, 20.)],
+            topic: None,
+            tradition: None,
+            events: vec![],
+            lost: false,
+            destroyed: false,
+        });
+        c.institutions.push(crate::culture::Institution {
+            id: institution,
+            name: "Fixture relief order".into(),
+            kind: InstitutionKind::Religious,
+            site: host,
+            tradition: Some(faith),
+            members: vec![hh.head],
+            leader: hh.head,
+            treasury: 1000.,
+            active: true,
+            founded: 0,
+            knowledge: Default::default(),
+            property: vec![],
+            dues: 0.,
+            expenses: 0.,
+            capacity: Some(crate::institution_capacity::Capacity {
+                building: Some(crate::institution_capacity::MeetingPlace {
+                    condition: 0.25,
+                    ..crate::institution_capacity::MeetingPlace::new(room)
+                }),
+                ..crate::institution_capacity::Capacity::new(h.month)
+            }),
+        });
+        let appeal = Appeal {
+            host,
+            origin,
+            household: hh.id,
+            reported: h.month,
+            received: h.month,
+            route,
+            population: 10.,
+            cause: 0,
+            response: None,
+        };
+        let mut missing = h.clone();
+        missing.culture.as_mut().unwrap().artifacts[room as usize].lost = true;
+        let before = serde_json::to_value(&missing).unwrap();
+        assert!(!missing.sponsor_religious_relief(&appeal));
+        assert_eq!(before, serde_json::to_value(&missing).unwrap());
+        let food = h.sites[0].stocks.stock[1];
+        assert!(h.sponsor_religious_relief(&appeal));
+        let c = h.culture.as_ref().unwrap();
+        let mission = c.religious_relief.missions.last().unwrap();
+        assert_eq!(mission.room.as_ref().unwrap().used, 0.1);
+        assert!((food - h.sites[0].stocks.stock[1] - mission.promised_kg).abs() < 0.001);
+        assert_eq!(h.shipments.last().unwrap().food_kg, mission.promised_kg);
+        c.religious_relief
+            .validate(h, c.institutions.len(), c.artifacts.len())
+            .unwrap();
+        let (remaining, group) =
+            crate::institution_services::remaining_space(c, institution, host, h.month);
+        assert_eq!((remaining, group), (0.4, 2.));
+        let people = c.site_people(h, host);
+        let student = *people.iter().find(|&&p| p != hh.head).unwrap();
+        let plans = c.plan_service_space(
+            h,
+            host,
+            Some(student),
+            Some((0, hh.head, institution)),
+            &[("study".into(), 0.1)],
+            None,
+        );
+        assert_eq!(plans[0].opening_space, 0.4);
+        let snapshot = serde_json::to_value(&h).unwrap();
+        assert!(!h.sponsor_religious_relief(&appeal));
+        assert_eq!(snapshot, serde_json::to_value(&h).unwrap());
+        let restored: History = serde_json::from_value(snapshot).unwrap();
+        assert_eq!(
+            crate::institution_services::remaining_space(
+                restored.culture.as_ref().unwrap(),
+                institution,
+                host,
+                restored.month
+            ),
+            (0.4, 2.)
+        );
+        assert_eq!(
+            crate::institution_services::remaining_space(
+                restored.culture.as_ref().unwrap(),
+                institution,
+                host,
+                restored.month + 1
+            ),
+            (0.5, 2.)
+        );
+    }
+
     #[test]
     fn obligations_follow_receipts_and_repayments_do_not_create_debt_cycles() {
         let mut r = ReligiousRelief::default();

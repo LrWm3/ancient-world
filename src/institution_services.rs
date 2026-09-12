@@ -261,6 +261,65 @@ pub(crate) fn space(c: &crate::culture::Culture, institution: u32, site: u32) ->
     )
 }
 
+/// Actual opening-phase occupancy, attached to a committed relief mission.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OpeningUse {
+    pub building: u32,
+    pub available: f64,
+    pub group: f64,
+    pub used: f64,
+}
+impl OpeningUse {
+    pub(crate) fn valid(&self, objects: usize) -> bool {
+        (self.building as usize) < objects
+            && self.available.is_finite()
+            && self.group.is_finite()
+            && self.group >= 1.
+            && self.used == 0.1
+            && self.used <= self.available
+    }
+}
+/// Opening dispatches have already consumed this month's room-time before Reserve.
+pub(crate) fn remaining_space(
+    c: &crate::culture::Culture,
+    institution: u32,
+    site: u32,
+    month: u32,
+) -> (f64, f64) {
+    let (total, group) = space(c, institution, site);
+    let used: f64 = c
+        .religious_relief
+        .missions
+        .iter()
+        .filter(|m| m.institution == institution && m.dispatched == month)
+        .filter_map(|m| m.room.as_ref())
+        .map(|r| r.used)
+        .sum();
+    ((total - used).max(0.), group)
+}
+pub(crate) fn opening_dispatch(
+    c: &crate::culture::Culture,
+    institution: u32,
+    site: u32,
+    month: u32,
+) -> Option<OpeningUse> {
+    let (available, group) = remaining_space(c, institution, site, month);
+    let building = c
+        .institutions
+        .get(institution as usize)?
+        .capacity
+        .as_ref()?
+        .building
+        .as_ref()?
+        .artifact;
+    (available >= 0.1 && group >= 1.).then_some(OpeningUse {
+        building,
+        available,
+        group,
+        used: 0.1,
+    })
+}
+
 impl crate::culture::Culture {
     pub(crate) fn plan_service_space(
         &self,
@@ -353,7 +412,7 @@ impl crate::culture::Culture {
                 .iter()
                 .position(|p| p.institution == institution)
                 .unwrap_or_else(|| {
-                    let (time, group) = space(self, institution, site);
+                    let (time, group) = remaining_space(self, institution, site, h.month);
                     let mut plan = Plan::new(h.month, site, institution, time);
                     plan.group_space = Some(group);
                     plans.push(plan);
@@ -371,7 +430,7 @@ impl crate::culture::Culture {
         institution: u32,
         service: Service,
     ) -> bool {
-        let (live, group) = space(self, institution, site);
+        let (live, group) = remaining_space(self, institution, site, month);
         let Some(plans) = self
             .work_plans
             .get_mut(site as usize)

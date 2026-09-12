@@ -348,3 +348,46 @@ consumers and matched allocation, all-target Clippy passed with warnings denied,
 and full frozen monthly/batched/checkpoint equivalence passed on seeds 17/81/256
 (10.96 seconds test execution). Local logs are ignored
 `output/hearing-service-*.log`. A sustained balance comparison remains open.
+
+
+## Opening relief occupancy
+
+Religious relief remains an Open-phase fallback to witnessed appeals. A new
+mission requires a present institutional leader and accessible completed room
+space, in addition to existing food, treasury, route and eligibility limits.
+Committing dispatch records 0.1 room-month of actual use on the mission, including
+the building identity and capacity observed at dispatch. Failed candidates consume
+no room-time, food or money. The existing one-dispatch-per-institution/month rule
+also prevents duplicate occupancy.
+
+Reserve-phase room plans subtract committed relief occupancy for their month.
+Execution uses the same remaining-capacity query, so closing or damaging a room
+cannot grant back time already used. A new month starts a new capacity interval;
+old mission receipts remain historical evidence. Legacy missions without occupancy
+records contribute no invented historical use.
+
+This integrates **space**, not a newly simulated loading crew. Relief retains its
+existing shipment/route abstraction and institution funding; it does not borrow
+personal time from a later cultural grant. Public-service labor and shared freight
+limits need separate review. Visitors remain outside the shared room ledger.
+
+
+The new GPU fixture uses seed 17: a 0.5 room-month facility dispatches funded food
+and leaves exactly 0.4 room-months for subsequent service plans. A missing room
+leaves the complete history unchanged. Duplicate dispatch does not spend again;
+serialization preserves remaining capacity, and the next month restores 0.5.
+Food removed from the donor equals shipment inventory. The existing relocation
+fixture now declares physical premises and a locally present reverse-aid leader
+before measuring its delivery/loss/repayment conservation residuals.
+
+These checks verify the timing connection; they do not establish that 0.1
+room-month per consignment is a balanced setting. Dispatch handling effort does
+not yet scale with cargo quantity.
+
+
+Opening-occupancy verification: both GPU relief/relocation fixtures passed;
+125 regular library tests passed (109 hardware tests ignored); ten other targeted
+room, hearing, learning, heritage and allocation checks passed; all-target Clippy
+passed with warnings denied; full frozen monthly/batched/checkpoint equivalence
+passed on seeds 17/81/256 (10.85 seconds test execution). General verification
+logs are ignored `output/relief-space-*.log`.

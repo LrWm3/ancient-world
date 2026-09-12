@@ -1251,6 +1251,29 @@ mod tests {
             dues: 0.,
             expenses: 0.,
         });
+        // Declared fixture premises, before measuring dispatch/arrival residuals.
+        let room = culture.artifacts.len() as u32;
+        culture.artifacts.push(crate::culture::Artifact {
+            id: room,
+            name: "Witness shelter room".into(),
+            kind: "institutional foundation".into(),
+            creator: None,
+            owner: crate::culture::Owner::Institution(institution),
+            claims: vec![],
+            site: Some(to as u32),
+            custodian: None,
+            materials: vec![(0, 20.)],
+            topic: None,
+            tradition: None,
+            events: vec![],
+            lost: false,
+            destroyed: false,
+        });
+        culture.institutions[institution as usize].capacity =
+            Some(crate::institution_capacity::Capacity {
+                building: Some(crate::institution_capacity::MeetingPlace::new(room)),
+                ..crate::institution_capacity::Capacity::new(religious.month)
+            });
         let mut disabled = religious.clone();
         disabled.culture.as_mut().unwrap().religious_relief.enabled = false;
         disabled.answer_appeals();
@@ -1536,6 +1559,7 @@ mod tests {
             .validate(
                 arrived,
                 arrived.culture.as_ref().unwrap().institutions.len(),
+                arrived.culture.as_ref().unwrap().artifacts.len(),
             )
             .unwrap();
 
@@ -1588,11 +1612,32 @@ mod tests {
             .religious_relief
             .owed_kg(from as u32, to as u32);
         assert!(owed > 0.);
+        let local_leader = reverse
+            .culture
+            .as_ref()
+            .unwrap()
+            .site_people(&reverse, from as u32)[0];
         let c = reverse.culture.as_mut().unwrap();
         let mut order = c.institutions[institution as usize].clone();
         order.id = c.institutions.len() as u32;
         order.site = from as u32;
         let reverse_id = order.id;
+        order.leader = local_leader;
+        order.members = vec![local_leader];
+        let mut local_room = c.artifacts[room as usize].clone();
+        local_room.id = c.artifacts.len() as u32;
+        local_room.site = Some(from as u32);
+        local_room.owner = crate::culture::Owner::Institution(reverse_id);
+        order
+            .capacity
+            .as_mut()
+            .unwrap()
+            .building
+            .as_mut()
+            .unwrap()
+            .artifact = local_room.id;
+        c.artifacts.push(local_room); // Declared premises for the reverse-order fixture.
+
         // A non-hospitality, different-faith order can honor the local obligation.
         let witness = reverse.society.as_ref().unwrap().relocation.appeals[0].household;
         let local_tradition = (c.household_faith[witness as usize] + 1) % c.traditions.len() as u32;
@@ -1687,6 +1732,7 @@ mod tests {
             .validate(
                 &reverse,
                 reverse.culture.as_ref().unwrap().institutions.len(),
+                reverse.culture.as_ref().unwrap().artifacts.len(),
             )
             .unwrap();
     }
