@@ -1,6 +1,6 @@
 # Existing systems and last recorded work
 
-Inventory date: **2026-09-12**. Source inventory baseline: `fae9fb5`.
+Inventory date: **2026-09-12**. Source inventory baseline: `b3e91b5`.
 
 This is a maintenance inventory of implemented systems, grouped by responsibility.
 It includes the startup switches in [system options](system-options.md) and broader
@@ -22,13 +22,13 @@ library subsystems. Related options share rows; archived proposals are excluded.
 | System and source scope | Last source work | Last documentation / evidence update | Guides and reports |
 | --- | --- | --- | --- |
 | **World generation, GPU execution and spherical grid**<br>[gpu.rs](../src/gpu.rs), [grid.rs](../src/grid.rs), [shaders/simulation.wgsl](../shaders/simulation.wgsl) | 2026-09-12 · `240ccf3` — Use usable heritage routes and validate lake settings before dispatch | 2026-09-12 · `cce0f34` — Optimize lake relaxation and handle slow default-resolution basins | [default-generation-performance](default-generation-performance.md), [benchmarks](benchmarks.md) |
-| **Geology, regional terrain and hydrology**<br>[region.rs](../src/region.rs), [shaders/regional.wgsl](../shaders/regional.wgsl), [shaders/region_compute.wgsl](../shaders/region_compute.wgsl) | 2026-09-10 · `367ff47` — Connect resource and survey spatial identities and show expedition markers | 2026-09-10 · `a256f21` — Generate setting-driven geological regions and clarify rock maps | [regions](regions.md), [geological-regions](geological-regions.md), [geological-provinces](geological-provinces.md), [stratigraphic-columns](stratigraphic-columns.md) |
+| **Geology, regional terrain and hydrology**<br>[region.rs](../src/region.rs), [shaders/regional.wgsl](../shaders/regional.wgsl), [shaders/region_compute.wgsl](../shaders/region_compute.wgsl) | 2026-09-12 · `71ccd52` — Correct regional slopes and dated social evidence; isolate alloy controls | 2026-09-12 · `71ccd52` — Correct regional slopes and dated social evidence; isolate alloy controls | [regions](regions.md), [geological-regions](geological-regions.md), [geological-provinces](geological-provinces.md), [stratigraphic-columns](stratigraphic-columns.md) |
 | **Ecology, food webs and geochemical habitats**<br>[ecology.rs](../src/ecology.rs), [shaders/ecology.wgsl](../shaders/ecology.wgsl) | 2026-09-12 · `3d244c8` — Add measured aquatic thermal and lake polling sensitivity controls | 2026-09-12 · `f68a1ae` — Add opt-in regional wildlife thermal preferences and migration inheritance | [ecology](ecology.md), [food-webs](food-webs.md), [geochemical-habitats](geochemical-habitats.md) |
 | **Sunlight and seasonal illumination**<br>[shaders/sunlight.wgsl](../shaders/sunlight.wgsl) | 2026-09-10 · `7308c9f` — Correct ecological sunlight for hemisphere, axial tilt and day length | 2026-09-10 · `7308c9f` — Correct ecological sunlight for hemisphere, axial tilt and day length | [ecological-sunlight](ecological-sunlight.md) |
 | **Wildlife assembly, trophic balance and thermal ecotypes**<br>[ecology.rs](../src/ecology.rs), [shaders/ecology.wgsl](../shaders/ecology.wgsl) | 2026-09-12 · `3d244c8` — Add measured aquatic thermal and lake polling sensitivity controls | 2026-09-12 · `3d244c8` — Add measured aquatic thermal and lake polling sensitivity controls | [wildlife-assembly](wildlife-assembly.md), [wildlife-trophic-stability](wildlife-trophic-stability.md), [wildlife-thermal-ecotypes](wildlife-thermal-ecotypes.md) |
 | **Living history and environment observations**<br>[history_environment.rs](../src/history_environment.rs), [shaders/history_environment.wgsl](../shaders/history_environment.wgsl) | 2026-09-10 · `8e2d9c6` — Move history surveys and terrain route searches onto GPU | 2026-09-10 · `8e2d9c6` — Move history surveys and terrain route searches onto GPU | [living-history](living-history.md), [living-history-results](living-history-results.md), [history-environment-readback](history-environment-readback.md) |
 | **Flood hazards and delayed cargo spoilage**<br>[hazards.rs](../src/hazards.rs) | 2026-09-12 · `e2f89cc` — Reserve shared road corridors for networked market cargo | 2026-09-10 · `f431224` — Ancient World: source snapshot with summarized verification | [flood-history](flood-history.md), [flood-seed-audit](flood-seed-audit.md), [delayed-cargo-spoilage](delayed-cargo-spoilage.md) |
-| **Finite resources, regional mining and depletion evidence**<br>[resources.rs](../src/resources.rs), [regional_mining.rs](../src/regional_mining.rs) | 2026-09-12 · `fae9fb5` — Validate depletion evidence and reject malformed balance ensembles | 2026-09-12 · `dd2350b` — Preserve canonical source depletion as historical evidence | [shared-resources](shared-resources.md), [regional-mining-control](regional-mining-control.md), [source-depletion-evidence](source-depletion-evidence.md) |
+| **Finite resources, regional mining and depletion evidence**<br>[resources.rs](../src/resources.rs), [regional_mining.rs](../src/regional_mining.rs) | 2026-09-12 · `b3e91b5` — Use enumerated extraction totals in batch preflight | 2026-09-12 · `dd2350b` — Preserve canonical source depletion as historical evidence | [shared-resources](shared-resources.md), [regional-mining-control](regional-mining-control.md), [source-depletion-evidence](source-depletion-evidence.md) |
 | **Environmental returns and abandoned land recovery**<br>[environmental_returns.rs](../src/environmental_returns.rs), [shaders/managed_returns.wgsl](../shaders/managed_returns.wgsl) | 2026-09-12 · `f68a1ae` — Add opt-in regional wildlife thermal preferences and migration inheritance | 2026-09-10 · `f431224` — Ancient World: source snapshot with summarized verification | [environmental-returns](environmental-returns.md), [cross-scale-coupling](cross-scale-coupling.md) |
 
 ## History and population
@@ -44,7 +44,7 @@ library subsystems. Related options share rows; archived proposals are excluded.
 | **Household relocation and travel outcomes**<br>[relocation.rs](../src/relocation.rs), [relocation](../src/relocation) | 2026-09-12 · `c306b12` — Report conditional and realized relocation travel attrition | 2026-09-12 · `c306b12` — Report conditional and realized relocation travel attrition | [household-relocation](household-relocation.md), [relocation-travel-comparison](relocation-travel-comparison.md) |
 | **Household income, nutrition and family cash support**<br>[household_economy.rs](../src/household_economy.rs), [household_economy/nutrition.rs](../src/household_economy/nutrition.rs), [household_economy/family_support.rs](../src/household_economy/family_support.rs) | 2026-09-12 · `a5d0b22` — Add scoped administration allowance and council funding evidence | 2026-09-12 · `7e2402b` — Report matched century effects of political food distribution | [household-economy](household-economy.md), [nutrition-age-balance](nutrition-age-balance.md), [household-family-support](household-family-support.md), [family-support-century](family-support-century.md) |
 | **Council assistance, distribution and town support**<br>[household_economy/council_allocation.rs](../src/household_economy/council_allocation.rs), [household_economy/policy.rs](../src/household_economy/policy.rs), [society.rs](../src/society.rs) | 2026-09-12 · `3bd13d2` — Bound emergency town support by actual working-cash gaps | 2026-09-12 · `fa57363` — Record completed integrated follow-up and corrected stress ensemble | [council-administration-allowance](council-administration-allowance.md), [council-funding-balance](council-funding-balance.md), [council-stress-balance](council-stress-balance.md), [household-distribution-politics](household-distribution-politics.md), [distribution-policy-century](distribution-policy-century.md), [household-relief-balance](household-relief-balance.md) |
-| **Social observations and memory**<br>[social_state.rs](../src/social_state.rs), [social_memory.rs](../src/social_memory.rs) | 2026-09-10 · `853f2de` — Connect local aid memory, staffed fleets and institutional research | 2026-09-10 · `853f2de` — Connect local aid memory, staffed fleets and institutional research | [social-indicators](social-indicators.md), [witnessed-relief](witnessed-relief.md) |
+| **Social observations and memory**<br>[social_state.rs](../src/social_state.rs), [social_memory.rs](../src/social_memory.rs) | 2026-09-12 · `71ccd52` — Correct regional slopes and dated social evidence; isolate alloy controls | 2026-09-10 · `853f2de` — Connect local aid memory, staffed fleets and institutional research | [social-indicators](social-indicators.md), [witnessed-relief](witnessed-relief.md) |
 
 ## Production and economy
 
@@ -320,3 +320,143 @@ rendered comparisons are ignored under `output/review10-*`.
 All-target Clippy with warnings denied, repository artifact policy and whitespace
 checks also passed. Seven scoped reviews retained current behavior with the
 limitations above; three produced implementation or validation improvements.
+
+## Oldest-first five-system pass (2026-09-12)
+
+Requested selection changed from recently touched systems to the longest
+untouched ones. Selection uses the **latest source commit timestamp** across
+each existing inventory row's source paths, ascending; names break timestamp
+ties. Each selected row is excluded for the remainder of this pass even if the
+review warrants no code change. Documentation-only edits do not change source
+age. Git dates establish recorded file activity, not historical maintenance
+before the repository snapshot.
+
+At opening revision `b883380`, the resulting order is:
+
+| Iteration | System | Latest source commit before review | Unix commit timestamp |
+| --- | --- | --- | ---: |
+| 1 | Sunlight and seasonal illumination | `7308c9f` | 1789011581 |
+| 2 | Mineral/alloy processing and tool access | `3b9526a` | 1789067291 |
+| 3 | Geology, regional terrain and hydrology | `367ff47` | 1789083519 |
+| 4 | Social observations and memory | `853f2de` | 1789087542 |
+| 5 | Living history and environment observations | `8e2d9c6` | 1789094488 |
+
+The interrupted preceding pass left one resource-settlement improvement.
+Its complete-result preflight and four invalid-batch atomicity cases passed
+alongside the existing resource fixtures (five tests total), and it was committed
+separately as `fa13d4a`. It is **not** counted among these five oldest systems.
+
+### 1. Sunlight — retain
+
+Read the complete shader and its ecology consumers: latitude is passed as
+sin(latitude), tilt in radians, and month follows the existing ecological clock.
+Polar night/day guards avoid invalid divisions and acos inputs. The GPU test
+compared **7,236** samples against independent numerical integration of a rotating
+surface at tilts 0°, 23.44° and 90°: maximum absolute error **0.000000548**
+(tolerance 0.00002). Hemisphere reversal, zero-tilt invariance and approximately
+constant spherical mean passed. No change justified. Equal-month representative
+days and circular orbit remain intentional approximations.
+
+### 2. Mineral/alloy processing and tool access — isolate controls
+
+Reviewed ore identities, finite recovery/residue recipes, copper/tin/bronze scrap
+chains, activation guards and restricted-tool custody. Alloy activation prepares
+a cloned catalog before changing live state; occupied slots and unsupported
+mineral identities are checked. Tool restriction is a one-time custody transfer,
+retaining sub-ULP remainders rather than an ongoing production cap. No additional
+mechanism change identified; cargo, residue, bronze and tool-custody fixtures
+provide the scoped checks for this review.
+
+The two alloy GPU fixtures initially failed: their supposed local-only negative
+controls could import missing tin or mineral feedstock through open markets.
+Closing markets explicitly in the fixture and asserting zero sales/purchases
+restored both tests, including the three-seed residue/ruin/checkpoint cases.
+The separate copper/tin cargo identity fixture preserves trade coverage.
+Restricted-tool custody, unavailable production effects, invalid-input handling
+and saved continuation also passed. Production/custody rules remain unchanged;
+this iteration improves experimental isolation rather than disabling trade in
+the game.
+
+### 3. Regional terrain — geometric slope correction
+
+Read generation, drainage/rank selection, flow, pool relaxation, habitat and
+regional export attachment code. Habitat's slope calculation used one cell
+width even for diagonal neighbors. This inflated diagonal gradients, thinning
+derived soil and reducing plant cover. The new regression computes neighbor
+distances from their 2-D coordinates and checks the resulting soil/cover while
+retaining independent priority-flood, acyclic-route and runoff checks.
+
+Also replaced the stale documentation claim of a fixed 4,096-pass planetary
+lake budget with the current automatic/configurable budget and a link to polling
+evidence. Regional fields remain derived snapshots; this change does not add
+canonical resources or geological depth.
+
+The regression failed against the original shader (cell 0 soil 0.95000774
+versus geometric expectation 0.9526111), then passed after multiplying diagonal
+runs by sqrt(2). This retains the existing area-derived square-cell width;
+it is not a geodesically exact slope solver. Heights, drainage and physical
+water are unchanged; derived soil and vegetation cover can intentionally differ.
+
+### 4. Social observations and memory — respect evidence arrival
+
+Reviewed the derived social projections, remembered pressure, monthly debounce,
+local testimony and aid reciprocity. Social indicators retain aggregate population
+authority; no demographic transition or scheduler change was needed.
+
+Dated memory queries could previously use testimony or aid before its receipt.
+They now return neutral influence until arrival. Equal-date reports select the
+later causal event rather than the last caller, and replaying the same report
+cannot postpone its arrival. Invalid dates, nonfinite/out-of-range food evidence,
+negative/nonfinite aid and self-directed evidence are rejected before insertion.
+These guards affect local evidence, not material inventories.
+
+All four ordinary memory tests passed, including arrival boundaries, replay,
+reversed report insertion, serialization and invalid inputs. The GPU social
+projection/conservation/debounce fixture also passed. Memory remains a compact
+latest-record summary: this does not reconstruct overwritten earlier testimony
+or introduce a credibility or social-network model.
+
+### 5. Living history and environment observations — retain
+
+Reviewed CPU consumer selection, cache invalidation, the 176-byte bitwise gather
+ABI, GPU limits and dated observation access. Sites, prospective settlements,
+neighbors and resource/discovery locations refresh explicitly. GPU navigation
+reads live terrain; CPU reference navigation additionally refreshes route cells
+and performs full refreshes for annual searches/new settlements. Buffer/epoch
+changes, restored state and explicit full mode invalidate or refresh the cache.
+No additional change justified by this review.
+
+The seam/restored-buffer GPU gather fixture passed. The private dense CPU cache
+is only partially refreshed and must not be presented as a complete world
+snapshot. Its transfer statistics cover terrain observations, not ecology,
+archive serialization or all GPU readbacks. Matching current consumer fixtures
+cannot prove a future consumer safely reads an unlisted cell; additions must
+extend observed-cell selection and differential tests together.
+
+### Completion evidence
+
+All five selected rows were reviewed in source-age order. Three yielded changes
+(regional slope, memory boundaries, and isolated alloy controls); two retained
+current behavior with the limitations above.
+
+| Check | Result |
+| --- | --- |
+| Sunlight independent quadrature | 1 GPU fixture passed; 7,236 samples |
+| Alloy processing | 2 GPU fixtures passed after closing fixture markets |
+| Restricted-tool custody and continuation | 1 GPU fixture passed |
+| Regional geometry, drainage and runoff | 1 GPU fixture passed; new assertion first failed on old shader |
+| Social projections and event debounce | 1 GPU fixture passed |
+| Gather ABI, seams and restored terrain | 1 GPU fixture passed |
+| Environment readback comparisons | 3 GPU fixtures passed, including seeds 17/81/256 at terrain 64 and ecology 16, frozen batch/checkpoint equivalence and due-food-cargo timing |
+| Ordinary library suite | 143 passed; 117 hardware fixtures remain opt-in |
+
+Ten targeted GPU fixtures ran explicitly; the ordinary test count does not imply
+execution of the entire ignored suite. The library run includes copper/tin cargo
+identity, social pressure recovery and stale-observation rejection. This is a
+maintenance verification pass, not a long-run balance or cross-hardware study.
+Logs remain ignored under `output/oldest-*`. All-target Clippy initially caught
+an iterator-style issue in the carried resource preflight; the final verification
+also checks that correction against the five resource fixtures.
+
+Final resource rerun: **5 passed**. All-target Clippy with warnings denied,
+repository artifact policy and whitespace checks passed.
