@@ -147,3 +147,33 @@ The next specific checks are:
   comparison. Remote abandoned-settlement recovery remains unfinished.
 
 The broader circulation objective remains open.
+
+## Follow-up: reclaiming unused recipe allowances
+
+The hardware fixture reproduced a separate execution defect: with identical metal,
+orders, ten available craft worker-months and three prepaid operator worker-months,
+adding five recipes blocked by absent charcoal reduced operator completion from
+3.0 to 2.0. The first ordinary recipe received a fraction of labor based on remaining
+catalog slots, and later blocked slots left their allowance idle.
+
+Ordered economies now run one bounded spare-capacity sweep after the tool-priority
+and ordinary sharing sweeps. It preserves the first ordinary sweep's sharing and
+monthly rotation. The extra sweep retains remaining labor, typed capacity, prepaid
+attendance, inputs, storage, waste room and completed-order counters. It can use
+leftover work without another wage payment or a fresh production order. Experienced
+operator output still debits actual attendance at its bounded productivity rate.
+Unmanaged legacy economies keep their original two sweeps.
+
+This is not a converged production-chain solver. Rotation still affects which
+feasible job receives spare capacity first; a chain can remain blocked, and no
+new customers or raw materials are supplied by the extra sweep. Whole-world balance
+comparisons remain necessary before claiming improved workshop survival or food access.
+
+Verification: the expanded hardware fixture passes (2.54 s), including absent
+and limited inputs, a one-batch order, shared finite prepaid attendance and
+experienced-worker controls. The existing prepaid-capacity/checkpoint fixture
+passes (2.31 s), and the experienced-work finite-input fixture passes (1.70 s).
+These checks establish bounded execution and continuation for their fixtures;
+they do not substitute for the pending multi-seed economic comparison.
+Strict all-target Clippy also passes after using a direct initializer in the new
+fixture. Repository artifact and whitespace checks pass.

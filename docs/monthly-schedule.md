@@ -535,3 +535,10 @@ Only resulting attendance goes through existing cash/person reservations. Pendin
 cargo and new extraction are not assumed to have arrived. See
 [workshop input feasibility](workshop-input-feasibility.md) for the distinction
 between this ceiling, funded work and GPU-completed work.
+
+### Spare recipe capacity within Execute
+
+Ordered GPU production keeps its tool-priority and ordinary sharing sweeps, then
+runs one spare-capacity sweep against the same remaining budgets and completed
+orders. This does not reopen Reserve, pay additional attendance, or release work
+backward to earlier services. See [the allocation fixture](workshop-input-feasibility.md#follow-up-reclaiming-unused-recipe-allowances).

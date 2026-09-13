@@ -574,3 +574,87 @@ mod agriculture_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod recipe_allocation_tests {
+    use super::*;
+    use crate::economy::{EconomyCatalog, Recipe, GOODS};
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn blocked_recipes_do_not_strand_usable_prepaid_work() {
+        let mut g = Generator::new(
+            pollster::block_on(crate::gpu::ContextGpu::headless()).unwrap(),
+            crate::config::Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                ..Default::default()
+            },
+            crate::catalog::Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        let mut recipe = Recipe {
+            input: [0.; GOODS],
+            output: [0.; GOODS],
+            work: [1., 0., 1., 0.],
+        };
+        recipe.input[2] = 1.;
+        recipe.output[3] = 1.;
+        let mut blocked = recipe;
+        blocked.input[6] = 1.; // Additional charcoal is absent; material identities remain valid.
+        let baseline = g.civilizations.as_ref().unwrap().clone();
+        let mut outcomes = vec![];
+        for (count, metal, order, experience) in [
+            (1, 100., 100., 0.),
+            (6, 100., 100., 0.),
+            (6, 0., 100., 0.),
+            (6, 1., 100., 0.),
+            (6, 100., 1., 0.),
+            (6, 100., 100., 0.5),
+        ] {
+            let mut h = baseline.clone();
+            h.month = 0;
+            h.society = None;
+            h.living = None;
+            let mut catalog = EconomyCatalog::bundled().unwrap();
+            catalog.recipes = vec![blocked; count];
+            catalog.recipes[0] = recipe;
+            h.economy_catalog = Some(catalog);
+            for s in &mut h.sites {
+                s.stocks.stock[0] = 100.;
+                let mut e = Economy {
+                    logistics: [1000., 0., 0., 3.], // Fixed ten craft worker-months.
+                    ..Default::default()
+                };
+                e.goods[2] = metal;
+                e.targets.fill(100.);
+                e.orders[..count].fill(order);
+                e.workshop = [100., 150., 10., 1.];
+                e.workshop_types[0][3] = 1.;
+                e.workshop_types[1] = [5., 5., 0., 0.];
+                e.enterprise_lease[1] = 5.;
+                e.enterprise_productivity[1] = experience;
+                e.enterprise_plan[1] = 3.; // Already funded attendance, not extra population.
+                s.economy = e;
+            }
+            g.civilizations = Some(h.clone());
+            let engine = Engine::new(&g).unwrap();
+            engine.upload(&g, &h);
+            engine.dispatch(&g, false, h.sites.len() as u32);
+            engine.read(&g, &mut h, true).unwrap();
+            let e = &h.sites[0].economy;
+            assert_eq!(e.enterprise_used[1] > 0., metal > 0.);
+            assert!(e.enterprise_used[1] <= 3. + 1e-5);
+            assert!(e.used[2] <= metal + 1e-5);
+            assert!(e.made[3] <= order + 1e-5);
+            assert!(e.enterprise_used[1] <= e.made[3] / (1. + experience) + 1e-5);
+            assert!((e.used[2] - e.made[3]).abs() < 1e-5);
+            outcomes.push(e.enterprise_used[1]);
+        }
+        assert!(
+            (outcomes[0] - outcomes[1]).abs() < 1e-5,
+            "irrelevant blocked recipes reduced paid work: {outcomes:?}"
+        );
+    }
+}

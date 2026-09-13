@@ -110,6 +110,8 @@ const TOOLMAKING_MONTHLY_SKILL_DECAY: f32 = .002;
 const FARM_RECOVERY_OUTPUT_PENALTY: f32 = .5;
 const CRAFT_UNIT_WORK_FLOOR: f32 = .001;
 const CRAFT_REMAINING_RECIPE_SHARING_LIMIT: f32 = 5.;
+const CRAFT_LEGACY_PASS_COUNT: u32 = 2u;
+const CRAFT_ORDERED_PASS_COUNT: u32 = 3u;
 // In-use stock, monthly wear and lagged food handling returns.
 const DEFAULT_GOOD_MONTHLY_WEAR: f32 = .005;
 const POTTERY_IN_USE_KG_PER_PERSON: f32 = 2.;
@@ -502,22 +504,26 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  // Blocked reservations expire within this dispatch; the ordinary pass gets all remaining work.
  e.tool_work=vec4(0.);e.tool_work.x=select(0.,labor*CRAFT_TOOL_PRIORITY_WORK_SHARE,e.tool_craft.y>.5);
  var completed:array<f32,64>;
- for(var wave=0u;wave<2u;wave++){
+ // A final ordered sweep spends stranded capacity. All budgets and completed
+ // orders carry forward; the first ordinary sweep retains its sharing policy.
+ let passes=select(CRAFT_LEGACY_PASS_COUNT,CRAFT_ORDERED_PASS_COUNT,e.logistics.w>.5);
+ for(var wave=0u;wave<passes;wave++){
  if wave==0u && e.tool_craft.y<.5 {continue;}
  for(var step=0u;step<p.options.y;step++){
   let r=select(step,(step+p.dims.z)%p.options.y,e.logistics.w>.5);
   let recipe=catalog.recipes[r];if recipe.work.y>0. && (u32(e.management.w)&(1u<<u32(recipe.work.y-1.)))==0u{continue;}let tool_output=recipe.output[0].w+recipe.output[10].y+recipe.output[10].w;
   var unit_work=recipe.work.x;
   if tool_output>0. && e.tool_craft.z>.5 {unit_work*=1.-CRAFT_MAX_EXPERTISE_LABOR_REDUCTION*e.tool_craft.x;}
-  var batches=labor/max(unit_work,CRAFT_UNIT_WORK_FLOOR)/min(CRAFT_REMAINING_RECIPE_SHARING_LIMIT,f32(p.options.y-step));
+  let sharing=select(min(CRAFT_REMAINING_RECIPE_SHARING_LIMIT,f32(p.options.y-step)),1.,wave>=CRAFT_LEGACY_PASS_COUNT);
+  var batches=labor/max(unit_work,CRAFT_UNIT_WORK_FLOOR)/sharing;
   if wave==0u {batches=min(e.tool_orders[r/4u][r%4u],max(0.,e.tool_work.x-e.tool_work.y)/max(unit_work,CRAFT_UNIT_WORK_FLOOR));}
   var household=false;
   for(var k=0u;k<64u;k++){if recipe.output[k/4u][k%4u]>0. && catalog.goods[k].w>0.{household=true;}}
   let industry=u32(recipe.work.z);
   let competence=1.+e.enterprise_productivity[industry];
-  if !household && specialized && wave==1u {
+  if !household && specialized && wave!=0u {
    let saved_time=firm_capacity[industry]*(1.-1./competence);
-   batches=min(labor*competence,labor+saved_time)/max(unit_work,CRAFT_UNIT_WORK_FLOOR)/min(CRAFT_REMAINING_RECIPE_SHARING_LIMIT,f32(p.options.y-step));
+   batches=min(labor*competence,labor+saved_time)/max(unit_work,CRAFT_UNIT_WORK_FLOOR)/sharing;
   }
   if !household{
    var capacity=industrial_capacity;
