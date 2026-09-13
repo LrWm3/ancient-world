@@ -130,3 +130,71 @@ for the new default-false `stock_recovery` field. The native build, strict
 all-target Clippy, both hardware fixtures and 12 experiment-runner unit tests pass.
 The experimental runs overlap a compiler check during part of the control arm;
 these are behavioral comparisons, not isolated performance benchmarks.
+
+
+## Service-equivalent tool recovery
+
+An additional recovery ceiling now recognizes bronze/copper tools as substitutes
+for an unmet basic tool reserve, even when the current local recipe plan names
+generic tools. It requires alloy use and ordered production to be enabled. Held
+generic/bronze tools count at full service and copper at the shared 0.6 factor.
+Incoming cargo of every tool variant and planned contracted deliveries count
+against the same requirement. The ceiling is the existing per-person tool reserve,
+not a new desired quantity per material.
+
+An alternative qualifies only when its estate quote per service is no higher than
+the buyer's generic-tool quote. This is a local heuristic, not a comparison against
+all possible suppliers or a lifetime-cost optimizer. Normal procurement retains
+first access. Price, payment, round-trip freight, stock, access and warehouse caps
+remain unchanged. The tool ceiling permits substitution; it neither creates goods
+nor makes them usable before arrival. Once delivered, the normal planner retains
+useful alternatives through their real reserve targets.
+
+An explicit target for a specific material continues to express its own demand;
+the quote rule governs additional substitute demand. The system does not repurpose
+unprocessed ore as tools or promise that recovered tools create private employment.
+
+
+The hardware-founded recovery fixture passes (1.17 s) with additional controls:
+a five-unit service deficit buys only 5/0.6 kg of copper tools, incoming copper
+blocks another copper or bronze purchase, delivered tools continue to cover the
+need, and money is conserved. Sufficient stock, disabled alloy use and an inferior
+service quote reject the substitute purchase without mutation. The fixture uses
+the real alloy catalog; its first attempt correctly failed because the base
+catalog leaves those goods reserved. Earlier route, war, exhaustion, serialization
+and freight controls remain in the same passing test.
+
+
+### Substitute recovery screen
+
+Four further 50-year seed-1024 runs completed, holding the preceding tool-retention
+change and every common monetary-screen setting fixed. Outputs:
+`output/recovery-substitutes-screen`; comparator: `output/tool-retention-screen`.
+
+| Arm | Population before → after | Copper tools left in ruin before → after (kg) | Operator work before → after | Recovery arrivals before → after |
+| --- | ---: | ---: | ---: | ---: |
+| Baseline | 163.451 → 164.955 | 38.031 → 0 | 6.411 → 6.411 | 8 → 6 |
+| Credit | 163.451 → 164.955 | 38.031 → 0 | 6.411 → 6.411 | 8 → 6 |
+| Issuance | 162.906 → 164.290 | 39.198 → 0 | 6.251 → 6.251 | 7 → 8 |
+| Combined | 162.906 → 164.290 | 39.198 → 0 | 6.251 → 6.251 | 7 → 8 |
+
+In baseline, month 414 reserves 38.03 kg of copper tools for approximately 202.71
+currency (rounded event values), returning at month 426. At year 50 the buyer
+holds 6.551 kg, records 31.480 kg of cumulative tool use and retains 28.332 kg of
+copper scrap. Thus the recovered goods are not merely sitting at the new endpoint:
+they enter the existing wear/recycling model. The estate is paid; none of these
+transfers create currency. The maximum absolute relative money residual in the
+four new runs is 1.28e-7.
+
+Workshop operating margins are unchanged at +41.68 baseline/credit and +39.88
+issuance/combined; all operators remain closed at year 50. A modest population
+increase is encouraging in this seed but does not establish general balance or
+attribute all downstream changes solely to productivity. Arrival counts can fall
+because shared cash/freight and subsequent demand change; count alone is not the
+amount or utility of recovered resources.
+
+Native build and strict all-target Clippy pass. The baseline partially overlaps
+compiler work, so no isolated timing conclusion is drawn. Held-out seed screens,
+general supplier-aware substitution and a full-history checkpoint comparison for
+substitute recovery remain outstanding. The larger circulation and sustained
+workshop-customer problems are not resolved by these results.

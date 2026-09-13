@@ -217,3 +217,15 @@ the GPU finite-tool/checkpoint fixture pass. Four seed-1024 runs show more compl
 operator work and a modest margin increase, but all firms still close by year 50.
 Imported substitute selection, sustained firm demand and household purchasing-power
 circulation remain unfinished; this correction is not a workshop viability claim.
+
+
+### Recovered tools actually enter use
+
+[Service-equivalent recovery](abandoned-stock-recovery.md#service-equivalent-tool-recovery)
+now buys cheaper usable alloy tools against the shared basic tool-service deficit,
+counting held, incoming and contracted variants. Four seed-1024 comparisons empty
+the abandoned copper-tool stock and show actual wear/scrap at the buyer; private
+operator work remains unchanged. Recovery now has an observed stock → paid cargo
+→ tool service → wear/recycling path. This does not establish general recovery
+coverage, profitable workshops or restored cash circulation. Sustained paying
+customers and household savings returning to useful production need further work.

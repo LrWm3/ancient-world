@@ -21,6 +21,49 @@ impl History {
         })
     }
 
+    /// Basic working-tool substitutes share one service deficit, including all
+    /// incoming variants. This is a purchase ceiling, not manufactured inventory.
+    fn recovery_tool_demand(&self, buyer: u32, good: usize, quote: f32) -> f32 {
+        if !matches!(good, 41 | 43) {
+            return 0.;
+        }
+        let home = &self.sites[buyer as usize];
+        let e = &home.economy;
+        if e.extraction[1] <= 0.5 || e.logistics[3] <= 0.5 {
+            return 0.;
+        }
+        let efficiency = |k| match k {
+            3 | 41 => 1.,
+            43 => crate::production::COPPER_TOOL_SERVICE_FACTOR,
+            _ => 0.,
+        };
+        let service = efficiency(good);
+        // A bounded local quote comparison, not omniscient supplier selection.
+        // Ordinary market purchases already had first access to cash and freight.
+        if quote / service > e.prices[3].max(MIN_RECOVERY_PRICE) {
+            return 0.;
+        }
+        let held: f32 = [3, 41, 43]
+            .into_iter()
+            .map(|k| e.goods[k] * efficiency(k))
+            .sum();
+        let incoming: f32 = self
+            .cargo
+            .iter()
+            .filter(|c| c.to == buyer)
+            .map(|c| c.kg * efficiency(c.good as usize))
+            .sum();
+        let contracted: f32 = self
+            .export_contracts
+            .iter()
+            .filter(|c| c.buyer == buyer)
+            .map(|c| c.planned_kg.max(0.) * efficiency(c.good as usize))
+            .sum();
+        (home.stocks.stock[0] * crate::production::reserve("tools") - held - incoming - contracted)
+            .max(0.)
+            / service
+    }
+
     /// After ordinary quarterly procurement: remaining cash and carrying capacity
     /// may obtain retained stock. Existing trading partners retain first access.
     pub(crate) fn recover_abandoned_stocks(&mut self) {
@@ -171,7 +214,10 @@ impl History {
         } else {
             home.economy.targets[good]
         };
-        let mut space = (target - held - incoming).max(0.);
+        let price = ruin.economy.prices[good].max(MIN_RECOVERY_PRICE);
+        let mut space = (target - held - incoming)
+            .max(0.)
+            .max(self.recovery_tool_demand(buyer, good, price));
         if good != FOOD && catalog.goods[good].food_energy <= 0. {
             let dry: f32 = home
                 .economy
@@ -193,7 +239,6 @@ impl History {
                 .sum();
             space = space.min((home.economy.logistics[0] - dry - pending).max(0.));
         }
-        let price = ruin.economy.prices[good].max(MIN_RECOVERY_PRICE);
         let kg = requested
             .min(stock)
             .min(space)
@@ -371,6 +416,45 @@ mod tests {
             assert!(blocked.recover_abandoned_stock(0, 1, 2, 10.).is_err());
             assert_eq!(snapshot, serde_json::to_value(&blocked).unwrap());
         }
+        let mut substitutes = before.clone();
+        substitutes
+            .economy_catalog
+            .as_mut()
+            .unwrap()
+            .add_alloy_chains(&crate::catalog::Catalog::bundled().unwrap())
+            .unwrap();
+        substitutes.sites[0].economy.extraction[1] = 1.;
+        substitutes.sites[0].economy.goods[3] = 70.;
+        substitutes.sites[0].economy.prices[3] = 10.;
+        substitutes.sites[0].economy.targets[43] = 0.;
+        substitutes.sites[0].economy.targets[41] = 0.;
+        substitutes.sites[1].economy.goods[43] = 100.;
+        substitutes.sites[1].economy.goods[41] = 100.;
+        substitutes.sites[1].economy.prices[43] = 3.;
+        substitutes.sites[1].economy.prices[41] = 3.;
+        for change in 0..3 {
+            let mut blocked = substitutes.clone();
+            match change {
+                0 => blocked.sites[0].economy.goods[3] = 75.,
+                1 => blocked.sites[0].economy.extraction[1] = 0.,
+                _ => blocked.sites[1].economy.prices[43] = 7.,
+            }
+            let snapshot = serde_json::to_value(&blocked).unwrap();
+            assert!(blocked.recover_abandoned_stock(0, 1, 43, 100.).is_err());
+            assert_eq!(snapshot, serde_json::to_value(&blocked).unwrap());
+        }
+        let money = substitutes.money_residual();
+        let recovered = substitutes.recover_abandoned_stock(0, 1, 43, 100.).unwrap();
+        assert!((recovered * crate::production::COPPER_TOOL_SERVICE_FACTOR - 5.).abs() < 1e-5);
+        assert_eq!(substitutes.sites[0].economy.goods[43], 0.);
+        assert!((substitutes.money_residual() - money).abs() < 1e-6);
+        // Pending copper service blocks a second purchase of bronze service too.
+        assert!(substitutes.recover_abandoned_stock(0, 1, 41, 100.).is_err());
+        assert!(substitutes.recover_abandoned_stock(0, 1, 43, 100.).is_err());
+        substitutes.month = 5;
+        substitutes.market_arrivals();
+        assert_eq!(substitutes.sites[0].economy.goods[43], recovered);
+        assert!(substitutes.recover_abandoned_stock(0, 1, 41, 100.).is_err());
         let mut automatic = before.clone();
         automatic.recover_abandoned_stocks();
         assert!(automatic.cargo.is_empty());
