@@ -5,6 +5,7 @@ use ancient_world::{
 };
 fn network() -> History {
     History {
+        credit: Default::default(),
         contagion: None,
         trade_contact: Default::default(),
         resolution: None,
@@ -584,4 +585,51 @@ fn delayed_cargo_spoilage_is_validated_and_legacy_compatible() {
         boundary.validate().unwrap();
         assert_eq!(boundary.delay_spoilage(fish), rate);
     }
+}
+
+#[test]
+fn credit_cash_and_default_ledgers_run_without_gpu() {
+    use ancient_world::credit::{Account, RepaymentSource, Status, Terms, SHARED_CURRENCY};
+    let mut h = network();
+    for site in &mut h.sites {
+        site.economy.finance = [0.; 4];
+    }
+    h.sites[0].economy.finance = [100., 100., 0., 0.];
+    let terms = Terms {
+        lender: Account::Town(0),
+        borrower: Account::Town(1),
+        currency: SHARED_CURRENCY,
+        source: RepaymentSource::Export {
+            contract: 0,
+            payment_month: 12,
+        },
+        annual_simple_rate: 0.12,
+        maturity_month: 12,
+        grace_months: 3,
+    };
+    let id = h.commit_credit_loan(terms, 25.).unwrap().unwrap();
+    assert_eq!(h.sites[0].economy.finance[0], 75.);
+    assert_eq!(h.sites[1].economy.finance[0], 25.);
+    h.validate_credit().unwrap();
+    assert!(h.economy_residuals()[3].abs() < 1e-12);
+    let mut resumed: History = serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
+    for world in [&mut h, &mut resumed] {
+        world.month = 12;
+        let paid = world.pay_credit_loan(id, 28.).unwrap();
+        assert_eq!(paid, 25.);
+        assert!((world.credit.loans[0].outstanding_principal - 3.).abs() < 1e-12);
+        assert_eq!(world.credit.loans[0].status, Status::Arrears);
+        world.month = 15;
+        world.credit.loans[0].accrue_to(15).unwrap();
+        world.credit.loans[0].write_off(15).unwrap();
+        world.validate_credit().unwrap();
+        assert_eq!(world.credit.loans[0].status, Status::Defaulted);
+        assert_eq!(world.sites[0].economy.finance[0], 100.);
+        assert_eq!(world.sites[1].economy.finance[0], 0.);
+        assert!(world.economy_residuals()[3].abs() < 1e-12);
+    }
+    assert_eq!(
+        serde_json::to_value(h).unwrap(),
+        serde_json::to_value(resumed).unwrap()
+    );
 }

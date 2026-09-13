@@ -312,6 +312,7 @@ mod tests {
         catalog.market.network_trade = false;
         catalog.production.supplier_profitability = false;
         History {
+            credit: Default::default(),
             contagion: None,
             trade_contact: Default::default(),
             resolution: None,

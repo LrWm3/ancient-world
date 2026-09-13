@@ -99,3 +99,26 @@ ignored), and strict all-target Clippy passed. Initial tests exposed a precision
 case that a common-step-size quote did not handle; the final quote checks actual
 endpoint changes and declines incompatible transfers. These are accounting tests,
 not the planned multi-seed credit/issuance balance experiments.
+
+## Persisted loan/cash commit boundary
+
+`History.credit` now archives loans and their cash receipts, defaulting missing
+old-history fields to an empty state. `commit_credit_loan` consumes existing
+account funds and records the amount actually delivered as principal.
+`pay_credit_loan` accrues through the current month, respects a caller-provided
+allowance and available cash, then records the corresponding debt reduction.
+History validation compares cash disbursements and repayments with loan entries.
+
+These are explicit commit APIs for already authorized transactions. Automatic
+underwriting, consent, repayment-source verification/reservation, proportional
+collection and scheduler invocation remain pending. The test's repayment-source
+reference is a fixture, not evidence of a funded commercial contract.
+
+Commit-boundary verification: the generated-world loan test passed, checking
+actual transferred principal, a bounded repayment that leaves arrears, old-field
+defaults, matching serialized continuation and missing-receipt rejection. A
+CPU-only `markets` integration test also passed: 25 units move from a 100-unit
+lender, an underfunded repayment leaves principal outstanding, and subsequent
+write-off changes debt without changing the 100-unit money supply. All 158 active
+library tests passed (132 extended cases ignored). Strict all-target Clippy passed
+before the additional CPU fixture; that fixture compiled and passed separately.

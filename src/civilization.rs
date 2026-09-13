@@ -206,6 +206,8 @@ pub struct Candidate {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct History {
     #[serde(default)]
+    pub credit: crate::credit::state::Credit,
+    #[serde(default)]
     pub contagion: Option<crate::contagion::Contagion>,
     #[serde(default)]
     pub trade_contact: crate::trade_contact::TradeContact,
@@ -564,6 +566,7 @@ impl History {
         (self.initial_population + born - died - living) / (self.initial_population + born).max(1.)
     }
     pub fn validate(&self, cells: &[crate::gpu::Cell]) -> Result<()> {
+        self.validate_credit()?;
         if let Some(d) = &self.contagion {
             d.validate(self)?;
         }
@@ -1219,6 +1222,7 @@ impl Generator {
         };
         candidates.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.cell.cmp(&b.cell)));
         let mut h = History {
+            credit: Default::default(),
             contagion: Some(Default::default()),
             trade_contact: Default::default(),
             participation: Some(Default::default()),

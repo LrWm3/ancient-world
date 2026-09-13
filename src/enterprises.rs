@@ -1149,6 +1149,76 @@ mod tests {
         );
     }
 
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn persisted_credit_commits_cash_debt_and_failed_collection_together() {
+        use crate::credit::{Account, RepaymentSource, Status, Terms, SHARED_CURRENCY};
+        let mut g = world();
+        install(&mut g);
+        let h = g.civilizations.as_mut().unwrap();
+        h.month = 3;
+        h.prepare_enterprises();
+        let firm = h
+            .enterprises
+            .as_ref()
+            .unwrap()
+            .firms
+            .iter()
+            .find(|f| f.closed.is_none() && f.cash > 10.)
+            .unwrap()
+            .id;
+        let mut old = serde_json::to_value(&*h).unwrap();
+        old.as_object_mut().unwrap().remove("credit");
+        let migrated: History = serde_json::from_value(old).unwrap();
+        assert!(migrated.credit.loans.is_empty());
+        let before = serde_json::to_value(&*h).unwrap();
+        let terms = Terms {
+            lender: Account::Operator(firm),
+            borrower: Account::Town(0),
+            currency: SHARED_CURRENCY,
+            source: RepaymentSource::Export {
+                contract: 0,
+                payment_month: 15,
+            },
+            annual_simple_rate: 0.12,
+            maturity_month: 15,
+            grace_months: 3,
+        };
+        assert!(h.commit_credit_loan(terms.clone(), f64::NAN).is_err());
+        assert_eq!(serde_json::to_value(&*h).unwrap(), before);
+        let baseline = h.economy_residuals()[3];
+        let id = h.commit_credit_loan(terms, 10.).unwrap().unwrap();
+        let principal = h.credit.loans[id as usize].original_principal;
+        assert!(principal > 9.99 && principal <= 10.);
+        assert_eq!(principal, h.credit.cash_receipts[0].transfer.amount());
+        h.validate_credit().unwrap();
+        assert!((h.economy_residuals()[3] - baseline).abs() < 1e-10);
+        let mut resumed: History =
+            serde_json::from_value(serde_json::to_value(&*h).unwrap()).unwrap();
+        for history in [&mut *h, &mut resumed] {
+            history.month = 15;
+            let paid = history.pay_credit_loan(id, principal).unwrap();
+            assert!(paid > 0. && paid <= 10.);
+            assert!(history.credit.loans[id as usize].outstanding_principal > 0.);
+            assert_eq!(history.credit.loans[id as usize].status, Status::Arrears);
+            history.validate_credit().unwrap();
+            history
+                .enterprises
+                .as_ref()
+                .unwrap()
+                .validate(history)
+                .unwrap();
+            assert!((history.economy_residuals()[3] - baseline).abs() < 1e-10);
+        }
+        assert_eq!(
+            serde_json::to_value(&*h).unwrap(),
+            serde_json::to_value(resumed).unwrap()
+        );
+        let mut corrupted = h.clone();
+        corrupted.credit.cash_receipts.remove(0);
+        assert!(corrupted.validate_credit().is_err());
+    }
+
     fn world() -> Generator {
         world_seed(Config::default().seed)
     }
