@@ -263,6 +263,9 @@ impl History {
                         && grant.granted <= grant.requested,
                     "invalid credit grant"
                 );
+                if let Some(capacity) = &grant.capacity {
+                    capacity.validate(grant.eligible, grant.granted)?;
+                }
                 if let Some(id) = id {
                     let loan = self
                         .credit

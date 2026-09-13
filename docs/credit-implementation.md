@@ -600,8 +600,15 @@ unchanged before arrival. This preserves relocation as continuity rather than
 mistaking it for dissolution. Formal legal assignments and post-default recovery
 remain unfinished.
 
-The [held-out estate-build comparison](monetary-estates-heldout.md) is now running
-on seeds 256, 409 and 1024 for 200 years per arm. The completed seed 256 comparison
-shows no realized credit effect and improved issuance outcomes on the reported
-population/access measures. Remaining seeds and the broader gate are unfinished;
+The [held-out estate-build comparison](monetary-estates-heldout.md) has completed
+on seeds 256, 409 and 1024 for 200 years per arm. Credit-only produced no
+realized loans; combined produced one export-backed loan in seed 409. Issuance
+outcomes were mixed across seeds and metrics. The broader gate remains unmet;
 this is not a reason to enable the pilots by default.
+
+## Underwriting capacity evidence
+
+The [capacity audit](credit-capacity-diagnostics.md) explains the held-out
+submitted rejections and documents new per-grant capacity/demand snapshots.
+The resolver retains its existing funding arithmetic; these records expose
+simultaneous constraints and distinguish policy grants from actual cash.

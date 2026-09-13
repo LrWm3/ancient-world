@@ -353,7 +353,10 @@ later possibilities, not requirements for either stage.
 - [ ] Pilot commercial payees; add a delivery-paid contract only where needed.
 - [ ] Implement arrears, one bounded restructuring, default and closure/succession.
 - [ ] Add explorer debt/credit receipts, history events, archives and continuation tests.
-- [ ] Run credit-only comparisons and record null/negative results as well as benefits.
+- [x] Run credit-only comparisons and record null/negative results as well as benefits.
+  See [held-out comparisons](monetary-estates-heldout.md) and the
+  [request-capacity audit](credit-capacity-diagnostics.md); the latter distinguishes
+  absent requests from submitted rejections. This does not pass the Stage 2 gate.
 - [x] Add independently switchable capped issuance and supply-ledger reconciliation.
 - [ ] Run four-arm tests, stress cases and held-out gates; write a go/no-go summary.
 - [ ] If justified, implement Stage 2 currency ownership and migration before FX.

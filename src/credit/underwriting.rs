@@ -101,8 +101,51 @@ pub enum Decision {
     BorrowingAndLending,
     NoCapacity,
 }
+/// Completed underwriting boundary, before any principal is transferred.
+/// Source amounts include interest; lender/borrower amounts are principal.
+/// Ratios expose simultaneous constraints instead of choosing one arbitrary reason.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Capacity {
+    pub lender_principal: f64,
+    pub lender_demand: f64,
+    pub borrower_principal: f64,
+    pub borrower_demand: f64,
+    pub source_receipts: f64,
+    pub source_demand: f64,
+}
+impl Capacity {
+    fn scale(&self) -> f64 {
+        (self.lender_principal / self.lender_demand)
+            .min(self.borrower_principal / self.borrower_demand)
+            .min(self.source_receipts / self.source_demand)
+            .min(1.)
+    }
+
+    pub(crate) fn validate(&self, eligible: f64, granted: f64) -> Result<()> {
+        ensure!(
+            [
+                self.lender_principal,
+                self.borrower_principal,
+                self.source_receipts
+            ]
+            .iter()
+            .all(|v| v.is_finite() && *v >= 0.)
+                && [self.lender_demand, self.borrower_demand, self.source_demand]
+                    .iter()
+                    .all(|v| v.is_finite() && *v > 0.)
+                && eligible.is_finite()
+                && eligible > 0.
+                && granted == eligible * self.scale(),
+            "invalid credit capacity receipt"
+        );
+        Ok(())
+    }
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Grant {
+    /// Absent in old archives and when eligibility fails before capacity resolution.
+    #[serde(default)]
+    pub capacity: Option<Capacity>,
     pub request: u64,
     pub month: u32,
     pub requested: f64,
@@ -297,6 +340,7 @@ pub fn resolve(
             *source_demand.entry(t.source).or_insert(0.) += eligible * factor;
         }
         grants.push(Grant {
+            capacity: None,
             request: request.id,
             month,
             requested: request.principal,
@@ -328,11 +372,17 @@ pub fn resolve(
             * policy.receipt_coverage_fraction
             - pledged.get(&t.source).copied().unwrap_or(0.))
         .max(0.);
-        let scale = (lender / lender_demand[&t.lender])
-            .min(borrower / borrower_demand[&t.borrower])
-            .min(source / source_demand[&t.source])
-            .min(1.);
-        grant.granted = grant.eligible * scale;
+        let capacity = Capacity {
+            lender_principal: lender,
+            lender_demand: lender_demand[&t.lender],
+            borrower_principal: borrower,
+            borrower_demand: borrower_demand[&t.borrower],
+            source_receipts: source,
+            source_demand: source_demand[&t.source],
+        };
+        grant.granted = grant.eligible * capacity.scale();
+        capacity.validate(grant.eligible, grant.granted)?;
+        grant.capacity = Some(capacity);
         grant.pledged_receipts = grant.granted * factor;
         if grant.granted == 0. {
             grant.decision = Decision::NoCapacity;
@@ -470,6 +520,61 @@ mod tests {
             },
         }
     }
+    #[test]
+    fn capacity_receipts_distinguish_limits_and_validate_serialized_grants() {
+        let run = |policy: Policy, offer: Offer, evidence: Evidence| {
+            resolve(1, &policy, &[], &[offer], &[evidence], &[request(1, 0)])
+                .unwrap()
+                .remove(0)
+        };
+        let lender = run(Policy::default(), offer(0), evidence());
+        let c = lender.capacity.as_ref().unwrap();
+        assert_eq!((c.lender_principal, c.lender_demand), (80., 100.));
+        assert_eq!((c.source_receipts, c.source_demand), (100., 100.));
+        assert_eq!(lender.granted, 80.);
+
+        let p = Policy {
+            max_borrower_principal: 30.,
+            ..Policy::default()
+        };
+        let borrower = run(p, offer(0), evidence());
+        assert_eq!(borrower.granted, 30.);
+        assert_eq!(borrower.capacity.unwrap().borrower_principal, 30.);
+
+        let mut e = evidence();
+        e.operating_costs = 180.;
+        let source = run(Policy::default(), offer(0), e.clone());
+        assert_eq!(source.granted, 10.);
+        assert_eq!(source.capacity.unwrap().source_receipts, 10.);
+
+        let mut o = offer(0);
+        o.operating_reserve = o.cash;
+        e.operating_costs = e.expected_receipts;
+        let blocked = run(Policy::default(), o, e);
+        assert_eq!(blocked.decision, Decision::NoCapacity);
+        let c = blocked.capacity.as_ref().unwrap();
+        assert_eq!((c.lender_principal, c.source_receipts), (0., 0.));
+        c.validate(blocked.eligible, blocked.granted).unwrap();
+        assert!(c.validate(blocked.eligible, 1.).is_err());
+        let json = serde_json::to_value(&blocked).unwrap();
+        let loaded: Grant = serde_json::from_value(json.clone()).unwrap();
+        loaded
+            .capacity
+            .unwrap()
+            .validate(loaded.eligible, loaded.granted)
+            .unwrap();
+        let mut legacy = json;
+        legacy.as_object_mut().unwrap().remove("capacity");
+        assert!(serde_json::from_value::<Grant>(legacy)
+            .unwrap()
+            .capacity
+            .is_none());
+
+        let mut e = evidence();
+        e.beneficiary = Account::Town(99);
+        assert!(run(Policy::default(), offer(0), e).capacity.is_none());
+    }
+
     #[test]
     fn return_compares_risk_and_interest_over_the_same_term() {
         // 100 lent for three months, with 10% loss of maturity proceeds:
