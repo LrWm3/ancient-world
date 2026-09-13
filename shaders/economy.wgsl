@@ -107,6 +107,20 @@ const TOOLMAKING_MONTHLY_SKILL_DECAY: f32 = .002;
 const FARM_RECOVERY_OUTPUT_PENALTY: f32 = .5;
 const CRAFT_UNIT_WORK_FLOOR: f32 = .001;
 const CRAFT_REMAINING_RECIPE_SHARING_LIMIT: f32 = 5.;
+// In-use stock, monthly wear and lagged food handling returns.
+const DEFAULT_GOOD_MONTHLY_WEAR: f32 = .005;
+const POTTERY_IN_USE_KG_PER_PERSON: f32 = 2.;
+const CLOTH_IN_USE_KG_PER_PERSON: f32 = .6;
+const CLOTH_MONTHLY_WEAR: f32 = .025;
+const LEATHER_IN_USE_KG_PER_PERSON: f32 = .1;
+const LEATHER_MONTHLY_WEAR: f32 = .01;
+const MILITARY_EQUIPMENT_IN_USE_KG_PER_PERSON: f32 = .1;
+const MILITARY_EQUIPMENT_MONTHLY_WEAR: f32 = .002;
+const COPPER_TOOL_MONTHLY_WEAR: f32 = .01;
+const MATERIAL_OBJECT_IN_USE_KG_PER_PERSON: f32 = .2;
+const MATERIAL_OBJECT_SCRAP_RETENTION: f32 = .9;
+const FOOD_RETURN_WORKER_FLOOR: f32 = 1.;
+const FOOD_RETURN_MEMORY_MONTHS: f32 = 12.;
 struct Economy {
  farm_workers:vec4<f32>, extraction_workers:vec4<f32>, construction_workers:vec4<f32>,
  production_probe:vec4<f32>, food_labor:vec4<f32>,
@@ -513,22 +527,22 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  e.logistics.z=max(0.,labor);
  // Legacy stored wear; planned economies wear only the useful household/working quantity.
  for(var k=0u;k<64u;k++){
-  var in_use=0.;var rate=.005;
+  var in_use=0.;var rate=DEFAULT_GOOD_MONTHLY_WEAR;
   if e.logistics.w<.5{if k==3u||k==5u||k==7u||((k==41u||k==43u)&&e.extraction.y>.5){in_use=e.goods[k/4u][k%4u];}}
   else {
    if k==3u{in_use=min(e.goods[k/4u][k%4u],s.stock.x*MIN_WORK_TOOLS_KG_PER_PERSON);}
    if k==41u&&e.extraction.y>.5 {in_use=min(e.goods[10].y,max(0.,s.stock.x*MIN_WORK_TOOLS_KG_PER_PERSON-e.goods[0].w));}
    if k==43u&&e.extraction.y>.5 {in_use=min(e.goods[10].w,max(0.,s.stock.x*MIN_WORK_TOOLS_KG_PER_PERSON-e.goods[0].w-e.goods[10].y)/COPPER_TOOL_SERVICE_FACTOR);}
-   if k==7u{in_use=min(e.goods[k/4u][k%4u],s.stock.x*2.);}
-   if k==18u{in_use=min(e.goods[k/4u][k%4u],s.stock.x*.6);rate=.025;}
-   if k==20u{in_use=min(e.goods[k/4u][k%4u],s.stock.x*.1);rate=.01;}
-   if k==22u||k==23u{in_use=min(e.goods[k/4u][k%4u],s.stock.x*.1);rate=.002;}
+   if k==7u{in_use=min(e.goods[k/4u][k%4u],s.stock.x*POTTERY_IN_USE_KG_PER_PERSON);}
+   if k==18u{in_use=min(e.goods[k/4u][k%4u],s.stock.x*CLOTH_IN_USE_KG_PER_PERSON);rate=CLOTH_MONTHLY_WEAR;}
+   if k==20u{in_use=min(e.goods[k/4u][k%4u],s.stock.x*LEATHER_IN_USE_KG_PER_PERSON);rate=LEATHER_MONTHLY_WEAR;}
+   if k==22u||k==23u{in_use=min(e.goods[k/4u][k%4u],s.stock.x*MILITARY_EQUIPMENT_IN_USE_KG_PER_PERSON);rate=MILITARY_EQUIPMENT_MONTHLY_WEAR;}
   }
-  if k==43u&&e.extraction.y>.5 {rate=.01;}
-  if k>=45u && k<=50u && catalog.methods[k-45u].x>0. && catalog.methods[k-45u].x<5. {in_use=min(e.goods[k/4u][k%4u],s.stock.x*.2);rate=catalog.methods[k-45u].z;}
+  if k==43u&&e.extraction.y>.5 {rate=COPPER_TOOL_MONTHLY_WEAR;}
+  if k>=45u && k<=50u && catalog.methods[k-45u].x>0. && catalog.methods[k-45u].x<5. {in_use=min(e.goods[k/4u][k%4u],s.stock.x*MATERIAL_OBJECT_IN_USE_KG_PER_PERSON);rate=catalog.methods[k-45u].z;}
   let worn=in_use*rate;e.goods[k/4u][k%4u]-=worn;e.used[k/4u][k%4u]+=worn;
   var recovered=select(0.,worn*ECONOMY_WORKSHOP_TOOL_SCRAP_FRACTION,(k==3u||k==22u||k==23u) && catalog.herds[0].w>.5);
-  if k>=45u && k<=50u {recovered=worn*catalog.methods[k-45u].w*.9;}
+  if k>=45u && k<=50u {recovered=worn*catalog.methods[k-45u].w*MATERIAL_OBJECT_SCRAP_RETENTION;}
    if (k==41u||k==43u) && e.extraction.y>.5 {
    let scrap_good=select(42u,44u,k==43u);let scrap=worn*ECONOMY_WORKSHOP_TOOL_SCRAP_FRACTION;e.goods[scrap_good/4u][scrap_good%4u]+=scrap;e.made[scrap_good/4u][scrap_good%4u]+=scrap;e.reserves.w-=scrap;
   }
@@ -540,8 +554,8 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  // Retain a year's approximate memory of observed food handling returns. This
  // is a lagged average, not a perfect forecast or a claimed marginal farm yield.
  let fish_chem=catalog.goods[28];let fish_energy=min(fish_chem.w,min(fish_chem.x/FOOD_CARBON_FRACTION,min(fish_chem.y/FOOD_NITROGEN_FRACTION,fish_chem.z/FOOD_PHOSPHORUS_FRACTION)));
- let alternative=max(0.,output-e.fishery_plan.w*fish_energy)/max(dot(e.labor,vec4(1.)),1.);
- e.fishery_choice.x=mix(e.fishery_choice.x,alternative,1./12.);
+ let alternative=max(0.,output-e.fishery_plan.w*fish_energy)/max(dot(e.labor,vec4(1.)),FOOD_RETURN_WORKER_FLOOR);
+ e.fishery_choice.x=mix(e.fishery_choice.x,alternative,1./FOOD_RETURN_MEMORY_MONTHS);
  e.reserves.w=max(0.,e.reserves.w);e.soil=max(e.soil,vec4(0.));e.forest=max(e.forest,vec4(0.));e.water.x=max(0.,e.water.x);economies[i]=e;return max(0.,output);
 }
 fn return_food(i:u32,amount:f32){

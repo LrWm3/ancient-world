@@ -963,3 +963,17 @@ Verification passed: the hardware replacement-job/toolmaking fixture and the
 hardware worn-tool recycling fixture each ran one test. Strict all-target Clippy
 passed. These checks cover finite completed work, skill gain and material recovery;
 they do not claim a complete review of all remaining shader parameters.
+
+## In-use goods and wear
+
+Named thirteen remaining wear/stock and lagged food-return parameters in the
+economy shader. Cloth, leather, military equipment, copper tools and material
+objects retain distinct rates and useful-stock limits. Material-object recovery
+retains its own retention constant rather than conflating it with another salvage
+policy solely because both currently equal 0.9. The default wear rate remains a
+separate parameter; catalog-specific wear still overrides it.
+
+The full shader reverses exactly to its previous source after removing declarations
+and undoing substitutions. The hardware worn-tool recovery/conservation fixture
+passed (one test), as did strict all-target Clippy. This extraction changes neither
+arithmetic order nor values; broader shader and planner review is still pending.
