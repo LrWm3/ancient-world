@@ -12,6 +12,32 @@ struct Cell {
  strata: vec4<f32>, // top, middle, basement thickness m; cumulative bedrock removed m
 }
 struct Params { dims:vec4<u32>, physical:vec4<f32>, counts:vec4<u32>, aux:vec4<u32>, tuning:vec4<f32> }
+// Erosion and terrain constraints, after the shared Cell ABI prefix.
+const METERS_PER_KM:f32=1000.;
+const MIN_EROSION_DISTANCE_M:f32=1.;
+const THERMAL_EROSION_MIN_SLOPE:f32=.025;
+const THERMAL_MOBILE_SEDIMENT_CAP_M:f32=.1;
+const THERMAL_EROSION_RATE:f32=.03;
+const EROSION_VEGETATION_PROTECTION:f32=.7;
+const FLUVIAL_STANDING_WATER_CUTOFF_M:f32=.1;
+const MAX_FLUVIAL_EROSION_M:f32=.08;
+const FLUVIAL_DISCHARGE_EROSION_GAIN:f32=.002;
+const MIN_EROSION_ROCK_HARDNESS:f32=1.;
+const MIN_EXTERIOR_OCEAN_ELEVATION_M:f32=-9000.;
+const MAX_EXTERIOR_OCEAN_ELEVATION_M:f32=-20.;
+const MIN_GREAT_LAKE_BED_ELEVATION_M:f32=-6000.;
+const MAX_GREAT_LAKE_BED_ELEVATION_M:f32=80.;
+const MIN_CONSTRAINED_LAND_ELEVATION_M:f32=250.;
+const MAX_CONSTRAINED_LAND_ELEVATION_M:f32=9500.;
+const BEDROCK_WEATHERING_GAIN:f32=.003;
+const FROZEN_WEATHERING_REDUCTION:f32=.8;
+const MAX_WEATHERED_SOIL_DEPTH_M:f32=20.;
+const LITHIFICATION_SEDIMENT_RESERVE_M:f32=5.;
+const MAX_LITHIFICATION_SHARE:f32=.1;
+const LITHIFICATION_SHARE_PER_MYR:f32=.01;
+const SEDIMENTARY_PROVINCE_NOISE_FREQUENCY:f32=9.;
+const SEDIMENTARY_PROVINCE_NOISE_OFFSET:f32=.1;
+
 // Climate and hydrology parameters, after the shared Cell ABI prefix.
 const CLIMATE_WET_DEPTH_M:f32=.1;
 const CLIMATE_BASE_TEMPERATURE_C:f32=-20.;
@@ -156,7 +182,7 @@ fn lake_shore_distance(d:vec3<f32>)->f32 {
  return max(0.,distance);
 }
 
-fn constrain(h:f32,r:u32)->f32 { switch r { case 0u:{return clamp(h,-9000.,-20.);} case 1u:{return clamp(h,-6000.,80.);} default:{return clamp(h,250.,9500.);} } }
+fn constrain(h:f32,r:u32)->f32 { switch r { case 0u:{return clamp(h,MIN_EXTERIOR_OCEAN_ELEVATION_M,MAX_EXTERIOR_OCEAN_ELEVATION_M);} case 1u:{return clamp(h,MIN_GREAT_LAKE_BED_ELEVATION_M,MAX_GREAT_LAKE_BED_ELEVATION_M);} default:{return clamp(h,MIN_CONSTRAINED_LAND_ELEVATION_M,MAX_CONSTRAINED_LAND_ELEVATION_M);} } }
 fn plate_axis(j:u32)->vec3<f32> {
  return normalize(vec3(rand(j*43u+811u),rand(j*71u+813u),rand(j*97u+817u))-.5);
 }
@@ -389,22 +415,22 @@ fn flow_relax(@builtin(global_invocation_id) g:vec3<u32>) {
  if total!=c.water.w {atomicAdd(&flags.changed,1u);}c.water.w=total;dst[i]=c;
 }
 fn erosion_flux(a:Cell,b:Cell,i:u32,j:u32)->f32 {
- let distance=max(1.,acos(clamp(dot(pos(i),pos(j)),-1.,1.))*p.physical.x*1000.);
+ let distance=max(MIN_EROSION_DISTANCE_M,acos(clamp(dot(pos(i),pos(j)),-1.,1.))*p.physical.x*METERS_PER_KM);
  let slope=(a.terrain.x-b.terrain.x)/distance;
- return max(0.,slope-.025)*min(a.terrain.y,.1)*.03*(1.-a.life.x*.7);
+ return max(0.,slope-THERMAL_EROSION_MIN_SLOPE)*min(a.terrain.y,THERMAL_MOBILE_SEDIMENT_CAP_M)*THERMAL_EROSION_RATE*(1.-a.life.x*EROSION_VEGETATION_PROTECTION);
 }
 fn fluvial_flux(i:u32)->f32 {
- let c=src[i];if c.routing.x==NONE || c.water.x>.1 || c.tags.x<2u {return 0.;}
- let b=src[c.routing.x];let slope=max(0.,c.terrain.x-b.terrain.x)/max(1.,acos(clamp(dot(pos(i),pos(c.routing.x)),-1.,1.))*p.physical.x*1000.);
- let rate=min(.08,sqrt(max(0.,c.water.w))*.002*slope)*(1.-c.life.x*.7)/max(catalog[c.ids.x].a.x,1.);
- var available=max(0.,c.terrain.x-250.);if column_present(c) {available=min(available,c.terrain.y+dot(c.strata.xyz,vec3(1.)));}
+ let c=src[i];if c.routing.x==NONE || c.water.x>FLUVIAL_STANDING_WATER_CUTOFF_M || c.tags.x<2u {return 0.;}
+ let b=src[c.routing.x];let slope=max(0.,c.terrain.x-b.terrain.x)/max(MIN_EROSION_DISTANCE_M,acos(clamp(dot(pos(i),pos(c.routing.x)),-1.,1.))*p.physical.x*METERS_PER_KM);
+ let rate=min(MAX_FLUVIAL_EROSION_M,sqrt(max(0.,c.water.w))*FLUVIAL_DISCHARGE_EROSION_GAIN*slope)*(1.-c.life.x*EROSION_VEGETATION_PROTECTION)/max(catalog[c.ids.x].a.x,MIN_EROSION_ROCK_HARDNESS);
+ var available=max(0.,c.terrain.x-MIN_CONSTRAINED_LAND_ELEVATION_M);if column_present(c) {available=min(available,c.terrain.y+dot(c.strata.xyz,vec3(1.)));}
  return min(rate,available);
 }
 @compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn water_erosion(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);var c=src[i];let rock=catalog[c.ids.x];let annual=max(c.hydro.z*METERS_PER_MM,0.);
  let cold=c.hydro.y<0.;let snowfall=select(0.,c.budget.x,cold);let melt=min(c.water.z,max(c.hydro.y,0.)*SNOW_MELT_M_PER_C);
- c.water.z=max(0.,c.water.z+snowfall-melt);c.water.y=clamp(c.water.y+c.hydro.w,0.,100.);
+ c.water.z=max(0.,c.water.z+snowfall-melt);c.water.y=clamp(c.water.y+c.hydro.w,0.,GROUNDWATER_CAPACITY_M);
  let capacity=max(0.,c.hydro.x-c.terrain.x);
  // Stored runoff fills secondary depressions; discharge includes the full catchment.
  var incoming=c.life.w*area(i)/SECONDS_PER_RUNOFF_YEAR;
@@ -412,9 +438,9 @@ fn water_erosion(@builtin(global_invocation_id) g:vec3<u32>) {
  let inflow=incoming*SECONDS_PER_RUNOFF_YEAR/area(i);
  c.water.x=clamp(c.water.x+inflow,0.,capacity);
  if c.tags.x<2u {c.water.x=max(0.,select(0.,planet[0].x,c.tags.x==1u)-c.terrain.x);}
- var weather=rock.a.z*.003*(1.+annual)*(1.-select(0.,.8,cold));
+ var weather=rock.a.z*BEDROCK_WEATHERING_GAIN*(1.+annual)*(1.-select(0.,FROZEN_WEATHERING_REDUCTION,cold));
  if column_present(c) {weather=min(weather,dot(c.strata.xyz,vec3(1.)));c=cut_column(c,weather);}
- c.terrain.z=clamp(c.terrain.z+weather,0.,20.);c.terrain.y+=weather;
+ c.terrain.z=clamp(c.terrain.z+weather,0.,MAX_WEATHERED_SOIL_DEPTH_M);c.terrain.y+=weather;
  var lost=0.;var gained=0.;
  for(var k=0u;k<4u;k++){let j=neighbor(i,k);lost+=erosion_flux(src[i],src[j],i,j);gained+=erosion_flux(src[j],src[i],j,i)*area(j)/area(i);}
  let erode=fluvial_flux(i);var deposit=0.;
@@ -426,8 +452,8 @@ fn water_erosion(@builtin(global_invocation_id) g:vec3<u32>) {
  c.terrain.x=constrain(c.terrain.x-lost+gained-erode+deposit,c.tags.x);
  c.budget.z=lost+erode+weather;c.budget.w=gained+deposit+weather;
  if column_present(c) {
-  let lithified=min(c.terrain.y,max(0.,c.terrain.y-5.)*min(.1,p.physical.z*.01));
-  var rock_id=province_rock(1u,pos(i),fbm(pos(i)*9.)+.1);if p.tuning.w>1. {rock_id=setting_rock(select(4u,3u,c.tags.x<2u),pos(i));}
+  let lithified=min(c.terrain.y,max(0.,c.terrain.y-LITHIFICATION_SEDIMENT_RESERVE_M)*min(MAX_LITHIFICATION_SHARE,p.physical.z*LITHIFICATION_SHARE_PER_MYR));
+  var rock_id=province_rock(1u,pos(i),fbm(pos(i)*SEDIMENTARY_PROVINCE_NOISE_FREQUENCY)+SEDIMENTARY_PROVINCE_NOISE_OFFSET);if p.tuning.w>1. {rock_id=setting_rock(select(4u,3u,c.tags.x<2u),pos(i));}
   c=lithify_column(c,lithified,rock_id);
  }
  if c.tags.x==1u {c.life.z=planet[0].y;}

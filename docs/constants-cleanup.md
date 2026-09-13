@@ -546,3 +546,17 @@ as did strict all-target Clippy. Seasonal convergence passed for seeds 17, 81
 and 256, including the deliberately under-budgeted nonconvergence control. The
 secondary-lake fixture also preserved volume and equalized connected surfaces
 across a cube-face seam.
+
+## Erosion, weathering and elevation constraints
+
+Named the thermal/fluvial erosion thresholds, rates, vegetation protection,
+distance and hardness floors, bedrock weathering, soil cap, lithification and
+regional elevation bounds in `shaders/simulation.wgsl`. Fluvial cutting uses the
+same land floor as the artistic terrain constraint. The water-storage update
+now references the existing groundwater-capacity constant. Separate river and
+thermal rates remain distinct even where they share a vegetation factor.
+
+Expanding constants reproduces the prior expressions exactly. The hardware
+water/sediment-budget fixture and strict all-target Clippy passed. These checks
+verify unchanged equations and conservation on the tested fixture; planet-mask,
+tectonic, deposit-selection and legacy ecology parameters remain outstanding.

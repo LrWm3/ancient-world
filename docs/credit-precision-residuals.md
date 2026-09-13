@@ -161,3 +161,24 @@ classification mechanism behaving in the long run; it is not evidence of a
 general credit benefit across seeds. Later lending and historical choices diverged,
 so the population difference is not a measured work-productivity effect.
 Native validation passed. Issuance and combined arms are still running.
+
+### Work and access in the corrected credit arm
+
+| Measure | Baseline | Credit |
+| --- | ---: | ---: |
+| Cumulative operator work | 1,159.4584 | 1,150.6538 |
+| Reported food production | 29,673,735 | 30,390,280 |
+| Final need-weighted hunger | 0.02929 | 0.03620 |
+| Cumulative council town support | 80,664.33 | 85,327.77 |
+| Ending council cash | 1,144.58 | 3,719.75 |
+| Ending household cash | 41,953.56 | 37,807.02 |
+| Ending town cash | 5,703.84 | 7,273.32 |
+
+Definitions match the earlier issuance reports: operator work sums firms'
+completed work, food is the existing food-equivalent production ledger, hunger
+weights household hunger by final monthly need, and town support sums council
+`relief_paid`. These cash categories are separate reported owners, not a complete
+money-supply audit. More surviving people and greater cumulative food production
+coexist with slightly less operator work and worse terminal food access. Credit's
+work/affordability gate is therefore still unproven. Controlled immediate
+mediators, losses and held-out seeds remain required before Stage 2.
