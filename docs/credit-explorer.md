@@ -32,8 +32,13 @@ currencies. Shared issuance remains the only implemented issuance denomination.
 The accounting fixture checks a 100-unit loan, 12 interest accrued, a 22-unit
 payment, 90 principal default loss and a later 5-unit recovery. It verifies that
 reporting preserves the default, does not mutate credit state and survives
-serialization. The fixture and strict all-target Clippy passed. The panel was
-compiled, but this change has not had an interactive visual inspection.
+serialization. The fixture and strict all-target Clippy passed. A native egui harness rendered the actual panel with seed 409 combined-run
+records at a 470-pixel content width. Visual inspection caught an unsupported
+arrow glyph and an unreadable capacity debug dump; plain directional wording and
+three labeled capacity rows replace them. A second screenshot confirmed wrapping
+and the distinction between a precision-settled loan and a default. This checks
+the panel itself, not navigation through every surrounding history-window tab.
+The harness and screenshots remain in ignored `output/`.
 
 This closes the basic explorer-inspection gap, not all monetary reporting:
 click-through account navigation, dedicated monetary chronicle events, household
