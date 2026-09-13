@@ -1,6 +1,7 @@
 //! Sparse lake shipping: surveyed coastal access, finite harbor/fleet assets and reserved cargo.
 use crate::{
     civilization::History,
+    economy::CIVILIAN_RESERVE_KG_PER_PERSON_MONTH,
     gpu::{Cell, Generator},
     grid,
 };
@@ -12,6 +13,9 @@ const MAX_FUNDED_VESSEL_WORK_WITH_TOLERANCE: f32 = 0.25001;
 const HARBOR_MATERIAL_TOLERANCE_KG: f32 = 0.001;
 const MAX_SEA_LANE_KM: f32 = 20_000.;
 const HARBOR_TOOLS_RESERVE_KG_PER_PERSON: f32 = 0.5;
+const HARBOR_MAX_ANNUAL_TOOL_INVESTMENT_SHARE: f32 = 0.05;
+const CONNECTION_FOOD_TARGET_MONTHS: f32 = 3.;
+const CONNECTION_MIN_QUOTE_MONEY_PER_KG: f32 = 0.0001;
 const HARBOR_BUILDING_RESERVE_KG_PER_PERSON: f32 = 1.;
 const HARBOR_ANNUAL_WEAR_FRACTION: f32 = 0.02;
 const COMMISSIONING_MATERIAL_FRACTION: f32 = 0.999;
@@ -25,10 +29,21 @@ pub const TARGET: [f32; 3] = [200., 10., 100.];
 /// kg installed per worker-month: timber, tools/rigging, masonry.
 const HARBOR_WORK_RATES: [f32; 3] = [100., 10., 100.];
 pub(crate) fn material_reserve(good: usize, population: f32) -> f32 {
-    population.max(0.) * if good == 3 {
-        HARBOR_TOOLS_RESERVE_KG_PER_PERSON
+    population.max(0.)
+        * if good == 3 {
+            HARBOR_TOOLS_RESERVE_KG_PER_PERSON
+        } else {
+            HARBOR_BUILDING_RESERVE_KG_PER_PERSON
+        }
+}
+/// Construction may invest a bounded share of scarce equipment without requiring
+/// full tool saturation first. Production still targets the larger working reserve.
+fn construction_reserve(good: usize, population: f32, held: f32) -> f32 {
+    let desired = material_reserve(good, population);
+    if good == 3 {
+        desired.min(held.max(0.) * (1. - HARBOR_MAX_ANNUAL_TOOL_INVESTMENT_SHARE))
     } else {
-        HARBOR_BUILDING_RESERVE_KG_PER_PERSON
+        desired
     }
 }
 fn harbor_work_needed(materials: [f32; 3]) -> f32 {
@@ -70,6 +85,19 @@ impl Port {
         })
     }
 
+    pub(crate) fn supported_work(
+        &self,
+        goods: &[f32; crate::economy::GOODS],
+        population: f32,
+    ) -> f32 {
+        harbor_work_needed(std::array::from_fn(|k| {
+            self.material_deficit()[k].min(
+                (goods[MATERIALS[k]]
+                    - construction_reserve(MATERIALS[k], population, goods[MATERIALS[k]]))
+                .max(0.),
+            )
+        }))
+    }
     /// Installed harbor handling capacity, independent of this month's merchant payroll.
     pub fn harbor_capacity(&self) -> f32 {
         if self.commissioned.is_none() || self.flood_months > 0 {
@@ -472,14 +500,18 @@ impl History {
             if !s.abandoned && s.economy.policy[3] >= 0.5 {
                 let mut requested = [0.; 3];
                 for (k, good) in MATERIALS.into_iter().enumerate() {
-                    let reserve = material_reserve(good, s.stocks.stock[0]);
+                    let reserve = if s.economy.harbor_work[0] > 0. {
+                        construction_reserve(good, s.stocks.stock[0], s.economy.goods[good])
+                    } else {
+                        material_reserve(good, s.stocks.stock[0])
+                    };
                     requested[k] = (TARGET[k] - p.assets[k])
                         .max(0.)
                         .min((s.economy.goods[good] - reserve).max(0.));
                 }
                 let work = harbor_work_needed(requested);
                 let scale = if p.work.is_some() && work > 0. {
-                    (s.economy.logistics[2].max(0.) / work).min(1.)
+                    ((s.economy.logistics[2].max(0.) + s.economy.harbor_work[1]) / work).min(1.)
                 } else {
                     1.
                 };
@@ -497,10 +529,16 @@ impl History {
                     used_work += added / HARBOR_WORK_RATES[k];
                 }
                 if let Some(w) = &mut p.work {
-                    s.economy.logistics[2] = (s.economy.logistics[2] - used_work).max(0.);
+                    s.economy.harbor_work[2] = used_work.min(s.economy.harbor_work[1]);
+                    let ordinary_work = (used_work - s.economy.harbor_work[2]).max(0.);
+                    s.economy.logistics[2] = (s.economy.logistics[2] - ordinary_work).max(0.);
                     w.worker_months += used_work as f64;
                 }
             }
+            // Protected but unusable time expires at this boundary, never backdated
+            // into completed recipes. The receipt only attributes the protected share.
+            s.economy.harbor_work[3] =
+                (s.economy.harbor_work[1] - s.economy.harbor_work[2]).max(0.);
             if p.commissioned.is_none()
                 && p.assets
                     .iter()
@@ -558,6 +596,94 @@ impl History {
             }
         }
         self.shipping = Some(shipping);
+    }
+    /// Experimental annual extra-work eligibility: one directly surveyed food
+    /// connection, plus endpoints carrying actual committed cargo. No funds or
+    /// transport are promised by this forecast; ordinary construction still works.
+    pub(crate) fn food_connection_investments(&self) -> Vec<bool> {
+        let mut eligible = vec![false; self.sites.len()];
+        let (Some(shipping), Some(catalog)) = (&self.shipping, &self.economy_catalog) else {
+            return eligible;
+        };
+        if !catalog.production.food_connection_investment {
+            return eligible;
+        }
+        for cargo in &self.cargo {
+            if let Some(lane) = cargo
+                .sea_lane
+                .and_then(|id| shipping.lanes.get(id as usize))
+            {
+                for id in lane.ports {
+                    eligible[shipping.ports[id as usize].site as usize] = true;
+                }
+            }
+        }
+        let mut best: Option<(f32, [u32; 2])> = None;
+        for lane in &shipping.lanes {
+            if !lane.open || lane.flood_months > 0 {
+                continue;
+            }
+            let ports = lane.ports.map(|id| &shipping.ports[id as usize]);
+            let distance =
+                lane.km / SEA_DISTANCE_ADVANTAGE + ports[0].access_km + ports[1].access_km;
+            if distance >= catalog.market.max_distance_km
+                || ports.iter().any(|p| p.flood_months > 0)
+            {
+                continue;
+            }
+            for [a, b] in [lane.ports, [lane.ports[1], lane.ports[0]]] {
+                let source = &self.sites[shipping.ports[a as usize].site as usize];
+                let buyer = &self.sites[shipping.ports[b as usize].site as usize];
+                if source.abandoned
+                    || buyer.abandoned
+                    || source.economy.policy[3] < 0.5
+                    || buyer.economy.policy[3] < 0.5
+                {
+                    continue;
+                }
+                if self.politics.as_ref().is_some_and(|p| {
+                    p.wars.iter().any(|w| {
+                        w.ended.is_none()
+                            && ((w.attacker == self.controller(source.id)
+                                && w.defender == self.controller(buyer.id))
+                                || (w.defender == self.controller(source.id)
+                                    && w.attacker == self.controller(buyer.id)))
+                    })
+                }) {
+                    continue;
+                }
+                let surplus = (source.stocks.stock[1]
+                    - source.stocks.stock[0]
+                        * CIVILIAN_RESERVE_KG_PER_PERSON_MONTH
+                        * catalog.market.food_reserve_months)
+                    .max(0.);
+                let incoming: f32 = self
+                    .cargo
+                    .iter()
+                    .filter(|c| c.to == buyer.id && c.good == crate::economy::FOOD as u32)
+                    .map(|c| c.kg)
+                    .sum();
+                let shortage = (buyer.stocks.stock[0]
+                    * CIVILIAN_RESERVE_KG_PER_PERSON_MONTH
+                    * CONNECTION_FOOD_TARGET_MONTHS
+                    - buyer.stocks.stock[1]
+                    - incoming)
+                    .max(0.);
+                let affordable = buyer.economy.finance[0]
+                    / source.economy.prices[crate::economy::FOOD]
+                        .max(CONNECTION_MIN_QUOTE_MONEY_PER_KG);
+                let score = surplus.min(shortage).min(affordable) / (1. + distance);
+                if score > 0. && best.is_none_or(|(prior, _)| score > prior) {
+                    best = Some((score, [source.id, buyer.id]));
+                }
+            }
+        }
+        if let Some((_, pair)) = best {
+            for site in pair {
+                eligible[site as usize] = true;
+            }
+        }
+        eligible
     }
     pub fn sea_capacity(&self, lane: u32) -> f32 {
         let Some(s) = &self.shipping else {
@@ -742,6 +868,31 @@ impl Generator {
 mod harbor_tests {
     use super::*;
     #[test]
+    fn scarce_tool_investment_retains_working_stock() {
+        assert!((construction_reserve(3, 160., 22.) - 20.9).abs() < 1e-5);
+        assert_eq!(
+            material_reserve(3, 160.),
+            80.,
+            "replenishment target stays intact"
+        );
+        assert_eq!(construction_reserve(3, 160., 0.), 0.);
+        assert_eq!(
+            construction_reserve(3, 160., 1000.),
+            80.,
+            "surplus retains legacy floor"
+        );
+        assert_eq!(
+            construction_reserve(0, 160., 22.),
+            160.,
+            "timber rule is unchanged"
+        );
+        assert_eq!(
+            construction_reserve(5, 160., 22.),
+            160.,
+            "masonry rule is unchanged"
+        );
+    }
+    #[test]
     fn harbor_work_has_explicit_material_costs() {
         assert_eq!(harbor_work_needed(TARGET), 4.);
         assert!((harbor_work_needed(TARGET.map(|v| v * 0.02)) - 0.08).abs() < 1e-7);
@@ -767,6 +918,55 @@ mod harbor_tests {
         let cells = g.snapshot().unwrap();
         let h = g.civilizations.as_mut().unwrap();
         let origin = h.shipping.as_ref().unwrap().ports[0].site as usize;
+        // Investment must follow a real surplus/shortage pair, not every survey.
+        let mut connection = h.clone();
+        connection.politics = None;
+        connection.cargo.clear();
+        for site in &mut connection.sites {
+            site.economy.policy[3] = 0.;
+            site.stocks.stock[0] = 10.;
+            site.stocks.stock[1] = 0.;
+        }
+        let shipping = connection.shipping.as_mut().unwrap();
+        for lane in &mut shipping.lanes {
+            lane.open = false;
+        }
+        shipping.lanes[0].open = true;
+        shipping.lanes[0].km = 100.;
+        let ends = shipping.lanes[0].ports;
+        let sites = ends.map(|i| {
+            shipping.ports[i as usize].access_km = 0.;
+            shipping.ports[i as usize].site as usize
+        });
+        for i in sites {
+            connection.sites[i].economy.policy[3] = 1.;
+        }
+        connection.sites[sites[0]].stocks.stock[1] = 10000.;
+        connection.sites[sites[1]].economy.finance[0] = 1000.;
+        let chosen = connection.food_connection_investments();
+        assert_eq!(chosen.iter().filter(|&&v| v).count(), 2);
+        assert!(sites.iter().all(|&i| chosen[i]));
+        for case in 0..4 {
+            let mut no = connection.clone();
+            if case == 0 {
+                no.sites[sites[0]].stocks.stock[1] = 0.;
+            }
+            if case == 1 {
+                no.sites[sites[1]].economy.finance[0] = 0.;
+            }
+            if case == 2 {
+                no.shipping.as_mut().unwrap().lanes[0].open = false;
+            }
+            if case == 3 {
+                no.economy_catalog
+                    .as_mut()
+                    .unwrap()
+                    .production
+                    .food_connection_investment = false;
+            }
+            assert!(!no.food_connection_investments().iter().any(|&v| v));
+        }
+
         // Declared construction fixture; no production or demographic changes.
         h.shipping.as_mut().unwrap().ports[0].assets = [0.; 3];
         h.shipping.as_mut().unwrap().ports[0].commissioned = None;
@@ -774,17 +974,44 @@ mod harbor_tests {
         for good in MATERIALS {
             h.sites[origin].economy.goods[good] = 10000.;
         }
+        // Matched scarce-tool fixture: real stock can be invested gradually, but
+        // cannot be duplicated, wholly confiscated or installed without work.
+        let mut scarce = h.clone();
+        scarce.month += 12;
+        scarce.sites[origin].stocks.stock[0] = 160.;
+        scarce.sites[origin].economy.goods[3] = 22.;
+        scarce.sites[origin].economy.harbor_work[0] = 4.;
+        scarce.sites[origin].economy.logistics[2] = 4.;
+        scarce.shipping_year(&cells, 6371.);
+        let built = &scarce.shipping.as_ref().unwrap().ports[0];
+        assert!((built.assets[1] - 1.1).abs() < 1e-5);
+        assert!(scarce.sites[origin].economy.goods[3] >= 20.9);
+        assert_eq!(scarce.sites[origin].economy.goods[3] + built.assets[1], 22.);
+        assert!(built.commissioned.is_none());
+        let mut resumed_scarce: History =
+            serde_json::from_slice(&serde_json::to_vec(&scarce).unwrap()).unwrap();
+        for world in [&mut scarce, &mut resumed_scarce] {
+            world.month += 12;
+            world.sites[origin].economy.logistics[2] = 4.;
+            world.shipping_year(&cells, 6371.);
+        }
+        assert_eq!(
+            serde_json::to_vec(&scarce).unwrap(),
+            serde_json::to_vec(&resumed_scarce).unwrap()
+        );
         h.sites[origin].economy.logistics[2] = 0.;
         h.month += 12;
         h.shipping_year(&cells, 6371.);
         assert_eq!(h.shipping.as_ref().unwrap().ports[0].assets, [0.; 3]);
         h.month += 12;
-        h.sites[origin].economy.logistics[2] = 1.;
+        h.sites[origin].economy.logistics[2] = 0.5;
+        h.sites[origin].economy.harbor_work = [1., 0.5, 0., 0.];
         h.shipping_year(&cells, 6371.);
         let p = &h.shipping.as_ref().unwrap().ports[0];
         assert_eq!(p.assets, [50., 2.5, 25.]);
         assert_eq!(p.capacity(), 0.);
         assert_eq!(p.work.as_ref().unwrap().worker_months, 1.);
+        assert_eq!(h.sites[origin].economy.harbor_work, [1., 0.5, 0.5, 0.]);
         assert_eq!(h.sites[origin].economy.logistics[2], 0.);
         for (k, good) in MATERIALS.into_iter().enumerate() {
             assert_eq!(h.sites[origin].economy.goods[good] + p.assets[k], 10000.);
@@ -793,11 +1020,23 @@ mod harbor_tests {
         h.shipping_year(&cells, 6371.);
         assert_eq!(snapshot, serde_json::to_vec(&h).unwrap());
         h.month += 12;
+        h.sites[origin].economy.harbor_work = [0.; 4];
         h.sites[origin].economy.logistics[2] = 4.;
         h.shipping_year(&cells, 6371.);
         assert!(h.shipping.as_ref().unwrap().ports[0].harbor_capacity() > 999.);
         // A built harbor supplies handling capacity, not an automatically staffed fleet.
         assert_eq!(h.shipping.as_ref().unwrap().ports[0].capacity(), 0.);
+        h.month += 12;
+        let saved_goods = h.sites[origin].economy.goods;
+        for good in MATERIALS {
+            h.sites[origin].economy.goods[good] = 0.;
+        }
+        h.sites[origin].economy.harbor_work = [1., 0.5, 0., 0.];
+        h.sites[origin].economy.logistics[2] = 0.;
+        h.shipping_year(&cells, 6371.);
+        assert_eq!(h.sites[origin].economy.harbor_work, [1., 0.5, 0., 0.5]);
+        h.sites[origin].economy.goods = saved_goods;
+        h.sites[origin].economy.harbor_work = [0.; 4];
         h.sites[origin].abandoned = true;
         for _ in 0..35 {
             h.month += 12;
@@ -805,7 +1044,7 @@ mod harbor_tests {
         }
         let p = &h.shipping.as_ref().unwrap().ports[0];
         assert!(p.work.as_ref().unwrap().impaired);
-        assert!((p.harbor_capacity() - 1000. * 0.98f32.powi(35)).abs() < 0.01);
+        assert!((p.harbor_capacity() - 1000. * 0.98f32.powi(36)).abs() < 0.01);
         let mut resumed: History =
             serde_json::from_slice(&serde_json::to_vec(&h).unwrap()).unwrap();
         for world in [&mut *h, &mut resumed] {

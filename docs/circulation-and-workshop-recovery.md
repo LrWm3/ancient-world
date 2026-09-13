@@ -392,3 +392,15 @@ the tightest eligible food-order limit in these three runs. Defer household-fund
 imports and investigate selective, economically useful route completion first.
 This is evidence about ordinary town food purchasing, not proof that household
 food affordability or workshop finance is adequate.
+
+### Selective food connections
+
+A [bounded annual connection rule](selective-food-connections.md) now targets one
+prospective food-supply pair plus ports carrying committed cargo. Extra work stays
+inside public-service limits; selected scarce-tool investment is capped at 5%.
+The economy catalog can disable the rule for comparisons. Six fifty-year runs
+and four century runs verify real new food dispatches in previously disconnected
+worlds, with finite money/materials/work, but mixed population outcomes. The 10%
+variant was rejected. The retained 5% mechanism is a functional connection, not
+a declaration that economic recovery is solved: century runs still show very
+little late operator activity, and seed 256 loses its early population advantage.

@@ -815,7 +815,8 @@ mod recipe_allocation_tests {
         competitor.input[8] = 1.;
         competitor.output[14] = 1.; // Household flour processing, not industrial service.
         let baseline = g.civilizations.as_ref().unwrap().clone();
-        for (competing, construction) in [(false, 0), (true, 0), (false, 1), (false, 2)] {
+        for (competing, construction) in [(false, 0), (true, 0), (false, 1), (false, 2), (false, 3)]
+        {
             let prepaid = if construction > 0 { 9.5 } else { 8. };
             let mut h = baseline.clone();
             h.month = 0;
@@ -844,12 +845,16 @@ mod recipe_allocation_tests {
                 e.enterprise_lease[1] = 5.;
                 e.enterprise_productivity[1] = 0.;
                 e.enterprise_plan[1] = prepaid; // Already funded attendance, not extra population.
-                if construction > 0 {
+                if construction == 3 {
+                    e.harbor_work[0] = 4.;
+                }
+                if construction > 0 && construction < 3 {
                     e.goods[0] = 10000.;
                     e.goods[5] = 10000.;
                     e.housing_plan = [1000., 0., 0., 1.];
                     if construction == 2 {
                         e.construction_workers = [1., 2., 0., 0.];
+                        e.harbor_work[0] = 4.;
                     }
                 }
                 s.economy = e;
@@ -867,11 +872,47 @@ mod recipe_allocation_tests {
                 e.made[14]
             );
             assert!(e.made[3] + e.made[14] + e.housing[3] <= 10. + 1e-5);
-            if construction > 0 {
+            if construction == 2 {
+                assert_eq!(e.harbor_work[1], 0.);
+            }
+            if construction == 3 {
+                assert!((e.harbor_work[1] - 0.5).abs() < 1e-5);
+                assert!(e.logistics[2] + e.harbor_work[1] <= 0.5 + 1e-5);
+                assert!(e.enterprise_used[1] + e.harbor_work[1] <= 10.);
+            }
+            if construction > 0 && construction < 3 {
                 assert!(e.housing[3] > 0. && e.housing[3] <= 10. - prepaid + 1e-5);
             }
             assert!((e.used[2] - e.made[3]).abs() < 1e-5);
         }
+        // Once construction materials are stocked, recipe demand can be zero.
+        // Harbor activity must still enter adaptive staffing without adding workers.
+        let mut craft = [0.; 2];
+        for (arm, request) in [0., 4.].into_iter().enumerate() {
+            let mut h = baseline.clone();
+            h.society = None;
+            h.living = None;
+            for site in &mut h.sites {
+                site.stocks.stock[0] = 100.;
+                site.economy = Economy {
+                    logistics: [1000., 0., 0., 4.],
+                    labor: [50., 0., 0., 0.],
+                    harbor_work: [request, 0., 0., 0.],
+                    ..Default::default()
+                };
+            }
+            g.civilizations = Some(h.clone());
+            let engine = Engine::new(&g).unwrap();
+            engine.upload(&g, &h);
+            engine.dispatch(&g, false, h.sites.len() as u32);
+            engine.read(&g, &mut h, true).unwrap();
+            let e = &h.sites[0].economy;
+            craft[arm] = e.labor[3];
+            assert!((e.labor.iter().sum::<f32>() - 50.).abs() < 1e-5);
+            assert!(e.harbor_work[1] <= request);
+            assert_eq!(e.made.iter().sum::<f32>(), 0.);
+        }
+        assert!(craft[1] > craft[0]);
     }
 
     #[test]

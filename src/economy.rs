@@ -435,6 +435,9 @@ pub struct Economy {
     /// Enabled, granted, used, requested untrained-equivalent building work.
     #[serde(default)]
     pub construction_workers: [f32; 4],
+    /// Annual aggregate harbor work: requested, protected, used, released worker-months.
+    #[serde(default)]
+    pub harbor_work: [f32; 4],
     /// Last production inputs: tool multiplier, cultivated ha, effective tools kg, population.
     #[serde(default)]
     pub production_probe: [f32; 4],
@@ -724,6 +727,7 @@ impl Economy {
                 .chain(&self.targets)
                 .chain(&self.orders)
                 .chain(&self.logistics)
+                .chain(&self.harbor_work)
                 .chain(&self.storage)
                 .chain(&self.storage_plan)
                 .chain(&self.housing)

@@ -1,3 +1,4 @@
+const HARBOR_ANNUAL_WORKFORCE_SHARE: f32 = .02;
 // Calendar and area conversions; annual rainfall becomes monthly water volume.
 const ECONOMY_SQUARE_METERS_PER_HECTARE: f32 = 10000.;
 const FARM_ANNUAL_MM_TO_MONTHLY_METERS_DIVISOR: f32 = 12000.;
@@ -171,7 +172,7 @@ const FISHERY_AMORTIZATION_MONTHS: f32 = 12.;
 const FISHERY_CONSTRUCTION_WORK_SHARE: f32 = .25;
 const FISHERY_NUTRIENT_FRACTION_FLOOR: f32 = 1e-9;
 struct Economy {
- farm_workers:vec4<f32>, extraction_workers:vec4<f32>, construction_workers:vec4<f32>,
+ farm_workers:vec4<f32>, extraction_workers:vec4<f32>, construction_workers:vec4<f32>, harbor_work:vec4<f32>,
  production_probe:vec4<f32>, food_labor:vec4<f32>,
  tool_craft:vec4<f32>, tool_work:vec4<f32>, tool_orders:array<vec4<f32>,16>,
  residue:vec4<f32>,
@@ -495,6 +496,13 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  if e.farm_workers.x>1.5 {e.extraction_workers.w=max(0.,e.labor.z-mining); }
  let building=building_work(e,s,available_workers);
  e=building.economy;var labor=building.labor;
+ // Annual aggregate reservation after essential services and existing building work.
+ // Never borrow prepaid workshop attendance or impersonate named builders.
+ e.harbor_work.y=0.;e.harbor_work.z=0.;e.harbor_work.w=0.;
+ if e.construction_workers.x<.5 {
+  e.harbor_work.y=min(harbor_allowance(e,s.stock.x,available_workers),max(0.,labor-dot(e.enterprise_plan,vec4(1.))));
+  labor=max(0.,labor-e.harbor_work.y);
+ }
  var industrial_capacity=building.industrial;var household_capacity=building.household;
  var type_capacity=building.types;var firm_capacity=building.firms;
  let specialized=e.workshop_types[0].w>.5;
@@ -877,7 +885,13 @@ fn fish_plots(){
  }
 }
 
-// Keep the disabled-policy arithmetic isolated for exact continuation of existing worlds.
+// Supplemental annual harbor effort is bounded by the existing public-service pool.
+fn harbor_allowance(e:Economy,pop:f32,workforce:f32)->f32 {
+ if e.construction_workers.x>.5 {return 0.;}
+ let water=select(0.,min(pop,min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON))*ECONOMY_WATER_OPERATION_WORKER_MONTHS_PER_PERSON,e.waterworks.w>.5);
+ let room=max(0.,workforce*STAFFING_MAX_SERVICE_SHARE-e.exchange.w-water-dot(e.enterprise_plan,vec4(1.)));
+ return min(e.harbor_work.x,min(workforce*HARBOR_ANNUAL_WORKFORCE_SHARE,room));
+}
 fn worker_shares(e:Economy,pop:f32,available_workers:f32)->vec4<f32>{
  var shares:vec4<f32>;
  if e.logistics.w>3.5 {shares=food_worker_shares(e,pop,available_workers);} else {shares=baseline_worker_shares(e,pop,available_workers);}
@@ -930,7 +944,7 @@ fn baseline_worker_shares(e:Economy,pop:f32,available_workers:f32)->vec4<f32>{
  // Operating infrastructure is recurring work even when recipe orders are empty.
  // Reserve actual operating work; construction separately uses its 10% allowance.
  let service_craft=select(0.,min(pop,min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON))*ECONOMY_WATER_OPERATION_WORKER_MONTHS_PER_PERSON,e.waterworks.w>.5);
- let reserved=min(e.exchange.w+service_craft,workforce*STAFFING_MAX_SERVICE_SHARE);
+ let reserved=min(e.exchange.w+service_craft+harbor_allowance(e,pop,workforce),workforce*STAFFING_MAX_SERVICE_SHARE);
  var demand=vec3(forestry,mining,min(workforce*STAFFING_MAX_RECIPE_SHARE,craft)+reserved)/workforce;
  let discretionary=max(0.,STAFFING_MAX_NONFARM_SHARE-fish-reserved/workforce);
  demand.z=max(0.,demand.z-reserved/workforce);
@@ -994,7 +1008,7 @@ fn food_worker_shares(e:Economy,pop:f32,available_workers:f32)->vec4<f32>{
  // Operating infrastructure is recurring work even when recipe orders are empty.
  // Reserve actual operating work; construction separately uses its 10% allowance.
  let service_craft=select(0.,min(pop,min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON))*ECONOMY_WATER_OPERATION_WORKER_MONTHS_PER_PERSON,e.waterworks.w>.5);
- let reserved=min(e.exchange.w+service_craft,workforce*STAFFING_MAX_SERVICE_SHARE);
+ let reserved=min(e.exchange.w+service_craft+harbor_allowance(e,pop,workforce),workforce*STAFFING_MAX_SERVICE_SHARE);
  var demand=vec3(forestry,mining,min(workforce*STAFFING_MAX_RECIPE_SHARE,craft)+reserved)/workforce;
  let food_policy=e.logistics.w>3.5;
  let pressure=select(0.,mix(e.food_labor.x,e.food_labor.y,STAFFING_FOOD_PRESSURE_RESPONSE),food_policy);

@@ -99,6 +99,8 @@ pub const WORKSHOP_NAMES: [&str; 4] = [
 #[serde(default)]
 pub struct ProductionSettings {
     pub enabled: bool,
+    /// Bounded annual investment in a prospective food connection; false is an ablation.
+    pub food_connection_investment: bool,
     /// Adapt staffing to feasible work; missing archive settings retain fixed staffing.
     pub adaptive_labor: bool,
     /// Diagnostic ablation: constant 62/8/10/20 percent work shares (fishery deducted).
@@ -136,6 +138,7 @@ impl Default for ProductionSettings {
     fn default() -> Self {
         Self {
             enabled: false,
+            food_connection_investment: true,
             adaptive_labor: false,
             diagnostic_fixed_labor: false,
             food_security_labor: false,
@@ -495,9 +498,15 @@ impl History {
                     .collect()
             })
             .unwrap_or_default();
+        let food_connections = if self.month % 12 == 0 {
+            self.food_connection_investments()
+        } else {
+            vec![false; self.sites.len()]
+        };
         for s in &mut self.sites {
             let e = &mut s.economy;
             e.logistics = [0.; 4];
+            e.harbor_work = [0.; 4];
             e.tool_craft[1] =
                 f32::from(catalog.production.enabled && catalog.production.replacement_tool_jobs);
             e.tool_craft[2] =
@@ -716,6 +725,12 @@ impl History {
                     .and_then(|shipping| shipping.ports.iter().find(|p| p.site == s.id))
                 {
                     planner.harbor(port, s.stocks.stock[0]);
+                    if self.month % 12 == 0
+                        && port.flood_months == 0
+                        && food_connections[s.id as usize]
+                    {
+                        e.harbor_work[0] = port.supported_work(&e.goods, s.stocks.stock[0]);
+                    }
                 }
             }
             for c in self
