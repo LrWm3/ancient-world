@@ -448,3 +448,17 @@ shader assembly and a monthly history step. Strict all-target Clippy passed.
 This is a partial society shader review: the shared CPU/GPU ration
 priority bound still needs consolidation; layout flags and simple identities stay
 inline. Planetary and ecological shaders remain outstanding.
+
+## Shared ration priority and normalization floors
+
+Consolidated the CPU validation and GPU ration-priority limit in the owning
+society module's shared shader parameter declarations. The isolated GPU fixture
+imports that same bound. Named the two remaining population normalization floors
+in the society shader, keeping them separate because exposure and seed ratios
+are distinct policies. This finishes the society shader's semantic-parameter
+review; bit flags, vector indices, unit bounds and boolean encoding stay inline.
+The wider cleanup remains open for the other core shaders.
+
+Verification of the shared-priority change: both ration tests (including hardware)
+and the full GPU plot-reservation/recipe conservation fixture passed. Strict
+all-target Clippy passed. The values and resulting policy are unchanged.

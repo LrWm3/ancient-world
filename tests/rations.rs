@@ -24,8 +24,9 @@ fn gpu_rations_are_bounded_conservative_and_protect_prioritized_cohorts() {
         .split("fn demographic_month")
         .next()
         .unwrap();
+    let priority_limit = ancient_world::society::MAX_RATION_PRIORITY;
     let shader = format!(
-        "{parameters}\nfn allocate_rations{kernel}
+        "{parameters}\nconst MAX_RATION_PRIORITY:f32={priority_limit};\nfn allocate_rations{kernel}
 struct Fixture {{ need:vec4<f32>, priority:vec4<f32> }}
 @group(0) @binding(0) var<storage,read> cases:array<Fixture>;
 @group(0) @binding(1) var<storage,read_write> result:array<vec4<f32>>;

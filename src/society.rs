@@ -48,11 +48,11 @@ const RAID_TARGET_FOOD_RATIO: f32 = 2.;
 const MAX_RAID_DISTANCE_KM: f32 = 900.;
 const MIN_RAID_SOLDIERS: f32 = 3.;
 const DEFAULT_COUNCIL_TAX_RATE: f32 = 0.03;
-const MAX_RATION_PRIORITY: f32 = 3.;
 
 pub(crate) const SOUTHERN_HARVEST_MONTH: f32 = 2.;
 pub(crate) const NORTHERN_HARVEST_MONTH: f32 = 8.;
 crate::shared_shader_parameters!(SHADER_PARAMETERS {
+    pub const MAX_RATION_PRIORITY: f32 = 3.;
     pub(crate) const CHILD_RATION_KG_PER_MONTH: f64 = 10.;
     pub(crate) const ADULT_RATION_KG_PER_MONTH: f64 = 18.;
     pub(crate) const ELDER_RATION_KG_PER_MONTH: f64 = 14.;

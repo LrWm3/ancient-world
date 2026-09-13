@@ -14,6 +14,8 @@ const SHORTAGE_DURATION_THRESHOLD:f32=.02;
 const CROP_CALENDAR_MONTHS:u32=12u;
 const PLANTING_LEAD_MONTHS:u32=6u;
 const HARVEST_SEED_RESERVE_SHARE:f32=.05;
+const EXPOSURE_POPULATION_FLOOR:f32=1.;
+const SEED_RATIO_POPULATION_FLOOR:f32=1.;
 
 struct Demography {ages:vec4<f32>, crops:vec4<f32>, health:vec4<f32>, ration_priority:vec4<f32>, ration_need:vec4<f32>, ration_eaten:vec4<f32>, household_food:vec4<f32>}
 @group(0) @binding(8) var<storage,read_write> demography:array<Demography>;
@@ -35,7 +37,7 @@ fn allocate_rations(need:vec3<f32>, food:f32, priority:vec3<f32>)->vec3<f32> {
  var remaining=available-dot(eaten,vec3(1.));
  for(var iteration=0u;iteration<RATION_REDISTRIBUTION_PASSES;iteration++) {
   let unmet=max(need-eaten,vec3(0.));
-  let weight=unmet*(vec3(1.)+clamp(priority,vec3(0.),vec3(3.)));
+  let weight=unmet*(vec3(1.)+clamp(priority,vec3(0.),vec3(MAX_RATION_PRIORITY)));
   let amount=min(unmet,weight*(remaining/max(dot(weight,vec3(1.)),DEMOGRAPHY_DIVISION_FLOOR)));
   eaten+=amount;remaining=max(0.,remaining-dot(amount,vec3(1.)));
  }
@@ -54,7 +56,7 @@ fn demographic_month(i:u32,shortage:f32,food:f32)->vec2<f32> {
  var contamination=select(0.,economies[i].soil.w*WATERLOGGING_MONTHLY_ILLNESS,(p.options.w&2u)!=0u);
  let e=economies[i];
  if e.waterworks.w>.5 {
-  let crowding=select(0.,clamp(1.-(e.housing.z+min(e.housing.x/HOUSING_WOOD_KG_PER_PERSON,e.housing.y/HOUSING_BRICKS_KG_PER_PERSON))/max(dot(old,vec3(1.)),1.),0.,1.),e.housing_plan.w>.5);
+  let crowding=select(0.,clamp(1.-(e.housing.z+min(e.housing.x/HOUSING_WOOD_KG_PER_PERSON,e.housing.y/HOUSING_BRICKS_KG_PER_PERSON))/max(dot(old,vec3(1.)),EXPOSURE_POPULATION_FLOOR),0.,1.),e.housing_plan.w>.5);
   contamination=(contamination+CROWDING_MONTHLY_ILLNESS*crowding)*(1.-SANITATION_MAX_ILLNESS_REDUCTION*e.waterworks_plan.w)+UNSAFE_WATER_MONTHLY_ILLNESS*e.water_service.y;
  }
  let disease=clamp(d.health.x*MONTHLY_ILLNESS_RETENTION+shortage*SHORTAGE_MONTHLY_ILLNESS+contamination,0.,MAX_DISEASE_BURDEN);
@@ -73,7 +75,7 @@ fn crop_calendar(i:u32,growth:f32)->f32 {
  let season=p.dims.z%CROP_CALENDAR_MONTHS;let harvest=u32(d.crops.z);
  if season==harvest {harvested=d.crops.x*farm_attendance(economies[i]);d.crops.x-=harvested;let reserved=min(harvested*HARVEST_SEED_RESERVE_SHARE,src[i].stock.x);d.crops.y+=reserved;harvested-=reserved;}
  if season==(harvest+PLANTING_LEAD_MONTHS)%CROP_CALENDAR_MONTHS {
-  let planted=min(d.crops.y,src[i].stock.x)*farm_attendance(economies[i]);d.crops.y-=planted;d.crops.w=clamp(planted/max(1.,src[i].stock.x),0.,1.);
+  let planted=min(d.crops.y,src[i].stock.x)*farm_attendance(economies[i]);d.crops.y-=planted;d.crops.w=clamp(planted/max(SEED_RATIO_POPULATION_FLOOR,src[i].stock.x),0.,1.);
   // Seed remains living crop inventory; growth converts it to standing biomass without creating matter.
   d.crops.x+=planted;
  }
