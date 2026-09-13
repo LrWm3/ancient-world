@@ -51,3 +51,13 @@ was 43,230.60 versus 8,631.08. Both runs passed native validation. This confirms
 that the loaded-world override reaches production; it does not yet establish the
 long-run effect of any monetary policy. Both Python and native CLI rejected NaN,
 and strict all-target Clippy passed. No default settings changed.
+
+## Execution provenance
+
+The eight-arm comparison was launched with the executable built from `ef46feb`.
+Both batches use the same fixed executable: the scarcity batch copies the control
+batch's executable, not a subsequently rebuilt target. Constants review continues
+while these runs execute, so the second runner's recorded Git revision/working-tree
+state can describe later source edits. Compare the recorded binary hashes; those
+identify the actual shared executable. Elapsed times are not performance benchmarks
+while shader tests and compilation run alongside the experiments.

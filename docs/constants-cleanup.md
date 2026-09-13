@@ -800,3 +800,14 @@ The hardware-backed `maintenance_returns_excess_body_nutrients_without_creating_
 and `no_energy_and_no_phosphorus_limit_growth` fixtures each ran and passed.
 Strict all-target Clippy passed. The remaining shader and repository-wide semantic
 review is still open; this does not claim completion of constants cleanup.
+
+## Ecological founder patch parameters
+
+Named five remaining spatial founder parameters in `shaders/ecology.wgsl`: seed
+period, seed and guild phase offsets, thermal-patch frequency and occupied-patch
+frequency. The two patch frequencies remain distinct. These control the initial
+spatial distribution; they are not new growth or adaptation rates. Full literal
+expansion matched the previous complete shader exactly. The explicitly enabled
+GPU thermal-ecotype feeding/persistence fixture ran one test and passed; strict
+all-target Clippy passed. Bit packing, category IDs and mathematical identities
+remain inline. The broader shader/repository semantic review remains open.

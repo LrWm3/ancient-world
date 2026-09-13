@@ -10,6 +10,12 @@ struct Params {dims:vec4<u32>,physical:vec4<f32>,counts:vec4<u32>,options:vec4<u
 @group(0) @binding(5) var<storage,read> river:array<vec4<f32>>;
 @group(0) @binding(6) var<storage,read_write> river_out:array<vec4<f32>>;
 @group(0) @binding(7) var<uniform> p:Params;
+// Smooth founder patches and inherited thermal preference; radians on the unit sphere.
+const ECO_FOUNDER_SEED_PERIOD: u32 = 997u;
+const ECO_FOUNDER_SEED_PHASE_RADIANS: f32 = .017;
+const ECO_FOUNDER_GUILD_PHASE_RADIANS: f32 = 2.399963;
+const ECO_FOUNDER_THERMAL_FREQUENCY: vec3<f32> = vec3(3.,5.,7.);
+const ECO_FOUNDER_OCCUPANCY_FREQUENCY: vec3<f32> = vec3(7.,11.,5.);
 // Consumer feeding, replacement and finite-biomass numerical bounds.
 // Bounded pairwise currents and guild migration.
 // Fine river payload routing and floodplain exchange.
@@ -272,8 +278,8 @@ fn thermal_match(encoded:f32,temperature:f32,aquatic:bool)->f32 {
  return 1./(1.+mismatch*mismatch);
 }
 fn founder_preference(i:u32,k:u32,e:Env)->f32 {
- let phase=f32(p.dims.w%997u)*.017+f32(k)*2.399963;
- return ECO_THERMAL_ENCODING_OFFSET_C+clamp(e.fields[1].x+ECO_FOUNDER_THERMAL_VARIATION_C*sin(dot(pos(i,p.dims.y),vec3(3.,5.,7.))+phase),ECO_MIN_THERMAL_OPTIMUM_C,ECO_MAX_THERMAL_OPTIMUM_C);
+ let phase=f32(p.dims.w%ECO_FOUNDER_SEED_PERIOD)*ECO_FOUNDER_SEED_PHASE_RADIANS+f32(k)*ECO_FOUNDER_GUILD_PHASE_RADIANS;
+ return ECO_THERMAL_ENCODING_OFFSET_C+clamp(e.fields[1].x+ECO_FOUNDER_THERMAL_VARIATION_C*sin(dot(pos(i,p.dims.y),ECO_FOUNDER_THERMAL_FREQUENCY)+phase),ECO_MIN_THERMAL_OPTIMUM_C,ECO_MAX_THERMAL_OPTIMUM_C);
 }
 @compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn seed_ecology(@builtin(global_invocation_id) g:vec3<u32>) {
@@ -293,8 +299,8 @@ fn seed_ecology(@builtin(global_invocation_id) g:vec3<u32>) {
  // spontaneous recruitment. W records Ancient World founder ancestry share.
  for(var k=0u;k<p.options.y;k++){
  let t=catalog[guild_offset()+k];let habitat=select(l,w,t.ids.y==1u);
- let phase=f32(p.dims.w%997u)*.017+f32(k)*2.399963;
- let occupied_region=sin(dot(pos(i,p.dims.y),vec3(7.,11.,5.))+phase);
+ let phase=f32(p.dims.w%ECO_FOUNDER_SEED_PERIOD)*ECO_FOUNDER_SEED_PHASE_RADIANS+f32(k)*ECO_FOUNDER_GUILD_PHASE_RADIANS;
+ let occupied_region=sin(dot(pos(i,p.dims.y),ECO_FOUNDER_OCCUPANCY_FREQUENCY)+phase);
  if occupied_region>ECO_FOUNDER_PATCH_THRESHOLD&&habitat>0. {
  let carbon=habitat*ECO_INITIAL_ANIMAL_C_KG_M2;
  if ecotypes_enabled() {s.pools[38u+k/4u][k%4u]=founder_preference(i,k,e);}
