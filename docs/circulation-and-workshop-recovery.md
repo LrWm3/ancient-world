@@ -194,3 +194,15 @@ retained source inventories to occupied buyers through bounded round-trip land
 cargo. It preserves estate cash and claims rather than confiscating them. Initial
 scope is direct routes under one administration; broader access and balance tests
 remain outstanding. This is resource circulation, not a solution to retained money.
+
+
+### Cross-border recovery screen
+
+[Abandoned stock recovery](abandoned-stock-recovery.md) now permits paid purchases
+between different administrations under standing trade permissions and absent
+active war. A controlled GPU fixture demonstrates delivered matching material
+actually enabling production. Eight matched seed-1024 runs recover small amounts
+of food/goods but leave operator work unchanged and slightly reduce endpoint
+population. The access restriction was real; relaxing it alone is not an economic
+solution. Review downstream input targets and material substitution next, while
+retaining the separate household purchasing-power and firm viability workstreams.

@@ -582,6 +582,113 @@ mod recipe_allocation_tests {
 
     #[test]
     #[ignore = "requires hardware GPU"]
+    fn recovered_inputs_enable_only_matching_funded_work_after_delivery() {
+        let mut g = Generator::new(
+            pollster::block_on(crate::gpu::ContextGpu::headless()).unwrap(),
+            crate::config::Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                ..Default::default()
+            },
+            crate::catalog::Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        g.enable_society().unwrap();
+        let mut baseline = g.civilizations.as_ref().unwrap().clone();
+        baseline.politics = None;
+        baseline.living = None;
+        baseline.month = 3;
+        baseline.cargo.clear();
+        let mut recipe = Recipe {
+            input: [0.; GOODS],
+            output: [0.; GOODS],
+            work: [1., 0., 1., 0.],
+        };
+        recipe.input[2] = 1.;
+        recipe.output[3] = 1.;
+        let mut catalog = EconomyCatalog::bundled().unwrap();
+        catalog.recipes = vec![recipe];
+        baseline.economy_catalog = Some(catalog);
+        for site in &mut baseline.sites {
+            site.economy = Economy {
+                logistics: [1000., 0., 0., 3.],
+                policy: [0., 0., 0., 1.],
+                ..Default::default()
+            };
+            site.economy.targets.fill(100.);
+            site.economy.orders[0] = 100.;
+            site.economy.workshop = [100., 150., 10., 1.];
+            site.economy.workshop_types[0][3] = 1.;
+            site.economy.workshop_types[1] = [5., 5., 0., 0.];
+            site.economy.enterprise_lease[1] = 5.;
+            site.economy.enterprise_plan[1] = 3.;
+            site.stocks.stock[0] = 100.;
+        }
+        baseline.sites[1].civilization = baseline.sites[0].civilization;
+        baseline.sites[1].island = baseline.sites[0].island;
+        baseline.sites[1].abandoned = true;
+        baseline.sites[1].stocks.stock[0] = 0.;
+        baseline.sites[1].economy.goods[2] = 20.;
+        baseline.sites[1].economy.goods[0] = 20.;
+        baseline.sites[1].economy.prices.fill(2.);
+        baseline.sites[0].economy.finance[0] = 1000.;
+        baseline.society.as_mut().unwrap().routes = vec![crate::society::Route {
+            upkeep: None,
+            id: 0,
+            from: 0,
+            to: 1,
+            cells: vec![baseline.sites[0].cell, baseline.sites[1].cell],
+            cost_km: 150.,
+            open: true,
+            flood_months: 0,
+            road_bricks: 0.,
+        }];
+        // Recovery off, cargo not yet due, useful delivery, wrong material,
+        // and useful delivery without prepaid operator attendance.
+        for (recover, due, good, prepaid) in [
+            (false, true, 2, 3.),
+            (true, false, 2, 3.),
+            (true, true, 2, 3.),
+            (true, true, 0, 3.),
+            (true, true, 2, 0.),
+        ] {
+            let mut h = baseline.clone();
+            let cash = h.money_residual();
+            if recover {
+                assert_eq!(h.recover_abandoned_stock(0, 1, good, 20.).unwrap(), 20.);
+            }
+            assert!((h.money_residual() - cash).abs() < 1e-6);
+            assert_eq!(h.sites[0].economy.goods[2], 0.);
+            if due {
+                h.month = 5;
+                h.market_arrivals();
+            }
+            let available = recover && due && good == 2;
+            assert_eq!(
+                h.sites[0].economy.goods[2],
+                if available { 20. } else { 0. }
+            );
+            // Isolate the existing production dispatch from other monthly social
+            // changes. Recovery has already used the real cargo arrival path.
+            h.society = None;
+            h.sites[0].economy.enterprise_plan[1] = prepaid;
+            g.civilizations = Some(h.clone());
+            let engine = Engine::new(&g).unwrap();
+            engine.upload(&g, &h);
+            engine.dispatch(&g, false, h.sites.len() as u32);
+            engine.read(&g, &mut h, true).unwrap();
+            let e = &h.sites[0].economy;
+            assert_eq!(e.made[3] > 0., available);
+            assert_eq!(e.enterprise_used[1] > 0., available && prepaid > 0.);
+            assert!(e.enterprise_used[1] <= prepaid + 1e-5);
+            assert!(e.used[2] <= 20.);
+            assert!((e.used[2] - e.made[3]).abs() < 1e-5);
+        }
+    }
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
     fn blocked_recipes_do_not_strand_usable_prepaid_work() {
         let mut g = Generator::new(
             pollster::block_on(crate::gpu::ContextGpu::headless()).unwrap(),

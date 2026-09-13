@@ -239,6 +239,8 @@ def main():
                         help="hold funded procurement on in every arm; add service lending in credit arms")
     parser.add_argument("--named-office-service", action="store_true",
                         help="use named office attendance in every arm")
+    parser.add_argument("--abandoned-stock-recovery", action="store_true",
+                        help="buy reachable abandoned bulk stocks in every arm")
     parser.add_argument("--household-estate-reclamation", action="store_true",
                         help="review unclaimed local cash; requires delivered named office work")
     parser.add_argument("--household-estate-inheritance", action="store_true",
@@ -293,6 +295,7 @@ def main():
         "demand_workshop_staffing": args.demand_workshop_staffing,
         "household_estate_inheritance": args.household_estate_inheritance,
         "household_estate_reclamation": args.household_estate_reclamation,
+        "abandoned_stock_recovery": args.abandoned_stock_recovery,
         "named_office_service": args.named_office_service,
         "service_procurement_share_override": args.service_procurement_share,
         "compare_export_recovery": args.compare_export_recovery,
@@ -316,6 +319,7 @@ def main():
                        f"--household-estate-inheritance={str(args.household_estate_inheritance).lower()}",
                        f"--household-estate-reclamation={str(args.household_estate_reclamation).lower()}",
                        f"--named-office-service={str(args.named_office_service).lower()}",
+                       f"--abandoned-stock-recovery={str(args.abandoned_stock_recovery).lower()}",
                        f"--service-order-credit={str(credit and args.service_order_procurement).lower()}",
                        f"--council-credit={str(credit).lower()}",
                        f"--shared-issuance={str(issuance).lower()}",

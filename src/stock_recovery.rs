@@ -86,8 +86,20 @@ impl History {
             "recovery requires an inhabited buyer and an empty abandoned source"
         );
         ensure!(
-            self.controller(buyer) == self.controller(source) && home.island == ruin.island,
-            "recovery requires the same administration and inner continent"
+            home.island == ruin.island && ruin.economy.policy[3] >= 0.5,
+            "recovery requires the same inner continent and source trade permission"
+        );
+        let buyer_controller = self.controller(buyer);
+        let source_controller = self.controller(source);
+        ensure!(
+            self.politics
+                .as_ref()
+                .is_none_or(|p| !p.wars.iter().any(|w| {
+                    w.ended.is_none()
+                        && ((w.attacker == buyer_controller && w.defender == source_controller)
+                            || (w.defender == buyer_controller && w.attacker == source_controller))
+                })),
+            "recovery cannot trade across an active war"
         );
         ensure!(
             !self.besieged(buyer) && !self.besieged(source),
@@ -251,6 +263,8 @@ mod tests {
         .unwrap();
         g.found_civilizations(5).unwrap();
         g.enable_society().unwrap();
+        g.enable_politics().unwrap();
+        let politics = g.civilizations.as_ref().unwrap().politics.clone().unwrap();
         let h = g.civilizations.as_mut().unwrap();
         h.politics = None;
         h.month = 3;
@@ -305,13 +319,52 @@ mod tests {
         let unchanged = serde_json::to_value(&h).unwrap();
         assert!(h.recover_abandoned_stock(0, 1, 2, 1.).is_err());
         assert_eq!(serde_json::to_value(&h).unwrap(), unchanged);
-        for change in 0..5 {
+        let mut foreign = before.clone();
+        foreign.sites[1].civilization = 1;
+        foreign.politics = Some(politics);
+        foreign.politics.as_mut().unwrap().controllers[0] = 0;
+        foreign.politics.as_mut().unwrap().controllers[1] = 1;
+        let peace = foreign.clone();
+        assert_eq!(foreign.recover_abandoned_stock(0, 1, 2, 10.).unwrap(), 10.);
+        for reverse in [false, true] {
+            let mut hostile = peace.clone();
+            hostile
+                .politics
+                .as_mut()
+                .unwrap()
+                .wars
+                .push(crate::politics::War {
+                    name: "Test war".into(),
+                    id: 0,
+                    attacker: u32::from(reverse),
+                    defender: u32::from(!reverse),
+                    goal: 1,
+                    started: 1,
+                    ended: None,
+                    outcome: String::new(),
+                    cause: 0,
+                });
+            let snapshot = serde_json::to_value(&hostile).unwrap();
+            assert!(hostile.recover_abandoned_stock(0, 1, 2, 10.).is_err());
+            assert_eq!(snapshot, serde_json::to_value(&hostile).unwrap());
+            hostile
+                .politics
+                .as_mut()
+                .unwrap()
+                .wars
+                .last_mut()
+                .unwrap()
+                .ended = Some(2);
+            assert_eq!(hostile.recover_abandoned_stock(0, 1, 2, 10.).unwrap(), 10.);
+        }
+        for change in 0..6 {
             let mut blocked = before.clone();
             match change {
                 0 => blocked.society.as_mut().unwrap().routes[0].open = false,
                 1 => blocked.sites[0].economy.finance[0] = 0.,
                 2 => blocked.sites[1].abandoned = false,
-                3 => blocked.sites[1].civilization = 1,
+                3 => blocked.sites[1].economy.policy[3] = 0.,
+                4 => blocked.sites[1].island = u32::MAX,
                 _ => blocked.sites[0].economy.targets[2] = 0.,
             }
             let snapshot = serde_json::to_value(&blocked).unwrap();
