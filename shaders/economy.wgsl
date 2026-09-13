@@ -39,6 +39,24 @@ const CROP_REPRODUCTIVE_LAST_PHASE: u32 = 4u;
 const CROP_STRESS_DEMAND_MIN_KG: f32 = .00001;
 const CROP_NUTRIENT_FRACTION_FLOOR: f32 = .00001;
 const CROP_HARVEST_SEED_SHARE: f32 = .05;
+// Managed herd rates; body composition and slaughter fractions are shared above.
+const HERD_MONTHLY_FEED_KG_PER_KG: f32 = .08;
+const HERD_FEED_DEMAND_FLOOR_KG: f32 = .001;
+const HERD_MIN_CARRYING_KG: f32 = 1.;
+const HERD_PASTURE_LAND_SHARE: f32 = .1;
+const HERD_CARRYING_KG_PER_PASTURE_HA: f32 = 20.;
+const HERD_MONTHLY_GROWTH_FRACTION: f32 = .015;
+const HERD_GROWTH_ASSIMILATION_FRACTION: f32 = .4;
+const HERD_MONTHLY_BASE_MORTALITY: f32 = .002;
+const HERD_MONTHLY_STARVATION_MORTALITY: f32 = .04;
+const HERD_MONTHLY_PRODUCT_KG_PER_KG: f32 = .015;
+const HERD_PRODUCT_NUTRIENT_FRACTION_FLOOR: f32 = .0001;
+const HERD_MONTHLY_SLAUGHTER_FRACTION: f32 = .01;
+const HERD_MONTHLY_HUNGER_SLAUGHTER_FRACTION: f32 = .03;
+const HERD_SLAUGHTER_FEED_THRESHOLD: f32 = .5;
+const HERD_SLAUGHTER_CAPACITY_THRESHOLD: f32 = .75;
+const HERD_LEFTOVER_CARBON_RESPIRATION_SHARE: f32 = .6;
+const HERD_LEFTOVER_CARBON_DETRITUS_SHARE: f32 = .4;
 struct Economy {
  farm_workers:vec4<f32>, extraction_workers:vec4<f32>, construction_workers:vec4<f32>,
  production_probe:vec4<f32>, food_labor:vec4<f32>,
@@ -557,19 +575,19 @@ fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
   // stored ration delivered by workers, not a modeled free-grazing resource.
   // Biological loss continues without attendants; collection and slaughter do not.
   let attendance=farm_attendance(e);
-  let need=a.x*.08;let taken=min(need*attendance,e.goods[feed_good/4u][feed_good%4u]);e.goods[feed_good/4u][feed_good%4u]-=taken;e.used[feed_good/4u][feed_good%4u]+=taken;e.agriculture.y+=taken;
-  let fed=taken/max(need,.001);let carrying=max(1.,e.claim.y/10000.*.1*20.);
-  let gain=min(a.x*.015*fed*clamp(1.-a.x/carrying,0.,1.),min(taken*feed_chem.x/body.x,min(taken*feed_chem.y/body.y,taken*feed_chem.z/body.z))*.4);
+  let need=a.x*HERD_MONTHLY_FEED_KG_PER_KG;let taken=min(need*attendance,e.goods[feed_good/4u][feed_good%4u]);e.goods[feed_good/4u][feed_good%4u]-=taken;e.used[feed_good/4u][feed_good%4u]+=taken;e.agriculture.y+=taken;
+  let fed=taken/max(need,HERD_FEED_DEMAND_FLOOR_KG);let carrying=max(HERD_MIN_CARRYING_KG,e.claim.y/10000.*HERD_PASTURE_LAND_SHARE*HERD_CARRYING_KG_PER_PASTURE_HA);
+  let gain=min(a.x*HERD_MONTHLY_GROWTH_FRACTION*fed*clamp(1.-a.x/carrying,0.,1.),min(taken*feed_chem.x/body.x,min(taken*feed_chem.y/body.y,taken*feed_chem.z/body.z))*HERD_GROWTH_ASSIMILATION_FRACTION);
   var leftover=max(vec3(0.),taken*feed_chem-gain*body);a.x+=gain;a.y+=gain;
-  let dead=min(a.x,a.x*(.002+(1.-fed)*.04));a.x-=dead;a.z+=dead;e.detritus+=vec4(dead*body,0.);
+  let dead=min(a.x,a.x*(HERD_MONTHLY_BASE_MORTALITY+(1.-fed)*HERD_MONTHLY_STARVATION_MORTALITY));a.x-=dead;a.z+=dead;e.detritus+=vec4(dead*body,0.);
   let product=u32(catalog.herds[j].x);let chemistry=catalog.goods[product].xyz;
-  let made=min(a.x*.015*fed*attendance,min(leftover.x/max(chemistry.x,.0001),min(leftover.y/max(chemistry.y,.0001),leftover.z/max(chemistry.z,.0001))));
+  let made=min(a.x*HERD_MONTHLY_PRODUCT_KG_PER_KG*fed*attendance,min(leftover.x/max(chemistry.x,HERD_PRODUCT_NUTRIENT_FRACTION_FLOOR),min(leftover.y/max(chemistry.y,HERD_PRODUCT_NUTRIENT_FRACTION_FLOOR),leftover.z/max(chemistry.z,HERD_PRODUCT_NUTRIENT_FRACTION_FLOOR))));
   leftover-=made*chemistry;e.goods[product/4u][product%4u]+=made;e.made[product/4u][product%4u]+=made;a.w+=made;
-  let slaughter=min(a.x,a.x*select(.01,.03,fed<.5)*select(0.,1.,fed<.5||a.x>carrying*.75))*attendance;
+  let slaughter=min(a.x,a.x*select(HERD_MONTHLY_SLAUGHTER_FRACTION,HERD_MONTHLY_HUNGER_SLAUGHTER_FRACTION,fed<HERD_SLAUGHTER_FEED_THRESHOLD)*select(0.,1.,fed<HERD_SLAUGHTER_FEED_THRESHOLD||a.x>carrying*HERD_SLAUGHTER_CAPACITY_THRESHOLD))*attendance;
   a.x-=slaughter;a.z+=slaughter;
   let meat=slaughter*SLAUGHTER_MEAT_FRACTION;let hides=slaughter*SLAUGHTER_HIDE_FRACTION;e.goods[6].x+=meat;e.made[6].x+=meat;e.goods[4].w+=hides;e.made[4].w+=hides;
   e.detritus+=vec4(max(vec3(0.),slaughter*body-meat*catalog.goods[24].xyz-hides*catalog.goods[19].xyz),0.);
-  e.exchange.x-=leftover.x*.6;e.detritus+=vec4(leftover*vec3(.4,1.,1.),0.);e.herds[j]=a;
+  e.exchange.x-=leftover.x*HERD_LEFTOVER_CARBON_RESPIRATION_SHARE;e.detritus+=vec4(leftover*vec3(HERD_LEFTOVER_CARBON_DETRITUS_SHARE,1.,1.),0.);e.herds[j]=a;
  }
  // Food processing conserves elements: calorie-equivalent output is also limited
  // by its embodied C/N/P; remaining material becomes compost, not extra food.

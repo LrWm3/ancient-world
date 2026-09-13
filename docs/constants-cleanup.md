@@ -853,3 +853,23 @@ Verification passed with hardware tests explicitly selected: stored-seed dormanc
 and seasonal/checkpoint conservation (one test), scarce crop resource allocation
 (one), and phosphorus-limited crops/manure retention (one). Strict all-target
 Clippy passed. Raw logs and the extraction script remain in ignored `output/`.
+
+## Managed herd rates
+
+Named 17 parameters in the managed-herd section of `shaders/economy.wgsl`:
+feed demand and its denominator floor, pasture carrying capacity, growth and
+assimilation, baseline and starvation mortality, product yield and nutrient
+guards, ordinary and hunger-driven slaughter, slaughter thresholds, and the
+leftover-carbon split between respiration and detritus.
+
+The equal monthly growth and product rates retain different names. The existing
+shared body-composition and meat/hide fractions remain in the agriculture
+subsystem's CPU/WGSL table. Hectare conversion, packed good indices, identities
+and vector dimensions remain inline. Reversing substitutions reconstructs the
+complete previous shader exactly; rates, arithmetic order and types are unchanged.
+Food processing and other production sections remain under review.
+
+Verification passed: the hardware manure/phosphorus fixture and agricultural
+attendance fixture each ran one test. The latter explicitly checks that absent
+workers deliver no stored feed or products while herd mortality continues, and
+checks income and continuation. Strict all-target Clippy also passed.
