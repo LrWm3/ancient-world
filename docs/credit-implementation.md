@@ -478,3 +478,13 @@ rolling a delayed cargo into a new source ID would let it be pledged twice.
 
 The [two-century four-arm comparison](shared-issuance-century.md) records longer
 issuance consequences, rejected credit requests and remaining experiment gates.
+
+## Consensual extension decision API
+
+[Restructuring decisions](credit-restructuring.md) now have a dated proposal,
+explicit lender/borrower consent, original-source continuity, competing-claim
+coverage, accepted/declined receipts and a History commit operation. It runs after
+current debt servicing and leaves all cash unchanged. The next integration step
+is automatic policy and observation adapters; callers currently supply their
+consent and forecast explicitly. This does not complete the restructuring/closure
+checklist or enable refinancing in ordinary generated histories.

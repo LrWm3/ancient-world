@@ -974,3 +974,82 @@ fn shared_issuance_caps_supply_and_does_not_reset_on_toggle_or_reload() {
     assert!(overflow.shared_issuance_month().is_err());
     assert_eq!(before, serde_json::to_value(overflow).unwrap());
 }
+
+#[test]
+fn consensual_credit_extension_preserves_cash_and_resumes_collection() {
+    use ancient_world::credit::{
+        restructuring::{Decision, Proposal},
+        underwriting::Evidence,
+        Account, RepaymentSource, Status, Terms, SHARED_CURRENCY,
+    };
+    let mut h = network();
+    for site in &mut h.sites {
+        site.economy.finance = [0.; 4];
+    }
+    h.sites[0].economy.finance = [100., 100., 0., 0.];
+    let source = RepaymentSource::Export {
+        contract: 0,
+        payment_month: 2,
+    };
+    let terms = Terms {
+        lender: Account::Town(0),
+        borrower: Account::Town(1),
+        currency: SHARED_CURRENCY,
+        source,
+        annual_simple_rate: 0.,
+        maturity_month: 3,
+        grace_months: 3,
+    };
+    h.commit_credit_loan(terms.clone(), 25.).unwrap();
+    h.month = 3;
+    h.credit.servicing_policy.available_cash_share = 0.;
+    h.service_credit_month().unwrap();
+    let proposal = Proposal {
+        month: 3,
+        loan: 0,
+        revised_maturity: 6,
+        expected_payment_month: 5,
+        evidence: Evidence {
+            source,
+            beneficiary: terms.borrower,
+            observed_month: 3,
+            expected_receipts: 100.,
+            operating_costs: 10.,
+            expected_loss_fraction: 0.,
+        },
+        lender_consent: Some(terms.lender),
+        borrower_consent: Some(terms.borrower),
+    };
+    let opening_cash: Vec<_> = h.sites.iter().map(|s| s.economy.finance[0]).collect();
+    assert_eq!(
+        h.resolve_credit_restructuring(proposal.clone()).unwrap(),
+        Decision::Accepted
+    );
+    assert!(h.resolve_credit_restructuring(proposal).is_err());
+    assert_eq!(
+        opening_cash,
+        h.sites
+            .iter()
+            .map(|s| s.economy.finance[0])
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(h.credit.cash_receipts.len(), 1);
+    h.validate_credit().unwrap();
+    let mut resumed: History = serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
+    for world in [&mut h, &mut resumed] {
+        world.credit.servicing_policy.available_cash_share = 1.;
+        for month in 4..=6 {
+            world.month = month;
+            world.service_credit_month().unwrap();
+        }
+        assert_eq!(world.credit.loans[0].status, Status::Repaid);
+        world.validate_credit().unwrap();
+        assert!(world.economy_residuals()[3].abs() < 1e-12);
+    }
+    assert_eq!(
+        serde_json::to_value(&h).unwrap(),
+        serde_json::to_value(resumed).unwrap()
+    );
+    h.credit.restructurings[0].proposal.borrower_consent = None;
+    assert!(h.validate_credit().is_err());
+}

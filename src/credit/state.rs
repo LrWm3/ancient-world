@@ -14,6 +14,8 @@ pub struct CashReceipt {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Credit {
     #[serde(default)]
+    pub restructurings: Vec<super::restructuring::Receipt>,
+    #[serde(default)]
     pub issuance: super::issuance::Issuance,
     #[serde(default)]
     pub commercial_policy: super::commercial::Policy,
@@ -102,6 +104,36 @@ impl History {
     }
 
     pub fn validate_credit(&self) -> Result<()> {
+        let mut restructurings = std::collections::BTreeSet::new();
+        for receipt in &self.credit.restructurings {
+            receipt.validate(self.month)?;
+            let p = &receipt.proposal;
+            ensure!(
+                restructurings.insert((p.month, p.loan)),
+                "duplicate restructuring decision"
+            );
+            let loan = self
+                .credit
+                .loans
+                .get(p.loan as usize)
+                .context("missing restructured loan")?;
+            ensure!(
+                loan.id == p.loan
+                    && loan.terms.source == receipt.opening.terms.source
+                    && loan.terms.lender == receipt.opening.terms.lender
+                    && loan.terms.borrower == receipt.opening.terms.borrower
+                    && loan.terms.currency == receipt.opening.terms.currency
+                    && loan.terms.annual_simple_rate == receipt.opening.terms.annual_simple_rate
+                    && loan.original_principal == receipt.opening.original_principal,
+                "restructuring changed contract parties or source"
+            );
+            if receipt.decision == super::restructuring::Decision::Accepted {
+                ensure!(loan.entries.iter().any(|e| e.month == p.month
+                    && matches!(e.kind, super::EntryKind::Restructuring { previous_maturity, revised_maturity }
+                        if previous_maturity == receipt.original_maturity && revised_maturity == p.revised_maturity)),
+                    "accepted restructuring missing committed extension");
+            }
+        }
         self.credit.issuance.validate(self.month)?;
         if let Some(schedule) = &self.credit.issuance.schedule {
             ensure!(
