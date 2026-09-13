@@ -1587,6 +1587,104 @@ mod tests {
         assert!((funded.money_residual() - money).abs() < 1e-6);
     }
 
+    #[test]
+    #[ignore = "requires hardware GPU; normal-fee credit comparison"]
+    fn normal_service_fee_credit_comparison() {
+        for seed in [17, 81, 256] {
+            for requested_work in [0.25, 1., 2.] {
+                let mut g = world_seed(seed);
+                install(&mut g);
+                let h = g.civilizations.as_mut().unwrap();
+                h.month = 3;
+                h.begin_service_reservations();
+                h.prepare_enterprises();
+                h.settle_enterprises();
+                let f = h
+                    .enterprises
+                    .as_mut()
+                    .unwrap()
+                    .firms
+                    .iter_mut()
+                    .find(|f| f.closed.is_none())
+                    .unwrap();
+                let firm = f.id;
+                let site = f.site as usize;
+                // Matched opening liquidity gap, with the original service quote.
+                // As in the causal fixture, returned capital remains owned cash.
+                let returned = f.cash;
+                assert!(returned <= f.capital);
+                f.cash = 0.;
+                f.capital -= returned;
+                let owner = &mut h
+                    .society
+                    .as_mut()
+                    .unwrap()
+                    .household_economy
+                    .as_mut()
+                    .unwrap()
+                    .accounts[f.owner as usize];
+                owner.cash += returned;
+                owner.capital_invested -= returned;
+                let transfer = withdraw(&mut h.sites[1].economy.finance[0], 1000.);
+                let added = deposit(&mut h.sites[site].economy.finance[0], transfer);
+                h.society.as_mut().unwrap().councils[0].treasury += transfer - added;
+                h.fund_workshop_order(firm, requested_work, 4).unwrap();
+                h.credit.commercial_policy.enabled = true;
+                h.credit.commercial_policy.service_orders = true;
+                let opening_money = h.money_residual();
+                let mut forecast = h.clone();
+                forecast.month = 4;
+                let evidence = forecast.service_order_credit_evidence(0.05).unwrap();
+                assert_eq!(evidence.len(), 1);
+                let path = std::env::temp_dir().join(format!(
+                    "normal-service-credit-{}-{seed}.world",
+                    std::process::id()
+                ));
+                g.save(&path).unwrap();
+                let mut control = Generator::load(g.gpu.clone(), &path).unwrap();
+                std::fs::remove_file(path).unwrap();
+                control
+                    .civilizations
+                    .as_mut()
+                    .unwrap()
+                    .credit
+                    .commercial_policy
+                    .service_orders = false;
+                for (enabled, world) in [(true, &mut g), (false, &mut control)] {
+                    let mut maximum_money_error = 0_f64;
+                    for _ in 0..12 {
+                        world.advance_history(1).unwrap();
+                        let h = world.civilizations.as_ref().unwrap();
+                        h.validate_credit().unwrap();
+                        h.enterprises.as_ref().unwrap().validate(h).unwrap();
+                        maximum_money_error =
+                            maximum_money_error.max((h.money_residual() - opening_money).abs());
+                    }
+                    let h = world.civilizations.as_ref().unwrap();
+                    let f = &h.enterprises.as_ref().unwrap().firms[firm as usize];
+                    let order = &h.enterprises.as_ref().unwrap().orders[0];
+                    assert!(order.settled.is_some());
+                    assert!(maximum_money_error < 1e-6);
+                    println!(
+                        "normal_service_credit {}",
+                        serde_json::json!({
+                            "seed": seed, "credit": enabled, "requested_work": requested_work,
+                            "quoted_fee": order.price_per_work,
+                            "expected_receipts": evidence[0].expected_receipts,
+                            "operating_costs": evidence[0].operating_costs,
+                            "loans": h.credit.loans.len(),
+                            "principal": h.credit.loans.iter().map(|l| l.original_principal).sum::<f64>(),
+                            "order_paid": order.paid, "order_refunded": order.refunded,
+                            "order_escrow": order.escrow,
+                            "completed_work": f.completed_work, "wages": f.wages,
+                            "closed": f.closed, "maximum_money_error": maximum_money_error,
+                        })
+                    );
+                }
+            }
+        }
+    }
+
     fn world() -> Generator {
         world_seed(Config::default().seed)
     }

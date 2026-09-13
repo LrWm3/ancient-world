@@ -744,3 +744,11 @@ credit increases funded/completed operator work and produces earned order fees;
 the no-credit branch earns none. Checkpoint continuation matches. Its deliberately
 valuable fee is a mechanism fixture, not evidence that default pricing supports
 credit or that autonomous procurement improves long histories.
+
+## Normal-fee service funding comparison
+
+The [three-seed, three-order-size comparison](normal-service-credit-comparison.md)
+passed monthly cash/debt/enterprise checks but found an economic forecast defect:
+partial approvals can be too small to finance the work behind their repayment
+forecast. All selected firms closed in both arms. Grant-dependent feasible work
+must be resolved before automatic procurement or extended benefit claims.

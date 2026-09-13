@@ -78,3 +78,9 @@ The final regression pass also passed all 19 active market tests (two hardware
 fixtures remain ignored in that command) and the explicit GPU service-order
 settlement/refund regression. These checks cover the new escrow path alongside
 existing credit, issuance and account-succession behavior.
+
+The [ordinary-fee comparison](normal-service-credit-comparison.md) now covers three
+seeds and three order sizes. It finds a partial-funding forecast gap: expected
+receipts assume more work than the approved loan can finance. Some small loans
+fund rent without any work; larger ones earn much less than forecast. This needs
+correction before automatic procurement or a claim of general benefit.

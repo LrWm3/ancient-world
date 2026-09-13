@@ -107,8 +107,11 @@ delivery should close their evidence gaps before expanding the monetary model:
    use the new [funded service-order foundation](workshop-service-orders.md),
    and [optional operator underwriting](workshop-service-credit.md). The explicit
    order API reserves cash, and a controlled GPU fixture now shows credit funding
-   completed work. Add automatic procurement and normal-fee comparisons next;
-   the deliberately valuable fixture contract does not establish a balance benefit.
+   completed work. The [ordinary-fee comparison](normal-service-credit-comparison.md)
+   now exposes a partial-funding forecast gap: approved cash cannot finance the
+   work assumed by the receipt forecast. Make forecasts conditional on attainable
+   funded work before automatic procurement and longer comparisons. The deliberately
+   valuable fixture contract does not establish a balance benefit.
 3. **Test lender costs as well as borrower benefits.** Compare council and
    institutional lending reserves. Measure maintenance, paid administration and
    service shortfalls alongside interest and defaults. A reserve policy that
