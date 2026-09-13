@@ -1,15 +1,3 @@
-struct Eco { pools:array<vec4<f32>,41> }
-struct Env { fields:array<vec4<f32>,25> }
-struct Entry { a:vec4<f32>,b:vec4<f32>,c:vec4<f32>,d:vec4<f32>,ids:vec4<u32> }
-struct Params {dims:vec4<u32>,physical:vec4<f32>,counts:vec4<u32>,options:vec4<u32>,event:vec4<u32>,storms:vec4<f32>,abundance:vec4<f32>,thermal:vec4<f32>}
-@group(0) @binding(0) var<storage,read_write> terrain:array<Cell>;
-@group(0) @binding(1) var<storage,read_write> environment:array<Env>;
-@group(0) @binding(2) var<storage,read> src:array<Eco>;
-@group(0) @binding(3) var<storage,read_write> dst:array<Eco>;
-@group(0) @binding(4) var<storage,read> catalog:array<Entry>;
-@group(0) @binding(5) var<storage,read> river:array<vec4<f32>>;
-@group(0) @binding(6) var<storage,read_write> river_out:array<vec4<f32>>;
-@group(0) @binding(7) var<uniform> p:Params;
 // Smooth founder patches and inherited thermal preference; radians on the unit sphere.
 const ECO_FOUNDER_SEED_PERIOD: u32 = 997u;
 const ECO_FOUNDER_SEED_PHASE_RADIANS: f32 = .017;
@@ -207,6 +195,19 @@ const ECO_REACTION_GROUNDWATER_WEIGHT:f32=.8;
 const ECO_LAND_EDGE_RELIEF_SCALE_M:f32=1000.;
 const ECO_CHANNEL_DISCHARGE_THRESHOLD:f32=1.;
 const ECO_MIN_AGGREGATION_AREA_M2:f32=1.;
+
+struct Eco { pools:array<vec4<f32>,41> }
+struct Env { fields:array<vec4<f32>,25> }
+struct Entry { a:vec4<f32>,b:vec4<f32>,c:vec4<f32>,d:vec4<f32>,ids:vec4<u32> }
+struct Params {dims:vec4<u32>,physical:vec4<f32>,counts:vec4<u32>,options:vec4<u32>,event:vec4<u32>,storms:vec4<f32>,abundance:vec4<f32>,thermal:vec4<f32>}
+@group(0) @binding(0) var<storage,read_write> terrain:array<Cell>;
+@group(0) @binding(1) var<storage,read_write> environment:array<Env>;
+@group(0) @binding(2) var<storage,read> src:array<Eco>;
+@group(0) @binding(3) var<storage,read_write> dst:array<Eco>;
+@group(0) @binding(4) var<storage,read> catalog:array<Entry>;
+@group(0) @binding(5) var<storage,read> river:array<vec4<f32>>;
+@group(0) @binding(6) var<storage,read_write> river_out:array<vec4<f32>>;
+@group(0) @binding(7) var<uniform> p:Params;
 fn id(g:vec3<u32>,n:u32)->u32 {return g.z*n*n+g.y*n+g.x;}
 fn direction(f:u32,u:f32,v:f32)->vec3<f32> {var d=vec3(u,v,-1.);switch f {case 0u:{d=vec3(1.,u,v);}case 1u:{d=vec3(-1.,u,v);}case 2u:{d=vec3(u,1.,v);}case 3u:{d=vec3(u,-1.,v);}case 4u:{d=vec3(u,v,1.);}default:{}}return normalize(d);}
 fn pos(i:u32,n:u32)->vec3<f32> {return direction(i/(n*n),2.*(f32(i%n)+.5)/f32(n)-1.,2.*(f32(i/n%n)+.5)/f32(n)-1.);}

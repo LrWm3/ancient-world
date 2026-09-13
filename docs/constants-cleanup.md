@@ -1095,3 +1095,18 @@ seeds 17, 81 and 256 with provinces disabled/enabled), and strict all-target Cli
 passed. This completes these spatial offsets, not the
 remaining shader/viewer audit. Concurrent monetary observations use a fixed
 pre-extraction executable and are not verification of the changed shader.
+
+
+## Ecology parameter header placement
+
+Moved the ecology shader's existing parameter block above its data structures and
+bindings to follow the owning-file header convention. The block and every other
+source byte can be reconstructed exactly by reversing the relocation; no literal,
+expression, layout or dispatch changed. Remaining inline values were reviewed:
+cube geometry, interpolation and normalization identities, packed diet/RNG numeric
+representations, and encoded diagnostic or catalog categories remain structural.
+This does not close the broader terrain/viewer/shared-policy audit.
+
+The coarse-grid scenario/budget/continuation GPU fixture passed (one test), as
+did strict all-target Clippy. The staffing comparison uses a frozen pre-edit
+executable and does not verify the relocated shader declarations.
