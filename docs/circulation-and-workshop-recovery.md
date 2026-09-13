@@ -367,3 +367,16 @@ unchanged from baseline. The controlled capability is retained under optional st
 recovery, with its limitations documented; it is not an economic recovery success.
 Next prioritize a funded processing customer or household-backed import demand,
 rather than assuming that additional raw inventory creates either.
+
+### Food imports: larger orders and lower seller reserves
+
+Nine further fifty-year runs tested a quarterly food ceiling of 54 rather than
+five kg per resident, then paired twelve- and six-month seller reserves. Larger
+orders worsened seed 1024's ending hunger and population; lower reserves increased
+food sales and operator work but did not recover baseline population. Seeds 256
+and 409 recorded no ordinary food sales and unchanged reported outcomes.
+Catalog-loading controls matched the larger-order results. All runs completed
+with small monetary residuals, but neither change demonstrated a circulation fix.
+The candidate was rolled back; see [food import screening](food-import-circulation-screen.md).
+Next gather request-level failure reasons before connecting household funding to
+imports, so inaccessible supply is not mistaken for a shortage of cash.
