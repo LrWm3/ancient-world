@@ -1,11 +1,20 @@
 # GPU-native civilization data model
 
-Status: proposed architecture; no runtime implementation or performance claim.
+**Status: reference only — "break glass in case of emergency."**
+
+Explore this architecture only if regular CPU improvements plus targeted GPU
+kernels for measured bottlenecks prove insufficient to reach the large population
+sizes needed later, after settlement limits are raised or removed. Those incremental
+improvements remain the primary approach. This document is a contingency reference,
+not an active implementation plan; it contains no runtime implementation or
+performance claim.
+
 Source baseline: `09d9150`, inspected 2026-09-13.
 
 ## Purpose
 
-Make GPU state the authoritative representation of the civilization simulation.
+If the contingency above is reached, this design would make GPU state the
+authoritative representation of the civilization simulation.
 The design question is: **what is the GPU-native representation of each concept?**
 The existing Rust object model becomes an import/export, inspection and reference
 view. Simulation decisions operate on indexed data resident on the GPU across
