@@ -1059,3 +1059,22 @@ performance benchmark when run alongside GPU verification.
 Verification passed: the hardware migratory-stock/catch conservation fixture ran
 one test, and strict all-target Clippy passed. The captured source reversal and
 these checks cover this extraction; the broader constants audit remains active.
+
+## Economy calendar and area conversions
+
+Named square meters per hectare and annual-rainfall-to-monthly-water conversion
+in the economy shader header. Reused the existing shared `CROP_CALENDAR_MONTHS`
+and society shader `PLANTING_LEAD_MONTHS` for the managed crop calendar; year
+length is explicitly converted to f32 for annual fixation and canopy normalization.
+The calendar is shared rather than declaring a second year or planting interval.
+Constants retain exactly representable values and the old arithmetic order. The
+full shader is reconstructed by reversing these substitutions.
+
+The remaining economy numeric flags select encoded policies, participation states,
+material roles and diagnostic categories; array bounds and component indices remain
+structural literals. This completes this file's current semantic parameter pass,
+not the outstanding society, ecology, terrain and viewer reviews or the broader
+shared-policy reconciliation. The seasonal-crop GPU fixture passed (one test,
+including dormant seed and full-season material accounting), and strict all-target
+Clippy passed. Monetary comparisons use the frozen executable from before this
+extraction and cannot validate the edited shader.

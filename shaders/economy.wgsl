@@ -1,3 +1,6 @@
+// Calendar and area conversions; annual rainfall becomes monthly water volume.
+const ECONOMY_SQUARE_METERS_PER_HECTARE: f32 = 10000.;
+const FARM_ANNUAL_MM_TO_MONTHLY_METERS_DIVISOR: f32 = 12000.;
 // Shared livestock parameters are prefixed from src/agriculture.rs.
 // Plot claims and finite construction/maintenance parameters.
 const ECONOMY_MAX_PLOT_CLAIM_FRACTION: f32 = .05;
@@ -204,7 +207,7 @@ fn claim_plots() {
     eco.pools[27]+=vec4(returned/area,0.);e.exchange-=vec4(returned,0.);
     e.soil=vec4(0.,0.,0.,e.soil.w);e.detritus=vec4(0.);e.forest=vec4(0.);e.reserves.x=0.;
     e.return_flow.w+=e.water.x;e.water.w+=e.water.x;e.water.x=0.;
-    e.land_return.y=1.;e.land_return.w+=e.claim.y/10000.;
+    e.land_return.y=1.;e.land_return.w+=e.claim.y/ECONOMY_SQUARE_METERS_PER_HECTARE;
    } else if e.land_return.z<.5 && e.land_return.y>.5 {
     let fraction=clamp(e.claim.y/area,0.,ECONOMY_MAX_PLOT_CLAIM_FRACTION);
     e.soil=vec4(eco.pools[17].xyz*fraction*area,e.soil.w);eco.pools[17]=vec4(eco.pools[17].xyz*(1.-fraction),eco.pools[17].w);
@@ -448,7 +451,7 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  if e.farm_workers.x>.5 {e.labor.x=min(e.labor.x,e.farm_workers.y);}
  if e.farm_workers.x>1.5 {e.labor.y=min(e.labor.y,e.extraction_workers.x);e.labor.z=min(e.labor.z,e.extraction_workers.y);e.extraction_workers.z=0.;e.extraction_workers.w=0.; }
  if e.logistics.w>3.5 {e.food_labor.x=mix(e.food_labor.x,e.food_labor.y,FOOD_LABOR_SIGNAL_MONTHLY_RESPONSE);}
- let rain=max(0.,t.hydro.z)*area/12000.*weather;
+ let rain=max(0.,t.hydro.z)*area/FARM_ANNUAL_MM_TO_MONTHLY_METERS_DIVISOR*weather;
  e.water.z+=rain;e.water.x+=rain;
  let capacity=area*(FARM_WATER_BASE_STORAGE_M+FARM_WATER_POLICY_STORAGE_M*e.policy.z)+select(0.,min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON),e.waterworks.w>.5);let runoff=max(0.,e.water.x-capacity);e.water.x-=runoff;e.water.w+=runoff;
  if e.land_return.x>.5 {
@@ -465,7 +468,7 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  let release=min(e.reserves.x,e.reserves.x*FARM_PHOSPHORUS_RELEASE_MONTHLY_FRACTION);e.reserves.x-=release;e.soil.z+=release;
  let decay=e.detritus.xyz*FARM_DETRITUS_MONTHLY_DECAY_FRACTION;e.detritus-=vec4(decay,0.);e.soil+=vec4(0.,decay.yz,0.);e.exchange.x-=decay.x;
  let fixation_cost=max(FARM_FIXATION_COST_FLOOR,catalog.herds[0].z);
- let fixed=min(potential*FARM_FIXATION_MAX_POTENTIAL_SHARE/fixation_cost,area*FARM_FIXATION_KG_N_PER_M2_YEAR/12.*e.policy.x*clamp((t.hydro.y+FARM_FIXATION_TEMPERATURE_OFFSET_C)/FARM_FIXATION_TEMPERATURE_RAMP_C,0.,1.));
+ let fixed=min(potential*FARM_FIXATION_MAX_POTENTIAL_SHARE/fixation_cost,area*FARM_FIXATION_KG_N_PER_M2_YEAR/f32(CROP_CALENDAR_MONTHS)*e.policy.x*clamp((t.hydro.y+FARM_FIXATION_TEMPERATURE_OFFSET_C)/FARM_FIXATION_TEMPERATURE_RAMP_C,0.,1.));
  e.soil.y+=fixed;e.exchange.y+=fixed;
  let tool_factor=FARM_UNTOOLED_PRODUCTIVITY+FARM_TOOL_PRODUCTIVITY_BONUS*clamp((e.goods[0].w+select(0.,e.goods[10].y+COPPER_TOOL_SERVICE_FACTOR*e.goods[10].w,e.extraction.y>.5))/max(FARM_TOOL_DEMAND_FLOOR_KG,s.stock.x*MIN_WORK_TOOLS_KG_PER_PERSON),0.,1.);
  e.production_probe.x=tool_factor;e.production_probe.z=e.goods[0].w+select(0.,e.goods[10].y+COPPER_TOOL_SERVICE_FACTOR*e.goods[10].w,e.extraction.y>.5);e.production_probe.w=s.stock.x;
@@ -619,15 +622,15 @@ fn farm_attendance(e:Economy)->f32 {
  return clamp(e.farm_workers.y/max(e.farm_workers.w,FARM_ATTENDANCE_WORK_FLOOR),0.,1.);
 }
 fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
- var e=input;let s=src[i];let t=world[u32(s.habitat.z)];let month=p.dims.z%12u;
+ var e=input;let s=src[i];let t=world[u32(s.habitat.z)];let month=p.dims.z%CROP_CALENDAR_MONTHS;
  let temp=select(t.hydro.y,t.climate.x,(p.options.w&2u)!=0u);
  let moisture=max(0.,t.hydro.z)*weather;
  var demands:array<f32,6>;
  var total_need=vec3(0.); // N, P and water, measured before any crop uptake.
  for(var j=0u;j<6u;j++){
   let params=catalog.crops[j*2u];let growth_params=catalog.crops[j*2u+1u];let good=u32(params.x);let chemistry=catalog.goods[good].xyz;var c=e.crops[j];
-  let seasonal=catalog.seasons[j];let harvest=(u32(demography[i].crops.z)+u32(growth_params.w))%12u;
-  let phase=(month+12u-(harvest+6u)%12u)%12u;
+  let seasonal=catalog.seasons[j];let harvest=(u32(demography[i].crops.z)+u32(growth_params.w))%CROP_CALENDAR_MONTHS;
+  let phase=(month+CROP_CALENDAR_MONTHS-(harvest+PLANTING_LEAD_MONTHS)%CROP_CALENDAR_MONTHS)%CROP_CALENDAR_MONTHS;
   if seasonal.x>0. && phase==0u {let planted=min(c.z,max(CROP_MIN_PLANTING_KG,s.stock.x*CROP_PLANTING_KG_PER_PERSON))*farm_attendance(e);c.z-=planted;c.y+=planted;}
   let habitat=clamp((temp-params.y)/CROP_TEMPERATURE_RAMP_C,0.,1.)*clamp((params.z-temp)/CROP_TEMPERATURE_RAMP_C,0.,1.)*clamp(moisture/params.w,0.,1.);
   // Every crop shares the same bounded total potential and 5% of land is pasture.
@@ -638,7 +641,7 @@ fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
    // The survey supplies annual harvest potential, not whole-plant biomass.
    // Distribute it over the canopy calendar and include the biomass required
    // for residues. All of that biomass still consumes finite N/P/water.
-   let canopy=crop_canopy(phase)*(12./CROP_CANOPY_ANNUAL_NORMALIZER)/max(seasonal.y,CROP_HARVEST_INDEX_FLOOR);
+   let canopy=crop_canopy(phase)*(f32(CROP_CALENDAR_MONTHS)/CROP_CANOPY_ANNUAL_NORMALIZER)/max(seasonal.y,CROP_HARVEST_INDEX_FLOOR);
    let thermal=clamp((temp-params.y)/CROP_TEMPERATURE_RAMP_C,0.,1.)*clamp((params.z-temp)/CROP_TEMPERATURE_RAMP_C,0.,1.);
    growth=potential*CROP_CULTIVATED_POTENTIAL_SHARE*c.x*growth_params.x*(CROP_REFERENCE_CARBON_FRACTION/max(chemistry.x,CROP_CARBON_FRACTION_FLOOR))*thermal*canopy*f32(c.y>CROP_ESTABLISHMENT_MIN_KG);
    let frost=c.y*seasonal.w*clamp((params.y-temp)/CROP_TEMPERATURE_RAMP_C,0.,1.);
@@ -658,8 +661,8 @@ fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
  if fulfilled<1. {e.diagnostics.x=select(select(3.,2.,fractions.y<=fractions.z),1.,fractions.x<=min(fractions.y,fractions.z));}
  for(var j=0u;j<6u;j++){
   let params=catalog.crops[j*2u];let growth_params=catalog.crops[j*2u+1u];let good=u32(params.x);let chemistry=catalog.goods[good].xyz;var c=e.crops[j];
-  let seasonal=catalog.seasons[j];let harvest=(u32(demography[i].crops.z)+u32(growth_params.w))%12u;
-  let phase=(month+12u-(harvest+6u)%12u)%12u;
+  let seasonal=catalog.seasons[j];let harvest=(u32(demography[i].crops.z)+u32(growth_params.w))%CROP_CALENDAR_MONTHS;
+  let phase=(month+CROP_CALENDAR_MONTHS-(harvest+PLANTING_LEAD_MONTHS)%CROP_CALENDAR_MONTHS)%CROP_CALENDAR_MONTHS;
   if seasonal.x>0. && phase>=CROP_REPRODUCTIVE_FIRST_PHASE && phase<=CROP_REPRODUCTIVE_LAST_PHASE && demands[j]>CROP_STRESS_DEMAND_MIN_KG {
    let damage=c.y*seasonal.z*(1.-fractions.z);
    c.y-=damage;e.detritus+=vec4(damage*chemistry,0.);
@@ -672,7 +675,7 @@ fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
    let lost=c.y*(1.-farm_attendance(e));c.y-=lost;e.detritus+=vec4(lost*chemistry,0.);
    if seasonal.x>0. {let residue=c.y*(1.-seasonal.y);c.y-=residue;e.detritus+=vec4(residue*chemistry,0.);}
    let seed=min(c.y*CROP_HARVEST_SEED_SHARE,max(CROP_MIN_PLANTING_KG,s.stock.x*CROP_PLANTING_KG_PER_PERSON));let harvested=max(0.,c.y-seed);e.goods[good/4u][good%4u]+=harvested;e.made[good/4u][good%4u]+=harvested;c.w+=harvested;c.z+=seed;c.y=0.;}
-  if seasonal.x==0. && month==(harvest+6u)%12u {let planted=min(c.z,max(CROP_MIN_PLANTING_KG,s.stock.x*CROP_PLANTING_KG_PER_PERSON))*farm_attendance(e);c.z-=planted;c.y+=planted;}
+  if seasonal.x==0. && month==(harvest+PLANTING_LEAD_MONTHS)%CROP_CALENDAR_MONTHS {let planted=min(c.z,max(CROP_MIN_PLANTING_KG,s.stock.x*CROP_PLANTING_KG_PER_PERSON))*farm_attendance(e);c.z-=planted;c.y+=planted;}
   // Purchased seed can establish a new daughter farm; no spontaneous imports.
   if c.z+c.y<CROP_ESTABLISHMENT_MIN_KG{let seed=min(CROP_MIN_PLANTING_KG,e.goods[good/4u][good%4u])*farm_attendance(e);e.goods[good/4u][good%4u]-=seed;e.used[good/4u][good%4u]+=seed;c.z+=seed;}
   e.crops[j]=c;
@@ -685,7 +688,7 @@ fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
   // Biological loss continues without attendants; collection and slaughter do not.
   let attendance=farm_attendance(e);
   let need=a.x*HERD_MONTHLY_FEED_KG_PER_KG;let taken=min(need*attendance,e.goods[feed_good/4u][feed_good%4u]);e.goods[feed_good/4u][feed_good%4u]-=taken;e.used[feed_good/4u][feed_good%4u]+=taken;e.agriculture.y+=taken;
-  let fed=taken/max(need,HERD_FEED_DEMAND_FLOOR_KG);let carrying=max(HERD_MIN_CARRYING_KG,e.claim.y/10000.*HERD_PASTURE_LAND_SHARE*HERD_CARRYING_KG_PER_PASTURE_HA);
+  let fed=taken/max(need,HERD_FEED_DEMAND_FLOOR_KG);let carrying=max(HERD_MIN_CARRYING_KG,e.claim.y/ECONOMY_SQUARE_METERS_PER_HECTARE*HERD_PASTURE_LAND_SHARE*HERD_CARRYING_KG_PER_PASTURE_HA);
   let gain=min(a.x*HERD_MONTHLY_GROWTH_FRACTION*fed*clamp(1.-a.x/carrying,0.,1.),min(taken*feed_chem.x/body.x,min(taken*feed_chem.y/body.y,taken*feed_chem.z/body.z))*HERD_GROWTH_ASSIMILATION_FRACTION);
   var leftover=max(vec3(0.),taken*feed_chem-gain*body);a.x+=gain;a.y+=gain;
   let dead=min(a.x,a.x*(HERD_MONTHLY_BASE_MORTALITY+(1.-fed)*HERD_MONTHLY_STARVATION_MORTALITY));a.x-=dead;a.z+=dead;e.detritus+=vec4(dead*body,0.);
