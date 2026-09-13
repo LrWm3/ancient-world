@@ -2,8 +2,8 @@
 
 Status: design draft with initial implementation components. Loan records, existing-
 account transfers, persistence and dated credit allocation exist. Automatic lending
-against observed receipts, scheduled debt servicing, issuance and exchange remain
-pending. See the [implementation record](credit-implementation.md) for evidence.
+against observed receipts, negotiated restructuring, issuance and exchange remain
+pending. Monthly servicing of existing loans is implemented. See the [implementation record](credit-implementation.md) for evidence.
 The monetary experiment is not yet enabled in history.
 
 This is a toy-economy experiment: test whether moving existing cash across time
@@ -132,10 +132,10 @@ Fit the existing five stages; do not rewrite the scheduler.
 
 | Phase | Credit responsibility |
 | --- | --- |
-| Open | Activate dated terms; settle due arrivals; accrue previously outstanding interest once; settle obligations due from already available cash under the explicit debt-service allowance |
+| Open | Activate dated terms; settle due arrivals; accrue previously outstanding interest once; settle obligations due from already available cash under the explicit debt-service allowance; apply contracted grace-period default after the final affordable payment |
 | Reserve | Collect offers/requests from opening evidence; jointly limit lender cash, borrower exposure and pledged sources; transfer accepted principal once before dependent work is funded |
 | Execute/settle | Existing work and commerce run normally; financing never counts as work or output |
-| Respond | Record realized receipts and shocks; assess arrears and proposals for restructuring/default; decisions become effective at a stated future boundary |
+| Respond | Record realized receipts and shocks; assess arrears and proposals for consensual restructuring; decisions become effective at a stated future boundary |
 | Close | Reconcile accounts, debts and source reservations; archive receipts and significant events |
 
 Income received after the Open payment window is available for the next monthly

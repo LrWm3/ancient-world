@@ -708,3 +708,67 @@ fn credit_round_shares_actual_cash_and_cannot_replay_requests() {
         .is_err());
     assert_eq!(before, serde_json::to_value(h).unwrap());
 }
+
+#[test]
+fn scheduled_credit_protects_cash_shares_claims_and_defaults_without_money_creation() {
+    use ancient_world::credit::{Account, RepaymentSource, Status, Terms, SHARED_CURRENCY};
+    let mut h = network();
+    for site in &mut h.sites {
+        site.economy.finance = [0.; 4];
+    }
+    h.sites[0].economy.finance = [100., 100., 0., 0.];
+    h.sites[2].economy.finance = [100., 100., 0., 0.];
+    for lender in [0, 2] {
+        h.commit_credit_loan(
+            Terms {
+                lender: Account::Town(lender),
+                borrower: Account::Town(1),
+                currency: SHARED_CURRENCY,
+                source: RepaymentSource::Export {
+                    contract: lender as u64,
+                    payment_month: 11,
+                },
+                annual_simple_rate: 0.,
+                maturity_month: 12,
+                grace_months: 1,
+            },
+            40.,
+        )
+        .unwrap();
+    }
+    h.credit.servicing_policy.available_cash_share = 1.;
+    h.credit
+        .servicing_policy
+        .protected_cash
+        .push((Account::Town(1), 60.));
+    h.month = 11;
+    h.service_credit_month().unwrap();
+    assert_eq!(h.sites[1].economy.finance[0], 80.);
+    let mut resumed: History = serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
+    for world in [&mut h, &mut resumed] {
+        world.month = 12;
+        world.service_credit_month().unwrap();
+        assert_eq!(world.sites[1].economy.finance[0], 60.);
+        assert_eq!(world.credit.service_receipts.len(), 2);
+        for receipt in &world.credit.service_receipts {
+            assert_eq!(receipt.paid, 10.);
+        }
+        let once = serde_json::to_value(&world).unwrap();
+        world.service_credit_month().unwrap();
+        assert_eq!(once, serde_json::to_value(&world).unwrap());
+        world.month = 13;
+        world.service_credit_month().unwrap();
+        assert!(world
+            .credit
+            .loans
+            .iter()
+            .all(|l| l.status == Status::Defaulted));
+        assert_eq!(world.sites[1].economy.finance[0], 60.);
+        assert!(world.economy_residuals()[3].abs() < 1e-12);
+        world.validate_credit().unwrap();
+    }
+    assert_eq!(
+        serde_json::to_value(h).unwrap(),
+        serde_json::to_value(resumed).unwrap()
+    );
+}

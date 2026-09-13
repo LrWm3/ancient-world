@@ -1382,6 +1382,7 @@ impl Generator {
         h.answer_appeals_observed(&relief_observations)?;
         h.restore_returning_settlements();
         self.prepare_economy(h);
+        h.service_credit_month()?;
         if h.resources.is_some() && h.sites.iter().any(|s| s.economy.claim[3] < 0.5) {
             engine.upload(self, h);
             engine.claim(self);

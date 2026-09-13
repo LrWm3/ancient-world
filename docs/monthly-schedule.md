@@ -451,3 +451,11 @@ support settlement. It describes a completed collection and bounds forecasts of
 the next annual levy. It neither credits a receivable to cash nor authorizes a
 loan. A loan against that future collection must mature after its Respond date,
 so ordinary Open collection cannot spend taxes before they arrive.
+
+Existing credit obligations are serviced in Open after due arrivals, relief
+responses and economy preparation, before Reserve work claims. Collection uses a
+single opening cash snapshot, an explicit protected balance and a bounded share
+of remaining cash. Same-borrower creditors share that allowance proportionally;
+new receipts during servicing cannot increase another payment's allowance. Annual
+taxes collected in Respond become usable by this pass in the next Open. The
+servicing marker prevents a repeated call at the same boundary from paying twice.

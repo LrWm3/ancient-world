@@ -12,6 +12,7 @@ const DEFAULT_GRACE_MONTHS: u32 = 3;
 const LEDGER_RELATIVE_TOLERANCE: f64 = 1e-10;
 
 pub mod accounts;
+pub mod servicing;
 pub mod state;
 pub mod taxes;
 pub mod underwriting;

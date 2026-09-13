@@ -14,6 +14,12 @@ pub struct CashReceipt {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Credit {
     #[serde(default)]
+    pub servicing_policy: super::servicing::Policy,
+    #[serde(default)]
+    pub serviced_month: Option<u32>,
+    #[serde(default)]
+    pub service_receipts: Vec<super::servicing::Receipt>,
+    #[serde(default)]
     pub tax_observations: Vec<super::taxes::Observation>,
     #[serde(default)]
     pub rounds: Vec<super::underwriting::Round>,
@@ -86,6 +92,33 @@ impl History {
     }
 
     pub fn validate_credit(&self) -> Result<()> {
+        self.credit.servicing_policy.validate()?;
+        ensure!(
+            self.credit.serviced_month.is_none_or(|m| m <= self.month),
+            "future credit service"
+        );
+        let mut services = std::collections::BTreeSet::new();
+        for receipt in &self.credit.service_receipts {
+            ensure!(
+                services.insert((receipt.month, receipt.loan))
+                    && receipt.month <= self.month
+                    && (receipt.loan as usize) < self.credit.loans.len()
+                    && [
+                        receipt.due,
+                        receipt.protected_cash,
+                        receipt.allowance,
+                        receipt.paid
+                    ]
+                    .iter()
+                    .all(|x| x.is_finite() && *x >= 0.)
+                    && receipt
+                        .opening_cash
+                        .is_none_or(|x| x.is_finite() && x >= 0.)
+                    && receipt.paid <= receipt.allowance
+                    && receipt.allowance <= receipt.due,
+                "invalid credit service receipt"
+            );
+        }
         let mut observed = std::collections::BTreeSet::new();
         for observation in &self.credit.tax_observations {
             observation.validate(self.month)?;

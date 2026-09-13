@@ -187,3 +187,26 @@ Verification for this increment: both focused tax tests passed; all 163 active
 library tests passed (132 extended/GPU tests ignored); strict all-target Clippy and
 repository artifact checks passed. These checks do not establish long-run lending
 benefits or replace the planned four-arm monetary experiments.
+
+## Monthly servicing integration
+
+Open now services existing loans after arrivals, appeals and economy preparation,
+before new work reservations. Principal is due at maturity; simple interest is
+accrued monthly. Same-borrower debts share one opening budget proportionally,
+with an explicit protected cash reserve and a default 25% available-cash share.
+These are experimental payment policies, not measured historical behavior.
+New lending can later be disabled without erasing existing obligations.
+
+The schedule records due amounts, opening cash, protected reserves, allocated
+payments, actual transfers, unavailable accounts and default. At the end of the
+contract's grace period it attempts the affordable payment first, then writes off
+remaining claims/liabilities without changing cash. Automatic restructuring and
+closure recovery are not implemented by this step.
+
+Verification: the scheduled two-lender fixture passed, including pre-maturity
+nonpayment, protected cash, proportional payments, grace-period default, exact
+money residual, same-month idempotence and serialized continuation. All nine
+active market integration tests passed (two extended cases ignored), and strict
+all-target Clippy passed. The first checkpoint attempt exposed JSON enum-map key
+incompatibility; protected reserves now use validated account–amount entries.
+No long-run credit/issuance benefit is claimed by these boundary tests.
