@@ -1,5 +1,23 @@
 # Credit, issuance and currencies — design draft
 
+## Review summary
+
+The proposal has two stages. **Stage 1** tests voluntary lending of existing
+money, starting with councils borrowing against future taxes and commercial
+payees borrowing against identifiable proceeds. It then tests capped issuance
+into council treasuries, comparing baseline, credit-only, issuance-only and
+combined worlds. **Stage 2** introduces civilization currencies and exchange
+backed by actual dealer reserves, only if Stage 1 demonstrates useful results.
+
+Implementation should follow the [delivery checklist](#delivery-checklist).
+The main design constraints are repayment from net receipts, no double-pledged
+income, explicit default losses, and spending through existing work and market
+systems. More money must not substitute for missing food or productive capacity.
+The [experiment protocol](#experiments-and-gates) separates those constraints
+from the question of whether either mechanism improves outcomes.
+
+## Implementation status
+
 Status: experimental council and commercial credit pilots and bounded shared-
 currency issuance exist behind explicit switches. Bounded restructuring and delayed-
 export negotiation and bounded account-estate settlement also exist; bounded operator/institution claim succession is implemented. Proportional recovery from closed-estate cash is implemented; broader
