@@ -65,6 +65,34 @@ from transferred cash. This is an explicit conservative game reserve, not a solv
 household population model; changing need and local prices affect future transfers.
 
 The first screen is superseded for balance claims by this correction. The reserve-specific GPU fixture passed (0.94 seconds), as did strict all-target
-Clippy. The corrected native build and revised screen are pending. Before the correction the full CPU
+Clippy. The corrected native build and revised four-arm screen passed. Before the correction the full CPU
 library suite passed: 184 passed, 143 hardware tests ignored. No portability or
 performance conclusion is drawn from these runs.
+
+### Corrected screen
+
+The same seed-1024 founding checkpoint was advanced for 50 years with demand-aware
+staffing and corrected inheritance, all other settings matching the prior screen.
+All four arms exited successfully. Local outputs are under
+`output/household-inheritance-reserve-screen/on/`.
+
+| Measure | No issuance | With issuance |
+| --- | ---: | ---: |
+| Inherited cash | 1,507.48 | 2,087.22 |
+| Transfer receipts | 14 | 7 |
+| Retained-wallet cash (overlapping vacancy/abandonment flags, union) | 15,032.08 | 17,807.16 |
+| Population | 159.434 | 157.960 |
+| Terminal need-weighted hunger | 0.058317 | 0.063906 |
+| Operator revenue less wages and rent | -275.98 | -135.10 |
+
+No loans were issued. Histories within each issuance pair are identical after
+removing only credit records. Maximum absolute endpoint relative money residual
+is 1.841e-7, not a bound over every month. Receipt counts fall from 146/78 in the
+unprotected screen to 14/7 while preserving nearly all of its inherited value.
+This validates the reserve's immediate purpose; it does not establish that the
+reserve length is optimally calibrated. One seed cannot establish robustness.
+
+Inheritance reduces one retained-wealth mechanism. It does not repair workshops:
+operator margins remain negative in aggregate. The remaining retained wealth still
+requires claimant-sensitive escheat or recovery, and abandoned town recovery needs
+physical access and costs. Those parts of the circulation objective are unfinished.

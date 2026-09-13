@@ -131,3 +131,10 @@ not establish that no other relatives have claims. No transfer has been applied.
 [Demand-aware workshop staffing](demand-aware-workshop-staffing.md) is the first
 behavioral pilot following this audit. It caps shifts by current recipe demand;
 input feasibility and long-run economic viability still require evidence.
+
+[Local household estate inheritance](household-estate-inheritance.md) now provides
+an opt-in same-site sole-descendant transfer of cash and ownership, preserving
+identity and excluding live members, travelers and indebted estates. The first
+screen exposed repeated residual transfers, so the revised policy protects three
+months of recorded food need before transferring cash. This is an implemented
+continuity pilot, not completion of unclaimed-estate or abandoned-site recovery.
