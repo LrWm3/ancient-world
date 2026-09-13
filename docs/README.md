@@ -31,6 +31,7 @@ These guides describe different contracts; enabling participation does not by it
 transfer population authority or choose a resource-sharing policy.
 
 - [Monthly schedule and timing contracts](monthly-schedule.md)
+- [GPU-native civilization data model (proposed)](gpu-civilization-data-model.md)
 - [Work execution and settlement boundaries](work-execution-boundaries.md)
 - [Explicit service allocation policies](service-allocation.md)
 - [Research and cultural work reconciliation](learning-resolution.md)
