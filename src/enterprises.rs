@@ -575,6 +575,7 @@ impl History {
             })
             .collect();
         let mut requests = vec![[0.; 4]; self.sites.len()];
+        enterprises.procurement.staffing_observations.clear();
         let mut desired_work = vec![0.; enterprises.firms.len()];
         let mut contracted_work = vec![0_f64; enterprises.firms.len()];
         if enterprises.procurement.contract_staffing {
@@ -620,6 +621,34 @@ impl History {
                         .max(contracted_work[f.id as usize]),
                 )
                 .min(capacities[site]);
+            let desired = if enterprises.procurement.demand_staffing {
+                // The production planner has already assembled this month's
+                // recipe orders. Contracts cannot create physical output demand.
+                let ordered = self.economy_catalog.as_ref().map_or(0., |catalog| {
+                    catalog
+                        .recipes
+                        .iter()
+                        .zip(town.economy.orders)
+                        .filter(|(r, _)| r.work[2] as usize == family)
+                        .map(|(r, batches)| f64::from(r.work[0]) * f64::from(batches))
+                        .sum::<f64>()
+                        * lease_share
+                });
+                let limited = desired.min(ordered);
+                enterprises
+                    .procurement
+                    .staffing_observations
+                    .push(orders::StaffingObservation {
+                        month: self.month,
+                        firm: f.id,
+                        unconstrained_work: desired,
+                        ordered_work: ordered,
+                        requested_work: limited,
+                    });
+                limited
+            } else {
+                desired
+            };
             desired_work[f.id as usize] = desired;
             requests[site][family] = desired.min(f.cash / f.wage_rate);
             f.last_requested_work = requests[site][family];
@@ -1685,6 +1714,39 @@ mod tests {
         let contract = &request_contract.enterprises.as_ref().unwrap().firms[firm as usize];
         assert!(contract.last_requested_work > base.last_requested_work);
         assert!(contract.last_funded_work <= contract.last_requested_work);
+        // Zero current orders must not pay speculative shifts, even when an
+        // escrowed service contract is due. Restore orders to permit restart.
+        let mut no_orders = request_contract.clone();
+        no_orders
+            .enterprises
+            .as_mut()
+            .unwrap()
+            .procurement
+            .demand_staffing = true;
+        no_orders.sites[site].economy.orders.fill(0.);
+        let wages_before = no_orders.enterprises.as_ref().unwrap().firms[firm as usize].wages;
+        let before = no_orders.money_residual();
+        no_orders.begin_service_reservations();
+        no_orders.prepare_enterprises();
+        let operator = &no_orders.enterprises.as_ref().unwrap().firms[firm as usize];
+        assert_eq!(operator.last_requested_work, 0.);
+        assert_eq!(operator.last_funded_work, 0.);
+        assert_eq!(operator.wages, wages_before);
+        assert!((no_orders.money_residual() - before).abs() < 1e-6);
+        assert!(no_orders
+            .enterprises
+            .as_ref()
+            .unwrap()
+            .orders
+            .iter()
+            .all(|o| o.paid == 0.));
+        no_orders.sites[site].economy.orders = request_contract.sites[site].economy.orders;
+        no_orders.begin_service_reservations();
+        no_orders.prepare_enterprises();
+        assert!(
+            no_orders.enterprises.as_ref().unwrap().firms[firm as usize].last_requested_work > 0.
+        );
+        h.enterprises.as_mut().unwrap().procurement.demand_staffing = true;
         // Also exercise the enabled policy through actual GPU execution and resume.
         h.enterprises
             .as_mut()

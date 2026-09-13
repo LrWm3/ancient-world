@@ -117,3 +117,17 @@ Three CPU fixtures pass: all ten cash compartments counted once with issuance;
 positive living-traveler evidence retained despite vacancy; abandoned non-vacant
 wallets included without counting dead members as living. Both existing histories
 parse successfully. No new GPU run was needed for this read-only diagnosis.
+
+### Follow-up claimant inspection
+
+In the same no-issuance endpoint, traversing recorded parent/child links from
+vacant household heads finds two estates with a known living descendant: households
+52 and 58 both lead to person 192, resident in household 46 at site 3. Their wallets
+hold 238.28 and 1,010.58 respectively. Existing succession requires an unoccupied
+head; this is a concrete case for allowing a resident household to inherit another
+estate's economic interest without installing its head in two households. It does
+not establish that no other relatives have claims. No transfer has been applied.
+
+[Demand-aware workshop staffing](demand-aware-workshop-staffing.md) is the first
+behavioral pilot following this audit. It caps shifts by current recipe demand;
+input feasibility and long-run economic viability still require evidence.

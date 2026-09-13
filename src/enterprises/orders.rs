@@ -18,6 +18,11 @@ pub struct Procurement {
     /// Include due escrowed work in shift demand; existing cash/labor caps still apply.
     #[serde(default)]
     pub contract_staffing: bool,
+    /// Cap shifts against current recipe orders, not just past activity.
+    #[serde(default)]
+    pub demand_staffing: bool,
+    #[serde(default)]
+    pub staffing_observations: Vec<StaffingObservation>,
     pub cash_reserve: f64,
     pub surplus_share: f64,
     pub last_month: Option<u32>,
@@ -28,12 +33,24 @@ impl Default for Procurement {
         Self {
             enabled: false,
             contract_staffing: false,
+            demand_staffing: false,
+            staffing_observations: vec![],
             cash_reserve: PROCUREMENT_CASH_RESERVE,
             surplus_share: PROCUREMENT_SURPLUS_SHARE,
             last_month: None,
             claims: vec![],
         }
     }
+}
+/// Reserve-boundary demand before cash and participant matching. This is a
+/// forecast ceiling, not a materials reservation or a completed-work receipt.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StaffingObservation {
+    pub month: u32,
+    pub firm: u32,
+    pub unconstrained_work: f64,
+    pub ordered_work: f64,
+    pub requested_work: f64,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProcurementClaim {
@@ -53,6 +70,21 @@ impl Procurement {
                 && self.last_month.is_none_or(|m| m <= month),
             "invalid service procurement policy"
         );
+        for observation in &self.staffing_observations {
+            ensure!(
+                observation.month <= month
+                    && [
+                        observation.unconstrained_work,
+                        observation.ordered_work,
+                        observation.requested_work
+                    ]
+                    .iter()
+                    .all(|v| v.is_finite() && *v >= 0.)
+                    && observation.requested_work <= observation.unconstrained_work
+                    && observation.requested_work <= observation.ordered_work,
+                "invalid workshop demand observation"
+            );
+        }
         for claim in &self.claims {
             ensure!(
                 [claim.requested_fee, claim.allowance, claim.funded]
@@ -345,6 +377,14 @@ impl History {
 
 pub(super) fn validate(enterprises: &Enterprises, h: &History) -> Result<()> {
     enterprises.procurement.validate(h.month)?;
+    let mut observed = std::collections::BTreeSet::new();
+    for observation in &enterprises.procurement.staffing_observations {
+        ensure!(
+            (observation.firm as usize) < enterprises.firms.len()
+                && observed.insert(observation.firm),
+            "invalid staffing observation firm"
+        );
+    }
     for claim in &enterprises.procurement.claims {
         ensure!(
             (claim.firm as usize) < enterprises.firms.len(),
