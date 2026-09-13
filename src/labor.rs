@@ -57,6 +57,21 @@ pub(crate) fn available(site: &Site, society: bool, living: bool) -> f32 {
     )
 }
 
+/// Hiring uses the previous craft allocation only as a ceiling, subtracting
+/// current public commitments from that pool as well as the workforce ceiling.
+/// Water has execution priority. Reserve installed service demand conservatively;
+/// a later water shortage may leave time unused, but cannot justify prepaid work.
+pub(crate) fn workshop_available(site: &Site, society: bool, living: bool) -> f32 {
+    let water = if site.economy.waterworks[3] > 0.5 {
+        site.stocks.stock[0].max(0.).min(site.economy.waterworks_capacity())
+            * crate::production::ECONOMY_WATER_OPERATION_WORKER_MONTHS_PER_PERSON
+    } else {
+        0.
+    };
+    let craft = (site.economy.labor[3] - site.economy.external[3].max(0.)).max(0.);
+    (craft.min(available(site, society, living)) - water).max(0.)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -263,3 +263,14 @@ leak and its bounded correction. Three matched 50-year runs remain mixed; two
 have smaller operator losses but neither becomes profitable. See the construction
 follow-up in [prepaid craft labor](prepaid-craft-labor.md) for settings, measured
 work/pay, food access, cash residuals and remaining service-priority questions.
+
+### Workshop hiring versus earlier public services
+
+Workshop hiring now subtracts current public commitments from its prior craft
+ceiling and allows for installed water-service operation before committing wages.
+The paired actual-payroll fixture and checkpoint tests pass. Across three matched
+50-year runs, paid attendance completion exceeds 99.5% and cumulative operating
+margins become positive in all three; total output and welfare remain mixed.
+[Service-aware hiring](workshop-service-hiring.md) records the full before/after
+results and the remaining circulation/throughput questions. This does not complete
+the broader economic recovery objective.

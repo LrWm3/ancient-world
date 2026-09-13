@@ -591,13 +591,7 @@ impl History {
         let capacities: Vec<f64> = self
             .sites
             .iter()
-            .map(|s| {
-                (s.economy.labor[3].max(0.).min(crate::labor::available(
-                    s,
-                    true,
-                    self.living.is_some(),
-                ))) as f64
-            })
+            .map(|s| crate::labor::workshop_available(s, true, self.living.is_some()) as f64)
             .collect();
         let mut requests = vec![[0.; 4]; self.sites.len()];
         let stocked: Vec<_> = self
@@ -2380,6 +2374,34 @@ mod tests {
             0.
         );
     }
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn hiring_leaves_time_for_committed_services_and_water() {
+        let mut g = world();
+        install(&mut g);
+        let baseline = g.civilizations.as_ref().unwrap().clone();
+        let mut funded = Vec::new();
+        for water in [false, true] {
+            let mut h = baseline.clone();
+            h.month = 3;
+            let s = &mut h.sites[0];
+            s.stocks.stock[0] = 100.;
+            s.demography.ages[1] = 100.;
+            s.economy.labor[3] = 1.;
+            s.economy.external[3] = 0.6;
+            s.economy.waterworks = [200., 400., 0., if water { 1. } else { 0. }];
+            let before = h.economy_residuals()[4];
+            h.prepare_enterprises();
+            let work: f64 = h.enterprises.as_ref().unwrap().firms.iter()
+                .filter(|f| f.site == 0).map(|f| f.last_funded_work).sum();
+            let expected = if water { 0.3 } else { 0.4 };
+            assert!((work - expected).abs() < 1e-5, "water={water}: funded={work}");
+            assert!((h.economy_residuals()[4] - before).abs() < 1e-6);
+            funded.push(work);
+        }
+        assert!(funded[1] < funded[0]);
+    }
+
     #[test]
     #[ignore = "requires hardware GPU"]
     fn employer_transfers_and_failure_reconcile_without_duplicating_equipment() {
