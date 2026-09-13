@@ -48,7 +48,7 @@ const MAX_RESEARCH_PARTICIPANTS: usize = 4;
 // Research work passes through f32 labor grants with a minimum useful allocation.
 // A sub-milligram remainder must not strand a completed 1.5 kg study forever.
 // This is an eligibility tolerance only: never round up consumed mass or ledgers.
-const STUDY_KG: f64 = 1.5;
+pub(crate) const STUDY_KG: f64 = 1.5;
 const STUDY_TOLERANCE_KG: f64 = 1e-6;
 pub const CNP: [[f64; 3]; 2] = [[0.45, 0.02, 0.003], [0., 0., 0.08]];
 pub const NAMES: [&str; 2] = ["faultroot resin", "phosphatic crust"];

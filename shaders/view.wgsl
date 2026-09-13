@@ -58,7 +58,7 @@ fn eco_color(id:u32,layer:u32)->vec3<f32> {
  }
  return mix(vec3(.025,.04,.08),vec3(.25,.9,.65),clamp(value,0.,1.));
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(MAP_WORKGROUP_EDGE,MAP_WORKGROUP_EDGE)
 fn render(@builtin(global_invocation_id) g:vec3<u32>) {
  if g.x>=v.dims.y || g.y>=v.dims.z {return;}
  let size=vec2<f32>(v.dims.yz);let uv=(vec2<f32>(g.xy)+.5)/size;

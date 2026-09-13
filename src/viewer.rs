@@ -12,6 +12,21 @@ use std::{
 };
 use wgpu::util::DeviceExt;
 
+const FOCUS_GLOBE_ZOOM: f32 = 4.;
+const FOCUS_ATLAS_ZOOM: f32 = 8.;
+const DEFAULT_GLOBE_ZOOM: f32 = 0.88;
+const DEFAULT_MAP_HEIGHT_PX: u32 = 768;
+const DEFAULT_ATLAS_WIDTH_PX: u32 = 1536;
+const DEFAULT_EVENT_EXPORT_MONTHS: u32 = 120;
+const CAMERA_DRAG_RADIANS_PER_PIXEL: f32 = 0.006;
+const MAX_CAMERA_PITCH_RADIANS: f32 = 1.5;
+const CAMERA_SCROLL_ZOOM_RATE: f32 = 0.002;
+const MIN_GLOBE_ZOOM: f32 = 0.4;
+const MAX_MAP_ZOOM: f32 = 12.;
+crate::shared_shader_parameters! { SHADER_PARAMETERS {
+    const MAP_WORKGROUP_EDGE: u32 = 8;
+}}
+
 pub const LAYERS: [&str; 31] = [
     "Natural world",
     "Elevation",
@@ -118,13 +133,17 @@ impl Camera {
             self.yaw / std::f32::consts::TAU,
             -self.pitch / std::f32::consts::PI,
         ];
-        self.zoom = if self.globe { 4. } else { 8. };
+        self.zoom = if self.globe {
+            FOCUS_GLOBE_ZOOM
+        } else {
+            FOCUS_ATLAS_ZOOM
+        };
     }
     pub fn globe() -> Self {
         Self {
             yaw: 0.,
             pitch: 0.,
-            zoom: 0.88,
+            zoom: DEFAULT_GLOBE_ZOOM,
             pan: [0.; 2],
             globe: true,
         }
@@ -176,11 +195,11 @@ impl MapRenderer {
         });
         let uniform = d.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Map settings"),
-            contents: &[0; 80],
+            contents: &[0; std::mem::size_of::<ViewParams>()],
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         let source = format!(
-            "{}\n{}\n{}",
+            "{SHADER_PARAMETERS}\n{}\n{}\n{}",
             include_str!("../shaders/simulation.wgsl")
                 .split("struct Params")
                 .next()
@@ -275,7 +294,11 @@ impl MapRenderer {
             &self.groups[generator.current * 2 + generator.ecology.current],
             &[],
         );
-        pass.dispatch_workgroups(self.width.div_ceil(8), self.height.div_ceil(8), 1);
+        pass.dispatch_workgroups(
+            self.width.div_ceil(MAP_WORKGROUP_EDGE),
+            self.height.div_ceil(MAP_WORKGROUP_EDGE),
+            1,
+        );
         drop(pass);
         generator.gpu.queue.submit(Some(encoder.finish()));
     }
@@ -299,14 +322,17 @@ impl MapRenderer {
         let region = generator.generate_region(
             center,
             width_km,
-            self.width.min(1024).next_power_of_two(),
+            self.width
+                .min(crate::region::MAX_REGION_RESOLUTION)
+                .next_power_of_two(),
         )?;
         region.save(path.as_ref().with_extension("region.json"))?;
         region.export_png(path)
     }
 
     pub fn export_png(&self, generator: &Generator, path: impl AsRef<Path>) -> Result<()> {
-        let padded = (self.width * 4).div_ceil(256) * 256;
+        let padded = (self.width * 4).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+            * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
         let size = padded as u64 * self.height as u64;
         let read = generator.gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("PNG export"),
@@ -465,8 +491,8 @@ impl App {
             }
         }
         let maps = [
-            MapRenderer::new(&generator, 768, 768)?,
-            MapRenderer::new(&generator, 1536, 768)?,
+            MapRenderer::new(&generator, DEFAULT_MAP_HEIGHT_PX, DEFAULT_MAP_HEIGHT_PX)?,
+            MapRenderer::new(&generator, DEFAULT_ATLAS_WIDTH_PX, DEFAULT_MAP_HEIGHT_PX)?,
         ];
         let textures = std::array::from_fn(|i| {
             state.renderer.write().register_native_texture(
@@ -492,7 +518,7 @@ impl App {
             history_window_open: true,
             journey_overlay: None,
             expedition_overlay: None,
-            event_export_months: 120,
+            event_export_months: DEFAULT_EVENT_EXPORT_MONTHS,
             territory_export_month: 0,
             cultural_overlay: 0,
             founding_options: Default::default(),
@@ -526,8 +552,8 @@ impl App {
     }
     fn replace(&mut self, generator: Generator) -> Result<()> {
         let maps = [
-            MapRenderer::new(&generator, 768, 768)?,
-            MapRenderer::new(&generator, 1536, 768)?,
+            MapRenderer::new(&generator, DEFAULT_MAP_HEIGHT_PX, DEFAULT_MAP_HEIGHT_PX)?,
+            MapRenderer::new(&generator, DEFAULT_ATLAS_WIDTH_PX, DEFAULT_MAP_HEIGHT_PX)?,
         ];
         let mut renderer = self.render_state.renderer.write();
         for id in self.textures {
@@ -764,8 +790,9 @@ impl App {
             let delta = ui.input(|i| i.pointer.delta());
             let camera = &mut self.cameras[which];
             if camera.globe {
-                camera.yaw -= delta.x * 0.006;
-                camera.pitch = (camera.pitch + delta.y * 0.006).clamp(-1.5, 1.5);
+                camera.yaw -= delta.x * CAMERA_DRAG_RADIANS_PER_PIXEL;
+                camera.pitch = (camera.pitch + delta.y * CAMERA_DRAG_RADIANS_PER_PIXEL)
+                    .clamp(-MAX_CAMERA_PITCH_RADIANS, MAX_CAMERA_PITCH_RADIANS);
             } else {
                 camera.pan[0] -= delta.x / size.x / camera.zoom;
                 camera.pan[1] -= delta.y / size.y / camera.zoom;
@@ -773,8 +800,9 @@ impl App {
         }
         if response.hovered() {
             let scroll = ui.input(|i| i.smooth_scroll_delta.y);
-            self.cameras[which].zoom = (self.cameras[which].zoom * (scroll * 0.002).exp())
-                .clamp(if which == 0 { 0.4 } else { 1. }, 12.);
+            self.cameras[which].zoom = (self.cameras[which].zoom
+                * (scroll * CAMERA_SCROLL_ZOOM_RATE).exp())
+            .clamp(if which == 0 { MIN_GLOBE_ZOOM } else { 1. }, MAX_MAP_ZOOM);
         }
         if response.clicked() {
             if let Some(pos) = response.interact_pointer_pos() {
@@ -2547,7 +2575,7 @@ impl App {
                         ui.small("Finite coastal sources. Workshops reserve up to two craft workers and consume tools and charcoal. Local assays or paid research exchange establish a method; fresh specimens are still required.");
                         ui.label(format!("Remedy made {:.1} kg · used {:.1} · expired {:.1} · farm phosphorus {:.2} kg · labor {:.1}/{:.1} worker-months used/reserved",d.remedy_made,d.remedy_used,d.remedy_expired,d.phosphorus_applied,d.worker_months,d.worker_months_reserved));
                         ui.small(format!("Specimen/remedy budget residuals: {:?}",d.residuals(x)));
-                        for w in &d.workshops {let mut open=w.enabled;if ui.checkbox(&mut open,format!("{} workshop open",h.sites[w.site as usize].name)).changed(){specimen_policy=Some((w.site,open));}ui.label(format!("{}: resin {:.2} kg · mineral {:.2} kg · remedy {:.2} kg",h.sites[w.site as usize].name,w.samples[0],w.samples[1],w.remedy));ui.small(format!("Assay progress: resin {:.0}% · mineral {:.0}%",w.studied[0]/1.5*100.,w.studied[1]/1.5*100.));ui.small(format!("Copied methods: resin {} · mineral {}",w.learned[0].is_some(),w.learned[1].is_some()));use crate::discoveries::returns::{Use, NAMES};
+                        for w in &d.workshops {let mut open=w.enabled;if ui.checkbox(&mut open,format!("{} workshop open",h.sites[w.site as usize].name)).changed(){specimen_policy=Some((w.site,open));}ui.label(format!("{}: resin {:.2} kg · mineral {:.2} kg · remedy {:.2} kg",h.sites[w.site as usize].name,w.samples[0],w.samples[1],w.remedy));ui.small(format!("Assay progress: resin {:.0}% · mineral {:.0}%",w.studied[0]/crate::discoveries::STUDY_KG*100.,w.studied[1]/crate::discoveries::STUDY_KG*100.));ui.small(format!("Copied methods: resin {} · mineral {}",w.learned[0].is_some(),w.learned[1].is_some()));use crate::discoveries::returns::{Use, NAMES};
                         for (k, name) in NAMES.iter().enumerate() {
                             ui.small(format!("{}: {:.2} kg held · trial {:.0}% · output {:.2} kg",name,w.botanicals.stock[k],w.botanicals.studied[k]/0.25*100.,w.botanicals.output[k]));
                             let mut policy = w.botanicals.policy[k];

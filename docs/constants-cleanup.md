@@ -377,3 +377,15 @@ the expedition/founding changes. Hardware-enabled route inspection and seasonal
 aquatic production tests passed after GPU-prefix changes, exercising terrain,
 ecological and history pipelines. Five expedition crew tests also passed. Core
 shader semantic extraction and the viewer review remain outstanding.
+
+## Viewer controls and export interface batch
+
+Named camera focus/zoom/drag parameters, map dimensions and event-export defaults.
+The map renderer and WGSL share workgroup dimensions; uniform size derives from
+its Rust layout and row alignment uses the wgpu API constant. Regional export
+resolution and displayed assay progress share their owning subsystem's limits.
+
+The hardware-enabled checkpoint/export fixture passed: all 31 layers dispatched,
+PNG dimensions and regional exports checked, and checkpoint continuation matched.
+Strict all-target Clippy passed. This is a partial viewer pass; remaining displayed
+model values, controls and core shader parameters still need semantic review.
