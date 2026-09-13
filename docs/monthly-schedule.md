@@ -459,3 +459,9 @@ of remaining cash. Same-borrower creditors share that allowance proportionally;
 new receipts during servicing cannot increase another payment's allowance. Annual
 taxes collected in Respond become usable by this pass in the next Open. The
 servicing marker prevents a repeated call at the same boundary from paying twice.
+
+When the council credit experiment is enabled, its Reserve operation runs after
+the reservation-boundary guard and before new service/work reservations. Requests
+use current administration demand and the preceding month's relief request receipt;
+they never anticipate this month's retail result. Accepted principal is available
+to subsequent ordinary council spending. A dated decision marker prevents replay.

@@ -1434,6 +1434,7 @@ impl Generator {
         terrain: &[crate::gpu::Cell],
     ) -> Result<(Vec<[f32; 2]>, Vec<crate::household_economy::RetailPlan>)> {
         h.check_workshop_reservation_boundary()?;
+        h.council_credit_month()?;
         h.begin_service_reservations();
         h.prepare_committed_vessels();
         h.reserve_learning_services()?;

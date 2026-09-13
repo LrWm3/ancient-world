@@ -1,7 +1,7 @@
 # Credit implementation record
 
 This tracks delivery of the [credit and currencies design](credit-and-currencies-design.md).
-The monetary experiment is not yet enabled in history. Neither issuance nor
+The council credit pilot is opt-in; it is not enabled by default. Neither issuance nor
 multiple-currency exchange is implemented.
 
 ## Account and timing audit
@@ -210,3 +210,41 @@ active market integration tests passed (two extended cases ignored), and strict
 all-target Clippy passed. The first checkpoint attempt exposed JSON enum-map key
 incompatibility; protected reserves now use validated account–amount entries.
 No long-run credit/issuance benefit is claimed by these boundary tests.
+
+## Automatic council pilot
+
+`History.credit.council_policy.enabled` opts into the first automatic borrowing
+path. Reserve compares current administration requirements and the preceding
+month's observed household relief demand with actual council cash. A positive gap
+can request a tax-backed loan; no collection history means no request. Underwriting
+subtracts annualized operating demand as well as recorded annual town-support needs
+from expected receipts. This deliberately conservative ceiling needs calibration.
+
+Other councils offer a configured fraction of surplus after a three-month operating
+reserve and a fixed cash floor. Only direct open-route contacts can lend; active
+war excludes contact. Requests split across eligible offers before the common
+exposure/source/cash resolver. Loans transfer real cash into the existing treasury,
+so ordinary relief and administration rules still determine spending and work.
+No special loan-funded output or bypass of distribution policy is introduced.
+
+Defaults: disabled experiment, reserve floor 100 currency units, reserve duration
+three months, offered surplus fraction 25%, annual simple rate 6%. They are editable
+game policies. Existing loans continue servicing if new lending is disabled.
+Automatic merchant lending, delivery-paid contracts, consensual restructuring,
+closure recovery, UI/CLI controls and long-run comparisons remain unfinished.
+
+Headless runs can set `--council-credit` or `--council-credit=false` before history
+advancement. Omitting the flag preserves an archived policy. A history must already
+exist or be founded with the normal civilization options. The switch changes new
+council lending only; it does not cancel obligations or enable minting.
+
+Pilot verification: a controlled borrower receives 20 currency units from two
+connected councils, with total council cash unchanged. Missing tax history,
+disabled lending, closed routes and an empty current tax base each prevent funding.
+Repeated calls and serialized continuation preserve the funded result. The initial
+fixture caught a wrapper returning the allocation-round index instead of its
+funded-loan count; this was corrected without changing the allocation API.
+All ten active market integration tests passed (two extended cases ignored), both
+CLI tests passed, and strict all-target Clippy passed. These establish the request →
+underwriting → treasury transfer path; they do not yet establish improved food
+access, completed work or viable repayment in a long history.

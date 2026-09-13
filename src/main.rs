@@ -67,6 +67,9 @@ struct Args {
     /// Advance social years; new histories include monthly planetary ecology by default.
     #[arg(long, default_value_t = 0)]
     history_years: u32,
+    /// Experimental council tax-bridge lending; false stops new loans, not repayment.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    council_credit: Option<bool>,
     /// Export civilization records, settlements and events as JSON.
     #[arg(long)]
     history_export: Option<PathBuf>,
@@ -147,6 +150,7 @@ fn main() -> Result<()> {
             || (args.civilizations.is_none()
                 && args.history_years == 0
                 && args.history_export.is_none()
+                && args.council_credit.is_none()
                 && !args.society
                 && !args.politics
                 && !args.offices
@@ -299,6 +303,15 @@ fn main() -> Result<()> {
         systems.overrides.extend(requested_systems.overrides);
         generator.apply_systems(&systems)?;
     }
+    if let Some(enabled) = args.council_credit {
+        generator
+            .civilizations
+            .as_mut()
+            .context("council credit requires a history")?
+            .credit
+            .council_policy
+            .enabled = enabled;
+    }
     if args.history_years > 0 {
         generator.advance_history(
             args.history_years
@@ -367,6 +380,27 @@ fn main() -> Result<()> {
 #[cfg(test)]
 mod args_tests {
     use super::*;
+    #[test]
+    fn council_credit_can_be_enabled_disabled_or_left_as_archived() {
+        assert_eq!(
+            Args::try_parse_from(["ancient-world"])
+                .unwrap()
+                .council_credit,
+            None
+        );
+        assert_eq!(
+            Args::try_parse_from(["ancient-world", "--council-credit"])
+                .unwrap()
+                .council_credit,
+            Some(true)
+        );
+        assert_eq!(
+            Args::try_parse_from(["ancient-world", "--council-credit=false"])
+                .unwrap()
+                .council_credit,
+            Some(false)
+        );
+    }
     #[test]
     fn system_flags_are_explicit_and_validate_names() {
         let args = Args::try_parse_from([

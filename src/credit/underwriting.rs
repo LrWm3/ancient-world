@@ -37,7 +37,7 @@ impl Default for Policy {
     }
 }
 impl Policy {
-    fn validate(&self) -> Result<()> {
+    pub(crate) fn validate(&self) -> Result<()> {
         ensure!(
             [
                 self.max_request_principal,

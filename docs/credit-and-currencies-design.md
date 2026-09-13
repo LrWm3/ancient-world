@@ -1,10 +1,10 @@
 # Credit, issuance and currencies — design draft
 
-Status: design draft with initial implementation components. Loan records, existing-
-account transfers, persistence and dated credit allocation exist. Automatic lending
-against observed receipts, negotiated restructuring, issuance and exchange remain
-pending. Monthly servicing of existing loans is implemented. See the [implementation record](credit-implementation.md) for evidence.
-The monetary experiment is not yet enabled in history.
+Status: initial credit integration. Loan records, cash transfers, persistence,
+underwriting, monthly servicing and an opt-in council tax-bridge pilot exist.
+Commercial credit, negotiated restructuring, issuance and exchange remain pending.
+See the [implementation record](credit-implementation.md) for evidence and limits.
+The council experiment is disabled unless explicitly enabled.
 
 This is a toy-economy experiment: test whether moving existing cash across time
 improves useful activity, then test bounded money creation, before introducing

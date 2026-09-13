@@ -772,3 +772,93 @@ fn scheduled_credit_protects_cash_shares_claims_and_defaults_without_money_creat
         serde_json::to_value(resumed).unwrap()
     );
 }
+
+#[test]
+fn council_credit_requires_receipts_need_contact_and_reaches_existing_treasury() {
+    use ancient_world::{
+        credit::taxes::Observation,
+        household_economy::{council_allocation, HouseholdEconomy},
+        society::Council,
+    };
+    let mut h = network();
+    h.month = 13;
+    h.credit.council_policy.enabled = true;
+    for site in &mut h.sites {
+        site.economy.finance[0] = 10_000.;
+    }
+    let society = h.society.as_mut().unwrap();
+    society.councils = (0..3)
+        .map(|civilization| Council {
+            civilization,
+            treasury: if civilization == 1 { 0. } else { 1000. },
+            tax_rate: 0.2,
+            distribution: None,
+            pending_distribution: None,
+            distribution_review: None,
+            pending_tax: None,
+            tax_effective_since: None,
+            relief_paid: 0.,
+        })
+        .collect();
+    let mut households = HouseholdEconomy::new(0);
+    households
+        .council_allocations
+        .push(council_allocation::Receipt {
+            month: 12,
+            council: 1,
+            policy: Default::default(),
+            treasury: 0.,
+            administration_forecast: 0.,
+            relief_requested: 20.,
+            relief_ceiling: 0.,
+            relief_granted: 0.,
+            relief_paid: 0.,
+        });
+    society.household_economy = Some(households);
+    h.credit.tax_observations.push(Observation {
+        month: 12,
+        council: 1,
+        collected: 2000.,
+        support_requested: 0.,
+    });
+    let original = h.clone();
+    for intervention in 0..4 {
+        let mut control = original.clone();
+        match intervention {
+            0 => control.credit.tax_observations.clear(),
+            1 => control.credit.council_policy.enabled = false,
+            2 => control
+                .society
+                .as_mut()
+                .unwrap()
+                .routes
+                .iter_mut()
+                .for_each(|r| r.open = false),
+            _ => control.sites[1].economy.finance[0] = 0.,
+        }
+        assert_eq!(control.council_credit_month().unwrap(), 0);
+        assert_eq!(control.society.as_ref().unwrap().councils[1].treasury, 0.);
+    }
+    assert_eq!(h.council_credit_month().unwrap(), 2);
+    let society = h.society.as_ref().unwrap();
+    assert_eq!(society.councils[1].treasury, 20.);
+    assert_eq!(
+        society.councils.iter().map(|c| c.treasury).sum::<f64>(),
+        2000.
+    );
+    assert_eq!(
+        h.credit
+            .loans
+            .iter()
+            .map(|l| l.original_principal)
+            .sum::<f64>(),
+        20.
+    );
+    h.validate_credit().unwrap();
+    let mut resumed: History = serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
+    assert_eq!(resumed.council_credit_month().unwrap(), 0);
+    assert_eq!(
+        serde_json::to_value(h).unwrap(),
+        serde_json::to_value(resumed).unwrap()
+    );
+}

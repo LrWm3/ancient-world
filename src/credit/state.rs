@@ -14,6 +14,10 @@ pub struct CashReceipt {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Credit {
     #[serde(default)]
+    pub council_policy: super::councils::Policy,
+    #[serde(default)]
+    pub council_decided_month: Option<u32>,
+    #[serde(default)]
     pub servicing_policy: super::servicing::Policy,
     #[serde(default)]
     pub serviced_month: Option<u32>,
@@ -92,6 +96,13 @@ impl History {
     }
 
     pub fn validate_credit(&self) -> Result<()> {
+        self.credit.council_policy.validate()?;
+        ensure!(
+            self.credit
+                .council_decided_month
+                .is_none_or(|m| m <= self.month),
+            "future council credit decision"
+        );
         self.credit.servicing_policy.validate()?;
         ensure!(
             self.credit.serviced_month.is_none_or(|m| m <= self.month),
