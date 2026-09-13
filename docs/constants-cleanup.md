@@ -732,3 +732,14 @@ exchange remain the existing game model.
 After the aquatic extraction, GPU lake-mixing transfer and coarse-grid
 conservation/checkpoint fixtures passed, as did strict all-target Clippy.
 Together these two passes name 50 additional shader parameters without tuning.
+
+## Consumer feeding and turnover parameters
+
+Named seven parameters in `shaders/ecology.wgsl`: prey withdrawal cap, thermal
+adaptation per replacement, detrital and respiratory carbon fractions, annual
+mortality, numerical extinction and division guard. The two carbon fractions
+remain separate literal constants to preserve the existing rounding paths.
+Catalog trait unpacking, pool indices and mathematical identities remain inline.
+An exact literal-expansion comparison reproduced the original consumer block.
+The GPU alternate-aquatic-food conservation fixture and strict all-target
+Clippy passed. The rest of the shader review remains unfinished.

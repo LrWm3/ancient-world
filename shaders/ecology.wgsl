@@ -10,6 +10,14 @@ struct Params {dims:vec4<u32>,physical:vec4<f32>,counts:vec4<u32>,options:vec4<u
 @group(0) @binding(5) var<storage,read> river:array<vec4<f32>>;
 @group(0) @binding(6) var<storage,read_write> river_out:array<vec4<f32>>;
 @group(0) @binding(7) var<uniform> p:Params;
+// Consumer feeding, replacement and finite-biomass numerical bounds.
+const ECO_CONSUMER_DIVISOR_GUARD: f32 = 1e-30;
+const ECO_MAX_PREY_WITHDRAWAL_FRACTION: f32 = .25;
+const ECO_THERMAL_ADAPTATION_PER_REPLACEMENT: f32 = .02;
+const ECO_CONSUMER_DETRITAL_C_FRACTION: f32 = .4;
+const ECO_CONSUMER_RESPIRATORY_C_FRACTION: f32 = .6;
+const ECO_CONSUMER_MORTALITY_PER_YEAR: f32 = .02;
+const ECO_CONSUMER_EXTINCTION_C_KG_M2: f32 = 1e-12;
 const NONE:u32=0xffffffffu;
 // Stratified aquatic exchange and sediment cycling.
 const ECO_MIN_WATER_COLUMN_M:f32=1.;
@@ -425,32 +433,32 @@ fn biology(@builtin(global_invocation_id) g:vec3<u32>) {
  for(var d=0u;d<4u;d++){let prey=u32(t.c[d]);let food=s.pools[prey].x;
  // Rare animal prey use refuges / are less worth pursuing. Plants retain their
  // original preference. The lost encounter opportunity does not create food.
- preference[d]=t.d[d]*select(1.,food/max(food+refuge,1e-30),prey>=5u&&prey<17u&&refuge>0.);
+ preference[d]=t.d[d]*select(1.,food/max(food+refuge,ECO_CONSUMER_DIVISOR_GUARD),prey>=5u&&prey<17u&&refuge>0.);
  weighted+=food*preference[d]*food_access(e,prey);}
  // Saturating encounter rate: scarce prey cannot meet a fixed demand.
  // The guard only prevents division by zero. A biomass-scale epsilon here
  // creates an undocumented low-density feeding threshold even when H is zero.
- let capture=select(1.,weighted/max(weighted+t.b.w,1e-30),t.b.w>0.);
+ let capture=select(1.,weighted/max(weighted+t.b.w,ECO_CONSUMER_DIVISOR_GUARD),t.b.w>0.);
  var assimilable=0.;var meal=vec3(0.);
  for(var d=0u;d<4u;d++) {let prey=u32(t.c[d]);let access=food_access(e,prey);
- let bite=s.pools[prey].xyz*min(.25*access,demand*capture*preference[d]*access/max(weighted,1e-30));
+ let bite=s.pools[prey].xyz*min(ECO_MAX_PREY_WITHDRAWAL_FRACTION*access,demand*capture*preference[d]*access/max(weighted,ECO_CONSUMER_DIVISOR_GUARD));
  let efficiency=f32((t.ids[2u+d/2u]>>((d%2u)*16u))&65535u)/65535.;
  s.pools[prey]-=vec4(bite,0.);meal+=bite;assimilable+=bite.x*efficiency;
  }
  let growth=min(assimilable*t.a.z,min(meal.y/t.a.x,meal.z/t.a.y));let biomass=vec3(growth,growth*t.a.x,growth*t.a.y);
  if ecotypes_enabled()&&preference_temperature>0. {
  // Slow local adjustment is limited by replacement through actual growth.
- let replacement=growth/max(s.pools[slot].x+growth,1e-30);
- s.pools[38u+k/4u][k%4u]=mix(preference_temperature,ECO_THERMAL_ENCODING_OFFSET_C+clamp(e.fields[1].x,ECO_MIN_THERMAL_OPTIMUM_C,ECO_MAX_THERMAL_OPTIMUM_C),.02*replacement);}
+ let replacement=growth/max(s.pools[slot].x+growth,ECO_CONSUMER_DIVISOR_GUARD);
+ s.pools[38u+k/4u][k%4u]=mix(preference_temperature,ECO_THERMAL_ENCODING_OFFSET_C+clamp(e.fields[1].x,ECO_MIN_THERMAL_OPTIMUM_C,ECO_MAX_THERMAL_OPTIMUM_C),ECO_THERMAL_ADAPTATION_PER_REPLACEMENT*replacement);}
  s.pools[slot]+=vec4(biomass,0.);
- let leftovers=max(vec3(0.),meal-biomass);let waste=select(18u,22u,t.ids.y==1u&&w>l);s.pools[waste]+=vec4(leftovers.x*.4,leftovers.yz,0.);s.pools[27].x-=leftovers.x*.6;s.pools[28].z+=leftovers.x*.6;
+ let leftovers=max(vec3(0.),meal-biomass);let waste=select(18u,22u,t.ids.y==1u&&w>l);s.pools[waste]+=vec4(leftovers.x*ECO_CONSUMER_DETRITAL_C_FRACTION,leftovers.yz,0.);s.pools[27].x-=leftovers.x*ECO_CONSUMER_RESPIRATORY_C_FRACTION;s.pools[28].z+=leftovers.x*ECO_CONSUMER_RESPIRATORY_C_FRACTION;
  let resp=min(s.pools[slot].x,s.pools[slot].x*t.a.w*dt);s.pools[slot].x-=resp;s.pools[27].x-=resp;s.pools[28].z+=resp;
  let excreted=max(vec2(0.),s.pools[slot].yz-s.pools[slot].x*t.a.xy);
  s.pools[slot].y-=excreted.x;s.pools[slot].z-=excreted.y;
  let dissolved=select(17u,20u,t.ids.y==1u&&w>l);s.pools[dissolved].y+=excreted.x;s.pools[dissolved].z+=excreted.y;
- let death=s.pools[slot].xyz*dt*.02;s.pools[slot]-=vec4(death,0.);s.pools[waste]+=vec4(death,0.);
+ let death=s.pools[slot].xyz*dt*ECO_CONSUMER_MORTALITY_PER_YEAR;s.pools[slot]-=vec4(death,0.);s.pools[waste]+=vec4(death,0.);
  // Numerical extinction transfers the remainder; it never deletes nutrients.
- if s.pools[slot].x<1e-12 {s.pools[waste]+=vec4(s.pools[slot].xyz,0.);s.pools[slot]=vec4(0.);s.pools[38u+k/4u][k%4u]=0.;}
+ if s.pools[slot].x<ECO_CONSUMER_EXTINCTION_C_KG_M2 {s.pools[waste]+=vec4(s.pools[slot].xyz,0.);s.pools[slot]=vec4(0.);s.pools[38u+k/4u][k%4u]=0.;}
 
  }
  dst[i]=s;
