@@ -321,9 +321,9 @@ fn building_work(input:Economy,s:Site,available_workers:f32)->BuildingResult {
  }
  // Builders cannot consume already contracted workshop shifts.
  let building_start=labor;
- var building_budget=ECONOMY_UNBOUNDED_CAPACITY;
+ var building_budget=max(0.,labor-dot(e.enterprise_plan,vec4(1.)));
  if e.construction_workers.x>.5 {
-  building_budget=min(e.construction_workers.y,max(0.,labor-dot(e.enterprise_plan,vec4(1.))));
+  building_budget=min(e.construction_workers.y,building_budget);
   e.construction_workers.z=0.;
  }
  var asset_work=min(labor*ECONOMY_ASSET_BUILD_WORK_SHARE,building_budget);

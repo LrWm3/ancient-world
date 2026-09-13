@@ -81,3 +81,49 @@ and actual input timing versus staffing forecasts. Any intentional reassignment
 should have an explicit release and resulting work/payment receipt. Sustained
 private viability, household purchasing-power circulation and wider recovery
 coverage remain unproven.
+
+## Construction boundary follow-up
+
+Aggregate construction previously used an unbounded construction budget, while
+named construction subtracted already prepaid workshop attendance. A controlled
+GPU case with ten craft worker-months, 9.5 prepaid metalworking months, ample
+metal/orders and an enabled housing project reproduced the difference: aggregate
+housing used one month and only nine prepaid months executed. The failing result
+was observed before changing the shader.
+
+Construction now starts with the unreserved remainder in both modes. Named
+construction additionally caps that remainder by its actual grant. The existing
+shared construction budget continues through housing, waterworks construction,
+storage, workshop building and fitting; it does not grant separate copies of the
+remaining time to each project. No money or workers are added. Water-service
+operation still precedes this window and needs separate staffing/priority review.
+Protecting contracted work is not evidence that the upstream mix of industrial
+and essential-service reservations is well balanced.
+
+The extended hardware fixture now covers ordinary crafting, a competing food
+recipe, aggregate housing and named housing. Both housing cases complete the
+9.5 reserved months and positive construction bounded by the remaining 0.5;
+combined recipe/construction work stays within ten. All three recipe-allocation
+GPU tests pass (45.79 s including cold pipeline setup). Automatic service
+procurement/checkpoint continuation passes (2.09 s). Native build and strict
+all-target Clippy pass.
+
+Matched 50-year runs use the previous section's arguments and checkpoints,
+changing only the executable and output location. All three complete. Local
+results are in `output/building-reservation-screen`; controls remain
+`output/prepaid-isolation-screen`. Compilation overlaps the first run, so these
+are behavior comparisons rather than isolated performance benchmarks.
+
+| Seed | Population before → after | Paid attendance before → after | Completed operator work before → after | Operating margin before → after | Terminal weighted hunger before → after |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1024 | 164.048 → 164.042 | 6.863 → 6.863 | 6.737 → 6.737 | 43.789 → 43.789 | 0.0609 → 0.0599 |
+| 256 | 317.548 → 319.626 | 14.442 → 12.029 | 9.401 → 8.262 | -84.532 → -55.605 | 0.0464 → 0.0513 |
+| 409 | 337.700 → 329.123 | 224.263 → 214.886 | 123.268 → 118.153 | -2805.641 → -2688.858 | 0.0700 → 0.0648 |
+
+Maximum absolute relative cash residual is 8.19e-8. This is a verified reservation
+fix, not a general welfare improvement: losses shrink in two seeds but completed
+work also falls, seed 409 loses population and seed 256 ends with greater hunger.
+The long-run comparisons do not isolate those later changes to one mediator.
+Workshops remain uneconomic in two runs, so the broader circulation task remains
+unfinished. Next review water-service priority versus hiring forecasts and the
+remaining paid-but-unproductive attendance before increasing procurement or fees.

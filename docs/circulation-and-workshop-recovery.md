@@ -254,3 +254,12 @@ results are mixed, with markedly smaller losses in 256 but greater payroll and
 losses in 409. This is a verified cross-system labor correction, not proof that
 all firms are viable. Review earlier asset/service labor and input timing next;
 do not assume larger budgets alone fix paid-but-unproductive attendance.
+
+### Construction reservation follow-up
+
+Aggregate construction now honors prepaid workshop attendance just as named
+construction already did. A red/green hardware fixture demonstrates the specific
+leak and its bounded correction. Three matched 50-year runs remain mixed; two
+have smaller operator losses but neither becomes profitable. See the construction
+follow-up in [prepaid craft labor](prepaid-craft-labor.md) for settings, measured
+work/pay, food access, cash residuals and remaining service-priority questions.
