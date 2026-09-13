@@ -776,3 +776,10 @@ mixed effects: procurement improves work and terminal hunger without issuance,
 but reverses both with issuance. Credit issues no loans and changes no outcomes
 outside its own records. Investigate escrow timing and smaller budget shares
 before widening the opt-in policy; the Stage 2 gate remains no-go.
+
+
+The [10% versus 25% share comparison](service-procurement-share-comparison.md)
+also completed eight arms. Reference histories exactly replay the prior screen;
+a smaller envelope barely changes total work or terminal hunger and still issues
+no loans. Keep the default share and opt-in status. The next diagnostic is actual
+order shortfall causes, rather than another ungrounded fee/reserve adjustment.
