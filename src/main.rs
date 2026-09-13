@@ -67,6 +67,9 @@ struct Args {
     /// Advance social years; new histories include monthly planetary ecology by default.
     #[arg(long, default_value_t = 0)]
     history_years: u32,
+    /// Override managed crop yield for subsequent history (0.1–1), including loaded worlds.
+    #[arg(long)]
+    crop_yield_scale: Option<f32>,
     /// Experimental council tax-bridge lending; false stops new loans, not repayment.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     council_credit: Option<bool>,
@@ -161,6 +164,7 @@ fn main() -> Result<()> {
         args.headless
             || (args.civilizations.is_none()
                 && args.history_years == 0
+                && args.crop_yield_scale.is_none()
                 && args.history_export.is_none()
                 && args.council_credit.is_none()
                 && args.commercial_credit.is_none()
@@ -195,6 +199,9 @@ fn main() -> Result<()> {
         config.ecology_years_per_epoch = y;
     }
     config.systems.overrides.extend(overrides.clone());
+    if let Some(scale) = args.crop_yield_scale {
+        config.crop_yield_scale = scale;
+    }
     config.validate()?;
     let catalog = if let Some(path) = args.catalog {
         Catalog::parse(&std::fs::read_to_string(path)?)?
@@ -248,6 +255,12 @@ fn main() -> Result<()> {
     } else {
         Generator::new(gpu, config, catalog)?
     };
+    // Loading restores the archived config; apply the explicit intervention to
+    // that completed boundary as well. Monthly production uploads this field.
+    if let Some(scale) = args.crop_yield_scale {
+        generator.config.crop_yield_scale = scale;
+        generator.config.validate()?;
+    }
     let target = generator
         .progress
         .epoch

@@ -30,6 +30,7 @@ def activity_and_access(history):
     total_need = sum(a["need"] for a in accounts)
     return {
         "operator_completed_work": sum(f["completed_work"] for f in history["enterprises"]["firms"]),
+        "managed_crop_harvest_kg": sum(c[3] for s in history["sites"] for c in s["economy"]["crops"]),
         "reported_food_production": sum(s["stocks"]["ledger"][0] for s in history["sites"]),
         "terminal_food_need": total_need,
         "terminal_need_weighted_hunger": (
@@ -50,10 +51,14 @@ def main():
     parser.add_argument("--output", type=Path, default=Path("output/monetary-experiment"))
     parser.add_argument("--compare-export-recovery", action="store_true",
                         help="add credit and combined arms with late-export recovery enabled")
+    parser.add_argument("--crop-yield-scale", type=float,
+                        help="same explicit crop-yield intervention in every arm (0.1–1)")
     args = parser.parse_args()
     repo = Path(__file__).resolve().parents[1]
     if args.years <= 0:
         parser.error("years must be positive")
+    if args.crop_yield_scale is not None and not 0.1 <= args.crop_yield_scale <= 1.0:
+        parser.error("crop yield scale must be finite and within 0.1–1")
     out = (repo / args.output).resolve()
     if not out.is_relative_to((repo / "output").resolve()):
         parser.error("experiment artifacts must be written under repository output/")
@@ -81,6 +86,7 @@ def main():
         "binary_sha256": digest(fixed),
         "checkpoints": {label: {"path": str(path), "sha256": digest(path)} for label, path in cases.items()},
         "years": args.years,
+        "crop_yield_scale_override": args.crop_yield_scale,
         "common_payment_policy": "delivery",
         "compare_export_recovery": args.compare_export_recovery,
     }
@@ -100,6 +106,8 @@ def main():
                        f"--council-credit={str(credit).lower()}",
                        f"--shared-issuance={str(issuance).lower()}",
                        "--history-export", str(archive)]
+            if args.crop_yield_scale is not None:
+                command.extend(("--crop-yield-scale", str(args.crop_yield_scale)))
             if args.compare_export_recovery:
                 command.append(f"--export-default-recovery={str(recovery).lower()}")
             started = time.monotonic()
@@ -114,6 +122,8 @@ def main():
                               loans=len(loans), defaults=sum(l["status"] == "Defaulted" for l in loans),
                               precision_blocked=sum(r.get("precision_blocked", False)
                                                     for r in history["credit"]["service_receipts"]),
+                              default_loss=sum(e["principal"] + e["interest"] for l in loans
+                                               for e in l["entries"] if e["kind"] == "WriteOff"),
                               outstanding_debt=sum(l["outstanding_principal"] + l["interest_due"] for l in loans),
                               precision_settled=sum(l["status"] == "PrecisionSettled" for l in loans),
                               precision_writeoff=sum(e["principal"] + e["interest"] for l in loans

@@ -321,6 +321,10 @@ Report distributions and time series of:
   default losses and lender operating shortfalls.
 - Issuance, circulation and accumulation across civilizations; monetary residuals.
 
+The [crop-scarcity comparison](monetary-crop-scarcity.md) extends the runner with an
+explicit, shared production intervention and reports actual crop harvest separately
+from aggregate food. Its sustained constraint does not replace transient shocks.
+
 Required causal and boundary fixtures:
 
 - Exact two-account principal and interest transfers; partial repayment; default
