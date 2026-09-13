@@ -432,4 +432,6 @@ boundary fixture verifies per-issue/rolling annual/lifetime/cooldown limits,
 repeated calls, disabled intervals, expired authorization, continuation, malformed
 receipts and authorities, and atomic rejection of aggregate supply overflow.
 Issued cash reconciles through the existing monetary residual. These are accounting
-and scheduling checks; four-arm world comparisons are the next experiment.
+and scheduling checks. The [first four-arm comparison](shared-issuance-smoke.md)
+found mixed issuance outcomes and no realized credit effect across two 30-year
+worlds; it does not establish the gate for distinct currencies.
