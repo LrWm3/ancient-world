@@ -409,3 +409,16 @@ identities remain inline. The hardware-enabled solar geometry fixture passed
 against its independent rotating-surface integration reference, including both
 hemispheres, poles and three axial tilts. Core ecology, terrain and economy
 shaders still need their remaining semantic-parameter review.
+
+## Regional compute shader review
+
+Reviewed `shaders/region_compute.wgsl` and moved its meaningful relief, noise,
+runoff, soil, habitat, flow-convergence and pool-transfer parameters to the top of
+the owning shader. Shared head/change tolerances now use the same named policy.
+Preserved literal precision and expression order. Layout indices, geographic
+category IDs, hash mixing and simple interpolation identities remain inline.
+
+The hardware-enabled regional fixture passed: repeated generation, acyclic
+routing, accounted runoff, pools, habitat and invalid-region handling. This
+completes this shader's parameter pass; planetary simulation, ecology, economy,
+society and viewer shader reviews remain separate outstanding work.
