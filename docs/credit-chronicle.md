@@ -46,3 +46,14 @@ Adding chronicle events changes event IDs. Previously completed balance runs
 predate this addition; they are not evidence of identical downstream histories
 where unrelated decisions depend on event IDs. No monetary rate or allocation
 policy changes in this increment.
+
+## Archive link validation
+
+Validation now follows each persisted loan-event chain rather than checking only
+that its last event has a `loan_` prefix. Every link must use a known monetary
+milestone, identify the same loan within the subject index range, precede its
+child by ID and have a non-later date. Missing events and branching causes are
+rejected. This prevents another loan's valid event from becoming an apparently
+valid causal parent. The focused fixture injects cross-loan pointers, a self-cycle
+and a future-dated cause. The fixture passed, including ordinary replay and
+serialized continuation, and strict all-target Clippy passed.

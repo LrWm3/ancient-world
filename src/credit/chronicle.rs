@@ -1,8 +1,51 @@
 //! Sparse committed monetary milestones. No historical backfill on archive load.
 use super::{Account, EntryKind, Status};
 use crate::civilization::History;
+use anyhow::{ensure, Context, Result};
 
 impl History {
+    pub(crate) fn validate_credit_chronicle(&self) -> Result<()> {
+        for (&loan, &latest) in &self.credit.last_events {
+            ensure!(
+                self.credit
+                    .loans
+                    .get(loan as usize)
+                    .is_some_and(|l| l.id == loan),
+                "missing chronicle loan"
+            );
+            let mut cursor = Some(latest);
+            let mut latest_month = self.month;
+            while let Some(id) = cursor {
+                let event = self
+                    .events
+                    .get(id as usize)
+                    .context("missing credit event")?;
+                ensure!(
+                    event.id == id
+                        && event.month <= latest_month
+                        && matches!(
+                            event.kind.as_str(),
+                            "loan_issued"
+                                | "loan_arrears"
+                                | "loan_repaid"
+                                | "loan_precision_settled"
+                                | "loan_defaulted"
+                                | "loan_restructured"
+                                | "loan_recovery"
+                        )
+                        && u32::try_from(loan).map_or(true, |subject| event
+                            .subjects
+                            .contains(&("loan".into(), subject)))
+                        && event.causes.len() <= 1
+                        && event.causes.iter().all(|&cause| cause < id),
+                    "invalid credit chronicle chain"
+                );
+                latest_month = event.month;
+                cursor = event.causes.first().copied();
+            }
+        }
+        Ok(())
+    }
     fn credit_event_site(&self, account: Account) -> Option<u32> {
         match account {
             Account::Town(id) => self.sites.get(id as usize).map(|s| s.id),

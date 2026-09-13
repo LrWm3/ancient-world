@@ -787,6 +787,29 @@ fn scheduled_credit_protects_cash_shares_claims_and_defaults_without_money_creat
             assert_eq!(events[2].site, Some(1));
             assert_eq!(world.credit.last_events[&loan.id], events[2].id);
         }
+        let last = world.credit.last_events[&0];
+        let mut corrupt = world.clone();
+        corrupt
+            .credit
+            .last_events
+            .insert(0, world.credit.last_events[&1]);
+        assert!(
+            corrupt.validate_credit().is_err(),
+            "cannot link another loan's event"
+        );
+        let mut corrupt = world.clone();
+        corrupt.events[last as usize].causes = vec![last];
+        assert!(
+            corrupt.validate_credit().is_err(),
+            "cannot cycle a credit cause"
+        );
+        let mut corrupt = world.clone();
+        let previous = corrupt.events[last as usize].causes[0];
+        corrupt.events[previous as usize].month = world.month + 1;
+        assert!(
+            corrupt.validate_credit().is_err(),
+            "cannot backdate a child before its cause"
+        );
         world.validate_credit().unwrap();
     }
     assert_eq!(

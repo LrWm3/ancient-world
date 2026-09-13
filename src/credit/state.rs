@@ -118,20 +118,7 @@ impl History {
     }
 
     pub fn validate_credit(&self) -> Result<()> {
-        ensure!(
-            self.credit.last_events.iter().all(|(loan, event)| self
-                .credit
-                .loans
-                .get(*loan as usize)
-                .is_some_and(|l| l.id == *loan)
-                && self
-                    .events
-                    .get(*event as usize)
-                    .is_some_and(|e| e.id == *event
-                        && e.month <= self.month
-                        && e.kind.starts_with("loan_"))),
-            "invalid credit chronicle link"
-        );
+        self.validate_credit_chronicle()?;
         self.validate_credit_recoveries()?;
         self.validate_export_recovery()?;
         let mut restructurings = std::collections::BTreeSet::new();
