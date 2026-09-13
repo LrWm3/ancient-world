@@ -1,6 +1,36 @@
 use anyhow::{ensure, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+const DEFAULT_PROVINCE_SCALE_KM: f32 = 350.;
+const ID_HASH_OFFSET: u32 = 2166136261;
+const ID_HASH_PRIME: u32 = 16777619;
+const DEFAULT_GUILD_BODY_MASS_KG: f32 = 10.;
+const LEGACY_ROCK_CHEMISTRY: [f32; 4] = [0.001, 0.05, 0.001, 0.02];
+const LEGACY_SOIL_CHEMISTRY: [f32; 4] = [0.7, 0.1, 0.05, 0.5];
+const LEGACY_PLANT_ECOLOGY: PlantEcology = PlantEcology {
+    layer: 0,
+    nitrogen: 0.025,
+    phosphorus: 0.002,
+    maintenance: 0.08,
+    symbiosis: 0.,
+    fixation: 0.02,
+    shade: 0.2,
+    turnover: 0.15,
+};
+const ALLOWED_ROCK_COUNT: std::ops::RangeInclusive<usize> = 24..=32;
+const ALLOWED_MINERAL_COUNT: std::ops::RangeInclusive<usize> = 24..=128;
+const ALLOWED_SOIL_COUNT: std::ops::RangeInclusive<usize> = 8..=32;
+const ALLOWED_PLANT_COUNT: std::ops::RangeInclusive<usize> = 48..=256;
+const ALLOWED_BIOME_COUNT: std::ops::RangeInclusive<usize> = 16..=64;
+const ALLOWED_PROVINCE_SCALE_KM: std::ops::RangeInclusive<f32> = 10. ..=5000.;
+const MIN_OUTER_PLANT_COUNT: usize = 12;
+const ALLOWED_GUILD_FEEDING_RATE: std::ops::RangeInclusive<f32> = 0. ..=12.;
+const IGNEOUS_COLOR: [f32; 3] = [0.67, 0.39, 0.31];
+const SEDIMENTARY_COLOR: [f32; 3] = [0.73, 0.65, 0.42];
+const METAMORPHIC_COLOR: [f32; 3] = [0.46, 0.53, 0.64];
+const MIN_ROCK_SHADE: f32 = 0.84;
+const ROCK_SHADE_RANGE: f32 = 0.24;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Catalog {
     pub version: u32,
@@ -79,11 +109,12 @@ impl DepositSetting {
     }
 }
 fn province_scale() -> f32 {
-    350.
+    DEFAULT_PROVINCE_SCALE_KM
 }
 fn stable_salt(id: &str) -> u32 {
-    id.bytes()
-        .fold(2166136261u32, |h, b| (h ^ b as u32).wrapping_mul(16777619))
+    id.bytes().fold(ID_HASH_OFFSET, |h, b| {
+        (h ^ b as u32).wrapping_mul(ID_HASH_PRIME)
+    })
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Soil {
@@ -128,13 +159,13 @@ pub struct Biome {
     pub color: [f32; 3],
 }
 fn body_mass() -> f32 {
-    10.
+    DEFAULT_GUILD_BODY_MASS_KG
 }
 fn rock_chemistry() -> [f32; 4] {
-    [0.001, 0.05, 0.001, 0.02]
+    LEGACY_ROCK_CHEMISTRY
 }
 fn soil_chemistry() -> [f32; 4] {
-    [0.7, 0.1, 0.05, 0.5]
+    LEGACY_SOIL_CHEMISTRY
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -150,16 +181,7 @@ pub struct PlantEcology {
 }
 impl Default for PlantEcology {
     fn default() -> Self {
-        Self {
-            layer: 0,
-            nitrogen: 0.025,
-            phosphorus: 0.002,
-            maintenance: 0.08,
-            symbiosis: 0.,
-            fixation: 0.02,
-            shade: 0.2,
-            turnover: 0.15,
-        }
+        LEGACY_PLANT_ECOLOGY
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -229,11 +251,11 @@ impl Catalog {
             "unsupported catalog version"
         );
         ensure!(
-            (24..=32).contains(&self.rocks.len())
-                && (24..=128).contains(&self.minerals.len())
-                && (8..=32).contains(&self.soils.len())
-                && (48..=256).contains(&self.plants.len())
-                && (16..=64).contains(&self.biomes.len()),
+            ALLOWED_ROCK_COUNT.contains(&self.rocks.len())
+                && ALLOWED_MINERAL_COUNT.contains(&self.minerals.len())
+                && ALLOWED_SOIL_COUNT.contains(&self.soils.len())
+                && ALLOWED_PLANT_COUNT.contains(&self.plants.len())
+                && ALLOWED_BIOME_COUNT.contains(&self.biomes.len()),
             "catalog counts outside supported bounds"
         );
         let mut ids = HashSet::new();
@@ -282,7 +304,7 @@ impl Catalog {
                     && m.depth_m >= 0.
                     && m.formation < 3
                     && m.province_scale_km.is_finite()
-                    && (10. ..=5000.).contains(&m.province_scale_km),
+                    && ALLOWED_PROVINCE_SCALE_KM.contains(&m.province_scale_km),
                 "invalid mineral {}",
                 m.id
             );
@@ -311,7 +333,7 @@ impl Catalog {
             );
         }
         ensure!(
-            self.plants.iter().filter(|p| p.outer).count() >= 12,
+            self.plants.iter().filter(|p| p.outer).count() >= MIN_OUTER_PLANT_COUNT,
             "at least 12 original outer species required"
         );
         for b in &self.biomes {
@@ -405,7 +427,7 @@ impl Catalog {
                     && g.body_mass_kg.is_finite()
                     && g.body_mass_kg > 0.
                     && g.feeding.is_finite()
-                    && (0. ..=12.).contains(&g.feeding)
+                    && ALLOWED_GUILD_FEEDING_RATE.contains(&g.feeding)
                     && [
                         g.nitrogen,
                         g.phosphorus,
@@ -568,10 +590,10 @@ impl Catalog {
 /// Shared linear RGB palette for the GPU map and its catalog legend.
 pub fn rock_color(r: &Rock) -> [f32; 4] {
     let base = match r.formation {
-        0 => [0.67, 0.39, 0.31],
-        1 => [0.73, 0.65, 0.42],
-        _ => [0.46, 0.53, 0.64],
+        0 => IGNEOUS_COLOR,
+        1 => SEDIMENTARY_COLOR,
+        _ => METAMORPHIC_COLOR,
     };
-    let shade = 0.84 + (stable_salt(&r.id) % 101) as f32 / 100. * 0.24;
+    let shade = MIN_ROCK_SHADE + (stable_salt(&r.id) % 101) as f32 / 100. * ROCK_SHADE_RANGE;
     [base[0] * shade, base[1] * shade, base[2] * shade, 1.]
 }

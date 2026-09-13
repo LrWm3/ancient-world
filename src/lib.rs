@@ -1,3 +1,17 @@
+// Define shared scalar parameters in their owning subsystem. The literal spelling
+// is emitted unchanged into WGSL; no runtime float formatting or new buffer ABI.
+// Use WGSL-compatible f32/u32 literals, without Rust-only suffixes or separators.
+macro_rules! shared_shader_parameters {
+    ($source:ident { $($vis:vis const $name:ident: $ty:ident = $value:literal;)* }) => {
+        $($vis const $name: $ty = $value;)*
+        pub(crate) const $source: &str = concat!($(
+            "const ", stringify!($name), ": ", stringify!($ty), " = ",
+            stringify!($value), ";\n",
+        )*);
+    };
+}
+pub(crate) use shared_shader_parameters;
+
 pub mod catalog;
 pub mod config;
 pub mod gpu;

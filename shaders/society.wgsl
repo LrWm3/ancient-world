@@ -3,8 +3,8 @@ struct Demography {ages:vec4<f32>, crops:vec4<f32>, health:vec4<f32>, ration_pri
 // Opening-month illness reduces effective work, not population. The burden is
 // an abstract index: at its ordinary cap of 0.5, work is reduced by 25%.
 fn workers(i:u32,pop:f32)->f32 {
- if (p.options.w&1u)==0u {return pop*.5;}
- return demography[i].ages.y*.8*(1.-.5*clamp(demography[i].health.x,0.,.5));
+ if (p.options.w&1u)==0u {return pop*LEGACY_WORKER_SHARE;}
+ return demography[i].ages.y*ADULT_WORKER_MONTHS*(1.-ILLNESS_WORK_PENALTY*clamp(demography[i].health.x,0.,MAX_WORK_ILLNESS_BURDEN));
 }
 // All cohorts receive half the common sufficiency first. Remaining food is
 // weighted by entitlement, capped at need, and redistributed in at most 3 passes.

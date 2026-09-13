@@ -8,6 +8,10 @@ use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+const PLAN_TOLERANCE_WORKER_MONTHS: f64 = 1e-4;
+const AVAILABLE_WORK_TOLERANCE_MONTHS: f32 = 1e-6;
+const RECEIPT_TOLERANCE_WORKER_MONTHS: f32 = 1e-5;
+
 const MAX_PRODUCTIVITY_BONUS: f32 = 0.5;
 const PRACTICE_HALF_SATURATION_WORKER_MONTHS: f64 = 12.;
 
@@ -67,7 +71,7 @@ impl FarmPlan {
             .iter()
             .map(|a| a.granted as f64)
             .sum::<f64>()
-            <= self.requested as f64 + 1e-4
+            <= self.requested as f64 + PLAN_TOLERANCE_WORKER_MONTHS
     }
     pub fn granted(&self) -> f32 {
         // GPU allowance must not exceed the sum of the actual stored commitments.
@@ -231,7 +235,10 @@ impl History {
                 let wanted = if site.abandoned {
                     0.
                 } else if sector == 0 {
-                    f.sectors[0].min(site.stocks.habitat[1].max(0.) / 1.5)
+                    f.sectors[0].min(
+                        site.stocks.habitat[1].max(0.)
+                            / crate::agriculture::CULTIVATED_HECTARES_PER_WORKER_MONTH,
+                    )
                 } else if sector == 3 {
                     f.construction
                 } else {
@@ -246,7 +253,7 @@ impl History {
                         let household = self.society.as_ref()?.households.get(hh as usize)?;
                         (r.presence == Presence::Resident(f.site)
                             && household.site == f.site
-                            && pool.available(r.person) > 1e-6)
+                            && pool.available(r.person) > AVAILABLE_WORK_TOLERANCE_MONTHS)
                             .then_some((
                                 r.person,
                                 hh,
@@ -256,7 +263,7 @@ impl History {
                     })
                     .collect();
                 let available: f32 = people.iter().map(|r| r.2 * (1. + r.3)).sum();
-                let fraction = (wanted / available.max(1e-6)).min(1.);
+                let fraction = (wanted / available.max(AVAILABLE_WORK_TOLERANCE_MONTHS)).min(1.);
                 let mut plan = FarmPlan {
                     sector,
                     month: self.month,
@@ -358,10 +365,13 @@ impl History {
                     economy.extraction_workers[p.sector + 1]
                 };
                 ensure!(
-                    used.is_finite() && used >= 0. && used <= effective_granted + 1e-4,
+                    used.is_finite()
+                        && used >= 0.
+                        && used <= effective_granted + PLAN_TOLERANCE_WORKER_MONTHS as f32,
                     "agriculture exceeded attendance"
                 );
-                let fraction = used.min(effective_granted) / effective_granted.max(1e-6);
+                let fraction = used.min(effective_granted)
+                    / effective_granted.max(AVAILABLE_WORK_TOLERANCE_MONTHS);
                 for row in &mut p.assignments {
                     row.used = row.granted * fraction;
                     self.participation
@@ -480,7 +490,7 @@ impl History {
                     && p.requested.is_finite()
                     && p.requested >= 0.
                     && p.grants_within_request()
-                    && p.effective_granted() <= p.requested + 1e-4,
+                    && p.effective_granted() <= p.requested + PLAN_TOLERANCE_WORKER_MONTHS as f32,
                 "invalid agriculture plan: site {}, sector {}, month {}, requested {}, f32 grant {}, stored grants {}",
                 p.site, p.sector, p.month, p.requested, p.granted(),
                 p.assignments.iter().map(|a| a.granted as f64).sum::<f64>()
@@ -496,7 +506,7 @@ impl History {
                         && (0. ..=MAX_PRODUCTIVITY_BONUS).contains(&row.productivity_bonus)
                         && row.used.is_finite()
                         && row.used >= 0.
-                        && row.used <= row.granted + 1e-5
+                        && row.used <= row.granted + RECEIPT_TOLERANCE_WORKER_MONTHS
                         && commitments.insert(row.commitment),
                     "invalid agricultural assignment"
                 );
@@ -511,7 +521,7 @@ impl History {
                             && c.site == p.site
                             && c.people == vec![(row.person, row.granted)]
                             && c.settled == p.settled
-                            && (c.used - row.used).abs() < 1e-5,
+                            && (c.used - row.used).abs() < RECEIPT_TOLERANCE_WORKER_MONTHS,
                         "agriculture commitment mismatch"
                     );
                 }

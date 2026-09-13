@@ -17,9 +17,6 @@ const INFANT_CARE_WORKER_MONTHS: f64 = 0.12;
 const CHILD_CARE_WORKER_MONTHS: f64 = 0.04;
 const MAX_ELDER_CARE_WORKER_MONTHS: f64 = 0.08;
 const ELDER_CARE_RAMP_MONTHS: f64 = 360.;
-const MAX_CARE_DISEASE_BURDEN: f32 = 0.5;
-const ADULT_CARE_CAPACITY_WORKER_MONTHS: f32 = 0.8;
-const ILLNESS_CAPACITY_PENALTY: f32 = 0.5;
 const CAPACITY_TOLERANCE_WORKER_MONTHS: f64 = 1e-6;
 const MIN_CARE_DIVISOR_WORKER_MONTHS: f64 = 1e-12;
 
@@ -123,7 +120,7 @@ fn need(age: i32, disease: f32) -> f64 {
     };
     // Settlement exposure is a proxy, not an individual diagnosis. Illness
     // increases dependent care while the existing capacity rule limits carers.
-    baseline * (1. + disease.clamp(0., MAX_CARE_DISEASE_BURDEN) as f64)
+    baseline * (1. + disease.clamp(0., crate::labor::MAX_WORK_ILLNESS_BURDEN) as f64)
 }
 
 fn capacity(h: &History, person: u32, site: u32) -> f32 {
@@ -135,11 +132,11 @@ fn capacity_with_presence(h: &History, person: u32, site: u32, presence: Presenc
         && (WORKING_START_AGE_MONTHS..WORKING_END_AGE_MONTHS)
             .contains(&(h.month as i32 - h.people[person as usize].born))
     {
-        ADULT_CARE_CAPACITY_WORKER_MONTHS
+        crate::labor::ADULT_WORKER_MONTHS
             * (1.
-                - ILLNESS_CAPACITY_PENALTY
+                - crate::labor::ILLNESS_WORK_PENALTY
                     * h.sites[site as usize].demography.health[0]
-                        .clamp(0., MAX_CARE_DISEASE_BURDEN))
+                        .clamp(0., crate::labor::MAX_WORK_ILLNESS_BURDEN))
     } else {
         0.
     }

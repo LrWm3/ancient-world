@@ -2,6 +2,18 @@
 //! Match workforce modifiers in society.wgsl::workers and ecological_production.
 use crate::civilization::Site;
 
+crate::shared_shader_parameters!(SHADER_PARAMETERS {
+    pub(crate) const ADULT_WORKER_MONTHS: f32 = 0.8;
+    pub(crate) const ILLNESS_WORK_PENALTY: f32 = 0.5;
+    pub(crate) const MAX_WORK_ILLNESS_BURDEN: f32 = 0.5;
+    const LEGACY_WORKER_SHARE: f32 = 0.5;
+    const LAND_RECOVERY_WORK_PENALTY: f32 = 0.4;
+});
+const SERVICE_WORKER_SHARE: f32 = 0.2;
+const RECEIPT_TOLERANCE_WORKER_MONTHS: f64 = 1e-5;
+const INSTITUTION_TOLERANCE_WORKER_MONTHS: f32 = 1e-6;
+const PLAN_TOLERANCE_WORKER_MONTHS: f32 = 1e-5;
+
 fn service_capacity(
     population: f32,
     adults: f32,
@@ -11,12 +23,14 @@ fn service_capacity(
     living: bool,
 ) -> f32 {
     let workers = if society {
-        adults.max(0.) * 0.8 * (1. - 0.5 * illness.clamp(0., 0.5))
+        adults.max(0.)
+            * ADULT_WORKER_MONTHS
+            * (1. - ILLNESS_WORK_PENALTY * illness.clamp(0., MAX_WORK_ILLNESS_BURDEN))
     } else {
-        population.max(0.) * 0.5
+        population.max(0.) * LEGACY_WORKER_SHARE
     };
     let recovery = if living { recovery.clamp(0., 1.) } else { 0. };
-    workers * (1. - 0.4 * recovery) * 0.2
+    workers * (1. - LAND_RECOVERY_WORK_PENALTY * recovery) * SERVICE_WORKER_SHARE
 }
 
 fn remaining(capacity: f32, external: f32, enterprise: [f32; 4]) -> f32 {
@@ -83,9 +97,11 @@ impl WorkReceipt {
             [self.requested, self.granted, self.used, self.released]
                 .iter()
                 .all(|v| v.is_finite() && *v >= 0.)
-                && self.granted <= self.requested + 1e-5
-                && self.used <= self.granted + 1e-5
-                && (!self.settled || (self.granted - self.used - self.released).abs() <= 1e-5),
+                && self.granted <= self.requested + RECEIPT_TOLERANCE_WORKER_MONTHS
+                && self.used <= self.granted + RECEIPT_TOLERANCE_WORKER_MONTHS
+                && (!self.settled
+                    || (self.granted - self.used - self.released).abs()
+                        <= RECEIPT_TOLERANCE_WORKER_MONTHS),
             "invalid work reservation receipt: {self:?}"
         );
         Ok(())
@@ -224,8 +240,8 @@ impl crate::civilization::History {
                                     .all(|v| v.is_finite() && *v >= 0.)
                                 && u.minimum <= u.requested
                                 && (u.granted == 0. || u.granted >= u.minimum)
-                                && u.used <= u.granted + 1e-6
-                                && u.granted <= u.requested + 1e-6
+                                && u.used <= u.granted + INSTITUTION_TOLERANCE_WORKER_MONTHS
+                                && u.granted <= u.requested + INSTITUTION_TOLERANCE_WORKER_MONTHS
                                 && u.members
                                     .iter()
                                     .all(|&id| (id as usize) < self.people.len())
@@ -241,27 +257,34 @@ impl crate::civilization::History {
                                                 == crate::participation::Activity::Culture
                                             && a.people.len() == 1
                                             && u.members.contains(&a.people[0].0)
-                                            && (a.granted - u.granted).abs() < 1e-6)))
+                                            && (a.granted - u.granted).abs()
+                                                < INSTITUTION_TOLERANCE_WORKER_MONTHS)))
                                 && (u.commitment.is_some() || u.granted == 0.),
                             "invalid institutional work plan"
                         );
                     }
                     anyhow::ensure!(
-                        plans.iter().map(|u| u.granted).sum::<f32>() <= p.granted + 1e-5
-                            && plans.iter().map(|u| u.used).sum::<f32>() <= p.completed + 1e-5,
+                        plans.iter().map(|u| u.granted).sum::<f32>()
+                            <= p.granted + PLAN_TOLERANCE_WORKER_MONTHS
+                            && plans.iter().map(|u| u.used).sum::<f32>()
+                                <= p.completed + PLAN_TOLERANCE_WORKER_MONTHS,
                         "institution assignment exceeds cultural work"
                     );
                 }
                 anyhow::ensure!(
-                    p.institution_work().map(|u| u.granted).sum::<f32>() <= p.granted + 1e-5
-                        && p.institution_work().map(|u| u.used).sum::<f32>() <= p.completed + 1e-5,
+                    p.institution_work().map(|u| u.granted).sum::<f32>()
+                        <= p.granted + PLAN_TOLERANCE_WORKER_MONTHS
+                        && p.institution_work().map(|u| u.used).sum::<f32>()
+                            <= p.completed + PLAN_TOLERANCE_WORKER_MONTHS,
                     "institution teams exceed total cultural work"
                 );
                 anyhow::ensure!(
                     p.space_feasible_work.is_none_or(|work| work.is_finite()
                         && work >= 0.
-                        && work <= p.actions.iter().map(|(_, w)| *w).sum::<f32>() + 1e-5
-                        && p.granted <= p.feasible_work() + 1e-5)
+                        && work
+                            <= p.actions.iter().map(|(_, w)| *w).sum::<f32>()
+                                + PLAN_TOLERANCE_WORKER_MONTHS
+                        && p.granted <= p.feasible_work() + PLAN_TOLERANCE_WORKER_MONTHS)
                         && p.site as usize == i
                         && i < self.sites.len()
                         && p.month <= self.month
@@ -295,13 +318,15 @@ impl crate::civilization::History {
                             .iter()
                             .all(|&id| (id as usize) < self.people.len()))
                         && p.institution_lesson
-                            .is_none_or(|(topic, teacher, institution)| topic < 12
+                            .is_none_or(|(topic, teacher, institution)| topic
+                                < crate::culture::TOPICS.len() as u32
                                 && (teacher as usize) < self.people.len()
                                 && (institution as usize) < c.institutions.len())
                         && [p.granted, p.cancelled_work, p.completed]
                             .iter()
                             .all(|v| v.is_finite() && *v >= 0.)
-                        && (p.commitment.is_none() || p.completed <= p.granted + 1e-5)
+                        && (p.commitment.is_none()
+                            || p.completed <= p.granted + PLAN_TOLERANCE_WORKER_MONTHS)
                         && p.actions.iter().all(|(_, w)| w.is_finite() && *w >= 0.),
                     "invalid cultural work plan"
                 );

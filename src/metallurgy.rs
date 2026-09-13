@@ -16,10 +16,10 @@ const MALACHITE_COPPER_FRACTION: f32 = 0.57;
 const CASSITERITE_TIN_FRACTION: f32 = 0.78;
 const BRONZE_COPPER_FRACTION: f32 = 0.9;
 const BRONZE_TIN_FRACTION: f32 = 0.1;
-const ORE_BASE_PRICE: f32 = 4.;
+pub(crate) const ORE_BASE_PRICE: f32 = 4.;
 const METAL_BASE_PRICE: f32 = 20.;
-const SMELTING_RECOVERY_FRACTION: f32 = 0.8;
-const SMELTING_FUEL_KG: f32 = 0.5;
+pub(crate) const SMELTING_RECOVERY_FRACTION: f32 = 0.8;
+pub(crate) const SMELTING_FUEL_KG: f32 = 0.5;
 const PROCESSING_FUEL_KG: f32 = 0.1;
 const ALLOY_WORKER_MONTHS: f32 = 0.08;
 const BRONZE_TOOL_WORKER_MONTHS: f32 = 0.1;
@@ -27,7 +27,7 @@ const COPPER_TOOL_WORKER_MONTHS: f32 = 0.08;
 const REMELTING_WORKER_MONTHS: f32 = 0.08;
 const REMELTING_RECOVERY_FRACTION: f32 = 0.9;
 const REMELTING_RESIDUE_KG: f32 = 0.1;
-const RESIDUE_CAPACITY_KG_PER_M2: f32 = 0.02;
+pub(crate) const RESIDUE_CAPACITY_KG_PER_M2: f32 = 0.02;
 const SMELTING_CHAINS: [(usize, &str, usize, f32); 3] = [
     (35, "chalcopyrite", 38, 0.18),
     (36, "malachite", 38, 0.12),

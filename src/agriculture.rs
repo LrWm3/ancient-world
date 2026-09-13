@@ -7,6 +7,43 @@ use crate::{
 };
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+const DEFAULT_FISHERY_WORKER_SHARE: f32 = 0.15;
+const DEFAULT_FISHERY_KG_PER_WORKER_MONTH: f32 = 80.;
+const DEFAULT_FISHERY_HALF_SATURATION_KG_C_M2: f32 = 0.0001;
+const DEFAULT_FISHERY_RESERVE_MONTHS: f32 = 6.;
+const LEGACY_FIXATION_COST_KG: f32 = 80.;
+const ALLOWED_FIXATION_COST_KG: std::ops::RangeInclusive<f32> = 1. ..=1000.;
+const ALLOWED_FISHERY_WORKER_SHARE: std::ops::RangeInclusive<f32> = 0.001..=0.25;
+const ALLOWED_FISHERY_KG_PER_WORKER_MONTH: std::ops::RangeInclusive<f32> = 1. ..=200.;
+const ALLOWED_FISHERY_HALF_SATURATION_KG_C_M2: std::ops::RangeInclusive<f32> = 1e-8..=1.;
+const ALLOWED_FISHERY_RESERVE_MONTHS: std::ops::RangeInclusive<f32> = 1. ..=12.;
+const ALLOWED_HARVEST_INDEX: std::ops::RangeInclusive<f32> = 0.05..=1.;
+const CROP_ALLOCATION_TOLERANCE: f32 = 0.001;
+const SLAUGHTER_COMPOSITION_TOLERANCE: f32 = 1e-7;
+const MIN_FISHERY_WATER_DEPTH_M: f32 = 0.25;
+const AGRICULTURAL_ROLE_KG: f32 = 2000.;
+const PASTORAL_ROLE_KG: f32 = 30.;
+const FISHING_ROLE_KG: f32 = 240.;
+const MINING_ROLE_KG: f32 = 60.;
+const MANUFACTURING_ROLE_KG: f32 = 120.;
+const TRADING_ROLE_MONEY: f32 = 5000.;
+const INSTITUTION_ROLE_MONEY: f32 = 10.;
+const EXPEDITION_ROLE_PER_VOYAGE: f32 = 4.;
+const MAX_SETTLEMENT_ROLES: usize = 2;
+
+crate::shared_shader_parameters!(SHADER_PARAMETERS {
+    pub(crate) const CULTIVATED_HECTARES_PER_WORKER_MONTH: f32 = 1.5;
+    const LIVESTOCK_CARBON_FRACTION: f32 = 0.25;
+    const LIVESTOCK_NITROGEN_FRACTION: f32 = 0.04;
+    const LIVESTOCK_PHOSPHORUS_FRACTION: f32 = 0.003;
+    const SLAUGHTER_MEAT_FRACTION: f32 = 0.6;
+    const SLAUGHTER_HIDE_FRACTION: f32 = 0.1;
+});
+const LIVESTOCK_CNP: [f32; 3] = [
+    LIVESTOCK_CARBON_FRACTION,
+    LIVESTOCK_NITROGEN_FRACTION,
+    LIVESTOCK_PHOSPHORUS_FRACTION,
+];
 /// Annual activity with a five-year adjustment time. Infrastructure and inventories
 /// remain physical switching costs; this record prevents instant role relabeling.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -59,10 +96,10 @@ impl Default for FisherySettings {
             adaptive: false,
             primitive_gear: false,
             opportunity_cost: false,
-            max_worker_share: 0.15,
-            kg_per_worker_month: 80.,
-            half_saturation_kg_c_m2: 0.0001,
-            reserve_months: 6.,
+            max_worker_share: DEFAULT_FISHERY_WORKER_SHARE,
+            kg_per_worker_month: DEFAULT_FISHERY_KG_PER_WORKER_MONTH,
+            half_saturation_kg_c_m2: DEFAULT_FISHERY_HALF_SATURATION_KG_C_M2,
+            reserve_months: DEFAULT_FISHERY_RESERVE_MONTHS,
         }
     }
 }
@@ -84,7 +121,7 @@ fn fisheries_enabled() -> bool {
     true
 }
 fn legacy_fixation_cost() -> f32 {
-    80.
+    LEGACY_FIXATION_COST_KG
 }
 impl AgricultureCatalog {
     pub fn bundled() -> Self {
@@ -103,15 +140,15 @@ impl AgricultureCatalog {
                 && self.crops.len() == 6
                 && self.herds.len() == 3
                 && self.fixation_cost_kg.is_finite()
-                && (1. ..=1000.).contains(&self.fixation_cost_kg),
+                && ALLOWED_FIXATION_COST_KG.contains(&self.fixation_cost_kg),
             "invalid agricultural catalog dimensions"
         );
         let f = &self.fishery;
         ensure!(
-            (0.001..=0.25).contains(&f.max_worker_share)
-                && (1. ..=200.).contains(&f.kg_per_worker_month)
-                && (1e-8..=1.).contains(&f.half_saturation_kg_c_m2)
-                && (1. ..=12.).contains(&f.reserve_months),
+            ALLOWED_FISHERY_WORKER_SHARE.contains(&f.max_worker_share)
+                && ALLOWED_FISHERY_KG_PER_WORKER_MONTH.contains(&f.kg_per_worker_month)
+                && ALLOWED_FISHERY_HALF_SATURATION_KG_C_M2.contains(&f.half_saturation_kg_c_m2)
+                && ALLOWED_FISHERY_RESERVE_MONTHS.contains(&f.reserve_months),
             "invalid fishery settings"
         );
         ensure!(
@@ -130,7 +167,7 @@ impl AgricultureCatalog {
             if let Some(s) = &c.season {
                 ensure!(
                     s.harvest_index.is_finite()
-                        && (0.05..=1.).contains(&s.harvest_index)
+                        && ALLOWED_HARVEST_INDEX.contains(&s.harvest_index)
                         && s.reproductive_stress.is_finite()
                         && (0. ..=1.).contains(&s.reproductive_stress)
                         && s.frost_loss.is_finite()
@@ -151,7 +188,8 @@ impl AgricultureCatalog {
             );
         }
         ensure!(
-            (self.crops.iter().map(|c| c.land_share).sum::<f32>() - 1.).abs() < 0.001,
+            (self.crops.iter().map(|c| c.land_share).sum::<f32>() - 1.).abs()
+                < CROP_ALLOCATION_TOLERANCE,
             "crop allocations must sum to one"
         );
         // Slaughter is a finite split of body material; edited products cannot create elements.
@@ -165,9 +203,11 @@ impl AgricultureCatalog {
             meat == 24 && hides == 19 && e.index("fish") == Some(28),
             "managed animal goods must retain their stable archive slots"
         );
-        for (k, body) in [0.25, 0.04, 0.003].into_iter().enumerate() {
+        for (k, body) in LIVESTOCK_CNP.into_iter().enumerate() {
             ensure!(
-                0.6 * e.composition(meat)[k] + 0.1 * e.composition(hides)[k] <= body + 1e-7,
+                SLAUGHTER_MEAT_FRACTION * e.composition(meat)[k]
+                    + SLAUGHTER_HIDE_FRACTION * e.composition(hides)[k]
+                    <= body + SLAUGHTER_COMPOSITION_TOLERANCE,
                 "slaughter products exceed embodied animal nutrients"
             );
         }
@@ -208,7 +248,7 @@ impl AgricultureCatalog {
                 if e.agriculture.is_some() {
                     self.fixation_cost_kg
                 } else {
-                    80.
+                    LEGACY_FIXATION_COST_KG
                 },
                 if e.index("scrap_metal") == Some(29) {
                     1.
@@ -261,7 +301,10 @@ impl History {
             let near = [(-1, 0), (1, 0), (0, -1), (0, 1)]
                 .into_iter()
                 .map(|(x, y)| grid::neighbor(s.cell, n, x, y))
-                .find(|&id| cells[id as usize].meta[0] == 1 && cells[id as usize].water[0] > 0.25);
+                .find(|&id| {
+                    cells[id as usize].meta[0] == 1
+                        && cells[id as usize].water[0] > MIN_FISHERY_WATER_DEPTH_M
+                });
             if let Some(id) = near {
                 let j = id / (n * n) * eco_n * eco_n
                     + (id / n % n) / (n / eco_n) * eco_n
@@ -284,15 +327,18 @@ impl History {
         };
         let e = &s.economy;
         let mut values = vec![
-            ("agricultural", e.agriculture[0] / 2000.),
-            ("pastoral", e.herds.iter().map(|a| a[3] / 30.).sum()),
-            ("fishing", e.agriculture[2] / 240.),
-            ("mining", e.made[1] / 60.),
+            ("agricultural", e.agriculture[0] / AGRICULTURAL_ROLE_KG),
+            (
+                "pastoral",
+                e.herds.iter().map(|a| a[3] / PASTORAL_ROLE_KG).sum(),
+            ),
+            ("fishing", e.agriculture[2] / FISHING_ROLE_KG),
+            ("mining", e.made[1] / MINING_ROLE_KG),
             (
                 "manufacturing",
-                (e.made[2] + e.made[3] + e.made[5] + e.made[7]) / 120.,
+                (e.made[2] + e.made[3] + e.made[5] + e.made[7]) / MANUFACTURING_ROLE_KG,
             ),
-            ("trading", e.finance[2] / 5000.),
+            ("trading", e.finance[2] / TRADING_ROLE_MONEY),
         ];
         if let Some(c) = culture {
             values.push((
@@ -302,7 +348,7 @@ impl History {
                     .filter(|n| {
                         n.site == site && n.kind == crate::culture::InstitutionKind::Religious
                     })
-                    .map(|n| n.expenses as f32 / 10.)
+                    .map(|n| n.expenses as f32 / INSTITUTION_ROLE_MONEY)
                     .sum(),
             ));
             values.push((
@@ -319,7 +365,8 @@ impl History {
         values.push((
             "expedition service",
             self.expeditions.as_ref().map_or(0., |x| {
-                x.voyages.iter().filter(|v| v.origin == site).count() as f32 * 4.
+                x.voyages.iter().filter(|v| v.origin == site).count() as f32
+                    * EXPEDITION_ROLE_PER_VOYAGE
             }),
         ));
         values
@@ -338,7 +385,7 @@ impl History {
             }
         }
         values.sort_by(|a, b| b.1.total_cmp(&a.1));
-        values.truncate(2);
+        values.truncate(MAX_SETTLEMENT_ROLES);
         values
     }
 }

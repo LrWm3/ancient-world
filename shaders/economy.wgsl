@@ -1,3 +1,4 @@
+// Shared livestock parameters are prefixed from src/agriculture.rs.
 struct Economy {
  farm_workers:vec4<f32>, extraction_workers:vec4<f32>, construction_workers:vec4<f32>,
  production_probe:vec4<f32>, food_labor:vec4<f32>,
@@ -29,7 +30,7 @@ fn claim_plots() {
    if e.land_return.z>.5 && e.land_return.y<.5 {
     var litter=e.detritus.xyz;
     for(var j=0u;j<6u;j++){litter+=e.crops[j].y*catalog.goods[u32(catalog.crops[j*2u].x)].xyz;e.crops[j].y=0.;}
-    for(var j=0u;j<3u;j++){litter+=e.herds[j].x*vec3(.25,.04,.003);e.herds[j].z+=e.herds[j].x;e.herds[j].x=0.;}
+    for(var j=0u;j<3u;j++){litter+=e.herds[j].x*vec3(LIVESTOCK_CARBON_FRACTION,LIVESTOCK_NITROGEN_FRACTION,LIVESTOCK_PHOSPHORUS_FRACTION);e.herds[j].z+=e.herds[j].x;e.herds[j].x=0.;}
     let returned=e.soil.xyz+litter+e.forest.xyz+vec3(0.,0.,e.reserves.x);
     eco.pools[17]+=vec4(e.soil.xyz/area,0.);eco.pools[18]+=vec4(litter/area,0.);
     eco.pools[0]+=vec4(e.forest.xyz/area,0.);eco.pools[25].z+=e.reserves.x/area;
@@ -105,7 +106,7 @@ fn weather_storage(i:u32) {
 // Shared planner for the production dispatch and read-only participation forecasts.
 fn production_labor(i:u32,e:Economy)->vec4<f32> {
  let recovery=select(0.,clamp(e.soil.w,0.,1.),(p.options.w&2u)!=0u);
- let available_workers=workers(i,src[i].stock.x)*(1.-.4*recovery);
+ let available_workers=workers(i,src[i].stock.x)*(1.-LAND_RECOVERY_WORK_PENALTY*recovery);
  return available_workers*worker_shares(e,src[i].stock.x,available_workers);
 }
 @compute @workgroup_size(64)
@@ -122,7 +123,7 @@ fn forecast_labor(@builtin(global_invocation_id) g:vec3<u32>) {
    var preview=e;preview.labor=row.stock;preview.construction_workers.x=1.;
    preview.construction_workers.y=.2*max(0.,row.stock.w-e.exchange.w-dot(e.enterprise_plan,vec4(1.)));
    let recovery=select(0.,clamp(e.soil.w,0.,1.),(p.options.w&2u)!=0u);
-   let built=building_work(preview,src[i],workers(i,src[i].stock.x)*(1.-.4*recovery));
+   let built=building_work(preview,src[i],workers(i,src[i].stock.x)*(1.-LAND_RECOVERY_WORK_PENALTY*recovery));
    row.ledger.x=built.economy.construction_workers.z;
   }
   row.habitat=vec4(e.exchange.w,dot(e.enterprise_plan,vec4(1.)),e.fishery_plan.y+e.fishery_plan.z,workers(i,src[i].stock.x));
@@ -276,7 +277,7 @@ fn building_work(input:Economy,s:Site,available_workers:f32)->BuildingResult {
 fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  var e=economies[i];let s=src[i];let t=world[u32(s.habitat.z)];let area=e.claim.y;
  let recovery=select(0.,clamp(e.soil.w,0.,1.),(p.options.w&2u)!=0u);
- let available_workers=workers(i,s.stock.x)*(1.-.4*recovery);e.labor=production_labor(i,e);
+ let available_workers=workers(i,s.stock.x)*(1.-LAND_RECOVERY_WORK_PENALTY*recovery);e.labor=production_labor(i,e);
  if e.farm_workers.x>.5 {e.labor.x=min(e.labor.x,e.farm_workers.y);}
  if e.farm_workers.x>1.5 {e.labor.y=min(e.labor.y,e.extraction_workers.x);e.labor.z=min(e.labor.z,e.extraction_workers.y);e.extraction_workers.z=0.;e.extraction_workers.w=0.; }
  if e.logistics.w>3.5 {e.food_labor.x=mix(e.food_labor.x,e.food_labor.y,.25);}
@@ -511,7 +512,7 @@ fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
  }
  for(var j=0u;j<3u;j++){
   var a=e.herds[j];if a.x<=0.{continue;}
-  let body=vec3(.25,.04,.003);let feed_good=u32(catalog.herds[j].y);let feed_chem=catalog.goods[feed_good].xyz;
+  let body=vec3(LIVESTOCK_CARBON_FRACTION,LIVESTOCK_NITROGEN_FRACTION,LIVESTOCK_PHOSPHORUS_FRACTION);let feed_good=u32(catalog.herds[j].y);let feed_chem=catalog.goods[feed_good].xyz;
   // Existing farm attendance covers husbandry as well as crop work. Feed is
   // stored ration delivered by workers, not a modeled free-grazing resource.
   // Biological loss continues without attendants; collection and slaughter do not.
@@ -526,7 +527,7 @@ fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
   leftover-=made*chemistry;e.goods[product/4u][product%4u]+=made;e.made[product/4u][product%4u]+=made;a.w+=made;
   let slaughter=min(a.x,a.x*select(.01,.03,fed<.5)*select(0.,1.,fed<.5||a.x>carrying*.75))*attendance;
   a.x-=slaughter;a.z+=slaughter;
-  let meat=slaughter*.6;let hides=slaughter*.1;e.goods[6].x+=meat;e.made[6].x+=meat;e.goods[4].w+=hides;e.made[4].w+=hides;
+  let meat=slaughter*SLAUGHTER_MEAT_FRACTION;let hides=slaughter*SLAUGHTER_HIDE_FRACTION;e.goods[6].x+=meat;e.made[6].x+=meat;e.goods[4].w+=hides;e.made[4].w+=hides;
   e.detritus+=vec4(max(vec3(0.),slaughter*body-meat*catalog.goods[24].xyz-hides*catalog.goods[19].xyz),0.);
   e.exchange.x-=leftover.x*.6;e.detritus+=vec4(leftover*vec3(.4,1.,1.),0.);e.herds[j]=a;
  }
@@ -585,7 +586,7 @@ fn adaptive_fish_plots(){
 {let j=2u;density+=eco.pools[slots[j]].x*capture[j];}
  let response=density/(density+economies[i].fishery_config.z);economies[i].fishery_stats.w=response;
  let recovery=select(0.,clamp(economies[i].soil.w,0.,1.),(p.options.w&2u)!=0u);
- let workforce=workers(i,s.stock.x)*(1.-.4*recovery);
+ let workforce=workers(i,s.stock.x)*(1.-LAND_RECOVERY_WORK_PENALTY*recovery);
  var stored=s.stock.y;for(var good=8u;good<63u;good++){stored+=economies[i].goods[good/4u][good%4u]*catalog.goods[good].w;}
  let chem=catalog.goods[28].xyz;
  let energy=min(catalog.goods[28].w,min(chem.x/.45,min(chem.y/.02,chem.z/.003)));

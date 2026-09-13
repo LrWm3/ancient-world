@@ -63,6 +63,12 @@ semantic extraction pass (further shared-policy reconciliation may still apply):
 - `src/storage.rs`
 - `src/spatial.rs`
 
+- `src/agriculture.rs`
+- `src/agriculture_participation.rs`
+- `src/labor.rs`
+- `src/catalog.rs`
+- `src/resources.rs`
+
 Reviewed without further numeric extraction (geometry/layout arithmetic, static
 content, already named parameters, or independent test fixtures only):
 
@@ -96,9 +102,6 @@ The remaining source files below have not yet received this cleanup. Associated
 API constants and compile-time assertions should be reviewed in context rather
 than blindly moved out of their types or layout checks.
 
-- `src/agriculture.rs`
-- `src/agriculture_participation.rs`
-- `src/catalog.rs`
 - `src/civic_petitions.rs`
 - `src/civilization/daughter.rs`
 - `src/civilization/production_forecast.rs`
@@ -121,7 +124,6 @@ than blindly moved out of their types or layout checks.
 - `src/household_economy/nutrition.rs`
 - `src/household_economy.rs`
 - `src/individual_demography.rs`
-- `src/labor.rs`
 - `src/main.rs`
 - `src/navigation.rs`
 - `src/offices.rs`
@@ -129,14 +131,19 @@ than blindly moved out of their types or layout checks.
 - `src/population_registry.rs`
 - `src/region.rs`
 - `src/relocation/comparison.rs`
-- `src/resources.rs`
 - `src/shipping.rs`
 - `src/social_state.rs`
 - `src/viewer.rs`
 
-WGSL shaders also remain pending. CPU/GPU equations that share parameters need a
-coherent shared definition mechanism; duplicating renamed literals on each side
-does not establish a single source of truth.
+WGSL shaders still need their complete semantic passes. Shared agricultural and
+workforce constants now use `shared_shader_parameters!` (declared in `src/lib.rs`):
+the owning module declares scalar Rust parameters after imports, and the macro
+emits the same literal spelling into a WGSL prefix. Use WGSL-compatible f32/u32
+literals without Rust-only suffixes or separators. The pipeline must include
+the owner's `SHADER_PARAMETERS` exactly once. This changes no buffer layout and
+avoids runtime float formatting. Standalone shader text requires those prefixes.
+Existing parameters elsewhere still need sharing reconciliation; renaming both
+copies does not make them a single source of truth.
 
 ## Verification
 
@@ -259,3 +266,18 @@ list distinguishes files needing no extraction from pending files.
 Final verification for this batch: 151 active library tests passed after naming
 changes (130 explicitly ignored); strict all-target Clippy, artifact and diff
 checks passed.
+
+## Agriculture, workforce and catalog batch (2026-09-12)
+
+Completed CPU semantic extraction for agricultural settings/roles, farm staffing
+receipts, common labor, catalog defaults and canonical resource accounting.
+Agricultural land capacity, livestock composition, slaughter fractions and
+workforce penalties have single owning declarations emitted into WGSL. Domestic
+capacity shares the common work parameters. Iron and nonferrous recipes share
+smelting fuel/recovery, ore pricing and residue capacity; no recipe yield changed.
+
+Verification: the hardware-enabled family-care integration test passed, exercising
+the combined WGSL and shared work parameters. The complete ordinary library suite
+passed 151 tests (130 extended cases ignored), and strict all-target Clippy passed.
+An earlier agriculture-only test filter matched zero tests and is not evidence;
+the GPU fixture and full suite are the verification used here.

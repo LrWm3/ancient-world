@@ -6,6 +6,18 @@ use crate::{
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+const DEPLETION_THRESHOLD_KG: f64 = 0.001;
+const CONSERVATION_TOLERANCE_KG: f64 = 1e-6;
+const MAX_SOURCE_AREA_M2: f64 = 1000000.;
+const ORE_KG_PER_M2_POTENTIAL: f64 = 0.05;
+const CLAY_KG_PER_M2_SEDIMENT: f64 = 0.2;
+const MIN_CLAY_SEDIMENT_M: f32 = 0.01;
+const MONTHLY_EXTRACTION_KG_PER_RESIDENT: f64 = 5.;
+const IRON_PROCESSING_CHAINS: [(usize, &str, f32); 3] = [
+    (32, "hematite", 0.12),
+    (33, "magnetite", 0.14),
+    (34, "limonite", 0.18),
+];
 
 fn legacy_ore() -> Option<u32> {
     Some(1)
@@ -92,7 +104,7 @@ impl Resources {
             for (kind, event) in s.depletion_events.iter().enumerate() {
                 if let Some(event) = event {
                     ensure!(
-                        s.remaining[kind] < 0.001
+                        s.remaining[kind] < DEPLETION_THRESHOLD_KG
                             && h.events.get(*event as usize).is_some_and(|e| {
                                 e.kind == "source_depleted"
                                     && e.month <= h.month
@@ -130,7 +142,10 @@ impl Resources {
                 "invalid source inventory"
             );
         }
-        ensure!(self.residual() < 1e-6, "resource conservation failure");
+        ensure!(
+            self.residual() < CONSERVATION_TOLERANCE_KG,
+            "resource conservation failure"
+        );
         ensure!(
             self.regional_mines
                 .values()
@@ -168,15 +183,16 @@ impl Resources {
                         .get(&cell)
                         .is_some_and(|s| (0..2).all(|k| m.extracted[k].is_finite()
                             && m.extracted[k] >= 0.
-                            && m.extracted[k] <= s.extracted[k] + 1e-6)),
+                            && m.extracted[k] <= s.extracted[k] + CONSERVATION_TOLERANCE_KG)),
                 "invalid regional source control"
             );
         }
         ensure!(
-            regional_extracted.iter().all(|(cell, sum)| self
-                .sources
-                .get(cell)
-                .is_some_and(|s| (0..2).all(|k| sum[k] <= s.extracted[k] + 1e-6))),
+            regional_extracted
+                .iter()
+                .all(|(cell, sum)| self.sources.get(cell).is_some_and(
+                    |s| (0..2).all(|k| sum[k] <= s.extracted[k] + CONSERVATION_TOLERANCE_KG)
+                )),
             "duplicated regional extraction history"
         );
         ensure!(
@@ -243,10 +259,11 @@ impl History {
                 // It is a declared accessible baseline, not all mineral mass in the crust.
                 let area = (crate::grid::solid_angle(s.cell, self.terrain_resolution)
                     * (radius_km as f64 * 1000.).powi(2))
-                .clamp(0., 1_000_000.);
+                .clamp(0., MAX_SOURCE_AREA_M2);
                 let initial = [
-                    area * 0.05 * t.geology[2].clamp(0., 1.) as f64,
-                    area * 0.2 * t.terrain[2].clamp(0.01, 1.) as f64,
+                    area * ORE_KG_PER_M2_POTENTIAL * t.geology[2].clamp(0., 1.) as f64,
+                    area * CLAY_KG_PER_M2_SEDIMENT
+                        * t.terrain[2].clamp(MIN_CLAY_SEDIMENT_M, 1.) as f64,
                 ];
                 Source {
                     cell: s.cell,
@@ -272,7 +289,8 @@ impl History {
             s.economy.extraction[0] = r.sources[&s.cell].ore_good.unwrap_or(1) as f32;
             if r.alloy_processing {
                 s.economy.extraction[1] = 1.;
-                s.economy.residue[2] = s.economy.claim[1] * 0.02;
+                s.economy.residue[2] =
+                    s.economy.claim[1] * crate::metallurgy::RESIDUE_CAPACITY_KG_PER_M2;
             }
             s.economy.reserves[1..3].fill(0.);
         }
@@ -310,7 +328,7 @@ impl History {
                 // Never lend centuries of reserves to a float32 monthly kernel.
                 // Five kg per resident exceeds this month's possible extraction labor.
                 let share = (source.remaining[k] / count[&s.cell] as f64)
-                    .min(s.stocks.stock[0] as f64 * 5.)
+                    .min(s.stocks.stock[0] as f64 * MONTHLY_EXTRACTION_KG_PER_RESIDENT)
                     .min(r.regional_limit(s.cell, s.id)[k] as f64);
                 // Round downward so all parallel claims fit inside the source.
                 let mut grant = share as f32;
@@ -381,8 +399,8 @@ impl History {
                 source.remaining[k] -= used;
                 source.extracted[k] += used;
                 if used > 0.
-                    && opening >= 0.001
-                    && source.remaining[k] < 0.001
+                    && opening >= DEPLETION_THRESHOLD_KG
+                    && source.remaining[k] < DEPLETION_THRESHOLD_KG
                     && source.depletion_events[k].is_none()
                 {
                     depleted.insert((s.cell, k));
@@ -553,11 +571,7 @@ impl Generator {
             catalog.recipes.len() + 3 <= 64 && catalog.goods.len() > 34,
             "processing requires three recipe slots and reserved goods 32–34"
         );
-        for (slot, id, work) in [
-            (32, "hematite", 0.12),
-            (33, "magnetite", 0.14),
-            (34, "limonite", 0.18),
-        ] {
+        for (slot, id, work) in IRON_PROCESSING_CHAINS {
             ensure!(
                 catalog.goods[slot].id == format!("reserved_{slot}")
                     && h.sites.iter().all(|s| s.economy.goods[slot] == 0.
@@ -580,7 +594,7 @@ impl Generator {
             catalog.goods[slot] = crate::economy::Good {
                 id: format!("{id}_ore"),
                 name: format!("{} ore", mineral.name),
-                base_price: 4.,
+                base_price: crate::metallurgy::ORE_BASE_PRICE,
                 cnp: [0.; 3],
                 food_energy: 0.,
                 delay_spoilage: None,
@@ -591,8 +605,9 @@ impl Generator {
                 work: [work, 0., 1., 0.],
             };
             recipe.input[slot] = 1.;
-            recipe.input[6] = 0.5;
-            recipe.output[2] = mineral.yield_fraction * 0.8;
+            recipe.input[6] = crate::metallurgy::SMELTING_FUEL_KG;
+            recipe.output[2] =
+                mineral.yield_fraction * crate::metallurgy::SMELTING_RECOVERY_FRACTION;
             catalog.recipes.push(recipe);
         }
         catalog.validate()?;
