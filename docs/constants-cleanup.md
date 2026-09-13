@@ -916,3 +916,26 @@ Verification passed: the explicitly selected hardware extraction fixture checks
 that picks improve mining, axes improve forestry, depleted deposits are harder,
 and resource mass remains accounted for; it also checks an analytical untooled
 rate. One GPU test ran and passed. Strict all-target Clippy passed.
+
+## Managed-land water and nutrient fluxes
+
+Named sixteen parameters in `shaders/economy.wgsl` for labor-signal smoothing,
+water storage, runoff nutrient export, domestic water demand, phosphorus release,
+detritus turnover, fixation limits and temperature response, and legacy crop water
+use. Independent equal-valued coefficients retain separate policy names. Calendar
+and millimeter-to-meter conversions remain inline.
+
+Timber harvest now uses the same wood C/N/P literals as CPU inventories through
+the economy subsystem's existing shared shader-parameter block. `WOOD_CNP`
+remains an f64 array; generated GPU composition remains f32. The three timber
+source limits and the harvested nutrient debit use that canonical composition.
+
+Reversing the substitutions reconstructs the entire previous shader exactly.
+Neither rate values nor arithmetic order changed. This does not convert the legacy
+crop path into an agronomic model or change the separately catalogued crop demand.
+
+Verification passed: the hardware waterworks conservation/service fixture and
+hardware task-specific extraction/conservation fixture each ran one test. Strict
+all-target Clippy passed. The concurrent history comparison uses a copied older
+executable to isolate its monetary intervention; it is not counted as verification
+of this shader extraction.

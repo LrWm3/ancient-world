@@ -77,6 +77,23 @@ const EXTRACTION_TIMBER_BASE_DIFFICULTY: f32 = .4;
 const EXTRACTION_FOREST_AREA_FLOOR_M2: f32 = 1.;
 const EXTRACTION_UNTOOLED_CAPABILITY: f32 = .2;
 const EXTRACTION_TOOL_CAPABILITY_FACTOR: f32 = 2.;
+// Managed land water, nutrient turnover and legacy crop water demand.
+const FOOD_LABOR_SIGNAL_MONTHLY_RESPONSE: f32 = .25;
+const FARM_WATER_BASE_STORAGE_M: f32 = .1;
+const FARM_WATER_POLICY_STORAGE_M: f32 = .4;
+const FARM_RUNOFF_MAX_NUTRIENT_FRACTION: f32 = .05;
+const FARM_RUNOFF_FLUSHING_DEPTH_M: f32 = .2;
+const FARM_RUNOFF_VOLUME_FLOOR_M3: f32 = 1.;
+const FARM_DOMESTIC_WATER_M3_PER_PERSON_MONTH: f32 = .09;
+const FARM_WATER_NEED_FLOOR_M3: f32 = 1e-6;
+const FARM_PHOSPHORUS_RELEASE_MONTHLY_FRACTION: f32 = .0000001;
+const FARM_DETRITUS_MONTHLY_DECAY_FRACTION: f32 = .08;
+const FARM_FIXATION_COST_FLOOR: f32 = 1.;
+const FARM_FIXATION_MAX_POTENTIAL_SHARE: f32 = .05;
+const FARM_FIXATION_KG_N_PER_M2_YEAR: f32 = .002;
+const FARM_FIXATION_TEMPERATURE_OFFSET_C: f32 = 5.;
+const FARM_FIXATION_TEMPERATURE_RAMP_C: f32 = 20.;
+const LEGACY_CROP_WATER_M3_PER_KG: f32 = .5;
 struct Economy {
  farm_workers:vec4<f32>, extraction_workers:vec4<f32>, construction_workers:vec4<f32>,
  production_probe:vec4<f32>, food_labor:vec4<f32>,
@@ -358,38 +375,38 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  let available_workers=workers(i,s.stock.x)*(1.-LAND_RECOVERY_WORK_PENALTY*recovery);e.labor=production_labor(i,e);
  if e.farm_workers.x>.5 {e.labor.x=min(e.labor.x,e.farm_workers.y);}
  if e.farm_workers.x>1.5 {e.labor.y=min(e.labor.y,e.extraction_workers.x);e.labor.z=min(e.labor.z,e.extraction_workers.y);e.extraction_workers.z=0.;e.extraction_workers.w=0.; }
- if e.logistics.w>3.5 {e.food_labor.x=mix(e.food_labor.x,e.food_labor.y,.25);}
+ if e.logistics.w>3.5 {e.food_labor.x=mix(e.food_labor.x,e.food_labor.y,FOOD_LABOR_SIGNAL_MONTHLY_RESPONSE);}
  let rain=max(0.,t.hydro.z)*area/12000.*weather;
  e.water.z+=rain;e.water.x+=rain;
- let capacity=area*(.1+.4*e.policy.z)+select(0.,min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON),e.waterworks.w>.5);let runoff=max(0.,e.water.x-capacity);e.water.x-=runoff;e.water.w+=runoff;
+ let capacity=area*(FARM_WATER_BASE_STORAGE_M+FARM_WATER_POLICY_STORAGE_M*e.policy.z)+select(0.,min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON),e.waterworks.w>.5);let runoff=max(0.,e.water.x-capacity);e.water.x-=runoff;e.water.w+=runoff;
  if e.land_return.x>.5 {
   // Dissolved nutrient export is bounded by actual runoff and soil inventories.
-  let fraction=min(.05,runoff/max(area*.2,1.));let nutrients=e.soil.xyz*fraction;
+  let fraction=min(FARM_RUNOFF_MAX_NUTRIENT_FRACTION,runoff/max(area*FARM_RUNOFF_FLUSHING_DEPTH_M,FARM_RUNOFF_VOLUME_FLOOR_M3));let nutrients=e.soil.xyz*fraction;
   e.soil-=vec4(nutrients,0.);e.exchange-=vec4(nutrients,0.);
   e.return_flow+=vec4(nutrients,runoff);
  }
  if e.waterworks.w>.5 {
-  let need=s.stock.x*.09;let supplied=min(e.water.x,need);
+  let need=s.stock.x*FARM_DOMESTIC_WATER_M3_PER_PERSON_MONTH;let supplied=min(e.water.x,need);
   e.water.x-=supplied;e.water.w+=supplied;e.water_service.x+=supplied;
-  e.water_service.y=clamp(1.-supplied/max(need,1e-6),0.,1.);
+  e.water_service.y=clamp(1.-supplied/max(need,FARM_WATER_NEED_FLOOR_M3),0.,1.);
  }
- let release=min(e.reserves.x,e.reserves.x*.0000001);e.reserves.x-=release;e.soil.z+=release;
- let decay=e.detritus.xyz*.08;e.detritus-=vec4(decay,0.);e.soil+=vec4(0.,decay.yz,0.);e.exchange.x-=decay.x;
- let fixation_cost=max(1.,catalog.herds[0].z);
- let fixed=min(potential*.05/fixation_cost,area*.002/12.*e.policy.x*clamp((t.hydro.y+5.)/20.,0.,1.));
+ let release=min(e.reserves.x,e.reserves.x*FARM_PHOSPHORUS_RELEASE_MONTHLY_FRACTION);e.reserves.x-=release;e.soil.z+=release;
+ let decay=e.detritus.xyz*FARM_DETRITUS_MONTHLY_DECAY_FRACTION;e.detritus-=vec4(decay,0.);e.soil+=vec4(0.,decay.yz,0.);e.exchange.x-=decay.x;
+ let fixation_cost=max(FARM_FIXATION_COST_FLOOR,catalog.herds[0].z);
+ let fixed=min(potential*FARM_FIXATION_MAX_POTENTIAL_SHARE/fixation_cost,area*FARM_FIXATION_KG_N_PER_M2_YEAR/12.*e.policy.x*clamp((t.hydro.y+FARM_FIXATION_TEMPERATURE_OFFSET_C)/FARM_FIXATION_TEMPERATURE_RAMP_C,0.,1.));
  e.soil.y+=fixed;e.exchange.y+=fixed;
  let tool_factor=.75+.25*clamp((e.goods[0].w+select(0.,e.goods[10].y+.6*e.goods[10].w,e.extraction.y>.5))/max(1.,s.stock.x*.5),0.,1.);
  e.production_probe.x=tool_factor;e.production_probe.z=e.goods[0].w+select(0.,e.goods[10].y+.6*e.goods[10].w,e.extraction.y>.5);e.production_probe.w=s.stock.x;
  var output=max(0.,potential*(1.-e.policy.x)*tool_factor*(1.-.5*recovery)-fixed*fixation_cost);
  if e.management.x>.5{output=0.;}
- let n=e.soil.y/FOOD_NITROGEN_FRACTION;let ph=e.soil.z/FOOD_PHOSPHORUS_FRACTION;let water=e.water.x/.5;
+ let n=e.soil.y/FOOD_NITROGEN_FRACTION;let ph=e.soil.z/FOOD_PHOSPHORUS_FRACTION;let water=e.water.x/LEGACY_CROP_WATER_M3_PER_KG;
  e.diagnostics.x=0.;if n<output{e.diagnostics.x=1.;}output=min(output,n);if ph<output{e.diagnostics.x=2.;}output=min(output,ph);if water<output{e.diagnostics.x=3.;}output=min(output,water);
- e.soil.y-=output*FOOD_NITROGEN_FRACTION;e.soil.z-=output*FOOD_PHOSPHORUS_FRACTION;e.exchange.x+=output*FOOD_CARBON_FRACTION;e.water.x-=output*.5;e.water.w+=output*.5;e.diagnostics.y=output;
+ e.soil.y-=output*FOOD_NITROGEN_FRACTION;e.soil.z-=output*FOOD_PHOSPHORUS_FRACTION;e.exchange.x+=output*FOOD_CARBON_FRACTION;e.water.x-=output*LEGACY_CROP_WATER_M3_PER_KG;e.water.w+=output*LEGACY_CROP_WATER_M3_PER_KG;e.diagnostics.y=output;
  // Finite timber harvest; a regional woodland stock, not unlimited yield from cover.
- let wood_potential=min(e.labor.y*extraction_rate(e,0u),min(e.forest.x/.5,min(e.forest.y/.002,e.forest.z/.0002)));
+ let wood_potential=min(e.labor.y*extraction_rate(e,0u),min(e.forest.x/WOOD_CARBON_FRACTION,min(e.forest.y/WOOD_NITROGEN_FRACTION,e.forest.z/WOOD_PHOSPHORUS_FRACTION)));
  let wood=min(wood_potential,order_room(e,0u));
  if e.farm_workers.x>1.5 {e.extraction_workers.z=wood/extraction_rate(e,0u); }
- e.forest-=vec4(wood*vec3(.5,.002,.0002),0.);e.goods[0].x+=wood;e.made[0].x+=wood;
+ e.forest-=vec4(wood*vec3(WOOD_CARBON_FRACTION,WOOD_NITROGEN_FRACTION,WOOD_PHOSPHORUS_FRACTION),0.);e.goods[0].x+=wood;e.made[0].x+=wood;
  // One mining workforce serves ore and clay. Rotate priority to avoid starving
  // either industry when both have orders; all policies obey the physical budget.
  var mining=e.labor.z;
