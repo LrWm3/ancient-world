@@ -27,9 +27,12 @@ const MAX_ORDER_KG_PER_PERSON: f32 = 2.;
 const CONTRACT_DURATION_MONTHS: u32 = 6;
 
 pub mod identities;
+pub mod payments;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ExportContract {
+    #[serde(default)]
+    pub payment_timing: payments::Timing,
     /// Missing only for archives predating persistent source identities.
     #[serde(default)]
     pub id: Option<u64>,
@@ -156,6 +159,7 @@ impl History {
             let id = self.create_export_identity(cargo.to, cargo.from, cargo.good, false);
             self.export_contracts.push(ExportContract {
                 id: Some(id),
+                payment_timing: payments::Timing::Dispatch,
                 buyer: cargo.to,
                 seller: cargo.from,
                 good: cargo.good,
@@ -299,6 +303,7 @@ impl History {
             self.sites[buyer].economy.finance[0] -= cost;
             budgets[buyer] -= cost;
             let c = &mut self.export_contracts[i];
+            c.payment_timing = self.export_payment_timing;
             c.unit_price = price;
             c.estimated_unit_cost = estimate;
             c.remaining_kg = amount;
@@ -396,6 +401,8 @@ mod tests {
             cargo: vec![],
             export_contracts: vec![],
             export_identities: vec![],
+            export_payments: vec![],
+            export_payment_timing: Default::default(),
             society: None,
             politics: None,
             governance: None,
@@ -405,6 +412,7 @@ mod tests {
     }
     fn evidence(h: &mut History) {
         let delivery = Cargo {
+            export_payment: None,
             infection: None,
             voyage_clock: None,
             freight_edges: vec![],
@@ -420,6 +428,73 @@ mod tests {
         };
         h.observe_export_delivery(&delivery);
     }
+    #[test]
+    fn delivery_escrow_survives_expiry_and_pays_only_delivered_quantity() {
+        for delivered_share in [0., 0.5, 1.] {
+            let mut h = fixture();
+            h.export_payment_timing = payments::Timing::Delivery;
+            evidence(&mut h);
+            evidence(&mut h);
+            h.fund_export_contracts(&[true]);
+            h.market_month(6371.);
+            assert_eq!(h.sites[0].economy.finance[0], 1000.);
+            assert_eq!(h.export_payments.len(), 1);
+            h.validate_export_payments().unwrap();
+            let mut invalid = h.clone();
+            invalid.cargo[0].paid += 1.;
+            assert!(invalid.validate_export_payments().is_err());
+            let mut invalid = h.clone();
+            invalid.cargo[0].good = 0;
+            assert!(invalid.validate_export_payments().is_err());
+            let mut invalid = h.clone();
+            invalid.cargo.clear();
+            assert!(invalid.validate_export_payments().is_err());
+            assert!(h.economy_residuals().iter().all(|v| v.abs() < 0.001));
+            let funded = h.export_payments[0].funded;
+            // Expiry refunds unspent order cash, never the traveling invoice.
+            h.month = 30;
+            h.expire_export_contracts();
+            assert!(h.export_contracts.is_empty());
+            assert_eq!(h.export_payments[0].escrow, funded);
+            let mut cargo = h.cargo.remove(0);
+            let lost = cargo.kg * (1. - delivered_share);
+            h.lose_cargo(cargo.from, cargo.good, lost);
+            cargo.kg -= lost;
+            h.cargo.push(cargo);
+            h.market_arrivals();
+            h.settle_export_payments().unwrap();
+            let payment = &h.export_payments[0];
+            assert!((payment.seller_paid - funded * f64::from(delivered_share)).abs() < 0.001);
+            assert!((payment.refunded - funded * f64::from(1. - delivered_share)).abs() < 0.001);
+            assert!(
+                h.economy_residuals().iter().all(|v| v.abs() < 0.001),
+                "{:?}",
+                h.economy_residuals()
+            );
+            h.validate_export_payments().unwrap();
+            let mut resumed: History =
+                serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
+            let cash = h
+                .sites
+                .iter()
+                .map(|s| s.economy.finance[0])
+                .collect::<Vec<_>>();
+            h.settle_export_payments().unwrap();
+            resumed.settle_export_payments().unwrap();
+            assert_eq!(
+                cash,
+                h.sites
+                    .iter()
+                    .map(|s| s.economy.finance[0])
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(
+                serde_json::to_value(&h).unwrap(),
+                serde_json::to_value(&resumed).unwrap()
+            );
+        }
+    }
+
     #[test]
     fn export_source_ids_survive_expiry_and_legacy_assignment() {
         let mut h = fixture();

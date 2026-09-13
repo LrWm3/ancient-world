@@ -760,6 +760,8 @@ impl Economy {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Cargo {
     #[serde(default)]
+    pub export_payment: Option<u64>,
+    #[serde(default)]
     pub infection: Option<crate::contagion::Exposure>,
     #[serde(default)]
     pub voyage_clock: Option<crate::vessels::VoyageClock>,
@@ -837,6 +839,7 @@ impl History {
             .iter()
             .map(|c| c.escrow as f64)
             .sum::<f64>();
+        money += self.export_payments.iter().map(|p| p.escrow).sum::<f64>();
         let mut initial_money = 0.;
         let mut water = [0.; 4];
         let catalog = self.economy_catalog.as_ref().unwrap();
@@ -1121,6 +1124,7 @@ impl History {
     #[cfg(test)]
     pub(crate) fn market_month(&mut self, radius: f32) {
         let observed = self.market_arrivals();
+        self.settle_export_payments().unwrap();
         self.market_decisions(radius, &observed);
     }
 
@@ -1139,8 +1143,13 @@ impl History {
                 && (self.freight_path_flooded(&c.freight_edges)
                     || self.flood_blocks_delivery(c.from, c.to, c.sea_lane))
             {
+                let payment_effect = if c.export_payment.is_some() {
+                    "payment remains in delivery escrow; undelivered value is refundable"
+                } else {
+                    "buyer bears the cost already paid at dispatch"
+                };
                 if c.weather_delay_months == 0 {
-                    self.event("cargo_weather_delay", Some(c.to), Some(c.from), format!("{:.1} kg cargo held by flooded transport access; goods remain in transit; purchase was paid at dispatch", c.kg));
+                    self.event("cargo_weather_delay", Some(c.to), Some(c.from), format!("{:.1} kg cargo held by flooded transport access; goods remain in transit; {payment_effect}", c.kg));
                 }
                 c.weather_delay_months = c.weather_delay_months.saturating_add(1);
                 let rate = self.economy_catalog.as_ref().map_or(
@@ -1166,14 +1175,23 @@ impl History {
                         format!("{lost:.1} kg {name} spoiled while transport was blocked ({:.0}% monthly loss); nutrients exported outside managed plots", rate * 100.));
                 }
                 if c.kg <= 0. {
-                    self.event("cargo_spoilage_lost", Some(c.to), Some(c.from),
-                        format!("All cargo spoiled after {} delay months; buyer bears {:.1} already-paid cost", c.weather_delay_months, c.paid));
+                    self.resolve_export_payment(&c, 0.);
+                    self.event(
+                        "cargo_spoilage_lost",
+                        Some(c.to),
+                        Some(c.from),
+                        format!(
+                            "All cargo spoiled after {} delay months; {payment_effect}",
+                            c.weather_delay_months
+                        ),
+                    );
                     continue;
                 }
                 if c.weather_delay_months >= MAX_CARGO_WEATHER_DELAY_MONTHS {
                     self.lose_cargo(c.from, c.good, c.kg);
+                    self.resolve_export_payment(&c, 0.);
                     self.event("cargo_weather_lost", Some(c.to), Some(c.from),
-                        format!("Blocked journey terminated after {} delay months; {:.1} kg remaining cargo written off; buyer bears {:.1} already-paid cost", c.weather_delay_months, c.kg, c.paid));
+                        format!("Blocked journey terminated after {} delay months; {:.1} kg remaining cargo written off; {payment_effect}", c.weather_delay_months, c.kg));
                     continue;
                 }
                 c.arrives = self.month + 1;
@@ -1184,6 +1202,7 @@ impl History {
                 if let Some(exposure) = &c.infection {
                     self.infectious_contact(c.to, exposure);
                 }
+                self.resolve_export_payment(&c, c.kg);
                 self.observe_export_delivery(&c);
                 self.observe_lexical_trade(c.from, c.to, c.kg);
                 self.trade_contact
@@ -1646,8 +1665,16 @@ impl History {
                     self.sites[buyer].economy.finance[0] =
                         (self.sites[buyer].economy.finance[0] - (cost - reserved_payment)).max(0.);
                     self.sites[buyer].economy.finance[3] += cost;
-                    self.sites[seller].economy.finance[0] += cost;
-                    self.sites[seller].economy.finance[2] += cost;
+                    let delivery_contract = contract.and_then(|i| {
+                        let c = &self.export_contracts[i];
+                        (c.payment_timing == crate::export_contracts::payments::Timing::Delivery)
+                            .then_some(c.id)
+                            .flatten()
+                    });
+                    if delivery_contract.is_none() {
+                        self.sites[seller].economy.finance[0] += cost;
+                        self.sites[seller].economy.finance[2] += cost;
+                    }
                     if k == FOOD {
                         self.sites[seller].stocks.stock[1] -= amount;
                     } else {
@@ -1657,7 +1684,18 @@ impl History {
                         + (distance / crate::society::LAND_TRAVEL_KM_PER_MONTH)
                             .ceil()
                             .max(1.) as u32;
+                    let export_payment = delivery_contract.map(|id| {
+                        self.hold_export_payment(
+                            id,
+                            buyer as u32,
+                            seller as u32,
+                            amount,
+                            cost,
+                            arrives,
+                        )
+                    });
                     self.cargo.push(Cargo {
+                        export_payment,
                         infection: None,
                         voyage_clock: sea_lane.map(|_| crate::vessels::VoyageClock {
                             month: self.month,
@@ -1748,6 +1786,7 @@ mod freight_tests {
         // Cheaper supplier's carriers are already away with goods removed at dispatch.
         h.sites[1].economy.goods[3] -= 10.;
         h.cargo.push(Cargo {
+            export_payment: None,
             infection: None,
             voyage_clock: None,
             freight_edges: vec![],
@@ -1911,6 +1950,7 @@ mod freight_tests {
         let mut blocked = h.clone();
         blocked.sites[1].economy.goods[4] -= 3.;
         blocked.cargo.push(Cargo {
+            export_payment: None,
             infection: None,
             voyage_clock: None,
             freight_edges: vec![],

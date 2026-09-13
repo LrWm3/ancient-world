@@ -43,12 +43,12 @@ impl Financing {
 }
 
 #[derive(Clone, Copy, Debug)]
-enum Balance {
+pub(crate) enum Balance {
     Single(f32),
     Double(f64),
 }
 impl Balance {
-    fn value(self) -> f64 {
+    pub(crate) fn value(self) -> f64 {
         match self {
             Self::Single(x) => x as f64,
             Self::Double(x) => x,
@@ -78,7 +78,7 @@ impl Balance {
 
 /// Choose a representable amount common to both accounts. This may leave tiny
 /// untransferred balances; it never silently absorbs them into income or debt.
-fn quote(from: Balance, to: Balance, requested: f64) -> Result<(Balance, Balance, f64)> {
+pub(crate) fn quote(from: Balance, to: Balance, requested: f64) -> Result<(Balance, Balance, f64)> {
     ensure!(
         requested.is_finite() && requested >= 0.,
         "invalid requested transfer"

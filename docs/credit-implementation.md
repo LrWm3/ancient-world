@@ -289,3 +289,48 @@ and unchanged dispatch escrow settlement. All ten active market tests passed (tw
 extended cases ignored); the hardware-enabled history checkpoint/export test and
 strict all-target Clippy passed. These checks establish stable source references,
 not delivery-paid accounting or automatic commercial borrowing.
+
+## Delivery-paid export experiment
+
+A funded order can capture `History.export_payment_timing = Delivery`; the default
+and old archives retain dispatch payment. At dispatch, the buyer's payment moves
+into a separate, persistent delivery escrow instead of seller cash. The whole
+shipment follows the captured payment condition, including any quantity bought
+with additional buyer cash beyond its reserved order quantity.
+
+Arrival resolves the seller's entitlement from delivered/original mass. Lost mass
+returns its share to the buyer. Full loss refunds the entire payment. Order expiry
+refunds only unused procurement escrow; it cannot cancel money accompanying cargo.
+Monthly Open settles resolved payments before debt servicing. Tiny amounts that
+cannot transfer exactly into existing f32 accounts remain owned escrow for retry.
+The existing monetary inventory includes these balances once. A town's persistent
+account can receive its proceeds even after abandonment; this does not reactivate
+the town or invent a new commercial operator.
+
+The payment ledger preserves original value, delivery condition, paid proceeds,
+refunds and remaining escrow. It is a foundation for commercial repayment evidence;
+it does not yet issue commercial loans or treat expected proceeds as spendable cash.
+
+Headless runs can set `--delivery-paid-exports` or
+`--delivery-paid-exports=false`. Omitting the flag preserves the archived setting.
+Changing it affects newly funded orders, not payment terms already captured on an
+order or traveling shipment.
+
+Verification for this increment: eight export-contract fixtures, three CLI tests,
+and ten active market tests passed (two extended market cases ignored). Strict
+all-target Clippy and the source-artifact check passed. The new fixture covers
+full/half/zero delivery, order expiry while cargo travels, malformed payment
+references, monetary/material residuals and JSON continuation without double payout.
+It injects the lost quantity directly; it does not establish calibrated cargo-loss
+frequency or cover every weather path.
+
+A matched seed-17 smoke comparison used the existing 32/32-resolution founding
+checkpoint, five civilizations and 30 history years on the Quadro RTX 5000 Max-Q.
+Dispatch payment ended with 551.852862 people; delivery payment with 550.785824.
+The latter created 108 payment records, held 5,011.40194 total buyer cash, paid
+4,823.51099 to sellers and retained 187.89095 in escrow; no refunds occurred.
+Its relative monetary residual was -2.01e-7. Both runs completed validation.
+Single-run wall times were 10.31/9.42 seconds and are not a performance comparison.
+This establishes live integration and a small negative population difference in
+one world, not a credit benefit, a long-run balance result, or permission to skip
+the planned multi-seed and shock experiments.

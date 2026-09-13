@@ -70,6 +70,9 @@ struct Args {
     /// Experimental council tax-bridge lending; false stops new loans, not repayment.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     council_credit: Option<bool>,
+    /// Newly funded export orders pay on delivery; false retains dispatch payment.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    delivery_paid_exports: Option<bool>,
     /// Export civilization records, settlements and events as JSON.
     #[arg(long)]
     history_export: Option<PathBuf>,
@@ -151,6 +154,7 @@ fn main() -> Result<()> {
                 && args.history_years == 0
                 && args.history_export.is_none()
                 && args.council_credit.is_none()
+                && args.delivery_paid_exports.is_none()
                 && !args.society
                 && !args.politics
                 && !args.offices
@@ -312,6 +316,17 @@ fn main() -> Result<()> {
             .council_policy
             .enabled = enabled;
     }
+    if let Some(enabled) = args.delivery_paid_exports {
+        generator
+            .civilizations
+            .as_mut()
+            .context("delivery-paid exports require a history")?
+            .export_payment_timing = if enabled {
+            ancient_world::export_contracts::payments::Timing::Delivery
+        } else {
+            ancient_world::export_contracts::payments::Timing::Dispatch
+        };
+    }
     if args.history_years > 0 {
         generator.advance_history(
             args.history_years
@@ -380,6 +395,24 @@ fn main() -> Result<()> {
 #[cfg(test)]
 mod args_tests {
     use super::*;
+    #[test]
+    fn delivery_payment_flag_preserves_archive_when_omitted() {
+        for (arguments, expected) in [
+            (vec!["ancient-world"], None),
+            (vec!["ancient-world", "--delivery-paid-exports"], Some(true)),
+            (
+                vec!["ancient-world", "--delivery-paid-exports=false"],
+                Some(false),
+            ),
+        ] {
+            assert_eq!(
+                Args::try_parse_from(arguments)
+                    .unwrap()
+                    .delivery_paid_exports,
+                expected
+            );
+        }
+    }
     #[test]
     fn council_credit_can_be_enabled_disabled_or_left_as_archived() {
         assert_eq!(

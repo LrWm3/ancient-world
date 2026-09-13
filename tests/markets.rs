@@ -64,6 +64,8 @@ fn network() -> History {
         cargo: vec![],
         export_contracts: vec![],
         export_identities: vec![],
+        export_payments: vec![],
+        export_payment_timing: Default::default(),
         politics: None,
         governance: None,
         shipping: None,
@@ -409,6 +411,7 @@ fn shipping_shares_capacity_between_lanes_and_respects_port_closures() {
     assert_eq!(h.sea_quotes(&roads)[1], Some((350., 0)));
     assert_eq!(h.sea_quotes(&roads)[2], Some((500., 1)));
     h.cargo.push(Cargo {
+        export_payment: None,
         infection: None,
         voyage_clock: None,
         freight_edges: vec![],
@@ -423,6 +426,7 @@ fn shipping_shares_capacity_between_lanes_and_respects_port_closures() {
         weather_delay_months: 0,
     });
     h.cargo.push(Cargo {
+        export_payment: None,
         infection: None,
         voyage_clock: None,
         freight_edges: vec![],

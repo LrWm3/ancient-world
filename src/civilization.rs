@@ -267,6 +267,10 @@ pub struct History {
     #[serde(default)]
     pub export_identities: Vec<crate::export_contracts::identities::Identity>,
     #[serde(default)]
+    pub export_payments: Vec<crate::export_contracts::payments::Payment>,
+    #[serde(default)]
+    pub export_payment_timing: crate::export_contracts::payments::Timing,
+    #[serde(default)]
     pub society: Option<Society>,
     #[serde(default)]
     pub politics: Option<crate::politics::Politics>,
@@ -570,6 +574,7 @@ impl History {
     pub fn validate(&self, cells: &[crate::gpu::Cell]) -> Result<()> {
         self.validate_credit()?;
         self.validate_export_identities()?;
+        self.validate_export_payments()?;
         if let Some(d) = &self.contagion {
             d.validate(self)?;
         }
@@ -1260,6 +1265,8 @@ impl Generator {
             cargo: vec![],
             export_contracts: vec![],
             export_identities: vec![],
+            export_payments: vec![],
+            export_payment_timing: Default::default(),
             society: None,
             politics: None,
             governance: None,
@@ -1381,6 +1388,7 @@ impl Generator {
         } else {
             vec![]
         };
+        h.settle_export_payments()?;
         h.relief_arrivals();
         h.relocation_arrivals()?;
         let relief_observations = h.observe_relief();
