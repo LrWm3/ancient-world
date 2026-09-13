@@ -471,3 +471,13 @@ can expire. New observed supplier relationships receive identities when created;
 retired identities remain in the archive after their active procurement record is
 removed. Assignment does not move escrow, goods or cash and does not fabricate an
 original contract date for older histories.
+
+## Delayed export debt negotiations
+
+When commercial credit is enabled, Reserve evaluates still-overdue export loans
+after production planning and before new commercial lending. Revised evidence
+uses the actual pending delivery escrow and remaining cargo plus current input
+commitments. Consent/coverage receipts record accepted or declined extensions.
+Open has already collected due money and applied expired grace periods; this
+operation cannot reverse those outcomes or lend fresh principal. The immutable
+source remains pledged during the single permitted extension.

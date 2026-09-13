@@ -488,3 +488,10 @@ current debt servicing and leaves all cash unchanged. The next integration step
 is automatic policy and observation adapters; callers currently supply their
 consent and forecast explicitly. This does not complete the restructuring/closure
 checklist or enable refinancing in ordinary generated histories.
+
+The [delayed export adapter](credit-restructuring.md#delayed-export-policy) now
+constructs evidence from funded cargo and negotiates in Reserve under the opt-in
+commercial policy. Council negotiation is still outstanding. The longer experiment
+also found [numerical-residue defaults](credit-precision-residuals.md), which need
+a distinct bounded settlement treatment before default counts are useful balance
+evidence.

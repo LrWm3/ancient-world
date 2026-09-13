@@ -2,8 +2,8 @@
 
 The first decision/commit API handles one extension of an existing overdue loan.
 It does not supply new principal, forgive debt, change the interest rate or turn
-accrued interest into principal. Automatic council/exporter negotiation remains
-unfinished; this interface is the boundary those policies will use.
+accrued interest into principal. The opt-in commercial policy now negotiates some delayed export loans. Council
+negotiation and broader recovery remain unfinished.
 
 A proposal identifies the loan, current month, revised maturity, original repayment
 source, revised expected payment month and fresh evidence. Lender and borrower
@@ -32,20 +32,39 @@ It resolves and commits once per loan/month, checks both accounts still exist,
 and retains accepted and declined proposals with their opening loan, forecast,
 coverage and reason. The commit takes effect at that explicit call boundary,
 after this month's collection; it does not retroactively cancel a payment or a
-default already recorded in Open. No automatic monthly caller has been added.
-A later Respond policy must state its timing rather than silently reviving an
-already defaulted loan.
+default already recorded in Open. The commercial caller runs in Reserve after production planning and before new
+commercial loans. A default already recorded in Open remains final; negotiation
+can only help a still-overdue loan during its grace window.
 
 Archives default the new receipt collection to empty. Validation checks dates,
 amounts, decision criteria, parties and the committed extension entry. Existing
 low-level extensions without policy receipts remain readable. The original
 contract's repayment source is unchanged, preserving underwriting reservations.
 
-Next integration work is to construct revised evidence from actual delayed
-payments or late taxes, decide voluntary acceptance using existing institutions'
-interests, and feed the result through the monthly policy boundary. Closed accounts
-and recovery after write-off remain separate work. Do not interpret this API alone
-as an autonomous debt-workout system.
+## Delayed export policy
+
+`--commercial-credit` also enables the delayed-export caller. It observes existing
+buyer-funded payment escrow and remaining cargo, retains the original contract
+and due-date identity, and separately forecasts the latest eligible arrival.
+Current planned production input commitments remain senior to repayment. The
+borrower consents when existing cash cannot cover those commitments plus debt;
+the lender consents only while retaining its own input-cost and operating-cash
+floor. Both decisions are recorded through the same API, not inferred afterward
+from whether an extension happened. These are explicit game policies rather than
+models of bargaining personalities.
+
+Flooded or besieged approaches, lost/settled cargo, abandoned exporters and
+unfinished staffing-dependent vessel voyages provide no extension evidence.
+Future crew funding is not assumed. Partial losses reduce the forecast in direct
+proportion to remaining cargo; future loss assumptions haircut it further. A
+completed delivery disappears from the forecast and supplies actual cash through
+the ordinary export-payment path. New-loan underwriting still excludes overdue
+and delayed receipts: observing them for an existing loan does not create new
+collateral.
+
+This first caller does not negotiate council tax debt, replace a lost receivable
+with a different year's taxes, revive defaulted loans or extend an extension.
+Closure handling, numerical-residue classification and recovery remain work.
 
 The analytical fixture checks missing consent, coverage, competing claims, source
 identity, repeated extension and corrupt recorded amounts. The History fixture
@@ -58,3 +77,10 @@ Verification: fifteen credit unit tests and twelve active market integration tes
 passed (two extended market cases remain ignored). The new integration fixture
 confirms unchanged cash, bounded extension, replay rejection, later repayment,
 zero monetary residual, matching continuation and rejection of altered consent.
+
+Delayed-export integration verification: all twelve export-contract unit cases
+and twelve active market integration tests passed; strict all-target Clippy passed.
+The new fixture derives evidence from funded cargo, checks partial loss and read-only
+observation, rejects lost/unfinished-voyage evidence, verifies disabled policy and
+lender refusal, commits once and collects after actual delivery. Extended GPU
+market cases were not rerun for this sparse policy change.

@@ -545,6 +545,100 @@ mod tests {
     }
 
     #[test]
+    fn delayed_export_workout_uses_funded_proceeds_and_later_collects() {
+        use crate::credit::{restructuring::Decision, Account, Status, Terms, SHARED_CURRENCY};
+        let mut h = fixture();
+        h.export_payment_timing = payments::Timing::Delivery;
+        evidence(&mut h);
+        evidence(&mut h);
+        h.fund_export_contracts(&[true]);
+        h.market_month(6371.);
+        let observed = h.export_credit_evidence(0.).unwrap().remove(0);
+        let due = h.export_payments[0].expected_month;
+        let principal = 1.;
+        h.commit_credit_loan(
+            Terms {
+                lender: Account::Town(1),
+                borrower: Account::Town(0),
+                currency: SHARED_CURRENCY,
+                source: observed.source,
+                annual_simple_rate: 0.,
+                maturity_month: due + 1,
+                grace_months: 3,
+            },
+            principal,
+        )
+        .unwrap()
+        .unwrap();
+        h.month = due + 1;
+        h.cargo[0].arrives = h.month + 2;
+        h.credit.servicing_policy.available_cash_share = 0.;
+        h.service_credit_month().unwrap();
+        let initial = serde_json::to_value(&h).unwrap();
+        let forecast = h.export_restructuring_evidence(0, 0.).unwrap().unwrap();
+        assert_eq!(forecast.evidence.source, observed.source);
+        assert_eq!(forecast.expected_payment_month, h.month + 2);
+        assert_eq!(initial, serde_json::to_value(&h).unwrap());
+        assert!(h.export_credit_evidence(0.).unwrap().is_empty());
+        h.cargo[0].kg *= 0.5;
+        let half = h.export_restructuring_evidence(0, 0.).unwrap().unwrap();
+        assert!(
+            (half.evidence.expected_receipts - forecast.evidence.expected_receipts * 0.5).abs()
+                < 1e-8
+        );
+        h.cargo[0].kg *= 2.;
+        // Preserve cash while making the exporter temporarily unable to pay;
+        // this controlled transfer isolates consent from harvest and pricing.
+        let cash = h.sites[0].economy.finance[0];
+        h.transfer_credit_cash(
+            Account::Town(0),
+            Account::Town(1),
+            SHARED_CURRENCY,
+            f64::from(cash),
+            0.,
+        )
+        .unwrap();
+        h.renegotiate_export_credit_month().unwrap();
+        assert!(h.credit.restructurings.is_empty()); // Disabled policy is inert.
+        h.credit.commercial_policy.enabled = true;
+        h.credit.commercial_policy.operating_cash_floor = 0.;
+        let mut cautious: History =
+            serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
+        cautious.credit.commercial_policy.operating_cash_floor = f64::MAX;
+        cautious.renegotiate_export_credit_month().unwrap();
+        assert_eq!(
+            cautious.credit.restructurings[0].decision,
+            Decision::NoConsent
+        );
+        assert!(!cautious.credit.loans[0].restructured);
+        let mut lost: History = serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
+        lost.cargo[0].kg = 0.;
+        assert!(lost.export_restructuring_evidence(0, 0.).unwrap().is_none());
+        lost = serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
+        lost.cargo[0].voyage_clock = Some(crate::vessels::VoyageClock {
+            month: lost.month,
+            remaining: 1.,
+        });
+        assert!(lost.export_restructuring_evidence(0, 0.).unwrap().is_none());
+        h.renegotiate_export_credit_month().unwrap();
+        assert_eq!(h.credit.restructurings[0].decision, Decision::Accepted);
+        assert_eq!(h.credit.loans[0].status, Status::Performing);
+        let after = serde_json::to_value(&h).unwrap();
+        h.renegotiate_export_credit_month().unwrap();
+        assert_eq!(after, serde_json::to_value(&h).unwrap());
+        h.month = half.expected_payment_month;
+        h.market_arrivals();
+        h.settle_export_payments().unwrap();
+        assert!(h.export_restructuring_evidence(0, 0.).unwrap().is_none());
+        h.month += 1;
+        h.credit.servicing_policy.available_cash_share = 1.;
+        h.service_credit_month().unwrap();
+        assert_eq!(h.credit.loans[0].status, Status::Repaid);
+        h.validate_credit().unwrap();
+        h.validate_export_payments().unwrap();
+    }
+
+    #[test]
     fn commercial_evidence_uses_actual_pending_payee_and_immutable_due_date() {
         use crate::credit::{Account, RepaymentSource};
         let mut h = fixture();

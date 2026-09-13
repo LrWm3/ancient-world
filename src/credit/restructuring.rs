@@ -186,6 +186,68 @@ impl Receipt {
 }
 
 impl History {
+    /// Reserve, after current production commitments are forecast. The opt-in
+    /// commercial-credit policy grants standing permission to negotiate, but
+    /// account needs and observed proceeds still decide each party's consent.
+    pub(crate) fn renegotiate_export_credit_month(&mut self) -> Result<()> {
+        let policy = self.credit.commercial_policy.clone();
+        policy.validate()?;
+        if !policy.enabled {
+            return Ok(());
+        }
+        let costs = self.commercial_input_costs();
+        let loans: Vec<_> = self
+            .credit
+            .loans
+            .iter()
+            .filter(|l| l.status == Status::Arrears && !l.restructured)
+            .map(|l| l.id)
+            .collect();
+        for id in loans {
+            if self
+                .credit
+                .restructurings
+                .iter()
+                .any(|r| r.proposal.month == self.month && r.proposal.loan == id)
+            {
+                continue;
+            }
+            let loan = &self.credit.loans[id as usize];
+            let (Account::Town(lender), Account::Town(borrower)) =
+                (loan.terms.lender, loan.terms.borrower)
+            else {
+                continue;
+            };
+            if self.sites[lender as usize].abandoned || self.sites[borrower as usize].abandoned {
+                continue;
+            }
+            let Some(observation) =
+                self.export_restructuring_evidence(id, policy.expected_loss_fraction)?
+            else {
+                continue;
+            };
+            let Some(maturity) = observation.expected_payment_month.checked_add(1) else {
+                continue;
+            };
+            let lender_cash = self.credit_account_cash(loan.terms.lender)?;
+            let borrower_cash = self.credit_account_cash(loan.terms.borrower)?;
+            let proposal = Proposal {
+                month: self.month,
+                loan: id,
+                revised_maturity: maturity,
+                lender_consent: (lender_cash
+                    >= costs[lender as usize] + policy.operating_cash_floor)
+                    .then_some(loan.terms.lender),
+                borrower_consent: (borrower_cash < costs[borrower as usize] + loan.total_due())
+                    .then_some(loan.terms.borrower),
+                evidence: observation.evidence,
+                expected_payment_month: observation.expected_payment_month,
+            };
+            self.resolve_credit_restructuring(proposal)?;
+        }
+        Ok(())
+    }
+
     /// Explicit completed-Open boundary API. Both parties' policy decisions and
     /// current evidence must be provided; there is no automatic refinancing.
     pub fn resolve_credit_restructuring(&mut self, proposal: Proposal) -> Result<Decision> {
