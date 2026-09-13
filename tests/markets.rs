@@ -633,3 +633,78 @@ fn credit_cash_and_default_ledgers_run_without_gpu() {
         serde_json::to_value(resumed).unwrap()
     );
 }
+
+#[test]
+fn credit_round_shares_actual_cash_and_cannot_replay_requests() {
+    use ancient_world::credit::underwriting::{Evidence, Offer, Policy, Request};
+    use ancient_world::credit::{Account, RepaymentSource, Terms, SHARED_CURRENCY};
+    let mut h = network();
+    for site in &mut h.sites {
+        site.economy.finance = [0.; 4];
+    }
+    h.sites[0].economy.finance = [100., 100., 0., 0.];
+    h.month = 1;
+    let sources = [
+        RepaymentSource::Export {
+            contract: 0,
+            payment_month: 12,
+        },
+        RepaymentSource::Export {
+            contract: 1,
+            payment_month: 12,
+        },
+    ];
+    let evidence: Vec<_> = (1..=2)
+        .map(|id| Evidence {
+            source: sources[id - 1],
+            beneficiary: Account::Town(id as u32),
+            observed_month: 0,
+            expected_receipts: 200.,
+            operating_costs: 0.,
+            expected_loss_fraction: 0.,
+        })
+        .collect();
+    let requests: Vec<_> = (1..=2)
+        .map(|id| Request {
+            id: id as u64,
+            month: 1,
+            principal: 100.,
+            terms: Terms {
+                lender: Account::Town(0),
+                borrower: Account::Town(id as u32),
+                currency: SHARED_CURRENCY,
+                source: sources[id - 1],
+                annual_simple_rate: 0.,
+                maturity_month: 13,
+                grace_months: 3,
+            },
+        })
+        .collect();
+    let offers = vec![Offer {
+        lender: Account::Town(0),
+        month: 1,
+        cash: 1000.,
+        operating_reserve: 20.,
+        offered_principal: 1000.,
+        minimum_annual_rate: 0.,
+    }];
+    let index = h
+        .fund_credit_requests(
+            Policy::default(),
+            offers.clone(),
+            evidence.clone(),
+            requests.clone(),
+        )
+        .unwrap();
+    assert_eq!(h.credit.rounds[index].offers[0].cash, 100.);
+    assert_eq!(h.sites[0].economy.finance[0], 20.);
+    assert_eq!(h.sites[1].economy.finance[0], 40.);
+    assert_eq!(h.sites[2].economy.finance[0], 40.);
+    h.validate_credit().unwrap();
+    assert!(h.economy_residuals()[3].abs() < 1e-12);
+    let before = serde_json::to_value(&h).unwrap();
+    assert!(h
+        .fund_credit_requests(Policy::default(), offers, evidence, requests)
+        .is_err());
+    assert_eq!(before, serde_json::to_value(h).unwrap());
+}

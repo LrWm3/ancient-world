@@ -13,6 +13,7 @@ const LEDGER_RELATIVE_TOLERANCE: f64 = 1e-10;
 
 pub mod accounts;
 pub mod state;
+pub mod underwriting;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct CurrencyId(pub u32);
@@ -26,7 +27,7 @@ pub enum Account {
 }
 
 /// Stable payment provenance; an estimate is not a second cash balance.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RepaymentSource {
     AnnualTax { council: u32, collection_month: u32 },
     Export { contract: u64, payment_month: u32 },

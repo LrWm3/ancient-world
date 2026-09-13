@@ -13,6 +13,8 @@ pub struct CashReceipt {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Credit {
+    #[serde(default)]
+    pub rounds: Vec<super::underwriting::Round>,
     pub loans: Vec<Loan>,
     pub cash_receipts: Vec<CashReceipt>,
 }
@@ -82,6 +84,54 @@ impl History {
     }
 
     pub fn validate_credit(&self) -> Result<()> {
+        let mut funded = std::collections::BTreeSet::new();
+        let mut requests = std::collections::BTreeSet::new();
+        for round in &self.credit.rounds {
+            ensure!(
+                round.complete
+                    && round.month <= self.month
+                    && round.grants.len() == round.loan_ids.len()
+                    && round.grants.len() == round.requests.len(),
+                "incomplete or invalid credit round"
+            );
+            for request in &round.requests {
+                ensure!(
+                    requests.insert((round.month, request.id)),
+                    "replayed credit request"
+                );
+            }
+            for (grant, id) in round.grants.iter().zip(&round.loan_ids) {
+                let request = round
+                    .requests
+                    .iter()
+                    .find(|r| r.id == grant.request)
+                    .context("missing grant request")?;
+                ensure!(
+                    grant.month == round.month
+                        && grant.granted.is_finite()
+                        && grant.granted >= 0.
+                        && grant.granted <= grant.requested,
+                    "invalid credit grant"
+                );
+                if let Some(id) = id {
+                    let loan = self
+                        .credit
+                        .loans
+                        .get(*id as usize)
+                        .context("missing funded loan")?;
+                    ensure!(
+                        funded.insert(*id)
+                            && loan.id == *id
+                            && loan.opened_month == round.month
+                            && loan.original_principal <= grant.granted
+                            && loan.terms.lender == request.terms.lender
+                            && loan.terms.borrower == request.terms.borrower
+                            && loan.terms.source == request.terms.source,
+                        "funded loan disagrees with grant"
+                    );
+                }
+            }
+        }
         for (id, loan) in self.credit.loans.iter().enumerate() {
             ensure!(
                 loan.id == id as u64 && loan.accrued_through_month <= self.month,

@@ -122,3 +122,43 @@ lender, an underfunded repayment leaves principal outstanding, and subsequent
 write-off changes debt without changing the 100-unit money supply. All 158 active
 library tests passed (132 extended cases ignored). Strict all-target Clippy passed
 before the additional CPU fixture; that fixture compiled and passed separately.
+
+## Snapshot underwriting and funding rounds
+
+`credit::underwriting` now accepts dated lender offers, repayment evidence and
+requests. The resolver protects offered operating reserves, caps borrower/lender
+principal exposure, discounts net receipts, subtracts existing pledges, and checks
+beneficiary, timing, evidence age, loss risk and the offered return. New borrowing
+and lending roles cannot overlap in the same batch or active portfolio. Recent
+defaults exclude the borrower temporarily.
+
+Approved requests share three finite budgets: lender cash, borrower capacity and
+repayment-source capacity. Each receives the smallest of the three proportional
+scales. Stable request IDs fix summation order; reversing input order does not
+create first-applicant priority. This conservative pass can leave capacity unused.
+Initial policy defaults are explicit game-experiment parameters, not calibrated
+financial estimates.
+
+`History::fund_credit_requests` caps offered cash to the actual existing account,
+resolves a round, then commits approved loans through the cash/debt adapter. It
+retains offers, evidence, requests, grants and funded loan IDs. Replaying a request
+ID in the same month is rejected before transfer. Individual transfers remain
+atomic; a later settlement error retains an incomplete round, which closing
+validation rejects rather than treating it as a completed or unexecuted batch.
+
+The source producer is still pending: tests supply explicit evidence fixtures.
+Actual tax-history and commercial-payment observations must generate those inputs
+before automatic history lending or ensemble balance conclusions are justified.
+Consent currently means an explicit offer/request, not an autonomous political
+or merchant decision. Scheduler collection, closures and default policy likewise
+remain pending.
+
+Underwriting verification: three CPU resolver tests passed, covering competing
+claims on one receipt, reversed input order, lender reserves, existing pledges,
+stale evidence, wrong beneficiaries, loss risk and absent repayment capacity.
+Both CPU credit integration tests passed; the funding case caps an overstated
+1,000-unit offer to 100 actual units, preserves 20 in operating reserve and funds
+two 40-unit loans. Replayed requests leave history unchanged. All 161 active
+library tests passed (132 extended cases ignored). Strict all-target Clippy passed
+before a declaration-order-only move of the underwriting test module. Long-run
+credit and issuance experiments have not started.
