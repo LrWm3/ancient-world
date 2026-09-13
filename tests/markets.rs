@@ -1326,6 +1326,18 @@ fn abandoned_town_treasuries_settle_existing_debt_but_cannot_originate() {
             assert!(world.economy_residuals()[3].abs() < 1e-12);
             world.validate_credit().unwrap();
             let once = serde_json::to_value(&world).unwrap();
+            // A retained abandoned treasury is valid; a missing/rebound identity
+            // or invalid cash is not, even when the loan is fully repaid.
+            for party in [0, 1] {
+                let mut missing: History = serde_json::from_value(once.clone()).unwrap();
+                missing.sites[party].id = 99;
+                assert!(missing.validate_credit().is_err());
+                for cash in [-1., f32::NAN, f32::INFINITY] {
+                    let mut invalid: History = serde_json::from_value(once.clone()).unwrap();
+                    invalid.sites[party].economy.finance[0] = cash;
+                    assert!(invalid.validate_credit().is_err());
+                }
+            }
             world.service_credit_month().unwrap();
             assert_eq!(once, serde_json::to_value(&world).unwrap());
         }

@@ -210,6 +210,9 @@ home town. Temporarily inactive relocating institutions are excluded. The automa
 pilots use councils and town commercial payees, while the broader account types
 also support explicit caller-supplied contracts.
 
+The [claim-succession design](credit-claim-succession.md) maps the remaining
+ownership changes across payment, consent, exposure and historical validation.
+
 Remaining estate work and the broader acceptance requirements:
 
 1. Separate operating eligibility from legal account/estate existence. Closing

@@ -304,6 +304,17 @@ impl History {
                 "invalid loan identity or future boundary"
             );
             loan.validate()?;
+            // Closure disables origination, not legal identity. Historical parties
+            // must still resolve to retained accounts even after final settlement.
+            // A future assignment must preserve these parties and identify its
+            // recipient separately rather than deleting the original account.
+            for account in [loan.terms.lender, loan.terms.borrower] {
+                let cash = self.settlement_balance(account)?.value();
+                ensure!(
+                    cash.is_finite() && cash >= 0.,
+                    "invalid retained credit account cash"
+                );
+            }
             for entry in &loan.entries {
                 if matches!(entry.kind, super::EntryKind::PrecisionWriteOff) {
                     ensure!(
