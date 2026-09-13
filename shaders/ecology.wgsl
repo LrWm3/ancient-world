@@ -12,6 +12,14 @@ struct Params {dims:vec4<u32>,physical:vec4<f32>,counts:vec4<u32>,options:vec4<u
 @group(0) @binding(7) var<uniform> p:Params;
 // Consumer feeding, replacement and finite-biomass numerical bounds.
 // Bounded pairwise currents and guild migration.
+// Fine river payload routing and floodplain exchange.
+const ECO_RIVER_MIN_LAND_FRACTION: f32 = .000001;
+const ECO_RIVER_RETAINED_FRACTION: f32 = .2;
+const ECO_RIVER_ROUTED_FRACTION: f32 = .8;
+const ECO_RIVER_SECONDS_PER_YEAR: f32 = 31557600.;
+const ECO_RIVER_CAPACITY_MULTIPLIER: f32 = 2.;
+const ECO_FLOODPLAIN_STORAGE_DEPTH_M: f32 = 1.5;
+const ECO_RIVER_VOLUME_DIVISOR_GUARD: f32 = 1e-20;
 const ECO_LARGE_GRAZER_UPHILL_ATTRACTION: f32 = .6;
 const ECO_CURRENT_TANGENT_GUARD: f32 = .000001;
 const ECO_CURRENT_FRICTION_DEPTH_M: f32 = 200.;
@@ -529,7 +537,7 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
  value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),ECO_MIN_ENCODED_THERMAL_PREFERENCE,ECO_MAX_ENCODED_THERMAL_PREFERENCE),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
  let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
@@ -546,7 +554,7 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
  value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),ECO_MIN_ENCODED_THERMAL_PREFERENCE,ECO_MAX_ENCODED_THERMAL_PREFERENCE),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
  let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
@@ -563,7 +571,7 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
  value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),ECO_MIN_ENCODED_THERMAL_PREFERENCE,ECO_MAX_ENCODED_THERMAL_PREFERENCE),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
  let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
@@ -580,7 +588,7 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
  value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),ECO_MIN_ENCODED_THERMAL_PREFERENCE,ECO_MAX_ENCODED_THERMAL_PREFERENCE),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
  let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
@@ -597,7 +605,7 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
  value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),ECO_MIN_ENCODED_THERMAL_PREFERENCE,ECO_MAX_ENCODED_THERMAL_PREFERENCE),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
  let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
@@ -614,7 +622,7 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
  value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),ECO_MIN_ENCODED_THERMAL_PREFERENCE,ECO_MAX_ENCODED_THERMAL_PREFERENCE),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
  let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
@@ -631,7 +639,7 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
  value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),ECO_MIN_ENCODED_THERMAL_PREFERENCE,ECO_MAX_ENCODED_THERMAL_PREFERENCE),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
  let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
@@ -648,7 +656,7 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
  value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),ECO_MIN_ENCODED_THERMAL_PREFERENCE,ECO_MAX_ENCODED_THERMAL_PREFERENCE),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
  let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
@@ -665,7 +673,7 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
  value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),ECO_MIN_ENCODED_THERMAL_PREFERENCE,ECO_MAX_ENCODED_THERMAL_PREFERENCE),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
  let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
@@ -682,7 +690,7 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
  value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),ECO_MIN_ENCODED_THERMAL_PREFERENCE,ECO_MAX_ENCODED_THERMAL_PREFERENCE),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
  let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
@@ -699,7 +707,7 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
  value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),ECO_MIN_ENCODED_THERMAL_PREFERENCE,ECO_MAX_ENCODED_THERMAL_PREFERENCE),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
  let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
@@ -716,7 +724,7 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
  value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),ECO_MIN_ENCODED_THERMAL_PREFERENCE,ECO_MAX_ENCODED_THERMAL_PREFERENCE),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
  let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
@@ -752,24 +760,24 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  dst[i].pools[27]=ledger;dst[i].pools[28]=production;
 }
 @compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
-fn river_inject(@builtin(global_invocation_id) g:vec3<u32>) {let i=id(g,p.dims.x);let c=terrain[i];let j=parent(i);let l=land(environment[j]);var added=vec4(0.);if c.tags.x>=2u {added=src[j].pools[19]*ECO_GROUNDWATER_ROUTING_PARTITION.y*area(i,p.dims.x)/max(l,.000001);}added.w=select(0.,c.life.w*area(i,p.dims.x),c.tags.x>=2u);river_out[i]=river[i]+added;}
+fn river_inject(@builtin(global_invocation_id) g:vec3<u32>) {let i=id(g,p.dims.x);let c=terrain[i];let j=parent(i);let l=land(environment[j]);var added=vec4(0.);if c.tags.x>=2u {added=src[j].pools[19]*ECO_GROUNDWATER_ROUTING_PARTITION.y*area(i,p.dims.x)/max(l,ECO_RIVER_MIN_LAND_FRACTION);}added.w=select(0.,c.life.w*area(i,p.dims.x),c.tags.x>=2u);river_out[i]=river[i]+added;}
 @compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn river_route(@builtin(global_invocation_id) g:vec3<u32>) {
- let i=id(g,p.dims.x);var mass=river[i]*select(.2,1.,terrain[i].routing.x==NONE);
- for(var k=0u;k<4u;k++){let j=neighbor(i,k,p.dims.x);if terrain[j].routing.x==i {mass+=river[j]*.8;}}
+ let i=id(g,p.dims.x);var mass=river[i]*select(ECO_RIVER_RETAINED_FRACTION,1.,terrain[i].routing.x==NONE);
+ for(var k=0u;k<4u;k++){let j=neighbor(i,k,p.dims.x);if terrain[j].routing.x==i {mass+=river[j]*ECO_RIVER_ROUTED_FRACTION;}}
  river_out[i]=mass;
 }
 // The same overflow fraction credits coarse soil and debits fine routed payloads.
 fn overflow_volume(i:u32)->f32 {
  if p.options.w==0u || terrain[i].routing.x==NONE || terrain[i].tags.x<2u {return 0.;}
- let capacity=max(0.,terrain[i].water.w)*31557600.*p.physical.y*2.;
+ let capacity=max(0.,terrain[i].water.w)*ECO_RIVER_SECONDS_PER_YEAR*p.physical.y*ECO_RIVER_CAPACITY_MULTIPLIER;
  let fraction=select(1.,RIVER_CORRIDOR_AREA_FRACTION,terrain[i].water.w>RIVER_CORRIDOR_MIN_DISCHARGE_M3_S&&terrain[i].hydro.x-terrain[i].terrain.x<RIVER_CORRIDOR_SPILL_TOLERANCE_M);
- return min(max(0.,river[i].w-capacity),max(0.,1.5*fraction-terrain[i].water.x)*area(i,p.dims.x));
+ return min(max(0.,river[i].w-capacity),max(0.,ECO_FLOODPLAIN_STORAGE_DEPTH_M*fraction-terrain[i].water.x)*area(i,p.dims.x));
 }
 @compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn river_collect(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=id(g,p.dims.y);var s=src[i];let r=p.dims.x/p.dims.y;var stored=0.;
- for(var y=0u;y<r;y++){for(var x=0u;x<r;x++){let j=fine(i,x,y);let c=terrain[j];stored+=(c.water.x+c.water.y+c.water.z)*area(j,p.dims.x)+river[j].w;if c.routing.x==NONE {let slot=select(17u,20u,c.tags.x<2u);s.pools[slot]+=vec4(river[j].xyz/environment[i].fields[3].x,0.);}else {s.pools[17]+=vec4(river[j].xyz*(overflow_volume(j)/max(river[j].w,1e-20))/environment[i].fields[3].x,0.);}}}s.pools[25].w=stored/environment[i].fields[3].x;dst[i]=s;
+ for(var y=0u;y<r;y++){for(var x=0u;x<r;x++){let j=fine(i,x,y);let c=terrain[j];stored+=(c.water.x+c.water.y+c.water.z)*area(j,p.dims.x)+river[j].w;if c.routing.x==NONE {let slot=select(17u,20u,c.tags.x<2u);s.pools[slot]+=vec4(river[j].xyz/environment[i].fields[3].x,0.);}else {s.pools[17]+=vec4(river[j].xyz*(overflow_volume(j)/max(river[j].w,ECO_RIVER_VOLUME_DIVISOR_GUARD))/environment[i].fields[3].x,0.);}}}s.pools[25].w=stored/environment[i].fields[3].x;dst[i]=s;
 }
 @compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn river_clear(@builtin(global_invocation_id) g:vec3<u32>) {
@@ -779,7 +787,7 @@ fn river_clear(@builtin(global_invocation_id) g:vec3<u32>) {
  // Water and dissolved nutrients leave the river together. river_collect has
  // already credited the latter to regional floodplain soil without atomics.
  let overflow=overflow_volume(i);
- payload=vec4(payload.xyz*(1.-overflow/max(payload.w,1e-20)),payload.w);
+ payload=vec4(payload.xyz*(1.-overflow/max(payload.w,ECO_RIVER_VOLUME_DIVISOR_GUARD)),payload.w);
  terrain[i].water.x+=overflow/area(i,p.dims.x);payload.w-=overflow;
  }
  river_out[i]=payload;

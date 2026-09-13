@@ -19,6 +19,8 @@ const MIN_GUILD_CARBON_DENOMINATOR_KG: f64 = 1e-30;
 crate::shared_shader_parameters! { SHADER_PARAMETERS {
     const ECOLOGY_WORKGROUP_EDGE: u32 = 8;
     const ECO_THERMAL_ENCODING_OFFSET_C: f32 = 81.;
+    const ECO_MIN_ENCODED_THERMAL_PREFERENCE: f32 = 1.;
+    const ECO_MAX_ENCODED_THERMAL_PREFERENCE: f32 = 141.;
 }}
 
 pub const ECO_BYTES: u64 = std::mem::size_of::<EcoCell>() as u64;
@@ -829,10 +831,9 @@ pub fn validate(cells: &[EcoCell]) -> Result<()> {
             "invalid producer composition at {i}"
         );
         ensure!(
-            c.pools[38..41]
-                .iter()
-                .flatten()
-                .all(|t| *t == 0. || (1. ..=141.).contains(t)),
+            c.pools[38..41].iter().flatten().all(|t| *t == 0.
+                || (ECO_MIN_ENCODED_THERMAL_PREFERENCE..=ECO_MAX_ENCODED_THERMAL_PREFERENCE)
+                    .contains(t)),
             "invalid wildlife thermal preference at {i}"
         );
         ensure!(

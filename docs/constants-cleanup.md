@@ -757,3 +757,19 @@ Exact expansion reproduces the previous transport expressions. The hardware GPU
 migration fixture passed nutrient delivery, removal/restoration and conservation
 checks; strict all-target Clippy also passed. These are parameter names, not new
 circulation or movement mechanics.
+
+## Shared thermal validation and river payload bounds
+
+The encoded thermal preference endpoints (1 and 141) now live beside the shared
+81-degree offset in the ecology module's Rust/WGSL parameter table. CPU archive
+validation and all twelve shader guild-transport clamps use those same endpoints.
+The zero sentinel remains inline. This preserves both the encoding and its range.
+
+Named seven river parameters: land normalization, retained/routed fractions,
+seconds per year, discharge capacity multiplier, floodplain storage depth and
+volume division guard. The collection and clearing passes share the same guard;
+physical transfer arithmetic and complementary fraction literals are unchanged.
+Literal expansion verifies the river expressions. The GPU thermal feeding and
+persistence fixture, routed-overflow/runoff fixture and strict all-target Clippy
+passed. An initial river filter matched zero tests; the explicitly named overflow
+fixture was subsequently run and passed. No new watershed behavior is claimed.
