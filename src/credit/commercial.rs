@@ -163,22 +163,25 @@ impl History {
             // annual return; a short risky bridge requires a higher annual quote.
             let rate = (policy.annual_required_return + policy.expected_loss_fraction / years)
                 / (1. - policy.expected_loss_fraction);
-            if rate > 1. {
+            let terms = Terms {
+                lender,
+                borrower: e.beneficiary,
+                currency: SHARED_CURRENCY,
+                source: e.source,
+                annual_simple_rate: rate,
+                maturity_month: maturity,
+                grace_months: Terms::default_grace_months(),
+            };
+            // Unfinanceable voyage duration/rate is a declined opportunity,
+            // not invalid history. Use the same bounds as committed contracts.
+            if terms.validate(self.month).is_err() {
                 continue;
             }
             requests.push(Request {
                 id: COMMERCIAL_REQUEST_NAMESPACE | index as u64,
                 month: self.month,
                 principal: gap / source_counts[seller as usize] as f64,
-                terms: Terms {
-                    lender,
-                    borrower: e.beneficiary,
-                    currency: SHARED_CURRENCY,
-                    source: e.source,
-                    annual_simple_rate: rate,
-                    maturity_month: maturity,
-                    grace_months: Terms::default_grace_months(),
-                },
+                terms,
             });
         }
         let count = if requests.is_empty() {

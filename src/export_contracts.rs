@@ -454,6 +454,10 @@ mod tests {
         let mut reserved = h.clone();
         reserved.credit.commercial_policy.operating_cash_floor = 10000.;
         assert_eq!(reserved.commercial_credit_month().unwrap(), 0);
+        let mut distant = h.clone();
+        distant.export_payments[0].expected_month = h.month + 121;
+        distant.cargo[0].arrives = h.month + 121;
+        assert_eq!(distant.commercial_credit_month().unwrap(), 0);
         let mut delayed = h.clone();
         delayed.cargo[0].arrives += 1;
         assert_eq!(delayed.commercial_credit_month().unwrap(), 0);
