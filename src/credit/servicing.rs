@@ -55,6 +55,8 @@ pub struct Receipt {
     pub paid: f64,
     pub accounts_available: bool,
     pub defaulted: bool,
+    #[serde(default)]
+    pub precision_settled: f64,
 }
 
 impl History {
@@ -123,6 +125,7 @@ impl History {
                 paid: 0.,
                 accounts_available: available,
                 defaulted: false,
+                precision_settled: 0.,
             });
         }
         self.credit.loans = accrued;
@@ -131,6 +134,21 @@ impl History {
         for mut receipt in plans {
             if receipt.allowance > 0. {
                 receipt.paid = self.pay_credit_loan(receipt.loan, receipt.allowance)?;
+            }
+            let current = &self.credit.loans[receipt.loan as usize];
+            let remainder = current.total_due();
+            if current.precision_residue()
+                && remainder <= (receipt.allowance - receipt.paid).max(0.)
+            {
+                let from = self.credit_balance(current.terms.borrower)?;
+                let to = self.credit_balance(current.terms.lender)?;
+                if from.value() >= remainder {
+                    let (_, _, transferable) = super::accounts::quote(from, to, remainder)?;
+                    if transferable == 0. {
+                        receipt.precision_settled = self.credit.loans[receipt.loan as usize]
+                            .settle_precision_residue(self.month)?;
+                    }
+                }
             }
             let loan = &mut self.credit.loans[receipt.loan as usize];
             if loan.status == Status::Arrears

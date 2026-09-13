@@ -184,7 +184,8 @@ impl History {
                         receipt.due,
                         receipt.protected_cash,
                         receipt.allowance,
-                        receipt.paid
+                        receipt.paid,
+                        receipt.precision_settled
                     ]
                     .iter()
                     .all(|x| x.is_finite() && *x >= 0.)
@@ -195,6 +196,20 @@ impl History {
                     && receipt.allowance <= receipt.due,
                 "invalid credit service receipt"
             );
+        }
+        for receipt in &self.credit.service_receipts {
+            if receipt.precision_settled > 0. {
+                let loan = &self.credit.loans[receipt.loan as usize];
+                ensure!(
+                    !receipt.defaulted
+                        && receipt.accounts_available
+                        && receipt.precision_settled <= (receipt.allowance - receipt.paid).max(0.)
+                        && loan.entries.iter().any(|e| e.month == receipt.month
+                            && matches!(e.kind, super::EntryKind::PrecisionWriteOff)
+                            && e.principal + e.interest == receipt.precision_settled),
+                    "precision collection disagrees with debt ledger"
+                );
+            }
         }
         let mut observed = std::collections::BTreeSet::new();
         for observation in &self.credit.tax_observations {
@@ -258,6 +273,19 @@ impl History {
                 "invalid loan identity or future boundary"
             );
             loan.validate()?;
+            for entry in &loan.entries {
+                if matches!(entry.kind, super::EntryKind::PrecisionWriteOff) {
+                    ensure!(
+                        self.credit
+                            .service_receipts
+                            .iter()
+                            .any(|r| r.month == entry.month
+                                && r.loan == loan.id
+                                && r.precision_settled == entry.principal + entry.interest),
+                        "precision write-off missing collection receipt"
+                    );
+                }
+            }
             ensure!(
                 loan.terms.currency == SHARED_CURRENCY,
                 "unsupported persisted loan currency"

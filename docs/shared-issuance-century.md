@@ -80,3 +80,29 @@ measured immediate service/work outcome without displacing essential spending;
 a failed repayment should produce a bounded loss rather than refinancing forever.
 Negotiated restructuring and closure handling remain implementation work. Do not
 turn on issuance by default or infer an FX design is validated from these two seeds.
+
+## Longer seed-81 follow-up (500 years)
+
+The same fixed `0aa337c` executable completed a four-arm, 500-year follow-up from
+the same seed-81 checkpoint. This is a longer tuning-seed run, not held-out evidence.
+
+| Arm | Ending population | Loans / defaults | Issued | Final need-weighted hunger | Cumulative operator work |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Baseline | 180.167 | 0 / 0 | 0 | 0.0293 | 1,159.46 |
+| Credit | 127.052 | 2 / 2 | 0 | 0.0229 | 1,126.24 |
+| Issuance | 182.070 | 0 / 0 | 1,250 | 0.0194 | 592.76 |
+| Combined | 182.070 | 0 / 0 | 1,250 | 0.0194 | 592.76 |
+
+All native runs completed validation. The credit arm's two defaults are the
+[numerical-residue cases](credit-precision-residuals.md), not two demonstrated
+failures to afford repayment. Its lower population cannot be attributed to that
+classification alone without a controlled rerun. Issuance's population advantage
+is much smaller than at year 200, while operator work remains markedly lower.
+Terminal hunger alone is not a survival or total-welfare measure: it omits the
+needs of people no longer present. These results strengthen the case for looking
+at work, population and food access together rather than choosing one endpoint.
+
+The precision correction and new delayed-export negotiation were not present in
+this executable. Raw follow-up artifacts are ignored under
+`output/monetary-four-arm-five-century/`; the same runner used `--years 500` and
+only the seed-81 checkpoint. These results do not pass the next-stage gate.

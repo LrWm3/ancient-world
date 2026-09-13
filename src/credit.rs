@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 
 pub const SHARED_CURRENCY: CurrencyId = CurrencyId(0);
 const MONTHS_PER_YEAR: f64 = 12.;
+const MAX_PRECISION_RESIDUE_MONEY: f64 = 0.001;
+const MAX_PRECISION_RESIDUE_PRINCIPAL_SHARE: f64 = 0.0001;
 const MAX_ANNUAL_SIMPLE_RATE: f64 = 1.;
 const MAX_LOAN_TERM_MONTHS: u32 = 120;
 const DEFAULT_GRACE_MONTHS: u32 = 3;
@@ -57,6 +59,7 @@ pub enum Status {
     Performing,
     Arrears,
     Repaid,
+    PrecisionSettled,
     Defaulted,
 }
 
@@ -66,6 +69,7 @@ pub enum EntryKind {
     InterestAccrued,
     Repayment,
     WriteOff,
+    PrecisionWriteOff,
     Restructuring {
         previous_maturity: u32,
         revised_maturity: u32,
@@ -152,7 +156,10 @@ impl Loan {
             month >= self.accrued_through_month,
             "cannot accrue backwards"
         );
-        if matches!(self.status, Status::Repaid | Status::Defaulted) {
+        if matches!(
+            self.status,
+            Status::Repaid | Status::PrecisionSettled | Status::Defaulted
+        ) {
             return Ok(());
         }
         let amount = self.outstanding_principal * self.terms.annual_simple_rate / MONTHS_PER_YEAR;
@@ -189,7 +196,10 @@ impl Loan {
             "invalid payment funds"
         );
         ensure!(
-            !matches!(self.status, Status::Repaid | Status::Defaulted),
+            !matches!(
+                self.status,
+                Status::Repaid | Status::PrecisionSettled | Status::Defaulted
+            ),
             "loan is closed"
         );
         let interest = available.min(self.interest_due);
@@ -257,6 +267,33 @@ impl Loan {
         Ok(())
     }
 
+    pub(crate) fn precision_residue(&self) -> bool {
+        self.status == Status::Arrears
+            && self.total_due() > 0.
+            && self.total_due() <= MAX_PRECISION_RESIDUE_MONEY
+            && self.total_due() / self.original_principal <= MAX_PRECISION_RESIDUE_PRINCIPAL_SHARE
+    }
+
+    /// Account policy must first prove the affordable residue cannot transfer.
+    /// This forgives a recorded tiny claim; it never records imaginary cash paid.
+    pub(crate) fn settle_precision_residue(&mut self, month: u32) -> Result<f64> {
+        ensure!(
+            month == self.accrued_through_month && self.precision_residue(),
+            "invalid precision settlement"
+        );
+        let amount = self.total_due();
+        self.entries.push(Entry {
+            month,
+            kind: EntryKind::PrecisionWriteOff,
+            principal: self.outstanding_principal,
+            interest: self.interest_due,
+        });
+        self.outstanding_principal = 0.;
+        self.interest_due = 0.;
+        self.status = Status::PrecisionSettled;
+        Ok(amount)
+    }
+
     /// Write off claims and liabilities together. No account balance changes.
     pub fn write_off(&mut self, month: u32) -> Result<()> {
         ensure!(
@@ -312,6 +349,7 @@ impl Loan {
         let mut interest = 0.;
         let mut last = self.opened_month;
         let mut origin_count = 0;
+        let mut precision_settlements = 0;
         for e in &self.entries {
             ensure!(
                 e.month >= last
@@ -329,6 +367,21 @@ impl Loan {
                     principal += e.principal;
                 }
                 EntryKind::InterestAccrued => interest += e.interest,
+                EntryKind::PrecisionWriteOff => {
+                    let amount = e.principal + e.interest;
+                    ensure!(
+                        precision_settlements == 0
+                            && e.month >= maturity
+                            && amount > 0.
+                            && amount <= MAX_PRECISION_RESIDUE_MONEY
+                            && amount / self.original_principal
+                                <= MAX_PRECISION_RESIDUE_PRINCIPAL_SHARE,
+                        "invalid precision write-off"
+                    );
+                    precision_settlements += 1;
+                    principal -= e.principal;
+                    interest -= e.interest;
+                }
                 EntryKind::Repayment | EntryKind::WriteOff => {
                     principal -= e.principal;
                     interest -= e.interest;
@@ -366,6 +419,10 @@ impl Loan {
             self.restructured == (restructurings == 1) && self.terms.maturity_month == maturity,
             "restructuring state does not match receipts"
         );
+        ensure!(
+            (self.status == Status::PrecisionSettled) == (precision_settlements == 1),
+            "precision settlement status disagrees with ledger"
+        );
         let tolerance = LEDGER_RELATIVE_TOLERANCE * self.original_principal.max(1.);
         ensure!(
             (principal - self.outstanding_principal).abs() <= tolerance
@@ -373,7 +430,10 @@ impl Loan {
             "debt ledger does not reconcile"
         );
         ensure!(
-            matches!(self.status, Status::Repaid | Status::Defaulted) == (self.total_due() == 0.),
+            matches!(
+                self.status,
+                Status::Repaid | Status::PrecisionSettled | Status::Defaulted
+            ) == (self.total_due() == 0.),
             "debt status does not match balance"
         );
         Ok(())

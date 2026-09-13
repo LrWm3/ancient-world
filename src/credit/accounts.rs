@@ -138,7 +138,7 @@ impl Transfer {
 }
 
 impl History {
-    fn credit_balance(&self, account: Account) -> Result<Balance> {
+    pub(super) fn credit_balance(&self, account: Account) -> Result<Balance> {
         Ok(match account {
             Account::Town(id) => Balance::Single(
                 self.sites

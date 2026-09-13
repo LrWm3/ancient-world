@@ -495,3 +495,9 @@ commercial policy. Council negotiation is still outstanding. The longer experime
 also found [numerical-residue defaults](credit-precision-residuals.md), which need
 a distinct bounded settlement treatment before default counts are useful balance
 evidence.
+
+Monthly servicing now distinguishes bounded [precision settlements](credit-precision-residuals.md)
+from insolvency. Forgiven principal/interest remain explicit debt-ledger entries;
+no payment or income is fabricated. The experiment runner reports their count
+and written-off amount separately from default counts. Existing recorded defaults
+are not relabeled when loading older archives.

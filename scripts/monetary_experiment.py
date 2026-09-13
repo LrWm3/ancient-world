@@ -83,6 +83,9 @@ def main():
                 loans = history["credit"]["loans"]
                 result.update(population=sum(s["stocks"]["stock"][0] for s in history["sites"]),
                               loans=len(loans), defaults=sum(l["status"] == "Defaulted" for l in loans),
+                              precision_settled=sum(l["status"] == "PrecisionSettled" for l in loans),
+                              precision_writeoff=sum(e["principal"] + e["interest"] for l in loans
+                                                     for e in l["entries"] if e["kind"] == "PrecisionWriteOff"),
                               issued=sum(r["issued"] for r in history["credit"]["issuance"]["receipts"]),
                               history_sha256=digest(archive))
             results.append(result)
