@@ -994,3 +994,25 @@ uses a copied executable from before this pass and does not verify this extracti
 Verification passed: the hardware food-security staffing/finite-work/continuation
 fixture (one test) and strict all-target Clippy. Remaining allocation-share policies
 in these functions and other shader sections still require review.
+
+## Labor-share policies in the GPU staffing planners
+
+Named twenty remaining labor-allocation parameters in `shaders/economy.wgsl`:
+base sector shares, the shore-fishery allowance, service/recipe limits, reassignment
+and hunger-response rates, tool-maintenance protection, mineral-stock thresholds,
+and scarcity-driven sector transfers. Equal-valued policies retain separate names;
+food-pressure response is not the occupation-reassignment rate. Infrastructure
+work forecasting now uses the existing water-operation work constant already used
+by execution.
+
+Replacing the introduced names with their original literals reconstructs the full
+previous shader exactly, including arithmetic order and numeric types. The changes
+are extraction only. Boolean/packed policy selectors and loop indices remain
+inline. Other shader functions and the broader file inventory still need review.
+
+Verification passed: the hardware economy integration test
+`food_security_staffing_reacts_without_free_workers_and_resumes` ran one test,
+covering responsive finite labor, conservation and batched/checkpoint continuation.
+Strict all-target Clippy passed. An initial invocation used the library target and
+selected zero tests; it was corrected to `--test economy`, and the actual one-test
+result is the evidence reported here.

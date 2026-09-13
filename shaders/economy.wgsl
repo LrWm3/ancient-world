@@ -126,6 +126,27 @@ const STAFFING_WORKER_FLOOR: f32 = .001;
 const STAFFING_MAX_FORESTRY_SHARE: f32 = .12;
 const STAFFING_MAX_MINING_SHARE: f32 = .16;
 const STAFFING_ASSUMED_MINING_KG_PER_WORKER_MONTH: f32 = 5.;
+// Labor-share policies: independent rates retain separate identities.
+const STAFFING_MIN_FARM_SHARE: f32 = .62;
+const STAFFING_BASE_FORESTRY_SHARE: f32 = .08;
+const STAFFING_BASE_MINING_SHARE: f32 = .1;
+const STAFFING_BASE_CRAFT_SHARE: f32 = .2;
+const STAFFING_SHORE_FISHERY_SHARE: f32 = .001;
+const STAFFING_MAX_SERVICE_SHARE: f32 = .2;
+const STAFFING_MAX_RECIPE_SHARE: f32 = .30;
+const STAFFING_MAX_NONFARM_SHARE: f32 = .38;
+const STAFFING_SHARE_DENOMINATOR_FLOOR: f32 = .00001;
+const STAFFING_MONTHLY_REASSIGNMENT: f32 = .25;
+const STAFFING_FOOD_PRESSURE_RESPONSE: f32 = .25;
+const STAFFING_HUNGER_FARM_SHARE_BONUS: f32 = .20;
+const STAFFING_MAX_TOOL_MAINTENANCE_SHARE: f32 = .08;
+const STAFFING_DEPLETED_ORE_KG: f32 = 1.;
+const STAFFING_DEPLETION_FARM_TRANSFER: f32 = .06;
+const STAFFING_ABUNDANT_ORE_KG: f32 = 1000.;
+const STAFFING_ORE_TARGET_KG_PER_PERSON: f32 = 2.;
+const STAFFING_TOOL_TARGET_KG_PER_PERSON: f32 = .3;
+const STAFFING_MINING_EXPANSION_TRANSFER: f32 = .12;
+const STAFFING_TOOL_SHORTAGE_CRAFT_TRANSFER: f32 = .08;
 struct Economy {
  farm_workers:vec4<f32>, extraction_workers:vec4<f32>, construction_workers:vec4<f32>,
  production_probe:vec4<f32>, food_labor:vec4<f32>,
@@ -840,11 +861,11 @@ fn worker_shares(e:Economy,pop:f32,available_workers:f32)->vec4<f32>{
 }
 fn baseline_worker_shares(e:Economy,pop:f32,available_workers:f32)->vec4<f32>{
  // Explicit diagnostic ablation; never creates workers or bypasses resource costs.
- if e.logistics.w>2.5 {return vec4(.62,.08-select(0.,.001,e.management.x>.5&&e.management.y>=1.&&e.fishery.w<.5),.1,.2);}
+ if e.logistics.w>2.5 {return vec4(STAFFING_MIN_FARM_SHARE,STAFFING_BASE_FORESTRY_SHARE-select(0.,STAFFING_SHORE_FISHERY_SHARE,e.management.x>.5&&e.management.y>=1.&&e.fishery.w<.5),STAFFING_BASE_MINING_SHARE,STAFFING_BASE_CRAFT_SHARE);}
 
  if e.logistics.w>1.5 {
  let workforce=max(available_workers,STAFFING_WORKER_FLOOR);
- let fish=select(0.,.001,e.management.x>.5&&e.management.y>=1.&&e.fishery.w<.5);
+ let fish=select(0.,STAFFING_SHORE_FISHERY_SHARE,e.management.x>.5&&e.management.y>=1.&&e.fishery.w<.5);
  // Forecast only work that can use existing inputs or this month's finite
  // extraction. Cargo suppresses orders in the CPU planner; it is not stock here.
  var stock=e.goods;
@@ -874,40 +895,40 @@ fn baseline_worker_shares(e:Economy,pop:f32,available_workers:f32)->vec4<f32>{
  }
  // Operating infrastructure is recurring work even when recipe orders are empty.
  // Reserve actual operating work; construction separately uses its 10% allowance.
- let service_craft=select(0.,min(pop,min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON))*.001,e.waterworks.w>.5);
- let reserved=min(e.exchange.w+service_craft,workforce*.2);
- var demand=vec3(forestry,mining,min(workforce*.30,craft)+reserved)/workforce;
- let discretionary=max(0.,.38-fish-reserved/workforce);
+ let service_craft=select(0.,min(pop,min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON))*ECONOMY_WATER_OPERATION_WORKER_MONTHS_PER_PERSON,e.waterworks.w>.5);
+ let reserved=min(e.exchange.w+service_craft,workforce*STAFFING_MAX_SERVICE_SHARE);
+ var demand=vec3(forestry,mining,min(workforce*STAFFING_MAX_RECIPE_SHARE,craft)+reserved)/workforce;
+ let discretionary=max(0.,STAFFING_MAX_NONFARM_SHARE-fish-reserved/workforce);
  demand.z=max(0.,demand.z-reserved/workforce);
- demand*=min(1.,discretionary/max(demand.x+demand.y+demand.z,.00001));demand.z+=reserved/workforce;
+ demand*=min(1.,discretionary/max(demand.x+demand.y+demand.z,STAFFING_SHARE_DENOMINATOR_FLOOR));demand.z+=reserved/workforce;
  let desired=vec4(1.-fish-demand.x-demand.y-demand.z,demand);
- var old=vec4(.62,.08,.1,.2);let previous=dot(e.labor,vec4(1.));if previous>0.{old=e.labor/previous*(1.-fish);}
+ var old=vec4(STAFFING_MIN_FARM_SHARE,STAFFING_BASE_FORESTRY_SHARE,STAFFING_BASE_MINING_SHARE,STAFFING_BASE_CRAFT_SHARE);let previous=dot(e.labor,vec4(1.));if previous>0.{old=e.labor/previous*(1.-fish);}
  // Gradual reassignment retains skills and prevents monthly occupation swings.
- var shares=mix(old,desired,.25);shares.x=clamp(shares.x,.62,1.-fish);
+ var shares=mix(old,desired,STAFFING_MONTHLY_REASSIGNMENT);shares.x=clamp(shares.x,STAFFING_MIN_FARM_SHARE,1.-fish);
  let nonfarm=shares.y+shares.z+shares.w;
- shares=vec4(shares.x,shares.yzw*min(1.,max(0.,1.-fish-shares.x)/max(nonfarm,.00001)));
+ shares=vec4(shares.x,shares.yzw*min(1.,max(0.,1.-fish-shares.x)/max(nonfarm,STAFFING_SHARE_DENOMINATOR_FLOOR)));
  // Previously promised research/cultural labor is protected within the craft pool.
- let needed=max(0.,reserved/workforce-shares.w);let transfer=min(needed,max(0.,shares.x-.62));shares.x-=transfer;shares.w+=transfer;
+ let needed=max(0.,reserved/workforce-shares.w);let transfer=min(needed,max(0.,shares.x-STAFFING_MIN_FARM_SHARE));shares.x-=transfer;shares.w+=transfer;
  return shares;
  }
 
- var shares=vec4(.62,.08,.1,.2);
- if e.reserves.y<1.{shares.x+=.06;shares.z-=.06;}
- if e.logistics.w<.5 && e.reserves.y>1000.&&e.goods[0].y<pop*2.&&e.goods[0].w>pop*.3{shares.x-=.12;shares.z+=.12;}
- if e.goods[0].w<pop*.3 && (e.reserves.y>0.||e.goods[0].y+e.goods[0].z+e.goods[7].y>0.){shares.x-=.08;shares.w+=.08;}
+ var shares=vec4(STAFFING_MIN_FARM_SHARE,STAFFING_BASE_FORESTRY_SHARE,STAFFING_BASE_MINING_SHARE,STAFFING_BASE_CRAFT_SHARE);
+ if e.reserves.y<STAFFING_DEPLETED_ORE_KG{shares.x+=STAFFING_DEPLETION_FARM_TRANSFER;shares.z-=STAFFING_DEPLETION_FARM_TRANSFER;}
+ if e.logistics.w<.5 && e.reserves.y>STAFFING_ABUNDANT_ORE_KG&&e.goods[0].y<pop*STAFFING_ORE_TARGET_KG_PER_PERSON&&e.goods[0].w>pop*STAFFING_TOOL_TARGET_KG_PER_PERSON{shares.x-=STAFFING_MINING_EXPANSION_TRANSFER;shares.z+=STAFFING_MINING_EXPANSION_TRANSFER;}
+ if e.goods[0].w<pop*STAFFING_TOOL_TARGET_KG_PER_PERSON && (e.reserves.y>0.||e.goods[0].y+e.goods[0].z+e.goods[7].y>0.){shares.x-=STAFFING_TOOL_SHORTAGE_CRAFT_TRANSFER;shares.w+=STAFFING_TOOL_SHORTAGE_CRAFT_TRANSFER;}
  // Reserve 0.1% of workers for a shore fishery (20 kg per worker-month).
- if e.management.x>.5 && e.management.y>=1. && e.fishery.w<.5{shares.y-=.001;}
+ if e.management.x>.5 && e.management.y>=1. && e.fishery.w<.5{shares.y-=STAFFING_SHORE_FISHERY_SHARE;}
  return shares;
 }
 
 
 fn food_worker_shares(e:Economy,pop:f32,available_workers:f32)->vec4<f32>{
  // Explicit diagnostic ablation; never creates workers or bypasses resource costs.
- if e.logistics.w>2.5 && e.logistics.w<3.5 {return vec4(.62,.08-select(0.,.001,e.management.x>.5&&e.management.y>=1.&&e.fishery.w<.5),.1,.2);}
+ if e.logistics.w>2.5 && e.logistics.w<3.5 {return vec4(STAFFING_MIN_FARM_SHARE,STAFFING_BASE_FORESTRY_SHARE-select(0.,STAFFING_SHORE_FISHERY_SHARE,e.management.x>.5&&e.management.y>=1.&&e.fishery.w<.5),STAFFING_BASE_MINING_SHARE,STAFFING_BASE_CRAFT_SHARE);}
 
  if e.logistics.w>1.5 {
  let workforce=max(available_workers,STAFFING_WORKER_FLOOR);
- let fish=select(0.,.001,e.management.x>.5&&e.management.y>=1.&&e.fishery.w<.5);
+ let fish=select(0.,STAFFING_SHORE_FISHERY_SHARE,e.management.x>.5&&e.management.y>=1.&&e.fishery.w<.5);
  // Forecast only work that can use existing inputs or this month's finite
  // extraction. Cargo suppresses orders in the CPU planner; it is not stock here.
  var stock=e.goods;
@@ -938,44 +959,44 @@ fn food_worker_shares(e:Economy,pop:f32,available_workers:f32)->vec4<f32>{
  }
  // Operating infrastructure is recurring work even when recipe orders are empty.
  // Reserve actual operating work; construction separately uses its 10% allowance.
- let service_craft=select(0.,min(pop,min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON))*.001,e.waterworks.w>.5);
- let reserved=min(e.exchange.w+service_craft,workforce*.2);
- var demand=vec3(forestry,mining,min(workforce*.30,craft)+reserved)/workforce;
+ let service_craft=select(0.,min(pop,min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON))*ECONOMY_WATER_OPERATION_WORKER_MONTHS_PER_PERSON,e.waterworks.w>.5);
+ let reserved=min(e.exchange.w+service_craft,workforce*STAFFING_MAX_SERVICE_SHARE);
+ var demand=vec3(forestry,mining,min(workforce*STAFFING_MAX_RECIPE_SHARE,craft)+reserved)/workforce;
  let food_policy=e.logistics.w>3.5;
- let pressure=select(0.,mix(e.food_labor.x,e.food_labor.y,.25),food_policy);
- let farm_floor=.62+.20*pressure;
+ let pressure=select(0.,mix(e.food_labor.x,e.food_labor.y,STAFFING_FOOD_PRESSURE_RESPONSE),food_policy);
+ let farm_floor=STAFFING_MIN_FARM_SHARE+STAFFING_HUNGER_FARM_SHARE_BONUS*pressure;
  // Preserve at most 8% of finite workers for feasible industry when tools are scarce.
  // This protects capacity, not output; ordinary recipe inputs, orders and costs still apply.
  let feasible=max(vec3(0.),demand-vec3(0.,0.,reserved/workforce));
  let maintenance_feasible=vec3(select(0.,forestry/workforce,tool_work>0.||ore>0.),min(mining,ore/STAFFING_ASSUMED_MINING_KG_PER_WORKER_MONTH)/workforce,min(tool_work/workforce,feasible.z));
- var maintenance=maintenance_feasible*min(1.,select(0.,.08*e.food_labor.w,food_policy)/max(dot(maintenance_feasible,vec3(1.)),.00001));
+ var maintenance=maintenance_feasible*min(1.,select(0.,STAFFING_MAX_TOOL_MAINTENANCE_SHARE*e.food_labor.w,food_policy)/max(dot(maintenance_feasible,vec3(1.)),STAFFING_SHARE_DENOMINATOR_FLOOR));
  if e.logistics.w>4.5 {maintenance=vec3(0.);}
- let discretionary=max(0.,select(.38,1.-farm_floor,food_policy)-fish-reserved/workforce);
+ let discretionary=max(0.,select(STAFFING_MAX_NONFARM_SHARE,1.-farm_floor,food_policy)-fish-reserved/workforce);
  demand.z=max(0.,demand.z-reserved/workforce);
- demand*=min(1.,discretionary/max(demand.x+demand.y+demand.z,.00001));demand.z+=reserved/workforce;
+ demand*=min(1.,discretionary/max(demand.x+demand.y+demand.z,STAFFING_SHARE_DENOMINATOR_FLOOR));demand.z+=reserved/workforce;
  let desired=vec4(1.-fish-demand.x-demand.y-demand.z,demand);
- var old=vec4(.62,.08,.1,.2);let previous=dot(e.labor,vec4(1.));if previous>0.{old=e.labor/previous*(1.-fish);}
+ var old=vec4(STAFFING_MIN_FARM_SHARE,STAFFING_BASE_FORESTRY_SHARE,STAFFING_BASE_MINING_SHARE,STAFFING_BASE_CRAFT_SHARE);let previous=dot(e.labor,vec4(1.));if previous>0.{old=e.labor/previous*(1.-fish);}
  // Gradual reassignment retains skills and prevents monthly occupation swings.
- var shares=mix(old,desired,.25);shares.x=clamp(shares.x,farm_floor,1.-fish);
+ var shares=mix(old,desired,STAFFING_MONTHLY_REASSIGNMENT);shares.x=clamp(shares.x,farm_floor,1.-fish);
  let nonfarm=shares.y+shares.z+shares.w;
- shares=vec4(shares.x,shares.yzw*min(1.,max(0.,1.-fish-shares.x)/max(nonfarm,.00001)));
+ shares=vec4(shares.x,shares.yzw*min(1.,max(0.,1.-fish-shares.x)/max(nonfarm,STAFFING_SHARE_DENOMINATOR_FLOOR)));
  // Previously promised research/cultural labor is protected within the craft pool.
  if food_policy {
   let minimum=maintenance+vec3(0.,0.,reserved/workforce);
   let deficit=max(vec3(0.),minimum-shares.yzw);
-  let moved=deficit*min(1.,max(0.,shares.x-.62)/max(dot(deficit,vec3(1.)),.00001));
+  let moved=deficit*min(1.,max(0.,shares.x-STAFFING_MIN_FARM_SHARE)/max(dot(deficit,vec3(1.)),STAFFING_SHARE_DENOMINATOR_FLOOR));
   shares=vec4(shares.x-dot(moved,vec3(1.)),shares.yzw+moved);
  }
- let needed=max(0.,reserved/workforce-shares.w);let transfer=min(needed,max(0.,shares.x-.62));shares.x-=transfer;shares.w+=transfer;
+ let needed=max(0.,reserved/workforce-shares.w);let transfer=min(needed,max(0.,shares.x-STAFFING_MIN_FARM_SHARE));shares.x-=transfer;shares.w+=transfer;
  return shares;
  }
 
- var shares=vec4(.62,.08,.1,.2);
- if e.reserves.y<1.{shares.x+=.06;shares.z-=.06;}
- if e.logistics.w<.5 && e.reserves.y>1000.&&e.goods[0].y<pop*2.&&e.goods[0].w>pop*.3{shares.x-=.12;shares.z+=.12;}
- if e.goods[0].w<pop*.3 && (e.reserves.y>0.||e.goods[0].y+e.goods[0].z+e.goods[7].y>0.){shares.x-=.08;shares.w+=.08;}
+ var shares=vec4(STAFFING_MIN_FARM_SHARE,STAFFING_BASE_FORESTRY_SHARE,STAFFING_BASE_MINING_SHARE,STAFFING_BASE_CRAFT_SHARE);
+ if e.reserves.y<STAFFING_DEPLETED_ORE_KG{shares.x+=STAFFING_DEPLETION_FARM_TRANSFER;shares.z-=STAFFING_DEPLETION_FARM_TRANSFER;}
+ if e.logistics.w<.5 && e.reserves.y>STAFFING_ABUNDANT_ORE_KG&&e.goods[0].y<pop*STAFFING_ORE_TARGET_KG_PER_PERSON&&e.goods[0].w>pop*STAFFING_TOOL_TARGET_KG_PER_PERSON{shares.x-=STAFFING_MINING_EXPANSION_TRANSFER;shares.z+=STAFFING_MINING_EXPANSION_TRANSFER;}
+ if e.goods[0].w<pop*STAFFING_TOOL_TARGET_KG_PER_PERSON && (e.reserves.y>0.||e.goods[0].y+e.goods[0].z+e.goods[7].y>0.){shares.x-=STAFFING_TOOL_SHORTAGE_CRAFT_TRANSFER;shares.w+=STAFFING_TOOL_SHORTAGE_CRAFT_TRANSFER;}
  // Reserve 0.1% of workers for a shore fishery (20 kg per worker-month).
- if e.management.x>.5 && e.management.y>=1. && e.fishery.w<.5{shares.y-=.001;}
+ if e.management.x>.5 && e.management.y>=1. && e.fishery.w<.5{shares.y-=STAFFING_SHORE_FISHERY_SHARE;}
  return shares;
 }
 
