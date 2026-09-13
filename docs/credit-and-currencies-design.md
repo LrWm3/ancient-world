@@ -6,6 +6,8 @@ export negotiation and bounded account-estate settlement also exist; legal claim
 succession, general estate recovery policies, extended calibration and currency exchange
 remain pending.
 See the [implementation record](credit-implementation.md) for evidence and limits.
+The [credit-event regression](credit-chronicle-regression.md) verifies six matched
+200-year arms after adding causal loan events; it does not pass the balance gate.
 These pilots remain opt-in; implementation does not mean their balance gates pass.
 
 This is a toy-economy experiment: test whether moving existing cash across time
