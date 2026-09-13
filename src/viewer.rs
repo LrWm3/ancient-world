@@ -12,6 +12,9 @@ use std::{
 };
 use wgpu::util::DeviceExt;
 
+#[path = "viewer_credit.rs"]
+mod credit_panel;
+
 const FOCUS_GLOBE_ZOOM: f32 = 4.;
 const FOCUS_ATLAS_ZOOM: f32 = 8.;
 const DEFAULT_GLOBE_ZOOM: f32 = 0.88;
@@ -2071,6 +2074,7 @@ impl App {
                 });
                 ui.separator();
                 if self.history_tab == 0 {
+                credit_panel::panel(ui, &h.credit);
                 ui.label(if h.politics.is_some() { "Atlas colors show administration; white claims are disputed." } else { "Amber atlas dots are settlements; gray dots are ruins." });
                 for civ in &h.civilizations {
                     ui.label(if h.living_civilization_leader(civ.id).is_some() {

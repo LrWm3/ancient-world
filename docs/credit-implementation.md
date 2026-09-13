@@ -630,3 +630,11 @@ bounded actual cash and replay-safe requests. The opt-in
 [late-export recovery policy](export-default-recovery.md) now connects newly
 received matching proceeds to old defaults after live obligations and operating
 reserves. General estate recovery and claim succession remain unfinished.
+
+## Read-only explorer and reusable contract reports
+
+The [credit inspector](credit-explorer.md) now connects existing loan, underwriting,
+issuance and recovery records to the Towns and economy page. It shows original
+losses and later recoveries separately. `Credit::loan_reports()` exposes all
+contracts without mutating accounting; the UI bounds recent-record lists.
+Dedicated monetary chronicle events and broader causal reporting remain pending.

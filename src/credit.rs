@@ -21,6 +21,7 @@ pub mod export_recovery;
 pub mod exports;
 pub mod issuance;
 pub mod recovery;
+pub mod report;
 pub mod restructuring;
 pub mod servicing;
 pub mod state;
