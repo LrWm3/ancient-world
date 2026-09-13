@@ -12,6 +12,63 @@ struct Cell {
  strata: vec4<f32>, // top, middle, basement thickness m; cumulative bedrock removed m
 }
 struct Params { dims:vec4<u32>, physical:vec4<f32>, counts:vec4<u32>, aux:vec4<u32>, tuning:vec4<f32> }
+// Regional geology, deposit potential and legacy surface selection.
+const GEOLOGICAL_NOISE_OFFSET_SCALE:f32=200.;
+const ROCK_PROVINCE_FREQUENCY:f32=24.;
+const GEOLOGICAL_BASIN_FREQUENCY:f32=3.;
+const ARC_CONVERGENCE_START:f32=.02;
+const ARC_CONVERGENCE_FULL:f32=.45;
+const VOLCANIC_SETTING_ARC_THRESHOLD:f32=.48;
+const REGIONAL_METAMORPHIC_STRESS_MIN:f32=.66;
+const REGIONAL_METAMORPHIC_CONVERGENCE_MIN:f32=.12;
+const REGIONAL_METAMORPHIC_ELEVATION_MIN_M:f32=700.;
+const MANTLE_EXPOSURE_STRESS_MIN:f32=.55;
+const MANTLE_EXPOSURE_DIVERGENCE_MAX:f32=-.22;
+const MANTLE_EXPOSURE_ELEVATION_MIN_M:f32=1100.;
+const PLUTONIC_ELEVATION_MIN_M:f32=1050.;
+const PLUTONIC_BASIN_MAX:f32=.5;
+const CONTACT_METAMORPHIC_ARC_MIN:f32=.26;
+const CONTACT_METAMORPHIC_ELEVATION_MIN_M:f32=800.;
+const SEDIMENTARY_BASIN_MIN:f32=.56;
+const EVAPORITE_LATITUDE_Y_MIN:f32=.2;
+const EVAPORITE_LATITUDE_Y_MAX:f32=.6;
+const EVAPORITE_BASIN_MIN:f32=.76;
+const EVAPORITE_STRESS_MAX:f32=.25;
+const SETTING_WARP_FREQUENCY:f32=3.;
+const SETTING_ROCK_FREQUENCY:f32=5.;
+const SETTING_WARP_AMPLITUDE:f32=.7;
+const DEPOSIT_YOUNG_CRUST_SCALE_MYR:f32=500.;
+const DEPOSIT_WETNESS_RAIN_MM_YEAR:f32=2000.;
+const DEPOSIT_WARMTH_OFFSET_C:f32=5.;
+const DEPOSIT_WARMTH_RANGE_C:f32=30.;
+const DEPOSIT_COVER_DEPTH_M:f32=20.;
+const MAGMATIC_DEPOSIT_BASE:f32=.15;
+const MAGMATIC_DEPOSIT_ACTIVITY_GAIN:f32=.85;
+const HYDROTHERMAL_DEPOSIT_BASE:f32=.15;
+const HYDROTHERMAL_DEPOSIT_ACTIVITY_GAIN:f32=.85;
+const HYDROTHERMAL_WATER_BASE:f32=.35;
+const HYDROTHERMAL_WATER_GAIN:f32=.65;
+const SEDIMENTARY_DEPOSIT_BASE:f32=.35;
+const SEDIMENTARY_DEPOSIT_COVER_GAIN:f32=.65;
+const WEATHERING_DEPOSIT_BASE:f32=.2;
+const WEATHERING_DEPOSIT_AGE_GAIN:f32=.8;
+const METAMORPHIC_DEPOSIT_BASE:f32=.2;
+const METAMORPHIC_DEPOSIT_ACTIVITY_GAIN:f32=.8;
+const METAMORPHIC_DEPOSIT_CRUST_MIN_KM:f32=25.;
+const METAMORPHIC_DEPOSIT_CRUST_RANGE_KM:f32=35.;
+const EVAPORITE_DEPOSIT_BASE:f32=.25;
+const EVAPORITE_DEPOSIT_COVER_GAIN:f32=.75;
+const DEPOSIT_PROVINCE_START:f32=.3;
+const DEPOSIT_PROVINCE_FULL:f32=.75;
+const BASIN_SPILL_MATCH_TOLERANCE_M:f32=.01;
+const SOIL_NONPARENT_SCORE:f32=.1;
+const SOIL_SELECTION_VARIATION:f32=.2;
+const LEGACY_PLANT_GROWTH:f32=.03;
+const LEGACY_DISTURBANCE_COVER_LOSS:f32=.05;
+const LEGACY_DISTURBANCE_PROBABILITY:f32=.015;
+const TERRESTRIAL_PLANT_MAX_WATER_DEPTH_M:f32=1.;
+const LEGACY_MINERAL_ACTIVITY_GAIN:f32=.5;
+
 // Initial terrain, water and biological stocks.
 const INITIAL_GREAT_LAKE_LEVEL_M:f32=120.;
 const INITIAL_GREAT_LAKE_SALINITY:f32=.05;
@@ -328,22 +385,22 @@ fn province_rock(f:u32,d:vec3<f32>,legacy:f32)->u32 {
  if p.tuning.w==0. {return rock_for(f,legacy);}
  var id=0u;var best=-1.;
  for(var j=0u;j<p.counts.x;j++) {if catalog[j].ids.x!=f {continue;}
- let salt=catalog[j].ids.y;let offset=vec3(rand(salt),rand(salt+1u),rand(salt+2u))*200.;
- let score=noise(d*24.+offset);if score>best {best=score;id=j;}}
+ let salt=catalog[j].ids.y;let offset=vec3(rand(salt),rand(salt+1u),rand(salt+2u))*GEOLOGICAL_NOISE_OFFSET_SCALE;
+ let score=noise(d*ROCK_PROVINCE_FREQUENCY+offset);if score>best {best=score;id=j;}}
  return id;
 }
 // Broad depositional/exposure settings; these are regional proxies, not a basin solver.
 fn geological_setting(d:vec3<f32>,pl:vec3<f32>,h:f32,r:u32)->u32 {
- let basin=noise(d*3.+vec3(19.,37.,71.));
- let arc=pl.y*smoothstep(.02,.45,pl.z);
+ let basin=noise(d*GEOLOGICAL_BASIN_FREQUENCY+vec3(19.,37.,71.));
+ let arc=pl.y*smoothstep(ARC_CONVERGENCE_START,ARC_CONVERGENCE_FULL,pl.z);
  if r==0u {return 1u;}
- if arc>.48 {return 1u;}
- if pl.y>.66 && pl.z>.12 && h>700. {return 6u;}
- if pl.y>.55 && pl.z<-.22 && h>1100. {return 8u;}
- if h>1050. && basin<.5 {return 2u;}
- if arc>.26 && h>800. {return 7u;}
- if r==1u || basin>.56 {
-  if r>=2u && abs(d.y)>.2 && abs(d.y)<.6 && basin>.76 && pl.y<.25 {return 5u;}
+ if arc>VOLCANIC_SETTING_ARC_THRESHOLD {return 1u;}
+ if pl.y>REGIONAL_METAMORPHIC_STRESS_MIN && pl.z>REGIONAL_METAMORPHIC_CONVERGENCE_MIN && h>REGIONAL_METAMORPHIC_ELEVATION_MIN_M {return 6u;}
+ if pl.y>MANTLE_EXPOSURE_STRESS_MIN && pl.z<MANTLE_EXPOSURE_DIVERGENCE_MAX && h>MANTLE_EXPOSURE_ELEVATION_MIN_M {return 8u;}
+ if h>PLUTONIC_ELEVATION_MIN_M && basin<PLUTONIC_BASIN_MAX {return 2u;}
+ if arc>CONTACT_METAMORPHIC_ARC_MIN && h>CONTACT_METAMORPHIC_ELEVATION_MIN_M {return 7u;}
+ if r==1u || basin>SEDIMENTARY_BASIN_MIN {
+  if r>=2u && abs(d.y)>EVAPORITE_LATITUDE_Y_MIN && abs(d.y)<EVAPORITE_LATITUDE_Y_MAX && basin>EVAPORITE_BASIN_MIN && pl.y<EVAPORITE_STRESS_MAX {return 5u;}
   return 3u;
  }
  return 4u;
@@ -351,35 +408,35 @@ fn geological_setting(d:vec3<f32>,pl:vec3<f32>,h:f32,r:u32)->u32 {
 fn setting_rock(setting:u32,d:vec3<f32>)->u32 {
  var formation=0u;if setting>=3u && setting<=5u {formation=1u;}
  if setting==6u || setting==7u {formation=2u;}
- let warp=vec3(noise(d*3.+11.),noise(d*3.+37.),noise(d*3.+73.))-.5;
- let q=d*5.+warp*.7;
+ let warp=vec3(noise(d*SETTING_WARP_FREQUENCY+11.),noise(d*SETTING_WARP_FREQUENCY+37.),noise(d*SETTING_WARP_FREQUENCY+73.))-.5;
+ let q=d*SETTING_ROCK_FREQUENCY+warp*SETTING_WARP_AMPLITUDE;
  var id=NONE;var best=-1.;
  for(var j=0u;j<p.counts.x;j++) {
   if catalog[j].ids.x!=formation || (catalog[j].ids.z!=0u && catalog[j].ids.z!=setting) {continue;}
   let salt=catalog[j].ids.y;
-  let offset=vec3(rand(salt),rand(salt+1u),rand(salt+2u))*200.;
+  let offset=vec3(rand(salt),rand(salt+1u),rand(salt+2u))*GEOLOGICAL_NOISE_OFFSET_SCALE;
   let score=noise(q+offset);if score>best {best=score;id=j;}
  }
- if id==NONE {return province_rock(formation,d,noise(d*5.));}return id;
+ if id==NONE {return province_rock(formation,d,noise(d*SETTING_ROCK_FREQUENCY));}return id;
 }
 fn deposit_environment(c:Cell,setting:u32)->f32 {
- let activity=clamp(c.geology.x,0.,1.);let young=exp(-c.terrain.w/500.);
- let wet=clamp(c.hydro.z/2000.,0.,1.);let warmth=clamp((c.hydro.y+5.)/30.,0.,1.);
- let cover=clamp(c.terrain.y/20.,0.,1.);
+ let activity=clamp(c.geology.x,0.,1.);let young=exp(-c.terrain.w/DEPOSIT_YOUNG_CRUST_SCALE_MYR);
+ let wet=clamp(c.hydro.z/DEPOSIT_WETNESS_RAIN_MM_YEAR,0.,1.);let warmth=clamp((c.hydro.y+DEPOSIT_WARMTH_OFFSET_C)/DEPOSIT_WARMTH_RANGE_C,0.,1.);
+ let cover=clamp(c.terrain.y/DEPOSIT_COVER_DEPTH_M,0.,1.);
  switch setting {
- case 1u: {return .15+.85*max(activity,young);}
- case 2u: {return (.15+.85*activity)*(.35+.65*max(wet,clamp(c.water.y,0.,1.)));}
- case 3u: {return .35+.65*max(cover,1.-activity);}
- case 4u: {return warmth*wet*(.2+.8*(1.-young));}
- case 5u: {return .2+.8*max(activity,clamp((c.geology.y-25.)/35.,0.,1.));}
- case 6u: {return (1.-wet)*(.25+.75*max(cover,select(0.,1.,c.water.x>0.)));}
+ case 1u: {return MAGMATIC_DEPOSIT_BASE+MAGMATIC_DEPOSIT_ACTIVITY_GAIN*max(activity,young);}
+ case 2u: {return (HYDROTHERMAL_DEPOSIT_BASE+HYDROTHERMAL_DEPOSIT_ACTIVITY_GAIN*activity)*(HYDROTHERMAL_WATER_BASE+HYDROTHERMAL_WATER_GAIN*max(wet,clamp(c.water.y,0.,1.)));}
+ case 3u: {return SEDIMENTARY_DEPOSIT_BASE+SEDIMENTARY_DEPOSIT_COVER_GAIN*max(cover,1.-activity);}
+ case 4u: {return warmth*wet*(WEATHERING_DEPOSIT_BASE+WEATHERING_DEPOSIT_AGE_GAIN*(1.-young));}
+ case 5u: {return METAMORPHIC_DEPOSIT_BASE+METAMORPHIC_DEPOSIT_ACTIVITY_GAIN*max(activity,clamp((c.geology.y-METAMORPHIC_DEPOSIT_CRUST_MIN_KM)/METAMORPHIC_DEPOSIT_CRUST_RANGE_KM,0.,1.));}
+ case 6u: {return (1.-wet)*(EVAPORITE_DEPOSIT_BASE+EVAPORITE_DEPOSIT_COVER_GAIN*max(cover,select(0.,1.,c.water.x>0.)));}
  default: {return 1.;}
  }
 }
 fn deposit_potential(c:Cell,d:vec3<f32>,e:Entry)->f32 {
- let salt=e.ids.w;let offset=vec3(rand(salt),rand(salt+1u),rand(salt+2u))*200.;
+ let salt=e.ids.w;let offset=vec3(rand(salt),rand(salt+1u),rand(salt+2u))*GEOLOGICAL_NOISE_OFFSET_SCALE;
  let field=noise(d*(p.physical.x/e.b.x)+offset);
- let province=smoothstep(.3,.75,field);
+ let province=smoothstep(DEPOSIT_PROVINCE_START,DEPOSIT_PROVINCE_FULL,field);
  return e.a.x*province*deposit_environment(c,e.ids.z);
 }
 fn column_present(c:Cell)->bool {return dot(c.strata.xyz,vec3(1.))+c.strata.w>0.;}
@@ -480,7 +537,7 @@ fn basin_init(@builtin(global_invocation_id) g:vec3<u32>) {
 @compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn basin_relax(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);var c=src[i];let old=c.routing.z;
- if c.tags.x>=2u && c.hydro.x>c.terrain.x+SECONDARY_LAKE_MIN_DEPRESSION_M {for(var k=0u;k<4u;k++) {let b=src[neighbor(i,k)];if b.tags.x>=2u && b.hydro.x>b.terrain.x+.05 && abs(b.hydro.x-c.hydro.x)<.01 {c.routing.z=min(c.routing.z,b.routing.z);}}}
+ if c.tags.x>=2u && c.hydro.x>c.terrain.x+SECONDARY_LAKE_MIN_DEPRESSION_M {for(var k=0u;k<4u;k++) {let b=src[neighbor(i,k)];if b.tags.x>=2u && b.hydro.x>b.terrain.x+SECONDARY_LAKE_MIN_DEPRESSION_M && abs(b.hydro.x-c.hydro.x)<BASIN_SPILL_MATCH_TOLERANCE_M {c.routing.z=min(c.routing.z,b.routing.z);}}}
  // Follow the representative's representative to accelerate long connected basins.
  if c.routing.z>=2u && c.routing.z!=NONE {c.routing.z=min(c.routing.z,src[c.routing.z-2u].routing.z);}
  if old!=c.routing.z {atomicAdd(&flags.changed,1u);}dst[i]=c;
@@ -573,23 +630,23 @@ fn water_erosion(@builtin(global_invocation_id) g:vec3<u32>) {
 fn ecology(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);var c=src[i];let f=catalog[c.ids.x].ids.x;
  let soil_offset=p.counts.x+p.counts.y;var best=-1.;var soil=0u;
- for(var j=0u;j<p.counts.z;j++){let e=catalog[soil_offset+j];let score=select(.1,1.,e.ids.x==f)+rand(i+j*37u)*.2;if score>best {best=score;soil=j;}}
+ for(var j=0u;j<p.counts.z;j++){let e=catalog[soil_offset+j];let score=select(SOIL_NONPARENT_SCORE,1.,e.ids.x==f)+rand(i+j*37u)*SOIL_SELECTION_VARIATION;if score>best {best=score;soil=j;}}
  c.ids.y=soil;let soilentry=catalog[soil_offset+soil];
  let biome_offset=soil_offset+p.counts.z+p.counts.w;var biome=NONE;var density=0.;
  for(var j=0u;j<p.aux.x;j++){let b=catalog[biome_offset+j];if b.ids.x!=0u {continue;}if c.hydro.y>=b.a.x && c.hydro.y<b.a.y && c.hydro.z>=b.a.z && c.hydro.z<b.a.w && c.terrain.x>=b.b.x && c.terrain.x<b.b.y {biome=j;density=b.b.z;break;}}
- c.ids.w=biome;var plant=NONE;best=-1.;var growth=.03;
+ c.ids.w=biome;var plant=NONE;best=-1.;var growth=LEGACY_PLANT_GROWTH;
  for(var j=0u;j<p.counts.w;j++){let e=catalog[soil_offset+p.counts.z+j];
   if c.hydro.y<e.a.x || c.hydro.y>e.a.y || c.hydro.z<e.a.z || c.hydro.z>e.a.w || c.life.y<e.b.x || (e.ids.y!=3u && e.ids.y!=f) {continue;}
   if e.ids.x==1u && c.tags.x!=3u {continue;}
   if u32(e.c.x)>2u {continue;}
   let score=rand(i+j*199u);if score>best {best=score;plant=j;growth=e.b.y;}
  }
- c.ids.z=plant;let disturbance=select(0.,.05,rand(i+p.dims.z*91u)<.015);
+ c.ids.z=plant;let disturbance=select(0.,LEGACY_DISTURBANCE_COVER_LOSS,rand(i+p.dims.z*91u)<LEGACY_DISTURBANCE_PROBABILITY);
  // Cover and fertility are maintained by ecological inventories.
- if plant==NONE || c.tags.x<2u || c.water.x>1. {c.life.x=0.;c.ids.z=NONE;}
+ if plant==NONE || c.tags.x<2u || c.water.x>TERRESTRIAL_PLANT_MAX_WATER_DEPTH_M {c.life.x=0.;c.ids.z=NONE;}
  var mineral=NONE;var potential=0.;c.geology.w=0.;
  for(var j=0u;j<p.counts.y;j++){let e=catalog[p.counts.x+j];if (e.ids.x&(1u<<c.ids.x))==0u {continue;}
- var score=e.a.x*rand(i/7u+j*43u)*(1.+c.geology.x*.5);
+ var score=e.a.x*rand(i/7u+j*43u)*(1.+c.geology.x*LEGACY_MINERAL_ACTIVITY_GAIN);
  if p.tuning.w>0.&&e.ids.z!=0u {score=deposit_potential(c,pos(i),e);}
  if score>potential {potential=score;mineral=j;c.geology.w=e.a.z+max(0.,c.terrain.y);}}
  c.tags.y=mineral;c.geology.z=potential;dst[i]=c;
@@ -633,8 +690,8 @@ fn coast_cleanup(@builtin(global_invocation_id) g:vec3<u32>) {
  if votes[c.tags.x]<=1u {
   for(var r=0u;r<4u;r++){if votes[r]>=3u {
    c.tags.x=r;c.terrain.x=constrain(c.terrain.x,r);
-   c.water.x=select(0.,max(0.,select(0.,120.,r==1u)-c.terrain.x),r<2u);
-   c.life.z=select(select(0.,.05,r==1u),35.,r==0u);
+   c.water.x=select(0.,max(0.,select(0.,INITIAL_GREAT_LAKE_LEVEL_M,r==1u)-c.terrain.x),r<2u);
+   c.life.z=select(select(0.,INITIAL_GREAT_LAKE_SALINITY,r==1u),INITIAL_OCEAN_SALINITY,r==0u);
   }}
  }
  dst[i]=c;

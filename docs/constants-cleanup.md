@@ -608,3 +608,24 @@ remain outside the shared `Cell` prefix. Hardware geography/long-run and strict
 all-target Clippy verification passed, including the three-seed geographic
 constraints and 30-epoch finite-state fixture. Deposit and legacy ecology parameters,
 plus remaining shared coast/basin thresholds, still require review.
+
+## Geological settings, deposits and surface selection
+
+Named 55 geological-setting, mineral-potential, soil-selection and legacy
+surface-selection parameters in `shaders/simulation.wgsl`. Deposit coefficients
+remain distinct by formation process even when values coincide. The basin neighbor
+check now shares the existing depression threshold; coast cleanup shares the
+initial lake level and lake/ocean salinity values. No new formation mechanism or
+changed resource abundance is implied.
+
+The legacy growth and disturbance locals still do not feed vegetation output;
+naming those values does not make them active ecological processes. Vegetation
+stocks remain governed by the separate ecology subsystem. Removing these dormant
+locals can be a separate cleanup, rather than changing formulas during extraction.
+
+All declarations remain outside the shared `Cell` prefix. Literal expansion
+reproduces the prior expressions exactly. All seven geology fixtures passed, including
+the hardware province/host-rule and finite-column checks. The cross-seam
+secondary-lake fixture and strict all-target Clippy also passed. Remaining numeric
+review includes noise construction, discrete coast voting and other shader files;
+this does not declare the repository cleanup complete.
