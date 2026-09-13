@@ -5,6 +5,87 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
+const FACILITY_REPAIR_FORECAST_WORKER_MONTHS: f32 = 0.1;
+const DEFAULT_INITIAL_HOUSING_PER_PERSON: f32 = 1.1;
+const DEFAULT_CONTRACT_MARGIN: f32 = 0.1;
+const DEFAULT_STORAGE_KG_PER_PERSON: f32 = 100.;
+const DEFAULT_LAND_FREIGHT_KG_PER_PERSON: f32 = 20.;
+const WOOD_RESERVE_KG_PER_PERSON: f32 = 4.;
+const TOOLS_RESERVE_KG_PER_PERSON: f32 = 0.75;
+const BRICKS_RESERVE_KG_PER_PERSON: f32 = 3.;
+const POTTERY_RESERVE_KG_PER_PERSON: f32 = 2.;
+const CLOTH_RESERVE_KG_PER_PERSON: f32 = 0.8;
+const LEATHER_RESERVE_KG_PER_PERSON: f32 = 0.2;
+const WRITING_MATERIAL_RESERVE_KG_PER_PERSON: f32 = 0.1;
+const WEAPONS_RESERVE_KG_PER_PERSON: f32 = 0.2;
+const ARMOR_RESERVE_KG_PER_PERSON: f32 = 0.4;
+const BASE_CONTAINER_MONTHLY_WEAR: f32 = 0.005;
+const MIN_MATERIAL_PRICE: f32 = 0.01;
+const MATERIAL_SERVICE_HORIZON_MONTHS: f32 = 120.;
+const INITIAL_CONTAINER_SERVICE_PER_PERSON: f32 = 2.;
+const MIN_PROCUREMENT_KG: f32 = 0.001;
+const FOOD_SECURITY_RESERVE_MONTHS: f32 = 3.;
+const MIN_WORK_TOOLS_KG_PER_PERSON: f32 = 0.5;
+const MIN_FOREST_CARBON_FRACTION: f32 = 0.0001;
+const FACILITY_ORDER_HEADROOM: f32 = 2.;
+const MIN_TIN_ALLOY_STOCK_KG: f32 = 0.1;
+const EXTRACTION_TOOLS_RESERVE_KG_PER_PERSON: f32 = 0.025;
+const HERD_MONTHLY_FEED_FRACTION: f32 = 0.08;
+const WRITING_KG_PER_PERSON: f32 = 0.04;
+const FISHERY_MONTHLY_RETENTION: f32 = 0.997;
+const FISHERY_MONTHLY_INVESTMENT_PER_PERSON: f32 = 0.015;
+const WORKSHOP_DEMONSTRATED_HEADROOM: f32 = 1.25;
+const MAX_WORKSHOP_UNITS_PER_PERSON: f32 = 0.03;
+const WORKSHOP_PLAN_RETENTION: f32 = 0.9;
+const WORKSHOP_PLAN_NEW_WEIGHT: f32 = 0.1;
+const WORKSHOP_PLAN_SHARE_WEIGHT: f32 = 0.1;
+const WORKSHOP_MONTHLY_INVESTMENT_PER_PERSON: f32 = 0.003;
+const STORAGE_HEADROOM: f32 = 1.25;
+const MAX_STORAGE_PER_PERSON_MULTIPLIER: f32 = 2.;
+const STORAGE_MONTHLY_EXPANSION_KG_PER_PERSON: f32 = 10.;
+const HOUSING_HEADROOM: f32 = 1.1;
+const WATERWORKS_DISRUPTED_COVERAGE: f32 = 0.1;
+const WATERWORKS_RECOVERED_COVERAGE: f32 = 0.5;
+const WATERWORKS_ESTABLISHED_COVERAGE: f32 = 0.25;
+const HOUSING_EXPANSION_NOTICE_RATIO: f32 = 1.1;
+const HOUSING_DECLINE_NOTICE_RATIO: f32 = 0.9;
+const HOUSING_NOTICE_MIN_RESIDENT_CHANGE: f32 = 2.;
+const STORAGE_NOTICE_MIN_KG: f32 = 100.;
+const STORAGE_EXPANSION_NOTICE_RATIO: f32 = 1.25;
+const STORAGE_DECLINE_NOTICE_RATIO: f32 = 0.75;
+const FEED_RESERVE_MONTHS: f32 = 6.;
+const MIN_WRITING_STOCK_KG: f32 = 2.;
+const MIN_WORKSHOP_PLAN_WORK: f32 = 0.001;
+const WATERWORKS_NOTICE_MONTHS: u32 = 3;
+pub(crate) const COPPER_TOOL_SERVICE_FACTOR: f32 = 0.6;
+const RESEARCH_PROCUREMENT_MAX_SAMPLES_KG: f64 = 12.;
+const STORAGE_FORECAST_MONTHLY_RETENTION: f32 = 0.999;
+const HOUSING_FORECAST_MONTHLY_RETENTION: f32 = 0.999;
+const WATERWORKS_FORECAST_MONTHLY_RETENTION: f32 = 0.999;
+const HOUSING_MONTHLY_INVESTMENT_PER_PERSON: f32 = 0.02;
+const WATERWORKS_MONTHLY_INVESTMENT_PER_PERSON: f32 = 0.02;
+
+crate::shared_shader_parameters! { SHADER_PARAMETERS {
+    pub(crate) const WORKSHOP_WOOD_KG_PER_UNIT: f32 = 20.;
+    pub(crate) const WORKSHOP_BRICKS_KG_PER_UNIT: f32 = 30.;
+    pub(crate) const WORKSHOP_TOOLS_KG_PER_UNIT: f32 = 2.;
+    pub(crate) const WORKSHOP_WORKER_MONTHS_PER_UNIT: f32 = 4.;
+    pub(crate) const WORKSHOP_MONTHLY_WEAR: f32 = 0.002;
+    pub(crate) const HOUSEHOLD_CRAFT_WORK_SHARE: f32 = 0.025;
+    pub(crate) const HOUSING_WOOD_KG_PER_PERSON: f32 = 2.;
+    pub(crate) const HOUSING_BRICKS_KG_PER_PERSON: f32 = 3.;
+    pub(crate) const WATERWORKS_WOOD_KG_PER_PERSON: f32 = 2.;
+    pub(crate) const WATERWORKS_BRICKS_KG_PER_PERSON: f32 = 4.;
+    pub(crate) const WAREHOUSE_WOOD_KG_PER_KG: f32 = 0.02;
+    pub(crate) const WAREHOUSE_BRICKS_KG_PER_KG: f32 = 0.03;
+    pub(crate) const FISHERY_TRAP_WOOD_KG_PER_CREW: f32 = 20.;
+    pub(crate) const FISHERY_BOAT_WOOD_KG_PER_CREW: f32 = 40.;
+    pub(crate) const FISHERY_BOAT_TOOLS_KG_PER_CREW: f32 = 1.;
+    pub(crate) const FISHERY_BOAT_CLOTH_KG_PER_CREW: f32 = 4.;
+    pub(crate) const WORKSHOP_MONTHLY_RETENTION: f32 = 0.998;
+    pub(crate) const FISHERY_TOOLS_RESERVE_KG_PER_PERSON: f32 = 0.15;
+}}
+
 pub const WORKSHOP_NAMES: [&str; 4] = [
     "General crafts",
     "Metalworking",
@@ -64,13 +145,13 @@ impl Default for ProductionSettings {
             waterworks: false,
             waterworks_repair_priority: false,
             waterworks_target_fraction: 1.,
-            initial_housing_per_person: 1.1,
+            initial_housing_per_person: DEFAULT_INITIAL_HOUSING_PER_PERSON,
             specialized_workshops: false,
             export_contracts: false,
             supplier_profitability: false,
-            contract_margin: 0.1,
-            storage_kg_per_person: 100.,
-            land_freight_kg_per_person: 20.,
+            contract_margin: DEFAULT_CONTRACT_MARGIN,
+            storage_kg_per_person: DEFAULT_STORAGE_KG_PER_PERSON,
+            land_freight_kg_per_person: DEFAULT_LAND_FREIGHT_KG_PER_PERSON,
         }
     }
 }
@@ -80,15 +161,15 @@ pub fn empty_slots() -> [f32; GOODS] {
 /// Useful reserve levels, not a quota to own every possible catalog good.
 pub fn reserve(id: &str) -> f32 {
     match id {
-        "wood" => 4.,
-        "tools" => 0.75,
-        "bricks" => 3.,
-        "pottery" => 2.,
-        "cloth" => 0.8,
-        "leather" => 0.2,
-        "writing_material" => 0.1,
-        "weapons" => 0.2,
-        "armor" => 0.4,
+        "wood" => WOOD_RESERVE_KG_PER_PERSON,
+        "tools" => TOOLS_RESERVE_KG_PER_PERSON,
+        "bricks" => BRICKS_RESERVE_KG_PER_PERSON,
+        "pottery" => POTTERY_RESERVE_KG_PER_PERSON,
+        "cloth" => CLOTH_RESERVE_KG_PER_PERSON,
+        "leather" => LEATHER_RESERVE_KG_PER_PERSON,
+        "writing_material" => WRITING_MATERIAL_RESERVE_KG_PER_PERSON,
+        "weapons" => WEAPONS_RESERVE_KG_PER_PERSON,
+        "armor" => ARMOR_RESERVE_KG_PER_PERSON,
         _ => 0.,
     }
 }
@@ -136,13 +217,16 @@ impl Planner<'_> {
             .iter()
             .filter(|v| v.role == "container")
             .map(|v| (v.slot, v.service, v.wear))
-            .chain(std::iter::once((7, 1., 0.005)))
+            .chain(std::iter::once((7, 1., BASE_CONTAINER_MONTHLY_WEAR)))
             .collect();
         options.sort_by(|a, b| {
-            let cost = |x: &(usize, f32, f32)| prices[x.0].max(0.01) / x.1 * (1. + x.2 * 120.);
+            let cost = |x: &(usize, f32, f32)| {
+                prices[x.0].max(MIN_MATERIAL_PRICE) / x.1
+                    * (1. + x.2 * MATERIAL_SERVICE_HORIZON_MONTHS)
+            };
             cost(a).total_cmp(&cost(b)).then(a.0.cmp(&b.0))
         });
-        let mut needed = population.max(0.) * 2.;
+        let mut needed = population.max(0.) * INITIAL_CONTAINER_SERVICE_PER_PERSON;
         // Keep only useful existing service; surplus remains available for other demands/trade.
         for &(g, service, _) in &options {
             let held = self.available[g].min(needed / service);
@@ -181,7 +265,7 @@ impl Planner<'_> {
         let from_stock = self.available[good].min(quantity);
         self.available[good] -= from_stock;
         let missing = quantity - from_stock;
-        if missing < 0.001 {
+        if missing < MIN_PROCUREMENT_KG {
             return;
         }
         // Prefer recipes with stocked inputs (including scrap), then lower labor cost.
@@ -303,10 +387,15 @@ impl History {
             }
             let pop = s.stocks.stock[0].max(1.);
             if catalog.production.food_security_labor {
-                let age_need = s.demography.ages[0] * 10.
-                    + s.demography.ages[1] * 18.
-                    + s.demography.ages[2] * 14.;
-                let need = if age_need > 0. { age_need } else { pop * 18. };
+                let age_need = s.demography.ages[0]
+                    * crate::society::CHILD_RATION_KG_PER_MONTH as f32
+                    + s.demography.ages[1] * crate::society::ADULT_RATION_KG_PER_MONTH as f32
+                    + s.demography.ages[2] * crate::society::ELDER_RATION_KG_PER_MONTH as f32;
+                let need = if age_need > 0. {
+                    age_need
+                } else {
+                    pop * crate::society::ADULT_RATION_KG_PER_MONTH as f32
+                };
                 let months = s.stocks.stock[1].max(0.) / need;
                 let shortage = if s.demography.ration_need[3] > 0. {
                     1. - s.demography.ration_eaten[3] / s.demography.ration_need[3]
@@ -315,13 +404,15 @@ impl History {
                 };
                 let tools = e.goods[3]
                     + if e.extraction[1] > 0.5 {
-                        e.goods[41] + 0.6 * e.goods[43]
+                        e.goods[41] + COPPER_TOOL_SERVICE_FACTOR * e.goods[43]
                     } else {
                         0.
                     };
-                e.food_labor[1] = shortage.clamp(0., 1.).max((1. - months / 3.).clamp(0., 1.));
+                e.food_labor[1] = shortage
+                    .clamp(0., 1.)
+                    .max((1. - months / FOOD_SECURITY_RESERVE_MONTHS).clamp(0., 1.));
                 e.food_labor[2] = months;
-                e.food_labor[3] = (1. - tools / (pop * 0.5)).clamp(0., 1.);
+                e.food_labor[3] = (1. - tools / (pop * MIN_WORK_TOOLS_KG_PER_PERSON)).clamp(0., 1.);
             }
             let mut planner = Planner {
                 catalog,
@@ -329,7 +420,8 @@ impl History {
                 extractable: {
                     let mut supply = [0.; GOODS];
                     supply[e.extraction[0].max(1.) as usize] = e.reserves[1];
-                    supply[0] = e.forest[0] / catalog.composition(0)[0].max(0.0001);
+                    supply[0] =
+                        e.forest[0] / catalog.composition(0)[0].max(MIN_FOREST_CARBON_FRACTION);
                     supply[4] = e.reserves[2];
                     supply
                 },
@@ -376,10 +468,16 @@ impl History {
                         }
                         let target = crate::facilities::demand(&n.kind, local);
                         // Procurement precedes the due fee; repair_budget then protects the next.
-                        for (good, mass) in f.repair_order(e, (n.treasury - 0.5).max(0.), 0.1) {
+                        for (good, mass) in f.repair_order(
+                            e,
+                            crate::facilities::repair_budget(n.treasury),
+                            FACILITY_REPAIR_FORECAST_WORKER_MONTHS,
+                        ) {
                             planner.request(good as usize, mass);
                         }
-                        if f.remaining() == 0. && f.condition() >= 0.8 && target - f.planned() >= 2.
+                        if f.remaining() == 0.
+                            && f.condition() >= crate::facilities::MIN_EXPANSION_CONDITION
+                            && target - f.planned() >= crate::facilities::MIN_ROOM_CAPACITY
                         {
                             let quoted = planner.construction_quote(e);
                             if let Some(room) = crate::facilities::choose(
@@ -389,7 +487,7 @@ impl History {
                                 crate::facilities::expansion_budget(f, e, n.treasury),
                             ) {
                                 for (good, mass) in room.materials() {
-                                    planner.request(good as usize, mass * 2.);
+                                    planner.request(good as usize, mass * FACILITY_ORDER_HEADROOM);
                                 }
                             }
                         }
@@ -403,7 +501,7 @@ impl History {
                 let selected = if e.extraction[1] > 0.5 && matches!(e.extraction[0] as u32, 35..=37)
                 {
                     if e.extraction[0] == 37.
-                        || planner.available[39] >= 0.1
+                        || planner.available[39] >= MIN_TIN_ALLOY_STOCK_KG
                         || planner.available[40] > 0.
                     {
                         41
@@ -413,14 +511,19 @@ impl History {
                 } else {
                     3
                 };
-                let covered: f32 = [(3, 1.), (41, 1.), (43, 0.6)]
+                let covered: f32 = [(3, 1.), (41, 1.), (43, COPPER_TOOL_SERVICE_FACTOR)]
                     .into_iter()
                     .filter(|(k, _)| *k != selected && (*k == 3 || e.extraction[1] > 0.5))
                     .map(|(k, efficiency)| planner.available[k] * efficiency)
                     .sum();
                 replacement.request(
                     selected,
-                    (pop * 0.5 - covered).max(0.) / if selected == 43 { 0.6 } else { 1. },
+                    (pop * MIN_WORK_TOOLS_KG_PER_PERSON - covered).max(0.)
+                        / if selected == 43 {
+                            COPPER_TOOL_SERVICE_FACTOR
+                        } else {
+                            1.
+                        },
                 );
             }
             if let Some(methods) = &catalog.materials {
@@ -429,14 +532,14 @@ impl History {
                     let need = match v.role.as_str() {
                         "digging" | "breaking" => {
                             if e.reserves[1] + e.reserves[2] > 0. {
-                                pop * 0.025
+                                pop * EXTRACTION_TOOLS_RESERVE_KG_PER_PERSON
                             } else {
                                 0.
                             }
                         }
                         "cutting" => {
                             if e.forest[0] > 0. {
-                                pop * 0.025
+                                pop * EXTRACTION_TOOLS_RESERVE_KG_PER_PERSON
                             } else {
                                 0.
                             }
@@ -454,7 +557,7 @@ impl History {
                     let desired = pop * reserve("tools");
                     let selected = if matches!(e.extraction[0] as u32, 35..=37) {
                         if e.extraction[0] == 37.
-                            || planner.available[39] >= 0.1
+                            || planner.available[39] >= MIN_TIN_ALLOY_STOCK_KG
                             || planner.available[40] > 0.
                         {
                             41
@@ -464,7 +567,8 @@ impl History {
                     } else {
                         k
                     };
-                    let other: [(usize, f32); 3] = [(k, 1.), (41, 1.), (43, 0.6)];
+                    let other: [(usize, f32); 3] =
+                        [(k, 1.), (41, 1.), (43, COPPER_TOOL_SERVICE_FACTOR)];
                     let covered: f32 = other
                         .iter()
                         .filter(|(i, _)| *i != selected)
@@ -472,7 +576,12 @@ impl History {
                         .sum();
                     planner.request(
                         selected,
-                        (desired - covered).max(0.) / if selected == 43 { 0.6 } else { 1. },
+                        (desired - covered).max(0.)
+                            / if selected == 43 {
+                                COPPER_TOOL_SERVICE_FACTOR
+                            } else {
+                                1.
+                            },
                     );
                 } else {
                     planner.request(k, pop * reserve(&g.id));
@@ -492,43 +601,74 @@ impl History {
                 .and_then(|x| x.discoveries.as_ref())
                 .and_then(|d| d.workshops.iter().find(|w| w.site == s.id && w.enabled))
             {
-                let samples = w.samples.iter().sum::<f64>().min(12.) as f32;
-                planner.request(6, samples * 0.2);
-                planner.request(3, samples * 0.1);
+                let samples = w
+                    .samples
+                    .iter()
+                    .sum::<f64>()
+                    .min(RESEARCH_PROCUREMENT_MAX_SAMPLES_KG) as f32;
+                planner.request(
+                    6,
+                    samples * crate::discoveries::PROCESSING_FUEL_KG_PER_KG as f32,
+                );
+                planner.request(
+                    3,
+                    samples * crate::discoveries::PROCESSING_TOOLS_KG_PER_KG as f32,
+                );
             }
             // Feed reserves compete with food; preserve enough seed for establishment.
             if let Some(a) = &catalog.agriculture {
                 for (j, herd) in a.herds.iter().enumerate() {
                     if let Some(k) = catalog.index(&herd.feed) {
-                        planner.request(k, e.herds[j][0] * 0.08 * 6.);
+                        planner.request(
+                            k,
+                            e.herds[j][0] * HERD_MONTHLY_FEED_FRACTION * FEED_RESERVE_MONTHS,
+                        );
                     }
                 }
                 for crop in &a.crops {
                     if let Some(k) = catalog.index(&crop.good) {
-                        planner.targets[k] += pop * 0.04 + 2.;
+                        planner.targets[k] += pop * WRITING_KG_PER_PERSON + MIN_WRITING_STOCK_KG;
                     }
                 }
             }
             if e.fishery[3] > 0.5 && e.management[1] >= 1. {
                 let traps = if e.fishery_traps[3] > 0.5 {
-                    e.fishery_traps[0] * 0.997 / 20.
+                    e.fishery_traps[0] * FISHERY_MONTHLY_RETENTION / FISHERY_TRAP_WOOD_KG_PER_CREW
                 } else {
                     0.
                 };
-                if e.fishery_traps[3] > 0.5 && (e.goods[16] < 4. || e.goods[3] < pop * 0.15 + 1.) {
+                if e.fishery_traps[3] > 0.5
+                    && (e.goods[16] < FISHERY_BOAT_CLOTH_KG_PER_CREW
+                        || e.goods[3] < pop * FISHERY_TOOLS_RESERVE_KG_PER_PERSON + 1.)
+                {
                     // Request the feasible alternative, not two complete sets of gear.
-                    let equipped = (e.fishery[0] / 40.)
+                    let equipped = (e.fishery[0] / FISHERY_BOAT_WOOD_KG_PER_CREW)
                         .min(e.fishery[1])
-                        .min(e.fishery[2] / 4.)
-                        * 0.997;
-                    let missing = (e.fishery_plan[0] - traps - equipped).max(0.) * 20.;
-                    planner.request(0, missing.min(pop * 20. * 0.015));
+                        .min(e.fishery[2] / FISHERY_BOAT_CLOTH_KG_PER_CREW)
+                        * FISHERY_MONTHLY_RETENTION;
+                    let missing = (e.fishery_plan[0] - traps - equipped).max(0.)
+                        * FISHERY_TRAP_WOOD_KG_PER_CREW;
+                    planner.request(
+                        0,
+                        missing.min(
+                            pop * FISHERY_TRAP_WOOD_KG_PER_CREW
+                                * FISHERY_MONTHLY_INVESTMENT_PER_PERSON,
+                        ),
+                    );
                 } else {
                     for (j, good) in [0, 3, 16].into_iter().enumerate() {
-                        let cost = [40., 1., 4.][j];
+                        let cost = [
+                            FISHERY_BOAT_WOOD_KG_PER_CREW,
+                            FISHERY_BOAT_TOOLS_KG_PER_CREW,
+                            FISHERY_BOAT_CLOTH_KG_PER_CREW,
+                        ][j];
                         let crew = (e.fishery_plan[0] - traps).max(0.);
-                        let missing = (crew * cost - e.fishery[j] * 0.997).max(0.);
-                        planner.request(good, missing.min(pop * cost * 0.015));
+                        let missing =
+                            (crew * cost - e.fishery[j] * FISHERY_MONTHLY_RETENTION).max(0.);
+                        planner.request(
+                            good,
+                            missing.min(pop * cost * FISHERY_MONTHLY_INVESTMENT_PER_PERSON),
+                        );
                     }
                 }
             }
@@ -548,11 +688,13 @@ impl History {
                     .sum();
                 // A backlog is not proof that materials or customers can sustain
                 // a larger industry. Expand from demonstrated use, with 25% headroom.
-                let household = (e.labor.iter().sum::<f32>() * 0.025).max(1.);
-                let demonstrated = e.workshop_plan[3] * 1.25;
-                let desired =
-                    ((industrial_work.min(demonstrated) - household).max(0.) / 4.).min(pop * 0.03);
-                e.workshop_plan[0] = e.workshop_plan[0] * 0.9 + desired * 0.1;
+                let household = (e.labor.iter().sum::<f32>() * HOUSEHOLD_CRAFT_WORK_SHARE).max(1.);
+                let demonstrated = e.workshop_plan[3] * WORKSHOP_DEMONSTRATED_HEADROOM;
+                let desired = ((industrial_work.min(demonstrated) - household).max(0.)
+                    / WORKSHOP_WORKER_MONTHS_PER_UNIT)
+                    .min(pop * MAX_WORKSHOP_UNITS_PER_PERSON);
+                e.workshop_plan[0] = e.workshop_plan[0] * WORKSHOP_PLAN_RETENTION
+                    + desired * WORKSHOP_PLAN_NEW_WEIGHT;
                 if catalog.production.specialized_workshops {
                     let mut work = [0f32; 4];
                     for (r, batches) in catalog.recipes.iter().zip(planner.orders) {
@@ -566,33 +708,43 @@ impl History {
                         }
                     }
                     for (j, w) in work.iter_mut().enumerate() {
-                        *w = w.min(e.workshop_types[j][2] * 1.25);
+                        *w = w.min(e.workshop_types[j][2] * WORKSHOP_DEMONSTRATED_HEADROOM);
                     }
                     let total: f32 = work.iter().sum();
-                    let desired = ((total - household).max(0.) / 4.).min(pop * 0.03);
+                    let desired = ((total - household).max(0.) / WORKSHOP_WORKER_MONTHS_PER_UNIT)
+                        .min(pop * MAX_WORKSHOP_UNITS_PER_PERSON);
                     for (j, w) in work.iter().enumerate() {
-                        e.workshop_types[j][1] =
-                            e.workshop_types[j][1] * 0.9 + desired * w / total.max(0.001) * 0.1;
+                        e.workshop_types[j][1] = e.workshop_types[j][1] * WORKSHOP_PLAN_RETENTION
+                            + desired * w / total.max(MIN_WORKSHOP_PLAN_WORK)
+                                * WORKSHOP_PLAN_SHARE_WEIGHT;
                     }
                     // Existing buildings retain their specialization; idle capacity cannot
                     // impersonate another industry's equipment.
                     let missing: f32 = e
                         .workshop_types
                         .iter()
-                        .map(|t| (t[1] - t[0] * 0.998).max(0.))
+                        .map(|t| (t[1] - t[0] * WORKSHOP_MONTHLY_RETENTION).max(0.))
                         .sum();
-                    let units = (e.workshop[0] / 20.)
-                        .min(e.workshop[1] / 30.)
-                        .min(e.workshop[2] / 2.);
+                    let units = (e.workshop[0] / WORKSHOP_WOOD_KG_PER_UNIT)
+                        .min(e.workshop[1] / WORKSHOP_BRICKS_KG_PER_UNIT)
+                        .min(e.workshop[2] / WORKSHOP_TOOLS_KG_PER_UNIT);
                     let assigned: f32 = e.workshop_types.iter().map(|t| t[0]).sum();
-                    e.workshop_plan[0] = (units * 0.998
-                        + (missing - (units - assigned).max(0.) * 0.998).max(0.))
-                    .min(pop * 0.03);
+                    e.workshop_plan[0] = (units * WORKSHOP_MONTHLY_RETENTION
+                        + (missing - (units - assigned).max(0.) * WORKSHOP_MONTHLY_RETENTION)
+                            .max(0.))
+                    .min(pop * MAX_WORKSHOP_UNITS_PER_PERSON);
                 }
                 for (j, good) in [0, 5, 3].into_iter().enumerate() {
-                    let cost = [20., 30., 2.][j];
+                    let cost = [
+                        WORKSHOP_WOOD_KG_PER_UNIT,
+                        WORKSHOP_BRICKS_KG_PER_UNIT,
+                        WORKSHOP_TOOLS_KG_PER_UNIT,
+                    ][j];
                     let missing = (e.workshop_plan[0] * cost - e.workshop[j]).max(0.);
-                    planner.request(good, missing.min(pop * cost * 0.003));
+                    planner.request(
+                        good,
+                        missing.min(pop * cost * WORKSHOP_MONTHLY_INVESTMENT_PER_PERSON),
+                    );
                 }
             }
             if e.storage_plan[3] > 0.5 {
@@ -604,16 +756,20 @@ impl History {
                     .map(|(k, _)| e.goods[k] + incoming[k])
                     .sum();
                 // Expand from stock actually handled, not speculative orders or population growth.
-                let desired = (stored * 1.25)
-                    .min((pop * catalog.production.storage_kg_per_person * 2.).max(e.storage[2]));
+                let desired = (stored * STORAGE_HEADROOM).min(
+                    (pop * catalog.production.storage_kg_per_person
+                        * MAX_STORAGE_PER_PERSON_MULTIPLIER)
+                        .max(e.storage[2]),
+                );
                 e.storage_plan[0] = (desired - e.storage[2]).max(0.);
                 for (j, good) in [0, 5].into_iter().enumerate() {
-                    let cost = [0.02, 0.03][j];
+                    let cost = [WAREHOUSE_WOOD_KG_PER_KG, WAREHOUSE_BRICKS_KG_PER_KG][j];
                     planner.request(
                         good,
-                        (e.storage_plan[0] * cost - e.storage[j] * 0.999)
+                        (e.storage_plan[0] * cost
+                            - e.storage[j] * STORAGE_FORECAST_MONTHLY_RETENTION)
                             .max(0.)
-                            .min(pop * cost * 10.),
+                            .min(pop * cost * STORAGE_MONTHLY_EXPANSION_KG_PER_PERSON),
                     );
                 }
             }
@@ -626,26 +782,31 @@ impl History {
                         .map(|j| j.population())
                         .sum()
                 });
-                e.housing_plan[0] = ((pop + pending) * 1.1 - e.housing[2]).max(0.);
+                e.housing_plan[0] = ((pop + pending) * HOUSING_HEADROOM - e.housing[2]).max(0.);
                 for (j, good) in [0, 5].into_iter().enumerate() {
-                    let cost = [2., 3.][j];
+                    let cost = [HOUSING_WOOD_KG_PER_PERSON, HOUSING_BRICKS_KG_PER_PERSON][j];
                     planner.request(
                         good,
-                        (e.housing_plan[0] * cost - e.housing[j] * 0.999)
+                        (e.housing_plan[0] * cost
+                            - e.housing[j] * HOUSING_FORECAST_MONTHLY_RETENTION)
                             .max(0.)
-                            .min(pop * cost * 0.02),
+                            .min(pop * cost * HOUSING_MONTHLY_INVESTMENT_PER_PERSON),
                     );
                 }
             }
             if e.waterworks[3] > 0.5 {
                 e.waterworks_plan[0] = pop * catalog.production.waterworks_target_fraction;
                 for (j, good) in [0, 5].into_iter().enumerate() {
-                    let cost = [2., 4.][j];
+                    let cost = [
+                        WATERWORKS_WOOD_KG_PER_PERSON,
+                        WATERWORKS_BRICKS_KG_PER_PERSON,
+                    ][j];
                     planner.request(
                         good,
-                        (e.waterworks_plan[0] * cost - e.waterworks[j] * 0.999)
+                        (e.waterworks_plan[0] * cost
+                            - e.waterworks[j] * WATERWORKS_FORECAST_MONTHLY_RETENTION)
                             .max(0.)
-                            .min(pop * cost * 0.02),
+                            .min(pop * cost * WATERWORKS_MONTHLY_INVESTMENT_PER_PERSON),
                     );
                 }
             }
@@ -691,23 +852,36 @@ impl History {
                 continue;
             }
             let coverage = s.economy.waterworks_plan[3];
-            for (j, condition) in [coverage < 0.1, coverage >= 0.5].into_iter().enumerate() {
+            for (j, condition) in [
+                coverage < WATERWORKS_DISRUPTED_COVERAGE,
+                coverage >= WATERWORKS_RECOVERED_COVERAGE,
+            ]
+            .into_iter()
+            .enumerate()
+            {
                 s.lifecycle.waterworks_months[j] = if condition {
-                    s.lifecycle.waterworks_months[j].saturating_add(1).min(3)
+                    s.lifecycle.waterworks_months[j]
+                        .saturating_add(1)
+                        .min(WATERWORKS_NOTICE_MONTHS)
                 } else {
                     0
                 };
             }
             let kind = match s.lifecycle.waterworks_operating {
-                None if coverage >= 0.25 => Some("waterworks_established"),
-                Some(true) if s.lifecycle.waterworks_months[0] >= 3 => Some("waterworks_disrupted"),
-                Some(false) if s.lifecycle.waterworks_months[1] >= 3 => {
+                None if coverage >= WATERWORKS_ESTABLISHED_COVERAGE => {
+                    Some("waterworks_established")
+                }
+                Some(true) if s.lifecycle.waterworks_months[0] >= WATERWORKS_NOTICE_MONTHS => {
+                    Some("waterworks_disrupted")
+                }
+                Some(false) if s.lifecycle.waterworks_months[1] >= WATERWORKS_NOTICE_MONTHS => {
                     Some("waterworks_recovered")
                 }
                 _ => None,
             };
             if let Some(kind) = kind {
-                s.lifecycle.waterworks_operating = Some(coverage >= 0.25);
+                s.lifecycle.waterworks_operating =
+                    Some(coverage >= WATERWORKS_ESTABLISHED_COVERAGE);
                 let detail = format!("Operating sanitation coverage {:.0}%; domestic water shortfall {:.0}%; installed service capacity {:.1} residents; historical peak {:.1}; priority repair work {:.2} worker-months this month",coverage*100.,s.economy.water_service[1]*100.,s.economy.waterworks_capacity(),s.economy.waterworks_recovery[0],s.economy.waterworks_recovery[2]);
                 let cause = self
                     .events
@@ -729,8 +903,18 @@ impl History {
             let capacity = s.economy.housing_capacity();
             let kind = match s.lifecycle.housing_reported {
                 None => Some("housing_baseline"),
-                Some(v) if capacity > v * 1.1 && capacity - v > 2. => Some("housing_expanded"),
-                Some(v) if capacity < v * 0.9 && v - capacity > 2. => Some("housing_deteriorated"),
+                Some(v)
+                    if capacity > v * HOUSING_EXPANSION_NOTICE_RATIO
+                        && capacity - v > HOUSING_NOTICE_MIN_RESIDENT_CHANGE =>
+                {
+                    Some("housing_expanded")
+                }
+                Some(v)
+                    if capacity < v * HOUSING_DECLINE_NOTICE_RATIO
+                        && v - capacity > HOUSING_NOTICE_MIN_RESIDENT_CHANGE =>
+                {
+                    Some("housing_deteriorated")
+                }
                 _ => None,
             };
             if let Some(kind) = kind {
@@ -764,11 +948,19 @@ impl History {
             let previous = s.lifecycle.storage_reported;
             let kind = match previous {
                 None => Some("storage_baseline"),
-                Some(v) if v < 100. && capacity >= 100. => Some("warehouse_established"),
-                Some(v) if capacity > v * 1.25 && capacity - v >= 100. => {
+                Some(v) if v < STORAGE_NOTICE_MIN_KG && capacity >= STORAGE_NOTICE_MIN_KG => {
+                    Some("warehouse_established")
+                }
+                Some(v)
+                    if capacity > v * STORAGE_EXPANSION_NOTICE_RATIO
+                        && capacity - v >= STORAGE_NOTICE_MIN_KG =>
+                {
                     Some("warehouse_expanded")
                 }
-                Some(v) if capacity < v * 0.75 && v - capacity >= 100. => {
+                Some(v)
+                    if capacity < v * STORAGE_DECLINE_NOTICE_RATIO
+                        && v - capacity >= STORAGE_NOTICE_MIN_KG =>
+                {
                     Some("warehouse_deteriorated")
                 }
                 _ => None,

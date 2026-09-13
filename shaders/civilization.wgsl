@@ -19,7 +19,7 @@ struct Params { dims:vec4<u32>, options:vec4<u32>, weather:vec4<u32> }
 @group(0) @binding(2) var<storage,read_write> dst:array<Site>;
 @group(0) @binding(3) var<uniform> p:Params;
 @group(0) @binding(4) var<storage,read_write> prospects:array<vec4<f32>>;
-@compute @workgroup_size(64)
+@compute @workgroup_size(HISTORY_WORKGROUP_SIZE)
 fn survey(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=g.x+g.y*65535u*64u;if i>=p.dims.x{return;}let c=world[i];
  let warmth=clamp((c.hydro.y+5.)/20.,0.,1.)*clamp((45.-c.hydro.y)/15.,0.,1.);
@@ -44,7 +44,7 @@ fn regional_weather(cell:u32)->f32 {
  let draw=f32(hash(key*7919u^period*104729u^p.dims.w)&65535u)/65536.;
  return select(1.,1.-bitcast<f32>(p.weather.y),draw<bitcast<f32>(p.weather.x));
 }
-@compute @workgroup_size(64)
+@compute @workgroup_size(HISTORY_WORKGROUP_SIZE)
 fn month(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=g.x+g.y*65535u*64u;if i>=p.dims.y{return;}var s=src[i];if p.options.x==2u {economies[i].production_probe=vec4(0.);weather_storage(i);}if s.stock.x<=0. {s.stock.z=0.;dst[i]=s;return;}
  var weather=(.7+.6*f32(hash(p.dims.z^p.dims.w^u32(s.habitat.w)*7919u)&65535u)/65535.)*regional_weather(u32(s.habitat.z));

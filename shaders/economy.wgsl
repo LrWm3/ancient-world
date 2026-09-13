@@ -76,13 +76,13 @@ fn order_room(e:Economy,k:u32)->f32 {
  return min(max(0.,e.targets[k/4u][k%4u]-e.goods[k/4u][k%4u]),max(0.,e.logistics.x-e.logistics.y-dry_stock(e)));
 }
 fn warehouse_capacity(e:Economy)->f32 {
- let base=e.storage.z+min(e.storage.x/.02,e.storage.y/.03);
+ let base=e.storage.z+min(e.storage.x/WAREHOUSE_WOOD_KG_PER_KG,e.storage.y/WAREHOUSE_BRICKS_KG_PER_KG);
  return base+select(0.,min(base*.2,container_service(e)),catalog.methods[0].x>0.);
 }
 // Invoked even for empty sites: the physical shell persists and weathers.
 fn weather_storage(i:u32) {
  var e=economies[i];e.storage_plan.z=0.;e.housing_plan.z=0.;e.waterworks_plan.z=0.;e.waterworks_plan.w=0.;e.water_service.y=0.;e.water_service.w=0.;
- e.waterworks_recovery.x=max(e.waterworks_recovery.x,min(e.waterworks.x/2.,e.waterworks.y/4.));e.waterworks_recovery.z=0.;
+ e.waterworks_recovery.x=max(e.waterworks_recovery.x,min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON));e.waterworks_recovery.z=0.;
  let wear=.001+.02*clamp(e.soil.w,0.,1.);
  for(var j=0u;j<2u;j++) {
   let good=select(0u,5u,j==1u);let mass=e.storage[j]*wear;
@@ -109,7 +109,7 @@ fn production_labor(i:u32,e:Economy)->vec4<f32> {
  let available_workers=workers(i,src[i].stock.x)*(1.-LAND_RECOVERY_WORK_PENALTY*recovery);
  return available_workers*worker_shares(e,src[i].stock.x,available_workers);
 }
-@compute @workgroup_size(64)
+@compute @workgroup_size(HISTORY_WORKGROUP_SIZE)
 fn forecast_labor(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=g.x;if i>=p.dims.y{return;}
  // Use only the output scratch buffer. No production, claims, fishing, wages,
@@ -141,7 +141,7 @@ fn building_work(input:Economy,s:Site,available_workers:f32)->BuildingResult {
  // Research workshops reserve staff before dispatch; no double-counted craft labor.
  var labor=max(0.,e.labor.w-e.exchange.w);
  if e.waterworks.w>.5 {
-  let served=min(s.stock.x,min(e.waterworks.x/2.,e.waterworks.y/4.))*(1.-e.water_service.y);
+  let served=min(s.stock.x,min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON))*(1.-e.water_service.y);
   let operated=min(served,labor/.001);
   let work=min(labor,operated*.001);labor=max(0.,labor-work);
   e.water_service.z+=work;e.water_service.w=operated;
@@ -158,59 +158,59 @@ fn building_work(input:Economy,s:Site,available_workers:f32)->BuildingResult {
  // Under recovery priority, meet current shelter need before spending on headroom.
  // Reuse the same finite asset-work pool; all construction still consumes stocks.
  if e.waterworks.w>.5 && e.waterworks_recovery.y>.5 && e.housing_plan.w>.5 {
-  let existing=min(e.housing.x/2.,e.housing.y/3.);
+  let existing=min(e.housing.x/HOUSING_WOOD_KG_PER_PERSON,e.housing.y/HOUSING_BRICKS_KG_PER_PERSON);
   let urgent_target=min(e.housing_plan.x,max(0.,s.stock.x-e.housing.z));
   var build=min(max(0.,urgent_target-existing),asset_work/.2);
-  build=min(build,min(e.goods[0].x/2.,e.goods[1].y/3.));
-  e.goods[0].x=max(0.,e.goods[0].x-build*2.);e.housing.x+=build*2.;
-  e.goods[1].y=max(0.,e.goods[1].y-build*3.);e.housing.y+=build*3.;
+  build=min(build,min(e.goods[0].x/HOUSING_WOOD_KG_PER_PERSON,e.goods[1].y/HOUSING_BRICKS_KG_PER_PERSON));
+  e.goods[0].x=max(0.,e.goods[0].x-build*HOUSING_WOOD_KG_PER_PERSON);e.housing.x+=build*HOUSING_WOOD_KG_PER_PERSON;
+  e.goods[1].y=max(0.,e.goods[1].y-build*HOUSING_BRICKS_KG_PER_PERSON);e.housing.y+=build*HOUSING_BRICKS_KG_PER_PERSON;
   labor=max(0.,labor-build*.2);asset_work=max(0.,asset_work-build*.2);
   e.housing.w+=build*.2;e.housing_plan.z+=build;
  }
  // Repair previously installed service before optional housing headroom. Never
  // displace urgent shelter or reserve work when water/materials are unavailable.
- let shelter=e.housing.z+min(e.housing.x/2.,e.housing.y/3.);
+ let shelter=e.housing.z+min(e.housing.x/HOUSING_WOOD_KG_PER_PERSON,e.housing.y/HOUSING_BRICKS_KG_PER_PERSON);
  if e.waterworks.w>.5 && e.waterworks_recovery.y>.5 && (e.housing_plan.w<.5 || shelter>=s.stock.x) && e.water_service.y<.01 {
-  let existing=min(e.waterworks.x/2.,e.waterworks.y/4.);
+  let existing=min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON);
   let historical=e.waterworks_recovery.x;
   let repair_target=min(e.waterworks_plan.x,historical);
   var repair=min(max(0.,repair_target-existing),asset_work/.2);
-  repair=min(repair,min(e.goods[0].x/2.,e.goods[1].y/4.));
-  e.goods[0].x=max(0.,e.goods[0].x-repair*2.);e.waterworks.x+=repair*2.;
-  e.goods[1].y=max(0.,e.goods[1].y-repair*4.);e.waterworks.y+=repair*4.;
+  repair=min(repair,min(e.goods[0].x/WATERWORKS_WOOD_KG_PER_PERSON,e.goods[1].y/WATERWORKS_BRICKS_KG_PER_PERSON));
+  e.goods[0].x=max(0.,e.goods[0].x-repair*WATERWORKS_WOOD_KG_PER_PERSON);e.waterworks.x+=repair*WATERWORKS_WOOD_KG_PER_PERSON;
+  e.goods[1].y=max(0.,e.goods[1].y-repair*WATERWORKS_BRICKS_KG_PER_PERSON);e.waterworks.y+=repair*WATERWORKS_BRICKS_KG_PER_PERSON;
   labor=max(0.,labor-repair*.2);asset_work=max(0.,asset_work-repair*.2);
   e.waterworks.z+=repair*.2;e.waterworks_plan.z+=repair;
   e.waterworks_recovery.z=repair*.2;e.waterworks_recovery.w+=repair*.2;
  }
 
  if e.housing_plan.w>.5 {
-  let existing=min(e.housing.x/2.,e.housing.y/3.);
+  let existing=min(e.housing.x/HOUSING_WOOD_KG_PER_PERSON,e.housing.y/HOUSING_BRICKS_KG_PER_PERSON);
   var build=min(max(0.,e.housing_plan.x-existing),asset_work/.2);
-  build=min(build,min(e.goods[0].x/2.,e.goods[1].y/3.));
+  build=min(build,min(e.goods[0].x/HOUSING_WOOD_KG_PER_PERSON,e.goods[1].y/HOUSING_BRICKS_KG_PER_PERSON));
   for(var j=0u;j<2u;j++){
-   let good=select(0u,5u,j==1u);let cost=select(2.,3.,j==1u);let mass=build*cost;
+   let good=select(0u,5u,j==1u);let cost=select(HOUSING_WOOD_KG_PER_PERSON,HOUSING_BRICKS_KG_PER_PERSON,j==1u);let mass=build*cost;
    e.goods[good/4u][good%4u]=max(0.,e.goods[good/4u][good%4u]-mass);e.housing[j]+=mass;
   }
   labor-=build*.2;asset_work=max(0.,asset_work-build*.2);
   e.housing.w+=build*.2;e.housing_plan.z+=build;
  }
  if e.waterworks.w>.5 {
-  let existing=min(e.waterworks.x/2.,e.waterworks.y/4.);
+  let existing=min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON);
   var build=min(max(0.,e.waterworks_plan.x-existing),asset_work/.2);
-  build=min(build,min(e.goods[0].x/2.,e.goods[1].y/4.));
+  build=min(build,min(e.goods[0].x/WATERWORKS_WOOD_KG_PER_PERSON,e.goods[1].y/WATERWORKS_BRICKS_KG_PER_PERSON));
   for(var j=0u;j<2u;j++){
-   let good=select(0u,5u,j==1u);let cost=select(2.,4.,j==1u);let mass=build*cost;
+   let good=select(0u,5u,j==1u);let cost=select(WATERWORKS_WOOD_KG_PER_PERSON,WATERWORKS_BRICKS_KG_PER_PERSON,j==1u);let mass=build*cost;
    e.goods[good/4u][good%4u]=max(0.,e.goods[good/4u][good%4u]-mass);e.waterworks[j]+=mass;
   }
   labor-=build*.2;asset_work=max(0.,asset_work-build*.2);
   e.waterworks.z+=build*.2;e.waterworks_plan.z+=build;
  }
  if e.storage_plan.w>.5 {
-  let existing=min(e.storage.x/.02,e.storage.y/.03);
+  let existing=min(e.storage.x/WAREHOUSE_WOOD_KG_PER_KG,e.storage.y/WAREHOUSE_BRICKS_KG_PER_KG);
   var build=min(max(0.,e.storage_plan.x-existing),asset_work/.002);
-  build=min(build,min(e.goods[0].x/.02,e.goods[1].y/.03));
+  build=min(build,min(e.goods[0].x/WAREHOUSE_WOOD_KG_PER_KG,e.goods[1].y/WAREHOUSE_BRICKS_KG_PER_KG));
   for(var j=0u;j<2u;j++){
-   let good=select(0u,5u,j==1u);let cost=select(.02,.03,j==1u);let mass=build*cost;
+   let good=select(0u,5u,j==1u);let cost=select(WAREHOUSE_WOOD_KG_PER_KG,WAREHOUSE_BRICKS_KG_PER_KG,j==1u);let mass=build*cost;
    e.goods[good/4u][good%4u]=max(0.,e.goods[good/4u][good%4u]-mass);e.storage[j]+=mass;
   }
   labor-=build*.002;e.storage.w+=build*.002;e.storage_plan.z=build;
@@ -220,7 +220,7 @@ fn building_work(input:Economy,s:Site,available_workers:f32)->BuildingResult {
  e.workshop_plan.z=0.;e.workshop_plan.w=0.;
  var industrial_capacity=1e30;
  let specialized=e.workshop_types[0].w>.5;
- var household_capacity=max(1.,available_workers*.025);
+ var household_capacity=max(1.,available_workers*HOUSEHOLD_CRAFT_WORK_SHARE);
  var type_capacity=vec4(0.);
  var firm_capacity=vec4(0.);e.enterprise_used=vec4(0.);
  for(var j=0u;j<4u;j++){e.workshop_types[j].z=0.;}
@@ -228,25 +228,25 @@ fn building_work(input:Economy,s:Site,available_workers:f32)->BuildingResult {
   // Assets remain physical inventory. Wear returns organics and recoverable metal.
   for(var j=0u;j<3u;j++) {
    let good=select(select(0u,5u,j==1u),3u,j==2u);
-   let worn=e.workshop[j]*.002;e.workshop[j]-=worn;
+   let worn=e.workshop[j]*WORKSHOP_MONTHLY_WEAR;e.workshop[j]-=worn;
    e.used[good/4u][good%4u]+=worn;e.workshop_plan.y+=worn;
    let recovered=select(0.,worn*.9,j==2u&&catalog.herds[0].w>.5);
   e.goods[7].y+=recovered;e.made[7].y+=recovered;
    e.detritus+=vec4(catalog.goods[good].xyz*(worn-recovered),0.);
    e.reserves.w+=worn-recovered;
   }
-  for(var j=0u;j<4u;j++){e.workshop_types[j].x*=.998;}
+  for(var j=0u;j<4u;j++){e.workshop_types[j].x*=WORKSHOP_MONTHLY_RETENTION;}
   // Construction and repair spend actual craft labor and stocked materials.
-  let costs=vec3(20.,30.,2.);
-  let units=min(e.workshop.x/20.,min(e.workshop.y/30.,e.workshop.z/2.));
+  let costs=vec3(WORKSHOP_WOOD_KG_PER_UNIT,WORKSHOP_BRICKS_KG_PER_UNIT,WORKSHOP_TOOLS_KG_PER_UNIT);
+  let units=min(e.workshop.x/WORKSHOP_WOOD_KG_PER_UNIT,min(e.workshop.y/WORKSHOP_BRICKS_KG_PER_UNIT,e.workshop.z/WORKSHOP_TOOLS_KG_PER_UNIT));
   var build=min(max(0.,e.workshop_plan.x-units),min(labor*.1,building_budget)/2.);
-  build=min(build,min(e.goods[0].x/20.,min(e.goods[1].y/30.,max(0.,e.goods[0].w-s.stock.x*.3)/2.)));
+  build=min(build,min(e.goods[0].x/WORKSHOP_WOOD_KG_PER_UNIT,min(e.goods[1].y/WORKSHOP_BRICKS_KG_PER_UNIT,max(0.,e.goods[0].w-s.stock.x*.3)/WORKSHOP_TOOLS_KG_PER_UNIT)));
   for(var j=0u;j<3u;j++) {
    let good=select(select(0u,5u,j==1u),3u,j==2u);let mass=build*costs[j];
    e.goods[good/4u][good%4u]=max(0.,e.goods[good/4u][good%4u]-mass);e.workshop[j]+=mass;
   }
   labor-=build*2.;building_budget=max(0.,building_budget-build*2.);e.workshop_plan.z=build;
-  industrial_capacity=household_capacity+4.*(units+build);
+  industrial_capacity=household_capacity+WORKSHOP_WORKER_MONTHS_PER_UNIT*(units+build);
   if specialized {
    var assigned=0.;for(var j=0u;j<4u;j++){assigned+=e.workshop_types[j].x;}
    var unassigned=max(0.,units+build-assigned);
@@ -256,7 +256,7 @@ fn building_work(input:Economy,s:Site,available_workers:f32)->BuildingResult {
     let j=(step+p.dims.z)%4u;
     let fitted=min(unassigned,min(fitting,max(0.,e.workshop_types[j].y-e.workshop_types[j].x)));
     e.workshop_types[j].x+=fitted;unassigned-=fitted;fitting-=fitted;
-    type_capacity[j]=4.*e.workshop_types[j].x;
+    type_capacity[j]=WORKSHOP_WORKER_MONTHS_PER_UNIT*e.workshop_types[j].x;
    }
    let fitted=units+build-assigned-unassigned;
    labor=max(0.,labor-max(0.,fitted-build)*.5);
@@ -266,7 +266,7 @@ fn building_work(input:Economy,s:Site,available_workers:f32)->BuildingResult {
  if e.construction_workers.x>.5 {e.construction_workers.z=max(0.,building_start-labor);}
  if specialized {
   for(var j=0u;j<4u;j++) {
-   let leased=min(type_capacity[j],4.*e.enterprise_lease[j]*.998);
+   let leased=min(type_capacity[j],WORKSHOP_WORKER_MONTHS_PER_UNIT*e.enterprise_lease[j]*WORKSHOP_MONTHLY_RETENTION);
    type_capacity[j]-=leased;
    firm_capacity[j]=min(leased,e.enterprise_plan[j]*(1.+e.enterprise_productivity[j]));
   }
@@ -283,7 +283,7 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  if e.logistics.w>3.5 {e.food_labor.x=mix(e.food_labor.x,e.food_labor.y,.25);}
  let rain=max(0.,t.hydro.z)*area/12000.*weather;
  e.water.z+=rain;e.water.x+=rain;
- let capacity=area*(.1+.4*e.policy.z)+select(0.,min(e.waterworks.x/2.,e.waterworks.y/4.),e.waterworks.w>.5);let runoff=max(0.,e.water.x-capacity);e.water.x-=runoff;e.water.w+=runoff;
+ let capacity=area*(.1+.4*e.policy.z)+select(0.,min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON),e.waterworks.w>.5);let runoff=max(0.,e.water.x-capacity);e.water.x-=runoff;e.water.w+=runoff;
  if e.land_return.x>.5 {
   // Dissolved nutrient export is bounded by actual runoff and soil inventories.
   let fraction=min(.05,runoff/max(area*.2,1.));let nutrients=e.soil.xyz*fraction;
@@ -561,7 +561,7 @@ fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
 fn adaptive_fish_plots(){
  for(var i=0u;i<p.dims.y;i++){
  if economies[i].fishery.w<.5 && dot(economies[i].fishery.xyz,vec3(1.))+economies[i].fishery_traps.x<=0.{continue;}
- let s=src[i];let materials=array<u32,3>(0u,3u,16u);let cost=vec3(40.,1.,4.);
+ let s=src[i];let materials=array<u32,3>(0u,3u,16u);let cost=vec3(FISHERY_BOAT_WOOD_KG_PER_CREW,FISHERY_BOAT_TOOLS_KG_PER_CREW,FISHERY_BOAT_CLOTH_KG_PER_CREW);
  {let j=0u;
   let good=materials[j];let worn=economies[i].fishery[j]*.003;economies[i].fishery[j]-=worn;
   economies[i].used[good/4u][good%4u]+=worn;economies[i].detritus+=vec4(worn*catalog.goods[good].xyz,0.);economies[i].fishery_stats.x+=worn;
@@ -595,7 +595,7 @@ fn adaptive_fish_plots(){
  let rate=economies[i].fishery_config.y*response;
  var desired=min(workforce*economies[i].fishery_config.x*response,wanted/max(rate,.001));
  let capacity=min(economies[i].fishery.x/cost.x,min(economies[i].fishery.y/cost.y,economies[i].fishery.z/cost.z));
- let trap_capacity=select(0.,economies[i].fishery_traps.x/20.,economies[i].fishery_traps.w>.5);
+ let trap_capacity=select(0.,economies[i].fishery_traps.x/FISHERY_TRAP_WOOD_KG_PER_CREW,economies[i].fishery_traps.w>.5);
  var factor=1.;
  if economies[i].fishery_choice.w>.5 {
   // Expected mix uses installed outfits; new primitive crews have lower returns.
@@ -610,15 +610,15 @@ fn adaptive_fish_plots(){
  economies[i].fishery_plan.x=desired;
  var build=min(max(0.,desired-capacity-trap_capacity),desired*.25/2.);
  {let j=0u;
-  let good=materials[j];let reserved=select(0.,s.stock.x*.15,good==3u);
+  let good=materials[j];let reserved=select(0.,s.stock.x*FISHERY_TOOLS_RESERVE_KG_PER_PERSON,good==3u);
   build=min(build,max(0.,economies[i].goods[good/4u][good%4u]-reserved)/cost[j]);
  }
 {let j=1u;
-  let good=materials[j];let reserved=select(0.,s.stock.x*.15,good==3u);
+  let good=materials[j];let reserved=select(0.,s.stock.x*FISHERY_TOOLS_RESERVE_KG_PER_PERSON,good==3u);
   build=min(build,max(0.,economies[i].goods[good/4u][good%4u]-reserved)/cost[j]);
  }
 {let j=2u;
-  let good=materials[j];let reserved=select(0.,s.stock.x*.15,good==3u);
+  let good=materials[j];let reserved=select(0.,s.stock.x*FISHERY_TOOLS_RESERVE_KG_PER_PERSON,good==3u);
   build=min(build,max(0.,economies[i].goods[good/4u][good%4u]-reserved)/cost[j]);
  }
  {let j=0u;
@@ -634,10 +634,10 @@ fn adaptive_fish_plots(){
  // or spun fiber. It is slower, still consumes timber and the same construction work.
  var trap_build=0.;
  if economies[i].fishery_traps.w>.5 {
-  trap_build=min(max(0.,desired-capacity-build-trap_capacity),min(max(0.,desired*.25/2.-build),economies[i].goods[0].x/20.));
+  trap_build=min(max(0.,desired-capacity-build-trap_capacity),min(max(0.,desired*.25/2.-build),economies[i].goods[0].x/FISHERY_TRAP_WOOD_KG_PER_CREW));
  }
  // Clamp the transferred mass, not just units: (stock/20)*20 can round above stock.
- let trap_mass=min(economies[i].goods[0].x,trap_build*20.);trap_build=trap_mass/20.;
+ let trap_mass=min(economies[i].goods[0].x,trap_build*FISHERY_TRAP_WOOD_KG_PER_CREW);trap_build=trap_mass/FISHERY_TRAP_WOOD_KG_PER_CREW;
  economies[i].goods[0].x-=trap_mass;
  economies[i].fishery_traps.x+=trap_mass;economies[i].fishery_traps.y+=trap_mass;
  economies[i].fishery_plan.z=(build+trap_build)*2.;
@@ -747,7 +747,7 @@ fn baseline_worker_shares(e:Economy,pop:f32,available_workers:f32)->vec4<f32>{
  }
  // Operating infrastructure is recurring work even when recipe orders are empty.
  // Reserve actual operating work; construction separately uses its 10% allowance.
- let service_craft=select(0.,min(pop,min(e.waterworks.x/2.,e.waterworks.y/4.))*.001,e.waterworks.w>.5);
+ let service_craft=select(0.,min(pop,min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON))*.001,e.waterworks.w>.5);
  let reserved=min(e.exchange.w+service_craft,workforce*.2);
  var demand=vec3(forestry,mining,min(workforce*.30,craft)+reserved)/workforce;
  let discretionary=max(0.,.38-fish-reserved/workforce);
@@ -811,7 +811,7 @@ fn food_worker_shares(e:Economy,pop:f32,available_workers:f32)->vec4<f32>{
  }
  // Operating infrastructure is recurring work even when recipe orders are empty.
  // Reserve actual operating work; construction separately uses its 10% allowance.
- let service_craft=select(0.,min(pop,min(e.waterworks.x/2.,e.waterworks.y/4.))*.001,e.waterworks.w>.5);
+ let service_craft=select(0.,min(pop,min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON))*.001,e.waterworks.w>.5);
  let reserved=min(e.exchange.w+service_craft,workforce*.2);
  var demand=vec3(forestry,mining,min(workforce*.30,craft)+reserved)/workforce;
  let food_policy=e.logistics.w>3.5;

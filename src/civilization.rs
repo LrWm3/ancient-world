@@ -11,6 +11,10 @@ use anyhow::{ensure, Result};
 pub use production_forecast::ProductionLaborForecast;
 use serde::{Deserialize, Serialize};
 use wgpu::util::DeviceExt;
+crate::shared_shader_parameters! { SHADER_PARAMETERS {
+    pub(crate) const HISTORY_WORKGROUP_SIZE: u32 = 64;
+}}
+
 const DAUGHTER_MIN_POPULATION: f32 = 40.;
 const DAUGHTER_MAX_POPULATION: f32 = 90.;
 const FOUNDING_PROVISION_KG_PER_PERSON_MONTH: f32 = 18.;
@@ -1002,11 +1006,13 @@ impl Engine {
             label: Some("Civilization simulation"),
             source: wgpu::ShaderSource::Wgsl(
                 format!(
-                    "{}\n{}\n{}\n{}\n{}\n{}\n{}",
+                    "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
+                    SHADER_PARAMETERS,
                     crate::society::SHADER_PARAMETERS,
                     crate::hazards::SHADER_PARAMETERS,
                     crate::agriculture::SHADER_PARAMETERS,
                     crate::labor::SHADER_PARAMETERS,
+                    crate::production::SHADER_PARAMETERS,
                     include_str!("../shaders/civilization.wgsl"),
                     include_str!("../shaders/economy.wgsl"),
                     include_str!("../shaders/society.wgsl")
@@ -1058,7 +1064,7 @@ impl Engine {
             let mut pass = encoder.begin_compute_pass(&Default::default());
             pass.set_pipeline(if survey { &self.survey } else { &self.month });
             pass.set_bind_group(0, &self.group, &[]);
-            let groups = count.div_ceil(64);
+            let groups = count.div_ceil(HISTORY_WORKGROUP_SIZE);
             pass.dispatch_workgroups(groups.min(65535), groups.div_ceil(65535), 1);
         }
         g.gpu.queue.submit(Some(encoder.finish()));

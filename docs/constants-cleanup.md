@@ -94,6 +94,11 @@ semantic extraction pass (further shared-policy reconciliation may still apply):
 - `src/religious_relief.rs`
 - `src/social_state.rs`
 
+- `src/production.rs`
+- `src/export_contracts.rs`
+- `src/enterprises.rs`
+- `src/civilization/production_forecast.rs`
+
 Reviewed without further numeric extraction (geometry/layout arithmetic, static
 content, already named parameters, or independent test fixtures only):
 
@@ -118,21 +123,17 @@ constant declarations, and still need their full semantic pass:
 - `src/economy.rs`
 - `src/civilization.rs`
 - `src/expeditions.rs`
-- `src/production.rs`
 
 The remaining source files below have not yet received this cleanup. Associated
 API constants and compile-time assertions should be reviewed in context rather
 than blindly moved out of their types or layout checks.
 
-- `src/civilization/production_forecast.rs`
 - `src/culture/dynamics.rs`
 - `src/culture/practices.rs`
 - `src/culture/work_requests.rs`
 - `src/culture.rs`
 - `src/ecology.rs`
-- `src/enterprises.rs`
 - `src/expedition_heritage.rs`
-- `src/export_contracts.rs`
 - `src/gpu.rs`
 - `src/household_economy.rs`
 - `src/shipping.rs`
@@ -329,3 +330,17 @@ style literals were reviewed without unnecessary extraction.
 Verification: all four discovery tests passed with GPU fixtures enabled. The
 regional GPU drainage/runoff fixture passed. All 151 active library tests passed
 (130 extended cases ignored), and strict all-target Clippy passed. No tuning or intended behavior change.
+
+## Production assets and enterprise batch
+
+Named procurement, asset investment, wage posting, lease, dividend and export
+contract policies. Workshop, housing, warehouse, waterworks and fishing-equipment
+material costs share production-owned scalar declarations with GPU execution and
+CPU capacity checks. Enterprise and export quotes share workshop capacity and
+wear. Forecast dispatch shares the history workgroup size. Existing hypothetical
+procurement allowances remain distinct from actual grants and physical yields.
+
+Verification: six export-contract fixtures passed. The hardware-enabled prepaid
+workshop-capacity/checkpoint test passed. All 151 active library tests passed
+(130 extended cases ignored), and strict all-target Clippy passed. No intended
+parameter, scheduling, arithmetic-order or archive-layout changes.

@@ -5,6 +5,27 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
+const MIN_ADAPTIVE_QUOTE_PRICE: f32 = 0.0001;
+const MIN_BASE_QUOTE_FRACTION: f32 = 0.4;
+const WORK_OPPORTUNITY_FOOD_KG_PER_MONTH: f32 = 18.;
+const WOOD_OUTPUT_KG_PER_WORKER_MONTH: f32 = 20.;
+const MINERAL_OUTPUT_KG_PER_WORKER_MONTH: f32 = 5.;
+const RAW_RESOURCE_OPPORTUNITY_PRICE_FRACTION: f32 = 0.25;
+const MIN_OBSERVED_DELIVERY_KG: f32 = 1.;
+const DELIVERY_ESTIMATE_RETENTION: f32 = 0.75;
+const DELIVERY_ESTIMATE_NEW_WEIGHT: f32 = 0.25;
+const MIN_OBSERVED_UNIT_PRICE: f32 = 0.01;
+const COMPLETION_REMAINDER_KG: f32 = 0.001;
+const DELIVERY_EVIDENCE_MAX_AGE_MONTHS: u32 = 24;
+const QUARTERLY_ESCROW_CASH_FRACTION: f32 = 0.2;
+const MIN_CONTRACT_DELIVERIES: u32 = 2;
+const CONTRACT_MAX_EVIDENCE_AGE_MONTHS: u32 = 12;
+const BUYER_FOOD_RESERVE_MONTHS: f32 = 6.;
+const MIN_CONTRACT_ORDER_KG: f32 = 1.;
+const OBSERVED_ORDER_HEADROOM: f32 = 1.25;
+const MAX_ORDER_KG_PER_PERSON: f32 = 2.;
+const CONTRACT_DURATION_MONTHS: u32 = 6;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ExportContract {
     pub buyer: u32,
@@ -41,24 +62,29 @@ impl History {
         let item = catalog.goods.get(good)?;
         let price = |k: usize| {
             e.prices[k].max(if catalog.market.adaptive_prices {
-                0.0001
+                MIN_ADAPTIVE_QUOTE_PRICE
             } else {
-                catalog.goods[k].base_price * 0.4
+                catalog.goods[k].base_price * MIN_BASE_QUOTE_FRACTION
             })
         };
-        let labor = 18. * price(FOOD);
+        let labor = WORK_OPPORTUNITY_FOOD_KG_PER_MONTH * price(FOOD);
         let raw = match item.id.as_str() {
-            "wood" if e.forest[0] > 0. && e.forest[1] > 0. && e.forest[2] > 0. => {
-                Some(labor / 20. + item.base_price * 0.25)
-            }
+            "wood" if e.forest[0] > 0. && e.forest[1] > 0. && e.forest[2] > 0. => Some(
+                labor / WOOD_OUTPUT_KG_PER_WORKER_MONTH
+                    + item.base_price * RAW_RESOURCE_OPPORTUNITY_PRICE_FRACTION,
+            ),
             _ if good == e.extraction[0].max(1.) as usize
                 && self.accessible_resources(site)[0] > 0. =>
             {
-                Some(labor / 5. + item.base_price * 0.25)
+                Some(
+                    labor / MINERAL_OUTPUT_KG_PER_WORKER_MONTH
+                        + item.base_price * RAW_RESOURCE_OPPORTUNITY_PRICE_FRACTION,
+                )
             }
-            "clay" if self.accessible_resources(site)[1] > 0. => {
-                Some(labor / 5. + item.base_price * 0.25)
-            }
+            "clay" if self.accessible_resources(site)[1] > 0. => Some(
+                labor / MINERAL_OUTPUT_KG_PER_WORKER_MONTH
+                    + item.base_price * RAW_RESOURCE_OPPORTUNITY_PRICE_FRACTION,
+            ),
             _ => None,
         };
         let recipe = catalog
@@ -82,7 +108,11 @@ impl History {
                     .map(|(k, v)| v * price(k))
                     .sum();
                 let upkeep = if catalog.production.workshops {
-                    (20. * price(0) + 30. * price(5) + 2. * price(3)) * 0.002 / 4.
+                    (crate::production::WORKSHOP_WOOD_KG_PER_UNIT * price(0)
+                        + crate::production::WORKSHOP_BRICKS_KG_PER_UNIT * price(5)
+                        + crate::production::WORKSHOP_TOOLS_KG_PER_UNIT * price(3))
+                        * crate::production::WORKSHOP_MONTHLY_WEAR
+                        / crate::production::WORKSHOP_WORKER_MONTHS_PER_UNIT
                 } else {
                     0.
                 };
@@ -99,7 +129,7 @@ impl History {
             || !catalog.production.export_contracts
             || cargo.good as usize == FOOD
             || catalog.goods[cargo.good as usize].food_energy > 0.
-            || cargo.kg < 1.
+            || cargo.kg < MIN_OBSERVED_DELIVERY_KG
         {
             return;
         }
@@ -111,9 +141,10 @@ impl History {
             if c.seller == cargo.from {
                 c.deliveries = c.deliveries.saturating_add(1);
                 c.last_delivery = self.month;
-                c.observed_kg = c.observed_kg * 0.75 + cargo.kg * 0.25;
+                c.observed_kg = c.observed_kg * DELIVERY_ESTIMATE_RETENTION
+                    + cargo.kg * DELIVERY_ESTIMATE_NEW_WEIGHT;
                 if c.escrow == 0. {
-                    c.unit_price = (cargo.paid / cargo.kg).max(0.01);
+                    c.unit_price = (cargo.paid / cargo.kg).max(MIN_OBSERVED_UNIT_PRICE);
                 }
             }
         } else {
@@ -124,7 +155,7 @@ impl History {
                 deliveries: 1,
                 last_delivery: self.month,
                 observed_kg: cargo.kg,
-                unit_price: (cargo.paid / cargo.kg).max(0.01),
+                unit_price: (cargo.paid / cargo.kg).max(MIN_OBSERVED_UNIT_PRICE),
                 remaining_kg: 0.,
                 escrow: 0.,
                 expires: 0,
@@ -155,7 +186,7 @@ impl History {
             if c.escrow > 0.
                 && (!enabled
                     || self.month >= c.expires
-                    || c.remaining_kg < 0.001
+                    || c.remaining_kg < COMPLETION_REMAINDER_KG
                     || [c.buyer, c.seller].iter().any(|s| {
                         self.sites[*s as usize].abandoned
                             || self.sites[*s as usize].economy.policy[3] < 0.5
@@ -176,7 +207,9 @@ impl History {
         }
         // Evidence expires too; a new successful supplier may then establish a relationship.
         self.export_contracts.retain(|c| {
-            c.escrow > 0. || c.planned_kg > 0. || self.month.saturating_sub(c.last_delivery) <= 24
+            c.escrow > 0.
+                || c.planned_kg > 0.
+                || self.month.saturating_sub(c.last_delivery) <= DELIVERY_EVIDENCE_MAX_AGE_MONTHS
         });
     }
     pub(crate) fn fund_export_contracts(&mut self, reachable: &[bool]) {
@@ -191,26 +224,29 @@ impl History {
         let mut budgets: Vec<f32> = self
             .sites
             .iter()
-            .map(|s| s.economy.finance[0] * 0.2)
+            .map(|s| s.economy.finance[0] * QUARTERLY_ESCROW_CASH_FRACTION)
             .collect();
         for (i, &reachable) in reachable.iter().enumerate() {
             let c = &self.export_contracts[i];
             let (buyer, seller, k) = (c.buyer as usize, c.seller as usize, c.good as usize);
             if !reachable
-                || c.deliveries < 2
+                || c.deliveries < MIN_CONTRACT_DELIVERIES
                 || c.escrow > 0.
-                || self.month.saturating_sub(c.last_delivery) > 12
+                || self.month.saturating_sub(c.last_delivery) > CONTRACT_MAX_EVIDENCE_AGE_MONTHS
                 || [buyer, seller]
                     .iter()
                     .any(|s| self.sites[*s].abandoned || self.sites[*s].economy.policy[3] < 0.5)
-                || self.sites[buyer].stocks.stock[1] < self.sites[buyer].stocks.stock[0] * 18. * 6.
+                || self.sites[buyer].stocks.stock[1]
+                    < self.sites[buyer].stocks.stock[0]
+                        * crate::economy::CIVILIAN_RESERVE_KG_PER_PERSON_MONTH
+                        * BUYER_FOOD_RESERVE_MONTHS
             {
                 continue;
             }
             let need = (self.local_production_target(buyer, k)
                 - self.sites[buyer].economy.goods[k])
                 .max(0.);
-            if need < 1. {
+            if need < MIN_CONTRACT_ORDER_KG {
                 continue;
             }
             let mut price = c.unit_price;
@@ -218,11 +254,11 @@ impl History {
             let catalog = self.economy_catalog.as_ref().unwrap();
             if catalog.production.supplier_profitability {
                 let requested = need
-                    .min(c.observed_kg * 1.25)
-                    .min(self.sites[buyer].stocks.stock[0] * 2.);
+                    .min(c.observed_kg * OBSERVED_ORDER_HEADROOM)
+                    .min(self.sites[buyer].stocks.stock[0] * MAX_ORDER_KG_PER_PERSON);
                 let cost = self.supplier_cost_for_quantity(seller, k, requested);
-                let ceiling =
-                    self.sites[buyer].economy.prices[k].max(catalog.goods[k].base_price * 0.4);
+                let ceiling = self.sites[buyer].economy.prices[k]
+                    .max(catalog.goods[k].base_price * MIN_BASE_QUOTE_FRACTION);
                 let proposal =
                     cost.map(|v| price.max(v * (1. + catalog.production.contract_margin)));
                 if proposal.is_none_or(|v| v > ceiling || !v.is_finite()) {
@@ -235,10 +271,10 @@ impl History {
             }
             let c = &self.export_contracts[i];
             let amount = need
-                .min(c.observed_kg * 1.25)
-                .min(self.sites[buyer].stocks.stock[0] * 2.)
+                .min(c.observed_kg * OBSERVED_ORDER_HEADROOM)
+                .min(self.sites[buyer].stocks.stock[0] * MAX_ORDER_KG_PER_PERSON)
                 .min(budgets[buyer] / price);
-            if amount < 1. {
+            if amount < MIN_CONTRACT_ORDER_KG {
                 continue;
             }
             let cost = amount * price;
@@ -249,7 +285,7 @@ impl History {
             c.estimated_unit_cost = estimate;
             c.remaining_kg = amount;
             c.escrow = cost;
-            c.expires = self.month + 6;
+            c.expires = self.month + CONTRACT_DURATION_MONTHS;
             self.event(
                 "export_contract",
                 Some(buyer as u32),

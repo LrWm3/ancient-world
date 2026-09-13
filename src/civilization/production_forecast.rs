@@ -39,10 +39,19 @@ impl Engine {
             let mut pass = encoder.begin_compute_pass(&Default::default());
             pass.set_pipeline(&self.labor_forecast);
             pass.set_bind_group(0, &self.group, &[]);
-            pass.dispatch_workgroups((h.sites.len() as u32).div_ceil(64), 1, 1);
+            pass.dispatch_workgroups(
+                (h.sites.len() as u32).div_ceil(super::HISTORY_WORKGROUP_SIZE),
+                1,
+                1,
+            );
         }
         g.gpu.queue.submit(Some(encoder.finish()));
-        let bytes = read_buffer(&g.gpu, &self.output, 0, h.sites.len() as u64 * 64)?;
+        let bytes = read_buffer(
+            &g.gpu,
+            &self.output,
+            0,
+            h.sites.len() as u64 * std::mem::size_of::<super::Stocks>() as u64,
+        )?;
         bytemuck::cast_slice::<u8, Stocks>(&bytes)
             .iter()
             .zip(&h.sites)

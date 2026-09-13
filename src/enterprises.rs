@@ -7,6 +7,44 @@ use crate::{
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
+const MIN_OBSERVED_WORKER_MONTHS: f64 = 1e-6;
+const SHORTAGE_MEMORY_RETENTION: f64 = 0.75;
+const SHORTAGE_NEW_WEIGHT: f64 = 0.25;
+const WAGE_PROFITABILITY_HEADROOM: f64 = 0.9;
+const MIN_WAGE_MULTIPLIER: f64 = 0.6;
+const MAX_WAGE_MULTIPLIER: f64 = 1.125;
+const WAGE_RAISE_SHORTAGE_THRESHOLD: f64 = 0.15;
+const WAGE_RAISE_MIN_UTILIZATION: f64 = 0.8;
+const PAYROLL_RESERVE_MONTHS: f64 = 3.;
+const SHORTAGE_WAGE_RAISE_RATE: f64 = 0.08;
+const WAGE_CUT_UTILIZATION_THRESHOLD: f64 = 0.5;
+const WAGE_CUT_RETENTION: f64 = 0.97;
+const STAFF_GRANT_TOLERANCE: f64 = 1e-5;
+const STAFF_RECEIPT_TOLERANCE: f64 = 1e-4;
+const STAFF_COST_TOLERANCE: f64 = 1e-5;
+const CAPITAL_RELATIVE_TOLERANCE: f64 = 1e-7;
+const COMPLETED_WORK_TOLERANCE: f64 = 1e-4;
+const RENT_REFERENCE_WORK_MONTHS_PER_UNIT: f64 = 0.08;
+const SURPLUS_DIVIDEND_FRACTION: f64 = 0.05;
+const WAGE_REFERENCE_FOOD_KG_PER_MONTH: f64 = 18.;
+const MIN_WAGE_FOOD_PRICE: f32 = 0.01;
+const REOPEN_DELAY_MONTHS: u32 = 6;
+const MAX_LEASED_WORKSHOP_FRACTION: f64 = 0.5;
+const MIN_FOUNDING_LEASE_UNITS: f64 = 0.02;
+const MIN_FOUNDING_DEMONSTRATED_WORK: f32 = 0.02;
+const MIN_WORKSHOP_SHARE_DENOMINATOR: f64 = 0.001;
+const SHIFT_DEMONSTRATED_HEADROOM: f64 = 1.1;
+const MIN_SHIFT_WORKER_MONTHS: f64 = 0.05;
+const FOUNDING_CAPITAL_CASH_FRACTION: f64 = 0.25;
+const DISTRESS_MIN_STAFFING_FRACTION: f64 = 0.25;
+const DISTRESS_MIN_LEASE_UNITS: f64 = 0.001;
+const PAYROLL_WEIGHT_FLOOR: f64 = 1e-12;
+const SERVICE_MAX_TOWN_CASH_FRACTION: f64 = 0.2;
+const IDLE_COMPLETION_THRESHOLD: f64 = 0.15;
+const DISTRESS_CLOSURE_MONTHS: u32 = 3;
+const IDLE_CLOSURE_MONTHS: u32 = 6;
+const MIN_IDLE_FUNDED_WORK: f64 = 0.01;
+
 pub(crate) const SERVICE_QUOTE_MULTIPLIER: f64 = 1.25;
 
 /// Posted next-month labor offer; service prices remain independent of wage bids.
@@ -41,13 +79,13 @@ impl WagePolicy {
             return;
         }
         self.observed = Some(month);
-        let vacancy = if expected > 1e-6 {
+        let vacancy = if expected > MIN_OBSERVED_WORKER_MONTHS {
             (1. - hired / expected).clamp(0., 1.)
         } else {
             0.
         };
-        self.shortage = 0.75 * self.shortage + 0.25 * vacancy;
-        let utilization = if hired > 1e-6 {
+        self.shortage = SHORTAGE_MEMORY_RETENTION * self.shortage + SHORTAGE_NEW_WEIGHT * vacancy;
+        let utilization = if hired > MIN_OBSERVED_WORKER_MONTHS {
             (completed / hired).clamp(0., 1.)
         } else {
             0.
@@ -55,21 +93,23 @@ impl WagePolicy {
         let payroll = hired * reference * self.multiplier;
         // Raises need demonstrated productive work, payment and a cash buffer.
         // The independent 1.25x service quote limits the affordable wage.
-        let profitable_ceiling = (SERVICE_QUOTE_MULTIPLIER * utilization * 0.9).clamp(0.6, 1.125);
-        let next = if self.shortage > 0.15
-            && utilization >= 0.8
+        let profitable_ceiling =
+            (SERVICE_QUOTE_MULTIPLIER * utilization * WAGE_PROFITABILITY_HEADROOM)
+                .clamp(MIN_WAGE_MULTIPLIER, MAX_WAGE_MULTIPLIER);
+        let next = if self.shortage > WAGE_RAISE_SHORTAGE_THRESHOLD
+            && utilization >= WAGE_RAISE_MIN_UTILIZATION
             && paid_invoice >= payroll
-            && cash >= 3. * payroll
+            && cash >= PAYROLL_RESERVE_MONTHS * payroll
         {
-            (self.multiplier * (1. + 0.08 * self.shortage))
+            (self.multiplier * (1. + SHORTAGE_WAGE_RAISE_RATE * self.shortage))
                 .min(profitable_ceiling)
                 .max(self.multiplier)
-        } else if utilization < 0.5 || paid_invoice < payroll {
-            self.multiplier * 0.97
+        } else if utilization < WAGE_CUT_UTILIZATION_THRESHOLD || paid_invoice < payroll {
+            self.multiplier * WAGE_CUT_RETENTION
         } else {
             self.multiplier
         };
-        self.pending = Some(next.clamp(0.6, 1.125));
+        self.pending = Some(next.clamp(MIN_WAGE_MULTIPLIER, MAX_WAGE_MULTIPLIER));
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -129,9 +169,9 @@ impl Enterprises {
             if let Some(p) = &f.wage_policy {
                 ensure!(
                     p.multiplier.is_finite()
-                        && (0.6..=1.125).contains(&p.multiplier)
-                        && p.pending
-                            .is_none_or(|v| v.is_finite() && (0.6..=1.125).contains(&v))
+                        && (MIN_WAGE_MULTIPLIER..=MAX_WAGE_MULTIPLIER).contains(&p.multiplier)
+                        && p.pending.is_none_or(|v| v.is_finite()
+                            && (MIN_WAGE_MULTIPLIER..=MAX_WAGE_MULTIPLIER).contains(&v))
                         && p.shortage.is_finite()
                         && (0. ..=1.).contains(&p.shortage)
                         && p.observed.is_none_or(|m| m <= h.month),
@@ -166,8 +206,8 @@ impl Enterprises {
                         && staff.granted.is_finite()
                         && staff.expected >= 0.
                         && staff.granted >= 0.
-                        && staff.granted <= staff.expected + 1e-5
-                        && (staff.granted - f.last_funded_work).abs() < 1e-4,
+                        && staff.granted <= staff.expected + STAFF_GRANT_TOLERANCE
+                        && (staff.granted - f.last_funded_work).abs() < STAFF_RECEIPT_TOLERANCE,
                     "invalid workshop time grant"
                 );
                 ensure!(
@@ -182,7 +222,7 @@ impl Enterprises {
                 if staff.mode == crate::resolution::Mode::Individual {
                     ensure!(
                         (staff.wages.iter().map(|(_, w)| w).sum::<f64>() - staff.granted).abs()
-                            < 1e-5,
+                            < STAFF_COST_TOLERANCE,
                         "workshop wages lack actual participants"
                     );
                     if let Some(p) = h
@@ -231,12 +271,12 @@ impl Enterprises {
             ensure!(
                 (f.cash - f.capital - f.revenue + f.wages + f.rent + f.dividends + f.liquidation)
                     .abs()
-                    < 1e-7 * (1. + f.capital + f.revenue),
+                    < CAPITAL_RELATIVE_TOLERANCE * (1. + f.capital + f.revenue),
                 "enterprise cash ledger does not reconcile"
             );
             ensure!(
-                f.completed_work <= f.paid_work + 1e-4 * (1. + f.paid_work)
-                    && f.last_completed_work <= f.last_funded_work + 1e-4
+                f.completed_work <= f.paid_work + COMPLETED_WORK_TOLERANCE * (1. + f.paid_work)
+                    && f.last_completed_work <= f.last_funded_work + COMPLETED_WORK_TOLERANCE
                     && (f.closed.is_none() || f.cash == 0.),
                 "unfunded enterprise work or stranded liquidation"
             );
@@ -256,8 +296,10 @@ impl Enterprises {
             }
             for (a, claim) in accounts.iter().zip(equity) {
                 ensure!(
-                    (a.capital_invested - claim[0]).abs() <= 1e-7 * (1. + claim[0])
-                        && (a.capital_returned - claim[1]).abs() <= 1e-7 * (1. + claim[1]),
+                    (a.capital_invested - claim[0]).abs()
+                        <= CAPITAL_RELATIVE_TOLERANCE * (1. + claim[0])
+                        && (a.capital_returned - claim[1]).abs()
+                            <= CAPITAL_RELATIVE_TOLERANCE * (1. + claim[1]),
                     "household equity does not match owned businesses"
                 );
             }
@@ -293,14 +335,16 @@ fn allocate_work(requests: [f64; 4], capacity: f64) -> [f32; 4] {
     requests.map(|request| work_floor(request * factor))
 }
 fn viable_entry(expected_work: f64, paid_shift: f64, units: f64) -> bool {
-    expected_work * SERVICE_QUOTE_MULTIPLIER > paid_shift + units * 0.08
+    expected_work * SERVICE_QUOTE_MULTIPLIER
+        > paid_shift + units * RENT_REFERENCE_WORK_MONTHS_PER_UNIT
 }
 
 // Equity investment is risk capital, not earned profit. Losses must be recovered
 // before dividends resume; the operating reserve is an additional independent cap.
 fn distributable_profit(f: &Firm) -> f64 {
     let earned = (f.revenue - f.wages - f.rent - f.dividends).max(0.);
-    let surplus = (f.cash - 3. * f.last_funded_work * f.wage_rate).max(0.) * 0.05;
+    let surplus = (f.cash - PAYROLL_RESERVE_MONTHS * f.last_funded_work * f.wage_rate).max(0.)
+        * SURPLUS_DIVIDEND_FRACTION;
     earned.min(surplus)
 }
 impl History {
@@ -391,27 +435,39 @@ impl History {
                 if town.abandoned || town.economy.workshop_types[0][3] < 0.5 {
                     continue;
                 }
-                let rate = 18. * town.economy.prices[crate::economy::FOOD].max(0.01) as f64;
+                let rate = WAGE_REFERENCE_FOOD_KG_PER_MONTH
+                    * town.economy.prices[crate::economy::FOOD].max(MIN_WAGE_FOOD_PRICE) as f64;
                 for family in 0..4 {
                     if enterprises.firms.iter().any(|f| {
                         f.site as usize == site
                             && f.family as usize == family
                             && (f.closed.is_none()
-                                || f.closed.is_some_and(|m| self.month.saturating_sub(m) < 6))
+                                || f.closed.is_some_and(|m| {
+                                    self.month.saturating_sub(m) < REOPEN_DELAY_MONTHS
+                                }))
                     }) {
                         continue;
                     }
-                    let units = (town.economy.workshop_types[family][0] as f64 * 0.5).min(1.);
-                    if units < 0.02 || town.economy.workshop_types[family][2] < 0.02 {
+                    let units = (town.economy.workshop_types[family][0] as f64
+                        * MAX_LEASED_WORKSHOP_FRACTION)
+                        .min(1.);
+                    if units < MIN_FOUNDING_LEASE_UNITS
+                        || town.economy.workshop_types[family][2] < MIN_FOUNDING_DEMONSTRATED_WORK
+                    {
                         continue;
                     }
                     // Use only locally observed work and the current service quote.
                     // Do not repeatedly finance a shift whose forecast fees cannot cover
                     // wages and rent even before uncertainty or customer nonpayment.
                     let observed = town.economy.workshop_types[family][2] as f64;
-                    let share = units / (town.economy.workshop_types[family][0] as f64).max(0.001);
-                    let expected = (observed * share).min(units * 4.);
-                    let shift = (expected * 1.1).max(0.05).min(units * 4.);
+                    let share = units
+                        / (town.economy.workshop_types[family][0] as f64)
+                            .max(MIN_WORKSHOP_SHARE_DENOMINATOR);
+                    let expected = (observed * share)
+                        .min(units * crate::production::WORKSHOP_WORKER_MONTHS_PER_UNIT as f64);
+                    let shift = (expected * SHIFT_DEMONSTRATED_HEADROOM)
+                        .max(MIN_SHIFT_WORKER_MONTHS)
+                        .min(units * crate::production::WORKSHOP_WORKER_MONTHS_PER_UNIT as f64);
                     if !viable_entry(expected, shift, units) {
                         continue;
                     }
@@ -424,8 +480,12 @@ impl History {
                     let Some(owner) = owner else {
                         continue;
                     };
-                    let capital = e.accounts[owner].cash * 0.25;
-                    if capital < 3. * rate * (shift + units * 0.08) {
+                    let capital = e.accounts[owner].cash * FOUNDING_CAPITAL_CASH_FRACTION;
+                    if capital
+                        < PAYROLL_RESERVE_MONTHS
+                            * rate
+                            * (shift + units * RENT_REFERENCE_WORK_MONTHS_PER_UNIT)
+                    {
                         continue;
                     }
                     e.accounts[owner].cash -= capital;
@@ -481,7 +541,8 @@ impl History {
             let site = f.site as usize;
             let family = f.family as usize;
             let town = &mut self.sites[site];
-            let reference = 18. * town.economy.prices[crate::economy::FOOD].max(0.01) as f64;
+            let reference = WAGE_REFERENCE_FOOD_KG_PER_MONTH
+                * town.economy.prices[crate::economy::FOOD].max(MIN_WAGE_FOOD_PRICE) as f64;
             if refine {
                 let policy = f.wage_policy.get_or_insert_with(Default::default);
                 if let Some(next) = policy.pending.take() {
@@ -496,13 +557,21 @@ impl History {
             let units = f
                 .leased_units
                 .min(town.economy.workshop_types[family][0] as f64);
-            let rent_request = (units * 0.08 * reference).min(f.cash);
+            let rent_request =
+                (units * RENT_REFERENCE_WORK_MONTHS_PER_UNIT * reference).min(f.cash);
             let rent = deposit(&mut town.economy.finance[0], rent_request);
             f.cash -= rent;
             f.rent += rent;
-            let lease_share = units / (town.economy.workshop_types[family][0] as f64).max(0.001);
-            let desired = (units * 4.)
-                .min((town.economy.workshop_types[family][2] as f64 * lease_share * 1.1).max(0.05))
+            let lease_share = units
+                / (town.economy.workshop_types[family][0] as f64)
+                    .max(MIN_WORKSHOP_SHARE_DENOMINATOR);
+            let desired = (units * crate::production::WORKSHOP_WORKER_MONTHS_PER_UNIT as f64)
+                .min(
+                    (town.economy.workshop_types[family][2] as f64
+                        * lease_share
+                        * SHIFT_DEMONSTRATED_HEADROOM)
+                        .max(MIN_SHIFT_WORKER_MONTHS),
+                )
                 .min(capacities[site]);
             desired_work[f.id as usize] = desired;
             requests[site][family] = desired.min(f.cash / f.wage_rate);
@@ -605,7 +674,9 @@ impl History {
             f.paid_work += work;
             f.last_funded_work = work;
             f.last_completed_work = 0.;
-            f.distressed_months = if work < desired * 0.25 || units < 0.001 {
+            f.distressed_months = if work < desired * DISTRESS_MIN_STAFFING_FRACTION
+                || units < DISTRESS_MIN_LEASE_UNITS
+            {
                 f.distressed_months + 1
             } else {
                 0
@@ -647,7 +718,7 @@ impl History {
                 } else if Some(j) == last_paid {
                     remaining
                 } else {
-                    (payroll * weights[j] / total.max(1e-12)).min(remaining)
+                    (payroll * weights[j] / total.max(PAYROLL_WEIGHT_FLOOR)).min(remaining)
                 };
                 remaining -= wage;
                 e.accounts[id].cash += wage;
@@ -692,7 +763,10 @@ impl History {
         let mut funds = vec![0.; self.sites.len()];
         for (site, invoice) in invoices.iter().enumerate() {
             let pool = &mut self.sites[site].economy.finance[0];
-            funds[site] = withdraw(pool, invoice.min(*pool as f64 * 0.2));
+            funds[site] = withdraw(
+                pool,
+                invoice.min(*pool as f64 * SERVICE_MAX_TOWN_CASH_FRACTION),
+            );
         }
         let mut remaining = funds.clone();
         let mut notices = vec![];
@@ -731,7 +805,9 @@ impl History {
             f.dividends += surplus;
             e.accounts[f.owner as usize].cash += surplus;
             e.accounts[f.owner as usize].dividends += surplus;
-            f.idle_months = if f.last_completed_work < f.last_funded_work.max(0.01) * 0.15 {
+            f.idle_months = if f.last_completed_work
+                < f.last_funded_work.max(MIN_IDLE_FUNDED_WORK) * IDLE_COMPLETION_THRESHOLD
+            {
                 f.idle_months + 1
             } else {
                 0
@@ -749,9 +825,9 @@ impl History {
                     );
                 }
             }
-            let reason = if f.distressed_months >= 3 {
+            let reason = if f.distressed_months >= DISTRESS_CLOSURE_MONTHS {
                 Some("working capital exhausted")
-            } else if f.idle_months >= 6 {
+            } else if f.idle_months >= IDLE_CLOSURE_MONTHS {
                 Some("six months without sufficient orders or inputs")
             } else {
                 None

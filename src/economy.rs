@@ -507,10 +507,13 @@ impl Default for Economy {
 }
 impl Economy {
     pub fn waterworks_capacity(&self) -> f32 {
-        (self.waterworks[0] / 2.).min(self.waterworks[1] / 4.)
+        (self.waterworks[0] / crate::production::WATERWORKS_WOOD_KG_PER_PERSON)
+            .min(self.waterworks[1] / crate::production::WATERWORKS_BRICKS_KG_PER_PERSON)
     }
     pub fn housing_capacity(&self) -> f32 {
-        self.housing[2] + (self.housing[0] / 2.).min(self.housing[1] / 3.)
+        self.housing[2]
+            + (self.housing[0] / crate::production::HOUSING_WOOD_KG_PER_PERSON)
+                .min(self.housing[1] / crate::production::HOUSING_BRICKS_KG_PER_PERSON)
     }
     pub fn crowding(&self, population: f32) -> f32 {
         if self.housing_plan[3] < 0.5 {
@@ -533,7 +536,9 @@ impl Economy {
         })
     }
     pub fn storage_capacity(&self) -> f32 {
-        self.storage[2] + (self.storage[0] / 0.02).min(self.storage[1] / 0.03)
+        self.storage[2]
+            + (self.storage[0] / crate::production::WAREHOUSE_WOOD_KG_PER_KG)
+                .min(self.storage[1] / crate::production::WAREHOUSE_BRICKS_KG_PER_KG)
     }
     pub fn new(
         g: &Generator,
@@ -631,9 +636,9 @@ impl Economy {
             && (0. ..=1.).contains(&self.waterworks_plan[3])
             && (0. ..=1.).contains(&self.water_service[1])
             && self.workshop_types.iter().map(|t| t[0]).sum::<f32>()
-                <= (self.workshop[0] / 20.)
-                    .min(self.workshop[1] / 30.)
-                    .min(self.workshop[2] / 2.)
+                <= (self.workshop[0] / crate::production::WORKSHOP_WOOD_KG_PER_UNIT)
+                    .min(self.workshop[1] / crate::production::WORKSHOP_BRICKS_KG_PER_UNIT)
+                    .min(self.workshop[2] / crate::production::WORKSHOP_TOOLS_KG_PER_UNIT)
                     + 0.001
             && self
                 .goods
