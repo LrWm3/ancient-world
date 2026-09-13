@@ -511,3 +511,32 @@ continues contractual interest and is retried; actual later budget/cash shortfal
 still use ordinary default rules. Forgiveness caps and monetary inventories are
 unchanged. See [the precision follow-up](credit-precision-residuals.md) for the
 observed loan, controls and unresolved long-run evaluation.
+
+## Credit-to-production execution fixture
+
+`enterprises::tests::credit_funds_gpu_work_but_cannot_replace_materials` exercises
+one real GPU production month at terrain resolution 32 / ecology resolution 16.
+It first moves an existing operator's capital to a council, then compares that
+cash-starved workshop with a loan-funded copy. Both retain the same finite lease,
+workforce and materials. A third, funded copy moves its metal stock to another
+settlement before execution, preserving world material inventory.
+
+The hardware fixture passed: credited workshop work was positive; unfunded and
+missing-metal workshop work were zero. Disbursement did not increase operator
+revenue, monetary residual changed by less than `1e-9` at disbursement, and the
+monthly combined economy residuals remained below `0.02` in the fixture's ledger
+units. A saved/reloaded funded run produced identical serialized history after
+that month. This establishes an execution mediator, not merely a later population
+difference.
+
+The service-order source is explicitly supplied by the fixture. This is **not**
+a test of automatic operator underwriting, order profitability or loan repayment;
+those remain separate requirements. The fixture also does not establish labor
+scarcity behavior, household food-access improvement, or long-run balance. It
+neither changes production rates nor enables credit by default.
+
+Reproduce on a hardware GPU:
+
+```sh
+cargo test --lib credit_funds_gpu_work_but_cannot_replace_materials -- --ignored --nocapture
+```

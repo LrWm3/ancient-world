@@ -1824,6 +1824,93 @@ mod tests {
 
     #[test]
     #[ignore = "requires hardware GPU"]
+    fn credit_funds_gpu_work_but_cannot_replace_materials() {
+        use crate::credit::{Account, RepaymentSource, Terms, SHARED_CURRENCY};
+        let mut g = world();
+        install(&mut g);
+        let h = g.civilizations.as_mut().unwrap();
+        h.month = 3;
+        h.prepare_enterprises();
+        h.settle_enterprises();
+        assert_eq!(h.enterprises.as_ref().unwrap().firms.len(), 1);
+        let firm = &mut h.enterprises.as_mut().unwrap().firms[0];
+        firm.leased_units = 5.;
+        let capital = firm.cash;
+        assert!(capital > 0.);
+        let cash_residual = h.economy_residuals()[3];
+        // Move existing capital to a lender. Both arms start with the same
+        // inventories and cash ownership; only the loan reverses this transfer.
+        let moved = h
+            .transfer_credit_cash(
+                Account::Operator(0),
+                Account::Council(0),
+                SHARED_CURRENCY,
+                capital,
+                0.,
+            )
+            .unwrap();
+        assert_eq!(moved.amount(), capital);
+        assert_eq!(h.enterprises.as_ref().unwrap().firms[0].cash, 0.);
+        let baseline = h.clone();
+        let revenue = h.enterprises.as_ref().unwrap().firms[0].revenue;
+        // Explicit service-order fixture: this tests execution downstream of a
+        // committed loan, not automatic underwriting or repayment forecasting.
+        h.commit_credit_loan(
+            Terms {
+                lender: Account::Council(0),
+                borrower: Account::Operator(0),
+                currency: SHARED_CURRENCY,
+                source: RepaymentSource::ServiceOrder {
+                    order: 0,
+                    payment_month: 15,
+                },
+                annual_simple_rate: 0.12,
+                maturity_month: 15,
+                grace_months: 3,
+            },
+            capital,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(h.enterprises.as_ref().unwrap().firms[0].revenue, revenue);
+        assert!((h.economy_residuals()[3] - cash_residual).abs() < 1e-9);
+        h.validate_credit().unwrap();
+        let path =
+            std::env::temp_dir().join(format!("enterprise-credit-{}.world", std::process::id()));
+        g.save(&path).unwrap();
+        let mut resumed = Generator::load(g.gpu.clone(), &path).unwrap();
+        let mut unfunded = Generator::load(g.gpu.clone(), &path).unwrap();
+        let mut missing_material = Generator::load(g.gpu.clone(), &path).unwrap();
+        std::fs::remove_file(path).unwrap();
+        unfunded.civilizations = Some(baseline);
+        // Move the actual metal to another settlement: credit cannot fabricate
+        // a recipe input. Preserve the world's material inventory.
+        let h = missing_material.civilizations.as_mut().unwrap();
+        let metal = h.sites[0].economy.goods[2];
+        h.sites[0].economy.goods[2] = 0.;
+        h.sites[1].economy.goods[2] += metal;
+        for world in [&mut g, &mut resumed, &mut unfunded, &mut missing_material] {
+            world.advance_history(1).unwrap();
+            let h = world.civilizations.as_ref().unwrap();
+            h.validate_credit().unwrap();
+            assert!(h.economy_residuals().iter().all(|v| v.abs() < 0.02));
+        }
+        let output = |world: &Generator| {
+            world.civilizations.as_ref().unwrap().sites[0]
+                .economy
+                .enterprise_used[1]
+        };
+        assert!(output(&g) > 0.);
+        assert_eq!(output(&unfunded), 0.);
+        assert_eq!(output(&missing_material), 0.);
+        assert_eq!(
+            serde_json::to_vec(&g.civilizations).unwrap(),
+            serde_json::to_vec(&resumed.civilizations).unwrap()
+        );
+    }
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
     fn prepaid_capacity_gates_gpu_work_and_checkpoint_matches() {
         let mut g = world();
         install(&mut g);
