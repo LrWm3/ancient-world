@@ -1,5 +1,7 @@
 //! Named monthly port-service assignments, backing the existing prepaid sea capacity.
-use super::{funded_work, Fleet};
+use super::{
+    funded_work, Fleet, CREW_WAGE_FOOD_MULTIPLIER, CREW_WORK_PER_VESSEL_MONTH, MIN_CREW_FOOD_PRICE,
+};
 use crate::{
     civilization::History,
     household_economy::withdraw,
@@ -10,6 +12,10 @@ use crate::{
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
+const MIN_ASSIGNMENT_WORKER_MONTHS: f32 = 1e-6;
+const RELEASE_TOLERANCE_WORKER_MONTHS: f32 = 1e-6;
+const RECEIPT_TOLERANCE_WORKER_MONTHS: f64 = 1e-6;
+const FLEET_TOLERANCE_WORKER_MONTHS: f64 = 1e-5;
 const MAX_CREW_PRODUCTIVITY_BONUS: f32 = 0.50;
 const CREW_PRACTICE_HALF_SATURATION_WORKER_MONTHS: f64 = 12.;
 
@@ -67,7 +73,7 @@ impl History {
                 let household = r.household?;
                 let hh = society.households.get(household as usize)?;
                 (r.presence == Presence::Resident(site)
-                    && pool.available(r.person) > 1e-6
+                    && pool.available(r.person) > MIN_ASSIGNMENT_WORKER_MONTHS
                     && hh.site == site
                     && !society.relocation.away(household)
                     && !society.relocation.lost_households.contains(&household))
@@ -77,18 +83,19 @@ impl History {
         // Experienced available residents are preferred. Stable identity resolves ties;
         // experience changes hiring priority and service rate, never paid time or cargo inventory.
         candidates.sort_by(|a, b| b.2.total_cmp(&a.2).then(a.0.cmp(&b.0)));
-        let wage =
-            18. * self.sites[site as usize].economy.prices[crate::economy::FOOD].max(0.01) as f64;
+        let wage = CREW_WAGE_FOOD_MULTIPLIER
+            * self.sites[site as usize].economy.prices[crate::economy::FOOD]
+                .max(MIN_CREW_FOOD_PRICE) as f64;
         let mut left =
             crate::labor::available(&self.sites[site as usize], true, self.living.is_some())
                 .min((target - fleet.work()).max(0.));
         for vessel in fleet.vessels.iter_mut().take(hulls) {
             for &(person, household, practice) in &candidates {
-                let wanted = (0.25 - vessel.funded_work)
+                let wanted = (CREW_WORK_PER_VESSEL_MONTH - vessel.funded_work)
                     .max(0.)
                     .min(left)
                     .min((self.sites[site as usize].economy.finance[0] as f64 / wage) as f32);
-                if wanted <= 1e-6 {
+                if wanted <= MIN_ASSIGNMENT_WORKER_MONTHS {
                     break;
                 }
                 // f32 cash can leave an unpayable sub-cent remainder. Do not
@@ -175,7 +182,7 @@ impl History {
                             .commitment
                             .ok_or_else(|| anyhow::anyhow!("missing merchant commitment"))?;
                         pool.settle(commitment, used)?;
-                        if used + 1e-6 < work.receipt.granted as f32 {
+                        if used + RELEASE_TOLERANCE_WORKER_MONTHS < work.receipt.granted as f32 {
                             pool.commitments[commitment as usize].cancellation = Some(
                                 "assigned crew no longer present; prepaid wages retained".into(),
                             );
@@ -250,9 +257,11 @@ pub(crate) fn validate_crews(shipping: &Shipping, h: &History) -> Result<()> {
                                 && c.site == port.site
                                 && c.people.len() == 1
                                 && c.people[0].0 == work.person
-                                && work.receipt.granted <= c.granted as f64 + 1e-6
+                                && work.receipt.granted
+                                    <= c.granted as f64 + RECEIPT_TOLERANCE_WORKER_MONTHS
                                 && c.settled == work.receipt.settled
-                                && (c.used as f64 - work.receipt.used).abs() < 1e-6,
+                                && (c.used as f64 - work.receipt.used).abs()
+                                    < RECEIPT_TOLERANCE_WORKER_MONTHS,
                             "merchant crew commitment mismatch"
                         );
                     }
@@ -270,7 +279,7 @@ pub(crate) fn validate_crews(shipping: &Shipping, h: &History) -> Result<()> {
                         })
                         .sum();
                     ensure!(
-                        (work - vessel.funded_work as f64).abs() < 1e-5,
+                        (work - vessel.funded_work as f64).abs() < FLEET_TOLERANCE_WORKER_MONTHS,
                         "merchant crew capacity mismatch"
                     );
                 }

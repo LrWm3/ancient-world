@@ -30,6 +30,8 @@ semantic extraction pass (further shared-policy reconciliation may still apply):
 - `src/heritage_renown.rs`
 - `src/offices/service.rs`
 - `src/institution_succession.rs`
+- `src/vessels.rs`
+- `src/vessels/crews.rs`
 - `src/vessels/resolution.rs`
 - `src/tool_access.rs` (reviewed; remaining literals are indices, identities and numeric bounds)
 
@@ -121,8 +123,6 @@ than blindly moved out of their types or layout checks.
 - `src/systems.rs`
 - `src/territory.rs`
 - `src/trade_contact.rs`
-- `src/vessels/crews.rs`
-- `src/vessels.rs`
 - `src/viewer.rs`
 - `src/workshop_resolution.rs`
 
@@ -165,3 +165,16 @@ This batch passed three institutional succession tests (including GPU recovery),
 the crew forecast fixture, and 149 ordinary library tests. The subsequent merchant
 productivity change passed seven vessel tests and 150 library tests; it is a
 separate behavioral commit, not part of the constants-only extraction.
+
+## Vessel service batch (2026-09-12)
+
+Extracted vessel backing materials, hull cap, cargo service rates, standby staffing,
+voyage completion and load floors. Named and aggregate crews now reference the same
+vessel-owned staffing target, wage multiplier and price floor. Crew matching, release
+and receipt tolerances retain their original f32/f64 types and values. Independent
+test expectations remain literal; no arithmetic reassociation or tuning is intended.
+
+Verification: seven vessel tests passed, including the GPU crew fixtures; the
+ordinary library suite passed 151 tests (130 remain explicitly ignored). Strict
+all-target Clippy also passed. This batch advances the file checklist, not the
+entire repository cleanup. Generated logs remain under ignored `output/`.

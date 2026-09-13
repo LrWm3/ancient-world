@@ -2,6 +2,19 @@
 //! Hull material remains in Port::assets: vessel records never duplicate that inventory.
 use crate::{civilization::History, household_economy::withdraw};
 use serde::{Deserialize, Serialize};
+
+const CREW_WORK_PER_VESSEL_MONTH: f32 = 0.25;
+const VESSEL_CARGO_CAPACITY_KG: f32 = 250.;
+const CREW_WAGE_FOOD_MULTIPLIER: f64 = 18.;
+const MIN_CREW_FOOD_PRICE: f32 = 0.01;
+const VOYAGE_COMPLETION_TOLERANCE_MONTHS: f32 = 1e-4;
+const MIN_LOAD_FOR_STAFFING_KG: f32 = 0.001;
+const HULL_TIMBER_KG: f32 = 50.;
+const HULL_EQUIPMENT_KG: f32 = 2.5;
+const MAX_PORT_HULLS: f32 = 4.;
+const CARGO_KG_PER_WORKER_MONTH: f32 = 1000.;
+const STANDBY_CREW_WORKER_MONTHS: f32 = 0.1;
+
 mod crews;
 mod resolution;
 pub(crate) use crews::validate_crews;
@@ -40,7 +53,7 @@ impl VoyageClock {
         if month == self.month.saturating_add(1) {
             self.remaining = (self.remaining - staffing.clamp(0., 1.)).max(0.);
             // f32 payroll transfers may leave a few millionths of an interval unpaid.
-            if self.remaining < 1e-4 {
+            if self.remaining < VOYAGE_COMPLETION_TOLERANCE_MONTHS {
                 self.remaining = 0.;
             }
         }
@@ -68,7 +81,7 @@ impl Fleet {
             .map(|v| {
                 let service =
                     v.funded_work + v.crew.iter().map(CrewWork::extra_service).sum::<f32>();
-                250. * (service / 0.25).clamp(0., 1.)
+                VESSEL_CARGO_CAPACITY_KG * (service / CREW_WORK_PER_VESSEL_MONTH).clamp(0., 1.)
             })
             .sum()
     }
@@ -110,7 +123,8 @@ impl History {
                 let port = &shipping.ports[id as usize];
                 // Archives/configurations without the vessel subsystem retain scheduled travel.
                 let funded = port.fleet.as_ref().map_or(1., |fleet| {
-                    (fleet.capacity() / loads[id as usize].max(0.001)).clamp(0., 1.)
+                    (fleet.capacity() / loads[id as usize].max(MIN_LOAD_FOR_STAFFING_KG))
+                        .clamp(0., 1.)
                 });
                 fraction.min(funded)
             });
@@ -177,10 +191,10 @@ impl History {
             if self.sites[site].abandoned || port.commissioned.is_none() || port.flood_months > 0 {
                 continue;
             }
-            let hulls = (port.assets[0] / 50.)
-                .min(port.assets[1] / 2.5)
+            let hulls = (port.assets[0] / HULL_TIMBER_KG)
+                .min(port.assets[1] / HULL_EQUIPMENT_KG)
                 .floor()
-                .clamp(0., 4.) as usize;
+                .clamp(0., MAX_PORT_HULLS) as usize;
             // Existing identities remain laid up when backing material or workers are missing.
             while fleet.vessels.len() < hulls {
                 let id = fleet.vessels.len() as u32;
@@ -203,8 +217,13 @@ impl History {
                 self.event("vessel_commissioned",Some(port.site),None,
                     format!("{name} entered the port fleet; 50 kg timber and 2.5 kg equipment already held in port assets back its hull"));
             }
-            let target = (loads[port_index] / 1000. + if committed_only { 0. } else { 0.1 })
-                .min(hulls as f32 * 0.25);
+            let target = (loads[port_index] / CARGO_KG_PER_WORKER_MONTH
+                + if committed_only {
+                    0.
+                } else {
+                    STANDBY_CREW_WORKER_MONTHS
+                })
+            .min(hulls as f32 * CREW_WORK_PER_VESSEL_MONTH);
             fleet.requested_work = target;
             let window = usize::from(!committed_only);
             let opening_work = fleet.work() as f64;
@@ -224,9 +243,9 @@ impl History {
                     labor: crate::labor::available(&self.sites[site], true, self.living.is_some())
                         as f64,
                     affordable: self.sites[site].economy.finance[0].max(0.) as f64
-                        / (18.
-                            * self.sites[site].economy.prices[crate::economy::FOOD].max(0.01)
-                                as f64),
+                        / (CREW_WAGE_FOOD_MULTIPLIER
+                            * self.sites[site].economy.prices[crate::economy::FOOD]
+                                .max(MIN_CREW_FOOD_PRICE) as f64),
                     opening_work,
                     granted: 0.,
                 });
@@ -258,9 +277,10 @@ impl History {
             let s = &mut self.sites[site];
             let mut work_left = crate::labor::available(s, true, self.living.is_some())
                 .min((target - fleet.work()).max(0.));
-            let wage = 18. * s.economy.prices[crate::economy::FOOD].max(0.01) as f64;
+            let wage = CREW_WAGE_FOOD_MULTIPLIER
+                * s.economy.prices[crate::economy::FOOD].max(MIN_CREW_FOOD_PRICE) as f64;
             for (v, &hh) in fleet.vessels.iter_mut().take(hulls).zip(&ids) {
-                let work = (0.25 - v.funded_work)
+                let work = (CREW_WORK_PER_VESSEL_MONTH - v.funded_work)
                     .max(0.)
                     .min(work_left)
                     .min((s.economy.finance[0] as f64 / wage) as f32);
