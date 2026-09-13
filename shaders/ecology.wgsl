@@ -11,6 +11,23 @@ struct Params {dims:vec4<u32>,physical:vec4<f32>,counts:vec4<u32>,options:vec4<u
 @group(0) @binding(6) var<storage,read_write> river_out:array<vec4<f32>>;
 @group(0) @binding(7) var<uniform> p:Params;
 const NONE:u32=0xffffffffu;
+// Producer habitat selection and bounded community competition.
+const ECO_SCORE_MIN_LAND_FRACTION:f32=.0001;
+const ECO_OUTER_SPECIES_MIN_FRACTION:f32=.5;
+const ECO_MIN_HOST_ROCK_FRACTION:f32=.2;
+const ECO_MIN_THERMAL_RANGE_C:f32=1.;
+const ECO_MIN_CLIMATE_SCORE:f32=.1;
+const ECO_SHADE_SCORE_WEIGHT:f32=.1;
+const ECO_FOOD_ACCESS_FRACTION_SCALE:f32=4.;
+const ECO_INITIAL_COMPETITOR_SHARE:f32=.5;
+const ECO_NEW_PRIMARY_SHARE:f32=.01;
+const ECO_PRIMARY_SHARE_WITH_NEW_SECONDARY:f32=.99;
+const ECO_MIN_COMPETITOR_LIGHT_RESPONSE:f32=.05;
+const ECO_COMPETITION_BIOMASS_OFFSET_KG_M2:f32=.05;
+const ECO_COMPETITION_DISTURBANCE_WEIGHT:f32=.15;
+const ECO_MAX_FITNESS_DIFFERENCE:f32=3.;
+const ECO_MIN_COMPETITOR_SHARE:f32=.0001;
+const ECO_MAX_COMPETITOR_SHARE:f32=.9999;
 // Initial inventories and inherited thermal preferences.
 const ECO_TERRESTRIAL_THERMAL_TOLERANCE_C:f32=15.;
 const ECO_FOUNDER_THERMAL_VARIATION_C:f32=8.;
@@ -177,12 +194,12 @@ fn producer_environment(e:Env,k:u32)->Env {
 }
 fn plant_score(e:Env,k:u32,j:u32)->f32 {
  if j>=p.counts.w {return 0.;}let t=catalog[plants_offset()+j];
- let outer=e.fields[0].w/max(land(e),.0001);
- if u32(t.c.x)!=k || (t.ids.x==1u&&outer<.5) {return 0.;}
+ let outer=e.fields[0].w/max(land(e),ECO_SCORE_MIN_LAND_FRACTION);
+ if u32(t.c.x)!=k || (t.ids.x==1u&&outer<ECO_OUTER_SPECIES_MIN_FRACTION) {return 0.;}
  if e.fields[1].x<t.a.x||e.fields[1].x>t.a.y||e.fields[1].y<t.a.z||e.fields[1].y>t.a.w||e.fields[6].w<t.b.x {return 0.;}
- if t.ids.y<3u&&e.fields[6][t.ids.y]<.2 {return 0.;}
- let climate=clamp(1.-abs(e.fields[1].x-(t.a.x+t.a.y)*.5)/max(t.a.y-t.a.x,1.),.1,1.);
- return (t.b.y*(1.+t.d.x*e.fields[2].x)+t.d.z*.1)*climate;
+ if t.ids.y<3u&&e.fields[6][t.ids.y]<ECO_MIN_HOST_ROCK_FRACTION {return 0.;}
+ let climate=clamp(1.-abs(e.fields[1].x-(t.a.x+t.a.y)*.5)/max(t.a.y-t.a.x,ECO_MIN_THERMAL_RANGE_C),ECO_MIN_CLIMATE_SCORE,1.);
+ return (t.b.y*(1.+t.d.x*e.fields[2].x)+t.d.z*ECO_SHADE_SCORE_WEIGHT)*climate;
 }
 fn select_except(e:Env,k:u32,excluded:u32)->u32 {
  var best=0.;var chosen=NONE;
@@ -192,8 +209,8 @@ fn select_except(e:Env,k:u32,excluded:u32)->u32 {
 fn select_plant(e:Env,k:u32)->u32 {return select_except(e,k,NONE);}
 // Diet access is local: terrestrial prey require land, aquatic prey require water.
 fn food_access(e:Env,prey:u32)->f32 {
- if prey==13u||prey==14u||prey==15u||prey==22u||prey==23u {return min(1.,water(e)*4.);}
- return min(1.,land(e)*4.);
+ if prey==13u||prey==14u||prey==15u||prey==22u||prey==23u {return min(1.,water(e)*ECO_FOOD_ACCESS_FRACTION_SCALE);}
+ return min(1.,land(e)*ECO_FOOD_ACCESS_FRACTION_SCALE);
 }
 // A bounded replicator model changes composition inside one conserved layer pool.
 // Shared production uses weighted traits, so competitors do not each receive a full energy budget.
@@ -204,15 +221,15 @@ fn community(e:Env,k:u32,old:vec4<f32>,energy:f32,biomass:f32,nutrients:vec2<f32
  if old.w>0.&&u32(old.y)-1u!=first&&plant_score(e,k,u32(old.y)-1u)>0. {second=u32(old.y)-1u;}
  if p.abundance.y<.5 {second=NONE;}
  if second==NONE {return vec4(f32(first+1u),0.,1.,1.);}
- var fraction=select(.5,old.z,old.w>0.);
- if old.w>0.&&u32(old.x)!=first+1u {fraction=.01;}
- if old.w>0.&&u32(old.y)!=second+1u {fraction=.99;}
+ var fraction=select(ECO_INITIAL_COMPETITOR_SHARE,old.z,old.w>0.);
+ if old.w>0.&&u32(old.x)!=first+1u {fraction=ECO_NEW_PRIMARY_SHARE;}
+ if old.w>0.&&u32(old.y)!=second+1u {fraction=ECO_PRIMARY_SHARE_WITH_NEW_SECONDARY;}
  let a=catalog[plants_offset()+first];let b=catalog[plants_offset()+second];
- let light=select(max(a.d.z,.05),1.,k==0u||k==5u);
- let other_light=select(max(b.d.z,.05),1.,k==0u||k==5u);
- let fit_a=min(energy*a.b.y*light,min(nutrients.x/a.c.y,nutrients.y/a.c.z)/p.physical.y)/max(biomass+.05,.05)-a.c.w-a.d.w*.15;
- let fit_b=min(energy*b.b.y*other_light,min(nutrients.x/b.c.y,nutrients.y/b.c.z)/p.physical.y)/max(biomass+.05,.05)-b.c.w-b.d.w*.15;
- fraction=clamp(fraction+p.physical.y*fraction*(1.-fraction)*clamp(fit_a-fit_b,-3.,3.),.0001,.9999);
+ let light=select(max(a.d.z,ECO_MIN_COMPETITOR_LIGHT_RESPONSE),1.,k==0u||k==5u);
+ let other_light=select(max(b.d.z,ECO_MIN_COMPETITOR_LIGHT_RESPONSE),1.,k==0u||k==5u);
+ let fit_a=min(energy*a.b.y*light,min(nutrients.x/a.c.y,nutrients.y/a.c.z)/p.physical.y)/max(biomass+ECO_COMPETITION_BIOMASS_OFFSET_KG_M2,ECO_COMPETITION_BIOMASS_OFFSET_KG_M2)-a.c.w-a.d.w*ECO_COMPETITION_DISTURBANCE_WEIGHT;
+ let fit_b=min(energy*b.b.y*other_light,min(nutrients.x/b.c.y,nutrients.y/b.c.z)/p.physical.y)/max(biomass+ECO_COMPETITION_BIOMASS_OFFSET_KG_M2,ECO_COMPETITION_BIOMASS_OFFSET_KG_M2)-b.c.w-b.d.w*ECO_COMPETITION_DISTURBANCE_WEIGHT;
+ fraction=clamp(fraction+p.physical.y*fraction*(1.-fraction)*clamp(fit_a-fit_b,-ECO_MAX_FITNESS_DIFFERENCE,ECO_MAX_FITNESS_DIFFERENCE),ECO_MIN_COMPETITOR_SHARE,ECO_MAX_COMPETITOR_SHARE);
  return vec4(f32(first+1u),f32(second+1u),fraction,1.);
 }
 fn mixture(state:vec4<f32>,fallback:Entry)->Entry {

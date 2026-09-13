@@ -681,3 +681,15 @@ budgets and checkpoint continuation, finite hydrogen supply, narrow-habitat
 aggregation, fine-edge CPU/GPU conductance including cube seams, thermal ecotype
 feeding/persistence, and strict all-target Clippy. The two extractions named 41
 shader-owned parameters plus one shared Rust/WGSL encoding parameter.
+
+## Producer selection and community competition
+
+Named 16 additional ecology shader parameters for eligible habitat fractions,
+climate and shade scoring, diet access, initial competitor shares, light response,
+biomass normalization, disturbance cost and bounded composition changes.
+Arithmetic identities, encoded flags and pool/category indices remain inline.
+
+Expanding the names reproduces the previous literal token sequence exactly.
+The GPU identical-competitor fixture and strict all-target Clippy passed:
+competing producers still share one production budget. This is a naming-only change; broader biological cycling
+and transport parameter review remains outstanding.

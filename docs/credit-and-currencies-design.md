@@ -2,8 +2,9 @@
 
 Status: experimental council and commercial credit pilots and bounded shared-
 currency issuance exist behind explicit switches. Bounded restructuring and delayed-
-export negotiation also exist; account closure handling, extended calibration and
-currency exchange remain pending.
+export negotiation and bounded account-estate settlement also exist; legal claim
+succession, post-default recovery, extended calibration and currency exchange
+remain pending.
 See the [implementation record](credit-implementation.md) for evidence and limits.
 These pilots remain opt-in; implementation does not mean their balance gates pass.
 
