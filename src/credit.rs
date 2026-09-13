@@ -19,6 +19,7 @@ pub mod councils;
 pub mod estates;
 pub mod exports;
 pub mod issuance;
+pub mod recovery;
 pub mod restructuring;
 pub mod servicing;
 pub mod state;

@@ -1295,3 +1295,111 @@ fn abandoned_town_treasuries_settle_existing_debt_but_cannot_originate() {
         );
     }
 }
+
+#[test]
+fn default_recovery_preserves_loss_transfers_real_cash_and_cannot_replay() {
+    use ancient_world::credit::recovery::{Reason, Request};
+    use ancient_world::credit::{Account, RepaymentSource, Status, Terms, SHARED_CURRENCY};
+    let mut h = network();
+    for s in &mut h.sites {
+        s.economy.finance = [0.; 4];
+    }
+    h.sites[0].economy.finance = [100., 100., 0., 0.];
+    h.sites[2].economy.finance = [10., 10., 0., 0.];
+    let loan = h
+        .commit_credit_loan(
+            Terms {
+                lender: Account::Town(0),
+                borrower: Account::Town(1),
+                currency: SHARED_CURRENCY,
+                source: RepaymentSource::Export {
+                    contract: 0,
+                    payment_month: 11,
+                },
+                annual_simple_rate: 0.12,
+                maturity_month: 12,
+                grace_months: 0,
+            },
+            25.,
+        )
+        .unwrap()
+        .unwrap();
+    let request = |id, month, allowance| Request {
+        id,
+        month,
+        loan,
+        allowance,
+        reason: Reason::DelayedProceeds,
+    };
+    let unchanged = serde_json::to_value(&h).unwrap();
+    assert!(h.recover_defaulted_credit(request(0, 0, 5.)).is_err());
+    assert_eq!(unchanged, serde_json::to_value(&h).unwrap());
+    h.month = 12;
+    h.credit.loans[0].accrue_to(12).unwrap();
+    h.credit.loans[0].write_off(12).unwrap();
+    let original = serde_json::to_value(&h.credit.loans[0]).unwrap();
+    // Retained abandoned accounts can settle without becoming operating towns.
+    h.sites[0].abandoned = true;
+    h.sites[1].abandoned = true;
+    assert_eq!(h.recover_defaulted_credit(request(0, 12, 5.)).unwrap(), 5.);
+    assert_eq!(h.credit.recoveries[0].transfer.interest, 3.);
+    assert_eq!(h.credit.recoveries[0].transfer.principal, 2.);
+    h.validate_credit().unwrap();
+    assert!(h.economy_residuals()[3].abs() < 1e-12);
+    let before = serde_json::to_value(&h).unwrap();
+    assert!(h.recover_defaulted_credit(request(0, 12, 5.)).is_err());
+    assert_eq!(before, serde_json::to_value(&h).unwrap());
+    let mut resumed: ancient_world::civilization::History = serde_json::from_value(before).unwrap();
+    for world in [&mut h, &mut resumed] {
+        world.month = 13;
+        // Only twenty cash remains although the unrecovered loss is twenty-three.
+        assert_eq!(
+            world
+                .recover_defaulted_credit(request(1, 13, 100.))
+                .unwrap(),
+            20.
+        );
+        assert_eq!(
+            world
+                .recover_defaulted_credit(request(2, 13, 100.))
+                .unwrap(),
+            0.
+        );
+        world.month = 14;
+        // A subsequent transfer from another existing treasury funds the remainder.
+        assert_eq!(
+            world
+                .transfer_credit_cash(Account::Town(2), Account::Town(1), SHARED_CURRENCY, 3., 0.)
+                .unwrap()
+                .amount(),
+            3.
+        );
+        assert_eq!(
+            world
+                .recover_defaulted_credit(request(3, 14, 100.))
+                .unwrap(),
+            3.
+        );
+        assert_eq!(
+            world
+                .recover_defaulted_credit(request(4, 14, 100.))
+                .unwrap(),
+            0.
+        );
+        assert_eq!(
+            serde_json::to_value(&world.credit.loans[0]).unwrap(),
+            original
+        );
+        assert_eq!(world.credit.loans[0].status, Status::Defaulted);
+        assert_eq!(world.credit.loans[0].total_due(), 0.);
+        world.validate_credit().unwrap();
+        assert!(world.economy_residuals()[3].abs() < 1e-12);
+    }
+    assert_eq!(
+        serde_json::to_value(&h).unwrap(),
+        serde_json::to_value(&resumed).unwrap()
+    );
+    let mut corrupt = h.clone();
+    corrupt.credit.recoveries[1].transfer.principal += 1.;
+    assert!(corrupt.validate_credit().is_err());
+}

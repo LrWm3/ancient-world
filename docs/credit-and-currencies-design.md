@@ -3,7 +3,7 @@
 Status: experimental council and commercial credit pilots and bounded shared-
 currency issuance exist behind explicit switches. Bounded restructuring and delayed-
 export negotiation and bounded account-estate settlement also exist; legal claim
-succession, post-default recovery, extended calibration and currency exchange
+succession, automatic recovery policies, extended calibration and currency exchange
 remain pending.
 See the [implementation record](credit-implementation.md) for evidence and limits.
 These pilots remain opt-in; implementation does not mean their balance gates pass.
@@ -181,8 +181,9 @@ abandonment. [Closed operator accounts](operator-credit-estates.md) now retain
 cash for borrowing claims, repay proportionally using existing early-repayment
 terms, and return residual cash to the existing owner. They can receive later
 repayments without reopening the enterprise. Unpaid claims keep their maturity
-and grace/default rules; post-default recovery and general legal succession
-remain pending.
+and grace/default rules. Explicit post-default recovery is now available through
+the separate settlement API; automatic recovery policy and general legal
+succession remain pending.
 
 [Institutional estates](institution-credit-estates.md) now retain shutdown cash
 for the same claim settlement, with only actual residual transfers going to the
@@ -222,7 +223,8 @@ closure, institution relocation versus dissolution, and a council leader change.
 Test cash and claims independently: an assigned receivable is not spendable money,
 and a write-off does not erase cash already returned to an owner. Town settlement
 and bounded operator/institution estate mechanisms cover part of this boundary;
-they do not complete legal claim assignment or post-default recovery.
+they do not complete legal claim assignment or automatic post-default recovery
+allocation.
 
 ## Stage 1B: bounded shared-currency issuance
 
@@ -366,3 +368,12 @@ Keep implementation increments independently reviewable. Generated trajectories
 and raw results belong under ignored `output/`; commit source and Markdown
 summaries only. Council credit, commercial credit and shared issuance are opt-in pilots;
 distinct currencies and exchange remain unimplemented.
+
+
+### Post-default recovery foundation
+
+The [explicit recovery operation](credit-default-recovery.md) now transfers
+authorized cash against a recorded default loss without reopening debt, accruing
+new interest or erasing default history. Dated replay-safe receipts retain both
+account deltas. Automatic windfall/estate recovery allocation and legal claim
+assignment remain pending; the broader closure/succession checklist stays open.

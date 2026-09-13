@@ -109,6 +109,10 @@ def main():
                               precision_settled=sum(l["status"] == "PrecisionSettled" for l in loans),
                               precision_writeoff=sum(e["principal"] + e["interest"] for l in loans
                                                      for e in l["entries"] if e["kind"] == "PrecisionWriteOff"),
+                              recovered_principal=sum(r["transfer"]["principal"]
+                                  for r in history["credit"].get("recoveries", [])),
+                              recovered_interest=sum(r["transfer"]["interest"]
+                                  for r in history["credit"].get("recoveries", [])),
                               issued=sum(r["issued"] for r in history["credit"]["issuance"]["receipts"]),
                               history_sha256=digest(archive))
             results.append(result)

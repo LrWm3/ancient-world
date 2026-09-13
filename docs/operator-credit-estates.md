@@ -40,8 +40,10 @@ windows can only spend cash then available; they do not restore production time.
 An insolvent estate does not automatically erase its remaining debt at closure.
 It retains the original maturity, interest and grace/default rules. Incoming
 receivables can therefore still service its obligations. A defaulted claim keeps
-its loss record; post-default recovery and general bankruptcy priority are not
-implemented here. Institutional closure uses the same pass, with a separate exclusion for
+its loss record. A separate [explicit recovery API](credit-default-recovery.md)
+can return authorized cash after default; this estate pass does not automatically
+allocate recovery payments or implement general bankruptcy priority.
+Institutional closure uses the same pass, with a separate exclusion for
 institutions temporarily inactive during relocation.
 
 ## Verification

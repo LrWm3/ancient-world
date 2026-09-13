@@ -620,3 +620,11 @@ town-level forecast across eligible receipts instead of subtracting the whole
 forecast from each. Single-source behavior and all underwriting margins remain
 unchanged. This fixes duplicated costs, not the broader planned-versus-committed
 expense distinction.
+
+## Explicit default recoveries
+
+[Default recovery](credit-default-recovery.md) records voluntary/authorized
+post-default returns separately from ordinary repayments. Original loan losses
+and default exclusion remain intact. The API uses original counterparties,
+bounded actual cash and replay-safe requests; automatic recovery policy and
+claim succession remain unfinished.
