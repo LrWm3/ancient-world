@@ -237,6 +237,8 @@ def main():
                         help="add credit and combined arms with late-export recovery enabled")
     parser.add_argument("--service-order-procurement", action="store_true",
                         help="hold funded procurement on in every arm; add service lending in credit arms")
+    parser.add_argument("--contract-workshop-staffing", action="store_true",
+                        help="include due service contracts in shift demand in every arm")
     parser.add_argument("--service-procurement-share", type=procurement_share,
                         help="same surplus budget fraction (0–1) in every arm; requires procurement")
     parser.add_argument("--crop-yield-scale", type=float,
@@ -279,6 +281,7 @@ def main():
         "crop_yield_scale_override": args.crop_yield_scale,
         "common_payment_policy": "delivery",
         "service_order_procurement": args.service_order_procurement,
+        "contract_workshop_staffing": args.contract_workshop_staffing,
         "service_procurement_share_override": args.service_procurement_share,
         "compare_export_recovery": args.compare_export_recovery,
         "compare_institution_lenders": args.compare_institution_lenders,
@@ -296,6 +299,7 @@ def main():
                        "--history-years", str(args.years), "--delivery-paid-exports",
                        f"--commercial-credit={str(credit).lower()}",
                        f"--service-order-procurement={str(args.service_order_procurement).lower()}",
+                       f"--contract-workshop-staffing={str(args.contract_workshop_staffing).lower()}",
                        f"--service-order-credit={str(credit and args.service_order_procurement).lower()}",
                        f"--council-credit={str(credit).lower()}",
                        f"--shared-issuance={str(issuance).lower()}",

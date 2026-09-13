@@ -141,8 +141,10 @@ delivery should close their evidence gaps before expanding the monetary model:
    and no loans. The [smaller-share comparison](service-procurement-share-comparison.md)
    barely changes outcomes. The [execution observations](service-order-shortfall-observations.md)
    show funded labor in every zero-output case and a mismatch between contracted
-   work and staffed shifts. Test contract-aware shift requests and production
-   constraints next, then more seeds and longer intervals. Retain procurement in all credit arms and
+   work and staffed shifts. The [contract-aware shift pilot](contract-aware-workshop-staffing.md)
+   now connects those requests under existing cash and labor caps. Compare its
+   effects and production constraints next, then more seeds and longer intervals.
+   Retain procurement in all credit arms and
    separately compare ordinary invoicing. The deliberately valuable fixture
    contract does not establish a balance benefit.
 3. **Test lender costs as well as borrower benefits.** Compare council and

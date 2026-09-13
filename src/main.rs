@@ -88,6 +88,9 @@ struct Args {
     /// Reserve surplus town cash for next-month workshop service orders.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     service_order_procurement: Option<bool>,
+    /// Include due service contracts in desired workshop shifts; cash and worker caps remain.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    contract_workshop_staffing: Option<bool>,
     /// Override the fraction of surplus town cash available to service procurement (0–1).
     /// Does not itself enable procurement; omission preserves the archived share.
     #[arg(long, value_parser = parse_procurement_share)]
@@ -198,6 +201,7 @@ fn main() -> Result<()> {
                 && args.commercial_credit.is_none()
                 && args.service_order_credit.is_none()
                 && args.service_order_procurement.is_none()
+                && args.contract_workshop_staffing.is_none()
                 && args.service_procurement_share.is_none()
                 && args.export_default_recovery.is_none()
                 && args.shared_issuance.is_none()
@@ -430,6 +434,17 @@ fn main() -> Result<()> {
             .procurement
             .enabled = enabled;
     }
+    if let Some(enabled) = args.contract_workshop_staffing {
+        generator
+            .civilizations
+            .as_mut()
+            .context("contract workshop staffing requires a history")?
+            .enterprises
+            .as_mut()
+            .context("contract workshop staffing requires enterprises")?
+            .procurement
+            .contract_staffing = enabled;
+    }
     if let Some(share) = args.service_procurement_share {
         generator
             .civilizations
@@ -577,6 +592,26 @@ mod args_tests {
         ] {
             let args = Args::try_parse_from(args).unwrap();
             assert_eq!(args.service_order_procurement, expected);
+            assert_eq!(args.service_order_credit, None);
+        }
+    }
+
+    #[test]
+    fn contract_staffing_override_preserves_omission_and_independent_policies() {
+        for (arguments, expected) in [
+            (vec!["ancient-world"], None),
+            (
+                vec!["ancient-world", "--contract-workshop-staffing"],
+                Some(true),
+            ),
+            (
+                vec!["ancient-world", "--contract-workshop-staffing=false"],
+                Some(false),
+            ),
+        ] {
+            let args = Args::try_parse_from(arguments).unwrap();
+            assert_eq!(args.contract_workshop_staffing, expected);
+            assert_eq!(args.service_order_procurement, None);
             assert_eq!(args.service_order_credit, None);
         }
     }

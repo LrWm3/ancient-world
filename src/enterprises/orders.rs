@@ -15,6 +15,9 @@ const PROCUREMENT_SURPLUS_SHARE: f64 = 0.25;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Procurement {
     pub enabled: bool,
+    /// Include due escrowed work in shift demand; existing cash/labor caps still apply.
+    #[serde(default)]
+    pub contract_staffing: bool,
     pub cash_reserve: f64,
     pub surplus_share: f64,
     pub last_month: Option<u32>,
@@ -24,6 +27,7 @@ impl Default for Procurement {
     fn default() -> Self {
         Self {
             enabled: false,
+            contract_staffing: false,
             cash_reserve: PROCUREMENT_CASH_RESERVE,
             surplus_share: PROCUREMENT_SURPLUS_SHARE,
             last_month: None,

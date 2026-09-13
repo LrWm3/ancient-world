@@ -576,6 +576,14 @@ impl History {
             .collect();
         let mut requests = vec![[0.; 4]; self.sites.len()];
         let mut desired_work = vec![0.; enterprises.firms.len()];
+        let mut contracted_work = vec![0_f64; enterprises.firms.len()];
+        if enterprises.procurement.contract_staffing {
+            for order in &enterprises.orders {
+                if order.settled.is_none() && order.due == self.month {
+                    contracted_work[order.firm as usize] += order.funded_work;
+                }
+            }
+        }
         for f in enterprises.firms.iter_mut().filter(|f| f.closed.is_none()) {
             let site = f.site as usize;
             let family = f.family as usize;
@@ -608,7 +616,8 @@ impl History {
                     (town.economy.workshop_types[family][2] as f64
                         * lease_share
                         * SHIFT_DEMONSTRATED_HEADROOM)
-                        .max(MIN_SHIFT_WORKER_MONTHS),
+                        .max(MIN_SHIFT_WORKER_MONTHS)
+                        .max(contracted_work[f.id as usize]),
                 )
                 .min(capacities[site]);
             desired_work[f.id as usize] = desired;
@@ -1651,6 +1660,37 @@ mod tests {
             .unwrap()
             .validate(&corrupt)
             .is_err());
+        // A due contract can lift the demonstrated-work floor, but cannot spend
+        // escrow as wages or bypass the ordinary workforce budget.
+        let mut request_base = h.clone();
+        request_base.month = 4;
+        let family =
+            request_base.enterprises.as_ref().unwrap().firms[firm as usize].family as usize;
+        request_base.sites[site].economy.workshop_types[family][2] = 0.;
+        let mut request_contract = request_base.clone();
+        request_contract
+            .enterprises
+            .as_mut()
+            .unwrap()
+            .procurement
+            .contract_staffing = true;
+        for world in [&mut request_base, &mut request_contract] {
+            world.begin_service_reservations();
+            world.prepare_enterprises();
+            assert!((world.money_residual() - money).abs() < 1e-6);
+            let e = world.enterprises.as_ref().unwrap();
+            assert!(e.orders.iter().all(|o| o.paid == 0.));
+        }
+        let base = &request_base.enterprises.as_ref().unwrap().firms[firm as usize];
+        let contract = &request_contract.enterprises.as_ref().unwrap().firms[firm as usize];
+        assert!(contract.last_requested_work > base.last_requested_work);
+        assert!(contract.last_funded_work <= contract.last_requested_work);
+        // Also exercise the enabled policy through actual GPU execution and resume.
+        h.enterprises
+            .as_mut()
+            .unwrap()
+            .procurement
+            .contract_staffing = true;
         let path =
             std::env::temp_dir().join(format!("service-procurement-{}.world", std::process::id()));
         g.save(&path).unwrap();
