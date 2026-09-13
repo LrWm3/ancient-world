@@ -74,15 +74,27 @@ impl History {
             if self.sites[buyer].abandoned {
                 continue;
             }
-            for source in 0..self.sites.len() {
-                if !self.sites[source].abandoned {
-                    continue;
-                }
-                // Rotate goods to prevent a permanent material priority.
-                for step in 0..GOODS {
-                    let good = (step + self.month as usize) % GOODS;
-                    let _ =
-                        self.recover_abandoned_stock(buyer as u32, source as u32, good, f32::MAX);
+            // Finished goods get first access across all estates. Raw tool
+            // inputs then see those committed deliveries and cannot buy the same
+            // service deficit again in this boundary.
+            for inputs in [false, true] {
+                for source in 0..self.sites.len() {
+                    if !self.sites[source].abandoned {
+                        continue;
+                    }
+                    // Rotate within each class rather than permanently ranking materials.
+                    for step in 0..GOODS {
+                        let good = (step + self.month as usize) % GOODS;
+                        if matches!(good, 32..=40) != inputs {
+                            continue;
+                        }
+                        let _ = self.recover_abandoned_stock(
+                            buyer as u32,
+                            source as u32,
+                            good,
+                            f32::MAX,
+                        );
+                    }
                 }
             }
         }
@@ -215,9 +227,29 @@ impl History {
             home.economy.targets[good]
         };
         let price = ruin.economy.prices[good].max(MIN_RECOVERY_PRICE);
+        let mut expected = [0.; GOODS];
+        for c in self.cargo.iter().filter(|c| c.to == buyer) {
+            expected[c.good as usize] += c.kg;
+        }
+        for c in self.export_contracts.iter().filter(|c| c.buyer == buyer) {
+            expected[c.good as usize] += c.planned_kg.max(0.);
+        }
+        let input_demand = if price <= home.economy.prices[good].max(MIN_RECOVERY_PRICE) {
+            crate::production::recovery_tool_input_demand(
+                catalog,
+                &home.economy,
+                home.stocks.stock[0],
+                expected,
+                good,
+                stock,
+            )
+        } else {
+            0.
+        };
         let mut space = (target - held - incoming)
             .max(0.)
-            .max(self.recovery_tool_demand(buyer, good, price));
+            .max(self.recovery_tool_demand(buyer, good, price))
+            .max(input_demand);
         if good != FOOD && catalog.goods[good].food_energy <= 0. {
             let dry: f32 = home
                 .economy
@@ -455,6 +487,53 @@ mod tests {
         substitutes.market_arrivals();
         assert_eq!(substitutes.sites[0].economy.goods[43], recovered);
         assert!(substitutes.recover_abandoned_stock(0, 1, 41, 100.).is_err());
+        let mut ore = before.clone();
+        ore.economy_catalog
+            .as_mut()
+            .unwrap()
+            .add_alloy_chains(&crate::catalog::Catalog::bundled().unwrap())
+            .unwrap();
+        ore.sites[0].economy.extraction[1] = 1.;
+        ore.sites[0].economy.management[3] = 4095.;
+        ore.sites[0].economy.goods[3] = 70.;
+        ore.sites[0].economy.goods[6] = 100.;
+        ore.sites[0].economy.workshop_types[1][2] = 2.;
+        ore.sites[0].economy.targets[36] = 0.;
+        ore.sites[0].economy.prices[36] = 4.;
+        ore.sites[1].economy.goods[36] = 100.;
+        ore.sites[1].economy.prices[36] = 2.;
+        let mut prefer_finished = ore.clone();
+        prefer_finished.society.as_mut().unwrap().stock_recovery = true;
+        prefer_finished.sites[1].economy.goods.fill(0.);
+        prefer_finished.sites[1].economy.goods[36] = 100.;
+        prefer_finished.sites[1].economy.goods[43] = 100.;
+        prefer_finished.sites[1].economy.prices[43] = 1.;
+        prefer_finished.sites[0].economy.prices[3] = 10.;
+        prefer_finished.sites[0].economy.targets.fill(0.);
+        // Month 36 would visit malachite first in the old single rotating pass.
+        prefer_finished.month = 36;
+        prefer_finished.recover_abandoned_stocks();
+        assert!(prefer_finished.cargo.iter().any(|c| c.good == 43));
+        assert!(!prefer_finished.cargo.iter().any(|c| c.good == 36));
+        assert_eq!(prefer_finished.sites[1].economy.goods[36], 100.);
+        let before_money = ore.money_residual();
+        let kg = ore.recover_abandoned_stock(0, 1, 36, 100.).unwrap();
+        assert!((kg - 5. / (0.456 * 0.6)).abs() < 0.001);
+        assert_eq!(ore.sites[0].economy.goods[36], 0.);
+        assert!((ore.sites[1].economy.goods[36] + kg - 100.).abs() < 0.001);
+        assert!((ore.money_residual() - before_money).abs() < 1e-6);
+        assert!(ore.recover_abandoned_stock(0, 1, 36, 100.).is_err());
+        let mut resumed: History =
+            serde_json::from_slice(&serde_json::to_vec(&ore).unwrap()).unwrap();
+        for h in [&mut ore, &mut resumed] {
+            h.month = 5;
+            h.market_arrivals();
+        }
+        assert_eq!(
+            serde_json::to_vec(&ore).unwrap(),
+            serde_json::to_vec(&resumed).unwrap()
+        );
+        assert!((ore.sites[0].economy.goods[36] - kg).abs() < 0.001);
         let mut automatic = before.clone();
         automatic.recover_abandoned_stocks();
         assert!(automatic.cargo.is_empty());

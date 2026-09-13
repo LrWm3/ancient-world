@@ -341,3 +341,29 @@ exhaustion. Seed 256's registered deposits have no supported metal output, while
 seed 1024 retains metal deposits at declining/abandoned sites. Six audit tests
 pass, including this distinction. Investigate access to finite sources and useful
 transport next; completed infrastructure alone did not solve circulation.
+
+### Stored ore becomes an explicit tool-input offer
+
+The next bounded connection works already extracted ore rather than opening a
+new deposit. Tool planning can use a supported imported-metal chain even when the
+town's own mineral points to another tool type. Recovery can evaluate that chain
+against existing fuel, stocks and pending deliveries, retaining ordinary payment,
+route, inventory and arrival rules. GPU controls require arrival, fuel and workers
+before malachite produces copper/tools; the recovery fixture checks duplicate
+purchases, estate payments and continuation.
+
+The first three-seed screen exposed redundant buying: ore and finished tools were
+reserved for the same deficit, then ore sat unused. Automatic recovery now visits
+finished goods across sources before raw tool inputs. See
+[stored ore and tool planning](recovered-ore-tool-planning.md) for the comparison
+and limits. This is a causal capability, not proof that workshop activity or
+household food access has improved across the ensemble. Unworked deposits and
+the gap between household savings and public import funding remain open.
+
+The final processing-work ceiling reduced seed 1024's idle ore purchase to 1.70 kg
+(4.25 currency), but it remained unused at year 50. Across twelve runs in four
+iterations, the last version left population, hunger and operator work effectively
+unchanged from baseline. The controlled capability is retained under optional stock
+recovery, with its limitations documented; it is not an economic recovery success.
+Next prioritize a funded processing customer or household-backed import demand,
+rather than assuming that additional raw inventory creates either.

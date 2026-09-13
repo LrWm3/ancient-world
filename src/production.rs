@@ -24,6 +24,7 @@ const MIN_MATERIAL_PRICE: f32 = 0.01;
 const MATERIAL_SERVICE_HORIZON_MONTHS: f32 = 120.;
 const INITIAL_CONTAINER_SERVICE_PER_PERSON: f32 = 2.;
 const MIN_PROCUREMENT_KG: f32 = 0.001;
+const RECOVERY_PROCESSING_HORIZON_MONTHS: f32 = 3.;
 const FOOD_SECURITY_RESERVE_MONTHS: f32 = 3.;
 const MIN_FOREST_CARBON_FRACTION: f32 = 0.0001;
 const FACILITY_ORDER_HEADROOM: f32 = 2.;
@@ -212,8 +213,8 @@ impl Planner<'_> {
     }
     fn harbor(&mut self, port: &crate::shipping::Port, population: f32) {
         for (k, good) in crate::shipping::MATERIALS.into_iter().enumerate() {
-            let reserve_gap = (crate::shipping::material_reserve(good, population)
-                - self.targets[good]).max(0.);
+            let reserve_gap =
+                (crate::shipping::material_reserve(good, population) - self.targets[good]).max(0.);
             self.request(good, reserve_gap + port.material_deficit()[k]);
         }
     }
@@ -253,9 +254,49 @@ impl Planner<'_> {
             self.request(g, needed / service);
         }
     }
+    /// Replay only the requested recipe chain against finite projected inputs.
+    /// No labor is promised and no physical inventory is written. Repeated passes
+    /// permit upstream recipes later in the catalog without assuming free inputs.
+    fn supported_chain(&self, good: usize, quantity: f32) -> f32 {
+        let mut plan = self.clone();
+        plan.orders.fill(0.);
+        plan.request(good, quantity);
+        let mut stock = self.available;
+        for (g, held) in stock.iter_mut().enumerate() {
+            *held += (self.extractable[g] - self.targets[g]).max(0.);
+        }
+        let opening = stock[good];
+        for _ in 0..self.catalog.recipes.len() {
+            let mut progressed = false;
+            for (i, r) in self.catalog.recipes.iter().enumerate() {
+                let batches = r
+                    .input
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, q)| **q > 0.)
+                    .map(|(g, q)| stock[g] / q)
+                    .fold(plan.orders[i], f32::min);
+                if batches < MIN_PROCUREMENT_KG {
+                    continue;
+                }
+                plan.orders[i] = (plan.orders[i] - batches).max(0.);
+                for (g, held) in stock.iter_mut().enumerate() {
+                    *held = (*held - batches * r.input[g]).max(0.) + batches * r.output[g];
+                }
+                progressed = true;
+            }
+            if !progressed {
+                break;
+            }
+        }
+        (stock[good] - opening).max(0.).min(quantity)
+    }
     /// Retain useful held substitutes before ordering the remaining tool service.
     /// Targets protect that stock from sale; counting coverage alone does not.
     fn tools(&mut self, selected: usize, service_needed: f32, alloys: bool) {
+        self.tool_plan(selected, service_needed, alloys, true);
+    }
+    fn tool_plan(&mut self, selected: usize, service_needed: f32, alloys: bool, fallback: bool) {
         let mut missing = service_needed.max(0.);
         for (good, service) in [(3, 1.), (41, 1.), (43, COPPER_TOOL_SERVICE_FACTOR)] {
             if good != 3 && !alloys {
@@ -265,12 +306,28 @@ impl Planner<'_> {
             self.request(good, retained);
             missing = (missing - retained * service).max(0.);
         }
+        // A town can work imported metal/ore even when its local deposit is a
+        // different mineral. Prefer supported chains before speculative imports.
+        if alloys {
+            for good in [selected, 3, 41, 43] {
+                let service = if good == 43 {
+                    COPPER_TOOL_SERVICE_FACTOR
+                } else {
+                    1.
+                };
+                let make = self.supported_chain(good, missing / service);
+                self.request(good, make);
+                missing = (missing - make * service).max(0.);
+            }
+        }
         let service = if selected == 43 {
             COPPER_TOOL_SERVICE_FACTOR
         } else {
             1.
         };
-        self.request(selected, missing / service);
+        if fallback {
+            self.request(selected, missing / service);
+        }
     }
     fn construction_quote(&self, e: &crate::economy::Economy) -> crate::economy::Economy {
         let mut quote = *e;
@@ -343,6 +400,64 @@ impl Planner<'_> {
         }
     }
 }
+/// Demand for an offered stored metal input, bounded by an ordinary tool-service
+/// deficit and a recipe chain supported by held/expected supplies. Travel, cash,
+/// storage and source stock are checked by the recovery transaction separately.
+pub(crate) fn recovery_tool_input_demand(
+    catalog: &EconomyCatalog,
+    economy: &crate::economy::Economy,
+    population: f32,
+    expected: [f32; GOODS],
+    good: usize,
+    offered: f32,
+) -> f32 {
+    if !matches!(good, 32..=40) || economy.extraction[1] <= 0.5 || economy.logistics[3] <= 0.5 {
+        return 0.;
+    }
+    let mut available = economy.goods;
+    for g in 0..GOODS {
+        available[g] += expected[g];
+    }
+    let already = available[good];
+    let mut planner = Planner {
+        catalog,
+        available,
+        extractable: [0.; GOODS],
+        targets: [0.; GOODS],
+        orders: [0.; GOODS],
+        visiting: [false; GOODS],
+        knowledge: economy.management[3] as u32,
+    };
+    let desired = population.max(0.) * reserve("tools");
+    planner.tool_plan(3, desired, true, false);
+    let covered =
+        planner.targets[3] + planner.targets[41] + COPPER_TOOL_SERVICE_FACTOR * planner.targets[43];
+    // Use existing inputs first. An offer may meet remaining need, not merely
+    // displace an already supported chain and leave old stock idle.
+    let opening_orders = planner.orders;
+    planner.available[good] += offered.max(0.);
+    planner.tool_plan(3, (desired - covered).max(0.), true, false);
+    let work: f32 = catalog
+        .recipes
+        .iter()
+        .enumerate()
+        .map(|(i, r)| (planner.orders[i] - opening_orders[i]).max(0.) * r.work[0])
+        .sum();
+    let work_budget = RECOVERY_PROCESSING_HORIZON_MONTHS
+        * economy.workshop_types[1][2]
+            .max(economy.enterprise_plan[1])
+            .max(0.);
+    let fraction = if work > 0. {
+        (work_budget / work).min(1.)
+    } else {
+        0.
+    };
+    (planner.targets[good] - already)
+        .max(0.)
+        .min(offered.max(0.))
+        * fraction
+}
+
 impl History {
     pub(crate) fn plan_production(&mut self) {
         let Some(catalog) = self.economy_catalog.as_ref() else {
@@ -595,7 +710,9 @@ impl History {
             // annual installation after ordinary reserves; execution still requires
             // physical materials and leftover work at the annual boundary.
             if e.policy[3] >= 0.5 {
-                if let Some(port) = self.shipping.as_ref()
+                if let Some(port) = self
+                    .shipping
+                    .as_ref()
                     .and_then(|shipping| shipping.ports.iter().find(|p| p.site == s.id))
                 {
                     planner.harbor(port, s.stocks.stock[0]);
@@ -1041,27 +1158,44 @@ mod tests {
     fn harbor_orders_missing_materials_and_protects_construction_reserves() {
         let c = EconomyCatalog::bundled().unwrap();
         let port = crate::shipping::Port {
-            fleet: None, work: None, site: 0, access: vec![], water_cell: 0,
-            access_km: 0., assets: [100., 0., 50.], commissioned: None, flood_months: 0,
+            fleet: None,
+            work: None,
+            site: 0,
+            access: vec![],
+            water_cell: 0,
+            access_km: 0.,
+            assets: [100., 0., 50.],
+            commissioned: None,
+            flood_months: 0,
         };
         let mut empty = planner(&c);
         empty.harbor(&port, 20.);
-        assert_eq!(empty.targets[3], 20., "ten working tools plus ten installed tools");
+        assert_eq!(
+            empty.targets[3], 20.,
+            "ten working tools plus ten installed tools"
+        );
         assert!(empty.orders.iter().sum::<f32>() > 0.);
         // Incoming cargo uses the same available array and suppresses duplicate recipes.
         let mut supplied = planner(&c);
         for (k, good) in crate::shipping::MATERIALS.into_iter().enumerate() {
-            supplied.available[good] = crate::shipping::material_reserve(good, 20.)
-                + port.material_deficit()[k];
+            supplied.available[good] =
+                crate::shipping::material_reserve(good, 20.) + port.material_deficit()[k];
         }
         supplied.harbor(&port, 20.);
         assert_eq!(supplied.orders, [0.; GOODS]);
-        assert_eq!(port.assets, [100., 0., 50.], "planning cannot install materials");
+        assert_eq!(
+            port.assets,
+            [100., 0., 50.],
+            "planning cannot install materials"
+        );
         let mut existing_reserve = planner(&c);
         existing_reserve.available[3] = 100.;
         existing_reserve.request(3, 15.);
         existing_reserve.harbor(&port, 20.);
-        assert_eq!(existing_reserve.targets[3], 25., "do not add the working reserve twice");
+        assert_eq!(
+            existing_reserve.targets[3], 25.,
+            "do not add the working reserve twice"
+        );
     }
     #[test]
     fn containers_mix_supported_materials_without_overfilling_service() {
@@ -1270,6 +1404,77 @@ mod tests {
 #[cfg(test)]
 mod mineral_tests {
     use super::*;
+    #[test]
+    fn recovered_ore_demand_requires_a_supported_tool_chain() {
+        let mut c = EconomyCatalog::bundled().unwrap();
+        c.add_alloy_chains(&crate::catalog::Catalog::bundled().unwrap())
+            .unwrap();
+        let mut e = crate::economy::Economy::default();
+        e.extraction[1] = 1.;
+        e.logistics[3] = 1.;
+        e.management[3] = 4095.;
+        e.goods[3] = 70.;
+        e.goods[6] = 100.;
+        assert_eq!(
+            recovery_tool_input_demand(&c, &e, 100., [0.; GOODS], 36, 100.),
+            0.
+        );
+        e.workshop_types[1][2] = 2.;
+        let demand = recovery_tool_input_demand(&c, &e, 100., [0.; GOODS], 36, 100.);
+        // Malachite -> 0.456 copper per kg -> copper tools at 0.6 service/kg.
+        assert!((demand - 5. / (0.456 * 0.6)).abs() < 0.001, "{demand}");
+        let mut expected = [0.; GOODS];
+        expected[36] = demand;
+        assert!(recovery_tool_input_demand(&c, &e, 100., expected, 36, 100.) < 0.001);
+        assert_eq!(e.goods[36], 0.); // proposal never credits inventory
+        e.goods[38] = 20.;
+        assert_eq!(
+            recovery_tool_input_demand(&c, &e, 100., [0.; GOODS], 36, 100.),
+            0.
+        );
+        e.goods[38] = 0.;
+        e.goods[6] = 0.;
+        assert_eq!(
+            recovery_tool_input_demand(&c, &e, 100., [0.; GOODS], 36, 100.),
+            0.
+        );
+        e.goods[6] = 100.;
+        e.goods[3] = 75.;
+        assert_eq!(
+            recovery_tool_input_demand(&c, &e, 100., [0.; GOODS], 36, 100.),
+            0.
+        );
+        e.goods[3] = 70.;
+        e.extraction[1] = 0.;
+        assert_eq!(
+            recovery_tool_input_demand(&c, &e, 100., [0.; GOODS], 36, 100.),
+            0.
+        );
+    }
+
+    #[test]
+    fn imported_copper_ore_can_change_a_non_copper_towns_tool_plan() {
+        let mut c = EconomyCatalog::bundled().unwrap();
+        c.add_alloy_chains(&crate::catalog::Catalog::bundled().unwrap())
+            .unwrap();
+        let mut p = Planner {
+            catalog: &c,
+            available: [0.; GOODS],
+            extractable: [0.; GOODS],
+            targets: [0.; GOODS],
+            orders: [0.; GOODS],
+            visiting: [false; GOODS],
+            knowledge: u32::MAX,
+        };
+        p.available[36] = 10.;
+        p.available[6] = 100.;
+        p.tools(3, 10., true);
+        assert!((p.targets[43] - 4.56).abs() < 0.001);
+        assert!((p.targets[3] - (10. - 4.56 * 0.6)).abs() < 0.001);
+        assert!((p.targets[36] - 10.).abs() < 0.001);
+        assert!(p.available[36] < 0.001);
+    }
+
     #[test]
     fn locally_extractable_ore_changes_recipe_without_becoming_inventory() {
         let mut c = EconomyCatalog::bundled().unwrap();

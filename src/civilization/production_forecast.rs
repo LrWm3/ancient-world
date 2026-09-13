@@ -689,6 +689,107 @@ mod recipe_allocation_tests {
 
     #[test]
     #[ignore = "requires hardware GPU"]
+    fn recovered_ore_requires_arrival_fuel_and_work_before_becoming_tools() {
+        let mut g = Generator::new(
+            pollster::block_on(crate::gpu::ContextGpu::headless()).unwrap(),
+            crate::config::Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                ..Default::default()
+            },
+            crate::catalog::Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        g.enable_society().unwrap();
+        let mut baseline = g.civilizations.as_ref().unwrap().clone();
+        baseline.politics = None;
+        baseline.living = None;
+        baseline.month = 3;
+        baseline.cargo.clear();
+        let mut catalog = EconomyCatalog::bundled().unwrap();
+        catalog
+            .add_alloy_chains(&crate::catalog::Catalog::bundled().unwrap())
+            .unwrap();
+        // Isolate the actual catalog malachite-smelting and copper-tool recipes.
+        catalog
+            .recipes
+            .retain(|r| r.input[36] > 0. || r.output[43] > 0.);
+        baseline.economy_catalog = Some(catalog);
+        for site in &mut baseline.sites {
+            site.economy = Economy {
+                logistics: [10000., 0., 0., 3.],
+                policy: [0., 0., 0., 1.],
+                extraction: [1., 1., 0., 0.],
+                residue: [0., 0., 10000., 0.],
+                ..Default::default()
+            };
+            site.stocks.stock[0] = 100.;
+        }
+        baseline.sites[1].civilization = baseline.sites[0].civilization;
+        baseline.sites[1].island = baseline.sites[0].island;
+        baseline.sites[1].abandoned = true;
+        baseline.sites[1].stocks.stock[0] = 0.;
+        baseline.sites[1].economy.goods[36] = 100.;
+        baseline.sites[1].economy.prices[36] = 2.;
+        baseline.sites[0].economy.prices[36] = 4.;
+        baseline.sites[0].economy.finance[0] = 1000.;
+        baseline.sites[0].economy.goods[6] = 100.;
+        baseline.sites[0].economy.workshop_types[1][2] = 2.;
+        baseline.society.as_mut().unwrap().routes = vec![crate::society::Route {
+            upkeep: None,
+            id: 0,
+            from: 0,
+            to: 1,
+            cells: vec![baseline.sites[0].cell, baseline.sites[1].cell],
+            cost_km: 150.,
+            open: true,
+            flood_months: 0,
+            road_bricks: 0.,
+        }];
+        for (arrived, fuel, workforce) in [
+            (false, true, true),
+            (true, false, true),
+            (true, true, false),
+            (true, true, true),
+        ] {
+            let mut h = baseline.clone();
+            let kg = h.recover_abandoned_stock(0, 1, 36, 10.).unwrap();
+            assert_eq!(kg, 10.);
+            if arrived {
+                h.month = 5;
+                h.market_arrivals();
+            }
+            h.society = None;
+            let e = &mut h.sites[0].economy;
+            e.orders[0] = 10.;
+            e.orders[1] = 4.56;
+            e.targets[36] = 10.;
+            e.targets[38] = 4.56;
+            e.targets[43] = 4.56;
+            if !fuel {
+                e.goods[6] = 0.;
+            }
+            if !workforce {
+                h.sites[0].stocks.stock[0] = 0.;
+            }
+            g.civilizations = Some(h.clone());
+            let engine = Engine::new(&g).unwrap();
+            engine.upload(&g, &h);
+            engine.dispatch(&g, false, h.sites.len() as u32);
+            engine.read(&g, &mut h, true).unwrap();
+            let e = &h.sites[0].economy;
+            let useful = arrived && fuel && workforce;
+            assert_eq!(e.made[43] > 0., useful);
+            assert!(e.used[36] <= 10.);
+            assert!((e.made[38] - e.used[36] * 0.456).abs() < 0.001);
+            assert!((e.used[38] - e.made[43]).abs() < 0.001);
+            assert!((e.goods[36] + e.used[36] - if arrived { 10. } else { 0. }).abs() < 0.001);
+        }
+    }
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
     fn unrelated_food_recipes_cannot_spend_prepaid_industrial_time() {
         let mut g = Generator::new(
             pollster::block_on(crate::gpu::ContextGpu::headless()).unwrap(),
