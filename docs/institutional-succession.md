@@ -1,5 +1,8 @@
 # Institutional succession and service continuity
 
+See [leadership recovery and representation](leadership-recovery-and-representation.md)
+for the later funded local recruitment path and political weighting policies.
+
 Schools, guilds, merchant houses and religious orders now retain a local leadership
 mandate alongside their operating capacity. Previously an annual update replaced
 a dead leader with the first member, including members living elsewhere. Institutions
@@ -53,8 +56,9 @@ The monthly cultural update checks mandates before quarterly upkeep and personal
 cultural decisions. Earlier stages of that month have already executed; the
 observation affects subsequent service decisions and months. Annual recruitment
 still replenishes membership through its existing rules. Abandonment can still
-close an institution. This increment adds no branches, institutional relocation,
-independent elections for multiple officer roles, or automatic reopening.
+close an institution. The initial succession increment added no branches or relocation. Funded relocation
+now exists separately; independent officer elections and automatic reopening remain
+outside this mandate model.
 
 ## Persistence, evidence and compatibility
 

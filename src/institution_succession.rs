@@ -5,6 +5,10 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
+const RECOVERY_WAIT_MONTHS: u32 = 6;
+const RECOVERY_RECRUITMENT_COST_MONEY: f64 = 5.0;
+const RECOVERY_MIN_COMPETENCE: f32 = 0.35;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Mandate {
     pub holder: Option<u32>,
@@ -15,6 +19,13 @@ pub struct Mandate {
     pub support: f32,
     pub work: f64,
     pub events: Vec<u64>,
+}
+
+fn recruitment_payment(h: &History, site: u32, treasury: f64) -> Option<(f32, f64)> {
+    let before = h.sites[site as usize].economy.finance[0];
+    let after = (before as f64 + RECOVERY_RECRUITMENT_COST_MONEY) as f32;
+    let paid = after as f64 - before as f64;
+    (paid.is_finite() && paid > 0. && treasury >= paid).then_some((after, paid))
 }
 
 // Scores are decision proxies, not measurements of historical electoral behavior.
@@ -85,6 +96,49 @@ impl Culture {
         people
     }
 
+    /// A vacancy can invite one willing, qualified local adult through the same
+    /// reserved interview/ballot work. This does not create membership at proposal time.
+    pub(crate) fn institution_election_candidates(&self, h: &History, id: u32) -> Vec<u32> {
+        let members = self.institution_candidates(h, id);
+        if !members.is_empty() {
+            return members;
+        }
+        let Some(n) = self.institutions.get(id as usize) else {
+            return vec![];
+        };
+        let vacancy = n.capacity.as_ref().and_then(|c| c.mandate.as_ref());
+        if !n.active
+            || h.sites[n.site as usize].abandoned
+            || !vacancy.is_some_and(|m| {
+                m.holder.is_none()
+                    && m.vacant_since
+                        .is_some_and(|t| h.month.saturating_sub(t) >= RECOVERY_WAIT_MONTHS)
+            })
+            || recruitment_payment(h, n.site, n.treasury).is_none()
+        {
+            return vec![];
+        }
+        self.site_people(h, n.site)
+            .into_iter()
+            .filter(|p| !n.members.contains(p))
+            .filter(|p| {
+                self.agents
+                    .get(*p as usize)
+                    .is_some_and(|a| competence(&n.kind, a) >= RECOVERY_MIN_COMPETENCE)
+            })
+            .filter(|p| {
+                n.kind != InstitutionKind::Religious
+                    || self.resident_tradition(h, n.site, *p) == n.tradition
+            })
+            .max_by(|a, b| {
+                competence(&n.kind, &self.agents[*a as usize])
+                    .total_cmp(&competence(&n.kind, &self.agents[*b as usize]))
+                    .then_with(|| b.cmp(a))
+            })
+            .into_iter()
+            .collect()
+    }
+
     pub(crate) fn institutional_succession(&mut self, h: &mut History) {
         for i in 0..self.institutions.len() {
             let n = &self.institutions[i];
@@ -92,7 +146,8 @@ impl Culture {
                 continue;
             }
             let site = n.site;
-            let electorate = self.institution_candidates(h, n.id);
+            let electorate = self.institution_election_candidates(h, n.id);
+            let recruiting = electorate.first().is_some_and(|p| !n.members.contains(p));
             let initial_holder = electorate.contains(&n.leader).then_some(n.leader);
             let capacity = self.institutions[i].capacity.as_mut().unwrap();
             if capacity.mandate.is_none() {
@@ -165,6 +220,17 @@ impl Culture {
                 *budget -= 0.05;
                 (before - *budget) as f64
             };
+            if recruiting {
+                // Eligibility and affordability were recomputed at execution, before work.
+                let n = &mut self.institutions[i];
+                let (after, paid) = recruitment_payment(h, site, n.treasury).unwrap();
+                h.sites[site as usize].economy.finance[0] = after;
+                n.treasury -= paid;
+                n.expenses += paid;
+                n.members.push(winner);
+                self.succession_event(h, i, "institution_recovery_recruit", Some(winner),
+                    format!("A qualified local adult joined after a prolonged vacancy; {paid:.2} paid to the town recruitment account and {work:.4} worker-months used for interview and selection"));
+            }
             self.labor_spent += work;
             crate::culture::work_requests::record_work(
                 &mut self.work_plans,
@@ -431,6 +497,68 @@ mod tests {
         mandate.observed = 9;
         mandate.vacant_since = Some(9);
         let opening = h.clone();
+        // Empty local membership can recover through one paid interview/selection.
+        // No treasury, no work, or a recruit leaving before execution blocks it.
+        for scenario in 0..4 {
+            let mut run = opening.clone();
+            let c = run.culture.as_mut().unwrap();
+            c.institutions[0].members.clear();
+            let m = c.institutions[0]
+                .capacity
+                .as_mut()
+                .unwrap()
+                .mandate
+                .as_mut()
+                .unwrap();
+            m.vacant_since = Some(0);
+            for a in &mut c.agents {
+                a.traits[3] = 1.;
+            }
+            if scenario == 1 {
+                c.institutions[0].treasury = 0.;
+            }
+            let money = run.sites[0].economy.finance[0] as f64 + c.institutions[0].treasury;
+            let plans = run.cultural_work_plans();
+            let cap = if scenario == 2 { 0. } else { 0.05 };
+            run.reserve_cultural_plans(plans, &vec![cap; run.sites.len()]);
+            let mut c = run.culture.take().unwrap();
+            if scenario == 3 {
+                let recruit = c.work_plans[0].elections.as_ref().unwrap()[0].members[0];
+                for f in &mut run.society.as_mut().unwrap().households {
+                    if f.head == recruit {
+                        f.site = 1;
+                    }
+                }
+            }
+            c.institutional_succession(&mut run);
+            assert_eq!(
+                c.institutions[0]
+                    .capacity
+                    .as_ref()
+                    .unwrap()
+                    .mandate
+                    .as_ref()
+                    .unwrap()
+                    .holder
+                    .is_some(),
+                scenario == 0
+            );
+            assert_eq!(c.institutions[0].members.len(), usize::from(scenario == 0));
+            assert!(
+                (run.sites[0].economy.finance[0] as f64 + c.institutions[0].treasury - money).abs()
+                    < 1e-8
+            );
+            assert_eq!(
+                run.events
+                    .iter()
+                    .filter(|e| e.kind == "institution_recovery_recruit")
+                    .count(),
+                usize::from(scenario == 0)
+            );
+            run.culture = Some(c);
+            run.settle_participation().unwrap();
+            run.validate_service_work().unwrap();
+        }
         // A cap below a complete ballot must remain available to divisible upkeep.
         for cap in [0., 0.01, 0.025, 0.04, 0.05, 0.075, 0.1, 0.5] {
             let mut run = opening.clone();

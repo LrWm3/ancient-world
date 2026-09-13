@@ -15,6 +15,28 @@ const LOYALTY_WEIGHT: f32 = 0.5;
 const COUNCIL_QUALITY_WEIGHT: f32 = 0.25;
 const SAME_FACTION_BALLOT_WEIGHT: f32 = 1.0;
 
+/// Representation policy; Legacy retains the two pre-policy calculations.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PoliticalWeighting {
+    #[default]
+    Legacy,
+    Property,
+    Household,
+    /// Each recorded resident, including dependents, is represented by their household.
+    Resident,
+}
+impl PoliticalWeighting {
+    fn weight(self, property: f32, population: f32, residents: f32, council: bool) -> f32 {
+        match self {
+            Self::Legacy if council => 1.,
+            Self::Legacy => property * population,
+            Self::Property => property,
+            Self::Household => 1.,
+            Self::Resident => residents,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Rule {
     /// Recorded adult children first; no invented relatives or transfer of an estate.
@@ -29,6 +51,7 @@ pub struct Mandate {
     pub last_scores: Vec<(u32, f32)>,
     pub selection_month: Option<u32>,
     pub rule: Rule,
+    pub weighting: PoliticalWeighting,
     pub absent_since: Option<u32>,
     pub vacant: bool,
     pub last_review: Option<u32>,
@@ -107,8 +130,80 @@ pub(crate) fn faction_heritage(h: &History, p: &Politics, observer: u32, faction
 }
 impl History {
     pub fn leadership_report(&self) -> serde_json::Value {
-        serde_json::json!({"month":self.month,"leadership":self.politics.as_ref().map(|p| &p.leadership),"rules":"New political baselines use governing-faction selection; council ballots currently give each eligible household one vote. Traits and witnessed heritage influence candidates; completed personal office work and attributed feasible petition responses affect selection. Resource shortfalls are not personal refusal."})
+        serde_json::json!({"month":self.month,"leadership":self.politics.as_ref().map(|p| &p.leadership),"faction_base_weights":self.political_weights(false),"council_base_weights":self.political_weights(true),"rules":"New political baselines use governing-faction selection; Representation is configurable per civilization: legacy, property share, household or recorded resident. Resident ballots represent dependents through eligible heads; unrecorded population has no inferred votes. Faction urgency/cohesion still modulate political mobilization. Traits and witnessed heritage influence candidates; completed personal office work and attributed feasible petition responses affect selection. Resource shortfalls are not personal refusal."})
     }
+    pub fn set_political_weighting(
+        &mut self,
+        civilization: u32,
+        policy: PoliticalWeighting,
+    ) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            (civilization as usize) < self.civilizations.len(),
+            "unknown civilization"
+        );
+        anyhow::ensure!(
+            self.participation
+                .as_ref()
+                .is_none_or(|p| p.commitments.iter().all(|c| c.settled)),
+            "finish reserved work before changing representation"
+        );
+        let p = self
+            .politics
+            .as_mut()
+            .ok_or_else(|| anyhow::anyhow!("politics disabled"))?;
+        let m = p.leadership.mandates.entry(civilization).or_default();
+        if m.weighting == policy {
+            return Ok(());
+        }
+        m.weighting = policy;
+        self.event("political_representation_changed", None, None, format!("Civilization {civilization} adopted {policy:?} representation for subsequent political reviews"));
+        self.events
+            .last_mut()
+            .unwrap()
+            .subjects
+            .push(("civilization".into(), civilization));
+        Ok(())
+    }
+
+    /// Inspect the actual base representation before urgency/cohesion or preferences.
+    pub fn political_weights(&self, council: bool) -> Vec<f32> {
+        let Some(s) = &self.society else {
+            return vec![];
+        };
+        let mut residents = vec![0.; s.households.len()];
+        for (person, (household, presence)) in self.people.iter().zip(self.person_presences()) {
+            if let (Some(id), Presence::Resident(site)) = (household, presence) {
+                if s.households
+                    .get(id as usize)
+                    .is_some_and(|f| f.site == site)
+                    && person.born <= self.month as i32
+                {
+                    residents[id as usize] += 1.;
+                }
+            }
+        }
+        s.households
+            .iter()
+            .map(|f| {
+                if !self.political_household_eligible(f) {
+                    return 0.;
+                }
+                let civ = self.sites[f.site as usize].civilization;
+                let policy = self
+                    .politics
+                    .as_ref()
+                    .and_then(|p| p.leadership.mandates.get(&civ))
+                    .map_or(PoliticalWeighting::Legacy, |m| m.weighting);
+                policy.weight(
+                    f.share as f32,
+                    self.sites[f.site as usize].stocks.stock[0],
+                    residents[f.id as usize],
+                    council,
+                )
+            })
+            .collect()
+    }
+
     fn leadership_site(&self, person: u32, civilization: u32) -> Option<u32> {
         let p = self.people.get(person as usize)?;
         if p.died.is_some()
@@ -172,6 +267,7 @@ impl History {
         }) + self.personal_accountability(person, site)
     }
     pub(crate) fn review_leadership(&mut self, annual: bool) {
+        let ballot_weights = self.political_weights(true);
         let Some(p) = self.politics.as_mut() else {
             return;
         };
@@ -262,7 +358,7 @@ impl History {
                             .total_cmp(&preference(b, sb))
                             .then_with(|| b.cmp(&a))
                     }) {
-                        *ballots.entry(id).or_default() += 1.;
+                        *ballots.entry(id).or_default() += ballot_weights[voter.id as usize];
                     }
                 }
             }
@@ -382,6 +478,20 @@ impl crate::gpu::Generator {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn representation_changes_relative_weight_without_changing_resources() {
+        use super::PoliticalWeighting::*;
+        let rich = (0.8, 100., 2.);
+        let poor = (0.2, 100., 8.);
+        let score =
+            |p: super::PoliticalWeighting, x: (f32, f32, f32)| p.weight(x.0, x.1, x.2, true);
+        assert!(score(Property, rich) > score(Property, poor));
+        assert_eq!(score(Household, rich), score(Household, poor));
+        assert!(score(Resident, rich) < score(Resident, poor));
+        assert_eq!(Legacy.weight(0.8, 100., 2., false), 80.);
+        assert_eq!(score(Legacy, rich), 1.);
+    }
+
     use super::*;
 
     #[test]
@@ -525,6 +635,44 @@ mod tests {
             .count();
         assert_eq!(votes, electorate as f32);
         assert_eq!(serde_json::to_value(&h.society).unwrap(), estates);
+        // Same electorate and property, different declared representation. The summed
+        // ballot must match the published base weights, never create or transfer wealth.
+        for weighting in [
+            PoliticalWeighting::Property,
+            PoliticalWeighting::Household,
+            PoliticalWeighting::Resident,
+        ] {
+            let mut run = h.clone();
+            run.month += 12;
+            run.set_political_weighting(0, weighting).unwrap();
+            let weights = run.political_weights(true);
+            let expected: f32 = run
+                .society
+                .as_ref()
+                .unwrap()
+                .households
+                .iter()
+                .filter(|f| {
+                    run.political_household_eligible(f) && run.leadership_site(f.head, 0).is_some()
+                })
+                .map(|f| weights[f.id as usize])
+                .sum();
+            let mut resumed: History =
+                serde_json::from_value(serde_json::to_value(&run).unwrap()).unwrap();
+            run.review_leadership(true);
+            resumed.review_leadership(true);
+            let actual: f32 = run.politics.as_ref().unwrap().leadership.mandates[&0]
+                .last_scores
+                .iter()
+                .map(|(_, v)| v)
+                .sum();
+            assert!((actual - expected).abs() < 1e-4);
+            assert_eq!(
+                serde_json::to_value(&run).unwrap(),
+                serde_json::to_value(&resumed).unwrap()
+            );
+            assert_eq!(serde_json::to_value(&run.society).unwrap(), estates);
+        }
     }
     #[test]
     #[ignore = "requires hardware GPU"]

@@ -634,6 +634,7 @@ impl History {
             && !self.person_on_service(f.head)
     }
     pub(crate) fn politics_year(&mut self) {
+        let representation = self.political_weights(false);
         let Some(mut p) = self.politics.take() else {
             return;
         };
@@ -769,7 +770,6 @@ impl History {
                 }
             }
             for (f, x) in residents.iter().zip(&conditions) {
-                let s = &self.sites[f.site as usize];
                 let interest =
                     p.factions[p.household_factions[f.id as usize] as usize].interest as usize;
                 let threat = p.wars.iter().any(|w| {
@@ -781,8 +781,7 @@ impl History {
                     2 | 8 => 1. + if threat { 2. } else { 0. },
                     _ => 1.,
                 };
-                votes[interest] += f.share as f32
-                    * s.stocks.stock[0]
+                votes[interest] += representation[f.id as usize]
                     * urgency.min(5.)
                     * p.factions[ids[interest]].cohesion;
             }

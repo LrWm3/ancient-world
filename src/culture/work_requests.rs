@@ -465,7 +465,7 @@ impl Culture {
                 .filter(|n| n.site == site && n.active)
                 .filter_map(|n| {
                     let m = n.capacity.as_ref()?.mandate.as_ref()?;
-                    let members = self.institution_candidates(h, n.id);
+                    let members = self.institution_election_candidates(h, n.id);
                     (h.month.is_multiple_of(3)
                         && !h.sites[site as usize].abandoned
                         && m.holder.is_none()
@@ -631,7 +631,7 @@ impl Culture {
                 if c.mandate
                     .as_ref()
                     .is_some_and(|m| m.holder.is_none() && m.observed < h.month)
-                    && !self.institution_candidates(h, n.id).is_empty()
+                    && !self.institution_election_candidates(h, n.id).is_empty()
                 {
                     requests.push(("institution election", 0.05));
                 }
