@@ -228,6 +228,7 @@ fn hostile_intermediaries_cannot_be_used_to_evade_war_closures() {
     use ancient_world::politics::{Politics, War};
     let mut h = network();
     h.politics = Some(Politics {
+        leadership: Default::default(),
         occupation_months: 0,
         version: 1,
         started: 0,
@@ -484,6 +485,7 @@ fn sea_arrival_cannot_bypass_hostile_inland_transit() {
         },
     ];
     h.politics = Some(Politics {
+        leadership: Default::default(),
         occupation_months: 0,
         version: 1,
         started: 0,

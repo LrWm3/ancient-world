@@ -16,6 +16,7 @@ pub mod economy;
 pub mod road_upkeep;
 pub mod society;
 
+pub mod leadership;
 pub mod politics;
 
 pub mod governance;

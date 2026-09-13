@@ -67,6 +67,8 @@ impl War {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Politics {
+    #[serde(default)]
+    pub leadership: crate::leadership::Leadership,
     /// Finite post-conquest occupation; absent in older archives.
     #[serde(default)]
     pub occupation_months: u32,
@@ -93,6 +95,7 @@ impl Politics {
             .collect()
     }
     pub fn validate(&self, h: &History, cells: &[Cell]) -> Result<()> {
+        self.leadership.validate(h)?;
         let social = h
             .society
             .as_ref()
@@ -698,6 +701,15 @@ impl History {
                     traits[3],
                 ]);
             }
+            // Freeze recognition against opening membership, before affiliation changes.
+            let mut heritage = BTreeMap::new();
+            for f in &residents {
+                for &id in &ids {
+                    heritage.entry((f.site, id)).or_insert_with(|| {
+                        crate::leadership::faction_heritage(self, &p, f.site, id as u32)
+                    });
+                }
+            }
             let mut fragments = Vec::new();
             for (k, &id) in ids.iter().enumerate().skip(6) {
                 let faction = &mut p.factions[id];
@@ -746,6 +758,7 @@ impl History {
                 let score = |k: usize| {
                     crate::faction_interests::appeal(k, *x) * p.factions[ids[k]].cohesion
                         + crate::civic_petitions::credit(self, &p, f.site, k as u32)
+                        + heritage[&(f.site, ids[k])]
                         + if k == previous { 0.25 } else { 0. }
                 };
                 let best = (0..crate::faction_interests::COUNT)
@@ -827,7 +840,6 @@ impl History {
                 {
                     let leader = f.head;
                     p.governing[civ] = faction;
-                    self.civilizations[civ].leader = leader;
                     self.event(
                         "faction_shift",
                         Some(f.site),
@@ -862,6 +874,7 @@ impl History {
             .map(|&id| p.factions[id as usize].interest as usize)
             .collect();
         self.politics = Some(p);
+        self.review_leadership(true);
         // Restore controllers before aggregating the governed households' food deficit.
         for (civ, interest) in distribution_governments.into_iter().enumerate() {
             self.propose_distribution(civ, interest);
@@ -1113,6 +1126,7 @@ impl Generator {
         );
         let count = h.civilizations.len();
         h.politics = Some(Politics {
+            leadership: crate::leadership::Leadership::new(count),
             occupation_months: crate::occupation::DEFAULT_OCCUPATION_MONTHS,
             version: 1,
             started: h.month,

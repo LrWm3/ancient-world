@@ -230,6 +230,10 @@ impl History {
             .map(|_| id)
     }
     pub(crate) fn resolve_council_vacancies(&mut self) {
+        if self.politics.is_some() {
+            self.review_leadership(false);
+            return;
+        }
         for civ in 0..self.civilizations.len() {
             if self.living_civilization_leader(civ as u32).is_some() {
                 continue;
@@ -670,9 +674,11 @@ mod gpu_tests {
             0
         );
         let people = h.people.len();
-        // A fresh subsystem ledger sees the newly identified successor. The
-        // ruler is ineligible for service; recruitment cannot name another adult.
-        assert!(h.recruit_service_people(0, 1, 1).is_err());
+        // A fresh ledger sees the estate successor. It may recruit that existing
+        // person when they are not ruler, but cannot identify another adult.
+        if let Ok(recruits) = h.recruit_service_people(0, 1, 1) {
+            assert_eq!(recruits.identified, 0);
+        }
         assert_eq!(h.people.len(), people);
         assert_eq!(h.sites[0].demography.ages, before);
         assert_eq!(h.population_reconciliation().sites[0].overhang[1], 0.);
@@ -868,13 +874,13 @@ mod gpu_tests {
         assert_ne!(ruler, member);
         assert_eq!(foreign.people[member as usize].civilization, 1);
         assert_eq!(foreign.people[ruler as usize].civilization, 0);
-        // A relocated ruler's household inherits its own office, not its host's.
+        // A relocated household conveys neither its former ruler's office nor its host's.
         let mut occupied_site = baseline.clone();
         occupied_site.society.as_mut().unwrap().households[account as usize].site = 1;
         occupied_site.people[child as usize].civilization = 1;
         let occupying_ruler = occupied_site.civilizations[1].leader;
         occupied_site.social_month().unwrap();
-        assert_eq!(occupied_site.civilizations[0].leader, member);
+        assert_ne!(occupied_site.civilizations[0].leader, member);
         assert_eq!(occupied_site.civilizations[1].leader, occupying_ruler);
         assert_eq!(occupied_site.people[member as usize].civilization, 0);
         assert_eq!(occupied_site.people[child as usize].civilization, 1);
@@ -945,7 +951,10 @@ mod gpu_tests {
         );
         assert_ne!(empty.living_civilization_leader(0), Some(old));
         assert!(empty.living_civilization_leader(0).is_some());
-        assert!(empty.events.iter().any(|e| e.kind == "interim_leadership"));
+        assert!(empty
+            .events
+            .iter()
+            .any(|e| e.kind == "political_succession"));
     }
     #[test]
     #[ignore = "requires hardware GPU"]
@@ -1042,6 +1051,7 @@ mod gpu_tests {
         // declared cohort aging, not a population import or a resurrected head.
         h.sites[0].demography.ages[0] -= 1.;
         h.sites[0].demography.ages[1] = 1.;
+        h.month += 1;
         h.social_month().unwrap();
         assert_eq!(h.people.len(), count + 1);
         assert_eq!(h.sites[0].stocks.stock[0], population);

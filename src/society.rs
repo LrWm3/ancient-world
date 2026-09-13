@@ -1065,7 +1065,8 @@ impl History {
                 // Political identity survives occupation or household relocation.
                 // The host site's administrator does not own this ruler's office.
                 let polity = self.people[old].civilization;
-                let ruler = self.civilizations[polity as usize].leader == old as u32;
+                let ruler = self.politics.is_none()
+                    && self.civilizations[polity as usize].leader == old as u32;
                 let successor_civilization = if ruler { polity } else { site.civilization };
                 let resident_mode = self.named_demography.is_some() || f.vacant_since.is_some();
                 let existing = if resident_mode {

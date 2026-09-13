@@ -438,3 +438,10 @@ Military freight arrives before army rations. Defensive construction reserves
 bounded work after office reservations and settles in Execute; active land sieges
 begin/advance after ordinary army rations in Respond. New encirclement affects
 subsequent deliveries, not cargo already delivered earlier that month.
+
+Political succession now follows estate settlement through the explicit
+[leadership policy](leadership-continuity.md). Monthly review handles death and
+sustained absence; annual personal selection follows faction competition. In
+political histories, inheriting property alone no longer assigns civilization
+leadership. Heritage appeal for the annual affiliation pass is frozen against
+opening membership so earlier household switches cannot alter later claims.

@@ -602,7 +602,7 @@ impl History {
             ensure!(
                 c.id as usize == i
                     && leader.is_some_and(|p| p.civilization == c.id
-                        && (p.died.is_none() || vacant_estate)),
+                        && (p.died.is_none() || vacant_estate || self.politics.as_ref().is_some_and(|politics| politics.leadership.mandates.get(&c.id).is_some_and(|m| m.vacant)))),
                 "invalid civilization leadership: month {}, civilization {}, leader {}, affiliation {:?}, death {:?}, vacant estate {}",
                 self.month, c.id, c.leader, leader.map(|p| p.civilization),
                 leader.and_then(|p| p.died), vacant_estate
