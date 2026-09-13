@@ -9,6 +9,41 @@ use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, BinaryHeap};
 
+pub(crate) const SOUTHERN_HARVEST_MONTH: f32 = 2.;
+pub(crate) const NORTHERN_HARVEST_MONTH: f32 = 8.;
+crate::shared_shader_parameters!(SHADER_PARAMETERS {
+    pub(crate) const CHILD_RATION_KG_PER_MONTH: f64 = 10.;
+    pub(crate) const ADULT_RATION_KG_PER_MONTH: f64 = 18.;
+    pub(crate) const ELDER_RATION_KG_PER_MONTH: f64 = 14.;
+    pub(crate) const CHILD_BASE_MONTHLY_MORTALITY: f64 = 0.0005;
+    pub(crate) const ADULT_BASE_MONTHLY_MORTALITY: f64 = 0.0006;
+    pub(crate) const ELDER_BASE_MONTHLY_MORTALITY: f64 = 0.003;
+    pub(crate) const CHILD_HUNGER_MORTALITY: f64 = 0.06;
+    pub(crate) const ADULT_HUNGER_MORTALITY: f64 = 0.025;
+    pub(crate) const ELDER_HUNGER_MORTALITY: f64 = 0.05;
+    pub(crate) const DISEASE_MORTALITY: f64 = 0.01;
+    pub(crate) const MONTHLY_BIRTH_RATE_PER_ADULT: f64 = 0.004;
+    pub(crate) const MAX_DISEASE_BURDEN: f32 = 0.5;
+    pub(crate) const MAX_MONTHLY_MORTALITY: f64 = 0.9;
+    pub(crate) const CHILD_COHORT_MONTHS: f64 = 180.;
+    pub(crate) const ADULT_COHORT_MONTHS: f64 = 540.;
+});
+pub(crate) const AGE_RATIONS_KG_PER_MONTH: [f64; 3] = [
+    CHILD_RATION_KG_PER_MONTH,
+    ADULT_RATION_KG_PER_MONTH,
+    ELDER_RATION_KG_PER_MONTH,
+];
+pub(crate) const BASE_MONTHLY_MORTALITY: [f64; 3] = [
+    CHILD_BASE_MONTHLY_MORTALITY,
+    ADULT_BASE_MONTHLY_MORTALITY,
+    ELDER_BASE_MONTHLY_MORTALITY,
+];
+pub(crate) const HUNGER_MORTALITY: [f64; 3] = [
+    CHILD_HUNGER_MORTALITY,
+    ADULT_HUNGER_MORTALITY,
+    ELDER_HUNGER_MORTALITY,
+];
+
 pub(crate) const LAND_TRAVEL_KM_PER_MONTH: f32 = 150.0;
 
 // Inverse multiplication can round above the food used to bound recruitment.

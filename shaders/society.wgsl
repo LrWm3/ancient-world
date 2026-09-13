@@ -26,12 +26,12 @@ fn allocate_rations(need:vec3<f32>, food:f32, priority:vec3<f32>)->vec3<f32> {
 }
 fn demographic_month(i:u32,shortage:f32,food:f32)->vec2<f32> {
  var d=demography[i];let old=d.ages.xyz;
- let need=old*vec3(10.,18.,14.);
+ let need=old*vec3(CHILD_RATION_KG_PER_MONTH,ADULT_RATION_KG_PER_MONTH,ELDER_RATION_KG_PER_MONTH);
  let eaten=allocate_rations(need,food,d.ration_priority.xyz);
  let hunger=select(vec3(0.),clamp(vec3(1.)-eaten/max(need,vec3(1e-20)),vec3(0.),vec3(1.)),need>vec3(0.));
  d.ration_need=vec4(need,dot(need,vec3(1.)));
  d.ration_eaten=vec4(eaten,dot(eaten,vec3(1.)));
- let mature=old.x/180.;let retire=old.y/540.;
+ let mature=old.x/CHILD_COHORT_MONTHS;let retire=old.y/ADULT_COHORT_MONTHS;
  // Waterlogged settlements accumulate illness even when relief prevents hunger.
  // Recovery follows the environmental cleanup clock; remedies can meet this need.
  var contamination=select(0.,economies[i].soil.w*.004,(p.options.w&2u)!=0u);
@@ -40,9 +40,9 @@ fn demographic_month(i:u32,shortage:f32,food:f32)->vec2<f32> {
   let crowding=select(0.,clamp(1.-(e.housing.z+min(e.housing.x/2.,e.housing.y/3.))/max(dot(old,vec3(1.)),1.),0.,1.),e.housing_plan.w>.5);
   contamination=(contamination+.001*crowding)*(1.-.75*e.waterworks_plan.w)+.003*e.water_service.y;
  }
- let disease=clamp(d.health.x*.95+shortage*.02+contamination,0.,.5);
- let losses=old*min(vec3(.9),vec3(.0005,.0006,.003)+hunger*vec3(.06,.025,.05)+vec3(disease*.01));
- let born=old.y*.004*(1.-hunger.y)*(1.-disease);
+ let disease=clamp(d.health.x*.95+shortage*.02+contamination,0.,MAX_DISEASE_BURDEN);
+ let losses=old*min(vec3(MAX_MONTHLY_MORTALITY),vec3(CHILD_BASE_MONTHLY_MORTALITY,ADULT_BASE_MONTHLY_MORTALITY,ELDER_BASE_MONTHLY_MORTALITY)+hunger*vec3(CHILD_HUNGER_MORTALITY,ADULT_HUNGER_MORTALITY,ELDER_HUNGER_MORTALITY)+vec3(disease*DISEASE_MORTALITY));
+ let born=old.y*MONTHLY_BIRTH_RATE_PER_ADULT*(1.-hunger.y)*(1.-disease);
  var weather=regional_weather(u32(src[i].habitat.z));if (p.options.w&2u)!=0u {let c=world[u32(src[i].habitat.z)];weather=clamp(c.climate.y/max(c.hydro.z,.001),0.,10.);}
  // Identity-owned mode retains GPU ration/weather/disease work, but commits
  // demographic transitions once on the CPU from actual resident identities.

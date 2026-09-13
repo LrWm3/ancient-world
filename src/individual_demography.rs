@@ -6,6 +6,17 @@ use crate::{
 };
 use anyhow::{ensure, Result};
 
+const PROJECTION_TOLERANCE: f64 = 1e-6;
+const ROSTER_OVERHANG_TOLERANCE: f64 = 1e-4;
+const COHORT_ADMISSION_TOLERANCE: f32 = 1e-4;
+const FERTILE_COHORT_MONTHS: f64 = 324.;
+const INDIVIDUAL_MORTALITY_STREAM: u32 = 0x494e4444;
+const TRAVEL_MORTALITY_STREAM: u32 = 0x54524156;
+const DEFENDER_MORTALITY_STREAM: u32 = 0x44454644;
+const BIRTH_SELECTION_STREAM: u32 = 0x42495254;
+const PARENT_PAIR_HASH_MULTIPLIER: u32 = 31;
+const DIAGNOSTIC_RECENT_EVENTS: usize = 5;
+
 #[derive(Clone)]
 pub(crate) struct Observation {
     month: u32,
@@ -62,7 +73,7 @@ impl DemographicSnapshot {
             self.personal_mortality
                 .iter()
                 .all(|(id, rate)| rate.is_finite()
-                    && (0. ..=0.9).contains(rate)
+                    && (0. ..=crate::society::MAX_MONTHLY_MORTALITY).contains(rate)
                     && ids.contains(id)),
             "invalid personal mortality exposure"
         );
@@ -77,7 +88,8 @@ impl DemographicSnapshot {
                 .all(|v| v.is_finite() && *v >= 0.)
                 && p.mortality
                     .iter()
-                    .all(|v| v.is_finite() && (0. ..=0.9).contains(v))
+                    .all(|v| v.is_finite()
+                        && (0. ..=crate::society::MAX_MONTHLY_MORTALITY).contains(v))
                 && p.births.is_finite()
                 && p.births >= 0.
                 && self.birth_carry.is_finite()
@@ -85,11 +97,18 @@ impl DemographicSnapshot {
             "invalid demographic snapshot stocks or rates"
         );
         ensure!(
-            p.aging == [p.opening[0] / 180., p.opening[1] / 540.],
+            p.aging
+                == [
+                    p.opening[0] / crate::society::CHILD_COHORT_MONTHS,
+                    p.opening[1] / crate::society::ADULT_COHORT_MONTHS
+                ],
             "inconsistent aggregate aging projection"
         );
         if let Some(people) = &self.people {
-            ensure!(people.len() <= 50_000, "snapshot roster exceeds capacity");
+            ensure!(
+                people.len() <= crate::population_registry::MAX_NAMED_POPULATION,
+                "snapshot roster exceeds capacity"
+            );
             let mut ids = std::collections::HashSet::new();
             let mut counted = self.anonymous;
             for &(id, band, born) in people {
@@ -103,7 +122,7 @@ impl DemographicSnapshot {
                 counted[band] += 1.;
             }
             ensure!(
-                (0..3).all(|b| (counted[b] - p.opening[b]).abs() < 1e-6),
+                (0..3).all(|b| (counted[b] - p.opening[b]).abs() < PROJECTION_TOLERANCE),
                 "snapshot roster does not reconcile with opening stocks"
             );
         } else {
@@ -147,7 +166,7 @@ impl DemographicSnapshot {
                         - outcome.births
                         + outcome.deaths.iter().sum::<f64>())
                     .abs()
-                        < 1e-6,
+                        < PROJECTION_TOLERANCE,
                 "replayed demographic outcome violates population accounting"
             );
         }
@@ -174,10 +193,13 @@ impl DemographicProjection {
         let eligible = people
             .iter()
             .filter(|&&(_, band, born)| {
-                band == 1 && (216..540).contains(&(i64::from(month) - i64::from(born)))
+                band == 1
+                    && (crate::politics::FERTILITY_START_AGE_MONTHS
+                        ..crate::politics::FERTILITY_END_AGE_MONTHS)
+                        .contains(&(i64::from(month) - i64::from(born)))
             })
             .count() as f64;
-        let reference_share = 324. / 540.;
+        let reference_share = FERTILE_COHORT_MONTHS / crate::society::ADULT_COHORT_MONTHS;
         refined.births *= if self.opening[1] > 0. {
             (eligible + anonymous[1] * reference_share) / (self.opening[1] * reference_share)
         } else {
@@ -193,14 +215,22 @@ impl DemographicProjection {
                 0.
             }
         });
-        let disease = disease.clamp(0., 0.5) as f64;
+        let disease = disease.clamp(0., crate::society::MAX_DISEASE_BURDEN) as f64;
         Self {
             opening,
             mortality: std::array::from_fn(|b| {
-                [0.0005, 0.0006, 0.003][b] + hunger[b] * [0.06, 0.025, 0.05][b] + disease * 0.01
+                crate::society::BASE_MONTHLY_MORTALITY[b]
+                    + hunger[b] * crate::society::HUNGER_MORTALITY[b]
+                    + disease * crate::society::DISEASE_MORTALITY
             }),
-            births: opening[1] * 0.004 * (1. - hunger[1]) * (1. - disease),
-            aging: [opening[0] / 180., opening[1] / 540.],
+            births: opening[1]
+                * crate::society::MONTHLY_BIRTH_RATE_PER_ADULT
+                * (1. - hunger[1])
+                * (1. - disease),
+            aging: [
+                opening[0] / crate::society::CHILD_COHORT_MONTHS,
+                opening[1] / crate::society::ADULT_COHORT_MONTHS,
+            ],
         }
     }
     #[cfg(test)]
@@ -237,7 +267,10 @@ impl DemographicProjection {
         let individual = mode == crate::resolution::Mode::Individual;
         let stock = if individual { anonymous } else { self.opening };
         let losses: [f64; 3] = std::array::from_fn(|b| stock[b] * self.mortality[b]);
-        let mut aging = [stock[0] / 180., stock[1] / 540.];
+        let mut aging = [
+            stock[0] / crate::society::CHILD_COHORT_MONTHS,
+            stock[1] / crate::society::ADULT_COHORT_MONTHS,
+        ];
         let mut ages = [
             stock[0] - losses[0] - aging[0],
             stock[1] - losses[1] + aging[0] - aging[1],
@@ -247,7 +280,7 @@ impl DemographicProjection {
         let mut dead = Vec::new();
         if individual {
             for &(id, band, born) in people {
-                if (crate::expeditions::random(seed, id, month, 0x494e4444) as f64)
+                if (crate::expeditions::random(seed, id, month, INDIVIDUAL_MORTALITY_STREAM) as f64)
                     < personal_mortality
                         .get(&id)
                         .copied()
@@ -305,7 +338,7 @@ impl History {
             "enable individual demographics before departure or after known travelers return"
         );
         next.identify_resident_baseline()?;
-        ensure!(next.population_reconciliation().sites.iter().all(|s| s.overhang.iter().all(|v| *v < 1e-4)),
+        ensure!(next.population_reconciliation().sites.iter().all(|s| s.overhang.iter().all(|v| *v < ROSTER_OVERHANG_TOLERANCE)),
             "individual demography requires cohorts containing their known residents; existing overhang needs explicit conversion");
         let state = next.named_demography.as_mut().unwrap();
         state.individual = true;
@@ -348,8 +381,12 @@ impl History {
         for entry in &journey.roster.as_ref().unwrap().passengers {
             if self.people[entry.person as usize].died.is_none() {
                 named[entry.band] += 1;
-                if crate::expeditions::random(self.seed, entry.person, self.month, 0x54524156)
-                    < rate
+                if crate::expeditions::random(
+                    self.seed,
+                    entry.person,
+                    self.month,
+                    TRAVEL_MORTALITY_STREAM,
+                ) < rate
                 {
                     casualties[entry.band] += 1;
                     self.people[entry.person as usize].died = Some(self.month);
@@ -399,7 +436,8 @@ impl History {
             .collect();
         eligible.sort_by_key(|&id| {
             (
-                crate::expeditions::random(self.seed, id, self.month, 0x44454644).to_bits(),
+                crate::expeditions::random(self.seed, id, self.month, DEFENDER_MORTALITY_STREAM)
+                    .to_bits(),
                 id,
             )
         });
@@ -475,10 +513,10 @@ impl History {
         for (site, counts) in self.sites.iter().zip(&known) {
             ensure!(
                 (0..3).all(|b| site.demography.ages[b].is_finite()
-                    && site.demography.ages[b] + 1e-4 >= counts[b] as f32),
+                    && site.demography.ages[b] + COHORT_ADMISSION_TOLERANCE >= counts[b] as f32),
                 "site {} month {} cohort {:?} cannot contain prior-age resident roster {:?}; recent events {:?}",
                 site.id, self.month, &site.demography.ages[..3], counts,
-                self.events.iter().rev().filter(|e| e.site == Some(site.id) || e.other == Some(site.id)).take(5).map(|e| e.kind.as_str()).collect::<Vec<_>>()
+                self.events.iter().rev().filter(|e| e.site == Some(site.id) || e.other == Some(site.id)).take(DIAGNOSTIC_RECENT_EVENTS).map(|e| e.kind.as_str()).collect::<Vec<_>>()
             );
             anonymous.push(std::array::from_fn(|b| {
                 (site.demography.ages[b] as f64 - counts[b] as f64).max(0.)
@@ -491,14 +529,20 @@ impl History {
             .collect();
         let possible_births: usize = adults
             .iter()
-            .map(|n| (n * 0.004 / (324. / 540.) + 1.).ceil() as usize)
+            .map(|n| {
+                (n * crate::society::MONTHLY_BIRTH_RATE_PER_ADULT
+                    / (FERTILE_COHORT_MONTHS / crate::society::ADULT_COHORT_MONTHS)
+                    + 1.)
+                    .ceil() as usize
+            })
             .sum();
         ensure!(
             !self.individual_demography_enabled()
                 || self
                     .politics
                     .as_ref()
-                    .is_some_and(|p| p.kin.len() + possible_births <= 50000),
+                    .is_some_and(|p| p.kin.len() + possible_births
+                        <= crate::population_registry::MAX_NAMED_POPULATION),
             "individual birth batch exceeds membership capacity"
         );
         Ok(Some(Observation {
@@ -585,7 +629,7 @@ impl History {
                         - outcome.births
                         + outcome.deaths.iter().sum::<f64>())
                     .abs()
-                        < 1e-6,
+                        < PROJECTION_TOLERANCE,
                 "demographic outcome violates population accounting"
             );
             let boundary = Boundary {
@@ -752,21 +796,31 @@ impl History {
                     .enumerate()
                     .filter(|(_, m)| {
                         m.ended.is_none()
-                            && m.children < 4
-                            && self.month.saturating_sub(m.last_birth) >= 36
+                            && m.children < crate::politics::MAX_CHILDREN_PER_MARRIAGE
+                            && self.month.saturating_sub(m.last_birth)
+                                >= crate::politics::BIRTH_SPACING_MONTHS
                             && m.partners.iter().all(|&id| {
                                 self.person_presence(id).1 == Presence::Resident(site as u32)
-                                    && (216..540).contains(
-                                        &(i64::from(self.month)
-                                            - i64::from(self.people[id as usize].born)),
-                                    )
+                                    && (crate::politics::FERTILITY_START_AGE_MONTHS
+                                        ..crate::politics::FERTILITY_END_AGE_MONTHS)
+                                        .contains(
+                                            &(i64::from(self.month)
+                                                - i64::from(self.people[id as usize].born)),
+                                        )
                             })
                     })
                     .min_by_key(|(_, m)| {
-                        let key = m.partners[0].wrapping_mul(31).wrapping_add(m.partners[1]);
+                        let key = m.partners[0]
+                            .wrapping_mul(PARENT_PAIR_HASH_MULTIPLIER)
+                            .wrapping_add(m.partners[1]);
                         (
-                            crate::expeditions::random(self.seed, key, self.month, 0x42495254)
-                                .to_bits(),
+                            crate::expeditions::random(
+                                self.seed,
+                                key,
+                                self.month,
+                                BIRTH_SELECTION_STREAM,
+                            )
+                            .to_bits(),
                             key,
                         )
                     })

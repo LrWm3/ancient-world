@@ -1,11 +1,14 @@
 // Define shared scalar parameters in their owning subsystem. The literal spelling
 // is emitted unchanged into WGSL; no runtime float formatting or new buffer ABI.
-// Use WGSL-compatible f32/u32 literals, without Rust-only suffixes or separators.
+// Use WGSL-compatible literals without Rust-only suffixes or separators.
+// CPU f64 parameters retain double precision; WGSL uses the same spelling as f32.
 macro_rules! shared_shader_parameters {
+    (@wgsl_type f64) => { "f32" };
+    (@wgsl_type $ty:ident) => { stringify!($ty) };
     ($source:ident { $($vis:vis const $name:ident: $ty:ident = $value:literal;)* }) => {
         $($vis const $name: $ty = $value;)*
         pub(crate) const $source: &str = concat!($(
-            "const ", stringify!($name), ": ", stringify!($ty), " = ",
+            "const ", stringify!($name), ": ", crate::shared_shader_parameters!(@wgsl_type $ty), " = ",
             stringify!($value), ";\n",
         )*);
     };

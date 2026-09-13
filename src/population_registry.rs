@@ -3,11 +3,23 @@
 use crate::{civilization::History, participation::Presence};
 use serde::{Deserialize, Serialize};
 
+pub(crate) const WORKING_START_AGE_MONTHS: i32 = 180;
+pub(crate) const WORKING_END_AGE_MONTHS: i32 = 720;
+pub(crate) const INDEPENDENT_HOME_AGE_MONTHS: i32 = 216;
+pub(crate) const MAX_NAMED_POPULATION: usize = 50000;
+const INITIAL_COHORT_AGES_MONTHS: [(i32, i32); 3] = [(0, 180), (180, 540), (720, 240)];
+const ROSTER_INITIAL_AGE_STREAM: u32 = 219;
+const CHILD_LAST_MONTH: i64 = WORKING_START_AGE_MONTHS as i64 - 1;
+const ADULT_FIRST_MONTH: i64 = WORKING_START_AGE_MONTHS as i64;
+const ADULT_LAST_MONTH: i64 = WORKING_END_AGE_MONTHS as i64 - 1;
+const NAMED_MORTALITY_STREAM: u32 = 0x4d4f5254;
+const MORTALITY_RANDOM_FLOOR: f32 = 1e-7;
+
 pub fn age_band(month: u32, born: i32) -> Option<usize> {
     match i64::from(month) - i64::from(born) {
         ..=-1 => None,
-        0..=179 => Some(0),
-        180..=719 => Some(1),
+        0..=CHILD_LAST_MONTH => Some(0),
+        ADULT_FIRST_MONTH..=ADULT_LAST_MONTH => Some(1),
         _ => Some(2),
     }
 }
@@ -162,7 +174,8 @@ impl History {
                 "resident site has no available ownership account"
             );
             anyhow::ensure!(
-                planned.len() as u64 + needed + politics.kin.len() as u64 <= 50000,
+                planned.len() as u64 + needed + politics.kin.len() as u64
+                    <= MAX_NAMED_POPULATION as u64,
                 "resident baseline exceeds membership capacity"
             );
             let mut sizes: Vec<_> = homes
@@ -186,9 +199,10 @@ impl History {
         let added = planned.len();
         for (site, band, household) in planned {
             let id = self.people.len() as u32;
-            let (start, span) = [(0, 180), (180, 540), (720, 240)][band];
+            let (start, span) = INITIAL_COHORT_AGES_MONTHS[band];
             let age = start
-                + (crate::expeditions::random(self.seed, id, self.month, 219) * span as f32) as i32;
+                + (crate::expeditions::random(self.seed, id, self.month, ROSTER_INITIAL_AGE_STREAM)
+                    * span as f32) as i32;
             let town = &self.sites[site as usize];
             self.people.push(crate::civilization::Person {
                 id,
@@ -247,7 +261,8 @@ impl History {
                 .filter_map(|f| {
                     let p = &self.people[f.head as usize];
                     (p.civilization == civ as u32
-                        && i64::from(self.month) - i64::from(p.born) >= 216
+                        && i64::from(self.month) - i64::from(p.born)
+                            >= INDEPENDENT_HOME_AGE_MONTHS as i64
                         && matches!(self.person_presence(p.id).1, Presence::Resident(_)))
                     .then_some((p.born, p.id, f.site))
                 })
@@ -286,7 +301,9 @@ impl History {
             .collect();
         let mut residents = vec![Vec::new(); self.sites.len()];
         for person in &self.people {
-            if occupied.contains(&person.id) || i64::from(self.month) - i64::from(person.born) < 216
+            if occupied.contains(&person.id)
+                || i64::from(self.month) - i64::from(person.born)
+                    < INDEPENDENT_HOME_AGE_MONTHS as i64
             {
                 continue;
             }
@@ -448,9 +465,10 @@ fn mortality_weights(h: &History, site: usize) -> [f64; 3] {
         } else {
             0.
         };
-        [0.0005, 0.0006, 0.003][i]
-            + hunger as f64 * [0.06, 0.025, 0.05][i]
-            + d.health[0].clamp(0., 0.5) as f64 * 0.01
+        crate::society::BASE_MONTHLY_MORTALITY[i]
+            + hunger as f64 * crate::society::HUNGER_MORTALITY[i]
+            + d.health[0].clamp(0., crate::society::MAX_DISEASE_BURDEN) as f64
+                * crate::society::DISEASE_MORTALITY
     })
 }
 impl History {
@@ -471,9 +489,13 @@ impl History {
             if let Presence::Resident(site) = self.person_presence(person.id).1 {
                 if let Some(age) = age_band(self.month, person.born) {
                     let weight = mortality_weights(self, site as usize)[age];
-                    let draw =
-                        crate::expeditions::random(self.seed, person.id, self.month, 0x4d4f5254)
-                            .max(1e-7) as f64;
+                    let draw = crate::expeditions::random(
+                        self.seed,
+                        person.id,
+                        self.month,
+                        NAMED_MORTALITY_STREAM,
+                    )
+                    .max(MORTALITY_RANDOM_FLOOR) as f64;
                     candidates[site as usize].push((person.id, -draw.ln() / weight));
                 }
             }

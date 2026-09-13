@@ -7,6 +7,21 @@ use crate::{
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
+const OFFICE_TERM_MONTHS: u32 = 48;
+const COUNCIL_SELECTION_MIN_AUTONOMY: f32 = 0.75;
+const UNNAMED_STAFF_CAPACITY: f32 = 0.5;
+const HOLDER_BASE_CAPACITY: f32 = 0.75;
+const KNOWLEDGE_CAPACITY_WEIGHT: f32 = 0.25;
+const APPOINTMENT_INTERVAL_MONTHS: u32 = 3;
+const CAMPAIGN_MEMORY_MONTHS: u32 = 12;
+const COUNCIL_GENEROSITY_WEIGHT: f32 = 0.4;
+const COUNCIL_LOYALTY_WEIGHT: f32 = 0.2;
+const RULER_LOYALTY_WEIGHT: f32 = 0.4;
+const RULER_CAUTION_WEIGHT: f32 = 0.2;
+const APPOINTMENT_KNOWLEDGE_WEIGHT: f32 = 0.2;
+const APPOINTMENT_AMBITION_WEIGHT: f32 = 0.1;
+const APPOINTMENT_CAMPAIGN_WEIGHT: f32 = 0.1;
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Selection {
     Ruler,
@@ -86,7 +101,7 @@ impl Offices {
                     (t.person as usize) < h.people.len()
                         && t.began >= o.created
                         && t.began <= h.month
-                        && t.due == t.began + 48
+                        && t.due == t.began + OFFICE_TERM_MONTHS
                         && t.ended.is_none_or(|m| m >= t.began && m <= h.month)
                         && (j + 1 == o.tenures.len() || t.ended.is_some())
                         && (j == 0 || o.tenures[j - 1].ended.is_some_and(|m| m <= t.began))
@@ -108,7 +123,7 @@ impl History {
             .governance
             .as_ref()
             .and_then(|g| g.administrations.get(site as usize))
-            .is_some_and(|a| a.autonomy >= 0.75)
+            .is_some_and(|a| a.autonomy >= COUNCIL_SELECTION_MIN_AUTONOMY)
         {
             Selection::LocalCouncil
         } else {
@@ -139,26 +154,31 @@ impl History {
             return 1.;
         };
         let Some(o) = offices.seats.get(site as usize) else {
-            return 0.5;
+            return UNNAMED_STAFF_CAPACITY;
         };
         let Some(p) = o.holder() else {
-            return 0.5;
+            return UNNAMED_STAFF_CAPACITY;
         };
         if o.controller != self.controller(site)
             || !self
                 .office_candidates(site, o.controller, o.selection)
                 .contains(&p)
         {
-            return 0.5;
+            return UNNAMED_STAFF_CAPACITY;
         }
         let breadth = self
             .culture
             .as_ref()
             .and_then(|c| c.agents.get(p as usize))
-            .map_or(0., |a| a.knowledge.len().min(12) as f32 / 12.);
-        let capacity = 0.75 + 0.25 * breadth;
+            .map_or(0., |a| {
+                a.knowledge.len().min(crate::culture::TOPICS.len()) as f32
+                    / crate::culture::TOPICS.len() as f32
+            });
+        let capacity = HOLDER_BASE_CAPACITY + KNOWLEDGE_CAPACITY_WEIGHT * breadth;
         offices.service.as_ref().map_or(capacity, |s| {
-            0.5 + (capacity - 0.5) * s.delivered(self.month, site, p, o.controller)
+            UNNAMED_STAFF_CAPACITY
+                + (capacity - UNNAMED_STAFF_CAPACITY)
+                    * s.delivered(self.month, site, p, o.controller)
         })
     }
     pub(crate) fn sync_offices(&mut self) {
@@ -241,7 +261,9 @@ impl History {
         let Some(mut offices) = self.offices.take() else {
             return;
         };
-        if self.month % 3 == 0 && offices.last_decision != Some(self.month) {
+        if self.month % APPOINTMENT_INTERVAL_MONTHS == 0
+            && offices.last_decision != Some(self.month)
+        {
             offices.last_decision = Some(self.month);
             for o in &mut offices.seats {
                 if o.holder().is_some() {
@@ -250,19 +272,22 @@ impl History {
                 let score = |p: u32| {
                     let a = &self.culture.as_ref().unwrap().agents[p as usize];
                     let campaign = a.last_campaign.is_some_and(|id| {
-                        self.events
-                            .get(id as usize)
-                            .is_some_and(|e| self.month.saturating_sub(e.month) < 12)
+                        self.events.get(id as usize).is_some_and(|e| {
+                            self.month.saturating_sub(e.month) < CAMPAIGN_MEMORY_MONTHS
+                        })
                     });
                     let social = if o.selection == Selection::LocalCouncil {
-                        0.4 * a.traits[1] + 0.2 * a.traits[4]
+                        COUNCIL_GENEROSITY_WEIGHT * a.traits[1]
+                            + COUNCIL_LOYALTY_WEIGHT * a.traits[4]
                     } else {
-                        0.4 * a.traits[4] + 0.2 * a.traits[5]
+                        RULER_LOYALTY_WEIGHT * a.traits[4] + RULER_CAUTION_WEIGHT * a.traits[5]
                     };
                     social
-                        + 0.2 * a.knowledge.len().min(12) as f32 / 12.
-                        + 0.1 * a.traits[0]
-                        + 0.1 * f32::from(campaign)
+                        + APPOINTMENT_KNOWLEDGE_WEIGHT
+                            * a.knowledge.len().min(crate::culture::TOPICS.len()) as f32
+                            / crate::culture::TOPICS.len() as f32
+                        + APPOINTMENT_AMBITION_WEIGHT * a.traits[0]
+                        + APPOINTMENT_CAMPAIGN_WEIGHT * f32::from(campaign)
                 };
                 let holder = self
                     .office_candidates(o.site, o.controller, o.selection)
@@ -273,7 +298,8 @@ impl History {
                     let campaign = self.culture.as_ref().unwrap().agents[person as usize]
                         .last_campaign
                         .filter(|id| {
-                            self.month.saturating_sub(self.events[*id as usize].month) < 12
+                            self.month.saturating_sub(self.events[*id as usize].month)
+                                < CAMPAIGN_MEMORY_MONTHS
                         });
                     self.event("office_appointed",Some(o.site),None,format!("{} selected as {} for four years by {:?}; assessed suitability {utility:.3}; existing administrative staff and treasury retained",self.people[person as usize].name,o.title,o.selection));
                     let e = self.events.last_mut().unwrap();
@@ -288,7 +314,7 @@ impl History {
                     o.tenures.push(Tenure {
                         person,
                         began: self.month,
-                        due: self.month + 48,
+                        due: self.month + OFFICE_TERM_MONTHS,
                         ended: None,
                         appointment: e.id,
                     });

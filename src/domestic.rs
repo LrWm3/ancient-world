@@ -5,14 +5,15 @@ use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::population_registry::{
+    INDEPENDENT_HOME_AGE_MONTHS, WORKING_END_AGE_MONTHS, WORKING_START_AGE_MONTHS,
+};
+
 const CARE_PROJECTION_TOLERANCE_WORKER_MONTHS: f64 = 1e-4;
 const CARE_RECEIPT_TOLERANCE_WORKER_MONTHS: f64 = 1e-5;
 const MAX_RECORDED_CARER_WORKER_MONTHS: f64 = 0.80001;
 
 const INFANT_END_AGE_MONTHS: i32 = 60;
-const WORKING_START_AGE_MONTHS: i32 = 180;
-const WORKING_END_AGE_MONTHS: i32 = 720;
-const INDEPENDENT_HOME_AGE_MONTHS: i32 = 216;
 const INFANT_CARE_WORKER_MONTHS: f64 = 0.12;
 const CHILD_CARE_WORKER_MONTHS: f64 = 0.04;
 const MAX_ELDER_CARE_WORKER_MONTHS: f64 = 0.08;

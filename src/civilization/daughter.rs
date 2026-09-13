@@ -1,5 +1,8 @@
 //! Annual daughter founding refines a population target into whole households.
-use super::{Candidate, History, LIMIT};
+use super::{
+    Candidate, History, DAUGHTER_MAX_POPULATION, DAUGHTER_MIN_POPULATION,
+    FOUNDING_PROVISION_KG_PER_PERSON_MONTH, FOUNDING_PROVISION_MONTHS, LIMIT,
+};
 use crate::population_registry::age_band;
 use std::collections::BTreeSet;
 
@@ -15,7 +18,7 @@ impl History {
         if !self.individual_demography_enabled()
             || self.sites.len() >= LIMIT
             || !target.is_finite()
-            || target < 40.
+            || target < DAUGHTER_MIN_POPULATION
             || self.sites[from].abandoned
             || candidate.island != self.sites[from].island
             || self.sites.iter().any(|s| s.cell == candidate.cell)
@@ -39,7 +42,9 @@ impl History {
                 continue;
             }
             let roster = self.household_resident_roster(household.id);
-            if roster.is_empty() || people.len() + roster.len() > target.min(90.) as usize {
+            if roster.is_empty()
+                || people.len() + roster.len() > target.min(DAUGHTER_MAX_POPULATION) as usize
+            {
                 continue;
             }
             for &id in &roster {
@@ -50,8 +55,8 @@ impl History {
         }
         let population = people.len() as f32;
         let source = &self.sites[from];
-        let food = population * 18. * 12.;
-        if population < 40.
+        let food = population * FOUNDING_PROVISION_KG_PER_PERSON_MONTH * FOUNDING_PROVISION_MONTHS;
+        if population < DAUGHTER_MIN_POPULATION
             || ages[1] < 1.
             || population >= source.stocks.stock[0]
             || source.stocks.stock[1] < food
@@ -100,7 +105,16 @@ impl History {
         let seeds = site.stocks.stock[1].min(population);
         site.stocks.stock[1] -= seeds;
         let south = crate::grid::cell_direction(site.cell, self.terrain_resolution)[1] < 0.;
-        site.demography.crops = [0., seeds, if south { 2. } else { 8. }, 1.];
+        site.demography.crops = [
+            0.,
+            seeds,
+            if south {
+                crate::society::SOUTHERN_HARVEST_MONTH
+            } else {
+                crate::society::NORTHERN_HARVEST_MONTH
+            },
+            1.,
+        ];
         for household in &mut self.society.as_mut().unwrap().households {
             if households.contains(&household.id) {
                 household.site = to as u32;

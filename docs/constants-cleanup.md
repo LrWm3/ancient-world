@@ -77,6 +77,13 @@ semantic extraction pass (further shared-policy reconciliation may still apply):
 - `src/relocation.rs`
 - `src/relocation/comparison.rs`
 
+- `src/offices.rs`
+- `src/participation.rs`
+- `src/population_registry.rs`
+- `src/individual_demography.rs`
+- `src/civilization/daughter.rs`
+- `src/household_economy/nutrition.rs`
+
 Reviewed without further numeric extraction (geometry/layout arithmetic, static
 content, already named parameters, or independent test fixtures only):
 
@@ -110,7 +117,6 @@ API constants and compile-time assertions should be reviewed in context rather
 than blindly moved out of their types or layout checks.
 
 - `src/civic_petitions.rs`
-- `src/civilization/daughter.rs`
 - `src/civilization/production_forecast.rs`
 - `src/culture/dynamics.rs`
 - `src/culture/practices.rs`
@@ -124,13 +130,8 @@ than blindly moved out of their types or layout checks.
 - `src/gpu.rs`
 - `src/history_atlas.rs`
 - `src/history_timeline.rs`
-- `src/household_economy/nutrition.rs`
 - `src/household_economy.rs`
-- `src/individual_demography.rs`
 - `src/main.rs`
-- `src/offices.rs`
-- `src/participation.rs`
-- `src/population_registry.rs`
 - `src/region.rs`
 - `src/shipping.rs`
 - `src/social_state.rs`
@@ -139,8 +140,8 @@ than blindly moved out of their types or layout checks.
 WGSL shaders still need their complete semantic passes. Shared agricultural and
 workforce constants now use `shared_shader_parameters!` (declared in `src/lib.rs`):
 the owning module declares scalar Rust parameters after imports, and the macro
-emits the same literal spelling into a WGSL prefix. Use WGSL-compatible f32/u32
-literals without Rust-only suffixes or separators. The pipeline must include
+emits the same literal spelling into a WGSL prefix. Use WGSL-compatible f32/u32 literals (CPU f64 parameters emit the same
+literal spelling as WGSL f32) without Rust-only suffixes or separators. The pipeline must include
 the owner's `SHADER_PARAMETERS` exactly once. This changes no buffer layout and
 avoids runtime float formatting. Standalone shader text requires those prefixes.
 Existing parameters elsewhere still need sharing reconciliation; renaming both
@@ -297,3 +298,19 @@ changes. Library and strict Clippy results for the complete batch follow below.
 
 Complete-batch verification: 151 active library tests passed (130 explicitly
 ignored); strict all-target Clippy and source-artifact/whitespace checks passed.
+
+## Demographic ownership and office policy batch
+
+Named office selection/tenure, resident participation, population initialization,
+birth/casualty decisions and household nutrition parameters. Ration and mortality
+rates share society-owned declarations; CPU f64 rates preserve their precision,
+while the WGSL prefix retains the original f32 literal spelling. Registry age
+boundaries replace domestic/participation copies. Political family limits are
+shared with individual births. Daughter founding shares original provision costs
+with aggregate founding, retaining separate f32 stock and f64 ledger arithmetic.
+Society, civilization and politics still need their complete semantic reviews.
+
+All ten individual-demography tests passed with ignored GPU fixtures enabled,
+including travel, defense, birthdays and checkpoint continuation. All 151 active
+library tests passed (130 explicitly ignored); strict all-target Clippy, repository
+artifact policy and whitespace checks passed.

@@ -3,6 +3,9 @@ use super::RetailPlan;
 use crate::{civilization::History, participation::Presence, population_registry::age_band};
 use std::collections::BTreeMap;
 
+const MIN_TOTAL_FOOD_NEED_KG: f64 = 1e-12;
+const HUNGER_WORK_PENALTY: f32 = 0.35;
+
 /// Known members anchor age-weighted need. Unrepresented cohort stock is shared
 /// explicitly across accounts. Sparse/overhanging identities cannot enlarge need.
 pub(super) fn food_needs(ages: [f64; 3], members: &[[f64; 3]]) -> Vec<f64> {
@@ -21,7 +24,7 @@ pub(super) fn food_needs(ages: [f64; 3], members: &[[f64; 3]]) -> Vec<f64> {
                         0.
                     };
                     (m[b] * scale + (ages[b] - known[b]).max(0.) / members.len() as f64)
-                        * [10., 18., 14.][b]
+                        * crate::society::AGE_RATIONS_KG_PER_MONTH[b]
                 })
                 .sum()
         })
@@ -39,7 +42,7 @@ impl RetailPlan {
             .map(|(j, &id)| {
                 (
                     id,
-                    free * self.needs[j] / total_need.max(1e-12),
+                    free * self.needs[j] / total_need.max(MIN_TOTAL_FOOD_NEED_KG),
                     if demand > 0. {
                         paid * self.demand[j] / demand
                     } else {
@@ -124,13 +127,14 @@ impl History {
                     continue;
                 }
                 if let Some(band) = age_band(self.month.saturating_sub(1), p.born) {
-                    let disease =
-                        self.sites[site as usize].demography.health[0].clamp(0., 0.5) as f64;
+                    let disease = self.sites[site as usize].demography.health[0]
+                        .clamp(0., crate::society::MAX_DISEASE_BURDEN)
+                        as f64;
                     rates.insert(
                         r.person,
-                        [0.0005, 0.0006, 0.003][band]
-                            + shortage * [0.06, 0.025, 0.05][band]
-                            + disease * 0.01,
+                        crate::society::BASE_MONTHLY_MORTALITY[band]
+                            + shortage * crate::society::HUNGER_MORTALITY[band]
+                            + disease * crate::society::DISEASE_MORTALITY,
                     );
                 }
             }
@@ -155,7 +159,7 @@ impl History {
             return 1.;
         }
         // Toy short-term weakness, separate from the common disease exposure.
-        1. - 0.35 * a.hunger.clamp(0., 1.) as f32
+        1. - HUNGER_WORK_PENALTY * a.hunger.clamp(0., 1.) as f32
     }
 }
 

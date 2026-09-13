@@ -5,6 +5,17 @@ use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+const MIN_COMMITMENT_WORKER_MONTHS: f32 = 1e-6;
+const WORK_SETTLEMENT_TOLERANCE: f32 = 1e-5;
+const WORK_VALIDATION_TOLERANCE: f32 = 1e-4;
+const PRACTICE_VALIDATION_TOLERANCE: f64 = 1e-6;
+const MAX_RECORDED_CAPACITY_WORKER_MONTHS: f32 = 0.80001;
+const SERVICE_RECRUITMENT_MAX_AGE_MONTHS: i32 = 660;
+const SERVICE_RECRUITMENT_STREAM: u32 = 211;
+const SERVICE_INITIAL_AGE_STREAM: u32 = 212;
+const SERVICE_INITIAL_MIN_AGE_MONTHS: i32 = 300;
+const SERVICE_INITIAL_AGE_SPAN_MONTHS: f32 = 180.;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Activity {
     Governance,
@@ -111,7 +122,7 @@ impl Participation {
             .iter()
             .map(|&id| self.available(id))
             .fold(wanted / ids.len() as f32, f32::min);
-        if share <= 1e-6 {
+        if share <= MIN_COMMITMENT_WORKER_MONTHS {
             return None;
         }
         for id in &ids {
@@ -150,7 +161,10 @@ impl Participation {
             .get_mut(id as usize)
             .ok_or_else(|| anyhow::anyhow!("unknown personal commitment"))?;
         ensure!(
-            !c.settled && used.is_finite() && used >= 0. && used <= c.granted + 1e-5,
+            !c.settled
+                && used.is_finite()
+                && used >= 0.
+                && used <= c.granted + WORK_SETTLEMENT_TOLERANCE,
             "invalid personal work settlement"
         );
         c.used = used.min(c.granted);
@@ -220,8 +234,8 @@ impl Participation {
                     && p.production_practice
                         .iter()
                         .all(|v| v.is_finite() && *v >= 0.)
-                    && p.capacity + p.care <= 0.80001
-                    && p.committed <= p.capacity + 1e-5
+                    && p.capacity + p.care <= MAX_RECORDED_CAPACITY_WORKER_MONTHS
+                    && p.committed <= p.capacity + WORK_SETTLEMENT_TOLERANCE
                     && p.completed.iter().all(|v| v.is_finite() && *v >= 0.)
                     && p.workshop_completed.is_finite()
                     && p.workshop_completed >= 0.
@@ -230,7 +244,8 @@ impl Participation {
                     && p.workshop_practice
                         .iter()
                         .all(|v| v.is_finite() && *v >= 0.)
-                    && p.workshop_practice.iter().sum::<f64>() <= p.workshop_completed + 1e-6
+                    && p.workshop_practice.iter().sum::<f64>()
+                        <= p.workshop_completed + PRACTICE_VALIDATION_TOLERANCE
                     && p.workshop_learning
                         .iter()
                         .all(|v| v.is_finite() && (0. ..=1.).contains(v)),
@@ -238,7 +253,7 @@ impl Participation {
             );
             let committed = committed_totals[id as usize];
             ensure!(
-                (committed - p.committed).abs() < 1e-4,
+                (committed - p.committed).abs() < WORK_VALIDATION_TOLERANCE,
                 "personal commitment ledger mismatch"
             );
         }
@@ -250,8 +265,9 @@ impl Participation {
                     && c.granted > 0.
                     && c.used.is_finite()
                     && c.used >= 0.
-                    && c.used <= c.granted + 1e-5
-                    && (c.people.iter().map(|(_, v)| v).sum::<f32>() - c.granted).abs() < 1e-4
+                    && c.used <= c.granted + WORK_SETTLEMENT_TOLERANCE
+                    && (c.people.iter().map(|(_, v)| v).sum::<f32>() - c.granted).abs()
+                        < WORK_VALIDATION_TOLERANCE
                     && c.people.windows(2).all(|p| p[0].0 < p[1].0)
                     && c.people
                         .iter()
@@ -383,8 +399,16 @@ impl History {
         let care_totals = self.domestic_care_totals();
         for (p, (household, presence)) in self.people.iter().zip(self.person_presences()) {
             let capacity = match presence {
-                Presence::Resident(site) if (180..720).contains(&(self.month as i32 - p.born)) => {
-                    0.8 * (1. - 0.5 * self.sites[site as usize].demography.health[0].clamp(0., 0.5))
+                Presence::Resident(site)
+                    if (crate::population_registry::WORKING_START_AGE_MONTHS
+                        ..crate::population_registry::WORKING_END_AGE_MONTHS)
+                        .contains(&(self.month as i32 - p.born)) =>
+                {
+                    crate::labor::ADULT_WORKER_MONTHS
+                        * (1.
+                            - crate::labor::ILLNESS_WORK_PENALTY
+                                * self.sites[site as usize].demography.health[0]
+                                    .clamp(0., crate::labor::MAX_WORK_ILLNESS_BURDEN))
                         * self.household_work_nutrition(household, site)
                 }
                 _ => 0.,
@@ -565,7 +589,9 @@ impl History {
             .people
             .iter()
             .filter(|person| {
-                (180..660).contains(&(self.month as i32 - person.born))
+                (crate::population_registry::WORKING_START_AGE_MONTHS
+                    ..SERVICE_RECRUITMENT_MAX_AGE_MONTHS)
+                    .contains(&(self.month as i32 - person.born))
                     && self.person_presence(person.id).1
                         == crate::participation::Presence::Resident(origin)
                     && !self.civilizations.iter().any(|c| c.leader == person.id)
@@ -573,13 +599,14 @@ impl History {
                         p.month != Some(self.month)
                             || p.residents
                                 .get(&person.id)
-                                .is_none_or(|r| r.committed <= 1e-6)
+                                .is_none_or(|r| r.committed <= MIN_COMMITMENT_WORKER_MONTHS)
                     })
             })
             .map(|p| p.id)
             .collect();
         candidates.sort_by_key(|&person| {
-            crate::expeditions::random(self.seed, person, self.month, 211).to_bits()
+            crate::expeditions::random(self.seed, person, self.month, SERVICE_RECRUITMENT_STREAM)
+                .to_bits()
         });
         let mut chosen = Vec::new();
         for person in candidates {
@@ -595,9 +622,9 @@ impl History {
         let unnamed_adults =
             slots.available(origin, 1, self.sites[origin as usize].demography.ages[1]) as usize;
         let identify = (maximum - candidates.len()).min(unnamed_adults).min(
-            self.politics
-                .as_ref()
-                .map_or(0, |p| 50000usize.saturating_sub(p.kin.len())),
+            self.politics.as_ref().map_or(0, |p| {
+                crate::population_registry::MAX_NAMED_POPULATION.saturating_sub(p.kin.len())
+            }),
         );
         ensure!(
             candidates.len() + identify >= minimum,
@@ -646,9 +673,13 @@ impl History {
                 name,
                 civilization,
                 born: self.month as i32
-                    - 300
-                    - (crate::expeditions::random(self.seed, person, self.month, 212) * 180.)
-                        as i32,
+                    - SERVICE_INITIAL_MIN_AGE_MONTHS
+                    - (crate::expeditions::random(
+                        self.seed,
+                        person,
+                        self.month,
+                        SERVICE_INITIAL_AGE_STREAM,
+                    ) * SERVICE_INITIAL_AGE_SPAN_MONTHS) as i32,
                 died: None,
                 predecessor: None,
             });

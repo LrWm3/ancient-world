@@ -3,7 +3,11 @@ use crate::{civilization::History, economy::FOOD_CNP};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
-const TRAVEL_RATIONS_KG_PER_MONTH: [f32; 3] = [10., 18., 14.];
+const TRAVEL_RATIONS_KG_PER_MONTH: [f32; 3] = [
+    crate::society::CHILD_RATION_KG_PER_MONTH as f32,
+    crate::society::ADULT_RATION_KG_PER_MONTH as f32,
+    crate::society::ELDER_RATION_KG_PER_MONTH as f32,
+];
 const TRAVEL_FOOD_TOLERANCE_KG: f32 = 0.001;
 const MAX_MONTHLY_TRAVEL_STARVATION: f32 = 0.08;
 const EXTINCT_TRAVEL_POPULATION: f32 = 0.01;

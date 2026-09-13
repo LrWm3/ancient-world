@@ -9,6 +9,11 @@ use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+pub(crate) const MAX_CHILDREN_PER_MARRIAGE: u32 = 4;
+pub(crate) const BIRTH_SPACING_MONTHS: u32 = 36;
+pub(crate) const FERTILITY_START_AGE_MONTHS: i64 = 216;
+pub(crate) const FERTILITY_END_AGE_MONTHS: i64 = 540;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Kinship {
     pub person: u32,
@@ -128,7 +133,8 @@ impl Politics {
         // These temporary indexes preserve the exact chronology and ancestry checks.
         let kin_index: BTreeMap<_, _> = self.kin.iter().map(|k| (k.person, k)).collect();
         ensure!(
-            self.kin.len() <= 50000 && kin_index.len() == self.kin.len(),
+            self.kin.len() <= crate::population_registry::MAX_NAMED_POPULATION
+                && kin_index.len() == self.kin.len(),
             "duplicate or excessive genealogy"
         );
         let pair = |a: u32, b: u32| (a.min(b), a.max(b));
@@ -533,11 +539,12 @@ impl History {
                                     .site
                     })
                 })
-                || m.children >= 4
-                || self.month - m.last_birth < 36
-                || m.partners
-                    .iter()
-                    .any(|&id| self.month as i32 - self.people[id as usize].born >= 540)
+                || m.children >= MAX_CHILDREN_PER_MARRIAGE
+                || self.month - m.last_birth < BIRTH_SPACING_MONTHS
+                || m.partners.iter().any(|&id| {
+                    self.month as i32 - self.people[id as usize].born
+                        >= FERTILITY_END_AGE_MONTHS as i32
+                })
             {
                 continue;
             }
@@ -553,7 +560,7 @@ impl History {
                 || self.sites[site].abandoned
                 || p.birth_credit[site] < 1.
                 || self.sites[site].demography.ages[0] < 1.
-                || p.kin.len() >= 50000
+                || p.kin.len() >= crate::population_registry::MAX_NAMED_POPULATION
             {
                 continue;
             }

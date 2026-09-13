@@ -11,6 +11,10 @@ use anyhow::{ensure, Result};
 pub use production_forecast::ProductionLaborForecast;
 use serde::{Deserialize, Serialize};
 use wgpu::util::DeviceExt;
+const DAUGHTER_MIN_POPULATION: f32 = 40.;
+const DAUGHTER_MAX_POPULATION: f32 = 90.;
+const FOUNDING_PROVISION_KG_PER_PERSON_MONTH: f32 = 18.;
+const FOUNDING_PROVISION_MONTHS: f32 = 12.;
 const LIMIT: usize = 256;
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, bytemuck::Pod, bytemuck::Zeroable)]
@@ -998,7 +1002,8 @@ impl Engine {
             label: Some("Civilization simulation"),
             source: wgpu::ShaderSource::Wgsl(
                 format!(
-                    "{}\n{}\n{}\n{}\n{}\n{}",
+                    "{}\n{}\n{}\n{}\n{}\n{}\n{}",
+                    crate::society::SHADER_PARAMETERS,
                     crate::hazards::SHADER_PARAMETERS,
                     crate::agriculture::SHADER_PARAMETERS,
                     crate::labor::SHADER_PARAMETERS,
@@ -1239,8 +1244,15 @@ impl Generator {
                 name: civname,
                 leader: id,
             });
-            h.found(&c, id, 120., 120. * 18. * 12.);
-            h.initial_food += 120. * 18. * 12.;
+            h.found(
+                &c,
+                id,
+                120.,
+                120. * FOUNDING_PROVISION_KG_PER_PERSON_MONTH * FOUNDING_PROVISION_MONTHS,
+            );
+            h.initial_food += 120.
+                * FOUNDING_PROVISION_KG_PER_PERSON_MONTH as f64
+                * FOUNDING_PROVISION_MONTHS as f64;
             h.initial_population += 120.;
         }
         h.validate(&terrain)?;
@@ -1686,7 +1698,10 @@ impl History {
                     .and_then(|l| l.floods.get(&s.id))
                     .is_some_and(|f| f.persistent)
                 || s.stocks.stock[0] < 160.
-                || s.stocks.stock[1] < s.stocks.stock[0] * 18. * 12.
+                || s.stocks.stock[1]
+                    < s.stocks.stock[0]
+                        * FOUNDING_PROVISION_KG_PER_PERSON_MONTH
+                        * FOUNDING_PROVISION_MONTHS
             {
                 continue;
             }
@@ -1714,7 +1729,8 @@ impl History {
                     continue;
                 }
                 let civ = s.civilization;
-                let settlers = (s.stocks.stock[0] * 0.2).clamp(40., 90.);
+                let settlers = (s.stocks.stock[0] * 0.2)
+                    .clamp(DAUGHTER_MIN_POPULATION, DAUGHTER_MAX_POPULATION);
                 if self.individual_demography_enabled() {
                     self.found_resident_daughter(i, &c, settlers);
                     continue;
@@ -1724,7 +1740,8 @@ impl History {
                 for age in &mut migrant_ages[..3] {
                     *age *= cohort_fraction;
                 }
-                let food = settlers * 18. * 12.;
+                let food =
+                    settlers * FOUNDING_PROVISION_KG_PER_PERSON_MONTH * FOUNDING_PROVISION_MONTHS;
                 self.sites[i].stocks.stock[0] -= settlers;
                 self.sites[i].stocks.stock[1] -= food;
                 self.sites[i].stocks.people[3] += settlers;
