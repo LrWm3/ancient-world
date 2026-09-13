@@ -1,4 +1,4 @@
-//! Paid recovery of canonical bulk stocks using buyer-provided aggregate freight.
+//! Paid recovery of canonical bulk stocks using buyer-provided freight and fleets.
 use crate::{
     civilization::History,
     economy::{Cargo, FOOD, GOODS},
@@ -6,6 +6,7 @@ use crate::{
 use anyhow::{ensure, Result};
 
 const MAX_RECOVERY_ONE_WAY_MONTHS: u32 = 6;
+const MAX_SEA_RECOVERY_ONE_WAY_MONTHS: u32 = 12;
 const MIN_RECOVERY_KG: f32 = 1.;
 const MIN_RECOVERY_PRICE: f32 = 0.01;
 const RECOVERY_FOOD_RESERVE_MONTHS: f32 = 6.;
@@ -19,6 +20,87 @@ impl History {
                 .iter()
                 .any(|r| r.passable() && ((r.from == a && r.to == b) || (r.from == b && r.to == a)))
         })
+    }
+
+    pub(crate) fn recovery_cargo_route_open(&self, cargo: &Cargo) -> bool {
+        let Some(id) = cargo.sea_lane else {
+            return self.recovery_route_open(cargo.from, cargo.to);
+        };
+        self.shipping.as_ref().is_some_and(|s| {
+            s.lanes.get(id as usize).is_some_and(|l| {
+                l.open
+                    && l.flood_months == 0
+                    && l.ports.iter().all(|&p| {
+                        s.ports
+                            .get(p as usize)
+                            .is_some_and(|p| p.harbor_capacity() > 0.)
+                    })
+            })
+        })
+    }
+
+    // One surveyed sea leg. The buyer's crew does the collection; abandoned
+    // residents never provide transport. Both surviving harbors still handle cargo.
+    fn recovery_sea_journey(&self, buyer: u32, source: u32) -> Option<(u32, u32, f32, Vec<u32>)> {
+        let shipping = self.shipping.as_ref()?;
+        shipping
+            .lanes
+            .iter()
+            .enumerate()
+            .filter_map(|(id, lane)| {
+                if !lane.open || lane.flood_months > 0 {
+                    return None;
+                }
+                let a = &shipping.ports[lane.ports[0] as usize];
+                let b = &shipping.ports[lane.ports[1] as usize];
+                let (home, ruin, reverse) = if a.site == buyer && b.site == source {
+                    (a, b, false)
+                } else if b.site == buyer && a.site == source {
+                    (b, a, true)
+                } else {
+                    return None;
+                };
+                home.fleet.as_ref()?;
+                let months = ((home.access_km
+                    + ruin.access_km
+                    + lane.km / crate::shipping::SEA_DISTANCE_ADVANTAGE)
+                    / crate::society::LAND_TRAVEL_KM_PER_MONTH)
+                    .ceil()
+                    .max(1.) as u32;
+                if months > MAX_SEA_RECOVERY_ONE_WAY_MONTHS {
+                    return None;
+                }
+                let used = |site| {
+                    self.cargo
+                        .iter()
+                        .filter(|c| {
+                            c.sea_lane.is_some_and(|l| {
+                                shipping.lanes[l as usize]
+                                    .ports
+                                    .iter()
+                                    .any(|&p| shipping.ports[p as usize].site == site)
+                            })
+                        })
+                        .map(|c| c.kg)
+                        .sum::<f32>()
+                };
+                let capacity = (home.capacity() - used(buyer))
+                    .max(0.)
+                    .min((ruin.harbor_capacity() - used(source)).max(0.))
+                    .min(self.land_freight_capacity(buyer));
+                if capacity < MIN_RECOVERY_KG {
+                    return None;
+                }
+                let mut path = home.access.clone();
+                if reverse {
+                    path.extend(lane.cells.iter().rev().copied());
+                } else {
+                    path.extend(lane.cells.iter().copied());
+                }
+                path.extend(ruin.access.iter().rev().copied());
+                Some((id as u32, months, capacity, path))
+            })
+            .min_by_key(|(id, months, _, _)| (*months, *id))
     }
 
     /// Basic working-tool substitutes share one service deficit, including all
@@ -102,7 +184,7 @@ impl History {
 
     /// Reserve existing stock as cargo pending collection and return. No stock
     /// appears at the buyer before arrival. The source estate receives payment.
-    /// Uses aggregate freight, not a newly simulated individual salvage crew.
+    /// Uses existing freight and funded fleets, without creating separate salvage people.
     pub fn recover_abandoned_stock(
         &mut self,
         buyer: u32,
@@ -141,8 +223,8 @@ impl History {
             "recovery requires an inhabited buyer and an empty abandoned source"
         );
         ensure!(
-            home.island == ruin.island && ruin.economy.policy[3] >= 0.5,
-            "recovery requires the same inner continent and source trade permission"
+            ruin.economy.policy[3] >= 0.5,
+            "recovery requires source trade permission"
         );
         let buyer_controller = self.controller(buyer);
         let source_controller = self.controller(source);
@@ -160,49 +242,71 @@ impl History {
             !self.besieged(buyer) && !self.besieged(source),
             "recovery cannot bypass a siege"
         );
-        let society = self
-            .society
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("recovery needs transport services"))?;
-        let route = society
-            .routes
-            .iter()
-            .find(|r| {
-                r.passable()
-                    && ((r.from == buyer && r.to == source) || (r.from == source && r.to == buyer))
-            })
-            .ok_or_else(|| anyhow::anyhow!("no passable direct recovery route"))?;
-        ensure!(
-            route.cost_km.is_finite() && route.cost_km >= 0.,
-            "invalid recovery route distance"
-        );
-        let months = (route.cost_km / crate::society::LAND_TRAVEL_KM_PER_MONTH)
-            .ceil()
-            .max(1.) as u32;
-        ensure!(
-            months <= MAX_RECOVERY_ONE_WAY_MONTHS,
-            "recovery exceeds round-trip range"
-        );
-        let edge = [buyer.min(source), buyer.max(source)];
-        let road_used: f32 = self
-            .cargo
-            .iter()
-            .filter(|c| c.freight_edges.contains(&edge))
-            .map(|c| c.kg)
-            .sum();
-        // An empty endpoint cannot supply carriers. The buyer supplies them for
-        // both legs; the existing road surface still limits throughput.
-        let gross = home.stocks.stock[0] * catalog.production.land_freight_kg_per_person;
-        let surface = if route.upkeep.is_some() {
-            RECOVERY_ROAD_BASE_SHARE
-                + (1. - RECOVERY_ROAD_BASE_SHARE)
-                    * (route.road_bricks / RECOVERY_ROAD_FULL_SURFACE_KG).clamp(0., 1.) as f32
+        let (months, capacity, mut path, freight_edges, freight_stops, sea_lane) = if home.island
+            != ruin.island
+        {
+            let (lane, months, capacity, path) = self
+                .recovery_sea_journey(buyer, source)
+                .ok_or_else(|| anyhow::anyhow!("no funded surveyed sea recovery journey"))?;
+            (
+                months,
+                capacity,
+                path,
+                vec![],
+                vec![buyer.min(source), buyer.max(source)],
+                Some(lane),
+            )
         } else {
-            1.
+            let society = self
+                .society
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("recovery needs transport services"))?;
+            let route = society
+                .routes
+                .iter()
+                .find(|r| {
+                    r.passable()
+                        && ((r.from == buyer && r.to == source)
+                            || (r.from == source && r.to == buyer))
+                })
+                .ok_or_else(|| anyhow::anyhow!("no passable direct recovery route"))?;
+            ensure!(
+                route.cost_km.is_finite() && route.cost_km >= 0.,
+                "invalid recovery route distance"
+            );
+            let months = (route.cost_km / crate::society::LAND_TRAVEL_KM_PER_MONTH)
+                .ceil()
+                .max(1.) as u32;
+            ensure!(
+                months <= MAX_RECOVERY_ONE_WAY_MONTHS,
+                "recovery exceeds round-trip range"
+            );
+            let edge = [buyer.min(source), buyer.max(source)];
+            let road_used: f32 = self
+                .cargo
+                .iter()
+                .filter(|c| c.freight_edges.contains(&edge))
+                .map(|c| c.kg)
+                .sum();
+            // An empty endpoint cannot supply carriers. The buyer supplies them for
+            // both legs; the existing road surface still limits throughput.
+            let gross = home.stocks.stock[0] * catalog.production.land_freight_kg_per_person;
+            let surface = if route.upkeep.is_some() {
+                RECOVERY_ROAD_BASE_SHARE
+                    + (1. - RECOVERY_ROAD_BASE_SHARE)
+                        * (route.road_bricks / RECOVERY_ROAD_FULL_SURFACE_KG).clamp(0., 1.) as f32
+            } else {
+                1.
+            };
+            let capacity = self
+                .land_freight_capacity(buyer)
+                .min((gross * surface - road_used).max(0.));
+            let mut path = route.cells.clone();
+            if route.from != buyer {
+                path.reverse();
+            }
+            (months, capacity, path, vec![edge], edge.to_vec(), None)
         };
-        let capacity = self
-            .land_freight_capacity(buyer)
-            .min((gross * surface - road_used).max(0.));
         let stock = if good == FOOD {
             ruin.stocks.stock[1]
         } else {
@@ -285,10 +389,6 @@ impl History {
             .month
             .checked_add(months * 2)
             .ok_or_else(|| anyhow::anyhow!("recovery date overflow"))?;
-        let mut path = route.cells.clone();
-        if route.from != buyer {
-            path.reverse();
-        }
         let outward = path.clone();
         path.extend(outward.into_iter().rev().skip(1));
         self.sites[buyer as usize].economy.finance[0] -= paid;
@@ -305,9 +405,9 @@ impl History {
             export_payment: None,
             infection: None,
             voyage_clock: None,
-            freight_edges: vec![edge],
-            freight_stops: edge.to_vec(),
-            sea_lane: None,
+            freight_edges,
+            freight_stops,
+            sea_lane,
             weather_delay_months: 0,
             from: source,
             to: buyer,
@@ -316,7 +416,12 @@ impl History {
             paid,
             arrives,
         });
-        self.event("stock_recovery_dispatched", Some(buyer), Some(source), format!("Reserved {kg:.2} kg of good {good} from the abandoned estate for {paid:.2}; buyer-provided aggregate freight returns in month {arrives}. Estate wallets, objects and ownership claims remain separate."));
+        let mode = if sea_lane.is_some() {
+            "funded sea collection"
+        } else {
+            "aggregate road collection"
+        };
+        self.event("stock_recovery_dispatched", Some(buyer), Some(source), format!("Reserved {kg:.2} kg of good {good} from the abandoned estate for {paid:.2}; buyer-provided {mode} returns in month {arrives}. Estate wallets, objects and ownership claims remain separate."));
         self.events.last_mut().unwrap().planned_path = Some(path);
         Ok(kg)
     }
@@ -368,6 +473,101 @@ mod tests {
             flood_months: 0,
             road_bricks: 0.,
         }];
+        // Cross-continent recovery requires the buyer's actual funded fleet,
+        // but no population or crew is conjured at the abandoned endpoint.
+        {
+            use crate::shipping::{Port, SeaLane, Shipping, TARGET};
+            use crate::vessels::{Fleet, Vessel};
+            let mut sea = h.clone();
+            sea.sites[1].island = sea.sites[0].island.wrapping_add(1);
+            sea.society.as_mut().unwrap().routes.clear();
+            sea.shipping = Some(Shipping {
+                version: 1,
+                started: 0,
+                surveyed_sites: 2,
+                ports: (0..2)
+                    .map(|site| Port {
+                        site,
+                        fleet: Some(Fleet {
+                            vessels: if site == 0 {
+                                vec![Vessel {
+                                    id: 0,
+                                    name: "Fixture collector".into(),
+                                    commissioned: 0,
+                                    household: None,
+                                    funded_work: 0.1,
+                                    wages_paid: 18.,
+                                    crew: vec![],
+                                }]
+                            } else {
+                                vec![]
+                            },
+                            ..Default::default()
+                        }),
+                        work: None,
+                        access: vec![sea.sites[site as usize].cell],
+                        water_cell: sea.sites[site as usize].cell,
+                        access_km: 0.,
+                        assets: TARGET,
+                        commissioned: Some(0),
+                        flood_months: 0,
+                    })
+                    .collect(),
+                lanes: vec![SeaLane {
+                    ports: [0, 1],
+                    cells: vec![],
+                    km: 600.,
+                    open: true,
+                    flood_months: 0,
+                }],
+            });
+            for blocked in 0..5 {
+                let mut no = sea.clone();
+                let shipping = no.shipping.as_mut().unwrap();
+                match blocked {
+                    0 => shipping.ports[0].fleet.as_mut().unwrap().vessels[0].funded_work = 0.,
+                    1 => shipping.lanes[0].open = false,
+                    2 => shipping.ports[1].commissioned = None,
+                    3 => shipping.lanes[0].km = 10000.,
+                    _ => no.sites[0].stocks.stock[0] = 0.001,
+                }
+                assert!(no.recover_abandoned_stock(0, 1, 2, 100.).is_err());
+                assert!(no.cargo.is_empty());
+                assert_eq!(no.sites[1].economy.goods[2], 100.);
+            }
+            let money = sea.money_residual();
+            assert_eq!(sea.recover_abandoned_stock(0, 1, 2, 100.).unwrap(), 100.);
+            assert!(sea.recover_abandoned_stock(0, 1, 2, 1.).is_err());
+            assert!((sea.money_residual() - money).abs() < 1e-6);
+            assert_eq!(sea.sites[0].economy.goods[2], 0.);
+            assert_eq!(sea.sites[1].economy.goods[2], 0.);
+            assert_eq!(sea.cargo[0].arrives, 5);
+            assert_eq!(sea.cargo[0].sea_lane, Some(0));
+            assert!(sea
+                .freight_sites(1, 0, Some(0))
+                .unwrap()
+                .iter()
+                .all(|site| sea.cargo[0].freight_stops.contains(site)));
+            let mut unfunded = sea.clone();
+            unfunded.shipping.as_mut().unwrap().ports[0]
+                .fleet
+                .as_mut()
+                .unwrap()
+                .vessels[0]
+                .funded_work = 0.;
+            let mut restored: History =
+                serde_json::from_value(serde_json::to_value(&sea).unwrap()).unwrap();
+            for month in [4, 5] {
+                for history in [&mut sea, &mut restored, &mut unfunded] {
+                    history.month = month;
+                    history.market_arrivals();
+                }
+            }
+            assert_eq!(sea.sites[0].economy.goods[2], 100.);
+            assert_eq!(restored.sites[0].economy.goods[2], 100.);
+            assert_eq!(unfunded.sites[0].economy.goods[2], 0.);
+            assert_eq!(unfunded.cargo[0].kg, 100.);
+        }
         let before = h.clone();
         let cash = h
             .sites

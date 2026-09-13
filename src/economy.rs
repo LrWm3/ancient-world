@@ -1183,7 +1183,7 @@ impl History {
                 continue;
             }
             if c.arrives <= self.month
-                && ((c.recovery && !self.recovery_route_open(c.from, c.to))
+                && ((c.recovery && !self.recovery_cargo_route_open(&c))
                     || self.freight_path_flooded(&c.freight_edges)
                     || self.flood_blocks_delivery(c.from, c.to, c.sea_lane))
             {

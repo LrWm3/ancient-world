@@ -89,7 +89,8 @@ impl Fleet {
         self.vessels.iter().map(|v| v.funded_work).sum()
     }
 }
-// Cargo already in transit reserves both endpoints, exactly as sea_capacity does.
+// Ordinary cargo reserves crew service at both endpoints; recovery employs only
+// the buyer's fleet. Both harbors still reserve physical handling capacity.
 // Closed lanes still hold their cargo reservation; flooded ports cannot fund work.
 fn committed_port_loads(
     shipping: &crate::shipping::Shipping,
@@ -99,7 +100,9 @@ fn committed_port_loads(
     for c in cargo {
         if let Some(lane) = c.sea_lane.and_then(|id| shipping.lanes.get(id as usize)) {
             for &port in &lane.ports {
-                loads[port as usize] += c.kg;
+                if !c.recovery || shipping.ports[port as usize].site == c.to {
+                    loads[port as usize] += c.kg;
+                }
             }
         }
     }
@@ -121,6 +124,9 @@ impl History {
             };
             let staffing = lane.ports.iter().fold(1_f32, |fraction, &id| {
                 let port = &shipping.ports[id as usize];
+                if cargo.recovery && port.site != cargo.to {
+                    return fraction;
+                }
                 // Archives/configurations without the vessel subsystem retain scheduled travel.
                 let funded = port.fleet.as_ref().map_or(1., |fleet| {
                     (fleet.capacity() / loads[id as usize].max(MIN_LOAD_FOR_STAFFING_KG))
@@ -414,6 +420,13 @@ mod tests {
             sea_lane,
             weather_delay_months: 0,
         };
+        let mut collection = cargo(25., Some(0));
+        collection.recovery = true;
+        collection.to = 1;
+        assert_eq!(
+            committed_port_loads(&shipping, &[collection]),
+            vec![0., 25., 0.]
+        );
         let mut loads = vec![cargo(50., Some(0)), cargo(70., Some(1)), cargo(999., None)];
         assert_eq!(
             committed_port_loads(&shipping, &loads),

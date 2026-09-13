@@ -415,3 +415,13 @@ Three matched fifty-year runs and a paired century extension are mixed: seed 409
 has sustained additional operator business at year 100, while seeds 1024 and 256
 still have no operators at year 50 and worse ending hunger. This is a maintenance
 correction, not a declaration that circulation or industrial recovery is solved.
+
+### Recovery across inner continents
+
+[Buyer-funded sea stock recovery](sea-stock-recovery.md) extends paid collection
+beyond direct land routes. It uses existing surveyed lanes, surviving harbors and
+the buyer's funded fleet, recording both physical endpoints while charging crew
+service only to the buyer. Eleven completed comparison runs and an integration
+failure/fix are documented. The final century runs return tools/bricks in seed
+1024 and flax in seed 409, but do not improve broad economic outcomes. Unmined
+abandoned deposits and inactive estate money remain separate unfinished problems.
