@@ -9,7 +9,7 @@ use crate::{
 };
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 const OPERATING_CASH_FLOOR: f64 = 100.;
 const LENDER_SURPLUS_SHARE: f64 = 0.25;
@@ -56,6 +56,47 @@ impl Policy {
         Ok(())
     }
 }
+/// The town has one opening operating requirement, even if several deliveries
+/// can repay it. Allocate that shared requirement by expected proceeds; existing
+/// source-specific costs remain attached to their source.
+fn allocate_operating_costs(
+    evidence: &mut [super::underwriting::Evidence],
+    costs: &[f64],
+) -> Result<()> {
+    let mut receipts = BTreeMap::<u32, f64>::new();
+    for e in evidence.iter() {
+        let Account::Town(site) = e.beneficiary else {
+            continue;
+        };
+        ensure!(
+            e.expected_receipts.is_finite()
+                && e.expected_receipts >= 0.
+                && e.operating_costs.is_finite()
+                && e.operating_costs >= 0.
+                && costs
+                    .get(site as usize)
+                    .is_some_and(|c| c.is_finite() && *c >= 0.),
+            "invalid commercial operating-cost allocation"
+        );
+        *receipts.entry(site).or_default() += e.expected_receipts;
+    }
+    ensure!(
+        receipts.values().all(|v| v.is_finite()),
+        "commercial receipts overflow"
+    );
+    for e in evidence {
+        let Account::Town(site) = e.beneficiary else {
+            continue;
+        };
+        let total = receipts[&site];
+        if total > 0. {
+            e.operating_costs += costs[site as usize] * (e.expected_receipts / total);
+            ensure!(e.operating_costs.is_finite(), "commercial costs overflow");
+        }
+    }
+    Ok(())
+}
+
 impl History {
     /// Cost of missing non-food recipe inputs after planned local output. This is
     /// an opening quote, not a reservation or a promise of delivery/production.
@@ -108,6 +149,7 @@ impl History {
             "invalid commercial input quote"
         );
         let mut evidence = self.export_credit_evidence(policy.expected_loss_fraction)?;
+        allocate_operating_costs(&mut evidence, &costs)?;
         let mut requests = Vec::new();
         let mut offers = Vec::new();
         let mut offered = BTreeSet::new();
@@ -119,7 +161,7 @@ impl History {
                 source_counts[id as usize] += 1;
             }
         }
-        for (index, e) in evidence.iter_mut().enumerate() {
+        for (index, e) in evidence.iter().enumerate() {
             let Account::Town(seller) = e.beneficiary else {
                 continue;
             };
@@ -139,8 +181,6 @@ impl History {
             if gap == 0. {
                 continue;
             }
-            // The next production commitment remains senior to repayment.
-            e.operating_costs += costs[seller as usize];
             let lender = Account::Town(buyer);
             if offered.insert(buyer) {
                 let cash = self.credit_account_cash(lender)?;
@@ -198,5 +238,107 @@ impl History {
         };
         self.credit.commercial_decided_month = Some(self.month);
         Ok(count)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::credit::{
+        underwriting::{resolve, Evidence},
+        RepaymentSource,
+    };
+
+    fn sources() -> Vec<Evidence> {
+        (0..2)
+            .map(|contract| Evidence {
+                source: RepaymentSource::Export {
+                    contract,
+                    payment_month: 12,
+                },
+                beneficiary: Account::Town(0),
+                observed_month: 1,
+                expected_receipts: 100.,
+                operating_costs: 0.,
+                expected_loss_fraction: 0.,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn shared_cost_is_protected_once_without_double_pledging_proceeds() {
+        let mut evidence = sources();
+        allocate_operating_costs(&mut evidence, &[150.]).unwrap();
+        assert_eq!(
+            evidence.iter().map(|e| e.operating_costs).sum::<f64>(),
+            150.
+        );
+        let offers = [Offer {
+            lender: Account::Town(1),
+            month: 1,
+            cash: 1000.,
+            operating_reserve: 100.,
+            offered_principal: 900.,
+            minimum_annual_rate: 0.,
+        }];
+        let requests: Vec<_> = evidence
+            .iter()
+            .enumerate()
+            .map(|(id, e)| Request {
+                id: id as u64,
+                month: 1,
+                principal: 25.,
+                terms: Terms {
+                    lender: Account::Town(1),
+                    borrower: e.beneficiary,
+                    currency: SHARED_CURRENCY,
+                    source: e.source,
+                    annual_simple_rate: 0.,
+                    maturity_month: 13,
+                    grace_months: 3,
+                },
+            })
+            .collect();
+        let policy = super::super::underwriting::Policy::default();
+        let grants = resolve(1, &policy, &[], &offers, &evidence, &requests).unwrap();
+        // 200 receipts - 150 operating costs = 50; half covers new debt.
+        assert_eq!(grants.iter().map(|g| g.granted).sum::<f64>(), 25.);
+        assert!(grants.iter().all(|g| g.granted == 12.5));
+        let existing =
+            crate::credit::Loan::record_disbursement(0, requests[0].terms.clone(), 1, 12.5)
+                .unwrap();
+        let repeated = resolve(1, &policy, &[existing], &offers, &evidence, &requests).unwrap();
+        assert_eq!(repeated[0].granted, 0.);
+        assert_eq!(repeated[1].granted, 12.5);
+        let mut exhausted = sources();
+        allocate_operating_costs(&mut exhausted, &[250.]).unwrap();
+        assert!(resolve(1, &policy, &[], &offers, &exhausted, &requests)
+            .unwrap()
+            .iter()
+            .all(|g| g.granted == 0.));
+    }
+
+    #[test]
+    fn cost_shares_follow_receipts_and_preserve_local_costs_and_single_source() {
+        let mut e = sources();
+        e[1].expected_receipts = 300.;
+        e[0].operating_costs = 2.;
+        allocate_operating_costs(&mut e, &[120.]).unwrap();
+        assert_eq!((e[0].operating_costs, e[1].operating_costs), (32., 90.));
+        let mut reversed = sources();
+        reversed[1].expected_receipts = 300.;
+        reversed[0].operating_costs = 2.;
+        reversed.reverse();
+        allocate_operating_costs(&mut reversed, &[120.]).unwrap();
+        reversed.reverse();
+        assert_eq!(
+            serde_json::to_value(&e).unwrap(),
+            serde_json::to_value(reversed).unwrap()
+        );
+        let mut single = vec![sources().remove(0)];
+        allocate_operating_costs(&mut single, &[120.]).unwrap();
+        assert_eq!(single[0].operating_costs, 120.);
+        let mut missing = sources();
+        assert!(allocate_operating_costs(&mut missing, &[]).is_err());
     }
 }

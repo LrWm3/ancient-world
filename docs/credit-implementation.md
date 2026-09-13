@@ -612,3 +612,11 @@ The [capacity audit](credit-capacity-diagnostics.md) explains the held-out
 submitted rejections and documents new per-grant capacity/demand snapshots.
 The resolver retains its existing funding arithmetic; these records expose
 simultaneous constraints and distinguish policy grants from actual cash.
+
+## Shared commercial operating costs
+
+[Operating-cost allocation](commercial-credit-shared-costs.md) now protects one
+town-level forecast across eligible receipts instead of subtracting the whole
+forecast from each. Single-source behavior and all underwriting margins remain
+unchanged. This fixes duplicated costs, not the broader planned-versus-committed
+expense distinction.
