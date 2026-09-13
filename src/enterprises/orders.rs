@@ -63,6 +63,15 @@ impl Procurement {
     }
 }
 
+/// Observations at the due-month execution boundary, not inferred shortfall causes.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ExecutionObservation {
+    /// Request after the operator cash cap; not unconstrained labor demand.
+    pub requested_labor: f64,
+    pub funded_labor: f64,
+    pub completed_labor: f64,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ServiceOrder {
     pub id: u64,
@@ -80,6 +89,9 @@ pub struct ServiceOrder {
     pub paid: f64,
     pub refunded: f64,
     pub settled: Option<u32>,
+    /// Absent in older archives, on cancellation, or when the due boundary was missed.
+    #[serde(default)]
+    pub execution: Option<ExecutionObservation>,
 }
 
 impl History {
@@ -321,6 +333,7 @@ impl History {
             paid: 0.,
             refunded: 0.,
             settled: None,
+            execution: None,
         });
         Ok(id)
     }
@@ -383,6 +396,20 @@ pub(super) fn validate(enterprises: &Enterprises, h: &History) -> Result<()> {
                 && order.price_per_work > 0.,
             "invalid service order amounts"
         );
+        if let Some(observed) = &order.execution {
+            ensure!(
+                order.settled == Some(order.due)
+                    && [
+                        observed.requested_labor,
+                        observed.funded_labor,
+                        observed.completed_labor
+                    ]
+                    .iter()
+                    .all(|v| v.is_finite() && *v >= 0.)
+                    && observed.completed_labor.min(order.funded_work) == order.completed_work,
+                "invalid service order execution observation"
+            );
+        }
         let tolerance = ORDER_LEDGER_RELATIVE_TOLERANCE * (1. + order.funded);
         ensure!(
             (order.funded - order.escrow - order.paid - order.refunded).abs() <= tolerance
@@ -417,6 +444,11 @@ pub(super) fn settle(
         {
             if month == order.due && firm.closed.is_none() && !site.abandoned {
                 let work = f64::from(site.economy.enterprise_used[firm.family as usize]);
+                order.execution = Some(ExecutionObservation {
+                    requested_labor: firm.last_requested_work,
+                    funded_labor: firm.last_funded_work,
+                    completed_labor: work,
+                });
                 order.completed_work = work.min(order.funded_work).max(0.);
                 let payment = (order.completed_work * order.price_per_work).min(order.escrow);
                 order.escrow -= payment;

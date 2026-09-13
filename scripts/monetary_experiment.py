@@ -100,8 +100,15 @@ def service_order_outcomes(history):
     enterprises = history.get("enterprises") or {}
     orders = enterprises.get("orders", [])
     claims = (enterprises.get("procurement") or {}).get("claims", [])
+    observed = [o["execution"] for o in orders if o.get("execution") is not None]
     return {
         "service_orders": len(orders),
+        "service_orders_observed": len(observed),
+        "service_orders_no_requested_labor": sum(o["requested_labor"] == 0 for o in observed),
+        "service_orders_no_funded_labor": sum(o["funded_labor"] == 0 for o in observed),
+        "service_orders_funded_without_completion": sum(
+            o["funded_labor"] > 0 and o["completed_labor"] == 0 for o in observed
+        ),
         "service_orders_pending": sum(o["settled"] is None for o in orders),
         "service_order_funding": sum(o["funded"] for o in orders),
         "service_order_paid": sum(o["paid"] for o in orders),

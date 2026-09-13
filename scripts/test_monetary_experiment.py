@@ -24,6 +24,16 @@ def fixture():
 
 
 class CreditReportingTests(unittest.TestCase):
+    def test_execution_observations_do_not_invent_old_archive_failures(self):
+        old = {"settled": 1, "funded": 2., "paid": 0., "refunded": 2., "escrow": 0.}
+        orders = [old, dict(old, execution={"requested_labor": 0., "funded_labor": 0., "completed_labor": 0.}),
+                  dict(old, execution={"requested_labor": 1., "funded_labor": 0.5, "completed_labor": 0.})]
+        r = service_order_outcomes({"enterprises": {"orders": orders}})
+        self.assertEqual(r["service_orders_observed"], 2)
+        self.assertEqual(r["service_orders_no_requested_labor"], 1)
+        self.assertEqual(r["service_orders_no_funded_labor"], 1)
+        self.assertEqual(r["service_orders_funded_without_completion"], 1)
+
     def test_procurement_share_bounds(self):
         for value in ("0", "0.1", "1"):
             self.assertEqual(procurement_share(value), float(value))

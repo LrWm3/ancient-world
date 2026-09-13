@@ -69,3 +69,22 @@ credit-backed production. The concurrent shader fixture is separate verification
 as an independent opt-in policy. It reserves next-month fees from capped town
 surplus using the existing order and refund path. Explicit API posting remains
 available. Ordinary invoicing is still the default.
+
+
+## Due-month execution observations
+
+Newly settled orders retain the operator's requested labor (after its cash cap),
+funded labor and GPU-completed labor at the due boundary. These are operator-wide
+observations, not additional work or payments; the order still earns at most its
+contracted work. They distinguish absent labor requests, no funded labor and
+funded labor without completion. A zero request does not by itself prove that no
+productive demand existed: cash and capacity can already have capped it.
+
+Observations are captured only on a live, on-time execution boundary. Cancellation,
+a missed due boundary and older archived orders retain no observation rather than
+inventing a historical diagnosis from current firm state. Refund retries preserve
+the original observation. Validation checks finite nonnegative values, the due
+settlement date and agreement between observed completion and paid contract work.
+The experiment report counts observed orders explicitly, so missing old records
+cannot be interpreted as failures. This does not yet isolate wage affordability,
+individual matching, input shortages or changes in production demand.

@@ -1666,6 +1666,20 @@ mod tests {
             Some(6)
         );
         assert!(h.enterprises.as_ref().unwrap().orders[0].settled.is_some());
+        assert!(h.enterprises.as_ref().unwrap().orders[0]
+            .execution
+            .is_some());
+        let mut corrupt_observation = h.clone();
+        corrupt_observation.enterprises.as_mut().unwrap().orders[0]
+            .execution
+            .as_mut()
+            .unwrap()
+            .completed_labor = f64::NAN;
+        assert!(orders::validate(
+            corrupt_observation.enterprises.as_ref().unwrap(),
+            &corrupt_observation
+        )
+        .is_err());
         assert_eq!(
             serde_json::to_value(h).unwrap(),
             serde_json::to_value(resumed.civilizations.as_ref().unwrap()).unwrap()

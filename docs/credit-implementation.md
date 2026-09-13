@@ -1,8 +1,14 @@
 # Credit implementation record
 
 This tracks delivery of the [credit and currencies design](credit-and-currencies-design.md).
-The council credit pilot is opt-in; it is not enabled by default. Neither issuance nor
-multiple-currency exchange is implemented.
+Council/commercial credit and bounded shared-currency issuance are implemented
+as opt-in experiments. Multiple-currency exchange remains unimplemented and gated
+on benefits not yet demonstrated. The [design work list](credit-and-currencies-design.md#next-work-to-do)
+and the latest experiment sections describe current outstanding work.
+
+The sections below are a chronological implementation record. Early statements
+about pending adapters, issuance or servicing describe those milestones at the
+time; later sections supersede them. They are not a current feature inventory.
 
 ## Account and timing audit
 
@@ -783,3 +789,22 @@ also completed eight arms. Reference histories exactly replay the prior screen;
 a smaller envelope barely changes total work or terminal hunger and still issues
 no loans. Keep the default share and opt-in status. The next diagnostic is actual
 order shortfall causes, rather than another ungrounded fee/reserve adjustment.
+
+
+## Service-order execution observations
+
+Orders now retain due-month requested, funded and completed operator labor, as
+[documented here](workshop-service-orders.md#due-month-execution-observations).
+This distinguishes a missing labor grant from funded work without completion;
+it does not yet identify every cause of either shortfall. Older/cancelled/missed
+orders retain absent observations. The runner reports observation coverage so
+missing archive data cannot silently become zero-work evidence. These fields do
+not change grants, fees, refunds or loan decisions.
+
+
+Verification: twelve Python reporting tests passed, including old records with
+absent observations; the GPU procurement fixture passed its full monthly/batched/
+checkpoint continuation and corrupt-observation checks (one test); strict all-target
+Clippy passed. These verify recording and continuation, not the distribution of
+shortfall causes in the previous long runs. Those archives predate the observations
+and must not be used to infer missing historical values.
