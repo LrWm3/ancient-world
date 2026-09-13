@@ -68,7 +68,7 @@ const EXTRACTION_TIMBER_BASE_KG_PER_WORKER_MONTH: f32 = 20.;
 const EXTRACTION_MIN_WORKERS: f32 = 1.;
 const EXTRACTION_GENERIC_TOOL_CAPABILITY_PER_KG: f32 = .25;
 const EXTRACTION_BRONZE_TOOL_CAPABILITY_PER_KG: f32 = .25;
-const EXTRACTION_STONE_TOOL_CAPABILITY_PER_KG: f32 = .15;
+const EXTRACTION_COPPER_TOOL_CAPABILITY_PER_KG: f32 = .15;
 const EXTRACTION_MAX_CAPABILITY: f32 = 2.;
 const EXTRACTION_MIN_ORE_DIFFICULTY: f32 = .1;
 const EXTRACTION_ORE_DEPTH_DIFFICULTY: f32 = 2.;
@@ -94,6 +94,19 @@ const FARM_FIXATION_KG_N_PER_M2_YEAR: f32 = .002;
 const FARM_FIXATION_TEMPERATURE_OFFSET_C: f32 = 5.;
 const FARM_FIXATION_TEMPERATURE_RAMP_C: f32 = 20.;
 const LEGACY_CROP_WATER_M3_PER_KG: f32 = .5;
+// Tool-supported food output, recipe sharing and toolmaking practice.
+const FARM_UNTOOLED_PRODUCTIVITY: f32 = .75;
+const FARM_TOOL_PRODUCTIVITY_BONUS: f32 = .25;
+const FARM_TOOL_DEMAND_FLOOR_KG: f32 = 1.;
+const CRAFT_TOOL_PRIORITY_WORK_SHARE: f32 = .2;
+const CRAFT_MAX_EXPERTISE_LABOR_REDUCTION: f32 = .2;
+const CRAFT_LEGACY_TARGET_KG_PER_PERSON: f32 = 8.;
+const TOOLMAKING_PRACTICE_WORK_FLOOR: f32 = .001;
+const TOOLMAKING_MONTHLY_LEARNING_RATE: f32 = .04;
+const TOOLMAKING_MONTHLY_SKILL_DECAY: f32 = .002;
+const FARM_RECOVERY_OUTPUT_PENALTY: f32 = .5;
+const CRAFT_UNIT_WORK_FLOOR: f32 = .001;
+const CRAFT_REMAINING_RECIPE_SHARING_LIMIT: f32 = 5.;
 struct Economy {
  farm_workers:vec4<f32>, extraction_workers:vec4<f32>, construction_workers:vec4<f32>,
  production_probe:vec4<f32>, food_labor:vec4<f32>,
@@ -395,9 +408,9 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  let fixation_cost=max(FARM_FIXATION_COST_FLOOR,catalog.herds[0].z);
  let fixed=min(potential*FARM_FIXATION_MAX_POTENTIAL_SHARE/fixation_cost,area*FARM_FIXATION_KG_N_PER_M2_YEAR/12.*e.policy.x*clamp((t.hydro.y+FARM_FIXATION_TEMPERATURE_OFFSET_C)/FARM_FIXATION_TEMPERATURE_RAMP_C,0.,1.));
  e.soil.y+=fixed;e.exchange.y+=fixed;
- let tool_factor=.75+.25*clamp((e.goods[0].w+select(0.,e.goods[10].y+.6*e.goods[10].w,e.extraction.y>.5))/max(1.,s.stock.x*.5),0.,1.);
- e.production_probe.x=tool_factor;e.production_probe.z=e.goods[0].w+select(0.,e.goods[10].y+.6*e.goods[10].w,e.extraction.y>.5);e.production_probe.w=s.stock.x;
- var output=max(0.,potential*(1.-e.policy.x)*tool_factor*(1.-.5*recovery)-fixed*fixation_cost);
+ let tool_factor=FARM_UNTOOLED_PRODUCTIVITY+FARM_TOOL_PRODUCTIVITY_BONUS*clamp((e.goods[0].w+select(0.,e.goods[10].y+COPPER_TOOL_SERVICE_FACTOR*e.goods[10].w,e.extraction.y>.5))/max(FARM_TOOL_DEMAND_FLOOR_KG,s.stock.x*MIN_WORK_TOOLS_KG_PER_PERSON),0.,1.);
+ e.production_probe.x=tool_factor;e.production_probe.z=e.goods[0].w+select(0.,e.goods[10].y+COPPER_TOOL_SERVICE_FACTOR*e.goods[10].w,e.extraction.y>.5);e.production_probe.w=s.stock.x;
+ var output=max(0.,potential*(1.-e.policy.x)*tool_factor*(1.-FARM_RECOVERY_OUTPUT_PENALTY*recovery)-fixed*fixation_cost);
  if e.management.x>.5{output=0.;}
  let n=e.soil.y/FOOD_NITROGEN_FRACTION;let ph=e.soil.z/FOOD_PHOSPHORUS_FRACTION;let water=e.water.x/LEGACY_CROP_WATER_M3_PER_KG;
  e.diagnostics.x=0.;if n<output{e.diagnostics.x=1.;}output=min(output,n);if ph<output{e.diagnostics.x=2.;}output=min(output,ph);if water<output{e.diagnostics.x=3.;}output=min(output,water);
@@ -425,7 +438,7 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
 
  // The priority pass borrows from the same finite labor and capacity pools.
  // Blocked reservations expire within this dispatch; the ordinary pass gets all remaining work.
- e.tool_work=vec4(0.);e.tool_work.x=select(0.,labor*.2,e.tool_craft.y>.5);
+ e.tool_work=vec4(0.);e.tool_work.x=select(0.,labor*CRAFT_TOOL_PRIORITY_WORK_SHARE,e.tool_craft.y>.5);
  var completed:array<f32,64>;
  for(var wave=0u;wave<2u;wave++){
  if wave==0u && e.tool_craft.y<.5 {continue;}
@@ -433,25 +446,25 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
   let r=select(step,(step+p.dims.z)%p.options.y,e.logistics.w>.5);
   let recipe=catalog.recipes[r];if recipe.work.y>0. && (u32(e.management.w)&(1u<<u32(recipe.work.y-1.)))==0u{continue;}let tool_output=recipe.output[0].w+recipe.output[10].y+recipe.output[10].w;
   var unit_work=recipe.work.x;
-  if tool_output>0. && e.tool_craft.z>.5 {unit_work*=1.-.2*e.tool_craft.x;}
-  var batches=labor/max(unit_work,.001)/min(5.,f32(p.options.y-step));
-  if wave==0u {batches=min(e.tool_orders[r/4u][r%4u],max(0.,e.tool_work.x-e.tool_work.y)/max(unit_work,.001));}
+  if tool_output>0. && e.tool_craft.z>.5 {unit_work*=1.-CRAFT_MAX_EXPERTISE_LABOR_REDUCTION*e.tool_craft.x;}
+  var batches=labor/max(unit_work,CRAFT_UNIT_WORK_FLOOR)/min(CRAFT_REMAINING_RECIPE_SHARING_LIMIT,f32(p.options.y-step));
+  if wave==0u {batches=min(e.tool_orders[r/4u][r%4u],max(0.,e.tool_work.x-e.tool_work.y)/max(unit_work,CRAFT_UNIT_WORK_FLOOR));}
   var household=false;
   for(var k=0u;k<64u;k++){if recipe.output[k/4u][k%4u]>0. && catalog.goods[k].w>0.{household=true;}}
   let industry=u32(recipe.work.z);
   let competence=1.+e.enterprise_productivity[industry];
   if !household && specialized && wave==1u {
    let saved_time=firm_capacity[industry]*(1.-1./competence);
-   batches=min(labor*competence,labor+saved_time)/max(unit_work,.001)/min(5.,f32(p.options.y-step));
+   batches=min(labor*competence,labor+saved_time)/max(unit_work,CRAFT_UNIT_WORK_FLOOR)/min(CRAFT_REMAINING_RECIPE_SHARING_LIMIT,f32(p.options.y-step));
   }
   if !household{
    var capacity=industrial_capacity;
    if specialized{capacity=type_capacity[industry]+firm_capacity[industry]+household_capacity;}
-   batches=min(batches,capacity/max(unit_work,.001));
+   batches=min(batches,capacity/max(unit_work,CRAFT_UNIT_WORK_FLOOR));
   }
   if e.logistics.w>.5{batches=min(batches,max(0.,e.orders[r/4u][r%4u]-completed[r]));}
   for(var k=0u;k<64u;k++){let input=recipe.input[k/4u][k%4u];if input>0.{batches=min(batches,e.goods[k/4u][k%4u]/input);}}
-  for(var k=0u;k<64u;k++){let quantity=recipe.output[k/4u][k%4u];if quantity>0.{batches=min(batches,max(0.,select(s.stock.x*8.,e.targets[k/4u][k%4u],e.logistics.w>.5)-e.goods[k/4u][k%4u])/quantity);}}
+  for(var k=0u;k<64u;k++){let quantity=recipe.output[k/4u][k%4u];if quantity>0.{batches=min(batches,max(0.,select(s.stock.x*CRAFT_LEGACY_TARGET_KG_PER_PERSON,e.targets[k/4u][k%4u],e.logistics.w>.5)-e.goods[k/4u][k%4u])/quantity);}}
   if e.extraction.y>.5 && recipe.work.w>0. {
    let room=max(0.,e.residue.z-e.residue.x)/recipe.work.w;
    if batches>room {e.residue.w+=1.;}batches=min(batches,room);
@@ -492,9 +505,9 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  }
  }
  if e.tool_craft.z>.5 {
-  let practice=clamp(e.tool_work.z/max(available_workers,.001),0.,1.);
+  let practice=clamp(e.tool_work.z/max(available_workers,TOOLMAKING_PRACTICE_WORK_FLOOR),0.,1.);
   // Skill cannot arise from queued/blocked work; inactivity gradually erodes it.
-  e.tool_craft.x=clamp(e.tool_craft.x+.04*practice*(1.-e.tool_craft.x)-.002*(1.-practice)*e.tool_craft.x,0.,1.);
+  e.tool_craft.x=clamp(e.tool_craft.x+TOOLMAKING_MONTHLY_LEARNING_RATE*practice*(1.-e.tool_craft.x)-TOOLMAKING_MONTHLY_SKILL_DECAY*(1.-practice)*e.tool_craft.x,0.,1.);
   e.tool_craft.w+=e.tool_work.z;
  }
  e.logistics.z=max(0.,labor);
@@ -503,9 +516,9 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
   var in_use=0.;var rate=.005;
   if e.logistics.w<.5{if k==3u||k==5u||k==7u||((k==41u||k==43u)&&e.extraction.y>.5){in_use=e.goods[k/4u][k%4u];}}
   else {
-   if k==3u{in_use=min(e.goods[k/4u][k%4u],s.stock.x*.5);}
-   if k==41u&&e.extraction.y>.5 {in_use=min(e.goods[10].y,max(0.,s.stock.x*.5-e.goods[0].w));}
-   if k==43u&&e.extraction.y>.5 {in_use=min(e.goods[10].w,max(0.,s.stock.x*.5-e.goods[0].w-e.goods[10].y)/.6);}
+   if k==3u{in_use=min(e.goods[k/4u][k%4u],s.stock.x*MIN_WORK_TOOLS_KG_PER_PERSON);}
+   if k==41u&&e.extraction.y>.5 {in_use=min(e.goods[10].y,max(0.,s.stock.x*MIN_WORK_TOOLS_KG_PER_PERSON-e.goods[0].w));}
+   if k==43u&&e.extraction.y>.5 {in_use=min(e.goods[10].w,max(0.,s.stock.x*MIN_WORK_TOOLS_KG_PER_PERSON-e.goods[0].w-e.goods[10].y)/COPPER_TOOL_SERVICE_FACTOR);}
    if k==7u{in_use=min(e.goods[k/4u][k%4u],s.stock.x*2.);}
    if k==18u{in_use=min(e.goods[k/4u][k%4u],s.stock.x*.6);rate=.025;}
    if k==20u{in_use=min(e.goods[k/4u][k%4u],s.stock.x*.1);rate=.01;}
@@ -523,7 +536,7 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
   // Organic worn material is a recorded detrital transfer, not a missing C/N/P sink.
   e.detritus+=vec4(select(worn-recovered,worn,k>=45u&&k<=50u)*catalog.goods[k].xyz,0.);
  }
- if e.management.x>.5 { e=managed_production(i,e,max(0.,potential*(1.-e.policy.x)*tool_factor*(1.-.5*recovery)-fixed*fixation_cost),weather);output=e.diagnostics.y; }
+ if e.management.x>.5 { e=managed_production(i,e,max(0.,potential*(1.-e.policy.x)*tool_factor*(1.-FARM_RECOVERY_OUTPUT_PENALTY*recovery)-fixed*fixation_cost),weather);output=e.diagnostics.y; }
  // Retain a year's approximate memory of observed food handling returns. This
  // is a lagged average, not a perfect forecast or a claimed marginal farm yield.
  let fish_chem=catalog.goods[28];let fish_energy=min(fish_chem.w,min(fish_chem.x/FOOD_CARBON_FRACTION,min(fish_chem.y/FOOD_NITROGEN_FRACTION,fish_chem.z/FOOD_PHOSPHORUS_FRACTION)));
@@ -955,7 +968,7 @@ fn extraction_rate(e:Economy,task:u32)->f32 {
  let role=select(select(4.,2.,task==2u),3.,task==0u);
  let workers=max(EXTRACTION_MIN_WORKERS,select(e.labor.z,e.labor.y,task==0u));
  var tools=e.goods[0].w*EXTRACTION_GENERIC_TOOL_CAPABILITY_PER_KG;
- if e.extraction.y>.5 {tools+=e.goods[10].y*EXTRACTION_BRONZE_TOOL_CAPABILITY_PER_KG+e.goods[10].w*EXTRACTION_STONE_TOOL_CAPABILITY_PER_KG;}
+ if e.extraction.y>.5 {tools+=e.goods[10].y*EXTRACTION_BRONZE_TOOL_CAPABILITY_PER_KG+e.goods[10].w*EXTRACTION_COPPER_TOOL_CAPABILITY_PER_KG;}
  for(var j=0u;j<6u;j++){if catalog.methods[j].x==role {let k=j+45u;tools+=e.goods[k/4u][k%4u]*catalog.methods[j].y;}}
  let capability=clamp(tools/workers,0.,EXTRACTION_MAX_CAPABILITY);
  let difficulty=select(select(max(EXTRACTION_MIN_ORE_DIFFICULTY,e.extraction.z)+e.extraction.w*EXTRACTION_ORE_DEPTH_DIFFICULTY,EXTRACTION_CLAY_DIFFICULTY,task==2u),EXTRACTION_TIMBER_BASE_DIFFICULTY+clamp(e.forest.x/max(e.claim.y,EXTRACTION_FOREST_AREA_FLOOR_M2),0.,1.),task==0u);

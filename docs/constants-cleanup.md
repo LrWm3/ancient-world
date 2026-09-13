@@ -903,7 +903,7 @@ unrelated hardware fixtures ignored; they are not counted as verified here.
 ## Task-specific extraction rates
 
 Named fourteen access-rate parameters in `shaders/economy.wgsl`: mineral and
-wood base rates, worker and area denominator floors, generic/bronze/stone tool
+wood base rates, worker and area denominator floors, generic/bronze/copper tool
 contributions, capability bounds, ore/depth/clay/timber difficulty, and the
 baseline/tool response coefficients. Catalog role IDs, task selectors and numeric
 identities remain inline. Equal-valued coefficients retain separate names when
@@ -939,3 +939,27 @@ hardware task-specific extraction/conservation fixture each ran one test. Strict
 all-target Clippy passed. The concurrent history comparison uses a copied older
 executable to isolate its monetary intervention; it is not counted as verification
 of this shader extraction.
+
+
+## Tool service and crafting rates
+
+Named twelve food-output, recipe-sharing and toolmaking parameters in
+`shaders/economy.wgsl`: baseline tool productivity, its bonus and demand floor,
+recovery penalty, priority work share, expertise saving, recipe work floor and
+sharing limit, legacy stock target, practice denominator, learning and decay.
+The CPU planner's existing minimum working-tool demand and copper service factor
+now also generate their WGSL constants through the production subsystem block.
+This includes copper wear's service-equivalence denominator.
+
+Corrected `EXTRACTION_STONE_TOOL_CAPABILITY_PER_KG` to
+`EXTRACTION_COPPER_TOOL_CAPABILITY_PER_KG`. Catalog slot 43 is copper tools;
+the old label was incorrect. The coefficient and the resource used never changed.
+Reversing all substitutions, including the label correction, reconstructs the
+entire previous shader exactly. Numeric types, rates and arithmetic order remain
+unchanged. Remaining general wear, planner and other shader policies still need
+semantic review.
+
+Verification passed: the hardware replacement-job/toolmaking fixture and the
+hardware worn-tool recycling fixture each ran one test. Strict all-target Clippy
+passed. These checks cover finite completed work, skill gain and material recovery;
+they do not claim a complete review of all remaining shader parameters.
