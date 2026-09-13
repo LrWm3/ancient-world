@@ -63,6 +63,40 @@ for detailed progress.
 
 ## Work order and decision points
 
+### Next work to do
+
+The detailed status below includes experiments already implemented. The next
+delivery should close their evidence gaps before expanding the monetary model:
+
+1. **Demonstrate a useful credit bridge.** Follow an automatic council loan from
+   its forecast through disbursement to actual service funding and completed work.
+   Compare against the same opening state without credit. Also show rejection
+   when the tax base cannot cover operating costs and repayment. A loan being
+   issued is not itself a successful outcome.
+2. **Make commercial repayment sources concrete.** Finish delivery-proceeds
+   comparisons, including delayed and lost cargo. For workshop operators, first
+   introduce a genuinely funded service order with an owner, payment milestone
+   and reserved payer cash; a generic repayment-source label does not establish
+   that an order or its funding exists.
+3. **Test lender costs as well as borrower benefits.** Compare council and
+   institutional lending reserves. Measure maintenance, paid administration and
+   service shortfalls alongside interest and defaults. A reserve policy that
+   enables more loans may simply transfer a shortage to the lender.
+4. **Complete the four-arm evidence package.** Retain the same opening inventories,
+   population, policies and production shocks. Report immediate funding and work
+   effects, food affordability separately from harvests, cash concentration,
+   prices, debt service and monetary residuals. Include negative and null results
+   and identify which measurements are endpoints rather than monthly maxima.
+5. **Record a Stage 2 decision.** Predeclare the benefit and failure criteria for
+   the next held-out comparison. Require sustained useful activity without
+   repeated rescues or growing unsupported obligations. If the gate still fails,
+   retain the shared-currency experiment and document why; separate currencies
+   are conditional work, not a required response to a disappointing result.
+
+Each item should end with a source-only implementation commit where needed and a
+short Markdown test summary linking its fixtures and experiment settings. The
+implementation record remains authoritative for what has actually passed.
+
 | Increment | Reviewable result | Decision before continuing |
 | --- | --- | --- |
 | Stage 1A: existing-money credit | Council tax bridge and commercial payment pilot, with debt and cash receipts | Verify that loans fund otherwise feasible activity and reject borrowers without credible net receipts. |
