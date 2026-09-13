@@ -66,6 +66,7 @@ const HOUSING_MONTHLY_INVESTMENT_PER_PERSON: f32 = 0.02;
 const WATERWORKS_MONTHLY_INVESTMENT_PER_PERSON: f32 = 0.02;
 
 crate::shared_shader_parameters! { SHADER_PARAMETERS {
+    pub(crate) const POTTERY_STORAGE_CAPACITY_FRACTION: f32 = 0.2;
     pub(crate) const WORKSHOP_WOOD_KG_PER_UNIT: f32 = 20.;
     pub(crate) const WORKSHOP_BRICKS_KG_PER_UNIT: f32 = 30.;
     pub(crate) const WORKSHOP_TOOLS_KG_PER_UNIT: f32 = 2.;

@@ -21,7 +21,6 @@ const ALLOWED_LAND_FREIGHT_KG_PER_PERSON: std::ops::RangeInclusive<f32> = 1. ..=
 pub(crate) const RECIPE_BALANCE_TOLERANCE_KG: f32 = 1e-6;
 const LEGACY_ORE_METAL_FRACTION: f32 = 0.5;
 const WOOD_CHARCOAL_YIELD: f32 = 0.5;
-const POTTERY_STORAGE_CAPACITY_FRACTION: f32 = 0.2;
 const INITIAL_SITE_POLICY: [f32; 4] = [0.15, 0.85, 0.25, 1.];
 const FOUNDER_MONEY: f32 = 10000.;
 const FOUNDER_CROP_SEED_KG: f32 = 2.;
@@ -592,7 +591,7 @@ impl Economy {
                     .filter(|v| v.role == "container")
                     .map(|v| self.goods[v.slot] * v.service)
                     .sum::<f32>())
-            .min(self.storage_capacity() * POTTERY_STORAGE_CAPACITY_FRACTION)
+            .min(self.storage_capacity() * crate::production::POTTERY_STORAGE_CAPACITY_FRACTION)
         })
     }
     pub fn storage_capacity(&self) -> f32 {

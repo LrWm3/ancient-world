@@ -811,3 +811,24 @@ expansion matched the previous complete shader exactly. The explicitly enabled
 GPU thermal-ecotype feeding/persistence fixture ran one test and passed; strict
 all-target Clippy passed. Bit packing, category IDs and mathematical identities
 remain inline. The broader shader/repository semantic review remains open.
+
+## Economy plot and building parameters
+
+Named 20 parameters in the plot reservation, building forecast and building-work
+sections of `shaders/economy.wgsl`: claim fraction, initial ore/clay inventories,
+clay soil floor, unlimited-capacity sentinel, asset weathering, construction work
+shares, water operation, repair disruption threshold, housing/water/storage labor
+costs, workshop recovery, construction, fitting and tool reserve. Housing and
+waterworks retain separate policy names despite equal current work costs.
+
+The container-storage fraction was already named on the CPU; it now lives once
+in the production subsystem's shared CPU/WGSL table and both paths use it. Full
+literal expansion reproduces the previous complete shader; no rates, dispatch
+order, material costs or allocation policies changed. Remaining crop, extraction,
+craft, fishery and other production expressions still require semantic review.
+
+Verification for this extraction passed: one hardware storage fixture, one housing
+fixture, two waterworks fixtures and the plot-reservation/recipe conservation
+fixture. These include real materials, service-limited effects, competing repair
+and housing work, and checkpoint continuation. Strict all-target Clippy passed.
+The experiment executable was copied before these edits and remains independent.

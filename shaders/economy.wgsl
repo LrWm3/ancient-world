@@ -1,4 +1,25 @@
 // Shared livestock parameters are prefixed from src/agriculture.rs.
+// Plot claims and finite construction/maintenance parameters.
+const ECONOMY_MAX_PLOT_CLAIM_FRACTION: f32 = .05;
+const ECONOMY_INITIAL_ORE_KG_PER_M2: f32 = .05;
+const ECONOMY_INITIAL_CLAY_KG_PER_M2: f32 = .2;
+const ECONOMY_MIN_CLAY_SOIL_FACTOR: f32 = .01;
+const ECONOMY_UNBOUNDED_CAPACITY: f32 = 1e30;
+const ECONOMY_ASSET_MONTHLY_WEAR: f32 = .001;
+const ECONOMY_RECOVERY_ASSET_WEAR: f32 = .02;
+const ECONOMY_CONSTRUCTION_FORECAST_SHARE: f32 = .2;
+const ECONOMY_WATER_OPERATION_WORKER_MONTHS_PER_PERSON: f32 = .001;
+const ECONOMY_ASSET_BUILD_WORK_SHARE: f32 = .1;
+const ECONOMY_WATER_REPAIR_MAX_DISRUPTION: f32 = .01;
+const ECONOMY_HOUSING_BUILD_WORKER_MONTHS_PER_PERSON: f32 = .2;
+const ECONOMY_WATER_BUILD_WORKER_MONTHS_PER_PERSON: f32 = .2;
+const ECONOMY_STORAGE_BUILD_WORKER_MONTHS_PER_KG: f32 = .002;
+const ECONOMY_WORKSHOP_TOOL_SCRAP_FRACTION: f32 = .9;
+const ECONOMY_WORKSHOP_BUILD_WORK_SHARE: f32 = .1;
+const ECONOMY_WORKSHOP_BUILD_WORKER_MONTHS_PER_UNIT: f32 = 2.;
+const ECONOMY_WORKSHOP_TOOLS_RESERVE_KG_PER_PERSON: f32 = .3;
+const ECONOMY_WORKSHOP_FITTING_WORK_SHARE: f32 = .1;
+const ECONOMY_WORKSHOP_FITTING_WORKER_MONTHS_PER_UNIT: f32 = .5;
 struct Economy {
  farm_workers:vec4<f32>, extraction_workers:vec4<f32>, construction_workers:vec4<f32>,
  production_probe:vec4<f32>, food_labor:vec4<f32>,
@@ -39,7 +60,7 @@ fn claim_plots() {
     e.return_flow.w+=e.water.x;e.water.w+=e.water.x;e.water.x=0.;
     e.land_return.y=1.;e.land_return.w+=e.claim.y/10000.;
    } else if e.land_return.z<.5 && e.land_return.y>.5 {
-    let fraction=clamp(e.claim.y/area,0.,.05);
+    let fraction=clamp(e.claim.y/area,0.,ECONOMY_MAX_PLOT_CLAIM_FRACTION);
     e.soil=vec4(eco.pools[17].xyz*fraction*area,e.soil.w);eco.pools[17]=vec4(eco.pools[17].xyz*(1.-fraction),eco.pools[17].w);
     e.detritus=eco.pools[18]*fraction*area;eco.pools[18]*=1.-fraction;
     for(var k=0u;k<3u;k++){e.forest+=vec4(eco.pools[k].xyz*fraction*area,0.);eco.pools[k]=vec4(eco.pools[k].xyz*(1.-fraction),eco.pools[k].w);}
@@ -52,14 +73,14 @@ fn claim_plots() {
    economies[i]=e;ecology[cell]=eco;
   }
   if e.claim.w>0.5{continue;}
-  let cell=u32(e.claim.x);var eco=ecology[cell];let area=e.claim.z;let fraction=clamp(e.claim.y/area,0.,.05);
+  let cell=u32(e.claim.x);var eco=ecology[cell];let area=e.claim.z;let fraction=clamp(e.claim.y/area,0.,ECONOMY_MAX_PLOT_CLAIM_FRACTION);
   e.soil=eco.pools[17]*fraction*area;eco.pools[17]*=1.-fraction;
   e.detritus=eco.pools[18]*fraction*area;eco.pools[18]*=1.-fraction;
   for(var k=0u;k<3u;k++){e.forest+=vec4(eco.pools[k].xyz*fraction*area,0.);eco.pools[k]=vec4(eco.pools[k].xyz*(1.-fraction),eco.pools[k].w);}
   e.reserves.x=eco.pools[25].z*fraction*area;eco.pools[25].z*=1.-fraction;
   let t=world[u32(src[i].habitat.z)];
-  e.reserves.y=e.claim.y*.05*clamp(t.geology.z,0.,1.);
-  e.reserves.z=e.claim.y*.2*clamp(t.terrain.z,.01,1.);
+  e.reserves.y=e.claim.y*ECONOMY_INITIAL_ORE_KG_PER_M2*clamp(t.geology.z,0.,1.);
+  e.reserves.z=e.claim.y*ECONOMY_INITIAL_CLAY_KG_PER_M2*clamp(t.terrain.z,ECONOMY_MIN_CLAY_SOIL_FACTOR,1.);
   let initial_water=eco.pools[25].w*fraction*area;
   e.water=vec4(initial_water,initial_water,0.,0.);eco.pools[25].w*=1.-fraction;eco.pools[27].w-=initial_water/area;
   e.baseline=vec4(e.soil.xyz+e.detritus.xyz+e.forest.xyz+vec3(0.,0.,e.reserves.x),0.);
@@ -72,18 +93,18 @@ fn dry_stock(e:Economy)->f32 {
  var mass=0.;for(var k=0u;k<63u;k++){if catalog.goods[k].w<=0.{mass+=e.goods[k/4u][k%4u];}}return mass;
 }
 fn order_room(e:Economy,k:u32)->f32 {
- if e.logistics.w<.5{return 1e30;}
+ if e.logistics.w<.5{return ECONOMY_UNBOUNDED_CAPACITY;}
  return min(max(0.,e.targets[k/4u][k%4u]-e.goods[k/4u][k%4u]),max(0.,e.logistics.x-e.logistics.y-dry_stock(e)));
 }
 fn warehouse_capacity(e:Economy)->f32 {
  let base=e.storage.z+min(e.storage.x/WAREHOUSE_WOOD_KG_PER_KG,e.storage.y/WAREHOUSE_BRICKS_KG_PER_KG);
- return base+select(0.,min(base*.2,container_service(e)),catalog.methods[0].x>0.);
+ return base+select(0.,min(base*POTTERY_STORAGE_CAPACITY_FRACTION,container_service(e)),catalog.methods[0].x>0.);
 }
 // Invoked even for empty sites: the physical shell persists and weathers.
 fn weather_storage(i:u32) {
  var e=economies[i];e.storage_plan.z=0.;e.housing_plan.z=0.;e.waterworks_plan.z=0.;e.waterworks_plan.w=0.;e.water_service.y=0.;e.water_service.w=0.;
  e.waterworks_recovery.x=max(e.waterworks_recovery.x,min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON));e.waterworks_recovery.z=0.;
- let wear=.001+.02*clamp(e.soil.w,0.,1.);
+ let wear=ECONOMY_ASSET_MONTHLY_WEAR+ECONOMY_RECOVERY_ASSET_WEAR*clamp(e.soil.w,0.,1.);
  for(var j=0u;j<2u;j++) {
   let good=select(0u,5u,j==1u);let mass=e.storage[j]*wear;
   e.storage[j]-=mass;e.storage_plan.y+=mass;
@@ -121,7 +142,7 @@ fn forecast_labor(@builtin(global_invocation_id) g:vec3<u32>) {
   {
    // Use opening stocks, not hypothetical new extraction or retail purchases.
    var preview=e;preview.labor=row.stock;preview.construction_workers.x=1.;
-   preview.construction_workers.y=.2*max(0.,row.stock.w-e.exchange.w-dot(e.enterprise_plan,vec4(1.)));
+   preview.construction_workers.y=ECONOMY_CONSTRUCTION_FORECAST_SHARE*max(0.,row.stock.w-e.exchange.w-dot(e.enterprise_plan,vec4(1.)));
    let recovery=select(0.,clamp(e.soil.w,0.,1.),(p.options.w&2u)!=0u);
    let built=building_work(preview,src[i],workers(i,src[i].stock.x)*(1.-LAND_RECOVERY_WORK_PENALTY*recovery));
    row.ledger.x=built.economy.construction_workers.z;
@@ -142,83 +163,83 @@ fn building_work(input:Economy,s:Site,available_workers:f32)->BuildingResult {
  var labor=max(0.,e.labor.w-e.exchange.w);
  if e.waterworks.w>.5 {
   let served=min(s.stock.x,min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON))*(1.-e.water_service.y);
-  let operated=min(served,labor/.001);
-  let work=min(labor,operated*.001);labor=max(0.,labor-work);
+  let operated=min(served,labor/ECONOMY_WATER_OPERATION_WORKER_MONTHS_PER_PERSON);
+  let work=min(labor,operated*ECONOMY_WATER_OPERATION_WORKER_MONTHS_PER_PERSON);labor=max(0.,labor-work);
   e.water_service.z+=work;e.water_service.w=operated;
   e.waterworks_plan.w=clamp(operated/max(s.stock.x,1.),0.,1.);
  }
  // Builders cannot consume already contracted workshop shifts.
  let building_start=labor;
- var building_budget=1e30;
+ var building_budget=ECONOMY_UNBOUNDED_CAPACITY;
  if e.construction_workers.x>.5 {
   building_budget=min(e.construction_workers.y,max(0.,labor-dot(e.enterprise_plan,vec4(1.))));
   e.construction_workers.z=0.;
  }
- var asset_work=min(labor*.1,building_budget);
+ var asset_work=min(labor*ECONOMY_ASSET_BUILD_WORK_SHARE,building_budget);
  // Under recovery priority, meet current shelter need before spending on headroom.
  // Reuse the same finite asset-work pool; all construction still consumes stocks.
  if e.waterworks.w>.5 && e.waterworks_recovery.y>.5 && e.housing_plan.w>.5 {
   let existing=min(e.housing.x/HOUSING_WOOD_KG_PER_PERSON,e.housing.y/HOUSING_BRICKS_KG_PER_PERSON);
   let urgent_target=min(e.housing_plan.x,max(0.,s.stock.x-e.housing.z));
-  var build=min(max(0.,urgent_target-existing),asset_work/.2);
+  var build=min(max(0.,urgent_target-existing),asset_work/ECONOMY_HOUSING_BUILD_WORKER_MONTHS_PER_PERSON);
   build=min(build,min(e.goods[0].x/HOUSING_WOOD_KG_PER_PERSON,e.goods[1].y/HOUSING_BRICKS_KG_PER_PERSON));
   e.goods[0].x=max(0.,e.goods[0].x-build*HOUSING_WOOD_KG_PER_PERSON);e.housing.x+=build*HOUSING_WOOD_KG_PER_PERSON;
   e.goods[1].y=max(0.,e.goods[1].y-build*HOUSING_BRICKS_KG_PER_PERSON);e.housing.y+=build*HOUSING_BRICKS_KG_PER_PERSON;
-  labor=max(0.,labor-build*.2);asset_work=max(0.,asset_work-build*.2);
-  e.housing.w+=build*.2;e.housing_plan.z+=build;
+  labor=max(0.,labor-build*ECONOMY_HOUSING_BUILD_WORKER_MONTHS_PER_PERSON);asset_work=max(0.,asset_work-build*ECONOMY_HOUSING_BUILD_WORKER_MONTHS_PER_PERSON);
+  e.housing.w+=build*ECONOMY_HOUSING_BUILD_WORKER_MONTHS_PER_PERSON;e.housing_plan.z+=build;
  }
  // Repair previously installed service before optional housing headroom. Never
  // displace urgent shelter or reserve work when water/materials are unavailable.
  let shelter=e.housing.z+min(e.housing.x/HOUSING_WOOD_KG_PER_PERSON,e.housing.y/HOUSING_BRICKS_KG_PER_PERSON);
- if e.waterworks.w>.5 && e.waterworks_recovery.y>.5 && (e.housing_plan.w<.5 || shelter>=s.stock.x) && e.water_service.y<.01 {
+ if e.waterworks.w>.5 && e.waterworks_recovery.y>.5 && (e.housing_plan.w<.5 || shelter>=s.stock.x) && e.water_service.y<ECONOMY_WATER_REPAIR_MAX_DISRUPTION {
   let existing=min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON);
   let historical=e.waterworks_recovery.x;
   let repair_target=min(e.waterworks_plan.x,historical);
-  var repair=min(max(0.,repair_target-existing),asset_work/.2);
+  var repair=min(max(0.,repair_target-existing),asset_work/ECONOMY_WATER_BUILD_WORKER_MONTHS_PER_PERSON);
   repair=min(repair,min(e.goods[0].x/WATERWORKS_WOOD_KG_PER_PERSON,e.goods[1].y/WATERWORKS_BRICKS_KG_PER_PERSON));
   e.goods[0].x=max(0.,e.goods[0].x-repair*WATERWORKS_WOOD_KG_PER_PERSON);e.waterworks.x+=repair*WATERWORKS_WOOD_KG_PER_PERSON;
   e.goods[1].y=max(0.,e.goods[1].y-repair*WATERWORKS_BRICKS_KG_PER_PERSON);e.waterworks.y+=repair*WATERWORKS_BRICKS_KG_PER_PERSON;
-  labor=max(0.,labor-repair*.2);asset_work=max(0.,asset_work-repair*.2);
-  e.waterworks.z+=repair*.2;e.waterworks_plan.z+=repair;
-  e.waterworks_recovery.z=repair*.2;e.waterworks_recovery.w+=repair*.2;
+  labor=max(0.,labor-repair*ECONOMY_WATER_BUILD_WORKER_MONTHS_PER_PERSON);asset_work=max(0.,asset_work-repair*ECONOMY_WATER_BUILD_WORKER_MONTHS_PER_PERSON);
+  e.waterworks.z+=repair*ECONOMY_WATER_BUILD_WORKER_MONTHS_PER_PERSON;e.waterworks_plan.z+=repair;
+  e.waterworks_recovery.z=repair*ECONOMY_WATER_BUILD_WORKER_MONTHS_PER_PERSON;e.waterworks_recovery.w+=repair*ECONOMY_WATER_BUILD_WORKER_MONTHS_PER_PERSON;
  }
 
  if e.housing_plan.w>.5 {
   let existing=min(e.housing.x/HOUSING_WOOD_KG_PER_PERSON,e.housing.y/HOUSING_BRICKS_KG_PER_PERSON);
-  var build=min(max(0.,e.housing_plan.x-existing),asset_work/.2);
+  var build=min(max(0.,e.housing_plan.x-existing),asset_work/ECONOMY_HOUSING_BUILD_WORKER_MONTHS_PER_PERSON);
   build=min(build,min(e.goods[0].x/HOUSING_WOOD_KG_PER_PERSON,e.goods[1].y/HOUSING_BRICKS_KG_PER_PERSON));
   for(var j=0u;j<2u;j++){
    let good=select(0u,5u,j==1u);let cost=select(HOUSING_WOOD_KG_PER_PERSON,HOUSING_BRICKS_KG_PER_PERSON,j==1u);let mass=build*cost;
    e.goods[good/4u][good%4u]=max(0.,e.goods[good/4u][good%4u]-mass);e.housing[j]+=mass;
   }
-  labor-=build*.2;asset_work=max(0.,asset_work-build*.2);
-  e.housing.w+=build*.2;e.housing_plan.z+=build;
+  labor-=build*ECONOMY_HOUSING_BUILD_WORKER_MONTHS_PER_PERSON;asset_work=max(0.,asset_work-build*ECONOMY_HOUSING_BUILD_WORKER_MONTHS_PER_PERSON);
+  e.housing.w+=build*ECONOMY_HOUSING_BUILD_WORKER_MONTHS_PER_PERSON;e.housing_plan.z+=build;
  }
  if e.waterworks.w>.5 {
   let existing=min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON);
-  var build=min(max(0.,e.waterworks_plan.x-existing),asset_work/.2);
+  var build=min(max(0.,e.waterworks_plan.x-existing),asset_work/ECONOMY_WATER_BUILD_WORKER_MONTHS_PER_PERSON);
   build=min(build,min(e.goods[0].x/WATERWORKS_WOOD_KG_PER_PERSON,e.goods[1].y/WATERWORKS_BRICKS_KG_PER_PERSON));
   for(var j=0u;j<2u;j++){
    let good=select(0u,5u,j==1u);let cost=select(WATERWORKS_WOOD_KG_PER_PERSON,WATERWORKS_BRICKS_KG_PER_PERSON,j==1u);let mass=build*cost;
    e.goods[good/4u][good%4u]=max(0.,e.goods[good/4u][good%4u]-mass);e.waterworks[j]+=mass;
   }
-  labor-=build*.2;asset_work=max(0.,asset_work-build*.2);
-  e.waterworks.z+=build*.2;e.waterworks_plan.z+=build;
+  labor-=build*ECONOMY_WATER_BUILD_WORKER_MONTHS_PER_PERSON;asset_work=max(0.,asset_work-build*ECONOMY_WATER_BUILD_WORKER_MONTHS_PER_PERSON);
+  e.waterworks.z+=build*ECONOMY_WATER_BUILD_WORKER_MONTHS_PER_PERSON;e.waterworks_plan.z+=build;
  }
  if e.storage_plan.w>.5 {
   let existing=min(e.storage.x/WAREHOUSE_WOOD_KG_PER_KG,e.storage.y/WAREHOUSE_BRICKS_KG_PER_KG);
-  var build=min(max(0.,e.storage_plan.x-existing),asset_work/.002);
+  var build=min(max(0.,e.storage_plan.x-existing),asset_work/ECONOMY_STORAGE_BUILD_WORKER_MONTHS_PER_KG);
   build=min(build,min(e.goods[0].x/WAREHOUSE_WOOD_KG_PER_KG,e.goods[1].y/WAREHOUSE_BRICKS_KG_PER_KG));
   for(var j=0u;j<2u;j++){
    let good=select(0u,5u,j==1u);let cost=select(WAREHOUSE_WOOD_KG_PER_KG,WAREHOUSE_BRICKS_KG_PER_KG,j==1u);let mass=build*cost;
    e.goods[good/4u][good%4u]=max(0.,e.goods[good/4u][good%4u]-mass);e.storage[j]+=mass;
   }
-  labor-=build*.002;e.storage.w+=build*.002;e.storage_plan.z=build;
+  labor-=build*ECONOMY_STORAGE_BUILD_WORKER_MONTHS_PER_KG;e.storage.w+=build*ECONOMY_STORAGE_BUILD_WORKER_MONTHS_PER_KG;e.storage_plan.z=build;
   e.logistics.x=warehouse_capacity(e);
  }
  building_budget=max(0.,building_budget-(building_start-labor));
  e.workshop_plan.z=0.;e.workshop_plan.w=0.;
- var industrial_capacity=1e30;
+ var industrial_capacity=ECONOMY_UNBOUNDED_CAPACITY;
  let specialized=e.workshop_types[0].w>.5;
  var household_capacity=max(1.,available_workers*HOUSEHOLD_CRAFT_WORK_SHARE);
  var type_capacity=vec4(0.);
@@ -230,7 +251,7 @@ fn building_work(input:Economy,s:Site,available_workers:f32)->BuildingResult {
    let good=select(select(0u,5u,j==1u),3u,j==2u);
    let worn=e.workshop[j]*WORKSHOP_MONTHLY_WEAR;e.workshop[j]-=worn;
    e.used[good/4u][good%4u]+=worn;e.workshop_plan.y+=worn;
-   let recovered=select(0.,worn*.9,j==2u&&catalog.herds[0].w>.5);
+   let recovered=select(0.,worn*ECONOMY_WORKSHOP_TOOL_SCRAP_FRACTION,j==2u&&catalog.herds[0].w>.5);
   e.goods[7].y+=recovered;e.made[7].y+=recovered;
    e.detritus+=vec4(catalog.goods[good].xyz*(worn-recovered),0.);
    e.reserves.w+=worn-recovered;
@@ -239,19 +260,19 @@ fn building_work(input:Economy,s:Site,available_workers:f32)->BuildingResult {
   // Construction and repair spend actual craft labor and stocked materials.
   let costs=vec3(WORKSHOP_WOOD_KG_PER_UNIT,WORKSHOP_BRICKS_KG_PER_UNIT,WORKSHOP_TOOLS_KG_PER_UNIT);
   let units=min(e.workshop.x/WORKSHOP_WOOD_KG_PER_UNIT,min(e.workshop.y/WORKSHOP_BRICKS_KG_PER_UNIT,e.workshop.z/WORKSHOP_TOOLS_KG_PER_UNIT));
-  var build=min(max(0.,e.workshop_plan.x-units),min(labor*.1,building_budget)/2.);
-  build=min(build,min(e.goods[0].x/WORKSHOP_WOOD_KG_PER_UNIT,min(e.goods[1].y/WORKSHOP_BRICKS_KG_PER_UNIT,max(0.,e.goods[0].w-s.stock.x*.3)/WORKSHOP_TOOLS_KG_PER_UNIT)));
+  var build=min(max(0.,e.workshop_plan.x-units),min(labor*ECONOMY_WORKSHOP_BUILD_WORK_SHARE,building_budget)/ECONOMY_WORKSHOP_BUILD_WORKER_MONTHS_PER_UNIT);
+  build=min(build,min(e.goods[0].x/WORKSHOP_WOOD_KG_PER_UNIT,min(e.goods[1].y/WORKSHOP_BRICKS_KG_PER_UNIT,max(0.,e.goods[0].w-s.stock.x*ECONOMY_WORKSHOP_TOOLS_RESERVE_KG_PER_PERSON)/WORKSHOP_TOOLS_KG_PER_UNIT)));
   for(var j=0u;j<3u;j++) {
    let good=select(select(0u,5u,j==1u),3u,j==2u);let mass=build*costs[j];
    e.goods[good/4u][good%4u]=max(0.,e.goods[good/4u][good%4u]-mass);e.workshop[j]+=mass;
   }
-  labor-=build*2.;building_budget=max(0.,building_budget-build*2.);e.workshop_plan.z=build;
+  labor-=build*ECONOMY_WORKSHOP_BUILD_WORKER_MONTHS_PER_UNIT;building_budget=max(0.,building_budget-build*ECONOMY_WORKSHOP_BUILD_WORKER_MONTHS_PER_UNIT);e.workshop_plan.z=build;
   industrial_capacity=household_capacity+WORKSHOP_WORKER_MONTHS_PER_UNIT*(units+build);
   if specialized {
    var assigned=0.;for(var j=0u;j<4u;j++){assigned+=e.workshop_types[j].x;}
    var unassigned=max(0.,units+build-assigned);
    // Existing generic assets require fitting labor; new builds include fitting.
-   var fitting=build+min(labor*.1,building_budget)/.5;
+   var fitting=build+min(labor*ECONOMY_WORKSHOP_FITTING_WORK_SHARE,building_budget)/ECONOMY_WORKSHOP_FITTING_WORKER_MONTHS_PER_UNIT;
    for(var step=0u;step<4u;step++){
     let j=(step+p.dims.z)%4u;
     let fitted=min(unassigned,min(fitting,max(0.,e.workshop_types[j].y-e.workshop_types[j].x)));
@@ -259,7 +280,7 @@ fn building_work(input:Economy,s:Site,available_workers:f32)->BuildingResult {
     type_capacity[j]=WORKSHOP_WORKER_MONTHS_PER_UNIT*e.workshop_types[j].x;
    }
    let fitted=units+build-assigned-unassigned;
-   labor=max(0.,labor-max(0.,fitted-build)*.5);
+   labor=max(0.,labor-max(0.,fitted-build)*ECONOMY_WORKSHOP_FITTING_WORKER_MONTHS_PER_UNIT);
   }
  }
 
@@ -419,10 +440,10 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
   if k==43u&&e.extraction.y>.5 {rate=.01;}
   if k>=45u && k<=50u && catalog.methods[k-45u].x>0. && catalog.methods[k-45u].x<5. {in_use=min(e.goods[k/4u][k%4u],s.stock.x*.2);rate=catalog.methods[k-45u].z;}
   let worn=in_use*rate;e.goods[k/4u][k%4u]-=worn;e.used[k/4u][k%4u]+=worn;
-  var recovered=select(0.,worn*.9,(k==3u||k==22u||k==23u) && catalog.herds[0].w>.5);
+  var recovered=select(0.,worn*ECONOMY_WORKSHOP_TOOL_SCRAP_FRACTION,(k==3u||k==22u||k==23u) && catalog.herds[0].w>.5);
   if k>=45u && k<=50u {recovered=worn*catalog.methods[k-45u].w*.9;}
    if (k==41u||k==43u) && e.extraction.y>.5 {
-   let scrap_good=select(42u,44u,k==43u);let scrap=worn*.9;e.goods[scrap_good/4u][scrap_good%4u]+=scrap;e.made[scrap_good/4u][scrap_good%4u]+=scrap;e.reserves.w-=scrap;
+   let scrap_good=select(42u,44u,k==43u);let scrap=worn*ECONOMY_WORKSHOP_TOOL_SCRAP_FRACTION;e.goods[scrap_good/4u][scrap_good%4u]+=scrap;e.made[scrap_good/4u][scrap_good%4u]+=scrap;e.reserves.w-=scrap;
   }
   e.goods[7].y+=recovered;e.made[7].y+=recovered;e.reserves.w+=worn-recovered;
   // Organic worn material is a recorded detrital transfer, not a missing C/N/P sink.
