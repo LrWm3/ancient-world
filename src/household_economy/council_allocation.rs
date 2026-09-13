@@ -9,6 +9,8 @@ pub enum Policy {
     #[default]
     Existing,
     ProtectAdministration,
+    /// Cover full dietary purchasing gaps from cash above the administration allowance.
+    NeedsFirst,
 }
 /// Annual emergency town support is distinct from household purchasing assistance.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -51,10 +53,14 @@ impl Receipt {
         relief_requested: f64,
         share: f64,
     ) -> Self {
-        let relief_ceiling = (treasury * share).min(relief_requested);
+        let relief_ceiling = if policy == Policy::NeedsFirst {
+            treasury.min(relief_requested)
+        } else {
+            (treasury * share).min(relief_requested)
+        };
         let relief_granted = match policy {
             Policy::Existing => relief_ceiling,
-            Policy::ProtectAdministration => {
+            Policy::ProtectAdministration | Policy::NeedsFirst => {
                 relief_ceiling.min((treasury - administration_forecast).max(0.))
             }
         };
@@ -105,7 +111,7 @@ pub(super) fn validate(
                 && r.relief_ceiling <= r.relief_requested + ALLOCATION_TOLERANCE_MONEY,
             "council allocation exceeds budget"
         );
-        if r.policy == Policy::ProtectAdministration {
+        if matches!(r.policy, Policy::ProtectAdministration | Policy::NeedsFirst) {
             anyhow::ensure!(
                 r.relief_granted
                     <= (r.treasury - r.administration_forecast).max(0.)
@@ -127,6 +133,24 @@ mod tests {
         assert_eq!(p.request(100., 0., 0.2), 1000.);
         assert_eq!(p.request(100., 0., 0.), 0.);
         assert_eq!(TownSupportPolicy::Existing.request(100., 1500., 0.2), 1000.);
+    }
+    #[test]
+    fn welfare_reserves_meet_need_without_spending_protected_work() {
+        let r = Receipt::quote(12, 0, Policy::NeedsFirst, 100., 20., 90., 0.05);
+        assert_eq!(r.relief_ceiling, 90.);
+        assert_eq!(r.relief_granted, 80.);
+        assert_eq!(
+            Receipt::quote(12, 0, Policy::NeedsFirst, 100., 20., 10., 0.).relief_granted,
+            10.
+        );
+        assert_eq!(
+            Receipt::quote(12, 0, Policy::NeedsFirst, 100., 120., 90., 0.05).relief_granted,
+            0.
+        );
+        assert_eq!(
+            Receipt::quote(12, 0, Policy::NeedsFirst, 100., 20., 0., 0.05).relief_granted,
+            0.
+        );
     }
     #[test]
     fn scarce_cash_and_inactive_claims() {
@@ -287,6 +311,63 @@ mod integration {
         for a in &mut e.accounts {
             a.cash = 0.;
         }
+        // Matched low-target policy: reserves fund actual household purchasing,
+        // without taking the administration allowance or creating currency.
+        let mut welfare = h.clone();
+        {
+            let e = welfare
+                .society
+                .as_mut()
+                .unwrap()
+                .household_economy
+                .as_mut()
+                .unwrap();
+            e.relief_share = 0.01;
+            e.relief_target = 0.75;
+        }
+        let mut limited = welfare.clone();
+        welfare
+            .society
+            .as_mut()
+            .unwrap()
+            .household_economy
+            .as_mut()
+            .unwrap()
+            .council_allocation = Policy::NeedsFirst;
+        let welfare_opening = welfare.economy_residuals()[4];
+        limited.prepare_household_retail();
+        welfare.prepare_household_retail();
+        let wr = &welfare
+            .society
+            .as_ref()
+            .unwrap()
+            .household_economy
+            .as_ref()
+            .unwrap()
+            .council_allocations;
+        let lr = &limited
+            .society
+            .as_ref()
+            .unwrap()
+            .household_economy
+            .as_ref()
+            .unwrap()
+            .council_allocations;
+        assert!(wr
+            .iter()
+            .zip(lr)
+            .any(|(a, b)| a.relief_paid > b.relief_paid));
+        assert!(wr
+            .iter()
+            .all(|r| r.relief_paid <= (r.treasury - r.administration_forecast).max(0.) + 1e-8));
+        validate(wr, &welfare).unwrap();
+        assert!((welfare.economy_residuals()[4] - welfare_opening).abs() < 1e-6);
+        let restored_welfare: crate::civilization::History =
+            serde_json::from_value(serde_json::to_value(&welfare).unwrap()).unwrap();
+        assert_eq!(
+            serde_json::to_value(&welfare).unwrap(),
+            serde_json::to_value(&restored_welfare).unwrap()
+        );
         let mut control = h.clone();
         let mut protected = h.clone();
         protected

@@ -150,3 +150,8 @@ strict library/binary Clippy and native build pass. All eighteen native runs fin
 Maximum absolute independently audited endpoint money residual across both screens
 is below 2.85e-7. Compilations overlapped some runs; recorded timings are not isolated
 performance benchmarks. There were no failed tests or native runs in these screens.
+
+The subsequent [council welfare reserve screen](council-welfare-reserves.md)
+tests deploying public balances against full local household dietary budgets.
+It increases actual relief but has mixed welfare and production outcomes; retained
+as an opt-in comparison.

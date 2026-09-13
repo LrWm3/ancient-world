@@ -724,10 +724,13 @@ impl History {
             for &id in &p.ids {
                 let a = &e.accounts[id];
                 let common_share = p.free / p.need.max(DISTRIBUTION_DENOMINATOR_FLOOR);
-                let target = (policies[controllers[p.site]].food_target as f64 - common_share)
-                    .max(0.)
-                    * a.need
-                    * p.price;
+                let food_target = if e.council_allocation == council_allocation::Policy::NeedsFirst
+                {
+                    1.
+                } else {
+                    policies[controllers[p.site]].food_target as f64
+                };
+                let target = (food_target - common_share).max(0.) * a.need * p.price;
                 let request = (target - a.cash).max(0.);
                 if request > 0. {
                     requests[controllers[p.site]].push((id, request));

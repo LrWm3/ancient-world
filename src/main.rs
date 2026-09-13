@@ -103,6 +103,9 @@ struct Args {
     /// Annual progressive household cash tax above protected food reserves.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     household_wealth_tax: Option<bool>,
+    /// Cover full household food budgets using council reserves above administrative needs.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    council_welfare_reserves: Option<bool>,
     /// Fund local experiments to recover missing production knowledge.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     practical_research: Option<bool>,
@@ -230,6 +233,7 @@ fn main() -> Result<()> {
                 && args.household_estate_inheritance.is_none()
                 && args.household_clothing.is_none()
                 && args.household_wealth_tax.is_none()
+                && args.council_welfare_reserves.is_none()
                 && args.practical_research.is_none()
                 && args.household_estate_reclamation.is_none()
                 && args.abandoned_stock_recovery.is_none()
@@ -487,6 +491,21 @@ fn main() -> Result<()> {
             .context("demand workshop staffing requires enterprises")?
             .procurement
             .demand_staffing = enabled;
+    }
+    if let Some(enabled) = args.council_welfare_reserves {
+        generator
+            .civilizations
+            .as_mut()
+            .context("welfare requires history")?
+            .society
+            .as_mut()
+            .and_then(|s| s.household_economy.as_mut())
+            .context("welfare requires household accounts")?
+            .council_allocation = if enabled {
+            ancient_world::household_economy::council_allocation::Policy::NeedsFirst
+        } else {
+            ancient_world::household_economy::council_allocation::Policy::Existing
+        };
     }
     if let Some(enabled) = args.household_wealth_tax {
         generator
