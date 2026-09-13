@@ -470,3 +470,29 @@ existing `MONTHS_PER_YEAR` constant. Removed duplicate declarations of this shar
 conversion; rates, term arithmetic and numeric types remain unchanged. Independent
 operating-reserve and policy-duration values are not merged merely because they
 also happen to be twelve.
+
+## Settlement survey and legacy monthly production
+
+Named the generic survey temperature/rainfall envelope, yield, soil floor,
+flood/elevation exclusions, groundwater bonus and elevation penalty in
+`shaders/civilization.wgsl`. The monthly generic climate and managed-crop
+potential recovery use those same parameters, preserving arithmetic order.
+Named legacy harvest seasonality, cultivated area, storage/spoilage, food
+composition and coarse birth/death parameters separately from the modern
+cohort and managed-production models. Calendar and age-ration references reuse
+the society subsystem's definitions. This is parameter extraction, not crop
+or demographic recalibration.
+
+The sparse `history_environment.wgsl` and `managed_returns.wgsl` shaders were also
+inspected: their remaining literals describe buffer layouts, pool indices and
+serial/gather mechanics rather than tunable simulation rates. No additional
+policy constants were needed there. Core ecology, planetary terrain and economy
+shaders still require review; this does not close the overall cleanup.
+
+The hardware plot-reservation and recipe-conservation test passed after these
+changes, as did strict all-target Clippy and the executable build. A matched
+one-year history comparison from the same seed-81 checkpoint produced byte-identical
+serialized history before and after extraction (same backend, default history
+options). This checks that exercised path, not all alternative modes. Regional weather binning and dispatch constants in the civilization
+shader remain to be reviewed; the extraction above does not claim that every
+nontrivial literal in that file has been addressed.

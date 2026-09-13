@@ -53,6 +53,7 @@ pub(crate) const SOUTHERN_HARVEST_MONTH: f32 = 2.;
 pub(crate) const NORTHERN_HARVEST_MONTH: f32 = 8.;
 crate::shared_shader_parameters!(SHADER_PARAMETERS {
     pub const MAX_RATION_PRIORITY: f32 = 3.;
+    pub(crate) const CROP_CALENDAR_MONTHS: u32 = 12;
     pub(crate) const CHILD_RATION_KG_PER_MONTH: f64 = 10.;
     pub(crate) const ADULT_RATION_KG_PER_MONTH: f64 = 18.;
     pub(crate) const ELDER_RATION_KG_PER_MONTH: f64 = 14.;
@@ -1018,7 +1019,9 @@ impl History {
                         ),
                     );
                 }
-            } else if self.sites[i].stocks.stock[2] > 0. && self.month % 12 == d.crops[2] as u32 {
+            } else if self.sites[i].stocks.stock[2] > 0.
+                && self.month % CROP_CALENDAR_MONTHS == d.crops[2] as u32
+            {
                 self.event(
                     "harvest",
                     Some(i as u32),

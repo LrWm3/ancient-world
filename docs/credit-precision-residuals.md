@@ -64,3 +64,13 @@ collection budget still default. Removing the settlement receipt is rejected by
 archive validation. All 15 credit unit tests passed; strict all-target Clippy and
 the development executable build passed. These fixtures verify the correction's
 accounting and boundaries, not its long-run balance effects.
+
+## Fresh-code long-run comparison
+
+A fresh seed-81 four-arm, 500-year run uses the fixed executable from `01d502b`
+and the same starting checkpoint and delivery-paid-export policy. The baseline
+completed at 180.166604 residents, with no loans or issuance. Its full serialized
+history matches the older baseline after allowing the newly added empty
+`credit.restructurings` field. The other arms are still running. The executable
+also contains newer term-aware underwriting and delayed-export negotiation; this
+is an integrated comparison, not an isolated precision-settlement ablation.
