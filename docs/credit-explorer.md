@@ -41,6 +41,8 @@ the panel itself, not navigation through every surrounding history-window tab.
 The harness and screenshots remain in ignored `output/`.
 
 This closes the basic explorer-inspection gap, not all monetary reporting:
-click-through account navigation, dedicated monetary chronicle events, household
+click-through account navigation, household
 cash-distribution plots and per-project causal funding reports remain separate
-work. Claims, cash and historical losses must stay distinguishable in those views.
+work. [Committed credit milestones](credit-chronicle.md) now appear in the existing
+chronicle with causal links. Claims, cash and historical losses must stay
+distinguishable in those views.

@@ -132,6 +132,7 @@ impl History {
                 precision_blocked: false,
             });
         }
+        let opening_status: Vec<_> = self.credit.loans.iter().map(|l| l.status).collect();
         self.credit.loans = accrued;
         // Receipts are committed one by one. Unexpected transfer failures surface
         // to the caller; they must not be converted into successful collection.
@@ -169,6 +170,7 @@ impl History {
                 loan.write_off(self.month)?;
                 receipt.defaulted = true;
             }
+            self.record_credit_status(receipt.loan, opening_status[receipt.loan as usize]);
             self.credit.service_receipts.push(receipt);
         }
         self.credit.serviced_month = Some(self.month);

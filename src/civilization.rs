@@ -315,6 +315,7 @@ impl History {
                     && e.subjects.iter().all(|(kind, id)| {
                         let limit = match kind.as_str() {
                             "civilization" => self.civilizations.len(),
+                            "loan" => self.credit.loans.len(),
                             "site" => self.sites.len(),
                             "person" => self.people.len(),
                             "road" => self.society.as_ref().map_or(0, |s| s.routes.len()),

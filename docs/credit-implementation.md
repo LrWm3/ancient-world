@@ -637,4 +637,6 @@ The [credit inspector](credit-explorer.md) now connects existing loan, underwrit
 issuance and recovery records to the Towns and economy page. It shows original
 losses and later recoveries separately. `Credit::loan_reports()` exposes all
 contracts without mutating accounting; the UI bounds recent-record lists.
-Dedicated monetary chronicle events and broader causal reporting remain pending.
+[Committed loan milestones](credit-chronicle.md) now connect funding, arrears,
+settlement, default, restructuring and recovery in the existing chronicle.
+Broader per-project causal reporting remains pending.

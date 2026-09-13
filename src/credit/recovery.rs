@@ -116,6 +116,10 @@ impl History {
             opening_cash,
             closing_cash,
         });
+        if actual > 0. {
+            let r = self.credit.recoveries.last().unwrap();
+            self.record_credit_event(r.request.loan, "loan_recovery", format!("Loan {} recovered principal {:.6} and interest {:.6} in currency {} through {:?}; the original default remains recorded.", r.request.loan, r.transfer.principal, r.transfer.interest, r.transfer.currency.0, r.request.reason));
+        }
         Ok(actual)
     }
 

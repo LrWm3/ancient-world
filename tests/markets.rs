@@ -770,6 +770,23 @@ fn scheduled_credit_protects_cash_shares_claims_and_defaults_without_money_creat
             .all(|l| l.status == Status::Defaulted));
         assert_eq!(world.sites[1].economy.finance[0], 60.);
         assert!(world.economy_residuals()[3].abs() < 1e-12);
+        for loan in &world.credit.loans {
+            let events: Vec<_> = world
+                .events
+                .iter()
+                .filter(|e| e.subjects.contains(&("loan".into(), loan.id as u32)))
+                .collect();
+            assert_eq!(
+                events.iter().map(|e| e.kind.as_str()).collect::<Vec<_>>(),
+                vec!["loan_issued", "loan_arrears", "loan_defaulted"]
+            );
+            assert!(events[0].causes.is_empty());
+            assert_eq!(events[1].causes, vec![events[0].id]);
+            assert_eq!(events[2].causes, vec![events[1].id]);
+            assert_eq!(events[2].month, 13);
+            assert_eq!(events[2].site, Some(1));
+            assert_eq!(world.credit.last_events[&loan.id], events[2].id);
+        }
         world.validate_credit().unwrap();
     }
     assert_eq!(

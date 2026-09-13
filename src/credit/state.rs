@@ -14,6 +14,8 @@ pub struct CashReceipt {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Credit {
     #[serde(default)]
+    pub last_events: std::collections::BTreeMap<u64, u64>,
+    #[serde(default)]
     pub export_recovery: super::export_recovery::State,
     #[serde(default)]
     pub recoveries: Vec<super::recovery::Receipt>,
@@ -75,6 +77,8 @@ impl History {
             disbursement: true,
             transfer,
         });
+        let transfer = &self.credit.cash_receipts.last().unwrap().transfer;
+        self.record_credit_event(id, "loan_issued", format!("Loan {id} transferred {:.6} existing currency {} from {:?} to {:?}; maturity month {}, source {:?}.", transfer.amount(), transfer.currency.0, transfer.from, transfer.to, self.credit.loans[id as usize].terms.maturity_month, self.credit.loans[id as usize].terms.source));
         Ok(Some(id))
     }
 
@@ -88,6 +92,7 @@ impl History {
             .filter(|l| l.id == id)
             .context("missing loan")?
             .clone();
+        let previous = loan.status;
         loan.accrue_to(self.month)?;
         let (principal, interest) = loan.repayment_quote(allowance)?;
         let transfer = self.transfer_credit_cash(
@@ -108,10 +113,25 @@ impl History {
             });
         }
         self.credit.loans[id as usize] = loan;
+        self.record_credit_status(id, previous);
         Ok(actual)
     }
 
     pub fn validate_credit(&self) -> Result<()> {
+        ensure!(
+            self.credit.last_events.iter().all(|(loan, event)| self
+                .credit
+                .loans
+                .get(*loan as usize)
+                .is_some_and(|l| l.id == *loan)
+                && self
+                    .events
+                    .get(*event as usize)
+                    .is_some_and(|e| e.id == *event
+                        && e.month <= self.month
+                        && e.kind.starts_with("loan_"))),
+            "invalid credit chronicle link"
+        );
         self.validate_credit_recoveries()?;
         self.validate_export_recovery()?;
         let mut restructurings = std::collections::BTreeSet::new();

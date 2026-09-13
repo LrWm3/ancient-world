@@ -277,7 +277,11 @@ impl History {
             self.credit.loans[receipt.proposal.loan as usize]
                 .restructure(self.month, receipt.proposal.revised_maturity)?;
         }
+        let id = receipt.proposal.loan;
         self.credit.restructurings.push(receipt);
+        if decision == Decision::Accepted {
+            self.record_credit_event(id, "loan_restructured", format!("Loan {id} received an agreed maturity extension to month {}; principal and currency remain unchanged.", self.credit.loans[id as usize].terms.maturity_month));
+        }
         Ok(decision)
     }
 }
