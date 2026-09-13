@@ -33,8 +33,28 @@ not establish this mechanism's correctness.
 The resolver's detailed capacity snapshots expose the resulting source capacity.
 Old recorded rounds remain unchanged, and no historical decisions are recomputed.
 
-All eighteen credit unit tests and strict all-target Clippy passed. A fresh
-200-year, four-arm seed-409 comparison is scheduled from the same founding
-checkpoint as the held-out report, to check whole-history behavior and the new
-capacity receipts. Its results are pending; unit verification does not establish
-balance improvement.
+All eighteen credit unit tests and strict all-target Clippy passed.
+
+## Completed matched regression
+
+A fresh 200-year, four-arm seed-409 comparison from the same founding checkpoint
+completed using the copied `7aef164` executable. All four native runs passed.
+Baseline, credit-only and issuance-only exported histories are structurally
+identical to the earlier `547aaba` histories. Combined differs only by its new
+capacity snapshot; removing that added field makes the entire history identical.
+
+The one combined-arm request has eligible principal 2.0238299714692403 against
+799.5607499235867 lender capacity, 5,000 borrower capacity and
+39.15016635124048 net covered source receipts. Source demand including interest
+is 2.2901233887678245, so no pool scales down the request. Actual disbursement
+is 2.023681640625 because the existing town account representation governs the
+cash transfer. The eventual loan and precision settlement match the earlier run.
+
+Maximum absolute monetary relative residual was `2.77e-7`, other managed
+residuals `4.71e-5`, and ecological C/N/P residuals `1.62e-5`.
+Generated data remains under ignored `output/monetary-shared-cost-regression`.
+Shader tests ran concurrently, so these durations are not performance benchmarks.
+
+This establishes regression stability in a single-source world, not balance
+improvement or validation of multiple currencies. The analytical multi-source
+fixture provides the direct evidence for the cost-sharing correction.
