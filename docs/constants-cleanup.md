@@ -645,3 +645,39 @@ parameter review; it does not finish the larger ecology,
 economy and other outstanding repository review. The separate legacy surface
 selection's dormant locals are documented above rather than presented as active
 biological mechanisms.
+
+## Ecological aggregation and geological habitats
+
+Named 18 parameters in `shaders/ecology.wgsl`: area conversion and normalization,
+deposit phosphorus enrichment, groundwater/wetness response, enriched/province/vent
+activity thresholds, reaction weighting and shared-edge land/channel conductance.
+Equal-looking values remain separate when they describe different responses.
+Indices, geometric identities and normalized clamps remain inline.
+
+Expanding the new names back to their original literal spellings reproduces the
+previous shader token sequence, including operation order. This is an aggregation
+pass only; producer, consumer, lake-transport and other ecology parameters still
+need review. The running held-out monetary experiments use a copied executable
+from before this extraction, so these source edits cannot alter their runtime.
+
+The aggregation coarse-grid budget/checkpoint fixture, finite hydrogen-supply
+fixture and strict all-target Clippy passed.
+
+## Initial ecological stocks and thermal encoding
+
+Named another 23 shader constants for initial terrestrial/aquatic C/N/P stocks,
+finite source rock and reduced chemistry, founder occupancy, geological exposure
+and thermal-preference bounds. The temperature encoding offset is now declared
+once in the ecology module's Rust/WGSL shared parameters and used by the Rust
+inspection decoder and shader. Independent fixture inputs remain literal.
+
+Literal expansion reproduces the previous shader token sequence. Initial stocks
+remain declared imports; this changes neither their amounts nor their ecological
+meaning. Noise phases and categorical/array layout remain inline. This does not
+complete the rest of the ecology shader's parameter review.
+
+Verification passed after the seeding/encoding extraction: coarse-grid ecological
+budgets and checkpoint continuation, finite hydrogen supply, narrow-habitat
+aggregation, fine-edge CPU/GPU conductance including cube seams, thermal ecotype
+feeding/persistence, and strict all-target Clippy. The two extractions named 41
+shader-owned parameters plus one shared Rust/WGSL encoding parameter.

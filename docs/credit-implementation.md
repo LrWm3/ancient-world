@@ -599,3 +599,9 @@ that estate processing leaves the traveling institution, treasury and claims
 unchanged before arrival. This preserves relocation as continuity rather than
 mistaking it for dissolution. Formal legal assignments and post-default recovery
 remain unfinished.
+
+The [held-out estate-build comparison](monetary-estates-heldout.md) is now running
+on seeds 256, 409 and 1024 for 200 years per arm. The completed seed 256 comparison
+shows no realized credit effect and improved issuance outcomes on the reported
+population/access measures. Remaining seeds and the broader gate are unfinished;
+this is not a reason to enable the pilots by default.

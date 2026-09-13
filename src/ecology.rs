@@ -18,6 +18,7 @@ const MIN_OCCUPIED_GUILD_KG_C_PER_M2: f32 = 1e-10;
 const MIN_GUILD_CARBON_DENOMINATOR_KG: f64 = 1e-30;
 crate::shared_shader_parameters! { SHADER_PARAMETERS {
     const ECOLOGY_WORKGROUP_EDGE: u32 = 8;
+    const ECO_THERMAL_ENCODING_OFFSET_C: f32 = 81.;
 }}
 
 pub const ECO_BYTES: u64 = std::mem::size_of::<EcoCell>() as u64;
@@ -92,7 +93,7 @@ impl EcoCell {
             return None;
         }
         let value = self.pools[38 + guild / 4][guild % 4];
-        (value > 0.).then_some(value - 81.)
+        (value > 0.).then_some(value - ECO_THERMAL_ENCODING_OFFSET_C)
     }
     pub fn inventory(&self) -> [f64; 3] {
         std::array::from_fn(|k| self.pools[..STOCKS].iter().map(|p| p[k] as f64).sum())

@@ -11,12 +11,56 @@ struct Params {dims:vec4<u32>,physical:vec4<f32>,counts:vec4<u32>,options:vec4<u
 @group(0) @binding(6) var<storage,read_write> river_out:array<vec4<f32>>;
 @group(0) @binding(7) var<uniform> p:Params;
 const NONE:u32=0xffffffffu;
+// Initial inventories and inherited thermal preferences.
+const ECO_TERRESTRIAL_THERMAL_TOLERANCE_C:f32=15.;
+const ECO_FOUNDER_THERMAL_VARIATION_C:f32=8.;
+const ECO_MIN_THERMAL_OPTIMUM_C:f32=-80.;
+const ECO_MAX_THERMAL_OPTIMUM_C:f32=60.;
+const ECO_INITIAL_SOIL_CNP_KG_M2:vec4<f32>=vec4(.1, .02,.004,0.);
+const ECO_INITIAL_DETRITUS_CNP_KG_M2:vec4<f32>=vec4(.4,.02,.002,0.);
+const ECO_INITIAL_SURFACE_WATER_CNP_KG_M2:vec4<f32>=vec4(.001,.0002,.00002,0.);
+const ECO_INITIAL_DEEP_WATER_CNP_KG_M2:vec4<f32>=vec4(.05,.02,.003,0.);
+const ECO_INITIAL_SEDIMENT_CNP_KG_M2:vec4<f32>=vec4(.2,.03,.02,0.);
+const ECO_INITIAL_PRODUCER_CNP_KG_M2:vec4<f32>=vec4(.02,.0005,.00004,0.);
+const ECO_INITIAL_PLANKTON_CNP_KG_M2:vec4<f32>=vec4(.0001,.000003,.0000003,0.);
+const ECO_MIN_SEED_LAND_FRACTION:f32=.00001;
+const ECO_DEEP_WATER_DEPTH_SCALE_M:f32=100.;
+const ECO_MAX_DEEP_WATER_INVENTORY_FACTOR:f32=60.;
+const ECO_MIN_INITIAL_SOURCE_P_KG_M2:f32=.1;
+const ECO_INITIAL_SOURCE_ROCK_KG_M2:f32=10000.;
+const ECO_INITIAL_HYDROGEN_KG_M2:f32=.001;
+const ECO_INITIAL_SECONDARY_ENERGY_MJ_M2:f32=.002;
+const ECO_INITIAL_OXIDANT_KG_M2:f32=1.;
+const ECO_FOUNDER_PATCH_THRESHOLD:f32=-.35;
+const ECO_INITIAL_ANIMAL_C_KG_M2:f32=.000001;
+const ECO_MIN_ANCESTRY_LAND_FRACTION:f32=.000001;
+const ECO_GEOLOGICAL_EXPOSURE_KG_M2:f32=10.;
+
+// Aggregation parameters: geological habitats and finite shared-edge transport.
+const ECO_SQUARE_KM_TO_SQUARE_M:f32=1e6;
+const ECO_DEPOSIT_PHOSPHORUS_ENRICHMENT:f32=.05;
+const ECO_GROUNDWATER_ACTIVITY_SCALE:f32=2.;
+const ECO_WETNESS_RAINFALL_SCALE_MM:f32=1400.;
+const ECO_WETNESS_GROUNDWATER_WEIGHT:f32=.5;
+const ECO_MIN_CHEMICAL_GROUNDWATER:f32=.05;
+const ECO_MIN_REACTIVE_FRACTION:f32=.001;
+const ECO_ENRICHED_ACTIVITY_THRESHOLD:f32=.2;
+const ECO_PROVINCE_ACTIVITY_THRESHOLD:f32=.55;
+const ECO_VENT_ACTIVITY_THRESHOLD:f32=.82;
+const ECO_REACTION_LINEAR_WEIGHT:f32=.02;
+const ECO_REACTION_HOTSPOT_WEIGHT:f32=.5;
+const ECO_REACTION_ACTIVITY_EXPONENT:f32=4.;
+const ECO_REACTION_BASE_WATER_ACCESS:f32=.2;
+const ECO_REACTION_GROUNDWATER_WEIGHT:f32=.8;
+const ECO_LAND_EDGE_RELIEF_SCALE_M:f32=1000.;
+const ECO_CHANNEL_DISCHARGE_THRESHOLD:f32=1.;
+const ECO_MIN_AGGREGATION_AREA_M2:f32=1.;
 fn id(g:vec3<u32>,n:u32)->u32 {return g.z*n*n+g.y*n+g.x;}
 fn direction(f:u32,u:f32,v:f32)->vec3<f32> {var d=vec3(u,v,-1.);switch f {case 0u:{d=vec3(1.,u,v);}case 1u:{d=vec3(-1.,u,v);}case 2u:{d=vec3(u,1.,v);}case 3u:{d=vec3(u,-1.,v);}case 4u:{d=vec3(u,v,1.);}default:{}}return normalize(d);}
 fn pos(i:u32,n:u32)->vec3<f32> {return direction(i/(n*n),2.*(f32(i%n)+.5)/f32(n)-1.,2.*(f32(i/n%n)+.5)/f32(n)-1.);}
 fn index(d:vec3<f32>,n:u32)->u32 {let a=abs(d);var f=0u;var uv=vec2(0.);if a.x>=a.y&&a.x>=a.z {f=select(1u,0u,d.x>=0.);uv=d.yz/a.x;}else if a.y>=a.z {f=select(3u,2u,d.y>=0.);uv=d.xz/a.y;}else {f=select(5u,4u,d.z>=0.);uv=d.xy/a.z;}let xy=vec2<u32>(clamp(floor((uv+1.)*.5*f32(n)),vec2(0.),vec2(f32(n-1u))));return f*n*n+xy.y*n+xy.x;}
 fn neighbor(i:u32,k:u32,n:u32)->u32 {let offsets=array<vec2<i32>,4>(vec2(-1,0),vec2(1,0),vec2(0,-1),vec2(0,1));let xy=vec2<i32>(vec2<u32>(i%n,i/n%n))+offsets[k];if all(xy>=vec2(0))&&all(xy<vec2(i32(n))){return i/(n*n)*n*n+u32(xy.y)*n+u32(xy.x);}let uv=2.*(vec2<f32>(xy)+.5)/f32(n)-1.;return index(direction(i/(n*n),uv.x,uv.y),n);}
-fn area(i:u32,n:u32)->f32 {let uv=2.*(vec2<f32>(vec2<u32>(i%n,i/n%n))+.5)/f32(n)-1.;let t=1./(f32(n)*sqrt(3.));var sum=0.;for(var k=0u;k<4u;k++){let q=uv+vec2(select(-t,t,(k&1u)!=0u),select(-t,t,(k&2u)!=0u));sum+=pow(1.+dot(q,q),-1.5);}return sum/f32(n*n)*p.physical.x*p.physical.x*1e6;}
+fn area(i:u32,n:u32)->f32 {let uv=2.*(vec2<f32>(vec2<u32>(i%n,i/n%n))+.5)/f32(n)-1.;let t=1./(f32(n)*sqrt(3.));var sum=0.;for(var k=0u;k<4u;k++){let q=uv+vec2(select(-t,t,(k&1u)!=0u),select(-t,t,(k&2u)!=0u));sum+=pow(1.+dot(q,q),-1.5);}return sum/f32(n*n)*p.physical.x*p.physical.x*ECO_SQUARE_KM_TO_SQUARE_M;}
 fn parent(i:u32)->u32 {let n=p.dims.x;let m=p.dims.y;let r=n/m;return i/(n*n)*m*m+(i/n%n)/r*m+(i%n)/r;}
 fn fine(i:u32,x:u32,y:u32)->u32 {let n=p.dims.x;let m=p.dims.y;let r=n/m;return i/(m*m)*n*n+((i/m%m)*r+y)*n+(i%m)*r+x;}
 fn plants_offset()->u32 {return p.counts.x+p.counts.y+p.counts.z;}
@@ -31,16 +75,16 @@ fn aggregate(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=id(g,p.dims.y);let r=p.dims.x/p.dims.y;var e:Env;var a=0.;var la=0.;var wa=0.;var balance=0.;var stored=0.;var wind=0.;var temperature=0.;var rainfall=0.;
  for(var y=0u;y<r;y++){for(var x=0u;x<r;x++){let j=fine(i,x,y);let c=terrain[j];let v=area(j,p.dims.x);a+=v;e.fields[0][c.tags.x]+=v;balance+=(c.budget.x-c.budget.y)*v;stored+=(c.water.x+c.water.y+c.water.z)*v+river[j].w;wind+=c.climate.w*v;temperature+=select(c.hydro.y,c.climate.x,p.options.w==1u)*v;rainfall+=select(c.hydro.z,c.climate.y,p.options.w==1u)*v;
  let rock=catalog[c.ids.x];let soil=catalog[p.counts.x+p.counts.y+c.ids.y];
- if c.tags.x>=2u {la+=v;e.fields[1]+=vec4(select(c.hydro.y,c.climate.x,p.options.w==1u),select(c.hydro.z,c.climate.y,p.options.w==1u),c.water.y,c.climate.w)*v;e.fields[2]+=vec4(c.geology.x,c.terrain.x,c.terrain.z,c.life.w)*v;var chemistry=rock.b;if c.tags.y<p.counts.y {chemistry.x=min(1.,chemistry.x+catalog[p.counts.x+c.tags.y].a.w*c.geology.z*.05);}if c.tags.x==2u {chemistry.x*=p.abundance.x;}e.fields[4]+=chemistry*v;e.fields[5]+=soil.b*v;e.fields[6][rock.ids.x]+=v;e.fields[6].w+=soil.a.x*v;
+ if c.tags.x>=2u {la+=v;e.fields[1]+=vec4(select(c.hydro.y,c.climate.x,p.options.w==1u),select(c.hydro.z,c.climate.y,p.options.w==1u),c.water.y,c.climate.w)*v;e.fields[2]+=vec4(c.geology.x,c.terrain.x,c.terrain.z,c.life.w)*v;var chemistry=rock.b;if c.tags.y<p.counts.y {chemistry.x=min(1.,chemistry.x+catalog[p.counts.x+c.tags.y].a.w*c.geology.z*ECO_DEPOSIT_PHOSPHORUS_ENRICHMENT);}if c.tags.x==2u {chemistry.x*=p.abundance.x;}e.fields[4]+=chemistry*v;e.fields[5]+=soil.b*v;e.fields[6][rock.ids.x]+=v;e.fields[6].w+=soil.a.x*v;
  // Nested geological habitats, evaluated before coarse-grid averaging. Rates are
  // weighted by reactive substrate, not by the maximum activity in a coarse cell.
- let activity=clamp(c.geology.x,0.,1.);let groundwater=clamp(c.water.y*2.,0.,1.);
- let wet=clamp(select(c.hydro.z,c.climate.y,p.options.w==1u)/1400.+c.water.y*.5,0.,1.);
- let viable=groundwater>.05&&chemistry.y>.001;
- let enriched=viable&&activity>=.2;let province=viable&&activity>=.55;let vent=viable&&activity>=.82;
+ let activity=clamp(c.geology.x,0.,1.);let groundwater=clamp(c.water.y*ECO_GROUNDWATER_ACTIVITY_SCALE,0.,1.);
+ let wet=clamp(select(c.hydro.z,c.climate.y,p.options.w==1u)/ECO_WETNESS_RAINFALL_SCALE_MM+c.water.y*ECO_WETNESS_GROUNDWATER_WEIGHT,0.,1.);
+ let viable=groundwater>ECO_MIN_CHEMICAL_GROUNDWATER&&chemistry.y>ECO_MIN_REACTIVE_FRACTION;
+ let enriched=viable&&activity>=ECO_ENRICHED_ACTIVITY_THRESHOLD;let province=viable&&activity>=ECO_PROVINCE_ACTIVITY_THRESHOLD;let vent=viable&&activity>=ECO_VENT_ACTIVITY_THRESHOLD;
  e.fields[8]+=vec4(f32(enriched),f32(province),f32(vent),0.)*v;
  e.fields[8].w=max(e.fields[8].w,activity);
- let rate=wet*(.02*activity+.5*pow(activity,4.))*(.2+.8*groundwater);
+ let rate=wet*(ECO_REACTION_LINEAR_WEIGHT*activity+ECO_REACTION_HOTSPOT_WEIGHT*pow(activity,ECO_REACTION_ACTIVITY_EXPONENT))*(ECO_REACTION_BASE_WATER_ACCESS+ECO_REACTION_GROUNDWATER_WEIGHT*groundwater);
  let reactive=chemistry.y*rate*v;e.fields[9].x+=reactive;
  for(var h=0u;h<2u;h++){if select(enriched,province,h==1u) {
  let base=10u+3u*h;
@@ -59,18 +103,18 @@ fn aggregate(@builtin(global_invocation_id) g:vec3<u32>) {
  let y=select(select(0u,r-1u,d==3u),q,d<2u);
  let j=fine(i,x,y);let c=terrain[j];let b=terrain[neighbor(j,d,p.dims.x)];
  if c.tags.x>=2u&&b.tags.x>=2u {
- e.fields[22][d]+=1./(1.+abs(c.terrain.x-b.terrain.x)/1000.);
+ e.fields[22][d]+=1./(1.+abs(c.terrain.x-b.terrain.x)/ECO_LAND_EDGE_RELIEF_SCALE_M);
  }
  if c.tags.x<2u&&c.tags.x==b.tags.x {e.fields[23][d]+=1.;}
  let flowing=c.routing.x==neighbor(j,d,p.dims.x)||b.routing.x==j;
- let channel=(c.water.w>1.&&b.water.w>1.&&flowing);
- let mouth=(c.tags.x<2u&&b.water.w>1.&&b.routing.x==j)||(b.tags.x<2u&&c.water.w>1.&&c.routing.x==neighbor(j,d,p.dims.x));
+ let channel=(c.water.w>ECO_CHANNEL_DISCHARGE_THRESHOLD&&b.water.w>ECO_CHANNEL_DISCHARGE_THRESHOLD&&flowing);
+ let mouth=(c.tags.x<2u&&b.water.w>ECO_CHANNEL_DISCHARGE_THRESHOLD&&b.routing.x==j)||(b.tags.x<2u&&c.water.w>ECO_CHANNEL_DISCHARGE_THRESHOLD&&c.routing.x==neighbor(j,d,p.dims.x));
  if channel||mouth||(c.tags.x<2u&&c.tags.x==b.tags.x) {e.fields[24][d]+=1.;}
  }e.fields[22][d]/=f32(r);e.fields[23][d]/=f32(r);e.fields[24][d]/=f32(r);}
- for(var h=0u;h<2u;h++){let habitat_area=e.fields[8][h];for(var f=0u;f<3u;f++){e.fields[10u+3u*h+f]/=max(habitat_area,1.);}}
- e.fields[8]=vec4(e.fields[8].xyz/a,e.fields[8].w);e.fields[9]/=max(la,1.);
- e.fields[0]/=a;e.fields[1]/=max(la,1.);e.fields[2]/=max(la,1.);e.fields[4]/=max(la,1.);e.fields[5]/=max(la,1.);e.fields[6]/=max(la,1.);
- e.fields[3]=vec4(a,e.fields[2].y,e.fields[3].z/max(wa,1.),pos(i,p.dims.y).y);if la<=0. {e.fields[1].x=temperature/a;e.fields[1].y=rainfall/a;}e.fields[2].z=balance/a;e.fields[1].w=wind/a;e.fields[7]=vec4(pos(i,p.dims.y),stored/a);environment[i]=e;
+ for(var h=0u;h<2u;h++){let habitat_area=e.fields[8][h];for(var f=0u;f<3u;f++){e.fields[10u+3u*h+f]/=max(habitat_area,ECO_MIN_AGGREGATION_AREA_M2);}}
+ e.fields[8]=vec4(e.fields[8].xyz/a,e.fields[8].w);e.fields[9]/=max(la,ECO_MIN_AGGREGATION_AREA_M2);
+ e.fields[0]/=a;e.fields[1]/=max(la,ECO_MIN_AGGREGATION_AREA_M2);e.fields[2]/=max(la,ECO_MIN_AGGREGATION_AREA_M2);e.fields[4]/=max(la,ECO_MIN_AGGREGATION_AREA_M2);e.fields[5]/=max(la,ECO_MIN_AGGREGATION_AREA_M2);e.fields[6]/=max(la,ECO_MIN_AGGREGATION_AREA_M2);
+ e.fields[3]=vec4(a,e.fields[2].y,e.fields[3].z/max(wa,ECO_MIN_AGGREGATION_AREA_M2),pos(i,p.dims.y).y);if la<=0. {e.fields[1].x=temperature/a;e.fields[1].y=rainfall/a;}e.fields[2].z=balance/a;e.fields[1].w=wind/a;e.fields[7]=vec4(pos(i,p.dims.y),stored/a);environment[i]=e;
 }
 fn total(s:Eco)->vec3<f32> {var t=vec3(0.);for(var k=0u;k<26u;k++){t+=s.pools[k].xyz;}return t;}
 // A compact inherited regional trait, not a species identity or nutrient stock.
@@ -78,37 +122,37 @@ fn ecotypes_enabled()->bool {return (u32(p.abundance.z)&2u)!=0u;}
 fn thermal_preference(s:Eco,k:u32)->f32 {return s.pools[38u+k/4u][k%4u];}
 fn thermal_match(encoded:f32,temperature:f32,aquatic:bool)->f32 {
  if !ecotypes_enabled()||encoded==0. {return 1.;}
- let mismatch=(temperature-(encoded-81.))/select(15.,p.thermal.x,aquatic);
+ let mismatch=(temperature-(encoded-ECO_THERMAL_ENCODING_OFFSET_C))/select(ECO_TERRESTRIAL_THERMAL_TOLERANCE_C,p.thermal.x,aquatic);
  return 1./(1.+mismatch*mismatch);
 }
 fn founder_preference(i:u32,k:u32,e:Env)->f32 {
  let phase=f32(p.dims.w%997u)*.017+f32(k)*2.399963;
- return 81.+clamp(e.fields[1].x+8.*sin(dot(pos(i,p.dims.y),vec3(3.,5.,7.))+phase),-80.,60.);
+ return ECO_THERMAL_ENCODING_OFFSET_C+clamp(e.fields[1].x+ECO_FOUNDER_THERMAL_VARIATION_C*sin(dot(pos(i,p.dims.y),vec3(3.,5.,7.))+phase),ECO_MIN_THERMAL_OPTIMUM_C,ECO_MAX_THERMAL_OPTIMUM_C);
 }
 @compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn seed_ecology(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=id(g,p.dims.y);let e=environment[i];let l=land(e);let w=water(e);var s:Eco;
- s.pools[17]=vec4(.1, .02,.004,0.)*l;s.pools[18]=vec4(.4,.02,.002,0.)*l;
- let nutrient_fraction=(e.fields[0].z*p.abundance.x+e.fields[0].w)/max(l,.00001);
+ s.pools[17]=ECO_INITIAL_SOIL_CNP_KG_M2*l;s.pools[18]=ECO_INITIAL_DETRITUS_CNP_KG_M2*l;
+ let nutrient_fraction=(e.fields[0].z*p.abundance.x+e.fields[0].w)/max(l,ECO_MIN_SEED_LAND_FRACTION);
  s.pools[17].z*=nutrient_fraction;s.pools[18].z*=nutrient_fraction;
- s.pools[20]=vec4(.001,.0002,.00002,0.)*w;
- s.pools[21]=vec4(.05,.02,.003,0.)*w*min(e.fields[3].z/100.,60.);
- s.pools[22]=vec4(.2,.03,.02,0.)*w;
- s.pools[25]=vec4(0.,0.,max(.1,e.fields[4].x*10000.)*l,0.);
- s.pools[26]=vec4(.001*l, .002*l,10000.*e.fields[4].y*l,1.*l);
+ s.pools[20]=ECO_INITIAL_SURFACE_WATER_CNP_KG_M2*w;
+ s.pools[21]=ECO_INITIAL_DEEP_WATER_CNP_KG_M2*w*min(e.fields[3].z/ECO_DEEP_WATER_DEPTH_SCALE_M,ECO_MAX_DEEP_WATER_INVENTORY_FACTOR);
+ s.pools[22]=ECO_INITIAL_SEDIMENT_CNP_KG_M2*w;
+ s.pools[25]=vec4(0.,0.,max(ECO_MIN_INITIAL_SOURCE_P_KG_M2,e.fields[4].x*ECO_INITIAL_SOURCE_ROCK_KG_M2)*l,0.);
+ s.pools[26]=vec4(ECO_INITIAL_HYDROGEN_KG_M2*l, ECO_INITIAL_SECONDARY_ENERGY_MJ_M2*l,ECO_INITIAL_SOURCE_ROCK_KG_M2*e.fields[4].y*l,ECO_INITIAL_OXIDANT_KG_M2*l);
  // Explicit initial inventories include seed biomass; all subsequent growth consumes stocks.
- for(var k=0u;k<3u;k++){s.pools[k]=vec4(.02,.0005,.00004,0.)*l;}
- s.pools[23]=vec4(.0001,.000003,.0000003,0.)*w;
+ for(var k=0u;k<3u;k++){s.pools[k]=ECO_INITIAL_PRODUCER_CNP_KG_M2*l;}
+ s.pools[23]=ECO_INITIAL_PLANKTON_CNP_KG_M2*w;
  // Explicit pre-human founder inventory; smooth occupied patches, not monthly
  // spontaneous recruitment. W records Ancient World founder ancestry share.
  for(var k=0u;k<p.options.y;k++){
  let t=catalog[guild_offset()+k];let habitat=select(l,w,t.ids.y==1u);
  let phase=f32(p.dims.w%997u)*.017+f32(k)*2.399963;
  let occupied_region=sin(dot(pos(i,p.dims.y),vec3(7.,11.,5.))+phase);
- if occupied_region>-.35&&habitat>0. {
- let carbon=habitat*.000001;
+ if occupied_region>ECO_FOUNDER_PATCH_THRESHOLD&&habitat>0. {
+ let carbon=habitat*ECO_INITIAL_ANIMAL_C_KG_M2;
  if ecotypes_enabled() {s.pools[38u+k/4u][k%4u]=founder_preference(i,k,e);}
- s.pools[k+5u]=vec4(carbon,carbon*t.a.x,carbon*t.a.y,clamp(e.fields[0].w/max(l,.000001),0.,1.));
+ s.pools[k+5u]=vec4(carbon,carbon*t.a.x,carbon*t.a.y,clamp(e.fields[0].w/max(l,ECO_MIN_ANCESTRY_LAND_FRACTION),0.,1.));
  }
  }
  s.pools[31]=vec4(1.,p.physical.z,1.,0.);
@@ -118,7 +162,7 @@ fn seed_ecology(@builtin(global_invocation_id) g:vec3<u32>) {
 fn replenish(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=id(g,p.dims.y);var s=src[i];let e=environment[i];
  // Fresh exposure is an explicit geological import, not an ecological fertility reset.
- let fresh=land(e)*e.fields[2].x*10.;let phosphorus=fresh*e.fields[4].x;
+ let fresh=land(e)*e.fields[2].x*ECO_GEOLOGICAL_EXPOSURE_KG_M2;let phosphorus=fresh*e.fields[4].x;
  s.pools[27].w+=e.fields[7].w-s.pools[25].w;s.pools[25].w=e.fields[7].w;s.pools[25].z+=phosphorus;s.pools[27].z+=phosphorus;s.pools[26].z+=fresh*e.fields[4].y;dst[i]=s;
 }
 // A conditional environment preserves narrow habitats without assigning their
@@ -325,7 +369,7 @@ fn biology(@builtin(global_invocation_id) g:vec3<u32>) {
  if ecotypes_enabled()&&preference_temperature>0. {
  // Slow local adjustment is limited by replacement through actual growth.
  let replacement=growth/max(s.pools[slot].x+growth,1e-30);
- s.pools[38u+k/4u][k%4u]=mix(preference_temperature,81.+clamp(e.fields[1].x,-80.,60.),.02*replacement);}
+ s.pools[38u+k/4u][k%4u]=mix(preference_temperature,ECO_THERMAL_ENCODING_OFFSET_C+clamp(e.fields[1].x,ECO_MIN_THERMAL_OPTIMUM_C,ECO_MAX_THERMAL_OPTIMUM_C),.02*replacement);}
  s.pools[slot]+=vec4(biomass,0.);
  let leftovers=max(vec3(0.),meal-biomass);let waste=select(18u,22u,t.ids.y==1u&&w>l);s.pools[waste]+=vec4(leftovers.x*.4,leftovers.yz,0.);s.pools[27].x-=leftovers.x*.6;s.pools[28].z+=leftovers.x*.6;
  let resp=min(s.pools[slot].x,s.pools[slot].x*t.a.w*dt);s.pools[slot].x-=resp;s.pools[27].x-=resp;s.pools[28].z+=resp;
