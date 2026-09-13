@@ -752,3 +752,10 @@ passed monthly cash/debt/enterprise checks but found an economic forecast defect
 partial approvals can be too small to finance the work behind their repayment
 forecast. All selected firms closed in both arms. Grant-dependent feasible work
 must be resolved before automatic procurement or extended benefit claims.
+
+The [grant-dependent service check](service-credit-funding-check.md) now gathers
+proposed loans against each service source and forecasts affordable work before
+committing cash. Unsupported proposals preserve their capacity/funding diagnostics
+but commit neither loans nor pledges. The ordinary-fee comparison rejects the
+previous uneconomic loans; the valuable-contract GPU fixture and analytical viable
+partial-loan case still pass. No costs, fee rates or coverage limits were relaxed.

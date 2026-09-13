@@ -60,8 +60,87 @@ impl Policy {
     }
 }
 
+/// Opening resources for one funded service source. This is a forecast, not a
+/// reservation of workers, inputs or the borrower's cash.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WorkFunding {
+    pub opening_cash: f64,
+    pub fixed_cost: f64,
+    pub cost_per_work: f64,
+    pub maximum_work: f64,
+}
+impl WorkFunding {
+    fn validate(&self) -> Result<()> {
+        ensure!(
+            [
+                self.opening_cash,
+                self.fixed_cost,
+                self.cost_per_work,
+                self.maximum_work
+            ]
+            .iter()
+            .all(|v| v.is_finite() && *v >= 0.)
+                && self.cost_per_work > 0.
+                && self.maximum_work > 0.,
+            "invalid service work funding"
+        );
+        Ok(())
+    }
+}
+
+/// The portfolio allocation is checked before cash moves. Rejected funding stays
+/// with the lender; this pass does not redistribute it or invent new work.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct FundingCheck {
+    pub proposed_principal: f64,
+    pub source_principal: f64,
+    pub attainable_work: f64,
+    pub expected_receipts: f64,
+    pub operating_costs: f64,
+    pub available_source_receipts: f64,
+    pub proposed_source_obligations: f64,
+}
+impl FundingCheck {
+    fn accepted(&self) -> bool {
+        self.attainable_work > 0.
+            && self.proposed_source_obligations <= self.available_source_receipts
+    }
+    pub(crate) fn validate(&self, grant: &Grant) -> Result<()> {
+        ensure!(
+            [
+                self.proposed_principal,
+                self.source_principal,
+                self.attainable_work,
+                self.expected_receipts,
+                self.operating_costs,
+                self.available_source_receipts,
+                self.proposed_source_obligations
+            ]
+            .iter()
+            .all(|v| v.is_finite() && *v >= 0.)
+                && self.proposed_principal > 0.
+                && grant.granted
+                    == if self.accepted() {
+                        self.proposed_principal
+                    } else {
+                        0.
+                    }
+                && grant.decision
+                    == if self.accepted() {
+                        Decision::Approved
+                    } else {
+                        Decision::UnfundedWork
+                    },
+            "invalid service funding check"
+        );
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Evidence {
+    #[serde(default)]
+    pub work_funding: Option<WorkFunding>,
     pub source: RepaymentSource,
     pub beneficiary: Account,
     pub observed_month: u32,
@@ -100,6 +179,7 @@ pub enum Decision {
     CreditExclusion,
     BorrowingAndLending,
     NoCapacity,
+    UnfundedWork,
 }
 /// Completed underwriting boundary, before any principal is transferred.
 /// Source amounts include interest; lender/borrower amounts are principal.
@@ -143,6 +223,8 @@ impl Capacity {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Grant {
+    #[serde(default)]
+    pub funding_check: Option<FundingCheck>,
     /// Absent in old archives and when eligibility fails before capacity resolution.
     #[serde(default)]
     pub capacity: Option<Capacity>,
@@ -218,6 +300,7 @@ pub fn resolve(
         );
     }
     let mut sources = BTreeMap::new();
+    let mut work_borrowers = BTreeSet::new();
     for e in evidence {
         ensure!(
             [
@@ -230,6 +313,14 @@ pub fn resolve(
                 && e.expected_loss_fraction <= 1.,
             "invalid receipt evidence"
         );
+        if let Some(work) = &e.work_funding {
+            work.validate()?;
+            ensure!(
+                matches!(e.source, RepaymentSource::ServiceOrder { .. })
+                    && work_borrowers.insert(e.beneficiary),
+                "work funding requires one service source per borrower"
+            );
+        }
         ensure!(
             sources.insert(e.source, e).is_none(),
             "conflicting receipt evidence"
@@ -353,6 +444,7 @@ pub fn resolve(
             *source_demand.entry(t.source).or_insert(0.) += eligible * factor;
         }
         grants.push(Grant {
+            funding_check: None,
             capacity: None,
             request: request.id,
             month,
@@ -364,7 +456,7 @@ pub fn resolve(
         });
         factors.push(factor);
     }
-    for ((grant, request), factor) in grants.iter_mut().zip(ordered).zip(factors) {
+    for ((grant, request), factor) in grants.iter_mut().zip(ordered.iter()).zip(factors) {
         if grant.eligible == 0. {
             continue;
         }
@@ -400,6 +492,48 @@ pub fn resolve(
         if grant.granted == 0. {
             grant.decision = Decision::NoCapacity;
         }
+    }
+    // The first pass priced full-source output. Condition it on the cash that
+    // the joint allocation actually makes available, before any disbursement.
+    let mut source_funding = BTreeMap::<RepaymentSource, (f64, f64)>::new();
+    for (grant, request) in grants.iter().zip(&ordered) {
+        let total = source_funding.entry(request.terms.source).or_default();
+        total.0 += grant.granted;
+        total.1 += grant.pledged_receipts;
+    }
+    for (grant, request) in grants.iter_mut().zip(&ordered) {
+        if grant.granted <= 0. {
+            continue;
+        }
+        let e = sources[&request.terms.source];
+        let Some(work) = &e.work_funding else {
+            continue;
+        };
+        let (principal, obligations) = source_funding[&request.terms.source];
+        let attainable = ((work.opening_cash + principal - work.fixed_cost).max(0.)
+            / work.cost_per_work)
+            .min(work.maximum_work);
+        let receipts = e.expected_receipts * (attainable / work.maximum_work);
+        let costs = work.fixed_cost + attainable * work.cost_per_work;
+        let available = ((receipts - costs).max(0.) * policy.receipt_coverage_fraction
+            - pledged.get(&request.terms.source).copied().unwrap_or(0.))
+        .max(0.);
+        let check = FundingCheck {
+            proposed_principal: grant.granted,
+            source_principal: principal,
+            attainable_work: attainable,
+            expected_receipts: receipts,
+            operating_costs: costs,
+            available_source_receipts: available,
+            proposed_source_obligations: obligations,
+        };
+        if !check.accepted() {
+            grant.granted = 0.;
+            grant.pledged_receipts = 0.;
+            grant.decision = Decision::UnfundedWork;
+        }
+        check.validate(grant)?;
+        grant.funding_check = Some(check);
     }
     Ok(grants)
 }
@@ -499,6 +633,7 @@ mod tests {
     }
     fn evidence() -> Evidence {
         Evidence {
+            work_funding: None,
             source: source(),
             beneficiary: Account::Council(0),
             observed_month: 0,
@@ -533,6 +668,126 @@ mod tests {
             },
         }
     }
+    #[test]
+    fn service_funding_checks_reject_unproductive_grants_but_allow_viable_partial_work() {
+        let mut e = evidence();
+        e.source = RepaymentSource::ServiceOrder {
+            order: 0,
+            payment_month: 12,
+        };
+        e.work_funding = Some(WorkFunding {
+            opening_cash: 0.,
+            fixed_cost: 2.88,
+            cost_per_work: 36.,
+            maximum_work: 2.,
+        });
+        e.operating_costs = 74.88;
+        e.expected_receipts = 90.;
+        let mut r = request(0, 0);
+        r.terms.source = e.source;
+        let mut o = offer(0);
+        o.offered_principal = 40.;
+        let run = |e: &Evidence, o: &Offer| {
+            resolve(
+                1,
+                &Policy::default(),
+                &[],
+                std::slice::from_ref(o),
+                std::slice::from_ref(e),
+                std::slice::from_ref(&r),
+            )
+            .unwrap()
+        };
+        let g = run(&e, &o).remove(0);
+        assert_eq!(g.decision, Decision::UnfundedWork);
+        assert_eq!(g.granted, 0.);
+        assert_eq!(g.pledged_receipts, 0.);
+        let check = g.funding_check.as_ref().unwrap();
+        assert!(check.proposed_principal > 0.);
+        assert!(check.expected_receipts < e.expected_receipts);
+        check.validate(&g).unwrap();
+        let mut corrupt = g.clone();
+        corrupt.granted = check.proposed_principal;
+        assert!(check.validate(&corrupt).is_err());
+        // The old full-order forecast would approve this unproductive loan.
+        let mut old = e.clone();
+        old.work_funding = None;
+        assert_eq!(run(&old, &o)[0].decision, Decision::Approved);
+        // A valuable order can support real, partial work without full funding.
+        e.expected_receipts = 300.;
+        let g = run(&e, &o).remove(0);
+        assert_eq!(g.decision, Decision::Approved);
+        assert_eq!(g.granted, 40.);
+        let check = g.funding_check.as_ref().unwrap();
+        assert!(check.attainable_work > 1. && check.attainable_work < 2.);
+        check.validate(&g).unwrap();
+        // Rent alone can exhaust an apparently available loan.
+        o.offered_principal = 1.;
+        assert_eq!(run(&e, &o)[0].decision, Decision::UnfundedWork);
+        e.work_funding.as_mut().unwrap().opening_cash = 100.;
+        assert_eq!(run(&e, &o)[0].decision, Decision::Approved);
+        // Old evidence remains readable without the new optional projection.
+        let mut serialized = serde_json::to_value(&old).unwrap();
+        serialized.as_object_mut().unwrap().remove("work_funding");
+        assert!(serde_json::from_value::<Evidence>(serialized)
+            .unwrap()
+            .work_funding
+            .is_none());
+        e.work_funding.as_mut().unwrap().cost_per_work = 0.;
+        assert!(resolve(1, &Policy::default(), &[], &[o], &[e], &[r]).is_err());
+    }
+
+    #[test]
+    fn service_source_checks_gather_competing_loans_before_rejecting() {
+        let mut e = evidence();
+        e.source = RepaymentSource::ServiceOrder {
+            order: 0,
+            payment_month: 12,
+        };
+        e.expected_receipts = 90.;
+        e.operating_costs = 74.88;
+        e.work_funding = Some(WorkFunding {
+            opening_cash: 0.,
+            fixed_cost: 2.88,
+            cost_per_work: 36.,
+            maximum_work: 2.,
+        });
+        let mut a = request(1, 0);
+        let mut b = request(2, 1);
+        a.terms.source = e.source;
+        b.terms.source = e.source;
+        let grants = resolve(
+            1,
+            &Policy::default(),
+            &[],
+            &[offer(0), offer(1)],
+            std::slice::from_ref(&e),
+            &[a.clone(), b.clone()],
+        )
+        .unwrap();
+        assert!(grants.iter().all(|g| g.decision == Decision::UnfundedWork));
+        let total: f64 = grants
+            .iter()
+            .map(|g| g.funding_check.as_ref().unwrap().proposed_principal)
+            .sum();
+        assert!(grants
+            .iter()
+            .all(|g| g.funding_check.as_ref().unwrap().source_principal == total));
+        let reversed = resolve(
+            1,
+            &Policy::default(),
+            &[],
+            &[offer(1), offer(0)],
+            &[e],
+            &[b, a],
+        )
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(grants).unwrap(),
+            serde_json::to_value(reversed).unwrap()
+        );
+    }
+
     #[test]
     fn current_month_service_fee_can_fund_reserve_but_other_due_sources_cannot() {
         for source in [

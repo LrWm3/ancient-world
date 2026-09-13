@@ -66,3 +66,21 @@ by increasing fees, dropping real rent, or relaxing the repayment gate.
 Automatic procurement and normal-economy long comparisons remain unfinished.
 This experiment provides a failing economic case to improve, despite passing
 accounting checks. Stage 2 remains no-go.
+
+## Follow-up: grant-dependent feasibility
+
+The [funding check](service-credit-funding-check.md) now conditions receipts on
+opening cash plus the proposed grant. Rerunning all eighteen branches rejects
+the former one- and two-unit loans before any transfer. All arms now have zero
+new loans and zero earned order fees, with full escrow refunds and no residual
+order escrow. Selected firms still close at month 6. The maximum monthly change
+in the relative money residual is 6.11e-9.
+
+The separate valuable-contract GPU fixture still receives credit, funds and
+completes more work than its no-credit control, and matches saved continuation.
+An analytical case also accepts a profitable *partial* grant. The correction
+therefore addresses the unsupported forecast, rather than requiring every loan
+to fund the entire request. These fixtures do not demonstrate a broad normal-fee
+benefit; automatic procurement and sustained balance evaluation remain pending.
+
+Corrected raw output: ignored `output/normal-service-credit-corrected.log`.

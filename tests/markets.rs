@@ -661,6 +661,7 @@ fn credit_round_shares_actual_cash_and_cannot_replay_requests() {
     ];
     let evidence: Vec<_> = (1..=2)
         .map(|id| Evidence {
+            work_funding: None,
             source: sources[id - 1],
             beneficiary: Account::Town(id as u32),
             observed_month: 0,
@@ -1081,6 +1082,7 @@ fn consensual_credit_extension_preserves_cash_and_resumes_collection() {
         revised_maturity: 6,
         expected_payment_month: 5,
         evidence: Evidence {
+            work_funding: None,
             source,
             beneficiary: terms.borrower,
             observed_month: 3,
@@ -1599,6 +1601,7 @@ fn assigned_credit_routes_payments_and_recovery_by_month_without_rewriting_origi
                 lender_consent: Some(consent),
                 borrower_consent: Some(Account::Town(1)),
                 evidence: ancient_world::credit::underwriting::Evidence {
+                    work_funding: None,
                     source: terms.source,
                     beneficiary: terms.borrower,
                     observed_month: 3,
@@ -1646,6 +1649,7 @@ fn assigned_credit_routes_payments_and_recovery_by_month_without_rewriting_origi
                     minimum_annual_rate: 0.,
                 }],
                 vec![Evidence {
+                    work_funding: None,
                     source,
                     beneficiary: Account::Town(0),
                     observed_month: 3,
@@ -1840,6 +1844,7 @@ fn household_claim_receipts_reconcile_without_enabling_household_credit() {
             lender_consent: Some(Account::Household(0)),
             borrower_consent: Some(Account::Town(1)),
             evidence: ancient_world::credit::underwriting::Evidence {
+                work_funding: None,
                 source: terms.source,
                 beneficiary: terms.borrower,
                 observed_month: 3,

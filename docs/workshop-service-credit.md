@@ -84,3 +84,8 @@ seeds and three order sizes. It finds a partial-funding forecast gap: expected
 receipts assume more work than the approved loan can finance. Some small loans
 fund rent without any work; larger ones earn much less than forecast. This needs
 correction before automatic procurement or a claim of general benefit.
+
+The subsequent [grant-dependent feasibility check](service-credit-funding-check.md)
+rejects these unsupported partial loans. Its corrected three-seed comparison
+preserves refunds and money accounting; the positive GPU production fixture still
+passes. This is a forecast correction, not evidence that normal-fee firms benefit.

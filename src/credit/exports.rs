@@ -48,6 +48,7 @@ impl History {
                 payment_month: payment.expected_month,
             };
             let evidence = sources.entry(source).or_insert(Evidence {
+                work_funding: None,
                 source,
                 beneficiary: Account::Town(payment.seller),
                 observed_month: self.month,
@@ -130,6 +131,7 @@ impl History {
         }
         Ok(Some(DelayedReceipt {
             evidence: Evidence {
+                work_funding: None,
                 source: loan.terms.source,
                 beneficiary: loan.terms.borrower,
                 observed_month: self.month,

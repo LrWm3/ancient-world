@@ -85,6 +85,12 @@ impl History {
                 * reference
                 * f64::from(order.due - self.month + 1);
             evidence.push(crate::credit::underwriting::Evidence {
+                work_funding: Some(crate::credit::underwriting::WorkFunding {
+                    opening_cash: firm.cash,
+                    fixed_cost: rent,
+                    cost_per_work: wage,
+                    maximum_work: work,
+                }),
                 source: crate::credit::RepaymentSource::ServiceOrder {
                     order: order.id,
                     payment_month: order.due,

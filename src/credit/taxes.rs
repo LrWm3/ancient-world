@@ -44,6 +44,7 @@ impl Observation {
             return None;
         }
         Some(Evidence {
+            work_funding: None,
             source: RepaymentSource::AnnualTax {
                 council: self.council,
                 collection_month: self.month.checked_add(TAX_INTERVAL_MONTHS)?,

@@ -318,7 +318,16 @@ impl History {
                     "invalid credit grant"
                 );
                 if let Some(capacity) = &grant.capacity {
-                    capacity.validate(grant.eligible, grant.granted)?;
+                    capacity.validate(
+                        grant.eligible,
+                        grant
+                            .funding_check
+                            .as_ref()
+                            .map_or(grant.granted, |f| f.proposed_principal),
+                    )?;
+                }
+                if let Some(check) = &grant.funding_check {
+                    check.validate(grant)?;
                 }
                 if let Some(id) = id {
                     let loan = self

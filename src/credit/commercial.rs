@@ -323,6 +323,7 @@ mod tests {
     fn sources() -> Vec<Evidence> {
         (0..2)
             .map(|contract| Evidence {
+                work_funding: None,
                 source: RepaymentSource::Export {
                     contract,
                     payment_month: 12,

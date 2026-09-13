@@ -347,6 +347,7 @@ mod tests {
             loan: 0,
             revised_maturity: 6,
             evidence: Evidence {
+                work_funding: None,
                 source,
                 beneficiary: loan.terms.borrower,
                 observed_month: 3,
