@@ -30,7 +30,7 @@ fn survey(@builtin(global_invocation_id) g:vec3<u32>) {
  let score=harvest*(1.+min(c.water.y,.5)) /(1.+max(0.,c.terrain.x-800.)*.001);
  prospects[i]=vec4(harvest,score,c.hydro.y,f32(c.tags.x));
 }
-fn flood_depth(c:Cell)->f32 {return c.water.x/select(1.,.05,c.routing.x!=0xffffffffu&&c.water.w>1.&&c.hydro.x-c.terrain.x<.01);}
+fn flood_depth(c:Cell)->f32 {return c.water.x/select(1.,RIVER_CORRIDOR_AREA_FRACTION,c.routing.x!=0xffffffffu&&c.water.w>RIVER_CORRIDOR_MIN_DISCHARGE_M3_S&&c.hydro.x-c.terrain.x<RIVER_CORRIDOR_SPILL_TOLERANCE_M);}
 fn hash(x:u32)->u32 {var v=x;v=(v^(v>>16u))*0x7feb352du;v=(v^(v>>15u))*0x846ca68bu;return v^(v>>16u);}
 // Spatial bins use normalized 3D position, so weather regions cross cube-face seams.
 fn regional_weather(cell:u32)->f32 {

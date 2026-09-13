@@ -1,5 +1,11 @@
 //! Practical learning progress shared by paid work and bounded informal exposure.
 use super::*;
+const NOVICE_TOPIC_WORK_MONTHS: f32 = 0.3;
+const CURIOSITY_LEARNING_WEIGHT: f32 = 0.5;
+const INSTRUCTION_SUPPORT_WEIGHT: f32 = 0.5;
+const LEARNING_COMPLETION_TOLERANCE: f32 = 1e-6;
+const PAID_LESSON_EXPOSURE: f32 = 0.1;
+const MAX_INFORMAL_EXPOSURE_PER_MONTH: f32 = 0.05;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Study {
@@ -21,9 +27,13 @@ impl Study {
     fn advance(&mut self, work: f32, curiosity: f32, support: f32) -> bool {
         // Three novice lessons, potentially two with curiosity and experienced
         // instruction. These are game pacing constants, not measured pedagogy.
-        self.progress =
-            (self.progress + work.max(0.) / 0.3 * (1. + 0.5 * curiosity + 0.5 * support)).min(1.);
-        let completed = self.progress >= 1. - 1e-6;
+        self.progress = (self.progress
+            + work.max(0.) / NOVICE_TOPIC_WORK_MONTHS
+                * (1.
+                    + CURIOSITY_LEARNING_WEIGHT * curiosity
+                    + INSTRUCTION_SUPPORT_WEIGHT * support))
+            .min(1.);
+        let completed = self.progress >= 1. - LEARNING_COMPLETION_TOLERANCE;
         if completed {
             self.progress = 1.;
         }
@@ -48,7 +58,9 @@ pub(super) fn observation_candidate(
         if a.last_learning_exposure.is_some_and(|m| m >= month) {
             continue;
         }
-        let mut topics: Vec<u32> = (0..12).filter(|t| !a.knowledge.contains(t)).collect();
+        let mut topics: Vec<u32> = (0..TOPICS.len() as u32)
+            .filter(|t| !a.knowledge.contains(t))
+            .collect();
         topics.sort_by(|a_topic, b_topic| {
             let progress = |t: &u32| a.studies.get(t).map_or(0., |s| s.progress);
             progress(b_topic)
@@ -73,7 +85,7 @@ impl Agent {
     pub(super) fn lesson_expectation(&self, topic: u32, support: f32) -> LessonExpectation {
         let mut study = self.studies.get(&topic).cloned().unwrap_or_default();
         let opening_progress = study.progress;
-        let completed = study.advance(0.1, self.traits[3], support);
+        let completed = study.advance(PAID_LESSON_EXPOSURE, self.traits[3], support);
         LessonExpectation {
             student: self.person,
             topic,
@@ -87,7 +99,7 @@ impl Agent {
 
     pub(super) fn study_topic(&mut self, topic: u32, support: f32) -> (bool, f32, Option<u64>) {
         let study = self.studies.entry(topic).or_default();
-        let completed = study.advance(0.1, self.traits[3], support);
+        let completed = study.advance(PAID_LESSON_EXPOSURE, self.traits[3], support);
         (completed, study.progress, study.source)
     }
     /// Informal observation is not paid instruction or additional worker-months.
@@ -98,7 +110,7 @@ impl Agent {
         month: u32,
         exposure: f32,
     ) -> Option<(bool, f32, Option<u64>)> {
-        if topic >= 12
+        if topic >= TOPICS.len() as u32
             || self.knowledge.contains(&topic)
             || self.last_learning_exposure.is_some_and(|m| m >= month)
             || !exposure.is_finite()
@@ -108,7 +120,11 @@ impl Agent {
         }
         self.last_learning_exposure = Some(month);
         let study = self.studies.entry(topic).or_default();
-        let completed = study.advance(exposure.min(0.05), self.traits[3], 0.);
+        let completed = study.advance(
+            exposure.min(MAX_INFORMAL_EXPOSURE_PER_MONTH),
+            self.traits[3],
+            0.,
+        );
         Some((completed, study.progress, study.source))
     }
     pub(super) fn study_source(&mut self, topic: u32, event: u64, completed: bool) {

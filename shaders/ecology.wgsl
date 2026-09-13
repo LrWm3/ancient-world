@@ -621,7 +621,7 @@ fn river_route(@builtin(global_invocation_id) g:vec3<u32>) {
 fn overflow_volume(i:u32)->f32 {
  if p.options.w==0u || terrain[i].routing.x==NONE || terrain[i].tags.x<2u {return 0.;}
  let capacity=max(0.,terrain[i].water.w)*31557600.*p.physical.y*2.;
- let fraction=select(1.,.05,terrain[i].water.w>1.&&terrain[i].hydro.x-terrain[i].terrain.x<.01);
+ let fraction=select(1.,RIVER_CORRIDOR_AREA_FRACTION,terrain[i].water.w>RIVER_CORRIDOR_MIN_DISCHARGE_M3_S&&terrain[i].hydro.x-terrain[i].terrain.x<RIVER_CORRIDOR_SPILL_TOLERANCE_M);
  return min(max(0.,river[i].w-capacity),max(0.,1.5*fraction-terrain[i].water.x)*area(i,p.dims.x));
 }
 @compute @workgroup_size(8,8)

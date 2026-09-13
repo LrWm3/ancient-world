@@ -256,7 +256,8 @@ impl Ecology {
             .next()
             .unwrap();
         let source = format!(
-            "{cell}\n{}\n{}",
+            "{cell}\n{}\n{}\n{}",
+            crate::hazards::SHADER_PARAMETERS,
             include_str!("../shaders/sunlight.wgsl"),
             include_str!("../shaders/ecology.wgsl")
         );

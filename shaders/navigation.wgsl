@@ -1,3 +1,9 @@
+// Shared dispatch and water-access parameters are prefixed by src/navigation.rs.
+const NONE:u32=0xffffffffu;
+const ROAD_SLOPE_HEIGHT_M:f32=500.;
+const ROAD_DISCHARGE_SCALE_M3_S:f32=1000.;
+const MAX_ROAD_DISCHARGE_FRICTION:f32=3.;
+const MAX_ROOT_TRAVERSAL_STEPS:u32=64u;
 struct Cell {
  terrain: vec4<f32>, // elevation m, sediment m, soil m, crust age Myr
  climate: vec4<f32>, // temperature C, precipitation mm/year, vapor mm, wind m/s
@@ -22,7 +28,6 @@ struct Params { dims:vec4<u32>, physical:vec4<f32>, limits:vec4<u32> }
 @group(0) @binding(5) var<storage,read_write> control:array<atomic<u32>>;
 @group(0) @binding(6) var<storage,read_write> output:array<u32>;
 @group(0) @binding(7) var<uniform> p:Params;
-const NONE:u32=0xffffffffu;
 fn direction(f:u32,u:f32,v:f32)->vec3<f32> {
  var d=vec3(u,v,-1.);
  switch f { case 0u:{d=vec3(1.,u,v);} case 1u:{d=vec3(-1.,u,v);} case 2u:{d=vec3(u,1.,v);} case 3u:{d=vec3(u,-1.,v);} case 4u:{d=vec3(u,v,1.);} default:{} }
@@ -45,9 +50,9 @@ fn neighbor(i:u32,k:u32)->u32 {
  return index(direction(i/(n*n),uv.x,uv.y));
 }
 
-fn linear(g:vec3<u32>)->u32 {return g.x+g.y*65535u*64u;}
-fn lake(i:u32)->bool {return world[i].tags.x==1u&&world[i].water.x>.25;}
-fn dry(i:u32, region:u32)->bool {return world[i].tags.x==region&&world[i].water.x<.25;}
+fn linear(g:vec3<u32>)->u32 {return g.x+g.y*NAVIGATION_MAX_DISPATCH_GROUPS*NAVIGATION_WORKGROUP_SIZE;}
+fn lake(i:u32)->bool {return world[i].tags.x==1u&&world[i].water.x>MIN_NAVIGABLE_WATER_DEPTH_M;}
+fn dry(i:u32, region:u32)->bool {return world[i].tags.x==region&&world[i].water.x<FLOOD_EXPOSURE_DEPTH_M;}
 fn allowed(i:u32)->bool {
  switch p.dims.w {case 0u:{return dry(i,2u);}case 1u:{return dry(i,2u)||lake(i);}case 2u:{return lake(i);}default:{return lake(i)||dry(i,3u);}}
 }
@@ -59,11 +64,11 @@ fn edge(a:u32,b:u32)->u32 {
  let x=pos(a);let y=pos(b);let km=atan2(length(cross(x,y)),clamp(dot(x,y),-1.,1.))*p.physical.x;
  var friction=1.;
  if p.dims.w==0u || (p.dims.w==1u && !lake(b)) {
-  friction+=abs(world[a].terrain.x-world[b].terrain.x)/500.+min(world[b].water.w/1000.,3.);
+  friction+=abs(world[a].terrain.x-world[b].terrain.x)/ROAD_SLOPE_HEIGHT_M+min(world[b].water.w/ROAD_DISCHARGE_SCALE_M3_S,MAX_ROAD_DISCHARGE_FRICTION);
  }
- return u32(clamp(km*1000.*friction,1.,f32(p.limits.x+1u)));
+ return u32(clamp(km*NAVIGATION_COST_UNITS_PER_KM*friction,1.,f32(p.limits.x+1u)));
 }
-@compute @workgroup_size(64)
+@compute @workgroup_size(NAVIGATION_WORKGROUP_SIZE)
 fn initialize(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=linear(g);if i>=p.limits.y{return;}
  atomicStore(&distances[i],NONE);atomicStore(&marks[i],0u);
@@ -78,11 +83,11 @@ fn initialize(@builtin(global_invocation_id) g:vec3<u32>) {
 fn prepare() {
  let phase=atomicLoad(&control[2]);let count=atomicLoad(&control[phase]);
  atomicStore(&control[1u-phase],0u);atomicAdd(&control[3],1u);
- let groups=(count+63u)/64u;
- atomicStore(&control[4],min(groups,65535u));
- atomicStore(&control[5],select(0u,(groups+65534u)/65535u,groups>0u));atomicStore(&control[6],1u);
+ let groups=(count+(NAVIGATION_WORKGROUP_SIZE-1u))/NAVIGATION_WORKGROUP_SIZE;
+ atomicStore(&control[4],min(groups,NAVIGATION_MAX_DISPATCH_GROUPS));
+ atomicStore(&control[5],select(0u,(groups+(NAVIGATION_MAX_DISPATCH_GROUPS-1u))/NAVIGATION_MAX_DISPATCH_GROUPS,groups>0u));atomicStore(&control[6],1u);
 }
-@compute @workgroup_size(64)
+@compute @workgroup_size(NAVIGATION_WORKGROUP_SIZE)
 fn relax(@builtin(global_invocation_id) g:vec3<u32>) {
  let slot=linear(g);let phase=atomicLoad(&control[2]);if slot>=atomicLoad(&control[phase]){return;}
  var i=0u;if phase==0u{i=qa[slot];}else{i=qb[slot];}
@@ -104,12 +109,12 @@ fn relax(@builtin(global_invocation_id) g:vec3<u32>) {
 }
 @compute @workgroup_size(1)
 fn finish(){atomicStore(&control[2],1u-atomicLoad(&control[2]));}
-@compute @workgroup_size(64)
+@compute @workgroup_size(NAVIGATION_WORKGROUP_SIZE)
 fn choose(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=linear(g);if i>=p.limits.y || !terminal(i){return;}
  atomicMin(&control[0],atomicLoad(&distances[i]));
 }
-@compute @workgroup_size(64)
+@compute @workgroup_size(NAVIGATION_WORKGROUP_SIZE)
 fn choose_id(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=linear(g);if i>=p.limits.y || !terminal(i){return;}
  if atomicLoad(&distances[i])==atomicLoad(&control[0]) {atomicMin(&control[1],i);}
@@ -139,16 +144,16 @@ fn reconstruct() {
 }
 // Reuse the distance workspace for component roots. Union by minimum root keeps
 // old island identity conventions. Hook/compress run in separate global passes.
-@compute @workgroup_size(64)
+@compute @workgroup_size(NAVIGATION_WORKGROUP_SIZE)
 fn label_init(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=linear(g);if i<p.limits.y {atomicStore(&distances[i],select(NONE,i,world[i].tags.x==2u));}
 }
 fn root(i:u32)->u32 {
  var r=i;
- for(var k=0u;k<64u;k++){let parent=atomicLoad(&distances[r]);if parent==r{return r;}r=parent;}
+ for(var k=0u;k<MAX_ROOT_TRAVERSAL_STEPS;k++){let parent=atomicLoad(&distances[r]);if parent==r{return r;}r=parent;}
  return r;
 }
-@compute @workgroup_size(64)
+@compute @workgroup_size(NAVIGATION_WORKGROUP_SIZE)
 fn hook(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=linear(g);if i>=p.limits.y||world[i].tags.x!=2u{return;}
  for(var k=0u;k<4u;k++) {
@@ -157,7 +162,7 @@ fn hook(@builtin(global_invocation_id) g:vec3<u32>) {
   if a!=b && atomicMin(&distances[max(a,b)],min(a,b))>min(a,b){atomicAdd(&control[7],1u);}
  }
 }
-@compute @workgroup_size(64)
+@compute @workgroup_size(NAVIGATION_WORKGROUP_SIZE)
 fn compress(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=linear(g);if i<p.limits.y && world[i].tags.x==2u {atomicMin(&distances[i],root(i));}
 }

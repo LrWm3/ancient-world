@@ -3,6 +3,50 @@ use crate::{civilization::History, economy::FOOD_CNP};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
+const TRAVEL_RATIONS_KG_PER_MONTH: [f32; 3] = [10., 18., 14.];
+const TRAVEL_FOOD_TOLERANCE_KG: f32 = 0.001;
+const MAX_MONTHLY_TRAVEL_STARVATION: f32 = 0.08;
+const EXTINCT_TRAVEL_POPULATION: f32 = 0.01;
+const ROSTER_COVERAGE_FLOOR: f32 = 1e-6;
+const MIN_ARRIVAL_OWNERSHIP_SHARE: f32 = 0.001;
+const MAX_ARRIVAL_OWNERSHIP_SHARE: f32 = 0.95;
+const CROWDING_DEPARTURE_THRESHOLD: f32 = 0.15;
+const HUNGER_OBSERVATION_THRESHOLD: f32 = 0.05;
+const HUNGER_MEMORY_MASK: u32 = 0xffffff;
+const PRODUCTION_MEMORY_MONTHS: usize = 12;
+const DEPARTURE_REVIEW_INTERVAL_MONTHS: u32 = 3;
+const DEPARTURE_COOLDOWN_MONTHS: u32 = 12;
+const MIN_ORIGIN_POPULATION: f32 = 2.;
+const MIN_HUNGRY_MONTHS: u32 = 6;
+const MIN_ORIGIN_HOUSEHOLDS: usize = 2;
+const DEFAULT_DEPARTURE_TRAIT: f32 = 0.5;
+const HUNGER_URGENCY_MONTHS: f32 = 24.;
+const HOUSEHOLD_HUNGER_URGENCY_WEIGHT: f32 = 0.2;
+const SOCIAL_MIGRATION_URGENCY_WEIGHT: f32 = 0.2;
+const DEPARTURE_TIE_HASH: u32 = 2654435761;
+const DEPARTURE_TIE_BUCKETS: u32 = 100;
+const DEPARTURE_TIE_SCALE: f32 = 200.;
+const AMBITION_DEPARTURE_WEIGHT: f32 = 0.35;
+const LOYALTY_STAY_WEIGHT: f32 = 0.25;
+const CAUTION_STAY_WEIGHT: f32 = 0.3;
+const HELP_SEEKER_MODULUS: u32 = 3;
+const HELP_SEEKER_RESERVE_MONTHS: u32 = 1;
+const ORDINARY_RESERVE_MONTHS: u32 = 3;
+const MIN_ANONYMOUS_HOUSEHOLD_SIZE: f32 = 2.;
+const MAX_ANONYMOUS_HOUSEHOLD_SIZE: f32 = 8.;
+const MAX_ANONYMOUS_DEPARTURE_SHARE: f32 = 0.25;
+const MAX_DEPARTURE_POPULATION_SHARE: f32 = 0.75;
+const FREE_COHORT_FLOOR: f32 = 1e-10;
+const PROVISION_KG_PER_RESIDENT_MONTH: f32 = 18.;
+const MIN_DESTINATION_RATION_KG: f32 = 10.;
+const DESTINATION_PRODUCTION_HEADROOM: f32 = 0.95;
+const MAX_JOURNEY_MONTHS: u32 = 10;
+const MAX_DESTINATION_SHORTAGE: f32 = 0.01;
+const DESTINATION_HABITAT_CAPACITY_FACTOR: f32 = 2.;
+const DESTINATION_RESERVE_MONTHS: f32 = 6.;
+const BASE_DESTINATION_AFFINITY: f32 = 0.25;
+const PORTABLE_TOOLS_KG_PER_RESIDENT: f32 = 0.5;
+
 const DESTINATION_DISTANCE_SCALE_KM: f32 = 150.0;
 mod comparison;
 
@@ -41,7 +85,7 @@ pub struct RelocationState {
 #[serde(default)]
 pub struct Pressure {
     pub hungry: u32,
-    pub production: [f32; 12],
+    pub production: [f32; PRODUCTION_MEMORY_MONTHS],
     pub observed_months: u32,
     pub last_departure: u32,
 }
@@ -136,7 +180,7 @@ impl RelocationState {
         let mut households = self.lost_households.clone();
         for p in &self.sites {
             ensure!(
-                p.observed_months <= 12
+                p.observed_months <= PRODUCTION_MEMORY_MONTHS as u32
                     && p.last_departure <= h.month
                     && p.production.iter().all(|v| v.is_finite() && *v >= 0.),
                 "invalid relocation pressure"
@@ -197,8 +241,8 @@ impl RelocationState {
                         .get(j.route as usize)
                         .is_some_and(|r| (r.from == j.from && r.to == j.to)
                             || (r.to == j.from && r.from == j.to))
-                    && j.report_food_months
-                        .is_none_or(|v| v.is_finite() && (0. ..=24.).contains(&v))
+                    && j.report_food_months.is_none_or(|v| v.is_finite()
+                        && (0. ..=crate::social_memory::MAX_REPORTED_FOOD_MONTHS).contains(&v))
                     && j.report_population.is_finite()
                     && j.report_population >= 0.
                     && j.departed <= h.month
@@ -259,7 +303,7 @@ impl History {
             let need = j
                 .cohorts
                 .iter()
-                .zip([10., 18., 14.])
+                .zip(TRAVEL_RATIONS_KG_PER_MONTH)
                 .map(|(n, r)| n * r)
                 .sum::<f32>();
             let eaten = j.food.min(need);
@@ -269,8 +313,8 @@ impl History {
             for (k, ratio) in FOOD_CNP.iter().enumerate() {
                 origin.economy.external[k] -= eaten * *ratio as f32;
             }
-            let loss = if eaten + 0.001 < need {
-                0.08 * (1. - eaten / need.max(0.001))
+            let loss = if eaten + TRAVEL_FOOD_TOLERANCE_KG < need {
+                MAX_MONTHLY_TRAVEL_STARVATION * (1. - eaten / need.max(TRAVEL_FOOD_TOLERANCE_KG))
             } else {
                 0.
             };
@@ -291,7 +335,7 @@ impl History {
             }
             self.infection_travel_losses(&mut j);
             comparison.observe(&j, individual, before, eaten);
-            if j.population() < 0.01 {
+            if j.population() < EXTINCT_TRAVEL_POPULATION {
                 self.society
                     .as_mut()
                     .unwrap()
@@ -358,7 +402,7 @@ impl History {
         comparison.settle(self)
     }
     fn reconcile_travel_deaths(&mut self, j: &mut Journey, loss: f32) {
-        let extinct = j.population() < 0.01;
+        let extinct = j.population() < EXTINCT_TRAVEL_POPULATION;
         let Some(roster) = &mut j.roster else {
             return;
         };
@@ -370,9 +414,9 @@ impl History {
                 .filter(|e| e.band == band && self.people[e.person as usize].died.is_none())
                 .map(|e| e.person)
                 .collect();
-            let before = j.cohorts[band] / (1. - loss).max(1e-6);
+            let before = j.cohorts[band] / (1. - loss).max(ROSTER_COVERAGE_FLOOR);
             let lost = (before - j.cohorts[band]).max(0.);
-            let coverage = (alive.len() as f32 / before.max(1e-6)).min(1.);
+            let coverage = (alive.len() as f32 / before.max(ROSTER_COVERAGE_FLOOR)).min(1.);
             let target = roster.death_carry[band] + lost * coverage;
             let count = if extinct {
                 alive.len()
@@ -445,7 +489,9 @@ impl History {
                 .filter(|hh| hh.site == j.from && hh.id != j.household)
                 .map(|hh| hh.share)
                 .sum::<f64>();
-            let new_share = (pop / (old_pop + pop).max(1.)).clamp(0.001, 0.95) as f64;
+            let new_share = (pop / (old_pop + pop).max(1.))
+                .clamp(MIN_ARRIVAL_OWNERSHIP_SHARE, MAX_ARRIVAL_OWNERSHIP_SHARE)
+                as f64;
             for hh in &mut society.households {
                 if hh.id == j.household {
                     hh.site = j.to;
@@ -547,7 +593,8 @@ impl History {
                         id: s.id,
                         shortage: s.stocks.stock[3],
                         production: s.stocks.stock[2],
-                        crowded: social.is_some_and(|c| c.housing[2] > 0.15),
+                        crowded: social
+                            .is_some_and(|c| c.housing[2] > CROWDING_DEPARTURE_THRESHOLD),
                         migration_pressure: social.map_or(0., |c| c.migration_pressure()),
                         flooded: flood.is_some_and(|f| f.flooded),
                         persistent_flood: flood.is_some_and(|f| f.persistent),
@@ -601,12 +648,15 @@ impl History {
         for s in &self.sites {
             let p = &mut society.relocation.sites[s.id as usize];
             p.hungry = ((p.hungry << 1)
-                | u32::from(observations.sites[s.id as usize].shortage > 0.05))
-                & 0xffffff;
-            p.production[self.month as usize % 12] = observations.sites[s.id as usize].production;
-            p.observed_months = (p.observed_months + 1).min(12);
+                | u32::from(
+                    observations.sites[s.id as usize].shortage > HUNGER_OBSERVATION_THRESHOLD,
+                ))
+                & HUNGER_MEMORY_MASK;
+            p.production[self.month as usize % PRODUCTION_MEMORY_MONTHS] =
+                observations.sites[s.id as usize].production;
+            p.observed_months = (p.observed_months + 1).min(PRODUCTION_MEMORY_MONTHS as u32);
         }
-        if !society.relocation.enabled || self.month % 3 != 0 {
+        if !society.relocation.enabled || self.month % DEPARTURE_REVIEW_INTERVAL_MONTHS != 0 {
             return;
         }
         for from in 0..self.sites.len() {
@@ -614,10 +664,10 @@ impl History {
             let pressure = &society.relocation.sites[from];
             let s = &self.sites[from];
             if s.abandoned
-                || s.stocks.stock[0] < 2.
-                || pressure.observed_months < 12
-                || self.month < pressure.last_departure + 12
-                || (pressure.hungry.count_ones() < 6
+                || s.stocks.stock[0] < MIN_ORIGIN_POPULATION
+                || pressure.observed_months < PRODUCTION_MEMORY_MONTHS as u32
+                || self.month < pressure.last_departure + DEPARTURE_COOLDOWN_MONTHS
+                || (pressure.hungry.count_ones() < MIN_HUNGRY_MONTHS
                     && !observations.sites[from].crowded
                     && !observations.sites[from].persistent_flood)
             {
@@ -632,7 +682,7 @@ impl History {
                 .collect::<Vec<_>>();
             // Keep a local ownership representative; this v1 moves one household
             // per origin per year rather than performing whole-town evacuation.
-            if homes.len() < 2 {
+            if homes.len() < MIN_ORIGIN_HOUSEHOLDS {
                 continue;
             }
             let Some(household) = homes
@@ -651,18 +701,22 @@ impl History {
                         .culture
                         .as_ref()
                         .and_then(|c| c.agents.get(hh.head as usize))
-                        .map_or([0.5; 6], |a| a.traits);
+                        .map_or([DEFAULT_DEPARTURE_TRAIT; 6], |a| a.traits);
                     // Persistent household ties and caution compete with ambition and hardship.
-                    let urgency = pressure.hungry.count_ones() as f32 / 24.
+                    let urgency = pressure.hungry.count_ones() as f32 / HUNGER_URGENCY_MONTHS
                         + society
                             .household_economy
                             .as_ref()
                             .and_then(|e| e.accounts.get(hh.id as usize))
-                            .map_or(0., |a| a.hunger as f32 * 0.2)
-                        + observations.sites[from].migration_pressure * 0.2;
-                    let tie = (hh.id.wrapping_mul(2654435761) ^ self.seed) % 100;
-                    urgency + traits[0] * 0.35
-                        > traits[4] * 0.25 + traits[5] * 0.3 + tie as f32 / 200.
+                            .map_or(0., |a| a.hunger as f32 * HOUSEHOLD_HUNGER_URGENCY_WEIGHT)
+                        + observations.sites[from].migration_pressure
+                            * SOCIAL_MIGRATION_URGENCY_WEIGHT;
+                    let tie = (hh.id.wrapping_mul(DEPARTURE_TIE_HASH) ^ self.seed)
+                        % DEPARTURE_TIE_BUCKETS;
+                    urgency + traits[0] * AMBITION_DEPARTURE_WEIGHT
+                        > traits[4] * LOYALTY_STAY_WEIGHT
+                            + traits[5] * CAUTION_STAY_WEIGHT
+                            + tie as f32 / DEPARTURE_TIE_SCALE
                 })
             else {
                 if society.relocation.witnessed_relief && self.month % 12 == 0 {
@@ -677,8 +731,13 @@ impl History {
                 }
                 continue;
             };
-            let seek_help = society.relocation.witnessed_relief && household.id % 3 != 0;
-            let reserve_months = if seek_help { 1 } else { 3 };
+            let seek_help =
+                society.relocation.witnessed_relief && household.id % HELP_SEEKER_MODULUS != 0;
+            let reserve_months = if seek_help {
+                HELP_SEEKER_RESERVE_MONTHS
+            } else {
+                ORDINARY_RESERVE_MONTHS
+            };
             let roster = self.household_resident_roster(household.id);
             let mut known = [0.; 3];
             for &id in &roster {
@@ -689,12 +748,12 @@ impl History {
                 }
             }
             let pop = (s.stocks.stock[0] / homes.len() as f32)
-                .clamp(2., 8.)
-                .min(s.stocks.stock[0] * 0.25);
+                .clamp(MIN_ANONYMOUS_HOUSEHOLD_SIZE, MAX_ANONYMOUS_HOUSEHOLD_SIZE)
+                .min(s.stocks.stock[0] * MAX_ANONYMOUS_DEPARTURE_SHARE);
             let pop = pop.max(roster.len() as f32);
             let reconciliation = &self.population_reconciliation().sites[from];
             if pop < 1.
-                || pop > s.stocks.stock[0] * 0.75
+                || pop > s.stocks.stock[0] * MAX_DEPARTURE_POPULATION_SHARE
                 || (0..3).any(|b| known[b] > s.demography.ages[b])
             {
                 continue;
@@ -712,8 +771,9 @@ impl History {
             if pop < 1. {
                 continue;
             }
-            let cohorts: [f32; 3] =
-                std::array::from_fn(|b| known[b] + extra * free[b] / total_free.max(1e-10));
+            let cohorts: [f32; 3] = std::array::from_fn(|b| {
+                known[b] + extra * free[b] / total_free.max(FREE_COHORT_FLOOR)
+            });
             let mut best = None;
             for r in &society.routes {
                 let to = if r.from as usize == from {
@@ -736,28 +796,32 @@ impl History {
                 let months = (r.cost_km / crate::society::LAND_TRAVEL_KM_PER_MONTH)
                     .ceil()
                     .max(1.) as u32;
-                let provisions = pop * 18. * (months + reserve_months) as f32;
+                let provisions =
+                    pop * PROVISION_KG_PER_RESIDENT_MONTH * (months + reserve_months) as f32;
                 let resident_need = t.demography.ages[..3]
                     .iter()
-                    .zip([10., 18., 14.])
+                    .zip(TRAVEL_RATIONS_KG_PER_MONTH)
                     .map(|(n, r)| n * r)
                     .sum::<f32>();
-                let per_person_need = (resident_need / t.stocks.stock[0].max(1.)).max(10.);
-                let fertile_capacity =
-                    tp.production.iter().sum::<f32>() / (per_person_need * 12.) * 0.95;
+                let per_person_need =
+                    (resident_need / t.stocks.stock[0].max(1.)).max(MIN_DESTINATION_RATION_KG);
+                let fertile_capacity = tp.production.iter().sum::<f32>() / (per_person_need * 12.)
+                    * DESTINATION_PRODUCTION_HEADROOM;
                 if !r.open
                     || r.flood_months > 0
-                    || months > 10
+                    || months > MAX_JOURNEY_MONTHS
                     || t.island != s.island
                     || t.abandoned
-                    || tp.observed_months < 12
+                    || tp.observed_months < PRODUCTION_MEMORY_MONTHS as u32
                     || tp.hungry.count_ones() > 1
-                    || observations.sites[to as usize].shortage > 0.01
+                    || observations.sites[to as usize].shortage > MAX_DESTINATION_SHORTAGE
                     || !t.economy.housing_accepts(demand_pop)
                     || fertile_capacity < demand_pop
-                    || t.stocks.habitat[1] * 2. < demand_pop
-                    || t.stocks.stock[1] < demand_pop * 18. * 6.
-                    || s.stocks.stock[1] < provisions + (s.stocks.stock[0] - pop) * 18.
+                    || t.stocks.habitat[1] * DESTINATION_HABITAT_CAPACITY_FACTOR < demand_pop
+                    || t.stocks.stock[1]
+                        < demand_pop * PROVISION_KG_PER_RESIDENT_MONTH * DESTINATION_RESERVE_MONTHS
+                    || s.stocks.stock[1]
+                        < provisions + (s.stocks.stock[0] - pop) * PROVISION_KG_PER_RESIDENT_MONTH
                     || (observations.sites[to as usize].flooded
                         || observations.sites[to as usize].persistent_flood)
                     || self.politics.as_ref().is_some_and(|p| {
@@ -773,7 +837,7 @@ impl History {
                     continue;
                 }
                 let score = (fertile_capacity - demand_pop)
-                    * (0.25 + self.relief_affinity(from as u32, to))
+                    * (BASE_DESTINATION_AFFINITY + self.relief_affinity(from as u32, to))
                     * self.destination_memory(from as u32, to)
                     / (1. + r.cost_km / DESTINATION_DISTANCE_SCALE_KM);
                 if best.as_ref().is_none_or(|&(_, _, _, v)| score > v) {
@@ -786,9 +850,11 @@ impl History {
                 let share = household.share as f32;
                 let source = &mut self.sites[from];
                 let people: f32 = cohorts.iter().sum();
-                let food = people * 18. * (months + reserve_months) as f32;
+                let food =
+                    people * PROVISION_KG_PER_RESIDENT_MONTH * (months + reserve_months) as f32;
                 let cash = source.economy.finance[0] * share;
-                let tools = (source.economy.goods[3] * share).min(people * 0.5);
+                let tools =
+                    (source.economy.goods[3] * share).min(people * PORTABLE_TOOLS_KG_PER_RESIDENT);
                 source.stocks.stock[0] -= people;
                 source.stocks.people[3] += people;
                 source.stocks.stock[1] -= food;
@@ -819,7 +885,8 @@ impl History {
                 }
                 let report_population = self.sites[from].stocks.stock[0];
                 let report_food_months = Some(
-                    (self.sites[from].stocks.stock[1] / (report_population.max(1.) * 18.))
+                    (self.sites[from].stocks.stock[1]
+                        / (report_population.max(1.) * PROVISION_KG_PER_RESIDENT_MONTH))
                         .clamp(0., crate::social_memory::MAX_REPORTED_FOOD_MONTHS),
                 );
                 let infection = self.infection_departure(from as u32, people);

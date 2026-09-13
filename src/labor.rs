@@ -6,7 +6,7 @@ crate::shared_shader_parameters!(SHADER_PARAMETERS {
     pub(crate) const ADULT_WORKER_MONTHS: f32 = 0.8;
     pub(crate) const ILLNESS_WORK_PENALTY: f32 = 0.5;
     pub(crate) const MAX_WORK_ILLNESS_BURDEN: f32 = 0.5;
-    const LEGACY_WORKER_SHARE: f32 = 0.5;
+    pub(crate) const LEGACY_WORKER_SHARE: f32 = 0.5;
     const LAND_RECOVERY_WORK_PENALTY: f32 = 0.4;
 });
 const SERVICE_WORKER_SHARE: f32 = 0.2;

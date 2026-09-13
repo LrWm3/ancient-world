@@ -69,6 +69,14 @@ semantic extraction pass (further shared-policy reconciliation may still apply):
 - `src/catalog.rs`
 - `src/resources.rs`
 
+- `src/hazards.rs`
+- `src/navigation.rs`
+- `src/history_environment.rs`
+- `src/faction_interests.rs`
+- `src/culture/learning.rs`
+- `src/relocation.rs`
+- `src/relocation/comparison.rs`
+
 Reviewed without further numeric extraction (geometry/layout arithmetic, static
 content, already named parameters, or independent test fixtures only):
 
@@ -91,7 +99,6 @@ constant declarations, and still need their full semantic pass:
 - `src/politics.rs`
 - `src/economy.rs`
 - `src/civilization.rs`
-- `src/relocation.rs`
 - `src/relief.rs`
 - `src/religious_relief.rs`
 - `src/expeditions.rs`
@@ -106,7 +113,6 @@ than blindly moved out of their types or layout checks.
 - `src/civilization/daughter.rs`
 - `src/civilization/production_forecast.rs`
 - `src/culture/dynamics.rs`
-- `src/culture/learning.rs`
 - `src/culture/practices.rs`
 - `src/culture/work_requests.rs`
 - `src/culture.rs`
@@ -115,22 +121,17 @@ than blindly moved out of their types or layout checks.
 - `src/enterprises.rs`
 - `src/expedition_heritage.rs`
 - `src/export_contracts.rs`
-- `src/faction_interests.rs`
 - `src/gpu.rs`
-- `src/hazards.rs`
 - `src/history_atlas.rs`
-- `src/history_environment.rs`
 - `src/history_timeline.rs`
 - `src/household_economy/nutrition.rs`
 - `src/household_economy.rs`
 - `src/individual_demography.rs`
 - `src/main.rs`
-- `src/navigation.rs`
 - `src/offices.rs`
 - `src/participation.rs`
 - `src/population_registry.rs`
 - `src/region.rs`
-- `src/relocation/comparison.rs`
 - `src/shipping.rs`
 - `src/social_state.rs`
 - `src/viewer.rs`
@@ -281,3 +282,18 @@ the combined WGSL and shared work parameters. The complete ordinary library suit
 passed 151 tests (130 extended cases ignored), and strict all-target Clippy passed.
 An earlier agriculture-only test filter matched zero tests and is not evidence;
 the GPU fixture and full suite are the verification used here.
+
+## Hazards, navigation and relocation batch
+
+Named flood, granary, navigation search, faction appeal, learning and relocation
+policies. CPU/GPU corridor and depth checks share hazard declarations. Navigation
+and history-gather dispatch sizes are emitted from their CPU owners. Travel
+forecasts and execution share rations and starvation parameters; departure and
+destination preferences retain their previous values. Navigation and history-gather
+shaders have completed their semantic pass; core simulation shaders remain pending.
+
+The hardware-enabled CPU/GPU route-inspection comparison passed after the navigation
+changes. Library and strict Clippy results for the complete batch follow below.
+
+Complete-batch verification: 151 active library tests passed (130 explicitly
+ignored); strict all-target Clippy and source-artifact/whitespace checks passed.

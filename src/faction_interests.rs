@@ -1,5 +1,24 @@
 //! Game political interests and pressure-dependent movements, not historical categories.
 pub const COUNT: usize = 9;
+const HOUSEHOLD_FOOD_PRESSURE_WEIGHT: f32 = 0.75;
+const TOWN_FOOD_PRESSURE_WEIGHT: f32 = 0.25;
+const BASE_APPEAL: [f32; COUNT] = [0.8, 0.5, 0.5, 0.5, 0.2, 0.3, 0.1, 0.1, 0.1];
+const GROWER_HUNGER_WEIGHT: f32 = 1.5;
+const MERCHANT_TRADE_WEIGHT: f32 = 2.;
+const RETAINER_WAR_WEIGHT: f32 = 1.5;
+const ARTISAN_CRAFT_WEIGHT: f32 = 2.;
+const ARTISAN_INEQUALITY_WEIGHT: f32 = 0.5;
+const SCHOLAR_CURIOSITY_WEIGHT: f32 = 1.5;
+const CONGREGATION_PIETY_WEIGHT: f32 = 1.5;
+const BREAD_LEAGUE_HUNGER_WEIGHT: f32 = 5.;
+const BREAD_LEAGUE_INEQUALITY_WEIGHT: f32 = 2.;
+const REVIVALIST_PIETY_WEIGHT: f32 = 4.;
+const WARBAND_WAR_WEIGHT: f32 = 5.;
+const COHESION_PRESSURE_GAIN: f32 = 0.35;
+const COHESION_CALM_LOSS: f32 = 0.18;
+const COHESION_LEADER_LOSS: f32 = 0.4;
+const MIN_COHESION: f32 = 0.05;
+
 pub const NAMES: [&str; COUNT] = [
     "Growers",
     "Merchants",
@@ -25,22 +44,28 @@ pub fn resists_autonomy(interest: u32) -> bool {
 /// retains a smaller solidarity effect. Missing retail observations use the town proxy.
 pub fn food_pressure(town: f32, household: Option<f32>) -> f32 {
     household
-        .map_or(town, |h| 0.75 * h + 0.25 * town)
+        .map_or(town, |h| {
+            HOUSEHOLD_FOOD_PRESSURE_WEIGHT * h + TOWN_FOOD_PRESSURE_WEIGHT * town
+        })
         .clamp(0., 1.)
 }
 /// Shared local conditions: hunger, inequality, disruption, war, craft, trade, piety, curiosity.
 pub fn appeal(k: usize, x: [f32; 8]) -> f32 {
     let [hunger, inequality, disruption, war, craft, trade, piety, curiosity] = x;
     match k {
-        0 => 0.8 + 1.5 * hunger,
-        1 => 0.5 + 2. * trade,
-        2 => 0.5 + 1.5 * war,
-        3 => 0.5 + 2. * craft + 0.5 * inequality,
-        4 => 0.2 + 1.5 * curiosity * (1. - hunger),
-        5 => 0.3 + 1.5 * piety,
-        6 => 0.1 + 5. * hunger + 2. * inequality,
-        7 => 0.1 + 4. * piety * (disruption + hunger).min(1.),
-        8 => 0.1 + 5. * war + disruption,
+        0 => BASE_APPEAL[0] + GROWER_HUNGER_WEIGHT * hunger,
+        1 => BASE_APPEAL[1] + MERCHANT_TRADE_WEIGHT * trade,
+        2 => BASE_APPEAL[2] + RETAINER_WAR_WEIGHT * war,
+        3 => BASE_APPEAL[3] + ARTISAN_CRAFT_WEIGHT * craft + ARTISAN_INEQUALITY_WEIGHT * inequality,
+        4 => BASE_APPEAL[4] + SCHOLAR_CURIOSITY_WEIGHT * curiosity * (1. - hunger),
+        5 => BASE_APPEAL[5] + CONGREGATION_PIETY_WEIGHT * piety,
+        6 => {
+            BASE_APPEAL[6]
+                + BREAD_LEAGUE_HUNGER_WEIGHT * hunger
+                + BREAD_LEAGUE_INEQUALITY_WEIGHT * inequality
+        }
+        7 => BASE_APPEAL[7] + REVIVALIST_PIETY_WEIGHT * piety * (disruption + hunger).min(1.),
+        8 => BASE_APPEAL[8] + WARBAND_WAR_WEIGHT * war + disruption,
         _ => 0.,
     }
 }
@@ -50,8 +75,14 @@ pub fn cohesion(k: usize, previous: f32, pressure: f32, leader_changed: bool) ->
     if k < 6 {
         return 1.;
     }
-    let change = 0.35 * pressure - 0.18 * (1. - pressure);
-    (previous + change - if leader_changed && k >= 7 { 0.4 } else { 0. }).clamp(0.05, 1.)
+    let change = COHESION_PRESSURE_GAIN * pressure - COHESION_CALM_LOSS * (1. - pressure);
+    (previous + change
+        - if leader_changed && k >= 7 {
+            COHESION_LEADER_LOSS
+        } else {
+            0.
+        })
+    .clamp(MIN_COHESION, 1.)
 }
 #[cfg(test)]
 mod tests {

@@ -1,6 +1,27 @@
 //! Sparse historical consequences of GPU surface-water exposure.
 use crate::{civilization::History, gpu::Cell};
 use serde::{Deserialize, Serialize};
+crate::shared_shader_parameters!(SHADER_PARAMETERS {
+    pub(crate) const RIVER_CORRIDOR_MIN_DISCHARGE_M3_S: f32 = 1.;
+    pub(crate) const RIVER_CORRIDOR_SPILL_TOLERANCE_M: f32 = 0.01;
+    pub(crate) const RIVER_CORRIDOR_AREA_FRACTION: f32 = 0.05;
+    pub(crate) const FLOOD_EXPOSURE_DEPTH_M: f32 = 0.25;
+    pub(crate) const MIN_NAVIGABLE_WATER_DEPTH_M: f32 = 0.25;
+});
+const RECOVERY_MONTHS: u32 = 3;
+const PERSISTENCE_MONTHS: u32 = 12;
+const SEVERE_FLOOD_DEPTH_M: f32 = 1.5;
+const GRANARY_MONTHLY_WEAR_FRACTION: f64 = 0.002;
+const GRANARY_BRICKS_KG_PER_RESIDENT_M: f32 = 20.;
+const GRANARY_FREEBOARD_M: f32 = 0.25;
+const MAX_GRANARY_HEIGHT_M: f32 = 1.5;
+const GRANARY_BUILDER_SHARE: f32 = 0.2;
+const GRANARY_BRICKS_KG_PER_WORKER_MONTH: f32 = 20.;
+const NEW_GRANARY_THRESHOLD_KG: f64 = 0.01;
+const GRANARY_REPORT_INTERVAL_MONTHS: u32 = 12;
+const MAX_FLOOD_FOOD_LOSS_FRACTION: f32 = 0.06;
+const MAX_FLOOD_CROP_LOSS_FRACTION: f32 = 0.35;
+const LEGACY_FOOD_CNP: [f32; 3] = [0.45, 0.02, 0.003];
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct FloodImpact {
@@ -27,14 +48,23 @@ pub struct FloodImpact {
 /// This estimates local exposure from area-averaged storage; it creates no water.
 pub fn flood_depth(cell: &Cell) -> f32 {
     let corridor = cell.routing[0] != crate::gpu::NONE
-        && cell.water[3] > 1.
-        && cell.hydro[0] - cell.terrain[0] < 0.01;
-    cell.water[0] / if corridor { 0.05 } else { 1. }
+        && cell.water[3] > RIVER_CORRIDOR_MIN_DISCHARGE_M3_S
+        && cell.hydro[0] - cell.terrain[0] < RIVER_CORRIDOR_SPILL_TOLERANCE_M;
+    cell.water[0]
+        / if corridor {
+            RIVER_CORRIDOR_AREA_FRACTION
+        } else {
+            1.
+        }
 }
 
 fn countdown(value: &mut u32, exposed: bool) -> Option<bool> {
     let was = *value > 0;
-    *value = if exposed { 3 } else { value.saturating_sub(1) };
+    *value = if exposed {
+        RECOVERY_MONTHS
+    } else {
+        value.saturating_sub(1)
+    };
     (was != (*value > 0)).then_some(*value > 0)
 }
 
@@ -64,7 +94,7 @@ impl History {
         for s in &mut self.sites {
             let depth = flood_depth(&cells[s.cell as usize]);
             let impact = living.floods.entry(s.id).or_default();
-            let flooded = depth >= 0.25;
+            let flooded = depth >= FLOOD_EXPOSURE_DEPTH_M;
             let was = impact.flooded;
             let recovering = impact.recovery_months > 0;
             // Old archives have no streak counters. Recover uninterrupted exposure
@@ -73,23 +103,25 @@ impl History {
                 impact.wet_streak = impact
                     .cause
                     .and_then(|id| self.events.get(id as usize))
-                    .map_or(0, |e| self.month.saturating_sub(e.month).min(12));
+                    .map_or(0, |e| {
+                        self.month.saturating_sub(e.month).min(PERSISTENCE_MONTHS)
+                    });
             }
             impact.wet_streak = if flooded {
-                (impact.wet_streak + 1).min(12)
+                (impact.wet_streak + 1).min(PERSISTENCE_MONTHS)
             } else {
                 0
             };
             impact.dry_streak = if flooded {
                 0
             } else {
-                (impact.dry_streak + 1).min(12)
+                (impact.dry_streak + 1).min(PERSISTENCE_MONTHS)
             };
-            if !impact.persistent && impact.wet_streak == 12 {
+            if !impact.persistent && impact.wet_streak == PERSISTENCE_MONTHS {
                 impact.persistent = true;
                 records.push(("persistent_inundation", s.id,
                     "A full year of inundation: expansion suspended; land remains waterlogged rather than undergoing temporary cleanup".into(), impact.cause));
-            } else if impact.persistent && impact.dry_streak == 12 {
+            } else if impact.persistent && impact.dry_streak == PERSISTENCE_MONTHS {
                 impact.persistent = false;
                 records.push((
                     "inundation_recovered",
@@ -102,7 +134,7 @@ impl History {
             impact.depth_m = depth;
             impact.flooded = flooded;
             if flooded {
-                impact.severity = (depth / 1.5).clamp(0., 1.);
+                impact.severity = (depth / SEVERE_FLOOD_DEPTH_M).clamp(0., 1.);
             }
             if impact.persistent {
                 impact.recovery_months = 0;
@@ -110,56 +142,66 @@ impl History {
                 countdown(&mut impact.recovery_months, flooded);
             }
             s.economy.soil[3] = if flooded {
-                (depth / 1.5).clamp(0., 1.)
+                (depth / SEVERE_FLOOD_DEPTH_M).clamp(0., 1.)
             } else if impact.persistent {
-                impact.severity * (1. - impact.dry_streak as f32 / 12.)
+                impact.severity * (1. - impact.dry_streak as f32 / PERSISTENCE_MONTHS as f32)
             } else {
-                impact.severity * impact.recovery_months as f32 / 3.
+                impact.severity * impact.recovery_months as f32 / RECOVERY_MONTHS as f32
             };
             // Raised granaries protect stored food, not fields or transport routes.
             // Construction uses part of the labor already diverted by inundation.
-            let worn = (impact.granary_bricks * 0.002) as f32;
+            let worn = (impact.granary_bricks * GRANARY_MONTHLY_WEAR_FRACTION) as f32;
             impact.granary_bricks -= worn as f64;
             s.economy.used[5] += worn;
             s.economy.reserves[3] += worn;
             if impact.persistent && flooded && !s.abandoned {
-                let target = s.stocks.stock[0] * 20. * (depth + 0.25).min(1.5);
+                let target = s.stocks.stock[0]
+                    * GRANARY_BRICKS_KG_PER_RESIDENT_M
+                    * (depth + GRANARY_FREEBOARD_M).min(MAX_GRANARY_HEIGHT_M);
                 let builders = if self.society.is_some() {
-                    s.demography.ages[1] * 0.8
+                    s.demography.ages[1] * crate::labor::ADULT_WORKER_MONTHS
                 } else {
-                    s.stocks.stock[0] * 0.5
+                    s.stocks.stock[0] * crate::labor::LEGACY_WORKER_SHARE
                 };
                 let bricks = s.economy.goods[5]
                     .min((target - impact.granary_bricks as f32).max(0.))
-                    .min(builders * 0.2 * s.economy.soil[3] * 20.);
+                    .min(
+                        builders
+                            * GRANARY_BUILDER_SHARE
+                            * s.economy.soil[3]
+                            * GRANARY_BRICKS_KG_PER_WORKER_MONTH,
+                    );
                 if bricks > 0. {
-                    let first = impact.granary_bricks < 0.01;
+                    let first = impact.granary_bricks < NEW_GRANARY_THRESHOLD_KG;
                     s.economy.goods[5] -= bricks;
                     impact.granary_bricks += bricks as f64;
-                    if first || self.month.is_multiple_of(12) {
+                    if first || self.month.is_multiple_of(GRANARY_REPORT_INTERVAL_MONTHS) {
                         records.push(("flood_adaptation", s.id, format!("Invested {bricks:.1} kg bricks in raised granaries; {:.1} kg embodied in foundations", impact.granary_bricks), impact.cause));
                     }
                 }
             }
             if flooded && !s.abandoned {
                 impact.flooded_months += 1;
-                let severity = (depth / 1.5).clamp(0., 1.);
-                let height =
-                    (impact.granary_bricks as f32 / (s.stocks.stock[0] * 20.).max(1.)).min(1.5);
-                let food = s.stocks.stock[1] * ((depth - height) / 1.5).clamp(0., 1.) * 0.06;
-                let crop = s.demography.crops[0] * severity * 0.35;
+                let severity = (depth / SEVERE_FLOOD_DEPTH_M).clamp(0., 1.);
+                let height = (impact.granary_bricks as f32
+                    / (s.stocks.stock[0] * GRANARY_BRICKS_KG_PER_RESIDENT_M).max(1.))
+                .min(MAX_GRANARY_HEIGHT_M);
+                let food = s.stocks.stock[1]
+                    * ((depth - height) / SEVERE_FLOOD_DEPTH_M).clamp(0., 1.)
+                    * MAX_FLOOD_FOOD_LOSS_FRACTION;
+                let crop = s.demography.crops[0] * severity * MAX_FLOOD_CROP_LOSS_FRACTION;
                 s.stocks.stock[1] -= food;
                 s.demography.crops[0] -= crop;
                 s.stocks.ledger[2] += food + crop;
                 // Spoiled food and dead crops become local detritus, preserving C/N/P.
-                for (k, ratio) in [0.45, 0.02, 0.003].into_iter().enumerate() {
+                for (k, ratio) in LEGACY_FOOD_CNP.into_iter().enumerate() {
                     s.economy.detritus[k] += (food + crop) * ratio;
                 }
                 impact.food_lost_kg += food as f64;
                 impact.crops_lost_kg += crop as f64;
                 if let Some(catalog) = &self.economy_catalog {
                     for j in 0..6 {
-                        let lost = s.economy.crops[j][1] * severity * 0.35;
+                        let lost = s.economy.crops[j][1] * severity * MAX_FLOOD_CROP_LOSS_FRACTION;
                         s.economy.crops[j][1] -= lost;
                         for k in 0..3 {
                             s.economy.detritus[k] += lost * catalog.composition(8 + j)[k];
@@ -186,7 +228,7 @@ impl History {
                 let wet = inspected.next().unwrap_or_else(|| {
                     r.cells
                         .iter()
-                        .any(|&c| flood_depth(&cells[c as usize]) >= 0.25)
+                        .any(|&c| flood_depth(&cells[c as usize]) >= FLOOD_EXPOSURE_DEPTH_M)
                 });
                 if let Some(closed) = countdown(&mut r.flood_months, wet) {
                     records.push((
@@ -216,8 +258,8 @@ impl History {
                 let wet = inspected.next().unwrap_or_else(|| {
                     p.access
                         .iter()
-                        .any(|&c| flood_depth(&cells[c as usize]) >= 0.25)
-                        || cells[p.water_cell as usize].water[0] <= 0.25
+                        .any(|&c| flood_depth(&cells[c as usize]) >= FLOOD_EXPOSURE_DEPTH_M)
+                        || cells[p.water_cell as usize].water[0] <= MIN_NAVIGABLE_WATER_DEPTH_M
                 });
                 if let Some(closed) = countdown(&mut p.flood_months, wet) {
                     records.push((
@@ -240,9 +282,11 @@ impl History {
                 }
             }
             for (id, l) in shipping.lanes.iter_mut().enumerate() {
-                let shallow = inspected
-                    .next()
-                    .unwrap_or_else(|| l.cells.iter().any(|&c| cells[c as usize].water[0] <= 0.25));
+                let shallow = inspected.next().unwrap_or_else(|| {
+                    l.cells
+                        .iter()
+                        .any(|&c| cells[c as usize].water[0] <= MIN_NAVIGABLE_WATER_DEPTH_M)
+                });
                 if let Some(closed) = countdown(&mut l.flood_months, shallow) {
                     records.push((
                         if closed {
@@ -359,9 +403,9 @@ impl History {
             for (&site, f) in &living.floods {
                 anyhow::ensure!(
                     (site as usize) < self.sites.len()
-                        && f.recovery_months <= 3
-                        && f.wet_streak <= 12
-                        && f.dry_streak <= 12
+                        && f.recovery_months <= RECOVERY_MONTHS
+                        && f.wet_streak <= PERSISTENCE_MONTHS
+                        && f.dry_streak <= PERSISTENCE_MONTHS
                         && (!f.persistent || f.recovery_months == 0)
                         && f.granary_bricks.is_finite()
                         && f.granary_bricks >= 0.
@@ -384,12 +428,12 @@ impl History {
         anyhow::ensure!(
             self.society
                 .as_ref()
-                .is_none_or(|s| s.routes.iter().all(|r| r.flood_months <= 3))
+                .is_none_or(|s| s.routes.iter().all(|r| r.flood_months <= RECOVERY_MONTHS))
                 && self.shipping.as_ref().is_none_or(|s| s
                     .ports
                     .iter()
-                    .all(|p| p.flood_months <= 3)
-                    && s.lanes.iter().all(|l| l.flood_months <= 3)),
+                    .all(|p| p.flood_months <= RECOVERY_MONTHS)
+                    && s.lanes.iter().all(|l| l.flood_months <= RECOVERY_MONTHS)),
             "invalid transport recovery timer"
         );
         Ok(())

@@ -8,6 +8,19 @@ use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex, OnceLock},
 };
+crate::shared_shader_parameters!(SHADER_PARAMETERS {
+    const NAVIGATION_WORKGROUP_SIZE: u32 = 64;
+    const NAVIGATION_MAX_DISPATCH_GROUPS: u32 = 65535;
+    const NAVIGATION_COST_UNITS_PER_KM: f32 = 1000.;
+});
+const MAX_ROAD_COST_UNITS: u32 = 3000000;
+const MAX_HARBOR_COST_UNITS: u32 = 2000000;
+const MAX_WATER_ROUTE_COST_UNITS: u32 = 20000000;
+const MAX_WAVES_PER_FACE_EDGE: u32 = 32;
+const INITIAL_WAVE_BATCH: u32 = 8;
+const SUBSEQUENT_WAVE_BATCH: u32 = 64;
+const MAX_ISLAND_LABEL_PASSES: u32 = 128;
+const SURVEY_CULTIVABLE_AREA_FRACTION: f64 = 0.01;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum NavigationMode {
@@ -113,7 +126,15 @@ impl Navigation {
         });
         let shader = d.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Frontier navigation"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/navigation.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(
+                format!(
+                    "{}\n{}\n{}",
+                    SHADER_PARAMETERS,
+                    crate::hazards::SHADER_PARAMETERS,
+                    include_str!("../shaders/navigation.wgsl")
+                )
+                .into(),
+            ),
         });
         let pipelines = [
             "initialize",
@@ -182,9 +203,9 @@ impl Navigation {
     }
     fn write_query(&self, start: u32, end: u32, kind: RouteKind) {
         let limit = match kind {
-            RouteKind::Road => 3_000_000,
-            RouteKind::Harbor => 2_000_000,
-            _ => 20_000_000,
+            RouteKind::Road => MAX_ROAD_COST_UNITS,
+            RouteKind::Harbor => MAX_HARBOR_COST_UNITS,
+            _ => MAX_WATER_ROUTE_COST_UNITS,
         };
         self.gpu.queue.write_buffer(
             &self.params,
@@ -212,8 +233,16 @@ impl Navigation {
         if name == "relax" {
             pass.dispatch_workgroups_indirect(&self.control, 16);
         } else {
-            let groups = if whole { self.count().div_ceil(64) } else { 1 };
-            pass.dispatch_workgroups(groups.min(65535), groups.div_ceil(65535), 1);
+            let groups = if whole {
+                self.count().div_ceil(NAVIGATION_WORKGROUP_SIZE)
+            } else {
+                1
+            };
+            pass.dispatch_workgroups(
+                groups.min(NAVIGATION_MAX_DISPATCH_GROUPS),
+                groups.div_ceil(NAVIGATION_MAX_DISPATCH_GROUPS),
+                1,
+            );
         }
     }
     /// Converged integer-distance search with descending-cost reconstruction.
@@ -241,11 +270,15 @@ impl Navigation {
         let mut bytes = 0;
         loop {
             ensure!(
-                waves < self.n * 32,
+                waves < self.n * MAX_WAVES_PER_FACE_EDGE,
                 "navigation unresolved after {waves} frontier waves"
             );
             let mut e = self.gpu.device.create_command_encoder(&Default::default());
-            let batch = if waves == 0 { 8 } else { 64 };
+            let batch = if waves == 0 {
+                INITIAL_WAVE_BATCH
+            } else {
+                SUBSEQUENT_WAVE_BATCH
+            };
             for _ in 0..batch {
                 self.dispatch(&mut e, "prepare", false);
                 self.dispatch(&mut e, "relax", false);
@@ -285,7 +318,7 @@ impl Navigation {
             bytes += raw.len() as u64;
             let mut path = bytemuck::cast_slice::<u8, u32>(&raw).to_vec();
             path.reverse();
-            Some((path, header[1] as f32 / 1000.))
+            Some((path, header[1] as f32 / NAVIGATION_COST_UNITS_PER_KM))
         };
         let mut stats = self.stats.lock().unwrap();
         stats.queries += 1;
@@ -303,7 +336,7 @@ impl Navigation {
         let mut e = self.gpu.device.create_command_encoder(&Default::default());
         self.dispatch(&mut e, "label_init", true);
         self.gpu.queue.submit(Some(e.finish()));
-        for _ in 0..128 {
+        for _ in 0..MAX_ISLAND_LABEL_PASSES {
             self.gpu
                 .queue
                 .write_buffer(&self.control, 28, bytemuck::bytes_of(&0u32));
@@ -419,7 +452,13 @@ impl Navigation {
             let shader = d.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("Survey compaction"),
                 source: wgpu::ShaderSource::Wgsl(
-                    include_str!("../shaders/navigation_survey.wgsl").into(),
+                    format!(
+                        "{}\n{}\n{}",
+                        SHADER_PARAMETERS,
+                        crate::hazards::SHADER_PARAMETERS,
+                        include_str!("../shaders/navigation_survey.wgsl")
+                    )
+                    .into(),
                 ),
             });
             d.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -457,8 +496,12 @@ impl Navigation {
             let mut pass = e.begin_compute_pass(&Default::default());
             pass.set_pipeline(pipeline);
             pass.set_bind_group(0, &group, &[]);
-            let groups = self.count().div_ceil(64);
-            pass.dispatch_workgroups(groups.min(65535), groups.div_ceil(65535), 1);
+            let groups = self.count().div_ceil(NAVIGATION_WORKGROUP_SIZE);
+            pass.dispatch_workgroups(
+                groups.min(NAVIGATION_MAX_DISPATCH_GROUPS),
+                groups.div_ceil(NAVIGATION_MAX_DISPATCH_GROUPS),
+                1,
+            );
         }
         self.gpu.queue.submit(Some(e.finish()));
         let n = bytemuck::pod_read_unaligned::<u32>(&read_buffer(&self.gpu, &count, 0, 4)?);
@@ -495,7 +538,7 @@ impl Navigation {
                 hectares: (crate::grid::solid_angle(r[0], self.n)
                     * (self.radius as f64 * 1000.).powi(2)
                     / 10000.
-                    * 0.01)
+                    * SURVEY_CULTIVABLE_AREA_FRACTION)
                     .min(plot_hectares) as f32,
             })
             .collect())
@@ -544,7 +587,8 @@ impl Navigation {
         ensure!(
             ids.len() as u64 * 4 <= d.limits().max_storage_buffer_binding_size as u64
                 && spans.len() as u64 * 16 <= d.limits().max_storage_buffer_binding_size as u64
-                && spans.len().div_ceil(64) <= 65535,
+                && spans.len().div_ceil(NAVIGATION_WORKGROUP_SIZE as usize)
+                    <= NAVIGATION_MAX_DISPATCH_GROUPS as usize,
             "route inspection exceeds GPU limits"
         );
         let input = |label, bytes: &[u8]| {
@@ -566,7 +610,13 @@ impl Navigation {
             let shader = d.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("Route hazard summaries"),
                 source: wgpu::ShaderSource::Wgsl(
-                    include_str!("../shaders/navigation_inspect.wgsl").into(),
+                    format!(
+                        "{}\n{}\n{}",
+                        SHADER_PARAMETERS,
+                        crate::hazards::SHADER_PARAMETERS,
+                        include_str!("../shaders/navigation_inspect.wgsl")
+                    )
+                    .into(),
                 ),
             });
             d.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -597,7 +647,11 @@ impl Navigation {
             let mut pass = e.begin_compute_pass(&Default::default());
             pass.set_pipeline(pipeline);
             pass.set_bind_group(0, &group, &[]);
-            pass.dispatch_workgroups((spans.len() as u32).div_ceil(64), 1, 1);
+            pass.dispatch_workgroups(
+                (spans.len() as u32).div_ceil(NAVIGATION_WORKGROUP_SIZE),
+                1,
+                1,
+            );
         }
         self.gpu.queue.submit(Some(e.finish()));
         self.stats.lock().unwrap().inspection_bytes += spans.len() as u64 * 4;

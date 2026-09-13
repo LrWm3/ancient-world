@@ -18,12 +18,12 @@ impl TravelComparison {
                 let need = j
                     .cohorts
                     .iter()
-                    .zip([10., 18., 14.])
+                    .zip(TRAVEL_RATIONS_KG_PER_MONTH)
                     .map(|(n, r)| n * r)
                     .sum::<f32>();
                 let food = j.food.min(need);
-                let rate = if food + 0.001 < need {
-                    0.08 * (1. - food / need.max(0.001))
+                let rate = if food + TRAVEL_FOOD_TOLERANCE_KG < need {
+                    MAX_MONTHLY_TRAVEL_STARVATION * (1. - food / need.max(TRAVEL_FOOD_TOLERANCE_KG))
                 } else {
                     0.
                 };
@@ -74,7 +74,7 @@ impl TravelComparison {
     pub fn observe(&mut self, j: &Journey, individual: bool, before: f32, eaten: f32) {
         if let Some(row) = self.0.get_mut(&(j.from, individual)) {
             // Existing extinction cleanup also removes tiny residual cohorts.
-            let remaining = if j.population() < 0.01 {
+            let remaining = if j.population() < EXTINCT_TRAVEL_POPULATION {
                 0.
             } else {
                 j.population()

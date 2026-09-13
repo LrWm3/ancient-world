@@ -1,3 +1,5 @@
+const MIN_SURVEY_YIELD_KG:f32=450.;
+const HILL_LANDMARK_ELEVATION_M:f32=1000.;
 struct Cell {
  terrain: vec4<f32>, // elevation m, sediment m, soil m, crust age Myr
  climate: vec4<f32>, // temperature C, precipitation mm/year, vapor mm, wind m/s
@@ -43,14 +45,14 @@ fn neighbor(i:u32,k:u32)->u32 {
 }
 
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(NAVIGATION_WORKGROUP_SIZE)
 fn survey(@builtin(global_invocation_id) g:vec3<u32>) {
- let i=g.x+g.y*65535u*64u;if i>=p.limits.y||world[i].tags.x!=2u{return;}
+ let i=g.x+g.y*NAVIGATION_MAX_DISPATCH_GROUPS*NAVIGATION_WORKGROUP_SIZE;if i>=p.limits.y||world[i].tags.x!=2u{return;}
  var coast=false;var landing=false;
- for(var k=0u;k<4u;k++){let j=neighbor(i,k);if world[j].tags.x==1u {coast=true;if world[j].water.x>.25 && world[i].water.x<.25 {landing=true;}}}
+ for(var k=0u;k<4u;k++){let j=neighbor(i,k);if world[j].tags.x==1u {coast=true;if world[j].water.x>MIN_NAVIGABLE_WATER_DEPTH_M && world[i].water.x<FLOOD_EXPOSURE_DEPTH_M {landing=true;}}}
  let coasts=p.dims.w==1u;
- if coasts {if !landing{return;}}else{if scores[i].x<=450.{return;}}
- var landmark=0u;if world[i].terrain.x>1000.{landmark=1u;}if world[i].water.w>1.{landmark=2u;}if coast{landmark=3u;}
+ if coasts {if !landing{return;}}else{if scores[i].x<=MIN_SURVEY_YIELD_KG{return;}}
+ var landmark=0u;if world[i].terrain.x>HILL_LANDMARK_ELEVATION_M{landmark=1u;}if world[i].water.w>RIVER_CORRIDOR_MIN_DISCHARGE_M3_S{landmark=2u;}if coast{landmark=3u;}
  let at=atomicAdd(&counter,1u);records[at*2u]=vec4(i,atomicLoad(&labels[i]),landmark,0u);
  if coasts {records[at*2u+1u]=vec4(0u);}else{records[at*2u+1u]=bitcast<vec4<u32>>(scores[i]);}
 }

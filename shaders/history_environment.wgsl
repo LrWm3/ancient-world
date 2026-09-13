@@ -5,7 +5,7 @@ struct Cell { words: array<vec4<u32>, 11> }
 @group(0) @binding(1) var<storage, read> indices: array<u32>;
 @group(0) @binding(2) var<storage, read_write> observations: array<Cell>;
 @group(0) @binding(3) var<uniform> params: vec4<u32>;
-@compute @workgroup_size(64)
+@compute @workgroup_size(HISTORY_GATHER_WORKGROUP_SIZE)
 fn gather(@builtin(global_invocation_id) gid: vec3<u32>) {
     let i = gid.x + gid.y * params.y;
     if i < params.x { observations[i] = terrain[indices[i]]; }

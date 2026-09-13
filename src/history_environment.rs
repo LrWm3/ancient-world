@@ -7,6 +7,10 @@ use crate::{
     grid,
 };
 use anyhow::{ensure, Result};
+crate::shared_shader_parameters!(SHADER_PARAMETERS {
+    const HISTORY_GATHER_WORKGROUP_SIZE: u32 = 64;
+});
+
 const FULL_REFRESH_INTERVAL_MONTHS: u32 = 12;
 
 // Keep the bitwise WGSL gather ABI synchronized with terrain storage.
@@ -58,7 +62,12 @@ impl Gather {
         let shader = d.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("History environment gather"),
             source: wgpu::ShaderSource::Wgsl(
-                include_str!("../shaders/history_environment.wgsl").into(),
+                format!(
+                    "{}\n{}",
+                    SHADER_PARAMETERS,
+                    include_str!("../shaders/history_environment.wgsl")
+                )
+                .into(),
             ),
         });
         let pipeline = d.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -98,7 +107,7 @@ impl Gather {
         })
     }
     fn read(&self, g: &Generator, ids: &[u32], month: u32) -> Result<Vec<u8>> {
-        let groups = (ids.len() as u32).div_ceil(64);
+        let groups = (ids.len() as u32).div_ceil(HISTORY_GATHER_WORKGROUP_SIZE);
         let x = groups.min(g.gpu.device.limits().max_compute_workgroups_per_dimension);
         let y = groups.div_ceil(x);
         ensure!(
@@ -111,7 +120,12 @@ impl Gather {
         g.gpu.queue.write_buffer(
             &self.params,
             0,
-            bytemuck::cast_slice(&[ids.len() as u32, x * 64, month, 0]),
+            bytemuck::cast_slice(&[
+                ids.len() as u32,
+                x * HISTORY_GATHER_WORKGROUP_SIZE,
+                month,
+                0,
+            ]),
         );
         let buffers = [
             &g.buffers[g.current],
