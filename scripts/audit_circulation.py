@@ -10,6 +10,16 @@ import json
 from pathlib import Path
 
 
+HOUSEHOLD_FLOW_FIELDS = ("wages", "dividends", "relief", "food_spending")
+
+
+def household_flows(accounts):
+    """Lifetime counters, never balances; missing old counters remain unknown."""
+    return {field: sum(a[field] for a in accounts)
+            if all(field in a for a in accounts) else None
+            for field in HOUSEHOLD_FLOW_FIELDS}
+
+
 def audit(history):
     society = history.get('society') or {}
     households = society.get('households', [])
@@ -51,6 +61,7 @@ def audit(history):
             'known_living_members': len(living),
             'known_travelers': sum(isinstance(r['presence'], dict) and 'Traveling' in r['presence'] for r in living),
             'food_need': account['need'], 'hunger': account['hunger'],
+            'cumulative_flows': household_flows([account]),
         }
         households_by_site.setdefault(household['site'], []).append(row)
         if row['vacant_since'] is not None or sites[household['site']]['abandoned']:
@@ -71,12 +82,18 @@ def audit(history):
         'individual_demography': (history.get('named_demography') or {}).get('individual', False),
         'initial_cash': initial, 'issued_cash': issued, 'cash': cash,
         'cash_total': sum(cash.values()),
+        'household_cumulative_flows': household_flows(accounts),
         'relative_money_residual': (initial + issued - sum(cash.values())) / max(initial + issued, 1),
         'sites': [{
             'id': s['id'], 'name': s['name'], 'abandoned': s['abandoned'],
             'population': s['stocks']['stock'][0], 'food_stock': s['stocks']['stock'][1],
             'town_cash': s['economy']['finance'][0],
             'household_cash': sum(r['cash'] for r in households_by_site.get(s['id'], [])),
+            'household_cumulative_flows': {
+                field: sum(r['cumulative_flows'][field] for r in households_by_site.get(s['id'], []))
+                if all(r['cumulative_flows'][field] is not None for r in households_by_site.get(s['id'], [])) else None
+                for field in HOUSEHOLD_FLOW_FIELDS
+            },
             'vacant_household_cash': sum(r['cash'] for r in households_by_site.get(s['id'], []) if r['vacant_since'] is not None),
         } for s in sites],
         'retained_households': retained, 'operators': firms,
@@ -86,6 +103,8 @@ def audit(history):
         'inherited_cash': sum(r['cash'] for r in economy.get('inheritance', {}).get('receipts', [])),
         'limitations': [
             'Endpoint balances do not establish why money accumulated.',
+            'Cumulative flows can exceed the money stock and are not additional cash.',
+            'Household lifetime flows grouped by current site are not historical flows at that site.',
             'Vacancy means no eligible representative, not necessarily no beneficiaries.',
             'Sparse named membership cannot establish extinction in aggregate mode.',
             'Operating margins exclude financing, capital, dividends and liquidation.',

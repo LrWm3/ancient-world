@@ -177,3 +177,45 @@ These checks establish bounded execution and continuation for their fixtures;
 they do not substitute for the pending multi-seed economic comparison.
 Strict all-target Clippy also passes after using a direct initializer in the new
 fixture. Repository artifact and whitespace checks pass.
+
+### Spare-capacity matched screen (`1f10218`)
+
+Twelve 50-year executions completed successfully from the same three frozen
+32/32 founding checkpoints, using the previous section's settings and all four
+monetary arms. Controls are the input-aware executable (`e401393`); the new binary
+adds the spare-capacity sweep only. Raw results are in
+`output/recipe-allocation-screen/after/`. Reproduce with `monetary_experiment.py`,
+three `--checkpoint SEED=...` arguments, `--years 50`, `--service-order-procurement`,
+`--service-procurement-share 0.25`, `--contract-workshop-staffing`,
+`--demand-workshop-staffing`, `--household-estate-inheritance`, and
+`--named-office-service`. Estate reclamation remains off on both sides.
+
+| Seed / arm | Population before → after | Operator completed work | Operating margin | Terminal hunger |
+| --- | ---: | ---: | ---: | ---: |
+| 1024 / baseline | 153.044 → 163.153 | 17.262 → 4.450 | -17.17 → 25.76 | .07630 → .05613 |
+| 1024 / issuance | 158.208 → 162.169 | 18.673 → 4.456 | -46.65 → 25.89 | .05935 → .05896 |
+| 256 / baseline | 291.849 → 306.248 | 16.522 → 5.845 | -378.74 → -233.13 | .05083 → .04782 |
+| 256 / issuance | 305.501 → 305.532 | 16.993 → 5.846 | -379.17 → -233.14 | .05061 → .04903 |
+| 409 / baseline | 322.869 → 330.988 | 189.043 → 104.418 | -1,135.09 → -2,573.41 | .06667 → .07248 |
+| 409 / issuance | 315.904 → 329.614 | 186.691 → 99.183 | -1,285.57 → -2,018.85 | .07219 → .07078 |
+
+Operator work is cumulative private attendance completed, not all town manufacturing.
+Seeds 1024 and 256 still have no open operators at the endpoint. Seed 409 falls from
+three open operators to two (baseline) or one (issuance). In seed 1024 the five new
+operators all have positive cumulative operating margins but close after sustained
+insufficient work. In seed 409 the aggregate margin worsens substantially. Higher
+population does not establish improved industrial viability or universal food access.
+Do not fit service fees to hide these losses.
+
+No new loans occur except three in seed 409's credit-only arm. Monetary arms are
+therefore not twelve independent seed replications. Maximum absolute relative cash
+residual is 1.07e-7. The first execution took 57.54 s, including approximately
+40.75 s of history setup; subsequent executions took 17.40–18.63 s. Do not treat the
+cold first execution as monthly simulation cost or these small worlds as a
+full-resolution benchmark.
+
+Retain the allocation fix on its controlled evidence, but keep demand-aware private
+staffing experimental. The ensemble does not resolve circulation. The next workshop
+review must distinguish stock-limited hiring, low paid demand, communal production,
+and closure thresholds. Household spending and physical recovery remain separate
+workstreams, rather than presumed consequences of improved dispatch utilization.

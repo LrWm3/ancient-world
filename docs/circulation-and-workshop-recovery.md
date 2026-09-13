@@ -160,3 +160,31 @@ substantial improvement in seed 409, lower losses but less work in seed 1024,
 and slightly worse margins in seed 256. Unused GPU recipe labor and the mismatch
 between household cash in price signals and actual household purchasing are the
 next concrete investigations. Circulation and abandoned-site recovery remain open.
+
+### Distinguish money stocks from repeated spending
+
+The audit now exposes lifetime household wage, dividend, relief and food-spending
+counters independently of balances. Missing counters in older inputs are unknown,
+not zero. Site summaries group accounts by their **current** home; they are not a
+reconstruction of where historical payments occurred. The counters can exceed the
+entire money supply because the same currency can be spent repeatedly.
+
+For the input-aware staffing seed-1024 baseline (50 years, `e401393` executable),
+households have 43,091.81 cash at the endpoint, but their cumulative wages are
+1,434,172.55, dividends 28,796.13, relief 7,261.48 and food spending 1,427,021.44.
+These flows are not additional assets or a complete cash-flow reconciliation;
+capital, inheritance and other recorded transfers also exist. They contradict an
+interpretation that currency simply stopped moving throughout the whole run.
+
+Distribution and access are more specific problems. Seven of the twenty accounts
+currently registered at Litugie hold less than one currency unit, despite total
+local household cash of 12,228.59 and a town food stock of 12,876.12 food equivalents.
+Across all twenty accounts, unmet monthly need totals 53.25 food equivalents.
+Elsewhere, Lethor na Refojea has no food stock and about 9,989.35 household cash.
+The food-stock observation is an endpoint; zero terminal stock does not establish
+zero harvest throughout that month or year. The next interventions should separate
+household purchasing distribution from physical import and production constraints.
+
+Five audit fixtures now pass, including large lifetime flows that do not change
+cash totals and missing-counter handling. The twelve monetary runner fixtures also
+pass. Raw runs and audit outputs remain under ignored `output/`.

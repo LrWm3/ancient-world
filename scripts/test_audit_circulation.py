@@ -29,6 +29,17 @@ class CirculationAuditTests(unittest.TestCase):
         self.assertEqual(report['operators'][0]['operating_margin'], -1)
         self.assertEqual(report['operators'][0]['completion_per_paid_work'], .5)
 
+    def test_lifetime_flows_are_not_cash_and_missing_is_unknown(self):
+        history = self.fixture()
+        report = audit(history)
+        self.assertIsNone(report['household_cumulative_flows']['wages'])
+        account = history['society']['household_economy']['accounts'][0]
+        account.update(wages=1000, dividends=50, relief=20, food_spending=1040)
+        report = audit(history)
+        self.assertEqual(report['cash_total'], 102)
+        self.assertEqual(report['household_cumulative_flows']['wages'], 1000)
+        self.assertEqual(report['sites'][0]['household_cumulative_flows']['food_spending'], 1040)
+
     def test_reclamation_is_a_transfer_not_new_money(self):
         history = self.fixture()
         economy = history['society']['household_economy']
