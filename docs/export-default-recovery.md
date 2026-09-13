@@ -4,7 +4,9 @@ This opt-in policy connects actual delivery-paid export cash to previously
 defaulted loans backed by the same contract and expected payment date.
 
 Configure `history.credit.export_recovery.policy.enabled` through the reusable
-history API. The default is disabled; this is a separate decision from enabling
+history API, or use `--headless --export-default-recovery` when creating or
+resuming history. `--export-default-recovery=false` disables future recovery;
+omitting the flag preserves an archived policy. The default is disabled; this is a separate decision from enabling
 new commercial loans. The policy defaults to at most 25% of newly observed seller
 proceeds and a 100-unit operating cash floor.
 
@@ -65,3 +67,6 @@ legacy baselines, invalid policy rejection, same-month replay protection, cash
 conservation and serialized continuation. Original default histories remain intact.
 Strict all-target Clippy passed. These tests establish the transfer and timing
 contract; they do not establish a beneficial long-run balance effect.
+
+The headless flag parser test also passed for omitted, explicitly enabled and
+explicitly disabled settings. Omitting the flag does not override archive state.

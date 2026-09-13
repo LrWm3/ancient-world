@@ -73,6 +73,9 @@ struct Args {
     /// Experimental town working-capital loans against delivery-paid exports.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     commercial_credit: Option<bool>,
+    /// Recover old export defaults from bounded newly received delivery proceeds.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    export_default_recovery: Option<bool>,
     /// Bounded, dated shared-currency issuance into council treasuries.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     shared_issuance: Option<bool>,
@@ -161,6 +164,7 @@ fn main() -> Result<()> {
                 && args.history_export.is_none()
                 && args.council_credit.is_none()
                 && args.commercial_credit.is_none()
+                && args.export_default_recovery.is_none()
                 && args.shared_issuance.is_none()
                 && args.delivery_paid_exports.is_none()
                 && !args.society
@@ -340,6 +344,16 @@ fn main() -> Result<()> {
             .commercial_policy
             .enabled = enabled;
     }
+    if let Some(enabled) = args.export_default_recovery {
+        generator
+            .civilizations
+            .as_mut()
+            .context("export default recovery requires a history")?
+            .credit
+            .export_recovery
+            .policy
+            .enabled = enabled;
+    }
     if let Some(enabled) = args.delivery_paid_exports {
         generator
             .civilizations
@@ -447,6 +461,27 @@ mod args_tests {
         ] {
             assert_eq!(
                 Args::try_parse_from(arguments).unwrap().commercial_credit,
+                expected
+            );
+        }
+    }
+    #[test]
+    fn export_recovery_flag_preserves_archive_when_omitted() {
+        for (arguments, expected) in [
+            (vec!["ancient-world"], None),
+            (
+                vec!["ancient-world", "--export-default-recovery"],
+                Some(true),
+            ),
+            (
+                vec!["ancient-world", "--export-default-recovery=false"],
+                Some(false),
+            ),
+        ] {
+            assert_eq!(
+                Args::try_parse_from(arguments)
+                    .unwrap()
+                    .export_default_recovery,
                 expected
             );
         }
