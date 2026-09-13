@@ -663,9 +663,18 @@ impl History {
                 // The production planner has already assembled this month's
                 // recipe orders. Contracts cannot create physical output demand.
                 let ordered = self.economy_catalog.as_ref().map_or(0., |catalog| {
-                    industrial_order_work(catalog, &town.economy.orders, family) * lease_share
+                    feasibility::contracted_share(
+                        industrial_order_work(catalog, &town.economy.orders, family),
+                        lease_share,
+                        contracted_work[f.id as usize],
+                    )
                 });
-                let feasible = (stocked[site][family] * lease_share).min(ordered);
+                let feasible = feasibility::contracted_share(
+                    stocked[site][family],
+                    lease_share,
+                    contracted_work[f.id as usize],
+                )
+                .min(ordered);
                 let limited = desired.min(feasible);
                 enterprises
                     .procurement

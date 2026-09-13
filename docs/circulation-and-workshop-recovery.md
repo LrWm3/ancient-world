@@ -229,3 +229,16 @@ operator work remains unchanged. Recovery now has an observed stock → paid car
 → tool service → wear/recycling path. This does not establish general recovery
 coverage, profitable workshops or restored cash circulation. Sustained paying
 customers and household savings returning to useful production need further work.
+
+
+### Due contracts and execution shortfalls
+
+[Funded workshop share](workshop-contracted-share.md) now lets a due commitment
+claim more than the ordinary lease-proportional demand share, while retaining
+real order/input/equipment/work/cash limits. Three paired 50-year seeds have mixed
+outcomes; this is a contractual allocation correction, not a balance victory.
+The new audit points to paid-but-unproductive work in seeds 256/409, with virtually
+no unpaid completed-service invoices. Inspect shared GPU craft labor and competing
+recipes before interpreting these firms as merely short of customer money.
+Household material purchasing still needs its own finite ownership/consumption
+path; it has not been implemented by this change.

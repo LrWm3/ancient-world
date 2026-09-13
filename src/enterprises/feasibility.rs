@@ -1,6 +1,14 @@
 //! Sparse staffing forecast; physical stock transfers remain in GPU production.
 use crate::economy::{Economy, EconomyCatalog};
 
+/// Ordinary work follows the lease share. A due customer commitment can claim
+/// more of the same feasible pool, but never more than that pool contains.
+pub(super) fn contracted_share(total: f64, lease_share: f64, contracted: f64) -> f64 {
+    (total * lease_share.clamp(0., 1.))
+        .max(contracted)
+        .min(total)
+}
+
 /// One ordered pass through current stock. Shared inputs are counted once and
 /// later recipes may use forecast intermediates. New extraction and undelivered
 /// cargo are deliberately not spendable inputs. This can delay private hiring
@@ -64,6 +72,20 @@ pub(super) fn stocked_work(catalog: &EconomyCatalog, economy: &Economy, month: u
 mod tests {
     use super::*;
     use crate::economy::{Recipe, GOODS};
+
+    #[test]
+    fn funded_work_can_use_capacity_beyond_ordinary_market_share() {
+        assert_eq!(contracted_share(10., 0.25, 0.), 2.5);
+        assert_eq!(contracted_share(10., 0.25, 6.), 6.);
+        assert_eq!(contracted_share(3., 0.25, 6.), 3.);
+        assert_eq!(contracted_share(0., 0.25, 6.), 0.);
+        assert_eq!(contracted_share(10., 0.25, 1.), 2.5);
+        // Demand and input feasibility both bound the commitment independently.
+        assert_eq!(
+            contracted_share(10., 0.25, 6.).min(contracted_share(4., 0.25, 6.)),
+            4.
+        );
+    }
 
     #[test]
     fn stocked_forecast_accounts_for_shared_inputs_and_intermediates() {
