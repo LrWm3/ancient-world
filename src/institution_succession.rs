@@ -5,6 +5,12 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
+pub(crate) const BALLOT_WORKER_MONTHS: f32 = 0.05;
+pub(crate) const BALLOT_INTERVAL_MONTHS: u32 = 3;
+const SCHOLARLY_KNOWLEDGE_NORMALIZATION: f32 = 12.;
+const BALLOT_COMPETENCE_WEIGHT: f32 = 0.6;
+const BALLOT_AFFINITY_WEIGHT: f32 = 0.3;
+const BALLOT_SELF_AMBITION_WEIGHT: f32 = 0.1;
 const RECOVERY_WAIT_MONTHS: u32 = 6;
 const RECOVERY_RECRUITMENT_COST_MONEY: f64 = 5.0;
 const RECOVERY_MIN_COMPETENCE: f32 = 0.35;
@@ -32,7 +38,9 @@ fn recruitment_payment(h: &History, site: u32, treasury: f64) -> Option<(f32, f6
 fn competence(kind: &InstitutionKind, a: &crate::culture::Agent) -> f32 {
     match kind {
         InstitutionKind::Religious => a.traits[2],
-        InstitutionKind::Scholarly => (a.traits[3] + a.knowledge.len() as f32 / 12.) * 0.5,
+        InstitutionKind::Scholarly => {
+            (a.traits[3] + a.knowledge.len() as f32 / SCHOLARLY_KNOWLEDGE_NORMALIZATION) * 0.5
+        }
         InstitutionKind::Craft => a.skills[3],
         InstitutionKind::Merchant => (a.skills[1] + a.traits[4]) * 0.5,
     }
@@ -59,10 +67,10 @@ fn ballot(
                         .copied()
                         .unwrap_or(0.)
                         .clamp(-1., 1.);
-                    0.6 * competence(kind, candidate)
-                        + 0.3 * affinity
+                    BALLOT_COMPETENCE_WEIGHT * competence(kind, candidate)
+                        + BALLOT_AFFINITY_WEIGHT * affinity
                         + if id == voter {
-                            0.1 * candidate.traits[0]
+                            BALLOT_SELF_AMBITION_WEIGHT * candidate.traits[0]
                         } else {
                             0.
                         }
@@ -181,7 +189,10 @@ impl Culture {
                     "The institutional mandate became vacant: its holder is no longer an eligible local member".into());
                 continue;
             }
-            if h.month % 3 != 0 || electorate.is_empty() || h.sites[site as usize].abandoned {
+            if h.month % BALLOT_INTERVAL_MONTHS != 0
+                || electorate.is_empty()
+                || h.sites[site as usize].abandoned
+            {
                 continue;
             }
             let votes = ballot(&self.agents, &self.institutions[i].kind, &electorate);
@@ -206,18 +217,20 @@ impl Culture {
                     .commitment
                     .and_then(|id| h.participation.as_ref()?.commitments.get(id as usize))
                     .is_some_and(|c| c.people.iter().all(|(id, _)| electorate.contains(id)));
-                if !eligible || h.personal_grant_live(p.commitment).min(p.granted) < 0.05 {
+                if !eligible
+                    || h.personal_grant_live(p.commitment).min(p.granted) < BALLOT_WORKER_MONTHS
+                {
                     continue;
                 }
-                p.used = 0.05;
+                p.used = BALLOT_WORKER_MONTHS;
                 p.used as f64
             } else {
                 let budget = self.labor_budget.get_mut(site as usize);
-                let Some(budget) = budget.filter(|b| **b >= 0.05) else {
+                let Some(budget) = budget.filter(|b| **b >= BALLOT_WORKER_MONTHS) else {
                     continue;
                 };
                 let before = *budget;
-                *budget -= 0.05;
+                *budget -= BALLOT_WORKER_MONTHS;
                 (before - *budget) as f64
             };
             if recruiting {

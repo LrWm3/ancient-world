@@ -29,6 +29,8 @@ semantic extraction pass (further shared-policy reconciliation may still apply):
 - `src/institution_capacity.rs`
 - `src/heritage_renown.rs`
 - `src/offices/service.rs`
+- `src/institution_succession.rs`
+- `src/vessels/resolution.rs`
 - `src/tool_access.rs` (reviewed; remaining literals are indices, identities and numeric bounds)
 
 These files only received shared-constant substitutions or relocation of existing
@@ -89,7 +91,6 @@ than blindly moved out of their types or layout checks.
 - `src/individual_demography.rs`
 - `src/institution_funding.rs`
 - `src/institution_services.rs`
-- `src/institution_succession.rs`
 - `src/kin_support.rs`
 - `src/labor.rs`
 - `src/learning_resolution.rs`
@@ -121,7 +122,6 @@ than blindly moved out of their types or layout checks.
 - `src/territory.rs`
 - `src/trade_contact.rs`
 - `src/vessels/crews.rs`
-- `src/vessels/resolution.rs`
 - `src/vessels.rs`
 - `src/viewer.rs`
 - `src/workshop_resolution.rs`
@@ -151,3 +151,12 @@ Final batch verification:
 
 No parameter values, scheduling rules, archive formats or intended outcomes were
 changed. This batch does not complete the repository-wide extraction.
+
+
+## Succession and crew-resolution batch (2026-09-12)
+
+Extracted institutional ballot weights, scholarly topic normalization, quarterly
+ballot interval and assembly labor. Reserve/forecast/execute now use the same
+subsystem-owned ballot cost. Extracted the crew resolution work tolerance.
+Averages, majority arithmetic and independent fixture values stay inline. This
+batch preserves values and operation order and does not complete the pending list.

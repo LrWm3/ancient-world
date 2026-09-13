@@ -466,7 +466,8 @@ impl Culture {
                 .filter_map(|n| {
                     let m = n.capacity.as_ref()?.mandate.as_ref()?;
                     let members = self.institution_election_candidates(h, n.id);
-                    (h.month.is_multiple_of(3)
+                    (h.month
+                        .is_multiple_of(crate::institution_succession::BALLOT_INTERVAL_MONTHS)
                         && !h.sites[site as usize].abandoned
                         && m.holder.is_none()
                         && m.observed < h.month
@@ -474,8 +475,8 @@ impl Culture {
                     .then_some(InstitutionWorkPlan {
                         institution: n.id,
                         members,
-                        requested: 0.05,
-                        minimum: 0.05,
+                        requested: crate::institution_succession::BALLOT_WORKER_MONTHS,
+                        minimum: crate::institution_succession::BALLOT_WORKER_MONTHS,
                         commitment: None,
                         granted: 0.,
                         used: 0.,
@@ -633,7 +634,10 @@ impl Culture {
                     .is_some_and(|m| m.holder.is_none() && m.observed < h.month)
                     && !self.institution_election_candidates(h, n.id).is_empty()
                 {
-                    requests.push(("institution election", 0.05));
+                    requests.push((
+                        "institution election",
+                        crate::institution_succession::BALLOT_WORKER_MONTHS,
+                    ));
                 }
             }
         }

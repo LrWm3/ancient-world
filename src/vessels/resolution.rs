@@ -4,6 +4,8 @@ use crate::resolution::{Boundary, Metric, Mode, Receipt, System};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
+const WORK_TOLERANCE_WORKER_MONTHS: f64 = 1e-5;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CrewWindow {
     pub demand: f64,
@@ -51,7 +53,7 @@ impl CrewProjection {
                 "invalid crew forecast"
             );
             ensure!(
-                w.granted <= w.forecast() + 1e-5,
+                w.granted <= w.forecast() + WORK_TOLERANCE_WORKER_MONTHS,
                 "crew grant exceeds pooled forecast"
             );
             inputs.extend(values[..4].iter().map(|x| x.to_bits()));
@@ -73,7 +75,10 @@ impl CrewProjection {
                 });
             }
         }
-        ensure!(used <= granted + 1e-5, "crew completion exceeds grants");
+        ensure!(
+            used <= granted + WORK_TOLERANCE_WORKER_MONTHS,
+            "crew completion exceeds grants"
+        );
         if compare {
             metrics.push(Metric {
                 name: "completed_crew_work".into(),
