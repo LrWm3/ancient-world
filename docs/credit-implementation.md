@@ -693,10 +693,19 @@ The [completed seed-1024 review comparison](council-credit-review-evaluation.md)
 switchable council-credit extension. They reuse the institution's annual operating
 quote, require local leadership, and retain the existing underwriting and settlement
 path. Controlled tests pass; the [six-arm seed comparison](institution-credit-evaluation.md)
-completed with no loans or effects. Institutional reserve scaling still needs a
-controlled comparison.
+completed with no loans or effects. The reserve-scaling comparison is reported
+below.
 
 [Institutional reserve policies](institution-credit-reserves.md) now distinguish
 the inherited council cash floor from an annual operating-cost reserve. The old
 policy remains the default. Controlled tests pass; the eight-arm reserve comparison
-is running, with institutional upkeep/repair and cash metrics added to reporting.
+completed, with institutional upkeep/repair and cash metrics added to reporting.
+
+## Institutional operating-reserve results
+
+The [eight-arm seed-1024 comparison](institution-credit-reserve-evaluation.md)
+completed for 200 years. Institutional operating reserves increased credit-only
+requests from 6 to 35, but all were rejected for zero net repayment-source
+capacity. No loans occurred. History outside credit records matched controls
+exactly. Stage 2 remains gated; the next evidence gap is an automatic bridge
+funding useful work, with realistic retained operating costs.

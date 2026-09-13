@@ -39,5 +39,6 @@ institution under both policies, checks bounded actual principal and retained
 operating cash, and verifies accounting and checkpoint replay. Existing exclusion
 cases for leadership, building access and failed repayment capacity remain in that
 fixture. The CLI policy test, 19 active market tests, nine Python reporting tests,
-and strict all-target Clippy also passed. An eight-arm, 200-year seed-1024 comparison
-is running separately; a successful fixture is not its balance result.
+and strict all-target Clippy also passed. The [eight-arm, 200-year comparison](institution-credit-reserve-evaluation.md)
+completed: operating reserves enabled more requests but no loans, because net
+repayment capacity remained zero. The fixture does not establish a balance benefit.
