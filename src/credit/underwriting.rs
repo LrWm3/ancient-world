@@ -436,13 +436,13 @@ impl crate::civilization::History {
             );
             offer.cash = offer.cash.min(actual);
         }
+        // Numeric portfolio view only: original contracts and provenance stay intact.
+        let mut portfolio = self.credit.loans.clone();
+        for loan in &mut portfolio {
+            loan.terms.lender = self.credit.ownership.owner_at(loan, self.month)?;
+        }
         let grants = resolve(
-            self.month,
-            &policy,
-            &self.credit.loans,
-            &offers,
-            &evidence,
-            &requests,
+            self.month, &policy, &portfolio, &offers, &evidence, &requests,
         )?;
         let index = self.credit.rounds.len();
         let loan_ids = vec![None; grants.len()];

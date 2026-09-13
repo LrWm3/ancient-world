@@ -1,11 +1,10 @@
 # Creditor succession: ownership boundary and implementation work
 
-Status: a standalone dated-ownership primitive now exists in
-`src/credit/ownership.rs`. It is not yet connected to History, payments or archives;
-world claims are not yet assignable. Retained estate settlement exists; The current validator now requires original borrower
-and lender accounts to remain resolvable, with finite nonnegative cash, including
-closed accounts and fully settled contracts. Closing an account must not erase its
-historical identity.
+Status: consensual whole-claim assignments between existing operating account
+types now connect to History, dated repayments/recoveries, restructuring consent,
+lender exposure, explorer reports and archives. Household recipients and automatic
+estate succession remain unfinished. Original accounts must remain resolvable
+with finite nonnegative cash, including after closure and final settlement.
 
 ## Why a new owner field is insufficient
 
@@ -119,13 +118,21 @@ to the borrower, absent consent and invalid activation dates. Append validates a
 candidate before replacing state; errors leave the original ledger untouched.
 Loaded ledgers must be validated before lookup. Month overflow rejects safely.
 
-This primitive checks consent identities, not whether a real actor or estate
-was authorized to supply them. The History adapter must verify actual counterparties,
-legal authority and causal event references before calling it. Household settlement
-receipts, estate allocation, current-owner payments/recovery, exposure, consent
-integration and world persistence remain required before enabling assignments.
-There is deliberately no world switch or serialized History field accepting an
-ownership chain that existing payment code would ignore.
+The explicit `History::assign_credit_claim` API accepts consent supplied by each
+account's owning policy; it does not generate a political decision or estate order.
+It validates operating counterparties, optional causal references and the existing
+ledger, and rejects transfers from an account with live borrowing claims.
+Assignments activate next month through dated lookup; no new scheduler phase or
+monthly transfer is introduced. `Credit.ownership` archives the chain, defaulting
+to empty for old worlds. No automatic gift policy is enabled.
+
+Payment, servicing precision checks, retained-estate settlement, default recovery
+and automatic delayed-export recovery resolve the dated owner. Restructuring
+receipts preserve both original terms and the consenting creditor at that month.
+Underwriting uses a transient portfolio view to charge inherited exposure to its
+current owner; persisted original loan terms remain unchanged. The explorer lists
+assignment effective dates alongside the original lender. Household settlement
+receipts and legal estate succession remain separate unfinished work.
 
 Verification: all three ownership unit tests and strict all-target Clippy passed.
 Tests cover two successive owners, next-month boundaries, serialized continuation,
@@ -133,3 +140,35 @@ unchanged original contracts, duplicate and unauthorized requests, overlapping
 assignments, self/debtor recipients, overflow, missing loans and corrupted loaded
 dates/IDs. They verify ledger semantics only; cash-routing integration fixtures
 remain necessary before enabling this in History.
+
+## Integrated assignment constraints
+
+Only existing Town, Council, Institution and Operator accounts participate in
+this first API. Closed estates can still receive already assigned payments, but
+cannot initiate a voluntary gift. The estate policy must establish authority and
+priority before distributing claims automatically. Merely moving an institution
+or replacing an officeholder requires no assignment.
+
+Original disbursements validate against original parties. Each repayment and
+recovery validates against the creditor at its own month; relabeling an old receipt
+with today's owner is invalid. Defaults and recovery totals stay attached to the
+original loan, so changing creditor cannot reset the recoverable loss.
+
+The integrated market fixture now checks actual partial payments before and after
+activation, unchanged cash at assignment, duplicate rejection, same-backend JSON
+continuation, preserved original terms, historical recipient validation and
+post-default recovery to the new owner. It also compares former/current creditor
+consent against identical opening states and shows inherited exposure exhausting a
+low lender limit while a higher limit permits the same new request. All 17 CPU
+market tests passed; the two hardware tests in that target were not run by this
+command. Full-world balance effects of an automatic succession policy remain untested
+because that policy is not enabled or implemented yet.
+
+Verification for this integration: 17 CPU market tests, 13 export-contract tests
+and 22 credit unit tests passed. The recipient-balance rejection fixture also
+passed after the final preflight correction. An initial command named a nonexistent
+`exports` integration target; it was corrected to `cargo test --lib export_contracts`,
+which actually ran all 13 tests. This is controlled integration evidence, not a
+new multi-seed balance claim.
+
+Strict all-target Clippy passed after the final change.

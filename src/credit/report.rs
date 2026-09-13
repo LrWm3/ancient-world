@@ -10,6 +10,7 @@ pub struct Amounts {
 }
 #[derive(Clone, Debug, Serialize)]
 pub struct LoanReport {
+    pub assignments: Vec<super::ownership::Assignment>,
     pub id: u64,
     pub currency: CurrencyId,
     pub lender: Account,
@@ -53,6 +54,13 @@ impl Credit {
                     target.interest += entry.interest;
                 }
                 LoanReport {
+                    assignments: self
+                        .ownership
+                        .assignments()
+                        .iter()
+                        .filter(|a| a.request.loan == loan.id)
+                        .cloned()
+                        .collect(),
                     id: loan.id,
                     currency: loan.terms.currency,
                     lender: loan.terms.lender,

@@ -180,7 +180,11 @@ impl History {
                 allowance * (cash[&borrower] / demand[&borrower].max(f64::MIN_POSITIVE)).min(1.);
             if allowance <= 0.
                 || self
-                    .settlement_balance(self.credit.loans[loan as usize].terms.lender)
+                    .settlement_balance(
+                        self.credit
+                            .ownership
+                            .owner_at(&self.credit.loans[loan as usize], self.month)?,
+                    )
                     .is_err()
             {
                 continue;

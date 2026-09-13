@@ -32,6 +32,7 @@ impl History {
                                 | "loan_defaulted"
                                 | "loan_restructured"
                                 | "loan_recovery"
+                                | "loan_assigned"
                         )
                         && u32::try_from(loan).map_or(true, |subject| event
                             .subjects
@@ -71,7 +72,12 @@ impl History {
     pub(crate) fn record_credit_event(&mut self, loan: u64, kind: &str, detail: String) {
         let contract = &self.credit.loans[loan as usize];
         let site = self.credit_event_site(contract.terms.borrower);
-        let other = self.credit_event_site(contract.terms.lender);
+        let other = self.credit_event_site(
+            self.credit
+                .ownership
+                .owner_at(contract, self.month)
+                .expect("validated current creditor"),
+        );
         let previous = self.credit.last_events.get(&loan).copied();
         self.event(kind, site, other, detail);
         let event = self.events.last_mut().unwrap();

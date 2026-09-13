@@ -70,7 +70,9 @@ impl History {
             if let Some(cash) = closed.get(&loan.terms.borrower) {
                 if matches!(loan.status, Status::Performing | Status::Arrears)
                     && claims[&loan.terms.borrower] > 0.
-                    && self.settlement_balance(loan.terms.lender).is_ok()
+                    && self
+                        .settlement_balance(self.credit.ownership.owner_at(loan, self.month)?)
+                        .is_ok()
                 {
                     plans.push((
                         loan.id,

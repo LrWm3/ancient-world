@@ -105,7 +105,10 @@ impl History {
             }
             let borrower = loan.terms.borrower;
             let cash = self.settlement_balance(borrower).ok().map(|b| b.value());
-            let available = cash.is_some() && self.settlement_balance(loan.terms.lender).is_ok();
+            let available = cash.is_some()
+                && self
+                    .settlement_balance(self.credit.ownership.owner_at(loan, self.month)?)
+                    .is_ok();
             let reserve = policy
                 .protected_cash
                 .iter()
@@ -147,7 +150,8 @@ impl History {
                 && remainder <= (receipt.allowance - receipt.paid).max(0.)
             {
                 let from = self.settlement_balance(current.terms.borrower)?;
-                let to = self.settlement_balance(current.terms.lender)?;
+                let to =
+                    self.settlement_balance(self.credit.ownership.owner_at(current, self.month)?)?;
                 if from.value() >= remainder {
                     let (_, _, transferable) = super::accounts::quote(from, to, remainder)?;
                     if transferable == 0. {

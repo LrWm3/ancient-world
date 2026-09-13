@@ -26,7 +26,7 @@ pub struct Request {
 pub struct Receipt {
     pub request: Request,
     pub transfer: Transfer,
-    /// Original borrower, then original lender; balances bracket only this transfer.
+    /// Original borrower, then dated creditor; balances bracket only this transfer.
     pub opening_cash: [f64; 2],
     pub closing_cash: [f64; 2],
 }
@@ -90,13 +90,17 @@ impl History {
         let pay_interest = request.allowance.min(interest);
         let pay_principal = (request.allowance - pay_interest).min(principal);
         let terms = self.credit.loans[request.loan as usize].terms.clone();
+        let creditor = self
+            .credit
+            .ownership
+            .owner_at(&self.credit.loans[request.loan as usize], self.month)?;
         let opening_cash = [
             self.settlement_balance(terms.borrower)?.value(),
-            self.settlement_balance(terms.lender)?.value(),
+            self.settlement_balance(creditor)?.value(),
         ];
         let transfer = self.transfer_credit_cash(
             terms.borrower,
-            terms.lender,
+            creditor,
             terms.currency,
             pay_principal,
             pay_interest,
@@ -106,7 +110,7 @@ impl History {
             self.settlement_balance(terms.borrower)
                 .expect("preflighted recovery borrower")
                 .value(),
-            self.settlement_balance(terms.lender)
+            self.settlement_balance(creditor)
                 .expect("preflighted recovery lender")
                 .value(),
         ];
@@ -138,7 +142,7 @@ impl History {
                     && q.month <= self.month
                     && t.month == q.month
                     && t.from == loan.terms.borrower
-                    && t.to == loan.terms.lender
+                    && t.to == self.credit.ownership.owner_at(loan, q.month)?
                     && t.currency == loan.terms.currency
                     && [q.allowance, t.requested, t.principal, t.interest]
                         .iter()

@@ -1455,3 +1455,224 @@ fn default_recovery_preserves_loss_transfers_real_cash_and_cannot_replay() {
     corrupt.credit.recoveries[1].transfer.principal += 1.;
     assert!(corrupt.validate_credit().is_err());
 }
+
+#[test]
+fn assigned_credit_routes_payments_and_recovery_by_month_without_rewriting_origin() {
+    use ancient_world::credit::{
+        ownership, recovery, Account, RepaymentSource, Status, Terms, SHARED_CURRENCY,
+    };
+    let mut h = network();
+    for s in &mut h.sites {
+        s.economy.finance = [0.; 4];
+    }
+    h.sites[0].economy.finance = [200., 200., 0., 0.];
+    let terms = Terms {
+        lender: Account::Town(0),
+        borrower: Account::Town(1),
+        currency: SHARED_CURRENCY,
+        source: RepaymentSource::Export {
+            contract: 0,
+            payment_month: 2,
+        },
+        annual_simple_rate: 0.12,
+        maturity_month: 3,
+        grace_months: 3,
+    };
+    h.commit_credit_loan(terms.clone(), 100.).unwrap();
+    h.month = 1;
+    h.pay_credit_loan(0, 10.).unwrap();
+    h.month = 2;
+    let request = ownership::Request {
+        id: 1,
+        loan: 0,
+        month: 2,
+        from: Account::Town(0),
+        to: Account::Town(2),
+        owner_consent: Some(Account::Town(0)),
+        recipient_consent: Some(Account::Town(2)),
+        cause: Some(h.events[0].id),
+    };
+    let cash: Vec<_> = h.sites.iter().map(|s| s.economy.finance[0]).collect();
+    let mut invalid: History = serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
+    invalid.sites[2].economy.finance[0] = -1.;
+    let invalid_before = serde_json::to_value(&invalid).unwrap();
+    assert!(invalid.assign_credit_claim(request.clone()).is_err());
+    assert_eq!(invalid_before, serde_json::to_value(&invalid).unwrap());
+    h.assign_credit_claim(request.clone()).unwrap();
+    assert_eq!(
+        cash,
+        h.sites
+            .iter()
+            .map(|s| s.economy.finance[0])
+            .collect::<Vec<_>>()
+    );
+    let once = serde_json::to_value(&h).unwrap();
+    assert!(h.assign_credit_claim(request).is_err());
+    assert_eq!(once, serde_json::to_value(&h).unwrap());
+    h.pay_credit_loan(0, 5.).unwrap();
+    assert_eq!(
+        h.credit.cash_receipts.last().unwrap().transfer.to,
+        Account::Town(0)
+    );
+    h.validate_credit().unwrap();
+    let checkpoint = serde_json::to_value(&h).unwrap();
+    let mut resumed: History = serde_json::from_value(checkpoint.clone()).unwrap();
+    for world in [&mut h, &mut resumed] {
+        world.month = 3;
+        let old_cash = world.sites[0].economy.finance[0];
+        let new_cash = world.sites[2].economy.finance[0];
+        let paid = world.pay_credit_loan(0, 12.).unwrap();
+        assert!(paid > 0.);
+        assert_eq!(world.sites[0].economy.finance[0], old_cash);
+        assert_eq!(
+            f64::from(world.sites[2].economy.finance[0] - new_cash),
+            paid
+        );
+        assert_eq!(
+            world.credit.cash_receipts.last().unwrap().transfer.to,
+            Account::Town(2)
+        );
+        assert_eq!(
+            serde_json::to_value(&world.credit.loans[0].terms).unwrap(),
+            serde_json::to_value(&terms).unwrap()
+        );
+        world.validate_credit().unwrap();
+        assert!(world.economy_residuals()[3].abs() < 1e-12);
+    }
+    assert_eq!(
+        serde_json::to_value(&h).unwrap(),
+        serde_json::to_value(resumed).unwrap()
+    );
+    // Consent follows the effective creditor; the original lender cannot extend
+    // someone else's claim. Each comparison starts from the same pending archive.
+    for (consent, expected) in [
+        (
+            Account::Town(0),
+            ancient_world::credit::restructuring::Decision::NoConsent,
+        ),
+        (
+            Account::Town(2),
+            ancient_world::credit::restructuring::Decision::Accepted,
+        ),
+    ] {
+        let mut world: History = serde_json::from_value(checkpoint.clone()).unwrap();
+        world.month = 3;
+        world.credit.servicing_policy.available_cash_share = 0.;
+        world.service_credit_month().unwrap();
+        let decision = world
+            .resolve_credit_restructuring(ancient_world::credit::restructuring::Proposal {
+                month: 3,
+                loan: 0,
+                revised_maturity: 6,
+                expected_payment_month: 5,
+                lender_consent: Some(consent),
+                borrower_consent: Some(Account::Town(1)),
+                evidence: ancient_world::credit::underwriting::Evidence {
+                    source: terms.source,
+                    beneficiary: terms.borrower,
+                    observed_month: 3,
+                    expected_receipts: 1000.,
+                    operating_costs: 0.,
+                    expected_loss_fraction: 0.,
+                },
+            })
+            .unwrap();
+        assert_eq!(decision, expected);
+        assert_eq!(
+            world.credit.restructurings[0].creditor,
+            Some(Account::Town(2))
+        );
+        assert_eq!(
+            world.credit.restructurings[0].opening.terms.lender,
+            Account::Town(0)
+        );
+        world.validate_credit().unwrap();
+        let restored: History =
+            serde_json::from_value(serde_json::to_value(&world).unwrap()).unwrap();
+        restored.validate_credit().unwrap();
+    }
+    // The new owner has cash, but its inherited outstanding principal consumes
+    // the lender exposure ceiling. Raising only that ceiling permits this request.
+    for (limit, expected) in [(1., 0.), (1000., 1.)] {
+        use ancient_world::credit::underwriting::{Evidence, Offer, Policy, Request};
+        let mut world: History = serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
+        let source = RepaymentSource::Export {
+            contract: 99,
+            payment_month: 5,
+        };
+        let round = world
+            .fund_credit_requests(
+                Policy {
+                    max_lender_principal: limit,
+                    ..Default::default()
+                },
+                vec![Offer {
+                    lender: Account::Town(2),
+                    month: 3,
+                    cash: 10.,
+                    operating_reserve: 0.,
+                    offered_principal: 1.,
+                    minimum_annual_rate: 0.,
+                }],
+                vec![Evidence {
+                    source,
+                    beneficiary: Account::Town(0),
+                    observed_month: 3,
+                    expected_receipts: 100.,
+                    operating_costs: 0.,
+                    expected_loss_fraction: 0.,
+                }],
+                vec![Request {
+                    id: 90,
+                    month: 3,
+                    principal: 1.,
+                    terms: Terms {
+                        lender: Account::Town(2),
+                        borrower: Account::Town(0),
+                        source,
+                        currency: SHARED_CURRENCY,
+                        annual_simple_rate: 0.,
+                        maturity_month: 6,
+                        grace_months: 1,
+                    },
+                }],
+            )
+            .unwrap();
+        assert_eq!(world.credit.rounds[round].grants[0].granted, expected);
+        world.validate_credit().unwrap();
+    }
+    let mut defaulted: History = serde_json::from_value(checkpoint).unwrap();
+    defaulted.month = 7;
+    defaulted.credit.servicing_policy.available_cash_share = 0.;
+    defaulted.service_credit_month().unwrap();
+    assert_eq!(defaulted.credit.loans[0].status, Status::Defaulted);
+    let original_loss = serde_json::to_value(&defaulted.credit.loans[0]).unwrap();
+    let old_cash = defaulted.sites[0].economy.finance[0];
+    let paid = defaulted
+        .recover_defaulted_credit(recovery::Request {
+            id: 50,
+            month: 7,
+            loan: 0,
+            allowance: 10.,
+            reason: recovery::Reason::VoluntarySettlement,
+        })
+        .unwrap();
+    assert!(paid > 0.);
+    assert_eq!(defaulted.sites[0].economy.finance[0], old_cash);
+    assert_eq!(defaulted.credit.recoveries[0].transfer.to, Account::Town(2));
+    assert_eq!(
+        original_loss,
+        serde_json::to_value(&defaulted.credit.loans[0]).unwrap()
+    );
+    defaulted.validate_credit().unwrap();
+    assert!(defaulted.economy_residuals()[3].abs() < 1e-12);
+    let mut corrupted: History = serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
+    corrupted
+        .credit
+        .cash_receipts
+        .last_mut()
+        .unwrap()
+        .transfer
+        .to = Account::Town(0);
+    assert!(corrupted.validate_credit().is_err());
+}

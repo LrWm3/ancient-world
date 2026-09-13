@@ -31,6 +31,8 @@ pub enum Decision {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Receipt {
+    #[serde(default)]
+    pub creditor: Option<Account>,
     pub opening: Loan,
     pub proposal: Proposal,
     pub decision: Decision,
@@ -51,6 +53,16 @@ fn projected_due(loan: &Loan, month: u32) -> f64 {
 /// Portfolio is a completed boundary. Every competing claim to the same original
 /// source remains reserved, including other borrowers and earlier extensions.
 pub fn resolve(month: u32, loan: &Loan, portfolio: &[Loan], proposal: Proposal) -> Result<Receipt> {
+    resolve_for_creditor(month, loan, portfolio, proposal, loan.terms.lender)
+}
+
+fn resolve_for_creditor(
+    month: u32,
+    loan: &Loan,
+    portfolio: &[Loan],
+    proposal: Proposal,
+    creditor: Account,
+) -> Result<Receipt> {
     loan.validate()?;
     let evidence = &proposal.evidence;
     ensure!(
@@ -94,8 +106,9 @@ pub fn resolve(month: u32, loan: &Loan, portfolio: &[Loan], proposal: Proposal) 
         due.is_finite() && competing.is_finite(),
         "restructuring coverage overflow"
     );
-    let decision = decide(month, loan, &proposal, due, competing, net);
+    let decision = decide(month, loan, &proposal, due, competing, net, creditor);
     Ok(Receipt {
+        creditor: Some(creditor),
         opening: loan.clone(),
         proposal,
         decision,
@@ -113,9 +126,10 @@ fn decide(
     due: f64,
     competing: f64,
     net: f64,
+    creditor: Account,
 ) -> Decision {
     let evidence = &proposal.evidence;
-    if proposal.lender_consent != Some(loan.terms.lender)
+    if proposal.lender_consent != Some(creditor)
         || proposal.borrower_consent != Some(loan.terms.borrower)
     {
         Decision::NoConsent
@@ -177,7 +191,8 @@ impl Receipt {
                     p,
                     self.projected_due,
                     self.competing_claims,
-                    self.net_receipts
+                    self.net_receipts,
+                    self.creditor.unwrap_or(self.opening.terms.lender)
                 ),
             "invalid restructuring decision"
         );
@@ -213,8 +228,8 @@ impl History {
                 continue;
             }
             let loan = &self.credit.loans[id as usize];
-            let (Account::Town(lender), Account::Town(borrower)) =
-                (loan.terms.lender, loan.terms.borrower)
+            let creditor = self.credit.ownership.owner_at(loan, self.month)?;
+            let (Account::Town(lender), Account::Town(borrower)) = (creditor, loan.terms.borrower)
             else {
                 continue;
             };
@@ -229,7 +244,7 @@ impl History {
             let Some(maturity) = observation.expected_payment_month.checked_add(1) else {
                 continue;
             };
-            let lender_cash = self.credit_account_cash(loan.terms.lender)?;
+            let lender_cash = self.credit_account_cash(creditor)?;
             let borrower_cash = self.credit_account_cash(loan.terms.borrower)?;
             let proposal = Proposal {
                 month: self.month,
@@ -237,7 +252,7 @@ impl History {
                 revised_maturity: maturity,
                 lender_consent: (lender_cash
                     >= costs[lender as usize] + policy.operating_cash_floor)
-                    .then_some(loan.terms.lender),
+                    .then_some(creditor),
                 borrower_consent: (borrower_cash < costs[borrower as usize] + loan.total_due())
                     .then_some(loan.terms.borrower),
                 evidence: observation.evidence,
@@ -269,9 +284,11 @@ impl History {
             .get(proposal.loan as usize)
             .filter(|l| l.id == proposal.loan)
             .context("missing restructuring loan")?;
-        self.credit_account_cash(loan.terms.lender)?;
+        let creditor = self.credit.ownership.owner_at(loan, self.month)?;
+        self.credit_account_cash(creditor)?;
         self.credit_account_cash(loan.terms.borrower)?;
-        let receipt = resolve(self.month, loan, &self.credit.loans, proposal)?;
+        let receipt =
+            resolve_for_creditor(self.month, loan, &self.credit.loans, proposal, creditor)?;
         let decision = receipt.decision;
         if decision == Decision::Accepted {
             self.credit.loans[receipt.proposal.loan as usize]

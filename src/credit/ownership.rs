@@ -1,5 +1,5 @@
 //! Dated creditor identity. This ledger owns claims, never cash or original terms.
-//! History payment adapters must be connected before enabling assignments in worlds.
+//! Original terms remain immutable; History resolves dated payment recipients.
 use super::{Account, Loan, Status};
 use anyhow::{ensure, Context, Result};
 use serde::{Deserialize, Serialize};
@@ -122,6 +122,83 @@ impl Ownership {
         });
         candidate.validate(loans, month)?;
         *self = candidate;
+        Ok(sequence)
+    }
+}
+
+impl crate::civilization::History {
+    pub fn credit_owner_at(&self, loan: u64, month: u32) -> Result<Account> {
+        let contract = self
+            .credit
+            .loans
+            .get(loan as usize)
+            .filter(|l| l.id == loan)
+            .context("missing ownership loan")?;
+        self.credit.ownership.owner_at(contract, month)
+    }
+
+    pub(crate) fn validate_credit_ownership(&self) -> Result<()> {
+        self.credit
+            .ownership
+            .validate(&self.credit.loans, self.month)?;
+        for assignment in self.credit.ownership.assignments() {
+            let request = &assignment.request;
+            for party in [request.from, request.to] {
+                let cash = self.settlement_balance(party)?.value();
+                ensure!(
+                    cash.is_finite() && cash >= 0.,
+                    "invalid claim-owner account"
+                );
+            }
+            if let Some(cause) = request.cause {
+                ensure!(
+                    self.events
+                        .get(cause as usize)
+                        .is_some_and(|e| e.id == cause && e.month <= request.month),
+                    "invalid assignment cause"
+                );
+            }
+        }
+        Ok(())
+    }
+
+    /// Explicit consent from both owning policies is required. Only operating
+    /// accounts can make voluntary gifts; estate distributions are a separate policy.
+    /// Accounts with live borrowing claims cannot give away creditor assets.
+    pub fn assign_credit_claim(&mut self, request: Request) -> Result<u64> {
+        self.validate_credit()?;
+        for party in [request.from, request.to] {
+            let cash = self.credit_account_cash(party)?;
+            ensure!(
+                cash.is_finite() && cash >= 0.,
+                "invalid assignment account cash"
+            );
+        }
+        ensure!(
+            !self
+                .credit
+                .loans
+                .iter()
+                .any(|l| l.terms.borrower == request.from
+                    && matches!(l.status, Status::Performing | Status::Arrears)),
+            "indebted account cannot give away creditor assets"
+        );
+        if let Some(cause) = request.cause {
+            ensure!(
+                self.events
+                    .get(cause as usize)
+                    .is_some_and(|e| e.id == cause && e.month <= request.month),
+                "invalid assignment cause"
+            );
+        }
+        let (loan, from, to) = (request.loan, request.from, request.to);
+        let sequence = self
+            .credit
+            .ownership
+            .assign(&self.credit.loans, self.month, request)?;
+        let effective = self.credit.ownership.assignments()[sequence as usize].effective_month;
+        self.record_credit_event(loan, "loan_assigned", format!(
+            "Creditor claim on loan {loan} assigned by consent from {from:?} to {to:?}, effective month {effective}; no cash transferred and original terms retained."));
         Ok(sequence)
     }
 }

@@ -210,8 +210,11 @@ home town. Temporarily inactive relocating institutions are excluded. The automa
 pilots use councils and town commercial payees, while the broader account types
 also support explicit caller-supplied contracts.
 
-The [claim-succession design](credit-claim-succession.md) maps the remaining
-ownership changes across payment, consent, exposure and historical validation.
+[Dated claim ownership](credit-claim-succession.md) now supports explicit
+consensual assignment among existing operating account types. Payments, recovery,
+consent and exposure follow dated ownership while original contracts remain intact.
+This does not yet implement household beneficiaries or automatic legal estate
+succession; those remain in the ownership checklist below.
 
 Remaining estate work and the broader acceptance requirements:
 

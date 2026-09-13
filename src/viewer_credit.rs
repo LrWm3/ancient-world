@@ -49,9 +49,13 @@ pub(super) fn panel(ui: &mut egui::Ui, credit: &Credit) {
         let reports = credit.loan_reports();
         if reports.is_empty() { ui.label("No loans originated."); }
         for r in reports.iter().rev().take(VISIBLE_CREDIT_RECORDS) {
-            ui.collapsing(format!("Loan {} · {} · {} lends to {}", r.id, status_name(r.status), account_name(r.lender), account_name(r.borrower)), |ui| {
+            ui.collapsing(format!("Loan {} · {} · original lender {} · borrower {}", r.id, status_name(r.status), account_name(r.lender), account_name(r.borrower)), |ui| {
                 ui.label(format!("Currency {} · opened month {} · maturity {} · annual simple rate {:.2}%",
                     r.currency.0, r.opened_month, r.maturity_month, r.annual_simple_rate * 100.));
+                for assignment in &r.assignments {
+                    ui.small(format!("Claim assigned from {} to {}, effective month {}",
+                        account_name(assignment.request.from), account_name(assignment.request.to), assignment.effective_month));
+                }
                 ui.label(format!("Repayment evidence: {}", source_name(r.source)));
                 ui.label(format!("Original principal {:.6} · principal due {:.6} · interest due {:.6}",
                     r.original_principal, r.due.principal, r.due.interest));

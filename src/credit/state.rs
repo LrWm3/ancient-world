@@ -14,6 +14,8 @@ pub struct CashReceipt {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Credit {
     #[serde(default)]
+    pub ownership: super::ownership::Ownership,
+    #[serde(default)]
     pub last_events: std::collections::BTreeMap<u64, u64>,
     #[serde(default)]
     pub export_recovery: super::export_recovery::State,
@@ -97,7 +99,7 @@ impl History {
         let (principal, interest) = loan.repayment_quote(allowance)?;
         let transfer = self.transfer_credit_cash(
             loan.terms.borrower,
-            loan.terms.lender,
+            self.credit.ownership.owner_at(&loan, self.month)?,
             loan.terms.currency,
             principal,
             interest,
@@ -118,6 +120,7 @@ impl History {
     }
 
     pub fn validate_credit(&self) -> Result<()> {
+        self.validate_credit_ownership()?;
         self.validate_credit_chronicle()?;
         self.validate_credit_recoveries()?;
         self.validate_export_recovery()?;
@@ -125,6 +128,11 @@ impl History {
         for receipt in &self.credit.restructurings {
             receipt.validate(self.month)?;
             let p = &receipt.proposal;
+            ensure!(
+                receipt.creditor.unwrap_or(receipt.opening.terms.lender)
+                    == self.credit.ownership.owner_at(&receipt.opening, p.month)?,
+                "restructuring consent belongs to wrong creditor"
+            );
             ensure!(
                 restructurings.insert((p.month, p.loan)),
                 "duplicate restructuring decision"
@@ -364,7 +372,8 @@ impl History {
                     );
                 } else {
                     ensure!(
-                        t.from == loan.terms.borrower && t.to == loan.terms.lender,
+                        t.from == loan.terms.borrower
+                            && t.to == self.credit.ownership.owner_at(loan, t.month)?,
                         "invalid repayment counterparties"
                     );
                     principal_paid += t.principal;
