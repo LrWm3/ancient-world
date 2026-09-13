@@ -213,8 +213,9 @@ also support explicit caller-supplied contracts.
 [Dated claim ownership](credit-claim-succession.md) now supports explicit
 consensual assignment among existing operating account types. Payments, recovery,
 consent and exposure follow dated ownership while original contracts remain intact.
-This does not yet implement household beneficiaries or automatic legal estate
-succession; those remain in the ownership checklist below.
+Household beneficiaries now have settlement-only wallets and separate receipt
+accounting. Automatic legal estate succession remains in the ownership checklist
+below; no automatic claim-distribution policy is enabled.
 
 Remaining estate work and the broader acceptance requirements:
 

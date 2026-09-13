@@ -9,6 +9,7 @@ fn account_name(account: Account) -> String {
         Account::Council(id) => ("Council", id),
         Account::Institution(id) => ("Institution", id),
         Account::Operator(id) => ("Operator", id),
+        Account::Household(id) => ("Household", id),
     };
     format!("{kind} #{id}")
 }

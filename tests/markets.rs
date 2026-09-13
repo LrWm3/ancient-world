@@ -1676,3 +1676,172 @@ fn assigned_credit_routes_payments_and_recovery_by_month_without_rewriting_origi
         .to = Account::Town(0);
     assert!(corrupted.validate_credit().is_err());
 }
+
+#[test]
+fn household_claim_receipts_reconcile_without_enabling_household_credit() {
+    use ancient_world::credit::{ownership, Account, RepaymentSource, Terms, SHARED_CURRENCY};
+    use ancient_world::household_economy::{HouseholdAccount, HouseholdEconomy};
+    use ancient_world::society::Household;
+    let mut h = network();
+    for site in &mut h.sites {
+        site.economy.finance = [0.; 4];
+    }
+    h.sites[0].economy.finance = [100., 100., 0., 0.];
+    let society = h.society.as_mut().unwrap();
+    society.households.push(Household {
+        id: 0,
+        site: 2,
+        name: "Beneficiary".into(),
+        share: 1.,
+        head: 0,
+        vacant_since: None,
+        founded: 0,
+        parent: None,
+        generation: 0,
+    });
+    let mut economy = HouseholdEconomy::new(0);
+    economy.accounts.push(HouseholdAccount::default());
+    society.household_economy = Some(economy);
+    let terms = Terms {
+        lender: Account::Town(0),
+        borrower: Account::Town(1),
+        currency: SHARED_CURRENCY,
+        source: RepaymentSource::Export {
+            contract: 0,
+            payment_month: 2,
+        },
+        annual_simple_rate: 0.12,
+        maturity_month: 3,
+        grace_months: 3,
+    };
+    h.commit_credit_loan(terms.clone(), 20.).unwrap();
+    let request = ownership::Request {
+        id: 80,
+        month: 0,
+        loan: 0,
+        from: Account::Town(0),
+        to: Account::Household(0),
+        owner_consent: Some(Account::Town(0)),
+        recipient_consent: Some(Account::Household(0)),
+        cause: None,
+    };
+    let pristine = serde_json::to_value(&h).unwrap();
+    let mut lost: History = serde_json::from_value(pristine.clone()).unwrap();
+    lost.society
+        .as_mut()
+        .unwrap()
+        .relocation
+        .lost_households
+        .insert(0);
+    let lost_before = serde_json::to_value(&lost).unwrap();
+    assert!(lost.assign_credit_claim(request.clone()).is_err());
+    assert_eq!(lost_before, serde_json::to_value(&lost).unwrap());
+    h.assign_credit_claim(request).unwrap();
+    assert_eq!(
+        h.society
+            .as_ref()
+            .unwrap()
+            .household_economy
+            .as_ref()
+            .unwrap()
+            .accounts[0]
+            .cash,
+        0.
+    );
+    let mut resumed: History = serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
+    for world in [&mut h, &mut resumed] {
+        world.month = 1;
+        let original_lender = world.sites[0].economy.finance[0];
+        let paid = world.pay_credit_loan(0, 6.).unwrap();
+        let transfer = &world.credit.cash_receipts.last().unwrap().transfer;
+        let e = world
+            .society
+            .as_ref()
+            .unwrap()
+            .household_economy
+            .as_ref()
+            .unwrap();
+        let a = &e.accounts[0];
+        assert!(paid > 0. && transfer.interest > 0. && transfer.principal > 0.);
+        assert_eq!(a.cash, paid);
+        assert_eq!(a.credit_principal_received, transfer.principal);
+        assert_eq!(a.credit_interest_received, transfer.interest);
+        assert_eq!(a.wages + a.dividends + a.relief + a.capital_returned, 0.);
+        assert_eq!(world.sites[0].economy.finance[0], original_lender);
+        e.validate(world).unwrap();
+        world.validate_credit().unwrap();
+        assert!(world.economy_residuals()[3].abs() < 1e-12);
+        let before = serde_json::to_value(&world).unwrap();
+        for (lender, borrower) in [
+            (Account::Household(0), Account::Town(2)),
+            (Account::Town(0), Account::Household(0)),
+        ] {
+            let mut forbidden = terms.clone();
+            forbidden.lender = lender;
+            forbidden.borrower = borrower;
+            assert!(world.commit_credit_loan(forbidden, 1.).is_err());
+            assert_eq!(before, serde_json::to_value(&world).unwrap());
+        }
+        assert!(world
+            .transfer_credit_cash(
+                Account::Household(0),
+                Account::Town(0),
+                SHARED_CURRENCY,
+                1.,
+                0.
+            )
+            .is_err());
+        assert_eq!(before, serde_json::to_value(&world).unwrap());
+    }
+    assert_eq!(
+        serde_json::to_value(&h).unwrap(),
+        serde_json::to_value(resumed).unwrap()
+    );
+    h.month = 3;
+    h.credit.servicing_policy.available_cash_share = 0.;
+    h.service_credit_month().unwrap();
+    let result = h
+        .resolve_credit_restructuring(ancient_world::credit::restructuring::Proposal {
+            month: 3,
+            loan: 0,
+            revised_maturity: 6,
+            expected_payment_month: 5,
+            lender_consent: Some(Account::Household(0)),
+            borrower_consent: Some(Account::Town(1)),
+            evidence: ancient_world::credit::underwriting::Evidence {
+                source: terms.source,
+                beneficiary: terms.borrower,
+                observed_month: 3,
+                expected_receipts: 100.,
+                operating_costs: 0.,
+                expected_loss_fraction: 0.,
+            },
+        })
+        .unwrap();
+    assert_eq!(
+        result,
+        ancient_world::credit::restructuring::Decision::Accepted
+    );
+    h.validate_credit().unwrap();
+    h.society
+        .as_ref()
+        .unwrap()
+        .household_economy
+        .as_ref()
+        .unwrap()
+        .validate(&h)
+        .unwrap();
+    // Old household archives initialize both receipt counters to zero.
+    let mut old = serde_json::to_value(HouseholdAccount::default()).unwrap();
+    old.as_object_mut()
+        .unwrap()
+        .remove("credit_principal_received");
+    old.as_object_mut()
+        .unwrap()
+        .remove("credit_interest_received");
+    let restored: HouseholdAccount = serde_json::from_value(old).unwrap();
+    assert_eq!(
+        restored.credit_principal_received + restored.credit_interest_received,
+        0.
+    );
+}

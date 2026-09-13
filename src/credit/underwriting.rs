@@ -198,6 +198,10 @@ pub fn resolve(
     let mut offer_map = BTreeMap::new();
     for offer in offers {
         ensure!(
+            !matches!(offer.lender, Account::Household(_)),
+            "household lending is unsupported"
+        );
+        ensure!(
             [
                 offer.cash,
                 offer.operating_reserve,
@@ -275,6 +279,11 @@ pub fn resolve(
     let mut factors = Vec::new();
     for request in &ordered {
         request.terms.validate(month)?;
+        ensure!(
+            !matches!(request.terms.lender, Account::Household(_))
+                && !matches!(request.terms.borrower, Account::Household(_)),
+            "household loan requests are unsupported"
+        );
         ensure!(
             request.principal.is_finite() && request.principal > 0.,
             "invalid requested principal"

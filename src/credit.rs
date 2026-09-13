@@ -39,6 +39,8 @@ pub enum Account {
     Institution(u32),
     Town(u32),
     Operator(u32),
+    /// Settlement-only recipient; never a new borrower or lender offer.
+    Household(u32),
 }
 
 /// Stable payment provenance; an estimate is not a second cash balance.

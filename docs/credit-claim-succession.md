@@ -2,8 +2,8 @@
 
 Status: consensual whole-claim assignments between existing operating account
 types now connect to History, dated repayments/recoveries, restructuring consent,
-lender exposure, explorer reports and archives. Household recipients and automatic
-estate succession remain unfinished. Original accounts must remain resolvable
+lender exposure, explorer reports and archives. Household settlement-only recipients are supported; automatic legal estate
+succession remains unfinished. Original accounts must remain resolvable
 with finite nonnegative cash, including after closure and final settlement.
 
 ## Why a new owner field is insufficient
@@ -37,12 +37,13 @@ explicit debt-write-off rule. Reject overlapping pending assignments and request
 from a party that does not own the claim. Keep closed estates until their records
 and obligations have a resolved disposition.
 
-Household beneficiaries need a **settlement-only** payment adapter. Adding a
-household recipient must not make households eligible for new credit requests or
-lender offers. Principal received through inheritance is inherited capital, not
-wages, workshop sales or food production; interest needs its own transfer category.
-Use the existing household cash store and extend its reconciliation rather than
-introducing another balance.
+Household beneficiaries use a **settlement-only** payment adapter. They cannot
+originate loans, submit lending offers or debit their wallet through credit
+operations. Actual receipts increase the existing household cash store and separate
+`credit_principal_received` / `credit_interest_received` counters; household
+reconciliation includes both. These are cash receipts on acquired claims, not wages,
+workshop sales, dividends or food production. Assignment alone increments neither
+wallet nor receipt counters. Old archives initialize the counters to zero.
 
 ## Timing and provenance
 
@@ -132,7 +133,7 @@ receipts preserve both original terms and the consenting creditor at that month.
 Underwriting uses a transient portfolio view to charge inherited exposure to its
 current owner; persisted original loan terms remain unchanged. The explorer lists
 assignment effective dates alongside the original lender. Household settlement
-receipts and legal estate succession remain separate unfinished work.
+receipts are now implemented; legal estate succession remains unfinished.
 
 Verification: all three ownership unit tests and strict all-target Clippy passed.
 Tests cover two successive owners, next-month boundaries, serialized continuation,
@@ -143,9 +144,10 @@ remain necessary before enabling this in History.
 
 ## Integrated assignment constraints
 
-Only existing Town, Council, Institution and Operator accounts participate in
-this first API. Closed estates can still receive already assigned payments, but
-cannot initiate a voluntary gift. The estate policy must establish authority and
+Existing Town, Council, Institution and Operator accounts can initiate consensual
+assignments. A Household can receive a claim and its subsequent payments, but
+cannot initiate a credit gift or new loan. Closed estates can still receive
+already assigned payments, but cannot initiate a voluntary gift. The estate policy must establish authority and
 priority before distributing claims automatically. Merely moving an institution
 or replacing an officeholder requires no assignment.
 
@@ -172,3 +174,28 @@ which actually ran all 13 tests. This is controlled integration evidence, not a
 new multi-seed balance claim.
 
 Strict all-target Clippy passed after the final change.
+
+## Household payment boundary
+
+An accepting household must have an existing stable household record and wallet;
+no account is silently created. A household recorded lost in relocation cannot
+accept a new claim or consent to a restructuring. Payments on an existing claim
+can still reach its retained wallet; the existing household closure/retail path
+returns lost-household cash through its `estate_returned` ledger. Vacancy or a
+new household head does not change the household's account identity. Automatic
+succession of the claim itself remains unimplemented.
+
+Counter overflow, invalid receipt stocks and incompatible account representations
+are checked before either wallet changes. Household food buying continues to use
+its existing cash budget; no extra food, employment or political weight is awarded
+by the credit adapter. Automatic estate distributions still require the separate
+authority and priority policy described above.
+
+Household verification: all 18 CPU market tests and strict all-target Clippy passed.
+The new fixture checks zero cash at assignment, separate principal/interest receipts,
+unchanged wages/dividends/relief, global money and household-wallet reconciliation,
+serialized continuation, lost-recipient rejection, old counter defaults, household
+creditor consent, and rejection of new household loans and credit debits. An initial
+fixture used a vector operation on the lost-household set; this was corrected before
+the passing run. Automatic estate succession and lost-household claim redistribution
+are not covered by this fixture.

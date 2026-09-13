@@ -49,6 +49,12 @@ impl History {
     }
     fn credit_event_site(&self, account: Account) -> Option<u32> {
         match account {
+            Account::Household(id) => self
+                .society
+                .as_ref()?
+                .households
+                .get(id as usize)
+                .map(|h| h.site),
             Account::Town(id) => self.sites.get(id as usize).map(|s| s.id),
             Account::Council(id) => self
                 .sites

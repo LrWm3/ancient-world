@@ -150,6 +150,28 @@ impl History {
 
     fn account_balance(&self, account: Account, settlement: bool) -> Result<Balance> {
         Ok(match account {
+            Account::Household(id) => {
+                ensure!(
+                    settlement,
+                    "households are settlement-only credit recipients"
+                );
+                let society = self.society.as_ref().context("missing household society")?;
+                ensure!(
+                    society
+                        .households
+                        .get(id as usize)
+                        .is_some_and(|h| h.id == id),
+                    "missing household claim owner"
+                );
+                Balance::Double(
+                    society
+                        .household_economy
+                        .as_ref()
+                        .and_then(|e| e.accounts.get(id as usize))
+                        .context("missing household receipt account")?
+                        .cash,
+                )
+            }
             Account::Town(id) => Balance::Single(
                 self.sites
                     .get(id as usize)
@@ -198,6 +220,19 @@ impl History {
     ) {
         let value = balance.value();
         match account {
+            Account::Household(id) => {
+                let a = &mut self
+                    .society
+                    .as_mut()
+                    .unwrap()
+                    .household_economy
+                    .as_mut()
+                    .unwrap()
+                    .accounts[id as usize];
+                a.cash = value;
+                a.credit_principal_received += principal;
+                a.credit_interest_received += interest;
+            }
             Account::Town(id) => self.sites[id as usize].economy.finance[0] = value as f32,
             Account::Council(id) => {
                 self.society.as_mut().unwrap().councils[id as usize].treasury = value
@@ -225,6 +260,10 @@ impl History {
     ) -> Result<Transfer> {
         ensure!(from != to, "self transfer is not permitted");
         ensure!(
+            !matches!(from, Account::Household(_)),
+            "household credit debits are not supported"
+        );
+        ensure!(
             currency == SHARED_CURRENCY,
             "account currency is not supported"
         );
@@ -251,6 +290,24 @@ impl History {
                 flows.record(received, paid_principal, paid_interest);
                 ensure!(flows.validate(), "operator financing overflow");
             }
+        }
+        if let Account::Household(id) = to {
+            let a = &self
+                .society
+                .as_ref()
+                .unwrap()
+                .household_economy
+                .as_ref()
+                .unwrap()
+                .accounts[id as usize];
+            ensure!(
+                [a.credit_principal_received, a.credit_interest_received]
+                    .iter()
+                    .all(|v| v.is_finite() && *v >= 0.)
+                    && (a.credit_principal_received + paid_principal).is_finite()
+                    && (a.credit_interest_received + paid_interest).is_finite(),
+                "household credit receipts overflow"
+            );
         }
         self.set_credit_balance(from, debit, false, paid_principal, paid_interest);
         self.set_credit_balance(to, credit, true, paid_principal, paid_interest);

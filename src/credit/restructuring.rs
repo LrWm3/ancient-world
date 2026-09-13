@@ -285,7 +285,21 @@ impl History {
             .filter(|l| l.id == proposal.loan)
             .context("missing restructuring loan")?;
         let creditor = self.credit.ownership.owner_at(loan, self.month)?;
-        self.credit_account_cash(creditor)?;
+        if let Account::Household(id) = creditor {
+            ensure!(
+                !self
+                    .society
+                    .as_ref()
+                    .context("missing household society")?
+                    .relocation
+                    .lost_households
+                    .contains(&id),
+                "lost household cannot consent to restructuring"
+            );
+            self.settlement_balance(creditor)?;
+        } else {
+            self.credit_account_cash(creditor)?;
+        }
         self.credit_account_cash(loan.terms.borrower)?;
         let receipt =
             resolve_for_creditor(self.month, loan, &self.credit.loans, proposal, creditor)?;

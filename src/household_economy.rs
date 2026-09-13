@@ -33,6 +33,11 @@ const MAX_EARNINGS_WEIGHT: f64 = 2.;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct HouseholdAccount {
+    /// Actual receipts on acquired creditor claims, not wages or production.
+    #[serde(default)]
+    pub credit_principal_received: f64,
+    #[serde(default)]
+    pub credit_interest_received: f64,
     /// Actual title-settlement receipts, separate from earnings and relief.
     #[serde(default)]
     pub legal_compensation_received: f64,
@@ -220,6 +225,8 @@ impl HouseholdEconomy {
             );
             ensure!(
                 [
+                    a.credit_principal_received,
+                    a.credit_interest_received,
                     a.legal_compensation_received,
                     a.family_received,
                     a.family_sent,
@@ -255,6 +262,8 @@ impl HouseholdEconomy {
                     - a.relief
                     - a.family_received
                     - a.legal_compensation_received
+                    - a.credit_principal_received
+                    - a.credit_interest_received
                     + a.family_sent
                     + a.food_spending
                     + a.estate_returned
@@ -267,6 +276,8 @@ impl HouseholdEconomy {
                             + a.dividends
                             + a.relief
                             + a.legal_compensation_received
+                            + a.credit_principal_received
+                            + a.credit_interest_received
                             + a.family_received
                             + a.family_sent
                             + a.capital_invested

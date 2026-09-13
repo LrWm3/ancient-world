@@ -312,6 +312,11 @@ impl History {
                 "invalid loan identity or future boundary"
             );
             loan.validate()?;
+            ensure!(
+                !matches!(loan.terms.lender, super::Account::Household(_))
+                    && !matches!(loan.terms.borrower, super::Account::Household(_)),
+                "household loan origination is unsupported"
+            );
             // Closure disables origination, not legal identity. Historical parties
             // must still resolve to retained accounts even after final settlement.
             // A future assignment must preserve these parties and identify its

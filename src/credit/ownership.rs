@@ -168,7 +168,23 @@ impl crate::civilization::History {
     pub fn assign_credit_claim(&mut self, request: Request) -> Result<u64> {
         self.validate_credit()?;
         for party in [request.from, request.to] {
-            let cash = self.credit_account_cash(party)?;
+            let cash = if matches!(party, Account::Household(_)) && party == request.to {
+                if let Account::Household(id) = party {
+                    ensure!(
+                        !self
+                            .society
+                            .as_ref()
+                            .context("missing household society")?
+                            .relocation
+                            .lost_households
+                            .contains(&id),
+                        "lost household cannot accept a new claim"
+                    );
+                }
+                self.settlement_balance(party)?.value()
+            } else {
+                self.credit_account_cash(party)?
+            };
             ensure!(
                 cash.is_finite() && cash >= 0.,
                 "invalid assignment account cash"
