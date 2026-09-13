@@ -1,5 +1,17 @@
 // Deterministic regional surface refinement for the explorer and regional exports.
 // Macro drainage and ecological inventories remain on their declared simulation grids.
+const REGIONAL_DRY_WATER_DEPTH_M:f32=.25;
+const REGIONAL_INTERPOLATION_WEIGHT_FLOOR:f32=.00001;
+const REGIONAL_NOISE_FREQUENCY_PER_CELL:f32=1.5;
+const REGIONAL_FINE_FREQUENCY_MULTIPLIER:f32=3.1;
+const REGIONAL_FINE_NOISE_OFFSET:f32=17.;
+const REGIONAL_ROUGHNESS_BASE_M:f32=25.;
+const REGIONAL_ROUGHNESS_STRESS_M:f32=150.;
+const REGIONAL_FLOW_SMOOTHING:f32=.3;
+const REGIONAL_LAND_MASK_GAIN:f32=4.;
+const REGIONAL_RIDGE_CENTER:f32=.65;
+const REGIONAL_FINE_RELIEF_SHARE:f32=.35;
+
 fn regional_hash(x:u32)->u32 {var q=x^v.extra.w;q=(q^(q>>16u))*0x7feb352du;q=(q^(q>>15u))*0x846ca68bu;return q^(q>>16u);}
 fn regional_lattice(q:vec3<i32>)->f32 {return f32(regional_hash(bitcast<u32>(q.x)*73856093u^bitcast<u32>(q.y)*19349663u^bitcast<u32>(q.z)*83492791u)&0xffffffu)/16777216.;}
 fn regional_noise(q:vec3<f32>)->f32 {
@@ -18,19 +30,19 @@ fn regional_base(d:vec3<f32>)->vec3<f32> {
  let c=cells[index(regional_direction(f,xy.x,xy.y))];
  {
  let w=mix(1.-t.x,t.x,dx)*mix(1.-t.y,t.y,dy);
- let dry=select(0.,1.,c.tags.x>=2u&&c.water.x<=.25);
+ let dry=select(0.,1.,c.tags.x>=2u&&c.water.x<=REGIONAL_DRY_WATER_DEPTH_M);
  sum+=vec3(c.terrain.x+c.water.x,c.geology.x*dry,c.water.w)*w;weight+=w;
  }}
- return select(vec3(center.terrain.x,center.geology.x,center.water.w),sum/max(weight,.00001),weight>0.);
+ return select(vec3(center.terrain.x,center.geology.x,center.water.w),sum/max(weight,REGIONAL_INTERPOLATION_WEIGHT_FLOOR),weight>0.);
 }
 fn regional_height(d:vec3<f32>)->f32 {
  let c=cells[index(d)];
- let base=regional_base(d);let frequency=f32(v.dims.x)*1.5;
- let broad=regional_noise(d*frequency);let fine=regional_noise(d*frequency*3.1+17.);
+ let base=regional_base(d);let frequency=f32(v.dims.x)*REGIONAL_NOISE_FREQUENCY_PER_CELL;
+ let broad=regional_noise(d*frequency);let fine=regional_noise(d*frequency*REGIONAL_FINE_FREQUENCY_MULTIPLIER+REGIONAL_FINE_NOISE_OFFSET);
  let ridges=1.-abs(broad*2.-1.);
- let roughness=(25.+150.*base.y)/(1.+log(1.+max(0.,base.z))*.3);
- let land_weight=clamp(base.y*4.,0.,1.);
- return base.x+((ridges-.65)*roughness+(fine-.5)*roughness*.35)*land_weight;
+ let roughness=(REGIONAL_ROUGHNESS_BASE_M+REGIONAL_ROUGHNESS_STRESS_M*base.y)/(1.+log(1.+max(0.,base.z))*REGIONAL_FLOW_SMOOTHING);
+ let land_weight=clamp(base.y*REGIONAL_LAND_MASK_GAIN,0.,1.);
+ return base.x+((ridges-REGIONAL_RIDGE_CENTER)*roughness+(fine-.5)*roughness*REGIONAL_FINE_RELIEF_SHARE)*land_weight;
 }
 // Interpolate visual attributes as well as height: categorical simulation cells
 // remain inspectable, while regional rendering does not turn them into square tiles.

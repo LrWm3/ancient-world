@@ -422,3 +422,13 @@ The hardware-enabled regional fixture passed: repeated generation, acyclic
 routing, accounted runoff, pools, habitat and invalid-region handling. This
 completes this shader's parameter pass; planetary simulation, ecology, economy,
 society and viewer shader reviews remain separate outstanding work.
+
+## Regional renderer parameters
+
+Reviewed `shaders/regional.wgsl`, the visual regional refinement shader. Named
+water-depth, interpolation tolerance, noise frequency, roughness, flow smoothing
+and ridge-detail parameters at the top of the owning file. Numeric precision and
+expression order are unchanged; hash mixing, layout indices and interpolation
+identities remain inline. The hardware-enabled
+`gpu_history_checkpoints_and_exports` fixture passed, including regional rendering.
+This completes this file's pass, not the remaining planetary shader review.
