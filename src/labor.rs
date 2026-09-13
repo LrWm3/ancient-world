@@ -192,7 +192,7 @@ impl crate::civilization::History {
                                 .filter(|r| r.settled)
                                 .all(|r| administration
                                     .iter()
-                                    .any(|u| u.institution == r.institution && u.used >= 0.05)),
+                                    .any(|u| u.institution == r.institution && u.used >= crate::institution_funding::ADMINISTRATION_WORKER_MONTHS)),
                             "institution funding lacks completed administration"
                         );
                     }

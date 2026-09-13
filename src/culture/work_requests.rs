@@ -159,12 +159,16 @@ impl InstitutionWorkPlan {
 }
 impl WorkPlan {
     pub(crate) fn raw_work(&self) -> f32 {
-        self.actions.iter().map(|(_, w)| *w).sum::<f32>().min(0.5)
+        self.actions
+            .iter()
+            .map(|(_, w)| *w)
+            .sum::<f32>()
+            .min(MAX_ACTION_WORKER_MONTHS)
     }
     pub(crate) fn feasible_work(&self) -> f32 {
         self.space_feasible_work
             .unwrap_or_else(|| self.raw_work())
-            .min(0.5)
+            .min(MAX_ACTION_WORKER_MONTHS)
     }
     pub(crate) fn room_denied_work(&self) -> f32 {
         self.space_feasible_work.map_or(0., |feasible| {
@@ -502,8 +506,8 @@ impl Culture {
                         .then_some(InstitutionWorkPlan {
                             institution: n.id,
                             members,
-                            requested: 0.05,
-                            minimum: 0.05,
+                            requested: crate::institution_funding::ADMINISTRATION_WORKER_MONTHS,
+                            minimum: crate::institution_funding::ADMINISTRATION_WORKER_MONTHS,
                             commitment: None,
                             granted: 0.,
                             used: 0.,
@@ -665,8 +669,10 @@ impl Culture {
                     .iter()
                     .filter_map(|v| v.heritage.as_ref()?.find.as_ref())
                 {
-                    if find.studies.len() < 3
-                        && find.studies.last().is_none_or(|r| h.month >= r.month + 60)
+                    if find.studies.len() < crate::expedition_heritage::MAX_FIND_STUDIES
+                        && find.studies.last().is_none_or(|r| {
+                            h.month >= r.month + crate::expedition_heritage::STUDY_INTERVAL_MONTHS
+                        })
                         && find.artifact.is_some_and(|id| {
                             let a = &self.artifacts[id as usize];
                             a.site == Some(site) && !a.lost && !a.destroyed

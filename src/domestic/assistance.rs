@@ -2,6 +2,10 @@
 use super::*;
 use crate::kin_support::support_affinity;
 
+const MIN_UNMET_CARE_WORKER_MONTHS: f64 = 1e-6;
+const MIN_HELP_AFFINITY: f32 = 0.2;
+const MAX_VOLUNTEER_WORKER_MONTHS: f32 = 0.1;
+
 impl History {
     pub(super) fn match_neighbor_care(&self, domestic: &Domestic, rows: &mut [CareRow]) {
         let Some(culture) = &self.culture else {
@@ -16,7 +20,7 @@ impl History {
         // Freeze this eligibility before assistance so received help cannot be relayed.
         let occupied: BTreeSet<_> = rows
             .iter()
-            .filter(|r| r.need - r.granted > 1e-6)
+            .filter(|r| r.need - r.granted > MIN_UNMET_CARE_WORKER_MONTHS)
             .map(|r| r.unit)
             .collect();
         let mut helpers: Vec<_> = domestic
@@ -65,7 +69,7 @@ impl History {
             let generosity = agent.traits[1].clamp(0., 1.);
             let mut best = None;
             for (index, row) in rows.iter().enumerate() {
-                if row.site != site || row.need - row.granted <= 1e-6 {
+                if row.site != site || row.need - row.granted <= MIN_UNMET_CARE_WORKER_MONTHS {
                     continue;
                 }
                 let affinity = domestic.units[row.unit as usize]
@@ -83,10 +87,11 @@ impl History {
                     })
                     .fold(0_f32, f32::max)
                     .clamp(0., 1.);
-                if affinity <= 0.2 || generosity <= 0. {
+                if affinity <= MIN_HELP_AFFINITY || generosity <= 0. {
                     continue;
                 }
-                let score = affinity as f64 * (row.need - row.granted) / row.need.max(1e-12);
+                let score = affinity as f64 * (row.need - row.granted)
+                    / row.need.max(MIN_CARE_DIVISOR_WORKER_MONTHS);
                 if best.is_none_or(|(_, old_score, old_unit, _)| {
                     score > old_score || (score == old_score && row.unit < old_unit)
                 }) {
@@ -98,9 +103,9 @@ impl History {
             };
             let row = &mut rows[index];
             let budget = remaining.get_mut(&site).unwrap();
-            let offered = (0.1 * generosity * affinity).min(cap) as f64;
+            let offered = (MAX_VOLUNTEER_WORKER_MONTHS * generosity * affinity).min(cap) as f64;
             let work = offered.min(*budget).min((row.need - row.granted).max(0.)) as f32;
-            if work <= 1e-6 {
+            if work <= MIN_UNMET_CARE_WORKER_MONTHS as f32 {
                 continue;
             }
             row.carers.push((person, work));

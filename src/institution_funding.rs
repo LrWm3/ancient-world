@@ -1,6 +1,15 @@
 //! Conditional operating requests. Quotes do not escrow money or promise work.
 use serde::{Deserialize, Serialize};
 
+pub(crate) const ADMINISTRATION_WORKER_MONTHS: f32 = 0.05;
+const REPAIR_QUARTERS_PER_BUDGET: f64 = 4.;
+const ADMINISTRATION_BUDGET_MONEY: f64 = 2.;
+const OPERATING_TOWN_CASH_SHARE: f64 = 0.005;
+const LEGACY_DONATION_TOWN_CASH_SHARE: f64 = 0.0005;
+const LEGACY_DONATION_LIMIT_MONEY: f64 = 2.;
+const REQUEST_TOLERANCE_MONEY: f64 = 1e-9;
+const POOL_TOLERANCE_MONEY: f64 = 1e-8;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Policy {
     #[default]
@@ -59,14 +68,15 @@ impl Budget {
                         .iter()
                         .all(|v| v.is_finite() && *v >= 0.)
                     && r.requested <= r.target
-                    && r.ceiling <= r.requested + 1e-9
-                    && r.paid <= r.ceiling + 1e-9
+                    && r.ceiling <= r.requested + REQUEST_TOLERANCE_MONEY
+                    && r.paid <= r.ceiling + REQUEST_TOLERANCE_MONEY
                     && (r.settled || r.paid == 0.),
                 "invalid institution operating request"
             );
         }
         anyhow::ensure!(
-            self.requests.iter().map(|r| r.ceiling).sum::<f64>() <= self.pool + 1e-8,
+            self.requests.iter().map(|r| r.ceiling).sum::<f64>()
+                <= self.pool + POOL_TOLERANCE_MONEY,
             "institution funding pool oversubscribed"
         );
         Ok(())
@@ -89,7 +99,7 @@ impl crate::culture::Culture {
             .filter(|n| {
                 n.active
                     && n.site == site
-                    && h.month.is_multiple_of(3)
+                    && h.month.is_multiple_of(crate::institution_capacity::UPDATE_INTERVAL_MONTHS)
                     && n.members.iter().any(|p| members.contains(p))
             })
             .map(|n| {
@@ -113,9 +123,9 @@ impl crate::culture::Culture {
                                     .filter(|(g, _)| *g == 5)
                                     .map(|(_, kg)| *kg as f64)
                                     .sum::<f64>()
-                                    * (0.0025 + 0.08 * e.soil[3].clamp(0., 1.) as f64)
-                                    * 4.
-                                    * e.prices[5].max(0.01) as f64
+                                    * (crate::institution_capacity::LEGACY_BUILDING_WEAR_PER_QUARTER + crate::institution_capacity::LEGACY_DISRUPTION_WEAR_PER_QUARTER * e.soil[3].clamp(0., 1.) as f64)
+                                    * REPAIR_QUARTERS_PER_BUDGET
+                                    * e.prices[5].max(crate::institution_capacity::MIN_BRICK_PRICE_MONEY_PER_KG) as f64
                             },
                             |f| {
                                 f.rooms
@@ -124,14 +134,14 @@ impl crate::culture::Culture {
                                     .map(|p| {
                                         p.kg as f64
                                             * p.wear_at(e.soil[3]) as f64
-                                            * 4.
-                                            * e.prices[p.good as usize].max(0.01) as f64
+                                            * REPAIR_QUARTERS_PER_BUDGET
+                                            * e.prices[p.good as usize].max(crate::institution_capacity::MIN_BRICK_PRICE_MONEY_PER_KG) as f64
                                     })
                                     .sum()
                             },
                         )
                     });
-                let target = 2. + repairs;
+                let target = ADMINISTRATION_BUDGET_MONEY + repairs;
                 Request {
                     institution: n.id,
                     target,
@@ -143,7 +153,7 @@ impl crate::culture::Culture {
             })
             .collect();
         Some(Budget::allocate(
-            e.finance[0].max(0.) as f64 * 0.005,
+            e.finance[0].max(0.) as f64 * OPERATING_TOWN_CASH_SHARE,
             requests,
         ))
     }
@@ -169,8 +179,8 @@ impl crate::culture::Culture {
                 if !n.active
                     || n.site as usize != site
                     || p.used > 0.
-                    || p.granted < 0.05
-                    || h.personal_grant_live(p.commitment) < 0.05
+                    || p.granted < ADMINISTRATION_WORKER_MONTHS
+                    || h.personal_grant_live(p.commitment) < ADMINISTRATION_WORKER_MONTHS
                 {
                     continue;
                 }
@@ -194,20 +204,23 @@ impl crate::culture::Culture {
                 let n = &mut self.institutions[ni];
                 // Legacy organizations without capacity retain their immediate fee rule.
                 if n.capacity.is_none() {
-                    let fee = n.treasury.min(0.5);
+                    let fee = n
+                        .treasury
+                        .min(crate::institution_capacity::UPKEEP_FEE_MONEY_PER_QUARTER);
                     n.treasury -= fee;
                     n.expenses += fee;
                     h.sites[site].economy.finance[0] += fee as f32;
                 }
                 n.knowledge
                     .extend(self.agents[actor as usize].knowledge.iter().copied());
-                self.work_plans[site].administration.as_mut().unwrap()[index].used = 0.05;
-                self.labor_spent += 0.05f32 as f64;
+                self.work_plans[site].administration.as_mut().unwrap()[index].used =
+                    ADMINISTRATION_WORKER_MONTHS;
+                self.labor_spent += ADMINISTRATION_WORKER_MONTHS as f64;
                 crate::culture::work_requests::record_work(
                     &mut self.work_plans,
                     site as u32,
                     h.month,
-                    0.05,
+                    ADMINISTRATION_WORKER_MONTHS,
                 );
             }
         }
@@ -242,9 +255,10 @@ impl crate::culture::Culture {
         let cash = &mut h.sites[site as usize].economy.finance[0];
         let amount = request
             .as_ref()
-            .map_or((*cash as f64 * 0.0005).min(2.), |r| {
-                r.ceiling.min((r.target - n.treasury).max(0.))
-            })
+            .map_or(
+                (*cash as f64 * LEGACY_DONATION_TOWN_CASH_SHARE).min(LEGACY_DONATION_LIMIT_MONEY),
+                |r| r.ceiling.min((r.target - n.treasury).max(0.)),
+            )
             .min(cash.max(0.) as f64)
             .max(0.);
         // Credit only the representable source withdrawal, never a larger f64 quote.

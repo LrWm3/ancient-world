@@ -5,6 +5,24 @@ use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+const CARE_PROJECTION_TOLERANCE_WORKER_MONTHS: f64 = 1e-4;
+const CARE_RECEIPT_TOLERANCE_WORKER_MONTHS: f64 = 1e-5;
+const MAX_RECORDED_CARER_WORKER_MONTHS: f64 = 0.80001;
+
+const INFANT_END_AGE_MONTHS: i32 = 60;
+const WORKING_START_AGE_MONTHS: i32 = 180;
+const WORKING_END_AGE_MONTHS: i32 = 720;
+const INDEPENDENT_HOME_AGE_MONTHS: i32 = 216;
+const INFANT_CARE_WORKER_MONTHS: f64 = 0.12;
+const CHILD_CARE_WORKER_MONTHS: f64 = 0.04;
+const MAX_ELDER_CARE_WORKER_MONTHS: f64 = 0.08;
+const ELDER_CARE_RAMP_MONTHS: f64 = 360.;
+const MAX_CARE_DISEASE_BURDEN: f32 = 0.5;
+const ADULT_CARE_CAPACITY_WORKER_MONTHS: f32 = 0.8;
+const ILLNESS_CAPACITY_PENALTY: f32 = 0.5;
+const CAPACITY_TOLERANCE_WORKER_MONTHS: f64 = 1e-6;
+const MIN_CARE_DIVISOR_WORKER_MONTHS: f64 = 1e-12;
+
 mod assistance;
 mod resolution;
 
@@ -92,19 +110,20 @@ impl Default for Domestic {
     }
 }
 fn need(age: i32, disease: f32) -> f64 {
-    let baseline = if (0..60).contains(&age) {
-        0.12
-    } else if (60..180).contains(&age) {
-        0.04
-    } else if age >= 720 {
+    let baseline = if (0..INFANT_END_AGE_MONTHS).contains(&age) {
+        INFANT_CARE_WORKER_MONTHS
+    } else if (INFANT_END_AGE_MONTHS..WORKING_START_AGE_MONTHS).contains(&age) {
+        CHILD_CARE_WORKER_MONTHS
+    } else if age >= WORKING_END_AGE_MONTHS {
         // Gradual old-age support, capped at 0.08 worker-months by age 90.
-        ((age - 720) as f64 / 360.).min(1.) * 0.08
+        ((age - WORKING_END_AGE_MONTHS) as f64 / ELDER_CARE_RAMP_MONTHS).min(1.)
+            * MAX_ELDER_CARE_WORKER_MONTHS
     } else {
         0.
     };
     // Settlement exposure is a proxy, not an individual diagnosis. Illness
     // increases dependent care while the existing capacity rule limits carers.
-    baseline * (1. + disease.clamp(0., 0.5) as f64)
+    baseline * (1. + disease.clamp(0., MAX_CARE_DISEASE_BURDEN) as f64)
 }
 
 fn capacity(h: &History, person: u32, site: u32) -> f32 {
@@ -113,9 +132,14 @@ fn capacity(h: &History, person: u32, site: u32) -> f32 {
 
 fn capacity_with_presence(h: &History, person: u32, site: u32, presence: Presence) -> f32 {
     if presence == Presence::Resident(site)
-        && (180..720).contains(&(h.month as i32 - h.people[person as usize].born))
+        && (WORKING_START_AGE_MONTHS..WORKING_END_AGE_MONTHS)
+            .contains(&(h.month as i32 - h.people[person as usize].born))
     {
-        0.8 * (1. - 0.5 * h.sites[site as usize].demography.health[0].clamp(0., 0.5))
+        ADULT_CARE_CAPACITY_WORKER_MONTHS
+            * (1.
+                - ILLNESS_CAPACITY_PENALTY
+                    * h.sites[site as usize].demography.health[0]
+                        .clamp(0., MAX_CARE_DISEASE_BURDEN))
     } else {
         0.
     }
@@ -195,7 +219,7 @@ impl History {
             }
         }
         for &id in homes.keys() {
-            if self.month as i32 - self.people[id as usize].born >= 216 {
+            if self.month as i32 - self.people[id as usize].born >= INDEPENDENT_HOME_AGE_MONTHS {
                 roots.entry(id).or_insert(Anchor::Person(id));
             }
         }
@@ -389,7 +413,7 @@ impl History {
             .filter(|p| **p != person && !leaving.contains(p))
             .map(|p| capacity(self, *p, unit.home) as f64)
             .sum();
-        remaining + 1e-6 >= demand
+        remaining + CAPACITY_TOLERANCE_WORKER_MONTHS >= demand
     }
     pub(crate) fn reserve_domestic_care(&mut self) {
         if self
@@ -476,13 +500,14 @@ impl History {
                 let scale =
                     (crate::labor::available(s, self.society.is_some(), self.living.is_some())
                         as f64
-                        / requested.max(1e-12))
+                        / requested.max(MIN_CARE_DIVISOR_WORKER_MONTHS))
                     .min(1.);
                 for row in rows.iter_mut().filter(|r| r.site == s.id) {
                     row.granted *= scale;
                     let total: f64 = row.carers.iter().map(|(_, c)| *c as f64).sum();
                     for (_, c) in &mut row.carers {
-                        *c = (*c as f64 * row.granted / total.max(1e-12)) as f32;
+                        *c = (*c as f64 * row.granted / total.max(MIN_CARE_DIVISOR_WORKER_MONTHS))
+                            as f32;
                     }
                     row.granted = row.carers.iter().map(|(_, c)| *c as f64).sum();
                 }
@@ -531,7 +556,7 @@ impl History {
                 .sum();
             let used = grant.min(site.economy.labor[3].max(0.) as f64);
             for r in plan.rows.iter_mut().filter(|r| r.site == site.id) {
-                r.used = r.granted * used / grant.max(1e-12);
+                r.used = r.granted * used / grant.max(MIN_CARE_DIVISOR_WORKER_MONTHS);
             }
             site.economy.external[3] = (site.economy.external[3] - grant as f32).max(0.);
             site.economy.labor[3] = (site.economy.labor[3] - used as f32).max(0.);
@@ -619,7 +644,7 @@ impl Domestic {
                             .map(|r| r.need)
                             .sum::<f64>())
                     .abs()
-                        <= 1e-4,
+                        <= CARE_PROJECTION_TOLERANCE_WORKER_MONTHS,
                     "care projection demand mismatch"
                 );
             }
@@ -637,10 +662,10 @@ impl Domestic {
                         && [r.need, r.granted, r.used]
                             .iter()
                             .all(|v| v.is_finite() && *v >= 0.)
-                        && r.used <= r.granted + 1e-5
-                        && r.granted <= r.need + 1e-5
+                        && r.used <= r.granted + CARE_RECEIPT_TOLERANCE_WORKER_MONTHS
+                        && r.granted <= r.need + CARE_RECEIPT_TOLERANCE_WORKER_MONTHS
                         && (r.granted - r.carers.iter().map(|(_, w)| *w as f64).sum::<f64>()).abs()
-                            < 1e-5,
+                            < CARE_RECEIPT_TOLERANCE_WORKER_MONTHS,
                     "invalid care allocation"
                 );
                 let mut row_carers = BTreeSet::new();
@@ -649,22 +674,24 @@ impl Domestic {
                         (p as usize) < h.people.len()
                             && row_carers.insert(p)
                             && w.is_finite()
-                            && (0. ..=0.80001).contains(&w),
+                            && (0. ..=MAX_RECORDED_CARER_WORKER_MONTHS as f32).contains(&w),
                         "invalid or duplicate caregiver"
                     );
                     let entry = carers.entry(p).or_insert((r.site, 0.));
                     entry.1 += w as f64;
                     ensure!(
-                        entry.0 == r.site && entry.1 <= 0.80001,
+                        entry.0 == r.site && entry.1 <= MAX_RECORDED_CARER_WORKER_MONTHS,
                         "caregiver exceeds shared capacity or works across towns"
                     );
                 }
             }
             ensure!(
-                (c.receipt.requested - c.rows.iter().map(|r| r.need).sum::<f64>()).abs() < 1e-5
+                (c.receipt.requested - c.rows.iter().map(|r| r.need).sum::<f64>()).abs()
+                    < CARE_RECEIPT_TOLERANCE_WORKER_MONTHS
                     && (c.receipt.granted - c.rows.iter().map(|r| r.granted).sum::<f64>()).abs()
-                        < 1e-5
-                    && (c.receipt.used - c.rows.iter().map(|r| r.used).sum::<f64>()).abs() < 1e-5,
+                        < CARE_RECEIPT_TOLERANCE_WORKER_MONTHS
+                    && (c.receipt.used - c.rows.iter().map(|r| r.used).sum::<f64>()).abs()
+                        < CARE_RECEIPT_TOLERANCE_WORKER_MONTHS,
                 "care receipt mismatch"
             );
         }

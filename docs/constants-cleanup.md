@@ -31,6 +31,13 @@ semantic extraction pass (further shared-policy reconciliation may still apply):
 - `src/occupation.rs`
 - `src/facilities.rs`
 - `src/institution_capacity.rs`
+- `src/domestic.rs`
+- `src/domestic/assistance.rs`
+- `src/domestic/resolution.rs`
+- `src/institution_funding.rs`
+- `src/institution_services.rs`
+- `src/service_allocation.rs`
+- `src/learning_resolution.rs`
 - `src/heritage_renown.rs`
 - `src/offices/service.rs`
 - `src/institution_succession.rs`
@@ -73,9 +80,6 @@ than blindly moved out of their types or layout checks.
 - `src/culture/work_requests.rs`
 - `src/culture.rs`
 - `src/discoveries/returns.rs`
-- `src/domestic/assistance.rs`
-- `src/domestic/resolution.rs`
-- `src/domestic.rs`
 - `src/ecology.rs`
 - `src/enterprises.rs`
 - `src/environmental_returns.rs`
@@ -95,10 +99,7 @@ than blindly moved out of their types or layout checks.
 - `src/household_economy/policy.rs`
 - `src/household_economy.rs`
 - `src/individual_demography.rs`
-- `src/institution_funding.rs`
-- `src/institution_services.rs`
 - `src/labor.rs`
-- `src/learning_resolution.rs`
 - `src/lib.rs`
 - `src/local_places.rs`
 - `src/main.rs`
@@ -115,7 +116,6 @@ than blindly moved out of their types or layout checks.
 - `src/relocation/comparison.rs`
 - `src/resolution.rs`
 - `src/resources.rs`
-- `src/service_allocation.rs`
 - `src/shipping.rs`
 - `src/social_memory.rs`
 - `src/social_state.rs`
@@ -198,3 +198,18 @@ passed both road-upkeep checks and the military-supply checkpoint/batch fixture.
 Strict all-target Clippy and repository artifact/whitespace checks passed. This is
 refactor verification, not a new balance calibration; logs remain ignored under
 `output/`.
+
+## Domestic and institutional work batch (2026-09-12)
+
+Completed the semantic pass for domestic care, neighbor assistance, care and
+learning resolution receipts, institutional funding and room services, and service
+allocation. Cultural work requests, labor and heritage only received shared-policy
+substitutions and remain pending for their complete file reviews. Heritage study
+spacing/count limits now have a single owner; administration reservations and
+execution share a work cost. Legacy building-wear forecasts retain f64 precision,
+while execution casts the same parameters to the original f32 arithmetic.
+
+Verification: 151 ordinary library tests passed (130 extended checks ignored).
+Explicit include-ignored runs passed domestic, institutional funding, room service
+and institutional capacity suites, including GPU fixtures. All-target Clippy with
+warnings denied passed. No intended behavior or archive layout change.

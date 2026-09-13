@@ -13,6 +13,8 @@ pub(crate) mod work_requests;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+pub(crate) const MAX_ACTION_WORKER_MONTHS: f32 = 0.5;
+
 pub const TOPICS: [&str; 12] = [
     "crop calendars",
     "soil husbandry",

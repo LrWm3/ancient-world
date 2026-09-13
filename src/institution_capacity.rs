@@ -2,7 +2,7 @@
 use serde::{Deserialize, Serialize};
 
 pub(crate) const UPKEEP_FEE_MONEY_PER_QUARTER: f64 = 0.5;
-const UPDATE_INTERVAL_MONTHS: u32 = 3;
+pub(crate) const UPDATE_INTERVAL_MONTHS: u32 = 3;
 const INITIAL_READINESS: f32 = 0.5;
 const SUPPORTED_READINESS_GAIN_PER_QUARTER: f32 = 0.12;
 const UNSUPPORTED_READINESS_LOSS_PER_QUARTER: f32 = 0.08;
@@ -11,12 +11,12 @@ const MIN_OPERATIONAL_READINESS: f32 = 0.25;
 const RECOVERED_READINESS: f32 = 0.6;
 const MIN_OPERATIONAL_BUILDING_CONDITION: f32 = 0.25;
 const RESTORED_BUILDING_CONDITION: f32 = 0.7;
-const LARGE_BUILDING_UPKEEP_WORK_MONTHS: f32 = 0.125;
-const BASIC_UPKEEP_WORK_MONTHS: f32 = 0.025;
+pub(crate) const LARGE_BUILDING_UPKEEP_WORK_MONTHS: f32 = 0.125;
+pub(crate) const BASIC_UPKEEP_WORK_MONTHS: f32 = 0.025;
 const LEGACY_REPLACEMENT_WORK_MONTHS: f32 = 0.1;
-const LEGACY_BUILDING_WEAR_PER_QUARTER: f32 = 0.0025;
-const LEGACY_DISRUPTION_WEAR_PER_QUARTER: f32 = 0.08;
-const MIN_BRICK_PRICE_MONEY_PER_KG: f32 = 0.01;
+pub(crate) const LEGACY_BUILDING_WEAR_PER_QUARTER: f64 = 0.0025;
+pub(crate) const LEGACY_DISRUPTION_WEAR_PER_QUARTER: f64 = 0.08;
+pub(crate) const MIN_BRICK_PRICE_MONEY_PER_KG: f32 = 0.01;
 const OPERATING_CORE_MEMBERS: usize = 2;
 
 pub const HALL_BRICKS_KG: f32 = 2_000.;
@@ -385,8 +385,8 @@ impl crate::culture::Culture {
                         }
                     } else if accessible {
                         b.condition = (b.condition
-                            - LEGACY_BUILDING_WEAR_PER_QUARTER
-                            - LEGACY_DISRUPTION_WEAR_PER_QUARTER
+                            - LEGACY_BUILDING_WEAR_PER_QUARTER as f32
+                            - LEGACY_DISRUPTION_WEAR_PER_QUARTER as f32
                                 * h.sites[i].economy.soil[3].clamp(0., 1.))
                         .max(0.);
                         let price =

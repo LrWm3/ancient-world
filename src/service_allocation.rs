@@ -1,6 +1,8 @@
 //! Scoped allocation policy for research/culture service work. No execution or payment here.
 use serde::{Deserialize, Serialize};
 
+const ALLOCATION_TOLERANCE_WORKER_MONTHS: f32 = 1e-5;
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub enum Policy {
     /// Compatibility policy for archives lacking this field.
@@ -46,10 +48,12 @@ impl Receipt {
                     .chain(&self.allocated)
                     .chain(&self.reserved)
                     .all(|x| x.is_finite() && *x >= 0.)
-                && (0..2).all(|k| feasible[k] <= self.requested[k] + 1e-5
-                    && self.allocated[k] <= feasible[k] + 1e-5
-                    && self.reserved[k] <= self.allocated[k] + 1e-5)
-                && self.allocated.iter().sum::<f32>() <= self.capacity + 1e-5,
+                && (0..2).all(|k| feasible[k]
+                    <= self.requested[k] + ALLOCATION_TOLERANCE_WORKER_MONTHS
+                    && self.allocated[k] <= feasible[k] + ALLOCATION_TOLERANCE_WORKER_MONTHS
+                    && self.reserved[k] <= self.allocated[k] + ALLOCATION_TOLERANCE_WORKER_MONTHS)
+                && self.allocated.iter().sum::<f32>()
+                    <= self.capacity + ALLOCATION_TOLERANCE_WORKER_MONTHS,
             "invalid service allocation receipt"
         );
         Ok(())

@@ -6,6 +6,12 @@
 //! them before execution. Allocation order is explicit in the request sequence.
 use serde::{Deserialize, Serialize};
 
+const ROOM_RECEIPT_TOLERANCE: f64 = 1e-12;
+const WORK_BACKING_TOLERANCE_WORKER_MONTHS: f64 = 1e-5;
+const LEGACY_ROOM_CAPACITY: f64 = 2.;
+const MIN_USABLE_ROOM_FRACTION: f32 = 0.25;
+const SERVICE_DURATION_MONTHS: f64 = 0.1;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Service {
     PetitionHearing {
@@ -222,7 +228,7 @@ impl Plan {
                 .iter()
                 .map(Receipt::opening_grant)
                 .sum::<f64>()
-                <= self.opening_space + 1e-12,
+                <= self.opening_space + ROOM_RECEIPT_TOLERANCE,
             "institutional services exceed opening space"
         );
         Ok(())
@@ -263,7 +269,10 @@ pub(crate) fn space(c: &crate::culture::Culture, institution: u32, site: u32) ->
     b.facility.as_ref().map_or_else(
         || {
             if b.construction_remaining == 0. {
-                (2. * b.condition as f64, 2.)
+                (
+                    LEGACY_ROOM_CAPACITY * b.condition as f64,
+                    LEGACY_ROOM_CAPACITY,
+                )
             } else {
                 (0., 0.)
             }
@@ -272,7 +281,9 @@ pub(crate) fn space(c: &crate::culture::Culture, institution: u32, site: u32) ->
             f.rooms
                 .iter()
                 .filter(|r| {
-                    r.remaining_work == 0. && r.capacity > 0. && r.usable() >= 0.25 * r.capacity
+                    r.remaining_work == 0.
+                        && r.capacity > 0.
+                        && r.usable() >= MIN_USABLE_ROOM_FRACTION * r.capacity
                 })
                 .fold((0., 0_f64), |(time, group), r| {
                     (time + r.usable() as f64, group.max(r.capacity as f64))
@@ -295,7 +306,7 @@ impl OpeningUse {
             && self.available.is_finite()
             && self.group.is_finite()
             && self.group >= 1.
-            && self.used == 0.1
+            && self.used == SERVICE_DURATION_MONTHS
             && self.used <= self.available
     }
 }
@@ -332,11 +343,11 @@ pub(crate) fn opening_dispatch(
         .building
         .as_ref()?
         .artifact;
-    (available >= 0.1 && group >= 1.).then_some(OpeningUse {
+    (available >= SERVICE_DURATION_MONTHS && group >= 1.).then_some(OpeningUse {
         building,
         available,
         group,
-        used: 0.1,
+        used: SERVICE_DURATION_MONTHS,
     })
 }
 
@@ -371,8 +382,11 @@ impl crate::culture::Culture {
                         .iter()
                         .filter_map(|v| v.heritage.as_ref()?.find.as_ref())
                     {
-                        if find.studies.len() >= 3
-                            || find.studies.last().is_some_and(|s| h.month < s.month + 60)
+                        if find.studies.len() >= crate::expedition_heritage::MAX_FIND_STUDIES
+                            || find.studies.last().is_some_and(|s| {
+                                h.month
+                                    < s.month + crate::expedition_heritage::STUDY_INTERVAL_MONTHS
+                            })
                         {
                             continue;
                         }
@@ -440,7 +454,7 @@ impl crate::culture::Culture {
                     plans.push(plan);
                     plans.len() - 1
                 });
-            plans[index].reserve(service, occupants, 0.1);
+            plans[index].reserve(service, occupants, SERVICE_DURATION_MONTHS);
         }
         plans
     }
@@ -598,22 +612,22 @@ pub(crate) fn validate_work_plan(
                 }
             };
             anyhow::ensure!(
-                valid && r.duration == 0.1,
+                valid && r.duration == SERVICE_DURATION_MONTHS,
                 "invalid institutional service source or duration"
             );
             if r.granted > 0. {
-                granted += 0.1;
+                granted += SERVICE_DURATION_MONTHS;
             }
             if r.used > 0. {
-                used += 0.1;
+                used += SERVICE_DURATION_MONTHS;
             }
         }
     }
     let duties: f32 = p.institution_work().map(|u| u.granted).sum();
     let duty_used: f32 = p.institution_work().map(|u| u.used).sum();
     anyhow::ensure!(
-        granted + duties as f64 <= p.granted as f64 + 1e-5
-            && used + duty_used as f64 <= p.completed as f64 + 1e-5,
+        granted + duties as f64 <= p.granted as f64 + WORK_BACKING_TOLERANCE_WORKER_MONTHS
+            && used + duty_used as f64 <= p.completed as f64 + WORK_BACKING_TOLERANCE_WORKER_MONTHS,
         "institutional services lack cultural work backing"
     );
     Ok(())

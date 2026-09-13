@@ -2,6 +2,8 @@
 use super::*;
 use crate::resolution::{Boundary, Metric, Mode, Receipt, System};
 
+const CARE_RECEIPT_TOLERANCE_WORKER_MONTHS: f64 = 1e-4;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CareProjection {
     pub site: u32,
@@ -19,7 +21,8 @@ impl CareProjection {
         );
         let pooled = self.demand.min(self.pooled_capacity).min(self.labor);
         ensure!(
-            granted <= pooled + 1e-4 && used <= granted + 1e-4,
+            granted <= pooled + CARE_RECEIPT_TOLERANCE_WORKER_MONTHS
+                && used <= granted + CARE_RECEIPT_TOLERANCE_WORKER_MONTHS,
             "care result exceeds opening capacity"
         );
         Ok(Receipt {
@@ -88,8 +91,8 @@ impl History {
                     [row.need, row.granted, row.used]
                         .iter()
                         .all(|v| v.is_finite() && *v >= 0.)
-                        && row.granted <= row.need + 1e-4
-                        && row.used <= row.granted + 1e-4,
+                        && row.granted <= row.need + CARE_RECEIPT_TOLERANCE_WORKER_MONTHS
+                        && row.used <= row.granted + CARE_RECEIPT_TOLERANCE_WORKER_MONTHS,
                     "invalid care row outcome"
                 );
                 totals[0] += row.need;
@@ -97,7 +100,7 @@ impl History {
                 totals[2] += row.used;
             }
             ensure!(
-                (totals[0] - p.demand).abs() <= 1e-4,
+                (totals[0] - p.demand).abs() <= CARE_RECEIPT_TOLERANCE_WORKER_MONTHS,
                 "care demand changed after reservation"
             );
             let receipt = p.outcome(self.month, totals[1], totals[2], state.compare)?;

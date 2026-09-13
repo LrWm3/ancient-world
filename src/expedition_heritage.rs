@@ -7,6 +7,9 @@ use crate::{
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
+pub(crate) const MAX_FIND_STUDIES: usize = 3;
+pub(crate) const STUDY_INTERVAL_MONTHS: u32 = 60;
+
 const BASE_FIND_BUCKETS: u32 = 3;
 const FIND_BUCKETS: u32 = 5;
 const EXPERIENCE_EXTRA_FIND_CHANCE: f32 = 0.75;
@@ -381,7 +384,7 @@ pub(crate) fn validate(h: &History, voyages: &[Expedition]) -> Result<()> {
                     f.patron_item
                         .as_deref()
                         .is_none_or(|id| patron_finds::get(id).is_some())
-                        && f.studies.len() <= 3
+                        && f.studies.len() <= crate::expedition_heritage::MAX_FIND_STUDIES
                         && f.studies.windows(2).all(|w| w[1].month >= w[0].month + 60),
                     "invalid heritage study schedule"
                 );
@@ -450,7 +453,11 @@ pub(crate) fn study(h: &mut History, c: &mut crate::culture::Culture) {
         let Some(find) = &mut charter.find else {
             continue;
         };
-        if find.studies.len() >= 3 || find.studies.last().is_some_and(|s| h.month < s.month + 60) {
+        if find.studies.len() >= crate::expedition_heritage::MAX_FIND_STUDIES
+            || find.studies.last().is_some_and(|s| {
+                h.month < s.month + crate::expedition_heritage::STUDY_INTERVAL_MONTHS
+            })
+        {
             continue;
         }
         let Some(id) = find.artifact else { continue };

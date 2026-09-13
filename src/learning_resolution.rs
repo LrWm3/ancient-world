@@ -3,6 +3,8 @@
 use crate::resolution::{Boundary, Metric, Mode, Receipt, System};
 use anyhow::{ensure, Result};
 
+const RECEIPT_TOLERANCE_WORKER_MONTHS: f64 = 1e-4;
+
 pub(crate) fn outcome(
     month: u32,
     site: u32,
@@ -16,7 +18,8 @@ pub(crate) fn outcome(
         "invalid learning work"
     );
     ensure!(
-        work.windows(2).all(|v| v[1] <= v[0] + 1e-4),
+        work.windows(2)
+            .all(|v| v[1] <= v[0] + RECEIPT_TOLERANCE_WORKER_MONTHS),
         "learning work exceeds its grant"
     );
     let boundary = Boundary {
@@ -89,7 +92,12 @@ impl crate::civilization::History {
                         .and_then(|c| c.work_plans.iter().find(|p| p.site == r.site))
                         .ok_or_else(|| anyhow::anyhow!("missing cultural result"))?;
                     (
-                        p.actions.iter().map(|(_, w)| *w).sum::<f32>().min(0.5) as f64,
+                        p.actions
+                            .iter()
+                            .map(|(_, w)| *w)
+                            .sum::<f32>()
+                            .min(crate::culture::MAX_ACTION_WORKER_MONTHS)
+                            as f64,
                         p.granted as f64,
                         p.completed as f64,
                         p.month,
@@ -97,8 +105,10 @@ impl crate::civilization::History {
                 };
                 ensure!(
                     month == r.month
-                        && (requested - r.requested[k] as f64).abs() <= 1e-4
-                        && (granted - r.reserved[k] as f64).abs() <= 1e-4,
+                        && (requested - r.requested[k] as f64).abs()
+                            <= RECEIPT_TOLERANCE_WORKER_MONTHS
+                        && (granted - r.reserved[k] as f64).abs()
+                            <= RECEIPT_TOLERANCE_WORKER_MONTHS,
                     "learning result no longer matches reservation"
                 );
                 let mut receipt = outcome(
