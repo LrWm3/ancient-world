@@ -18,6 +18,31 @@ from the question of whether either mechanism improves outcomes.
 
 ## First delivery and review boundaries
 
+### Proposed defaults for the experiments
+
+- Keep lending and issuance separately configurable. An experiment arm changes
+  those policies, not starting food, money, labor or repayment obligations.
+- Begin with council tax receipts and identifiable commercial payments. Expected
+  sales alone are weaker evidence than a funded order; forecast net receipts
+  after wages, transport, maintenance and existing claims.
+- Lend existing cash only. Reserve essential lender operating funds, cap exposure,
+  and allocate competing requests together rather than letting iteration order
+  choose who borrows. Do not lend merely because a borrower is short of money.
+- Start with fixed simple interest, dated maturity and at most one agreed
+  restructuring. Missed receipts must be able to produce default and lender loss.
+- Authorize issuance through dated policy with per-period and total experiment
+  caps. Do not reset limits when leadership changes or raise the cap because
+  nominal prices have risen. Spending still competes for actual goods and work.
+- Treat separate currencies as a later, conditional extension. Preserve the
+  denomination of existing debts unless both parties explicitly agree otherwise.
+
+Before each comparison, record the chosen reserve, interest, maturity, coverage,
+exposure and issuance settings together with the benefit/failure thresholds.
+There is no universal numeric default justified by this proposal: first use small
+fixtures to establish the timing and accounting, then freeze settings for held-out
+worlds. Keep short-term financing effects distinct from long-term population
+differences.
+
 The first delivery is a **credit timing experiment**, not a banking system.
 Use the existing council and commercial accounts, a single currency identity,
 and a small number of dated contracts. Keep production, payroll, relief and
