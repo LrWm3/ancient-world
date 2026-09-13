@@ -435,3 +435,27 @@ Issued cash reconciles through the existing monetary residual. These are account
 and scheduling checks. The [first four-arm comparison](shared-issuance-smoke.md)
 found mixed issuance outcomes and no realized credit effect across two 30-year
 worlds; it does not establish the gate for distinct currencies.
+
+## Return and loss use the same horizon
+
+Underwriting now shares commercial credit's term-aware required-rate calculation.
+For a term of `t` years, required annual simple return `r`, and expected fraction
+`L` lost from maturity proceeds, the offered annual rate must meet
+`(r + L / t) / (1 - L)`. This makes expected proceeds cover the original principal
+plus the lender's required return over that term. Complete loss cannot be financed.
+The loss assumption is still a toy risk estimate, not a fitted default model.
+
+Previously the generic resolver compared the offered annual rate with `r + L`,
+which mixed an annual rate with a whole-loan loss. The analytical fixture lends
+100 for three months with 10% expected loss and a 6% required annual return;
+expected repayment at the minimum acceptable rate is 101.5. It rejects the former
+16% quote, accepts the term-aware quote, and checks zero loss and longer terms.
+Commercial proposals already used this calculation; they now call the shared
+function rather than maintaining a separate formula. Existing contracts retain
+their agreed rates. The four-arm executable from `0aa337c` predates this fix, so
+its results must retain that revision rather than being labeled as a new-code run.
+
+Verification for the horizon correction: 13 credit unit tests and 11 active
+market integration tests passed (two extended market cases remain ignored).
+Strict all-target Clippy passed. The correction does not refit the risk estimate
+or establish that credit improves a full world.

@@ -113,6 +113,17 @@ pub struct Grant {
     pub decision: Decision,
 }
 
+/// Annual simple rate whose expected maturity proceeds cover principal plus
+/// the lender's required return over the same term. Loss is a fraction over the
+/// whole loan, not an annual rate. A completely lost receipt cannot fund credit.
+pub(super) fn required_annual_rate(minimum: f64, loss: f64, term_months: u32) -> f64 {
+    if term_months == 0 || loss >= 1. {
+        return f64::INFINITY;
+    }
+    let years = f64::from(term_months) / MONTHS_PER_YEAR;
+    (minimum + loss / years) / (1. - loss)
+}
+
 fn payment_month(source: RepaymentSource) -> u32 {
     match source {
         RepaymentSource::AnnualTax {
@@ -259,7 +270,13 @@ pub fn resolve(
             } else if e.expected_loss_fraction > policy.max_expected_loss_fraction {
                 Decision::Risk
             } else if let Some(o) = offer_map.get(&t.lender).filter(|o| o.month == month) {
-                if t.annual_simple_rate < o.minimum_annual_rate + e.expected_loss_fraction {
+                if t.annual_simple_rate
+                    < required_annual_rate(
+                        o.minimum_annual_rate,
+                        e.expected_loss_fraction,
+                        t.maturity_month - month,
+                    )
+                {
                     Decision::InsufficientReturn
                 } else {
                     Decision::Approved
@@ -454,6 +471,44 @@ mod tests {
             },
         }
     }
+    #[test]
+    fn return_compares_risk_and_interest_over_the_same_term() {
+        // 100 lent for three months, with 10% loss of maturity proceeds:
+        // 6% annual interest returns only 91.35 in expectation, below 101.5.
+        let mut e = evidence();
+        e.source = RepaymentSource::Export {
+            contract: 1,
+            payment_month: 3,
+        };
+        e.expected_loss_fraction = 0.1;
+        let mut o = offer(0);
+        o.minimum_annual_rate = 0.06;
+        let mut r = request(1, 0);
+        r.terms.source = e.source;
+        r.terms.maturity_month = 4;
+        let decide = |r: Request| {
+            resolve(
+                1,
+                &Policy::default(),
+                &[],
+                std::slice::from_ref(&o),
+                std::slice::from_ref(&e),
+                &[r],
+            )
+            .unwrap()[0]
+                .decision
+        };
+        r.terms.annual_simple_rate = 0.16; // Former annual-rate-plus-loss rule.
+        assert_eq!(decide(r.clone()), Decision::InsufficientReturn);
+        let rate = required_annual_rate(0.06, 0.1, 3);
+        assert!((100. * (1. + rate * 0.25) * 0.9 - 101.5).abs() < 1e-12);
+        r.terms.annual_simple_rate = rate;
+        assert_eq!(decide(r), Decision::Approved);
+        assert!(required_annual_rate(0.06, 0.1, 24) < rate);
+        assert_eq!(required_annual_rate(0.06, 0., 3), 0.06);
+        assert!(!required_annual_rate(0.06, 1., 3).is_finite());
+    }
+
     #[test]
     fn one_receipt_cannot_back_two_full_loans_and_order_does_not_choose_winner() {
         let p = Policy::default();

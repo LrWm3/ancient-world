@@ -295,5 +295,5 @@ later possibilities, not requirements for either stage.
 
 Keep implementation increments independently reviewable. Generated trajectories
 and raw results belong under ignored `output/`; commit source and Markdown
-summaries only. The council credit pilot is opt-in; planned issuance and exchange
-are not implemented behavior.
+summaries only. Council credit, commercial credit and shared issuance are opt-in pilots;
+distinct currencies and exchange remain unimplemented.

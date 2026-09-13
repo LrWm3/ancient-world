@@ -1,6 +1,6 @@
 //! Opt-in working-cash requests from planned production and funded receivables.
 use super::{
-    underwriting::{Offer, Request},
+    underwriting::{required_annual_rate, Offer, Request},
     Account, Terms, SHARED_CURRENCY,
 };
 use crate::{
@@ -15,7 +15,6 @@ const OPERATING_CASH_FLOOR: f64 = 100.;
 const LENDER_SURPLUS_SHARE: f64 = 0.25;
 const ANNUAL_REQUIRED_RETURN: f64 = 0.06;
 const SHIPMENT_LOSS_ASSUMPTION: f64 = 0.05;
-const MONTHS_PER_YEAR: f64 = 12.;
 const COMMERCIAL_REQUEST_NAMESPACE: u64 = 1 << 62;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -158,11 +157,13 @@ impl History {
             let Some(maturity) = payment_month.checked_add(1) else {
                 continue;
             };
-            let years = f64::from(maturity - self.month) / MONTHS_PER_YEAR;
             // Expected principal-and-interest recovery must cover the lender's
             // annual return; a short risky bridge requires a higher annual quote.
-            let rate = (policy.annual_required_return + policy.expected_loss_fraction / years)
-                / (1. - policy.expected_loss_fraction);
+            let rate = required_annual_rate(
+                policy.annual_required_return,
+                policy.expected_loss_fraction,
+                maturity - self.month,
+            );
             let terms = Terms {
                 lender,
                 borrower: e.beneficiary,
