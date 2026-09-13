@@ -22,6 +22,28 @@ class CirculationAuditTests(unittest.TestCase):
             'credit': {'issuance': {'receipts': [{'issued': 2}]}},
         }
 
+    def test_zero_allowance_does_not_imply_depletion(self):
+        history = self.fixture()
+        site = history['sites'][0]
+        site['cell'] = 42
+        site['economy']['reserves'] = [0, 0, 0, 0]
+        source = {'mineral': 'lignite', 'ore_good': None,
+                  'initial': [100, 200], 'remaining': [100, 150],
+                  'extracted': [0, 50]}
+        history['resources'] = {'sources': {'42': source}}
+        def evidence():
+            return audit(history)['sites'][0]['extraction']
+        self.assertEqual(evidence()['source_status'], 'unsupported_for_metal_processing')
+        self.assertEqual(evidence()['remaining_source_kg'], 100)
+        source.update(mineral='hematite', ore_good=32)
+        self.assertEqual(evidence()['source_status'], 'processable_stock_present')
+        self.assertEqual(evidence()['ore_allowance_buffer_kg'], 0)
+        source['remaining'][0] = 0
+        source['extracted'][0] = 100
+        self.assertEqual(evidence()['source_status'], 'empty_source')
+        del history['resources']
+        self.assertEqual(evidence()['source_status'], 'unregistered_or_unknown')
+
     def test_all_money_compartments_count_once(self):
         report = audit(self.fixture())
         self.assertEqual(report['cash_total'], 102)

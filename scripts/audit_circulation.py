@@ -20,6 +20,28 @@ def household_flows(accounts):
             for field in HOUSEHOLD_FLOW_FIELDS}
 
 
+def extraction_evidence(history, site):
+    """Monthly GPU allowances are not the canonical deposit inventory."""
+    sources = (history.get('resources') or {}).get('sources', {})
+    source = sources.get(str(site.get('cell')))
+    reserves = site['economy'].get('reserves')
+    result = {'ore_allowance_buffer_kg': reserves[1] if reserves else None,
+              'source_status': 'unregistered_or_unknown'}
+    if source is not None:
+        # Legacy sources without ore_good used generic ore; explicit null means
+        # the registered mineral has no supported metal-processing output.
+        ore_good = source.get('ore_good', 1)
+        remaining = source['remaining'][0]
+        result.update(mineral=source.get('mineral'), ore_good=ore_good,
+                      initial_source_kg=source['initial'][0],
+                      remaining_source_kg=remaining,
+                      extracted_source_kg=source['extracted'][0],
+                      source_status=('unsupported_for_metal_processing' if ore_good is None
+                                     else 'empty_source' if remaining <= 0
+                                     else 'processable_stock_present'))
+    return result
+
+
 def audit(history):
     society = history.get('society') or {}
     households = society.get('households', [])
@@ -88,6 +110,7 @@ def audit(history):
             'id': s['id'], 'name': s['name'], 'abandoned': s['abandoned'],
             'population': s['stocks']['stock'][0], 'food_stock': s['stocks']['stock'][1],
             'town_cash': s['economy']['finance'][0],
+            'extraction': extraction_evidence(history, s),
             'household_cash': sum(r['cash'] for r in households_by_site.get(s['id'], [])),
             'household_cumulative_flows': {
                 field: sum(r['cumulative_flows'][field] for r in households_by_site.get(s['id'], []))
@@ -103,6 +126,8 @@ def audit(history):
         'inherited_cash': sum(r['cash'] for r in economy.get('inheritance', {}).get('receipts', [])),
         'limitations': [
             'Endpoint balances do not establish why money accumulated.',
+            'Ore allowance buffers are cleared at settlement; zero at a monthly boundary is expected, not evidence of depletion.',
+            'Processable source stock does not guarantee labor, access or tools.',
             'Cumulative flows can exceed the money stock and are not additional cash.',
             'Household lifetime flows grouped by current site are not historical flows at that site.',
             'Vacancy means no eligible representative, not necessarily no beneficiaries.',

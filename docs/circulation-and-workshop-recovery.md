@@ -325,3 +325,19 @@ the 0.5 kg/resident working-reserve floor exceeds their stock. They have no spar
 copper/bronze either. Test desired versus indispensable tool reserves and finite
 sharing first; then alternatives/recovered metal where actually available, alongside
 route use and recurring crew costs.
+
+### Scarce-tool investment and source diagnosis
+
+Two more three-seed, 50-year screens tested investing up to 10% of scarce tool
+stock, alone and alongside bounded public harbor labor. The combination opened
+fleets at every surveyed port and substantially increased industrial work in one
+seed, but food/population outcomes remained mixed, including sharply worse hunger
+in seed 1024. Both experiments were rolled back. See the follow-up in
+[harbor work experiments](harbor-work-allocation.md).
+
+The circulation audit now separates monthly ore allowance buffers from canonical
+source stock. Settlement clears those buffers every month: zero never proved
+exhaustion. Seed 256's registered deposits have no supported metal output, while
+seed 1024 retains metal deposits at declining/abandoned sites. Six audit tests
+pass, including this distinction. Investigate access to finite sources and useful
+transport next; completed infrastructure alone did not solve circulation.

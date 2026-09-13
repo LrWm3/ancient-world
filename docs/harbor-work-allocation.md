@@ -88,8 +88,11 @@ Further stock inspection prevents an overly simple substitution diagnosis. C's
 blocked seed-256 sites 0/4 and seed-409 site 1 hold about 22–23 kg generic tools
 and **zero copper/bronze tools**. The port working-reserve floor is 0.5 kg per
 resident, approximately 56–80 kg in these towns; it prevents installing any of
-that generic stock. Seed-256 site 0 also has zero remaining local ore reserve and
-no metal stock. Surplus copper cannot be assumed into existence.
+that generic stock. Seed-256 site 0 has no metal stock and its registered mineral is apatite,
+which has no supported metal-processing output. Its canonical source still holds
+1,785 kg of unextracted material. An earlier version incorrectly called its zero
+economy allowance an exhausted ore reserve: those buffers are cleared after every
+monthly settlement. Surplus copper cannot be assumed into existence.
 
 The next experiment should distinguish desired stock targets from indispensable
 working equipment and test explicit sharing of existing tools between operations
@@ -116,3 +119,72 @@ ports, higher operator revenue or cash movement.
 These checks establish bounded implementation behavior, not successful balancing.
 The experimental source changes were rolled back after comparison; existing source
 and defaults remain at the baseline behavior above.
+
+## Follow-up: scarce tools and combined public work — also rolled back
+
+Tested a maximum 10% annual investment of scarce held generic tools when the
+ordinary 0.5 kg/resident working reserve prevented any installation. With abundant
+stock, the original reserve still applied. Production targets retained the original
+replenishment floor. The 0.5 kg/resident value is also modeled working-tool
+saturation, so using these tools is an operating tradeoff, not reclaiming idle stock.
+The combined arm added C's bounded public labor allowance; its material-supported
+work forecast used the same investable stock as actual installation.
+
+Same three seeds, founding archives, settings and 600-month horizon as above.
+Both arms completed all six runs and boundary validation. Hunger below remains an
+ending need-weighted measure; population comparisons are not lifetime welfare scores.
+
+| Seed | Baseline population / hunger | Tools only | Tools + public work |
+| --- | --- | --- | --- |
+| 1024 | 159.871 / 0.03695 | 158.068 / 0.10049 | 154.700 / 0.10204 |
+| 256 | 337.571 / 0.03323 | 313.677 / 0.04326 | 363.981 / 0.03562 |
+| 409 | 352.819 / 0.05919 | 330.192 / 0.06610 | 344.699 / 0.05270 |
+
+The combined arm opened fleets at every surveyed port: 2→4, 0→5 and 1→5
+ports respectively. Cumulative crew wages increased from 5,650→9,537,
+0→19,502 and 1,658→21,030. These include standby wages and are not evidence
+that cargo met food needs. Completed operator work changed from 11.219→23.855,
+4.500→4.569 and 41.532→232.747 worker-months; operating margins changed from
+47.42→106.93, 18.50→20.11 and 134.22→1,224.41. Maximum absolute relative
+cash residual was 2.09e-7 in the combined arm.
+
+This is evidence of an interaction between labor and equipment constraints, but
+not a generally successful circulation policy. Seed 256 gained population and
+seed 409 improved ending hunger, while seed 1024 deteriorated substantially.
+Both experimental changes were rolled back; no new default or opt-in policy was
+retained. Local ignored artifacts are in `output/harbor-tool-investment-screen/`
+and `output/harbor-combined-screen/`, including the experimental diffs.
+
+Verification before rollback: the scarce-stock CPU test passed; the GPU harbor
+fixture checked 22 kg held tools → 2.2 kg installed + 19.8 kg retained, bounded
+work, no premature commission, repeat-boundary behavior and continuation. The
+combined GPU harbor and prepaid-industrial-work fixtures passed, as did its native
+build. Tool-only strict library Clippy passed. The baseline native binary was
+rebuilt after rollback.
+
+## Corrected source diagnosis and next investigation
+
+`Economy.reserves[1]` is a temporary extraction allowance, cleared to zero in
+`settle_resources` at every completed monthly boundary. It cannot diagnose a
+remaining deposit. `scripts/audit_circulation.py` now reports the source's mineral,
+processing output, initial/remaining/extracted stock and the separate allowance
+buffer. Regression coverage distinguishes unknown, unsupported, empty and
+processable sources even with an identical zero allowance.
+
+In the baseline exports:
+
+- Seed 256 has no supported metal ore in any of its five registered sources:
+  apatite, two lignite sources and two without a mineral identity. The identified
+  deposits retain their initial inventories; this is not exhausted metal mining.
+- Seed 1024 retains 23,513 kg hematite at declining site 3 and 1,608 kg malachite
+  at abandoned site 4. Recovering stored goods does not currently work these deposits.
+- Seed 409 retains 8,708 kg limonite at site 0. A different town's coal deposit
+  cannot supply its missing metal merely by receiving more labor.
+
+Source registration and extraction currently use the settlement's exact terrain
+cell. Regional mining controls that same canonical source rather than discovering
+or accessing neighboring deposits. Next investigate physical source access and
+useful import destinations, with paid travel, extraction and delivery, before
+loosening infrastructure reserves again. Any expansion must debit the existing
+canonical source exactly once and demonstrate delivered inputs becoming useful
+production; a larger resource total or busier fleet alone is insufficient.
