@@ -1512,6 +1512,7 @@ impl Generator {
         h.waterworks_events();
         h.settle_household_retail(retail);
         h.settle_household_clothing();
+        h.collect_household_wealth_tax();
         h.reclaim_household_estates();
         let elapsed = production_started.elapsed().as_secs_f64() * 1000.;
         Ok(elapsed)

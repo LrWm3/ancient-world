@@ -7,6 +7,7 @@ use crate::{
 use anyhow::{ensure, Result};
 pub mod dynamics;
 mod learning;
+mod practical_research;
 mod practices;
 pub use learning::{LessonExpectation, Study};
 pub(crate) mod work_requests;
@@ -357,6 +358,8 @@ pub struct Artifact {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Culture {
     #[serde(default)]
+    pub practical_research: bool,
+    #[serde(default)]
     pub relocations: Vec<crate::institution_relocation::Move>,
     /// Last completed annual informal-contact selection boundary.
     #[serde(default)]
@@ -422,6 +425,7 @@ fn focused_work_default() -> bool {
 impl Culture {
     fn empty(month: u32, legacy: bool, options: FoundingOptions) -> Result<Self> {
         Ok(Self {
+            practical_research: false,
             relocations: vec![],
             contact_learning_month: None,
             funded_heritage_study: false,
@@ -1538,6 +1542,7 @@ impl Culture {
                 continue;
             }
             let mut remaining_work = labor;
+            self.conduct_experiment(h, site, actor, &mut remaining_work);
             // Reading and institutional instruction use this quarter's reserved work.
             // A book's physical survival matters: destroyed or remote objects cannot teach.
             let captured_study = self

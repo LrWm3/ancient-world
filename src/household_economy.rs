@@ -9,6 +9,7 @@ pub mod inheritance;
 mod nutrition;
 pub mod policy;
 pub mod reclamation;
+pub mod wealth_tax;
 pub use family_support::{FamilyGift, FamilySupportPolicy};
 
 const DEFAULT_COMMUNAL_ACCESS_MONTHS: u32 = 12;
@@ -36,6 +37,8 @@ const MAX_EARNINGS_WEIGHT: f64 = 2.;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct HouseholdAccount {
+    #[serde(default)]
+    pub wealth_tax_paid: f64,
     #[serde(default)]
     pub wardrobe: clothing::Wardrobe,
     /// Actual receipts on acquired creditor claims, not wages or production.
@@ -114,6 +117,8 @@ impl FoundingAccess {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HouseholdEconomy {
     #[serde(default)]
+    pub wealth_tax: wealth_tax::Policy,
+    #[serde(default)]
     pub clothing_enabled: bool,
     #[serde(default)]
     pub clothing_month: Option<u32>,
@@ -171,6 +176,7 @@ fn nutrition_enabled() -> bool {
 impl HouseholdEconomy {
     pub fn new(month: u32) -> Self {
         Self {
+            wealth_tax: Default::default(),
             clothing_enabled: false,
             clothing_month: None,
             inheritance: inheritance::Inheritance::default(),
@@ -239,6 +245,7 @@ impl HouseholdEconomy {
         family_support::validate(self, h)?;
         inheritance::validate(self, h)?;
         reclamation::validate(self, h)?;
+        wealth_tax::validate(self, h)?;
         ensure!(
             self.clothing_month.is_none_or(|m| m <= h.month),
             "invalid clothing clock"
@@ -299,6 +306,7 @@ impl HouseholdEconomy {
                     - a.credit_interest_received
                     + a.family_sent
                     + a.food_spending
+                    + a.wealth_tax_paid
                     + a.wardrobe.spending
                     + a.estate_returned
                     + a.capital_invested

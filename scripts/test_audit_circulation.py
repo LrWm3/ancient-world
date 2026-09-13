@@ -87,6 +87,18 @@ class CirculationAuditTests(unittest.TestCase):
         self.assertEqual(report['household_cumulative_flows']['wages'], 1000)
         self.assertEqual(report['sites'][0]['household_cumulative_flows']['food_spending'], 1040)
 
+    def test_wealth_tax_is_a_transfer_not_new_money(self):
+        history = self.fixture()
+        economy = history['society']['household_economy']
+        economy['accounts'][0]['cash'] -= 12
+        economy['accounts'][0]['wealth_tax_paid'] = 12
+        history['society']['councils'][0]['treasury'] += 12
+        economy['wealth_tax'] = {'enabled': True, 'receipts': [{'paid': 12}]}
+        report = audit(history)
+        self.assertEqual(report['cash_total'], 102)
+        self.assertEqual(report['wealth_tax']['collected'], 12)
+        self.assertEqual(report['wealth_tax']['assessments'], 1)
+
     def test_reclamation_is_a_transfer_not_new_money(self):
         history = self.fixture()
         economy = history['society']['household_economy']

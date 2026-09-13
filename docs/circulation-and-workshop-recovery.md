@@ -461,3 +461,16 @@ pilot disabled by default. A subsequent three-seed screen adds bounded household
 cloth budgets to adaptive quotes, with mixed outcomes and weaker operator work in
 two seeds. Other materials, wardrobe succession/salvage, supply-chain knowledge
 and abandoned deposit extraction remain unfinished connections.
+
+
+### Progressive household cash tax and practical research
+
+[Council finance and production knowledge](civic-production-finance.md) adds two
+opt-in policies and eighteen matched fifty-year runs. Tax collection transfers
+existing cash with protected food reserves and delivered administrative limits.
+Local experiments use named reserved work, actual materials and council payments.
+Initial rotating research fails to complete techniques; alternating continuity
+produces completions in all three seeds and reopens seed 256's textile production.
+Population, hunger and operator outcomes remain mixed, with significant additional
+idle council reserves under taxation. Neither policy is enabled by default or
+presented as a solved circulation economy.

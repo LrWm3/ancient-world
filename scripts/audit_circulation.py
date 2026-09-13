@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 
-HOUSEHOLD_FLOW_FIELDS = ("wages", "dividends", "relief", "food_spending")
+HOUSEHOLD_FLOW_FIELDS = ("wages", "dividends", "relief", "food_spending", "wealth_tax_paid")
 
 
 def household_flows(accounts):
@@ -130,6 +130,9 @@ def audit(history):
         'cash_total': sum(cash.values()),
         'food_requests': food_requests(history),
         'household_clothing': clothing_report(economy, accounts),
+        'wealth_tax': dict(enabled=economy.get('wealth_tax', {}).get('enabled', False),
+                          collected=sum(r['paid'] for r in economy.get('wealth_tax', {}).get('receipts', [])),
+                          assessments=len(economy.get('wealth_tax', {}).get('receipts', []))),
         'household_cumulative_flows': household_flows(accounts),
         'relative_money_residual': (initial + issued - sum(cash.values())) / max(initial + issued, 1),
         'sites': [{

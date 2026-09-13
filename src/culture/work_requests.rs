@@ -60,6 +60,10 @@ pub struct WorkPlan {
     #[serde(default)]
     pub study_expectation: Option<StudyExpectation>,
     #[serde(default)]
+    pub experiment_topic: Option<u32>,
+    #[serde(default)]
+    pub experiment_done: bool,
+    #[serde(default)]
     pub completed: f32,
     #[serde(default)]
     pub commitment: Option<u32>,
@@ -285,6 +289,9 @@ impl Culture {
     fn work_actor(&self, h: &History, site: u32, people: &[u32]) -> Option<u32> {
         if people.is_empty() || people.iter().any(|&p| p as usize >= self.agents.len()) {
             return None;
+        }
+        if let Some(actor) = self.continuing_researcher(h, site, people) {
+            return Some(actor);
         }
         let offset = (h.month / 3 + site) as usize % people.len();
         if self.institutional_students
@@ -535,6 +542,8 @@ impl Culture {
                 .is_some_and(|s| s.institution.is_some()),
         ));
         WorkPlan {
+            experiment_done: false,
+            experiment_topic: actor.and_then(|p| self.experiment_candidate(h, site, p)),
             lesson_opportunities: Some(self.lesson_opportunities(h, site, actor)),
             institutional_students: Some(self.institutional_students),
             continuing_students: Some(self.continuing_students),
@@ -705,6 +714,9 @@ impl Culture {
         let Some(faith) = self.resident_tradition(h, site, actor) else {
             return requests;
         };
+        if let Some(request) = self.experiment_request(h, site, actor) {
+            requests.push(request);
+        }
         let a = &self.agents[actor as usize];
         let traits = a.traits;
         if self.artifacts.iter().any(|o| {
