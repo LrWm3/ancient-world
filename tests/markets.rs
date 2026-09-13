@@ -869,3 +869,108 @@ fn council_credit_requires_receipts_need_contact_and_reaches_existing_treasury()
         serde_json::to_value(resumed).unwrap()
     );
 }
+
+#[test]
+fn shared_issuance_caps_supply_and_does_not_reset_on_toggle_or_reload() {
+    use ancient_world::{credit::issuance::Limits, society::Council};
+    let mut h = network();
+    h.society.as_mut().unwrap().councils = (0..3)
+        .map(|civilization| Council {
+            civilization,
+            treasury: 0.,
+            tax_rate: 0.2,
+            distribution: None,
+            pending_distribution: None,
+            distribution_review: None,
+            pending_tax: None,
+            tax_effective_since: None,
+            relief_paid: 0.,
+        })
+        .collect();
+    h.configure_shared_issuance(true).unwrap();
+    let schedule = h.credit.issuance.schedule.as_mut().unwrap();
+    schedule.amount = 80.;
+    schedule.end_month = 24;
+    schedule.interval_months = 1;
+    schedule.limits = Limits {
+        per_issue: 60.,
+        annual: 100.,
+        lifetime: 150.,
+        cooldown_months: 2,
+    };
+    for month in 1..=8 {
+        h.month = month;
+        h.shared_issuance_month().unwrap();
+        let expected = match month {
+            1 | 2 => 180.,
+            _ => 300.,
+        };
+        assert_eq!(h.credit.issuance.total_issued(), expected);
+        assert!(h.economy_residuals()[4].abs() < 1e-12);
+    }
+    let before = serde_json::to_value(&h).unwrap();
+    h.shared_issuance_month().unwrap();
+    assert_eq!(before, serde_json::to_value(&h).unwrap());
+    let mut resumed: History = serde_json::from_value(before).unwrap();
+    for month in 9..=25 {
+        for world in [&mut h, &mut resumed] {
+            world.month = month;
+            if month == 9 {
+                world.configure_shared_issuance(false).unwrap();
+            }
+            if month == 12 {
+                world.configure_shared_issuance(true).unwrap();
+            }
+            world.shared_issuance_month().unwrap();
+            world.validate_credit().unwrap();
+            assert!(world.economy_residuals()[4].abs() < 1e-12);
+        }
+    }
+    assert_eq!(h.credit.issuance.total_issued(), 450.);
+    assert_eq!(h.credit.issuance.schedule.as_ref().unwrap().start_month, 1);
+    assert_eq!(
+        serde_json::to_value(&h).unwrap(),
+        serde_json::to_value(resumed).unwrap()
+    );
+    let money = h.credit.issuance.total_issued();
+    h.configure_shared_issuance(true).unwrap();
+    h.month = 26;
+    h.shared_issuance_month().unwrap();
+    assert_eq!(h.credit.issuance.total_issued(), money);
+    let mut corrupt = h.clone();
+    corrupt.credit.issuance.receipts[0].issued += 1.;
+    assert!(corrupt.validate_credit().is_err());
+    let mut corrupt = h.clone();
+    corrupt
+        .credit
+        .issuance
+        .receipts
+        .push(corrupt.credit.issuance.receipts[0].clone());
+    assert!(corrupt.validate_credit().is_err());
+    let mut corrupt = h.clone();
+    corrupt
+        .credit
+        .issuance
+        .schedule
+        .as_mut()
+        .unwrap()
+        .issuers
+        .push(999);
+    assert!(corrupt.validate_credit().is_err());
+    // A malformed huge authorization must not commit the first issuer and then fail.
+    let mut overflow = h.clone();
+    overflow.credit.issuance = Default::default();
+    overflow.configure_shared_issuance(true).unwrap();
+    let schedule = overflow.credit.issuance.schedule.as_mut().unwrap();
+    schedule.amount = f64::MAX;
+    schedule.limits = Limits {
+        per_issue: f64::MAX,
+        annual: f64::MAX,
+        lifetime: f64::MAX,
+        cooldown_months: 0,
+    };
+    overflow.month += 1;
+    let before = serde_json::to_value(&overflow).unwrap();
+    assert!(overflow.shared_issuance_month().is_err());
+    assert_eq!(before, serde_json::to_value(overflow).unwrap());
+}

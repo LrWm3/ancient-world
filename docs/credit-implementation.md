@@ -394,3 +394,42 @@ people; serialized sites, events, people, cargo and delivery payments matched.
 This is a null observation consistent with the measured cash-rich exporter, not
 proof that the policy helps strained exporters. Broader seed and scarcity cases
 remain required before advancing the monetary experiment gate.
+
+## Bounded shared-currency issuance pilot
+
+`--shared-issuance` creates a dated experiment authorization on first activation;
+omitting the flag preserves archive settings, while false stops future creation.
+The initial authorization names the currently existing councils, begins next month
+and expires after 120 months. It requests 25 shared-currency units every 12 months,
+with caps of 25 per issue, 100 in a rolling 12-month window and 250 over the issuer's
+lifetime, plus a 12-month cooldown. These are configurable toy experiment limits,
+not measured monetary parameters or recommendations for a balanced world.
+
+Monthly Open credits the existing council treasury before ordinary obligations.
+All issuers are preflighted before any treasury changes. Receipts retain the
+issuer, known leader reference, currency, authorization dates through the schedule,
+requested/permitted/actual amounts, prior cap usage and treasury balances. Positive
+issues produce historical events. Existing payroll, relief and procurement spend
+the cash; neither goods nor income are created by the act of issuance itself.
+
+The monetary residual now compares owned balances against original money plus
+recorded issuance. Debt claims remain separate. Exact representable treasury
+increments count as issued money; requested but uncredited fractions do not.
+Caps depend on recorded amounts and fixed limits, not prices, nominal production
+or enlarged treasury balances. Re-enabling does not renew the original window or
+bank missed grants. Leadership changes do not reset issuer totals, and newly
+created civilizations are not silently added to this authorization.
+
+This is shared currency: another civilization can receive the resulting cash
+through ordinary transfers. Receipts identify issuance and account balances show
+where cash accumulates; they do not tag the ancestry of individual coins. Distinct
+currencies and foreign exchange remain subsequent work, subject to the design's
+experiment gates.
+
+Issuance verification: eleven active market tests and five CLI tests passed, with
+two extended market cases ignored; strict all-target Clippy passed. The new
+boundary fixture verifies per-issue/rolling annual/lifetime/cooldown limits,
+repeated calls, disabled intervals, expired authorization, continuation, malformed
+receipts and authorities, and atomic rejection of aggregate supply overflow.
+Issued cash reconciles through the existing monetary residual. These are accounting
+and scheduling checks; four-arm world comparisons are the next experiment.

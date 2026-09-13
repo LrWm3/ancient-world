@@ -1,10 +1,10 @@
 # Credit, issuance and currencies — design draft
 
-Status: initial credit integration. Loan records, cash transfers, persistence,
-underwriting, monthly servicing and an opt-in council tax-bridge pilot exist.
-Commercial credit, negotiated restructuring, issuance and exchange remain pending.
+Status: experimental council and commercial credit pilots and bounded shared-
+currency issuance exist behind explicit switches. Negotiated restructuring policy,
+account closure handling, extended calibration and currency exchange remain pending.
 See the [implementation record](credit-implementation.md) for evidence and limits.
-The council experiment is disabled unless explicitly enabled.
+These pilots remain opt-in; implementation does not mean their balance gates pass.
 
 This is a toy-economy experiment: test whether moving existing cash across time
 improves useful activity, then test bounded money creation, before introducing
@@ -288,7 +288,7 @@ later possibilities, not requirements for either stage.
 - [ ] Implement arrears, one bounded restructuring, default and closure/succession.
 - [ ] Add explorer debt/credit receipts, history events, archives and continuation tests.
 - [ ] Run credit-only comparisons and record null/negative results as well as benefits.
-- [ ] Add independently switchable capped issuance and supply-ledger reconciliation.
+- [x] Add independently switchable capped issuance and supply-ledger reconciliation.
 - [ ] Run four-arm tests, stress cases and held-out gates; write a go/no-go summary.
 - [ ] If justified, implement Stage 2 currency ownership and migration before FX.
 - [ ] Add accepted-payment demand, finite-reserve exchange and foreign-debt tests.

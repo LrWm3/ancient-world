@@ -73,6 +73,9 @@ struct Args {
     /// Experimental town working-capital loans against delivery-paid exports.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     commercial_credit: Option<bool>,
+    /// Bounded, dated shared-currency issuance into council treasuries.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    shared_issuance: Option<bool>,
     /// Newly funded export orders pay on delivery; false retains dispatch payment.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     delivery_paid_exports: Option<bool>,
@@ -158,6 +161,7 @@ fn main() -> Result<()> {
                 && args.history_export.is_none()
                 && args.council_credit.is_none()
                 && args.commercial_credit.is_none()
+                && args.shared_issuance.is_none()
                 && args.delivery_paid_exports.is_none()
                 && !args.society
                 && !args.politics
@@ -320,6 +324,13 @@ fn main() -> Result<()> {
             .council_policy
             .enabled = enabled;
     }
+    if let Some(enabled) = args.shared_issuance {
+        generator
+            .civilizations
+            .as_mut()
+            .context("shared issuance requires a history")?
+            .configure_shared_issuance(enabled)?;
+    }
     if let Some(enabled) = args.commercial_credit {
         generator
             .civilizations
@@ -408,6 +419,22 @@ fn main() -> Result<()> {
 #[cfg(test)]
 mod args_tests {
     use super::*;
+    #[test]
+    fn issuance_flag_preserves_archive_when_omitted() {
+        for (arguments, expected) in [
+            (vec!["ancient-world"], None),
+            (vec!["ancient-world", "--shared-issuance"], Some(true)),
+            (
+                vec!["ancient-world", "--shared-issuance=false"],
+                Some(false),
+            ),
+        ] {
+            assert_eq!(
+                Args::try_parse_from(arguments).unwrap().shared_issuance,
+                expected
+            );
+        }
+    }
     #[test]
     fn commercial_credit_flag_preserves_archive_when_omitted() {
         for (arguments, expected) in [

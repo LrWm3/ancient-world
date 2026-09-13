@@ -840,7 +840,7 @@ impl History {
             .map(|c| c.escrow as f64)
             .sum::<f64>();
         money += self.export_payments.iter().map(|p| p.escrow).sum::<f64>();
-        let mut initial_money = 0.;
+        let mut initial_money = self.credit.issuance.total_issued();
         let mut water = [0.; 4];
         let catalog = self.economy_catalog.as_ref().unwrap();
         let mut goods = [0.; GOODS];

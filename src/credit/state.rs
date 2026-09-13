@@ -14,6 +14,8 @@ pub struct CashReceipt {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Credit {
     #[serde(default)]
+    pub issuance: super::issuance::Issuance,
+    #[serde(default)]
     pub commercial_policy: super::commercial::Policy,
     #[serde(default)]
     pub commercial_decided_month: Option<u32>,
@@ -100,6 +102,27 @@ impl History {
     }
 
     pub fn validate_credit(&self) -> Result<()> {
+        self.credit.issuance.validate(self.month)?;
+        if let Some(schedule) = &self.credit.issuance.schedule {
+            ensure!(
+                schedule.issuers.iter().all(|&id| self
+                    .civilizations
+                    .get(id as usize)
+                    .is_some_and(|c| c.id == id)
+                    && self
+                        .society
+                        .as_ref()
+                        .and_then(|s| s.councils.get(id as usize))
+                        .is_some_and(|c| c.civilization == id)),
+                "invalid issuance authority reference"
+            );
+        }
+        ensure!(
+            self.credit.issuance.receipts.iter().all(|r| r
+                .leader
+                .is_none_or(|id| self.people.get(id as usize).is_some_and(|p| p.id == id))),
+            "invalid issuance leader reference"
+        );
         self.credit.commercial_policy.validate()?;
         ensure!(
             self.credit

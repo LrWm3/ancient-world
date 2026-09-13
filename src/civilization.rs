@@ -1373,6 +1373,7 @@ impl Generator {
         h.ensure_export_contract_identities()?;
         h.trade_contact.prune(h.month);
         h.activate_monthly_policies();
+        h.shared_issuance_month()?;
         h.peace_payments();
         h.institution_arrivals();
         h.contagion_month();
