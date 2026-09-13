@@ -436,3 +436,13 @@ existing unclaimed-estate review releases 537–3,407 currency units in each of 
 fifty-year worlds, but scarcely changes workshop business and yields mixed welfare.
 The recipient is the town operating account. Trace actual procurement and input
 bottlenecks next; neither mechanism establishes that circulation is solved.
+
+
+### Rejected general recipe-work reservation
+
+[A three-seed staffing screen](recipe-work-reservation-screen.md) tested a
+2%-of-workforce, feasibility-capped recipe allowance beyond tool maintenance.
+Operator work falls in all three worlds; welfare improves in two but worsens in
+409, which also loses active operators. The shader change was reverted. Household
+material purchases and durable possession remain the next missing demand path;
+reassigning municipal labor does not substitute for actual customers.
