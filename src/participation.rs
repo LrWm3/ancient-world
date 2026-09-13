@@ -47,6 +47,9 @@ pub struct Resident {
     pub workshop_completed: f64,
     #[serde(default)]
     pub merchant_completed: f64,
+    /// Actual completed farming, forestry, mining and construction time.
+    #[serde(default)]
+    pub production_practice: [f64; 4],
     /// Completed worker-months by the existing four recipe families. Older untyped
     /// experience remains in workshop_completed; no historical trade is invented.
     #[serde(default)]
@@ -173,6 +176,14 @@ impl Participation {
                 if let Some(family) = family {
                     resident.workshop_practice[family] += contribution;
                 }
+            } else if let Some(sector) = match c.activity {
+                Activity::Agriculture => Some(0),
+                Activity::Forestry => Some(1),
+                Activity::Mining => Some(2),
+                Activity::Construction => Some(3),
+                _ => None,
+            } {
+                resident.production_practice[sector] += contribution;
             } else if category < 2 {
                 resident.completed[category] += contribution;
             }
@@ -204,6 +215,9 @@ impl Participation {
                         .as_ref()
                         .is_some_and(|s| (id as usize) < s.households.len()))
                     && [p.capacity, p.committed, p.care]
+                        .iter()
+                        .all(|v| v.is_finite() && *v >= 0.)
+                    && p.production_practice
                         .iter()
                         .all(|v| v.is_finite() && *v >= 0.)
                     && p.capacity + p.care <= 0.80001
@@ -387,6 +401,7 @@ impl History {
                 completed: [0.; 2],
                 workshop_completed: 0.,
                 merchant_completed: 0.,
+                production_practice: [0.; 4],
                 workshop_practice: [0.; 4],
                 workshop_learning: [0.; 4],
             });
@@ -680,6 +695,7 @@ mod tests {
                             completed: [0.; 2],
                             workshop_completed: 0.,
                             merchant_completed: 0.,
+                            production_practice: [0.; 4],
                             workshop_practice: [0.; 4],
                             workshop_learning: [0.; 4],
                         },

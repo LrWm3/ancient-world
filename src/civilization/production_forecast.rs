@@ -257,6 +257,96 @@ mod agriculture_tests {
         }
         let engine = Engine::new(&g).unwrap();
         let forecast = engine.forecast_labor(&g, &ready).unwrap();
+        if construction {
+            // Demand-limited matched intervention: same effective work and stocks,
+            // different completed practice. Use a small common request so matching
+            // itself does not obscure the conversion for later sectors.
+            let mut requests = forecast.clone();
+            for f in &mut requests {
+                for work in &mut f.sectors {
+                    *work *= 0.1;
+                }
+                f.construction *= 0.1;
+            }
+            let mut novice = ready.clone();
+            for r in novice
+                .participation
+                .as_mut()
+                .unwrap()
+                .residents
+                .values_mut()
+            {
+                r.production_practice = [0.; 4];
+            }
+            let mut expert = novice.clone();
+            for r in expert
+                .participation
+                .as_mut()
+                .unwrap()
+                .residents
+                .values_mut()
+            {
+                r.production_practice = [12.; 4];
+            }
+            for case in [&mut novice, &mut expert] {
+                case.reserve_agriculture(&requests).unwrap();
+                engine.upload(&g, case);
+                engine.dispatch(&g, false, case.sites.len() as u32);
+                engine.read(&g, case, true).unwrap();
+                case.settle_agriculture().unwrap();
+                case.validate_agriculture().unwrap();
+            }
+            let plans = |h: &History| {
+                h.resolution
+                    .as_ref()
+                    .unwrap()
+                    .agriculture
+                    .as_ref()
+                    .unwrap()
+                    .plans
+                    .clone()
+            };
+            let np = plans(&novice);
+            let ep = plans(&expert);
+            for sector in 0..4 {
+                let totals = |ps: &[crate::agriculture_participation::FarmPlan]| {
+                    ps.iter()
+                        .filter(|p| p.sector == sector)
+                        .fold([0f64; 2], |mut t, p| {
+                            t[0] += p.effective_granted() as f64;
+                            t[1] += p.assignments.iter().map(|a| a.used as f64).sum::<f64>();
+                            t
+                        })
+                };
+                let n = totals(&np);
+                let e = totals(&ep);
+                assert!(n[0] > 0. && n[1] > 0., "sector {sector}: {n:?}");
+                assert!((e[0] - n[0]).abs() < 1e-4, "sector {sector}: {n:?} {e:?}");
+                assert!(
+                    (e[1] / n[1] - 0.8).abs() < 0.002,
+                    "sector {sector}: {n:?} {e:?}"
+                );
+            }
+            for (n, e) in novice.sites.iter().zip(&expert.sites) {
+                for (a, b) in n.economy.goods.iter().zip(e.economy.goods.iter()) {
+                    assert!(
+                        (a - b).abs() < 0.002,
+                        "same productive work must not multiply materials"
+                    );
+                }
+                assert!(
+                    (n.economy.production_probe[1] - e.economy.production_probe[1]).abs() < 0.002
+                );
+                assert!((n.economy.housing_plan[2] - e.economy.housing_plan[2]).abs() < 0.002);
+            }
+            let mut restored: History =
+                serde_json::from_value(serde_json::to_value(&expert).unwrap()).unwrap();
+            restored.settle_agriculture().unwrap();
+            assert_eq!(
+                serde_json::to_value(&restored).unwrap(),
+                serde_json::to_value(&expert).unwrap()
+            );
+        }
         let mut busy = ready.clone();
         let ids: Vec<_> = busy
             .participation

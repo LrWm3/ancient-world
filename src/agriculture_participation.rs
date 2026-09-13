@@ -8,6 +8,18 @@ use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+const MAX_PRODUCTIVITY_BONUS: f32 = 0.5;
+const PRACTICE_HALF_SATURATION_WORKER_MONTHS: f64 = 12.;
+
+fn productivity_bonus(practice: f64) -> f32 {
+    let practice = if practice.is_finite() {
+        practice.max(0.)
+    } else {
+        0.
+    };
+    MAX_PRODUCTIVITY_BONUS * (practice / (PRACTICE_HALF_SATURATION_WORKER_MONTHS + practice)) as f32
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Agriculture {
     #[serde(default)]
@@ -34,8 +46,20 @@ pub struct FarmAssignment {
     pub commitment: u32,
     pub granted: f32,
     pub used: f32,
+    /// Frozen service rate; GPU allowances are untrained-equivalent work.
+    #[serde(default)]
+    pub productivity_bonus: f32,
 }
 impl FarmPlan {
+    pub fn effective_granted(&self) -> f32 {
+        round_work_down(
+            self.assignments
+                .iter()
+                .map(|a| a.granted as f64 * (1. + a.productivity_bonus as f64))
+                .sum(),
+        )
+    }
+
     /// Audit stored contributions in double precision: an f32 reduction over many
     /// residents can cross the tolerance even when their actual grants do not.
     pub fn grants_within_request(&self) -> bool {
@@ -223,10 +247,15 @@ impl History {
                         (r.presence == Presence::Resident(f.site)
                             && household.site == f.site
                             && pool.available(r.person) > 1e-6)
-                            .then_some((r.person, hh, pool.available(r.person)))
+                            .then_some((
+                                r.person,
+                                hh,
+                                pool.available(r.person),
+                                productivity_bonus(r.production_practice[sector]),
+                            ))
                     })
                     .collect();
-                let available: f32 = people.iter().map(|r| r.2).sum();
+                let available: f32 = people.iter().map(|r| r.2 * (1. + r.3)).sum();
                 let fraction = (wanted / available.max(1e-6)).min(1.);
                 let mut plan = FarmPlan {
                     sector,
@@ -237,8 +266,10 @@ impl History {
                     settled: false,
                 };
                 let mut left = wanted as f64;
-                for (person, household, capacity) in people {
-                    let grant = round_work_down(((capacity * fraction) as f64).min(left));
+                for (person, household, capacity, bonus) in people {
+                    let grant = round_work_down(
+                        ((capacity * fraction) as f64).min(left / (1. + bonus as f64)),
+                    );
                     if let Some(commitment) = self.participation.as_mut().unwrap().reserve(
                         self.month,
                         f.site,
@@ -255,19 +286,24 @@ impl History {
                             commitment,
                             granted,
                             used: 0.,
+                            productivity_bonus: bonus,
                         });
-                        left = (left - granted as f64).max(0.);
+                        left = (left - granted as f64 * (1. + bonus as f64)).max(0.);
                     }
                 }
                 if sector == 0 {
-                    self.sites[f.site as usize].economy.farm_workers =
-                        [if extraction { 2. } else { 1. }, plan.granted(), 0., wanted];
+                    self.sites[f.site as usize].economy.farm_workers = [
+                        if extraction { 2. } else { 1. },
+                        plan.effective_granted(),
+                        0.,
+                        wanted,
+                    ];
                 } else if sector == 3 {
                     self.sites[f.site as usize].economy.construction_workers =
-                        [1., plan.granted(), 0., wanted];
+                        [1., plan.effective_granted(), 0., wanted];
                 } else {
                     self.sites[f.site as usize].economy.extraction_workers[sector - 1] =
-                        plan.granted();
+                        plan.effective_granted();
                 }
                 plans.push(plan);
             }
@@ -312,6 +348,7 @@ impl History {
                 }
                 ensure!(p.month == self.month, "stale agriculture settlement");
                 let granted = p.granted();
+                let effective_granted = p.effective_granted();
                 let economy = &self.sites[p.site as usize].economy;
                 let used = if p.sector == 0 {
                     economy.farm_workers[2]
@@ -321,10 +358,10 @@ impl History {
                     economy.extraction_workers[p.sector + 1]
                 };
                 ensure!(
-                    used.is_finite() && used >= 0. && used <= granted + 1e-4,
+                    used.is_finite() && used >= 0. && used <= effective_granted + 1e-4,
                     "agriculture exceeded attendance"
                 );
-                let fraction = used.min(granted) / granted.max(1e-6);
+                let fraction = used.min(effective_granted) / effective_granted.max(1e-6);
                 for row in &mut p.assignments {
                     row.used = row.granted * fraction;
                     self.participation
@@ -332,6 +369,8 @@ impl History {
                         .unwrap()
                         .settle(row.commitment, row.used)?;
                 }
+                let effective_used = used;
+                let used = p.assignments.iter().map(|row| row.used).sum::<f32>();
                 let state = self.resolution.as_mut().unwrap();
                 let boundary = Boundary {
                     month: self.month,
@@ -346,10 +385,21 @@ impl History {
                     revision: crate::resolution::revision([
                         p.requested.to_bits() as u64,
                         granted.to_bits() as u64,
+                        effective_granted.to_bits() as u64,
                     ]),
                 };
                 let metrics = if state.compare {
                     vec![
+                        Metric {
+                            name: "effective_production_work".into(),
+                            unit: "untrained-equivalent worker-months".into(),
+                            expected: effective_granted as f64,
+                            actual: effective_used as f64,
+                            explained: vec![(
+                                "unused productive capacity".into(),
+                                (effective_used - effective_granted) as f64,
+                            )],
+                        },
                         Metric {
                             name: if p.sector == 0 {
                                 "agriculture_attendance"
@@ -429,7 +479,8 @@ impl History {
                     && sites.insert((p.site, p.sector))
                     && p.requested.is_finite()
                     && p.requested >= 0.
-                    && p.grants_within_request(),
+                    && p.grants_within_request()
+                    && p.effective_granted() <= p.requested + 1e-4,
                 "invalid agriculture plan: site {}, sector {}, month {}, requested {}, f32 grant {}, stored grants {}",
                 p.site, p.sector, p.month, p.requested, p.granted(),
                 p.assignments.iter().map(|a| a.granted as f64).sum::<f64>()
@@ -441,6 +492,8 @@ impl History {
                             < self.society.as_ref().unwrap().households.len()
                         && row.granted.is_finite()
                         && row.granted > 0.
+                        && row.productivity_bonus.is_finite()
+                        && (0. ..=MAX_PRODUCTIVITY_BONUS).contains(&row.productivity_bonus)
                         && row.used.is_finite()
                         && row.used >= 0.
                         && row.used <= row.granted + 1e-5
@@ -480,6 +533,30 @@ fn activity(sector: usize) -> Activity {
 #[cfg(test)]
 mod grant_audit_tests {
     use super::*;
+    #[test]
+    fn expertise_converts_time_without_retyping_legacy_assignments() {
+        assert_eq!(productivity_bonus(0.), 0.);
+        assert_eq!(productivity_bonus(12.), 0.25);
+        assert!(productivity_bonus(1e12) <= 0.5);
+        let legacy: FarmAssignment = serde_json::from_value(serde_json::json!({
+            "person":0,"household":0,"commitment":0,"granted":0.4,"used":0.
+        }))
+        .unwrap();
+        assert_eq!(legacy.productivity_bonus, 0.);
+        let mut plan = FarmPlan {
+            sector: 0,
+            month: 0,
+            site: 0,
+            requested: 1.,
+            assignments: vec![legacy],
+            settled: false,
+        };
+        assert_eq!(plan.granted(), plan.effective_granted());
+        plan.assignments[0].productivity_bonus = 0.25;
+        assert!((plan.effective_granted() - 0.5).abs() < 1e-6);
+        assert_eq!(plan.granted(), 0.4);
+    }
+
     #[test]
     fn long_run_worker_count_cannot_overdraw_the_allowance() {
         let wanted = 160f32 / 1.5;
@@ -528,6 +605,7 @@ mod grant_audit_tests {
                     commitment: person,
                     granted: grant,
                     used: 0.,
+                    productivity_bonus: 0.,
                 })
                 .collect(),
         };

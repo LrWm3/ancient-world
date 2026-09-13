@@ -350,13 +350,14 @@ impl EconomyCatalog {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Economy {
-    /// Named agricultural attendance: enabled, granted, used, requested.
+    /// Named farming: enabled, granted/used/requested untrained-equivalent work.
+    /// Personal time and productivity conversions remain in the CPU attendance plan.
     #[serde(default)]
     pub farm_workers: [f32; 4],
-    /// Forestry/mining granted attendance and productive work.
+    /// Forestry/mining granted and used untrained-equivalent work.
     #[serde(default)]
     pub extraction_workers: [f32; 4],
-    /// Enabled, granted, used, requested building attendance.
+    /// Enabled, granted, used, requested untrained-equivalent building work.
     #[serde(default)]
     pub construction_workers: [f32; 4],
     /// Last production inputs: tool multiplier, cultivated ha, effective tools kg, population.

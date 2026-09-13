@@ -38,10 +38,10 @@ settlement, checkpointing and disabling named participation use the same records
 
 ## Remaining occupation coverage
 
-Workshops and merchant crews now have distinct bounded productivity effects.
-Agriculture, forestry, mining and construction attendance still need their own
-productive-work conversion and verification. Their GPU labor accounting must not
-mistake effective work for actual worker-months. This change does not convert them.
+Farming, forestry, mining and construction now also have
+[occupation-specific productive-work conversion](production-experience.md), keeping
+GPU effective allowances separate from actual personal time. Their model does not
+change the fleet-specific hull limits or prepaid voyage timing described here.
 
 ## Verification (2026-09-12)
 
