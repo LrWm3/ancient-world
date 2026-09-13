@@ -11,6 +11,61 @@ struct Params {dims:vec4<u32>,physical:vec4<f32>,counts:vec4<u32>,options:vec4<u
 @group(0) @binding(6) var<storage,read_write> river_out:array<vec4<f32>>;
 @group(0) @binding(7) var<uniform> p:Params;
 const NONE:u32=0xffffffffu;
+// Stratified aquatic exchange and sediment cycling.
+const ECO_MIN_WATER_COLUMN_M:f32=1.;
+const ECO_SURFACE_LAYER_DEPTH_M:f32=100.;
+const ECO_PERIPHERAL_UPWELLING_RADIUS_RAD:f32=.90;
+const ECO_UPWELLING_WIND_SCALE:f32=8.;
+const ECO_MIN_UPWELLING_WIND_FACTOR:f32=.2;
+const ECO_SHELF_UPWELLING_WEIGHT:f32=.25;
+const ECO_MAX_COLUMN_EXCHANGE_FRACTION:f32=.2;
+const ECO_BACKGROUND_EXCHANGE_M_YEAR:f32=.02;
+const ECO_MIN_WATER_VOLUME_M:f32=.001;
+const ECO_AQUATIC_MIN_WATER_FRACTION:f32=.001;
+const ECO_SEDIMENT_REMINERALIZATION_PER_YEAR:f32=.02;
+const ECO_MIXING_OXYGEN_GAIN_PER_M:f32=.01;
+const ECO_REMINERALIZATION_OXYGEN_LOSS_M2_KG:f32=2.;
+const ECO_ANOXIC_P_RELEASE_PER_YEAR:f32=.05;
+const ECO_SEDIMENT_BURIAL_PER_YEAR:f32=.001;
+const ECO_PERIPHERAL_UPWELLING_WIDTH_RAD:f32=.16;
+const ECO_MAX_UPWELLING_WIND_FACTOR:f32=2.;
+const ECO_PERIPHERAL_EXCHANGE_M_YEAR:f32=2.;
+
+// Terrestrial nutrient cycling and finite chemical energy.
+// Retained and exported groundwater shares must sum to one.
+const ECO_GROUNDWATER_ROUTING_PARTITION:vec2<f32>=vec2(.75,.25);
+const ECO_CYCLING_MIN_LAND_FRACTION:f32=.00001;
+const ECO_CYCLING_OPTIMUM_C:f32=23.;
+const ECO_CYCLING_THERMAL_RANGE_C:f32=40.;
+const ECO_MIN_SOURCE_REACTIVE_FRACTION:f32=.0000001;
+const ECO_HYDROGEN_KG_PER_KG_REACTED:f32=.002;
+const ECO_SECONDARY_MJ_PER_KG_REACTED:f32=.02;
+const ECO_OXIDANT_CAPACITY_KG_M2:f32=2.;
+const ECO_OXIDANT_REPLENISHMENT_KG_M2_YEAR:f32=.02;
+const ECO_ACTIVITY_P_RELEASE_PER_YEAR:f32=.003;
+const ECO_MAX_DETRITUS_DECAY_FRACTION:f32=.8;
+const ECO_OUTER_NUTRIENT_RETENTION_BONUS:f32=.15;
+const ECO_MICROBIAL_RETENTION_WEIGHT:f32=.1;
+const ECO_MAX_NUTRIENT_RETENTION:f32=.99;
+const ECO_P_MOBILIZATION_PER_YEAR:f32=.05;
+const ECO_HYDROGEN_MJ_PER_KG:f32=120.;
+const ECO_SECONDARY_COMPETITION_WEIGHT:f32=.01;
+const ECO_PRODUCER_MIN_LAND_FRACTION:f32=.001;
+const ECO_PRODUCER_DISTURBANCE_MORTALITY_WEIGHT:f32=.15;
+const ECO_UNSUITABLE_MORTALITY_PER_YEAR:f32=.5;
+const ECO_CANOPY_LIGHT_ATTENUATION_M2_KG:f32=.3;
+const ECO_SURFACE_CHEMICAL_ACCESS:f32=.1;
+const ECO_MIN_HABITAT_REACTION_RATE:f32=.0000001;
+const ECO_UNDERGROUND_GROUNDWATER_SCALE:f32=2.;
+const ECO_SECONDARY_ACCESS_PER_YEAR:f32=.2;
+const ECO_CHEMICAL_C_YIELD_KG_MJ:f32=.008;
+const ECO_TRACE_NUTRIENT_RESPONSE_SCALE:f32=50.;
+const ECO_SECONDARY_C_KG_PER_KG_OXIDANT:f32=.05;
+const ECO_FIXATION_N_PER_AVAILABLE_P:f32=5.;
+const ECO_FIXATION_YIELD_WEIGHT:f32=.08;
+const ECO_MAX_FIXED_N_PER_POTENTIAL_C:f32=.1;
+const ECO_FIXATION_C_COST_PER_KG_N:f32=10.;
+
 // Producer habitat selection and bounded community competition.
 const ECO_SCORE_MIN_LAND_FRACTION:f32=.0001;
 const ECO_OUTER_SPECIES_MIN_FRACTION:f32=.5;
@@ -240,35 +295,35 @@ fn mixture(state:vec4<f32>,fallback:Entry)->Entry {
 }
 @compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn biology(@builtin(global_invocation_id) g:vec3<u32>) {
- let i=id(g,p.dims.y);let e=environment[i];var s=src[i];let dt=p.physical.y;let l=max(0.,land(e)-select(0.,s.pools[24].w,p.options.w==1u));let w=water(e);let outer=e.fields[0].w/max(land(e),.00001);
- s.pools[19]*=.75; // Matching river injection, below, carries the other quarter as absolute mass.
+ let i=id(g,p.dims.y);let e=environment[i];var s=src[i];let dt=p.physical.y;let l=max(0.,land(e)-select(0.,s.pools[24].w,p.options.w==1u));let w=water(e);let outer=e.fields[0].w/max(land(e),ECO_CYCLING_MIN_LAND_FRACTION);
+ s.pools[19]*=ECO_GROUNDWATER_ROUTING_PARTITION.x; // Matching river injection, below, carries the other quarter as absolute mass.
  s.pools[27].w+=e.fields[2].z;s.pools[28]=vec4(0.);s.pools[29].w=0.;
- let wet=clamp(e.fields[1].y/1400.+e.fields[1].z*.5,0.,1.);
- let thermal=clamp(1.-abs(e.fields[1].x-23.)/40.,0.,1.);
+ let wet=clamp(e.fields[1].y/ECO_WETNESS_RAINFALL_SCALE_MM+e.fields[1].z*ECO_WETNESS_GROUNDWATER_WEIGHT,0.,1.);
+ let thermal=clamp(1.-abs(e.fields[1].x-ECO_CYCLING_OPTIMUM_C)/ECO_CYCLING_THERMAL_RANGE_C,0.,1.);
  let sun=ecological_sunlight(e.fields[3].w,season_month(),p.abundance.w)*p.physical.w;
  let activity=e.fields[2].x*wet;
- let reaction_rate=e.fields[9].x/max(e.fields[4].y,.0000001);
+ let reaction_rate=e.fields[9].x/max(e.fields[4].y,ECO_MIN_SOURCE_REACTIVE_FRACTION);
  let reacted=min(s.pools[26].z,s.pools[26].z*reaction_rate*dt*s.pools[31].x);
  environment[i].fields[21]=vec4(reacted,0.,0.,1.);
- s.pools[26].z-=reacted;s.pools[26].x+=reacted*.002;s.pools[26].y+=reacted*.02;
- s.pools[26].w=min(l*2.,s.pools[26].w+wet*l*.02*dt);
- let released=min(s.pools[25].z,s.pools[25].z*(e.fields[4].z+activity*.003)*dt);
+ s.pools[26].z-=reacted;s.pools[26].x+=reacted*ECO_HYDROGEN_KG_PER_KG_REACTED;s.pools[26].y+=reacted*ECO_SECONDARY_MJ_PER_KG_REACTED;
+ s.pools[26].w=min(l*ECO_OXIDANT_CAPACITY_KG_M2,s.pools[26].w+wet*l*ECO_OXIDANT_REPLENISHMENT_KG_M2_YEAR*dt);
+ let released=min(s.pools[25].z,s.pools[25].z*(e.fields[4].z+activity*ECO_ACTIVITY_P_RELEASE_PER_YEAR)*dt);
  s.pools[25].z-=released;s.pools[17].z+=released;
  // Decomposers respire carbon and return retained N/P to soil; losses enter groundwater.
- let decay=s.pools[18].xyz*min(.8,dt*(e.fields[5].w+outer)*thermal*wet*microbial(4u).y);
+ let decay=s.pools[18].xyz*min(ECO_MAX_DETRITUS_DECAY_FRACTION,dt*(e.fields[5].w+outer)*thermal*wet*microbial(4u).y);
  s.pools[18]=vec4(s.pools[18].xyz-decay,0.);
- let retention=clamp(e.fields[5].x+outer*.15+microbial(7u).x*.1,0.,.99);
+ let retention=clamp(e.fields[5].x+outer*ECO_OUTER_NUTRIENT_RETENTION_BONUS+microbial(7u).x*ECO_MICROBIAL_RETENTION_WEIGHT,0.,ECO_MAX_NUTRIENT_RETENTION);
  s.pools[17]+=vec4(0.,decay.y*retention,decay.z*retention,0.);
  s.pools[19]+=vec4(0.,decay.yz*(1.-retention),0.);
  s.pools[27].x-=decay.x;s.pools[28].z+=decay.x;
  let leach=vec3(0.,s.pools[17].yz)*e.fields[5].z*wet*dt*(1.-retention);
  s.pools[17]-=vec4(leach,0.);s.pools[19]+=vec4(leach,0.);
  let sorbed=s.pools[17].z*e.fields[5].y*dt;s.pools[17].z-=sorbed;s.pools[24].z+=sorbed;
- let mobilized=s.pools[24].z*microbial(6u).y*wet*dt*.05;s.pools[24].z-=mobilized;s.pools[17].z+=mobilized;
+ let mobilized=s.pools[24].z*microbial(6u).y*wet*dt*ECO_P_MOBILIZATION_PER_YEAR;s.pools[24].z-=mobilized;s.pools[17].z+=mobilized;
  for(var k=0u;k<5u;k++) {
  let habitat=producer_environment(e,k);let old=s.pools[32u+k];
- let energy=select(sun*thermal*wet,s.pools[26].x*120.+s.pools[26].y*.01,k>=3u);
- var state=community(habitat,k,old,energy,s.pools[k].x/max(l,.001),s.pools[17].yz/max(l,.001));
+ let energy=select(sun*thermal*wet,s.pools[26].x*ECO_HYDROGEN_MJ_PER_KG+s.pools[26].y*ECO_SECONDARY_COMPETITION_WEIGHT,k>=3u);
+ var state=community(habitat,k,old,energy,s.pools[k].x/max(l,ECO_PRODUCER_MIN_LAND_FRACTION),s.pools[17].yz/max(l,ECO_PRODUCER_MIN_LAND_FRACTION));
  if k>=3u&&e.fields[8][k-3u]<=0. {state=vec4(0.,0.,1.,1.);}
  var changed=0.;if old.w>0. {if old.x!=state.x {changed+=old.z;}if old.y!=state.y {changed+=1.-old.z;}}
  let displaced=s.pools[k].xyz*clamp(changed,0.,1.);s.pools[k]-=vec4(displaced,0.);s.pools[18]+=vec4(displaced,0.);
@@ -279,7 +334,7 @@ fn biology(@builtin(global_invocation_id) g:vec3<u32>) {
  var fallback:Entry;fallback.c=vec4(f32(k),.025,.002,.1);fallback.d=vec4(0.,0.,0.,.15);
  let t=mixture(state,fallback);
  let biomass=s.pools[k].x;
- let died=s.pools[k].xyz*min(1.,dt*(t.d.w*.15+select(.0,.5,plant==NONE)));
+ let died=s.pools[k].xyz*min(1.,dt*(t.d.w*ECO_PRODUCER_DISTURBANCE_MORTALITY_WEIGHT+select(.0,ECO_UNSUITABLE_MORTALITY_PER_YEAR,plant==NONE)));
  s.pools[k]=vec4(s.pools[k].xyz-died,s.pools[k].w);s.pools[18]+=vec4(died,0.);
  let resp=min(s.pools[k].x,biomass*t.c.w*dt);s.pools[k].x-=resp;s.pools[27].x-=resp;s.pools[28].z+=resp;
  // Maintenance removes carbon; retranslocate nutrients no longer required by
@@ -288,32 +343,32 @@ fn biology(@builtin(global_invocation_id) g:vec3<u32>) {
  s.pools[k].y-=returned.x;s.pools[k].z-=returned.y;s.pools[17].y+=returned.x;s.pools[17].z+=returned.y;
  environment[i].fields[16u+k].z=died.x+resp;
  if plant==NONE||l<=0. {continue;}
- let shade=select(exp(-s.pools[0].x/max(l,.001)*.3)*max(t.d.z,.05),1.,k==0u);
+ let shade=select(exp(-s.pools[0].x/max(l,ECO_PRODUCER_MIN_LAND_FRACTION)*ECO_CANOPY_LIGHT_ATTENUATION_M2_KG)*max(t.d.z,ECO_MIN_COMPETITOR_LIGHT_RESPONSE),1.,k==0u);
  var photo=sun*thermal*wet*t.b.y*dt*l*shade*select(0.,1.,k<3u);
  // H2: 120 MJ/kg; yield 0.008 kg fixed C/MJ before symbiotic inefficiency.
- var access=.1;var local_wet=wet;
- if k>=3u {access=e.fields[9][k-2u]/max(e.fields[9].x,.0000001);local_wet=clamp(habitat.fields[1].z*2.,0.,1.);}
+ var access=ECO_SURFACE_CHEMICAL_ACCESS;var local_wet=wet;
+ if k>=3u {access=e.fields[9][k-2u]/max(e.fields[9].x,ECO_MIN_HABITAT_REACTION_RATE);local_wet=clamp(habitat.fields[1].z*ECO_UNDERGROUND_GROUNDWATER_SCALE,0.,1.);}
  let h=min(s.pools[26].x,s.pools[26].x*t.d.x*dt*access);
- var secondary=min(s.pools[26].y,s.pools[26].y*t.d.x*dt*.2*select(1.,access,k>=3u));
- let efficiency=.008*local_wet*min(1.,habitat.fields[4].w*50.);
+ var secondary=min(s.pools[26].y,s.pools[26].y*t.d.x*dt*ECO_SECONDARY_ACCESS_PER_YEAR*select(1.,access,k>=3u));
+ let efficiency=ECO_CHEMICAL_C_YIELD_KG_MJ*local_wet*min(1.,habitat.fields[4].w*ECO_TRACE_NUTRIENT_RESPONSE_SCALE);
  // The fictional H2/CO2 symbiosis fixes imported atmospheric carbon without
  // drawing on the aerobic oxidant pool. Secondary oxidative chemistry does.
- let hydrogen_carbon=h*120.*microbial(0u).x*efficiency;
+ let hydrogen_carbon=h*ECO_HYDROGEN_MJ_PER_KG*microbial(0u).x*efficiency;
  let secondary_potential=secondary*microbial(1u).x*efficiency;
- let secondary_carbon=min(secondary_potential,s.pools[26].w*.05);
+ let secondary_carbon=min(secondary_potential,s.pools[26].w*ECO_SECONDARY_C_KG_PER_KG_OXIDANT);
  secondary*=secondary_carbon/max(secondary_potential,.00000001);
  let potential=hydrogen_carbon+secondary_potential;
  var chemo=hydrogen_carbon+secondary_carbon;
  environment[i].fields[21].z+=potential;
- let fix=min(s.pools[17].z*5.,(photo+chemo)*t.d.y*microbial(2u).x*.08);
- let fixed=min(fix,max(0.,(photo+chemo)*.1));
+ let fix=min(s.pools[17].z*ECO_FIXATION_N_PER_AVAILABLE_P,(photo+chemo)*t.d.y*microbial(2u).x*ECO_FIXATION_YIELD_WEIGHT);
+ let fixed=min(fix,max(0.,(photo+chemo)*ECO_MAX_FIXED_N_PER_POTENTIAL_C));
  // Nitrogen fixation costs 10 kg potential carbon per kg N in this game model.
- let cost=fixed*10.;let gross=photo+chemo;let fraction=select(0.,max(0.,1.-cost/max(gross,.0000001)),gross>0.);
+ let cost=fixed*ECO_FIXATION_C_COST_PER_KG_N;let gross=photo+chemo;let fraction=select(0.,max(0.,1.-cost/max(gross,.0000001)),gross>0.);
  photo*=fraction;chemo*=fraction;s.pools[17].y+=fixed;s.pools[27].y+=fixed;s.pools[28].w+=fixed;
  let nitrogen_capacity=s.pools[17].y/t.c.y;let phosphorus_capacity=s.pools[17].z/t.c.z;
  let carbon=min(photo+chemo,min(nitrogen_capacity,phosphorus_capacity));
  // Codes: 0 energy, 1 N, 2 P, 3 habitat, 4 water, 5 trace, 6 oxidant.
- var limit=0.;if local_wet<.05 {limit=4.;}else if habitat.fields[4].w*50.<.1 {limit=5.;}else if secondary_potential>hydrogen_carbon&&secondary_potential>s.pools[26].w*.05 {limit=6.;}
+ var limit=0.;if local_wet<.05 {limit=4.;}else if habitat.fields[4].w*ECO_TRACE_NUTRIENT_RESPONSE_SCALE<.1 {limit=5.;}else if secondary_potential>hydrogen_carbon&&secondary_potential>s.pools[26].w*ECO_SECONDARY_C_KG_PER_KG_OXIDANT {limit=6.;}
  if carbon<photo+chemo {limit=select(1.,2.,phosphorus_capacity<nitrogen_capacity);}
  environment[i].fields[16u+k]=vec4(photo+chemo,carbon,died.x+resp,limit);
  let utilization=carbon/max(photo+chemo,.00000001);let consumed=utilization*fraction;
@@ -322,22 +377,22 @@ fn biology(@builtin(global_invocation_id) g:vec3<u32>) {
  let reserve=select(0.,cost/max(gross,.000001),gross>0.);
  s.pools[26].x=max(0.,s.pools[26].x-h*reserve);s.pools[26].y=max(0.,s.pools[26].y-secondary*reserve);
  // Charge oxidative chemistry used for both biomass and nitrogen fixation.
- s.pools[26].w=max(0.,s.pools[26].w-secondary_carbon*(consumed+reserve)/.05);
+ s.pools[26].w=max(0.,s.pools[26].w-secondary_carbon*(consumed+reserve)/ECO_SECONDARY_C_KG_PER_KG_OXIDANT);
  environment[i].fields[21].y+=h*(consumed+reserve);
  let added=vec3(carbon,carbon*t.c.y,carbon*t.c.z);s.pools[k]+=vec4(added,0.);s.pools[17].y=max(0.,s.pools[17].y-added.y);s.pools[17].z=max(0.,s.pools[17].z-added.z);s.pools[27].x+=carbon;s.pools[28].x+=photo*utilization;s.pools[28].y+=chemo*utilization;
  if carbon<photo+chemo {s.pools[29].w=select(1.,2.,s.pools[17].z/t.c.z<s.pools[17].y/t.c.y);}
  }
  // Stratified lake compartments: symmetric volume exchange plus explicit particle settling.
- let depth=max(e.fields[3].z,1.);let surface=min(100.,depth);let deep=max(depth-surface,1.);
- let peripheral=exp(-pow((acos(clamp(e.fields[7].z,-1.,1.))-.90)/.16,2.));
+ let depth=max(e.fields[3].z,ECO_MIN_WATER_COLUMN_M);let surface=min(ECO_SURFACE_LAYER_DEPTH_M,depth);let deep=max(depth-surface,ECO_MIN_WATER_COLUMN_M);
+ let peripheral=exp(-pow((acos(clamp(e.fields[7].z,-1.,1.))-ECO_PERIPHERAL_UPWELLING_RADIUS_RAD)/ECO_PERIPHERAL_UPWELLING_WIDTH_RAD,2.));
  var shelf_gradient=0.;
  for(var edge=0u;edge<4u;edge++){let j=neighbor(i,edge,p.dims.y);let fractions=environment[j].fields[0];
- if fractions.x+fractions.y>0. {shelf_gradient+=max(0.,depth-environment[j].fields[3].z)/max(depth,1.);}}
- let wind_upwelling=clamp(abs(e.fields[1].w)/8.,.2,2.)*shelf_gradient*.25;
- let exchange=min(surface*.2,(.02+peripheral*(2.+wind_upwelling))*s.pools[31].y*dt)*w;
- let up=s.pools[21].xyz*min(.2,exchange/max(deep*w,.001));let down=s.pools[20].xyz*min(.2,exchange/max(surface*w,.001));
+ if fractions.x+fractions.y>0. {shelf_gradient+=max(0.,depth-environment[j].fields[3].z)/max(depth,ECO_MIN_WATER_COLUMN_M);}}
+ let wind_upwelling=clamp(abs(e.fields[1].w)/ECO_UPWELLING_WIND_SCALE,ECO_MIN_UPWELLING_WIND_FACTOR,ECO_MAX_UPWELLING_WIND_FACTOR)*shelf_gradient*ECO_SHELF_UPWELLING_WEIGHT;
+ let exchange=min(surface*ECO_MAX_COLUMN_EXCHANGE_FRACTION,(ECO_BACKGROUND_EXCHANGE_M_YEAR+peripheral*(ECO_PERIPHERAL_EXCHANGE_M_YEAR+wind_upwelling))*s.pools[31].y*dt)*w;
+ let up=s.pools[21].xyz*min(ECO_MAX_COLUMN_EXCHANGE_FRACTION,exchange/max(deep*w,ECO_MIN_WATER_VOLUME_M));let down=s.pools[20].xyz*min(ECO_MAX_COLUMN_EXCHANGE_FRACTION,exchange/max(surface*w,ECO_MIN_WATER_VOLUME_M));
  s.pools[20]+=vec4(up-down,0.);s.pools[21]+=vec4(down-up,0.);s.pools[29].z=exchange;
- let old_aquatic=s.pools[37];let state=community(e,5u,old_aquatic,sun*thermal,s.pools[23].x/max(w,.001),s.pools[20].yz/max(w,.001));
+ let old_aquatic=s.pools[37];let state=community(e,5u,old_aquatic,sun*thermal,s.pools[23].x/max(w,ECO_AQUATIC_MIN_WATER_FRACTION),s.pools[20].yz/max(w,ECO_AQUATIC_MIN_WATER_FRACTION));
  var changed_aqua=0.;if old_aquatic.w>0. {if old_aquatic.x!=state.x {changed_aqua+=old_aquatic.z;}if old_aquatic.y!=state.y {changed_aqua+=1.-old_aquatic.z;}}
  let displaced_aqua=s.pools[23].xyz*clamp(changed_aqua,0.,1.);s.pools[23]-=vec4(displaced_aqua,0.);s.pools[22]+=vec4(displaced_aqua,0.);
  s.pools[37]=select(vec4(0.),state,p.abundance.y>=.5);
@@ -346,18 +401,18 @@ fn biology(@builtin(global_invocation_id) g:vec3<u32>) {
  let aquatic_traits=mixture(state,fallback);
  s.pools[23].w=select(0.,f32(aquatic+1u),aquatic!=NONE);
  let aquatic_photo=select(0.,sun*w*aquatic_traits.b.y*dt*thermal,aquatic!=NONE);
- let aquatic_fixed=min(s.pools[20].z*5.,aquatic_photo*aquatic_traits.d.y*microbial(3u).x*.08);
+ let aquatic_fixed=min(s.pools[20].z*ECO_FIXATION_N_PER_AVAILABLE_P,aquatic_photo*aquatic_traits.d.y*microbial(3u).x*ECO_FIXATION_YIELD_WEIGHT);
  s.pools[20].y+=aquatic_fixed;s.pools[27].y+=aquatic_fixed;s.pools[28].w+=aquatic_fixed;
- let algae=min(s.pools[20].y/aquatic_traits.c.y,min(s.pools[20].z/aquatic_traits.c.z,max(0.,aquatic_photo-aquatic_fixed*10.)));
+ let algae=min(s.pools[20].y/aquatic_traits.c.y,min(s.pools[20].z/aquatic_traits.c.z,max(0.,aquatic_photo-aquatic_fixed*ECO_FIXATION_C_COST_PER_KG_N)));
  s.pools[23]+=vec4(algae,algae*aquatic_traits.c.y,algae*aquatic_traits.c.z,0.);s.pools[20].y=max(0.,s.pools[20].y-algae*aquatic_traits.c.y);s.pools[20].z=max(0.,s.pools[20].z-algae*aquatic_traits.c.z);s.pools[27].x+=algae;s.pools[28].x+=algae;
  let aquatic_resp=min(s.pools[23].x,s.pools[23].x*aquatic_traits.c.w*dt);s.pools[23].x-=aquatic_resp;s.pools[27].x-=aquatic_resp;s.pools[28].z+=aquatic_resp;
  let aquatic_returned=max(vec2(0.),s.pools[23].yz-s.pools[23].x*aquatic_traits.c.yz);
  s.pools[23].y-=aquatic_returned.x;s.pools[23].z-=aquatic_returned.y;s.pools[20].y+=aquatic_returned.x;s.pools[20].z+=aquatic_returned.y;
  let settling=s.pools[23].xyz*dt*aquatic_traits.d.w;s.pools[23]-=vec4(settling,0.);s.pools[22]+=vec4(settling,0.);
- let remin=s.pools[22].xyz*dt*.02*microbial(5u).y;s.pools[22]-=vec4(remin,0.);s.pools[21]+=vec4(0.,remin.yz,0.);s.pools[27].x-=remin.x;s.pools[28].z+=remin.x;
- s.pools[31].z=clamp(s.pools[31].z+exchange*.01-remin.x*2.,0.,1.);
- let release=s.pools[22].z*(1.-s.pools[31].z)*dt*.05;s.pools[22].z-=release;s.pools[21].z+=release;
- let burial=s.pools[22].xyz*dt*.001;s.pools[22]-=vec4(burial,0.);s.pools[24]+=vec4(burial,0.);
+ let remin=s.pools[22].xyz*dt*ECO_SEDIMENT_REMINERALIZATION_PER_YEAR*microbial(5u).y;s.pools[22]-=vec4(remin,0.);s.pools[21]+=vec4(0.,remin.yz,0.);s.pools[27].x-=remin.x;s.pools[28].z+=remin.x;
+ s.pools[31].z=clamp(s.pools[31].z+exchange*ECO_MIXING_OXYGEN_GAIN_PER_M-remin.x*ECO_REMINERALIZATION_OXYGEN_LOSS_M2_KG,0.,1.);
+ let release=s.pools[22].z*(1.-s.pools[31].z)*dt*ECO_ANOXIC_P_RELEASE_PER_YEAR;s.pools[22].z-=release;s.pools[21].z+=release;
+ let burial=s.pools[22].xyz*dt*ECO_SEDIMENT_BURIAL_PER_YEAR;s.pools[22]-=vec4(burial,0.);s.pools[24]+=vec4(burial,0.);
  for(var k=0u;k<p.options.y;k++) {
  let slot=k+5u;let t=catalog[guild_offset()+k];let deadmask=u32(s.pools[31].w);
  if (deadmask&(1u<<k))!=0u {let waste=select(18u,22u,t.ids.y==1u&&w>l);s.pools[waste]+=vec4(s.pools[slot].xyz,0.);s.pools[slot]=vec4(0.);s.pools[38u+k/4u][k%4u]=0.;continue;}
@@ -671,7 +726,7 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  dst[i].pools[27]=ledger;dst[i].pools[28]=production;
 }
 @compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
-fn river_inject(@builtin(global_invocation_id) g:vec3<u32>) {let i=id(g,p.dims.x);let c=terrain[i];let j=parent(i);let l=land(environment[j]);var added=vec4(0.);if c.tags.x>=2u {added=src[j].pools[19]*.25*area(i,p.dims.x)/max(l,.000001);}added.w=select(0.,c.life.w*area(i,p.dims.x),c.tags.x>=2u);river_out[i]=river[i]+added;}
+fn river_inject(@builtin(global_invocation_id) g:vec3<u32>) {let i=id(g,p.dims.x);let c=terrain[i];let j=parent(i);let l=land(environment[j]);var added=vec4(0.);if c.tags.x>=2u {added=src[j].pools[19]*ECO_GROUNDWATER_ROUTING_PARTITION.y*area(i,p.dims.x)/max(l,.000001);}added.w=select(0.,c.life.w*area(i,p.dims.x),c.tags.x>=2u);river_out[i]=river[i]+added;}
 @compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn river_route(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=id(g,p.dims.x);var mass=river[i]*select(.2,1.,terrain[i].routing.x==NONE);

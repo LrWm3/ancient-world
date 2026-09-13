@@ -693,3 +693,42 @@ Expanding the names reproduces the previous literal token sequence exactly.
 The GPU identical-competitor fixture and strict all-target Clippy passed:
 competing producers still share one production budget. This is a naming-only change; broader biological cycling
 and transport parameter review remains outstanding.
+
+## Terrestrial nutrient cycling and chemical production
+
+Named 32 more parameters in `shaders/ecology.wgsl`: temperature response,
+reactive-rock conversion, oxidant supply, phosphorus release/mobilization,
+decomposition and retention, producer mortality/shading, chemical access and
+conversion, and nitrogen-fixation costs and limits. Existing aggregation wetness
+and competitor light-response parameters are reused where they are the same
+response. Pool/category indices and trivial arithmetic remain inline.
+
+The groundwater retention/export partition is one paired parameter used by
+biology and river injection. Its two entries must sum to one; it is not two
+independent sources. The original 0.75/0.25 partition and all other values remain
+unchanged. Expanding names to the prior literals reproduces the edited biology
+expressions exactly, including evaluation order.
+
+The monetary regression uses its copied `7aef164` executable; subsequent shader
+source edits do not alter the running experiment. Aquatic cycling, consumer
+feeding, transport, weather and remaining file parameters still need review.
+
+The terrestrial pass passed GPU energy/phosphorus limitation, finite hydrogen
+reserve depletion, coarse-grid budgets and checkpoint continuation, plus strict
+all-target Clippy.
+
+## Stratified lake exchange and sediment cycling
+
+Named 18 aquatic parameters for surface/deep layer bounds, peripheral upwelling,
+wind/shelf response, finite exchange caps, remineralization, oxygen response,
+anoxic phosphorus release and burial. Aquatic nitrogen fixation now references
+the same N/P, yield and carbon-cost parameters as terrestrial fixation.
+Unit-interval clamps, category codes and geometry identities remain inline.
+
+Literal expansion reproduces the previous aquatic expressions exactly. This does
+not add hydrodynamic detail or alter circulation: the spatial bias and bounded
+exchange remain the existing game model.
+
+After the aquatic extraction, GPU lake-mixing transfer and coarse-grid
+conservation/checkpoint fixtures passed, as did strict all-target Clippy.
+Together these two passes name 50 additional shader parameters without tuning.
