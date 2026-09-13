@@ -137,9 +137,11 @@ delivery should close their evidence gaps before expanding the monetary model:
    now rejects those unsupported loans while retaining viable partial funding.
    [Bounded automatic procurement](workshop-service-procurement.md) now posts
    next-month contracts from lagged production demand and surplus town cash.
-   Run longer normal-economy comparisons next, retaining procurement in all credit
-   arms and separately comparing it with ordinary invoicing. The deliberately
-   valuable fixture contract does not establish a balance benefit.
+   The [eight-arm screen](service-procurement-screening.md) finds mixed effects
+   and no loans. Compare smaller procurement shares and cash timing next, then
+   more seeds and longer intervals. Retain procurement in all credit arms and
+   separately compare ordinary invoicing. The deliberately valuable fixture
+   contract does not establish a balance benefit.
 3. **Test lender costs as well as borrower benefits.** Compare council and
    institutional lending reserves. Measure maintenance, paid administration and
    service shortfalls alongside interest and defaults. A reserve policy that

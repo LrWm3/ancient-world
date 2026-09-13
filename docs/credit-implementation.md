@@ -771,4 +771,8 @@ for operator receipts and debt service. The controlled GPU fixture passes disabl
 no-demand, no-surplus, replay, escrow and checkpoint/batch cases. The runner can
 hold procurement constant across its four monetary arms and reports cumulative
 fees/refunds separately from terminal outstanding escrow and latest requests.
-Normal-world balance effects remain unverified.
+The [eight-arm 50-year screen](service-procurement-screening.md) completed with
+mixed effects: procurement improves work and terminal hunger without issuance,
+but reverses both with issuance. Credit issues no loans and changes no outcomes
+outside its own records. Investigate escrow timing and smaller budget shares
+before widening the opt-in policy; the Stage 2 gate remains no-go.

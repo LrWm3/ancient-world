@@ -72,4 +72,7 @@ Run the same checkpoints and interval without the option for that separate contr
 Verification passed: the procurement GPU boundary/continuation fixture (one test),
 the CLI override fixture (one), nineteen active market tests (two ignored), ten
 Python reporting tests, strict all-target Clippy and the native build. These are
-implementation checks; no long-run balance result is claimed here yet.
+implementation checks. The [eight-arm 50-year screen](service-procurement-screening.md)
+now shows mixed balance effects: more work and less terminal hunger without
+issuance, but less work and more terminal hunger with issuance. No loans issued.
+Procurement remains opt-in; this does not pass the Stage 2 gate.
