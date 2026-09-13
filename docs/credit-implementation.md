@@ -816,3 +816,14 @@ All zero-completion orders had funded labor, while many contracts covered more
 work than firms staffed. The next experiment should reconcile contract demand
 with the independent operator shift forecast and inspect input/output constraints;
 this evidence does not justify relaxing credit or raising fees.
+
+
+## Contract-aware workshop shifts
+
+The opt-in request policy now includes due service contracts while retaining cash,
+leased-capacity, labor-allocation and participant limits. Controlled GPU requests
+increase without premature fee income, and checkpoint/batch continuation passes.
+The [eight-arm comparison](contract-staffing-comparison.md) finds more completed
+work but disproportionately more paid work, worse terminal hunger and no loans.
+The policy remains opt-in. This is a functioning cross-system connection with
+mixed balance, not evidence that credit or the Stage 2 currency gate succeeds.

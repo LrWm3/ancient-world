@@ -142,8 +142,10 @@ delivery should close their evidence gaps before expanding the monetary model:
    barely changes outcomes. The [execution observations](service-order-shortfall-observations.md)
    show funded labor in every zero-output case and a mismatch between contracted
    work and staffed shifts. The [contract-aware shift pilot](contract-aware-workshop-staffing.md)
-   now connects those requests under existing cash and labor caps. Compare its
-   effects and production constraints next, then more seeds and longer intervals.
+   now connects those requests under existing cash and labor caps. Its
+   [eight-arm comparison](contract-staffing-comparison.md) increases completed
+   work but also idle paid work and terminal hunger. Diagnose execution feasibility
+   next, then more seeds and longer intervals.
    Retain procurement in all credit arms and
    separately compare ordinary invoicing. The deliberately valuable fixture
    contract does not establish a balance benefit.

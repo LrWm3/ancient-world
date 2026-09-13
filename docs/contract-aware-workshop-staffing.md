@@ -39,3 +39,9 @@ Next compare the independent experiment override off/on
 with procurement and credit settings held fixed. Use due-month observations to
 separate extra funded labor from extra completed work, fees, refunds and household
 food access. The Stage 2 currency gate remains unchanged.
+
+
+The [eight-arm 50-year comparison](contract-staffing-comparison.md) completed:
+contract-aware requests increase completed work, but increase paid idle work too,
+and terminal food access worsens in both issuance comparisons. No loans issued.
+Keep the policy opt-in and investigate execution feasibility before widening it.
