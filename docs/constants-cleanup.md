@@ -977,3 +977,20 @@ The full shader reverses exactly to its previous source after removing declarati
 and undoing substitutions. The hardware worn-tool recovery/conservation fixture
 passed (one test), as did strict all-target Clippy. This extraction changes neither
 arithmetic order nor values; broader shader and planner review is still pending.
+
+## Staffing extraction forecasts
+
+The baseline and food-security staffing planners now share four named forecast
+parameters: worker denominator floor, maximum forestry share, maximum mining
+share and assumed mining output per worker-month. The latter remains an
+approximation used to budget staffing; actual extraction still uses its own
+resource/tool-dependent rates. Both planners now reference the canonical timber
+C/N/P fractions already used by extraction instead of repeating their literals.
+
+Reversing the changes reconstructs the previous full shader exactly. No values,
+types or arithmetic order changed. The concurrent 200-year service-order baseline
+uses a copied executable from before this pass and does not verify this extraction.
+
+Verification passed: the hardware food-security staffing/finite-work/continuation
+fixture (one test) and strict all-target Clippy. Remaining allocation-share policies
+in these functions and other shader sections still require review.

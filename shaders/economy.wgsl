@@ -121,6 +121,11 @@ const MATERIAL_OBJECT_IN_USE_KG_PER_PERSON: f32 = .2;
 const MATERIAL_OBJECT_SCRAP_RETENTION: f32 = .9;
 const FOOD_RETURN_WORKER_FLOOR: f32 = 1.;
 const FOOD_RETURN_MEMORY_MONTHS: f32 = 12.;
+// Shared baseline/food-security staffing forecasts; actual extraction remains tool-dependent.
+const STAFFING_WORKER_FLOOR: f32 = .001;
+const STAFFING_MAX_FORESTRY_SHARE: f32 = .12;
+const STAFFING_MAX_MINING_SHARE: f32 = .16;
+const STAFFING_ASSUMED_MINING_KG_PER_WORKER_MONTH: f32 = 5.;
 struct Economy {
  farm_workers:vec4<f32>, extraction_workers:vec4<f32>, construction_workers:vec4<f32>,
  production_probe:vec4<f32>, food_labor:vec4<f32>,
@@ -824,9 +829,9 @@ fn worker_shares(e:Economy,pop:f32,available_workers:f32)->vec4<f32>{
  if e.fishery.w>.5 {
   // Helpers reserve legacy fishing only for legacy sites. An idle adaptive
   // fishery must preserve exactly the same ordinary shares as a closed one.
-  let used=clamp((e.fishery_plan.y+e.fishery_plan.z)/max(available_workers,.001),0.,.25);
+  let used=clamp((e.fishery_plan.y+e.fishery_plan.z)/max(available_workers,STAFFING_WORKER_FLOOR),0.,.25);
   if used<=0.{return shares;}
-  let reserved_craft=min(shares.w,e.exchange.w/max(available_workers,.001));
+  let reserved_craft=min(shares.w,e.exchange.w/max(available_workers,STAFFING_WORKER_FLOOR));
   shares.w-=reserved_craft;
   shares*=max(0.,1.-used-reserved_craft)/max(1.-reserved_craft,.001);
   shares.w+=reserved_craft;
@@ -838,16 +843,16 @@ fn baseline_worker_shares(e:Economy,pop:f32,available_workers:f32)->vec4<f32>{
  if e.logistics.w>2.5 {return vec4(.62,.08-select(0.,.001,e.management.x>.5&&e.management.y>=1.&&e.fishery.w<.5),.1,.2);}
 
  if e.logistics.w>1.5 {
- let workforce=max(available_workers,.001);
+ let workforce=max(available_workers,STAFFING_WORKER_FLOOR);
  let fish=select(0.,.001,e.management.x>.5&&e.management.y>=1.&&e.fishery.w<.5);
  // Forecast only work that can use existing inputs or this month's finite
  // extraction. Cargo suppresses orders in the CPU planner; it is not stock here.
  var stock=e.goods;
- let wood=min(order_room(e,0u),min(e.forest.x/.5,min(e.forest.y/.002,e.forest.z/.0002)));
- let wood_rate=extraction_rate(e,0u);let forestry=min(workforce*.12,wood/wood_rate);
+ let wood=min(order_room(e,0u),min(e.forest.x/WOOD_CARBON_FRACTION,min(e.forest.y/WOOD_NITROGEN_FRACTION,e.forest.z/WOOD_PHOSPHORUS_FRACTION)));
+ let wood_rate=extraction_rate(e,0u);let forestry=min(workforce*STAFFING_MAX_FORESTRY_SHARE,wood/wood_rate);
  let room=max(0.,e.logistics.x-e.logistics.y-dry_stock(e)-forestry*wood_rate);
- let ore=min(room,min(order_room(e,ore_good(e)),e.reserves.y));let clay=min(max(0.,room-min(ore,workforce*.16*5.)),min(order_room(e,4u),e.reserves.z));
- let mining=min(workforce*.16,(ore+clay)/5.);
+ let ore=min(room,min(order_room(e,ore_good(e)),e.reserves.y));let clay=min(max(0.,room-min(ore,workforce*STAFFING_MAX_MINING_SHARE*STAFFING_ASSUMED_MINING_KG_PER_WORKER_MONTH)),min(order_room(e,4u),e.reserves.z));
+ let mining=min(workforce*STAFFING_MAX_MINING_SHARE,(ore+clay)/STAFFING_ASSUMED_MINING_KG_PER_WORKER_MONTH);
  stock[0].x+=forestry*wood_rate;
  var extraction=mining;
  for(var k=0u;k<2u;k++){let mineral=(k+p.dims.z)%2u;let good=select(ore_good(e),4u,mineral==1u);let rate=extraction_rate(e,mineral+1u);let mined=min(extraction*rate,select(ore,clay,mineral==1u));stock[good/4u][good%4u]+=mined;extraction=max(0.,extraction-mined/rate);}
@@ -901,16 +906,16 @@ fn food_worker_shares(e:Economy,pop:f32,available_workers:f32)->vec4<f32>{
  if e.logistics.w>2.5 && e.logistics.w<3.5 {return vec4(.62,.08-select(0.,.001,e.management.x>.5&&e.management.y>=1.&&e.fishery.w<.5),.1,.2);}
 
  if e.logistics.w>1.5 {
- let workforce=max(available_workers,.001);
+ let workforce=max(available_workers,STAFFING_WORKER_FLOOR);
  let fish=select(0.,.001,e.management.x>.5&&e.management.y>=1.&&e.fishery.w<.5);
  // Forecast only work that can use existing inputs or this month's finite
  // extraction. Cargo suppresses orders in the CPU planner; it is not stock here.
  var stock=e.goods;
- let wood=min(order_room(e,0u),min(e.forest.x/.5,min(e.forest.y/.002,e.forest.z/.0002)));
- let wood_rate=extraction_rate(e,0u);let forestry=min(workforce*.12,wood/wood_rate);
+ let wood=min(order_room(e,0u),min(e.forest.x/WOOD_CARBON_FRACTION,min(e.forest.y/WOOD_NITROGEN_FRACTION,e.forest.z/WOOD_PHOSPHORUS_FRACTION)));
+ let wood_rate=extraction_rate(e,0u);let forestry=min(workforce*STAFFING_MAX_FORESTRY_SHARE,wood/wood_rate);
  let room=max(0.,e.logistics.x-e.logistics.y-dry_stock(e)-forestry*wood_rate);
- let ore=min(room,min(order_room(e,ore_good(e)),e.reserves.y));let clay=min(max(0.,room-min(ore,workforce*.16*5.)),min(order_room(e,4u),e.reserves.z));
- let mining=min(workforce*.16,(ore+clay)/5.);
+ let ore=min(room,min(order_room(e,ore_good(e)),e.reserves.y));let clay=min(max(0.,room-min(ore,workforce*STAFFING_MAX_MINING_SHARE*STAFFING_ASSUMED_MINING_KG_PER_WORKER_MONTH)),min(order_room(e,4u),e.reserves.z));
+ let mining=min(workforce*STAFFING_MAX_MINING_SHARE,(ore+clay)/STAFFING_ASSUMED_MINING_KG_PER_WORKER_MONTH);
  stock[0].x+=forestry*wood_rate;
  var extraction=mining;
  for(var k=0u;k<2u;k++){let mineral=(k+p.dims.z)%2u;let good=select(ore_good(e),4u,mineral==1u);let rate=extraction_rate(e,mineral+1u);let mined=min(extraction*rate,select(ore,clay,mineral==1u));stock[good/4u][good%4u]+=mined;extraction=max(0.,extraction-mined/rate);}
@@ -942,7 +947,7 @@ fn food_worker_shares(e:Economy,pop:f32,available_workers:f32)->vec4<f32>{
  // Preserve at most 8% of finite workers for feasible industry when tools are scarce.
  // This protects capacity, not output; ordinary recipe inputs, orders and costs still apply.
  let feasible=max(vec3(0.),demand-vec3(0.,0.,reserved/workforce));
- let maintenance_feasible=vec3(select(0.,forestry/workforce,tool_work>0.||ore>0.),min(mining,ore/5.)/workforce,min(tool_work/workforce,feasible.z));
+ let maintenance_feasible=vec3(select(0.,forestry/workforce,tool_work>0.||ore>0.),min(mining,ore/STAFFING_ASSUMED_MINING_KG_PER_WORKER_MONTH)/workforce,min(tool_work/workforce,feasible.z));
  var maintenance=maintenance_feasible*min(1.,select(0.,.08*e.food_labor.w,food_policy)/max(dot(maintenance_feasible,vec3(1.)),.00001));
  if e.logistics.w>4.5 {maintenance=vec3(0.);}
  let discretionary=max(0.,select(.38,1.-farm_floor,food_policy)-fish-reserved/workforce);
