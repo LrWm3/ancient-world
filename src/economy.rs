@@ -49,14 +49,23 @@ const MIN_MARKET_SHIPMENT_KG: f32 = 1.;
 pub(crate) const WOOD_CNP: [f64; 3] = [0.5, 0.002, 0.0002];
 
 pub(crate) const DEFAULT_WEATHER_REGIME_MONTHS: u32 = 48;
-pub(crate) const CIVILIAN_RESERVE_KG_PER_PERSON_MONTH: f32 = 18.0;
+crate::shared_shader_parameters!(SHADER_PARAMETERS {
+    pub(crate) const CIVILIAN_RESERVE_KG_PER_PERSON_MONTH: f32 = 18.0;
+    const FOOD_CARBON_FRACTION: f64 = 0.45;
+    const FOOD_NITROGEN_FRACTION: f64 = 0.02;
+    const FOOD_PHOSPHORUS_FRACTION: f64 = 0.003;
+});
 
 pub const GOODS: usize = 64;
 pub const FOOD: usize = 63;
 pub const IDS: [&str; 8] = [
     "wood", "ore", "metal", "tools", "clay", "bricks", "charcoal", "pottery",
 ];
-pub const FOOD_CNP: [f64; 3] = [0.45, 0.02, 0.003];
+pub const FOOD_CNP: [f64; 3] = [
+    FOOD_CARBON_FRACTION,
+    FOOD_NITROGEN_FRACTION,
+    FOOD_PHOSPHORUS_FRACTION,
+];
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Good {
     pub id: String,

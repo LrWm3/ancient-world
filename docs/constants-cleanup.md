@@ -873,3 +873,29 @@ Verification passed: the hardware manure/phosphorus fixture and agricultural
 attendance fixture each ran one test. The latter explicitly checks that absent
 workers deliver no stored feed or products while herd mortality continues, and
 checks income and continuation. Strict all-target Clippy also passed.
+
+## Food composition and conversion policy
+
+Moved the canonical food C/N/P fractions into the economy subsystem's existing
+shared-parameter macro pattern. The public CPU `FOOD_CNP` array retains its f64
+values and API; GPU legacy production, consumption returns, managed conversion
+and fish-to-food equivalence now use constants generated from the same literals.
+The crop-equivalent carbon reference aliases that canonical food carbon fraction.
+The shader receives the economy parameter block alongside the existing subsystem
+blocks.
+
+The civilian monthly ration is generated from its existing f32 CPU definition.
+Named the distinct 18-month conversion target, six-month raw-food storage target,
+raw-food denominator floor and monthly spoilage rate in the owning shader.
+The two factors of 18 in conversion remain different policies: kilograms per
+person-month and months of target stock. No multiplication was folded or reordered.
+
+Reversing substitutions reconstructs the prior shader exactly. CPU f64 constants
+remain f64; the macro emits the same decimal values as GPU f32 constants.
+This pass does not change catalog chemistry or equate unrelated equal-valued
+rates. Other production expressions and cross-file shared-policy review remain.
+
+Verification passed: two explicitly selected GPU fixtures (seasonal crop and
+checkpoint conservation; phosphorus limitation and manure retention), 19 CPU
+market tests, and strict all-target Clippy. The market command leaves its two
+unrelated hardware fixtures ignored; they are not counted as verified here.

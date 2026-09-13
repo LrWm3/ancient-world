@@ -31,7 +31,7 @@ const CROP_CULTIVATED_POTENTIAL_SHARE: f32 = .95;
 const CROP_ESTABLISHMENT_MIN_KG: f32 = .001;
 const CROP_CANOPY_ANNUAL_NORMALIZER: f32 = 4.1;
 const CROP_HARVEST_INDEX_FLOOR: f32 = .05;
-const CROP_REFERENCE_CARBON_FRACTION: f32 = .45;
+const CROP_REFERENCE_CARBON_FRACTION: f32 = FOOD_CARBON_FRACTION;
 const CROP_CARBON_FRACTION_FLOOR: f32 = .01;
 const CROP_RESOURCE_DEMAND_FLOOR: f32 = .000001;
 const CROP_REPRODUCTIVE_FIRST_PHASE: u32 = 3u;
@@ -57,6 +57,11 @@ const HERD_SLAUGHTER_FEED_THRESHOLD: f32 = .5;
 const HERD_SLAUGHTER_CAPACITY_THRESHOLD: f32 = .75;
 const HERD_LEFTOVER_CARBON_RESPIRATION_SHARE: f32 = .6;
 const HERD_LEFTOVER_CARBON_DETRITUS_SHARE: f32 = .4;
+// Food conversion target and raw-food storage policy.
+const FOOD_PROCESSING_TARGET_MONTHS: f32 = 18.;
+const RAW_FOOD_STORAGE_MONTHS: f32 = 6.;
+const RAW_FOOD_ENERGY_FLOOR_KG: f32 = .001;
+const RAW_FOOD_MONTHLY_SPOILAGE: f32 = .005;
 struct Economy {
  farm_workers:vec4<f32>, extraction_workers:vec4<f32>, construction_workers:vec4<f32>,
  production_probe:vec4<f32>, food_labor:vec4<f32>,
@@ -362,9 +367,9 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  e.production_probe.x=tool_factor;e.production_probe.z=e.goods[0].w+select(0.,e.goods[10].y+.6*e.goods[10].w,e.extraction.y>.5);e.production_probe.w=s.stock.x;
  var output=max(0.,potential*(1.-e.policy.x)*tool_factor*(1.-.5*recovery)-fixed*fixation_cost);
  if e.management.x>.5{output=0.;}
- let n=e.soil.y/.02;let ph=e.soil.z/.003;let water=e.water.x/.5;
+ let n=e.soil.y/FOOD_NITROGEN_FRACTION;let ph=e.soil.z/FOOD_PHOSPHORUS_FRACTION;let water=e.water.x/.5;
  e.diagnostics.x=0.;if n<output{e.diagnostics.x=1.;}output=min(output,n);if ph<output{e.diagnostics.x=2.;}output=min(output,ph);if water<output{e.diagnostics.x=3.;}output=min(output,water);
- e.soil.y-=output*.02;e.soil.z-=output*.003;e.exchange.x+=output*.45;e.water.x-=output*.5;e.water.w+=output*.5;e.diagnostics.y=output;
+ e.soil.y-=output*FOOD_NITROGEN_FRACTION;e.soil.z-=output*FOOD_PHOSPHORUS_FRACTION;e.exchange.x+=output*FOOD_CARBON_FRACTION;e.water.x-=output*.5;e.water.w+=output*.5;e.diagnostics.y=output;
  // Finite timber harvest; a regional woodland stock, not unlimited yield from cover.
  let wood_potential=min(e.labor.y*extraction_rate(e,0u),min(e.forest.x/.5,min(e.forest.y/.002,e.forest.z/.0002)));
  let wood=min(wood_potential,order_room(e,0u));
@@ -489,14 +494,14 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  if e.management.x>.5 { e=managed_production(i,e,max(0.,potential*(1.-e.policy.x)*tool_factor*(1.-.5*recovery)-fixed*fixation_cost),weather);output=e.diagnostics.y; }
  // Retain a year's approximate memory of observed food handling returns. This
  // is a lagged average, not a perfect forecast or a claimed marginal farm yield.
- let fish_chem=catalog.goods[28];let fish_energy=min(fish_chem.w,min(fish_chem.x/.45,min(fish_chem.y/.02,fish_chem.z/.003)));
+ let fish_chem=catalog.goods[28];let fish_energy=min(fish_chem.w,min(fish_chem.x/FOOD_CARBON_FRACTION,min(fish_chem.y/FOOD_NITROGEN_FRACTION,fish_chem.z/FOOD_PHOSPHORUS_FRACTION)));
  let alternative=max(0.,output-e.fishery_plan.w*fish_energy)/max(dot(e.labor,vec4(1.)),1.);
  e.fishery_choice.x=mix(e.fishery_choice.x,alternative,1./12.);
  e.reserves.w=max(0.,e.reserves.w);e.soil=max(e.soil,vec4(0.));e.forest=max(e.forest,vec4(0.));e.water.x=max(0.,e.water.x);economies[i]=e;return max(0.,output);
 }
 fn return_food(i:u32,amount:f32){
- var e=economies[i];let nutrients=amount*vec2(.02,.003);let returned=nutrients*e.policy.y;
- e.detritus+=vec4(0.,returned,0.);e.exchange-=vec4(amount*.45,nutrients-returned,0.);e.diagnostics.z=returned.x;e.diagnostics.w=returned.y;economies[i]=e;
+ var e=economies[i];let nutrients=amount*vec2(FOOD_NITROGEN_FRACTION,FOOD_PHOSPHORUS_FRACTION);let returned=nutrients*e.policy.y;
+ e.detritus+=vec4(0.,returned,0.);e.exchange-=vec4(amount*FOOD_CARBON_FRACTION,nutrients-returned,0.);e.diagnostics.z=returned.x;e.diagnostics.w=returned.y;economies[i]=e;
 }
 
 // Canopy proxy across sowing, expansion, flowering, filling and senescence.
@@ -594,16 +599,16 @@ fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
  var food=0.;
  for(var good=8u;good<63u;good++){
   let energy=catalog.goods[good].w;if energy<=0.{continue;}
-  let wanted=max(0.,s.stock.x*18.*18.-s.stock.y-food);if wanted<=0.{break;}
+  let wanted=max(0.,s.stock.x*CIVILIAN_RESERVE_KG_PER_PERSON_MONTH*FOOD_PROCESSING_TARGET_MONTHS-s.stock.y-food);if wanted<=0.{break;}
   let quantity=min(e.goods[good/4u][good%4u],wanted/energy);let matter=quantity*catalog.goods[good].xyz;
-  let equivalent=min(quantity*energy,min(matter.x/.45,min(matter.y/.02,matter.z/.003)));
+  let equivalent=min(quantity*energy,min(matter.x/FOOD_CARBON_FRACTION,min(matter.y/FOOD_NITROGEN_FRACTION,matter.z/FOOD_PHOSPHORUS_FRACTION)));
   e.goods[good/4u][good%4u]-=quantity;e.used[good/4u][good%4u]+=quantity;
-  e.detritus+=vec4(max(vec3(0.),matter-equivalent*vec3(.45,.02,.003)),0.);food+=equivalent;e.agriculture.w+=quantity-equivalent;
+  e.detritus+=vec4(max(vec3(0.),matter-equivalent*vec3(FOOD_CARBON_FRACTION,FOOD_NITROGEN_FRACTION,FOOD_PHOSPHORUS_FRACTION)),0.);food+=equivalent;e.agriculture.w+=quantity-equivalent;
  }
  // One shared six-month raw-food capacity, plus the existing cooked-food granary.
  var raw_energy=0.;for(var good=8u;good<63u;good++){raw_energy+=e.goods[good/4u][good%4u]*catalog.goods[good].w;}
- let excess=clamp(1.-s.stock.x*18.*6./max(raw_energy,.001),0.,1.);
- for(var good=8u;good<63u;good++){if catalog.goods[good].w<=0.{continue;}let loss=e.goods[good/4u][good%4u]*(excess+(1.-excess)*.005);e.goods[good/4u][good%4u]-=loss;e.used[good/4u][good%4u]+=loss;e.detritus+=vec4(loss*catalog.goods[good].xyz,0.);e.agriculture.w+=loss;}
+ let excess=clamp(1.-s.stock.x*CIVILIAN_RESERVE_KG_PER_PERSON_MONTH*RAW_FOOD_STORAGE_MONTHS/max(raw_energy,RAW_FOOD_ENERGY_FLOOR_KG),0.,1.);
+ for(var good=8u;good<63u;good++){if catalog.goods[good].w<=0.{continue;}let loss=e.goods[good/4u][good%4u]*(excess+(1.-excess)*RAW_FOOD_MONTHLY_SPOILAGE);e.goods[good/4u][good%4u]-=loss;e.used[good/4u][good%4u]+=loss;e.detritus+=vec4(loss*catalog.goods[good].xyz,0.);e.agriculture.w+=loss;}
  if e.logistics.w>.5{
   for(var k=19u;k<=27u;k++){if k!=19u&&k!=27u{continue;}let excess=max(0.,e.goods[k/4u][k%4u]-max(s.stock.x,e.targets[k/4u][k%4u]));e.goods[k/4u][k%4u]-=excess;e.used[k/4u][k%4u]+=excess;e.detritus+=vec4(excess*catalog.goods[k].xyz,0.);}
  }
@@ -647,7 +652,7 @@ fn adaptive_fish_plots(){
  let workforce=workers(i,s.stock.x)*(1.-LAND_RECOVERY_WORK_PENALTY*recovery);
  var stored=s.stock.y;for(var good=8u;good<63u;good++){stored+=economies[i].goods[good/4u][good%4u]*catalog.goods[good].w;}
  let chem=catalog.goods[28].xyz;
- let energy=min(catalog.goods[28].w,min(chem.x/.45,min(chem.y/.02,chem.z/.003)));
+ let energy=min(catalog.goods[28].w,min(chem.x/FOOD_CARBON_FRACTION,min(chem.y/FOOD_NITROGEN_FRACTION,chem.z/FOOD_PHOSPHORUS_FRACTION)));
  let deficit=max(0.,s.stock.x*18.*economies[i].fishery_config.w-stored);
  let wanted=min(deficit/max(energy,.001),max(0.,s.stock.x*18.*6./max(energy,.001)-economies[i].goods[7].x));
  let rate=economies[i].fishery_config.y*response;
