@@ -24,6 +24,10 @@ semantic extraction pass (further shared-policy reconciliation may still apply):
 - `src/peace.rs`
 - `src/siege.rs`
 - `src/military.rs`
+- `src/road_upkeep.rs`
+- `src/trade_contact.rs`
+- `src/kin_support.rs`
+- `src/military_supply.rs`
 - `src/occupation.rs`
 - `src/facilities.rs`
 - `src/institution_capacity.rs`
@@ -93,7 +97,6 @@ than blindly moved out of their types or layout checks.
 - `src/individual_demography.rs`
 - `src/institution_funding.rs`
 - `src/institution_services.rs`
-- `src/kin_support.rs`
 - `src/labor.rs`
 - `src/learning_resolution.rs`
 - `src/lib.rs`
@@ -101,7 +104,6 @@ than blindly moved out of their types or layout checks.
 - `src/main.rs`
 - `src/materials.rs`
 - `src/metallurgy.rs`
-- `src/military_supply.rs`
 - `src/naming/evolution.rs`
 - `src/naming.rs`
 - `src/navigation.rs`
@@ -113,7 +115,6 @@ than blindly moved out of their types or layout checks.
 - `src/relocation/comparison.rs`
 - `src/resolution.rs`
 - `src/resources.rs`
-- `src/road_upkeep.rs`
 - `src/service_allocation.rs`
 - `src/shipping.rs`
 - `src/social_memory.rs`
@@ -122,7 +123,6 @@ than blindly moved out of their types or layout checks.
 - `src/storage.rs`
 - `src/systems.rs`
 - `src/territory.rs`
-- `src/trade_contact.rs`
 - `src/viewer.rs`
 - `src/workshop_resolution.rs`
 
@@ -178,3 +178,23 @@ Verification: seven vessel tests passed, including the GPU crew fixtures; the
 ordinary library suite passed 151 tests (130 remain explicitly ignored). Strict
 all-target Clippy also passed. This batch advances the file checklist, not the
 entire repository cleanup. Generated logs remain under ignored `output/`.
+
+## Road, contact and supply batch (2026-09-12)
+
+Extracted road weathering rates and condition thresholds, trade-contact retention,
+exposure normalization and minimum qualifying deliveries, and parent/child versus
+sibling support weights. Military supply forecasts and execution now share the
+military module's ration, shortfall tolerance and starvation fraction. The forecast
+retains f64 rate arithmetic; execution explicitly casts the shared fraction to its
+original f32 precision. Tests retain independent literal expectations.
+
+The society module only received shared-policy substitutions in this batch; its
+full extraction remains pending. No rates, thresholds, update order or archive
+fields changed.
+
+Verification: 151 ordinary library tests passed (130 explicitly ignored), including
+trade-contact expiry and kin-support fixtures. Explicit hardware-enabled runs
+passed both road-upkeep checks and the military-supply checkpoint/batch fixture.
+Strict all-target Clippy and repository artifact/whitespace checks passed. This is
+refactor verification, not a new balance calibration; logs remain ignored under
+`output/`.

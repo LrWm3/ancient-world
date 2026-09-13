@@ -1,5 +1,10 @@
 //! Canonical road materials weather; annual rebuilding competes for remaining craft work.
 use serde::{Deserialize, Serialize};
+
+const MONTHLY_WEATHERING_FRACTION: f64 = 0.002;
+const FLOODED_MONTHLY_WEATHERING_FRACTION: f64 = 0.022;
+const MATURE_ROAD_SURFACE_KG: f64 = 800.;
+const IMPAIRED_ROAD_SURFACE_KG: f64 = 500.;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RoadUpkeep {
     pub observed: u32,
@@ -22,7 +27,13 @@ impl RoadUpkeep {
     }
 }
 fn weathered_mass(stock: f64, flooded: bool) -> f32 {
-    let requested = (stock * if flooded { 0.022 } else { 0.002 }).min(f32::MAX as f64);
+    let requested = (stock
+        * if flooded {
+            FLOODED_MONTHLY_WEATHERING_FRACTION
+        } else {
+            MONTHLY_WEATHERING_FRACTION
+        })
+    .min(f32::MAX as f64);
     let mut mass = requested as f32;
     if mass as f64 > requested {
         mass = f32::from_bits(mass.to_bits().saturating_sub(1));
@@ -44,7 +55,7 @@ impl crate::civilization::History {
             // Normal scheduling visits every month. Do not reconstruct missing historical
             // flooding from a single current observation when importing old state.
             care.observed = self.month;
-            care.matured |= r.road_bricks >= 800.;
+            care.matured |= r.road_bricks >= MATURE_ROAD_SURFACE_KG;
             let mass = weathered_mass(r.road_bricks, r.flood_months > 0);
             r.road_bricks -= mass as f64;
             care.lost_kg += mass as f64;
@@ -68,11 +79,11 @@ impl crate::civilization::History {
             let Some(c) = &mut r.upkeep else {
                 continue;
             };
-            c.matured |= r.road_bricks >= 800.;
-            let kind = if c.matured && !c.impaired && r.road_bricks < 500. {
+            c.matured |= r.road_bricks >= MATURE_ROAD_SURFACE_KG;
+            let kind = if c.matured && !c.impaired && r.road_bricks < IMPAIRED_ROAD_SURFACE_KG {
                 c.impaired = true;
                 Some("road_deteriorated")
-            } else if c.impaired && r.road_bricks >= 800. {
+            } else if c.impaired && r.road_bricks >= MATURE_ROAD_SURFACE_KG {
                 c.impaired = false;
                 Some("road_restored")
             } else {

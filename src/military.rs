@@ -11,6 +11,9 @@ const CASUALTY_RANDOM_STREAM: u32 = 991;
 const RETURNING_ELDER_AGE_MONTHS: i32 = 720;
 
 pub(crate) const SOLDIER_FOOD_KG_PER_MONTH: f32 = 18.0;
+pub(crate) const SUPPLY_SHORTFALL_TOLERANCE_KG: f32 = 0.001;
+// f64 preserves the forecast rate; execution casts to its existing f32 arithmetic.
+pub(crate) const MONTHLY_STARVATION_LOSS_FRACTION: f64 = 0.1;
 pub(crate) const MAX_CAMPAIGN_TRAVEL_MONTHS: u32 = 10;
 pub(crate) const RETURN_PROVISION_MARGIN_MONTHS: u32 = 1;
 

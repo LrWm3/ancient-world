@@ -2,6 +2,11 @@
 //! Observations are not cargo, money, or a second economic ledger.
 use serde::{Deserialize, Serialize};
 
+const CONTACT_WINDOW_MONTHS: u32 = 12;
+const STAPLE_KG_PER_PERSON_MONTH: f64 = 18.;
+const MIN_EXPOSURE_POPULATION: f32 = 1.;
+const MIN_CONTACT_DELIVERY_KG: f64 = 1.;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Receipt {
     pub month: u32,
@@ -15,7 +20,8 @@ pub struct TradeContact {
 }
 impl TradeContact {
     pub fn prune(&mut self, month: u32) {
-        self.receipts.retain(|r| month.saturating_sub(r.month) < 12);
+        self.receipts
+            .retain(|r| month.saturating_sub(r.month) < CONTACT_WINDOW_MONTHS);
     }
     /// Coalesce deliveries on a directed pair in a completed month.
     pub fn observe(&mut self, month: u32, from: u32, to: u32, kg: f64) {
@@ -44,11 +50,15 @@ impl TradeContact {
             .receipts
             .iter()
             .filter(|r| {
-                r.month <= month && month - r.month < 12 && (r.from == site || r.to == site)
+                r.month <= month
+                    && month - r.month < CONTACT_WINDOW_MONTHS
+                    && (r.from == site || r.to == site)
             })
             .map(|r| r.kg)
             .sum();
-        let scale = population.max(1.) as f64 * 18. * 12.;
+        let scale = population.max(MIN_EXPOSURE_POPULATION) as f64
+            * STAPLE_KG_PER_PERSON_MONTH
+            * CONTACT_WINDOW_MONTHS as f64;
         (kg / (kg + scale)) as f32
     }
     /// A month with at least one kilogram delivered supports a contact opportunity.
@@ -56,14 +66,14 @@ impl TradeContact {
     pub fn links(&self, month: u32) -> impl Iterator<Item = (u32, u32)> + '_ {
         self.receipts
             .iter()
-            .filter(move |r| r.month == month && r.kg >= 1.)
+            .filter(move |r| r.month == month && r.kg >= MIN_CONTACT_DELIVERY_KG)
             .map(|r| (r.from, r.to))
     }
     pub fn validate(&self, month: u32, sites: usize) -> anyhow::Result<()> {
         let mut keys = std::collections::BTreeSet::new();
         anyhow::ensure!(
             self.receipts.iter().all(|r| r.month <= month
-                && month - r.month < 12
+                && month - r.month < CONTACT_WINDOW_MONTHS
                 && (r.from as usize) < sites
                 && (r.to as usize) < sites
                 && r.from != r.to

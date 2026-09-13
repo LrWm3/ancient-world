@@ -1,6 +1,9 @@
 //! Shared game weights for expressed relationships and known family ties.
 use std::collections::BTreeMap;
 
+const PARENT_CHILD_SUPPORT_AFFINITY: f32 = 0.75;
+const SIBLING_SUPPORT_AFFINITY: f32 = 0.5;
+
 /// Known ancestry supplies a potential obligation; expressed hostility can defeat it.
 /// Missing parents never count as a shared ancestor. These are game behavior weights.
 pub(crate) fn support_affinity(
@@ -15,9 +18,9 @@ pub(crate) fn support_affinity(
     let kin = if !kin_enabled || helper == recipient {
         0.
     } else if a.contains(&Some(recipient)) || b.contains(&Some(helper)) {
-        0.75
+        PARENT_CHILD_SUPPORT_AFFINITY
     } else if a.iter().flatten().any(|p| b.contains(&Some(*p))) {
-        0.5
+        SIBLING_SUPPORT_AFFINITY
     } else {
         0.
     };

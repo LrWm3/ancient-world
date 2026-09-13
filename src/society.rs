@@ -927,8 +927,11 @@ impl History {
             for (k, v) in FOOD_CNP.iter().enumerate() {
                 origin.economy.external[k] -= consume * *v as f32;
             }
-            if consume + 0.001 < raid.soldiers * crate::military::SOLDIER_FOOD_KG_PER_MONTH {
-                let expected = raid.soldiers * 0.1;
+            if consume + crate::military::SUPPLY_SHORTFALL_TOLERANCE_KG
+                < raid.soldiers * crate::military::SOLDIER_FOOD_KG_PER_MONTH
+            {
+                let expected =
+                    raid.soldiers * crate::military::MONTHLY_STARVATION_LOSS_FRACTION as f32;
                 self.military_losses(&mut raid, expected, "insufficient provisions");
             }
             supply_comparison.observe(&raid, raid.members.is_some(), before_supply, consume);

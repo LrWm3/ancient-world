@@ -24,9 +24,13 @@ impl SupplyComparison {
             );
             for j in h.society.iter().flat_map(|s| &s.raids) {
                 let individual = j.members.is_some();
-                let need = j.soldiers * 18.;
+                let need = j.soldiers * crate::military::SOLDIER_FOOD_KG_PER_MONTH;
                 let food = j.food.min(need);
-                let rate = if food + 0.001 < need { 0.1 } else { 0. };
+                let rate = if food + crate::military::SUPPLY_SHORTFALL_TOLERANCE_KG < need {
+                    crate::military::MONTHLY_STARVATION_LOSS_FRACTION
+                } else {
+                    0.
+                };
                 let pop = j.soldiers;
                 let row = rows.entry((j.origin, individual)).or_insert_with(|| Row {
                     boundary: Boundary {
