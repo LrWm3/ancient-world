@@ -15,6 +15,22 @@ is an acceptance criterion. More cash cannot create food, workers or cargo.
 
 ## Scope of this draft
 
+The proposed sequence is **existing-money credit → bounded shared-currency
+issuance → distinct currencies and finite exchange**. The first two experiments
+belong to Stage 1; Stage 2 is conditional. Constants cleanup is separate work.
+
+| Comparison arm | New lending | New issuance | Question |
+| --- | --- | --- | --- |
+| Existing system | Off | Off | What happens without either intervention? |
+| Credit only | On | Off | Does moving existing cash across time unlock feasible work? |
+| Minting only | Off | On | Does additional money relieve a remaining liquidity constraint? |
+| Credit + minting | On | On | Do the mechanisms complement each other or amplify losses? |
+
+Start comparisons from the same debt-free checkpoint. Disabling new lending in
+an already indebted world must still service its existing contracts; that is a
+policy-withdrawal experiment, not a clean baseline. Keep harvests, starting
+inventories, tax policy and unrelated settings matched across arms.
+
 Treat the stages as experiments with decision gates, not a commitment to add every
 mechanism regardless of the results. Credit first tests a timing problem using
 existing money. Issuance then tests liquidity with an explicit external source.
