@@ -7,6 +7,16 @@ use crate::{
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
+const STUDY_WRITING_KG: f32 = 0.05;
+pub(crate) const STUDY_WORKER_MONTHS: f64 = 0.1;
+const FIND_HASH_MULTIPLIER: u32 = 747796405;
+const FIND_SEED_MULTIPLIER: u32 = 2891336453;
+const FIND_HASH_FOLD_BITS: u32 = 16;
+const FIND_EXPERIENCE_ROTATION_BITS: u32 = 13;
+const FIND_CATEGORY_HASH_SHIFT: u32 = 8;
+const SURVIVAL_LOYALTY_GAIN: f32 = 0.01;
+const STUDY_FUNDING_TOLERANCE: f64 = 1e-8;
+
 pub(crate) const MAX_FIND_STUDIES: usize = 3;
 pub(crate) const STUDY_INTERVAL_MONTHS: u32 = 60;
 
@@ -104,11 +114,11 @@ struct Purchase {
     paid: f64,
 }
 fn writing_batch(stock: f32) -> Option<(f32, f32)> {
-    if !stock.is_finite() || stock < 0.05 {
+    if !stock.is_finite() || stock < STUDY_WRITING_KG {
         return None;
     }
-    let mut remaining = stock - 0.05;
-    if stock - remaining > 0.05 {
+    let mut remaining = stock - STUDY_WRITING_KG;
+    if stock - remaining > STUDY_WRITING_KG {
         remaining = f32::from_bits(remaining.to_bits() + 1).min(stock);
     }
     let kg = stock - remaining;
@@ -168,9 +178,10 @@ pub fn charter(h: &History, origin: u32, objective: Objective) -> Result<Option<
     }))
 }
 fn find_opportunity(hash: u32, experience: f32) -> bool {
-    let mixed = hash ^ (hash >> 16);
+    let mixed = hash ^ (hash >> FIND_HASH_FOLD_BITS);
     mixed % FIND_BUCKETS < BASE_FIND_BUCKETS
-        || (((mixed.rotate_left(13) as f64 / (u32::MAX as f64 + 1.)) as f32)
+        || (((mixed.rotate_left(FIND_EXPERIENCE_ROTATION_BITS) as f64 / (u32::MAX as f64 + 1.))
+            as f32)
             < experience.clamp(0., 1.) * EXPERIENCE_EXTRA_FIND_CHANCE)
 }
 pub(crate) fn survey(h: &mut History, e: &mut Expedition, cell: u32, already: bool) {
@@ -182,15 +193,15 @@ pub(crate) fn survey(h: &mut History, e: &mut Expedition, cell: u32, already: bo
     }
     // One small accessible object per qualifying endpoint, across all objectives.
     let hash = cell
-        .wrapping_mul(747796405)
-        .wrapping_add(h.seed.wrapping_mul(2891336453));
+        .wrapping_mul(FIND_HASH_MULTIPLIER)
+        .wrapping_add(h.seed.wrapping_mul(FIND_SEED_MULTIPLIER));
     if !find_opportunity(hash, expertise) {
         return;
     }
     let category = if e.objective == Objective::PatronSearch {
         FindCategory::Ceramic
     } else {
-        match (hash >> 8) % 4 {
+        match (hash >> FIND_CATEGORY_HASH_SHIFT) % 4 {
             0 => FindCategory::Ceramic,
             1 => FindCategory::Weaving,
             2 => FindCategory::TradeWeight,
@@ -215,7 +226,9 @@ pub(crate) fn survey(h: &mut History, e: &mut Expedition, cell: u32, already: bo
                     .patrons
                     .get(patron.archetype as usize)
             })
-            .and_then(|archetype| patron_finds::choose(&archetype.id, hash >> 8))
+            .and_then(|archetype| {
+                patron_finds::choose(&archetype.id, hash >> FIND_CATEGORY_HASH_SHIFT)
+            })
     } else {
         None
     };
@@ -361,7 +374,7 @@ pub(crate) fn deliver(h: &mut History, e: &mut Expedition) {
             e.crew.iter().filter(|p| p.alive).count() as f32 / e.crew.len().max(1) as f32;
         if let Some(g) = &mut h.governance {
             let a = &mut g.administrations[e.origin as usize];
-            a.loyalty = (a.loyalty + 0.01 * survival).min(1.);
+            a.loyalty = (a.loyalty + SURVIVAL_LOYALTY_GAIN * survival).min(1.);
         }
     }
 }
@@ -385,7 +398,9 @@ pub(crate) fn validate(h: &History, voyages: &[Expedition]) -> Result<()> {
                         .as_deref()
                         .is_none_or(|id| patron_finds::get(id).is_some())
                         && f.studies.len() <= crate::expedition_heritage::MAX_FIND_STUDIES
-                        && f.studies.windows(2).all(|w| w[1].month >= w[0].month + 60),
+                        && f.studies
+                            .windows(2)
+                            .all(|w| w[1].month >= w[0].month + STUDY_INTERVAL_MONTHS),
                     "invalid heritage study schedule"
                 );
                 for s in &f.studies {
@@ -394,7 +409,7 @@ pub(crate) fn validate(h: &History, voyages: &[Expedition]) -> Result<()> {
                             funding.good == "writing_material"
                                 && funding.kg.is_finite()
                                 && funding.kg > 0.
-                                && funding.kg <= 0.05
+                                && funding.kg <= STUDY_WRITING_KG
                                 && funding.paid.is_finite()
                                 && funding.paid > 0.
                                 && h.events.get(s.event as usize).is_some_and(|e| e
@@ -403,7 +418,9 @@ pub(crate) fn validate(h: &History, voyages: &[Expedition]) -> Result<()> {
                                 && culture
                                     .institutions
                                     .get(funding.institution as usize)
-                                    .is_some_and(|n| n.expenses + 1e-8 >= funding.paid),
+                                    .is_some_and(
+                                        |n| n.expenses + STUDY_FUNDING_TOLERANCE >= funding.paid
+                                    ),
                             "invalid heritage study funding"
                         );
                     }
@@ -467,7 +484,7 @@ pub(crate) fn study(h: &mut History, c: &mut crate::culture::Culture) {
         };
         if !c.work_allowed(site, "heritage study")
             || h.sites[site as usize].abandoned
-            || c.labor_budget.get(site as usize).copied().unwrap_or(0.) < 0.1
+            || c.labor_budget.get(site as usize).copied().unwrap_or(0.) < STUDY_WORKER_MONTHS as f32
         {
             continue;
         }
@@ -514,7 +531,7 @@ pub(crate) fn study(h: &mut History, c: &mut crate::culture::Culture) {
         else {
             continue;
         };
-        if h.sites[site as usize].economy.goods[good] < 0.05 {
+        if h.sites[site as usize].economy.goods[good] < STUDY_WRITING_KG {
             continue;
         }
         let Some((remaining, kg)) = writing_batch(h.sites[site as usize].economy.goods[good])
@@ -569,9 +586,14 @@ pub(crate) fn study(h: &mut History, c: &mut crate::culture::Culture) {
         {
             e.detritus[k] += kg * r;
         }
-        c.labor_budget[site as usize] -= 0.1;
-        c.labor_spent += 0.1;
-        crate::culture::work_requests::record_work(&mut c.work_plans, site, h.month, 0.1);
+        c.labor_budget[site as usize] -= STUDY_WORKER_MONTHS as f32;
+        c.labor_spent += STUDY_WORKER_MONTHS;
+        crate::culture::work_requests::record_work(
+            &mut c.work_plans,
+            site,
+            h.month,
+            STUDY_WORKER_MONTHS as f32,
+        );
         let comparison = c
             .artifacts
             .iter()

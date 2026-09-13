@@ -3,6 +3,48 @@ use crate::{civilization::History, gpu::Generator};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
+const FOREIGN_ADMIN_COST_PER_PERSON: f32 = 0.04;
+const LOCAL_ADMIN_COST_PER_PERSON: f32 = 0.01;
+const AUTONOMY_ADMIN_COST_REDUCTION: f32 = 0.5;
+const INITIAL_LOCAL_AUTONOMY: f32 = 0.25;
+const INITIAL_LOCAL_LOYALTY: f32 = 0.8;
+const INITIAL_FOREIGN_LOYALTY: f32 = 0.35;
+const CAPTURED_LOYALTY: f32 = 0.25;
+const CONTROL_CHANGE_UNREST: f32 = 0.3;
+const WAR_TRUST_PENALTY: f32 = 35.;
+const TRADE_CONTACT_TRUST_GAIN: f32 = 0.2;
+const MIN_FUNDED_ADMINISTRATION_FRACTION: f32 = 0.9;
+pub(crate) const AUTONOMY_TAX_REDUCTION: f32 = 0.75;
+const FUNDED_ADMIN_LOYALTY_GAIN: f32 = 0.008;
+const AUTONOMY_LOYALTY_GAIN: f32 = 0.006;
+const VACANT_OFFICE_LOYALTY_LOSS: f32 = 0.004;
+const OCCUPATION_LOYALTY_LOSS: f32 = 0.002;
+const UNFUNDED_ADMIN_LOYALTY_LOSS: f32 = 0.012;
+const HUNGER_LOYALTY_LOSS: f32 = 0.02;
+const DISRUPTION_LOYALTY_LOSS: f32 = 0.008;
+const TAX_LOYALTY_LOSS: f32 = 0.08;
+const OCCUPATION_UNREST_GAIN: f32 = 0.003;
+const HUNGER_UNREST_GAIN: f32 = 0.03;
+const DISRUPTION_UNREST_GAIN: f32 = 0.012;
+const UNFUNDED_ADMIN_UNREST_GAIN: f32 = 0.012;
+const TAX_UNREST_GAIN: f32 = 0.1;
+const LOYALTY_UNREST_REDUCTION: f32 = 0.012;
+const AUTONOMY_UNREST_REDUCTION: f32 = 0.012;
+const CRISIS_AUTONOMY_CEILING: f32 = 0.75;
+const CRISIS_LOYALTY_CEILING: f32 = 0.25;
+const CRISIS_UNREST_THRESHOLD: f32 = 0.65;
+const NEGOTIATED_LOCAL_AUTONOMY: f32 = 0.75;
+const OCCUPATION_CRISIS_DELAY_MONTHS: f32 = 3.;
+const RESTORED_CONTROL_LOYALTY: f32 = 0.5;
+const MIN_DIPLOMATIC_TRUST: f32 = 30.;
+const INITIAL_DIPLOMATIC_TRUST: f32 = 10.;
+const MAX_DIPLOMATIC_TRUST: f32 = 100.;
+const ARRIVAL_TRUST_GAIN: f32 = 1.;
+const NEGOTIATION_EARLIEST_CRISIS_MONTH: u32 = 3;
+const CRISIS_CONTROL_LOSS_MONTHS: u32 = 12;
+const NEGOTIATION_UNPAID_MONTHS: u32 = 6;
+const MIN_DIPLOMATIC_TRADE_CONTACTS: u32 = 12;
+
 pub(crate) const DEFAULT_TRUCE_MONTHS: u32 = 120;
 const MIN_TREATY_MONTHS: u32 = 12;
 const MAX_TREATY_MONTHS: u32 = 600;
@@ -100,7 +142,13 @@ pub(crate) fn administration_cost(
     if abandoned {
         0.
     } else {
-        population * if foreign { 0.04 } else { 0.01 } * (1. - autonomy * 0.5)
+        population
+            * if foreign {
+                FOREIGN_ADMIN_COST_PER_PERSON
+            } else {
+                LOCAL_ADMIN_COST_PER_PERSON
+            }
+            * (1. - autonomy * AUTONOMY_ADMIN_COST_REDUCTION)
     }
 }
 impl History {
@@ -185,7 +233,7 @@ impl Governance {
                     .all(|r| r[0].parties < r[1].parties)
                 && self.relations.iter().all(|r| r.parties[0] < r.parties[1]
                     && (r.parties[1] as usize) < h.civilizations.len()
-                    && (0. ..=100.).contains(&r.trust)),
+                    && (0. ..=MAX_DIPLOMATIC_TRUST).contains(&r.trust)),
             "invalid diplomatic relations"
         );
         for (i, t) in self.treaties.iter().enumerate() {
@@ -221,11 +269,11 @@ impl History {
             let controller = self.controller(i as u32);
             g.administrations.push(Administration {
                 controller,
-                autonomy: 0.25,
+                autonomy: INITIAL_LOCAL_AUTONOMY,
                 loyalty: if controller == self.sites[i].civilization {
-                    0.8
+                    INITIAL_LOCAL_LOYALTY
                 } else {
-                    0.35
+                    INITIAL_FOREIGN_LOYALTY
                 },
                 unrest: 0.,
                 unpaid_months: 0,
@@ -239,8 +287,8 @@ impl History {
             let controller = self.controller(i as u32);
             if a.controller != controller {
                 a.controller = controller;
-                a.loyalty = 0.25;
-                a.unrest = 0.3;
+                a.loyalty = CAPTURED_LOYALTY;
+                a.unrest = CONTROL_CHANGE_UNREST;
                 a.crisis_months = 0;
                 a.unpaid_months = 0;
                 a.cause = self
@@ -328,7 +376,7 @@ impl History {
                         .iter_mut()
                         .find(|r| r.parties == pair(w.attacker, w.defender))
                     {
-                        r.trust = (r.trust - 35.).max(0.);
+                        r.trust = (r.trust - WAR_TRUST_PENALTY).max(0.);
                     }
                 }
             } else if e.kind == "market_arrival" || e.kind == "arrival" {
@@ -338,7 +386,13 @@ impl History {
                         .iter_mut()
                         .find(|r| r.parties == pair(self.controller(a), self.controller(b)))
                     {
-                        r.trust = (r.trust + if e.kind == "arrival" { 1. } else { 0.2 }).min(100.);
+                        r.trust = (r.trust
+                            + if e.kind == "arrival" {
+                                ARRIVAL_TRUST_GAIN
+                            } else {
+                                TRADE_CONTACT_TRUST_GAIN
+                            })
+                        .min(MAX_DIPLOMATIC_TRUST);
                         if e.kind == "market_arrival" {
                             r.trade_contacts = r.trade_contacts.saturating_add(1);
                         }
@@ -400,37 +454,43 @@ impl History {
             self.sites[i].economy.finance[0] += paid;
             a.wages_paid += paid as f64;
             let funded = if required > 0. { paid / required } else { 1. };
-            a.unpaid_months = if funded < 0.9 {
+            a.unpaid_months = if funded < MIN_FUNDED_ADMINISTRATION_FRACTION {
                 a.unpaid_months.saturating_add(1)
             } else {
                 0
             };
-            let tax = council.tax_rate * (1. - a.autonomy * 0.75) * office_capacity;
+            let tax =
+                council.tax_rate * (1. - a.autonomy * AUTONOMY_TAX_REDUCTION) * office_capacity;
             self.society
                 .as_mut()
                 .unwrap()
                 .council_funding
                 .administration
                 .record(required as f64, paid as f64);
-            a.loyalty = (a.loyalty + 0.008 * funded * office_capacity + 0.006 * a.autonomy
-                - 0.004 * (1. - office_capacity)
-                - 0.002 * occupation
-                - 0.012 * (1. - funded)
-                - 0.02 * hunger
-                - 0.008 * disruption
-                - tax * 0.08)
+            a.loyalty = (a.loyalty
+                + FUNDED_ADMIN_LOYALTY_GAIN * funded * office_capacity
+                + AUTONOMY_LOYALTY_GAIN * a.autonomy
+                - VACANT_OFFICE_LOYALTY_LOSS * (1. - office_capacity)
+                - OCCUPATION_LOYALTY_LOSS * occupation
+                - UNFUNDED_ADMIN_LOYALTY_LOSS * (1. - funded)
+                - HUNGER_LOYALTY_LOSS * hunger
+                - DISRUPTION_LOYALTY_LOSS * disruption
+                - tax * TAX_LOYALTY_LOSS)
                 .clamp(0., 1.);
             a.unrest = (a.unrest
-                + 0.003 * occupation
-                + hunger * 0.03
-                + disruption * 0.012
-                + (1. - funded) * 0.012
-                + tax * 0.1
-                - 0.012 * a.loyalty
-                - 0.012 * a.autonomy)
+                + OCCUPATION_UNREST_GAIN * occupation
+                + hunger * HUNGER_UNREST_GAIN
+                + disruption * DISRUPTION_UNREST_GAIN
+                + (1. - funded) * UNFUNDED_ADMIN_UNREST_GAIN
+                + tax * TAX_UNREST_GAIN
+                - LOYALTY_UNREST_REDUCTION * a.loyalty
+                - AUTONOMY_UNREST_REDUCTION * a.autonomy)
                 .clamp(0., 1.);
             let previous_crisis = a.crisis_months;
-            a.crisis_months = if foreign && a.autonomy < 0.75 && a.loyalty < 0.25 && a.unrest > 0.65
+            a.crisis_months = if foreign
+                && a.autonomy < CRISIS_AUTONOMY_CEILING
+                && a.loyalty < CRISIS_LOYALTY_CEILING
+                && a.unrest > CRISIS_UNREST_THRESHOLD
             {
                 a.crisis_months + 1
             } else {
@@ -456,31 +516,38 @@ impl History {
                 }
                 a.cause = Some(self.events.last().unwrap().id);
             }
-            if g.negotiated_autonomy && self.month % 3 == 0 && (3..12).contains(&a.crisis_months) {
+            if g.negotiated_autonomy
+                && self.month % 3 == 0
+                && (NEGOTIATION_EARLIEST_CRISIS_MONTH..CRISIS_CONTROL_LOSS_MONTHS)
+                    .contains(&a.crisis_months)
+            {
                 let politics = self.politics.as_ref().unwrap();
                 let faction =
                     &politics.factions[politics.governing[a.controller as usize] as usize];
                 // Centralizing interests hold out on devolved revenue unless payroll fails.
                 if !crate::faction_interests::resists_autonomy(faction.interest)
-                    || a.unpaid_months >= 6
+                    || a.unpaid_months >= NEGOTIATION_UNPAID_MONTHS
                 {
                     let previous = a.autonomy;
-                    a.autonomy = 0.75;
+                    a.autonomy = NEGOTIATED_LOCAL_AUTONOMY;
                     self.event("autonomy_negotiated", Some(i as u32), None,
-                        format!("{} council granted 75% local autonomy after {} crisis months (previous {:.0}%, unpaid {} months); future tax collection falls from {:.0}% to 44% of the standard rate", crate::faction_interests::name(faction.interest), a.crisis_months, previous * 100., a.unpaid_months, (1. - previous * 0.75) * 100.));
+                        format!("{} council granted 75% local autonomy after {} crisis months (previous {:.0}%, unpaid {} months); future tax collection falls from {:.0}% to 44% of the standard rate", crate::faction_interests::name(faction.interest), a.crisis_months, previous * 100., a.unpaid_months, (1. - previous * AUTONOMY_TAX_REDUCTION) * 100.));
                     if let Some(cause) = a.cause {
                         self.events.last_mut().unwrap().causes.push(cause);
                     }
                     a.cause = Some(self.events.last().unwrap().id);
                 }
             }
-            if a.crisis_months >= 12 + (occupation * 3.).ceil() as u32 {
+            if a.crisis_months
+                >= CRISIS_CONTROL_LOSS_MONTHS
+                    + (occupation * OCCUPATION_CRISIS_DELAY_MONTHS).ceil() as u32
+            {
                 let previous = a.controller;
                 let restored = self.sites[i].civilization;
                 self.politics.as_mut().unwrap().controllers[i] = restored;
                 a.controller = restored;
-                a.loyalty = 0.5;
-                a.unrest = 0.3;
+                a.loyalty = RESTORED_CONTROL_LOYALTY;
+                a.unrest = CONTROL_CHANGE_UNREST;
                 a.crisis_months = 0;
                 a.unpaid_months = 0;
                 self.event("secession",Some(i as u32),None,format!("{} ceased recognizing {} after sustained governance crisis; local administration restored",self.sites[i].name,self.civilizations[previous as usize].name));
@@ -500,7 +567,9 @@ impl History {
         let offers: Vec<_> = g
             .relations
             .iter()
-            .filter(|r| r.trust >= 30. && r.trade_contacts >= 12)
+            .filter(|r| {
+                r.trust >= MIN_DIPLOMATIC_TRUST && r.trade_contacts >= MIN_DIPLOMATIC_TRADE_CONTACTS
+            })
             .map(|r| r.parties)
             .collect();
         for [a, b] in offers {
@@ -605,7 +674,7 @@ impl Generator {
             for b in a + 1..h.civilizations.len() as u32 {
                 relations.push(Relation {
                     parties: [a, b],
-                    trust: 10.,
+                    trust: INITIAL_DIPLOMATIC_TRUST,
                     trade_contacts: 0,
                 });
             }

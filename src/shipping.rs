@@ -7,6 +7,19 @@ use crate::{
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, BinaryHeap};
+const HARBOR_MAX_CAPACITY_KG: f32 = 1000.;
+const MAX_FUNDED_VESSEL_WORK_WITH_TOLERANCE: f32 = 0.25001;
+const HARBOR_MATERIAL_TOLERANCE_KG: f32 = 0.001;
+const MAX_SEA_LANE_KM: f32 = 20_000.;
+const HARBOR_TOOLS_RESERVE_KG_PER_PERSON: f32 = 0.5;
+const HARBOR_ANNUAL_WEAR_FRACTION: f32 = 0.02;
+const WORN_HARBOR_WOOD_CNP: [f32; 3] = [0.5, 0.002, 0.0002];
+const COMMISSIONING_MATERIAL_FRACTION: f32 = 0.999;
+const HARBOR_DISRUPTION_CAPACITY_KG: f32 = 500.;
+const HARBOR_RECOVERY_CAPACITY_KG: f32 = 800.;
+const LEGACY_MAX_TRADE_DISTANCE_KM: f32 = 3000.;
+const SEA_DISTANCE_ADVANTAGE: f32 = 4.;
+
 pub const MATERIALS: [usize; 3] = [0, 3, 5];
 pub const TARGET: [f32; 3] = [200., 10., 100.];
 /// kg installed per worker-month: timber, tools/rigging, masonry.
@@ -47,7 +60,7 @@ impl Port {
         if self.commissioned.is_none() || self.flood_months > 0 {
             return 0.;
         }
-        1000.
+        HARBOR_MAX_CAPACITY_KG
             * self
                 .assets
                 .iter()
@@ -61,8 +74,8 @@ impl Port {
         }
         self.fleet
             .as_ref()
-            .map_or(1000., |f| f.capacity())
-            .min(1000.)
+            .map_or(HARBOR_MAX_CAPACITY_KG, |f| f.capacity())
+            .min(HARBOR_MAX_CAPACITY_KG)
             * self
                 .assets
                 .iter()
@@ -89,10 +102,10 @@ pub struct Shipping {
     pub lanes: Vec<SeaLane>,
 }
 fn land(c: &Cell) -> bool {
-    c.meta[0] == 2 && c.water[0] < 0.25
+    c.meta[0] == 2 && c.water[0] < crate::hazards::MIN_NAVIGABLE_WATER_DEPTH_M
 }
 fn lake(c: &Cell) -> bool {
-    c.meta[0] == 1 && c.water[0] > 0.25
+    c.meta[0] == 1 && c.water[0] > crate::hazards::MIN_NAVIGABLE_WATER_DEPTH_M
 }
 /// Dijkstra uses integer meters and stable cell ordering. Access terminates at the first
 /// reachable great-lake cell; sea searches cannot cross any land or exterior ocean.
@@ -115,16 +128,17 @@ pub(crate) fn path(
         }
         if cost
             > if end.is_some() || frontier {
-                20_000_000
+                crate::navigation::MAX_WATER_ROUTE_COST_UNITS as u64
             } else {
-                2_000_000
+                crate::navigation::MAX_HARBOR_COST_UNITS as u64
             }
         {
             break;
         }
         if end.map_or(
             if frontier {
-                cells[i as usize].meta[0] == 3 && cells[i as usize].water[0] < 0.25
+                cells[i as usize].meta[0] == 3
+                    && cells[i as usize].water[0] < crate::hazards::MIN_NAVIGABLE_WATER_DEPTH_M
             } else {
                 lake(&cells[i as usize])
             },
@@ -135,12 +149,16 @@ pub(crate) fn path(
                 route.push(parents[*route.last().unwrap() as usize]);
             }
             route.reverse();
-            return Some((route, cost as f32 / 1000.));
+            return Some((
+                route,
+                cost as f32 / crate::navigation::NAVIGATION_COST_UNITS_PER_KM,
+            ));
         }
         for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
             let j = grid::neighbor(i, n, dx, dy);
-            let outer =
-                frontier && cells[j as usize].meta[0] == 3 && cells[j as usize].water[0] < 0.25;
+            let outer = frontier
+                && cells[j as usize].meta[0] == 3
+                && cells[j as usize].water[0] < crate::hazards::MIN_NAVIGABLE_WATER_DEPTH_M;
             if !outer
                 && !lake(&cells[j as usize])
                 && (frontier || end.is_some() || !land(&cells[j as usize]))
@@ -150,11 +168,16 @@ pub(crate) fn path(
             let friction = if frontier || end.is_some() || lake(&cells[j as usize]) {
                 1.
             } else {
-                1. + (cells[i as usize].terrain[0] - cells[j as usize].terrain[0]).abs() / 500.
-                    + (cells[j as usize].water[3] / 1000.).min(3.)
+                1. + (cells[i as usize].terrain[0] - cells[j as usize].terrain[0]).abs()
+                    / crate::navigation::ROAD_SLOPE_HEIGHT_M
+                    + (cells[j as usize].water[3] / crate::navigation::ROAD_DISCHARGE_SCALE_M3_S)
+                        .min(crate::navigation::MAX_ROAD_DISCHARGE_FRICTION)
             };
-            let step =
-                (crate::civilization::distance(i, j, n) * radius * 1000. * friction).max(1.) as u64;
+            let step = (crate::civilization::distance(i, j, n)
+                * radius
+                * crate::navigation::NAVIGATION_COST_UNITS_PER_KM
+                * friction)
+                .max(1.) as u64;
             let next = cost + step;
             if next < distances[j as usize] {
                 distances[j as usize] = next;
@@ -177,7 +200,8 @@ impl Shipping {
     pub fn validate(&self, h: &History, cells: &[Cell]) -> Result<()> {
         ensure!(
             self.version == 1
-                && (1..=1024).contains(&h.terrain_resolution)
+                && (1..=*crate::config::ALLOWED_GRID_RESOLUTION.end())
+                    .contains(&h.terrain_resolution)
                 && cells.len() == 6 * h.terrain_resolution as usize * h.terrain_resolution as usize
                 && h.society.is_some()
                 && self.started <= h.month
@@ -197,12 +221,13 @@ impl Shipping {
         for p in &self.ports {
             if let Some(f) = &p.fleet {
                 ensure!(
-                    f.vessels.len() <= 4
+                    f.vessels.len() <= crate::vessels::MAX_PORT_HULLS as usize
                         && f.vessels.iter().enumerate().all(|(id, v)| v.id == id as u32
                             && !v.name.is_empty()
                             && v.commissioned <= h.month
                             && v.funded_work.is_finite()
-                            && (0. ..=0.25001).contains(&v.funded_work)
+                            && (0. ..=MAX_FUNDED_VESSEL_WORK_WITH_TOLERANCE)
+                                .contains(&v.funded_work)
                             && v.wages_paid.is_finite()
                             && v.wages_paid >= 0.
                             && v.household.is_none_or(|id| h
@@ -237,10 +262,8 @@ impl Shipping {
                     && contiguous(&[*p.access.last().unwrap(), p.water_cell])
                     && p.access_km.is_finite()
                     && p.access_km > 0.
-                    && p.assets
-                        .iter()
-                        .zip(TARGET)
-                        .all(|(a, t)| a.is_finite() && (0. ..=t + 0.001).contains(a))
+                    && p.assets.iter().zip(TARGET).all(|(a, t)| a.is_finite()
+                        && (0. ..=t + HARBOR_MATERIAL_TOLERANCE_KG).contains(a))
                     && p.work
                         .as_ref()
                         .is_none_or(|w| w.observed.is_none_or(|m| m <= h.month)
@@ -261,7 +284,7 @@ impl Shipping {
                     && l.cells.last() == Some(&self.ports[l.ports[1] as usize].water_cell)
                     && l.km.is_finite()
                     && l.km > 0.
-                    && l.km <= 20_000.
+                    && l.km <= MAX_SEA_LANE_KM
                     && l.cells
                         .iter()
                         .all(|&c| cells
@@ -326,7 +349,12 @@ impl History {
                 .into_iter()
                 .enumerate()
                 .map(|(k, good)| {
-                    let reserve = s.stocks.stock[0] * if good == 3 { 0.5 } else { 1. };
+                    let reserve = s.stocks.stock[0]
+                        * if good == 3 {
+                            HARBOR_TOOLS_RESERVE_KG_PER_PERSON
+                        } else {
+                            1.
+                        };
                     (s.economy.goods[good] - reserve).max(0.) / TARGET[k]
                 })
                 .fold(f32::INFINITY, f32::min)
@@ -416,11 +444,11 @@ impl History {
             }
             let s = &mut self.sites[p.site as usize];
             for (k, good) in MATERIALS.into_iter().enumerate() {
-                let wear = p.assets[k] * 0.02;
+                let wear = p.assets[k] * HARBOR_ANNUAL_WEAR_FRACTION;
                 p.assets[k] -= wear;
                 s.economy.used[good] += wear;
                 if good == 0 {
-                    for (j, f) in [0.5, 0.002, 0.0002].into_iter().enumerate() {
+                    for (j, f) in WORN_HARBOR_WOOD_CNP.into_iter().enumerate() {
                         s.economy.external[j] -= wear * f;
                     }
                 } else {
@@ -430,7 +458,12 @@ impl History {
             if !s.abandoned && s.economy.policy[3] >= 0.5 {
                 let mut requested = [0.; 3];
                 for (k, good) in MATERIALS.into_iter().enumerate() {
-                    let reserve = s.stocks.stock[0] * if good == 3 { 0.5 } else { 1. };
+                    let reserve = s.stocks.stock[0]
+                        * if good == 3 {
+                            HARBOR_TOOLS_RESERVE_KG_PER_PERSON
+                        } else {
+                            1.
+                        };
                     requested[k] = (TARGET[k] - p.assets[k])
                         .max(0.)
                         .min((s.economy.goods[good] - reserve).max(0.));
@@ -459,7 +492,11 @@ impl History {
                     w.worker_months += used_work as f64;
                 }
             }
-            if p.commissioned.is_none() && p.assets.iter().zip(TARGET).all(|(a, t)| *a >= t * 0.999)
+            if p.commissioned.is_none()
+                && p.assets
+                    .iter()
+                    .zip(TARGET)
+                    .all(|(a, t)| *a >= t * COMMISSIONING_MATERIAL_FRACTION)
             {
                 p.commissioned = Some(self.month);
                 self.event("port_opened",Some(p.site),None,"Harbor and merchant boats commissioned from 200 kg timber, 10 kg tools and 100 kg masonry; 1000 kg shared transport capacity".into());
@@ -475,7 +512,7 @@ impl History {
         };
         for (id, p) in shipping.ports.iter_mut().enumerate() {
             // Structural condition is distinct from a temporary flood closure.
-            let capacity = 1000.
+            let capacity = HARBOR_MAX_CAPACITY_KG
                 * p.assets
                     .iter()
                     .zip(TARGET)
@@ -484,10 +521,13 @@ impl History {
             let Some(w) = &mut p.work else {
                 continue;
             };
-            let kind = if p.commissioned.is_some() && !w.impaired && capacity < 500. {
+            let kind = if p.commissioned.is_some()
+                && !w.impaired
+                && capacity < HARBOR_DISRUPTION_CAPACITY_KG
+            {
                 w.impaired = true;
                 Some("harbor_deteriorated")
-            } else if w.impaired && capacity >= 800. {
+            } else if w.impaired && capacity >= HARBOR_RECOVERY_CAPACITY_KG {
                 w.impaired = false;
                 Some("harbor_restored")
             } else {
@@ -553,7 +593,7 @@ impl History {
         let max_distance = self
             .economy_catalog
             .as_ref()
-            .map_or(3000., |c| c.market.max_distance_km);
+            .map_or(LEGACY_MAX_TRADE_DISTANCE_KM, |c| c.market.max_distance_km);
         let hostile = |a: u32, b: u32| {
             self.politics.as_ref().is_some_and(|p| {
                 p.wars.iter().any(|w| {
@@ -614,7 +654,7 @@ impl History {
                         }
                         let distance = roads[a * n + p.site as usize]
                             + p.access_km
-                            + l.km / 4.
+                            + l.km / SEA_DISTANCE_ADVANTAGE
                             + q.access_km
                             + if wartime {
                                 onward[endpoints[1] as usize][b]

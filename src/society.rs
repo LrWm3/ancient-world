@@ -9,6 +9,47 @@ use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, BinaryHeap};
 
+const RAID_MUSTER_ADULT_FRACTION: f32 = 0.1;
+const UNDERFUNDED_PAYMENT_THRESHOLD: f64 = 0.9;
+const MAX_COUNCIL_TAX_RATE: f32 = 0.25;
+const SUPPORT_RELATIVE_TOLERANCE: f64 = 1e-6;
+const MAX_HOUSEHOLDS: usize = 8192;
+const HOUSEHOLD_SHARE_TOLERANCE: f64 = 0.00001;
+const RATION_TOLERANCE_KG: f32 = 0.01;
+const POPULATION_RELATIVE_TOLERANCE: f32 = 0.0001;
+const FULL_ROAD_SURFACE_KG: f64 = 1000.;
+const INITIAL_CHILD_FRACTION: f32 = 0.3;
+const INITIAL_ADULT_FRACTION: f32 = 0.6;
+const INITIAL_ELDER_FRACTION: f32 = 0.1;
+const INITIAL_PEOPLE_PER_HOUSEHOLD: f32 = 8.;
+const MAX_INITIAL_HOUSEHOLDS_PER_SITE: usize = 24;
+const INITIAL_HEAD_MIN_AGE_MONTHS: i32 = 360;
+const INITIAL_HEAD_AGE_SPAN_YEARS: i32 = 20;
+const MAX_INITIAL_ROUTE_NEIGHBORS: usize = 3;
+const WEATHER_DROUGHT_NOTICE_THRESHOLD: f32 = 0.999;
+const MIN_REPORTED_HARVEST_KG: f32 = 0.01;
+const DEFENDER_ADULT_FRACTION: f32 = 0.15;
+const RAID_EQUIPMENT_STRENGTH_BONUS: f32 = 0.5;
+const DEFENSE_STRENGTH_MULTIPLIER: f32 = 1.1;
+const BATTLE_EQUIPMENT_LOSS_FRACTION: f32 = 0.15;
+const ATTACKER_LOSS_PER_DEFENDER: f32 = 0.1;
+const MAX_ATTACKER_LOSS_FRACTION: f32 = 0.2;
+const DEFENDER_LOSS_PER_ATTACKER: f32 = 0.05;
+const RAID_LOOT_KG_PER_SOLDIER: f32 = 36.;
+const REPRESENTATIVE_HEAD_OLD_AGE_MONTHS: i32 = 840;
+const IDENTIFIED_ADULT_AGE_MONTHS: i32 = 300;
+const EMERGENCY_TOWN_SUPPORT_SHORTAGE: f32 = 0.05;
+const MAX_ANNUAL_ROAD_BUILD_KG: f32 = 100.;
+const ROAD_BUILD_KG_PER_WORKER_MONTH: f32 = 100.;
+const ROAD_BUILD_MONEY_PER_KG: f64 = 2.;
+const RAID_MOTIVE_MAX_AGE_MONTHS: u32 = 24;
+const RAID_MIN_ORIGIN_ADULTS: f32 = 30.;
+const RAID_TARGET_FOOD_RATIO: f32 = 2.;
+const MAX_RAID_DISTANCE_KM: f32 = 900.;
+const MIN_RAID_SOLDIERS: f32 = 3.;
+const DEFAULT_COUNCIL_TAX_RATE: f32 = 0.03;
+const MAX_RATION_PRIORITY: f32 = 3.;
+
 pub(crate) const SOUTHERN_HARVEST_MONTH: f32 = 2.;
 pub(crate) const NORTHERN_HARVEST_MONTH: f32 = 8.;
 crate::shared_shader_parameters!(SHADER_PARAMETERS {
@@ -49,7 +90,7 @@ pub(crate) const LAND_TRAVEL_KM_PER_MONTH: f32 = 150.0;
 // Inverse multiplication can round above the food used to bound recruitment.
 // Debit and carry the same bounded quantity; never repair an overdraw by minting food.
 fn raid_muster(adults: f32, available_food: f32, months: u32) -> (f32, f32) {
-    let men = (adults * 0.1)
+    let men = (adults * RAID_MUSTER_ADULT_FRACTION)
         .min(available_food / (crate::military::SOLDIER_FOOD_KG_PER_MONTH * (months + 1) as f32));
     let food = (men * crate::military::SOLDIER_FOOD_KG_PER_MONTH * (months + 1) as f32)
         .min(available_food);
@@ -334,7 +375,7 @@ impl FundingTotals {
         self.shortfall += (requested - paid).max(0.);
         if requested > 0. {
             self.requests += 1;
-            self.underfunded += u64::from(paid / requested < 0.9);
+            self.underfunded += u64::from(paid / requested < UNDERFUNDED_PAYMENT_THRESHOLD);
         }
     }
 }
@@ -360,7 +401,7 @@ pub struct Society {
     pub relocation: crate::relocation::RelocationState,
 }
 fn traversable(c: &Cell) -> bool {
-    c.meta[0] == 2 && c.water[0] < 0.25
+    c.meta[0] == 2 && c.water[0] < crate::hazards::MIN_NAVIGABLE_WATER_DEPTH_M
 }
 impl Society {
     pub fn validate(&self, h: &History, cells: &[Cell]) -> Result<()> {
@@ -384,18 +425,23 @@ impl Society {
                 ]
                 .iter()
                 .all(|v| v.is_finite() && *v >= 0.)
-                    && t.rate <= 0.25
+                    && t.rate <= MAX_COUNCIL_TAX_RATE
                     && t.autonomy <= 1.
                     && t.office_capacity <= 1.
                     && t.paid
-                        == t.opening_cash * t.rate * (1. - t.autonomy * 0.75) * t.office_capacity,
+                        == t.opening_cash
+                            * t.rate
+                            * (1. - t.autonomy * crate::governance::AUTONOMY_TAX_REDUCTION)
+                            * t.office_capacity,
                 "invalid tax collection observation"
             );
             ensure!(
                 [t.support_requested, t.support_paid]
                     .iter()
                     .all(|v| v.is_finite() && *v >= 0.)
-                    && t.support_paid <= t.support_requested + 1e-6 * (1. + t.support_requested),
+                    && t.support_paid
+                        <= t.support_requested
+                            + SUPPORT_RELATIVE_TOLERANCE * (1. + t.support_requested),
                 "invalid emergency support observation"
             );
             previous_tax_site = Some(t.site);
@@ -432,18 +478,18 @@ impl Society {
                         && c.treasury >= 0.
                         && c.relief_paid.is_finite()
                         && c.relief_paid >= 0.
-                        && (0. ..=0.25).contains(&c.tax_rate)
+                        && (0. ..=MAX_COUNCIL_TAX_RATE).contains(&c.tax_rate)
                         && c.tax_effective_since.is_none_or(|m| m <= h.month)
                         && c.pending_tax
                             .as_ref()
-                            .is_none_or(|p| (0. ..=0.25).contains(&p.rate)
+                            .is_none_or(|p| (0. ..=MAX_COUNCIL_TAX_RATE).contains(&p.rate)
                                 && p.decided_month <= h.month
                                 && p.effective_month == p.decided_month.saturating_add(1)
                                 && p.effective_month > h.month)),
             "invalid council"
         );
         ensure!(
-            self.households.len() <= 8192
+            self.households.len() <= MAX_HOUSEHOLDS
                 && self
                     .households
                     .iter()
@@ -482,7 +528,7 @@ impl Society {
                 .map(|f| f.share)
                 .sum();
             ensure!(
-                (fraction - 1.).abs() < 0.00001,
+                (fraction - 1.).abs() < HOUSEHOLD_SHARE_TOLERANCE,
                 "household ownership does not sum to one"
             );
             ensure!(
@@ -498,9 +544,9 @@ impl Society {
                     && s.demography
                         .ration_priority
                         .iter()
-                        .all(|v| v.is_finite() && (0. ..=3.).contains(v))
-                    && (0..4)
-                        .all(|k| s.demography.ration_eaten[k] <= s.demography.ration_need[k] + 0.01)
+                        .all(|v| v.is_finite() && (0. ..=MAX_RATION_PRIORITY).contains(v))
+                    && (0..4).all(|k| s.demography.ration_eaten[k]
+                        <= s.demography.ration_need[k] + RATION_TOLERANCE_KG)
                     && s.demography.household_food[1] <= 1.
                     && s.demography.crops[2] < 12.
                     && s.demography.crops[2].fract() == 0.
@@ -509,7 +555,7 @@ impl Society {
                     && ((s.demography.ages[..3].iter().sum::<f32>() - s.stocks.stock[0])
                         / s.stocks.stock[0].max(1.))
                     .abs()
-                        < 0.0001,
+                        < POPULATION_RELATIVE_TOLERANCE,
                 "age cohorts do not match residents at site {} month {}: {:?}, population {}",
                 s.id,
                 h.month,
@@ -606,7 +652,7 @@ impl History {
         s.routes
             .iter()
             .filter(|r| r.passable() && ((r.from == a && r.to == b) || (r.from == b && r.to == a)))
-            .map(|r| r.cost_km / (1. + (r.road_bricks / 1000.).min(1.) as f32))
+            .map(|r| r.cost_km / (1. + (r.road_bricks / FULL_ROAD_SURFACE_KG).min(1.) as f32))
             .min_by(f32::total_cmp)
     }
     /// All-pairs commercial distances over surveyed roads. Military routes remain direct.
@@ -677,7 +723,7 @@ impl History {
                 {
                     continue;
                 }
-                let cost = r.cost_km / (1. + (r.road_bricks / 1000.).min(1.) as f32);
+                let cost = r.cost_km / (1. + (r.road_bricks / FULL_ROAD_SURFACE_KG).min(1.) as f32);
                 if distances[u] + cost < distances[v] {
                     distances[v] = distances[u] + cost;
                     parents[v] = u as u32;
@@ -699,20 +745,21 @@ impl History {
             if !society.households.iter().any(|f| f.site == site.id) {
                 if site.demography.ages[..3].iter().sum::<f32>() == 0. {
                     site.demography.ages = [
-                        site.stocks.stock[0] * 0.3,
-                        site.stocks.stock[0] * 0.6,
-                        site.stocks.stock[0] * 0.1,
+                        site.stocks.stock[0] * INITIAL_CHILD_FRACTION,
+                        site.stocks.stock[0] * INITIAL_ADULT_FRACTION,
+                        site.stocks.stock[0] * INITIAL_ELDER_FRACTION,
                         0.,
                     ];
                 }
                 let seed = site.stocks.stock[1].min(site.stocks.stock[0]);
                 site.stocks.stock[1] -= seed;
-                site.demography.crops = [0., seed, 8., 1.];
+                site.demography.crops = [0., seed, NORTHERN_HARVEST_MONTH, 1.];
                 let dir = grid::cell_direction(site.cell, self.terrain_resolution);
                 if dir[1] < 0. {
-                    site.demography.crops[2] = 2.;
+                    site.demography.crops[2] = SOUTHERN_HARVEST_MONTH;
                 }
-                let count = ((site.stocks.stock[0] / 8.).ceil() as usize).clamp(1, 24);
+                let count = ((site.stocks.stock[0] / INITIAL_PEOPLE_PER_HOUSEHOLD).ceil() as usize)
+                    .clamp(1, MAX_INITIAL_HOUSEHOLDS_PER_SITE);
                 for family in 0..count {
                     let id = society.households.len() as u32;
                     let leader = self.civilizations[site.civilization as usize].leader;
@@ -734,7 +781,9 @@ impl History {
                                         ),
                                     ),
                                 civilization: site.civilization,
-                                born: self.month as i32 - 360 - (family as i32 % 20) * 12,
+                                born: self.month as i32
+                                    - INITIAL_HEAD_MIN_AGE_MONTHS
+                                    - (family as i32 % INITIAL_HEAD_AGE_SPAN_YEARS) * 12,
                                 died: None,
                                 predecessor: None,
                             });
@@ -778,7 +827,7 @@ impl History {
                         n,
                     ))
             });
-            for source in neighbors.into_iter().take(3) {
+            for source in neighbors.into_iter().take(MAX_INITIAL_ROUTE_NEIGHBORS) {
                 if let Some((path, cost)) = match navigation {
                     Some(nav) => nav.route(
                         self.sites[source].cell,
@@ -868,11 +917,13 @@ impl History {
             let regime = self
                 .economy_catalog
                 .as_ref()
-                .map_or(48, |c| c.weather.regime_months);
+                .map_or(crate::economy::DEFAULT_WEATHER_REGIME_MONTHS, |c| {
+                    c.weather.regime_months
+                });
             if !self.sites[i].abandoned
                 && ((self.month - 1) % regime == 0 || self.sites[i].founded + 1 == self.month)
             {
-                let kind = if d.ages[3] < 0.999 {
+                let kind = if d.ages[3] < WEATHER_DROUGHT_NOTICE_THRESHOLD {
                     "regional_drought"
                 } else {
                     "weather_recovery"
@@ -915,7 +966,7 @@ impl History {
                 let harvested: Vec<String> = (0..6)
                     .filter_map(|k| {
                         let kg = current[k] - previous[k];
-                        (kg > 0.01).then(|| {
+                        (kg > MIN_REPORTED_HARVEST_KG).then(|| {
                             let name = self
                                 .economy_catalog
                                 .as_ref()
@@ -1007,17 +1058,22 @@ impl History {
                     continue;
                 }
                 let protection = self.patron_protection(raid.target);
-                let defenders = self.sites[raid.target as usize].demography.ages[1] * 0.15;
+                let defenders =
+                    self.sites[raid.target as usize].demography.ages[1] * DEFENDER_ADULT_FRACTION;
                 let won = raid.soldiers
                     * self.military_preparedness(&raid)
-                    * (1. + (raid.equipment / raid.soldiers.max(1.)).min(1.) * 0.5)
-                    > defenders * (1.1 + protection);
-                let equipment_loss = raid.equipment * 0.15;
+                    * (1.
+                        + (raid.equipment / raid.soldiers.max(1.)).min(1.)
+                            * RAID_EQUIPMENT_STRENGTH_BONUS)
+                    > defenders * (DEFENSE_STRENGTH_MULTIPLIER + protection);
+                let equipment_loss = raid.equipment * BATTLE_EQUIPMENT_LOSS_FRACTION;
                 raid.equipment -= equipment_loss;
-                let expected = (defenders * 0.1).min(raid.soldiers * 0.2);
+                let expected = (defenders * ATTACKER_LOSS_PER_DEFENDER)
+                    .min(raid.soldiers * MAX_ATTACKER_LOSS_FRACTION);
                 let casualties = self.military_losses(&mut raid, expected, "combat");
-                let expected_defense = (raid.soldiers * 0.05 * (1. - protection))
-                    .min(self.sites[raid.target as usize].demography.ages[1]);
+                let expected_defense =
+                    (raid.soldiers * DEFENDER_LOSS_PER_ATTACKER * (1. - protection))
+                        .min(self.sites[raid.target as usize].demography.ages[1]);
                 let defender_losses = if self.individual_demography_enabled() {
                     let ids = self.individual_defender_losses(
                         raid.target,
@@ -1039,7 +1095,7 @@ impl History {
                 target.stocks.stock[0] -= defender_losses;
                 target.stocks.people[1] += defender_losses;
                 let loot = if raid.war.is_none() || won {
-                    target.stocks.stock[1].min(raid.soldiers * 36.)
+                    target.stocks.stock[1].min(raid.soldiers * RAID_LOOT_KG_PER_SOLDIER)
                 } else {
                     0.
                 };
@@ -1086,7 +1142,8 @@ impl History {
             let old = f.head as usize;
             if self.people[old].died.is_some()
                 || (self.named_demography.is_none()
-                    && self.month as i32 - self.people[old].born >= 840
+                    && self.month as i32 - self.people[old].born
+                        >= REPRESENTATIVE_HEAD_OLD_AGE_MONTHS
                     && site.demography.health[2] >= 1.)
             {
                 // A recorded travel death already removed this person from the
@@ -1151,9 +1208,9 @@ impl History {
                 }
                 let vacancy = f.vacant_since.take();
                 let identified_age = if resident_mode && band == Some(2) {
-                    720
+                    crate::population_registry::WORKING_END_AGE_MONTHS
                 } else {
-                    300
+                    IDENTIFIED_ADULT_AGE_MONTHS
                 };
                 if existing.is_none() {
                     if resident_mode {
@@ -1269,7 +1326,7 @@ impl History {
                 .map_or(0., |a| a.autonomy);
             let tax = s.economy.finance[0]
                 * council.tax_rate
-                * (1. - autonomy * 0.75)
+                * (1. - autonomy * crate::governance::AUTONOMY_TAX_REDUCTION)
                 * office_capacity[s.id as usize];
             society.council_funding.taxes.push(TaxReceipt {
                 month: self.month,
@@ -1285,7 +1342,7 @@ impl History {
             });
             s.economy.finance[0] -= tax;
             council.treasury += tax as f64;
-            if s.stocks.stock[3] > 0.05 {
+            if s.stocks.stock[3] > EMERGENCY_TOWN_SUPPORT_SHORTAGE {
                 let request = society.town_support_policy.request(
                     s.stocks.stock[0],
                     s.economy.finance[0],
@@ -1332,19 +1389,19 @@ impl History {
             let council = &mut society.councils[controllers[site.id as usize] as usize];
             let bricks = site.economy.goods[5]
                 .min(if planned || route.upkeep.is_some() {
-                    (1000. - route.road_bricks).max(0.) as f32
+                    (FULL_ROAD_SURFACE_KG - route.road_bricks).max(0.) as f32
                 } else {
                     f32::INFINITY
                 })
-                .min(100.)
+                .min(MAX_ANNUAL_ROAD_BUILD_KG)
                 .min(if route.upkeep.is_some() {
-                    site.economy.logistics[2].max(0.) * 100.
+                    site.economy.logistics[2].max(0.) * ROAD_BUILD_KG_PER_WORKER_MONTH
                 } else {
                     f32::INFINITY
                 });
             // Feasible materials and work before the cash cap, not hypothetical road demand.
-            let requested_cash = bricks as f64 * 2.;
-            let bricks = bricks.min((council.treasury / 2.) as f32);
+            let requested_cash = bricks as f64 * ROAD_BUILD_MONEY_PER_KG;
+            let bricks = bricks.min((council.treasury / ROAD_BUILD_MONEY_PER_KG) as f32);
             // Credit only material actually withdrawn from the f32 inventory.
             let before = site.economy.goods[5];
             let remaining = (before as f64 - bricks as f64).max(0.);
@@ -1357,15 +1414,16 @@ impl History {
             route.road_bricks += bricks as f64;
             if let Some(care) = &mut route.upkeep {
                 let before = site.economy.logistics[2];
-                site.economy.logistics[2] = (before - bricks / 100.).max(0.);
+                site.economy.logistics[2] =
+                    (before - bricks / ROAD_BUILD_KG_PER_WORKER_MONTH).max(0.);
                 care.work += (before - site.economy.logistics[2]) as f64;
             }
-            council.treasury = (council.treasury - bricks as f64 * 2.).max(0.);
-            site.economy.finance[0] += bricks * 2.;
+            council.treasury = (council.treasury - bricks as f64 * ROAD_BUILD_MONEY_PER_KG).max(0.);
+            site.economy.finance[0] += bricks * ROAD_BUILD_MONEY_PER_KG as f32;
             society
                 .council_funding
                 .roads
-                .record(requested_cash, bricks as f64 * 2.);
+                .record(requested_cash, bricks as f64 * ROAD_BUILD_MONEY_PER_KG);
         }
         self.society = Some(society);
         self.road_condition_events();
@@ -1377,9 +1435,9 @@ impl History {
             let recent_crisis = self.events.iter().rev().any(|e| {
                 e.kind == "food_crisis"
                     && e.site == Some(i as u32)
-                    && self.month.saturating_sub(e.month) <= 24
+                    && self.month.saturating_sub(e.month) <= RAID_MOTIVE_MAX_AGE_MONTHS
             });
-            if !recent_crisis || self.sites[i].demography.ages[1] < 30. {
+            if !recent_crisis || self.sites[i].demography.ages[1] < RAID_MIN_ORIGIN_ADULTS {
                 continue;
             }
             if self
@@ -1395,10 +1453,11 @@ impl History {
             let target = (0..self.sites.len()).find(|&j| {
                 j != i
                     && self.sites[j].civilization != self.sites[i].civilization
-                    && self.sites[j].stocks.stock[1] > self.sites[i].stocks.stock[1] * 2.
+                    && self.sites[j].stocks.stock[1]
+                        > self.sites[i].stocks.stock[1] * RAID_TARGET_FOOD_RATIO
                     && self
                         .route_cost(i as u32, j as u32)
-                        .is_some_and(|c| c < 900.)
+                        .is_some_and(|c| c < MAX_RAID_DISTANCE_KM)
             });
             if let Some(j) = target {
                 let months = (self.route_cost(i as u32, j as u32).unwrap()
@@ -1410,7 +1469,7 @@ impl History {
                     self.sites[i].stocks.stock[1],
                     months,
                 );
-                if men < 3. {
+                if men < MIN_RAID_SOLDIERS {
                     continue;
                 }
                 let Ok(recruits) = self.recruit_service_people(i as u32, men.floor() as usize, 3)
@@ -1473,7 +1532,7 @@ pub(crate) fn terrain_path(
         if i == end {
             break;
         }
-        if cost > 3_000_000 {
+        if cost > crate::navigation::MAX_ROAD_COST_UNITS as u64 {
             continue;
         }
         for (x, y) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
@@ -1482,9 +1541,13 @@ pub(crate) fn terrain_path(
                 continue;
             }
             let km = crate::civilization::distance(i, j, n) * radius;
-            let slope = (cells[i as usize].terrain[0] - cells[j as usize].terrain[0]).abs() / 500.;
-            let river = (cells[j as usize].water[3] / 1000.).min(3.);
-            let next = cost + (km * 1000. * (1. + slope + river)).max(1.) as u64;
+            let slope = (cells[i as usize].terrain[0] - cells[j as usize].terrain[0]).abs()
+                / crate::navigation::ROAD_SLOPE_HEIGHT_M;
+            let river = (cells[j as usize].water[3] / crate::navigation::ROAD_DISCHARGE_SCALE_M3_S)
+                .min(crate::navigation::MAX_ROAD_DISCHARGE_FRICTION);
+            let next = cost
+                + (km * crate::navigation::NAVIGATION_COST_UNITS_PER_KM * (1. + slope + river))
+                    .max(1.) as u64;
             if next < distance[j as usize] {
                 distance[j as usize] = next;
                 parent[j as usize] = i;
@@ -1500,7 +1563,10 @@ pub(crate) fn terrain_path(
         path.push(parent[*path.last().unwrap() as usize]);
     }
     path.reverse();
-    Some((path, distance[end as usize] as f32 / 1000.))
+    Some((
+        path,
+        distance[end as usize] as f32 / crate::navigation::NAVIGATION_COST_UNITS_PER_KM,
+    ))
 }
 impl Generator {
     /// Apply a bounded ration policy at a completed history boundary.
@@ -1513,7 +1579,7 @@ impl Generator {
         ensure!(
             priority
                 .iter()
-                .all(|v| v.is_finite() && (0. ..=3.).contains(v)),
+                .all(|v| v.is_finite() && (0. ..=MAX_RATION_PRIORITY).contains(v)),
             "ration priorities must be in 0–3"
         );
         let h = self
@@ -1563,7 +1629,7 @@ impl Generator {
                 .map(|c| Council {
                     civilization: c.id,
                     treasury: 0.,
-                    tax_rate: 0.03,
+                    tax_rate: DEFAULT_COUNCIL_TAX_RATE,
                     pending_tax: None,
                     distribution: None,
                     pending_distribution: None,

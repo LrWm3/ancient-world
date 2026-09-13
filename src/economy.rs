@@ -2,6 +2,7 @@
 use crate::{civilization::History, gpu::Generator, grid};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+pub(crate) const DEFAULT_WEATHER_REGIME_MONTHS: u32 = 48;
 pub(crate) const CIVILIAN_RESERVE_KG_PER_PERSON_MONTH: f32 = 18.0;
 
 pub const GOODS: usize = 64;
@@ -48,7 +49,7 @@ impl Default for HistoryWeather {
         Self {
             drought_probability: 0.,
             drought_severity: 0.,
-            regime_months: 48,
+            regime_months: DEFAULT_WEATHER_REGIME_MONTHS,
             storm_probability: 0.04,
             storm_multiplier: 3.,
         }

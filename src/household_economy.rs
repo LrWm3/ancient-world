@@ -8,6 +8,29 @@ mod nutrition;
 pub mod policy;
 pub use family_support::{FamilyGift, FamilySupportPolicy};
 
+const DEFAULT_COMMUNAL_ACCESS_MONTHS: u32 = 12;
+const DEFAULT_PURCHASING_TRANSITION_MONTHS: u32 = 48;
+const DEFAULT_COMMON_FOOD_SHARE: f32 = 0.5;
+const DEFAULT_PAYROLL_CASH_SHARE: f32 = 0.2;
+const DEFAULT_DIVIDEND_CASH_SHARE: f32 = 0.01;
+const DEFAULT_RELIEF_TREASURY_SHARE: f32 = 0.05;
+const DEFAULT_RELIEF_FOOD_TARGET: f32 = 0.75;
+const MAX_FOUNDING_ACCESS_PHASE_MONTHS: u32 = 1200;
+const WAGE_LEDGER_TOLERANCE: f64 = 1e-6;
+const FOOD_LEDGER_TOLERANCE_KG: f64 = 0.01;
+const BALANCE_TOLERANCE: f64 = 1e-6;
+const OCCUPATION_INITIAL_EARNINGS_WEIGHT: f64 = 2.;
+const MIN_FOOD_PRICE: f32 = 0.01;
+const PAYROLL_FOOD_KG_PER_WORKER_MONTH: f64 = 18.;
+const DISTRIBUTION_DENOMINATOR_FLOOR: f64 = 1e-12;
+const EARNINGS_MEMORY_RETENTION: f64 = 0.98;
+const EARNINGS_NEW_WEIGHT: f64 = 0.02;
+const FOOD_EXCLUSION_THRESHOLD: f64 = 0.1;
+const FOOD_EXCLUSION_NOTICE_MONTHS: u32 = 3;
+const FOOD_ACCESS_RECOVERY_MONTHS: u32 = 6;
+const RATION_RELATIVE_TOLERANCE: f64 = 1e-5;
+const MAX_EARNINGS_WEIGHT: f64 = 2.;
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct HouseholdAccount {
     /// Actual title-settlement receipts, separate from earnings and relief.
@@ -54,8 +77,8 @@ pub struct FoundingAccess {
 impl Default for FoundingAccess {
     fn default() -> Self {
         Self {
-            communal_months: 12,
-            transition_months: 48,
+            communal_months: DEFAULT_COMMUNAL_ACCESS_MONTHS,
+            transition_months: DEFAULT_PURCHASING_TRANSITION_MONTHS,
         }
     }
 }
@@ -133,12 +156,12 @@ impl HouseholdEconomy {
             household_mortality: true,
             started: month,
             observed: month,
-            common_share: 0.5,
+            common_share: DEFAULT_COMMON_FOOD_SHARE,
             founding_access: (month == 0).then(FoundingAccess::default),
-            payroll_share: 0.2,
-            dividend_share: 0.01,
-            relief_share: 0.05,
-            relief_target: 0.75,
+            payroll_share: DEFAULT_PAYROLL_CASH_SHARE,
+            dividend_share: DEFAULT_DIVIDEND_CASH_SHARE,
+            relief_share: DEFAULT_RELIEF_TREASURY_SHARE,
+            relief_target: DEFAULT_RELIEF_FOOD_TARGET,
             family_support: None,
             family_support_month: None,
             family_gifts: vec![],
@@ -171,7 +194,8 @@ impl HouseholdEconomy {
         );
         ensure!(
             self.founding_access
-                .is_none_or(|p| p.communal_months <= 1200 && p.transition_months <= 1200),
+                .is_none_or(|p| p.communal_months <= MAX_FOUNDING_ACCESS_PHASE_MONTHS
+                    && p.transition_months <= MAX_FOUNDING_ACCESS_PHASE_MONTHS),
             "founding access intervals must be at most 1200 months"
         );
         ensure!(
@@ -189,9 +213,9 @@ impl HouseholdEconomy {
             ensure!(
                 a.livelihood.is_none_or(|weights| weights
                     .iter()
-                    .all(|v| v.is_finite() && (1. ..=2.).contains(v)))
+                    .all(|v| v.is_finite() && (1. ..=MAX_EARNINGS_WEIGHT).contains(v)))
                     && a.sector_wages.iter().all(|v| v.is_finite() && *v >= 0.)
-                    && a.sector_wages.iter().sum::<f64>() <= a.wages + 1e-6,
+                    && a.sector_wages.iter().sum::<f64>() <= a.wages + WAGE_LEDGER_TOLERANCE,
                 "invalid household livelihood or sector payroll"
             );
             ensure!(
@@ -219,7 +243,7 @@ impl HouseholdEconomy {
             );
             ensure!(
                 a.hunger <= 1.
-                    && a.common_food + a.purchased_food <= a.need + 0.01
+                    && a.common_food + a.purchased_food <= a.need + FOOD_LEDGER_TOLERANCE_KG
                     && a.food_site
                         .is_none_or(|site| (site as usize) < h.sites.len()),
                 "invalid household food allocation"
@@ -237,7 +261,7 @@ impl HouseholdEconomy {
                     + a.capital_invested
                     - a.capital_returned)
                     .abs()
-                    < 1e-6
+                    < BALANCE_TOLERANCE
                         * (1.
                             + a.wages
                             + a.dividends
@@ -391,8 +415,8 @@ impl History {
                     .and_then(|c| c.agents.get(hh.head as usize))
                 {
                     match agent.occupation.as_str() {
-                        "farmer" => weights[0] = 2.,
-                        "craftworker" => weights[3] = 2.,
+                        "farmer" => weights[0] = OCCUPATION_INITIAL_EARNINGS_WEIGHT,
+                        "craftworker" => weights[3] = OCCUPATION_INITIAL_EARNINGS_WEIGHT,
                         _ => {}
                     }
                 }
@@ -426,7 +450,7 @@ impl History {
             }
             let need = s.demography.ages[..3]
                 .iter()
-                .zip([10., 18., 14.])
+                .zip(crate::society::AGE_RATIONS_KG_PER_MONTH.map(|v| v as f32))
                 .map(|(a, r)| (*a * r) as f64)
                 .sum::<f64>();
             let needs = nutrition::food_needs(
@@ -435,7 +459,7 @@ impl History {
                     .map(|id| member_counts.get(id).copied().unwrap_or([0.; 3]))
                     .collect::<Vec<_>>(),
             );
-            let price = s.economy.prices[crate::economy::FOOD].max(0.01) as f64;
+            let price = s.economy.prices[crate::economy::FOOD].max(MIN_FOOD_PRICE) as f64;
             let mut municipal_work = s.economy.labor;
             if let Some(earnings) = &farm_earnings {
                 municipal_work[0] = ids
@@ -488,8 +512,8 @@ impl History {
                         }
                 })
                 .collect();
-            let payroll_request =
-                (labor * 18. * price).min(s.economy.finance[0] as f64 * policy.payroll as f64);
+            let payroll_request = (labor * PAYROLL_FOOD_KG_PER_WORKER_MONTH * price)
+                .min(s.economy.finance[0] as f64 * policy.payroll as f64);
             let payroll = withdraw(
                 &mut s.economy.finance[0],
                 if eligible.iter().any(|v| *v) {
@@ -532,7 +556,8 @@ impl History {
                     .map(|(w, _)| w[3])
                     .sum();
                 for (j, id) in ids.iter().enumerate() {
-                    weights[j][3] = legacy_craft * weights[j][3] / old_total.max(1e-12)
+                    weights[j][3] = legacy_craft * weights[j][3]
+                        / old_total.max(DISTRIBUTION_DENOMINATOR_FLOOR)
                         + earnings.get(id).copied().unwrap_or(0.);
                 }
             }
@@ -584,9 +609,9 @@ impl History {
                     if total_work > 0. {
                         if let Some(weights) = &mut a.livelihood {
                             for k in 0..4 {
-                                weights[k] = (weights[k] * 0.98
-                                    + (1. + work[k] / total_work) * 0.02)
-                                    .clamp(1., 2.);
+                                weights[k] = (weights[k] * EARNINGS_MEMORY_RETENTION
+                                    + (1. + work[k] / total_work) * EARNINGS_NEW_WEIGHT)
+                                    .clamp(1., MAX_EARNINGS_WEIGHT);
                             }
                         }
                     }
@@ -622,7 +647,7 @@ impl History {
         for p in &plans {
             for &id in &p.ids {
                 let a = &e.accounts[id];
-                let common_share = p.free / p.need.max(1e-12);
+                let common_share = p.free / p.need.max(DISTRIBUTION_DENOMINATOR_FLOOR);
                 let target = (policies[controllers[p.site]].food_target as f64 - common_share)
                     .max(0.)
                     * a.need
@@ -662,8 +687,9 @@ impl History {
         }
         for p in &mut plans {
             for (j, &id) in p.ids.iter().enumerate() {
-                p.demand[j] = (p.needs[j] * (1. - p.free / p.need.max(1e-12)))
-                    .min(e.accounts[id].cash / p.price);
+                p.demand[j] = (p.needs[j]
+                    * (1. - p.free / p.need.max(DISTRIBUTION_DENOMINATOR_FLOOR)))
+                .min(e.accounts[id].cash / p.price);
             }
             let cap = p.free + p.demand.iter().sum::<f64>();
             let mut cap32 = cap as f32;
@@ -688,7 +714,7 @@ impl History {
             let s = &mut self.sites[p.site];
             let eaten = s.demography.ration_eaten[3] as f64;
             let blocked = (s.demography.household_food[2] as f64).min(p.need) - eaten;
-            let excluded = blocked > p.need * 0.1 && p.need > 0.;
+            let excluded = blocked > p.need * FOOD_EXCLUSION_THRESHOLD && p.need > 0.;
             let episode = &mut e.access_episodes[p.site];
             episode[0] = if excluded {
                 episode[0].saturating_add(1)
@@ -700,10 +726,10 @@ impl History {
             } else {
                 0
             };
-            if episode[0] >= 3 && episode[2] == 0 {
+            if episode[0] >= FOOD_EXCLUSION_NOTICE_MONTHS && episode[2] == 0 {
                 episode[2] = 1;
                 notices.push((p.site,"food_access_crisis",format!("Three months of purchasing-power shortages despite available food; {:.1} kg food equivalent left unconsumed this month for lack of funded entitlement",blocked)));
-            } else if episode[1] >= 6 && episode[2] == 1 {
+            } else if episode[1] >= FOOD_ACCESS_RECOVERY_MONTHS && episode[2] == 1 {
                 episode[2] = 0;
                 notices.push((p.site,"food_access_recovery","Six months without substantial purchasing-power exclusion; physical food shortages may still remain".into()));
             }
@@ -724,7 +750,8 @@ impl History {
                 };
             }
             debug_assert!(
-                (p.need - s.demography.ration_need[3] as f64).abs() < 1e-5 * (1. + p.need)
+                (p.need - s.demography.ration_need[3] as f64).abs()
+                    < RATION_RELATIVE_TOLERANCE * (1. + p.need)
             );
         }
         e.observed = self.month;
@@ -779,7 +806,8 @@ impl crate::gpu::Generator {
         );
         self.validate_living_boundary()?;
         ensure!(
-            policy.is_none_or(|p| p.communal_months <= 1200 && p.transition_months <= 1200),
+            policy.is_none_or(|p| p.communal_months <= MAX_FOUNDING_ACCESS_PHASE_MONTHS
+                && p.transition_months <= MAX_FOUNDING_ACCESS_PHASE_MONTHS),
             "founding access intervals must be at most 1200 months"
         );
         let h = self

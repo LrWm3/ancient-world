@@ -1,8 +1,5 @@
 // Shared dispatch and water-access parameters are prefixed by src/navigation.rs.
 const NONE:u32=0xffffffffu;
-const ROAD_SLOPE_HEIGHT_M:f32=500.;
-const ROAD_DISCHARGE_SCALE_M3_S:f32=1000.;
-const MAX_ROAD_DISCHARGE_FRICTION:f32=3.;
 const MAX_ROOT_TRAVERSAL_STEPS:u32=64u;
 struct Cell {
  terrain: vec4<f32>, // elevation m, sediment m, soil m, crust age Myr

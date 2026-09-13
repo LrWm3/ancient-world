@@ -678,7 +678,10 @@ impl Culture {
                             a.site == Some(site) && !a.lost && !a.destroyed
                         })
                     {
-                        requests.push(("heritage study", 0.1));
+                        requests.push((
+                            "heritage study",
+                            crate::expedition_heritage::STUDY_WORKER_MONTHS as f32,
+                        ));
                     }
                 }
             }

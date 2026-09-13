@@ -9,6 +9,32 @@ use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+const MIN_PARENT_AGE_MONTHS: i32 = 192;
+const MAX_PARENT_AGE_MONTHS: i32 = 660;
+const MIN_MARRIAGE_AGE_MONTHS: i32 = 216;
+const INITIAL_UNSTABLE_FACTION_COHESION: f32 = 0.3;
+const REPRESENTATIVE_OLD_AGE_MONTHS: i32 = 840;
+const DEFAULT_PERSONAL_TRAIT: f32 = 0.5;
+const ORGANIZER_CONTINUITY_BONUS: f32 = 0.5;
+const FRAGMENTATION_COHESION_THRESHOLD: f32 = 0.6;
+const MIN_REPORTED_FRAGMENTATION_SUPPORT: f32 = 0.05;
+const HOUSEHOLD_FACTION_CONTINUITY_BONUS: f32 = 0.25;
+const HOUSEHOLD_SWITCH_COHESION_THRESHOLD: f32 = 0.25;
+const HUNGER_VOTING_URGENCY_WEIGHT: f32 = 4.;
+const THREAT_VOTING_URGENCY_WEIGHT: f32 = 2.;
+const MAX_VOTING_URGENCY: f32 = 5.;
+const GOVERNMENT_CHANGE_SUPPORT_MARGIN: f32 = 0.05;
+const LEADER_LOYALTY_WEIGHT: f32 = 0.5;
+const CAMPAIGN_MOTIVE_MAX_AGE_MONTHS: u32 = 24;
+const CAMPAIGN_TARGET_FOOD_RATIO: f32 = 1.5;
+const MAX_CAMPAIGN_SUPPLY_DISTANCE_KM: f32 = 1500.;
+const CAMPAIGN_CIVILIAN_FOOD_RESERVE_MONTHS: f32 = 3.;
+const MAX_CAMPAIGN_ADULT_FRACTION: f32 = 0.25;
+const CAMPAIGN_EXTRA_PROVISION_MONTHS: u32 = 3;
+const MIN_CAMPAIGN_SOLDIERS: f32 = 3.;
+const PARENT_SEARCH_MAX_GENERATIONS: u32 = 3;
+const HOUSEHOLD_FACTION_REVIEW_YEARS: u32 = 3;
+
 pub(crate) const MAX_CHILDREN_PER_MARRIAGE: u32 = 4;
 pub(crate) const BIRTH_SPACING_MONTHS: u32 = 36;
 pub(crate) const FERTILITY_START_AGE_MONTHS: i64 = 216;
@@ -148,7 +174,7 @@ impl Politics {
         let ancestors = |person: u32| {
             let mut result = BTreeSet::from([person]);
             let mut frontier = vec![person];
-            for _ in 0..3 {
+            for _ in 0..PARENT_SEARCH_MAX_GENERATIONS {
                 let mut next = vec![];
                 for id in frontier {
                     if let Some(k) = kin_index.get(&id) {
@@ -192,8 +218,8 @@ impl Politics {
                 );
                 let p = &h.people[parent as usize];
                 ensure!(
-                    child.born - p.born >= 192
-                        && child.born - p.born <= 660
+                    child.born - p.born >= MIN_PARENT_AGE_MONTHS
+                        && child.born - p.born <= MAX_PARENT_AGE_MONTHS
                         && p.died.is_none_or(|m| m as i32 >= child.born),
                     "impossible parent chronology"
                 );
@@ -211,7 +237,7 @@ impl Politics {
             ensure!(
                 m.partners.iter().all(|&p| (p as usize) < h.people.len()
                     && kin_index.contains_key(&p)
-                    && m.started as i32 - h.people[p as usize].born >= 216)
+                    && m.started as i32 - h.people[p as usize].born >= MIN_MARRIAGE_AGE_MONTHS)
                     && ancestors(m.partners[0]).is_disjoint(&ancestors(m.partners[1])),
                 "invalid marriage or close kin"
             );
@@ -280,9 +306,9 @@ impl Politics {
         for c in &self.claims {
             ensure!(
                 previous.is_none_or(|p| p < c.cell)
-                    && cells.get(c.cell as usize).is_some_and(
-                        |x| x.meta[0] == 2 && (h.living.is_some() || x.water[0] < 0.25)
-                    )
+                    && cells.get(c.cell as usize).is_some_and(|x| x.meta[0] == 2
+                        && (h.living.is_some()
+                            || x.water[0] < crate::hazards::MIN_NAVIGABLE_WATER_DEPTH_M))
                     && !c.sites.is_empty()
                     && c.sites.windows(2).all(|s| s[0] < s[1])
                     && c.sites.iter().all(|&s| (s as usize) < h.sites.len()),
@@ -327,7 +353,11 @@ impl History {
                         interest: interest as u32,
                         support: 0.,
                         dissent: 0.,
-                        cohesion: if interest >= 6 { 0.3 } else { 1. },
+                        cohesion: if interest >= 6 {
+                            INITIAL_UNSTABLE_FACTION_COHESION
+                        } else {
+                            1.
+                        },
                         organizer: None,
                     });
                 }
@@ -385,7 +415,10 @@ impl History {
                 claims.entry(s.cell).or_default().insert(s.id);
                 for (x, y) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
                     let cell = grid::neighbor(s.cell, self.terrain_resolution, x, y);
-                    if cells[cell as usize].meta[0] == 2 && cells[cell as usize].water[0] < 0.25 {
+                    if cells[cell as usize].meta[0] == 2
+                        && cells[cell as usize].water[0]
+                            < crate::hazards::MIN_NAVIGABLE_WATER_DEPTH_M
+                    {
                         claims.entry(cell).or_default().insert(s.id);
                     }
                 }
@@ -433,7 +466,7 @@ impl History {
                 && !on_service
                 && !heads.contains(&k.person)
                 && person.died.is_none()
-                && self.month as i32 - person.born >= 840
+                && self.month as i32 - person.born >= REPRESENTATIVE_OLD_AGE_MONTHS
                 && self.sites[site].demography.health[2] >= 1.
             {
                 person.died = Some(self.month);
@@ -467,7 +500,7 @@ impl History {
                         && v.died.is_none()
                         && !self.sites[social.households[k.household as usize].site as usize]
                             .abandoned
-                        && (216..660).contains(&age)
+                        && (MIN_MARRIAGE_AGE_MONTHS..MAX_PARENT_AGE_MONTHS).contains(&age)
                 })
                 .map(|k| (k.person, k.household))
                 .collect();
@@ -477,7 +510,7 @@ impl History {
                 .map(|&(id, _)| {
                     let mut result = BTreeSet::from([id]);
                     let mut frontier = vec![id];
-                    for _ in 0..3 {
+                    for _ in 0..PARENT_SEARCH_MAX_GENERATIONS {
                         let mut next = vec![];
                         for person in frontier {
                             if let Some(parents) = lookup.get(&person) {
@@ -625,7 +658,11 @@ impl History {
                     && !social.households.iter().any(|f| f.head == k.person)
             })
             .map(|k| &self.people[k.person as usize])
-            .filter(|v| v.died.is_none() && self.month as i32 - v.born >= 216)
+            .filter(|v| {
+                v.died.is_none()
+                    && self.month as i32 - v.born
+                        >= crate::population_registry::INDEPENDENT_HOME_AGE_MONTHS
+            })
             .min_by_key(|v| (v.born, v.id))
             .map(|v| v.id)
     }
@@ -679,7 +716,7 @@ impl History {
                 let pressure = self
                     .social_indicators(s.id)
                     .map_or([s.stocks.stock[3], 0., 0., 0.], |c| c.pressure);
-                let traits = a.map_or([0.5; 6], |a| a.traits);
+                let traits = a.map_or([DEFAULT_PERSONAL_TRAIT; 6], |a| a.traits);
                 let workers = s.economy.labor.iter().sum::<f32>().max(1.);
                 let account = self
                     .society
@@ -729,7 +766,7 @@ impl History {
                         let score = |f: &crate::society::Household, x: [f32; 8]| {
                             crate::faction_interests::appeal(k, x)
                                 + if faction.organizer == Some(f.head) {
-                                    0.5
+                                    ORGANIZER_CONTINUITY_BONUS
                                 } else {
                                     0.
                                 }
@@ -756,7 +793,10 @@ impl History {
                     faction.organizer.is_some() && faction.organizer != organizer,
                 );
                 faction.organizer = organizer;
-                if before >= 0.6 && faction.cohesion < 0.6 && faction.support > 0.05 {
+                if before >= FRAGMENTATION_COHESION_THRESHOLD
+                    && faction.cohesion < FRAGMENTATION_COHESION_THRESHOLD
+                    && faction.support > MIN_REPORTED_FRAGMENTATION_SUPPORT
+                {
                     fragments.push((k, faction.support, pressure));
                 }
             }
@@ -767,12 +807,18 @@ impl History {
                     crate::faction_interests::appeal(k, *x) * p.factions[ids[k]].cohesion
                         + crate::civic_petitions::credit(self, &p, f.site, k as u32)
                         + heritage[&(f.site, ids[k])]
-                        + if k == previous { 0.25 } else { 0. }
+                        + if k == previous {
+                            HOUSEHOLD_FACTION_CONTINUITY_BONUS
+                        } else {
+                            0.
+                        }
                 };
                 let best = (0..crate::faction_interests::COUNT)
                     .max_by(|&a, &b| score(a).total_cmp(&score(b)).then_with(|| b.cmp(&a)))
                     .unwrap();
-                if (f.id + self.month / 12) % 3 == 0 || p.factions[ids[previous]].cohesion < 0.25 {
+                if (f.id + self.month / 12) % HOUSEHOLD_FACTION_REVIEW_YEARS == 0
+                    || p.factions[ids[previous]].cohesion < HOUSEHOLD_SWITCH_COHESION_THRESHOLD
+                {
                     p.household_factions[f.id as usize] = ids[best] as u32;
                 }
             }
@@ -783,13 +829,19 @@ impl History {
                     w.ended.is_none() && (w.attacker == civ as u32 || w.defender == civ as u32)
                 });
                 let urgency = match interest {
-                    0 | 6 => 1. + 4. * x[0],
+                    0 | 6 => 1. + HUNGER_VOTING_URGENCY_WEIGHT * x[0],
                     1 => 1. + x[5],
-                    2 | 8 => 1. + if threat { 2. } else { 0. },
+                    2 | 8 => {
+                        1. + if threat {
+                            THREAT_VOTING_URGENCY_WEIGHT
+                        } else {
+                            0.
+                        }
+                    }
                     _ => 1.,
                 };
                 votes[interest] += representation[f.id as usize]
-                    * urgency.min(5.)
+                    * urgency.min(MAX_VOTING_URGENCY)
                     * p.factions[ids[interest]].cohesion;
             }
             drop(residents);
@@ -814,7 +866,8 @@ impl History {
             let faction = ids[winner] as u32;
             if p.governing[civ] != faction
                 && p.factions[faction as usize].support
-                    > p.factions[p.governing[civ] as usize].support + 0.05
+                    > p.factions[p.governing[civ] as usize].support
+                        + GOVERNMENT_CHANGE_SUPPORT_MARGIN
             {
                 if let Some(f) = self
                     .society
@@ -832,7 +885,9 @@ impl History {
                             self.culture
                                 .as_ref()
                                 .and_then(|c| c.agents.get(head as usize))
-                                .map_or(0., |a| a.traits[0] + a.traits[4] * 0.5 + a.skills[0])
+                                .map_or(0., |a| {
+                                    a.traits[0] + a.traits[4] * LEADER_LOYALTY_WEIGHT + a.skills[0]
+                                })
                                 + self.culture.as_ref().map_or(0., |c| {
                                     crate::heritage_renown::PERSONAL_LEADERSHIP_WEIGHT
                                         * crate::heritage_renown::score(c, site, self.month, |r| {
@@ -902,7 +957,7 @@ impl History {
                 .iter()
                 .rev()
                 .find(|e| {
-                    self.month.saturating_sub(e.month) <= 24
+                    self.month.saturating_sub(e.month) <= CAMPAIGN_MOTIVE_MAX_AGE_MONTHS
                         && ((e.kind == "raid_outcome"
                             && e.site == Some(a)
                             && self.controller(a) != self.controller(b)
@@ -912,7 +967,8 @@ impl History {
                             || (e.kind == "food_crisis"
                                 && e.site == Some(a)
                                 && self.sites[b as usize].stocks.stock[1]
-                                    > self.sites[a as usize].stocks.stock[1] * 1.5))
+                                    > self.sites[a as usize].stocks.stock[1]
+                                        * CAMPAIGN_TARGET_FOOD_RATIO))
                 })
                 .map(|e| e.id);
             if let Some(cause) = grievance {
@@ -960,7 +1016,10 @@ impl History {
         let distance = self
             .route_cost(origin, target)
             .ok_or_else(|| anyhow::anyhow!("no open land route"))?;
-        ensure!(distance < 1500., "campaign exceeds supply range");
+        ensure!(
+            distance < MAX_CAMPAIGN_SUPPLY_DISTANCE_KM,
+            "campaign exceeds supply range"
+        );
         ensure!(
             p.claims
                 .iter()
@@ -981,19 +1040,26 @@ impl History {
             .ceil()
             .max(1.) as u32;
         let s = &self.sites[origin as usize];
-        let reserve = s.stocks.stock[0] * crate::economy::CIVILIAN_RESERVE_KG_PER_PERSON_MONTH * 3.;
-        let soldiers = (s.demography.ages[1] * 0.25).min(s.economy.goods[3]).min(
-            (s.stocks.stock[1] - reserve).max(0.)
-                / (crate::military::SOLDIER_FOOD_KG_PER_MONTH * (months * 2 + 3) as f32),
-        );
+        let reserve = s.stocks.stock[0]
+            * crate::economy::CIVILIAN_RESERVE_KG_PER_PERSON_MONTH
+            * CAMPAIGN_CIVILIAN_FOOD_RESERVE_MONTHS;
+        let soldiers = (s.demography.ages[1] * MAX_CAMPAIGN_ADULT_FRACTION)
+            .min(s.economy.goods[3])
+            .min(
+                (s.stocks.stock[1] - reserve).max(0.)
+                    / (crate::military::SOLDIER_FOOD_KG_PER_MONTH
+                        * (months * 2 + CAMPAIGN_EXTRA_PROVISION_MONTHS) as f32),
+            );
         ensure!(
-            soldiers >= 3.,
+            soldiers >= MIN_CAMPAIGN_SOLDIERS,
             "insufficient adult manpower, tools or campaign provisions"
         );
         let id = p.wars.len() as u32;
         let recruits = self.recruit_service_people(origin, soldiers.floor() as usize, 3)?;
         let soldiers = recruits.people.len() as f32;
-        let food = soldiers * crate::military::SOLDIER_FOOD_KG_PER_MONTH * (months * 2 + 3) as f32;
+        let food = soldiers
+            * crate::military::SOLDIER_FOOD_KG_PER_MONTH
+            * (months * 2 + CAMPAIGN_EXTRA_PROVISION_MONTHS) as f32;
         let raid_id = self.society.as_ref().unwrap().next_raid;
         self.assign_military_people(raid_id, origin, &recruits.people);
         let source = |site: u32| crate::naming::Source {

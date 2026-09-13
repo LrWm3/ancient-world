@@ -99,6 +99,13 @@ semantic extraction pass (further shared-policy reconciliation may still apply):
 - `src/enterprises.rs`
 - `src/civilization/production_forecast.rs`
 
+- `src/society.rs`
+- `src/governance.rs`
+- `src/politics.rs`
+- `src/expedition_heritage.rs`
+- `src/household_economy.rs`
+- `src/shipping.rs`
+
 Reviewed without further numeric extraction (geometry/layout arithmetic, static
 content, already named parameters, or independent test fixtures only):
 
@@ -117,9 +124,6 @@ content, already named parameters, or independent test fixtures only):
 These files only received shared-constant substitutions or relocation of existing
 constant declarations, and still need their full semantic pass:
 
-- `src/society.rs`
-- `src/governance.rs`
-- `src/politics.rs`
 - `src/economy.rs`
 - `src/civilization.rs`
 - `src/expeditions.rs`
@@ -133,10 +137,7 @@ than blindly moved out of their types or layout checks.
 - `src/culture/work_requests.rs`
 - `src/culture.rs`
 - `src/ecology.rs`
-- `src/expedition_heritage.rs`
 - `src/gpu.rs`
-- `src/household_economy.rs`
-- `src/shipping.rs`
 - `src/viewer.rs`
 
 WGSL shaders still need their complete semantic passes. Shared agricultural and
@@ -344,3 +345,16 @@ Verification: six export-contract fixtures passed. The hardware-enabled prepaid
 workshop-capacity/checkpoint test passed. All 151 active library tests passed
 (130 extended cases ignored), and strict all-target Clippy passed. No intended
 parameter, scheduling, arithmetic-order or archive-layout changes.
+
+## Shipping, public funding and political policy batch
+
+Named harbor maintenance, road friction, household purchasing, public funding,
+representative demography, political recruitment and heritage study parameters.
+CPU road surveys and GPU navigation share friction and search limits. Tax
+forecasts and settlement payments share the autonomy reduction; cultural requests
+and heritage execution share study effort. Separate precision and distinct policy
+meanings remain explicit even where their numerical values happen to match.
+
+Verification: all 151 active library tests passed (130 extended cases ignored).
+The hardware-enabled shared-treasury administration-shortfall fixture passed,
+and strict all-target Clippy passed. No intended behavior change.

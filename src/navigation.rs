@@ -11,11 +11,14 @@ use std::{
 crate::shared_shader_parameters!(SHADER_PARAMETERS {
     const NAVIGATION_WORKGROUP_SIZE: u32 = 64;
     const NAVIGATION_MAX_DISPATCH_GROUPS: u32 = 65535;
-    const NAVIGATION_COST_UNITS_PER_KM: f32 = 1000.;
+    pub(crate) const ROAD_SLOPE_HEIGHT_M: f32 = 500.;
+    pub(crate) const ROAD_DISCHARGE_SCALE_M3_S: f32 = 1000.;
+    pub(crate) const MAX_ROAD_DISCHARGE_FRICTION: f32 = 3.;
+    pub(crate) const NAVIGATION_COST_UNITS_PER_KM: f32 = 1000.;
 });
-const MAX_ROAD_COST_UNITS: u32 = 3000000;
-const MAX_HARBOR_COST_UNITS: u32 = 2000000;
-const MAX_WATER_ROUTE_COST_UNITS: u32 = 20000000;
+pub(crate) const MAX_ROAD_COST_UNITS: u32 = 3000000;
+pub(crate) const MAX_HARBOR_COST_UNITS: u32 = 2000000;
+pub(crate) const MAX_WATER_ROUTE_COST_UNITS: u32 = 20000000;
 const MAX_WAVES_PER_FACE_EDGE: u32 = 32;
 const INITIAL_WAVE_BATCH: u32 = 8;
 const SUBSEQUENT_WAVE_BATCH: u32 = 64;
