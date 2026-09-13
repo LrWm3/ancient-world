@@ -380,3 +380,15 @@ with small monetary residuals, but neither change demonstrated a circulation fix
 The candidate was rolled back; see [food import screening](food-import-circulation-screen.md).
 Next gather request-level failure reasons before connecting household funding to
 imports, so inaccessible supply is not mistaken for a shortage of cash.
+
+### Request-level evidence changes the next priority
+
+[Food request diagnostics](food-request-diagnostics.md) now persist bounded,
+non-causal per-site counters. Controlled tests distinguish supply, access,
+freight, cash and batch limits. Three fifty-year exports exactly match baseline
+apart from the added observations. Seeds 256/409 have 651/621 requests blocked by
+inaccessible eligible surplus; neither dispatches ordinary food. Money is never
+the tightest eligible food-order limit in these three runs. Defer household-funded
+imports and investigate selective, economically useful route completion first.
+This is evidence about ordinary town food purchasing, not proof that household
+food affordability or workshop finance is adequate.

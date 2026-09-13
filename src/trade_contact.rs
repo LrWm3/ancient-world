@@ -17,8 +17,50 @@ pub struct Receipt {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct TradeContact {
     pub receipts: Vec<Receipt>,
+    #[serde(default)]
+    pub food_requests: Vec<FoodRequests>,
+}
+/// Cumulative observations, not claims on food or a second monetary ledger.
+/// Repeated unmet requests can count the same need in several quarters.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct FoodRequests {
+    pub site: u32,
+    pub last_month: u32,
+    /// No surplus, no usable route, no free freight; then the limiting bound
+    /// among need, storage, freight, seller surplus, batch ceiling and money.
+    pub constraints: [u64; 9],
+    pub requested_kg: f64,
+    pub dispatched_kg: f64,
+    pub dispatches: u64,
 }
 impl TradeContact {
+    pub(crate) fn food_request(
+        &mut self,
+        site: u32,
+        month: u32,
+        need: f32,
+        constraint: usize,
+        dispatched: f32,
+    ) {
+        let i = self
+            .food_requests
+            .iter()
+            .position(|r| r.site == site)
+            .unwrap_or_else(|| {
+                self.food_requests.push(FoodRequests {
+                    site,
+                    ..Default::default()
+                });
+                self.food_requests.len() - 1
+            });
+        let r = &mut self.food_requests[i];
+        r.last_month = month;
+        r.constraints[constraint] += 1;
+        r.requested_kg += need as f64;
+        r.dispatched_kg += dispatched as f64;
+        r.dispatches += u64::from(dispatched > 0.);
+    }
+
     pub fn prune(&mut self, month: u32) {
         self.receipts
             .retain(|r| month.saturating_sub(r.month) < CONTACT_WINDOW_MONTHS);
@@ -70,6 +112,19 @@ impl TradeContact {
             .map(|r| (r.from, r.to))
     }
     pub fn validate(&self, month: u32, sites: usize) -> anyhow::Result<()> {
+        let mut sites_seen = std::collections::BTreeSet::new();
+        anyhow::ensure!(
+            self.food_requests.iter().all(|r| (r.site as usize) < sites
+                && sites_seen.insert(r.site)
+                && r.last_month <= month
+                && r.requested_kg.is_finite()
+                && r.requested_kg >= 0.
+                && r.dispatched_kg.is_finite()
+                && r.dispatched_kg >= 0.
+                && r.dispatched_kg <= r.requested_kg
+                && r.dispatches <= r.constraints.iter().sum::<u64>()),
+            "invalid food request observations"
+        );
         let mut keys = std::collections::BTreeSet::new();
         anyhow::ensure!(
             self.receipts.iter().all(|r| r.month <= month

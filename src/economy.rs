@@ -805,7 +805,11 @@ pub struct Cargo {
 /// finance municipal material orders, and savings above monthly need are idle.
 fn quote_budget(town_cash: f32, food_budget: f32, order: f32, total: f32, good: usize) -> f32 {
     town_cash.max(0.) * order / total.max(MIN_PURCHASE_DENOMINATOR_MONEY)
-        + if good == FOOD { food_budget.max(0.) } else { 0. }
+        + if good == FOOD {
+            food_budget.max(0.)
+        } else {
+            0.
+        }
 }
 
 fn household_food_budget(cash: f64, need: f64, common: f64, price: f32) -> f32 {
@@ -1326,7 +1330,9 @@ impl History {
                             // month. Do not count a moved household's old-site needs.
                             if a.food_site == Some(hh.site) {
                                 household_food[hh.site as usize] += household_food_budget(
-                                    a.cash, a.need, a.common_food,
+                                    a.cash,
+                                    a.need,
+                                    a.common_food,
                                     self.sites[hh.site as usize].economy.prices[FOOD]
                                         .max(MIN_PRICE_MONEY_PER_KG),
                                 );
@@ -1408,8 +1414,13 @@ impl History {
                         target,
                         costs[s.id as usize][k],
                         (trade[1] > 0.).then(|| (trade[0] / trade[1]) as f32),
-                        quote_budget(s.economy.finance[0], household_food[s.id as usize],
-                            quote_orders[s.id as usize][k], order_total, k),
+                        quote_budget(
+                            s.economy.finance[0],
+                            household_food[s.id as usize],
+                            quote_orders[s.id as usize][k],
+                            order_total,
+                            k,
+                        ),
                         good.base_price,
                     );
                     continue;
@@ -1538,24 +1549,27 @@ impl History {
                         && c.escrow > 0.
                         && c.remaining_kg >= MIN_REMAINING_CONTRACT_KG
                 });
+                let eligible_route = |j: usize| {
+                    route(self, j, buyer).is_some_and(|d| {
+                        let bounded_distance =
+                            if catalog.market.network_trade || self.shipping.is_some() {
+                                d
+                            } else {
+                                crate::civilization::distance(
+                                    self.sites[j].cell,
+                                    self.sites[buyer].cell,
+                                    self.terrain_resolution,
+                                ) * radius
+                            };
+                        bounded_distance < catalog.market.max_distance_km
+                    })
+                };
                 let seller = (0..self.sites.len())
                     .filter(|&j| {
                         j != buyer
                             && !self.sites[j].abandoned
                             && self.sites[j].economy.policy[3] >= 0.5
-                            && route(self, j, buyer).is_some_and(|d| {
-                                let bounded_distance =
-                                    if catalog.market.network_trade || self.shipping.is_some() {
-                                        d
-                                    } else {
-                                        crate::civilization::distance(
-                                            self.sites[j].cell,
-                                            self.sites[buyer].cell,
-                                            self.terrain_resolution,
-                                        ) * radius
-                                    };
-                                bounded_distance < catalog.market.max_distance_km
-                            })
+                            && eligible_route(j)
                     })
                     .filter(|&j| {
                         // A cheap supplier with committed carriers cannot block another offer.
@@ -1611,6 +1625,34 @@ impl History {
                             .then_with(|| quote(a).total_cmp(&quote(b)))
                             .then(a.cmp(&b))
                     });
+                if k == FOOD && seller.is_none() {
+                    // Diagnose current eligible surplus, then accessibility. A sea route
+                    // without usable vessel capacity is intentionally classed inaccessible.
+                    let surplus_sites: Vec<_> = self
+                        .sites
+                        .iter()
+                        .enumerate()
+                        .filter(|(j, s)| {
+                            *j != buyer
+                                && !s.abandoned
+                                && s.economy.policy[3] >= 0.5
+                                && s.stocks.stock[1]
+                                    > s.stocks.stock[0]
+                                        * CIVILIAN_RESERVE_KG_PER_PERSON_MONTH
+                                        * catalog.market.food_reserve_months
+                        })
+                        .map(|(j, _)| j)
+                        .collect();
+                    let reason = if surplus_sites.is_empty() {
+                        0
+                    } else if !surplus_sites.iter().any(|&j| eligible_route(j)) {
+                        1
+                    } else {
+                        2
+                    };
+                    self.trade_contact
+                        .food_request(buyer as u32, self.month, need, reason, 0.);
+                }
                 if let Some(seller) = seller {
                     let distance = route(self, seller, buyer).expect("selected reachable seller");
                     let contract =
@@ -1687,6 +1729,33 @@ impl History {
                         .min(surplus)
                         .min(pop * MAX_PURCHASE_KG_PER_PERSON)
                         .min((self.sites[buyer].economy.finance[0] + escrow) / price);
+                    if k == FOOD {
+                        let bounds = [
+                            need,
+                            space,
+                            capacity,
+                            surplus,
+                            pop * MAX_PURCHASE_KG_PER_PERSON,
+                            (self.sites[buyer].economy.finance[0] + escrow) / price,
+                        ];
+                        let limiting = bounds
+                            .iter()
+                            .enumerate()
+                            .min_by(|a, b| a.1.total_cmp(b.1).then(a.0.cmp(&b.0)))
+                            .map(|(i, _)| i)
+                            .unwrap();
+                        self.trade_contact.food_request(
+                            buyer as u32,
+                            self.month,
+                            need,
+                            3 + limiting,
+                            if amount >= MIN_MARKET_SHIPMENT_KG {
+                                amount
+                            } else {
+                                0.
+                            },
+                        );
+                    }
                     if amount < MIN_MARKET_SHIPMENT_KG {
                         continue;
                     }
@@ -1799,6 +1868,92 @@ pub mod slots {
 mod freight_tests {
     use super::*;
     #[test]
+    #[ignore = "requires hardware GPU for founding fixture"]
+    fn food_request_constraints_follow_actual_market_gates() {
+        let mut g = Generator::new(
+            pollster::block_on(crate::gpu::ContextGpu::headless()).unwrap(),
+            crate::config::Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                ..Default::default()
+            },
+            crate::catalog::Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        let mut baseline = g.civilizations.as_ref().unwrap().clone();
+        baseline.society = None;
+        baseline.shipping = None;
+        baseline.politics = None;
+        baseline.cargo.clear();
+        baseline.export_contracts.clear();
+        baseline.month = 3;
+        let c = baseline.economy_catalog.as_mut().unwrap();
+        c.market.network_trade = false;
+        c.market.adaptive_prices = false;
+        c.market.max_distance_km = 100_000.;
+        c.production.land_freight_kg_per_person = 100.;
+        for s in &mut baseline.sites {
+            s.island = 0;
+            s.stocks.stock[0] = 10.;
+            s.stocks.stock[1] = 0.;
+            s.economy.goods.fill(0.);
+            s.economy.targets.fill(0.);
+            s.economy.logistics = [10000., 0., 0., 1.];
+            s.economy.finance[0] = 1000.;
+            s.economy.policy[3] = f32::from(s.id < 2);
+        }
+        baseline.sites[1].stocks.stock[1] = 10000.;
+
+        for (cash, freight, food, island, reason) in [
+            (1000., 100., 10000., 0, 7),
+            (5., 100., 10000., 0, 8),
+            (1000., 2., 10000., 0, 5),
+            (1000., 0., 10000., 0, 2),
+            (1000., 100., 0., 0, 0),
+            (1000., 100., 10000., 1, 1),
+        ] {
+            let mut h = baseline.clone();
+            h.sites[0].economy.finance[0] = cash;
+            h.sites[1].stocks.stock[1] = food;
+            h.sites[1].island = island;
+            h.economy_catalog
+                .as_mut()
+                .unwrap()
+                .production
+                .land_freight_kg_per_person = freight;
+            h.market_decisions(1., &vec![[[0.; 2]; GOODS]; h.sites.len()]);
+            let r = h
+                .trade_contact
+                .food_requests
+                .iter()
+                .find(|r| r.site == 0)
+                .unwrap();
+            assert_eq!(r.constraints[reason], 1, "{reason}: {:?}", r.constraints);
+            assert_eq!(r.constraints.iter().sum::<u64>(), 1);
+            let cargo: f64 = h
+                .cargo
+                .iter()
+                .filter(|c| c.to == 0 && c.good == FOOD as u32)
+                .map(|c| c.kg as f64)
+                .sum();
+            assert_eq!(r.dispatched_kg, cargo);
+            assert_eq!(h.sites[0].stocks.stock[1], 0.);
+            h.trade_contact.validate(h.month, h.sites.len()).unwrap();
+            let restored: History =
+                serde_json::from_slice(&serde_json::to_vec(&h).unwrap()).unwrap();
+            assert_eq!(
+                serde_json::to_vec(&h).unwrap(),
+                serde_json::to_vec(&restored).unwrap()
+            );
+        }
+        let mut skipped = baseline;
+        skipped.month = 2;
+        skipped.market_decisions(1., &vec![[[0.; 2]; GOODS]; skipped.sites.len()]);
+        assert!(skipped.trade_contact.food_requests.is_empty());
+    }
+
+    #[test]
     fn private_food_budgets_do_not_finance_industrial_quotes() {
         let food = household_food_budget(10000., 20., 5., 2.);
         assert_eq!(food, 30.);
@@ -1813,7 +1968,10 @@ mod freight_tests {
         assert_eq!(quote_budget(10., food, 0., 0., 2), 0.);
         // Savings cannot lift a metal quote; an actual municipal budget can.
         let quote = |budget| adaptive_quote(10., 0., 10., None, None, budget, 10.);
-        assert_eq!(quote(industrial), quote(quote_budget(10., 0., 50., 100., 2)));
+        assert_eq!(
+            quote(industrial),
+            quote(quote_budget(10., 0., 50., 100., 2))
+        );
         assert!(quote(quote_budget(100., food, 50., 100., 2)) > quote(industrial));
     }
 

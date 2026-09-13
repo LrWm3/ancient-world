@@ -42,6 +42,22 @@ def extraction_evidence(history, site):
     return result
 
 
+FOOD_REQUEST_CONSTRAINTS = (
+    'no_surplus', 'no_usable_route', 'no_free_freight', 'need',
+    'storage', 'freight', 'seller_surplus', 'batch_ceiling', 'money',
+)
+
+
+def food_requests(history):
+    rows = history.get('trade_contact', {}).get('food_requests')
+    if rows is None:
+        return None  # Old archives have no observations; this is not zero demand.
+    return [dict(site=r['site'], last_month=r['last_month'],
+                 constraints=dict(zip(FOOD_REQUEST_CONSTRAINTS, r['constraints'], strict=True)),
+                 requested_kg=r['requested_kg'], dispatched_kg=r['dispatched_kg'],
+                 dispatches=r['dispatches']) for r in rows]
+
+
 def audit(history):
     society = history.get('society') or {}
     households = society.get('households', [])
@@ -104,6 +120,7 @@ def audit(history):
         'individual_demography': (history.get('named_demography') or {}).get('individual', False),
         'initial_cash': initial, 'issued_cash': issued, 'cash': cash,
         'cash_total': sum(cash.values()),
+        'food_requests': food_requests(history),
         'household_cumulative_flows': household_flows(accounts),
         'relative_money_residual': (initial + issued - sum(cash.values())) / max(initial + issued, 1),
         'sites': [{
@@ -126,6 +143,7 @@ def audit(history):
         'inherited_cash': sum(r['cash'] for r in economy.get('inheritance', {}).get('receipts', [])),
         'limitations': [
             'Endpoint balances do not establish why money accumulated.',
+            'Food requests repeat unmet need; constraints are sequential gates or the first tightest order bound, not exhaustive causes.',
             'Ore allowance buffers are cleared at settlement; zero at a monthly boundary is expected, not evidence of depletion.',
             'Processable source stock does not guarantee labor, access or tools.',
             'Cumulative flows can exceed the money stock and are not additional cash.',

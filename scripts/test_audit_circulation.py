@@ -22,6 +22,19 @@ class CirculationAuditTests(unittest.TestCase):
             'credit': {'issuance': {'receipts': [{'issued': 2}]}},
         }
 
+    def test_food_request_observations_are_not_cash_or_delivered_food(self):
+        h = self.fixture()
+        before = audit(h)
+        self.assertIsNone(before['food_requests'])
+        h['trade_contact'] = {'food_requests': [dict(site=0, last_month=120,
+            constraints=[1, 2, 3, 0, 0, 0, 0, 4, 5], requested_kg=1000,
+            dispatched_kg=20, dispatches=4)]}
+        after = audit(h)
+        self.assertEqual(after['cash'], before['cash'])
+        self.assertEqual(after['sites'], before['sites'])
+        self.assertEqual(after['food_requests'][0]['constraints']['money'], 5)
+        self.assertEqual(after['food_requests'][0]['dispatched_kg'], 20)
+
     def test_zero_allowance_does_not_imply_depletion(self):
         history = self.fixture()
         site = history['sites'][0]
