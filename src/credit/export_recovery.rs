@@ -7,7 +7,6 @@ use std::collections::BTreeMap;
 
 const RECOVERY_PROCEEDS_SHARE: f64 = 0.25;
 const RECOVERY_OPERATING_CASH_FLOOR: f64 = 100.;
-const RECOVERY_REQUEST_NAMESPACE: u64 = 1 << 63;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Policy {
@@ -168,9 +167,12 @@ impl History {
             cash.insert(account, available);
         }
         ensure!(
-            !self.credit.recoveries.iter().any(
-                |r| r.request.month == self.month && r.request.id >= RECOVERY_REQUEST_NAMESPACE
-            ),
+            !self
+                .credit
+                .recoveries
+                .iter()
+                .any(|r| r.request.month == self.month
+                    && r.request.id >= recovery::EXPORT_REQUEST_NAMESPACE),
             "incomplete automatic recovery batch"
         );
         // All allowances use the same snapshot. Incoming recovery payments cannot
@@ -191,11 +193,11 @@ impl History {
             }
             let index = self.credit.recoveries.len() as u64;
             ensure!(
-                index < RECOVERY_REQUEST_NAMESPACE,
+                index < recovery::EXPORT_REQUEST_NAMESPACE,
                 "recovery namespace exhausted"
             );
             self.recover_defaulted_credit(recovery::Request {
-                id: RECOVERY_REQUEST_NAMESPACE | index,
+                id: recovery::EXPORT_REQUEST_NAMESPACE | index,
                 month: self.month,
                 loan,
                 allowance,

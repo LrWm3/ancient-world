@@ -70,3 +70,8 @@ Clippy and Python syntax validation of the experiment reporter passed.
 The two GPU-only market fixtures were not rerun for this sparse accounting API.
 Automatic export recovery remains disabled by default. Its separate integration
 fixtures are documented in the linked policy record; no long-run benefit is claimed.
+
+Closed estates now have an automatic caller as well: [proportional cash
+recovery](estate-default-recovery.md) shares opening balances with live claims.
+It leaves no operating reserve for a closed business and continues to exclude
+institutions undergoing relocation. This does not introduce general bankruptcy law.

@@ -515,3 +515,8 @@ same-month retroactive payment redirection is introduced. Live debt and unrecove
 default losses retain both estate cash and creditor assets. In-transit institutional
 relocation preserves its legal identity and does not trigger assignment. See
 [creditor succession](credit-claim-succession.md) for eligibility and exclusions.
+
+The same estate windows now share opening cash across live claims and remaining
+default losses. Default recovery appends separate receipts and cannot restart
+interest or reset exclusion. Incoming payments do not enlarge another estate's
+opening allowance within that pass. See [estate recovery](estate-default-recovery.md).

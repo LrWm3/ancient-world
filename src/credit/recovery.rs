@@ -5,6 +5,10 @@ use anyhow::{ensure, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
+// Automatic callers occupy disjoint ranges of the shared recovery receipt ID space.
+pub(super) const ESTATE_REQUEST_NAMESPACE: u64 = 1 << 62;
+pub(super) const EXPORT_REQUEST_NAMESPACE: u64 = 1 << 63;
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Reason {
     DelayedProceeds,

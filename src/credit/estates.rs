@@ -77,9 +77,12 @@ impl History {
         for loan in &mut loans {
             if closed.contains_key(&loan.terms.borrower) {
                 loan.accrue_to(self.month)?;
-                if matches!(loan.status, Status::Performing | Status::Arrears) {
-                    *claims.entry(loan.terms.borrower).or_default() += loan.total_due();
-                }
+                let due = if loan.status == Status::Defaulted {
+                    self.credit.unrecovered_credit_loss(loan)
+                } else {
+                    loan.total_due()
+                };
+                *claims.entry(loan.terms.borrower).or_default() += due;
             }
         }
         ensure!(
@@ -89,7 +92,12 @@ impl History {
         let mut plans = Vec::new();
         for loan in &loans {
             if let Some(cash) = closed.get(&loan.terms.borrower) {
-                if matches!(loan.status, Status::Performing | Status::Arrears)
+                let due = if loan.status == Status::Defaulted {
+                    self.credit.unrecovered_credit_loss(loan)
+                } else {
+                    loan.total_due()
+                };
+                if due > 0.
                     && claims[&loan.terms.borrower] > 0.
                     && self
                         .settlement_balance(self.credit.ownership.owner_at(loan, self.month)?)
@@ -97,15 +105,20 @@ impl History {
                 {
                     plans.push((
                         loan.id,
-                        loan.total_due() * (cash / claims[&loan.terms.borrower]).min(1.),
+                        due * (cash / claims[&loan.terms.borrower]).min(1.),
+                        loan.status == Status::Defaulted,
                     ));
                 }
             }
         }
         self.credit.loans = loans;
-        for (id, allowance) in plans {
+        for (id, allowance, defaulted) in plans {
             if allowance > 0. {
-                self.pay_credit_loan(id, allowance)?;
+                if defaulted {
+                    self.recover_estate_credit(id, allowance)?;
+                } else {
+                    self.pay_credit_loan(id, allowance)?;
+                }
             }
         }
         // Incoming repayments to closed creditors remain their cash until here.
@@ -176,6 +189,49 @@ impl History {
 }
 
 impl History {
+    fn recover_estate_credit(&mut self, loan: u64, allowance: f64) -> Result<()> {
+        let contract = &self.credit.loans[loan as usize];
+        let creditor = self.credit.ownership.owner_at(contract, self.month)?;
+        let balances = [
+            self.settlement_balance(contract.terms.borrower)?.value(),
+            self.settlement_balance(creditor)?.value(),
+        ];
+        // A precision-blocked attempt need not append another zero receipt at
+        // every estate window. New cash, recipient balances or a new month may
+        // make the same remaining claim transferable, so allow those retries.
+        if self.credit.recoveries.iter().rev().any(|r| {
+            r.request.loan == loan
+                && r.request.month == self.month
+                && r.request.allowance == allowance
+                && matches!(r.request.reason, super::recovery::Reason::EstateSurplus)
+                && r.transfer.to == creditor
+                && r.transfer.amount() == 0.
+                && r.closing_cash == balances
+        }) {
+            return Ok(());
+        }
+        let mut id = super::recovery::ESTATE_REQUEST_NAMESPACE
+            .checked_add(self.credit.recoveries.len() as u64)
+            .ok_or_else(|| anyhow::anyhow!("estate recovery IDs exhausted"))?;
+        while self.credit.recoveries.iter().any(|r| r.request.id == id) {
+            id = id
+                .checked_add(1)
+                .ok_or_else(|| anyhow::anyhow!("estate recovery IDs exhausted"))?;
+        }
+        ensure!(
+            id < super::recovery::EXPORT_REQUEST_NAMESPACE,
+            "estate recovery IDs exhausted"
+        );
+        self.recover_defaulted_credit(super::recovery::Request {
+            id,
+            month: self.month,
+            loan,
+            allowance,
+            reason: super::recovery::Reason::EstateSurplus,
+        })?;
+        Ok(())
+    }
+
     fn schedule_credit_estate_claims(&mut self) -> Result<()> {
         use super::ownership::{Basis, Request};
         let mut plans = Vec::new();

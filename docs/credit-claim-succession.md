@@ -217,8 +217,8 @@ would make a debtor its own creditor. Those claims remain in their original acco
 
 Both live borrowing debt and unrecovered default losses block distributions of
 cash and claims. Default is not permission to give away assets ahead of creditors.
-This same priority check applies to voluntary gifts. Explicit default recovery can
-reduce the retained loss; automatic general estate recovery is still unfinished.
+This same priority check applies to voluntary gifts. [Automatic cash recovery](estate-default-recovery.md)
+now reduces retained losses through real transfers, sharing opening cash with live debt.
 Lost-household claim succession and contested beneficiary selection remain outside
 this policy. The authority record is a compact policy decision, not a reconstructed
 legal proceeding or independent historical proof of every eligibility condition.

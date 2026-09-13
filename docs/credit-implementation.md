@@ -629,7 +629,7 @@ and default exclusion remain intact. The API uses original counterparties,
 bounded actual cash and replay-safe requests. The opt-in
 [late-export recovery policy](export-default-recovery.md) now connects newly
 received matching proceeds to old defaults after live obligations and operating
-reserves. General estate recovery allocation remains unfinished; bounded operator/institution
+reserves. Proportional [estate cash recovery](estate-default-recovery.md) now also exists; bounded operator/institution
 claim succession is described below.
 
 ## Read-only explorer and reusable contract reports
@@ -655,6 +655,6 @@ unchanged. The assignment records an estate basis rather than inventing consent.
 Review exposed a priority mismatch: unrecovered defaults previously blocked claim
 distribution but not residual cash distribution. Both now retain estate assets,
 including later incoming cash, until recovery clears the loss. Voluntary gifts use
-the same priority guard. This is asset retention, not an automatic bankruptcy or
-default-recovery allocator; broader estate recovery and balance evaluation remain
-unfinished.
+the same priority guard. A subsequent [estate recovery increment](estate-default-recovery.md)
+shares opening cash across live and defaulted claims. Broader bankruptcy policies
+and balance evaluation remain unfinished.

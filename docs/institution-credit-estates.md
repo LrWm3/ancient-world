@@ -41,8 +41,9 @@ The existing Open and operator closure windows use the same estate pass. Each
 pass uses opening cash; same-pass inter-estate payments cannot be respent merely
 because one type or account sorts later. Unpaid debt retains its original maturity
 and default rules. A separate [explicit recovery API](credit-default-recovery.md)
-can return authorized cash after default. Bounded claim reassignment now exists; automatic general
-recovery allocation and differentiated bankruptcy priorities remain absent.
+now receives proportional [closed-estate allowances](estate-default-recovery.md).
+Bounded claim reassignment also exists; differentiated bankruptcy priorities and
+physical asset disposal remain absent.
 It does not accelerate a loss
 or reopen a defaulted contract merely because the institution has dissolved.
 

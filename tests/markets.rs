@@ -616,7 +616,7 @@ fn credit_cash_and_default_ledgers_run_without_gpu() {
     assert_eq!(h.sites[0].economy.finance[0], 75.);
     assert_eq!(h.sites[1].economy.finance[0], 25.);
     h.validate_credit().unwrap();
-    assert!(h.economy_residuals()[3].abs() < 1e-12);
+    assert!(h.money_residual().abs() < 1e-12);
     let mut resumed: History = serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
     for world in [&mut h, &mut resumed] {
         world.month = 12;
@@ -631,7 +631,7 @@ fn credit_cash_and_default_ledgers_run_without_gpu() {
         assert_eq!(world.credit.loans[0].status, Status::Defaulted);
         assert_eq!(world.sites[0].economy.finance[0], 100.);
         assert_eq!(world.sites[1].economy.finance[0], 0.);
-        assert!(world.economy_residuals()[3].abs() < 1e-12);
+        assert!(world.money_residual().abs() < 1e-12);
     }
     assert_eq!(
         serde_json::to_value(h).unwrap(),
@@ -706,7 +706,7 @@ fn credit_round_shares_actual_cash_and_cannot_replay_requests() {
     assert_eq!(h.sites[1].economy.finance[0], 40.);
     assert_eq!(h.sites[2].economy.finance[0], 40.);
     h.validate_credit().unwrap();
-    assert!(h.economy_residuals()[3].abs() < 1e-12);
+    assert!(h.money_residual().abs() < 1e-12);
     let before = serde_json::to_value(&h).unwrap();
     assert!(h
         .fund_credit_requests(Policy::default(), offers, evidence, requests)
@@ -769,7 +769,7 @@ fn scheduled_credit_protects_cash_shares_claims_and_defaults_without_money_creat
             .iter()
             .all(|l| l.status == Status::Defaulted));
         assert_eq!(world.sites[1].economy.finance[0], 60.);
-        assert!(world.economy_residuals()[3].abs() < 1e-12);
+        assert!(world.money_residual().abs() < 1e-12);
         for loan in &world.credit.loans {
             let events: Vec<_> = world
                 .events
@@ -1084,7 +1084,7 @@ fn consensual_credit_extension_preserves_cash_and_resumes_collection() {
         }
         assert_eq!(world.credit.loans[0].status, Status::Repaid);
         world.validate_credit().unwrap();
-        assert!(world.economy_residuals()[3].abs() < 1e-12);
+        assert!(world.money_residual().abs() < 1e-12);
     }
     assert_eq!(
         serde_json::to_value(&h).unwrap(),
@@ -1166,7 +1166,7 @@ fn precision_residue_settles_without_cash_or_default_but_insolvency_does_not() {
         world.month = 6;
         world.service_credit_month().unwrap();
         world.validate_credit().unwrap();
-        assert!(world.economy_residuals()[3].abs() < 1e-12);
+        assert!(world.money_residual().abs() < 1e-12);
     }
     assert_eq!(
         serde_json::to_value(&h).unwrap(),
@@ -1231,7 +1231,7 @@ fn affordable_claim_above_forgiveness_cap_retries_instead_of_defaulting() {
         assert_eq!(world.credit.loans[0].status, Status::Arrears);
         assert!(world.credit.loans[0].total_due() > 0.);
         world.validate_credit().unwrap();
-        assert!(world.economy_residuals()[3].abs() < 1e-12);
+        assert!(world.money_residual().abs() < 1e-12);
     }
     assert_eq!(
         serde_json::to_value(&h).unwrap(),
@@ -1282,7 +1282,7 @@ fn affordable_claim_above_forgiveness_cap_retries_instead_of_defaulting() {
     h.service_credit_month().unwrap();
     assert!(h.credit.service_receipts.last().unwrap().paid > 0.);
     h.validate_credit().unwrap();
-    assert!(h.economy_residuals()[3].abs() < 1e-12);
+    assert!(h.money_residual().abs() < 1e-12);
 }
 
 #[test]
@@ -1323,7 +1323,7 @@ fn abandoned_town_treasuries_settle_existing_debt_but_cannot_originate() {
             assert_eq!(world.credit.service_receipts[0].paid, 40.);
             assert!(world.credit.service_receipts[0].accounts_available);
             assert!(world.sites[abandoned].abandoned);
-            assert!(world.economy_residuals()[3].abs() < 1e-12);
+            assert!(world.money_residual().abs() < 1e-12);
             world.validate_credit().unwrap();
             let once = serde_json::to_value(&world).unwrap();
             // A retained abandoned treasury is valid; a missing/rebound identity
@@ -1397,7 +1397,7 @@ fn default_recovery_preserves_loss_transfers_real_cash_and_cannot_replay() {
     assert_eq!(h.credit.recoveries[0].transfer.interest, 3.);
     assert_eq!(h.credit.recoveries[0].transfer.principal, 2.);
     h.validate_credit().unwrap();
-    assert!(h.economy_residuals()[3].abs() < 1e-12);
+    assert!(h.money_residual().abs() < 1e-12);
     let before = serde_json::to_value(&h).unwrap();
     assert!(h.recover_defaulted_credit(request(0, 12, 5.)).is_err());
     assert_eq!(before, serde_json::to_value(&h).unwrap());
@@ -1445,7 +1445,7 @@ fn default_recovery_preserves_loss_transfers_real_cash_and_cannot_replay() {
         assert_eq!(world.credit.loans[0].status, Status::Defaulted);
         assert_eq!(world.credit.loans[0].total_due(), 0.);
         world.validate_credit().unwrap();
-        assert!(world.economy_residuals()[3].abs() < 1e-12);
+        assert!(world.money_residual().abs() < 1e-12);
     }
     assert_eq!(
         serde_json::to_value(&h).unwrap(),
@@ -1537,7 +1537,7 @@ fn assigned_credit_routes_payments_and_recovery_by_month_without_rewriting_origi
             serde_json::to_value(&terms).unwrap()
         );
         world.validate_credit().unwrap();
-        assert!(world.economy_residuals()[3].abs() < 1e-12);
+        assert!(world.money_residual().abs() < 1e-12);
     }
     assert_eq!(
         serde_json::to_value(&h).unwrap(),
@@ -1665,7 +1665,7 @@ fn assigned_credit_routes_payments_and_recovery_by_month_without_rewriting_origi
         serde_json::to_value(&defaulted.credit.loans[0]).unwrap()
     );
     defaulted.validate_credit().unwrap();
-    assert!(defaulted.economy_residuals()[3].abs() < 1e-12);
+    assert!(defaulted.money_residual().abs() < 1e-12);
     let mut corrupted: History = serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
     corrupted
         .credit
@@ -1770,7 +1770,7 @@ fn household_claim_receipts_reconcile_without_enabling_household_credit() {
         assert_eq!(world.sites[0].economy.finance[0], original_lender);
         e.validate(world).unwrap();
         world.validate_credit().unwrap();
-        assert!(world.economy_residuals()[3].abs() < 1e-12);
+        assert!(world.money_residual().abs() < 1e-12);
         let before = serde_json::to_value(&world).unwrap();
         for (lender, borrower) in [
             (Account::Household(0), Account::Town(2)),
@@ -1844,4 +1844,23 @@ fn household_claim_receipts_reconcile_without_enabling_household_credit() {
         restored.credit_principal_received + restored.credit_interest_received,
         0.
     );
+}
+
+#[test]
+fn monetary_residual_detects_created_cash_without_water_changes() {
+    let mut h = network();
+    for site in &mut h.sites {
+        site.economy.finance = [0.; 4];
+    }
+    h.sites[0].economy.finance = [100., 100., 0., 0.];
+    let water = h.economy_residuals()[3];
+    assert_eq!(h.money_residual(), 0.);
+    h.sites[1].economy.finance[0] += 1.; // Deliberately unrecorded creation.
+    assert_eq!(h.money_residual(), -0.01);
+    assert_eq!(h.economy_residuals()[3], water);
+    h.sites[1].economy.finance[0] -= 1.;
+    assert_eq!(h.money_residual(), 0.);
+    h.sites[0].economy.finance[0] -= 1.; // Deliberately unrecorded destruction.
+    assert_eq!(h.money_residual(), 0.01);
+    assert_eq!(h.economy_residuals()[3], water);
 }

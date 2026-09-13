@@ -1120,7 +1120,7 @@ mod tests {
             .id;
         let from = Account::Operator(firm);
         let to = Account::Town(0);
-        let baseline = h.economy_residuals()[3];
+        let baseline = h.money_residual();
         let revenue = h.enterprises.as_ref().unwrap().firms[firm as usize].revenue;
         let paid = h
             .transfer_credit_cash(from, to, SHARED_CURRENCY, 1., 0.)
@@ -1131,7 +1131,7 @@ mod tests {
             revenue
         );
         h.enterprises.as_ref().unwrap().validate(h).unwrap();
-        assert!((h.economy_residuals()[3] - baseline).abs() < 1e-10);
+        assert!((h.money_residual() - baseline).abs() < 1e-10);
         let before = serde_json::to_value(&*h).unwrap();
         assert!(h
             .transfer_credit_cash(to, Account::Operator(u32::MAX), SHARED_CURRENCY, 1., 0.)
@@ -1150,7 +1150,7 @@ mod tests {
                 .unwrap()
                 .validate(history)
                 .unwrap();
-            assert!((history.economy_residuals()[3] - baseline).abs() < 1e-10);
+            assert!((history.money_residual() - baseline).abs() < 1e-10);
             let f = &history.enterprises.as_ref().unwrap().firms[firm as usize];
             assert_eq!(f.revenue, revenue);
             assert_eq!(f.financing.net_cash(), 0.);
@@ -1199,13 +1199,13 @@ mod tests {
         };
         assert!(h.commit_credit_loan(terms.clone(), f64::NAN).is_err());
         assert_eq!(serde_json::to_value(&*h).unwrap(), before);
-        let baseline = h.economy_residuals()[3];
+        let baseline = h.money_residual();
         let id = h.commit_credit_loan(terms, 10.).unwrap().unwrap();
         let principal = h.credit.loans[id as usize].original_principal;
         assert!(principal > 9.99 && principal <= 10.);
         assert_eq!(principal, h.credit.cash_receipts[0].transfer.amount());
         h.validate_credit().unwrap();
-        assert!((h.economy_residuals()[3] - baseline).abs() < 1e-10);
+        assert!((h.money_residual() - baseline).abs() < 1e-10);
         let mut resumed: History =
             serde_json::from_value(serde_json::to_value(&*h).unwrap()).unwrap();
         for history in [&mut *h, &mut resumed] {
@@ -1221,7 +1221,7 @@ mod tests {
                 .unwrap()
                 .validate(history)
                 .unwrap();
-            assert!((history.economy_residuals()[3] - baseline).abs() < 1e-10);
+            assert!((history.money_residual() - baseline).abs() < 1e-10);
         }
         assert_eq!(
             serde_json::to_value(&*h).unwrap(),
@@ -1879,7 +1879,7 @@ mod tests {
         };
         for insolvent in [false, true] {
             let mut h = base.clone();
-            let residual = h.economy_residuals()[3];
+            let residual = h.money_residual();
             for lender in [1, 2] {
                 h.commit_credit_loan(
                     terms(
@@ -1931,7 +1931,7 @@ mod tests {
                 let n = &world.culture.as_ref().unwrap().institutions[id as usize];
                 assert!(!n.active);
                 assert_eq!(n.dues, 0.); // Loan principal is not institutional income.
-                assert!((world.economy_residuals()[3] - residual).abs() < 1e-8);
+                assert!((world.money_residual() - residual).abs() < 1e-8);
                 let payments: Vec<_> = world
                     .credit
                     .cash_receipts
@@ -1970,7 +1970,7 @@ mod tests {
             );
         }
         let mut h = base.clone();
-        let residual = h.economy_residuals()[3];
+        let residual = h.money_residual();
         h.transfer_credit_cash(
             Account::Town(3),
             Account::Institution(id),
@@ -2008,7 +2008,7 @@ mod tests {
         assert!((pending - n.treasury - received).abs() < 1e-8);
         assert!(!n.active);
         h.validate_credit().unwrap();
-        assert!((h.economy_residuals()[3] - residual).abs() < 1e-8);
+        assert!((h.money_residual() - residual).abs() < 1e-8);
 
         // Force the annual cultural shutdown condition and verify that its
         // treasury survives until the explicit Respond estate window.
@@ -2055,11 +2055,70 @@ mod tests {
             maturity_month: 15,
             grace_months: 1,
         };
+        // Live and previously defaulted creditors share the same opening
+        // estate cash; default must neither erase priority nor mint repayment.
+        {
+            let mut h = base.clone();
+            let residual = h.economy_residuals()[4];
+            h.commit_credit_loan(terms(Account::Town(1), Account::Operator(0), 80), 20.)
+                .unwrap();
+            let mut later = terms(Account::Town(2), Account::Operator(0), 81);
+            later.maturity_month = 30;
+            h.commit_credit_loan(later, 20.).unwrap();
+            let cash = h.enterprises.as_ref().unwrap().firms[0].cash;
+            h.transfer_credit_cash(
+                Account::Operator(0),
+                Account::Council(0),
+                SHARED_CURRENCY,
+                cash,
+                0.,
+            )
+            .unwrap();
+            h.month = 17;
+            h.credit.servicing_policy.available_cash_share = 0.;
+            h.service_credit_month().unwrap();
+            assert_eq!(h.credit.loans[0].status, Status::Defaulted);
+            let default_record = serde_json::to_value(&h.credit.loans[0]).unwrap();
+            h.transfer_credit_cash(
+                Account::Council(0),
+                Account::Operator(0),
+                SHARED_CURRENCY,
+                10.,
+                0.,
+            )
+            .unwrap();
+            h.enterprises.as_mut().unwrap().enabled = false;
+            h.prepare_enterprises();
+            let mut resumed: History =
+                serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
+            for world in [&mut h, &mut resumed] {
+                world.settle_credit_estates().unwrap();
+                assert_eq!(
+                    world.credit.recoveries.last().unwrap().transfer.amount(),
+                    5.
+                );
+                assert_eq!(world.credit.loans[1].outstanding_principal, 15.);
+                assert_eq!(world.enterprises.as_ref().unwrap().firms[0].cash, 0.);
+                assert_eq!(
+                    serde_json::to_value(&world.credit.loans[0]).unwrap(),
+                    default_record
+                );
+                let once = serde_json::to_value(&world).unwrap();
+                world.settle_credit_estates().unwrap();
+                assert_eq!(serde_json::to_value(&world).unwrap(), once);
+                world.validate_credit().unwrap();
+                assert!((world.economy_residuals()[4] - residual).abs() < 1e-8);
+            }
+            assert_eq!(
+                serde_json::to_value(&h).unwrap(),
+                serde_json::to_value(&resumed).unwrap()
+            );
+        }
         // A cashless closed creditor can pass its claim to its owner; a firm
         // owing live debt or an unrecovered default must retain that asset.
         for indebted in [false, true] {
             let mut h = base.clone();
-            let residual = h.economy_residuals()[3];
+            let residual = h.money_residual();
             h.commit_credit_loan(terms(Account::Operator(0), Account::Town(0), 90), 10.)
                 .unwrap();
             if indebted {
@@ -2112,7 +2171,8 @@ mod tests {
                     .accounts[owner as usize]
                     .cash;
                 h.settle_credit_estates().unwrap();
-                assert_eq!(h.enterprises.as_ref().unwrap().firms[0].cash, 5.);
+                assert_eq!(h.enterprises.as_ref().unwrap().firms[0].cash, 0.);
+                assert_eq!(h.credit.recoveries.last().unwrap().transfer.amount(), 5.);
                 assert_eq!(
                     h.society
                         .as_ref()
@@ -2133,17 +2193,8 @@ mod tests {
                     0.,
                 )
                 .unwrap();
-                let recovered = h
-                    .recover_defaulted_credit(crate::credit::recovery::Request {
-                        id: 900,
-                        month: h.month,
-                        loan: 1,
-                        allowance: 20.,
-                        reason: crate::credit::recovery::Reason::EstateSurplus,
-                    })
-                    .unwrap();
-                assert_eq!(recovered, 20.);
                 h.settle_credit_estates().unwrap();
+                assert_eq!(h.credit.recoveries.last().unwrap().transfer.amount(), 15.);
                 assert_eq!(h.credit.ownership.assignments().len(), 1);
                 assert_eq!(h.credit_owner_at(0, h.month).unwrap(), Account::Operator(0));
                 assert_eq!(
@@ -2182,11 +2233,11 @@ mod tests {
                     serde_json::to_value(&restored).unwrap()
                 );
             }
-            assert!((h.economy_residuals()[3] - residual).abs() < 1e-8);
+            assert!((h.money_residual() - residual).abs() < 1e-8);
         }
         for insolvent in [false, true] {
             let mut h = base.clone();
-            let residual = h.economy_residuals()[3];
+            let residual = h.money_residual();
             for lender in [1, 2] {
                 h.commit_credit_loan(
                     terms(Account::Town(lender), Account::Operator(0), lender as u64),
@@ -2276,7 +2327,7 @@ mod tests {
                 assert!((distributed - (opening - 2. * expected)).abs() < 1e-8);
                 world.validate_credit().unwrap();
                 world.enterprises.as_ref().unwrap().validate(world).unwrap();
-                assert!((world.economy_residuals()[3] - residual).abs() < 1e-8);
+                assert!((world.money_residual() - residual).abs() < 1e-8);
                 let once = serde_json::to_value(&world).unwrap();
                 world.settle_credit_estates().unwrap();
                 assert_eq!(once, serde_json::to_value(&world).unwrap());
@@ -2289,7 +2340,7 @@ mod tests {
         // A closed creditor's identity survives: later repayment enters its
         // account, then reaches the existing owner without reopening the firm.
         let mut h = base.clone();
-        let residual = h.economy_residuals()[3];
+        let residual = h.money_residual();
         h.commit_credit_loan(terms(Account::Operator(0), Account::Town(0), 4), 10.)
             .unwrap()
             .unwrap();
@@ -2326,7 +2377,7 @@ mod tests {
         );
         h.validate_credit().unwrap();
         h.enterprises.as_ref().unwrap().validate(&h).unwrap();
-        assert!((h.economy_residuals()[3] - residual).abs() < 1e-8);
+        assert!((h.money_residual() - residual).abs() < 1e-8);
 
         // Exercise the actual Reserve closure and settlement hooks too.
         let h = g.civilizations.as_mut().unwrap();
@@ -2371,7 +2422,7 @@ mod tests {
         firm.leased_units = 5.;
         let capital = firm.cash;
         assert!(capital > 0.);
-        let cash_residual = h.economy_residuals()[3];
+        let cash_residual = h.money_residual();
         // Move existing capital to a lender. Both arms start with the same
         // inventories and cash ownership; only the loan reverses this transfer.
         let moved = h
@@ -2407,7 +2458,7 @@ mod tests {
         .unwrap()
         .unwrap();
         assert_eq!(h.enterprises.as_ref().unwrap().firms[0].revenue, revenue);
-        assert!((h.economy_residuals()[3] - cash_residual).abs() < 1e-9);
+        assert!((h.money_residual() - cash_residual).abs() < 1e-9);
         h.validate_credit().unwrap();
         let path =
             std::env::temp_dir().join(format!("enterprise-credit-{}.world", std::process::id()));

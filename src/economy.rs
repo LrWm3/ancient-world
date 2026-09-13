@@ -829,6 +829,12 @@ fn adaptive_quote(
     (previous * adjustment.exp()).clamp(MIN_PRICE_MONEY_PER_KG, MAX_PRICE_MONEY_PER_KG)
 }
 impl History {
+    /// Relative spendable-money discrepancy, including authorized issuance and
+    /// retained, institutional and in-transit balances. Debt assets are not cash.
+    pub fn money_residual(&self) -> f64 {
+        self.economy_residuals()[4]
+    }
+
     pub fn economy_residuals(&self) -> [f64; 6] {
         let mut baseline = self.nutrition_initial;
         let mut external = [0.; 3];

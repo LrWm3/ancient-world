@@ -2,9 +2,8 @@
 
 Status: experimental council and commercial credit pilots and bounded shared-
 currency issuance exist behind explicit switches. Bounded restructuring and delayed-
-export negotiation and bounded account-estate settlement also exist; bounded operator/institution claim succession is implemented. General
-estate recovery policies, extended calibration and currency exchange
-remain pending.
+export negotiation and bounded account-estate settlement also exist; bounded operator/institution claim succession is implemented. Proportional recovery from closed-estate cash is implemented; broader
+estate policies, extended calibration and currency exchange remain pending.
 See the [implementation record](credit-implementation.md) for evidence and limits.
 The [credit-event regression](credit-chronicle-regression.md) verifies six matched
 200-year arms after adding causal loan events; it does not pass the balance gate.
@@ -201,7 +200,8 @@ terms, and return residual cash to the existing owner. They can receive later
 repayments without reopening the enterprise. Unpaid claims keep their maturity
 and grace/default rules. Explicit post-default recovery is now available through
 the separate settlement API. An opt-in [late-export policy](export-default-recovery.md)
-allocates newly received proceeds; general estate recovery allocation remains pending.
+allocates newly received proceeds; [closed-estate recovery](estate-default-recovery.md)
+shares opening cash across live claims and remaining default losses.
 
 [Institutional estates](institution-credit-estates.md) now retain shutdown cash
 for the same claim settlement, with only actual residual transfers going to the
@@ -251,8 +251,8 @@ closure, institution relocation versus dissolution, and a council leader change.
 Test cash and claims independently: an assigned receivable is not spendable money,
 and a write-off does not erase cash already returned to an owner. Town settlement
 and bounded operator/institution estate mechanisms cover part of this boundary;
-they do not complete legal claim assignment or automatic post-default recovery
-allocation.
+automatic cash recovery and bounded claim succession are implemented. Contested
+beneficiaries, missing successors and general asset disposal remain outside them.
 
 ## Stage 1B: bounded shared-currency issuance
 
@@ -410,5 +410,6 @@ The [explicit recovery operation](credit-default-recovery.md) now transfers
 authorized cash against a recorded default loss without reopening debt, accruing
 new interest or erasing default history. Dated replay-safe receipts retain both
 account deltas. [Late-export recovery](export-default-recovery.md) now allocates new matching
-proceeds after live obligations and operating reserves. General estate recovery
-allocation and succession without an eligible beneficiary remain pending; the broader closure/succession checklist stays open.
+proceeds after live obligations and operating reserves. [Closed-estate recovery](estate-default-recovery.md)
+shares available cash proportionally with live claims. Succession without an eligible
+beneficiary and broader bankruptcy rules remain pending; the closure checklist stays open.
