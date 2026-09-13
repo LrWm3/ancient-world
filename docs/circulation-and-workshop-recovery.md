@@ -309,3 +309,19 @@ port opens a year earlier. Inspection now isolates annual leftover construction
 work as a further bottleneck even where materials are stocked. See
 [harbor production demand](harbor-production-demand.md) for settings, outcomes and
 limits; circulation and transport recovery remain unfinished.
+
+
+### Annual harbor work: three experiments rolled back
+
+Tested protected leftovers, explicit staffing demand, and a bounded annual public
+work allowance. All nine 50-year runs completed, but each arm lowered population
+in every seed. The public-work variant commissioned five additional ports and
+increased workshop activity, yet food access worsened in two seeds and crew costs
+rose. None is retained in current source/defaults. See
+[harbor labor experiments](harbor-work-allocation.md) for the complete comparison.
+The next concrete blocker is equipment allocation: some important ports have full
+timber/masonry and 22–23 kg generic tools in town, but cannot install tools because
+the 0.5 kg/resident working-reserve floor exceeds their stock. They have no spare
+copper/bronze either. Test desired versus indispensable tool reserves and finite
+sharing first; then alternatives/recovered metal where actually available, alongside
+route use and recurring crew costs.
