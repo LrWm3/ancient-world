@@ -13,7 +13,7 @@ const DEFAULT_FISHERY_HALF_SATURATION_KG_C_M2: f32 = 0.0001;
 const DEFAULT_FISHERY_RESERVE_MONTHS: f32 = 6.;
 const LEGACY_FIXATION_COST_KG: f32 = 80.;
 const ALLOWED_FIXATION_COST_KG: std::ops::RangeInclusive<f32> = 1. ..=1000.;
-const ALLOWED_FISHERY_WORKER_SHARE: std::ops::RangeInclusive<f32> = 0.001..=0.25;
+pub(crate) const ALLOWED_FISHERY_WORKER_SHARE: std::ops::RangeInclusive<f32> = 0.001..=0.25;
 const ALLOWED_FISHERY_KG_PER_WORKER_MONTH: std::ops::RangeInclusive<f32> = 1. ..=200.;
 const ALLOWED_FISHERY_HALF_SATURATION_KG_C_M2: std::ops::RangeInclusive<f32> = 1e-8..=1.;
 const ALLOWED_FISHERY_RESERVE_MONTHS: std::ops::RangeInclusive<f32> = 1. ..=12.;
@@ -33,13 +33,13 @@ const MAX_SETTLEMENT_ROLES: usize = 2;
 
 crate::shared_shader_parameters!(SHADER_PARAMETERS {
     pub(crate) const CULTIVATED_HECTARES_PER_WORKER_MONTH: f32 = 1.5;
-    const LIVESTOCK_CARBON_FRACTION: f32 = 0.25;
-    const LIVESTOCK_NITROGEN_FRACTION: f32 = 0.04;
-    const LIVESTOCK_PHOSPHORUS_FRACTION: f32 = 0.003;
+    const LIVESTOCK_CARBON_FRACTION: f64 = 0.25;
+    const LIVESTOCK_NITROGEN_FRACTION: f64 = 0.04;
+    const LIVESTOCK_PHOSPHORUS_FRACTION: f64 = 0.003;
     const SLAUGHTER_MEAT_FRACTION: f32 = 0.6;
     const SLAUGHTER_HIDE_FRACTION: f32 = 0.1;
 });
-const LIVESTOCK_CNP: [f32; 3] = [
+pub(crate) const LIVESTOCK_CNP: [f64; 3] = [
     LIVESTOCK_CARBON_FRACTION,
     LIVESTOCK_NITROGEN_FRACTION,
     LIVESTOCK_PHOSPHORUS_FRACTION,
@@ -203,7 +203,7 @@ impl AgricultureCatalog {
             meat == 24 && hides == 19 && e.index("fish") == Some(28),
             "managed animal goods must retain their stable archive slots"
         );
-        for (k, body) in LIVESTOCK_CNP.into_iter().enumerate() {
+        for (k, body) in LIVESTOCK_CNP.map(|v| v as f32).into_iter().enumerate() {
             ensure!(
                 SLAUGHTER_MEAT_FRACTION * e.composition(meat)[k]
                     + SLAUGHTER_HIDE_FRACTION * e.composition(hides)[k]

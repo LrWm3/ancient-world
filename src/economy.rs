@@ -2,6 +2,53 @@
 use crate::{civilization::History, gpu::Generator, grid};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+const DEFAULT_STORM_PROBABILITY: f32 = 0.04;
+const DEFAULT_STORM_MULTIPLIER: f32 = 3.;
+const DEFAULT_MAX_MARKET_DISTANCE_KM: f32 = 1500.;
+const DEFAULT_GOODS_RESERVE_KG_PER_PERSON: f32 = 3.;
+const DEFAULT_FOOD_RESERVE_MONTHS: f32 = 12.;
+const LEGACY_FOOD_DELAY_SPOILAGE: f32 = 0.2;
+const MAX_RECIPES: usize = 64;
+const ALLOWED_INITIAL_HOUSING_PER_PERSON: std::ops::RangeInclusive<f32> = 0.25..=2.;
+const ALLOWED_MARKET_DISTANCE_KM: std::ops::RangeInclusive<f32> = 1. ..=10000.;
+const ALLOWED_MARKET_RESERVE_KG_PER_PERSON: std::ops::RangeInclusive<f32> = 0. ..=100.;
+const ALLOWED_FOOD_RESERVE_MONTHS: std::ops::RangeInclusive<f32> = 6. ..=36.;
+const ALLOWED_WEATHER_REGIME_MONTHS: std::ops::RangeInclusive<u32> = 12..=120;
+const ALLOWED_STORM_MULTIPLIER: std::ops::RangeInclusive<f32> = 1. ..=8.;
+const MAX_PRICE_MONEY_PER_KG: f32 = 1e6;
+const ALLOWED_STORAGE_KG_PER_PERSON: std::ops::RangeInclusive<f32> = 1. ..=10000.;
+const ALLOWED_LAND_FREIGHT_KG_PER_PERSON: std::ops::RangeInclusive<f32> = 1. ..=1000.;
+const RECIPE_BALANCE_TOLERANCE_KG: f32 = 1e-6;
+const LEGACY_ORE_METAL_FRACTION: f32 = 0.5;
+const WOOD_CHARCOAL_YIELD: f32 = 0.5;
+const POTTERY_STORAGE_CAPACITY_FRACTION: f32 = 0.2;
+const INITIAL_SITE_POLICY: [f32; 4] = [0.15, 0.85, 0.25, 1.];
+const FOUNDER_MONEY: f32 = 10000.;
+const FOUNDER_CROP_SEED_KG: f32 = 2.;
+const FOUNDER_TOOLS_KG: f32 = 60.;
+const RESIDUE_RELATIVE_TOLERANCE: f32 = 1e-5;
+const ASSET_MATERIAL_TOLERANCE_KG: f32 = 0.001;
+const MIN_PRICE_MONEY_PER_KG: f32 = 0.0001;
+const MIN_PURCHASE_DENOMINATOR_MONEY: f32 = 0.0001;
+const QUOTE_SCARCITY_RESPONSE: f32 = 0.8;
+const QUOTE_DESIRED_WEIGHT: f32 = 0.7;
+const QUOTE_DELIVERY_WEIGHT: f32 = 0.3;
+const QUOTE_ADJUSTMENT_RATE: f32 = 0.2;
+const MAX_LOG_QUOTE_ADJUSTMENT_PER_MONTH: f32 = 0.15;
+const MAX_CARGO_WEATHER_DELAY_MONTHS: u32 = 6;
+const LEGACY_MARKET_TARGET_FOOD_MONTHS: f32 = 6.;
+const LEGACY_MARKET_TOOLS_TARGET_KG_PER_PERSON: f32 = 0.5;
+const LEGACY_MARKET_GOODS_TARGET_KG_PER_PERSON: f32 = 2.;
+const LEGACY_QUOTE_STOCK_BUFFER_FRACTION: f32 = 0.25;
+const MIN_LEGACY_QUOTE_MULTIPLIER: f32 = 0.4;
+const MAX_LEGACY_QUOTE_MULTIPLIER: f32 = 4.;
+const MIN_REMAINING_CONTRACT_KG: f32 = 0.001;
+const EXPORT_LOCAL_RESERVE_FRACTION: f32 = 0.75;
+const SUPPLIER_DISTANCE_PRICE_SCALE_KM: f32 = 1500.;
+const MAX_PURCHASE_KG_PER_PERSON: f32 = 5.;
+const MIN_MARKET_SHIPMENT_KG: f32 = 1.;
+pub(crate) const WOOD_CNP: [f64; 3] = [0.5, 0.002, 0.0002];
+
 pub(crate) const DEFAULT_WEATHER_REGIME_MONTHS: u32 = 48;
 pub(crate) const CIVILIAN_RESERVE_KG_PER_PERSON_MONTH: f32 = 18.0;
 
@@ -50,8 +97,8 @@ impl Default for HistoryWeather {
             drought_probability: 0.,
             drought_severity: 0.,
             regime_months: DEFAULT_WEATHER_REGIME_MONTHS,
-            storm_probability: 0.04,
-            storm_multiplier: 3.,
+            storm_probability: DEFAULT_STORM_PROBABILITY,
+            storm_multiplier: DEFAULT_STORM_MULTIPLIER,
         }
     }
 }
@@ -72,9 +119,9 @@ impl Default for MarketSettings {
         Self {
             adaptive_prices: false,
             network_trade: false,
-            max_distance_km: 1500.,
-            reserve_per_person: [3.; GOODS],
-            food_reserve_months: 12.,
+            max_distance_km: DEFAULT_MAX_MARKET_DISTANCE_KM,
+            reserve_per_person: [DEFAULT_GOODS_RESERVE_KG_PER_PERSON; GOODS],
+            food_reserve_months: DEFAULT_FOOD_RESERVE_MONTHS,
         }
     }
 }
@@ -99,7 +146,11 @@ impl EconomyCatalog {
         self.goods
             .get(good)
             .and_then(|g| g.delay_spoilage)
-            .unwrap_or(if good == FOOD { 0.2 } else { 0. })
+            .unwrap_or(if good == FOOD {
+                LEGACY_FOOD_DELAY_SPOILAGE
+            } else {
+                0.
+            })
     }
 
     pub fn index(&self, id: &str) -> Option<usize> {
@@ -112,7 +163,7 @@ impl EconomyCatalog {
     pub fn composition(&self, index: usize) -> [f32; 3] {
         if self.version == 1 {
             return match index {
-                0 => [0.5, 0.002, 0.0002],
+                0 => WOOD_CNP.map(|v| v as f32),
                 6 => [1., 0., 0.],
                 _ => [0.; 3],
             };
@@ -165,36 +216,40 @@ impl EconomyCatalog {
             "invalid waterworks target fraction"
         );
         ensure!(
-            (0.25..=2.).contains(&self.production.initial_housing_per_person),
+            ALLOWED_INITIAL_HOUSING_PER_PERSON
+                .contains(&self.production.initial_housing_per_person),
             "invalid initial housing allowance"
         );
         ensure!(
             (self.version == 1 || self.version == 2)
                 && self.goods.len() <= GOODS
-                && self.goods.len() >= 8
-                && self.recipes.len() <= 64,
+                && self.goods.len() >= IDS.len()
+                && self.recipes.len() <= MAX_RECIPES,
             "invalid economy catalog version/count"
         );
         ensure!(
             self.market.max_distance_km.is_finite()
-                && (1. ..=10000.).contains(&self.market.max_distance_km)
+                && ALLOWED_MARKET_DISTANCE_KM.contains(&self.market.max_distance_km)
                 && self.market.reserve_per_person[..self.goods.len()]
                     .iter()
-                    .all(|v| v.is_finite() && (0. ..=100.).contains(v))
-                && (6. ..=36.).contains(&self.market.food_reserve_months),
+                    .all(|v| v.is_finite() && ALLOWED_MARKET_RESERVE_KG_PER_PERSON.contains(v))
+                && ALLOWED_FOOD_RESERVE_MONTHS.contains(&self.market.food_reserve_months),
             "invalid market reserves or range"
         );
         ensure!(
             (0. ..=1.).contains(&self.weather.drought_probability)
                 && (0. ..=1.).contains(&self.weather.drought_severity)
-                && (12..=120).contains(&self.weather.regime_months)
+                && ALLOWED_WEATHER_REGIME_MONTHS.contains(&self.weather.regime_months)
                 && (0. ..=1.).contains(&self.weather.storm_probability)
-                && (1. ..=8.).contains(&self.weather.storm_multiplier),
+                && ALLOWED_STORM_MULTIPLIER.contains(&self.weather.storm_multiplier),
             "invalid historical weather settings"
         );
         for (g, id) in self.goods.iter().zip(IDS) {
             ensure!(
-                g.id == id && g.base_price.is_finite() && g.base_price > 0. && g.base_price <= 1e6,
+                g.id == id
+                    && g.base_price.is_finite()
+                    && g.base_price > 0.
+                    && g.base_price <= MAX_PRICE_MONEY_PER_KG,
                 "invalid good ID or price"
             );
         }
@@ -203,8 +258,9 @@ impl EconomyCatalog {
         }
         ensure!(
             (0. ..=1.).contains(&self.production.contract_margin)
-                && (1. ..=10000.).contains(&self.production.storage_kg_per_person)
-                && (1. ..=1000.).contains(&self.production.land_freight_kg_per_person),
+                && ALLOWED_STORAGE_KG_PER_PERSON.contains(&self.production.storage_kg_per_person)
+                && ALLOWED_LAND_FREIGHT_KG_PER_PERSON
+                    .contains(&self.production.land_freight_kg_per_person),
             "invalid production capacity"
         );
         let mut ids = std::collections::BTreeSet::new();
@@ -283,7 +339,7 @@ impl EconomyCatalog {
                     + iron_content(&r.output)
                     <= variant_content(&r.input, "metal")
                         + iron_content(&r.input)
-                        + r.input[1] * 0.5
+                        + r.input[1] * LEGACY_ORE_METAL_FRACTION
                         + r.input[2]
                         + r.input[3]
                         + r.input[22]
@@ -305,7 +361,7 @@ impl EconomyCatalog {
                         .sum()
                 };
                 ensure!(
-                    sum(&r.output) <= sum(&r.input) + 1e-6,
+                    sum(&r.output) <= sum(&r.input) + RECIPE_BALANCE_TOLERANCE_KG,
                     "recipe creates copper or tin"
                 );
             }
@@ -324,7 +380,7 @@ impl EconomyCatalog {
                 .map(|(i, _)| r.output[i])
                 .sum();
             ensure!(
-                r.work[3] <= (dry_input - dry_output).max(0.) + 1e-6,
+                r.work[3] <= (dry_input - dry_output).max(0.) + RECIPE_BALANCE_TOLERANCE_KG,
                 "residue exceeds inorganic processing loss"
             );
             for k in 0..3 {
@@ -334,14 +390,17 @@ impl EconomyCatalog {
                 let output: f32 = (0..GOODS)
                     .map(|g| r.output[g] * self.composition(g)[k])
                     .sum();
-                ensure!(output <= input + 1e-6, "recipe creates C/N/P");
+                ensure!(
+                    output <= input + RECIPE_BALANCE_TOLERANCE_KG,
+                    "recipe creates C/N/P"
+                );
             }
             // Only wood/charcoal carry ecological carbon. Nutrients in burned wood return to compost.
             ensure!(
                 r.output[0] == 0.
                     && r.output[1] == 0.
                     && r.output[4] == 0.
-                    && r.output[6] <= r.input[0] * 0.5 + r.input[6],
+                    && r.output[6] <= r.input[0] * WOOD_CHARCOAL_YIELD + r.input[6],
                 "recipe creates primary resources or carbon"
             );
         }
@@ -533,7 +592,7 @@ impl Economy {
                     .filter(|v| v.role == "container")
                     .map(|v| self.goods[v.slot] * v.service)
                     .sum::<f32>())
-            .min(self.storage_capacity() * 0.2)
+            .min(self.storage_capacity() * POTTERY_STORAGE_CAPACITY_FRACTION)
         })
     }
     pub fn storage_capacity(&self) -> f32 {
@@ -558,10 +617,10 @@ impl Economy {
                 (grid::solid_angle(id, m) * (g.config.radius_km as f64 * 1000.).powi(2)) as f32,
                 0.,
             ],
-            policy: [0.15, 0.85, 0.25, 1.],
+            policy: INITIAL_SITE_POLICY,
             finance: [
-                if founder { 10000. } else { 0. },
-                if founder { 10000. } else { 0. },
+                if founder { FOUNDER_MONEY } else { 0. },
+                if founder { FOUNDER_MONEY } else { 0. },
                 0.,
                 0.,
             ],
@@ -574,7 +633,7 @@ impl Economy {
             for (i, fraction) in fractions.into_iter().enumerate() {
                 e.crops[i][0] = fraction;
                 if founder {
-                    e.crops[i][2] = 2.;
+                    e.crops[i][2] = FOUNDER_CROP_SEED_KG;
                 }
             }
             if founder {
@@ -596,12 +655,13 @@ impl Economy {
                         )[k]
                     })
                     .sum::<f32>()
-                    + e.herds.iter().map(|a| a[0]).sum::<f32>() * [0.25, 0.04, 0.003][k];
+                    + e.herds.iter().map(|a| a[0]).sum::<f32>()
+                        * crate::agriculture::LIVESTOCK_CNP[k] as f32;
             }
         }
         if founder {
-            e.goods[3] = 60.;
-            e.initial[3] = 60.;
+            e.goods[3] = FOUNDER_TOOLS_KG;
+            e.initial[3] = FOUNDER_TOOLS_KG;
         }
         for (i, good) in catalog.goods.iter().enumerate() {
             e.prices[i] = good.base_price;
@@ -623,7 +683,8 @@ impl Economy {
             && (0. ..=1.).contains(&self.fishery_traps[3])
             && (0. ..=1.).contains(&self.fishery[3])
             && (0. ..=1.).contains(&self.fishery_stats[3])
-            && (0. ..=0.25).contains(&self.fishery_config[0])
+            && (0. ..=*crate::agriculture::ALLOWED_FISHERY_WORKER_SHARE.end())
+                .contains(&self.fishery_config[0])
             && (0. ..=1.).contains(&self.tool_craft[0])
             && self
                 .tool_craft
@@ -632,15 +693,16 @@ impl Economy {
                 .chain(&self.tool_orders)
                 .all(|v| *v >= 0.)
             && self.residue.iter().all(|v| *v >= 0.)
-            && (self.residue[0] - self.residue[1]).abs() <= 1e-5 * self.residue[1].max(1.)
-            && self.residue[0] <= self.residue[2] + 0.001
+            && (self.residue[0] - self.residue[1]).abs()
+                <= RESIDUE_RELATIVE_TOLERANCE * self.residue[1].max(1.)
+            && self.residue[0] <= self.residue[2] + ASSET_MATERIAL_TOLERANCE_KG
             && (0. ..=1.).contains(&self.waterworks_plan[3])
             && (0. ..=1.).contains(&self.water_service[1])
             && self.workshop_types.iter().map(|t| t[0]).sum::<f32>()
                 <= (self.workshop[0] / crate::production::WORKSHOP_WOOD_KG_PER_UNIT)
                     .min(self.workshop[1] / crate::production::WORKSHOP_BRICKS_KG_PER_UNIT)
                     .min(self.workshop[2] / crate::production::WORKSHOP_TOOLS_KG_PER_UNIT)
-                    + 0.001
+                    + ASSET_MATERIAL_TOLERANCE_KG
             && self
                 .goods
                 .iter()
@@ -739,7 +801,8 @@ fn adaptive_quote(
     };
     let shortage = (target - stock).max(0.);
     let funded = if shortage > 0. {
-        (purchasing_capacity / (shortage * previous).max(0.0001)).clamp(0., 1.)
+        (purchasing_capacity / (shortage * previous).max(MIN_PURCHASE_DENOMINATOR_MONEY))
+            .clamp(0., 1.)
     } else {
         1.
     };
@@ -750,13 +813,19 @@ fn adaptive_quote(
     let anchor = cost
         .filter(|v| v.is_finite() && *v > 0.)
         .unwrap_or(reference)
-        .max(0.0001);
-    let desired = anchor * (0.8 * demand).exp();
+        .max(MIN_PRICE_MONEY_PER_KG);
+    let desired = anchor * (QUOTE_SCARCITY_RESPONSE * demand).exp();
     let evidence = delivered
         .filter(|v| v.is_finite() && *v > 0.)
-        .map_or(desired.ln(), |v| 0.7 * desired.ln() + 0.3 * v.ln());
-    let adjustment = (0.2 * (evidence - previous.max(0.0001).ln())).clamp(-0.15, 0.15);
-    (previous * adjustment.exp()).clamp(0.0001, 1e6)
+        .map_or(desired.ln(), |v| {
+            QUOTE_DESIRED_WEIGHT * desired.ln() + QUOTE_DELIVERY_WEIGHT * v.ln()
+        });
+    let adjustment =
+        (QUOTE_ADJUSTMENT_RATE * (evidence - previous.max(MIN_PRICE_MONEY_PER_KG).ln())).clamp(
+            -MAX_LOG_QUOTE_ADJUSTMENT_PER_MONTH,
+            MAX_LOG_QUOTE_ADJUSTMENT_PER_MONTH,
+        );
+    (previous * adjustment.exp()).clamp(MIN_PRICE_MONEY_PER_KG, MAX_PRICE_MONEY_PER_KG)
 }
 impl History {
     pub fn economy_residuals(&self) -> [f64; 6] {
@@ -832,7 +901,8 @@ impl History {
                             }))[k] as f64
                     })
                     .sum::<f64>();
-                *held += e.herds.iter().map(|a| a[0] as f64).sum::<f64>() * [0.25, 0.04, 0.003][k];
+                *held += e.herds.iter().map(|a| a[0] as f64).sum::<f64>()
+                    * crate::agriculture::LIVESTOCK_CNP[k];
             }
             held[2] += e.reserves[0] as f64;
             money += e.finance[0] as f64;
@@ -877,7 +947,7 @@ impl History {
                 goods[0] -= e.timber as f64;
                 goods[3] -= e.tools as f64;
                 money += e.purse;
-                for (k, f) in [0.5, 0.002, 0.0002].into_iter().enumerate() {
+                for (k, f) in WOOD_CNP.into_iter().enumerate() {
                     held[k] += e.timber as f64 * f + e.food as f64 * FOOD_CNP[k];
                 }
             }
@@ -887,7 +957,7 @@ impl History {
                 for (k, good) in crate::shipping::MATERIALS.into_iter().enumerate() {
                     goods[good] -= p.assets[k] as f64;
                 }
-                for (k, f) in [0.5, 0.002, 0.0002].into_iter().enumerate() {
+                for (k, f) in WOOD_CNP.into_iter().enumerate() {
                     held[k] += p.assets[0] as f64 * f;
                 }
             }
@@ -1073,12 +1143,14 @@ impl History {
                     self.event("cargo_weather_delay", Some(c.to), Some(c.from), format!("{:.1} kg cargo held by flooded transport access; goods remain in transit; purchase was paid at dispatch", c.kg));
                 }
                 c.weather_delay_months = c.weather_delay_months.saturating_add(1);
-                let rate = self
-                    .economy_catalog
-                    .as_ref()
-                    .map_or(if c.good == FOOD as u32 { 0.2 } else { 0. }, |catalog| {
-                        catalog.delay_spoilage(c.good as usize)
-                    });
+                let rate = self.economy_catalog.as_ref().map_or(
+                    if c.good == FOOD as u32 {
+                        LEGACY_FOOD_DELAY_SPOILAGE
+                    } else {
+                        0.
+                    },
+                    |catalog| catalog.delay_spoilage(c.good as usize),
+                );
                 if rate > 0. && c.kg > 0. {
                     let remaining = (c.kg - c.kg * rate).max(0.);
                     let lost = c.kg - remaining;
@@ -1098,7 +1170,7 @@ impl History {
                         format!("All cargo spoiled after {} delay months; buyer bears {:.1} already-paid cost", c.weather_delay_months, c.paid));
                     continue;
                 }
-                if c.weather_delay_months >= 6 {
+                if c.weather_delay_months >= MAX_CARGO_WEATHER_DELAY_MONTHS {
                     self.lose_cargo(c.from, c.good, c.kg);
                     self.event("cargo_weather_lost", Some(c.to), Some(c.from),
                         format!("Blocked journey terminated after {} delay months; {:.1} kg remaining cargo written off; buyer bears {:.1} already-paid cost", c.weather_delay_months, c.kg, c.paid));
@@ -1207,12 +1279,19 @@ impl History {
                     .map(|(k, _)| {
                         if s.economy.logistics[3] > 0.5 {
                             if k == FOOD {
-                                s.stocks.stock[0] * 18. * 6.
+                                s.stocks.stock[0]
+                                    * CIVILIAN_RESERVE_KG_PER_PERSON_MONTH
+                                    * LEGACY_MARKET_TARGET_FOOD_MONTHS
                             } else {
                                 s.economy.targets[k]
                             }
                         } else {
-                            s.stocks.stock[0] * if k == 3 { 0.5 } else { 2. }
+                            s.stocks.stock[0]
+                                * if k == 3 {
+                                    LEGACY_MARKET_TOOLS_TARGET_KG_PER_PERSON
+                                } else {
+                                    LEGACY_MARKET_GOODS_TARGET_KG_PER_PERSON
+                                }
                         }
                     })
                     .collect()
@@ -1235,7 +1314,7 @@ impl History {
                         } else {
                             s.economy.goods[k]
                         };
-                        (target - stock).max(0.) * s.economy.prices[k].max(0.0001)
+                        (target - stock).max(0.) * s.economy.prices[k].max(MIN_PRICE_MONEY_PER_KG)
                     })
                     .collect()
             })
@@ -1256,13 +1335,13 @@ impl History {
                     };
                     let trade = observed[s.id as usize][k];
                     s.economy.prices[k] = adaptive_quote(
-                        s.economy.prices[k].max(0.0001),
+                        s.economy.prices[k].max(MIN_PRICE_MONEY_PER_KG),
                         stock,
                         target,
                         costs[s.id as usize][k],
                         (trade[1] > 0.).then(|| (trade[0] / trade[1]) as f32),
                         purchasing[s.id as usize] * quote_orders[s.id as usize][k]
-                            / order_total.max(0.0001),
+                            / order_total.max(MIN_PURCHASE_DENOMINATOR_MONEY),
                         good.base_price,
                     );
                     continue;
@@ -1273,9 +1352,9 @@ impl History {
                             s.stocks.stock[1]
                         } else {
                             s.economy.goods[k]
-                        }) + target * 0.25)
+                        }) + target * LEGACY_QUOTE_STOCK_BUFFER_FRACTION)
                             .max(1.))
-                    .clamp(0.4, 4.);
+                    .clamp(MIN_LEGACY_QUOTE_MULTIPLIER, MAX_LEGACY_QUOTE_MULTIPLIER);
             }
         }
         if self.month % 3 != 0 {
@@ -1303,7 +1382,7 @@ impl History {
         let route = |h: &History, a: usize, b: usize| -> Option<f32> {
             if h.sites[a].island != h.sites[b].island {
                 return sea(a, b)
-                    .filter(|(_, lane)| h.sea_capacity(*lane) >= 1.)
+                    .filter(|(_, lane)| h.sea_capacity(*lane) >= MIN_MARKET_SHIPMENT_KG)
                     .map(|(d, _)| d);
             }
             if let Some(distances) = &network {
@@ -1353,11 +1432,15 @@ impl History {
             for (k, good_id) in goods {
                 let pop = self.sites[buyer].stocks.stock[0];
                 let target = if k == FOOD {
-                    pop * 18. * 6.
+                    pop * CIVILIAN_RESERVE_KG_PER_PERSON_MONTH * LEGACY_MARKET_TARGET_FOOD_MONTHS
                 } else if self.sites[buyer].economy.logistics[3] > 0.5 {
                     self.local_production_target(buyer, k)
                 } else {
-                    pop * if k == 3 { 0.5 } else { 2. }
+                    pop * if k == 3 {
+                        LEGACY_MARKET_TOOLS_TARGET_KG_PER_PERSON
+                    } else {
+                        LEGACY_MARKET_GOODS_TARGET_KG_PER_PERSON
+                    }
                 };
                 let stock = if k == FOOD {
                     self.sites[buyer].stocks.stock[1]
@@ -1378,14 +1461,14 @@ impl History {
                         transit
                     })
                 .max(0.);
-                if need < 1. {
+                if need < MIN_MARKET_SHIPMENT_KG {
                     continue;
                 }
                 let contract = self.export_contracts.iter().position(|c| {
                     c.buyer as usize == buyer
                         && c.good as usize == k
                         && c.escrow > 0.
-                        && c.remaining_kg >= 0.001
+                        && c.remaining_kg >= MIN_REMAINING_CONTRACT_KG
                 });
                 let seller = (0..self.sites.len())
                     .filter(|&j| {
@@ -1411,22 +1494,26 @@ impl History {
                         freight[j * site_count + buyer]
                             .as_ref()
                             .is_some_and(|sites| {
-                                sites
-                                    .stops
+                                sites.stops.iter().all(|&site| {
+                                    land_remaining[site as usize] >= MIN_MARKET_SHIPMENT_KG
+                                }) && sites
+                                    .edges
                                     .iter()
-                                    .all(|&site| land_remaining[site as usize] >= 1.)
-                                    && sites.edges.iter().all(|e| road_remaining[e] >= 1.)
+                                    .all(|e| road_remaining[e] >= MIN_MARKET_SHIPMENT_KG)
                             })
                     })
                     .filter(|&j| {
                         let s = &self.sites[j];
                         if k == FOOD {
                             s.stocks.stock[1]
-                                > s.stocks.stock[0] * 18. * catalog.market.food_reserve_months
+                                > s.stocks.stock[0]
+                                    * CIVILIAN_RESERVE_KG_PER_PERSON_MONTH
+                                    * catalog.market.food_reserve_months
                         } else {
                             s.economy.goods[k]
                                 > if s.economy.logistics[3] > 0.5 {
-                                    self.local_production_target(j, k) * 0.75
+                                    self.local_production_target(j, k)
+                                        * EXPORT_LOCAL_RESERVE_FRACTION
                                 } else {
                                     s.stocks.stock[0] * catalog.market.reserve_per_person[k]
                                 }
@@ -1442,7 +1529,8 @@ impl History {
                             // Buyers discount distant supply; payment remains the seller's quote.
                             price
                                 * if catalog.market.network_trade {
-                                    1. + route(self, j, buyer).unwrap_or(f32::INFINITY) / 1500.
+                                    1. + route(self, j, buyer).unwrap_or(f32::INFINITY)
+                                        / SUPPLIER_DISTANCE_PRICE_SCALE_KM
                                 } else {
                                     1.
                                 }
@@ -1470,11 +1558,14 @@ impl History {
                     let s = &self.sites[seller];
                     let surplus = if k == FOOD {
                         s.stocks.stock[1]
-                            - s.stocks.stock[0] * 18. * catalog.market.food_reserve_months
+                            - s.stocks.stock[0]
+                                * CIVILIAN_RESERVE_KG_PER_PERSON_MONTH
+                                * catalog.market.food_reserve_months
                     } else {
                         s.economy.goods[k]
                             - if s.economy.logistics[3] > 0.5 {
-                                self.local_production_target(seller, k) * 0.75
+                                self.local_production_target(seller, k)
+                                    * EXPORT_LOCAL_RESERVE_FRACTION
                             } else {
                                 s.stocks.stock[0] * catalog.market.reserve_per_person[k]
                             }
@@ -1526,9 +1617,9 @@ impl History {
                         .min(space)
                         .min(capacity)
                         .min(surplus)
-                        .min(pop * 5.)
+                        .min(pop * MAX_PURCHASE_KG_PER_PERSON)
                         .min((self.sites[buyer].economy.finance[0] + escrow) / price);
-                    if amount < 1. {
+                    if amount < MIN_MARKET_SHIPMENT_KG {
                         continue;
                     }
                     for &site in &freight_sites.stops {

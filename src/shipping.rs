@@ -13,7 +13,6 @@ const HARBOR_MATERIAL_TOLERANCE_KG: f32 = 0.001;
 const MAX_SEA_LANE_KM: f32 = 20_000.;
 const HARBOR_TOOLS_RESERVE_KG_PER_PERSON: f32 = 0.5;
 const HARBOR_ANNUAL_WEAR_FRACTION: f32 = 0.02;
-const WORN_HARBOR_WOOD_CNP: [f32; 3] = [0.5, 0.002, 0.0002];
 const COMMISSIONING_MATERIAL_FRACTION: f32 = 0.999;
 const HARBOR_DISRUPTION_CAPACITY_KG: f32 = 500.;
 const HARBOR_RECOVERY_CAPACITY_KG: f32 = 800.;
@@ -448,7 +447,11 @@ impl History {
                 p.assets[k] -= wear;
                 s.economy.used[good] += wear;
                 if good == 0 {
-                    for (j, f) in WORN_HARBOR_WOOD_CNP.into_iter().enumerate() {
+                    for (j, f) in crate::economy::WOOD_CNP
+                        .map(|v| v as f32)
+                        .into_iter()
+                        .enumerate()
+                    {
                         s.economy.external[j] -= wear * f;
                     }
                 } else {

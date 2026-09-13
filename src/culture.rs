@@ -13,6 +13,100 @@ pub(crate) mod work_requests;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+const HASH_ID_MULTIPLIER: u32 = 7919;
+const HASH_MONTH_MULTIPLIER: u32 = 104729;
+const HASH_STREAM_MULTIPLIER: u32 = 0x9e3779b9;
+const HASH_FIRST_MULTIPLIER: u32 = 0x7feb352d;
+const HASH_SECOND_MULTIPLIER: u32 = 0x846ca68b;
+const DEFAULT_ANIMAL_SERVICE_MONTHS: u32 = 84;
+const DEFAULT_INTELLIGENT_SERVICE_MONTHS: u32 = 36;
+const DEFAULT_SERVICE_VARIANCE: [f32; 2] = [0.85, 1.15];
+const MAX_PATRON_SERVICE_MONTHS: u32 = 1200;
+const SERVICE_VARIANCE_RANGE: std::ops::RangeInclusive<f32> = 0.1..=3.;
+const MAX_PATRON_ARCHETYPES: usize = 64;
+const PATRON_PROVISION_TOLERANCE_KG: f64 = 1e-6;
+const INITIAL_AGENT_SKILL: f32 = 0.1;
+const TRAIT_STREAM: u32 = 200;
+const PATRON_ARCHETYPE_STREAM: u32 = 100;
+const PATRON_VARIANCE_STREAM: u32 = 101;
+const FOUNDING_THEME_STREAM: u32 = 110;
+const PATRON_THEME_BIAS_STREAM: u32 = 115;
+const PILGRIMAGE_STREAM: u32 = 990;
+const ACTOR_SELECTION_STREAM: u32 = 992;
+const OFFICE_CAMPAIGN_STREAM: u32 = 993;
+const MASTERPIECE_STREAM: u32 = 994;
+const THEFT_STREAM: u32 = 600;
+const PATRON_WETLAND_RAINFALL_MM: f32 = 2000.;
+const PATRON_ORIGIN_HEIGHT_M: f32 = 4000.;
+const PATRON_ORIGIN_HABITAT_DISTANCE_BONUS: f32 = 0.15;
+const PATRON_THEME_BIAS_CHANCE: f32 = 0.35;
+const PATRON_RATION_KG_PER_MONTH: f64 = 2.;
+const PATRON_BASE_EFFORT: f32 = 0.25;
+const PATRON_EFFORT_SHARE: f32 = 0.25;
+const PATRON_BRICK_BATCHES_PER_EFFORT: f32 = 4.;
+const PATRON_BRICK_CLAY_KG_PER_BATCH: f32 = 2.;
+const PATRON_BRICKS_KG_PER_BATCH: f32 = 2.;
+const PATRON_BRICK_FUEL_KG_PER_BATCH: f32 = 0.2;
+const PATRON_CRAFT_SKILL_GAIN: f32 = 0.005;
+const PATRON_SCOUT_SKILL_GAIN: f32 = 0.01;
+const PATRON_SURVEY_INTERVAL_MONTHS: u32 = 6;
+const PATRON_PROTECTION_PER_EFFORT: f32 = 0.1;
+const MIN_ACTION_WORKER_MONTHS: f32 = 0.1;
+const PILGRIMAGE_MIN_PIETY: f32 = 0.7;
+const PILGRIMAGE_CHANCE: f32 = 0.12;
+const CURATION_MIN_CURIOSITY: f32 = 0.6;
+const CURATION_WORKER_MONTHS: f64 = 0.1;
+const LESSON_WORKER_MONTHS: f32 = 0.1;
+const TEACHING_RELATIONSHIP: f32 = 0.5;
+const OFFICE_CAMPAIGN_MIN_AMBITION: f32 = 0.75;
+const OFFICE_CAMPAIGN_CHANCE: f32 = 0.08;
+const OFFICE_CAMPAIGN_WORKER_MONTHS: f32 = 0.1;
+const OFFICE_CAMPAIGN_MIN_CASH: f32 = 202.;
+const OFFICE_CAMPAIGN_FEE_MONEY: f64 = 2.;
+const OFFICE_CAMPAIGN_SKILL_GAIN: f32 = 0.02;
+const RELIGIOUS_FOUNDER_MIN_PIETY: f32 = 0.65;
+const SCHOLARLY_FOUNDER_MIN_CURIOSITY: f32 = 0.6;
+const MERCHANT_FOUNDER_MIN_AMBITION: f32 = 0.5;
+const INSTITUTION_FOUNDING_CASH_SHARE: f64 = 0.15;
+const INSTITUTION_MIN_FOUNDING_MEMBERS: usize = 2;
+const INSTITUTION_MIN_FOUNDING_CASH: f32 = 500.;
+const INSTITUTION_STARTUP_TRANSFER_MONEY: f64 = 25.;
+const CHARITY_MIN_GENEROSITY: f32 = 0.6;
+const CHARITY_MIN_SHORTAGE: f32 = 0.01;
+const CHARITY_WORKER_MONTHS: f32 = 0.05;
+const CHARITY_REQUEST_WORKER_MONTHS: f32 = 0.1;
+const CHARITY_MAX_GIFT_MONEY: f32 = 3.;
+const OBJECT_CRAFT_WORKER_MONTHS: f32 = 0.2;
+const MAX_SITE_CRAFTED_OBJECTS: usize = 16;
+const MANUSCRIPT_MIN_CURIOSITY: f32 = 0.6;
+const CRAFTED_POTTERY_OBJECT_KG: f32 = 1.;
+const FOUNDING_KEEPSAKE_KG: f32 = 1.;
+const MANUSCRIPT_WRITING_KG: f32 = 0.2;
+const MASTERPIECE_MIN_CRAFT_SKILL: f32 = 0.35;
+const MASTERPIECE_CHANCE: f32 = 0.15;
+const OBJECT_CRAFT_SKILL_GAIN: f32 = 0.02;
+const THEFT_MIN_AMBITION: f32 = 0.8;
+const THEFT_MAX_LOYALTY: f32 = 0.3;
+const THEFT_CHANCE: f32 = 0.05;
+const DISPUTE_WORKER_MONTHS: f32 = 0.1;
+const QUARTERLY_ADMIN_SKILL_GAIN: f32 = 0.001;
+const PILGRIMAGE_SPEED_KM_PER_DAY: f32 = 40.;
+const PILGRIMAGE_SPEED_KM_PER_MONTH: f32 = PILGRIMAGE_SPEED_KM_PER_DAY * 30.;
+const PILGRIMAGE_RATION_KG_PER_WORKER_MONTH: f32 = 18.;
+const PILGRIMAGE_RESERVE_MONTHS: f32 = 3.;
+const PILGRIMAGE_RESERVE_KG_PER_PERSON: f32 =
+    PILGRIMAGE_RATION_KG_PER_WORKER_MONTH * PILGRIMAGE_RESERVE_MONTHS;
+const RITUAL_POTTERY_KG: f32 = 0.1;
+const CURATION_MIN_SAMPLE_KG: f64 = 2.;
+const DEPARTURE_ACCOUNT_INTERVAL_MONTHS: u32 = 120;
+const MAX_INSTITUTION_MEMBERS: usize = 24;
+const CONTACT_MEMORY_MONTHS: u32 = 12;
+const MIN_CONTACT_YEARS: u32 = 5;
+const CONTACT_TOPIC_PROGRESS: f32 = 0.025;
+const CULTURAL_ACCOUNT_INTERVAL_MONTHS: u32 = 240;
+const PATRON_ORIGIN_EVIDENCE_DISTANCE: f32 = 0.15;
+const SERVICE_RECEIPT_WORKER_MONTHS: f32 = 0.1;
+
 pub(crate) const MAX_ACTION_WORKER_MONTHS: f32 = 0.5;
 
 pub const TOPICS: [&str; 12] = [
@@ -40,10 +134,12 @@ pub const THEMES: [&str; 8] = [
     "independence",
 ];
 fn unit(seed: u32, id: u32, time: u32, stream: u32) -> f32 {
-    let mut x =
-        seed ^ id.wrapping_mul(7919) ^ time.wrapping_mul(104729) ^ stream.wrapping_mul(0x9e3779b9);
-    x = (x ^ (x >> 16)).wrapping_mul(0x7feb352d);
-    x = (x ^ (x >> 15)).wrapping_mul(0x846ca68b);
+    let mut x = seed
+        ^ id.wrapping_mul(HASH_ID_MULTIPLIER)
+        ^ time.wrapping_mul(HASH_MONTH_MULTIPLIER)
+        ^ stream.wrapping_mul(HASH_STREAM_MULTIPLIER);
+    x = (x ^ (x >> 16)).wrapping_mul(HASH_FIRST_MULTIPLIER);
+    x = (x ^ (x >> 15)).wrapping_mul(HASH_SECOND_MULTIPLIER);
     ((x ^ (x >> 16)) >> 8) as f32 / 16777216.
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -56,9 +152,9 @@ pub struct FoundingOptions {
 impl Default for FoundingOptions {
     fn default() -> Self {
         Self {
-            animal_months: 84,
-            intelligent_months: 36,
-            variance: [0.85, 1.15],
+            animal_months: DEFAULT_ANIMAL_SERVICE_MONTHS,
+            intelligent_months: DEFAULT_INTELLIGENT_SERVICE_MONTHS,
+            variance: DEFAULT_SERVICE_VARIANCE,
             aid_enabled: true,
         }
     }
@@ -66,12 +162,12 @@ impl Default for FoundingOptions {
 impl FoundingOptions {
     pub fn validate(&self) -> Result<()> {
         ensure!(
-            (1..=1200).contains(&self.animal_months)
-                && (1..=1200).contains(&self.intelligent_months)
+            (1..=MAX_PATRON_SERVICE_MONTHS).contains(&self.animal_months)
+                && (1..=MAX_PATRON_SERVICE_MONTHS).contains(&self.intelligent_months)
                 && self
                     .variance
                     .iter()
-                    .all(|v| v.is_finite() && (0.1..=3.).contains(v))
+                    .all(|v| v.is_finite() && SERVICE_VARIANCE_RANGE.contains(v))
                 && self.variance[0] <= self.variance[1],
             "invalid founding options"
         );
@@ -114,7 +210,9 @@ impl PatronCatalog {
     }
     pub fn validate(&self) -> Result<()> {
         ensure!(
-            self.version == 1 && !self.patrons.is_empty() && self.patrons.len() <= 64,
+            self.version == 1
+                && !self.patrons.is_empty()
+                && self.patrons.len() <= MAX_PATRON_ARCHETYPES,
             "invalid patron catalog"
         );
         let mut ids = BTreeSet::new();
@@ -125,8 +223,8 @@ impl PatronCatalog {
                     && matches!(p.kind.as_str(), "animal" | "intelligent")
                     && p.aid_strength.is_finite()
                     && (0. ..=1.).contains(&p.aid_strength)
-                    && p.teaching < 12
-                    && p.theme < 8
+                    && p.teaching < TOPICS.len() as u32
+                    && p.theme < THEMES.len() as u32
                     && matches!(
                         p.habitat.as_str(),
                         "lake" | "wetland" | "forest" | "volcanic" | "coast"
@@ -401,7 +499,7 @@ impl Culture {
                         .iter()
                         .all(|v| v.is_finite() && *v >= 0.)
                     && (p.imported_kg - p.provisions_kg - p.consumed_kg - p.returned_kg).abs()
-                        < 1e-6
+                        < PATRON_PROVISION_TOLERANCE_KG
                     && p.departed
                         .is_none_or(|m| m == p.departure_month && m <= h.month)
                     && (h.month < p.departure_month || p.departed.is_some()),
@@ -418,7 +516,7 @@ impl Culture {
                     && t.founded <= h.month
                     && t.parent.is_none_or(|id| id < t.id)
                     && t.patron.is_none_or(|id| (id as usize) < self.patrons.len())
-                    && t.themes.iter().all(|&x| x < 8)
+                    && t.themes.iter().all(|&x| x < THEMES.len() as u32)
                     && (t.sacred_site as usize) < h.sites.len()
                     && (t.leader as usize) < h.people.len()
                     && t.dissent.is_finite(),
@@ -439,19 +537,21 @@ impl Culture {
                         .iter()
                         .chain(&a.skills)
                         .all(|v| v.is_finite() && (0. ..=1.).contains(v))
-                    && a.knowledge.iter().all(|&k| k < 12)
+                    && a.knowledge.iter().all(|&k| k < TOPICS.len() as u32)
                     && a.knowledge_sources
                         .iter()
                         .all(|(k, event)| a.knowledge.contains(k)
                             && (*event as usize) < h.events.len())
                     && a.instruction_work.is_finite()
                     && a.instruction_work >= 0.
-                    && a.studies.iter().all(|(&topic, study)| topic < 12
-                        && study.progress.is_finite()
-                        && (0. ..=1.).contains(&study.progress)
-                        && study
-                            .source
-                            .is_none_or(|event| (event as usize) < h.events.len()))
+                    && a.studies
+                        .iter()
+                        .all(|(&topic, study)| topic < TOPICS.len() as u32
+                            && study.progress.is_finite()
+                            && (0. ..=1.).contains(&study.progress)
+                            && study
+                                .source
+                                .is_none_or(|event| (event as usize) < h.events.len()))
                     && a.last_campaign.is_none_or(|event| h
                         .events
                         .get(event as usize)
@@ -622,14 +722,14 @@ impl Culture {
     fn sync(&mut self, h: &History) {
         while self.agents.len() < h.people.len() {
             let p = &h.people[self.agents.len()];
-            let traits = std::array::from_fn(|k| unit(h.seed, p.id, 0, 200 + k as u32));
+            let traits = std::array::from_fn(|k| unit(h.seed, p.id, 0, TRAIT_STREAM + k as u32));
             let occupation = ["farmer", "navigator", "craftworker", "teacher"]
                 [((traits[3] * 4.) as usize).min(3)]
             .into();
             self.agents.push(Agent {
                 person: p.id,
                 traits,
-                skills: [0.1; 4],
+                skills: [INITIAL_AGENT_SKILL; 4],
                 occupation,
                 goal: "secure household livelihood".into(),
                 // The declared baseline carries survival practices. Later-born people
@@ -742,8 +842,9 @@ impl History {
                     for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
                         let j = grid::neighbor(id, n, dx, dy) as usize;
                         if cells[j].meta[0] == 1
-                            && cells[j].water[0] > 0.25
-                            && cells[id as usize].water[0] < 0.25
+                            && cells[j].water[0] > crate::hazards::MIN_NAVIGABLE_WATER_DEPTH_M
+                            && cells[id as usize].water[0]
+                                < crate::hazards::MIN_NAVIGABLE_WATER_DEPTH_M
                         {
                             coast.push(id);
                         }
@@ -762,7 +863,9 @@ impl History {
         let outer: Vec<u32> = cells
             .iter()
             .enumerate()
-            .filter(|(_, v)| v.meta[0] == 3 && v.water[0] < 0.25)
+            .filter(|(_, v)| {
+                v.meta[0] == 3 && v.water[0] < crate::hazards::MIN_NAVIGABLE_WATER_DEPTH_M
+            })
             .map(|(i, _)| i as u32)
             .collect();
         ensure!(!outer.is_empty(), "no Ancient World patron origin");
@@ -781,7 +884,8 @@ impl History {
                         .total_cmp(&crate::civilization::distance(b, site.cell, n))
                 })
                 .unwrap();
-            let ai = (unit(self.seed, i as u32, 0, 100) * c.catalog.patrons.len() as f32) as usize;
+            let ai = (unit(self.seed, i as u32, 0, PATRON_ARCHETYPE_STREAM)
+                * c.catalog.patrons.len() as f32) as usize;
             let a = &c.catalog.patrons[ai];
             let origin = *outer
                 .iter()
@@ -791,17 +895,18 @@ impl History {
                         let suitability = match a.habitat.as_str() {
                             "volcanic" => v.geology[0].abs().min(1.),
                             "forest" => v.life[0],
-                            "wetland" => (v.climate[1] / 2000.).clamp(0., 1.),
-                            _ => 1. - (v.terrain[0] / 4000.).clamp(0., 1.),
+                            "wetland" => (v.climate[1] / PATRON_WETLAND_RAINFALL_MM).clamp(0., 1.),
+                            _ => 1. - (v.terrain[0] / PATRON_ORIGIN_HEIGHT_M).clamp(0., 1.),
                         };
-                        crate::civilization::distance(id, landing, n) - suitability * 0.15
+                        crate::civilization::distance(id, landing, n)
+                            - suitability * PATRON_ORIGIN_HABITAT_DISTANCE_BONUS
                     };
                     score(a_id).total_cmp(&score(b_id))
                 })
                 .unwrap();
             let leader = self.civilizations[i].leader;
             let variance = c.options.variance[0]
-                + unit(self.seed, i as u32, 0, 101)
+                + unit(self.seed, i as u32, 0, PATRON_VARIANCE_STREAM)
                     * (c.options.variance[1] - c.options.variance[0]);
             let duration = c
                 .options
@@ -828,9 +933,11 @@ impl History {
                 ("person".into(), leader),
                 ("tradition".into(), i as u32),
             ];
-            let mut themes =
-                std::array::from_fn(|k| (unit(self.seed, i as u32, 0, 110 + k as u32) * 8.) as u32);
-            if unit(self.seed, i as u32, 0, 115) < 0.35 {
+            let mut themes = std::array::from_fn(|k| {
+                (unit(self.seed, i as u32, 0, FOUNDING_THEME_STREAM + k as u32)
+                    * THEMES.len() as f32) as u32
+            });
+            if unit(self.seed, i as u32, 0, PATRON_THEME_BIAS_STREAM) < PATRON_THEME_BIAS_CHANCE {
                 themes[3] = a.theme;
             }
             c.traditions.push(Tradition {
@@ -853,7 +960,7 @@ impl History {
                 leader,
             });
             c.site_faith.push(i as u32);
-            let provisions = duration as f64 * 2.;
+            let provisions = duration as f64 * PATRON_RATION_KG_PER_MONTH;
             c.patrons.push(Patron {
                 id: i as u32,
                 archetype: ai as u32,
@@ -878,7 +985,7 @@ impl History {
             });
             c.account(self,i as u32,Some(leader),vec![ev],format!("The founding witnesses remember {patron_name} as a guardian; its mandate is interpreted through {} and {}.",THEMES[themes[0]as usize],THEMES[themes[1]as usize]));
             // A finite ceramic keepsake is explicitly imported, never duplicated in town stores.
-            self.sites[i].economy.initial[7] += 1.;
+            self.sites[i].economy.initial[7] += FOUNDING_KEEPSAKE_KG;
             let ae=c.log(self,"founding_keepsake",sid,Some(leader),Some(i as u32),Some(c.artifacts.len()as u32),Some(ev),"A ceramic voyage token was entrusted to the founding community; one kg declared arrival import".into());
             c.artifacts.push(Artifact {
                 id: c.artifacts.len() as u32,
@@ -897,7 +1004,7 @@ impl History {
                 claims: vec![],
                 site: Some(sid),
                 custodian: Some(leader),
-                materials: vec![(7, 1.)],
+                materials: vec![(7, FOUNDING_KEEPSAKE_KG)],
                 topic: None,
                 tradition: Some(i as u32),
                 events: vec![ae],
@@ -920,41 +1027,44 @@ impl History {
             }
             let witness = c.site_people(self, c.patrons[pi].site).first().copied();
             let p = &mut c.patrons[pi];
-            let eaten = p.provisions_kg.min(2.);
+            let eaten = p.provisions_kg.min(PATRON_RATION_KG_PER_MONTH);
             p.provisions_kg -= eaten;
             p.consumed_kg += eaten;
             if !c.options.aid_enabled || self.sites[p.site as usize].abandoned {
                 continue;
             }
             let a = &c.catalog.patrons[p.archetype as usize];
-            let effort = 0.25 + a.aid_strength;
+            let effort = PATRON_BASE_EFFORT + a.aid_strength;
             for k in 0..4 {
-                p.effort[k] += effort * 0.25;
+                p.effort[k] += effort * PATRON_EFFORT_SHARE;
             }
             // Teaching aids existing people, with no production or nutrient multiplier.
             let s = &mut self.sites[p.site as usize];
-            let bricks = (effort * 0.25 * 4.)
-                .min(s.economy.goods[4] / 2.)
-                .min(s.economy.goods[6] / 0.2);
-            s.economy.goods[4] -= bricks * 2.;
-            s.economy.used[4] += bricks * 2.;
-            s.economy.goods[6] -= bricks * 0.2;
-            s.economy.used[6] += bricks * 0.2;
-            s.economy.external[0] -= bricks * 0.2;
-            s.economy.goods[5] += bricks * 2.;
-            s.economy.made[5] += bricks * 2.;
-            s.economy.reserves[3] += bricks * 0.2;
+            let bricks = (effort * PATRON_EFFORT_SHARE * PATRON_BRICK_BATCHES_PER_EFFORT)
+                .min(s.economy.goods[4] / PATRON_BRICK_CLAY_KG_PER_BATCH)
+                .min(s.economy.goods[6] / PATRON_BRICK_FUEL_KG_PER_BATCH);
+            s.economy.goods[4] -= bricks * PATRON_BRICK_CLAY_KG_PER_BATCH;
+            s.economy.used[4] += bricks * PATRON_BRICK_CLAY_KG_PER_BATCH;
+            s.economy.goods[6] -= bricks * PATRON_BRICK_FUEL_KG_PER_BATCH;
+            s.economy.used[6] += bricks * PATRON_BRICK_FUEL_KG_PER_BATCH;
+            s.economy.external[0] -= bricks * PATRON_BRICK_FUEL_KG_PER_BATCH;
+            s.economy.goods[5] += bricks * PATRON_BRICKS_KG_PER_BATCH;
+            s.economy.made[5] += bricks * PATRON_BRICKS_KG_PER_BATCH;
+            s.economy.reserves[3] += bricks * PATRON_BRICK_FUEL_KG_PER_BATCH;
             let Some(person) = witness.map(|p| p as usize) else {
                 continue;
             };
-            c.agents[person].skills[3] = (c.agents[person].skills[3] + effort * 0.005).min(1.);
-            if self.month % 6 == 0 {
+            c.agents[person].skills[3] =
+                (c.agents[person].skills[3] + effort * PATRON_CRAFT_SKILL_GAIN).min(1.);
+            if self.month % PATRON_SURVEY_INTERVAL_MONTHS == 0 {
                 let site_cell = self.sites[p.site as usize].cell;
                 let offsets = [(-1, 0), (1, 0), (0, -1), (0, 1)];
-                let (dx, dy) = offsets[(self.month as usize / 6) % 4];
+                let (dx, dy) =
+                    offsets[(self.month as usize / PATRON_SURVEY_INTERVAL_MONTHS as usize) % 4];
                 let surveyed = grid::neighbor(site_cell, self.terrain_resolution, dx, dy);
                 c.agents[person].known_places.insert(surveyed);
-                c.agents[person].skills[1] = (c.agents[person].skills[1] + effort * 0.01).min(1.);
+                c.agents[person].skills[1] =
+                    (c.agents[person].skills[1] + effort * PATRON_SCOUT_SKILL_GAIN).min(1.);
                 let learned = c.agents[person].knowledge.insert(a.teaching);
                 if learned {
                     let (site, cause, topic) = (p.site, p.arrival_event, a.teaching);
@@ -1097,7 +1207,8 @@ impl History {
                         && c.options.aid_enabled
                 })
                 .map_or(0., |p| {
-                    (0.25 + c.catalog.patrons[p.archetype as usize].aid_strength) * 0.1
+                    (PATRON_BASE_EFFORT + c.catalog.patrons[p.archetype as usize].aid_strength)
+                        * PATRON_PROTECTION_PER_EFFORT
                 })
         })
     }
@@ -1146,8 +1257,11 @@ impl Culture {
         people.retain(|&p| {
             h.people[p as usize].died.is_none()
                 && !h.person_on_service(p)
-                && h.month as i32 - h.people[p as usize].born >= 180
-                && (h.participation.is_none() || h.month as i32 - h.people[p as usize].born < 720)
+                && h.month as i32 - h.people[p as usize].born
+                    >= crate::population_registry::WORKING_START_AGE_MONTHS
+                && (h.participation.is_none()
+                    || h.month as i32 - h.people[p as usize].born
+                        < crate::population_registry::WORKING_END_AGE_MONTHS)
         });
         people
     }
@@ -1233,7 +1347,12 @@ impl Culture {
                             .cmp(&self.agents[b as usize].knowledge.len())
                     })
                     .then_with(|| {
-                        unit(h.seed, a, h.month, 992).total_cmp(&unit(h.seed, b, h.month, 992))
+                        unit(h.seed, a, h.month, ACTOR_SELECTION_STREAM).total_cmp(&unit(
+                            h.seed,
+                            b,
+                            h.month,
+                            ACTOR_SELECTION_STREAM,
+                        ))
                     })
                     .then(a.cmp(&b))
             })?;
@@ -1382,12 +1501,12 @@ impl Culture {
                 continue;
             };
             let labor = self.labor_budget.get(si).copied().unwrap_or(0.);
-            if labor < 0.1 {
+            if labor < MIN_ACTION_WORKER_MONTHS {
                 continue;
             }
             if self.work_allowed(site, "pilgrimage")
-                && traits[2] > 0.7
-                && unit(h.seed, actor, h.month, 990) < 0.12
+                && traits[2] > PILGRIMAGE_MIN_PIETY
+                && unit(h.seed, actor, h.month, PILGRIMAGE_STREAM) < PILGRIMAGE_CHANCE
                 && self.pilgrimage(h, site, actor, labor)
             {
                 // Travel work is charged by the successful pilgrimage itself.
@@ -1396,16 +1515,26 @@ impl Culture {
             if self.work_allowed(site, "local object recovery")
                 && self.recover_object(h, site, actor)
             {
-                self.labor_spent += 0.1;
-                work_requests::record_work(&mut self.work_plans, site, h.month, 0.1);
+                self.labor_spent += crate::local_places::RECOVERY_WORKER_MONTHS;
+                work_requests::record_work(
+                    &mut self.work_plans,
+                    site,
+                    h.month,
+                    crate::local_places::RECOVERY_WORKER_MONTHS as f32,
+                );
                 continue;
             }
             if self.work_allowed(site, "specimen curation")
-                && traits[3] > 0.6
+                && traits[3] > CURATION_MIN_CURIOSITY
                 && self.curate_specimen(h, site, actor)
             {
-                self.labor_spent += 0.1;
-                work_requests::record_work(&mut self.work_plans, site, h.month, 0.1);
+                self.labor_spent += CURATION_WORKER_MONTHS;
+                work_requests::record_work(
+                    &mut self.work_plans,
+                    site,
+                    h.month,
+                    CURATION_WORKER_MONTHS as f32,
+                );
                 continue;
             }
             let mut remaining_work = labor;
@@ -1470,7 +1599,7 @@ impl Culture {
                 })
             });
             if let Some((topic, object, cause)) = lesson.filter(|_| {
-                remaining_work >= 0.1
+                remaining_work >= LESSON_WORKER_MONTHS
                     && self.work_allowed(site, "study")
                     && institution_lesson.is_none_or(|(topic, teacher, institution)| {
                         self.consume_service_space(
@@ -1485,7 +1614,7 @@ impl Culture {
                         )
                     })
             }) {
-                remaining_work -= 0.1;
+                remaining_work -= LESSON_WORKER_MONTHS;
                 let support = institution_lesson.map_or(0., |(_, teacher, _)| {
                     self.agents[teacher as usize].instruction_support()
                 });
@@ -1511,7 +1640,7 @@ impl Culture {
                     outcome.lesson.actual_acquisition = completed;
                 }
                 if let Some((_, teacher, _)) = institution_lesson {
-                    self.agents[teacher as usize].instruction_work += 0.1;
+                    self.agents[teacher as usize].instruction_work += LESSON_WORKER_MONTHS;
                 }
                 let channel = institution_lesson.map_or_else(
                     || "an accessible document".to_string(),
@@ -1554,13 +1683,13 @@ impl Culture {
                 .get(si)
                 .map_or_else(|| self.succession_lesson(h, site, actor), |p| p.successor);
             if let Some((student, topic, holders)) = successor.filter(|(student, topic, _)| {
-                remaining_work >= 0.1
+                remaining_work >= LESSON_WORKER_MONTHS
                     && self.work_allowed(site, "teach successor")
                     && people.contains(student)
                     && self.agents[actor as usize].knowledge.contains(topic)
                     && !self.agents[*student as usize].knowledge.contains(topic)
             }) {
-                remaining_work -= 0.1;
+                remaining_work -= LESSON_WORKER_MONTHS;
                 let support = self.agents[actor as usize].instruction_support();
                 let before = self.agents[student as usize]
                     .studies
@@ -1577,9 +1706,13 @@ impl Culture {
                     outcome.actual_gain = progress - before;
                     outcome.actual_acquisition = completed;
                 }
-                self.agents[actor as usize].instruction_work += 0.1;
-                self.agents[actor as usize].relations.insert(student, 0.5);
-                self.agents[student as usize].relations.insert(actor, 0.5);
+                self.agents[actor as usize].instruction_work += LESSON_WORKER_MONTHS;
+                self.agents[actor as usize]
+                    .relations
+                    .insert(student, TEACHING_RELATIONSHIP);
+                self.agents[student as usize]
+                    .relations
+                    .insert(actor, TEACHING_RELATIONSHIP);
                 self.agents[actor as usize].goal = "teach a successor".into();
                 self.log(
                         h,
@@ -1610,17 +1743,17 @@ impl Culture {
                 self.agents[student as usize].study_source(topic, event.id, completed);
             }
             if self.work_allowed(site, "office campaign")
-                && remaining_work >= 0.1
-                && traits[0] > 0.75
-                && unit(h.seed, actor, h.month, 993) < 0.08
+                && remaining_work >= OFFICE_CAMPAIGN_WORKER_MONTHS
+                && traits[0] > OFFICE_CAMPAIGN_MIN_AMBITION
+                && unit(h.seed, actor, h.month, OFFICE_CAMPAIGN_STREAM) < OFFICE_CAMPAIGN_CHANCE
                 && self.seek_office(h, site, actor)
             {
-                self.labor_spent += (labor - remaining_work + 0.1) as f64;
+                self.labor_spent += (labor - remaining_work + OFFICE_CAMPAIGN_WORKER_MONTHS) as f64;
                 work_requests::record_work(
                     &mut self.work_plans,
                     site,
                     h.month,
-                    labor - remaining_work + 0.1,
+                    labor - remaining_work + OFFICE_CAMPAIGN_WORKER_MONTHS,
                 );
                 continue;
             }
@@ -1635,7 +1768,7 @@ impl Culture {
                 if !administration
                     || inst.site != site
                     || !inst.active
-                    || remaining_work < 0.05
+                    || remaining_work < crate::institution_funding::ADMINISTRATION_WORKER_MONTHS
                     || h.sites[si].economy.finance[0] <= 0.
                 {
                     continue;
@@ -1643,10 +1776,11 @@ impl Culture {
                 if self.collect_institution_funding(h, site, ni).is_none() {
                     continue;
                 }
-                remaining_work -= 0.05;
+                remaining_work -= crate::institution_funding::ADMINISTRATION_WORKER_MONTHS;
                 let inst = &mut self.institutions[ni];
                 let fee = if inst.capacity.is_none() {
-                    inst.treasury.min(0.5)
+                    inst.treasury
+                        .min(crate::institution_capacity::UPKEEP_FEE_MONEY_PER_QUARTER)
                 } else {
                     0.
                 };
@@ -1656,11 +1790,11 @@ impl Culture {
                 inst.knowledge
                     .extend(self.agents[actor as usize].knowledge.iter().copied());
             }
-            let kind = if traits[2] > 0.65 {
+            let kind = if traits[2] > RELIGIOUS_FOUNDER_MIN_PIETY {
                 InstitutionKind::Religious
-            } else if traits[3] > 0.6 {
+            } else if traits[3] > SCHOLARLY_FOUNDER_MIN_CURIOSITY {
                 InstitutionKind::Scholarly
-            } else if traits[0] > 0.5 {
+            } else if traits[0] > MERCHANT_FOUNDER_MIN_AMBITION {
                 InstitutionKind::Merchant
             } else {
                 InstitutionKind::Craft
@@ -1678,13 +1812,14 @@ impl Culture {
                     catalog,
                     &h.sites[si].economy,
                     crate::facilities::demand(&kind, members.len()),
-                    (h.sites[si].economy.finance[0] as f64 * 0.15).max(0.),
+                    (h.sites[si].economy.finance[0] as f64 * INSTITUTION_FOUNDING_CASH_SHARE)
+                        .max(0.),
                 )
             });
             if self.work_allowed(site, "institution founding")
-                && remaining_work >= 0.2
-                && members.len() >= 2
-                && h.sites[si].economy.finance[0] > 500.
+                && remaining_work >= crate::facilities::FOUNDING_WORK_MONTHS
+                && members.len() >= INSTITUTION_MIN_FOUNDING_MEMBERS
+                && h.sites[si].economy.finance[0] > INSTITUTION_MIN_FOUNDING_CASH
                 && (room.is_some()
                     || (h
                         .economy_catalog
@@ -1699,8 +1834,8 @@ impl Culture {
                         && (kind != InstitutionKind::Religious || n.tradition == Some(faith))
                 })
             {
-                remaining_work -= 0.2;
-                h.sites[si].economy.finance[0] -= 25.;
+                remaining_work -= crate::facilities::FOUNDING_WORK_MONTHS;
+                h.sites[si].economy.finance[0] -= INSTITUTION_STARTUP_TRANSFER_MONEY as f32;
                 let facility = room
                     .map(|room| crate::facilities::Facility::found(room, &mut h.sites[si].economy));
                 if facility.is_none() {
@@ -1760,12 +1895,12 @@ impl Culture {
                     },
                     members,
                     leader: actor,
-                    treasury: 25.,
+                    treasury: INSTITUTION_STARTUP_TRANSFER_MONEY,
                     active: true,
                     founded: h.month,
                     knowledge: self.agents[actor as usize].knowledge.clone(),
                     property: vec![],
-                    dues: 25.,
+                    dues: INSTITUTION_STARTUP_TRANSFER_MONEY,
                     expenses: 0.,
                 });
                 let artifact = self.artifacts.len() as u32;
@@ -1809,7 +1944,10 @@ impl Culture {
                     |f| crate::institution_capacity::MeetingPlace::facility(artifact, f),
                 ));
             }
-            if self.work_allowed(site, "charity") && remaining_work >= 0.05 && traits[1] > 0.6 {
+            if self.work_allowed(site, "charity")
+                && remaining_work >= CHARITY_WORKER_MONTHS
+                && traits[1] > CHARITY_MIN_GENEROSITY
+            {
                 if let Some(dest) = h.society.as_ref().and_then(|s| {
                     s.routes
                         .iter()
@@ -1818,15 +1956,18 @@ impl Culture {
                         .find(|&t| {
                             if s.relocation.witnessed_relief {
                                 s.relocation.appeals.iter().any(|a| {
-                                    a.host == site && a.origin == t && h.month <= a.reported + 18
+                                    a.host == site
+                                        && a.origin == t
+                                        && h.month
+                                            <= a.reported + crate::relief::MAX_APPEAL_AGE_MONTHS
                                 })
                             } else {
-                                h.sites[t as usize].stocks.stock[3] > 0.01
+                                h.sites[t as usize].stocks.stock[3] > CHARITY_MIN_SHORTAGE
                             }
                         })
                 }) {
-                    remaining_work -= 0.05;
-                    let gift = h.sites[si].economy.finance[0].min(3.);
+                    remaining_work -= CHARITY_WORKER_MONTHS;
+                    let gift = h.sites[si].economy.finance[0].min(CHARITY_MAX_GIFT_MONEY);
                     h.sites[si].economy.finance[0] -= gift;
                     h.sites[dest as usize].economy.finance[0] += gift;
                     self.agents[actor as usize].goal = "aid a hungry neighbor".into();
@@ -1846,20 +1987,20 @@ impl Culture {
                 }
             }
             let make = self.work_allowed(site, "craft object or manuscript")
-                && remaining_work >= 0.2
+                && remaining_work >= OBJECT_CRAFT_WORKER_MONTHS
                 && h.month / 3 % 4 == site % 4
-                && h.sites[si].economy.goods[7] >= 1.
+                && h.sites[si].economy.goods[7] >= CRAFTED_POTTERY_OBJECT_KG
                 && self
                     .artifacts
                     .iter()
                     .filter(|a| a.site == Some(site) && !a.destroyed)
                     .count()
-                    < 16;
+                    < MAX_SITE_CRAFTED_OBJECTS;
             if make {
-                remaining_work -= 0.2;
-                let manuscript = traits[3] > 0.6
+                remaining_work -= OBJECT_CRAFT_WORKER_MONTHS;
+                let manuscript = traits[3] > MANUSCRIPT_MIN_CURIOSITY
                     && self.agents[actor as usize].knowledge.contains(&10)
-                    && h.sites[si].economy.goods[21] >= 0.2;
+                    && h.sites[si].economy.goods[21] >= MANUSCRIPT_WRITING_KG;
                 let topic = if manuscript {
                     self.agents[actor as usize]
                         .knowledge
@@ -1882,14 +2023,18 @@ impl Culture {
                 };
                 let kind = if manuscript {
                     "inscribed manuscript"
-                } else if self.agents[actor as usize].skills[3] > 0.35
-                    && unit(h.seed, actor, h.month, 994) < 0.15
+                } else if self.agents[actor as usize].skills[3] > MASTERPIECE_MIN_CRAFT_SKILL
+                    && unit(h.seed, actor, h.month, MASTERPIECE_STREAM) < MASTERPIECE_CHANCE
                 {
                     "crafted masterpiece"
                 } else {
                     "dedicated craftsmanship"
                 };
-                let material = if manuscript { (21, 0.2) } else { (7, 1.) };
+                let material = if manuscript {
+                    (21, MANUSCRIPT_WRITING_KG)
+                } else {
+                    (7, CRAFTED_POTTERY_OBJECT_KG)
+                };
                 h.sites[si].economy.goods[material.0] -= material.1;
                 let id = self.artifacts.len() as u32;
                 let ev = self.log(
@@ -1911,7 +2056,7 @@ impl Culture {
                     ),
                 );
                 self.agents[actor as usize].skills[3] =
-                    (self.agents[actor as usize].skills[3] + 0.02).min(1.);
+                    (self.agents[actor as usize].skills[3] + OBJECT_CRAFT_SKILL_GAIN).min(1.);
                 self.agents[actor as usize].goal = "leave a useful crafted legacy".into();
                 self.artifacts.push(Artifact {
                     id,
@@ -1941,10 +2086,10 @@ impl Culture {
                 });
             }
             if self.work_allowed(site, "ownership dispute")
-                && remaining_work >= 0.1
-                && traits[0] > 0.8
-                && traits[4] < 0.3
-                && unit(h.seed, actor, h.month, 600) < 0.05
+                && remaining_work >= DISPUTE_WORKER_MONTHS
+                && traits[0] > THEFT_MIN_AMBITION
+                && traits[4] < THEFT_MAX_LOYALTY
+                && unit(h.seed, actor, h.month, THEFT_STREAM) < THEFT_CHANCE
             {
                 if let Some(id) = self.artifacts.iter().position(|a| {
                     !a.destroyed && !a.lost && a.site == Some(site) && a.custodian != Some(actor)
@@ -1959,7 +2104,7 @@ impl Culture {
                     a.custodian = Some(actor);
                     a.events.push(ev);
                     self.agents[actor as usize].goal = "possess a prestigious object".into();
-                    remaining_work -= 0.1;
+                    remaining_work -= DISPUTE_WORKER_MONTHS;
                 }
             }
             let used = (labor - remaining_work).max(0.);
@@ -1970,7 +2115,7 @@ impl Culture {
             }
             self.agents[actor as usize].actions += 1;
             self.agents[actor as usize].skills[0] =
-                (self.agents[actor as usize].skills[0] + 0.001).min(1.);
+                (self.agents[actor as usize].skills[0] + QUARTERLY_ADMIN_SKILL_GAIN).min(1.);
         }
     }
     fn commemorations(&mut self, h: &mut History) {
@@ -1984,13 +2129,14 @@ impl Culture {
             }
             let site = self.patrons[pi].site;
             let s = &mut h.sites[site as usize];
-            if s.abandoned || s.economy.goods[7] < 0.1 {
+            if s.abandoned || s.economy.goods[7] < RITUAL_POTTERY_KG {
                 continue;
             }
-            s.economy.goods[7] -= 0.1;
-            s.economy.used[7] += 0.1;
-            s.economy.reserves[3] += 0.1;
-            if (h.month - self.patrons[pi].departure_month) % 120 == 0 {
+            s.economy.goods[7] -= RITUAL_POTTERY_KG;
+            s.economy.used[7] += RITUAL_POTTERY_KG;
+            s.economy.reserves[3] += RITUAL_POTTERY_KG;
+            if (h.month - self.patrons[pi].departure_month) % DEPARTURE_ACCOUNT_INTERVAL_MONTHS == 0
+            {
                 self.log(h,"founding_commemoration",site,None,Some(pi as u32),None,Some(self.patrons[pi].arrival_event),"The community renewed its departure remembrance with a finite ceramic offering".into());
             }
         }
@@ -2018,7 +2164,7 @@ impl Culture {
             let n = &mut self.institutions[i];
             n.members.retain(|&p| h.people[p as usize].died.is_none());
             for &person in &recruits {
-                if n.members.len() < 24 && !n.members.contains(&person) {
+                if n.members.len() < MAX_INSTITUTION_MEMBERS && !n.members.contains(&person) {
                     n.members.push(person);
                 }
             }
@@ -2062,7 +2208,7 @@ impl Culture {
             .events
             .iter()
             .rev()
-            .take_while(|e| e.month > h.month.saturating_sub(12))
+            .take_while(|e| e.month > h.month.saturating_sub(CONTACT_MEMORY_MONTHS))
             .filter(|e| e.kind == "market_arrival")
         {
             if let (Some(from), Some(to)) = (e.other, e.site) {
@@ -2096,7 +2242,7 @@ impl Culture {
             if first_contact {
                 *years += 1;
             }
-            if a != b && *years < 5 {
+            if a != b && *years < MIN_CONTACT_YEARS {
                 continue;
             }
             if !new_learning_boundary {
@@ -2111,8 +2257,8 @@ impl Culture {
                 h.month,
                 |teacher, topic| opening_knowledge[teacher as usize].0.contains(&topic),
             ) {
-                let Some((completed, progress, previous)) =
-                    self.agents[student as usize].observe_topic(topic, h.month, 0.025)
+                let Some((completed, progress, previous)) = self.agents[student as usize]
+                    .observe_topic(topic, h.month, CONTACT_TOPIC_PROGRESS)
                 else {
                     continue;
                 };
@@ -2121,7 +2267,7 @@ impl Culture {
                         && n.site == from
                         && n.active
                         && n.kind == InstitutionKind::Scholarly
-                        && n.members.len() < 24
+                        && n.members.len() < MAX_INSTITUTION_MEMBERS
                         && !n.members.contains(&student)
                     {
                         n.members.push(student);
@@ -2179,7 +2325,7 @@ impl Culture {
                 }
             }
         }
-        if h.month % 240 == 0 {
+        if h.month % CULTURAL_ACCOUNT_INTERVAL_MONTHS == 0 {
             for ti in 0..self.traditions.len() {
                 let t = &self.traditions[ti];
                 let sacred_site = t.sacred_site;
@@ -2251,7 +2397,7 @@ impl Culture {
                     cell,
                     self.patrons[pi].origin,
                     h.terrain_resolution,
-                ) < 0.15
+                ) < PATRON_ORIGIN_EVIDENCE_DISTANCE
                 {
                     let ev=self.log(h,"patron_origin_evidence",site,None,Some(pi as u32),None,Some(cause),format!("Voyage {voyage} returned observations from the homeland associated with {}; no reunion was witnessed",self.patrons[pi].name));
                     self.account(h,pi as u32,None,vec![ev],"Some interpreters see these observations as confirmation of the ancestral voyage; the mandate remains unknown.".into());
@@ -2371,8 +2517,10 @@ impl History {
                     if let Some(plans) = &mut c.work_plans[i].services {
                         for plan in plans {
                             for receipt in &mut plan.receipts {
-                                if receipt.granted > 0. && service_work >= 0.1 {
-                                    service_work -= 0.1;
+                                if receipt.granted > 0.
+                                    && service_work >= SERVICE_RECEIPT_WORKER_MONTHS
+                                {
+                                    service_work -= SERVICE_RECEIPT_WORKER_MONTHS;
                                 } else {
                                     receipt.granted = 0.;
                                 }
@@ -2405,7 +2553,7 @@ impl History {
             let requests = self.culture.as_ref().map(|c| c.work_requests(self, s.id)).unwrap_or_default();
             serde_json::json!({"site":s.id, "month":self.month,
                 "requests":requests.iter().map(|(action,work)| serde_json::json!({"action":action,"worker_months":work})).collect::<Vec<_>>(),
-                "requested_worker_months":requests.iter().map(|r|r.1).sum::<f32>().min(0.5)})
+                "requested_worker_months":requests.iter().map(|r|r.1).sum::<f32>().min(MAX_ACTION_WORKER_MONTHS)})
         }).collect::<Vec<_>>())
     }
     pub fn cultural_summary(&self) -> serde_json::Value {
@@ -2469,7 +2617,12 @@ impl History {
                 patron: None,
                 parent: None,
                 themes: std::array::from_fn(|k| {
-                    (unit(self.seed, civilization.id, 0, 110 + k as u32) * 8.) as u32
+                    (unit(
+                        self.seed,
+                        civilization.id,
+                        0,
+                        FOUNDING_THEME_STREAM + k as u32,
+                    ) * THEMES.len() as f32) as u32
                 }),
                 founded: self.month,
                 sacred_site: site,

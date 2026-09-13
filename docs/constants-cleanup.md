@@ -106,6 +106,12 @@ semantic extraction pass (further shared-policy reconciliation may still apply):
 - `src/household_economy.rs`
 - `src/shipping.rs`
 
+- `src/culture.rs`
+- `src/culture/dynamics.rs`
+- `src/culture/practices.rs`
+- `src/culture/work_requests.rs`
+- `src/economy.rs`
+
 Reviewed without further numeric extraction (geometry/layout arithmetic, static
 content, already named parameters, or independent test fixtures only):
 
@@ -124,7 +130,6 @@ content, already named parameters, or independent test fixtures only):
 These files only received shared-constant substitutions or relocation of existing
 constant declarations, and still need their full semantic pass:
 
-- `src/economy.rs`
 - `src/civilization.rs`
 - `src/expeditions.rs`
 
@@ -132,10 +137,6 @@ The remaining source files below have not yet received this cleanup. Associated
 API constants and compile-time assertions should be reviewed in context rather
 than blindly moved out of their types or layout checks.
 
-- `src/culture/dynamics.rs`
-- `src/culture/practices.rs`
-- `src/culture/work_requests.rs`
-- `src/culture.rs`
 - `src/ecology.rs`
 - `src/gpu.rs`
 - `src/viewer.rs`
@@ -358,3 +359,17 @@ meanings remain explicit even where their numerical values happen to match.
 Verification: all 151 active library tests passed (130 extended cases ignored).
 The hardware-enabled shared-treasury administration-shortfall fixture passed,
 and strict all-target Clippy passed. No intended behavior change.
+
+## Culture and market batch
+
+Named patron service, cultural eligibility, institution founding, practical actions,
+conversion and reform evidence, local price adjustment and market reserve policies.
+Action requests and execution share costs and gates where they express the same
+rule. Existing charity request/execution differences remain separate parameters.
+Wood and livestock compositions share owning declarations while preserving f32
+stock arithmetic and f64 conservation arithmetic. Topic IDs, schema slots, calendar
+conversions and independent fixture expectations remain literal.
+
+Verification: all 23 culture-filtered tests and all 23 economy-filtered tests passed
+with ignored GPU cases enabled. Strict all-target Clippy passed. This is extraction
+and sharing, not calibration or a change to cultural decisions or market behavior.

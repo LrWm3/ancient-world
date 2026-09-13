@@ -1,4 +1,10 @@
 use super::*;
+const ROLE_SCORE_RETENTION: f32 = 0.8;
+const ROLE_ACTIVITY_WEIGHT: f32 = 0.2;
+const PILGRIMAGE_TOPIC_PROGRESS: f32 = 0.05;
+const SPECIMEN_COMPOSITION_TOLERANCE: f64 = 1e-7;
+const CURATED_SAMPLE_KG: f64 = 0.125;
+
 impl Culture {
     pub(super) fn update_roles(&mut self, h: &History) {
         self.roles.resize(h.sites.len(), Default::default());
@@ -11,7 +17,7 @@ impl Culture {
                 state.scores[i] = if state.month == 0 {
                     annual
                 } else {
-                    state.scores[i] * 0.8 + annual * 0.2
+                    state.scores[i] * ROLE_SCORE_RETENTION + annual * ROLE_ACTIVITY_WEIGHT
                 };
                 state.cumulative[i] = total;
             }
@@ -38,13 +44,19 @@ impl Culture {
         };
         // Forty km/day with established caravans, outbound and return. Longer
         // pilgrimages wait for greater travel infrastructure instead of teleporting.
-        let travel_work = km * 2. / (40. * 30.);
+        let travel_work = km * 2. / (PILGRIMAGE_SPEED_KM_PER_DAY * 30.);
         if travel_work > work || travel_work > 1. {
             return false;
         }
-        let food = travel_work * 18.;
+        let food = travel_work * PILGRIMAGE_RATION_KG_PER_WORKER_MONTH;
         let s = &h.sites[site as usize];
-        if s.stocks.stock[1] < food + s.stocks.stock[0] * 18. * 3. || s.economy.goods[7] < 0.1 {
+        if s.stocks.stock[1]
+            < food
+                + s.stocks.stock[0]
+                    * PILGRIMAGE_RATION_KG_PER_WORKER_MONTH
+                    * PILGRIMAGE_RESERVE_MONTHS
+            || s.economy.goods[7] < RITUAL_POTTERY_KG
+        {
             return false;
         }
         self.labor_spent += travel_work as f64;
@@ -57,12 +69,16 @@ impl Culture {
         let source = &mut h.sites[site as usize];
         source.stocks.stock[1] -= food;
         source.stocks.ledger[1] += food;
-        for (k, ratio) in [0.45, 0.02, 0.003].into_iter().enumerate() {
+        for (k, ratio) in crate::economy::FOOD_CNP
+            .map(|v| v as f32)
+            .into_iter()
+            .enumerate()
+        {
             source.economy.external[k] -= food * ratio;
         }
-        source.economy.goods[7] -= 0.1;
-        h.sites[destination as usize].economy.used[7] += 0.1;
-        h.sites[destination as usize].economy.reserves[3] += 0.1;
+        source.economy.goods[7] -= RITUAL_POTTERY_KG;
+        h.sites[destination as usize].economy.used[7] += RITUAL_POTTERY_KG;
+        h.sites[destination as usize].economy.reserves[3] += RITUAL_POTTERY_KG;
         let cause = self.traditions[faith as usize]
             .patron
             .map(|id| self.patrons[id as usize].arrival_event);
@@ -93,10 +109,12 @@ impl Culture {
         ) {
             // Observation during an already funded visit, not a second paid lesson.
             if let Some((completed, progress, previous)) =
-                self.agents[actor as usize].observe_topic(topic, h.month, 0.05)
+                self.agents[actor as usize].observe_topic(topic, h.month, PILGRIMAGE_TOPIC_PROGRESS)
             {
                 learned = Some((teacher, topic, completed, progress, previous));
-                self.agents[actor as usize].relations.insert(teacher, 0.5);
+                self.agents[actor as usize]
+                    .relations
+                    .insert(teacher, TEACHING_RELATIONSHIP);
             }
         }
         self.agents[actor as usize]
@@ -155,7 +173,7 @@ impl Culture {
                 if (catalog.composition(30 + k)[element] as f64
                     - crate::discoveries::CNP[k][element])
                     .abs()
-                    > 1e-7
+                    > SPECIMEN_COMPOSITION_TOLERANCE
                 {
                     return false;
                 }
@@ -168,7 +186,7 @@ impl Culture {
             return false;
         };
         let kind = (0..2).find(|&k| {
-            w.samples[k] >= 2.
+            w.samples[k] >= CURATION_MIN_SAMPLE_KG
                 && !self.artifacts.iter().any(|a| {
                     !a.destroyed
                         && a.site == Some(site)
@@ -179,7 +197,7 @@ impl Culture {
         let Some(k) = kind else {
             return false;
         };
-        let mass = 0.125;
+        let mass = CURATED_SAMPLE_KG;
         w.samples[k] -= mass;
         w.curated[k] += mass;
         d.curated[k] += mass;
@@ -304,7 +322,7 @@ impl Culture {
         let civilization = h.people[actor as usize].civilization;
         if h.civilizations[civilization as usize].leader == actor
             || h.politics.is_none()
-            || h.sites[site as usize].economy.finance[0] < 202.
+            || h.sites[site as usize].economy.finance[0] < OFFICE_CAMPAIGN_MIN_CASH
             || !self.agents[actor as usize]
                 .relations
                 .values()
@@ -315,10 +333,10 @@ impl Culture {
         let Some(society) = &mut h.society else {
             return false;
         };
-        h.sites[site as usize].economy.finance[0] -= 2.;
-        society.councils[civilization as usize].treasury += 2.;
+        h.sites[site as usize].economy.finance[0] -= OFFICE_CAMPAIGN_FEE_MONEY as f32;
+        society.councils[civilization as usize].treasury += OFFICE_CAMPAIGN_FEE_MONEY;
         self.agents[actor as usize].skills[0] =
-            (self.agents[actor as usize].skills[0] + 0.02).min(1.);
+            (self.agents[actor as usize].skills[0] + OFFICE_CAMPAIGN_SKILL_GAIN).min(1.);
         self.agents[actor as usize].goal = "seek office through faction support".into();
         self.agents[actor as usize].actions += 1;
         let event = self.log(h,"office_campaign",site,Some(actor),None,None,None,

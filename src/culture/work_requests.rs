@@ -1,6 +1,9 @@
 //! Opening-boundary requests, not guarantees: execution rechecks live people,
 //! routes and materials. Nothing is spent or named while forecasting work.
 use super::*;
+const STUDENT_ROTATION_QUARTERS: u32 = 2;
+const CONTINUING_STUDENT_ROTATION_QUARTERS: u32 = 4;
+
 /// A site's bounded bundle: actor and eligible named targets are fixed at Reserve.
 /// Material stocks remain live and must pass the action's execution checks.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -206,7 +209,7 @@ impl WorkPlan {
         let upkeep_end = elections + self.upkeep.as_ref().map_or(0, Vec::len);
         for (index, p) in self.institution_work_mut().enumerate() {
             let ceiling = if essential && (elections..upkeep_end).contains(&index) {
-                0.025
+                crate::institution_capacity::BASIC_UPKEEP_WORK_MONTHS
             } else {
                 p.requested
             };
@@ -284,7 +287,9 @@ impl Culture {
             return None;
         }
         let offset = (h.month / 3 + site) as usize % people.len();
-        if self.institutional_students && (h.month / 3 + site).is_multiple_of(2) {
+        if self.institutional_students
+            && (h.month / 3 + site).is_multiple_of(STUDENT_ROTATION_QUARTERS)
+        {
             // Start at the ordinary rotation, retaining alternating general-purpose turns.
             // This is opportunity selection, not a grant or a promise of instruction.
             let candidates = people
@@ -300,7 +305,8 @@ impl Culture {
                 });
             // Completion preference receives half the institutional turns, leaving
             // the other half on rotating admission and all general turns intact.
-            let continuation = self.continuing_students && (h.month / 3 + site).is_multiple_of(4);
+            let continuation = self.continuing_students
+                && (h.month / 3 + site).is_multiple_of(CONTINUING_STUDENT_ROTATION_QUARTERS);
             let mut selected = None;
             for (person, progress) in candidates {
                 if selected.is_none_or(|(_, best)| continuation && progress > best) {
@@ -631,7 +637,14 @@ impl Culture {
                                 },
                             )
                     });
-                    requests.push(("institution upkeep", if large { 0.125 } else { 0.025 }));
+                    requests.push((
+                        "institution upkeep",
+                        if large {
+                            crate::institution_capacity::LARGE_BUILDING_UPKEEP_WORK_MONTHS
+                        } else {
+                            crate::institution_capacity::BASIC_UPKEEP_WORK_MONTHS
+                        },
+                    ));
                 }
                 if c.mandate
                     .as_ref()
@@ -650,7 +663,7 @@ impl Culture {
             && h.economy_catalog
                 .as_ref()
                 .and_then(|c| c.index("writing_material"))
-                .is_some_and(|g| s.economy.goods[g] >= 0.05)
+                .is_some_and(|g| s.economy.goods[g] >= crate::expedition_heritage::STUDY_WRITING_KG)
             && self.institutions.iter().any(|n| {
                 n.site == site
                     && (!self.funded_heritage_study
@@ -709,14 +722,17 @@ impl Culture {
                 && o.topic.is_some_and(|topic| !a.knowledge.contains(&topic))
         }) || self.institutional_lesson(h, site, actor).is_some()
         {
-            requests.push(("study", 0.1));
+            requests.push(("study", LESSON_WORKER_MONTHS));
         }
         if self.succession_lesson(h, site, actor).is_some() {
-            requests.push(("teach successor", 0.1));
+            requests.push(("teach successor", LESSON_WORKER_MONTHS));
         }
-        if traits[2] > 0.7 && unit(h.seed, actor, h.month, 990) < 0.12 {
-            let dest = crate::heritage_renown::destination(self, h, site, faith, 0.5)
-                .map_or(self.traditions[faith as usize].sacred_site, |v| v.0);
+        if traits[2] > PILGRIMAGE_MIN_PIETY
+            && unit(h.seed, actor, h.month, PILGRIMAGE_STREAM) < PILGRIMAGE_CHANCE
+        {
+            let dest =
+                crate::heritage_renown::destination(self, h, site, faith, MAX_ACTION_WORKER_MONTHS)
+                    .map_or(self.traditions[faith as usize].sacred_site, |v| v.0);
             if dest != site && !h.sites[dest as usize].abandoned {
                 if let Some(route) = h.society.as_ref().and_then(|soc| {
                     soc.routes.iter().find(|r| {
@@ -725,17 +741,19 @@ impl Culture {
                                 || (r.to == site && r.from == dest))
                     })
                 }) {
-                    let work = route.cost_km * 2. / 1200.;
-                    if work <= 0.5
-                        && s.stocks.stock[1] >= work * 18. + s.stocks.stock[0] * 54.
-                        && s.economy.goods[7] >= 0.1
+                    let work = route.cost_km * 2. / PILGRIMAGE_SPEED_KM_PER_MONTH;
+                    if work <= MAX_ACTION_WORKER_MONTHS
+                        && s.stocks.stock[1]
+                            >= work * PILGRIMAGE_RATION_KG_PER_WORKER_MONTH
+                                + s.stocks.stock[0] * PILGRIMAGE_RESERVE_KG_PER_PERSON
+                        && s.economy.goods[7] >= RITUAL_POTTERY_KG
                     {
-                        requests.push(("pilgrimage", work.max(0.1)));
+                        requests.push(("pilgrimage", work.max(MIN_ACTION_WORKER_MONTHS)));
                     }
                 }
             }
         }
-        if traits[3] > 0.6
+        if traits[3] > CURATION_MIN_CURIOSITY
             && h.expeditions
                 .as_ref()
                 .and_then(|x| x.discoveries.as_ref())
@@ -743,7 +761,7 @@ impl Culture {
                     d.workshops.iter().any(|w| {
                         w.site == site
                             && (0..2).any(|k| {
-                                w.samples[k] >= 2.
+                                w.samples[k] >= CURATION_MIN_SAMPLE_KG
                                     && !self.artifacts.iter().any(|o| {
                                         !o.destroyed
                                             && o.site == Some(site)
@@ -754,17 +772,17 @@ impl Culture {
                     })
                 })
         {
-            requests.push(("specimen curation", 0.1));
+            requests.push(("specimen curation", CURATION_WORKER_MONTHS as f32));
         }
-        if traits[0] > 0.75
-            && unit(h.seed, actor, h.month, 993) < 0.08
+        if traits[0] > OFFICE_CAMPAIGN_MIN_AMBITION
+            && unit(h.seed, actor, h.month, OFFICE_CAMPAIGN_STREAM) < OFFICE_CAMPAIGN_CHANCE
             && h.politics.is_some()
             && h.society.is_some()
-            && s.economy.finance[0] >= 202.
+            && s.economy.finance[0] >= OFFICE_CAMPAIGN_MIN_CASH
             && h.civilizations[h.people[actor as usize].civilization as usize].leader != actor
             && a.relations.values().any(|&r| r > 0.)
         {
-            requests.push(("office campaign", 0.1));
+            requests.push(("office campaign", OFFICE_CAMPAIGN_WORKER_MONTHS));
         }
         let named_admin = self.named_administration && h.participation.is_some();
         let offices = self
@@ -780,17 +798,18 @@ impl Culture {
             requests.push((
                 "institution administration",
                 if named_admin {
-                    offices as f32 * 0.05
+                    offices as f32 * crate::institution_funding::ADMINISTRATION_WORKER_MONTHS
                 } else {
-                    (offices as f32 * 0.05).max(0.1)
+                    (offices as f32 * crate::institution_funding::ADMINISTRATION_WORKER_MONTHS)
+                        .max(MIN_ACTION_WORKER_MONTHS)
                 },
             ));
         }
-        let kind = if traits[2] > 0.65 {
+        let kind = if traits[2] > RELIGIOUS_FOUNDER_MIN_PIETY {
             InstitutionKind::Religious
-        } else if traits[3] > 0.6 {
+        } else if traits[3] > SCHOLARLY_FOUNDER_MIN_CURIOSITY {
             InstitutionKind::Scholarly
-        } else if traits[0] > 0.5 {
+        } else if traits[0] > MERCHANT_FOUNDER_MIN_AMBITION {
             InstitutionKind::Merchant
         } else {
             InstitutionKind::Craft
@@ -802,8 +821,8 @@ impl Culture {
                     || self.resident_tradition(h, site, p) == Some(faith)
             })
             .count();
-        if members >= 2
-            && s.economy.finance[0] > 500.
+        if members >= INSTITUTION_MIN_FOUNDING_MEMBERS
+            && s.economy.finance[0] > INSTITUTION_MIN_FOUNDING_CASH
             && !self.institutions.iter().any(|n| {
                 n.active
                     && n.site == site
@@ -815,27 +834,30 @@ impl Culture {
                     cat,
                     &s.economy,
                     crate::facilities::demand(&kind, members),
-                    (s.economy.finance[0] as f64 * 0.15).max(0.),
+                    (s.economy.finance[0] as f64 * INSTITUTION_FOUNDING_CASH_SHARE).max(0.),
                 )
                 .is_some()
                     || (cat.materials.is_none()
                         && s.economy.goods[5] >= crate::institution_capacity::HALL_BRICKS_KG)
             })
         {
-            requests.push(("institution founding", 0.2));
+            requests.push((
+                "institution founding",
+                crate::facilities::FOUNDING_WORK_MONTHS,
+            ));
         }
         if h.month / 3 % 4 == site % 4
-            && s.economy.goods[7] >= 1.
+            && s.economy.goods[7] >= CRAFTED_POTTERY_OBJECT_KG
             && self
                 .artifacts
                 .iter()
                 .filter(|o| o.site == Some(site) && !o.destroyed)
                 .count()
-                < 16
+                < MAX_SITE_CRAFTED_OBJECTS
         {
-            requests.push(("craft object or manuscript", 0.2));
+            requests.push(("craft object or manuscript", OBJECT_CRAFT_WORKER_MONTHS));
         }
-        if traits[1] > 0.6
+        if traits[1] > CHARITY_MIN_GENEROSITY
             && s.economy.finance[0] > 0.
             && h.society.as_ref().is_some_and(|soc| {
                 soc.routes
@@ -845,24 +867,26 @@ impl Culture {
                     .any(|dest| {
                         if soc.relocation.witnessed_relief {
                             soc.relocation.appeals.iter().any(|a| {
-                                a.host == site && a.origin == dest && h.month <= a.reported + 18
+                                a.host == site
+                                    && a.origin == dest
+                                    && h.month <= a.reported + crate::relief::MAX_APPEAL_AGE_MONTHS
                             })
                         } else {
-                            h.sites[dest as usize].stocks.stock[3] > 0.01
+                            h.sites[dest as usize].stocks.stock[3] > CHARITY_MIN_SHORTAGE
                         }
                     })
             })
         {
-            requests.push(("charity", 0.1));
+            requests.push(("charity", CHARITY_REQUEST_WORKER_MONTHS));
         }
-        if traits[0] > 0.8
-            && traits[4] < 0.3
-            && unit(h.seed, actor, h.month, 600) < 0.05
+        if traits[0] > THEFT_MIN_AMBITION
+            && traits[4] < THEFT_MAX_LOYALTY
+            && unit(h.seed, actor, h.month, THEFT_STREAM) < THEFT_CHANCE
             && self.artifacts.iter().any(|o| {
                 !o.destroyed && !o.lost && o.site == Some(site) && o.custodian != Some(actor)
             })
         {
-            requests.push(("ownership dispute", 0.1));
+            requests.push(("ownership dispute", DISPUTE_WORKER_MONTHS));
         }
         // The same read-only scorer supplies the dated hearing's represented parties.
         if crate::civic_petitions::forecast(h, self, site).is_some() {

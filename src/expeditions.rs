@@ -18,7 +18,6 @@ const CREW_ROLES: [&str; 8] = [
     "porter",
 ];
 const FOOD_CNP: [f32; 3] = [0.45, 0.02, 0.003];
-const WOOD_CNP: [f32; 3] = [0.5, 0.002, 0.0002];
 const LIMIT: usize = 512;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Rules {
@@ -316,7 +315,11 @@ fn spend_wood(h: &mut History, e: &mut Expedition, kg: f32) {
     e.timber -= used;
     let s = &mut h.sites[e.origin as usize];
     s.economy.used[0] += used;
-    for (k, f) in WOOD_CNP.into_iter().enumerate() {
+    for (k, f) in crate::economy::WOOD_CNP
+        .map(|v| v as f32)
+        .into_iter()
+        .enumerate()
+    {
         s.economy.external[k] -= used * f;
     }
 }

@@ -7,7 +7,7 @@ use crate::{
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
-const STUDY_WRITING_KG: f32 = 0.05;
+pub(crate) const STUDY_WRITING_KG: f32 = 0.05;
 pub(crate) const STUDY_WORKER_MONTHS: f64 = 0.1;
 const FIND_HASH_MULTIPLIER: u32 = 747796405;
 const FIND_SEED_MULTIPLIER: u32 = 2891336453;

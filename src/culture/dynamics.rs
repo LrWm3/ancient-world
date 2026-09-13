@@ -1,6 +1,57 @@
 //! Bounded social evidence, not universal historical conversion probabilities.
 //! Decisions read one affiliation snapshot; commits cannot propagate within a year.
 use super::*;
+const MAX_REFORM_EVIDENCE_YEARS: u32 = 100;
+const CONVERSION_PRESSURE_RETENTION: f32 = 0.75;
+const CONVERSION_ADVANTAGE_GAIN: f32 = 0.35;
+const MAX_ANNUAL_CONVERSION_GAIN: f32 = 0.25;
+const HOSPITALITY_HUNGER_WEIGHT: f32 = 0.8;
+const STEWARDSHIP_HUNGER_WEIGHT: f32 = 0.5;
+const COURAGE_DISRUPTION_WEIGHT: f32 = 0.4;
+const RESTRAINT_DISEASE_WEIGHT: f32 = 0.4;
+const INQUIRY_DISEASE_WEIGHT: f32 = 0.5;
+const RECIPROCITY_INEQUALITY_WEIGHT: f32 = 0.8;
+const REMEMBRANCE_LOYALTY_WEIGHT: f32 = 0.3;
+const INDEPENDENCE_DISRUPTION_WEIGHT: f32 = 0.6;
+const LEGACY_SERVICE_READINESS: f32 = 0.5;
+const RELIGIOUS_REVISION_INTERVAL_MONTHS: u32 = 12;
+const UNKNOWN_CONTACT_DISTANCE_KM: f32 = 1500.;
+const REMOTE_CONTACT_WEIGHT: f32 = 0.35;
+const CONTACT_DISTANCE_SCALE_KM: f32 = 500.;
+const KIN_CONTACT_WEIGHT: f32 = 2.;
+const MIN_SUPPORT_DENOMINATOR: f32 = 1e-6;
+const RELIEF_MEMORY_MONTHS: u32 = 36;
+const HERITAGE_CONVERSION_WEIGHT: f32 = 0.15;
+const PREVALENCE_CONVERSION_WEIGHT: f32 = 0.55;
+const KIN_CONVERSION_WEIGHT: f32 = 0.25;
+const TRUST_CONVERSION_WEIGHT: f32 = 0.25;
+const SERVICE_CONVERSION_WEIGHT: f32 = 0.25;
+const FIT_CONVERSION_WEIGHT: f32 = 0.3;
+const RELIEF_CONVERSION_WEIGHT: f32 = 0.18;
+const INCOMPATIBILITY_CONVERSION_PENALTY: f32 = 0.15;
+const LOYALTY_CONVERSION_PENALTY: f32 = 0.15;
+const MIN_REMEMBERED_CONVERSION_PRESSURE: f32 = 0.001;
+const BASE_CONVERSION_THRESHOLD: f32 = 0.28;
+const PIETY_CONVERSION_RESISTANCE: f32 = 0.12;
+const PERSONAL_CONVERSION_VARIANCE: f32 = 0.10;
+const CONVERSION_THRESHOLD_STREAM: u32 = 2401;
+const SERVICE_HARDSHIP_REDUCTION: f32 = 0.65;
+const MIN_REFORM_HOUSEHOLDS: usize = 3;
+const MIN_REFORM_PREFERENCE_GAIN: f32 = 0.35;
+const MIN_LOCAL_REFORM_SUPPORT: f32 = 0.4;
+const REFORMER_PIETY_WEIGHT: f32 = 0.3;
+const REFORMER_AMBITION_WEIGHT: f32 = 0.2;
+const REFORMER_CURIOSITY_WEIGHT: f32 = 0.2;
+const REFORMER_RENOWN_WEIGHT: f32 = 0.3;
+const MIN_BROAD_REFORM_SUPPORT: f32 = 0.5;
+const MIN_SYNCRETIC_SIMILARITY: f32 = 0.5;
+const MIN_SCHISM_GRIEVANCE: f32 = 0.25;
+const MIN_SCHISM_LEADER_PIETY: f32 = 0.4;
+const MAX_SCHISM_SERVICE: f32 = 0.75;
+const MIN_REFORM_EVIDENCE_YEARS: u32 = 5;
+const MAX_TRADITIONS: usize = 256;
+const MIN_SCHISM_TRADITION_AGE_MONTHS: u32 = 120;
+const REFORM_EVENT_MEMORY_MONTHS: u32 = 60;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ReligiousDynamics {
@@ -48,8 +99,8 @@ impl ReligiousDynamics {
             ensure!(
                 (r.site as usize) < h.sites.len()
                     && (r.tradition as usize) < traditions
-                    && r.theme < 8
-                    && (1..=100).contains(&r.years)
+                    && r.theme < THEMES.len() as u32
+                    && (1..=MAX_REFORM_EVIDENCE_YEARS).contains(&r.years)
                     && keys.insert((r.site, r.tradition)),
                 "invalid religious reform"
             );
@@ -60,8 +111,8 @@ impl ReligiousDynamics {
 // Benefits accumulate only while net social advantage persists. Forgotten reports
 // decay; tolerance is stable per household, not a new conversion lottery each year.
 fn persuasion_step(old: f32, advantage: f32) -> f32 {
-    (old * 0.75 + advantage.max(0.) * 0.35)
-        .min(old + 0.25)
+    (old * CONVERSION_PRESSURE_RETENTION + advantage.max(0.) * CONVERSION_ADVANTAGE_GAIN)
+        .min(old + MAX_ANNUAL_CONVERSION_GAIN)
         .clamp(0., 1.)
 }
 fn similarity(a: &[u32; 4], b: &[u32; 4]) -> f32 {
@@ -71,14 +122,14 @@ fn preferences(traits: [f32; 6], pressure: [f32; 4]) -> [f32; 8] {
     let [ambition, generosity, piety, curiosity, loyalty, caution] = traits;
     let [hunger, disease, disruption, inequality] = pressure;
     [
-        generosity + 0.8 * hunger,
-        caution + 0.5 * hunger,
-        ambition + 0.4 * disruption,
-        caution + 0.4 * disease,
-        curiosity + 0.5 * disease,
-        generosity + 0.8 * inequality,
-        piety + 0.3 * loyalty,
-        ambition + 0.6 * disruption,
+        generosity + HOSPITALITY_HUNGER_WEIGHT * hunger,
+        caution + STEWARDSHIP_HUNGER_WEIGHT * hunger,
+        ambition + COURAGE_DISRUPTION_WEIGHT * disruption,
+        caution + RESTRAINT_DISEASE_WEIGHT * disease,
+        curiosity + INQUIRY_DISEASE_WEIGHT * disease,
+        generosity + RECIPROCITY_INEQUALITY_WEIGHT * inequality,
+        piety + REMEMBRANCE_LOYALTY_WEIGHT * loyalty,
+        ambition + INDEPENDENCE_DISRUPTION_WEIGHT * disruption,
     ]
 }
 fn fit(themes: &[u32; 4], values: &[f32; 8]) -> f32 {
@@ -126,14 +177,18 @@ impl Culture {
                     && n.kind == InstitutionKind::Religious
                     && n.operational()
             })
-            .map(|n| n.capacity.as_ref().map_or(0.5, |c| c.readiness))
+            .map(|n| {
+                n.capacity
+                    .as_ref()
+                    .map_or(LEGACY_SERVICE_READINESS, |c| c.readiness)
+            })
             .fold(0., f32::max)
     }
     pub(super) fn advance_religious_dynamics(&mut self, h: &mut History, routes: &[(u32, u32)]) {
         if self
             .religious_dynamics
             .observed
-            .is_some_and(|m| h.month < m.saturating_add(12))
+            .is_some_and(|m| h.month < m.saturating_add(RELIGIOUS_REVISION_INTERVAL_MONTHS))
         {
             return;
         }
@@ -213,10 +268,11 @@ impl Culture {
                         })
                         .map(|r| r.cost_km)
                         .reduce(f32::min)
-                        .unwrap_or(1500.);
-                    0.35 / (1. + km / 500.)
+                        .unwrap_or(UNKNOWN_CONTACT_DISTANCE_KM);
+                    REMOTE_CONTACT_WEIGHT / (1. + km / CONTACT_DISTANCE_SCALE_KM)
                 };
-                let weight = distance * (1. + 2. * f32::from(kin) + relation).max(0.);
+                let weight =
+                    distance * (1. + KIN_CONTACT_WEIGHT * f32::from(kin) + relation).max(0.);
                 let entry = signals
                     .entry(other.faith)
                     .or_insert((0., 0., 0., other.head));
@@ -228,14 +284,15 @@ impl Culture {
                 }
                 total += weight;
             }
-            let own_support = signals.get(&hh.faith).map_or(0., |s| s.0) / total.max(1e-6);
+            let own_support =
+                signals.get(&hh.faith).map_or(0., |s| s.0) / total.max(MIN_SUPPORT_DENOMINATOR);
             let mut best: Option<Adoption> = None;
             for (&faith, &(support, kin, trust, witness)) in &signals {
                 if faith == hh.faith || support <= 0. {
                     continue;
                 }
                 let target = &self.traditions[faith as usize];
-                let prevalence = support / total.max(1e-6);
+                let prevalence = support / total.max(MIN_SUPPORT_DENOMINATOR);
                 let service = self.religious_service(hh.site, faith)
                     - self.religious_service(hh.site, hh.faith);
                 // Only completed, recent, locally received relief is evidence of service.
@@ -248,7 +305,9 @@ impl Culture {
                             && m.delivered_kg.is_some_and(|kg| kg > 0.)
                             && m.outcome_event
                                 .and_then(|id| h.events.get(id as usize))
-                                .is_some_and(|e| e.month > h.month.saturating_sub(36))
+                                .is_some_and(|e| {
+                                    e.month > h.month.saturating_sub(RELIEF_MEMORY_MONTHS)
+                                })
                     })
                     .filter(|m| self.institutions[m.institution as usize].tradition == Some(faith))
                     .max_by_key(|m| m.outcome_event);
@@ -258,24 +317,28 @@ impl Culture {
                         - crate::heritage_renown::score(self, hh.site, h.month, |r| {
                             r.tradition == hh.faith
                         });
-                let advantage = 0.15 * heritage
-                    + 0.55 * (prevalence - own_support)
-                    + 0.25 * kin
-                    + 0.25 * trust
-                    + 0.25 * service
-                    + 0.3 * (fit(&target.themes, &hh.values) - fit(&own.themes, &hh.values))
-                    + 0.18 * f32::from(relief.is_some())
-                    - 0.15 * (1. - compatibility)
-                    - 0.15 * hh.traits[4];
+                let advantage = HERITAGE_CONVERSION_WEIGHT * heritage
+                    + PREVALENCE_CONVERSION_WEIGHT * (prevalence - own_support)
+                    + KIN_CONVERSION_WEIGHT * kin
+                    + TRUST_CONVERSION_WEIGHT * trust
+                    + SERVICE_CONVERSION_WEIGHT * service
+                    + FIT_CONVERSION_WEIGHT
+                        * (fit(&target.themes, &hh.values) - fit(&own.themes, &hh.values))
+                    + RELIEF_CONVERSION_WEIGHT * f32::from(relief.is_some())
+                    - INCOMPATIBILITY_CONVERSION_PENALTY * (1. - compatibility)
+                    - LOYALTY_CONVERSION_PENALTY * hh.traits[4];
                 let strength = persuasion_step(*old.get(&(hh.id, faith)).unwrap_or(&0.), advantage);
-                if strength > 0.001 {
+                if strength > MIN_REMEMBERED_CONVERSION_PRESSURE {
                     next.push(Persuasion {
                         household: hh.id,
                         tradition: faith,
                         strength,
                     });
                 }
-                let threshold = 0.28 + 0.12 * hh.traits[2] + 0.10 * unit(h.seed, hh.id, 0, 2401);
+                let threshold = BASE_CONVERSION_THRESHOLD
+                    + PIETY_CONVERSION_RESISTANCE * hh.traits[2]
+                    + PERSONAL_CONVERSION_VARIANCE
+                        * unit(h.seed, hh.id, 0, CONVERSION_THRESHOLD_STREAM);
                 if strength > threshold
                     && advantage > 0.
                     && best.as_ref().is_none_or(|(score, ..)| strength > *score)
@@ -295,11 +358,14 @@ impl Culture {
             }
             // Disconnected memories decay too, but cannot trigger an adoption.
             for (&(id, faith), &strength) in old.range((hh.id, 0)..=(hh.id, u32::MAX)) {
-                if faith != hh.faith && !signals.contains_key(&faith) && strength * 0.75 > 0.001 {
+                if faith != hh.faith
+                    && !signals.contains_key(&faith)
+                    && strength * CONVERSION_PRESSURE_RETENTION > MIN_REMEMBERED_CONVERSION_PRESSURE
+                {
                     next.push(Persuasion {
                         household: id,
                         tradition: faith,
-                        strength: strength * 0.75,
+                        strength: strength * CONVERSION_PRESSURE_RETENTION,
                     });
                 }
             }
@@ -353,7 +419,7 @@ impl Culture {
                 self.religious_pressure(h, site)
                     .into_iter()
                     .fold(0_f32, f32::max)
-                    * (1. - 0.65 * self.religious_service(site, faith))
+                    * (1. - SERVICE_HARDSHIP_REDUCTION * self.religious_service(site, faith))
             };
             urgency(*b).total_cmp(&urgency(*a)).then_with(|| a.cmp(b))
         });
@@ -367,7 +433,7 @@ impl Culture {
                 .iter()
                 .filter(|hh| hh.site == site && hh.faith == faith && !converted.contains(&hh.id))
                 .collect();
-            if congregation.len() < 3 {
+            if congregation.len() < MIN_REFORM_HOUSEHOLDS {
                 continue;
             }
             let tradition = self.traditions[faith as usize].clone();
@@ -376,13 +442,13 @@ impl Culture {
             let service = self.religious_service(site, faith);
             // Propose a concrete absent value and replace the least supported existing
             // value; neither catalogue order nor arithmetic on IDs selects doctrine.
-            let mean: Vec<_> = (0..8)
+            let mean: Vec<_> = (0..THEMES.len())
                 .map(|t| {
                     congregation.iter().map(|hh| hh.values[t]).sum::<f32>()
                         / congregation.len() as f32
                 })
                 .collect();
-            let Some(theme) = (0..8u32)
+            let Some(theme) = (0..THEMES.len() as u32)
                 .filter(|t| !tradition.themes.contains(t))
                 .max_by(|a, b| {
                     mean[*a as usize]
@@ -402,12 +468,15 @@ impl Culture {
             let supporters: Vec<_> = congregation
                 .iter()
                 .copied()
-                .filter(|hh| hh.values[theme as usize] - hh.values[old_theme as usize] > 0.35)
+                .filter(|hh| {
+                    hh.values[theme as usize] - hh.values[old_theme as usize]
+                        > MIN_REFORM_PREFERENCE_GAIN
+                })
                 .collect();
             let support = supporters.len() as f32 / congregation.len() as f32;
-            let grievance = hardship * (1. - 0.65 * service) * support;
+            let grievance = hardship * (1. - SERVICE_HARDSHIP_REDUCTION * service) * support;
             dissent[faith as usize] = dissent[faith as usize].max(grievance);
-            if supporters.len() < 3 || support < 0.4 {
+            if supporters.len() < MIN_REFORM_HOUSEHOLDS || support < MIN_LOCAL_REFORM_SUPPORT {
                 continue;
             }
             // A leader needs actual local adherents and positive relationship support.
@@ -415,9 +484,9 @@ impl Culture {
                 .iter()
                 .max_by(|a, b| {
                     let score = |r: &Resident| {
-                        r.traits[2] * 0.3
-                            + r.traits[0] * 0.2
-                            + r.traits[3] * 0.2
+                        r.traits[2] * REFORMER_PIETY_WEIGHT
+                            + r.traits[0] * REFORMER_AMBITION_WEIGHT
+                            + r.traits[3] * REFORMER_CURIOSITY_WEIGHT
                             + supporters
                                 .iter()
                                 .map(|hh| {
@@ -430,7 +499,7 @@ impl Culture {
                                 })
                                 .sum::<f32>()
                                 / supporters.len() as f32
-                                * 0.3
+                                * REFORMER_RENOWN_WEIGHT
                     };
                     score(a)
                         .total_cmp(&score(b))
@@ -461,25 +530,28 @@ impl Culture {
                 / residents.iter().filter(|r| r.faith == faith).count().max(1) as f32;
             let syncretic = !sources.is_empty()
                 && institution.is_some()
-                && broad_support >= 0.5
+                && broad_support >= MIN_BROAD_REFORM_SUPPORT
                 && sources.iter().any(|r| {
-                    similarity(&tradition.themes, &self.traditions[r.faith as usize].themes) >= 0.5
+                    similarity(&tradition.themes, &self.traditions[r.faith as usize].themes)
+                        >= MIN_SYNCRETIC_SIMILARITY
                 });
-            let split = grievance > 0.25 && leader.traits[2] > 0.4 && service < 0.75;
+            let split = grievance > MIN_SCHISM_GRIEVANCE
+                && leader.traits[2] > MIN_SCHISM_LEADER_PIETY
+                && service < MAX_SCHISM_SERVICE;
             if !syncretic && !split {
                 continue;
             }
             let years = prior
                 .get(&(site, faith))
                 .filter(|(t, _)| *t == theme)
-                .map_or(1, |(_, y)| (y + 1).min(100));
+                .map_or(1, |(_, y)| (y + 1).min(MAX_REFORM_EVIDENCE_YEARS));
             next.push(Reform {
                 site,
                 tradition: faith,
                 theme,
                 years,
             });
-            if years < 5 {
+            if years < MIN_REFORM_EVIDENCE_YEARS {
                 continue;
             }
             if syncretic {
@@ -488,7 +560,7 @@ impl Culture {
                     .iter()
                     .filter(|r| {
                         similarity(&tradition.themes, &self.traditions[r.faith as usize].themes)
-                            >= 0.5
+                            >= MIN_SYNCRETIC_SIMILARITY
                     })
                     .min_by_key(|r| r.id)
                     .unwrap();
@@ -510,8 +582,8 @@ impl Culture {
                         THEMES[theme as usize]
                     ),
                 );
-            } else if self.traditions.len() < 256
-                && h.month.saturating_sub(tradition.founded) >= 120
+            } else if self.traditions.len() < MAX_TRADITIONS
+                && h.month.saturating_sub(tradition.founded) >= MIN_SCHISM_TRADITION_AGE_MONTHS
             {
                 let id = self.traditions.len() as u32;
                 let mut child = tradition.clone();
@@ -543,7 +615,7 @@ impl Culture {
                     .rev()
                     .find(|e| {
                         e.site == Some(site)
-                            && e.month > h.month.saturating_sub(60)
+                            && e.month > h.month.saturating_sub(REFORM_EVENT_MEMORY_MONTHS)
                             && matches!(
                                 e.kind.as_str(),
                                 "food_crisis"
