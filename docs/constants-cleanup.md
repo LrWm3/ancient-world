@@ -160,3 +160,8 @@ ballot interval and assembly labor. Reserve/forecast/execute now use the same
 subsystem-owned ballot cost. Extracted the crew resolution work tolerance.
 Averages, majority arithmetic and independent fixture values stay inline. This
 batch preserves values and operation order and does not complete the pending list.
+
+This batch passed three institutional succession tests (including GPU recovery),
+the crew forecast fixture, and 149 ordinary library tests. The subsequent merchant
+productivity change passed seven vessel tests and 150 library tests; it is a
+separate behavioral commit, not part of the constants-only extraction.

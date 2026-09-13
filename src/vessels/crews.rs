@@ -10,13 +10,41 @@ use crate::{
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
+const MAX_CREW_PRODUCTIVITY_BONUS: f32 = 0.50;
+const CREW_PRACTICE_HALF_SATURATION_WORKER_MONTHS: f64 = 12.;
+
+fn productivity_bonus(practice: f64) -> f32 {
+    let practice = if practice.is_finite() {
+        practice.max(0.)
+    } else {
+        0.
+    };
+    MAX_CREW_PRODUCTIVITY_BONUS
+        * (practice / (CREW_PRACTICE_HALF_SATURATION_WORKER_MONTHS + practice)) as f32
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CrewWork {
     pub person: u32,
     pub household: u32,
     pub commitment: Option<u32>,
     pub wages: f64,
+    /// Frozen at reservation from previously completed port-service work. This is
+    /// a service-rate bonus, never additional paid or personally committed time.
+    #[serde(default)]
+    pub productivity_bonus: f32,
     pub receipt: WorkReceipt,
+}
+
+impl CrewWork {
+    pub(super) fn extra_service(&self) -> f32 {
+        let time = if self.receipt.settled {
+            self.receipt.used
+        } else {
+            self.receipt.granted
+        };
+        time as f32 * self.productivity_bonus
+    }
 }
 
 impl History {
@@ -47,7 +75,7 @@ impl History {
             })
             .collect();
         // Experienced available residents are preferred. Stable identity resolves ties;
-        // experience changes hiring priority, never creates effective labor or cargo.
+        // experience changes hiring priority and service rate, never paid time or cargo inventory.
         candidates.sort_by(|a, b| b.2.total_cmp(&a.2).then(a.0.cmp(&b.0)));
         let wage =
             18. * self.sites[site as usize].economy.prices[crate::economy::FOOD].max(0.01) as f64;
@@ -55,7 +83,7 @@ impl History {
             crate::labor::available(&self.sites[site as usize], true, self.living.is_some())
                 .min((target - fleet.work()).max(0.));
         for vessel in fleet.vessels.iter_mut().take(hulls) {
-            for &(person, household, _) in &candidates {
+            for &(person, household, practice) in &candidates {
                 let wanted = (0.25 - vessel.funded_work)
                     .max(0.)
                     .min(left)
@@ -103,6 +131,7 @@ impl History {
                     household,
                     commitment: Some(id),
                     wages: paid,
+                    productivity_bonus: productivity_bonus(practice),
                     receipt: WorkReceipt {
                         month: self.month,
                         requested: wanted as f64,
@@ -199,6 +228,9 @@ pub(crate) fn validate_crews(shipping: &Shipping, h: &History) -> Result<()> {
                                 .is_some_and(|s| (work.household as usize) < s.households.len())
                             && work.wages.is_finite()
                             && work.wages >= 0.
+                            && work.productivity_bonus.is_finite()
+                            && (0. ..=MAX_CREW_PRODUCTIVITY_BONUS)
+                                .contains(&work.productivity_bonus)
                             && work
                                 .commitment
                                 .is_none_or(|id| ids.insert((work.receipt.month, id)))
@@ -256,6 +288,46 @@ mod tests {
         config::Config,
         gpu::{ContextGpu, Generator},
     };
+
+    #[test]
+    fn productivity_is_bounded_frozen_and_only_backs_existing_hulls() {
+        assert_eq!(productivity_bonus(0.), 0.);
+        assert_eq!(productivity_bonus(12.), 0.25);
+        assert!(productivity_bonus(1e12) <= 0.5);
+        let crew = CrewWork {
+            person: 0,
+            household: 0,
+            commitment: None,
+            wages: 1.,
+            productivity_bonus: 0.5,
+            receipt: WorkReceipt {
+                month: 0,
+                requested: 0.25,
+                granted: 0.25,
+                ..Default::default()
+            },
+        };
+        let mut fleet = Fleet {
+            vessels: vec![super::super::Vessel {
+                id: 0,
+                name: "Test".into(),
+                commissioned: 0,
+                household: Some(0),
+                funded_work: 0.25,
+                wages_paid: 1.,
+                crew: vec![crew.clone()],
+            }],
+            ..Default::default()
+        };
+        assert_eq!(fleet.capacity(), 250.); // Skilled full crew cannot enlarge a hull.
+        fleet.vessels[0].crew[0].receipt.settle(0.);
+        fleet.vessels[0].funded_work = 0.;
+        assert_eq!(fleet.capacity(), 0.); // Absent crew retains pay, not service capacity.
+        let mut legacy = serde_json::to_value(&crew).unwrap();
+        legacy.as_object_mut().unwrap().remove("productivity_bonus");
+        let legacy: CrewWork = serde_json::from_value(legacy).unwrap();
+        assert_eq!(legacy.extra_service(), 0.);
+    }
 
     fn cash(h: &History) -> f64 {
         h.sites
@@ -432,6 +504,64 @@ mod tests {
                     .crew[0]
                     .person,
                 veteran
+            );
+
+            // Equal scarce time and money; only accumulated practice differs.
+            let mut novice = base.clone();
+            for r in novice
+                .participation
+                .as_mut()
+                .unwrap()
+                .residents
+                .values_mut()
+            {
+                if r.presence == Presence::Resident(site as u32) {
+                    r.capacity = if r.person == veteran { 0.05 } else { 0. };
+                    r.merchant_completed = 0.;
+                }
+            }
+            let mut expert = novice.clone();
+            expert
+                .participation
+                .as_mut()
+                .unwrap()
+                .residents
+                .get_mut(&veteran)
+                .unwrap()
+                .merchant_completed = 12.;
+            for run in [&mut novice, &mut expert] {
+                run.prepare_vessels();
+                run.settle_vessel_crews().unwrap();
+                validate_crews(run.shipping.as_ref().unwrap(), run).unwrap();
+                assert!((cash(run) - before).abs() < 1e-8);
+            }
+            let nf = novice.shipping.as_ref().unwrap().ports[0]
+                .fleet
+                .as_ref()
+                .unwrap();
+            let ef = expert.shipping.as_ref().unwrap().ports[0]
+                .fleet
+                .as_ref()
+                .unwrap();
+            assert!(nf.capacity() > 0.);
+            assert!((ef.capacity() / nf.capacity() - 1.25).abs() < 1e-5);
+            assert_eq!(ef.work(), nf.work());
+            assert_eq!(ef.vessels[0].wages_paid, nf.vessels[0].wages_paid);
+            let capacity = ef.capacity();
+            let mut restored: History =
+                serde_json::from_value(serde_json::to_value(&expert).unwrap()).unwrap();
+            restored.settle_vessel_crews().unwrap();
+            assert_eq!(
+                restored.shipping.as_ref().unwrap().ports[0]
+                    .fleet
+                    .as_ref()
+                    .unwrap()
+                    .capacity(),
+                capacity
+            );
+            assert_eq!(
+                serde_json::to_value(&restored).unwrap(),
+                serde_json::to_value(&expert).unwrap()
             );
 
             // The same opening resources cannot buy crew time already committed elsewhere.

@@ -65,7 +65,11 @@ impl Fleet {
     pub fn capacity(&self) -> f32 {
         self.vessels
             .iter()
-            .map(|v| 250. * (v.funded_work / 0.25).clamp(0., 1.))
+            .map(|v| {
+                let service =
+                    v.funded_work + v.crew.iter().map(CrewWork::extra_service).sum::<f32>();
+                250. * (service / 0.25).clamp(0., 1.)
+            })
             .sum()
     }
     pub fn work(&self) -> f32 {
