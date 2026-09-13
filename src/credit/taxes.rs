@@ -13,6 +13,9 @@ pub struct Observation {
     pub collected: f64,
     /// Keep requested support: unavailable funds do not erase operating needs.
     pub support_requested: f64,
+    /// None in archives predating annual road evidence; wait for a new collection.
+    #[serde(default)]
+    pub road_requested: Option<f64>,
 }
 impl Observation {
     pub fn validate(&self, month: u32) -> Result<()> {
@@ -25,6 +28,10 @@ impl Observation {
                 .iter()
                 .all(|v| v.is_finite() && *v >= 0.),
             "invalid tax observation amount"
+        );
+        ensure!(
+            self.road_requested.is_none_or(|x| x.is_finite() && x >= 0.),
+            "invalid annual road demand"
         );
         Ok(())
     }
@@ -44,7 +51,7 @@ impl Observation {
             beneficiary: Account::Council(self.council),
             observed_month: self.month,
             expected_receipts: self.collected.min(current_collectible),
-            operating_costs: self.support_requested,
+            operating_costs: self.support_requested + self.road_requested?,
             // Current-base haircut is already in receipts; do not invent a
             // calibrated probability of default from one annual observation.
             expected_loss_fraction: 0.,
@@ -73,6 +80,15 @@ impl History {
                 council: council.civilization,
                 collected: 0.,
                 support_requested: 0.,
+                road_requested: Some(
+                    society
+                        .council_funding
+                        .road_payments
+                        .iter()
+                        .filter(|r| r.month == self.month && r.council == council.civilization)
+                        .map(|r| r.requested)
+                        .sum(),
+                ),
             };
             for receipt in &society.council_funding.taxes {
                 if receipt.month == self.month && receipt.council == council.civilization {
@@ -132,10 +148,14 @@ mod tests {
             council: 2,
             collected: 100.,
             support_requested: 30.,
+            road_requested: Some(20.),
         };
         let normal = observation.forecast(13, 200.).unwrap();
         assert_eq!(normal.expected_receipts, 100.);
-        assert_eq!(normal.operating_costs, 30.);
+        assert_eq!(normal.operating_costs, 50.);
+        let mut old = observation.clone();
+        old.road_requested = None;
+        assert!(old.forecast(13, 100.).is_none());
         assert_eq!(
             normal.source,
             RepaymentSource::AnnualTax {

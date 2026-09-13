@@ -248,3 +248,22 @@ All ten active market integration tests passed (two extended cases ignored), bot
 CLI tests passed, and strict all-target Clippy passed. These establish the request →
 underwriting → treasury transfer path; they do not yet establish improved food
 access, completed work or viable repayment in a long history.
+
+## First live comparison and missing annual commitments
+
+The [seed-17 smoke report](credit-council-smoke.md) found ten loans and ten defaults,
+despite gross tax receipts arriving. Annual road spending consumed the same cash
+before the next collection window. Council-specific road request/payment receipts
+now enter the tax forecast's operating deduction. Prior archives without this
+observation cannot supply tax evidence until a new collection. The controlled
+pilot fixture rejects lending when annual roads absorb its projected receipts.
+
+Viewer constants cleanup continued while the original two arms ran. Full shader
+and remaining viewer semantic review is still outstanding; an outdated grain
+storage display also remains to be corrected separately.
+
+The corrected repeat rejected all 22 requests and produced no loans. Sites, events,
+people, cargo and councils exactly matched the no-credit baseline; all ten active
+market tests, both tax tests, strict Clippy and the live 30-year validation passed.
+This is evidence of preventing unsupported loans, not a successful repayment or
+productivity demonstration. The experiment gates remain open work.

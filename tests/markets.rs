@@ -820,9 +820,10 @@ fn council_credit_requires_receipts_need_contact_and_reaches_existing_treasury()
         council: 1,
         collected: 2000.,
         support_requested: 0.,
+        road_requested: Some(0.),
     });
     let original = h.clone();
-    for intervention in 0..4 {
+    for intervention in 0..5 {
         let mut control = original.clone();
         match intervention {
             0 => control.credit.tax_observations.clear(),
@@ -834,7 +835,8 @@ fn council_credit_requires_receipts_need_contact_and_reaches_existing_treasury()
                 .routes
                 .iter_mut()
                 .for_each(|r| r.open = false),
-            _ => control.sites[1].economy.finance[0] = 0.,
+            3 => control.sites[1].economy.finance[0] = 0.,
+            _ => control.credit.tax_observations[0].road_requested = Some(2000.),
         }
         assert_eq!(control.council_credit_month().unwrap(), 0);
         assert_eq!(control.society.as_ref().unwrap().councils[1].treasury, 0.);

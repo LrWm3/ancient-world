@@ -343,12 +343,22 @@ pub struct Raid {
 /// annual tax receipts as evidence; cumulative funding totals remain diagnostic.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct CouncilFunding {
+    #[serde(default)]
+    pub road_payments: Vec<RoadPayment>,
     /// Latest annual collection boundary; observations never supply spendable revenue.
     #[serde(default)]
     pub taxes: Vec<TaxReceipt>,
     pub administration: FundingTotals,
     pub roads: FundingTotals,
     pub emergency_town_support: FundingTotals,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RoadPayment {
+    pub month: u32,
+    pub council: u32,
+    pub route: u32,
+    pub requested: f64,
+    pub paid: f64,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaxReceipt {
@@ -412,6 +422,21 @@ fn traversable(c: &Cell) -> bool {
 impl Society {
     pub fn validate(&self, h: &History, cells: &[Cell]) -> Result<()> {
         self.relocation.validate(h)?;
+        let mut road_receipts = BTreeSet::new();
+        for receipt in &self.council_funding.road_payments {
+            ensure!(
+                receipt.month <= h.month
+                    && (receipt.council as usize) < self.councils.len()
+                    && road_receipts.insert((receipt.month, receipt.route))
+                    && [receipt.requested, receipt.paid]
+                        .iter()
+                        .all(|x| x.is_finite() && *x >= 0.)
+                    && receipt.paid
+                        <= receipt.requested
+                            + SUPPORT_RELATIVE_TOLERANCE * receipt.requested.max(1.),
+                "invalid annual road payment receipt"
+            );
+        }
         let mut previous_tax_site = None;
         for t in &self.council_funding.taxes {
             ensure!(
@@ -1320,6 +1345,7 @@ impl History {
             .map(|s| self.controller(s as u32))
             .collect();
         society.council_funding.taxes.clear();
+        society.council_funding.road_payments.clear();
         for s in &mut self.sites {
             if s.abandoned {
                 continue;
@@ -1428,6 +1454,13 @@ impl History {
             }
             council.treasury = (council.treasury - bricks as f64 * ROAD_BUILD_MONEY_PER_KG).max(0.);
             site.economy.finance[0] += bricks * ROAD_BUILD_MONEY_PER_KG as f32;
+            society.council_funding.road_payments.push(RoadPayment {
+                month: self.month,
+                council: council.civilization,
+                route: route.id,
+                requested: requested_cash,
+                paid: bricks as f64 * ROAD_BUILD_MONEY_PER_KG,
+            });
             society
                 .council_funding
                 .roads
