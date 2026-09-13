@@ -87,6 +87,11 @@ pub(crate) const HUNGER_MORTALITY: [f64; 3] = [
 
 pub(crate) const LAND_TRAVEL_KM_PER_MONTH: f32 = 150.0;
 
+/// Shared annual levy rule for actual collection and credit's current-base ceiling.
+pub(crate) fn collectible_tax(cash: f32, rate: f32, autonomy: f32, capacity: f32) -> f32 {
+    cash * rate * (1. - autonomy * crate::governance::AUTONOMY_TAX_REDUCTION) * capacity
+}
+
 // Inverse multiplication can round above the food used to bound recruitment.
 // Debit and carry the same bounded quantity; never repair an overdraw by minting food.
 fn raid_muster(adults: f32, available_food: f32, months: u32) -> (f32, f32) {
@@ -334,7 +339,8 @@ pub struct Raid {
     pub equipment: f32,
 }
 /// Observational totals at actual council payment boundaries. Currency is abstract.
-/// Imported histories start a new diagnostic baseline; these never drive decisions.
+/// Imported histories start a new diagnostic baseline. Credit separately archives
+/// annual tax receipts as evidence; cumulative funding totals remain diagnostic.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct CouncilFunding {
     /// Latest annual collection boundary; observations never supply spendable revenue.
@@ -1324,10 +1330,12 @@ impl History {
                 .as_ref()
                 .and_then(|g| g.administrations.get(s.id as usize))
                 .map_or(0., |a| a.autonomy);
-            let tax = s.economy.finance[0]
-                * council.tax_rate
-                * (1. - autonomy * crate::governance::AUTONOMY_TAX_REDUCTION)
-                * office_capacity[s.id as usize];
+            let tax = collectible_tax(
+                s.economy.finance[0],
+                council.tax_rate,
+                autonomy,
+                office_capacity[s.id as usize],
+            );
             society.council_funding.taxes.push(TaxReceipt {
                 month: self.month,
                 site: s.id,

@@ -445,3 +445,9 @@ sustained absence; annual personal selection follows faction competition. In
 political histories, inheriting property alone no longer assigns civilization
 leadership. Heritage appeal for the annual affiliation pass is frozen against
 opening membership so earlier household switches cannot alter later claims.
+
+Annual council credit evidence is recorded in Respond immediately after tax and
+support settlement. It describes a completed collection and bounds forecasts of
+the next annual levy. It neither credits a receivable to cash nor authorizes a
+loan. A loan against that future collection must mature after its Respond date,
+so ordinary Open collection cannot spend taxes before they arrive.

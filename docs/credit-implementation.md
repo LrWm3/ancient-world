@@ -162,3 +162,28 @@ two 40-unit loans. Replayed requests leave history unchanged. All 161 active
 library tests passed (132 extended cases ignored). Strict all-target Clippy passed
 before a declaration-order-only move of the underwriting test module. Long-run
 credit and issuance experiments have not started.
+
+## Council receipt evidence
+
+Annual Respond now records each council's actual collected tax and requested town
+support immediately after `social_year`. Observations are dated, archived and
+idempotent. Older archives start without tax evidence. Zero collections remain
+visible, including councils that have lost all their sites.
+
+A council forecast uses the smaller of its previous collection and the current
+collectible levy on active controlled towns. Collection and forecasting share the
+same cash × tax rate × autonomy × office-capacity expression. Production and
+council treasury balances do not count as future receipts. Requested support is
+an operating deduction even when it was unaffordable. Evidence expires at the next
+annual collection; its source names that future collection, not the previous one.
+This is a conservative game underwriting ceiling, not a calibrated default model.
+Other essential operating costs still need to enter the automatic lending policy.
+
+Focused tests cover cash/policy/administration changes, reduced and lost tax base,
+source dates, expiration and serialized observation continuation. Automatic
+council lending and scheduled collections remain pending.
+
+Verification for this increment: both focused tax tests passed; all 163 active
+library tests passed (132 extended/GPU tests ignored); strict all-target Clippy and
+repository artifact checks passed. These checks do not establish long-run lending
+benefits or replace the planned four-arm monetary experiments.

@@ -1519,6 +1519,7 @@ impl Generator {
             h.politics_year();
             h.sync_offices();
             h.social_year();
+            h.observe_credit_taxes();
             h.shipping_year_with_navigation(terrain, self.config.radius_km, navigation)?;
             h.expedition_year_with_navigation(terrain, self.config.radius_km, navigation)?;
             h.governance_year();

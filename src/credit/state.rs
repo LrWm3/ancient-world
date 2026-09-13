@@ -14,6 +14,8 @@ pub struct CashReceipt {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Credit {
     #[serde(default)]
+    pub tax_observations: Vec<super::taxes::Observation>,
+    #[serde(default)]
     pub rounds: Vec<super::underwriting::Round>,
     pub loans: Vec<Loan>,
     pub cash_receipts: Vec<CashReceipt>,
@@ -84,6 +86,14 @@ impl History {
     }
 
     pub fn validate_credit(&self) -> Result<()> {
+        let mut observed = std::collections::BTreeSet::new();
+        for observation in &self.credit.tax_observations {
+            observation.validate(self.month)?;
+            ensure!(
+                observed.insert((observation.month, observation.council)),
+                "duplicate tax observation"
+            );
+        }
         let mut funded = std::collections::BTreeSet::new();
         let mut requests = std::collections::BTreeSet::new();
         for round in &self.credit.rounds {
