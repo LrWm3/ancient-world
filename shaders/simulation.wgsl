@@ -12,6 +12,62 @@ struct Cell {
  strata: vec4<f32>, // top, middle, basement thickness m; cumulative bedrock removed m
 }
 struct Params { dims:vec4<u32>, physical:vec4<f32>, counts:vec4<u32>, aux:vec4<u32>, tuning:vec4<f32> }
+// Climate and hydrology parameters, after the shared Cell ABI prefix.
+const CLIMATE_WET_DEPTH_M:f32=.1;
+const CLIMATE_BASE_TEMPERATURE_C:f32=-20.;
+const CLIMATE_SOLAR_WARMING_C:f32=55.;
+const CLIMATE_LAPSE_C_PER_M:f32=.006;
+const MIN_CLIMATE_TEMPERATURE_C:f32=-90.;
+const MAX_CLIMATE_TEMPERATURE_C:f32=55.;
+const LAND_TEMPERATURE_RESPONSE:f32=.35;
+const WATER_TEMPERATURE_RESPONSE:f32=.12;
+const WIND_AXIS_EPSILON:f32=.00001;
+const WIND_REVERSAL_Y:f32=.5;
+const CONVECTION_BASE:f32=.015;
+const CONVECTION_SOLAR_GAIN:f32=.08;
+const CONVECTION_SOLAR_EXPONENT:f32=4.;
+const UPSTREAM_VAPOR_SHARE:f32=.65;
+const LAND_VAPOR_BASE:f32=.15;
+const VEGETATION_VAPOR_GAIN:f32=.7;
+const GROUNDWATER_VAPOR_GAIN:f32=2.;
+const GROUNDWATER_VAPOR_HALF_SATURATION_M:f32=.1;
+const WATER_VAPOR_BASE:f32=1.5;
+const WATER_VAPOR_TEMPERATURE_GAIN:f32=.05;
+const OROGRAPHIC_PRECIPITATION_PER_M:f32=.00012;
+const MAX_PRECIPITATION_PER_PASS:f32=30.;
+const MAX_VAPOR_STORAGE:f32=80.;
+const PRECIPITATION_ANNUALIZATION:f32=365.;
+const PREVAILING_WIND_BASE_M_S:f32=5.;
+const PREVAILING_WIND_AMPLITUDE_M_S:f32=10.;
+const WIND_LATITUDE_FREQUENCY:f32=3.;
+const SEASONAL_WIND_AMPLITUDE_M_S:f32=2.;
+const SEASONAL_WIND_RADIANS:f32=6.28;
+const WIND_EPOCH_PHASE_RADIANS:f32=.3;
+const METERS_PER_MM:f32=.001;
+const SECONDS_PER_RUNOFF_YEAR:f32=31557600.;
+const SNOW_MELT_M_PER_C:f32=.025;
+const EVAPORATION_TEMPERATURE_OFFSET_C:f32=5.;
+const EVAPORATION_M_PER_C:f32=.015;
+const GROUNDWATER_CAPACITY_M:f32=100.;
+const INFILTRATION_PERMEABILITY_SHARE:f32=.6;
+const GROUNDWATER_RELEASE_SHARE:f32=.04;
+const CLIMATE_TEMPERATURE_TOLERANCE_C:f32=.25;
+const CLIMATE_RAIN_TOLERANCE_MM_YEAR:f32=10.;
+const CLIMATE_VAPOR_TOLERANCE:f32=.1;
+const SECONDARY_LAKE_MIN_DEPRESSION_M:f32=.05;
+const POOL_AREA_WEIGHT_SCALE:f32=4096.;
+const POOL_OVERFLOW_TOLERANCE_M:f32=.0001;
+const POOL_HEAD_ABSOLUTE_TOLERANCE_M:f32=.0005;
+const POOL_HEAD_RELATIVE_TOLERANCE:f32=.0000005;
+const POOL_MAX_EDGE_OUTFLOW_SHARE:f32=.24;
+const POOL_HEAD_TRANSFER_SHARE:f32=.48;
+const LAKE_LEDGER_SCALE:f32=1e-12;
+const LAKE_RIVER_INPUT_SALINITY:f32=.05;
+const LAKE_DIVISION_FLOOR:f32=1e-10;
+const MIN_GREAT_LAKE_LEVEL_M:f32=85.;
+const MAX_GREAT_LAKE_LEVEL_M:f32=240.;
+const MAX_GREAT_LAKE_SALINITY:f32=200.;
+
 struct Entry { a:vec4<f32>, b:vec4<f32>, c:vec4<f32>, d:vec4<f32>, ids:vec4<u32> }
 struct Flags { changed:atomic<u32>, invalid:atomic<u32>, reserved:atomic<u32>, pad:atomic<u32> }
 @group(0) @binding(0) var<storage,read> src:array<Cell>;
@@ -283,12 +339,12 @@ fn drain_scatter(@builtin(global_invocation_id) g:vec3<u32>) {
 }
 @compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn basin_init(@builtin(global_invocation_id) g:vec3<u32>) {
- let i=cell_id(g);var c=src[i];if c.tags.x>=2u {c.routing.z=select(NONE,i+2u,c.hydro.x>c.terrain.x+.05);}dst[i]=c;
+ let i=cell_id(g);var c=src[i];if c.tags.x>=2u {c.routing.z=select(NONE,i+2u,c.hydro.x>c.terrain.x+SECONDARY_LAKE_MIN_DEPRESSION_M);}dst[i]=c;
 }
 @compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn basin_relax(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);var c=src[i];let old=c.routing.z;
- if c.tags.x>=2u && c.hydro.x>c.terrain.x+.05 {for(var k=0u;k<4u;k++) {let b=src[neighbor(i,k)];if b.tags.x>=2u && b.hydro.x>b.terrain.x+.05 && abs(b.hydro.x-c.hydro.x)<.01 {c.routing.z=min(c.routing.z,b.routing.z);}}}
+ if c.tags.x>=2u && c.hydro.x>c.terrain.x+SECONDARY_LAKE_MIN_DEPRESSION_M {for(var k=0u;k<4u;k++) {let b=src[neighbor(i,k)];if b.tags.x>=2u && b.hydro.x>b.terrain.x+.05 && abs(b.hydro.x-c.hydro.x)<.01 {c.routing.z=min(c.routing.z,b.routing.z);}}}
  // Follow the representative's representative to accelerate long connected basins.
  if c.routing.z>=2u && c.routing.z!=NONE {c.routing.z=min(c.routing.z,src[c.routing.z-2u].routing.z);}
  if old!=c.routing.z {atomicAdd(&flags.changed,1u);}dst[i]=c;
@@ -297,39 +353,39 @@ fn basin_relax(@builtin(global_invocation_id) g:vec3<u32>) {
 fn climate(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);var c=src[i];let d=pos(i);let season=p.physical.w;
  let latitude=asin(d.y);let solar=cos(latitude-p.physical.y*PI/180.*sin(season*2.*PI));
- let ocean=c.tags.x<2u || c.water.x>.1;let temp=clamp(-20.+55.*solar-max(c.terrain.x,0.)*.006,-90.,55.);
- c.climate.x=mix(c.climate.x,temp,select(.35,.12,ocean));
- let east=normalize(vec3(-d.z,0.,d.x)+vec3(.00001,0.,0.));let signwind=select(-1.,1.,abs(d.y)>.5);
+ let ocean=c.tags.x<2u || c.water.x>CLIMATE_WET_DEPTH_M;let temp=clamp(CLIMATE_BASE_TEMPERATURE_C+CLIMATE_SOLAR_WARMING_C*solar-max(c.terrain.x,0.)*CLIMATE_LAPSE_C_PER_M,MIN_CLIMATE_TEMPERATURE_C,MAX_CLIMATE_TEMPERATURE_C);
+ c.climate.x=mix(c.climate.x,temp,select(LAND_TEMPERATURE_RESPONSE,WATER_TEMPERATURE_RESPONSE,ocean));
+ let east=normalize(vec3(-d.z,0.,d.x)+vec3(WIND_AXIS_EPSILON,0.,0.));let signwind=select(-1.,1.,abs(d.y)>WIND_REVERSAL_Y);
  let upstream=index(normalize(d-east*signwind*2./f32(p.dims.x)));
  let b=src[upstream];let uplift=max(c.terrain.x-b.terrain.x,0.);
- let convection=.015+.08*pow(max(0.,solar),4.);let vapor=mix(c.climate.z,b.climate.z,.65);
- let recycling=.15+c.life.x*.7+2.*c.water.y/(c.water.y+.1);
- let supply=select(recycling,1.5+max(temp,0.)*.05,ocean);
- let precip=clamp(vapor*(convection+uplift*.00012),0.,30.);
- c.climate.z=clamp(vapor+supply-precip,0.,80.);
- c.climate.y=precip*365.;c.climate.w=signwind*(5.+10.*abs(sin(latitude*3.)))+2.*sin(season*6.28+f32(p.dims.z)*.3);
+ let convection=CONVECTION_BASE+CONVECTION_SOLAR_GAIN*pow(max(0.,solar),CONVECTION_SOLAR_EXPONENT);let vapor=mix(c.climate.z,b.climate.z,UPSTREAM_VAPOR_SHARE);
+ let recycling=LAND_VAPOR_BASE+c.life.x*VEGETATION_VAPOR_GAIN+GROUNDWATER_VAPOR_GAIN*c.water.y/(c.water.y+GROUNDWATER_VAPOR_HALF_SATURATION_M);
+ let supply=select(recycling,WATER_VAPOR_BASE+max(temp,0.)*WATER_VAPOR_TEMPERATURE_GAIN,ocean);
+ let precip=clamp(vapor*(convection+uplift*OROGRAPHIC_PRECIPITATION_PER_M),0.,MAX_PRECIPITATION_PER_PASS);
+ c.climate.z=clamp(vapor+supply-precip,0.,MAX_VAPOR_STORAGE);
+ c.climate.y=precip*PRECIPITATION_ANNUALIZATION;c.climate.w=signwind*(PREVAILING_WIND_BASE_M_S+PREVAILING_WIND_AMPLITUDE_M_S*abs(sin(latitude*WIND_LATITUDE_FREQUENCY)))+SEASONAL_WIND_AMPLITUDE_M_S*sin(season*SEASONAL_WIND_RADIANS+f32(p.dims.z)*WIND_EPOCH_PHASE_RADIANS);
  let weight=1./f32(p.aux.y+1u);c.hydro.y=mix(c.hydro.y,c.climate.x,weight);c.hydro.z=mix(c.hydro.z,c.climate.y,weight);
  dst[i]=c;
 }
 @compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn flow_init(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);var c=src[i];let permeability=catalog[c.ids.x].a.y;
- let precipitation=c.hydro.z*.001;let rain=select(0.,precipitation,c.hydro.y>=0.);
- let melt=min(c.water.z,max(c.hydro.y,0.)*.025);let available=rain+melt;
- let evap=min(available,max(c.hydro.y+5.,0.)*.015);
- let infiltrate=min(max(0.,100.-c.water.y),(available-evap)*permeability*.6);
- let release=c.water.y*.04;
+ let precipitation=c.hydro.z*METERS_PER_MM;let rain=select(0.,precipitation,c.hydro.y>=0.);
+ let melt=min(c.water.z,max(c.hydro.y,0.)*SNOW_MELT_M_PER_C);let available=rain+melt;
+ let evap=min(available,max(c.hydro.y+EVAPORATION_TEMPERATURE_OFFSET_C,0.)*EVAPORATION_M_PER_C);
+ let infiltrate=min(max(0.,GROUNDWATER_CAPACITY_M-c.water.y),(available-evap)*permeability*INFILTRATION_PERMEABILITY_SHARE);
+ let release=c.water.y*GROUNDWATER_RELEASE_SHARE;
  c.life.w=max(0.,available-evap-infiltrate)+release;
  if c.tags.x<2u {c.life.w=0.;}
- let retention=select(max(0.,c.hydro.x-c.terrain.x-c.water.x)*area(i)/31557600.,0.,c.tags.x<2u);
- c.water.w=max(0.,c.life.w*area(i)/31557600.-retention);c.hydro.w=infiltrate-release;
+ let retention=select(max(0.,c.hydro.x-c.terrain.x-c.water.x)*area(i)/SECONDS_PER_RUNOFF_YEAR,0.,c.tags.x<2u);
+ c.water.w=max(0.,c.life.w*area(i)/SECONDS_PER_RUNOFF_YEAR-retention);c.hydro.w=infiltrate-release;
  c.budget.x=precipitation;c.budget.y=evap;dst[i]=c;
 }
 @compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn flow_relax(@builtin(global_invocation_id) g:vec3<u32>) {
- let i=cell_id(g);var c=src[i];var total=c.life.w*area(i)/31557600.;
+ let i=cell_id(g);var c=src[i];var total=c.life.w*area(i)/SECONDS_PER_RUNOFF_YEAR;
  for(var k=0u;k<4u;k++){let j=neighbor(i,k);if src[j].routing.x==i {total+=src[j].water.w;}}
- let retention=select(max(0.,c.hydro.x-c.terrain.x-c.water.x)*area(i)/31557600.,0.,c.tags.x<2u);total=max(0.,total-retention);
+ let retention=select(max(0.,c.hydro.x-c.terrain.x-c.water.x)*area(i)/SECONDS_PER_RUNOFF_YEAR,0.,c.tags.x<2u);total=max(0.,total-retention);
  if total!=c.water.w {atomicAdd(&flags.changed,1u);}c.water.w=total;dst[i]=c;
 }
 fn erosion_flux(a:Cell,b:Cell,i:u32,j:u32)->f32 {
@@ -346,14 +402,14 @@ fn fluvial_flux(i:u32)->f32 {
 }
 @compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn water_erosion(@builtin(global_invocation_id) g:vec3<u32>) {
- let i=cell_id(g);var c=src[i];let rock=catalog[c.ids.x];let annual=max(c.hydro.z*.001,0.);
- let cold=c.hydro.y<0.;let snowfall=select(0.,c.budget.x,cold);let melt=min(c.water.z,max(c.hydro.y,0.)*.025);
+ let i=cell_id(g);var c=src[i];let rock=catalog[c.ids.x];let annual=max(c.hydro.z*METERS_PER_MM,0.);
+ let cold=c.hydro.y<0.;let snowfall=select(0.,c.budget.x,cold);let melt=min(c.water.z,max(c.hydro.y,0.)*SNOW_MELT_M_PER_C);
  c.water.z=max(0.,c.water.z+snowfall-melt);c.water.y=clamp(c.water.y+c.hydro.w,0.,100.);
  let capacity=max(0.,c.hydro.x-c.terrain.x);
  // Stored runoff fills secondary depressions; discharge includes the full catchment.
- var incoming=c.life.w*area(i)/31557600.;
+ var incoming=c.life.w*area(i)/SECONDS_PER_RUNOFF_YEAR;
  for(var k=0u;k<4u;k++){let j=neighbor(i,k);if src[j].routing.x==i {incoming+=src[j].water.w;}}
- let inflow=incoming*31557600./area(i);
+ let inflow=incoming*SECONDS_PER_RUNOFF_YEAR/area(i);
  c.water.x=clamp(c.water.x+inflow,0.,capacity);
  if c.tags.x<2u {c.water.x=max(0.,select(0.,planet[0].x,c.tags.x==1u)-c.terrain.x);}
  var weather=rock.a.z*.003*(1.+annual)*(1.-select(0.,.8,cold));
@@ -408,10 +464,10 @@ fn ecology(@builtin(global_invocation_id) g:vec3<u32>) {
 fn lake_collect(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);let c=src[i];var value=vec4(0.);
  if c.tags.x==1u {
-  let a=area(i)*1e-12;let river=c.water.w*31557600.*1e-12;
-  let evaporation=max(c.hydro.y+5.,0.)*.015;
+  let a=area(i)*LAKE_LEDGER_SCALE;let river=c.water.w*SECONDS_PER_RUNOFF_YEAR*LAKE_LEDGER_SCALE;
+  let evaporation=max(c.hydro.y+EVAPORATION_TEMPERATURE_OFFSET_C,0.)*EVAPORATION_M_PER_C;
   let capacity=max(0.,planet[0].x-c.terrain.x);
-  value=vec4(a,(c.budget.x-evaporation+c.water.x-capacity)*a+river,capacity*a,planet[0].y*c.water.x*a+river*.05);
+  value=vec4(a,(c.budget.x-evaporation+c.water.x-capacity)*a+river,capacity*a,planet[0].y*c.water.x*a+river*LAKE_RIVER_INPUT_SALINITY);
  }
  scratch[i]=value;dst[i]=c;
 }
@@ -427,9 +483,9 @@ fn lake_reduce(@builtin(global_invocation_id) g:vec3<u32>,@builtin(local_invocat
 fn lake_update(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);dst[i]=src[i];if i!=0u{return;}
  let total=6u*p.dims.x*p.dims.x;let t=scratch[p.aux.w*total];let old=planet[0];
- let raw=old.x+t.y/max(t.x,1e-10);let level=clamp(raw,85.,240.);
- let volume=max(1e-10,t.z+(level-old.x)*t.x);
- let salinity=clamp(t.w/volume,0.,200.);
+ let raw=old.x+t.y/max(t.x,LAKE_DIVISION_FLOOR);let level=clamp(raw,MIN_GREAT_LAKE_LEVEL_M,MAX_GREAT_LAKE_LEVEL_M);
+ let volume=max(LAKE_DIVISION_FLOOR,t.z+(level-old.x)*t.x);
+ let salinity=clamp(t.w/volume,0.,MAX_GREAT_LAKE_SALINITY);
  planet[0]=vec4(level,salinity,old.z+(raw-level)*t.x,volume);
 }
 
@@ -457,11 +513,11 @@ fn climate_check(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);let c=src[i];let previous=scratch[i];
  // Compare both annual means and the same seasonal phase. Stable means alone
  // can conceal a moisture reservoir that is still warming up.
- if abs(c.hydro.y-previous.x)>.25 || abs(c.hydro.z-previous.y)>10. || abs(c.climate.x-previous.z)>.25 || abs(c.climate.z-previous.w)>.1 {atomicAdd(&flags.changed,1u);}
+ if abs(c.hydro.y-previous.x)>CLIMATE_TEMPERATURE_TOLERANCE_C || abs(c.hydro.z-previous.y)>CLIMATE_RAIN_TOLERANCE_MM_YEAR || abs(c.climate.x-previous.z)>CLIMATE_TEMPERATURE_TOLERANCE_C || abs(c.climate.z-previous.w)>CLIMATE_VAPOR_TOLERANCE {atomicAdd(&flags.changed,1u);}
  dst[i]=c;
 }
-fn secondary(c:Cell)->bool { return c.tags.x>=2u && c.routing.z>=2u && c.routing.z!=NONE && c.hydro.x>c.terrain.x+.05; }
-fn lake_weight(i:u32)->f32 { return area(i)/(4.*PI*p.physical.x*p.physical.x*1e6/f32(6u*p.dims.x*p.dims.x))*4096.; }
+fn secondary(c:Cell)->bool { return c.tags.x>=2u && c.routing.z>=2u && c.routing.z!=NONE && c.hydro.x>c.terrain.x+SECONDARY_LAKE_MIN_DEPRESSION_M; }
+fn lake_weight(i:u32)->f32 { return area(i)/(4.*PI*p.physical.x*p.physical.x*1e6/f32(6u*p.dims.x*p.dims.x))*POOL_AREA_WEIGHT_SCALE; }
 // Reuse the drainage/reduction scratch: water depth, terrain, area weight, spill.
 // Static geometry is prepared once; relaxation never copies the full Cell.
 @compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
@@ -473,12 +529,12 @@ fn pool_init(@builtin(global_invocation_id) g:vec3<u32>) {
 fn pool_transfer(i:u32,j:u32,offset:u32)->f32 {
  let a=scratch[offset+i];let b=scratch[offset+j];if a.x<=0.||src[i].tags.x<2u{return 0.;}
  let same_pool=secondary(src[i])&&secondary(src[j])&&src[i].routing.z==src[j].routing.z;
- let overflow=src[i].routing.x==j && a.y+a.x>a.w+.0001;
+ let overflow=src[i].routing.x==j && a.y+a.x>a.w+POOL_OVERFLOW_TOLERANCE_M;
  if !same_pool&&!overflow{return 0.;}
  var head=a.y+a.x-max(a.y,b.y+b.x);
  if !same_pool {head=min(head,a.y+a.x-a.w);}
- if head<=max(.0005,max(abs(a.y),abs(b.y))*.0000005){return 0.;}
- return min(a.x*a.z*.24,head*a.z*b.z/(a.z+b.z)*.48);
+ if head<=max(POOL_HEAD_ABSOLUTE_TOLERANCE_M,max(abs(a.y),abs(b.y))*POOL_HEAD_RELATIVE_TOLERANCE){return 0.;}
+ return min(a.x*a.z*POOL_MAX_EDGE_OUTFLOW_SHARE,head*a.z*b.z/(a.z+b.z)*POOL_HEAD_TRANSFER_SHARE);
 }
 fn pool_compact(i:u32,side:u32) {
  let count=6u*p.dims.x*p.dims.x;let offset=side*count;
@@ -486,7 +542,7 @@ fn pool_compact(i:u32,side:u32) {
  for(var k=0u;k<4u;k++){let j=neighbor(i,k);net+=pool_transfer(j,i,offset)-pool_transfer(i,j,offset);}
  c.x=max(0.,c.x+net/c.z);
  let change=abs(c.x-old.x);
- if change>max(.0005,max(abs(c.y),abs(c.x))*.0000005) {
+ if change>max(POOL_HEAD_ABSOLUTE_TOLERANCE_M,max(abs(c.y),abs(c.x))*POOL_HEAD_RELATIVE_TOLERANCE) {
   atomicAdd(&flags.changed,1u);atomicMax(&flags.invalid,bitcast<u32>(change));
  }
  scratch[(1u-side)*count+i]=c;

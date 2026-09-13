@@ -525,3 +525,24 @@ The hardware checkpoint/export fixture passed: it renders all 31 atlas layers,
 exports PNG and checks repeatable regional export. Strict all-target Clippy also
 passed. Globe branch expressions are unchanged by literal expansion; this fixture
 does not exercise interactive globe controls.
+
+## Planetary climate and hydrology parameters
+
+Named climate response, vapor transport/recycling, precipitation and wind
+parameters, runoff conversion, snowmelt, infiltration, groundwater release,
+climate convergence tolerances, and lake transport/budget thresholds in
+`shaders/simulation.wgsl`. Matching processes share their existing parameters;
+for example land and great-lake evaporation use one formula. The precipitation
+annualization of 365 and runoff year of 31,557,600 seconds remain distinct as
+before; this is not a calendar or physical-model correction.
+
+These declarations follow `struct Params`, preserving the shared `Cell`-only
+source prefix consumed by ecology, regional generation and viewer assembly.
+They still precede the owning shader's functions. Expanding the constants
+reproduces the previous expressions exactly after whitespace/comment removal.
+Planet structure, tectonics, geology, erosion and the legacy ecological pass in
+this shader remain to be reviewed. Hardware checkpoint/export validation passed,
+as did strict all-target Clippy. Seasonal convergence passed for seeds 17, 81
+and 256, including the deliberately under-budgeted nonconvergence control. The
+secondary-lake fixture also preserved volume and equalized connected surfaces
+across a cube-face seam.

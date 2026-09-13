@@ -143,3 +143,21 @@ A fresh matched run uses fixed executable `d50bceb`, including affordable blocke
 collection, with the same seed/checkpoint, 500 years and four policy arms. Raw
 results are under ignored `output/monetary-blocked-five-century/`. That run remains
 in progress; its summaries also expose retained debt and blocked monthly receipts.
+
+## Blocked-collection run: completed baseline and credit arms (`d50bceb`)
+
+The baseline completed at 180.166604 residents with byte-identical serialized
+history to the preceding baseline. The corrected credit arm completed at
+200.028506 residents with eight loans, no defaults and zero outstanding debt.
+Actual principal disbursed totaled 33.84619140625. Real repayments totaled
+36.149658203125, including 2.303973148589 interest; separately recorded precision
+write-offs totaled 0.000506351714. All eight loans eventually reached
+PrecisionSettled. No restructuring occurred.
+
+The small second loan remained precision-blocked for six receipts, months
+2656–2661, and settled in month 2662. Its claim remained visible until actual
+collection and the bounded final residue settlement. This is the controlled
+classification mechanism behaving in the long run; it is not evidence of a
+general credit benefit across seeds. Later lending and historical choices diverged,
+so the population difference is not a measured work-productivity effect.
+Native validation passed. Issuance and combined arms are still running.
