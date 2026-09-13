@@ -509,3 +509,19 @@ and boolean encodings remain inline. No values or operation order changed.
 The hardware plot/recipe-conservation fixture passed, exercising both shader
 assemblies; strict all-target Clippy and executable build passed. This does not
 finish the remaining ecology, terrain, economy or map-rendering shader reviews.
+
+## Map display parameters
+
+Named the elevation, climate, water and ecological layer display scales in
+`shaders/view.wgsl`, together with palette spacing, visibility thresholds,
+atmospheric falloff, regional zoom blending, relief contrast and selection weights.
+These are display parameters, not simulated physical limits. Different uses of
+the same number retain separate names where their meanings differ. RGB swatches,
+buffer/layer indices, cube geometry and unit interval arithmetic remain inline.
+
+Expanding the new scalar constants back to their literal values reproduces the
+previous shader expressions exactly after ignoring comments and whitespace.
+The hardware checkpoint/export fixture passed: it renders all 31 atlas layers,
+exports PNG and checks repeatable regional export. Strict all-target Clippy also
+passed. Globe branch expressions are unchanged by literal expansion; this fixture
+does not exercise interactive globe controls.

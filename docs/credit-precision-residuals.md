@@ -71,7 +71,7 @@ A fresh seed-81 four-arm, 500-year run uses the fixed executable from `01d502b`
 and the same starting checkpoint and delivery-paid-export policy. The baseline
 completed at 180.166604 residents, with no loans or issuance. Its full serialized
 history matches the older baseline after allowing the newly added empty
-`credit.restructurings` field. The credit and issuance arms subsequently completed; the combined arm is still running. The executable
+`credit.restructurings` field. All four arms subsequently completed; results are summarized below. The executable
 also contains newer term-aware underwriting and delayed-export negotiation; this
 is an integrated comparison, not an isolated precision-settlement ablation.
 
@@ -104,7 +104,7 @@ as paid. This is a limitation of exact transfers between mixed account precision
 it is not an unlimited forgiveness or refinancing mechanism. Experiment summaries
 now report blocked collection receipts and total outstanding debt as well as
 actual defaults and precision settlements. The count is monthly receipts, not
-unique loans. The running fixed executable does not contain this follow-up fix.
+unique loans. The `01d502b` fixed executable does not contain this follow-up fix.
 
 The issuance-only arm completed with 182.069570 residents and 1,250 issued,
 matching the older arm's population and issuance totals. No loans originated.
@@ -120,3 +120,26 @@ receipts are rejected. Long-run evaluation of this further change is pending.
 
 Strict all-target Clippy and the executable build also passed for the blocked-
 collection follow-up.
+
+## Completed integrated comparison (`01d502b`)
+
+| Arm | Ending residents | Loans | Recorded defaults | Precision settlements | Issued |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Baseline | 180.166604 | 0 | 0 | 0 | 0 |
+| Credit | 65.578561 | 3 | 1 | 2 | 0 |
+| Issuance | 182.069570 | 0 | 0 | 0 | 1,250 |
+| Combined | 182.069570 | 0 | 0 | 0 | 1,250 |
+
+All four processes completed successfully and performed their native history
+validation. Issuance and combined histories differ only in the credit subtree;
+credit did not add a realized loan or observable non-credit outcome there.
+The credit-only default remains the precision-cap case described above. This
+comparison does not establish that credit improves useful work or that issuance
+passes the wider balance gate. Elapsed times were 254.27, 222.96, 211.54 and
+235.69 seconds respectively, with overlapping compilation/test work; these are
+run records, not controlled performance measurements.
+
+A fresh matched run uses fixed executable `d50bceb`, including affordable blocked
+collection, with the same seed/checkpoint, 500 years and four policy arms. Raw
+results are under ignored `output/monetary-blocked-five-century/`. That run remains
+in progress; its summaries also expose retained debt and blocked monthly receipts.
