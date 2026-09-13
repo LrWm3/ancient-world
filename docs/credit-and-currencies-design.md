@@ -139,8 +139,10 @@ delivery should close their evidence gaps before expanding the monetary model:
    next-month contracts from lagged production demand and surplus town cash.
    The [eight-arm screen](service-procurement-screening.md) finds mixed effects
    and no loans. The [smaller-share comparison](service-procurement-share-comparison.md)
-   barely changes outcomes. Diagnose actual order shortfalls and cash timing next,
-   then more seeds and longer intervals. Retain procurement in all credit arms and
+   barely changes outcomes. The [execution observations](service-order-shortfall-observations.md)
+   show funded labor in every zero-output case and a mismatch between contracted
+   work and staffed shifts. Test contract-aware shift requests and production
+   constraints next, then more seeds and longer intervals. Retain procurement in all credit arms and
    separately compare ordinary invoicing. The deliberately valuable fixture
    contract does not establish a balance benefit.
 3. **Test lender costs as well as borrower benefits.** Compare council and

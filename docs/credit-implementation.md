@@ -808,3 +808,11 @@ checkpoint continuation and corrupt-observation checks (one test); strict all-ta
 Clippy passed. These verify recording and continuation, not the distribution of
 shortfall causes in the previous long runs. Those archives predate the observations
 and must not be used to infer missing historical values.
+
+
+The [four-arm observation screen](service-order-shortfall-observations.md) now
+replays every prior outcome exactly after excluding only new observations.
+All zero-completion orders had funded labor, while many contracts covered more
+work than firms staffed. The next experiment should reconcile contract demand
+with the independent operator shift forecast and inspect input/output constraints;
+this evidence does not justify relaxing credit or raising fees.
