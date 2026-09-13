@@ -560,3 +560,20 @@ Expanding constants reproduces the prior expressions exactly. The hardware
 water/sediment-budget fixture and strict all-target Clippy passed. These checks
 verify unchanged equations and conservation on the tested fixture; planet-mask,
 tectonic, deposit-selection and legacy ecology parameters remain outstanding.
+
+## Plate-field motion and geological activity
+
+Named plate count, angular speed, spatial warp, boundary falloff, convergence
+normalization, regional geological-activity thresholds, uplift, crust limits,
+volcanic rejuvenation and metamorphic exposure thresholds in
+`shaders/simulation.wgsl`. Plate position and relative velocity share their speed
+parameters. Unit conversion remains multiplication by the original literal;
+no division replacement or changed arithmetic order was introduced. Noise seed
+offsets and categorical rock/setting IDs remain inline.
+
+Constants follow `Params` and precede functions to preserve the shared `Cell`
+source prefix. Literal expansion reproduces the prior shader expressions exactly.
+The hardware geography fixture passed its three-seed geography checks and
+30-epoch finite-state run. Strict all-target Clippy also passed.
+Planet-mask, initial terrain/stratigraphy, deposit-selection and legacy ecology
+parameters remain outstanding in this shader.

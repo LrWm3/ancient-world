@@ -215,3 +215,15 @@ Decision: the numerical-default correction is supported, but the Stage 2 gate
 remains unproven. The next monetary evaluation needs immediate funded-work
 mediators, account-closure handling and held-out worlds; increasing currency
 complexity now would make the unresolved work/access effects harder to diagnose.
+
+
+The completed `d50bceb` run's absolute relative monetary residual was at most
+4.52e-7; the largest other managed residual was approximately 1.24e-4 (phosphorus).
+These are native end-of-run accounting checks, not a claim of exact arithmetic or
+cross-hardware equivalence.
+
+A second corrected 500-year four-arm comparison is running from the original
+seed-17 council-smoke founding checkpoint. It uses the same copied `d50bceb`
+executable; the runner revision separately records the added reporting fields.
+Raw files are under ignored `output/monetary-blocked-seed17-five-century/`.
+Seed 17 is a previously explored tuning seed, not a held-out validation case.

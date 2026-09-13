@@ -12,6 +12,34 @@ struct Cell {
  strata: vec4<f32>, // top, middle, basement thickness m; cumulative bedrock removed m
 }
 struct Params { dims:vec4<u32>, physical:vec4<f32>, counts:vec4<u32>, aux:vec4<u32>, tuning:vec4<f32> }
+// Plate-field motion and geological activity; rates use the geological clock.
+const PLATE_COUNT:u32=16u;
+const PLATE_BASE_ANGULAR_SPEED_PER_MYR:f32=.002;
+const PLATE_ANGULAR_SPEED_SPAN_PER_MYR:f32=.004;
+const PLATE_WARP_FREQUENCY:f32=5.;
+const PLATE_WARP_AMPLITUDE:f32=.7;
+const PLATE_CONVERGENCE_SPEED_SCALE:f32=.008;
+const PLATE_BOUNDARY_FALLOFF:f32=38.;
+const OUTER_ACTIVITY_BASE:f32=.3;
+const OUTER_ACTIVITY_BELT_GAIN:f32=.7;
+const OUTER_ACTIVITY_BELT_START:f32=.28;
+const OUTER_ACTIVITY_BELT_FULL:f32=.65;
+const OUTER_ACTIVITY_NOISE_FREQUENCY:f32=13.;
+const INNER_ACTIVITY_BASE:f32=.12;
+const INNER_ACTIVITY_BELT_GAIN:f32=.88;
+const INNER_ACTIVITY_STRESS_START:f32=.8;
+const INNER_ACTIVITY_STRESS_FULL:f32=.97;
+const TECTONIC_UPLIFT_M_PER_MYR:f32=1000.;
+const KM_PER_METER:f32=.001;
+const MIN_CRUST_THICKNESS_KM:f32=5.;
+const MAX_CRUST_THICKNESS_KM:f32=80.;
+const VOLCANIC_BOUNDARY_STRENGTH_MIN:f32=.85;
+const VOLCANIC_CONVERGENCE_MIN:f32=.4;
+const VOLCANIC_AGE_REDUCTION_PER_MYR:f32=100.;
+const METAMORPHIC_BOUNDARY_STRENGTH_MIN:f32=.9;
+const METAMORPHIC_DIVERGENCE_THRESHOLD:f32=-.3;
+const TECTONIC_ROCK_PROVINCE_FREQUENCY:f32=9.;
+
 // Erosion and terrain constraints, after the shared Cell ABI prefix.
 const METERS_PER_KM:f32=1000.;
 const MIN_EROSION_DISTANCE_M:f32=1.;
@@ -189,25 +217,25 @@ fn plate_axis(j:u32)->vec3<f32> {
 fn plate_seed(j:u32)->vec3<f32> {
  let z=rand(j*31u+919u)*2.-1.;let a=rand(j*79u+33u)*2.*PI;
  let base=vec3(sqrt(1.-z*z)*cos(a),z,sqrt(1.-z*z)*sin(a));
- let axis=plate_axis(j);let t=p.tuning.z*(.002+.004*rand(j+91u));
+ let axis=plate_axis(j);let t=p.tuning.z*(PLATE_BASE_ANGULAR_SPEED_PER_MYR+PLATE_ANGULAR_SPEED_SPAN_PER_MYR*rand(j+91u));
  return base*cos(t)+cross(axis,base)*sin(t)+axis*dot(axis,base)*(1.-cos(t));
 }
 fn plate(point:vec3<f32>)->vec3<f32> {
- let warp=vec3(fbm(point*5.+17.),fbm(point*5.+39.),fbm(point*5.+71.))-.5;
- let d=normalize(point+warp*.7);
+ let warp=vec3(fbm(point*PLATE_WARP_FREQUENCY+17.),fbm(point*PLATE_WARP_FREQUENCY+39.),fbm(point*PLATE_WARP_FREQUENCY+71.))-.5;
+ let d=normalize(point+warp*PLATE_WARP_AMPLITUDE);
  var best=-2.;var second=-2.;var id=0u;var other=0u;
- for(var j=0u;j<16u;j++){let s=dot(d,plate_seed(j));if s>best {second=best;other=id;best=s;id=j;} else if s>second {second=s;other=j;}}
+ for(var j=0u;j<PLATE_COUNT;j++){let s=dot(d,plate_seed(j));if s>best {second=best;other=id;best=s;id=j;} else if s>second {second=s;other=j;}}
  let boundary=normalize(plate_seed(other)-plate_seed(id));
- let velocity=cross(plate_axis(id)*(.002+.004*rand(id+91u)),point);
- let adjacent=cross(plate_axis(other)*(.002+.004*rand(other+91u)),point);
- let convergence=clamp(dot(velocity-adjacent,boundary)/.008,-1.,1.);
- return vec3(f32(id),exp(-(best-second)*38.),convergence);
+ let velocity=cross(plate_axis(id)*(PLATE_BASE_ANGULAR_SPEED_PER_MYR+PLATE_ANGULAR_SPEED_SPAN_PER_MYR*rand(id+91u)),point);
+ let adjacent=cross(plate_axis(other)*(PLATE_BASE_ANGULAR_SPEED_PER_MYR+PLATE_ANGULAR_SPEED_SPAN_PER_MYR*rand(other+91u)),point);
+ let convergence=clamp(dot(velocity-adjacent,boundary)/PLATE_CONVERGENCE_SPEED_SCALE,-1.,1.);
+ return vec3(f32(id),exp(-(best-second)*PLATE_BOUNDARY_FALLOFF),convergence);
 }
 fn geological_activity(d:vec3<f32>,stress:f32,r:u32)->f32 {
  // Regional source distributions: old outer plateaus coexist with rejuvenated belts;
  // inner continents keep uncommon but fully active geothermal exceptions.
- if r==3u {return stress*(.3+.7*smoothstep(.28,.65,fbm(d*13.+71.)));}
- if r==2u {return stress*(.12+.88*smoothstep(.8,.97,stress));}
+ if r==3u {return stress*(OUTER_ACTIVITY_BASE+OUTER_ACTIVITY_BELT_GAIN*smoothstep(OUTER_ACTIVITY_BELT_START,OUTER_ACTIVITY_BELT_FULL,fbm(d*OUTER_ACTIVITY_NOISE_FREQUENCY+71.)));}
+ if r==2u {return stress*(INNER_ACTIVITY_BASE+INNER_ACTIVITY_BELT_GAIN*smoothstep(INNER_ACTIVITY_STRESS_START,INNER_ACTIVITY_STRESS_FULL,stress));}
  return stress;
 }
 fn rock_for(f:u32,r:f32)->u32 {
@@ -324,12 +352,12 @@ fn initialize(@builtin(global_invocation_id) g:vec3<u32>) {
 @compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn tectonics(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);var c=src[i];let d=pos(i);let pl=plate(d);let dt=p.physical.z;
- let uplift=pl.y*pl.z*1000.*dt; c.terrain.x=constrain(c.terrain.x+uplift,c.tags.x);
+ let uplift=pl.y*pl.z*TECTONIC_UPLIFT_M_PER_MYR*dt; c.terrain.x=constrain(c.terrain.x+uplift,c.tags.x);
  let old_crust=c.geology.y;
- c.terrain.w+=dt;c.routing.w=u32(pl.x);c.geology.x=geological_activity(d,pl.y,c.tags.x);c.geology.y=clamp(c.geology.y+uplift*.001,5.,80.);
- if column_present(c) {c.strata.z=max(0.,c.strata.z+(c.geology.y-old_crust)*1000.);}
- if pl.y>.85 && pl.z>.4 {c.ids.x=province_rock(0u,d,fbm(d*9.));if p.tuning.w>1. {c.ids.x=setting_rock(1u,d);}c.terrain.w=max(0.,c.terrain.w-dt*100.);}
- if pl.y>.9 && select(pl.z<-.3,geological_setting(d,pl,c.terrain.x,c.tags.x)==6u,p.tuning.w>1.) {c.ids.x=province_rock(2u,d,fbm(d*9.));if p.tuning.w>1. {c.ids.x=setting_rock(6u,d);}}
+ c.terrain.w+=dt;c.routing.w=u32(pl.x);c.geology.x=geological_activity(d,pl.y,c.tags.x);c.geology.y=clamp(c.geology.y+uplift*KM_PER_METER,MIN_CRUST_THICKNESS_KM,MAX_CRUST_THICKNESS_KM);
+ if column_present(c) {c.strata.z=max(0.,c.strata.z+(c.geology.y-old_crust)*METERS_PER_KM);}
+ if pl.y>VOLCANIC_BOUNDARY_STRENGTH_MIN && pl.z>VOLCANIC_CONVERGENCE_MIN {c.ids.x=province_rock(0u,d,fbm(d*TECTONIC_ROCK_PROVINCE_FREQUENCY));if p.tuning.w>1. {c.ids.x=setting_rock(1u,d);}c.terrain.w=max(0.,c.terrain.w-dt*VOLCANIC_AGE_REDUCTION_PER_MYR);}
+ if pl.y>METAMORPHIC_BOUNDARY_STRENGTH_MIN && select(pl.z<METAMORPHIC_DIVERGENCE_THRESHOLD,geological_setting(d,pl,c.terrain.x,c.tags.x)==6u,p.tuning.w>1.) {c.ids.x=province_rock(2u,d,fbm(d*TECTONIC_ROCK_PROVINCE_FREQUENCY));if p.tuning.w>1. {c.ids.x=setting_rock(6u,d);}}
  dst[i]=c;
 }
 @compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)

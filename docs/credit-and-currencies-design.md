@@ -172,6 +172,50 @@ payment window. Set initial council maturities accordingly. Do not run a second
 implicit collection pass after annual taxes. Any later same-month proceeds sweep
 must be an explicit extension with a boundary test.
 
+## Remaining Stage 1 ownership boundary: closure and succession
+
+Current account adapters reject abandoned towns, inactive institutions and closed
+operators. That is useful for new-credit eligibility, but cannot also define
+whether an existing creditor can receive repayment. `enterprises::close` currently
+returns all operator cash to its household before closing; the legacy institution
+shutdown path moves treasury cash to its town. Neither operation first resolves
+credit claims. These paths need integration before general operator/institution
+lending is considered complete. The automatic pilots currently use councils and
+town commercial payees, but account adapters already expose the broader types.
+
+Implement this as a separate, reviewed increment:
+
+1. Separate operating eligibility from legal account/estate existence. Closing
+   prevents new borrowing and offers immediately. Existing claims keep their IDs
+   and original contractual parties; retaining a balance for settlement does not
+   reopen an enterprise or restore institutional services.
+2. At each existing closure boundary, identify obligations and receivables before
+   returning residual cash. Collect outstanding amounts under an explicit
+   liquidation policy, allocating equally ranked debts proportionally. Cash
+   unavailable after actual liquidation becomes a recorded loss; closure is not
+   an implicit repayment and cannot count principal as an operating expense.
+3. Persist assignment/succession records for surviving receivables, naming the
+   successor, old account, effective month and legal reason. Do not rewrite loan
+   origination evidence or overwrite transfer provenance. A household receiving
+   an operator's assets may receive a creditor claim without becoming eligible
+   for the deferred household-loan pilot.
+4. Keep unsatisfied obligations attached to the resolved estate/default record;
+   do not silently impose personal liability on an operator's owner. Council
+   office turnover preserves the council account. Relocation preserving an
+   institution's ID preserves its contracts. Abandonment without a legal
+   successor needs an explicit retained claim or write-off decision.
+5. Reconcile estate cash, liquidation payments, returned capital, interest income
+   and assigned claims through the existing ownership inventory. Include
+   same-month repayment/closure ordering, disabled-credit servicing, mixed
+   account precision and serialized continuation.
+
+Required fixtures include an indebted firm closing with ample cash, an insolvent
+firm, a closed creditor whose borrower later pays, simultaneous debtor/creditor
+closure, institution relocation versus dissolution, and a council leader change.
+Test cash and claims independently: an assigned receivable is not spendable money,
+and a write-off does not erase cash already returned to an owner. This section is
+remaining work, not a claim that an estate mechanism is implemented.
+
 ## Stage 1B: bounded shared-currency issuance
 
 Keep credit independently switchable. A dated civilization policy may issue the
