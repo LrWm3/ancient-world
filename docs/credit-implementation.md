@@ -709,3 +709,12 @@ requests from 6 to 35, but all were rejected for zero net repayment-source
 capacity. No loans occurred. History outside credit records matched controls
 exactly. Stage 2 remains gated; the next evidence gap is an automatic bridge
 funding useful work, with realistic retained operating costs.
+
+## Automatic bridge to administrative payroll
+
+A [controlled council service fixture](council-credit-service-bridge.md) now traces
+automatic lending through actual administrative payments and subsequent unpaid-
+month/loyalty responses. It preserves repayment-source operating costs, compares
+disabled credit, insolvent receipts and absent contact, and checks disbursement
+replay and monetary conservation. Administrative payroll is a payment to the town;
+this is not yet proof of additional named work or a positive long-run balance gate.

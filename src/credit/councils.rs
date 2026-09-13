@@ -329,6 +329,122 @@ mod tests {
 
     #[test]
     #[ignore = "requires hardware GPU"]
+    fn automatic_bridge_funds_administration_without_forgiving_operating_costs() {
+        use crate::{
+            catalog::Catalog,
+            config::Config,
+            gpu::{ContextGpu, Generator},
+        };
+        let mut g = Generator::new(
+            pollster::block_on(ContextGpu::headless()).unwrap(),
+            Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                ..Default::default()
+            },
+            Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        g.enable_society().unwrap();
+        g.enable_politics().unwrap();
+        g.enable_governance().unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        h.month = 13;
+        // A controlled cash-timing problem, not a newly created money supply.
+        let council_cash = h.society.as_ref().unwrap().councils[0].treasury;
+        h.society.as_mut().unwrap().councils[0].treasury = 0.;
+        h.society.as_mut().unwrap().councils[1].treasury += council_cash;
+        // Make the already existing lender liquid using an exact transfer from
+        // its own town. Routes and political eligibility still constrain lending.
+        let town_cash = h.sites[1].economy.finance[0];
+        h.sites[1].economy.finance[0] = 0.;
+        h.society.as_mut().unwrap().councils[1].treasury += f64::from(town_cash);
+        // A schematic open contact fixture: this test exercises credit and
+        // payment, not road generation or cargo movement.
+        let routes = &mut h.society.as_mut().unwrap().routes;
+        routes.push(crate::society::Route {
+            id: routes.len() as u32,
+            from: 0,
+            to: 1,
+            cells: vec![h.sites[0].cell, h.sites[1].cell],
+            cost_km: 100.,
+            open: true,
+            flood_months: 0,
+            road_bricks: 0.,
+            upkeep: None,
+        });
+        let forecast = h.administration_forecast()[0];
+        assert!(forecast > 0.);
+        h.credit.council_policy.enabled = true;
+        // Declared receipt fixture; current collectible cash also caps this
+        // evidence. This does not claim these taxes were collected in a run.
+        h.credit
+            .tax_observations
+            .push(super::super::taxes::Observation {
+                month: 12,
+                council: 0,
+                collected: 2000.,
+                support_requested: 0.,
+                road_requested: Some(0.),
+            });
+        let money = h.money_residual();
+        let mut disabled = h.clone();
+        disabled.credit.council_policy.enabled = false;
+        let mut insolvent = h.clone();
+        insolvent.credit.tax_observations[0].support_requested = 2000.;
+        let mut isolated = h.clone();
+        for route in &mut isolated.society.as_mut().unwrap().routes {
+            route.open = false;
+        }
+        assert_eq!(isolated.council_credit_month().unwrap(), 0);
+        assert_eq!(isolated.society.as_ref().unwrap().councils[0].treasury, 0.);
+        let mut funded = h.clone();
+        assert_eq!(disabled.council_credit_month().unwrap(), 0);
+        assert_eq!(insolvent.council_credit_month().unwrap(), 0);
+        assert!(
+            funded.council_credit_month().unwrap() > 0,
+            "{:#?} {:#?}",
+            funded.credit.council_reviews,
+            funded.credit.rounds
+        );
+        assert!(funded
+            .credit
+            .loans
+            .iter()
+            .any(|l| l.terms.borrower == Account::Council(0)));
+        let mut resumed: History =
+            serde_json::from_value(serde_json::to_value(&funded).unwrap()).unwrap();
+        // The second Reserve call cannot disburse again after checkpoint restore.
+        assert_eq!(resumed.council_credit_month().unwrap(), 0);
+        for world in [&mut disabled, &mut insolvent, &mut funded, &mut resumed] {
+            world.governance_month();
+            world.validate_credit().unwrap();
+            assert!((world.money_residual() - money).abs() < 1e-6);
+        }
+        fn administration(world: &History) -> &crate::governance::Administration {
+            &world.governance.as_ref().unwrap().administrations[0]
+        }
+        assert!(administration(&funded).wages_paid > administration(&disabled).wages_paid);
+        assert_eq!(
+            administration(&insolvent).wages_paid,
+            administration(&disabled).wages_paid
+        );
+        assert!(administration(&funded).unpaid_months < administration(&disabled).unpaid_months);
+        assert!(administration(&funded).loyalty > administration(&disabled).loyalty);
+        assert_eq!(
+            serde_json::to_value(&funded).unwrap(),
+            serde_json::to_value(&resumed).unwrap()
+        );
+        assert!(funded
+            .credit
+            .loans
+            .iter()
+            .all(|l| l.outstanding_principal == l.original_principal));
+    }
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
     fn local_institution_lends_only_available_surplus_with_present_leadership() {
         use crate::{
             catalog::Catalog,
