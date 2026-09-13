@@ -743,3 +743,17 @@ Catalog trait unpacking, pool indices and mathematical identities remain inline.
 An exact literal-expansion comparison reproduced the original consumer block.
 The GPU alternate-aquatic-food conservation fixture and strict all-target
 Clippy passed. The rest of the shader review remains unfinished.
+
+## Pairwise ecological transport parameters
+
+Named 17 shader parameters for current direction and wind response, depth/friction,
+edge-transfer caps, deep-water exchange, guild food attraction, uphill and seasonal
+migration, movement respiration and numerical division guards. Repeated unrolled
+guild transport blocks now use the same movement-cost parameter. Geometry identities,
+calendar indexing and packed pool accesses remain inline. Encoded thermal bounds
+still need a shared CPU/GPU review rather than independent duplicate constants.
+
+Exact expansion reproduces the previous transport expressions. The hardware GPU
+migration fixture passed nutrient delivery, removal/restoration and conservation
+checks; strict all-target Clippy also passed. These are parameter names, not new
+circulation or movement mechanics.

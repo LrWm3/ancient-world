@@ -11,6 +11,24 @@ struct Params {dims:vec4<u32>,physical:vec4<f32>,counts:vec4<u32>,options:vec4<u
 @group(0) @binding(6) var<storage,read_write> river_out:array<vec4<f32>>;
 @group(0) @binding(7) var<uniform> p:Params;
 // Consumer feeding, replacement and finite-biomass numerical bounds.
+// Bounded pairwise currents and guild migration.
+const ECO_LARGE_GRAZER_UPHILL_ATTRACTION: f32 = .6;
+const ECO_CURRENT_TANGENT_GUARD: f32 = .000001;
+const ECO_CURRENT_FRICTION_DEPTH_M: f32 = 200.;
+const ECO_MIN_CURRENT_FRICTION: f32 = .1;
+const ECO_CURRENT_BASE_FLOW: f32 = .5;
+const ECO_CURRENT_DIRECTION_WEIGHT: f32 = .4;
+const ECO_CURRENT_WIND_SCALE: f32 = 8.;
+const ECO_CURRENT_MAX_WIND_FACTOR: f32 = 2.;
+const ECO_MAX_EDGE_TRANSFER_FRACTION: f32 = .02;
+const ECO_WATER_EXCHANGE_PER_YEAR: f32 = .1;
+const ECO_DEEP_CURRENT_FACTOR: f32 = .15;
+const ECO_MIGRATION_FOOD_HALF_SATURATION: f32 = .01;
+const ECO_LARGE_GRAZER_LEVEL_ATTRACTION: f32 = .1;
+const ECO_MIGRATION_SEASON_RAD_PER_MONTH: f32 = .5235988;
+const ECO_SEASONAL_MIGRATION_ATTRACTION: f32 = .8;
+const ECO_MIGRATION_RESPIRATION_FRACTION: f32 = .02;
+const ECO_TRANSPORT_DIVISOR_GUARD: f32 = 1e-30;
 const ECO_CONSUMER_DIVISOR_GUARD: f32 = 1e-30;
 const ECO_MAX_PREY_WITHDRAWAL_FRACTION: f32 = .25;
 const ECO_THERMAL_ADAPTATION_PER_REPLACEMENT: f32 = .02;
@@ -471,10 +489,10 @@ fn exchange_fraction(i:u32,j:u32,k:u32)->f32 {
  if water(a)<=0.||water(b)<=0. {return 0.;}
  // Exterior ocean and enclosed lake remain independent even in coarse mixed cells.
  if a.fields[0].x*b.fields[0].x+a.fields[0].y*b.fields[0].y<=0. {return 0.;}
- let tangent=normalize(cross(vec3(0.,0.,1.),a.fields[7].xyz)+vec3(.000001));
+ let tangent=normalize(cross(vec3(0.,0.,1.),a.fields[7].xyz)+vec3(ECO_CURRENT_TANGENT_GUARD));
  let v=dot(tangent,b.fields[7].xyz-a.fields[7].xyz)*f32(p.dims.y);
- let friction=clamp(a.fields[3].z/200.,.1,1.);
- let flow=clamp(.5+v*.4*clamp(a.fields[1].w/8.,-2.,2.)*friction,0.,1.);return min(.02,dt*.1*flow)*select(.15,1.,k!=21u);
+ let friction=clamp(a.fields[3].z/ECO_CURRENT_FRICTION_DEPTH_M,ECO_MIN_CURRENT_FRICTION,1.);
+ let flow=clamp(ECO_CURRENT_BASE_FLOW+v*ECO_CURRENT_DIRECTION_WEIGHT*clamp(a.fields[1].w/ECO_CURRENT_WIND_SCALE,-ECO_CURRENT_MAX_WIND_FACTOR,ECO_CURRENT_MAX_WIND_FACTOR)*friction,0.,1.);return min(ECO_MAX_EDGE_TRANSFER_FRACTION,dt*ECO_WATER_EXCHANGE_PER_YEAR*flow)*select(ECO_DEEP_CURRENT_FACTOR,1.,k!=21u);
  }
  if k<5u||k>16u {return 0.;}
  let guild=k-5u;if (u32(src[j].pools[31].w)&(1u<<guild))!=0u {return 0.;}
@@ -487,10 +505,10 @@ fn exchange_fraction(i:u32,j:u32,k:u32)->f32 {
  if guild==11u {conductance=1.;}
  if (u32(p.abundance.z)&1u)!=0u {conductance=1.;} // explicit connectivity ablation
  if conductance<=0. {return 0.;}
- var food=0.;for(var d=0u;d<4u;d++){let prey=u32(t.c[d]);food+=src[j].pools[prey].x*t.d[d]*food_access(b,prey);}var attraction=food/(food+.01);
- if guild==3u||guild==4u {attraction=max(attraction,select(.1,.6,b.fields[3].y>a.fields[3].y));}
- if migrant {let season=sin(f32(season_month()%12u)*.5235988);attraction=max(attraction,select(water(b),land(b),season>0.)*.8);}
- return min(.02,dt*t.b.y*attraction*conductance);
+ var food=0.;for(var d=0u;d<4u;d++){let prey=u32(t.c[d]);food+=src[j].pools[prey].x*t.d[d]*food_access(b,prey);}var attraction=food/(food+ECO_MIGRATION_FOOD_HALF_SATURATION);
+ if guild==3u||guild==4u {attraction=max(attraction,select(ECO_LARGE_GRAZER_LEVEL_ATTRACTION,ECO_LARGE_GRAZER_UPHILL_ATTRACTION,b.fields[3].y>a.fields[3].y));}
+ if migrant {let season=sin(f32(season_month()%12u)*ECO_MIGRATION_SEASON_RAD_PER_MONTH);attraction=max(attraction,select(water(b),land(b),season>0.)*ECO_SEASONAL_MIGRATION_ATTRACTION);}
+ return min(ECO_MAX_EDGE_TRANSFER_FRACTION,dt*t.b.y*attraction*conductance);
 }
 // Fixed compartment accesses keep the compiler from spilling a dynamically
 // indexed private Eco record. Each block preserves the original transfer order.
@@ -509,11 +527,11 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  thermal_delta+=(src[j].pools[k].x*thermal_preference(src[j],k-5u)*inward-original.x*original_temperature*outward)*edge/a;
  known_delta+=(select(0.,src[j].pools[k].x,thermal_preference(src[j],k-5u)>0.)*inward-select(0.,original.x,original_temperature>0.)*outward)*edge/a;}
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
- value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,1e-30),0.,1.),value.x>0.);
+ value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,1e-30),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
- let cost=min(value.x,moving*.02);value.x-=cost;ledger.x-=cost;production.z+=cost;
+ let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
  { const k:u32=6u;let original=src[i].pools[k];var delta=vec3(0.);var moving=0.;var ancestry_delta=0.;var thermal_delta=0.;var known_delta=0.;let original_temperature=thermal_preference(src[i],k-5u);
  for(var d=0u;d<4u;d++){let j=neighbor(i,d,p.dims.y);
@@ -526,11 +544,11 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  thermal_delta+=(src[j].pools[k].x*thermal_preference(src[j],k-5u)*inward-original.x*original_temperature*outward)*edge/a;
  known_delta+=(select(0.,src[j].pools[k].x,thermal_preference(src[j],k-5u)>0.)*inward-select(0.,original.x,original_temperature>0.)*outward)*edge/a;}
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
- value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,1e-30),0.,1.),value.x>0.);
+ value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,1e-30),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
- let cost=min(value.x,moving*.02);value.x-=cost;ledger.x-=cost;production.z+=cost;
+ let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
  { const k:u32=7u;let original=src[i].pools[k];var delta=vec3(0.);var moving=0.;var ancestry_delta=0.;var thermal_delta=0.;var known_delta=0.;let original_temperature=thermal_preference(src[i],k-5u);
  for(var d=0u;d<4u;d++){let j=neighbor(i,d,p.dims.y);
@@ -543,11 +561,11 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  thermal_delta+=(src[j].pools[k].x*thermal_preference(src[j],k-5u)*inward-original.x*original_temperature*outward)*edge/a;
  known_delta+=(select(0.,src[j].pools[k].x,thermal_preference(src[j],k-5u)>0.)*inward-select(0.,original.x,original_temperature>0.)*outward)*edge/a;}
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
- value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,1e-30),0.,1.),value.x>0.);
+ value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,1e-30),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
- let cost=min(value.x,moving*.02);value.x-=cost;ledger.x-=cost;production.z+=cost;
+ let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
  { const k:u32=8u;let original=src[i].pools[k];var delta=vec3(0.);var moving=0.;var ancestry_delta=0.;var thermal_delta=0.;var known_delta=0.;let original_temperature=thermal_preference(src[i],k-5u);
  for(var d=0u;d<4u;d++){let j=neighbor(i,d,p.dims.y);
@@ -560,11 +578,11 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  thermal_delta+=(src[j].pools[k].x*thermal_preference(src[j],k-5u)*inward-original.x*original_temperature*outward)*edge/a;
  known_delta+=(select(0.,src[j].pools[k].x,thermal_preference(src[j],k-5u)>0.)*inward-select(0.,original.x,original_temperature>0.)*outward)*edge/a;}
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
- value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,1e-30),0.,1.),value.x>0.);
+ value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,1e-30),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
- let cost=min(value.x,moving*.02);value.x-=cost;ledger.x-=cost;production.z+=cost;
+ let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
  { const k:u32=9u;let original=src[i].pools[k];var delta=vec3(0.);var moving=0.;var ancestry_delta=0.;var thermal_delta=0.;var known_delta=0.;let original_temperature=thermal_preference(src[i],k-5u);
  for(var d=0u;d<4u;d++){let j=neighbor(i,d,p.dims.y);
@@ -577,11 +595,11 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  thermal_delta+=(src[j].pools[k].x*thermal_preference(src[j],k-5u)*inward-original.x*original_temperature*outward)*edge/a;
  known_delta+=(select(0.,src[j].pools[k].x,thermal_preference(src[j],k-5u)>0.)*inward-select(0.,original.x,original_temperature>0.)*outward)*edge/a;}
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
- value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,1e-30),0.,1.),value.x>0.);
+ value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,1e-30),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
- let cost=min(value.x,moving*.02);value.x-=cost;ledger.x-=cost;production.z+=cost;
+ let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
  { const k:u32=10u;let original=src[i].pools[k];var delta=vec3(0.);var moving=0.;var ancestry_delta=0.;var thermal_delta=0.;var known_delta=0.;let original_temperature=thermal_preference(src[i],k-5u);
  for(var d=0u;d<4u;d++){let j=neighbor(i,d,p.dims.y);
@@ -594,11 +612,11 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  thermal_delta+=(src[j].pools[k].x*thermal_preference(src[j],k-5u)*inward-original.x*original_temperature*outward)*edge/a;
  known_delta+=(select(0.,src[j].pools[k].x,thermal_preference(src[j],k-5u)>0.)*inward-select(0.,original.x,original_temperature>0.)*outward)*edge/a;}
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
- value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,1e-30),0.,1.),value.x>0.);
+ value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,1e-30),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
- let cost=min(value.x,moving*.02);value.x-=cost;ledger.x-=cost;production.z+=cost;
+ let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
  { const k:u32=11u;let original=src[i].pools[k];var delta=vec3(0.);var moving=0.;var ancestry_delta=0.;var thermal_delta=0.;var known_delta=0.;let original_temperature=thermal_preference(src[i],k-5u);
  for(var d=0u;d<4u;d++){let j=neighbor(i,d,p.dims.y);
@@ -611,11 +629,11 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  thermal_delta+=(src[j].pools[k].x*thermal_preference(src[j],k-5u)*inward-original.x*original_temperature*outward)*edge/a;
  known_delta+=(select(0.,src[j].pools[k].x,thermal_preference(src[j],k-5u)>0.)*inward-select(0.,original.x,original_temperature>0.)*outward)*edge/a;}
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
- value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,1e-30),0.,1.),value.x>0.);
+ value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,1e-30),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
- let cost=min(value.x,moving*.02);value.x-=cost;ledger.x-=cost;production.z+=cost;
+ let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
  { const k:u32=12u;let original=src[i].pools[k];var delta=vec3(0.);var moving=0.;var ancestry_delta=0.;var thermal_delta=0.;var known_delta=0.;let original_temperature=thermal_preference(src[i],k-5u);
  for(var d=0u;d<4u;d++){let j=neighbor(i,d,p.dims.y);
@@ -628,11 +646,11 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  thermal_delta+=(src[j].pools[k].x*thermal_preference(src[j],k-5u)*inward-original.x*original_temperature*outward)*edge/a;
  known_delta+=(select(0.,src[j].pools[k].x,thermal_preference(src[j],k-5u)>0.)*inward-select(0.,original.x,original_temperature>0.)*outward)*edge/a;}
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
- value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,1e-30),0.,1.),value.x>0.);
+ value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,1e-30),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
- let cost=min(value.x,moving*.02);value.x-=cost;ledger.x-=cost;production.z+=cost;
+ let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
  { const k:u32=13u;let original=src[i].pools[k];var delta=vec3(0.);var moving=0.;var ancestry_delta=0.;var thermal_delta=0.;var known_delta=0.;let original_temperature=thermal_preference(src[i],k-5u);
  for(var d=0u;d<4u;d++){let j=neighbor(i,d,p.dims.y);
@@ -645,11 +663,11 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  thermal_delta+=(src[j].pools[k].x*thermal_preference(src[j],k-5u)*inward-original.x*original_temperature*outward)*edge/a;
  known_delta+=(select(0.,src[j].pools[k].x,thermal_preference(src[j],k-5u)>0.)*inward-select(0.,original.x,original_temperature>0.)*outward)*edge/a;}
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
- value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,1e-30),0.,1.),value.x>0.);
+ value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,1e-30),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
- let cost=min(value.x,moving*.02);value.x-=cost;ledger.x-=cost;production.z+=cost;
+ let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
  { const k:u32=14u;let original=src[i].pools[k];var delta=vec3(0.);var moving=0.;var ancestry_delta=0.;var thermal_delta=0.;var known_delta=0.;let original_temperature=thermal_preference(src[i],k-5u);
  for(var d=0u;d<4u;d++){let j=neighbor(i,d,p.dims.y);
@@ -662,11 +680,11 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  thermal_delta+=(src[j].pools[k].x*thermal_preference(src[j],k-5u)*inward-original.x*original_temperature*outward)*edge/a;
  known_delta+=(select(0.,src[j].pools[k].x,thermal_preference(src[j],k-5u)>0.)*inward-select(0.,original.x,original_temperature>0.)*outward)*edge/a;}
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
- value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,1e-30),0.,1.),value.x>0.);
+ value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,1e-30),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
- let cost=min(value.x,moving*.02);value.x-=cost;ledger.x-=cost;production.z+=cost;
+ let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
  { const k:u32=15u;let original=src[i].pools[k];var delta=vec3(0.);var moving=0.;var ancestry_delta=0.;var thermal_delta=0.;var known_delta=0.;let original_temperature=thermal_preference(src[i],k-5u);
  for(var d=0u;d<4u;d++){let j=neighbor(i,d,p.dims.y);
@@ -679,11 +697,11 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  thermal_delta+=(src[j].pools[k].x*thermal_preference(src[j],k-5u)*inward-original.x*original_temperature*outward)*edge/a;
  known_delta+=(select(0.,src[j].pools[k].x,thermal_preference(src[j],k-5u)>0.)*inward-select(0.,original.x,original_temperature>0.)*outward)*edge/a;}
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
- value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,1e-30),0.,1.),value.x>0.);
+ value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,1e-30),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
- let cost=min(value.x,moving*.02);value.x-=cost;ledger.x-=cost;production.z+=cost;
+ let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
  { const k:u32=16u;let original=src[i].pools[k];var delta=vec3(0.);var moving=0.;var ancestry_delta=0.;var thermal_delta=0.;var known_delta=0.;let original_temperature=thermal_preference(src[i],k-5u);
  for(var d=0u;d<4u;d++){let j=neighbor(i,d,p.dims.y);
@@ -696,11 +714,11 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  thermal_delta+=(src[j].pools[k].x*thermal_preference(src[j],k-5u)*inward-original.x*original_temperature*outward)*edge/a;
  known_delta+=(select(0.,src[j].pools[k].x,thermal_preference(src[j],k-5u)>0.)*inward-select(0.,original.x,original_temperature>0.)*outward)*edge/a;}
  var value=vec4(max(vec3(0.),original.xyz+delta),original.w);
- value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,1e-30),0.,1.),value.x>0.);
+ value.w=select(0.,clamp((original.x*original.w+ancestry_delta)/max(value.x,ECO_TRANSPORT_DIVISOR_GUARD),0.,1.),value.x>0.);
  let known=max(0.,select(0.,original.x,original_temperature>0.)+known_delta);
- let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,1e-30),1.,141.),value.x>0.&&known>0.);
+ let temperature=select(0.,clamp((original.x*original_temperature+thermal_delta)/max(known,ECO_TRANSPORT_DIVISOR_GUARD),1.,141.),value.x>0.&&known>0.);
  dst[i].pools[38u+(k-5u)/4u][(k-5u)%4u]=temperature;
- let cost=min(value.x,moving*.02);value.x-=cost;ledger.x-=cost;production.z+=cost;
+ let cost=min(value.x,moving*ECO_MIGRATION_RESPIRATION_FRACTION);value.x-=cost;ledger.x-=cost;production.z+=cost;
  dst[i].pools[k]=value; }
  { const k:u32=20u;let original=src[i].pools[k];var delta=vec3(0.);var moving=0.;
  for(var d=0u;d<4u;d++){let j=neighbor(i,d,p.dims.y);
