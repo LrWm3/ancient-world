@@ -1333,6 +1333,7 @@ impl History {
         } else {
             vec![]
         };
+        let household_clothing = self.household_clothing_quote_budgets();
         let mut household_food = vec![0.; self.sites.len()];
         if let Some(society) = &self.society {
             if let Some(wallets) = &society.household_economy {
@@ -1433,7 +1434,13 @@ impl History {
                             quote_orders[s.id as usize][k],
                             order_total,
                             k,
-                        ),
+                        ) + household_clothing.as_ref().map_or(0., |(good, budgets)| {
+                            if *good == k {
+                                budgets[s.id as usize]
+                            } else {
+                                0.
+                            }
+                        }),
                         good.base_price,
                     );
                     continue;

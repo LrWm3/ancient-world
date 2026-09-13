@@ -56,6 +56,40 @@ impl History {
                 e.clothing_enabled || e.accounts.iter().any(|a| a.wardrobe.cloth_kg > 0.)
             })
     }
+    /// Closing-boundary intentions for the coming month, not escrow or income.
+    /// Only cloth receives this support; a food reserve remains unavailable to it.
+    pub(crate) fn household_clothing_quote_budgets(&self) -> Option<(usize, Vec<f32>)> {
+        let society = self.society.as_ref()?;
+        let wallets = society.household_economy.as_ref()?;
+        if !wallets.clothing_enabled {
+            return None;
+        }
+        let good = self.economy_catalog.as_ref()?.index(CLOTH_GOOD)?;
+        let mut budgets = vec![0.; self.sites.len()];
+        for hh in &society.households {
+            if hh.vacant_since.is_some() || society.relocation.away(hh.id) {
+                continue;
+            }
+            let Some(a) = wallets.accounts.get(hh.id as usize) else {
+                continue;
+            };
+            let s = &self.sites[hh.site as usize];
+            if s.abandoned || a.food_site != Some(hh.site) {
+                continue;
+            }
+            let price = f64::from(s.economy.prices[good].max(super::MIN_FOOD_PRICE));
+            // Predict one wear step. Stock scarcity must not erase an unmet request.
+            budgets[hh.site as usize] += (price
+                * demand(
+                    a.cash,
+                    a.need,
+                    f64::from(s.economy.prices[crate::economy::FOOD].max(super::MIN_FOOD_PRICE)),
+                    price,
+                    a.wardrobe.cloth_kg * (1. - CLOTH_MONTHLY_WEAR),
+                )) as f32;
+        }
+        Some((good, budgets))
+    }
     /// After food settlement; purchases and wear are visible to next month's planner.
     pub(crate) fn settle_household_clothing(&mut self) {
         if !self.household_clothing_active() {
@@ -219,6 +253,61 @@ mod tests {
         h.sites[site].economy.goods[good] = 0.6;
         h.sites[site].economy.prices[good] = 2.;
         h.sites[site].economy.prices[crate::economy::FOOD] = 1.;
+        let opening = serde_json::to_value(&h).unwrap();
+        let (quoted_good, budgets) = h.household_clothing_quote_budgets().unwrap();
+        assert_eq!(quoted_good, good);
+        assert!((budgets[site] - 2.4).abs() < 1e-6);
+        assert_eq!(opening, serde_json::to_value(&h).unwrap());
+        let mut unavailable = h.clone();
+        unavailable.sites[site].economy.goods[good] = 0.;
+        assert_eq!(
+            unavailable.household_clothing_quote_budgets().unwrap().1,
+            budgets
+        );
+        unavailable.sites[site].abandoned = true;
+        assert_eq!(
+            unavailable.household_clothing_quote_budgets().unwrap().1[site],
+            0.
+        );
+        // A funded, unfilled cloth request affects only its own local quote.
+        // Non-quarterly month avoids dispatch decisions in this controlled case.
+        let mut quotes = h.clone();
+        quotes.month = 13;
+        quotes
+            .economy_catalog
+            .as_mut()
+            .unwrap()
+            .market
+            .adaptive_prices = true;
+        quotes.sites[site].economy.finance[0] = 0.;
+        quotes.sites[site].economy.goods[good] = 0.;
+        quotes.sites[site].economy.targets[good] = 10.;
+        quotes.sites[site].economy.logistics[3] = 1.;
+        quotes.sites[site].economy.prices[good] =
+            quotes.supplier_unit_cost(site, good).unwrap_or(9.);
+        let mut no_quotes = quotes.clone();
+        no_quotes
+            .society
+            .as_mut()
+            .unwrap()
+            .household_economy
+            .as_mut()
+            .unwrap()
+            .clothing_enabled = false;
+        let observations = vec![[[0.; 2]; crate::economy::GOODS]; quotes.sites.len()];
+        quotes.market_decisions(1., &observations);
+        no_quotes.market_decisions(1., &observations);
+        assert!(
+            quotes.sites[site].economy.prices[good] > no_quotes.sites[site].economy.prices[good]
+        );
+        for k in 0..crate::economy::GOODS {
+            if k != good {
+                assert_eq!(
+                    quotes.sites[site].economy.prices[k],
+                    no_quotes.sites[site].economy.prices[k]
+                );
+            }
+        }
         let before = h.economy_residuals();
         let mut disabled = h.clone();
         disabled
@@ -230,6 +319,7 @@ mod tests {
             .unwrap()
             .clothing_enabled = false;
         let unchanged = serde_json::to_value(&disabled).unwrap();
+        assert!(disabled.household_clothing_quote_budgets().is_none());
         disabled.settle_household_clothing();
         assert_eq!(unchanged, serde_json::to_value(&disabled).unwrap());
         let mut poor = h.clone();
@@ -243,6 +333,7 @@ mod tests {
                 .accounts[id]
                 .cash = 0.;
         }
+        assert_eq!(poor.household_clothing_quote_budgets().unwrap().1[site], 0.);
         poor.settle_household_clothing();
         assert_eq!(
             poor.sites[site].economy.goods[good],

@@ -457,5 +457,7 @@ compared with the retained one-month pilot; current food still settles first.
 Nine runs show real spending and mixed outcomes. Seed 409's additional operator
 work at fifty years reverses by year 100; population/hunger comparisons reverse
 in the other direction. Seed 256 has no available cloth and no purchases. Keep the
-pilot disabled by default; consumer quote attribution, other materials, wardrobe
-succession/salvage and abandoned deposit extraction remain unfinished connections.
+pilot disabled by default. A subsequent three-seed screen adds bounded household
+cloth budgets to adaptive quotes, with mixed outcomes and weaker operator work in
+two seeds. Other materials, wardrobe succession/salvage, supply-chain knowledge
+and abandoned deposit extraction remain unfinished connections.

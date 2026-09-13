@@ -47,8 +47,8 @@ The model currently treats cloth as ready-to-use clothing material: no separate
 sewing recipe, styles, quality lots, personal garments, cold protection or status
 benefits. There is no intertown household shopping or remote wardrobe transport
 shipment; possessions remain attached to the migrating household identity.
-Adaptive quotes still lack explicit household cloth-budget attribution; actual
-retail reduces stock, which affects subsequent quotes through existing scarcity.
+Adaptive quotes include bounded household cloth-budget intentions, as described
+below; retail also reduces stock and affects subsequent scarcity.
 Do not equate the pilot with a general consumer market or a solved circulation
 problem. Calibration and verification results follow below.
 
@@ -131,3 +131,43 @@ serialized next-month continuation with purchases disabled. The first GPU fixtur
 failed because its test accounts had not been initialized; corrected setup passes.
 Eight Python audit tests, strict library/binary Clippy and native build pass.
 This does not claim a full long-run save/reload or cross-hardware comparison.
+
+## Household quote support screen
+
+The opt-in clothing system now contributes its own forecast purchasing budget to
+local adaptive cloth quotes. It uses the same food reserve, surplus spending cap
+and coverage target as retail, predicting one month of wardrobe wear. Vacant,
+traveling and mismatched-site households cannot contribute. Missing local stock
+does not erase demand. These are intentions, not escrow: no cash is transferred
+or made available to unrelated goods. Legacy quotes and disabled clothing retain
+their previous behavior. This does not add household-funded remote orders.
+
+Compared with `be38f7b`, the three matching 32/32, fifty-year runs use the preceding
+one-month-reserve settings, changing only cloth quote support:
+
+| Seed | Population before → after | Ending hunger before → after | Operator work before → after | Operator margin before → after | Active operators before → after |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1024 | 153.906 → 155.880 | 0.04850 → 0.05898 | 16.495 → 14.047 | 68.41 → 62.19 | 0 → 0 |
+| 256 | 345.715 → 364.135 | 0.03746 → 0.01677 | 4.693 → 4.693 | 19.66 → 19.93 | 0 → 0 |
+| 409 | 348.748 → 345.337 | 0.03942 → 0.04735 | 197.827 → 170.437 | 1,028.44 → 896.04 | 3 → 2 |
+
+Clothing spending becomes 610.94, zero and 18,490.83 respectively. Seed 256 still
+produces no cloth; at the exported boundary none of its towns has the weaving
+knowledge bit. Quote changes can affect other decisions even without realized
+cloth sales, so its population change is not evidence of textile-led recovery.
+Maximum absolute independently audited endpoint monetary residual is 2.85e-7
+(rounded up). Raw outputs remain ignored under `output/household-clothing-screen/`.
+
+Retain this as an explicit demand connection within the opt-in experiment, not a
+balance success or a default recommendation. Work and margins deteriorate in two
+seeds; more complete price information alone does not establish viable industry.
+Supply-chain knowledge, fulfilled production and funded orders still need review.
+
+The two focused tests, including the GPU-backed history fixture, pass; native
+build and all three runs pass. The fixture verifies read-only forecasts, stockless
+demand, absent/disabled/poor controls, and a cloth quote response with unchanged
+other-good quotes under identical opening conditions. Its first quote comparison
+failed because the fixture used legacy pricing; explicitly enabling adaptive
+pricing corrected that setup. Existing transaction/conservation and serialized
+boundary checks still pass. No century comparison of this quote change has yet
+been run.
