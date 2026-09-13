@@ -12,6 +12,7 @@ const MAX_FUNDED_VESSEL_WORK_WITH_TOLERANCE: f32 = 0.25001;
 const HARBOR_MATERIAL_TOLERANCE_KG: f32 = 0.001;
 const MAX_SEA_LANE_KM: f32 = 20_000.;
 const HARBOR_TOOLS_RESERVE_KG_PER_PERSON: f32 = 0.5;
+const HARBOR_BUILDING_RESERVE_KG_PER_PERSON: f32 = 1.;
 const HARBOR_ANNUAL_WEAR_FRACTION: f32 = 0.02;
 const COMMISSIONING_MATERIAL_FRACTION: f32 = 0.999;
 const HARBOR_DISRUPTION_CAPACITY_KG: f32 = 500.;
@@ -23,6 +24,13 @@ pub const MATERIALS: [usize; 3] = [0, 3, 5];
 pub const TARGET: [f32; 3] = [200., 10., 100.];
 /// kg installed per worker-month: timber, tools/rigging, masonry.
 const HARBOR_WORK_RATES: [f32; 3] = [100., 10., 100.];
+pub(crate) fn material_reserve(good: usize, population: f32) -> f32 {
+    population.max(0.) * if good == 3 {
+        HARBOR_TOOLS_RESERVE_KG_PER_PERSON
+    } else {
+        HARBOR_BUILDING_RESERVE_KG_PER_PERSON
+    }
+}
 fn harbor_work_needed(materials: [f32; 3]) -> f32 {
     materials
         .into_iter()
@@ -54,6 +62,14 @@ pub struct Port {
     pub flood_months: u32,
 }
 impl Port {
+    /// Next annual build/repair deficit, including wear applied before construction.
+    /// Forecast only: this does not reserve stock, money or worker capacity.
+    pub(crate) fn material_deficit(&self) -> [f32; 3] {
+        std::array::from_fn(|k| {
+            (TARGET[k] - self.assets[k] * (1. - HARBOR_ANNUAL_WEAR_FRACTION)).max(0.)
+        })
+    }
+
     /// Installed harbor handling capacity, independent of this month's merchant payroll.
     pub fn harbor_capacity(&self) -> f32 {
         if self.commissioned.is_none() || self.flood_months > 0 {
@@ -348,12 +364,7 @@ impl History {
                 .into_iter()
                 .enumerate()
                 .map(|(k, good)| {
-                    let reserve = s.stocks.stock[0]
-                        * if good == 3 {
-                            HARBOR_TOOLS_RESERVE_KG_PER_PERSON
-                        } else {
-                            1.
-                        };
+                    let reserve = material_reserve(good, s.stocks.stock[0]);
                     (s.economy.goods[good] - reserve).max(0.) / TARGET[k]
                 })
                 .fold(f32::INFINITY, f32::min)
@@ -461,12 +472,7 @@ impl History {
             if !s.abandoned && s.economy.policy[3] >= 0.5 {
                 let mut requested = [0.; 3];
                 for (k, good) in MATERIALS.into_iter().enumerate() {
-                    let reserve = s.stocks.stock[0]
-                        * if good == 3 {
-                            HARBOR_TOOLS_RESERVE_KG_PER_PERSON
-                        } else {
-                            1.
-                        };
+                    let reserve = material_reserve(good, s.stocks.stock[0]);
                     requested[k] = (TARGET[k] - p.assets[k])
                         .max(0.)
                         .min((s.economy.goods[good] - reserve).max(0.));

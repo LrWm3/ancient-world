@@ -296,3 +296,16 @@ Four focused GPU checks and 14 CPU household tests pass. All three corrected
 while the third is slightly worse. Workshop margins remain positive. See
 [household adult payroll](household-adult-payroll.md) for the initial failure,
 correction, comparison and outstanding supply/access questions.
+
+
+### Harbor shortages enter production planning
+
+Existing surveyed ports now request their finite build/repair materials through
+ordinary production targets, protecting the working reserves used by installation.
+Seven CPU production tests and two focused GPU construction/procurement fixtures
+pass. Three matched 50-year runs have lower ending hunger, mixed industrial work,
+and still-positive operator margins, but no additional commissioned ports. One
+port opens a year earlier. Inspection now isolates annual leftover construction
+work as a further bottleneck even where materials are stocked. See
+[harbor production demand](harbor-production-demand.md) for settings, outcomes and
+limits; circulation and transport recovery remain unfinished.

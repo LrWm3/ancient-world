@@ -210,6 +210,13 @@ impl Planner<'_> {
             .filter(|q| q.is_finite())
             .fold(0., f32::max)
     }
+    fn harbor(&mut self, port: &crate::shipping::Port, population: f32) {
+        for (k, good) in crate::shipping::MATERIALS.into_iter().enumerate() {
+            let reserve_gap = (crate::shipping::material_reserve(good, population)
+                - self.targets[good]).max(0.);
+            self.request(good, reserve_gap + port.material_deficit()[k]);
+        }
+    }
     fn containers(&mut self, prices: &[f32; GOODS], population: f32) {
         let Some(materials) = &self.catalog.materials else {
             return;
@@ -582,6 +589,16 @@ impl History {
                     planner.tools(selected, desired, true);
                 } else {
                     planner.request(k, pop * reserve(&g.id));
+                }
+            }
+            // Surveyed harbors are finite construction customers. Forecast the next
+            // annual installation after ordinary reserves; execution still requires
+            // physical materials and leftover work at the annual boundary.
+            if e.policy[3] >= 0.5 {
+                if let Some(port) = self.shipping.as_ref()
+                    .and_then(|shipping| shipping.ports.iter().find(|p| p.site == s.id))
+                {
+                    planner.harbor(port, s.stocks.stock[0]);
                 }
             }
             for c in self
@@ -1019,6 +1036,32 @@ mod tests {
             visiting: [false; GOODS],
             knowledge: u32::MAX,
         }
+    }
+    #[test]
+    fn harbor_orders_missing_materials_and_protects_construction_reserves() {
+        let c = EconomyCatalog::bundled().unwrap();
+        let port = crate::shipping::Port {
+            fleet: None, work: None, site: 0, access: vec![], water_cell: 0,
+            access_km: 0., assets: [100., 0., 50.], commissioned: None, flood_months: 0,
+        };
+        let mut empty = planner(&c);
+        empty.harbor(&port, 20.);
+        assert_eq!(empty.targets[3], 20., "ten working tools plus ten installed tools");
+        assert!(empty.orders.iter().sum::<f32>() > 0.);
+        // Incoming cargo uses the same available array and suppresses duplicate recipes.
+        let mut supplied = planner(&c);
+        for (k, good) in crate::shipping::MATERIALS.into_iter().enumerate() {
+            supplied.available[good] = crate::shipping::material_reserve(good, 20.)
+                + port.material_deficit()[k];
+        }
+        supplied.harbor(&port, 20.);
+        assert_eq!(supplied.orders, [0.; GOODS]);
+        assert_eq!(port.assets, [100., 0., 50.], "planning cannot install materials");
+        let mut existing_reserve = planner(&c);
+        existing_reserve.available[3] = 100.;
+        existing_reserve.request(3, 15.);
+        existing_reserve.harbor(&port, 20.);
+        assert_eq!(existing_reserve.targets[3], 25., "do not add the working reserve twice");
     }
     #[test]
     fn containers_mix_supported_materials_without_overfilling_service() {
