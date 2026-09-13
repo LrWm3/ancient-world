@@ -21,6 +21,13 @@ ARMS = (
 )
 
 
+def procurement_share(value):
+    share = float(value)
+    if not math.isfinite(share) or not 0 <= share <= 1:
+        raise argparse.ArgumentTypeError("procurement share must be finite and within 0–1")
+    return share
+
+
 def comparison_arms(export_recovery=False, institution_lenders=False, institution_reserves=False):
     arms = [(name, credit, issuance, False) for name, credit, issuance in ARMS]
     if export_recovery:
@@ -223,9 +230,13 @@ def main():
                         help="add credit and combined arms with late-export recovery enabled")
     parser.add_argument("--service-order-procurement", action="store_true",
                         help="hold funded procurement on in every arm; add service lending in credit arms")
+    parser.add_argument("--service-procurement-share", type=procurement_share,
+                        help="same surplus budget fraction (0–1) in every arm; requires procurement")
     parser.add_argument("--crop-yield-scale", type=float,
                         help="same explicit crop-yield intervention in every arm (0.1–1)")
     args = parser.parse_args()
+    if args.service_procurement_share is not None and not args.service_order_procurement:
+        parser.error("service procurement share requires --service-order-procurement")
     repo = Path(__file__).resolve().parents[1]
     if args.years <= 0:
         parser.error("years must be positive")
@@ -261,6 +272,7 @@ def main():
         "crop_yield_scale_override": args.crop_yield_scale,
         "common_payment_policy": "delivery",
         "service_order_procurement": args.service_order_procurement,
+        "service_procurement_share_override": args.service_procurement_share,
         "compare_export_recovery": args.compare_export_recovery,
         "compare_institution_lenders": args.compare_institution_lenders,
         "compare_institution_reserves": args.compare_institution_reserves,
@@ -286,6 +298,8 @@ def main():
                 command.append(f"--institution-credit-lenders={str(enabled).lower()}")
                 if args.compare_institution_reserves:
                     command.append(f"--institution-credit-operating-reserve={str(operating).lower()}")
+            if args.service_procurement_share is not None:
+                command.extend(("--service-procurement-share", str(args.service_procurement_share)))
             if args.crop_yield_scale is not None:
                 command.extend(("--crop-yield-scale", str(args.crop_yield_scale)))
             if args.compare_export_recovery:

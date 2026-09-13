@@ -88,6 +88,10 @@ struct Args {
     /// Reserve surplus town cash for next-month workshop service orders.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     service_order_procurement: Option<bool>,
+    /// Override the fraction of surplus town cash available to service procurement (0–1).
+    /// Does not itself enable procurement; omission preserves the archived share.
+    #[arg(long, value_parser = parse_procurement_share)]
+    service_procurement_share: Option<f64>,
     /// Recover old export defaults from bounded newly received delivery proceeds.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     export_default_recovery: Option<bool>,
@@ -143,6 +147,16 @@ struct Args {
     #[arg(long)]
     benchmark: bool,
 }
+fn parse_procurement_share(value: &str) -> std::result::Result<f64, String> {
+    let share: f64 = value
+        .parse()
+        .map_err(|_| "expected a numeric procurement share")?;
+    if !share.is_finite() || !(0.0..=1.0).contains(&share) {
+        return Err("procurement share must be finite and within 0–1".into());
+    }
+    Ok(share)
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
     let mut overrides = std::collections::BTreeMap::new();
@@ -184,6 +198,7 @@ fn main() -> Result<()> {
                 && args.commercial_credit.is_none()
                 && args.service_order_credit.is_none()
                 && args.service_order_procurement.is_none()
+                && args.service_procurement_share.is_none()
                 && args.export_default_recovery.is_none()
                 && args.shared_issuance.is_none()
                 && args.delivery_paid_exports.is_none()
@@ -415,6 +430,17 @@ fn main() -> Result<()> {
             .procurement
             .enabled = enabled;
     }
+    if let Some(share) = args.service_procurement_share {
+        generator
+            .civilizations
+            .as_mut()
+            .context("service procurement share requires a history")?
+            .enterprises
+            .as_mut()
+            .context("service procurement share requires enterprises")?
+            .procurement
+            .surplus_share = share;
+    }
     if let Some(enabled) = args.export_default_recovery {
         generator
             .civilizations
@@ -552,6 +578,30 @@ mod args_tests {
             let args = Args::try_parse_from(args).unwrap();
             assert_eq!(args.service_order_procurement, expected);
             assert_eq!(args.service_order_credit, None);
+        }
+    }
+
+    #[test]
+    fn service_procurement_share_is_bounded_and_does_not_enable_policy() {
+        assert_eq!(
+            Args::try_parse_from(["ancient-world"])
+                .unwrap()
+                .service_procurement_share,
+            None
+        );
+        for (text, expected) in [("0", 0.0), ("0.1", 0.1), ("1", 1.0)] {
+            let args = Args::try_parse_from(["ancient-world", "--service-procurement-share", text])
+                .unwrap();
+            assert_eq!(args.service_procurement_share, Some(expected));
+            assert_eq!(args.service_order_procurement, None);
+            assert_eq!(args.service_order_credit, None);
+        }
+        for text in ["NaN", "inf", "-0.1", "1.01", "abc"] {
+            assert!(Args::try_parse_from([
+                "ancient-world",
+                &format!("--service-procurement-share={text}")
+            ])
+            .is_err());
         }
     }
 

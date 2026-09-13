@@ -1,7 +1,8 @@
+import argparse
 import copy
 import unittest
 
-from monetary_experiment import credit_funnel, council_construction, comparison_arms, institution_arm_settings, institution_outcomes, service_order_outcomes
+from monetary_experiment import credit_funnel, council_construction, comparison_arms, institution_arm_settings, institution_outcomes, service_order_outcomes, procurement_share
 
 
 def fixture():
@@ -23,6 +24,13 @@ def fixture():
 
 
 class CreditReportingTests(unittest.TestCase):
+    def test_procurement_share_bounds(self):
+        for value in ("0", "0.1", "1"):
+            self.assertEqual(procurement_share(value), float(value))
+        for value in ("nan", "inf", "-0.01", "1.001"):
+            with self.assertRaises(argparse.ArgumentTypeError):
+                procurement_share(value)
+
     def test_service_order_reporting_separates_flows_from_remaining_escrow(self):
         self.assertEqual(service_order_outcomes({})["service_orders"], 0)
         result = service_order_outcomes({"enterprises": {

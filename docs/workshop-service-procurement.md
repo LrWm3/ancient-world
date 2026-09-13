@@ -6,6 +6,12 @@ service-order lending and issuance. Omitting it preserves a loaded policy. Direc
 callers can configure `Enterprises.procurement`; the explorer's enterprise summary
 includes its current policy and latest claims.
 
+`--service-procurement-share VALUE` overrides the surplus budget fraction with
+a finite value from 0 to 1. It does not enable procurement, alter the cash reserve
+or change service fees. Omission preserves the archived fraction; zero stops new
+funding while existing orders still settle. The experiment runner accepts the same
+option when procurement is enabled and records/applies it equally in all four arms.
+
 ## Demand, budget and commitment
 
 At the end of a completed month, active firms without a pending service order
