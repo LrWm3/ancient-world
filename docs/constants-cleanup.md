@@ -389,3 +389,13 @@ The hardware-enabled checkpoint/export fixture passed: all 31 layers dispatched,
 PNG dimensions and regional exports checked, and checkpoint continuation matched.
 Strict all-target Clippy passed. This is a partial viewer pass; remaining displayed
 model values, controls and core shader parameters still need semantic review.
+
+## Viewer scheduling and inspection batch
+
+Named the per-frame history time budget, step limit, visible journey-plan count
+and regional smoke-test dimensions and selection. Workshop inspection shares its
+existing production material requirements; granary inspection shares hazard
+height/material constants, preserving the prior display's f64 arithmetic.
+Strict all-target Clippy passed. No simulation values or timing changed. The review
+also identified an outdated grain-container display, recorded separately for a
+behavioral correction rather than preserving its formula as new constants.

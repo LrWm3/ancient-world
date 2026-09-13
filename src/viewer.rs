@@ -23,6 +23,13 @@ const MAX_CAMERA_PITCH_RADIANS: f32 = 1.5;
 const CAMERA_SCROLL_ZOOM_RATE: f32 = 0.002;
 const MIN_GLOBE_ZOOM: f32 = 0.4;
 const MAX_MAP_ZOOM: f32 = 12.;
+const HISTORY_FRAME_BUDGET_MS: u64 = 24;
+const MAX_STEPS_PER_FRAME: u32 = 64;
+const VISIBLE_JOURNEY_PLANS: usize = 128;
+const SMOKE_REGION_RESOLUTION: u32 = 128;
+const SMOKE_REGION_WIDTH_KM: f32 = 300.;
+const SMOKE_REGION_RADIUS_FRACTION: f32 = 0.5;
+const SMOKE_DRY_CELL_MAX_WATER_M: f32 = 0.1;
 crate::shared_shader_parameters! { SHADER_PARAMETERS {
     const MAP_WORKGROUP_EDGE: u32 = 8;
 }}
@@ -872,7 +879,7 @@ impl eframe::App for App {
                 } else if let Ok(cells) = self.generator.snapshot() {
                     if let Some(id) = cells
                         .iter()
-                        .position(|c| c.meta[0] == 2 && c.water[0] < 0.1)
+                        .position(|c| c.meta[0] == 2 && c.water[0] < SMOKE_DRY_CELL_MAX_WATER_M)
                     {
                         let center = crate::grid::cell_direction(
                             id as u32,
@@ -880,18 +887,27 @@ impl eframe::App for App {
                         );
                         match self.generator.generate_region(
                             center,
-                            300f32.min(self.generator.config.radius_km * 0.5),
-                            128,
+                            SMOKE_REGION_WIDTH_KM.min(
+                                self.generator.config.radius_km * SMOKE_REGION_RADIUS_FRACTION,
+                            ),
+                            SMOKE_REGION_RESOLUTION,
                         ) {
                             Ok(region) => {
                                 let image = region.image();
                                 let texture = ctx.load_texture(
                                     "smoke regional terrain",
-                                    egui::ColorImage::from_rgb([128, 128], image.as_raw()),
+                                    egui::ColorImage::from_rgb(
+                                        [SMOKE_REGION_RESOLUTION as usize; 2],
+                                        image.as_raw(),
+                                    ),
                                     egui::TextureOptions::LINEAR,
                                 );
                                 self.region = Some((region, texture));
-                                self.regional_selection = Some(128 * 64 + 64);
+                                self.regional_selection = Some(
+                                    (SMOKE_REGION_RESOLUTION * (SMOKE_REGION_RESOLUTION / 2)
+                                        + SMOKE_REGION_RESOLUTION / 2)
+                                        as usize,
+                                );
                             }
                             Err(e) => {
                                 eprintln!("Regional smoke test failed: {e}");
@@ -980,7 +996,7 @@ impl eframe::App for App {
                         break;
                     }
                 }
-                if start.elapsed() > Duration::from_millis(24) {
+                if start.elapsed() > Duration::from_millis(HISTORY_FRAME_BUDGET_MS) {
                     break;
                 }
             }
@@ -1166,7 +1182,7 @@ impl App {
                 self.generator.ecology.clock.month as f64 / 12.,
                 self.generator.config.eco_resolution()
             ));
-            ui.add(egui::Slider::new(&mut self.steps, 1..=64).text(if living {
+            ui.add(egui::Slider::new(&mut self.steps, 1..=MAX_STEPS_PER_FRAME).text(if living {
                 "Months / frame"
             } else {
                 "Batches / frame"
@@ -1251,7 +1267,7 @@ impl App {
                             .iter()
                             .rev()
                             .filter(|e| e.planned_path.is_some())
-                            .take(128)
+                            .take(VISIBLE_JOURNEY_PLANS)
                         {
                             if ui
                                 .selectable_value(
@@ -1268,7 +1284,7 @@ impl App {
                             }
                         }
                     });
-                ui.small("Latest 128 plans here; older plans are accessible through the timeline.");
+                ui.small(format!("Latest {VISIBLE_JOURNEY_PLANS} plans here; older plans are accessible through the timeline."));
             }
 
             if self
@@ -2182,7 +2198,7 @@ impl App {
                     ui.small(format!("Grain storage capacity: {:.0} kg (12–24 demand months with pottery)", s.stocks.stock[0] * 18. * (12. + 12. * storage_bonus)));
                     if let Some(f) = h.living.as_ref().and_then(|l|l.floods.get(&s.id)) {
                         if f.granary_bricks > 0. {
-                            ui.small(format!("Raised granaries: {:.0} kg bricks · {:.2} m protection for food stores", f.granary_bricks, (f.granary_bricks / (s.stocks.stock[0] as f64 * 20.).max(1.)).min(1.5)));
+                            ui.small(format!("Raised granaries: {:.0} kg bricks · {:.2} m protection for food stores", f.granary_bricks, (f.granary_bricks / (s.stocks.stock[0] as f64 * crate::hazards::GRANARY_BRICKS_KG_PER_RESIDENT_M as f64).max(1.)).min(crate::hazards::MAX_GRANARY_HEIGHT_M as f64)));
                         }
                         ui.label(format!("Flood exposure {:.2} m · {}", f.depth_m,
                             if f.persistent { format!("persistent inundation · {} / 12 dry months", f.dry_streak) }
@@ -2292,7 +2308,7 @@ impl App {
                                 }
                             }
                             if e.workshop[3] > 0.5 {
-                                let units = (e.workshop[0]/20.).min(e.workshop[1]/30.).min(e.workshop[2]/2.);
+                                let units = (e.workshop[0]/crate::production::WORKSHOP_WOOD_KG_PER_UNIT).min(e.workshop[1]/crate::production::WORKSHOP_BRICKS_KG_PER_UNIT).min(e.workshop[2]/crate::production::WORKSHOP_TOOLS_KG_PER_UNIT);
                                 ui.label(format!("Workshops {:.2} units · target {:.2} · industrial work {:.1} worker-months · cumulative wear {:.1} kg", units, e.workshop_plan[0], e.workshop_plan[3], e.workshop_plan[1]));
                                 ui.small(format!("Toolmaking expertise {:.1}% · priority work {:.2}/{:.2} · tool work {:.2} worker-months · output {:.2} kg", e.tool_craft[0]*100., e.tool_work[1], e.tool_work[0], e.tool_work[2], e.tool_work[3]));
                             }
