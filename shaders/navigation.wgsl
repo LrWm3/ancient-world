@@ -47,7 +47,7 @@ fn neighbor(i:u32,k:u32)->u32 {
  return index(direction(i/(n*n),uv.x,uv.y));
 }
 
-fn linear(g:vec3<u32>)->u32 {return g.x+g.y*NAVIGATION_MAX_DISPATCH_GROUPS*NAVIGATION_WORKGROUP_SIZE;}
+fn linear(g:vec3<u32>)->u32 {return g.x+g.y*MAX_DISPATCH_GROUPS_PER_DIMENSION*NAVIGATION_WORKGROUP_SIZE;}
 fn lake(i:u32)->bool {return world[i].tags.x==1u&&world[i].water.x>MIN_NAVIGABLE_WATER_DEPTH_M;}
 fn dry(i:u32, region:u32)->bool {return world[i].tags.x==region&&world[i].water.x<FLOOD_EXPOSURE_DEPTH_M;}
 fn allowed(i:u32)->bool {
@@ -81,8 +81,8 @@ fn prepare() {
  let phase=atomicLoad(&control[2]);let count=atomicLoad(&control[phase]);
  atomicStore(&control[1u-phase],0u);atomicAdd(&control[3],1u);
  let groups=(count+(NAVIGATION_WORKGROUP_SIZE-1u))/NAVIGATION_WORKGROUP_SIZE;
- atomicStore(&control[4],min(groups,NAVIGATION_MAX_DISPATCH_GROUPS));
- atomicStore(&control[5],select(0u,(groups+(NAVIGATION_MAX_DISPATCH_GROUPS-1u))/NAVIGATION_MAX_DISPATCH_GROUPS,groups>0u));atomicStore(&control[6],1u);
+ atomicStore(&control[4],min(groups,MAX_DISPATCH_GROUPS_PER_DIMENSION));
+ atomicStore(&control[5],select(0u,(groups+(MAX_DISPATCH_GROUPS_PER_DIMENSION-1u))/MAX_DISPATCH_GROUPS_PER_DIMENSION,groups>0u));atomicStore(&control[6],1u);
 }
 @compute @workgroup_size(NAVIGATION_WORKGROUP_SIZE)
 fn relax(@builtin(global_invocation_id) g:vec3<u32>) {

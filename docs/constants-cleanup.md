@@ -127,19 +127,9 @@ content, already named parameters, or independent test fixtures only):
 - `src/expedition_heritage/patron_finds.rs`
 - `src/leadership.rs`
 
-These files only received shared-constant substitutions or relocation of existing
-constant declarations, and still need their full semantic pass:
-
-- `src/civilization.rs`
-- `src/expeditions.rs`
-
-The remaining source files below have not yet received this cleanup. Associated
-API constants and compile-time assertions should be reviewed in context rather
-than blindly moved out of their types or layout checks.
-
-- `src/ecology.rs`
-- `src/gpu.rs`
-- `src/viewer.rs`
+Completed the CPU semantic pass in `src/civilization.rs`, `src/expeditions.rs`,
+`src/ecology.rs` and `src/gpu.rs`. Their shader policies remain in the pending
+review. `src/viewer.rs` still needs its complete semantic pass.
 
 WGSL shaders still need their complete semantic passes. Shared agricultural and
 workforce constants now use `shared_shader_parameters!` (declared in `src/lib.rs`):
@@ -373,3 +363,17 @@ conversions and independent fixture expectations remain literal.
 Verification: all 23 culture-filtered tests and all 23 economy-filtered tests passed
 with ignored GPU cases enabled. Strict all-target Clippy passed. This is extraction
 and sharing, not calibration or a change to cultural decisions or market behavior.
+
+## Expedition, founding and GPU configuration batch
+
+Named expedition funding, crew provision, risk and collection policies, founding
+requirements, legacy relief, settlement lifecycle thresholds, ecology diagnostics
+and GPU allocation/dispatch configuration. GPU navigation and survey kernels now
+share the device dispatch limit; the hardware check caught and corrected a missed
+survey reference. Timestamp allocations and numeric precision remain unchanged.
+
+Verification: 151 active library tests and strict all-target Clippy passed after
+the expedition/founding changes. Hardware-enabled route inspection and seasonal
+aquatic production tests passed after GPU-prefix changes, exercising terrain,
+ecological and history pipelines. Five expedition crew tests also passed. Core
+shader semantic extraction and the viewer review remain outstanding.

@@ -32,7 +32,7 @@ const ALLOWED_CLIMATE_ITERATIONS: std::ops::RangeInclusive<u32> = 4..=4096;
 const ALLOWED_CLIMATE_CYCLES: std::ops::RangeInclusive<u32> = 1..=64;
 const ALLOWED_DRAINAGE_ITERATIONS: std::ops::RangeInclusive<u32> = 16..=1000000;
 const ALLOWED_ECOLOGY_YEARS_PER_EPOCH: std::ops::RangeInclusive<u32> = 1..=1000;
-const ALLOWED_LAKE_MIXING: std::ops::RangeInclusive<f32> = 0.0..=20.0;
+pub(crate) const ALLOWED_LAKE_MIXING: std::ops::RangeInclusive<f32> = 0.0..=20.0;
 const ALLOWED_SOLAR_SCALE: std::ops::RangeInclusive<f32> = 0.0..=4.0;
 pub(crate) const ALLOWED_LAKE_POLL_PASSES: [u32; 4] = [16, 32, 64, 128];
 const LAKE_ITERATION_BATCH: u32 = 16;

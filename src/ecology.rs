@@ -8,6 +8,17 @@ use crate::{
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use wgpu::util::DeviceExt;
+const ECOLOGY_TIMESTAMP_QUERY_COUNT: u32 = 64;
+const ECOLOGY_TIMESTAMP_BUFFER_BYTES: u64 = 512;
+const MIN_LAND_REPORT_DENOMINATOR: f64 = 1e-20;
+const MEANINGFUL_CHEMO_KG_C_PER_M2_MONTH: f32 = 0.00001;
+const MEANINGFUL_CHEMO_PHOTO_RATIO: f32 = 0.1;
+const ECOLOGY_RELATIVE_LEDGER_TOLERANCE: f64 = 0.001;
+const MIN_OCCUPIED_GUILD_KG_C_PER_M2: f32 = 1e-10;
+const MIN_GUILD_CARBON_DENOMINATOR_KG: f64 = 1e-30;
+crate::shared_shader_parameters! { SHADER_PARAMETERS {
+    const ECOLOGY_WORKGROUP_EDGE: u32 = 8;
+}}
 
 pub const ECO_BYTES: u64 = std::mem::size_of::<EcoCell>() as u64;
 pub const ENVIRONMENT_BYTES: u64 = std::mem::size_of::<Environment>() as u64;
@@ -256,7 +267,7 @@ impl Ecology {
             .next()
             .unwrap();
         let source = format!(
-            "{cell}\n{}\n{}\n{}",
+            "{cell}\n{SHADER_PARAMETERS}\n{}\n{}\n{}",
             crate::hazards::SHADER_PARAMETERS,
             include_str!("../shaders/sunlight.wgsl"),
             include_str!("../shaders/ecology.wgsl")
@@ -303,12 +314,12 @@ impl Ecology {
                 d.create_query_set(&wgpu::QuerySetDescriptor {
                     label: Some("Ecological pass timings"),
                     ty: wgpu::QueryType::Timestamp,
-                    count: 64,
+                    count: ECOLOGY_TIMESTAMP_QUERY_COUNT,
                 })
             });
         let query_buffer = d.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Ecological timestamp resolve"),
-            size: 512,
+            size: ECOLOGY_TIMESTAMP_BUFFER_BYTES,
             usage: wgpu::BufferUsages::QUERY_RESOLVE | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
@@ -431,7 +442,7 @@ impl Ecology {
             } else {
                 config.eco_resolution()
             };
-            p.dispatch_workgroups(n / 8, n / 8, 6);
+            p.dispatch_workgroups(n / ECOLOGY_WORKGROUP_EDGE, n / ECOLOGY_WORKGROUP_EDGE, 6);
         }
         if self.timing {
             self.query_count += 2;
@@ -579,7 +590,10 @@ impl Ecology {
                 (3, id)
             }
             Intervention::LakeMixing(v) => {
-                ensure!(v.is_finite() && (0.0..=20.).contains(&v), "invalid mixing");
+                ensure!(
+                    v.is_finite() && crate::config::ALLOWED_LAKE_MIXING.contains(&v),
+                    "invalid mixing"
+                );
                 (4, v.to_bits())
             }
         };
@@ -701,7 +715,7 @@ impl Ecology {
                 report.area_km2 += a / 1e6;
                 if r >= 2 {
                     let land = (e.fields[0][2] + e.fields[0][3]) as f64;
-                    let weight = a / land.max(1e-20);
+                    let weight = a / land.max(MIN_LAND_REPORT_DENOMINATOR);
                     for k in 0..3 {
                         report.geological_habitat_fraction[k] += e.fields[8][k] as f64 * weight;
                     }
@@ -721,7 +735,9 @@ impl Ecology {
                 }
                 report.available_phosphorus_kg_per_m2 += c.pools[17][2] as f64 * a;
                 report.reactive_rock_kg_per_m2 += c.pools[26][2] as f64 * a;
-                if c.pools[28][1] > 0.00001 && c.pools[28][1] > c.pools[28][0] * 0.1 {
+                if c.pools[28][1] > MEANINGFUL_CHEMO_KG_C_PER_M2_MONTH
+                    && c.pools[28][1] > c.pools[28][0] * MEANINGFUL_CHEMO_PHOTO_RATIO
+                {
                     report.geochemical_hotspot_fraction += a;
                 }
                 report.photo_kg_c_per_m2_year += c.pools[28][0] as f64 * a * 12.;
@@ -750,8 +766,11 @@ impl Ecology {
         b.water_relative_error = (b.water_inventory_m3 - b.water_initial_m3 - b.water_external_m3)
             .abs()
             / b.water_inventory_m3.max(b.water_initial_m3).max(1.);
-        b.within_tolerance =
-            b.relative_error.iter().all(|v| *v <= 0.001) && b.water_relative_error <= 0.001;
+        b.within_tolerance = b
+            .relative_error
+            .iter()
+            .all(|v| *v <= ECOLOGY_RELATIVE_LEDGER_TOLERANCE)
+            && b.water_relative_error <= ECOLOGY_RELATIVE_LEDGER_TOLERANCE;
         for r in &mut b.regions {
             let a = (r.area_km2 * 1e6).max(1.);
             r.photo_kg_c_per_m2_year /= a;
@@ -787,7 +806,7 @@ pub fn validate(cells: &[EcoCell]) -> Result<()> {
         );
         ensure!(
             (0.0..=1.).contains(&c.pools[31][0])
-                && (0.0..=20.).contains(&c.pools[31][1])
+                && crate::config::ALLOWED_LAKE_MIXING.contains(&c.pools[31][1])
                 && (0.0..=1.).contains(&c.pools[31][2])
                 && (0.0..=4095.).contains(&c.pools[31][3])
                 && c.pools[31][3].fract() == 0.,
@@ -1142,7 +1161,7 @@ impl Ecology {
                         thermal[r][k][2] += carbon * t * t;
                     }
                     report.outer_founder_fraction[r][k] += carbon * c.pools[k + 5][3] as f64;
-                    if c.pools[k + 5][0] > 1e-10 {
+                    if c.pools[k + 5][0] > MIN_OCCUPIED_GUILD_KG_C_PER_M2 {
                         report.occupied_fraction[r][k] += fraction * a;
                     }
                 }
@@ -1156,7 +1175,8 @@ impl Ecology {
                     report.thermal_mean_c[r][k] = Some(mean);
                     report.thermal_sd_c[r][k] = Some((second / mass - mean * mean).max(0.).sqrt());
                 }
-                report.outer_founder_fraction[r][k] /= report.carbon_kg[r][k].max(1e-30);
+                report.outer_founder_fraction[r][k] /=
+                    report.carbon_kg[r][k].max(MIN_GUILD_CARBON_DENOMINATOR_KG);
                 report.occupied_fraction[r][k] /= area.max(1.);
             }
         }

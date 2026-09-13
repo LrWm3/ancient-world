@@ -6,6 +6,103 @@ use crate::{
 };
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+const DEFAULT_RESERVE_MONTHS: u32 = 6;
+const DEFAULT_COOLDOWN_MONTHS: u32 = 60;
+const MAX_HAZARD_SCALE: f32 = 5.;
+const ALLOWED_RESERVE_MONTHS: std::ops::RangeInclusive<u32> = 2..=24;
+const ALLOWED_COOLDOWN_MONTHS: std::ops::RangeInclusive<u32> = 12..=240;
+const UNSPECIALIZED_EXPERTISE_FACTOR: f32 = 0.5;
+const GENERAL_TEAM_SKILL_WEIGHT: f32 = 0.5;
+const SPECIALIST_TEAM_SKILL_WEIGHT: f32 = 0.5;
+const CROSS_ROLE_VETERAN_FACTOR: f32 = 0.5;
+const UNTRAINED_PREPARATION_FACTOR: f32 = 0.85;
+const PREPARATION_VARIATION_WIDTH: f32 = 0.1;
+const MIN_PREPARED_EXPERTISE: f32 = 0.05;
+const CASUALTY_STREAM: u32 = 71;
+const MAX_MONTHLY_CREW_PAY_MONEY: f64 = 20.;
+const MAX_CIVILIZATION_KNOWLEDGE: f32 = 100.;
+const MAX_FRONTIER_ROUTE_KM: f32 = 20000.;
+const MAX_ROUTE_TRAVEL_MONTHS: u32 = 64;
+const RESCUE_SEATS: usize = 16;
+const MAX_FINDINGS: f32 = 24.;
+const SAMPLE_TOLERANCE_KG: f64 = 1e-8;
+const MAX_COMBINED_SAMPLE_KG: f64 = 24.;
+const SEA_TRAVEL_KM_PER_MONTH: f32 = 600.;
+const MIN_LAUNCH_HARBOR_CAPACITY_KG: f32 = 500.;
+const CREW_RATION_KG_PER_MONTH: f32 = 18.;
+const RESEARCH_CAMP_MONTHS: u32 = 6;
+const MIN_LAUNCH_POPULATION: f32 = 80.;
+const MIN_LAUNCH_ADULTS: f32 = 16.;
+const HOME_FOOD_RESERVE_MONTHS: f32 = 12.;
+const LAUNCH_TIMBER_KG: f32 = 100.;
+const LAUNCH_TOOLS_KG: f32 = 24.;
+const HOME_TOOL_RESERVE_KG_PER_PERSON: f32 = 0.5;
+const MIN_INSTITUTION_SPONSOR_MONEY: f64 = 1200.;
+const MIN_PUBLIC_SPONSOR_MONEY: f64 = 1200.;
+const MIN_MERCHANT_SPONSOR_MONEY: f32 = 4600.;
+const LAUNCH_PURSE_MONEY: f64 = 600.;
+const SPONSOR_RENOWN_SORT_SCALE: f32 = 1000.;
+const BASE_LEGACY_CREW_SKILL: f32 = 0.45;
+const LEGACY_CREW_SKILL_VARIANCE: f32 = 0.35;
+const LEGACY_KNOWLEDGE_SKILL_WEIGHT: f32 = 0.002;
+const LEGACY_LEADER_SKILL_WEIGHT: f32 = 0.05;
+const CIVILIAN_PREPARATION_SKILL_WEIGHT: f32 = 0.5;
+const ROLE_PREPARATION_STREAM: u32 = 80;
+const LEGACY_ECOLOGY_MOTIVE_ILLNESS: f32 = 0.15;
+const MIN_GEOLOGY_MOTIVE_RESOURCES_KG: f32 = 1000.;
+const CREW_FOOD_TOLERANCE_KG: f32 = 0.001;
+const MONTHLY_TOOL_WEAR_KG: f32 = 0.15;
+const MONTHLY_WOOD_WEAR_KG: f32 = 0.4;
+const FAILED_VOYAGE_UNREST_GAIN: f32 = 0.08;
+const FAILED_VOYAGE_LOYALTY_LOSS: f32 = 0.04;
+const BASE_FIELD_DANGER: f32 = 0.03;
+const VEGETATION_DANGER_WEIGHT: f32 = 0.08;
+const GEOLOGY_DANGER_WEIGHT: f32 = 0.12;
+const FIELD_COMFORT_TEMPERATURE_C: f32 = 18.;
+const MAX_TEMPERATURE_DEVIATION_C: f32 = 50.;
+const TEMPERATURE_DANGER_PER_C: f32 = 0.002;
+const MAX_DANGER_HEIGHT_M: f32 = 5000.;
+const HEIGHT_DANGER_PER_M: f32 = 0.00001;
+const MAX_DANGER_FLOOD_DEPTH_M: f32 = 1.5;
+const FLOOD_DANGER_PER_M: f32 = 0.08;
+const UNSKILLED_DANGER_FACTOR: f32 = 1.2;
+const TEAM_SKILL_DANGER_REDUCTION: f32 = 0.25;
+const KNOWLEDGE_DANGER_REDUCTION: f32 = 0.004;
+const DANGEROUS_SEASON_MONTHS: u32 = 3;
+const SEASONAL_DANGER_MULTIPLIER: f32 = 1.3;
+const FIELD_DANGER_STREAM: u32 = 1;
+const FIELD_EVENT_STREAM: u32 = 2;
+const FATAL_EVENT_CUMULATIVE_CHANCE: f32 = 0.25;
+const STRANDING_CUMULATIVE_CHANCE: f32 = 0.65;
+const STRANDING_CHANCE_RANGE: f32 = 0.4;
+const MIN_STORM_TOOL_LOSS_FRACTION: f32 = 0.3;
+const STORM_TOOL_DAMAGE_WEIGHT: f32 = 0.65;
+const MIN_STORM_TIMBER_LOSS_FRACTION: f32 = 0.4;
+const STORM_TIMBER_DAMAGE_WEIGHT: f32 = 0.5;
+const STRANDING_REPAIR_DELAY_MONTHS: u32 = 3;
+const SETBACK_FOOD_LOSS_FRACTION: f32 = 0.12;
+const SETBACK_TOOL_LOSS_KG: f32 = 2.;
+const SETBACK_EXPOSURE_GAIN: f32 = 0.15;
+const MONTHLY_FIELD_EXPERTISE_GAIN: f32 = 0.002;
+const BASE_RESEARCH_SUITABILITY: f32 = 0.5;
+const FULL_RESEARCH_TOOLS_KG: f32 = 12.;
+const RETREAT_FOOD_RESERVE_MONTHS: u32 = 2;
+const RETREAT_TOOLS_THRESHOLD_KG: f32 = 4.;
+const REPAIR_TIMBER_KG: f32 = 10.;
+const REPAIR_TOOLS_KG: f32 = 3.;
+const REPAIR_STREAM: u32 = 3;
+const REPAIR_CHANCE: f32 = 0.35;
+const BASE_REPAIR_FACTOR: f32 = 0.5;
+const ENGINEER_REPAIR_WEIGHT: f32 = 0.75;
+const QUARANTINE_TOOLS_KG: f32 = 2.;
+const RETURNED_EXPOSURE_HEALTH_WEIGHT: f32 = 0.2;
+const SUCCESS_LOYALTY_GAIN: f32 = 0.02;
+const OVERDUE_CAMP_ALLOWANCE_MONTHS: u32 = 8;
+const HASH_ID_MULTIPLIER: u32 = 0x9e3779b9;
+const HASH_MONTH_MULTIPLIER: u32 = 0x85ebca6b;
+const HASH_CHANNEL_MULTIPLIER: u32 = 0xc2b2ae35;
+const HASH_FIRST_MULTIPLIER: u32 = 0x7feb352d;
+const HASH_SECOND_MULTIPLIER: u32 = 0x846ca68b;
 
 const CREW_ROLES: [&str; 8] = [
     "captain",
@@ -17,7 +114,6 @@ const CREW_ROLES: [&str; 8] = [
     "porter",
     "porter",
 ];
-const FOOD_CNP: [f32; 3] = [0.45, 0.02, 0.003];
 const LIMIT: usize = 512;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Rules {
@@ -31,8 +127,8 @@ impl Default for Rules {
         Self {
             automatic: true,
             hazard_scale: 1.,
-            reserve_months: 6,
-            cooldown_months: 60,
+            reserve_months: DEFAULT_RESERVE_MONTHS,
+            cooldown_months: DEFAULT_COOLDOWN_MONTHS,
         }
     }
 }
@@ -40,9 +136,9 @@ impl Rules {
     pub fn validate(&self) -> Result<()> {
         ensure!(
             self.hazard_scale.is_finite()
-                && (0. ..=5.).contains(&self.hazard_scale)
-                && (2..=24).contains(&self.reserve_months)
-                && (12..=240).contains(&self.cooldown_months),
+                && (0. ..=MAX_HAZARD_SCALE).contains(&self.hazard_scale)
+                && ALLOWED_RESERVE_MONTHS.contains(&self.reserve_months)
+                && ALLOWED_COOLDOWN_MONTHS.contains(&self.cooldown_months),
             "invalid expedition rules"
         );
         Ok(())
@@ -187,11 +283,11 @@ fn team_skill(crew: &[Crew], legacy: f32, role: &str) -> f32 {
     let general = crew.iter().map(contribution).sum::<f32>() / crew.len() as f32;
     let specialists: Vec<_> = crew.iter().filter(|c| c.role == role).collect();
     let specialist = if specialists.is_empty() {
-        general * 0.5
+        general * UNSPECIALIZED_EXPERTISE_FACTOR
     } else {
         specialists.iter().map(|c| contribution(c)).sum::<f32>() / specialists.len() as f32
     };
-    (0.5 * general + 0.5 * specialist).clamp(0., 1.)
+    (GENERAL_TEAM_SKILL_WEIGHT * general + SPECIALIST_TEAM_SKILL_WEIGHT * specialist).clamp(0., 1.)
 }
 
 // Only completed, surviving voyage records are passed here. Role-specific practice
@@ -200,7 +296,12 @@ fn veteran_expertise(crew: &Crew, person: u32, role: &str) -> f32 {
     if !crew.alive || crew.person != Some(person) {
         return 0.;
     }
-    crew.expertise.unwrap_or(0.) * if crew.role == role { 1. } else { 0.5 }
+    crew.expertise.unwrap_or(0.)
+        * if crew.role == role {
+            1.
+        } else {
+            CROSS_ROLE_VETERAN_FACTOR
+        }
 }
 
 // Only specialties with an established civilian skill counterpart transfer.
@@ -258,10 +359,10 @@ fn starting_expertise(base: f32, role: &str, knowledge: u32, variation: f32) -> 
         * if knowledge & (1 << topic) != 0 {
             1.
         } else {
-            0.85
+            UNTRAINED_PREPARATION_FACTOR
         }
-        + (variation - 0.5) * 0.1)
-        .clamp(0.05, 1.)
+        + (variation - 0.5) * PREPARATION_VARIATION_WIDTH)
+        .clamp(MIN_PREPARED_EXPERTISE, 1.)
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Expeditions {
@@ -278,11 +379,11 @@ pub struct Expeditions {
 }
 pub(crate) fn random(seed: u32, id: u32, month: u32, channel: u32) -> f32 {
     let mut x = seed
-        ^ id.wrapping_mul(0x9e3779b9)
-        ^ month.wrapping_mul(0x85ebca6b)
-        ^ channel.wrapping_mul(0xc2b2ae35);
-    x = (x ^ (x >> 16)).wrapping_mul(0x7feb352d);
-    x = (x ^ (x >> 15)).wrapping_mul(0x846ca68b);
+        ^ id.wrapping_mul(HASH_ID_MULTIPLIER)
+        ^ month.wrapping_mul(HASH_MONTH_MULTIPLIER)
+        ^ channel.wrapping_mul(HASH_CHANNEL_MULTIPLIER);
+    x = (x ^ (x >> 16)).wrapping_mul(HASH_FIRST_MULTIPLIER);
+    x = (x ^ (x >> 15)).wrapping_mul(HASH_SECOND_MULTIPLIER);
     ((x ^ (x >> 16)) >> 8) as f32 / 16777216.
 }
 fn spend_food(h: &mut History, e: &mut Expedition, kg: f32) {
@@ -290,7 +391,11 @@ fn spend_food(h: &mut History, e: &mut Expedition, kg: f32) {
     e.food -= used;
     let s = &mut h.sites[e.origin as usize];
     s.stocks.ledger[1] += used;
-    for (k, f) in FOOD_CNP.into_iter().enumerate() {
+    for (k, f) in crate::economy::FOOD_CNP
+        .map(|v| v as f32)
+        .into_iter()
+        .enumerate()
+    {
         s.economy.external[k] -= used * f;
     }
 }
@@ -299,7 +404,11 @@ fn lose_food(h: &mut History, e: &mut Expedition, kg: f32) {
     e.food -= lost;
     let s = &mut h.sites[e.origin as usize];
     s.stocks.ledger[2] += lost;
-    for (k, f) in FOOD_CNP.into_iter().enumerate() {
+    for (k, f) in crate::economy::FOOD_CNP
+        .map(|v| v as f32)
+        .into_iter()
+        .enumerate()
+    {
         s.economy.external[k] -= lost * f;
     }
 }
@@ -360,7 +469,7 @@ fn record_at(h: &mut History, e: &Expedition, kind: &str, detail: String, cell: 
 }
 fn casualty(h: &mut History, e: &mut Expedition, reason: &str) {
     let alive = e.survivors();
-    let slot = (random(h.seed, e.id, h.month, 71) * alive as f32) as usize;
+    let slot = (random(h.seed, e.id, h.month, CASUALTY_STREAM) * alive as f32) as usize;
     if let Some(c) = e.crew.iter_mut().filter(|c| c.alive).nth(slot) {
         c.alive = false;
         if let Some(person) = c.person {
@@ -392,7 +501,7 @@ fn pay_crew(h: &mut History, e: &mut Expedition) {
     if survivors == 0 {
         return;
     }
-    let budget = e.purse.min(20.);
+    let budget = e.purse.min(MAX_MONTHLY_CREW_PAY_MONEY);
     let mut left = budget;
     for (index, crew) in e.crew.iter().filter(|c| c.alive).enumerate() {
         let wage = if index + 1 == survivors {
@@ -452,7 +561,7 @@ impl Expeditions {
                 && self
                     .knowledge
                     .iter()
-                    .all(|k| k.is_finite() && (0. ..=100.).contains(k)),
+                    .all(|k| k.is_finite() && (0. ..=MAX_CIVILIZATION_KNOWLEDGE).contains(k)),
             "invalid expedition survey/knowledge"
         );
         let mut ports = std::collections::BTreeSet::new();
@@ -464,19 +573,23 @@ impl Expeditions {
                     && r.cells.first() == Some(&shipping.ports[r.port as usize].water_cell)
                     && r.cells.iter().all(|&i| (i as usize) < cells.len())
                     && r.km.is_finite()
-                    && (0. ..=20000.).contains(&r.km)
-                    && (1..=64).contains(&r.travel_months),
+                    && (0. ..=MAX_FRONTIER_ROUTE_KM).contains(&r.km)
+                    && (1..=MAX_ROUTE_TRAVEL_MONTHS).contains(&r.travel_months),
                 "invalid frontier route"
             );
             ensure!(
                 r.cells[..r.cells.len() - 1]
                     .iter()
                     .all(|&i| cells[i as usize].meta[0] == 1
-                        && (h.living.is_some() || cells[i as usize].water[0] > 0.25))
+                        && (h.living.is_some()
+                            || cells[i as usize].water[0]
+                                > crate::hazards::MIN_NAVIGABLE_WATER_DEPTH_M))
                     && r.cells
                         .last()
                         .is_some_and(|&i| cells[i as usize].meta[0] == 3
-                            && (h.living.is_some() || cells[i as usize].water[0] < 0.25))
+                            && (h.living.is_some()
+                                || cells[i as usize].water[0]
+                                    < crate::hazards::MIN_NAVIGABLE_WATER_DEPTH_M))
                     && r.cells
                         .windows(2)
                         .all(
@@ -510,8 +623,8 @@ impl Expeditions {
                     && e.crew.iter().all(|c| c
                         .expertise
                         .is_none_or(|v| v.is_finite() && (0. ..=1.).contains(&v)))
-                    && e.crew.len() >= 8
-                    && e.crew.len() <= 16
+                    && e.crew.len() >= CREW_ROLES.len()
+                    && e.crew.len() <= RESCUE_SEATS
                     && if e.phase.active() {
                         e.ended.is_none()
                     } else {
@@ -530,7 +643,7 @@ impl Expeditions {
                     && e.spent >= 0.
                     && e.skill <= 1.
                     && e.exposure <= 1.
-                    && e.findings <= 24.,
+                    && e.findings <= MAX_FINDINGS,
                 "invalid expedition inventory"
             );
             ensure!(
@@ -574,7 +687,7 @@ impl Expeditions {
             }
             ensure!(
                 e.botanicals.iter().all(|v| v.is_finite() && *v >= 0.)
-                    && e.botanicals.iter().sum::<f64>() <= e.samples[0] + 1e-8
+                    && e.botanicals.iter().sum::<f64>() <= e.samples[0] + SAMPLE_TOLERANCE_KG
                     && e.botanical_sources
                         .iter()
                         .enumerate()
@@ -583,7 +696,8 @@ impl Expeditions {
                                 && (e.botanicals[k] == 0. || source.is_some())
                         )
                     && e.samples.iter().all(|v| v.is_finite() && *v >= 0.)
-                    && e.samples.iter().sum::<f64>() <= 24. + 1e-8
+                    && e.samples.iter().sum::<f64>()
+                        <= MAX_COMBINED_SAMPLE_KG + SAMPLE_TOLERANCE_KG
                     && (self.discoveries.is_some() || e.samples == [0.; 2]),
                 "invalid specimen manifest"
             );
@@ -628,7 +742,7 @@ impl Expeditions {
                     port: i as u32,
                     cells,
                     km,
-                    travel_months: (km / 600.
+                    travel_months: (km / SEA_TRAVEL_KM_PER_MONTH
                         + p.access_km / crate::society::LAND_TRAVEL_KM_PER_MONTH)
                         .ceil()
                         .max(1.) as u32,
@@ -659,7 +773,7 @@ impl Expeditions {
         // This voyage reserves its own eight crew and outfitting materials below.
         // Requiring currently paid merchant crews deadlocked ports with no trade cargo.
         ensure!(
-            p.harbor_capacity() >= 500.,
+            p.harbor_capacity() >= MIN_LAUNCH_HARBOR_CAPACITY_KG,
             "harbor lacks expedition capacity"
         );
         let rescue_target = rescue.and_then(|id| self.voyages.get(id as usize));
@@ -683,18 +797,24 @@ impl Expeditions {
         );
         let s = &h.sites[origin as usize];
         let pop = s.stocks.stock[0];
-        let seats = if rescue.is_some() { 16. } else { 8. };
-        let food = seats * 18. * (2 * r.travel_months + 6 + self.rules.reserve_months) as f32;
+        let seats = if rescue.is_some() {
+            RESCUE_SEATS as f32
+        } else {
+            CREW_ROLES.len() as f32
+        };
+        let food = seats
+            * CREW_RATION_KG_PER_MONTH
+            * (2 * r.travel_months + RESEARCH_CAMP_MONTHS + self.rules.reserve_months) as f32;
         ensure!(
             !s.abandoned
                 && s.economy.policy[3] >= 0.5
-                && pop >= 80.
-                && s.demography.ages[1] >= 16.
-                && s.stocks.stock[1] >= food + pop * 18. * 12.
-                && s.economy.goods[0] >= 100. + pop
-                && s.economy.goods[3] >= 24. + pop * 0.5,
+                && pop >= MIN_LAUNCH_POPULATION
+                && s.demography.ages[1] >= MIN_LAUNCH_ADULTS
+                && s.stocks.stock[1] >= food + pop * crate::economy::CIVILIAN_RESERVE_KG_PER_PERSON_MONTH * HOME_FOOD_RESERVE_MONTHS
+                && s.economy.goods[0] >= LAUNCH_TIMBER_KG + pop
+                && s.economy.goods[3] >= LAUNCH_TOOLS_KG + pop * HOME_TOOL_RESERVE_KG_PER_PERSON,
             "insufficient adults, food or expedition equipment above civilian reserves: population {:.0}/80, adults {:.0}/16, food {:.0}/{:.0} kg, wood {:.1}/{:.1} kg, tools {:.1}/{:.1} kg",
-            pop, s.demography.ages[1], s.stocks.stock[1], food + pop*18.*12., s.economy.goods[0],100.+pop,s.economy.goods[3],24.+pop*0.5
+            pop, s.demography.ages[1], s.stocks.stock[1], food + pop * crate::economy::CIVILIAN_RESERVE_KG_PER_PERSON_MONTH * HOME_FOOD_RESERVE_MONTHS, s.economy.goods[0],LAUNCH_TIMBER_KG+pop,s.economy.goods[3],LAUNCH_TOOLS_KG+pop*HOME_TOOL_RESERVE_KG_PER_PERSON
         );
         let heritage = crate::expedition_heritage::charter(h, origin, objective)?;
         let institution = h.culture.as_ref().and_then(|c| {
@@ -710,7 +830,7 @@ impl Expeditions {
                                     crate::culture::InstitutionKind::Religious
                                         | crate::culture::InstitutionKind::Scholarly
                                 )))
-                        && n.treasury >= 1200.
+                        && n.treasury >= MIN_INSTITUTION_SPONSOR_MONEY
                 })
                 .min_by_key(|n| {
                     let preferred = match objective {
@@ -727,47 +847,48 @@ impl Expeditions {
                     });
                     (
                         !preferred,
-                        std::cmp::Reverse((reputation * 1000.) as u32),
+                        std::cmp::Reverse((reputation * SPONSOR_RENOWN_SORT_SCALE) as u32),
                         n.id,
                     )
                 })
                 .map(|n| n.id)
         });
         let public = institution.is_none()
-            && h.society.as_ref().unwrap().councils[sponsor as usize].treasury >= 1200.;
+            && h.society.as_ref().unwrap().councils[sponsor as usize].treasury
+                >= MIN_PUBLIC_SPONSOR_MONEY;
         ensure!(
-            institution.is_some() || public || s.economy.finance[0] >= 4600.,
+            institution.is_some() || public || s.economy.finance[0] >= MIN_MERCHANT_SPONSOR_MONEY,
             "no wealthy public or private sponsor"
         );
-        let recruitment = h.recruit_service_people(origin, 8, 8)?;
+        let recruitment = h.recruit_service_people(origin, CREW_ROLES.len(), CREW_ROLES.len())?;
         let candidates = recruitment.people;
         let identify = recruitment.identified;
         let first_identified = recruitment.first_identified;
         if let Some(id) = institution {
-            h.culture.as_mut().unwrap().institutions[id as usize].treasury -= 600.;
+            h.culture.as_mut().unwrap().institutions[id as usize].treasury -= LAUNCH_PURSE_MONEY;
         } else if public {
-            h.society.as_mut().unwrap().councils[sponsor as usize].treasury -= 600.;
+            h.society.as_mut().unwrap().councils[sponsor as usize].treasury -= LAUNCH_PURSE_MONEY;
         } else {
-            h.sites[origin as usize].economy.finance[0] -= 600.;
+            h.sites[origin as usize].economy.finance[0] -= LAUNCH_PURSE_MONEY as f32;
         }
         let s = &mut h.sites[origin as usize];
-        s.stocks.stock[0] -= 8.;
-        s.demography.ages[1] -= 8.;
-        s.stocks.people[3] += 8.;
+        s.stocks.stock[0] -= CREW_ROLES.len() as f32;
+        s.demography.ages[1] -= CREW_ROLES.len() as f32;
+        s.stocks.people[3] += CREW_ROLES.len() as f32;
         s.stocks.stock[1] -= food;
-        s.economy.goods[0] -= 100.;
-        s.economy.goods[3] -= 24.;
+        s.economy.goods[0] -= LAUNCH_TIMBER_KG;
+        s.economy.goods[3] -= LAUNCH_TOOLS_KG;
         let id = self.voyages.len() as u32;
-        let skill = (0.45
-            + random(h.seed, id, h.month, 0) * 0.35
-            + self.knowledge[sponsor as usize] * 0.002
+        let skill = (BASE_LEGACY_CREW_SKILL
+            + random(h.seed, id, h.month, 0) * LEGACY_CREW_SKILL_VARIANCE
+            + self.knowledge[sponsor as usize] * LEGACY_KNOWLEDGE_SKILL_WEIGHT
             + h.culture
                 .as_ref()
                 .and_then(|c| {
                     h.living_civilization_leader(sponsor)
                         .and_then(|id| c.agents.get(id as usize))
                 })
-                .map_or(0., |a| a.skills[3] * 0.05))
+                .map_or(0., |a| a.skills[3] * LEGACY_LEADER_SKILL_WEIGHT))
         .min(1.);
         h.event("expedition_departure",Some(origin),None,format!("Charter {id}: {objective:?}, eight adults, {food:0.0} kg food, 100 kg timber, 24 kg tools and 600 money escrow; {} sponsorship",if institution.is_some(){"institutional"}else if public{"government"}else{"merchant"}));
         if let Some(charter) = &heritage {
@@ -800,7 +921,7 @@ impl Expeditions {
                             .as_ref()?
                             .agents
                             .get(person as usize)
-                            .map(|a| a.skills[slot] * 0.5)
+                            .map(|a| a.skills[slot] * CIVILIAN_PREPARATION_SKILL_WEIGHT)
                     })
                     .unwrap_or(0.);
                 // Duplicate guard/porter slots use identical preparation. Randomness
@@ -817,7 +938,7 @@ impl Expeditions {
                     skill,
                     role,
                     local_knowledge,
-                    random(h.seed, person, h.month, 80 + role_key),
+                    random(h.seed, person, h.month, ROLE_PREPARATION_STREAM + role_key),
                 )
                 .max(prior)
                 .max(veteran)
@@ -870,9 +991,9 @@ impl Expeditions {
             due: h.month + r.travel_months,
             ended: None,
             food,
-            timber: 100.,
-            tools: 24.,
-            purse: 600.,
+            timber: LAUNCH_TIMBER_KG,
+            tools: LAUNCH_TOOLS_KG,
+            purse: LAUNCH_PURSE_MONEY,
             spent: 0.,
             findings: 0.,
             confirmed: false,
@@ -905,13 +1026,16 @@ impl History {
                     [x.routes[route].port as usize]
                     .site as usize];
                 let mut objective = if site.demography.health[0]
-                    > if x.discoveries.is_some() { 0.01 } else { 0.15 }
-                {
+                    > if x.discoveries.is_some() {
+                        crate::discoveries::REMEDY_ILLNESS_THRESHOLD
+                    } else {
+                        LEGACY_ECOLOGY_MOTIVE_ILLNESS
+                    } {
                     Objective::Ecology
                 } else if if x.discoveries.is_some() {
                     site.economy.diagnostics[0] == 2.
                 } else {
-                    self.accessible_resources(site.id as usize)[0] < 1000.
+                    self.accessible_resources(site.id as usize)[0] < MIN_GEOLOGY_MOTIVE_RESOURCES_KG
                 } {
                     Objective::Geology
                 } else {
@@ -924,16 +1048,18 @@ impl History {
                         _ => Objective::OldLiterature,
                     }
                 };
-                let followup =
-                    if site.demography.health[0] <= 0.01 && site.economy.diagnostics[0] != 2. {
-                        x.routes[route].cells.last().and_then(|cell| {
-                            x.discoveries.as_ref().and_then(|d| {
-                                crate::discoveries::returns::followup(self, d, site.id, *cell)
-                            })
+                let followup = if site.demography.health[0]
+                    <= crate::discoveries::REMEDY_ILLNESS_THRESHOLD
+                    && site.economy.diagnostics[0] != 2.
+                {
+                    x.routes[route].cells.last().and_then(|cell| {
+                        x.discoveries.as_ref().and_then(|d| {
+                            crate::discoveries::returns::followup(self, d, site.id, *cell)
                         })
-                    } else {
-                        None
-                    };
+                    })
+                } else {
+                    None
+                };
                 if followup.is_some() {
                     objective = Objective::Ecology;
                 }
@@ -984,21 +1110,21 @@ impl History {
             let mut e = x.voyages[i].clone();
             let r = &x.routes[e.route as usize];
             let cell = &cells[*r.cells.last().unwrap() as usize];
-            let required = e.survivors() as f32 * 18.;
-            if e.food + 0.001 < required {
+            let required = e.survivors() as f32 * CREW_RATION_KG_PER_MONTH;
+            if e.food + CREW_FOOD_TOLERANCE_KG < required {
                 casualty(self, &mut e, "provisions exhausted");
             }
             spend_food(self, &mut e, required);
             pay_crew(self, &mut e);
-            spend_tools(self, &mut e, 0.15);
-            spend_wood(self, &mut e, 0.4);
+            spend_tools(self, &mut e, MONTHLY_TOOL_WEAR_KG);
+            spend_wood(self, &mut e, MONTHLY_WOOD_WEAR_KG);
             if e.survivors() == 0 {
                 e.phase = Phase::Lost;
                 if self.controller(e.origin) == e.sponsor {
                     let a =
                         &mut self.governance.as_mut().unwrap().administrations[e.origin as usize];
-                    a.unrest = (a.unrest + 0.08).min(1.);
-                    a.loyalty = (a.loyalty - 0.04).max(0.);
+                    a.unrest = (a.unrest + FAILED_VOYAGE_UNREST_GAIN).min(1.);
+                    a.loyalty = (a.loyalty - FAILED_VOYAGE_LOYALTY_LOSS).max(0.);
                 }
                 e.ended = Some(self.month);
                 let food = e.food;
@@ -1031,7 +1157,7 @@ impl History {
                         e.food += t.food;
                         e.timber += t.timber;
                         e.tools += t.tools;
-                        e.findings = (e.findings + t.findings).min(24.);
+                        e.findings = (e.findings + t.findings).min(MAX_FINDINGS);
                         e.exposure = e.exposure.max(t.exposure);
                         e.take_collections(t);
                         t.food = 0.;
@@ -1054,7 +1180,7 @@ impl History {
                     e.due = self.month + r.travel_months;
                 } else {
                     e.phase = Phase::Camp;
-                    e.due = self.month + 6;
+                    e.due = self.month + RESEARCH_CAMP_MONTHS;
                     record_at(
                         self,
                         &e,
@@ -1067,19 +1193,25 @@ impl History {
                     );
                 }
             } else if matches!(e.phase, Phase::Camp | Phase::Stranded) {
-                let danger = (0.03
-                    + cell.life[0].clamp(0., 1.) * 0.08
-                    + cell.geology[0].clamp(0., 1.) * 0.12
-                    + (cell.climate[0] - 18.).abs().min(50.) * 0.002
-                    + cell.terrain[0].clamp(0., 5000.) * 0.00001
+                let danger = (BASE_FIELD_DANGER
+                    + cell.life[0].clamp(0., 1.) * VEGETATION_DANGER_WEIGHT
+                    + cell.geology[0].clamp(0., 1.) * GEOLOGY_DANGER_WEIGHT
+                    + (cell.climate[0] - FIELD_COMFORT_TEMPERATURE_C)
+                        .abs()
+                        .min(MAX_TEMPERATURE_DEVIATION_C)
+                        * TEMPERATURE_DANGER_PER_C
+                    + cell.terrain[0].clamp(0., MAX_DANGER_HEIGHT_M) * HEIGHT_DANGER_PER_M
                     + if self.living.is_some() {
-                        crate::hazards::flood_depth(cell).clamp(0., 1.5) * 0.08
+                        crate::hazards::flood_depth(cell).clamp(0., MAX_DANGER_FLOOD_DEPTH_M)
+                            * FLOOD_DANGER_PER_M
                     } else {
                         0.
                     })
                     * x.rules.hazard_scale
-                    * (1.2 - (e.team_skill("guard") + e.team_skill("navigator")) * 0.25)
-                    * (1. - x.knowledge[e.sponsor as usize] * 0.004)
+                    * (UNSKILLED_DANGER_FACTOR
+                        - (e.team_skill("guard") + e.team_skill("navigator"))
+                            * TEAM_SKILL_DANGER_REDUCTION)
+                    * (1. - x.knowledge[e.sponsor as usize] * KNOWLEDGE_DANGER_REDUCTION)
                     * (if (self.month
                         + if grid::cell_direction(*r.cells.last().unwrap(), self.terrain_resolution)
                             [1]
@@ -1090,30 +1222,34 @@ impl History {
                             0
                         })
                         % 12
-                        < 3
+                        < DANGEROUS_SEASON_MONTHS
                     {
-                        1.3
+                        SEASONAL_DANGER_MULTIPLIER
                     } else {
                         1.
                     });
-                if random(self.seed, e.id, self.month, 1) < danger {
-                    let event = random(self.seed, e.id, self.month, 2);
-                    if event < 0.25 {
+                if random(self.seed, e.id, self.month, FIELD_DANGER_STREAM) < danger {
+                    let event = random(self.seed, e.id, self.month, FIELD_EVENT_STREAM);
+                    if event < FATAL_EVENT_CUMULATIVE_CHANCE {
                         casualty(self, &mut e, "outer-continent field accident");
-                    } else if event < 0.65 && e.phase == Phase::Camp {
-                        let damage = (event - 0.25) / 0.4;
-                        let tools = e.tools * (0.3 + 0.65 * damage);
-                        let timber = e.timber * (0.4 + 0.5 * damage);
+                    } else if event < STRANDING_CUMULATIVE_CHANCE && e.phase == Phase::Camp {
+                        let damage =
+                            (event - FATAL_EVENT_CUMULATIVE_CHANCE) / STRANDING_CHANCE_RANGE;
+                        let tools = e.tools
+                            * (MIN_STORM_TOOL_LOSS_FRACTION + STORM_TOOL_DAMAGE_WEIGHT * damage);
+                        let timber = e.timber
+                            * (MIN_STORM_TIMBER_LOSS_FRACTION
+                                + STORM_TIMBER_DAMAGE_WEIGHT * damage);
                         spend_tools(self, &mut e, tools);
                         spend_wood(self, &mut e, timber);
                         e.phase = Phase::Stranded;
-                        e.due = self.month + 3;
+                        e.due = self.month + STRANDING_REPAIR_DELAY_MONTHS;
                         record_at(self,&e,"expedition_stranded","Storm damage cut the camp's return access; attempting repairs and awaiting rescue".into(), *r.cells.last().unwrap());
                     } else {
-                        let loss = e.food * 0.12;
+                        let loss = e.food * SETBACK_FOOD_LOSS_FRACTION;
                         lose_food(self, &mut e, loss);
-                        spend_tools(self, &mut e, 2.);
-                        e.exposure = (e.exposure + 0.15).min(1.);
+                        spend_tools(self, &mut e, SETBACK_TOOL_LOSS_KG);
+                        e.exposure = (e.exposure + SETBACK_EXPOSURE_GAIN).min(1.);
                         record(
                             self,
                             &e,
@@ -1127,7 +1263,7 @@ impl History {
                     e.field_months += 1;
                     for crew in e.crew.iter_mut().filter(|c| c.alive) {
                         if let Some(skill) = &mut crew.expertise {
-                            *skill += 0.002 * (1. - *skill);
+                            *skill += MONTHLY_FIELD_EXPERTISE_GAIN * (1. - *skill);
                         }
                     }
                     let destination = *r.cells.last().unwrap();
@@ -1138,21 +1274,30 @@ impl History {
                     });
                     crate::expedition_heritage::survey(self, &mut e, destination, already_surveyed);
                     let suitability = match e.objective {
-                        Objective::Geology => 0.5 + cell.geology[0].clamp(0., 1.),
-                        Objective::Ecology => 0.5 + cell.life[0].clamp(0., 1.),
+                        Objective::Geology => {
+                            BASE_RESEARCH_SUITABILITY + cell.geology[0].clamp(0., 1.)
+                        }
+                        Objective::Ecology => {
+                            BASE_RESEARCH_SUITABILITY + cell.life[0].clamp(0., 1.)
+                        }
                         _ => 1.,
                     };
                     e.findings = (e.findings
-                        + e.research_skill() * suitability * (e.tools / 12.).min(1.))
-                    .min(24.);
+                        + e.research_skill()
+                            * suitability
+                            * (e.tools / FULL_RESEARCH_TOOLS_KG).min(1.))
+                    .min(MAX_FINDINGS);
                     if e.survivors() > 0 {
                         if let Some(d) = &mut x.discoveries {
                             d.collect(self, &mut e, *r.cells.last().unwrap(), cell);
                         }
                     }
                     if self.month >= e.due
-                        || e.food < e.survivors() as f32 * 18. * (r.travel_months + 2) as f32
-                        || e.tools < 4.
+                        || e.food
+                            < e.survivors() as f32
+                                * CREW_RATION_KG_PER_MONTH
+                                * (r.travel_months + RETREAT_FOOD_RESERVE_MONTHS) as f32
+                        || e.tools < RETREAT_TOOLS_THRESHOLD_KG
                     {
                         e.phase = Phase::Homeward;
                         e.due = self.month + r.travel_months;
@@ -1165,13 +1310,15 @@ impl History {
                         );
                     }
                 } else if self.month >= e.due
-                    && e.timber >= 10.
-                    && e.tools >= 3.
-                    && random(self.seed, e.id, self.month, 3)
-                        < 0.35 * (0.5 + 0.75 * e.team_skill("engineer"))
+                    && e.timber >= REPAIR_TIMBER_KG
+                    && e.tools >= REPAIR_TOOLS_KG
+                    && random(self.seed, e.id, self.month, REPAIR_STREAM)
+                        < REPAIR_CHANCE
+                            * (BASE_REPAIR_FACTOR
+                                + ENGINEER_REPAIR_WEIGHT * e.team_skill("engineer"))
                 {
-                    spend_wood(self, &mut e, 10.);
-                    spend_tools(self, &mut e, 3.);
+                    spend_wood(self, &mut e, REPAIR_TIMBER_KG);
+                    spend_tools(self, &mut e, REPAIR_TOOLS_KG);
                     e.phase = Phase::Homeward;
                     e.due = self.month + r.travel_months;
                     record_at(
@@ -1205,10 +1352,10 @@ impl History {
                 let mut cargo_cleared = true;
                 if e.exposure > 0. || e.samples[0] > 0. {
                     let home = &mut self.sites[e.origin as usize];
-                    if home.economy.goods[3] >= 2. {
-                        home.economy.goods[3] -= 2.;
-                        home.economy.used[3] += 2.;
-                        home.economy.reserves[3] += 2.;
+                    if home.economy.goods[3] >= QUARANTINE_TOOLS_KG {
+                        home.economy.goods[3] -= QUARANTINE_TOOLS_KG;
+                        home.economy.used[3] += QUARANTINE_TOOLS_KG;
+                        home.economy.reserves[3] += QUARANTINE_TOOLS_KG;
                         record(
                             self,
                             &e,
@@ -1217,8 +1364,9 @@ impl History {
                         );
                     } else {
                         cargo_cleared = false;
-                        home.demography.health[0] =
-                            (home.demography.health[0] + e.exposure * 0.2).min(1.);
+                        home.demography.health[0] = (home.demography.health[0]
+                            + e.exposure * RETURNED_EXPOSURE_HEALTH_WEIGHT)
+                            .min(1.);
                         record(self,&e,"expedition_containment_failed","Insufficient inspection equipment; cargo discarded and any fictional exposure increased local disease burden".into());
                     }
                 }
@@ -1254,7 +1402,8 @@ impl History {
                     .filter(|c| {
                         c.alive
                             && c.person.is_some_and(|id| {
-                                self.month as i32 - self.people[id as usize].born >= 720
+                                self.month as i32 - self.people[id as usize].born
+                                    >= crate::population_registry::WORKING_END_AGE_MONTHS
                             })
                     })
                     .count() as f32;
@@ -1277,10 +1426,10 @@ impl History {
                 if e.confirmed && self.controller(e.origin) == e.sponsor {
                     let a =
                         &mut self.governance.as_mut().unwrap().administrations[e.origin as usize];
-                    a.loyalty = (a.loyalty + 0.02).min(1.);
+                    a.loyalty = (a.loyalty + SUCCESS_LOYALTY_GAIN).min(1.);
                 }
                 x.knowledge[e.sponsor as usize] =
-                    (x.knowledge[e.sponsor as usize] + e.findings).min(100.);
+                    (x.knowledge[e.sponsor as usize] + e.findings).min(MAX_CIVILIZATION_KNOWLEDGE);
                 record(self,&e,"expedition_return",format!("{} survivors returned; {:0.1} points of confirmed {:?} observations; sponsor knowledge {:0.1}",e.survivors(),e.findings,e.objective,x.knowledge[e.sponsor as usize]));
                 let returned_event = self.events.last().unwrap().id;
                 crate::expedition_heritage::deliver(self, &mut e);
@@ -1303,7 +1452,9 @@ impl History {
                     });
                 crate::heritage_renown::returned(self, &e, returned_event, rescued);
             }
-            if e.phase.active() && self.month == e.departed + 2 * r.travel_months + 8 {
+            if e.phase.active()
+                && self.month == e.departed + 2 * r.travel_months + OVERDUE_CAMP_ALLOWANCE_MONTHS
+            {
                 record(
                     self,
                     &e,
@@ -1325,7 +1476,9 @@ impl History {
                     e.phase.active()
                         && e.objective != Objective::Rescue
                         && self.month
-                            >= e.departed + 2 * x.routes[e.route as usize].travel_months + 8
+                            >= e.departed
+                                + 2 * x.routes[e.route as usize].travel_months
+                                + OVERDUE_CAMP_ALLOWANCE_MONTHS
                 })
                 .map(|e| (e.route, e.id))
                 .collect();

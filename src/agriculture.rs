@@ -11,7 +11,7 @@ const DEFAULT_FISHERY_WORKER_SHARE: f32 = 0.15;
 const DEFAULT_FISHERY_KG_PER_WORKER_MONTH: f32 = 80.;
 const DEFAULT_FISHERY_HALF_SATURATION_KG_C_M2: f32 = 0.0001;
 const DEFAULT_FISHERY_RESERVE_MONTHS: f32 = 6.;
-const LEGACY_FIXATION_COST_KG: f32 = 80.;
+pub(crate) const LEGACY_FIXATION_COST_KG: f32 = 80.;
 const ALLOWED_FIXATION_COST_KG: std::ops::RangeInclusive<f32> = 1. ..=1000.;
 pub(crate) const ALLOWED_FISHERY_WORKER_SHARE: std::ops::RangeInclusive<f32> = 0.001..=0.25;
 const ALLOWED_FISHERY_KG_PER_WORKER_MONTH: std::ops::RangeInclusive<f32> = 1. ..=200.;

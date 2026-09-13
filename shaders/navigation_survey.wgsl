@@ -47,7 +47,7 @@ fn neighbor(i:u32,k:u32)->u32 {
 
 @compute @workgroup_size(NAVIGATION_WORKGROUP_SIZE)
 fn survey(@builtin(global_invocation_id) g:vec3<u32>) {
- let i=g.x+g.y*NAVIGATION_MAX_DISPATCH_GROUPS*NAVIGATION_WORKGROUP_SIZE;if i>=p.limits.y||world[i].tags.x!=2u{return;}
+ let i=g.x+g.y*MAX_DISPATCH_GROUPS_PER_DIMENSION*NAVIGATION_WORKGROUP_SIZE;if i>=p.limits.y||world[i].tags.x!=2u{return;}
  var coast=false;var landing=false;
  for(var k=0u;k<4u;k++){let j=neighbor(i,k);if world[j].tags.x==1u {coast=true;if world[j].water.x>MIN_NAVIGABLE_WATER_DEPTH_M && world[i].water.x<FLOOD_EXPOSURE_DEPTH_M {landing=true;}}}
  let coasts=p.dims.w==1u;

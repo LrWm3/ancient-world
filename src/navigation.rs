@@ -10,7 +10,6 @@ use std::{
 };
 crate::shared_shader_parameters!(SHADER_PARAMETERS {
     const NAVIGATION_WORKGROUP_SIZE: u32 = 64;
-    const NAVIGATION_MAX_DISPATCH_GROUPS: u32 = 65535;
     pub(crate) const ROAD_SLOPE_HEIGHT_M: f32 = 500.;
     pub(crate) const ROAD_DISCHARGE_SCALE_M3_S: f32 = 1000.;
     pub(crate) const MAX_ROAD_DISCHARGE_FRICTION: f32 = 3.;
@@ -131,7 +130,8 @@ impl Navigation {
             label: Some("Frontier navigation"),
             source: wgpu::ShaderSource::Wgsl(
                 format!(
-                    "{}\n{}\n{}",
+                    "{}\n{}\n{}\n{}",
+                    crate::gpu::SHADER_PARAMETERS,
                     SHADER_PARAMETERS,
                     crate::hazards::SHADER_PARAMETERS,
                     include_str!("../shaders/navigation.wgsl")
@@ -242,8 +242,8 @@ impl Navigation {
                 1
             };
             pass.dispatch_workgroups(
-                groups.min(NAVIGATION_MAX_DISPATCH_GROUPS),
-                groups.div_ceil(NAVIGATION_MAX_DISPATCH_GROUPS),
+                groups.min(crate::gpu::MAX_DISPATCH_GROUPS_PER_DIMENSION),
+                groups.div_ceil(crate::gpu::MAX_DISPATCH_GROUPS_PER_DIMENSION),
                 1,
             );
         }
@@ -456,7 +456,8 @@ impl Navigation {
                 label: Some("Survey compaction"),
                 source: wgpu::ShaderSource::Wgsl(
                     format!(
-                        "{}\n{}\n{}",
+                        "{}\n{}\n{}\n{}",
+                        crate::gpu::SHADER_PARAMETERS,
                         SHADER_PARAMETERS,
                         crate::hazards::SHADER_PARAMETERS,
                         include_str!("../shaders/navigation_survey.wgsl")
@@ -501,8 +502,8 @@ impl Navigation {
             pass.set_bind_group(0, &group, &[]);
             let groups = self.count().div_ceil(NAVIGATION_WORKGROUP_SIZE);
             pass.dispatch_workgroups(
-                groups.min(NAVIGATION_MAX_DISPATCH_GROUPS),
-                groups.div_ceil(NAVIGATION_MAX_DISPATCH_GROUPS),
+                groups.min(crate::gpu::MAX_DISPATCH_GROUPS_PER_DIMENSION),
+                groups.div_ceil(crate::gpu::MAX_DISPATCH_GROUPS_PER_DIMENSION),
                 1,
             );
         }
@@ -591,7 +592,7 @@ impl Navigation {
             ids.len() as u64 * 4 <= d.limits().max_storage_buffer_binding_size as u64
                 && spans.len() as u64 * 16 <= d.limits().max_storage_buffer_binding_size as u64
                 && spans.len().div_ceil(NAVIGATION_WORKGROUP_SIZE as usize)
-                    <= NAVIGATION_MAX_DISPATCH_GROUPS as usize,
+                    <= crate::gpu::MAX_DISPATCH_GROUPS_PER_DIMENSION as usize,
             "route inspection exceeds GPU limits"
         );
         let input = |label, bytes: &[u8]| {
@@ -614,7 +615,8 @@ impl Navigation {
                 label: Some("Route hazard summaries"),
                 source: wgpu::ShaderSource::Wgsl(
                     format!(
-                        "{}\n{}\n{}",
+                        "{}\n{}\n{}\n{}",
+                        crate::gpu::SHADER_PARAMETERS,
                         SHADER_PARAMETERS,
                         crate::hazards::SHADER_PARAMETERS,
                         include_str!("../shaders/navigation_inspect.wgsl")

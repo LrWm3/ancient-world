@@ -3,8 +3,16 @@ use anyhow::{anyhow, ensure, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, sync::mpsc, time::Instant};
 use wgpu::util::DeviceExt;
+const LEGACY_TUNING_SCALE: f32 = 120.;
+const TERRAIN_TIMESTAMP_QUERY_COUNT: u32 = 16;
+const TERRAIN_TIMESTAMP_BUFFER_BYTES: u64 = 256;
+crate::shared_shader_parameters! { SHADER_PARAMETERS {
+    pub(crate) const MAX_DISPATCH_GROUPS_PER_DIMENSION: u32 = 65535;
+    const TERRAIN_WORKGROUP_EDGE: u32 = 8;
+    const LAKE_REDUCTION_WORKGROUP_SIZE: u32 = 256;
+}}
 
-const DEFAULT_MEMORY_BUDGET_BYTES: u64 = 4 * 1024 * 1024 * 1024;
+pub(crate) const DEFAULT_MEMORY_BUDGET_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 const COAST_CLEANUP_PASSES: u32 = 8;
 const DRAINAGE_DISPATCH_BATCH: u32 = 8;
 
@@ -243,7 +251,7 @@ impl Generator {
         });
         let uniform = d.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Simulation settings"),
-            size: 80,
+            size: std::mem::size_of::<Params>() as u64,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -334,7 +342,13 @@ impl Generator {
         });
         let module = d.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Planet simulation"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/simulation.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(
+                format!(
+                    "{SHADER_PARAMETERS}\n{}",
+                    include_str!("../shaders/simulation.wgsl")
+                )
+                .into(),
+            ),
         });
         let pl = d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
@@ -384,12 +398,12 @@ impl Generator {
             d.create_query_set(&wgpu::QuerySetDescriptor {
                 label: Some("Stage timestamps"),
                 ty: wgpu::QueryType::Timestamp,
-                count: 16,
+                count: TERRAIN_TIMESTAMP_QUERY_COUNT,
             })
         });
         let query_buffer = d.create_buffer(&wgpu::BufferDescriptor {
             label: None,
-            size: 256,
+            size: TERRAIN_TIMESTAMP_BUFFER_BYTES,
             usage: wgpu::BufferUsages::QUERY_RESOLVE | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
@@ -468,7 +482,7 @@ impl Generator {
                 self.reduction_side,
             ],
             tuning: [
-                120.,
+                LEGACY_TUNING_SCALE,
                 1.,
                 self.progress.geological_time_myr as f32,
                 if self.catalog.geological_provinces {
@@ -520,9 +534,17 @@ impl Generator {
             pass.set_pipeline(&self.pipelines[kernel]);
             pass.set_bind_group(0, &self.groups[self.current], &[]);
             if name == "lake_reduce" {
-                pass.dispatch_workgroups(self.reduction_count.div_ceil(256), 1, 1);
+                pass.dispatch_workgroups(
+                    self.reduction_count.div_ceil(LAKE_REDUCTION_WORKGROUP_SIZE),
+                    1,
+                    1,
+                );
             } else {
-                pass.dispatch_workgroups(self.config.resolution / 8, self.config.resolution / 8, 6);
+                pass.dispatch_workgroups(
+                    self.config.resolution / TERRAIN_WORKGROUP_EDGE,
+                    self.config.resolution / TERRAIN_WORKGROUP_EDGE,
+                    6,
+                );
             }
             drop(pass);
             if name != "lake_reduce" && name != "drain_relax" {
@@ -569,7 +591,11 @@ impl Generator {
             let mut pass = init.begin_compute_pass(&Default::default());
             pass.set_pipeline(&self.pipelines["pool_init"]);
             pass.set_bind_group(0, &self.groups[self.current], &[]);
-            pass.dispatch_workgroups(self.config.resolution / 8, self.config.resolution / 8, 6);
+            pass.dispatch_workgroups(
+                self.config.resolution / TERRAIN_WORKGROUP_EDGE,
+                self.config.resolution / TERRAIN_WORKGROUP_EDGE,
+                6,
+            );
         }
         self.gpu.queue.submit(Some(init.finish()));
         // Reuse one tiny staging allocation throughout this solve. The flag copy
@@ -603,7 +629,11 @@ impl Generator {
                     }],
                 );
                 pass.set_bind_group(0, &self.groups[self.current], &[]);
-                pass.dispatch_workgroups(self.config.resolution / 8, self.config.resolution / 8, 6);
+                pass.dispatch_workgroups(
+                    self.config.resolution / TERRAIN_WORKGROUP_EDGE,
+                    self.config.resolution / TERRAIN_WORKGROUP_EDGE,
+                    6,
+                );
                 iterations += 1;
             }
             encoder.copy_buffer_to_buffer(&self.flags, 0, &readback, 0, 16);
@@ -622,7 +652,11 @@ impl Generator {
             let mut pass = scatter.begin_compute_pass(&Default::default());
             pass.set_pipeline(&self.pipelines["pool_scatter"]);
             pass.set_bind_group(0, &self.groups[self.current], &[]);
-            pass.dispatch_workgroups(self.config.resolution / 8, self.config.resolution / 8, 6);
+            pass.dispatch_workgroups(
+                self.config.resolution / TERRAIN_WORKGROUP_EDGE,
+                self.config.resolution / TERRAIN_WORKGROUP_EDGE,
+                6,
+            );
         }
         self.gpu.queue.submit(Some(scatter.finish()));
         self.current = 1 - self.current;
@@ -730,7 +764,7 @@ impl Generator {
             self.dispatch("drain_scatter", 1)?;
         }
         if stage == Stage::LakeReduce {
-            self.reduction_count = self.reduction_count.div_ceil(256);
+            self.reduction_count = self.reduction_count.div_ceil(LAKE_REDUCTION_WORKGROUP_SIZE);
             self.reduction_side = 1 - self.reduction_side;
             if self.reduction_count > 1 {
                 return Ok(false);

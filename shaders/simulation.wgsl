@@ -212,7 +212,7 @@ fn lithify_column(input:Cell,amount:f32,rock:u32)->Cell {
  }
  c.strata.x+=amount;c.terrain.y-=amount;return c;
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn initialize(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);if i==0u {planet[0]=vec4(120.,.05,0.,0.);}
  let d=pos(i);let r=region(d);let pl=plate(d);let f=fbm(d*9.);
@@ -239,7 +239,7 @@ fn initialize(@builtin(global_invocation_id) g:vec3<u32>) {
  c.strata=vec4(100.+f*400.,500.+fbm(d*11.+29.)*2000.,0.,0.);c.strata.z=max(0.,c.geology.y*1000.-c.strata.x-c.strata.y);
  dst[i]=c;
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn tectonics(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);var c=src[i];let d=pos(i);let pl=plate(d);let dt=p.physical.z;
  let uplift=pl.y*pl.z*1000.*dt; c.terrain.x=constrain(c.terrain.x+uplift,c.tags.x);
@@ -250,7 +250,7 @@ fn tectonics(@builtin(global_invocation_id) g:vec3<u32>) {
  if pl.y>.9 && select(pl.z<-.3,geological_setting(d,pl,c.terrain.x,c.tags.x)==6u,p.tuning.w>1.) {c.ids.x=province_rock(2u,d,fbm(d*9.));if p.tuning.w>1. {c.ids.x=setting_rock(6u,d);}}
  dst[i]=c;
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn drain_init(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);var c=src[i];c.routing.x=NONE;c.routing.y=NONE;c.routing.z=NONE;c.hydro.x=1e20;
  if c.tags.x<2u {c.hydro.x=select(0.,planet[0].x,c.tags.x==1u);c.routing.y=0u;c.routing.z=c.tags.x;}
@@ -272,20 +272,20 @@ fn drain_compact(i:u32,side:u32) {
  if value.x!=old.x || any(route!=bitcast<vec3<u32>>(old.yzw)) {atomicAdd(&flags.changed,1u);}
  scratch[(1u-side)*count+i]=vec4(value.x,bitcast<vec3<f32>>(route));
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn drain_even(@builtin(global_invocation_id) g:vec3<u32>) {drain_compact(cell_id(g),0u);}
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn drain_odd(@builtin(global_invocation_id) g:vec3<u32>) {drain_compact(cell_id(g),1u);}
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn drain_scatter(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);var c=src[i];let value=scratch[(p.aux.y%2u)*6u*p.dims.x*p.dims.x+i];
  c.hydro.x=value.x;c.routing=vec4(bitcast<vec3<u32>>(value.yzw),c.routing.w);dst[i]=c;
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn basin_init(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);var c=src[i];if c.tags.x>=2u {c.routing.z=select(NONE,i+2u,c.hydro.x>c.terrain.x+.05);}dst[i]=c;
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn basin_relax(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);var c=src[i];let old=c.routing.z;
  if c.tags.x>=2u && c.hydro.x>c.terrain.x+.05 {for(var k=0u;k<4u;k++) {let b=src[neighbor(i,k)];if b.tags.x>=2u && b.hydro.x>b.terrain.x+.05 && abs(b.hydro.x-c.hydro.x)<.01 {c.routing.z=min(c.routing.z,b.routing.z);}}}
@@ -293,7 +293,7 @@ fn basin_relax(@builtin(global_invocation_id) g:vec3<u32>) {
  if c.routing.z>=2u && c.routing.z!=NONE {c.routing.z=min(c.routing.z,src[c.routing.z-2u].routing.z);}
  if old!=c.routing.z {atomicAdd(&flags.changed,1u);}dst[i]=c;
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn climate(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);var c=src[i];let d=pos(i);let season=p.physical.w;
  let latitude=asin(d.y);let solar=cos(latitude-p.physical.y*PI/180.*sin(season*2.*PI));
@@ -311,7 +311,7 @@ fn climate(@builtin(global_invocation_id) g:vec3<u32>) {
  let weight=1./f32(p.aux.y+1u);c.hydro.y=mix(c.hydro.y,c.climate.x,weight);c.hydro.z=mix(c.hydro.z,c.climate.y,weight);
  dst[i]=c;
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn flow_init(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);var c=src[i];let permeability=catalog[c.ids.x].a.y;
  let precipitation=c.hydro.z*.001;let rain=select(0.,precipitation,c.hydro.y>=0.);
@@ -325,7 +325,7 @@ fn flow_init(@builtin(global_invocation_id) g:vec3<u32>) {
  c.water.w=max(0.,c.life.w*area(i)/31557600.-retention);c.hydro.w=infiltrate-release;
  c.budget.x=precipitation;c.budget.y=evap;dst[i]=c;
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn flow_relax(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);var c=src[i];var total=c.life.w*area(i)/31557600.;
  for(var k=0u;k<4u;k++){let j=neighbor(i,k);if src[j].routing.x==i {total+=src[j].water.w;}}
@@ -344,7 +344,7 @@ fn fluvial_flux(i:u32)->f32 {
  var available=max(0.,c.terrain.x-250.);if column_present(c) {available=min(available,c.terrain.y+dot(c.strata.xyz,vec3(1.)));}
  return min(rate,available);
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn water_erosion(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);var c=src[i];let rock=catalog[c.ids.x];let annual=max(c.hydro.z*.001,0.);
  let cold=c.hydro.y<0.;let snowfall=select(0.,c.budget.x,cold);let melt=min(c.water.z,max(c.hydro.y,0.)*.025);
@@ -377,7 +377,7 @@ fn water_erosion(@builtin(global_invocation_id) g:vec3<u32>) {
  if c.tags.x==1u {c.life.z=planet[0].y;}
  dst[i]=c;
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn ecology(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);var c=src[i];let f=catalog[c.ids.x].ids.x;
  let soil_offset=p.counts.x+p.counts.y;var best=-1.;var soil=0u;
@@ -404,7 +404,7 @@ fn ecology(@builtin(global_invocation_id) g:vec3<u32>) {
 }
 
 // Deterministic tree reduction: no floating-point atomic accumulation.
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn lake_collect(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);let c=src[i];var value=vec4(0.);
  if c.tags.x==1u {
@@ -415,15 +415,15 @@ fn lake_collect(@builtin(global_invocation_id) g:vec3<u32>) {
  }
  scratch[i]=value;dst[i]=c;
 }
-var<workgroup> sums:array<vec4<f32>,256>;
-@compute @workgroup_size(256)
+var<workgroup> sums:array<vec4<f32>,LAKE_REDUCTION_WORKGROUP_SIZE>;
+@compute @workgroup_size(LAKE_REDUCTION_WORKGROUP_SIZE)
 fn lake_reduce(@builtin(global_invocation_id) g:vec3<u32>,@builtin(local_invocation_index) local:u32,@builtin(workgroup_id) group:vec3<u32>) {
  let total=6u*p.dims.x*p.dims.x;let input_offset=p.aux.w*total;let output_offset=(1u-p.aux.w)*total;
  var value=vec4(0.);if g.x<p.aux.z {value=scratch[input_offset+g.x];}sums[local]=value;workgroupBarrier();
- var stride=128u;loop {if local<stride {sums[local]+=sums[local+stride];}workgroupBarrier();if stride==1u {break;}stride/=2u;}
+ var stride=LAKE_REDUCTION_WORKGROUP_SIZE/2u;loop {if local<stride {sums[local]+=sums[local+stride];}workgroupBarrier();if stride==1u {break;}stride/=2u;}
  if local==0u {scratch[output_offset+group.x]=sums[0];}
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn lake_update(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);dst[i]=src[i];if i!=0u{return;}
  let total=6u*p.dims.x*p.dims.x;let t=scratch[p.aux.w*total];let old=planet[0];
@@ -434,7 +434,7 @@ fn lake_update(@builtin(global_invocation_id) g:vec3<u32>) {
 }
 
 // Remove one-cell coastal slivers introduced by sampling continuous masks.
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn coast_cleanup(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);var c=src[i];var votes=array<u32,4>(0u,0u,0u,0u);
  for(var k=0u;k<4u;k++){votes[src[neighbor(i,k)].tags.x]+=1u;}
@@ -448,11 +448,11 @@ fn coast_cleanup(@builtin(global_invocation_id) g:vec3<u32>) {
  dst[i]=c;
 }
 
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn climate_start(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);let c=src[i];scratch[i]=vec4(c.hydro.yz,c.climate.xz);dst[i]=c;
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn climate_check(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);let c=src[i];let previous=scratch[i];
  // Compare both annual means and the same seasonal phase. Stable means alone
@@ -464,7 +464,7 @@ fn secondary(c:Cell)->bool { return c.tags.x>=2u && c.routing.z>=2u && c.routing
 fn lake_weight(i:u32)->f32 { return area(i)/(4.*PI*p.physical.x*p.physical.x*1e6/f32(6u*p.dims.x*p.dims.x))*4096.; }
 // Reuse the drainage/reduction scratch: water depth, terrain, area weight, spill.
 // Static geometry is prepared once; relaxation never copies the full Cell.
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn pool_init(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);let c=src[i];scratch[i]=vec4(c.water.x,c.terrain.x,lake_weight(i),c.hydro.x);
 }
@@ -491,11 +491,11 @@ fn pool_compact(i:u32,side:u32) {
  }
  scratch[(1u-side)*count+i]=c;
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn pool_even(@builtin(global_invocation_id) g:vec3<u32>) {pool_compact(cell_id(g),0u);}
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn pool_odd(@builtin(global_invocation_id) g:vec3<u32>) {pool_compact(cell_id(g),1u);}
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn pool_scatter(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);var c=src[i];c.water.x=scratch[i].x;dst[i]=c;
 }

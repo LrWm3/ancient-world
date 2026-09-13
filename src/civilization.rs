@@ -11,6 +11,54 @@ use anyhow::{ensure, Result};
 pub use production_forecast::ProductionLaborForecast;
 use serde::{Deserialize, Serialize};
 use wgpu::util::DeviceExt;
+const MIN_HAMLET_POPULATION: f32 = 5.;
+const MIN_VILLAGE_POPULATION: f32 = 30.;
+const MIN_TOWN_POPULATION: f32 = 100.;
+const HASH_FIRST_MULTIPLIER: u32 = 0x7feb352d;
+const HASH_SECOND_MULTIPLIER: u32 = 0x846ca68b;
+const MAX_HISTORY_EVENTS: usize = 1_000_000;
+const MAX_FOUNDING_CANDIDATES: usize = 2048;
+const MAX_HISTORY_MONTHS: u32 = 120000;
+const MAX_ADVANCEMENT_MONTHS: u32 = 12000;
+const MAX_CIVILIZATIONS: u32 = 16;
+const DEPOPULATION_PERSISTENCE_MONTHS: u32 = 12;
+const RECLASSIFICATION_PERSISTENCE_MONTHS: u32 = 24;
+const HISTORY_RELATIVE_LEDGER_TOLERANCE: f64 = 0.001;
+const MIN_FOUNDING_CROP_YIELD_KG_PER_HA_YEAR: f32 = 450.;
+const MIN_CANDIDATE_DISCHARGE_M3_S: f32 = 1.;
+const MOUNTAIN_SITE_HEIGHT_M: f32 = 1000.;
+const INITIAL_CULTIVABLE_AREA_FRACTION: f64 = 0.01;
+const MIN_CANDIDATE_SEPARATION: f32 = 0.008;
+const FOUNDER_AGE_MONTHS: i32 = 360;
+const INITIAL_GROUP_POPULATION: f32 = 120.;
+const UNKNOWN_EXTRACTION_HARDNESS: f32 = 0.5;
+const ROCK_HARDNESS_SCALE: f32 = 10.;
+const MIN_EXTRACTION_HARDNESS: f32 = 0.1;
+const LEGACY_RELIEF_TRIGGER_MONTHS: f32 = 3.;
+const LEGACY_RELIEF_MAX_DISTANCE_KM: f32 = 1500.;
+const LEGACY_RELIEF_DONOR_RESERVE_MONTHS: f32 = 18.;
+const LEGACY_RELIEF_MAX_RECIPIENT_MONTHS: f32 = 6.;
+const DAUGHTER_MIN_ORIGIN_POPULATION: f32 = 160.;
+const DAUGHTER_MAX_DISTANCE_KM: f32 = 600.;
+const DAUGHTER_DISTANCE_SCALE_KM: f32 = 200.;
+const DAUGHTER_SURPLUS_THRESHOLD: f32 = 120.;
+const DAUGHTER_YIELD_RATIO_RANGE: std::ops::RangeInclusive<f32> = 0.5..=2.;
+const DAUGHTER_POPULATION_SHARE: f32 = 0.2;
+const DAUGHTER_CASH_SHARE: f32 = 0.2;
+const LEGACY_LEADER_OLD_AGE_MONTHS: i32 = 720;
+const LEGACY_LEADER_DEATH_CHANCE_DENOMINATOR: u32 = 12;
+const LEGACY_SUCCESSOR_AGE_MONTHS: i32 = 360;
+const INITIAL_MANAGED_HECTARES_PER_PERSON: f32 = 2.;
+const DAUGHTER_CROP_SEED_SHARE: f32 = 0.2;
+const DAUGHTER_MAX_CROP_SEED_KG: f32 = 2.;
+const DAUGHTER_LIVESTOCK_SHARE: f32 = 0.2;
+const CLAIM_AREA_RELATIVE_TOLERANCE: f32 = 0.00001;
+const TOWN_DOWNGRADE_POPULATION: f32 = 90.;
+const VILLAGE_STABLE_POPULATION: std::ops::Range<f32> = 27. ..110.;
+const HAMLET_STABLE_POPULATION: std::ops::Range<f32> = 4.5..33.;
+const REMNANT_UPGRADE_POPULATION: f32 = 5.5;
+const MIN_VIABLE_SETTLEMENT_POPULATION: f32 = 1.;
+
 crate::shared_shader_parameters! { SHADER_PARAMETERS {
     pub(crate) const HISTORY_WORKGROUP_SIZE: u32 = 64;
 }}
@@ -51,11 +99,11 @@ impl SettlementSize {
         }
     }
     fn from_population(pop: f32) -> Self {
-        if pop < 5. {
+        if pop < MIN_HAMLET_POPULATION {
             Self::Remnant
-        } else if pop < 30. {
+        } else if pop < MIN_VILLAGE_POPULATION {
             Self::Hamlet
-        } else if pop < 100. {
+        } else if pop < MIN_TOWN_POPULATION {
             Self::Village
         } else {
             Self::Town
@@ -236,8 +284,8 @@ pub struct LivingHistory {
     pub floods: std::collections::BTreeMap<u32, crate::hazards::FloodImpact>,
 }
 fn random(mut x: u32) -> u32 {
-    x = (x ^ (x >> 16)).wrapping_mul(0x7feb352d);
-    x = (x ^ (x >> 15)).wrapping_mul(0x846ca68b);
+    x = (x ^ (x >> 16)).wrapping_mul(HASH_FIRST_MULTIPLIER);
+    x = (x ^ (x >> 15)).wrapping_mul(HASH_SECOND_MULTIPLIER);
     x ^ (x >> 16)
 }
 pub(crate) fn distance(a: u32, b: u32, n: u32) -> f32 {
@@ -594,12 +642,15 @@ impl History {
             (self.version == 1 || self.version == 2)
                 && !self.sites.is_empty()
                 && self.sites.len() <= LIMIT
-                && self.events.len() <= 1_000_000
-                && self.candidates.len() <= 2048
-                && self.month <= 120000,
+                && self.events.len() <= MAX_HISTORY_EVENTS
+                && self.candidates.len() <= MAX_FOUNDING_CANDIDATES
+                && self.month <= MAX_HISTORY_MONTHS,
             "invalid civilization version, size or clock"
         );
-        ensure!(self.civilizations.len() <= 16, "too many civilizations");
+        ensure!(
+            self.civilizations.len() <= MAX_CIVILIZATIONS as usize,
+            "too many civilizations"
+        );
         for (i, c) in self.civilizations.iter().enumerate() {
             let leader = self.people.get(c.leader as usize);
             let vacant_estate = self.society.as_ref().is_some_and(|s| {
@@ -647,14 +698,14 @@ impl History {
                     && s.lifecycle
                         .housing_reported
                         .is_none_or(|v| v.is_finite() && v >= 0.)
-                    && s.lifecycle.waterworks_months.iter().all(|n| *n <= 3)
-                    && s.lifecycle.pending_months < 24
-                    && s.lifecycle.depopulated_months <= 12
+                    && s.lifecycle.waterworks_months.iter().all(|n| *n <= crate::production::WATERWORKS_NOTICE_MONTHS)
+                    && s.lifecycle.pending_months < RECLASSIFICATION_PERSISTENCE_MONTHS
+                    && s.lifecycle.depopulated_months <= DEPOPULATION_PERSISTENCE_MONTHS
                     && s.lifecycle
                         .harvest_observed
                         .is_none_or(|v| v.iter().all(|x| x.is_finite() && *x >= 0.))
                     && cells.get(s.cell as usize).is_some_and(
-                        |c| c.meta[0] == 2 && (self.living.is_some() || c.water[0] < 0.25)
+                        |c| c.meta[0] == 2 && (self.living.is_some() || c.water[0] < crate::hazards::MIN_NAVIGABLE_WATER_DEPTH_M)
                     )
                     && s.stocks
                         .stock
@@ -668,13 +719,16 @@ impl History {
         );
         }
         ensure!(
-            self.candidates.iter().all(|c| cells
-                .get(c.cell as usize)
-                .is_some_and(|v| v.meta[0] == 2 && v.water[0] < 0.25)
-                && c.yield_kg.is_finite()
-                && c.yield_kg > 0.
-                && c.hectares.is_finite()
-                && c.hectares > 0.),
+            self.candidates
+                .iter()
+                .all(|c| cells
+                    .get(c.cell as usize)
+                    .is_some_and(|v| v.meta[0] == 2
+                        && v.water[0] < crate::hazards::MIN_NAVIGABLE_WATER_DEPTH_M)
+                    && c.yield_kg.is_finite()
+                    && c.yield_kg > 0.
+                    && c.hectares.is_finite()
+                    && c.hectares > 0.),
             "invalid settlement candidate"
         );
         ensure!(
@@ -754,7 +808,7 @@ impl History {
             ensure!(
                 self.economy_residuals()
                     .iter()
-                    .all(|v| v.is_finite() && v.abs() < 0.001),
+                    .all(|v| v.is_finite() && v.abs() < HISTORY_RELATIVE_LEDGER_TOLERANCE),
                 "economy C/N/P, water, money or goods budget failed: {:?}",
                 self.economy_residuals()
             );
@@ -777,7 +831,8 @@ impl History {
         }
         self.validate_event_links()?;
         ensure!(
-            self.food_residual().abs() < 0.001 && self.population_residual().abs() < 0.001,
+            self.food_residual().abs() < HISTORY_RELATIVE_LEDGER_TOLERANCE
+                && self.population_residual().abs() < HISTORY_RELATIVE_LEDGER_TOLERANCE,
             "civilization conservation residual exceeds 0.1%"
         );
         Ok(())
@@ -820,7 +875,8 @@ impl Engine {
         let ecological_bytes = g.config.eco_cells() as u64 * crate::ecology::ECO_BYTES;
         ensure!(
             bytes <= d.limits().max_storage_buffer_binding_size as u64
-                && g.config.estimated_bytes() + bytes + ecological_bytes < 4 * 1024 * 1024 * 1024,
+                && g.config.estimated_bytes() + bytes + ecological_bytes
+                    < crate::gpu::DEFAULT_MEMORY_BUDGET_BYTES,
             "civilization survey exceeds GPU memory budget"
         );
         let buffer = |size, usage| {
@@ -832,11 +888,11 @@ impl Engine {
             })
         };
         let input = buffer(
-            LIMIT as u64 * 64,
+            LIMIT as u64 * std::mem::size_of::<Stocks>() as u64,
             wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         );
         let output = buffer(
-            LIMIT as u64 * 64,
+            LIMIT as u64 * std::mem::size_of::<Stocks>() as u64,
             wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
         );
         let prospects = buffer(
@@ -895,7 +951,7 @@ impl Engine {
             .unwrap_or_else(|| {
                 let mut table = vec![[0.; 4]; 21];
                 // Archives predating managed agriculture used this fixation cost.
-                table[12][2] = 80.;
+                table[12][2] = crate::agriculture::LEGACY_FIXATION_COST_KG;
                 table
             });
         recipe_bytes.extend_from_slice(bytemuck::cast_slice(&agriculture));
@@ -1065,7 +1121,11 @@ impl Engine {
             pass.set_pipeline(if survey { &self.survey } else { &self.month });
             pass.set_bind_group(0, &self.group, &[]);
             let groups = count.div_ceil(HISTORY_WORKGROUP_SIZE);
-            pass.dispatch_workgroups(groups.min(65535), groups.div_ceil(65535), 1);
+            pass.dispatch_workgroups(
+                groups.min(crate::gpu::MAX_DISPATCH_GROUPS_PER_DIMENSION),
+                groups.div_ceil(crate::gpu::MAX_DISPATCH_GROUPS_PER_DIMENSION),
+                1,
+            );
         }
         g.gpu.queue.submit(Some(encoder.finish()));
     }
@@ -1083,7 +1143,10 @@ impl Generator {
             self.civilizations.is_none(),
             "civilizations already founded"
         );
-        ensure!((1..=16).contains(&count), "choose 1–16 civilizations");
+        ensure!(
+            (1..=MAX_CIVILIZATIONS).contains(&count),
+            "choose 1–16 civilizations"
+        );
         let engine = Engine::new(self)?;
         engine.dispatch(self, true, self.config.cells());
         let n = self.config.resolution;
@@ -1122,7 +1185,7 @@ impl Generator {
             }
             let mut candidates = Vec::new();
             for (i, p) in scores.iter().enumerate() {
-                if p[0] > 450. {
+                if p[0] > MIN_FOUNDING_CROP_YIELD_KG_PER_HA_YEAR {
                     let area = grid::solid_angle(i as u32, n)
                         * (self.config.radius_km as f64 * 1000.).powi(2);
                     let coast = [(-1, 0), (1, 0), (0, -1), (0, 1)]
@@ -1133,9 +1196,9 @@ impl Generator {
                     use crate::naming::Landmark;
                     let landmark = if coast {
                         Landmark::Shore
-                    } else if terrain[i].water[3] > 1. {
+                    } else if terrain[i].water[3] > MIN_CANDIDATE_DISCHARGE_M3_S {
                         Landmark::Water
-                    } else if terrain[i].terrain[0] > 1000. {
+                    } else if terrain[i].terrain[0] > MOUNTAIN_SITE_HEIGHT_M {
                         Landmark::Hill
                     } else {
                         Landmark::Field
@@ -1145,7 +1208,7 @@ impl Generator {
                         cell: i as u32,
                         island: islands[i],
                         yield_kg: p[0],
-                        hectares: (area / 10000. * 0.01)
+                        hectares: (area / 10000. * INITIAL_CULTIVABLE_AREA_FRACTION)
                             .min(self.config.settlement_plot_hectares as f64)
                             as f32,
                         score: p[1],
@@ -1200,10 +1263,10 @@ impl Generator {
         for c in candidates {
             if h.candidates
                 .iter()
-                .all(|other| distance(c.cell, other.cell, n) > 0.008)
+                .all(|other| distance(c.cell, other.cell, n) > MIN_CANDIDATE_SEPARATION)
             {
                 h.candidates.push(c);
-                if h.candidates.len() == 2048 {
+                if h.candidates.len() == MAX_FOUNDING_CANDIDATES {
                     break;
                 }
             }
@@ -1240,7 +1303,7 @@ impl Generator {
                 id,
                 name: leader_name,
                 civilization: id,
-                born: -360,
+                born: -FOUNDER_AGE_MONTHS,
                 died: None,
                 predecessor: None,
             });
@@ -1253,13 +1316,15 @@ impl Generator {
             h.found(
                 &c,
                 id,
-                120.,
-                120. * FOUNDING_PROVISION_KG_PER_PERSON_MONTH * FOUNDING_PROVISION_MONTHS,
+                INITIAL_GROUP_POPULATION,
+                INITIAL_GROUP_POPULATION
+                    * FOUNDING_PROVISION_KG_PER_PERSON_MONTH
+                    * FOUNDING_PROVISION_MONTHS,
             );
-            h.initial_food += 120.
+            h.initial_food += INITIAL_GROUP_POPULATION as f64
                 * FOUNDING_PROVISION_KG_PER_PERSON_MONTH as f64
                 * FOUNDING_PROVISION_MONTHS as f64;
-            h.initial_population += 120.;
+            h.initial_population += INITIAL_GROUP_POPULATION as f64;
         }
         h.validate(&terrain)?;
         self.civilizations = Some(h);
@@ -1286,7 +1351,7 @@ impl Generator {
         h.prepare_politics(terrain);
         h.prepare_governance();
         ensure!(
-            h.events.len() < 1_000_000,
+            h.events.len() < MAX_HISTORY_EVENTS,
             "civilization beta event limit reached"
         );
         h.month += 1;
@@ -1329,8 +1394,10 @@ impl Generator {
                     .catalog
                     .rocks
                     .get(t.ids[0] as usize)
-                    .map_or(0.5, |r| r.hardness / 10.)
-                    .clamp(0.1, 1.);
+                    .map_or(UNKNOWN_EXTRACTION_HARDNESS, |r| {
+                        r.hardness / ROCK_HARDNESS_SCALE
+                    })
+                    .clamp(MIN_EXTRACTION_HARDNESS, 1.);
                 site.economy.extraction[3] = h
                     .resources
                     .as_ref()
@@ -1519,7 +1586,8 @@ impl Generator {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("found civilizations first"))?;
         ensure!(
-            months <= 12000 && h.month.saturating_add(months) <= 120000,
+            months <= MAX_ADVANCEMENT_MONTHS
+                && h.month.saturating_add(months) <= MAX_HISTORY_MONTHS,
             "history limit exceeded"
         );
         if h.version == 2 {
@@ -1638,7 +1706,10 @@ impl History {
                     p[3] * 100.
                 ),
             );
-            if p[1] < p[0] * 18. * 3.
+            if p[1]
+                < p[0]
+                    * crate::economy::CIVILIAN_RESERVE_KG_PER_PERSON_MONTH
+                    * LEGACY_RELIEF_TRIGGER_MONTHS
                 && !self
                     .society
                     .as_ref()
@@ -1651,9 +1722,10 @@ impl History {
                             && self.sites[j].island == self.sites[i].island
                             && if self.society.is_some() {
                                 self.route_cost(j as u32, i as u32)
-                                    .is_some_and(|c| c < 1500.)
+                                    .is_some_and(|c| c < LEGACY_RELIEF_MAX_DISTANCE_KM)
                             } else {
-                                distance(self.sites[j].cell, self.sites[i].cell, n) * radius < 1500.
+                                distance(self.sites[j].cell, self.sites[i].cell, n) * radius
+                                    < LEGACY_RELIEF_MAX_DISTANCE_KM
                             }
                     })
                     .max_by(|&a, &b| {
@@ -1661,9 +1733,14 @@ impl History {
                     });
                 if let Some(j) = donor {
                     let surplus = (self.sites[j].stocks.stock[1]
-                        - self.sites[j].stocks.stock[0] * 18. * 18.)
+                        - self.sites[j].stocks.stock[0]
+                            * crate::economy::CIVILIAN_RESERVE_KG_PER_PERSON_MONTH
+                            * LEGACY_RELIEF_DONOR_RESERVE_MONTHS)
                         .max(0.);
-                    let amount = surplus.min(p[0] * 18. * 6.);
+                    let amount = surplus.min(
+                        p[0] * crate::economy::CIVILIAN_RESERVE_KG_PER_PERSON_MONTH
+                            * LEGACY_RELIEF_MAX_RECIPIENT_MONTHS,
+                    );
                     if amount > 1. {
                         self.sites[j].stocks.stock[1] -= amount;
                         let travel = self.route_cost(j as u32, i as u32).unwrap_or_else(|| {
@@ -1703,7 +1780,7 @@ impl History {
                     .as_ref()
                     .and_then(|l| l.floods.get(&s.id))
                     .is_some_and(|f| f.persistent)
-                || s.stocks.stock[0] < 160.
+                || s.stocks.stock[0] < DAUGHTER_MIN_ORIGIN_POPULATION
                 || s.stocks.stock[1]
                     < s.stocks.stock[0]
                         * FOUNDING_PROVISION_KG_PER_PERSON_MONTH
@@ -1717,11 +1794,13 @@ impl History {
                 .filter(|c| {
                     c.island == s.island
                         && self.sites.iter().all(|s| s.cell != c.cell)
-                        && distance(c.cell, s.cell, n) * radius < 600.
+                        && distance(c.cell, s.cell, n) * radius < DAUGHTER_MAX_DISTANCE_KM
                 })
                 .max_by(|a, b| {
                     let attractiveness = |c: &Candidate| {
-                        c.yield_kg / (1. + distance(c.cell, s.cell, n) * radius / 200.)
+                        c.yield_kg
+                            / (1.
+                                + distance(c.cell, s.cell, n) * radius / DAUGHTER_DISTANCE_SCALE_KM)
                     };
                     attractiveness(a).total_cmp(&attractiveness(b))
                 })
@@ -1729,13 +1808,17 @@ impl History {
             if let Some(c) = candidate {
                 // Productive homelands retain households longer; better farmland
                 // encourages dispersal. Travel cost enters destination selection.
-                let threshold =
-                    160. + 120. * (s.stocks.habitat[0] / c.yield_kg.max(1.)).clamp(0.5, 2.);
+                let threshold = DAUGHTER_MIN_ORIGIN_POPULATION
+                    + DAUGHTER_SURPLUS_THRESHOLD
+                        * (s.stocks.habitat[0] / c.yield_kg.max(1.)).clamp(
+                            *DAUGHTER_YIELD_RATIO_RANGE.start(),
+                            *DAUGHTER_YIELD_RATIO_RANGE.end(),
+                        );
                 if s.stocks.stock[0] < threshold {
                     continue;
                 }
                 let civ = s.civilization;
-                let settlers = (s.stocks.stock[0] * 0.2)
+                let settlers = (s.stocks.stock[0] * DAUGHTER_POPULATION_SHARE)
                     .clamp(DAUGHTER_MIN_POPULATION, DAUGHTER_MAX_POPULATION);
                 if self.individual_demography_enabled() {
                     self.found_resident_daughter(i, &c, settlers);
@@ -1760,7 +1843,7 @@ impl History {
                     self.sites.last_mut().unwrap().demography.ages = migrant_ages;
                 }
                 if self.version == 2 {
-                    let cash = self.sites[i].economy.finance[0] * 0.2;
+                    let cash = self.sites[i].economy.finance[0] * DAUGHTER_CASH_SHARE;
                     self.sites[i].economy.finance[0] -= cash;
                     self.sites.last_mut().unwrap().economy.finance[0] = cash;
                 }
@@ -1778,7 +1861,11 @@ impl History {
         for i in 0..self.civilizations.len() {
             let old = self.civilizations[i].leader as usize;
             let age = self.month as i32 - self.people[old].born;
-            if age > 720 && random(self.seed ^ self.month ^ old as u32) % 12 == 0 {
+            if age > LEGACY_LEADER_OLD_AGE_MONTHS
+                && random(self.seed ^ self.month ^ old as u32)
+                    % LEGACY_LEADER_DEATH_CHANCE_DENOMINATOR
+                    == 0
+            {
                 self.people[old].died = Some(self.month);
                 let id = self.people.len() as u32;
                 self.people.push(Person {
@@ -1789,7 +1876,7 @@ impl History {
                         &crate::naming::PersonalContext::default().with_person(&self.people[old]),
                     ),
                     civilization: i as u32,
-                    born: self.month as i32 - 360,
+                    born: self.month as i32 - LEGACY_SUCCESSOR_AGE_MONTHS,
                     died: None,
                     predecessor: Some(old as u32),
                 });
@@ -1861,7 +1948,12 @@ impl Engine {
     }
     fn read(&self, g: &Generator, h: &mut History, stocks: bool) -> Result<()> {
         if stocks {
-            let bytes = read_buffer(&g.gpu, &self.output, 0, h.sites.len() as u64 * 64)?;
+            let bytes = read_buffer(
+                &g.gpu,
+                &self.output,
+                0,
+                h.sites.len() as u64 * std::mem::size_of::<Stocks>() as u64,
+            )?;
             for (s, v) in h
                 .sites
                 .iter_mut()
@@ -1955,7 +2047,8 @@ impl Generator {
                 s.economy = Economy::new(
                     self,
                     s.cell,
-                    s.stocks.habitat[1].min((s.stocks.stock[0] * 2.).max(1.)),
+                    s.stocks.habitat[1]
+                        .min((s.stocks.stock[0] * INITIAL_MANAGED_HECTARES_PER_PERSON).max(1.)),
                     founder,
                     catalog,
                 );
@@ -1992,12 +2085,13 @@ impl Generator {
                 .map(|s| s.id as usize)
             {
                 for crop in 0..6 {
-                    let seeds = (h.sites[source].economy.crops[crop][2] * 0.2).min(2.);
+                    let seeds = (h.sites[source].economy.crops[crop][2] * DAUGHTER_CROP_SEED_SHARE)
+                        .min(DAUGHTER_MAX_CROP_SEED_KG);
                     h.sites[source].economy.crops[crop][2] -= seeds;
                     h.sites[id as usize].economy.crops[crop][2] += seeds;
                 }
                 for herd in 0..3 {
-                    let animals = h.sites[source].economy.herds[herd][0] * 0.2;
+                    let animals = h.sites[source].economy.herds[herd][0] * DAUGHTER_LIVESTOCK_SHARE;
                     h.sites[source].economy.herds[herd][0] -= animals;
                     h.sites[id as usize].economy.herds[herd][0] += animals;
                 }
@@ -2067,7 +2161,8 @@ impl Generator {
                 if raw > 0. {
                     let product = r.output[2] + r.output[38..45].iter().sum::<f32>();
                     ensure!(
-                        r.work[3] + 1e-6 >= (raw - product).max(0.),
+                        r.work[3] + crate::economy::RECIPE_BALANCE_TOLERANCE_KG
+                            >= (raw - product).max(0.),
                         "identified smelting must retain its inorganic residue"
                     );
                 }
@@ -2106,7 +2201,7 @@ impl Generator {
         s.stocks.stock[1] -= loss;
         s.stocks.ledger[2] += loss;
         if h.version == 2 {
-            s.economy.external[0] -= loss * 0.45;
+            s.economy.external[0] -= loss * crate::economy::FOOD_CNP[0] as f32;
             for k in 1..3 {
                 let nutrient = loss * crate::economy::FOOD_CNP[k] as f32;
                 let retained = nutrient * s.economy.policy[1];
@@ -2137,10 +2232,10 @@ impl Generator {
                 (grid::solid_angle(id, m) * (self.config.radius_km as f64 * 1000.).powi(2)) as f32;
             ensure!(
                 s.economy.claim[0] == id as f32
-                    && (s.economy.claim[2] - area).abs() / area < 0.00001
+                    && (s.economy.claim[2] - area).abs() / area < CLAIM_AREA_RELATIVE_TOLERANCE
                     && (s.economy.claim[1] - s.stocks.habitat[1] * 10000.).abs()
                         / s.economy.claim[1].max(1.)
-                        < 0.00001,
+                        < CLAIM_AREA_RELATIVE_TOLERANCE,
                 "managed plot does not match ecological grid"
             );
         }
@@ -2169,8 +2264,10 @@ impl Generator {
         self.initialize_history_boundary()?;
         let terrain = self.snapshot()?;
         let h = self.civilizations.as_mut().unwrap();
-        h.candidates
-            .retain(|c| crate::hazards::flood_depth(&terrain[c.cell as usize]) < 0.25);
+        h.candidates.retain(|c| {
+            crate::hazards::flood_depth(&terrain[c.cell as usize])
+                < crate::hazards::MIN_NAVIGABLE_WATER_DEPTH_M
+        });
         h.living = Some(LivingHistory {
             environmental_returns: false,
             history_start: h.month,
@@ -2280,7 +2377,8 @@ impl Generator {
         );
         let h = self.civilizations.as_ref().unwrap();
         ensure!(
-            months <= 12000 && h.month.saturating_add(months) <= 120000,
+            months <= MAX_ADVANCEMENT_MONTHS
+                && h.month.saturating_add(months) <= MAX_HISTORY_MONTHS,
             "history limit exceeded"
         );
         for _ in 0..months {
@@ -2313,11 +2411,10 @@ impl Generator {
             let mut environment = self.history_environment.take().unwrap_or_default();
             environment.refresh(self)?;
             let terrain = environment.for_month(self.civilizations.as_ref().unwrap().month + 1)?;
-            self.civilizations
-                .as_mut()
-                .unwrap()
-                .candidates
-                .retain(|c| crate::hazards::flood_depth(&terrain[c.cell as usize]) < 0.25);
+            self.civilizations.as_mut().unwrap().candidates.retain(|c| {
+                crate::hazards::flood_depth(&terrain[c.cell as usize])
+                    < crate::hazards::MIN_NAVIGABLE_WATER_DEPTH_M
+            });
             self.advance_history_with_terrain(1, Some(terrain))?;
             self.commit_environmental_returns()?;
             self.reconcile_managed_land();
@@ -2340,7 +2437,7 @@ impl History {
     fn restore_returning_settlements(&mut self) {
         for i in 0..self.sites.len() {
             let s = &mut self.sites[i];
-            if s.abandoned && s.stocks.stock[0] >= 1. {
+            if s.abandoned && s.stocks.stock[0] >= MIN_VIABLE_SETTLEMENT_POPULATION {
                 s.abandoned = false;
                 s.lifecycle.depopulated_months = 0;
                 s.lifecycle.pending_months = 0;
@@ -2359,12 +2456,12 @@ impl History {
                 continue;
             }
             let pop = s.stocks.stock[0];
-            s.lifecycle.depopulated_months = if pop < 1. {
+            s.lifecycle.depopulated_months = if pop < MIN_VIABLE_SETTLEMENT_POPULATION {
                 s.lifecycle.depopulated_months.saturating_add(1)
             } else {
                 0
             };
-            if s.lifecycle.depopulated_months >= 12 {
+            if s.lifecycle.depopulated_months >= DEPOPULATION_PERSISTENCE_MONTHS {
                 // Explicit demographic discretization, not a silent inventory deletion.
                 s.stocks.people[1] += pop;
                 s.demography.health[2] += pop;
@@ -2379,10 +2476,10 @@ impl History {
             // Ten percent separation from the current size's boundary plus two years
             // of persistence prevents a harvest, levy or temporary move changing status.
             let stable_pop = match s.lifecycle.size {
-                SettlementSize::Town => pop < 90.,
-                SettlementSize::Village => !(27. ..110.).contains(&pop),
-                SettlementSize::Hamlet => !(4.5..33.).contains(&pop),
-                SettlementSize::Remnant => pop >= 5.5,
+                SettlementSize::Town => pop < TOWN_DOWNGRADE_POPULATION,
+                SettlementSize::Village => !VILLAGE_STABLE_POPULATION.contains(&pop),
+                SettlementSize::Hamlet => !HAMLET_STABLE_POPULATION.contains(&pop),
+                SettlementSize::Remnant => pop >= REMNANT_UPGRADE_POPULATION,
             };
             if desired == s.lifecycle.size || !stable_pop {
                 s.lifecycle.pending_size = None;
@@ -2395,7 +2492,7 @@ impl History {
                 s.lifecycle.pending_size = Some(desired);
                 s.lifecycle.pending_months = 1;
             }
-            if s.lifecycle.pending_months >= 24 {
+            if s.lifecycle.pending_months >= RECLASSIFICATION_PERSISTENCE_MONTHS {
                 let old = s.lifecycle.size;
                 s.lifecycle.size = desired;
                 s.lifecycle.pending_size = None;
@@ -2426,10 +2523,10 @@ impl History {
                     }))
             {
                 shipment.weather_delay_months = shipment.weather_delay_months.saturating_add(1);
-                let lost = shipment.food_kg * 0.2;
+                let lost = shipment.food_kg * crate::economy::LEGACY_FOOD_DELAY_SPOILAGE;
                 shipment.food_kg -= lost;
                 self.lose_cargo(shipment.from, crate::economy::FOOD as u32, lost);
-                if shipment.weather_delay_months >= 6 {
+                if shipment.weather_delay_months >= crate::economy::MAX_CARGO_WEATHER_DELAY_MONTHS {
                     self.lose_cargo(shipment.from, crate::economy::FOOD as u32, shipment.food_kg);
                     self.event("relief_weather_lost", Some(shipment.to), Some(shipment.from),
                             "Relief journey terminated after six blocked months; remaining food written off".into());

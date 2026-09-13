@@ -26,7 +26,7 @@ fn season_month()->u32 {return select(p.dims.z,max(1u,p.event.w)-1u,p.options.w=
 fn land(e:Env)->f32 {return e.fields[0].z+e.fields[0].w;}
 fn water(e:Env)->f32 {return e.fields[0].x+e.fields[0].y;}
 fn region(e:Env)->u32 {var r=0u;for(var k=1u;k<4u;k++){if e.fields[0][k]>e.fields[0][r] {r=k;}}return r;}
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn aggregate(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=id(g,p.dims.y);let r=p.dims.x/p.dims.y;var e:Env;var a=0.;var la=0.;var wa=0.;var balance=0.;var stored=0.;var wind=0.;var temperature=0.;var rainfall=0.;
  for(var y=0u;y<r;y++){for(var x=0u;x<r;x++){let j=fine(i,x,y);let c=terrain[j];let v=area(j,p.dims.x);a+=v;e.fields[0][c.tags.x]+=v;balance+=(c.budget.x-c.budget.y)*v;stored+=(c.water.x+c.water.y+c.water.z)*v+river[j].w;wind+=c.climate.w*v;temperature+=select(c.hydro.y,c.climate.x,p.options.w==1u)*v;rainfall+=select(c.hydro.z,c.climate.y,p.options.w==1u)*v;
@@ -85,7 +85,7 @@ fn founder_preference(i:u32,k:u32,e:Env)->f32 {
  let phase=f32(p.dims.w%997u)*.017+f32(k)*2.399963;
  return 81.+clamp(e.fields[1].x+8.*sin(dot(pos(i,p.dims.y),vec3(3.,5.,7.))+phase),-80.,60.);
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn seed_ecology(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=id(g,p.dims.y);let e=environment[i];let l=land(e);let w=water(e);var s:Eco;
  s.pools[17]=vec4(.1, .02,.004,0.)*l;s.pools[18]=vec4(.4,.02,.002,0.)*l;
@@ -114,7 +114,7 @@ fn seed_ecology(@builtin(global_invocation_id) g:vec3<u32>) {
  s.pools[31]=vec4(1.,p.physical.z,1.,0.);
  s.pools[30]=vec4(total(s),e.fields[7].w);s.pools[25].w=e.fields[7].w;dst[i]=s;
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn replenish(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=id(g,p.dims.y);var s=src[i];let e=environment[i];
  // Fresh exposure is an explicit geological import, not an ecological fertility reset.
@@ -177,7 +177,7 @@ fn mixture(state:vec4<f32>,fallback:Entry)->Entry {
  a.a=mix(a.a,b.a,f);a.b=mix(a.b,b.b,f);a.c=mix(a.c,b.c,f);a.d=mix(a.d,b.d,f);}
  return a;
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn biology(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=id(g,p.dims.y);let e=environment[i];var s=src[i];let dt=p.physical.y;let l=max(0.,land(e)-select(0.,s.pools[24].w,p.options.w==1u));let w=water(e);let outer=e.fields[0].w/max(land(e),.00001);
  s.pools[19]*=.75; // Matching river injection, below, carries the other quarter as absolute mass.
@@ -370,7 +370,7 @@ fn exchange_fraction(i:u32,j:u32,k:u32)->f32 {
 }
 // Fixed compartment accesses keep the compiler from spilling a dynamically
 // indexed private Eco record. Each block preserves the original transfer order.
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=id(g,p.dims.y);let a=environment[i].fields[3].x;
  dst[i]=src[i];var ledger=src[i].pools[27];var production=src[i].pools[28];
@@ -609,9 +609,9 @@ fn transport(@builtin(global_invocation_id) g:vec3<u32>) {
  dst[i].pools[29].x=tangent.x;dst[i].pools[29].y=tangent.y;
  dst[i].pools[27]=ledger;dst[i].pools[28]=production;
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn river_inject(@builtin(global_invocation_id) g:vec3<u32>) {let i=id(g,p.dims.x);let c=terrain[i];let j=parent(i);let l=land(environment[j]);var added=vec4(0.);if c.tags.x>=2u {added=src[j].pools[19]*.25*area(i,p.dims.x)/max(l,.000001);}added.w=select(0.,c.life.w*area(i,p.dims.x),c.tags.x>=2u);river_out[i]=river[i]+added;}
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn river_route(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=id(g,p.dims.x);var mass=river[i]*select(.2,1.,terrain[i].routing.x==NONE);
  for(var k=0u;k<4u;k++){let j=neighbor(i,k,p.dims.x);if terrain[j].routing.x==i {mass+=river[j]*.8;}}
@@ -624,12 +624,12 @@ fn overflow_volume(i:u32)->f32 {
  let fraction=select(1.,RIVER_CORRIDOR_AREA_FRACTION,terrain[i].water.w>RIVER_CORRIDOR_MIN_DISCHARGE_M3_S&&terrain[i].hydro.x-terrain[i].terrain.x<RIVER_CORRIDOR_SPILL_TOLERANCE_M);
  return min(max(0.,river[i].w-capacity),max(0.,1.5*fraction-terrain[i].water.x)*area(i,p.dims.x));
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn river_collect(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=id(g,p.dims.y);var s=src[i];let r=p.dims.x/p.dims.y;var stored=0.;
  for(var y=0u;y<r;y++){for(var x=0u;x<r;x++){let j=fine(i,x,y);let c=terrain[j];stored+=(c.water.x+c.water.y+c.water.z)*area(j,p.dims.x)+river[j].w;if c.routing.x==NONE {let slot=select(17u,20u,c.tags.x<2u);s.pools[slot]+=vec4(river[j].xyz/environment[i].fields[3].x,0.);}else {s.pools[17]+=vec4(river[j].xyz*(overflow_volume(j)/max(river[j].w,1e-20))/environment[i].fields[3].x,0.);}}}s.pools[25].w=stored/environment[i].fields[3].x;dst[i]=s;
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn river_clear(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=id(g,p.dims.x);var payload=river[i];
  if terrain[i].routing.x==NONE {terrain[i].water.x+=payload.w/area(i,p.dims.x);payload=vec4(0.);}
@@ -642,7 +642,7 @@ fn river_clear(@builtin(global_invocation_id) g:vec3<u32>) {
  }
  river_out[i]=payload;
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn feedback(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=id(g,p.dims.x);let j=parent(i);let s=src[j];var c=terrain[i];let l=max(land(environment[j]),.0001);
  c.life.y=clamp(s.pools[17].z/(.004*l),0.,1.);c.life.x=select(0.,clamp((s.pools[0].x+s.pools[1].x+s.pools[2].x)/(2.*l),0.,1.),c.tags.x>=2u);
@@ -654,7 +654,7 @@ fn feedback(@builtin(global_invocation_id) g:vec3<u32>) {
  if habitat>0u {for(var b=0u;b<p.options.x;b++){if catalog[plants_offset()+p.counts.w+b].ids.x==habitat {c.ids.w=b;break;}}}
  terrain[i]=c;
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn intervention(@builtin(global_invocation_id) g:vec3<u32>) {let i=id(g,p.dims.y);var s=src[i];if p.event.z==NONE||region(environment[i])==p.event.z {switch p.event.x {case 1u:{s.pools[31].x=f32(p.event.y);}case 2u:{let k=p.event.y+5u;let t=catalog[guild_offset()+p.event.y];let e=environment[i];let waste=select(18u,22u,t.ids.y==1u&&water(e)>land(e));s.pools[waste]+=vec4(s.pools[k].xyz,0.);s.pools[k]=vec4(0.);s.pools[38u+p.event.y/4u][p.event.y%4u]=0.;s.pools[31].w=f32(u32(s.pools[31].w)|(1u<<p.event.y));}case 3u:{s.pools[31].w=f32(u32(s.pools[31].w)&~(1u<<p.event.y));}case 4u:{s.pools[31].y=bitcast<f32>(p.event.y);}default:{}}}dst[i]=s;}
 
 // One month of local weather and water storage. Runoff travels in the fourth
@@ -671,7 +671,7 @@ fn history_drought(i:u32)->f32 {
  storm=(storm^(storm>>16u))*0x7feb352du;storm=(storm^(storm>>15u))*0x846ca68bu;storm=storm^(storm>>16u);
  return drought*select(1.,p.storms.y,f32(storm&65535u)/65536.<p.storms.x);
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn monthly_weather(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=id(g,p.dims.x);var c=terrain[i];let dt=p.physical.y;
  // Shared solar calendar; retain the weather amplitude at default 23.44-degree tilt.
@@ -699,7 +699,7 @@ fn monthly_weather(@builtin(global_invocation_id) g:vec3<u32>) {
 
 // Farm claims already debit the ecological water ledger. Remove that same water
 // from physical reservoirs before the next environmental aggregation.
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn reconcile_plots(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=id(g,p.dims.x);let j=parent(i);let actual=environment[j].fields[7].w;
  let ratio=select(1.,clamp(src[j].pools[25].w/max(actual,1e-20),0.,1.),actual>0.);
