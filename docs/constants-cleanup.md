@@ -785,3 +785,18 @@ unit-interval bounds remain inline. Exact literal expansion matches all previous
 feedback/weather expressions. The GPU dry-month secondary-lake evaporation
 fixture and strict all-target Clippy passed. Remaining fallback traits and
 biological numerical/diagnostic bounds still need review.
+
+## Ecology fallback traits and biological guards
+
+Named 16 remaining fallback-trait and numerical/diagnostic parameters in
+`shaders/ecology.wgsl`: empty-catalog microbial defaults, terrestrial and aquatic
+producer stoichiometry and maintenance, disturbance/settling, production and
+fixation division guards, and wetness/trace diagnostic thresholds. Equal-valued
+guards retain separate names where their roles differ. Category IDs and zero/one
+identities remain inline. Exact literal expansion reproduced the previous shader;
+no rates, arithmetic order or catalog values changed.
+
+The hardware-backed `maintenance_returns_excess_body_nutrients_without_creating_them`
+and `no_energy_and_no_phosphorus_limit_growth` fixtures each ran and passed.
+Strict all-target Clippy passed. The remaining shader and repository-wide semantic
+review is still open; this does not claim completion of constants cleanup.

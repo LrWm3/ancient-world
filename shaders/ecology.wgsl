@@ -14,6 +14,23 @@ struct Params {dims:vec4<u32>,physical:vec4<f32>,counts:vec4<u32>,options:vec4<u
 // Bounded pairwise currents and guild migration.
 // Fine river payload routing and floodplain exchange.
 // Surface feedback and monthly weather/water response.
+// Legacy producer defaults and production normalization/diagnostic bounds.
+const ECO_FALLBACK_MICROBIAL_EFFICIENCY: f32 = .4;
+const ECO_FALLBACK_MICROBIAL_TURNOVER: f32 = .5;
+const ECO_FALLBACK_LAND_N_PER_C: f32 = .025;
+const ECO_FALLBACK_LAND_P_PER_C: f32 = .002;
+const ECO_FALLBACK_LAND_MAINTENANCE_PER_YEAR: f32 = .1;
+const ECO_FALLBACK_LAND_DISTURBANCE: f32 = .15;
+const ECO_FALLBACK_AQUATIC_N_PER_C: f32 = .03;
+const ECO_FALLBACK_AQUATIC_P_PER_C: f32 = .003;
+const ECO_FALLBACK_AQUATIC_MAINTENANCE_PER_YEAR: f32 = .08;
+const ECO_FALLBACK_AQUATIC_SETTLING_PER_YEAR: f32 = .3;
+const ECO_SECONDARY_C_DIVISOR_GUARD: f32 = .00000001;
+const ECO_FIXATION_GROSS_DIVISOR_GUARD: f32 = .0000001;
+const ECO_PRODUCTION_C_DIVISOR_GUARD: f32 = .00000001;
+const ECO_FIXATION_RESERVE_DIVISOR_GUARD: f32 = .000001;
+const ECO_LIMITING_WETNESS_THRESHOLD: f32 = .05;
+const ECO_LIMITING_TRACE_THRESHOLD: f32 = .1;
 const ECO_FEEDBACK_MIN_LAND_FRACTION: f32 = .0001;
 const ECO_FERTILITY_P_SCALE_KG_M2: f32 = .004;
 const ECO_COVER_C_SCALE_KG_M2: f32 = 2.;
@@ -194,7 +211,7 @@ fn parent(i:u32)->u32 {let n=p.dims.x;let m=p.dims.y;let r=n/m;return i/(n*n)*m*
 fn fine(i:u32,x:u32,y:u32)->u32 {let n=p.dims.x;let m=p.dims.y;let r=n/m;return i/(m*m)*n*n+((i/m%m)*r+y)*n+(i%m)*r+x;}
 fn plants_offset()->u32 {return p.counts.x+p.counts.y+p.counts.z;}
 fn guild_offset()->u32 {return plants_offset()+p.counts.w+p.options.x;}
-fn microbial(j:u32)->vec2<f32> {if p.options.z==0u {return vec2(.4,.5);}for(var k=0u;k<p.options.z;k++){let t=catalog[guild_offset()+p.options.y+k];if t.ids.x==j {return t.a.xy;}}return vec2(0.);}
+fn microbial(j:u32)->vec2<f32> {if p.options.z==0u {return vec2(ECO_FALLBACK_MICROBIAL_EFFICIENCY,ECO_FALLBACK_MICROBIAL_TURNOVER);}for(var k=0u;k<p.options.z;k++){let t=catalog[guild_offset()+p.options.y+k];if t.ids.x==j {return t.a.xy;}}return vec2(0.);}
 fn season_month()->u32 {return select(p.dims.z,max(1u,p.event.w)-1u,p.options.w==1u);}
 fn land(e:Env)->f32 {return e.fields[0].z+e.fields[0].w;}
 fn water(e:Env)->f32 {return e.fields[0].x+e.fields[0].y;}
@@ -388,7 +405,7 @@ fn biology(@builtin(global_invocation_id) g:vec3<u32>) {
  s.pools[32u+k]=select(vec4(0.),state,p.abundance.y>=.5);
  environment[i].fields[16u+k]=vec4(0.,0.,0.,3.);
  s.pools[k].w=select(0.,f32(plant+1u),plant!=NONE);
- var fallback:Entry;fallback.c=vec4(f32(k),.025,.002,.1);fallback.d=vec4(0.,0.,0.,.15);
+ var fallback:Entry;fallback.c=vec4(f32(k),ECO_FALLBACK_LAND_N_PER_C,ECO_FALLBACK_LAND_P_PER_C,ECO_FALLBACK_LAND_MAINTENANCE_PER_YEAR);fallback.d=vec4(0.,0.,0.,ECO_FALLBACK_LAND_DISTURBANCE);
  let t=mixture(state,fallback);
  let biomass=s.pools[k].x;
  let died=s.pools[k].xyz*min(1.,dt*(t.d.w*ECO_PRODUCER_DISTURBANCE_MORTALITY_WEIGHT+select(.0,ECO_UNSUITABLE_MORTALITY_PER_YEAR,plant==NONE)));
@@ -413,25 +430,25 @@ fn biology(@builtin(global_invocation_id) g:vec3<u32>) {
  let hydrogen_carbon=h*ECO_HYDROGEN_MJ_PER_KG*microbial(0u).x*efficiency;
  let secondary_potential=secondary*microbial(1u).x*efficiency;
  let secondary_carbon=min(secondary_potential,s.pools[26].w*ECO_SECONDARY_C_KG_PER_KG_OXIDANT);
- secondary*=secondary_carbon/max(secondary_potential,.00000001);
+ secondary*=secondary_carbon/max(secondary_potential,ECO_SECONDARY_C_DIVISOR_GUARD);
  let potential=hydrogen_carbon+secondary_potential;
  var chemo=hydrogen_carbon+secondary_carbon;
  environment[i].fields[21].z+=potential;
  let fix=min(s.pools[17].z*ECO_FIXATION_N_PER_AVAILABLE_P,(photo+chemo)*t.d.y*microbial(2u).x*ECO_FIXATION_YIELD_WEIGHT);
  let fixed=min(fix,max(0.,(photo+chemo)*ECO_MAX_FIXED_N_PER_POTENTIAL_C));
  // Nitrogen fixation costs 10 kg potential carbon per kg N in this game model.
- let cost=fixed*ECO_FIXATION_C_COST_PER_KG_N;let gross=photo+chemo;let fraction=select(0.,max(0.,1.-cost/max(gross,.0000001)),gross>0.);
+ let cost=fixed*ECO_FIXATION_C_COST_PER_KG_N;let gross=photo+chemo;let fraction=select(0.,max(0.,1.-cost/max(gross,ECO_FIXATION_GROSS_DIVISOR_GUARD)),gross>0.);
  photo*=fraction;chemo*=fraction;s.pools[17].y+=fixed;s.pools[27].y+=fixed;s.pools[28].w+=fixed;
  let nitrogen_capacity=s.pools[17].y/t.c.y;let phosphorus_capacity=s.pools[17].z/t.c.z;
  let carbon=min(photo+chemo,min(nitrogen_capacity,phosphorus_capacity));
  // Codes: 0 energy, 1 N, 2 P, 3 habitat, 4 water, 5 trace, 6 oxidant.
- var limit=0.;if local_wet<.05 {limit=4.;}else if habitat.fields[4].w*ECO_TRACE_NUTRIENT_RESPONSE_SCALE<.1 {limit=5.;}else if secondary_potential>hydrogen_carbon&&secondary_potential>s.pools[26].w*ECO_SECONDARY_C_KG_PER_KG_OXIDANT {limit=6.;}
+ var limit=0.;if local_wet<ECO_LIMITING_WETNESS_THRESHOLD {limit=4.;}else if habitat.fields[4].w*ECO_TRACE_NUTRIENT_RESPONSE_SCALE<ECO_LIMITING_TRACE_THRESHOLD {limit=5.;}else if secondary_potential>hydrogen_carbon&&secondary_potential>s.pools[26].w*ECO_SECONDARY_C_KG_PER_KG_OXIDANT {limit=6.;}
  if carbon<photo+chemo {limit=select(1.,2.,phosphorus_capacity<nitrogen_capacity);}
  environment[i].fields[16u+k]=vec4(photo+chemo,carbon,died.x+resp,limit);
- let utilization=carbon/max(photo+chemo,.00000001);let consumed=utilization*fraction;
+ let utilization=carbon/max(photo+chemo,ECO_PRODUCTION_C_DIVISOR_GUARD);let consumed=utilization*fraction;
  s.pools[26].x-=h*consumed;s.pools[26].y-=secondary*consumed;
  // Fixation also consumes its reserved geochemical share even if subsequent plant growth is limited.
- let reserve=select(0.,cost/max(gross,.000001),gross>0.);
+ let reserve=select(0.,cost/max(gross,ECO_FIXATION_RESERVE_DIVISOR_GUARD),gross>0.);
  s.pools[26].x=max(0.,s.pools[26].x-h*reserve);s.pools[26].y=max(0.,s.pools[26].y-secondary*reserve);
  // Charge oxidative chemistry used for both biomass and nitrogen fixation.
  s.pools[26].w=max(0.,s.pools[26].w-secondary_carbon*(consumed+reserve)/ECO_SECONDARY_C_KG_PER_KG_OXIDANT);
@@ -454,7 +471,7 @@ fn biology(@builtin(global_invocation_id) g:vec3<u32>) {
  let displaced_aqua=s.pools[23].xyz*clamp(changed_aqua,0.,1.);s.pools[23]-=vec4(displaced_aqua,0.);s.pools[22]+=vec4(displaced_aqua,0.);
  s.pools[37]=select(vec4(0.),state,p.abundance.y>=.5);
  let aquatic=select(u32(state.y)-1u,u32(state.x)-1u,state.z>=.5);
- var fallback:Entry;fallback.c=vec4(5.,.03,.003,.08);fallback.d=vec4(0.,0.,0.,.3);
+ var fallback:Entry;fallback.c=vec4(5.,ECO_FALLBACK_AQUATIC_N_PER_C,ECO_FALLBACK_AQUATIC_P_PER_C,ECO_FALLBACK_AQUATIC_MAINTENANCE_PER_YEAR);fallback.d=vec4(0.,0.,0.,ECO_FALLBACK_AQUATIC_SETTLING_PER_YEAR);
  let aquatic_traits=mixture(state,fallback);
  s.pools[23].w=select(0.,f32(aquatic+1u),aquatic!=NONE);
  let aquatic_photo=select(0.,sun*w*aquatic_traits.b.y*dt*thermal,aquatic!=NONE);
