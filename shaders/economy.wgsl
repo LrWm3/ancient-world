@@ -521,9 +521,16 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
   for(var k=0u;k<64u;k++){if recipe.output[k/4u][k%4u]>0. && catalog.goods[k].w>0.{household=true;}}
   let industry=u32(recipe.work.z);
   let competence=1.+e.enterprise_productivity[industry];
+  // Capacity is effective output work; protect its actual prepaid attendance.
+  // A recipe can use communal time plus its own industry's reservation, never
+  // another industry's shift (nor any firm shift for household processing).
+  let reserved_time=dot(firm_capacity/(vec4(1.)+e.enterprise_productivity),vec4(1.));
+  let own_time=select(0.,firm_capacity[industry]/competence,!household && specialized);
+  let accessible_time=max(0.,labor-reserved_time+own_time);
+  batches=min(batches,accessible_time/max(unit_work,CRAFT_UNIT_WORK_FLOOR));
   if !household && specialized && wave!=0u {
    let saved_time=firm_capacity[industry]*(1.-1./competence);
-   batches=min(labor*competence,labor+saved_time)/max(unit_work,CRAFT_UNIT_WORK_FLOOR)/sharing;
+   batches=min(accessible_time*competence,accessible_time+saved_time)/max(unit_work,CRAFT_UNIT_WORK_FLOOR)/sharing;
   }
   if !household{
    var capacity=industrial_capacity;

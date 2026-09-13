@@ -242,3 +242,15 @@ no unpaid completed-service invoices. Inspect shared GPU craft labor and competi
 recipes before interpreting these firms as merely short of customer money.
 Household material purchasing still needs its own finite ownership/consumption
 path; it has not been implemented by this change.
+
+
+### Confirmed craft-labor reservation leak
+
+[Prepaid craft isolation](prepaid-craft-labor.md) reproduces and fixes unrelated
+household recipes spending prepaid industrial attendance. The red fixture used
+only five of eight reserved metalworking months despite sufficient input/order;
+the corrected fixture uses eight within the same ten total months. Three-seed
+results are mixed, with markedly smaller losses in 256 but greater payroll and
+losses in 409. This is a verified cross-system labor correction, not proof that
+all firms are viable. Review earlier asset/service labor and input timing next;
+do not assume larger budgets alone fix paid-but-unproductive attendance.

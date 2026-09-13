@@ -689,6 +689,80 @@ mod recipe_allocation_tests {
 
     #[test]
     #[ignore = "requires hardware GPU"]
+    fn unrelated_food_recipes_cannot_spend_prepaid_industrial_time() {
+        let mut g = Generator::new(
+            pollster::block_on(crate::gpu::ContextGpu::headless()).unwrap(),
+            crate::config::Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                ..Default::default()
+            },
+            crate::catalog::Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        let mut recipe = Recipe {
+            input: [0.; GOODS],
+            output: [0.; GOODS],
+            work: [1., 0., 1., 0.],
+        };
+        recipe.input[2] = 1.;
+        recipe.output[3] = 1.;
+        let mut competitor = recipe;
+        competitor.input.fill(0.);
+        competitor.output.fill(0.);
+        competitor.input[8] = 1.;
+        competitor.output[14] = 1.; // Household flour processing, not industrial service.
+        let baseline = g.civilizations.as_ref().unwrap().clone();
+        for competing in [false, true] {
+            let mut h = baseline.clone();
+            h.month = 0;
+            h.society = None;
+            h.living = None;
+            let mut catalog = EconomyCatalog::bundled().unwrap();
+            catalog.recipes = if competing {
+                vec![competitor, recipe]
+            } else {
+                vec![recipe]
+            };
+            h.economy_catalog = Some(catalog);
+            for s in &mut h.sites {
+                s.stocks.stock[0] = 100.;
+                let mut e = Economy {
+                    logistics: [1000., 0., 0., 3.], // Fixed ten craft worker-months.
+                    ..Default::default()
+                };
+                e.goods[2] = 100.;
+                e.goods[8] = 100.;
+                e.targets.fill(100.);
+                e.orders[..2].fill(100.);
+                e.workshop = [100., 150., 10., 1.];
+                e.workshop_types[0][3] = 1.;
+                e.workshop_types[1] = [5., 5., 0., 0.];
+                e.enterprise_lease[1] = 5.;
+                e.enterprise_productivity[1] = 0.;
+                e.enterprise_plan[1] = 8.; // Already funded attendance, not extra population.
+                s.economy = e;
+            }
+            g.civilizations = Some(h.clone());
+            let engine = Engine::new(&g).unwrap();
+            engine.upload(&g, &h);
+            engine.dispatch(&g, false, h.sites.len() as u32);
+            engine.read(&g, &mut h, true).unwrap();
+            let e = &h.sites[0].economy;
+            assert!(
+                (e.enterprise_used[1] - 8.).abs() < 1e-5,
+                "competing={competing}: prepaid={} flour={}",
+                e.enterprise_used[1],
+                e.made[14]
+            );
+            assert!(e.made[3] + e.made[14] <= 10. + 1e-5);
+            assert!((e.used[2] - e.made[3]).abs() < 1e-5);
+        }
+    }
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
     fn blocked_recipes_do_not_strand_usable_prepaid_work() {
         let mut g = Generator::new(
             pollster::block_on(crate::gpu::ContextGpu::headless()).unwrap(),
