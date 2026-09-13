@@ -459,3 +459,22 @@ Verification for the horizon correction: 13 credit unit tests and 11 active
 market integration tests passed (two extended market cases remain ignored).
 Strict all-target Clippy passed. The correction does not refit the risk estimate
 or establish that credit improves a full world.
+
+## Restructuring archive integrity
+
+Loan validation now reconstructs the original and revised maturity from the ledger,
+validates original terms at disbursement, permits at most one dated extension and
+requires the stored flag and final maturity to agree with that history. Extension
+entries must move no principal or interest, occur after the original maturity,
+retain outstanding principal and stay within the permitted revised term. This
+closes an archive path that previously checked amounts while ignoring extension
+semantics. Fourteen credit unit tests and eleven active market tests passed,
+including corrupt flags, duplicate entries, altered dates and invalid rates.
+
+This is a prerequisite for the negotiated policy, not its implementation. Consent,
+updated repayment evidence and the next-boundary application still need a dated
+proposal/decision record. The original repayment source must remain auditable;
+rolling a delayed cargo into a new source ID would let it be pledged twice.
+
+The [two-century four-arm comparison](shared-issuance-century.md) records longer
+issuance consequences, rejected credit requests and remaining experiment gates.

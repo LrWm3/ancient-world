@@ -288,6 +288,25 @@ impl Loan {
                 && self.interest_due >= 0.,
             "invalid debt balance"
         );
+        ensure!(
+            self.accrued_through_month >= self.opened_month,
+            "invalid loan clock"
+        );
+        let original_maturity = self
+            .entries
+            .iter()
+            .find_map(|entry| match entry.kind {
+                EntryKind::Restructuring {
+                    previous_maturity, ..
+                } => Some(previous_maturity),
+                _ => None,
+            })
+            .unwrap_or(self.terms.maturity_month);
+        let mut original_terms = self.terms.clone();
+        original_terms.maturity_month = original_maturity;
+        original_terms.validate(self.opened_month)?;
+        let mut maturity = original_maturity;
+        let mut restructurings = 0;
         let mut principal = 0.;
         let mut interest = 0.;
         let mut last = self.opened_month;
@@ -313,7 +332,24 @@ impl Loan {
                     principal -= e.principal;
                     interest -= e.interest;
                 }
-                EntryKind::Restructuring { .. } => {}
+                EntryKind::Restructuring {
+                    previous_maturity,
+                    revised_maturity,
+                } => {
+                    ensure!(
+                        restructurings == 0
+                            && principal > 0.
+                            && previous_maturity == maturity
+                            && e.month >= previous_maturity
+                            && revised_maturity > e.month
+                            && revised_maturity - e.month <= MAX_LOAN_TERM_MONTHS
+                            && e.principal == 0.
+                            && e.interest == 0.,
+                        "invalid or repeated restructuring receipt"
+                    );
+                    restructurings += 1;
+                    maturity = revised_maturity;
+                }
             }
         }
         ensure!(
@@ -324,6 +360,10 @@ impl Loan {
                     .is_some_and(|e| matches!(e.kind, EntryKind::Disbursement)
                         && e.principal == self.original_principal),
             "missing or duplicate original financing"
+        );
+        ensure!(
+            self.restructured == (restructurings == 1) && self.terms.maturity_month == maturity,
+            "restructuring state does not match receipts"
         );
         let tolerance = LEDGER_RELATIVE_TOLERANCE * self.original_principal.max(1.);
         ensure!(
@@ -410,6 +450,37 @@ mod tests {
         assert!(l.write_off(27).is_err());
         assert!(l.record_repayment(27, 1.).is_err());
     }
+    #[test]
+    fn archive_restructuring_receipts_cannot_bypass_the_single_extension_limit() {
+        let mut original = loan();
+        original.accrue_to(12).unwrap();
+        original.restructure(12, 24).unwrap();
+        original.validate().unwrap();
+        let mut corrupt = original.clone();
+        corrupt.restructured = false;
+        assert!(corrupt.validate().is_err());
+        let mut corrupt = original.clone();
+        corrupt
+            .entries
+            .push(corrupt.entries.last().unwrap().clone());
+        assert!(corrupt.validate().is_err());
+        let mut corrupt = original.clone();
+        corrupt.terms.maturity_month = 25;
+        assert!(corrupt.validate().is_err());
+        let mut corrupt = original.clone();
+        corrupt.entries.last_mut().unwrap().kind = EntryKind::Restructuring {
+            previous_maturity: 13,
+            revised_maturity: 24,
+        };
+        assert!(corrupt.validate().is_err());
+        let mut corrupt = original.clone();
+        corrupt.entries.last_mut().unwrap().principal = 1.;
+        assert!(corrupt.validate().is_err());
+        let mut corrupt = original;
+        corrupt.terms.annual_simple_rate = -0.1;
+        assert!(corrupt.validate().is_err());
+    }
+
     #[test]
     fn rejects_invalid_boundary_and_overpayment_without_mutation() {
         let mut l = loan();
