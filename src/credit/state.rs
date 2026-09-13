@@ -198,6 +198,17 @@ impl History {
             );
         }
         for receipt in &self.credit.service_receipts {
+            if receipt.precision_blocked {
+                ensure!(
+                    receipt.accounts_available
+                        && !receipt.defaulted
+                        && receipt.precision_settled == 0.
+                        && receipt.due > receipt.paid
+                        && receipt.allowance >= receipt.due
+                        && receipt.opening_cash.is_some_and(|cash| cash >= receipt.due),
+                    "invalid precision-blocked collection"
+                );
+            }
             if receipt.precision_settled > 0. {
                 let loan = &self.credit.loans[receipt.loan as usize];
                 ensure!(

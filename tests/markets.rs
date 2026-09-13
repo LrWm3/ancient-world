@@ -1149,3 +1149,98 @@ fn precision_residue_settles_without_cash_or_default_but_insolvency_does_not() {
         world.validate_credit().unwrap();
     }
 }
+
+#[test]
+fn affordable_claim_above_forgiveness_cap_retries_instead_of_defaulting() {
+    use ancient_world::credit::{Account, RepaymentSource, Status, Terms, SHARED_CURRENCY};
+    let mut h = network();
+    for s in &mut h.sites {
+        s.economy.finance = [0.; 4];
+    }
+    h.sites[0].economy.finance = [2000., 2000., 0., 0.];
+    h.sites[1].economy.finance = [200., 200., 0., 0.];
+    h.commit_credit_loan(
+        Terms {
+            lender: Account::Town(0),
+            borrower: Account::Town(1),
+            currency: SHARED_CURRENCY,
+            source: RepaymentSource::Export {
+                contract: 0,
+                payment_month: 2,
+            },
+            annual_simple_rate: 0.2736842105263158,
+            maturity_month: 3,
+            grace_months: 3,
+        },
+        0.0479736328125,
+    )
+    .unwrap()
+    .unwrap();
+    h.month = 3;
+    h.service_credit_month().unwrap();
+    let mut resumed: History = serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
+    for world in [&mut h, &mut resumed] {
+        for month in 4..=6 {
+            world.month = month;
+            world.service_credit_month().unwrap();
+        }
+        let receipt = world.credit.service_receipts.last().unwrap();
+        assert!(receipt.precision_blocked && !receipt.defaulted);
+        assert_eq!(receipt.paid, 0.);
+        assert_eq!(receipt.precision_settled, 0.);
+        assert_eq!(world.credit.loans[0].status, Status::Arrears);
+        assert!(world.credit.loans[0].total_due() > 0.);
+        world.validate_credit().unwrap();
+        assert!(world.economy_residuals()[3].abs() < 1e-12);
+    }
+    assert_eq!(
+        serde_json::to_value(&h).unwrap(),
+        serde_json::to_value(resumed).unwrap()
+    );
+    let mut corrupt: History = serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
+    corrupt
+        .credit
+        .service_receipts
+        .last_mut()
+        .unwrap()
+        .defaulted = true;
+    assert!(corrupt.validate_credit().is_err());
+    let mut unpaid: History = serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
+    let cash = unpaid.sites[1].economy.finance[0];
+    unpaid
+        .transfer_credit_cash(
+            Account::Town(1),
+            Account::Town(2),
+            SHARED_CURRENCY,
+            cash as f64,
+            0.,
+        )
+        .unwrap();
+    unpaid.month = 7;
+    unpaid.service_credit_month().unwrap();
+    assert_eq!(unpaid.credit.loans[0].status, Status::Defaulted);
+    assert!(
+        !unpaid
+            .credit
+            .service_receipts
+            .last()
+            .unwrap()
+            .precision_blocked
+    );
+    unpaid.validate_credit().unwrap();
+    // Changing actual account balances can permit a previously blocked collection.
+    let lender_cash = h.sites[0].economy.finance[0];
+    h.transfer_credit_cash(
+        Account::Town(0),
+        Account::Town(2),
+        SHARED_CURRENCY,
+        lender_cash as f64,
+        0.,
+    )
+    .unwrap();
+    h.month = 7;
+    h.service_credit_month().unwrap();
+    assert!(h.credit.service_receipts.last().unwrap().paid > 0.);
+    h.validate_credit().unwrap();
+    assert!(h.economy_residuals()[3].abs() < 1e-12);
+}

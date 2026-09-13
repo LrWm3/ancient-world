@@ -71,6 +71,52 @@ A fresh seed-81 four-arm, 500-year run uses the fixed executable from `01d502b`
 and the same starting checkpoint and delivery-paid-export policy. The baseline
 completed at 180.166604 residents, with no loans or issuance. Its full serialized
 history matches the older baseline after allowing the newly added empty
-`credit.restructurings` field. The other arms are still running. The executable
+`credit.restructurings` field. The credit and issuance arms subsequently completed; the combined arm is still running. The executable
 also contains newer term-aware underwriting and delayed-export negotiation; this
 is an integrated comparison, not an isolated precision-settlement ablation.
+
+## Follow-up: a smaller loan exceeded the forgiveness cap
+
+The `01d502b` credit arm ended with 65.578561 residents, three loans, two
+precision settlements totaling 0.000138775 and one recorded default. The default
+was not insolvency: a 0.047973633 loan left 0.000108578 principal after maturity
+payment. The borrower held 187.83 cash then and 33.41 at grace expiry. Its
+collection allowances covered the remaining claim, but exact transfers returned
+zero. The residue exceeded the relative forgiveness cap, so it accrued three
+further interest increments and defaulted. Removing the first loan's exclusion
+had allowed this additional small loan to originate. This is evidence of a
+remaining numerical classification gap, not a controlled estimate of credit's
+population effect.
+
+Servicing now distinguishes affordable blocked collection from forgiveness.
+When the unspent collection allowance and real cash cover the claim but the
+exact transfer adapter returns zero, a claim outside the forgiveness caps remains
+Arrears with a `precision_blocked` receipt. It is not written off or classified
+as a default. Ordinary contractual interest and subsequent monthly collection
+continue; future representable payments can reduce it. If actual funds or the
+collection allowance later become insufficient, normal default rules apply.
+The bounded `PrecisionSettled` path is unchanged. Older archived defaults retain
+their historical status.
+
+A zero-interest claim can remain blocked indefinitely while balances remain
+incompatible. Reporting must retain that outstanding debt rather than count it
+as paid. This is a limitation of exact transfers between mixed account precisions;
+it is not an unlimited forgiveness or refinancing mechanism. Experiment summaries
+now report blocked collection receipts and total outstanding debt as well as
+actual defaults and precision settlements. The count is monthly receipts, not
+unique loans. The running fixed executable does not contain this follow-up fix.
+
+The issuance-only arm completed with 182.069570 residents and 1,250 issued,
+matching the older arm's population and issuance totals. No loans originated.
+These terminal values do not by themselves establish improved work or food access.
+
+Follow-up verification: all 14 active market tests passed (two hardware tests
+were not selected). The new controlled small-loan fixture remains in Arrears with
+an explicit blocked-collection receipt through grace expiry, without forgiving
+any of that claim. An emptied-borrower control defaults; changing actual lender
+balances allows a later real payment. Serialized continuation matches and monetary
+residuals remain within the fixture's 1e-12 tolerance. Contradictory blocked/default
+receipts are rejected. Long-run evaluation of this further change is pending.
+
+Strict all-target Clippy and the executable build also passed for the blocked-
+collection follow-up.

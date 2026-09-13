@@ -57,6 +57,9 @@ pub struct Receipt {
     pub defaulted: bool,
     #[serde(default)]
     pub precision_settled: f64,
+    /// Affordable claim retained because the exact transfer adapter cannot move it.
+    #[serde(default)]
+    pub precision_blocked: bool,
 }
 
 impl History {
@@ -126,6 +129,7 @@ impl History {
                 accounts_available: available,
                 defaulted: false,
                 precision_settled: 0.,
+                precision_blocked: false,
             });
         }
         self.credit.loans = accrued;
@@ -137,7 +141,8 @@ impl History {
             }
             let current = &self.credit.loans[receipt.loan as usize];
             let remainder = current.total_due();
-            if current.precision_residue()
+            if current.status == Status::Arrears
+                && remainder > 0.
                 && remainder <= (receipt.allowance - receipt.paid).max(0.)
             {
                 let from = self.credit_balance(current.terms.borrower)?;
@@ -145,13 +150,20 @@ impl History {
                 if from.value() >= remainder {
                     let (_, _, transferable) = super::accounts::quote(from, to, remainder)?;
                     if transferable == 0. {
-                        receipt.precision_settled = self.credit.loans[receipt.loan as usize]
-                            .settle_precision_residue(self.month)?;
+                        if current.precision_residue() {
+                            receipt.precision_settled = self.credit.loans[receipt.loan as usize]
+                                .settle_precision_residue(self.month)?;
+                        } else {
+                            // Keep the claim and retry. Transfer precision is not
+                            // evidence of insolvency and does not relax write-off caps.
+                            receipt.precision_blocked = true;
+                        }
                     }
                 }
             }
             let loan = &mut self.credit.loans[receipt.loan as usize];
             if loan.status == Status::Arrears
+                && !receipt.precision_blocked
                 && self.month.saturating_sub(loan.terms.maturity_month) >= loan.terms.grace_months
             {
                 loan.write_off(self.month)?;

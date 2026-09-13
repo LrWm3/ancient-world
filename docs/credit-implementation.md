@@ -501,3 +501,13 @@ from insolvency. Forgiven principal/interest remain explicit debt-ledger entries
 no payment or income is fabricated. The experiment runner reports their count
 and written-off amount separately from default counts. Existing recorded defaults
 are not relabeled when loading older archives.
+
+## Affordable claims blocked by transfer precision
+
+The first residue fix exposed a still-smaller loan above the relative forgiveness
+cap. Monthly service now retains an affordable but untransferable claim with a
+`precision_blocked` receipt instead of treating it as insolvency. It remains due,
+continues contractual interest and is retried; actual later budget/cash shortfalls
+still use ordinary default rules. Forgiveness caps and monetary inventories are
+unchanged. See [the precision follow-up](credit-precision-residuals.md) for the
+observed loan, controls and unresolved long-run evaluation.
