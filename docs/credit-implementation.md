@@ -726,3 +726,7 @@ a real dated town-to-operator contract. Escrow joins the canonical monetary
 inventory; completed work earns its fixed fee, ordinary invoices exclude covered
 work, and unfinished/cancelled fees refund to the payer. Automatic procurement,
 loan requests against these orders, and full production comparisons remain open.
+
+The no-order seed-1024 baseline completed 200 years and matched the prior full
+history exactly after removing only the added empty order vector. Active-order
+settlement fixtures passed, but automatic order/lending behavior remains unfinished.

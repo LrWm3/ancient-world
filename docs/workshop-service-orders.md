@@ -47,3 +47,18 @@ the existing hardware posted-wage/service-quote fixture (one test), five active
 enterprise tests and strict all-target Clippy. Closure/abandonment refunds and
 invalid requests are included. Fifteen other enterprise tests remain ignored in
 the ordinary filtered run; this is not a claim that the whole GPU suite ran.
+
+## No-order continuation comparison
+
+A seed-1024 founding checkpoint was run for 200 years at terrain/ecology edge 32
+on the Quadro RTX 5000 with Max-Q Design. Delivery-paid exports were enabled;
+commercial/council credit, issuance and institutional lending were explicitly off.
+No service orders were posted. The copied executable was built from `8ece891`,
+before the subsequent staffing-constant extraction. Outputs stayed under ignored
+`output/service-order-baseline`.
+
+After removing only the new empty `enterprises.orders` field, the entire exported
+history exactly matched `output/monetary-institution-reserves/1024-baseline.json`.
+Ending population was 98.3713. This checks inactive-path continuation, including
+previously committed constants changes; it does not evaluate active orders or
+credit-backed production. The concurrent shader fixture is separate verification.
