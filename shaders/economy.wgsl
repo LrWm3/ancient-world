@@ -20,6 +20,25 @@ const ECONOMY_WORKSHOP_BUILD_WORKER_MONTHS_PER_UNIT: f32 = 2.;
 const ECONOMY_WORKSHOP_TOOLS_RESERVE_KG_PER_PERSON: f32 = .3;
 const ECONOMY_WORKSHOP_FITTING_WORK_SHARE: f32 = .1;
 const ECONOMY_WORKSHOP_FITTING_WORKER_MONTHS_PER_UNIT: f32 = .5;
+// Crop calendar, planting and finite-resource guards.
+const CROP_LAST_CANOPY_PHASE: u32 = 6u;
+const CROP_CANOPY_WEIGHTS: array<f32,7> = array<f32,7>(.2,.6,1.,1.,.8,.4,.1);
+const FARM_ATTENDANCE_WORK_FLOOR: f32 = .000001;
+const CROP_MIN_PLANTING_KG: f32 = 2.;
+const CROP_PLANTING_KG_PER_PERSON: f32 = .02;
+const CROP_TEMPERATURE_RAMP_C: f32 = 10.;
+const CROP_CULTIVATED_POTENTIAL_SHARE: f32 = .95;
+const CROP_ESTABLISHMENT_MIN_KG: f32 = .001;
+const CROP_CANOPY_ANNUAL_NORMALIZER: f32 = 4.1;
+const CROP_HARVEST_INDEX_FLOOR: f32 = .05;
+const CROP_REFERENCE_CARBON_FRACTION: f32 = .45;
+const CROP_CARBON_FRACTION_FLOOR: f32 = .01;
+const CROP_RESOURCE_DEMAND_FLOOR: f32 = .000001;
+const CROP_REPRODUCTIVE_FIRST_PHASE: u32 = 3u;
+const CROP_REPRODUCTIVE_LAST_PHASE: u32 = 4u;
+const CROP_STRESS_DEMAND_MIN_KG: f32 = .00001;
+const CROP_NUTRIENT_FRACTION_FLOOR: f32 = .00001;
+const CROP_HARVEST_SEED_SHARE: f32 = .05;
 struct Economy {
  farm_workers:vec4<f32>, extraction_workers:vec4<f32>, construction_workers:vec4<f32>,
  production_probe:vec4<f32>, food_labor:vec4<f32>,
@@ -464,13 +483,13 @@ fn return_food(i:u32,amount:f32){
 
 // Canopy proxy across sowing, expansion, flowering, filling and senescence.
 fn crop_canopy(phase:u32)->f32 {
- if phase>6u {return 0.;}
- return array<f32,7>(.2,.6,1.,1.,.8,.4,.1)[phase];
+ if phase>CROP_LAST_CANOPY_PHASE {return 0.;}
+ return CROP_CANOPY_WEIGHTS[phase];
 }
 // Managed growth and husbandry share finite land, water, feed and nutrients.
 fn farm_attendance(e:Economy)->f32 {
  if e.farm_workers.x<.5 {return 1.;}
- return clamp(e.farm_workers.y/max(e.farm_workers.w,.000001),0.,1.);
+ return clamp(e.farm_workers.y/max(e.farm_workers.w,FARM_ATTENDANCE_WORK_FLOOR),0.,1.);
 }
 fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
  var e=input;let s=src[i];let t=world[u32(s.habitat.z)];let month=p.dims.z%12u;
@@ -482,20 +501,20 @@ fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
   let params=catalog.crops[j*2u];let growth_params=catalog.crops[j*2u+1u];let good=u32(params.x);let chemistry=catalog.goods[good].xyz;var c=e.crops[j];
   let seasonal=catalog.seasons[j];let harvest=(u32(demography[i].crops.z)+u32(growth_params.w))%12u;
   let phase=(month+12u-(harvest+6u)%12u)%12u;
-  if seasonal.x>0. && phase==0u {let planted=min(c.z,max(2.,s.stock.x*.02))*farm_attendance(e);c.z-=planted;c.y+=planted;}
-  let habitat=clamp((temp-params.y)/10.,0.,1.)*clamp((params.z-temp)/10.,0.,1.)*clamp(moisture/params.w,0.,1.);
+  if seasonal.x>0. && phase==0u {let planted=min(c.z,max(CROP_MIN_PLANTING_KG,s.stock.x*CROP_PLANTING_KG_PER_PERSON))*farm_attendance(e);c.z-=planted;c.y+=planted;}
+  let habitat=clamp((temp-params.y)/CROP_TEMPERATURE_RAMP_C,0.,1.)*clamp((params.z-temp)/CROP_TEMPERATURE_RAMP_C,0.,1.)*clamp(moisture/params.w,0.,1.);
   // Every crop shares the same bounded total potential and 5% of land is pasture.
-  var growth=potential*.95*c.x*growth_params.x*habitat*select(0.,1.,c.z>0.001||c.y>0.001);
+  var growth=potential*CROP_CULTIVATED_POTENTIAL_SHARE*c.x*growth_params.x*habitat*select(0.,1.,c.z>CROP_ESTABLISHMENT_MIN_KG||c.y>CROP_ESTABLISHMENT_MIN_KG);
   if seasonal.x>0. {
    // Crop-equivalent standing mass, normalized to a common 0.45 kg-C budget.
    // Stored seed is dormant. Monthly phenology is a calendar proxy, not thermal time.
    // The survey supplies annual harvest potential, not whole-plant biomass.
    // Distribute it over the canopy calendar and include the biomass required
    // for residues. All of that biomass still consumes finite N/P/water.
-   let canopy=crop_canopy(phase)*(12./4.1)/max(seasonal.y,.05);
-   let thermal=clamp((temp-params.y)/10.,0.,1.)*clamp((params.z-temp)/10.,0.,1.);
-   growth=potential*.95*c.x*growth_params.x*(.45/max(chemistry.x,.01))*thermal*canopy*f32(c.y>.001);
-   let frost=c.y*seasonal.w*clamp((params.y-temp)/10.,0.,1.);
+   let canopy=crop_canopy(phase)*(12./CROP_CANOPY_ANNUAL_NORMALIZER)/max(seasonal.y,CROP_HARVEST_INDEX_FLOOR);
+   let thermal=clamp((temp-params.y)/CROP_TEMPERATURE_RAMP_C,0.,1.)*clamp((params.z-temp)/CROP_TEMPERATURE_RAMP_C,0.,1.);
+   growth=potential*CROP_CULTIVATED_POTENTIAL_SHARE*c.x*growth_params.x*(CROP_REFERENCE_CARBON_FRACTION/max(chemistry.x,CROP_CARBON_FRACTION_FLOOR))*thermal*canopy*f32(c.y>CROP_ESTABLISHMENT_MIN_KG);
+   let frost=c.y*seasonal.w*clamp((params.y-temp)/CROP_TEMPERATURE_RAMP_C,0.,1.);
    c.y-=frost;e.detritus+=vec4(frost*chemistry,0.);
   }
   // Industrial crops stop growing once standing crop plus stores cover orders.
@@ -507,28 +526,28 @@ fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
  // Proportional rationing: all crops face the same resource snapshot. This bounded
  // single round may leave other resources unused when one resource is limiting.
  let supply=max(vec3(e.soil.yz,e.water.x),vec3(0.));
- let fractions=select(vec3(1.),min(vec3(1.),supply/max(total_need,vec3(.000001))),total_need>vec3(0.));
+ let fractions=select(vec3(1.),min(vec3(1.),supply/max(total_need,vec3(CROP_RESOURCE_DEMAND_FLOOR))),total_need>vec3(0.));
  let fulfilled=min(fractions.x,min(fractions.y,fractions.z));
  if fulfilled<1. {e.diagnostics.x=select(select(3.,2.,fractions.y<=fractions.z),1.,fractions.x<=min(fractions.y,fractions.z));}
  for(var j=0u;j<6u;j++){
   let params=catalog.crops[j*2u];let growth_params=catalog.crops[j*2u+1u];let good=u32(params.x);let chemistry=catalog.goods[good].xyz;var c=e.crops[j];
   let seasonal=catalog.seasons[j];let harvest=(u32(demography[i].crops.z)+u32(growth_params.w))%12u;
   let phase=(month+12u-(harvest+6u)%12u)%12u;
-  if seasonal.x>0. && phase>=3u && phase<=4u && demands[j]>.00001 {
+  if seasonal.x>0. && phase>=CROP_REPRODUCTIVE_FIRST_PHASE && phase<=CROP_REPRODUCTIVE_LAST_PHASE && demands[j]>CROP_STRESS_DEMAND_MIN_KG {
    let damage=c.y*seasonal.z*(1.-fractions.z);
    c.y-=damage;e.detritus+=vec4(damage*chemistry,0.);
   }
   // Guard only against final float32 subtraction error, not sequential allocation.
-  let capacity=min(e.soil.y/max(chemistry.y,.00001),min(e.soil.z/max(chemistry.z,.00001),e.water.x/growth_params.y));
+  let capacity=min(e.soil.y/max(chemistry.y,CROP_NUTRIENT_FRACTION_FLOOR),min(e.soil.z/max(chemistry.z,CROP_NUTRIENT_FRACTION_FLOOR),e.water.x/growth_params.y));
   let growth=max(0.,min(demands[j]*fulfilled,capacity));
   e.soil.y=max(0.,e.soil.y-growth*chemistry.y);e.soil.z=max(0.,e.soil.z-growth*chemistry.z);e.exchange.x+=growth*chemistry.x;e.water.x-=growth*growth_params.y;e.water.w+=growth*growth_params.y;c.y+=growth;e.agriculture.x+=growth;
   if month==harvest {
    let lost=c.y*(1.-farm_attendance(e));c.y-=lost;e.detritus+=vec4(lost*chemistry,0.);
    if seasonal.x>0. {let residue=c.y*(1.-seasonal.y);c.y-=residue;e.detritus+=vec4(residue*chemistry,0.);}
-   let seed=min(c.y*.05,max(2.,s.stock.x*.02));let harvested=max(0.,c.y-seed);e.goods[good/4u][good%4u]+=harvested;e.made[good/4u][good%4u]+=harvested;c.w+=harvested;c.z+=seed;c.y=0.;}
-  if seasonal.x==0. && month==(harvest+6u)%12u {let planted=min(c.z,max(2.,s.stock.x*.02))*farm_attendance(e);c.z-=planted;c.y+=planted;}
+   let seed=min(c.y*CROP_HARVEST_SEED_SHARE,max(CROP_MIN_PLANTING_KG,s.stock.x*CROP_PLANTING_KG_PER_PERSON));let harvested=max(0.,c.y-seed);e.goods[good/4u][good%4u]+=harvested;e.made[good/4u][good%4u]+=harvested;c.w+=harvested;c.z+=seed;c.y=0.;}
+  if seasonal.x==0. && month==(harvest+6u)%12u {let planted=min(c.z,max(CROP_MIN_PLANTING_KG,s.stock.x*CROP_PLANTING_KG_PER_PERSON))*farm_attendance(e);c.z-=planted;c.y+=planted;}
   // Purchased seed can establish a new daughter farm; no spontaneous imports.
-  if c.z+c.y<.001{let seed=min(2.,e.goods[good/4u][good%4u])*farm_attendance(e);e.goods[good/4u][good%4u]-=seed;e.used[good/4u][good%4u]+=seed;c.z+=seed;}
+  if c.z+c.y<CROP_ESTABLISHMENT_MIN_KG{let seed=min(CROP_MIN_PLANTING_KG,e.goods[good/4u][good%4u])*farm_attendance(e);e.goods[good/4u][good%4u]-=seed;e.used[good/4u][good%4u]+=seed;c.z+=seed;}
   e.crops[j]=c;
  }
  for(var j=0u;j<3u;j++){

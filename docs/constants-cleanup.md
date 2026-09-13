@@ -832,3 +832,24 @@ fixture, two waterworks fixtures and the plot-reservation/recipe conservation
 fixture. These include real materials, service-limited effects, competing repair
 and housing work, and checkpoint continuation. Strict all-target Clippy passed.
 The experiment executable was copied before these edits and remains independent.
+
+## Crop calendar and resource guards
+
+Named 18 crop parameters at the top of `shaders/economy.wgsl`: canopy weights
+and last active phase, planting quantity and population scale, temperature ramp,
+cultivated potential share, establishment threshold, canopy normalization, harvest
+index floor, reference carbon fraction and denominator floor, reproductive stress
+window, resource demand and nutrient guards, attendance denominator and retained
+seed share. Equal-valued guards for different quantities remain independently named.
+
+Reversing the source substitutions reconstructs the complete previous shader
+exactly, including numeric spelling and arithmetic order. No catalog value,
+growth rate, calendar phase, allocation order or float type changed. Calendar
+modulo arithmetic, packed-field selectors and array indices remain inline.
+Husbandry, food processing and the remaining production sections still require
+review; this is not completion of the full shader or repository cleanup.
+
+Verification passed with hardware tests explicitly selected: stored-seed dormancy
+and seasonal/checkpoint conservation (one test), scarce crop resource allocation
+(one), and phosphorus-limited crops/manure retention (one). Strict all-target
+Clippy passed. Raw logs and the extraction script remain in ignored `output/`.
