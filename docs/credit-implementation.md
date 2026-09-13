@@ -675,3 +675,12 @@ funding-gap split after request construction checks. Unsupported-duration source
 and skipped counterparties no longer dilute an otherwise feasible request.
 Underwriting still caps receipts, cash and exposure independently. A matched
 funded-cargo fixture verifies the change; no ensemble benefit is inferred.
+
+## Proposal-stage experiment diagnostics
+
+[Recorded-demand analysis](credit-request-evaluation.md) now separates requests,
+eligibility, grants and actual transfers in the monetary runner. Reanalysis of
+20 saved exports distinguishes zero recorded requests from seed-1024 capacity
+rejections. All its rejected requests have nonpositive archived net receipts;
+older detailed capacity records are unavailable and explicitly marked as such.
+This is evidence about those prior inputs, not a rerun of current behavior.

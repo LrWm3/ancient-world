@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Run matched credit/issuance arms; retain raw artifacts only under output/."""
 import argparse
+from collections import Counter
 import hashlib
 import json
+import math
 from pathlib import Path
 import shutil
 import subprocess
 import time
 
+BINDING_RATIO_TOLERANCE = 1e-12
 DEFAULT_HISTORY_YEARS = 200
 
 ARMS = (
@@ -40,6 +43,94 @@ def activity_and_access(history):
         "ending_council_cash": sum(c["treasury"] for c in councils),
         "ending_household_cash": sum(a["cash"] for a in accounts),
         "ending_town_cash": sum(s["economy"]["finance"][0] for s in history["sites"]),
+    }
+
+
+
+def credit_funnel(history):
+    """Recorded requests, numerical grants and actual principal are different stocks.
+
+    Empty rounds do not prove there were no opportunities: the pilots omit months
+    with no constructed requests. Explicit API loans need not belong to a round.
+    """
+    credit = history["credit"]
+    if "rounds" not in credit:
+        return {"credit_request_records_available": False}
+    rounds = credit["rounds"]
+    loans = {loan["id"]: loan for loan in credit["loans"]}
+    if len(loans) != len(credit["loans"]):
+        raise ValueError("duplicate loan identity")
+    decisions, sources, binding = Counter(), Counter(), Counter()
+    requested = eligible = granted = funded = 0.0
+    linked = set()
+    request_count = 0
+    missing_capacity_records = 0
+    for round_ in rounds:
+        requests = {r["id"]: r for r in round_["requests"]}
+        grants = round_["grants"]
+        if (len(requests) != len(round_["requests"])
+                or len(grants) != len(round_["loan_ids"])
+                or len({g["request"] for g in grants}) != len(grants)
+                or set(requests) != {g["request"] for g in grants}):
+            raise ValueError("inconsistent credit round references")
+        for grant, loan_id in zip(grants, round_["loan_ids"]):
+            request = requests[grant["request"]]
+            amounts = [request["principal"], grant["eligible"], grant["granted"]]
+            if any(not math.isfinite(v) or v < 0 for v in amounts):
+                raise ValueError("invalid request amounts")
+            if not amounts[2] <= amounts[1] <= amounts[0]:
+                raise ValueError("credit grant exceeds request")
+            requested += amounts[0]
+            eligible += amounts[1]
+            granted += amounts[2]
+            request_count += 1
+            decisions[grant["decision"]] += 1
+            source = request["terms"]["source"]
+            if not isinstance(source, dict) or len(source) != 1:
+                raise ValueError("invalid repayment source")
+            sources[next(iter(source))] += 1
+            capacity = grant.get("capacity")
+            if capacity is None and amounts[1] > 0:
+                missing_capacity_records += 1
+            if capacity:
+                ratios = {}
+                for pool, stock, demand in (
+                    ("lender", "lender_principal", "lender_demand"),
+                    ("borrower", "borrower_principal", "borrower_demand"),
+                    ("source", "source_receipts", "source_demand"),
+                ):
+                    if (not math.isfinite(capacity[stock]) or capacity[stock] < 0
+                            or not math.isfinite(capacity[demand]) or capacity[demand] <= 0):
+                        raise ValueError("invalid capacity receipt")
+                    ratios[pool] = capacity[stock] / capacity[demand]
+                scale = min(1.0, *ratios.values())
+                if scale < 1:
+                    for pool, ratio in ratios.items():
+                        if math.isclose(ratio, scale, rel_tol=BINDING_RATIO_TOLERANCE,
+                                        abs_tol=BINDING_RATIO_TOLERANCE):
+                            binding[pool] += 1
+            if loan_id is not None:
+                if loan_id not in loans or loan_id in linked:
+                    raise ValueError("missing or multiply funded round loan")
+                principal = loans[loan_id]["original_principal"]
+                if not math.isfinite(principal) or not 0 < principal <= amounts[2]:
+                    raise ValueError("invalid committed principal")
+                funded += principal
+                linked.add(loan_id)
+    return {
+        "credit_request_records_available": True,
+        "credit_rounds": len(rounds),
+        "credit_incomplete_rounds": sum(not r["complete"] for r in rounds),
+        "credit_recorded_requests": request_count,
+        "credit_request_sources": dict(sorted(sources.items())),
+        "credit_decisions": dict(sorted(decisions.items())),
+        "credit_binding_capacity_counts": dict(sorted(binding.items())),
+        "credit_eligible_requests_without_capacity_records": missing_capacity_records,
+        "credit_requested_principal": requested,
+        "credit_eligible_principal": eligible,
+        "credit_granted_principal": granted,
+        "credit_committed_round_principal": funded,
+        "credit_loans_outside_rounds": len(loans) - len(linked),
     }
 
 
@@ -117,6 +208,7 @@ def main():
             if status.returncode == 0:
                 history = json.loads(archive.read_text())
                 result.update(activity_and_access(history))
+                result.update(credit_funnel(history))
                 loans = history["credit"]["loans"]
                 result.update(population=sum(s["stocks"]["stock"][0] for s in history["sites"]),
                               loans=len(loans), defaults=sum(l["status"] == "Defaulted" for l in loans),
