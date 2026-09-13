@@ -70,6 +70,9 @@ struct Args {
     /// Experimental council tax-bridge lending; false stops new loans, not repayment.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     council_credit: Option<bool>,
+    /// Experimental town working-capital loans against delivery-paid exports.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    commercial_credit: Option<bool>,
     /// Newly funded export orders pay on delivery; false retains dispatch payment.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     delivery_paid_exports: Option<bool>,
@@ -154,6 +157,7 @@ fn main() -> Result<()> {
                 && args.history_years == 0
                 && args.history_export.is_none()
                 && args.council_credit.is_none()
+                && args.commercial_credit.is_none()
                 && args.delivery_paid_exports.is_none()
                 && !args.society
                 && !args.politics
@@ -316,6 +320,15 @@ fn main() -> Result<()> {
             .council_policy
             .enabled = enabled;
     }
+    if let Some(enabled) = args.commercial_credit {
+        generator
+            .civilizations
+            .as_mut()
+            .context("commercial credit requires a history")?
+            .credit
+            .commercial_policy
+            .enabled = enabled;
+    }
     if let Some(enabled) = args.delivery_paid_exports {
         generator
             .civilizations
@@ -395,6 +408,22 @@ fn main() -> Result<()> {
 #[cfg(test)]
 mod args_tests {
     use super::*;
+    #[test]
+    fn commercial_credit_flag_preserves_archive_when_omitted() {
+        for (arguments, expected) in [
+            (vec!["ancient-world"], None),
+            (vec!["ancient-world", "--commercial-credit"], Some(true)),
+            (
+                vec!["ancient-world", "--commercial-credit=false"],
+                Some(false),
+            ),
+        ] {
+            assert_eq!(
+                Args::try_parse_from(arguments).unwrap().commercial_credit,
+                expected
+            );
+        }
+    }
     #[test]
     fn delivery_payment_flag_preserves_archive_when_omitted() {
         for (arguments, expected) in [

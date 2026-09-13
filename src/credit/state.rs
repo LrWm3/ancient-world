@@ -14,6 +14,10 @@ pub struct CashReceipt {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Credit {
     #[serde(default)]
+    pub commercial_policy: super::commercial::Policy,
+    #[serde(default)]
+    pub commercial_decided_month: Option<u32>,
+    #[serde(default)]
     pub council_policy: super::councils::Policy,
     #[serde(default)]
     pub council_decided_month: Option<u32>,
@@ -96,6 +100,13 @@ impl History {
     }
 
     pub fn validate_credit(&self) -> Result<()> {
+        self.credit.commercial_policy.validate()?;
+        ensure!(
+            self.credit
+                .commercial_decided_month
+                .is_none_or(|m| m <= self.month),
+            "future commercial credit decision"
+        );
         self.credit.council_policy.validate()?;
         ensure!(
             self.credit

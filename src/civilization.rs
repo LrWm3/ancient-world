@@ -1456,6 +1456,7 @@ impl Generator {
         h.prepare_fisheries(terrain, self.config.eco_resolution());
         let extraction_allowances = h.allocate_resources();
         h.plan_production();
+        h.commercial_credit_month()?;
         h.prepare_enterprises();
         h.prepare_vessels();
         if h.agriculture_refinement_enabled() {

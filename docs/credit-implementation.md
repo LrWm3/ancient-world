@@ -358,3 +358,39 @@ At month 360 of the seed-17 delivery smoke run, the three pending payments all
 belonged to town 4: approximately 57.32, 67.69 and 62.86 due in months 361, 364 and
 367. That town already held approximately 5,196.98 cash. Automatic borrowing must
 therefore test an actual funding shortfall, not merely the existence of receivables.
+
+## Automatic commercial working-cash pilot
+
+`--commercial-credit` enables a separate opt-in policy; false stops new requests
+without cancelling debt. Omission preserves the archived setting. The pilot runs
+in Reserve after production planning and before enterprise funding. It quotes
+missing non-food recipe inputs, subtracting current inventory and planned local
+outputs, then compares that amount with actual town cash. This quote is neither
+an input reservation nor a guarantee that speculative local outputs will finish.
+
+Only a buyer already funding one of the town's traveling delivery payments can
+lend in this initial commercial path. Its own input quote and a cash floor remain
+protected; it offers a bounded fraction of surplus. Underwriting still applies
+shared exposure and source limits and rejects simultaneous borrowing/lending.
+The borrower's upcoming input commitment is deducted from repayment evidence.
+One funding gap is divided across available source requests, rather than requested
+in full against every invoice. Requests capture the current month and cannot be
+replayed after checkpoint reload.
+
+The rate quote accounts for the loss assumption and loan duration: expected
+principal-and-interest recovery must cover the lender's required annual return.
+Quotes outside the existing annual-rate bound are declined. Ordinary markets,
+production and household policies spend the borrowed town cash; it is not earmarked
+or automatically paid to an operator. This preserves existing ownership but means
+other spending can consume the bridge before the intended procurement succeeds.
+That is an explicit outcome to measure, not evidence of completed financed work.
+
+Verification: eleven export fixtures (including automatic borrowing and negative
+controls), four CLI tests and ten active market tests passed; two extended market
+cases remain ignored. Strict all-target Clippy passed. A matched 30-year seed-17
+run at 32/32 resolution enabled delivery payment in both arms and changed only
+commercial credit. Neither arm made a loan or request. Both ended with 550.785824
+people; serialized sites, events, people, cargo and delivery payments matched.
+This is a null observation consistent with the measured cash-rich exporter, not
+proof that the policy helps strained exporters. Broader seed and scarcity cases
+remain required before advancing the monetary experiment gate.

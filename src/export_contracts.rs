@@ -429,6 +429,52 @@ mod tests {
         h.observe_export_delivery(&delivery);
     }
     #[test]
+    fn automatic_commercial_credit_requires_gap_and_preserves_lender_reserve() {
+        let mut h = fixture();
+        h.export_payment_timing = payments::Timing::Delivery;
+        evidence(&mut h);
+        evidence(&mut h);
+        h.fund_export_contracts(&[true]);
+        h.market_month(6371.);
+        h.credit.commercial_policy.enabled = true;
+        let recipe = &mut h.economy_catalog.as_mut().unwrap().recipes[0];
+        recipe.input.fill(0.);
+        recipe.output.fill(0.);
+        recipe.input[1] = 10.;
+        recipe.output[2] = 1.;
+        h.sites[0].economy.orders.fill(0.);
+        h.sites[0].economy.orders[0] = 1.;
+        h.sites[0].economy.prices[1] = 2.;
+        assert_eq!(h.commercial_input_costs()[0], 20.);
+        let mut rich = h.clone();
+        assert_eq!(rich.commercial_credit_month().unwrap(), 0);
+        assert!(rich.credit.loans.is_empty());
+        h.sites[0].economy.finance[0] = 0.;
+        h.sites[0].economy.finance[1] = 0.;
+        let mut reserved = h.clone();
+        reserved.credit.commercial_policy.operating_cash_floor = 10000.;
+        assert_eq!(reserved.commercial_credit_month().unwrap(), 0);
+        let mut delayed = h.clone();
+        delayed.cargo[0].arrives += 1;
+        assert_eq!(delayed.commercial_credit_month().unwrap(), 0);
+        let mut disabled = h.clone();
+        disabled.credit.commercial_policy.enabled = false;
+        assert_eq!(disabled.commercial_credit_month().unwrap(), 0);
+        assert!(h.commercial_credit_month().unwrap() > 0);
+        let principal: f64 = h.credit.loans.iter().map(|l| l.original_principal).sum();
+        assert!(principal > 0. && principal <= 20.);
+        assert!(h.sites[1].economy.finance[0] >= 100.);
+        h.validate_credit().unwrap();
+        assert!(h.economy_residuals().iter().all(|r| r.abs() < 0.001));
+        let once = serde_json::to_value(&h).unwrap();
+        assert_eq!(h.commercial_credit_month().unwrap(), 0);
+        assert_eq!(once, serde_json::to_value(&h).unwrap());
+        let mut resumed: History = serde_json::from_value(once.clone()).unwrap();
+        assert_eq!(resumed.commercial_credit_month().unwrap(), 0);
+        assert_eq!(once, serde_json::to_value(&resumed).unwrap());
+    }
+
+    #[test]
     fn delivery_proceeds_back_bounded_credit_and_repay_after_arrival() {
         use crate::credit::{
             underwriting::{Offer, Policy, Request},
