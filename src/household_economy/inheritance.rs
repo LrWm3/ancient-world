@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 const ESTATE_WAIT_MONTHS: u32 = 12;
+const ESTATE_FOOD_RESERVE_MONTHS: f64 = 3.;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Inheritance {
@@ -20,6 +21,9 @@ pub struct Receipt {
     pub beneficiary: u32,
     pub heir: u32,
     pub cash: f64,
+    /// Retained for any age-band dependents still represented by this wallet.
+    #[serde(default)]
+    pub protected_food_cash: f64,
     pub share: f64,
 }
 
@@ -63,6 +67,8 @@ pub(super) fn validate(economy: &super::HouseholdEconomy, h: &History) -> Result
                 && r.estate != r.beneficiary
                 && r.cash.is_finite()
                 && r.cash >= 0.
+                && r.protected_food_cash.is_finite()
+                && r.protected_food_cash >= 0.
                 && r.share.is_finite()
                 && (0. ..=1. + super::BALANCE_TOLERANCE).contains(&r.share)
                 && seen.insert((r.month, r.estate)),
@@ -154,7 +160,18 @@ impl History {
             if economy.accounts.get(*beneficiary as usize).is_none() {
                 continue;
             }
-            if source.cash <= 0. && estate.share <= 0. {
+            // Sparse identities do not prove that anonymous dependents vanished.
+            // Protect three months of the last completed food need at today's
+            // local quote before transferring cash. Ownership succession alone
+            // must not sweep subsistence relief out of a retained account.
+            let reserve = source.need
+                * ESTATE_FOOD_RESERVE_MONTHS
+                * f64::from(
+                    self.sites[estate.site as usize].economy.prices[crate::economy::FOOD]
+                        .max(super::MIN_FOOD_PRICE),
+                );
+            let cash = (source.cash - reserve).max(0.);
+            if cash <= 0. && estate.share <= 0. {
                 continue;
             }
             plans.push(Receipt {
@@ -163,7 +180,8 @@ impl History {
                 estate: estate.id,
                 beneficiary: *beneficiary,
                 heir,
-                cash: source.cash,
+                cash,
+                protected_food_cash: reserve.min(source.cash),
                 share: estate.share,
             });
         }
@@ -259,6 +277,10 @@ mod tests {
         let funding = super::super::withdraw(&mut h.sites[0].economy.finance[0], 100.);
         e.accounts[estate as usize].cash += funding;
         e.accounts[estate as usize].dividends += funding;
+        e.accounts[estate as usize].need = 1.;
+        e.accounts[estate as usize].common_food = 0.;
+        e.accounts[estate as usize].purchased_food = 0.;
+        h.sites[0].economy.prices[crate::economy::FOOD] = 1.;
         for kin in &mut h.politics.as_mut().unwrap().kin {
             kin.parents = [None; 2];
         }
@@ -286,13 +308,23 @@ mod tests {
         let before = h.money_residual();
         let before_target = h.household_account(target).unwrap().cash;
         let source_cash = h.household_account(estate).unwrap().cash;
+        let reserve = h.household_account(estate).unwrap().need
+            * ESTATE_FOOD_RESERVE_MONTHS
+            * f64::from(
+                h.sites[0].economy.prices[crate::economy::FOOD].max(super::super::MIN_FOOD_PRICE),
+            );
+        let transferred = (source_cash - reserve).max(0.);
+        assert!(transferred > 0. && reserve > 0.);
         let shares = h.society.as_ref().unwrap().households[estate as usize].share
             + h.society.as_ref().unwrap().households[target as usize].share;
         h.inherit_household_estates();
-        assert_eq!(h.household_account(estate).unwrap().cash, 0.);
+        assert_eq!(
+            h.household_account(estate).unwrap().cash,
+            source_cash - transferred
+        );
         assert_eq!(
             h.household_account(target).unwrap().cash,
-            before_target + source_cash
+            before_target + transferred
         );
         assert_eq!(
             h.society.as_ref().unwrap().households[target as usize].share,

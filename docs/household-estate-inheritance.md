@@ -12,8 +12,8 @@ It traverses recorded descent, stopping at living descendants; multiple living
 branches remain unresolved. A sole descendant must be resident in a non-vacant
 household at the same settlement. There is no distant cash teleportation.
 
-The receiving household acquires the estate's actual cash and town ownership
-share. Identities, historical heads and genealogy remain intact. Zero-property
+The receiving household acquires cash above a protected food reserve and the
+estate's town ownership share. Identities, historical heads and genealogy remain intact. Zero-property
 households become valid; town ownership still sums to one. `inheritance_paid` and
 `inheritance_received` distinguish these transfers from wages, profits and relief.
 Dated receipts and events retain the source, beneficiary, heir, cash and share.
@@ -40,6 +40,31 @@ cycle guard). The GPU-backed transaction fixture passes: conserved cash and loca
 shares, protection of a living owner, no duplicate transfer on repeated invocation,
 serialization/next-month equality, and rejection of a corrupted receipt. This is
 not yet a full multi-month natural-history checkpoint comparison. All three cash
-audit tests and twelve monetary report tests pass. The CLI override test, strict all-target Clippy and native build pass. The matched
-seed-1024 four-arm 50-year screen is running; outputs stay under ignored
-`output/household-inheritance-screen/on/`. Results are pending.
+audit tests and twelve monetary report tests pass. The CLI override test, strict all-target Clippy and native build pass. The first matched
+seed-1024 four-arm 50-year screen completed; outputs stay under ignored
+`output/household-inheritance-screen/on/`. See the correction and results below.
+
+## First screen and subsistence correction
+
+The first four-arm screen completed before the food-reserve safeguard below.
+All arms exited successfully. Without issuance, the policy transferred 1,539.70
+in 146 receipts; with issuance, 2,093.87 in 78 receipts. The no-issuance endpoint
+had population 159.435 and hunger 0.05832, versus 156.688 and 0.06939 without
+inheritance. Operator operating margin worsened slightly (-275.98 versus -269.35).
+With issuance, population was 157.960 and hunger 0.06391. Those endpoint differences
+do not establish the mechanism for each downstream change.
+
+Inspecting individual receipts revealed repeated small transfers from estates that
+still had aggregate food need. In one case, 126 later transfers amounted to 18.82.
+Absence of named members does not establish absence of anonymous dependents. The
+revised policy therefore retains three months of the last completed household food
+need, valued at the current local food quote, before transferring cash. It protects
+full food cost rather than assuming common entitlement will be funded next month.
+Ownership share can still pass to the heir. Receipts record protected cash separately
+from transferred cash. This is an explicit conservative game reserve, not a solved
+household population model; changing need and local prices affect future transfers.
+
+The first screen is superseded for balance claims by this correction. The reserve-specific GPU fixture passed (0.94 seconds), as did strict all-target
+Clippy. The corrected native build and revised screen are pending. Before the correction the full CPU
+library suite passed: 184 passed, 143 hardware tests ignored. No portability or
+performance conclusion is drawn from these runs.
