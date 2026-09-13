@@ -1020,6 +1020,15 @@ impl History {
                 .household_economy
                 .as_ref()
                 .map_or(0., |e| e.accounts.iter().map(|a| a.cash).sum::<f64>());
+            if let (Some(wallets), Some(cloth)) =
+                (&society.household_economy, catalog.index("cloth"))
+            {
+                let mass: f64 = wallets.accounts.iter().map(|a| a.wardrobe.cloth_kg).sum();
+                goods[cloth] -= mass;
+                for (k, ratio) in catalog.composition(cloth).iter().enumerate() {
+                    held[k] += mass * f64::from(*ratio);
+                }
+            }
             money += society.councils.iter().map(|c| c.treasury).sum::<f64>();
             goods[5] -= society.routes.iter().map(|r| r.road_bricks).sum::<f64>();
             for (k, ratio) in catalog.composition(5).iter().enumerate() {

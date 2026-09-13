@@ -446,3 +446,16 @@ Operator work falls in all three worlds; welfare improves in two but worsens in
 409, which also loses active operators. The shader change was reverted. Household
 material purchases and durable possession remain the next missing demand path;
 reassigning municipal labor does not substitute for actual customers.
+
+### Household-owned cloth and replacement demand
+
+[Household clothing](household-clothing.md) is an opt-in first material retail path:
+actual town stock becomes private possessions, money returns to the town, and wear
+returns finite C/N/P while creating replacement opportunities. The old communal
+cloth-wear calculation is suppressed in this mode. A three-month food reserve was
+compared with the retained one-month pilot; current food still settles first.
+Nine runs show real spending and mixed outcomes. Seed 409's additional operator
+work at fifty years reverses by year 100; population/hunger comparisons reverse
+in the other direction. Seed 256 has no available cloth and no purchases. Keep the
+pilot disabled by default; consumer quote attribution, other materials, wardrobe
+succession/salvage and abandoned deposit extraction remain unfinished connections.

@@ -2,6 +2,7 @@
 use crate::civilization::History;
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+pub mod clothing;
 pub mod council_allocation;
 mod family_support;
 pub mod inheritance;
@@ -35,6 +36,8 @@ const MAX_EARNINGS_WEIGHT: f64 = 2.;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct HouseholdAccount {
+    #[serde(default)]
+    pub wardrobe: clothing::Wardrobe,
     /// Actual receipts on acquired creditor claims, not wages or production.
     #[serde(default)]
     pub credit_principal_received: f64,
@@ -111,6 +114,10 @@ impl FoundingAccess {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HouseholdEconomy {
     #[serde(default)]
+    pub clothing_enabled: bool,
+    #[serde(default)]
+    pub clothing_month: Option<u32>,
+    #[serde(default)]
     pub inheritance: inheritance::Inheritance,
     #[serde(default)]
     pub reclamation: reclamation::Reclamation,
@@ -164,6 +171,8 @@ fn nutrition_enabled() -> bool {
 impl HouseholdEconomy {
     pub fn new(month: u32) -> Self {
         Self {
+            clothing_enabled: false,
+            clothing_month: None,
             inheritance: inheritance::Inheritance::default(),
             reclamation: reclamation::Reclamation::default(),
             council_allocation: council_allocation::Policy::default(),
@@ -230,7 +239,12 @@ impl HouseholdEconomy {
         family_support::validate(self, h)?;
         inheritance::validate(self, h)?;
         reclamation::validate(self, h)?;
+        ensure!(
+            self.clothing_month.is_none_or(|m| m <= h.month),
+            "invalid clothing clock"
+        );
         for (account_id, a) in self.accounts.iter().enumerate() {
+            a.wardrobe.validate()?;
             ensure!(
                 a.livelihood.is_none_or(|weights| weights
                     .iter()
@@ -265,7 +279,8 @@ impl HouseholdEconomy {
                 ]
                 .iter()
                 .all(|v| v.is_finite() && *v >= 0.),
-                "invalid household account {account_id} at month {}: {a:?}", h.month
+                "invalid household account {account_id} at month {}: {a:?}",
+                h.month
             );
             ensure!(
                 a.hunger <= 1.
@@ -284,6 +299,7 @@ impl HouseholdEconomy {
                     - a.credit_interest_received
                     + a.family_sent
                     + a.food_spending
+                    + a.wardrobe.spending
                     + a.estate_returned
                     + a.capital_invested
                     - a.capital_returned)
@@ -543,12 +559,14 @@ impl History {
                 .iter()
                 .enumerate()
                 .map(|(j, &id)| {
-                    !e.resident_payroll || (adult_shares[j] > 0. && (if complete_roster {
-                        member_counts.get(&id).is_some_and(|m| m[1] > 0.)
-                    } else {
-                        society.households[id].vacant_since.is_none()
-                            || member_counts.get(&id).is_some_and(|m| m[1] > 0.)
-                    }))
+                    !e.resident_payroll
+                        || (adult_shares[j] > 0.
+                            && (if complete_roster {
+                                member_counts.get(&id).is_some_and(|m| m[1] > 0.)
+                            } else {
+                                society.households[id].vacant_since.is_none()
+                                    || member_counts.get(&id).is_some_and(|m| m[1] > 0.)
+                            }))
                 })
                 .collect();
             let payroll_request = (labor * PAYROLL_FOOD_KG_PER_WORKER_MONTH * price)
@@ -640,7 +658,12 @@ impl History {
                 let dividend = if j + 1 == ids.len() {
                     dividend_left
                 } else {
-                    bounded_dividend(dividends, society.households[id].share, shares, dividend_left)
+                    bounded_dividend(
+                        dividends,
+                        society.households[id].share,
+                        shares,
+                        dividend_left,
+                    )
                 };
                 wage_left -= wage;
                 dividend_left -= dividend;
@@ -947,7 +970,12 @@ mod tests {
     use super::*;
     #[test]
     fn rounding_cannot_assign_negative_dividends_to_empty_estates() {
-        let shares = [0.7661074377979527, 0.7042198668434126, 0.6613830572238304, 0.];
+        let shares = [
+            0.7661074377979527,
+            0.7042198668434126,
+            0.6613830572238304,
+            0.,
+        ];
         let budget = 0.11016204891721182;
         let total = shares.iter().sum::<f64>();
         let mut remaining = budget;
@@ -958,7 +986,9 @@ mod tests {
         }
         assert!((0. ..1e-15).contains(&remaining));
         // The former unbounded calculation overpaid before the last recipient.
-        let old_remaining = shares[..3].iter().fold(budget, |r, share| r - budget * share / total);
+        let old_remaining = shares[..3]
+            .iter()
+            .fold(budget, |r, share| r - budget * share / total);
         assert!(old_remaining < 0.);
     }
 

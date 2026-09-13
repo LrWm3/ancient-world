@@ -22,6 +22,18 @@ class CirculationAuditTests(unittest.TestCase):
             'credit': {'issuance': {'receipts': [{'issued': 2}]}},
         }
 
+    def test_wardrobe_spending_is_a_flow_not_extra_cash(self):
+        h = self.fixture()
+        before = audit(h)
+        self.assertIsNone(before['household_clothing'])
+        e = h['society']['household_economy']
+        e['clothing_enabled'] = True
+        e['accounts'][0]['wardrobe'] = dict(cloth_kg=2, purchased_kg=3, worn_kg=1, spending=9)
+        after = audit(h)
+        self.assertEqual(after['cash'], before['cash'])
+        self.assertEqual(after['household_clothing']['spending'], 9)
+        self.assertEqual(after['household_clothing']['cloth_kg'], 2)
+
     def test_food_request_observations_are_not_cash_or_delivered_food(self):
         h = self.fixture()
         before = audit(h)

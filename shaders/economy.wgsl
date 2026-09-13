@@ -602,7 +602,7 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
    if k==41u&&e.extraction.y>.5 {in_use=min(e.goods[10].y,max(0.,s.stock.x*MIN_WORK_TOOLS_KG_PER_PERSON-e.goods[0].w));}
    if k==43u&&e.extraction.y>.5 {in_use=min(e.goods[10].w,max(0.,s.stock.x*MIN_WORK_TOOLS_KG_PER_PERSON-e.goods[0].w-e.goods[10].y)/COPPER_TOOL_SERVICE_FACTOR);}
    if k==7u{in_use=min(e.goods[k/4u][k%4u],s.stock.x*POTTERY_IN_USE_KG_PER_PERSON);}
-   if k==18u{in_use=min(e.goods[k/4u][k%4u],s.stock.x*CLOTH_IN_USE_KG_PER_PERSON);rate=CLOTH_MONTHLY_WEAR;}
+   if k==18u && (p.options.w&8u)==0u{in_use=min(e.goods[k/4u][k%4u],s.stock.x*CLOTH_IN_USE_KG_PER_PERSON);rate=CLOTH_MONTHLY_WEAR;}
    if k==20u{in_use=min(e.goods[k/4u][k%4u],s.stock.x*LEATHER_IN_USE_KG_PER_PERSON);rate=LEATHER_MONTHLY_WEAR;}
    if k==22u||k==23u{in_use=min(e.goods[k/4u][k%4u],s.stock.x*MILITARY_EQUIPMENT_IN_USE_KG_PER_PERSON);rate=MILITARY_EQUIPMENT_MONTHLY_WEAR;}
   }

@@ -94,9 +94,12 @@ struct Args {
     /// Cap workshop shifts by current recipe demand; preserves old policy if omitted.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     demand_workshop_staffing: Option<bool>,
-    /// Allow local sole-descendant inheritance of vacant household estates.
+    /// Allow local recorded-descendant inheritance of vacant household estates.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     household_estate_inheritance: Option<bool>,
+    /// Purchase household cloth from finite town stocks after protecting food cash.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    household_clothing: Option<bool>,
     /// Review unclaimed household cash using delivered named office work.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     household_estate_reclamation: Option<bool>,
@@ -219,6 +222,7 @@ fn main() -> Result<()> {
                 && args.contract_workshop_staffing.is_none()
                 && args.demand_workshop_staffing.is_none()
                 && args.household_estate_inheritance.is_none()
+                && args.household_clothing.is_none()
                 && args.household_estate_reclamation.is_none()
                 && args.abandoned_stock_recovery.is_none()
                 && args.named_office_service.is_none()
@@ -475,6 +479,17 @@ fn main() -> Result<()> {
             .context("demand workshop staffing requires enterprises")?
             .procurement
             .demand_staffing = enabled;
+    }
+    if let Some(enabled) = args.household_clothing {
+        generator
+            .civilizations
+            .as_mut()
+            .context("clothing requires history")?
+            .society
+            .as_mut()
+            .and_then(|s| s.household_economy.as_mut())
+            .context("clothing requires household accounts")?
+            .clothing_enabled = enabled;
     }
     if let Some(enabled) = args.household_estate_inheritance {
         generator

@@ -1511,6 +1511,7 @@ impl Generator {
         h.housing_events();
         h.waterworks_events();
         h.settle_household_retail(retail);
+        h.settle_household_clothing();
         h.reclaim_household_estates();
         let elapsed = production_started.elapsed().as_secs_f64() * 1000.;
         Ok(elapsed)
@@ -1965,7 +1966,8 @@ impl Engine {
                 (g.config.solar_scale * g.config.crop_yield_scale).to_bits(),
                 u32::from(h.society.is_some())
                     | (u32::from(h.living.is_some()) << 1)
-                    | (u32::from(h.individual_demography_enabled() || h.resolution.is_some()) << 2),
+                    | (u32::from(h.individual_demography_enabled() || h.resolution.is_some()) << 2)
+                    | (u32::from(h.household_clothing_active()) << 3),
                 weather.drought_probability.to_bits(),
                 weather.drought_severity.to_bits(),
                 weather.regime_months,

@@ -20,6 +20,14 @@ def household_flows(accounts):
             for field in HOUSEHOLD_FLOW_FIELDS}
 
 
+def clothing_report(economy, accounts):
+    if any("wardrobe" not in a for a in accounts) or "clothing_enabled" not in economy:
+        return None
+    return dict(enabled=economy["clothing_enabled"],
+                **{k: sum(a["wardrobe"][k] for a in accounts)
+                   for k in ("cloth_kg", "purchased_kg", "worn_kg", "spending")})
+
+
 def extraction_evidence(history, site):
     """Monthly GPU allowances are not the canonical deposit inventory."""
     sources = (history.get('resources') or {}).get('sources', {})
@@ -121,6 +129,7 @@ def audit(history):
         'initial_cash': initial, 'issued_cash': issued, 'cash': cash,
         'cash_total': sum(cash.values()),
         'food_requests': food_requests(history),
+        'household_clothing': clothing_report(economy, accounts),
         'household_cumulative_flows': household_flows(accounts),
         'relative_money_residual': (initial + issued - sum(cash.values())) / max(initial + issued, 1),
         'sites': [{
