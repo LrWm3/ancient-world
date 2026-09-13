@@ -245,6 +245,25 @@ impl Planner<'_> {
             self.request(g, needed / service);
         }
     }
+    /// Retain useful held substitutes before ordering the remaining tool service.
+    /// Targets protect that stock from sale; counting coverage alone does not.
+    fn tools(&mut self, selected: usize, service_needed: f32, alloys: bool) {
+        let mut missing = service_needed.max(0.);
+        for (good, service) in [(3, 1.), (41, 1.), (43, COPPER_TOOL_SERVICE_FACTOR)] {
+            if good != 3 && !alloys {
+                continue;
+            }
+            let retained = self.available[good].min(missing / service);
+            self.request(good, retained);
+            missing = (missing - retained * service).max(0.);
+        }
+        let service = if selected == 43 {
+            COPPER_TOOL_SERVICE_FACTOR
+        } else {
+            1.
+        };
+        self.request(selected, missing / service);
+    }
     fn construction_quote(&self, e: &crate::economy::Economy) -> crate::economy::Economy {
         let mut quote = *e;
         for g in 0..GOODS {
@@ -512,19 +531,10 @@ impl History {
                 } else {
                     3
                 };
-                let covered: f32 = [(3, 1.), (41, 1.), (43, COPPER_TOOL_SERVICE_FACTOR)]
-                    .into_iter()
-                    .filter(|(k, _)| *k != selected && (*k == 3 || e.extraction[1] > 0.5))
-                    .map(|(k, efficiency)| planner.available[k] * efficiency)
-                    .sum();
-                replacement.request(
+                replacement.tools(
                     selected,
-                    (pop * MIN_WORK_TOOLS_KG_PER_PERSON - covered).max(0.)
-                        / if selected == 43 {
-                            COPPER_TOOL_SERVICE_FACTOR
-                        } else {
-                            1.
-                        },
+                    pop * MIN_WORK_TOOLS_KG_PER_PERSON,
+                    e.extraction[1] > 0.5,
                 );
             }
             if let Some(methods) = &catalog.materials {
@@ -568,22 +578,7 @@ impl History {
                     } else {
                         k
                     };
-                    let other: [(usize, f32); 3] =
-                        [(k, 1.), (41, 1.), (43, COPPER_TOOL_SERVICE_FACTOR)];
-                    let covered: f32 = other
-                        .iter()
-                        .filter(|(i, _)| *i != selected)
-                        .map(|(i, eff)| planner.available[*i] * eff)
-                        .sum();
-                    planner.request(
-                        selected,
-                        (desired - covered).max(0.)
-                            / if selected == 43 {
-                                COPPER_TOOL_SERVICE_FACTOR
-                            } else {
-                                1.
-                            },
-                    );
+                    planner.tools(selected, desired, true);
                 } else {
                     planner.request(k, pop * reserve(&g.id));
                 }
@@ -1080,6 +1075,38 @@ mod tests {
         }
         assert!(kiln.targets[50] > 0.);
         assert!(kiln.orders.iter().sum::<f32>() > 0.);
+    }
+    #[test]
+    fn held_tool_substitutes_remain_targeted_without_duplicate_production() {
+        let c = EconomyCatalog::bundled().unwrap();
+        let mut p = planner(&c);
+        p.available[3] = 2.;
+        p.available[41] = 3.;
+        p.available[43] = 20.;
+        p.tools(3, 10., true);
+        assert_eq!(p.targets[3], 2.);
+        assert_eq!(p.targets[41], 3.);
+        assert!((p.targets[43] * COPPER_TOOL_SERVICE_FACTOR - 5.).abs() < 1e-5);
+        assert_eq!(p.orders, [0.; GOODS]);
+        assert!(p.available[43] > 0., "excess tools remain tradable");
+        let retained_service =
+            p.targets[3] + p.targets[41] + p.targets[43] * COPPER_TOOL_SERVICE_FACTOR;
+        assert!((retained_service - 10.).abs() < 1e-5);
+        // A second independent use cannot claim the already reserved substitutes.
+        let before = p.available[43];
+        p.tools(3, 1., true);
+        assert!((before - p.available[43] - 1. / COPPER_TOOL_SERVICE_FACTOR).abs() < 1e-5);
+        let mut disabled = planner(&c);
+        disabled.available[43] = 20.;
+        disabled.tools(3, 10., false);
+        assert_eq!(disabled.targets[43], 0.);
+        assert_eq!(disabled.targets[3], 10.);
+        assert!(disabled.orders.iter().sum::<f32>() > 0.);
+        let mut short = planner(&c);
+        short.available[43] = 2.;
+        short.tools(3, 10., true);
+        assert_eq!(short.targets[43], 2.);
+        assert!((short.targets[3] - (10. - 2. * COPPER_TOOL_SERVICE_FACTOR)).abs() < 1e-5);
     }
     #[test]
     fn orders_follow_inputs_and_existing_deliveries_prevent_duplicate_work() {

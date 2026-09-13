@@ -206,3 +206,14 @@ of food/goods but leave operator work unchanged and slightly reduce endpoint
 population. The access restriction was real; relaxing it alone is not an economic
 solution. Review downstream input targets and material substitution next, while
 retaining the separate household purchasing-power and firm viability workstreams.
+
+
+### Useful tool reserves
+
+[Tool substitution retention](tool-substitution-retention.md) fixes an inconsistency:
+held alloy tools covered service demand without receiving reserve targets, leaving
+them unprotected by the existing export reserve fraction. Six planner tests and
+the GPU finite-tool/checkpoint fixture pass. Four seed-1024 runs show more completed
+operator work and a modest margin increase, but all firms still close by year 50.
+Imported substitute selection, sustained firm demand and household purchasing-power
+circulation remain unfinished; this correction is not a workshop viability claim.
