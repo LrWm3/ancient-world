@@ -12,6 +12,51 @@ struct Cell {
  strata: vec4<f32>, // top, middle, basement thickness m; cumulative bedrock removed m
 }
 struct Params { dims:vec4<u32>, physical:vec4<f32>, counts:vec4<u32>, aux:vec4<u32>, tuning:vec4<f32> }
+// Initial terrain, water and biological stocks.
+const INITIAL_GREAT_LAKE_LEVEL_M:f32=120.;
+const INITIAL_GREAT_LAKE_SALINITY:f32=.05;
+const INITIAL_TERRAIN_NOISE_FREQUENCY:f32=9.;
+const INITIAL_RIDGE_FREQUENCY:f32=24.;
+const INITIAL_RIDGE_WARP_FREQUENCY:f32=8.;
+const INITIAL_RIDGE_WARP_AMPLITUDE:f32=2.;
+const INITIAL_RIDGE_EXPONENT:f32=3.;
+const INITIAL_DETAIL_MAX_FREQUENCY:f32=100.;
+const INITIAL_DETAIL_RESOLUTION_SCALE:f32=.4;
+const INITIAL_LAND_BASE_M:f32=250.;
+const INITIAL_LAND_RELIEF_M:f32=850.;
+const INITIAL_MOUNTAIN_STRESS_EXPONENT:f32=2.;
+const INITIAL_MOUNTAIN_BASE_M:f32=500.;
+const INITIAL_MOUNTAIN_RIDGE_HEIGHT_M:f32=3300.;
+const INITIAL_DETAIL_HEIGHT_M:f32=220.;
+const INITIAL_OCEAN_BED_M:f32=-3800.;
+const INITIAL_OCEAN_RELIEF_M:f32=1800.;
+const INITIAL_LAKE_SHELF_WIDTH_RAD:f32=.16;
+const INITIAL_LAKE_SHELF_BED_M:f32=60.;
+const INITIAL_DEEP_LAKE_BED_M:f32=-6000.;
+const INITIAL_LAKE_BED_RELIEF_M:f32=1200.;
+const INITIAL_SOIL_BASE_M:f32=.2;
+const INITIAL_CRUST_AGE_FREQUENCY:f32=7.;
+const INITIAL_MAX_CRUST_AGE_MYR:f32=1500.;
+const INITIAL_EQUATOR_TEMPERATURE_C:f32=30.;
+const INITIAL_POLE_COOLING_C:f32=60.;
+const INITIAL_RAIN_MM_YEAR:f32=800.;
+const INITIAL_VAPOR_MM:f32=20.;
+const INITIAL_WIND_M_S:f32=8.;
+const INITIAL_GROUNDWATER_M:f32=.1;
+const INITIAL_VEGETATION_COVER:f32=.2;
+const INITIAL_FERTILITY:f32=.5;
+const INITIAL_OCEAN_SALINITY:f32=35.;
+const INITIAL_RUNOFF_M_YEAR:f32=.2;
+const INITIAL_LAND_CRUST_KM:f32=35.;
+const INITIAL_OCEAN_CRUST_KM:f32=7.;
+const INITIAL_IGNEOUS_STRESS_THRESHOLD:f32=.5;
+const INITIAL_METAMORPHIC_STRESS_THRESHOLD:f32=.8;
+const INITIAL_TOP_STRATUM_BASE_M:f32=100.;
+const INITIAL_TOP_STRATUM_SPAN_M:f32=400.;
+const INITIAL_MIDDLE_STRATUM_BASE_M:f32=500.;
+const INITIAL_STRATUM_NOISE_FREQUENCY:f32=11.;
+const INITIAL_MIDDLE_STRATUM_SPAN_M:f32=2000.;
+
 // Artistic continent masks and guaranteed lake separation.
 const INNER_PLACEMENT_JITTER:f32=.18;
 const INNER_PLACEMENT_PHASE_RAD:f32=.23;
@@ -361,29 +406,29 @@ fn lithify_column(input:Cell,amount:f32,rock:u32)->Cell {
 }
 @compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn initialize(@builtin(global_invocation_id) g:vec3<u32>) {
- let i=cell_id(g);if i==0u {planet[0]=vec4(120.,.05,0.,0.);}
- let d=pos(i);let r=region(d);let pl=plate(d);let f=fbm(d*9.);
+ let i=cell_id(g);if i==0u {planet[0]=vec4(INITIAL_GREAT_LAKE_LEVEL_M,INITIAL_GREAT_LAKE_SALINITY,0.,0.);}
+ let d=pos(i);let r=region(d);let pl=plate(d);let f=fbm(d*INITIAL_TERRAIN_NOISE_FREQUENCY);
  // Broad mountain belts contain branching ridges and lower intervening valleys.
- let warped=d*24.+vec3(fbm(d*8.),fbm(d*8.+19.),fbm(d*8.+47.))*2.;
- let ridge=pow(1.-abs(noise(warped)*2.-1.),3.);
- let detail=fbm(d*min(100.,f32(p.dims.x)*.4));
- var h=250.+f*850.+pow(pl.y,2.)*(500.+3300.*ridge)+detail*220.;
- if r==0u {h=-3800.+f*1800.;} if r==1u {
-  let shelf=smoothstep(0.,.16,lake_shore_distance(d));
-  h=mix(60.,-6000.+f*1200.,shelf);
+ let warped=d*INITIAL_RIDGE_FREQUENCY+vec3(fbm(d*INITIAL_RIDGE_WARP_FREQUENCY),fbm(d*INITIAL_RIDGE_WARP_FREQUENCY+19.),fbm(d*INITIAL_RIDGE_WARP_FREQUENCY+47.))*INITIAL_RIDGE_WARP_AMPLITUDE;
+ let ridge=pow(1.-abs(noise(warped)*2.-1.),INITIAL_RIDGE_EXPONENT);
+ let detail=fbm(d*min(INITIAL_DETAIL_MAX_FREQUENCY,f32(p.dims.x)*INITIAL_DETAIL_RESOLUTION_SCALE));
+ var h=INITIAL_LAND_BASE_M+f*INITIAL_LAND_RELIEF_M+pow(pl.y,INITIAL_MOUNTAIN_STRESS_EXPONENT)*(INITIAL_MOUNTAIN_BASE_M+INITIAL_MOUNTAIN_RIDGE_HEIGHT_M*ridge)+detail*INITIAL_DETAIL_HEIGHT_M;
+ if r==0u {h=INITIAL_OCEAN_BED_M+f*INITIAL_OCEAN_RELIEF_M;} if r==1u {
+  let shelf=smoothstep(0.,INITIAL_LAKE_SHELF_WIDTH_RAD,lake_shore_distance(d));
+  h=mix(INITIAL_LAKE_SHELF_BED_M,INITIAL_DEEP_LAKE_BED_M+f*INITIAL_LAKE_BED_RELIEF_M,shelf);
  }
- var c:Cell;c.terrain=vec4(constrain(h,r),0.,.2+f,select(rand(i+7u),fbm(d*7.+113.),p.tuning.w>0.)*1500.);
- c.climate=vec4(30.-60.*abs(d.y)-max(h,0.)*.006,800.,20.,8.);
- c.water=vec4(select(0.,max(0.,select(0.,120.,r==1u)-c.terrain.x),r<2u),.1,0.,0.);
- c.life=vec4(.2,.5,select(0.,35.,r==0u),.2);
- c.geology=vec4(geological_activity(d,pl.y,r),select(35.,7.,r==0u),0.,0.);
- c.hydro=vec4(0.,c.climate.x,800.,0.);
- let formation=select(select(1u,0u,pl.y>.5),2u,pl.y>.8);
+ var c:Cell;c.terrain=vec4(constrain(h,r),0.,INITIAL_SOIL_BASE_M+f,select(rand(i+7u),fbm(d*INITIAL_CRUST_AGE_FREQUENCY+113.),p.tuning.w>0.)*INITIAL_MAX_CRUST_AGE_MYR);
+ c.climate=vec4(INITIAL_EQUATOR_TEMPERATURE_C-INITIAL_POLE_COOLING_C*abs(d.y)-max(h,0.)*CLIMATE_LAPSE_C_PER_M,INITIAL_RAIN_MM_YEAR,INITIAL_VAPOR_MM,INITIAL_WIND_M_S);
+ c.water=vec4(select(0.,max(0.,select(0.,INITIAL_GREAT_LAKE_LEVEL_M,r==1u)-c.terrain.x),r<2u),INITIAL_GROUNDWATER_M,0.,0.);
+ c.life=vec4(INITIAL_VEGETATION_COVER,INITIAL_FERTILITY,select(0.,INITIAL_OCEAN_SALINITY,r==0u),INITIAL_RUNOFF_M_YEAR);
+ c.geology=vec4(geological_activity(d,pl.y,r),select(INITIAL_LAND_CRUST_KM,INITIAL_OCEAN_CRUST_KM,r==0u),0.,0.);
+ c.hydro=vec4(0.,c.climate.x,INITIAL_RAIN_MM_YEAR,0.);
+ let formation=select(select(1u,0u,pl.y>INITIAL_IGNEOUS_STRESS_THRESHOLD),2u,pl.y>INITIAL_METAMORPHIC_STRESS_THRESHOLD);
  c.ids=vec4(province_rock(formation,d,f),0u,NONE,0u);
  if p.tuning.w>1. {c.ids.x=setting_rock(geological_setting(d,pl,h,r),d);}
  c.routing=vec4(NONE,NONE,NONE,u32(pl.x));c.tags=vec4(r,NONE,province_rock(1u,d,f+.1),province_rock(0u,d,f+.2));
  if p.tuning.w>1. {c.tags.z=setting_rock(select(4u,3u,r<2u),d);c.tags.w=setting_rock(select(2u,1u,r==0u),d);}c.budget=vec4(0.);
- c.strata=vec4(100.+f*400.,500.+fbm(d*11.+29.)*2000.,0.,0.);c.strata.z=max(0.,c.geology.y*1000.-c.strata.x-c.strata.y);
+ c.strata=vec4(INITIAL_TOP_STRATUM_BASE_M+f*INITIAL_TOP_STRATUM_SPAN_M,INITIAL_MIDDLE_STRATUM_BASE_M+fbm(d*INITIAL_STRATUM_NOISE_FREQUENCY+29.)*INITIAL_MIDDLE_STRATUM_SPAN_M,0.,0.);c.strata.z=max(0.,c.geology.y*METERS_PER_KM-c.strata.x-c.strata.y);
  dst[i]=c;
 }
 @compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)

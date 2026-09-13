@@ -227,3 +227,14 @@ seed-17 council-smoke founding checkpoint. It uses the same copied `d50bceb`
 executable; the runner revision separately records the added reporting fields.
 Raw files are under ignored `output/monetary-blocked-seed17-five-century/`.
 Seed 17 is a previously explored tuning seed, not a held-out validation case.
+
+
+Seed 17 baseline and credit arms subsequently completed: both ended at
+104.410425 residents, with 107.3590 cumulative operator work, 21,030,797 reported
+food production and 0.003960 terminal need-weighted hunger. Credit recorded 22
+underwriting rounds, all `NoCapacity`, and originated no loans. Full histories
+differ only in the credit subtree. This extends the earlier credit null result
+to 500 years; it does not establish what a successfully funded bridge would do
+in this world. Issuance and combined arms remain in progress. The baseline and
+credit elapsed times were 230.68 and 234.68 seconds with concurrent verification,
+so they are not controlled performance measurements.

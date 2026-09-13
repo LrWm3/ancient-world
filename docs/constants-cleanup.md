@@ -593,3 +593,18 @@ geography checks passed for seeds 0, 42 and 999, followed by the 30-epoch
 finite-state check. Strict all-target Clippy passed.
 Initial terrain/stratigraphy, deposit-selection and legacy ecology parameters
 remain outstanding in this shader.
+
+## Initial planet state
+
+Named 43 initial terrain, ridge, bathymetry, climate, water, vegetation and
+stratigraphic parameters in `shaders/simulation.wgsl`. Initialization shares its
+rain and great-lake-level values across the fields that describe the same stock;
+it also uses the existing lapse-rate and kilometer conversion. Independent
+initial terrain amplitudes remain separate from later artistic elevation bounds.
+Noise offsets and categorical formation/settings IDs remain inline.
+
+Literal expansion reproduces the previous expressions exactly. The declarations
+remain outside the shared `Cell` prefix. Hardware geography/long-run and strict
+all-target Clippy verification passed, including the three-seed geographic
+constraints and 30-epoch finite-state fixture. Deposit and legacy ecology parameters,
+plus remaining shared coast/basin thresholds, still require review.
