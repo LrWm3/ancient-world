@@ -1,5 +1,5 @@
 //! Snapshot-based lending proposals. No account is debited by this resolver.
-use super::{Account, Loan, RepaymentSource, Status, Terms, SHARED_CURRENCY};
+use super::{Account, Loan, RepaymentSource, Status, Terms, MONTHS_PER_YEAR, SHARED_CURRENCY};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -11,7 +11,6 @@ const MAX_BORROWER_PRINCIPAL: f64 = 5000.;
 const MAX_LENDER_PRINCIPAL: f64 = 5000.;
 const MAX_EXPECTED_LOSS_FRACTION: f64 = 0.25;
 const DEFAULT_CREDIT_EXCLUSION_MONTHS: u32 = 60;
-const MONTHS_PER_YEAR: f64 = 12.;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Policy {

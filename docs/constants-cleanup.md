@@ -462,3 +462,11 @@ The wider cleanup remains open for the other core shaders.
 Verification of the shared-priority change: both ration tests (including hardware)
 and the full GPU plot-reservation/recipe conservation fixture passed. Strict
 all-target Clippy passed. The values and resulting policy are unchanged.
+
+## Credit calendar conversion
+
+Underwriting and the new restructuring resolver now use the owning credit module's
+existing `MONTHS_PER_YEAR` constant. Removed duplicate declarations of this shared
+conversion; rates, term arithmetic and numeric types remain unchanged. Independent
+operating-reserve and policy-duration values are not merged merely because they
+also happen to be twelve.
