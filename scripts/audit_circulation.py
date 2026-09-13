@@ -80,6 +80,8 @@ def audit(history):
             'vacant_household_cash': sum(r['cash'] for r in households_by_site.get(s['id'], []) if r['vacant_since'] is not None),
         } for s in sites],
         'retained_households': retained, 'operators': firms,
+        'inheritance_transfers': len(economy.get('inheritance', {}).get('receipts', [])),
+        'inherited_cash': sum(r['cash'] for r in economy.get('inheritance', {}).get('receipts', [])),
         'limitations': [
             'Endpoint balances do not establish why money accumulated.',
             'Vacancy means no eligible representative, not necessarily no beneficiaries.',

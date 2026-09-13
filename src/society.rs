@@ -538,7 +538,7 @@ impl Society {
                                 None => p.died.is_none(),
                             })
                         && f.share.is_finite()
-                        && f.share > 0.
+                        && f.share >= 0.
                         && f.founded <= h.month
                         && f.parent.is_none_or(|p| p < f.id)),
             "invalid household or lineage"

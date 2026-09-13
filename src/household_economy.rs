@@ -4,6 +4,7 @@ use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 pub mod council_allocation;
 mod family_support;
+pub mod inheritance;
 mod nutrition;
 pub mod policy;
 pub use family_support::{FamilyGift, FamilySupportPolicy};
@@ -57,6 +58,10 @@ pub struct HouseholdAccount {
     pub family_received: f64,
     #[serde(default)]
     pub family_sent: f64,
+    #[serde(default)]
+    pub inheritance_received: f64,
+    #[serde(default)]
+    pub inheritance_paid: f64,
     pub cash: f64,
     pub wages: f64,
     #[serde(default)]
@@ -102,6 +107,8 @@ impl FoundingAccess {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HouseholdEconomy {
+    #[serde(default)]
+    pub inheritance: inheritance::Inheritance,
     #[serde(default)]
     pub council_allocation: council_allocation::Policy,
     #[serde(default)]
@@ -152,6 +159,7 @@ fn nutrition_enabled() -> bool {
 impl HouseholdEconomy {
     pub fn new(month: u32) -> Self {
         Self {
+            inheritance: inheritance::Inheritance::default(),
             council_allocation: council_allocation::Policy::default(),
             council_allocations: vec![],
             political_distribution: true,
@@ -214,6 +222,7 @@ impl HouseholdEconomy {
         );
         council_allocation::validate(&self.council_allocations, h)?;
         family_support::validate(self, h)?;
+        inheritance::validate(self, h)?;
         for a in &self.accounts {
             ensure!(
                 a.livelihood.is_none_or(|weights| weights
@@ -228,6 +237,8 @@ impl HouseholdEconomy {
                     a.credit_principal_received,
                     a.credit_interest_received,
                     a.legal_compensation_received,
+                    a.inheritance_received,
+                    a.inheritance_paid,
                     a.family_received,
                     a.family_sent,
                     a.capital_invested,
@@ -256,10 +267,8 @@ impl HouseholdEconomy {
                 "invalid household food allocation"
             );
             ensure!(
-                (a.cash
-                    - a.wages
-                    - a.dividends
-                    - a.relief
+                (a.cash - a.wages - a.dividends - a.relief - a.inheritance_received
+                    + a.inheritance_paid
                     - a.family_received
                     - a.legal_compensation_received
                     - a.credit_principal_received
@@ -278,6 +287,8 @@ impl HouseholdEconomy {
                             + a.legal_compensation_received
                             + a.credit_principal_received
                             + a.credit_interest_received
+                            + a.inheritance_received
+                            + a.inheritance_paid
                             + a.family_received
                             + a.family_sent
                             + a.capital_invested
@@ -377,6 +388,7 @@ impl History {
             .get(id as usize)
     }
     pub(crate) fn prepare_household_retail(&mut self) -> Vec<RetailPlan> {
+        self.inherit_household_estates();
         for s in &mut self.sites {
             s.demography.household_food = [0.; 4];
         }

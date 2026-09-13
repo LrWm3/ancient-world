@@ -29,7 +29,7 @@ impl super::state::Credit {
         self.account_has_debt(Account::Operator(id))
     }
 
-    pub(super) fn account_has_debt(&self, account: Account) -> bool {
+    pub(crate) fn account_has_debt(&self, account: Account) -> bool {
         self.loans.iter().any(|loan| {
             loan.terms.borrower == account
                 && (matches!(loan.status, Status::Performing | Status::Arrears)

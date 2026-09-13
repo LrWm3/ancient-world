@@ -237,6 +237,8 @@ def main():
                         help="add credit and combined arms with late-export recovery enabled")
     parser.add_argument("--service-order-procurement", action="store_true",
                         help="hold funded procurement on in every arm; add service lending in credit arms")
+    parser.add_argument("--household-estate-inheritance", action="store_true",
+                        help="allow local sole-descendant estate transfers in every arm")
     parser.add_argument("--demand-workshop-staffing", action="store_true",
                         help="cap workshop shifts against current recipe orders in every arm")
     parser.add_argument("--contract-workshop-staffing", action="store_true",
@@ -285,6 +287,7 @@ def main():
         "service_order_procurement": args.service_order_procurement,
         "contract_workshop_staffing": args.contract_workshop_staffing,
         "demand_workshop_staffing": args.demand_workshop_staffing,
+        "household_estate_inheritance": args.household_estate_inheritance,
         "service_procurement_share_override": args.service_procurement_share,
         "compare_export_recovery": args.compare_export_recovery,
         "compare_institution_lenders": args.compare_institution_lenders,
@@ -304,6 +307,7 @@ def main():
                        f"--service-order-procurement={str(args.service_order_procurement).lower()}",
                        f"--contract-workshop-staffing={str(args.contract_workshop_staffing).lower()}",
                        f"--demand-workshop-staffing={str(args.demand_workshop_staffing).lower()}",
+                       f"--household-estate-inheritance={str(args.household_estate_inheritance).lower()}",
                        f"--service-order-credit={str(credit and args.service_order_procurement).lower()}",
                        f"--council-credit={str(credit).lower()}",
                        f"--shared-issuance={str(issuance).lower()}",
