@@ -801,6 +801,17 @@ pub struct Cargo {
     #[serde(default)]
     pub weather_delay_months: u32,
 }
+/// Quote support is an intention, not a transfer. Private food budgets cannot
+/// finance municipal material orders, and savings above monthly need are idle.
+fn quote_budget(town_cash: f32, food_budget: f32, order: f32, total: f32, good: usize) -> f32 {
+    town_cash.max(0.) * order / total.max(MIN_PURCHASE_DENOMINATOR_MONEY)
+        + if good == FOOD { food_budget.max(0.) } else { 0. }
+}
+
+fn household_food_budget(cash: f64, need: f64, common: f64, price: f32) -> f32 {
+    cash.max(0.).min((need - common).max(0.) * f64::from(price)) as f32
+}
+
 /// Partial price adjustment: inventory pressure plus separately observed costs/prices.
 /// Rate limits bound adjustment speed, not a multiple of the catalog's base price.
 fn adaptive_quote(
@@ -1305,15 +1316,22 @@ impl History {
         } else {
             vec![]
         };
-        let mut purchasing: Vec<f32> = self.sites.iter().map(|s| s.economy.finance[0]).collect();
+        let mut household_food = vec![0.; self.sites.len()];
         if let Some(society) = &self.society {
             if let Some(wallets) = &society.household_economy {
                 for hh in &society.households {
                     if !society.relocation.away(hh.id) {
-                        purchasing[hh.site as usize] += wallets
-                            .accounts
-                            .get(hh.id as usize)
-                            .map_or(0., |a| a.cash as f32);
+                        if let Some(a) = wallets.accounts.get(hh.id as usize) {
+                            // Last completed dietary allocation forecasts one coming
+                            // month. Do not count a moved household's old-site needs.
+                            if a.food_site == Some(hh.site) {
+                                household_food[hh.site as usize] += household_food_budget(
+                                    a.cash, a.need, a.common_food,
+                                    self.sites[hh.site as usize].economy.prices[FOOD]
+                                        .max(MIN_PRICE_MONEY_PER_KG),
+                                );
+                            }
+                        }
                     }
                 }
             }
@@ -1390,8 +1408,8 @@ impl History {
                         target,
                         costs[s.id as usize][k],
                         (trade[1] > 0.).then(|| (trade[0] / trade[1]) as f32),
-                        purchasing[s.id as usize] * quote_orders[s.id as usize][k]
-                            / order_total.max(MIN_PURCHASE_DENOMINATOR_MONEY),
+                        quote_budget(s.economy.finance[0], household_food[s.id as usize],
+                            quote_orders[s.id as usize][k], order_total, k),
                         good.base_price,
                     );
                     continue;
@@ -1780,6 +1798,25 @@ pub mod slots {
 #[cfg(test)]
 mod freight_tests {
     use super::*;
+    #[test]
+    fn private_food_budgets_do_not_finance_industrial_quotes() {
+        let food = household_food_budget(10000., 20., 5., 2.);
+        assert_eq!(food, 30.);
+        assert_eq!(household_food_budget(4., 20., 5., 2.), 4.);
+        assert_eq!(household_food_budget(10000., 20., 20., 2.), 0.);
+        assert_eq!(household_food_budget(10000., 0., 0., 2.), 0.);
+        let industrial = quote_budget(10., food, 50., 100., 2);
+        assert_eq!(industrial, 5.);
+        assert_eq!(industrial, quote_budget(10., 0., 50., 100., 2));
+        assert_eq!(quote_budget(10., food, 50., 100., FOOD), 35.);
+        assert_eq!(quote_budget(0., food, 50., 100., 2), 0.);
+        assert_eq!(quote_budget(10., food, 0., 0., 2), 0.);
+        // Savings cannot lift a metal quote; an actual municipal budget can.
+        let quote = |budget| adaptive_quote(10., 0., 10., None, None, budget, 10.);
+        assert_eq!(quote(industrial), quote(quote_budget(10., 0., 50., 100., 2)));
+        assert!(quote(quote_budget(100., food, 50., 100., 2)) > quote(industrial));
+    }
+
     #[test]
     #[ignore = "requires hardware GPU"]
     fn in_transit_land_freight_reserves_capacity_and_buyers_find_another_supplier() {

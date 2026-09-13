@@ -274,3 +274,13 @@ margins become positive in all three; total output and welfare remain mixed.
 [Service-aware hiring](workshop-service-hiring.md) records the full before/after
 results and the remaining circulation/throughput questions. This does not complete
 the broader economic recovery objective.
+
+### Quote demand follows account ownership
+
+Adaptive quotes no longer distribute household savings across municipal material
+orders. Household support is capped to a monthly food budget; town cash retains
+its own order basket. Focused tests and continuation checks pass. The matched
+three-seed comparison produces lower material quotes and still-positive operator
+margins, but lower populations and mixed hunger. See
+[ownership-aware quote demand](market-demand-ownership.md). This is an accounting
+of plausible buyers, not evidence that cheap nominal quotes solve circulation.
