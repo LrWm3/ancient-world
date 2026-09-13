@@ -47,6 +47,8 @@ const MIN_IDLE_FUNDED_WORK: f64 = 0.01;
 
 pub(crate) const SERVICE_QUOTE_MULTIPLIER: f64 = 1.25;
 
+pub mod orders;
+
 /// Posted next-month labor offer; service prices remain independent of wage bids.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WagePolicy {
@@ -153,6 +155,8 @@ pub struct Firm {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Enterprises {
+    #[serde(default)]
+    pub orders: Vec<orders::ServiceOrder>,
     pub enabled: bool,
     pub firms: Vec<Firm>,
 }
@@ -160,12 +164,14 @@ impl Default for Enterprises {
     fn default() -> Self {
         Self {
             enabled: true,
+            orders: vec![],
             firms: vec![],
         }
     }
 }
 impl Enterprises {
     pub fn validate(&self, h: &History) -> Result<()> {
+        orders::validate(self, h)?;
         let mut occupied = BTreeSet::new();
         for (i, f) in self.firms.iter().enumerate() {
             if let Some(p) = &f.wage_policy {
@@ -362,7 +368,16 @@ impl History {
             .as_ref()
             .map(|e| e.firms.as_slice())
             .unwrap_or(&[]);
-        serde_json::json!({"enabled":self.enterprises.as_ref().is_some_and(|e|e.enabled),
+        let orders = self
+            .enterprises
+            .as_ref()
+            .map(|e| e.orders.as_slice())
+            .unwrap_or(&[]);
+        serde_json::json!({"service_orders": orders.len(),
+            "service_escrow": orders.iter().map(|o| o.escrow).sum::<f64>(),
+            "service_order_paid": orders.iter().map(|o| o.paid).sum::<f64>(),
+            "service_order_refunded": orders.iter().map(|o| o.refunded).sum::<f64>(),
+            "enabled":self.enterprises.as_ref().is_some_and(|e|e.enabled),
             "founded":firms.len(),"active":firms.iter().filter(|f|f.closed.is_none()).count(),
             "closed":firms.iter().filter(|f|f.closed.is_some()).count(),
             "cash":firms.iter().map(|f|f.cash).sum::<f64>(),
@@ -764,13 +779,14 @@ impl History {
             self.enterprises = Some(enterprises);
             return;
         };
+        let (covered, earned) = orders::settle(&mut enterprises, &mut self.sites, self.month);
         let mut invoices = vec![0.; self.sites.len()];
         for f in enterprises.firms.iter_mut().filter(|f| f.closed.is_none()) {
             let work =
                 self.sites[f.site as usize].economy.enterprise_used[f.family as usize] as f64;
             f.last_completed_work = work;
             f.completed_work += work;
-            invoices[f.site as usize] += work
+            invoices[f.site as usize] += (work - covered[f.id as usize]).max(0.)
                 * f.service_rate
                     .unwrap_or(f.wage_rate * SERVICE_QUOTE_MULTIPLIER);
         }
@@ -801,7 +817,7 @@ impl History {
             .filter(|(_, f)| f.closed.is_none())
         {
             let site = f.site as usize;
-            let invoice = f.last_completed_work
+            let invoice = (f.last_completed_work - covered[f.id as usize]).max(0.)
                 * f.service_rate
                     .unwrap_or(f.wage_rate * SERVICE_QUOTE_MULTIPLIER);
             let received = if invoices[site] <= 0. {
@@ -812,9 +828,10 @@ impl History {
                 (funds[site] * invoice / invoices[site]).min(remaining[site])
             };
             remaining[site] -= received;
+            f.written_off += (invoice - received).max(0.);
+            let received = received + earned[f.id as usize];
             f.cash += received;
             f.revenue += received;
-            f.written_off += (invoice - received).max(0.);
             let surplus = distributable_profit(f);
             f.cash -= surplus;
             f.dividends += surplus;
@@ -1350,6 +1367,105 @@ mod tests {
         let mut corrupted = h.clone();
         corrupted.credit.cash_receipts.remove(0);
         assert!(corrupted.validate_credit().is_err());
+    }
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn funded_service_orders_pay_completed_work_and_refund_without_double_invoicing() {
+        let mut g = world();
+        install(&mut g);
+        let h = g.civilizations.as_mut().unwrap();
+        h.month = 3;
+        h.begin_service_reservations();
+        h.prepare_enterprises();
+        h.settle_enterprises();
+        let firm = h
+            .enterprises
+            .as_ref()
+            .unwrap()
+            .firms
+            .iter()
+            .find(|f| f.closed.is_none())
+            .unwrap()
+            .id;
+        let site = h.enterprises.as_ref().unwrap().firms[firm as usize].site as usize;
+        // Existing town cash funds the fee; this is not an arrival import.
+        let transfer = withdraw(&mut h.sites[1].economy.finance[0], 100.);
+        let added = deposit(&mut h.sites[site].economy.finance[0], transfer);
+        h.society.as_mut().unwrap().councils[0].treasury += transfer - added;
+        let money = h.money_residual();
+        let before = serde_json::to_value(&*h).unwrap();
+        for (work, due) in [(f64::NAN, 4), (0., 4), (1., 3), (1., 16)] {
+            assert!(h.fund_workshop_order(firm, work, due).is_err());
+            assert_eq!(before, serde_json::to_value(&*h).unwrap());
+        }
+        let id = h.fund_workshop_order(firm, 0.01, 4).unwrap();
+        assert!(h.fund_workshop_order(firm, 0.01, 4).is_err());
+        assert!((h.money_residual() - money).abs() < 1e-7);
+        let posted = h.clone();
+        for fraction in [0., 0.5, 1.] {
+            let mut world = posted.clone();
+            world.month = 4;
+            world.begin_service_reservations();
+            world.prepare_enterprises();
+            let order = &world.enterprises.as_ref().unwrap().orders[id as usize];
+            let work = order.funded_work * fraction;
+            let family = world.enterprises.as_ref().unwrap().firms[firm as usize].family as usize;
+            assert!(
+                world.enterprises.as_ref().unwrap().firms[firm as usize].last_funded_work >= work
+            );
+            world.sites[site].economy.enterprise_used[family] = work as f32;
+            // Production completion is an explicit fixture; this tests fee
+            // settlement, not whether the GPU manufactured goods for that work.
+            let revenue = world.enterprises.as_ref().unwrap().firms[firm as usize].revenue;
+            let mut resumed: History =
+                serde_json::from_value(serde_json::to_value(&world).unwrap()).unwrap();
+            world.settle_enterprises();
+            resumed.settle_enterprises();
+            assert_eq!(
+                serde_json::to_value(&world).unwrap(),
+                serde_json::to_value(&resumed).unwrap()
+            );
+            let enterprises = world.enterprises.as_ref().unwrap();
+            let order = &enterprises.orders[id as usize];
+            assert_eq!(order.settled, Some(4));
+            assert!((order.paid - order.completed_work * order.price_per_work).abs() < 1e-9);
+            assert!((enterprises.firms[firm as usize].revenue - revenue - order.paid).abs() < 1e-5);
+            assert!((order.funded - order.paid - order.refunded - order.escrow).abs() < 1e-9);
+            enterprises.validate(&world).unwrap();
+            assert!((world.money_residual() - money).abs() < 1e-6);
+            let mut corrupt = world.clone();
+            corrupt.enterprises.as_mut().unwrap().orders[id as usize].escrow += 1.;
+            assert!(corrupt
+                .enterprises
+                .as_ref()
+                .unwrap()
+                .validate(&corrupt)
+                .is_err());
+        }
+        for abandoned in [false, true] {
+            let mut cancelled = posted.clone();
+            cancelled.month = 4;
+            if abandoned {
+                cancelled.sites[site].abandoned = true;
+            } else {
+                cancelled.enterprises.as_mut().unwrap().firms[firm as usize].closed = Some(4);
+            }
+            cancelled.settle_enterprises();
+            let order = &cancelled.enterprises.as_ref().unwrap().orders[id as usize];
+            assert_eq!(order.paid, 0.);
+            assert_eq!(order.settled, Some(4));
+            assert!((order.funded - order.refunded - order.escrow).abs() < 1e-9);
+            assert!((cancelled.money_residual() - money).abs() < 1e-6);
+        }
+        // Missing the contracted month cannot pay for unrelated later work.
+        let mut late = posted.clone();
+        late.month = 5;
+        late.settle_enterprises();
+        let order = &late.enterprises.as_ref().unwrap().orders[id as usize];
+        assert_eq!(order.paid, 0.);
+        assert_eq!(order.settled, Some(5));
+        assert!((late.money_residual() - money).abs() < 1e-6);
     }
 
     fn world() -> Generator {

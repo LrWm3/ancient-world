@@ -75,9 +75,10 @@ delivery should close their evidence gaps before expanding the monetary model:
    issued is not itself a successful outcome.
 2. **Make commercial repayment sources concrete.** Finish delivery-proceeds
    comparisons, including delayed and lost cargo. For workshop operators, first
-   introduce a genuinely funded service order with an owner, payment milestone
-   and reserved payer cash; a generic repayment-source label does not establish
-   that an order or its funding exists.
+   use the new [funded service-order foundation](workshop-service-orders.md),
+   then add automatic procurement and source-specific underwriting. The explicit
+   order API now reserves payer cash and settles completed work; that alone does
+   not establish automatic loan requests or credit-financed production.
 3. **Test lender costs as well as borrower benefits.** Compare council and
    institutional lending reserves. Measure maintenance, paid administration and
    service shortfalls alongside interest and defaults. A reserve policy that

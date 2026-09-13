@@ -718,3 +718,11 @@ month/loyalty responses. It preserves repayment-source operating costs, compares
 disabled credit, insolvent receipts and absent contact, and checks disbursement
 replay and monetary conservation. Administrative payroll is a payment to the town;
 this is not yet proof of additional named work or a positive long-run balance gate.
+
+## Workshop service-order payment foundation
+
+[Funded service orders](workshop-service-orders.md) now give an explicit caller
+a real dated town-to-operator contract. Escrow joins the canonical monetary
+inventory; completed work earns its fixed fee, ordinary invoices exclude covered
+work, and unfinished/cancelled fees refund to the payer. Automatic procurement,
+loan requests against these orders, and full production comparisons remain open.

@@ -940,10 +940,10 @@ impl History {
                 goods_scale[k] += e.initial[k] as f64 + e.made[k] as f64;
             }
         }
-        money += self
-            .enterprises
-            .as_ref()
-            .map_or(0., |e| e.firms.iter().map(|f| f.cash).sum::<f64>());
+        money += self.enterprises.as_ref().map_or(0., |e| {
+            e.firms.iter().map(|f| f.cash).sum::<f64>()
+                + e.orders.iter().map(|o| o.escrow).sum::<f64>()
+        });
         let restricted_tools: f64 = self.experimental_tool_reserves.values().sum();
         goods[3] -= restricted_tools;
         for (k, held) in held.iter_mut().enumerate() {
