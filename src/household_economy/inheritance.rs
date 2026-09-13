@@ -28,7 +28,7 @@ pub struct Receipt {
 }
 
 /// Stop at living descendants; a living child's children do not compete with it.
-/// Multiple living branches remain unresolved in this first local policy.
+/// The local policy divides equally among the resulting recorded descendants.
 fn heirs(root: u32, children: &BTreeMap<u32, Vec<u32>>, living: &BTreeSet<u32>) -> BTreeSet<u32> {
     let mut seen = BTreeSet::from([root]);
     let mut queue = children.get(&root).cloned().unwrap_or_default();
@@ -57,6 +57,7 @@ pub(super) fn validate(economy: &super::HouseholdEconomy, h: &History) -> Result
     let mut paid = vec![0.; economy.accounts.len()];
     let mut received = paid.clone();
     let mut seen = BTreeSet::new();
+    let mut case_shares = BTreeMap::<(u32, u32), f64>::new();
     for r in &economy.inheritance.receipts {
         ensure!(
             r.month <= economy.inheritance.processed_month.unwrap_or(0)
@@ -71,8 +72,14 @@ pub(super) fn validate(economy: &super::HouseholdEconomy, h: &History) -> Result
                 && r.protected_food_cash >= 0.
                 && r.share.is_finite()
                 && (0. ..=1. + super::BALANCE_TOLERANCE).contains(&r.share)
-                && seen.insert((r.month, r.estate)),
+                && seen.insert((r.month, r.estate, r.heir)),
             "invalid inheritance receipt"
+        );
+        let shares = case_shares.entry((r.month, r.estate)).or_default();
+        *shares += r.share;
+        ensure!(
+            *shares <= 1. + super::BALANCE_TOLERANCE,
+            "inheritance overallocates ownership"
         );
         paid[r.estate as usize] += r.cash;
         received[r.beneficiary as usize] += r.cash;
@@ -90,7 +97,7 @@ pub(super) fn validate(economy: &super::HouseholdEconomy, h: &History) -> Result
 
 impl History {
     /// Before retail, once per month. Gather claims before committing transfers.
-    /// Only local sole-descendant claims qualify; no remote wealth teleportation.
+    /// All recorded heirs must be local and eligible; no remote wealth teleportation.
     pub(crate) fn inherit_household_estates(&mut self) {
         let Some(society) = &self.society else {
             return;
@@ -137,29 +144,36 @@ impl History {
                 continue;
             }
             let candidates = heirs(estate.head, &children, &living);
-            if candidates.len() != 1 {
+            if candidates.is_empty() {
                 continue;
             }
-            let heir = *candidates.first().unwrap();
-            let Some((Some(beneficiary), Presence::Resident(site))) = presences.get(heir as usize)
-            else {
+            let beneficiaries: Option<Vec<_>> = candidates
+                .iter()
+                .map(|&heir| {
+                    let (Some(beneficiary), Presence::Resident(site)) =
+                        presences.get(heir as usize)?
+                    else {
+                        return None;
+                    };
+                    let target = society.households.get(*beneficiary as usize)?;
+                    if *beneficiary == estate.id
+                        || *site != estate.site
+                        || target.site != estate.site
+                        || target.vacant_since.is_some()
+                        || society.relocation.away(*beneficiary)
+                        || economy.accounts.get(*beneficiary as usize).is_none()
+                    {
+                        return None;
+                    }
+                    Some((heir, *beneficiary))
+                })
+                .collect();
+            let Some(beneficiaries) = beneficiaries else {
                 continue;
             };
-            let target = &society.households[*beneficiary as usize];
-            if *beneficiary == estate.id
-                || *site != estate.site
-                || target.site != estate.site
-                || target.vacant_since.is_some()
-                || society.relocation.away(*beneficiary)
-            {
-                continue;
-            }
             let Some(source) = economy.accounts.get(estate.id as usize) else {
                 continue;
             };
-            if economy.accounts.get(*beneficiary as usize).is_none() {
-                continue;
-            }
             // Sparse identities do not prove that anonymous dependents vanished.
             // Protect three months of the last completed food need at today's
             // local quote before transferring cash. Ownership succession alone
@@ -174,16 +188,32 @@ impl History {
             if cash <= 0. && estate.share <= 0. {
                 continue;
             }
-            plans.push(Receipt {
-                month: self.month,
-                site: estate.site,
-                estate: estate.id,
-                beneficiary: *beneficiary,
-                heir,
-                cash,
-                protected_food_cash: reserve.min(source.cash),
-                share: estate.share,
-            });
+            let count = beneficiaries.len() as f64;
+            let mut remaining_cash = cash;
+            let mut remaining_share = estate.share;
+            for (index, (heir, beneficiary)) in beneficiaries.into_iter().enumerate() {
+                // Stable person order, with the last heir receiving the rounding
+                // remainder. Multiple heirs can belong to one receiving wallet.
+                let last = index + 1 == count as usize;
+                let part_cash = if last { remaining_cash } else { cash / count };
+                let part_share = if last {
+                    remaining_share
+                } else {
+                    estate.share / count
+                };
+                remaining_cash -= part_cash;
+                remaining_share -= part_share;
+                plans.push(Receipt {
+                    month: self.month,
+                    site: estate.site,
+                    estate: estate.id,
+                    beneficiary,
+                    heir,
+                    cash: part_cash,
+                    protected_food_cash: reserve.min(source.cash),
+                    share: part_share,
+                });
+            }
         }
         let society = self.society.as_mut().unwrap();
         let economy = society.household_economy.as_mut().unwrap();
@@ -201,7 +231,7 @@ impl History {
         economy.inheritance.receipts.extend(plans.iter().cloned());
         for receipt in plans {
             self.event("household_estate_inherited", Some(self.society.as_ref().unwrap().households[receipt.estate as usize].site), None,
-                format!("Household {} inherited {:.2} cash and {:.2}% ownership from vacant household {} through sole recorded descendant {}; household identities retained",
+                format!("Household {} inherited {:.2} cash and {:.2}% ownership from vacant household {} through recorded descendant {}; household identities retained",
                     receipt.beneficiary, receipt.cash, receipt.share * 100., receipt.estate, receipt.heir));
             self.events.last_mut().unwrap().subjects.extend([
                 ("household".into(), receipt.estate),
@@ -317,6 +347,67 @@ mod tests {
         assert!(transferred > 0. && reserve > 0.);
         let shares = h.society.as_ref().unwrap().households[estate as usize].share
             + h.society.as_ref().unwrap().households[target as usize].share;
+        // Two local branches divide the same estate rather than freezing it.
+        let mut divided = h.clone();
+        let other_target = ids[2];
+        let other_heir = divided.society.as_ref().unwrap().households[other_target as usize].head;
+        divided
+            .politics
+            .as_mut()
+            .unwrap()
+            .kin
+            .iter_mut()
+            .find(|k| k.person == other_heir)
+            .unwrap()
+            .parents = [Some(root), None];
+        let other_cash = divided.household_account(other_target).unwrap().cash;
+        let mut remote = divided.clone();
+        remote.society.as_mut().unwrap().households[other_target as usize].site = 1;
+        remote.inherit_household_estates();
+        assert_eq!(remote.household_account(estate).unwrap().cash, source_cash);
+        assert!(remote
+            .society
+            .as_ref()
+            .unwrap()
+            .household_economy
+            .as_ref()
+            .unwrap()
+            .inheritance
+            .receipts
+            .is_empty());
+        divided.inherit_household_estates();
+        assert!(
+            (divided.household_account(target).unwrap().cash - before_target - transferred / 2.)
+                .abs()
+                < 1e-8
+        );
+        assert!(
+            (divided.household_account(other_target).unwrap().cash - other_cash - transferred / 2.)
+                .abs()
+                < 1e-8
+        );
+        assert!((divided.money_residual() - before).abs() < 1e-6);
+        let economy = divided
+            .society
+            .as_ref()
+            .unwrap()
+            .household_economy
+            .as_ref()
+            .unwrap();
+        assert_eq!(economy.inheritance.receipts.len(), 2);
+        economy.validate(&divided).unwrap();
+        let boundary = serde_json::to_value(&divided).unwrap();
+        divided.inherit_household_estates();
+        assert_eq!(boundary, serde_json::to_value(&divided).unwrap());
+        let mut resumed: History = serde_json::from_value(boundary).unwrap();
+        for state in [&mut divided, &mut resumed] {
+            state.month += 1;
+            state.inherit_household_estates();
+        }
+        assert_eq!(
+            serde_json::to_value(&divided).unwrap(),
+            serde_json::to_value(&resumed).unwrap()
+        );
         h.inherit_household_estates();
         assert_eq!(
             h.household_account(estate).unwrap().cash,

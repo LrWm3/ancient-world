@@ -425,3 +425,14 @@ service only to the buyer. Eleven completed comparison runs and an integration
 failure/fix are documented. The final century runs return tools/bricks in seed
 1024 and flax in seed 409, but do not improve broad economic outcomes. Unmined
 abandoned deposits and inactive estate money remain separate unfinished problems.
+
+
+### Shared inheritance and idle cash review
+
+[Shared-descendant inheritance](household-estate-inheritance.md#shared-descendants-and-local-review-screen-september-2026)
+allows multiple eligible local heirs without duplicating the estate. Three
+fifty-year runs and a paired century find little additional cash released. Enabling
+existing unclaimed-estate review releases 537–3,407 currency units in each of three
+fifty-year worlds, but scarcely changes workshop business and yields mixed welfare.
+The recipient is the town operating account. Trace actual procurement and input
+bottlenecks next; neither mechanism establishes that circulation is solved.
