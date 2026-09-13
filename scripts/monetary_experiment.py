@@ -134,6 +134,23 @@ def credit_funnel(history):
     }
 
 
+def council_construction(history):
+    """Council-month decisions since diagnostics began, not counts of loans."""
+    credit = history["credit"]
+    counts = credit.get("council_review_counts")
+    if counts is None:
+        return {"council_construction_records_available": False}
+    if any(type(n) is not int or n < 0 for n in counts.values()):
+        raise ValueError("invalid council review count")
+    return {
+        "council_construction_records_available": True,
+        "council_months_reviewed": sum(counts.values()),
+        "council_construction_outcomes": dict(sorted(counts.items())),
+        "council_latest_review_month": max(
+            (r["month"] for r in credit.get("council_reviews", [])), default=None),
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, default=Path("target/debug/ancient-world"))
@@ -209,6 +226,7 @@ def main():
                 history = json.loads(archive.read_text())
                 result.update(activity_and_access(history))
                 result.update(credit_funnel(history))
+                result.update(council_construction(history))
                 loans = history["credit"]["loans"]
                 result.update(population=sum(s["stocks"]["stock"][0] for s in history["sites"]),
                               loans=len(loans), defaults=sum(l["status"] == "Defaulted" for l in loans),

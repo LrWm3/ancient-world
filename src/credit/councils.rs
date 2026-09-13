@@ -16,6 +16,31 @@ const ANNUAL_OPERATING_MONTHS: f64 = 12.;
 const MAX_RELIEF_OBSERVATION_AGE_MONTHS: u32 = 1;
 const COUNCIL_REQUEST_NAMESPACE: u64 = 1 << 63;
 
+/// Construction outcomes, before underwriting decides whether any loan is safe.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum ReviewOutcome {
+    NoCashGap,
+    MissingTaxEvidence,
+    InvalidCollectionWindow,
+    NoContactedLender,
+    Submitted,
+}
+
+/// Latest enabled boundary per council. Totals retain counts without a monthly log.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Review {
+    pub month: u32,
+    pub council: u32,
+    pub opening_cash: f64,
+    pub monthly_demand: f64,
+    pub cash_gap: f64,
+    pub expected_taxes: Option<f64>,
+    pub annual_commitments: Option<f64>,
+    pub monthly_costs_annualized: f64,
+    pub contacted_lenders: usize,
+    pub outcome: ReviewOutcome,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Policy {
     pub enabled: bool,
@@ -130,16 +155,36 @@ impl History {
         }
         let mut evidence = Vec::new();
         let mut requests = Vec::new();
+        let mut reviews = Vec::new();
         for council in &society.councils {
             let id = council.civilization;
             let needed = (demand[id as usize] - council.treasury).max(0.);
+            reviews.push(Review {
+                month: self.month,
+                council: id,
+                opening_cash: council.treasury,
+                monthly_demand: demand[id as usize],
+                cash_gap: needed,
+                expected_taxes: None,
+                annual_commitments: None,
+                monthly_costs_annualized: demand[id as usize] * ANNUAL_OPERATING_MONTHS,
+                contacted_lenders: 0,
+                outcome: ReviewOutcome::NoCashGap,
+            });
+            let review = reviews.last_mut().unwrap();
             if needed <= 0. {
                 continue;
             }
+            review.outcome = ReviewOutcome::MissingTaxEvidence;
             let Some(mut receipt) = self.council_credit_evidence(id) else {
                 continue;
             };
-            receipt.operating_costs += demand[id as usize] * ANNUAL_OPERATING_MONTHS;
+            review.expected_taxes = Some(receipt.expected_receipts);
+            review.annual_commitments = Some(receipt.operating_costs);
+            // Protect the next annual operating budget, not just months until
+            // maturity. A shorter term does not erase recurring service needs.
+            receipt.operating_costs += review.monthly_costs_annualized;
+            review.outcome = ReviewOutcome::InvalidCollectionWindow;
             let RepaymentSource::AnnualTax {
                 collection_month, ..
             } = receipt.source
@@ -155,9 +200,12 @@ impl History {
             let lenders: Vec<_> = offers.iter().filter(|o|
                 matches!(o.lender, Account::Council(lender) if contacts.contains(&(id, lender))))
                 .collect();
+            review.contacted_lenders = lenders.len();
+            review.outcome = ReviewOutcome::NoContactedLender;
             if lenders.is_empty() {
                 continue;
             }
+            review.outcome = ReviewOutcome::Submitted;
             for offer in &lenders {
                 let Account::Council(lender) = offer.lender else {
                     unreachable!()
@@ -190,6 +238,14 @@ impl History {
                 .filter(|id| id.is_some())
                 .count()
         };
+        for review in &reviews {
+            *self
+                .credit
+                .council_review_counts
+                .entry(review.outcome)
+                .or_default() += 1;
+        }
+        self.credit.council_reviews = reviews;
         self.credit.council_decided_month = Some(self.month);
         Ok(count)
     }

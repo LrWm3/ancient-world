@@ -821,7 +821,7 @@ fn scheduled_credit_protects_cash_shares_claims_and_defaults_without_money_creat
 #[test]
 fn council_credit_requires_receipts_need_contact_and_reaches_existing_treasury() {
     use ancient_world::{
-        credit::taxes::Observation,
+        credit::{councils::ReviewOutcome, taxes::Observation},
         household_economy::{council_allocation, HouseholdEconomy},
         society::Council,
     };
@@ -885,6 +885,30 @@ fn council_credit_requires_receipts_need_contact_and_reaches_existing_treasury()
         }
         assert_eq!(control.council_credit_month().unwrap(), 0);
         assert_eq!(control.society.as_ref().unwrap().councils[1].treasury, 0.);
+        if intervention == 1 {
+            assert!(control.credit.council_reviews.is_empty());
+            assert!(control.credit.council_review_counts.is_empty());
+        } else {
+            let review = &control.credit.council_reviews[1];
+            assert_eq!(review.cash_gap, 20.);
+            assert_eq!(review.monthly_costs_annualized, 240.);
+            assert_eq!(
+                review.outcome,
+                match intervention {
+                    0 => ReviewOutcome::MissingTaxEvidence,
+                    2 => ReviewOutcome::NoContactedLender,
+                    _ => ReviewOutcome::Submitted,
+                }
+            );
+            // A submitted request can still be rejected by underwriting.
+            if intervention == 3 {
+                assert_eq!(review.expected_taxes, Some(0.));
+            }
+            if intervention == 4 {
+                assert_eq!(review.annual_commitments, Some(2000.));
+            }
+            control.validate_credit().unwrap();
+        }
     }
     assert_eq!(h.council_credit_month().unwrap(), 2);
     let society = h.society.as_ref().unwrap();
@@ -901,7 +925,14 @@ fn council_credit_requires_receipts_need_contact_and_reaches_existing_treasury()
             .sum::<f64>(),
         20.
     );
+    assert_eq!(h.credit.council_review_counts[&ReviewOutcome::Submitted], 1);
+    assert_eq!(h.credit.council_review_counts[&ReviewOutcome::NoCashGap], 2);
+    assert_eq!(h.credit.council_reviews[1].contacted_lenders, 2);
+    assert_eq!(h.credit.council_reviews[1].expected_taxes, Some(2000.));
     h.validate_credit().unwrap();
+    let mut invalid = h.clone();
+    invalid.credit.council_reviews[1].monthly_costs_annualized = -1.;
+    assert!(invalid.validate_credit().is_err());
     let mut resumed: History = serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
     assert_eq!(resumed.council_credit_month().unwrap(), 0);
     assert_eq!(

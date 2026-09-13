@@ -34,6 +34,11 @@ pub struct Credit {
     #[serde(default)]
     pub council_decided_month: Option<u32>,
     #[serde(default)]
+    pub council_reviews: Vec<super::councils::Review>,
+    /// Counts since this diagnostic was introduced; old archives start empty.
+    #[serde(default)]
+    pub council_review_counts: std::collections::BTreeMap<super::councils::ReviewOutcome, u64>,
+    #[serde(default)]
     pub servicing_policy: super::servicing::Policy,
     #[serde(default)]
     pub serviced_month: Option<u32>,
@@ -194,6 +199,34 @@ impl History {
                 .is_none_or(|m| m <= self.month),
             "future council credit decision"
         );
+        let mut reviewed = std::collections::BTreeSet::new();
+        for review in &self.credit.council_reviews {
+            ensure!(
+                Some(review.month) == self.credit.council_decided_month
+                    && reviewed.insert(review.council)
+                    && self.society.as_ref().is_some_and(|s| s
+                        .councils
+                        .iter()
+                        .any(|c| c.civilization == review.council))
+                    && [
+                        review.opening_cash,
+                        review.monthly_demand,
+                        review.cash_gap,
+                        review.monthly_costs_annualized
+                    ]
+                    .iter()
+                    .all(|v| v.is_finite() && *v >= 0.)
+                    && [review.expected_taxes, review.annual_commitments]
+                        .iter()
+                        .all(|v| v.is_none_or(|x| x.is_finite() && x >= 0.))
+                    && self
+                        .credit
+                        .council_review_counts
+                        .get(&review.outcome)
+                        .is_some_and(|n| *n > 0),
+                "invalid council credit review"
+            );
+        }
         self.credit.servicing_policy.validate()?;
         ensure!(
             self.credit.serviced_month.is_none_or(|m| m <= self.month),

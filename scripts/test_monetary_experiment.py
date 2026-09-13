@@ -1,7 +1,7 @@
 import copy
 import unittest
 
-from monetary_experiment import credit_funnel
+from monetary_experiment import credit_funnel, council_construction
 
 
 def fixture():
@@ -23,6 +23,19 @@ def fixture():
 
 
 class CreditReportingTests(unittest.TestCase):
+    def test_council_reviews_count_boundaries_not_loans(self):
+        self.assertFalse(council_construction(fixture())["council_construction_records_available"])
+        h = fixture()
+        h["credit"]["council_review_counts"] = {"NoCashGap": 5, "Submitted": 2}
+        h["credit"]["council_reviews"] = [{"month": 25}]
+        report = council_construction(h)
+        self.assertEqual(report["council_months_reviewed"], 7)
+        self.assertEqual(report["council_latest_review_month"], 25)
+        h["credit"]["council_review_counts"]["Submitted"] = -1
+        with self.assertRaises(ValueError):
+            council_construction(h)
+
+
     def test_request_grant_and_transfer_are_separate_and_tied_limits_count(self):
         report = credit_funnel(fixture())
         self.assertEqual(report["credit_requested_principal"], 10.)

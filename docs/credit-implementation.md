@@ -684,3 +684,5 @@ eligibility, grants and actual transfers in the monetary runner. Reanalysis of
 rejections. All its rejected requests have nonpositive archived net receipts;
 older detailed capacity records are unavailable and explicitly marked as such.
 This is evidence about those prior inputs, not a rerun of current behavior.
+
+Council request construction now has [dated opportunity reviews](council-credit-reviews.md), including skipped cash gaps/evidence/contact cases and separate annual cost components. These diagnostics preserve the existing funding rules.
