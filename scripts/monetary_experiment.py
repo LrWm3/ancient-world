@@ -23,6 +23,25 @@ def digest(path):
         return hashlib.file_digest(source, "sha256").hexdigest()
 
 
+def activity_and_access(history):
+    """Terminal access and cumulative activity; neither is a causal estimate."""
+    accounts = history["society"]["household_economy"]["accounts"]
+    councils = history["society"]["councils"]
+    total_need = sum(a["need"] for a in accounts)
+    return {
+        "operator_completed_work": sum(f["completed_work"] for f in history["enterprises"]["firms"]),
+        "reported_food_production": sum(s["stocks"]["ledger"][0] for s in history["sites"]),
+        "terminal_food_need": total_need,
+        "terminal_need_weighted_hunger": (
+            sum(a["hunger"] * a["need"] for a in accounts) / total_need if total_need > 0 else None
+        ),
+        "council_town_support": sum(c["relief_paid"] for c in councils),
+        "ending_council_cash": sum(c["treasury"] for c in councils),
+        "ending_household_cash": sum(a["cash"] for a in accounts),
+        "ending_town_cash": sum(s["economy"]["finance"][0] for s in history["sites"]),
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, default=Path("target/debug/ancient-world"))
@@ -80,6 +99,7 @@ def main():
             result = {"run": name, "seconds": time.monotonic() - started, "exit_code": status.returncode}
             if status.returncode == 0:
                 history = json.loads(archive.read_text())
+                result.update(activity_and_access(history))
                 loans = history["credit"]["loans"]
                 result.update(population=sum(s["stocks"]["stock"][0] for s in history["sites"]),
                               loans=len(loans), defaults=sum(l["status"] == "Defaulted" for l in loans),

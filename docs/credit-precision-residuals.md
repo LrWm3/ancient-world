@@ -116,7 +116,7 @@ an explicit blocked-collection receipt through grace expiry, without forgiving
 any of that claim. An emptied-borrower control defaults; changing actual lender
 balances allows a later real payment. Serialized continuation matches and monetary
 residuals remain within the fixture's 1e-12 tolerance. Contradictory blocked/default
-receipts are rejected. Long-run evaluation of this further change is pending.
+receipts are rejected. The completed long-run evaluation appears below.
 
 Strict all-target Clippy and the executable build also passed for the blocked-
 collection follow-up.
@@ -141,10 +141,9 @@ run records, not controlled performance measurements.
 
 A fresh matched run uses fixed executable `d50bceb`, including affordable blocked
 collection, with the same seed/checkpoint, 500 years and four policy arms. Raw
-results are under ignored `output/monetary-blocked-five-century/`. That run remains
-in progress; its summaries also expose retained debt and blocked monthly receipts.
+results are under ignored `output/monetary-blocked-five-century/`. All four arms completed; summaries expose retained debt and blocked monthly receipts.
 
-## Blocked-collection run: completed baseline and credit arms (`d50bceb`)
+## Completed blocked-collection comparison (`d50bceb`)
 
 The baseline completed at 180.166604 residents with byte-identical serialized
 history to the preceding baseline. The corrected credit arm completed at
@@ -160,7 +159,19 @@ collection and the bounded final residue settlement. This is the controlled
 classification mechanism behaving in the long run; it is not evidence of a
 general credit benefit across seeds. Later lending and historical choices diverged,
 so the population difference is not a measured work-productivity effect.
-Native validation passed. Issuance and combined arms are still running.
+Native validation passed in all four arms.
+
+| Arm | Ending residents | Loans | Defaults | Outstanding debt | Issued |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Baseline | 180.166604 | 0 | 0 | 0 | 0 |
+| Credit | 200.028506 | 8 | 0 | 0 | 0 |
+| Issuance | 182.069570 | 0 | 0 | 0 | 1,250 |
+| Combined | 182.069570 | 0 | 0 | 0 | 1,250 |
+
+Issuance and combined serialized histories differ only in the credit subtree.
+Issuance's serialized history is byte-identical to the preceding issuance arm.
+Elapsed times were 263.63, 259.11, 205.62 and 208.07 seconds, with overlapping
+compilation/testing; these are not controlled performance benchmarks.
 
 ### Work and access in the corrected credit arm
 
@@ -182,3 +193,25 @@ money-supply audit. More surviving people and greater cumulative food production
 coexist with slightly less operator work and worse terminal food access. Credit's
 work/affordability gate is therefore still unproven. Controlled immediate
 mediators, losses and held-out seeds remain required before Stage 2.
+
+### Issuance and combined activity/access
+
+Both arms have the same measures: 592.7647 cumulative operator work,
+31,814,518 reported food production, 0.01937 terminal need-weighted hunger,
+87,885.47 cumulative council town support, and ending cash of 123.86 in councils,
+45,091.57 in households and 6,028.79 in towns. Relative to baseline, lower terminal
+hunger accompanies substantially less operator work. This remains a mixed
+outcome, not evidence of a general productive benefit from issuance.
+
+The experiment runner now writes these activity/access measures into every
+successful arm's summary, including terminal food need. A zero-need population
+reports weighted hunger as null, not zero: an empty town/world cannot establish
+successful food access. The report function was exercised against all four
+completed archives and a zero-need control. Definitions deliberately distinguish
+terminal access from cumulative production and do not count selected cash
+categories as the complete monetary inventory.
+
+Decision: the numerical-default correction is supported, but the Stage 2 gate
+remains unproven. The next monetary evaluation needs immediate funded-work
+mediators, account-closure handling and held-out worlds; increasing currency
+complexity now would make the unresolved work/access effects harder to diagnose.
