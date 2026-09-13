@@ -692,4 +692,6 @@ The [completed seed-1024 review comparison](council-credit-review-evaluation.md)
 [Local institutional offers](institution-credit-offers.md) are now an independently
 switchable council-credit extension. They reuse the institution's annual operating
 quote, require local leadership, and retain the existing underwriting and settlement
-path. Controlled tests pass; a six-arm seed comparison is underway.
+path. Controlled tests pass; the [six-arm seed comparison](institution-credit-evaluation.md)
+completed with no loans or effects. Institutional reserve scaling still needs a
+controlled comparison.

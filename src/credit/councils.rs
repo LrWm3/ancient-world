@@ -142,6 +142,19 @@ impl History {
                 for institution in &culture.institutions {
                     if !institution.operational()
                         || self.sites[institution.site as usize].abandoned
+                        || institution
+                            .capacity
+                            .as_ref()
+                            .and_then(|c| c.building.as_ref())
+                            .is_some_and(|b| {
+                                culture.artifacts.get(b.artifact as usize).is_none_or(|a| {
+                                    a.destroyed
+                                        || a.lost
+                                        || a.site != Some(institution.site)
+                                        || a.owner
+                                            != crate::culture::Owner::Institution(institution.id)
+                                })
+                            })
                         || !institution.members.contains(&institution.leader)
                         || !culture
                             .site_people(self, institution.site)
@@ -379,7 +392,7 @@ mod tests {
                 road_requested: Some(0.),
             });
         let opening = h.clone();
-        for intervention in 0..5 {
+        for intervention in 0..8 {
             let mut control = opening.clone();
             match intervention {
                 0 => control.credit.council_policy.institution_lenders = false,
@@ -388,7 +401,24 @@ mod tests {
                     .members
                     .clear(),
                 3 => control.credit.council_policy.reserve_floor = 200.,
-                _ => control.credit.tax_observations[0].support_requested = 2000.,
+                4 => control.credit.tax_observations[0].support_requested = 2000.,
+                _ => {
+                    let culture = control.culture.as_mut().unwrap();
+                    let mut capacity = crate::institution_capacity::Capacity::new(13);
+                    capacity.readiness = 1.;
+                    capacity.building = Some(crate::institution_capacity::MeetingPlace::new(0));
+                    culture.institutions[0].capacity = Some(capacity);
+                    let artifact = &mut culture.artifacts[0];
+                    artifact.owner = if intervention == 5 {
+                        crate::culture::Owner::Community(0)
+                    } else {
+                        crate::culture::Owner::Institution(0)
+                    };
+                    artifact.site = Some(if intervention == 7 { 1 } else { 0 });
+                    artifact.lost = intervention == 6;
+                    // Cached readiness alone would incorrectly permit this offer.
+                    assert!(culture.institutions[0].operational());
+                }
             }
             assert_eq!(control.council_credit_month().unwrap(), 0);
             assert_eq!(

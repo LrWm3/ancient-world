@@ -15,7 +15,10 @@ The institution must be active and operational, at a live home site, with its
 leader both a member and a locally present eligible adult under the existing
 cultural presence rules. Its borrower is that site's current council. This first
 version makes no remote institutional offers or assumptions about distant branches.
-Foreign council offers still require the existing eligible direct route.
+Foreign council offers still require the existing eligible direct route. If the
+institution has a recorded meeting place, lending also checks its current
+existence, physical location, loss/destruction status and institutional ownership;
+cached readiness alone is insufficient.
 
 Protect the greater of the council credit policy's reserve floor (default 100
 currency units) and the institution's annual operating target. The target is the
@@ -62,5 +65,11 @@ insufficient future receipts, conserved money, and serialized continuation with
 new offers subsequently disabled. It demonstrates availability and accounting,
 not an institution-financed improvement in completed council services.
 
-The seed-1024 six-arm comparison is running separately; its balance outcome is not
-yet established.
+The [completed seed-1024 six-arm comparison](institution-credit-evaluation.md)
+found no loans or outcome changes. The mechanism is verified in a controlled
+fixture; useful lending and its balance remain unproven.
+
+The added building-access cases verify that cached high readiness cannot authorize
+lending after ownership loss, physical loss, or removal to another site. The
+expanded GPU fixture and strict all-target Clippy passed. The six-arm comparison
+predates this guard and is not claimed as a rerun of it.
