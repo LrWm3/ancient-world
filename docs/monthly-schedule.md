@@ -520,3 +520,9 @@ The same estate windows now share opening cash across live claims and remaining
 default losses. Default recovery appends separate receipts and cannot restart
 interest or reset exclusion. Incoming payments do not enlarge another estate's
 opening allowance within that pass. See [estate recovery](estate-default-recovery.md).
+
+The opt-in [unclaimed-estate review](unclaimed-estate-reclamation.md) runs immediately
+after retail settlement in Execute/settle. It uses completed current-month named
+office attendance as a bounded case-throughput allowance; it creates no extra
+personal work grant. Reclaimed local cash is available to subsequent spending,
+not to already settled household purchases or completed production.

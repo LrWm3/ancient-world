@@ -29,6 +29,19 @@ class CirculationAuditTests(unittest.TestCase):
         self.assertEqual(report['operators'][0]['operating_margin'], -1)
         self.assertEqual(report['operators'][0]['completion_per_paid_work'], .5)
 
+    def test_reclamation_is_a_transfer_not_new_money(self):
+        history = self.fixture()
+        economy = history['society']['household_economy']
+        economy['accounts'][0]['cash'] -= 12
+        history['sites'][0]['economy']['finance'][0] += 12
+        economy['reclamation'] = {'receipts': [{'cash': 8}, {'cash': 4}]}
+        report = audit(history)
+        self.assertEqual(report['cash_total'], 102)
+        self.assertEqual(report['relative_money_residual'], 0)
+        self.assertEqual(report['reclaimed_cash'], 12)
+        self.assertEqual(report['reclamation_cases'], 2)
+        self.assertEqual(report['sites'][0]['vacant_household_cash'], 18)
+
     def test_vacancy_preserves_living_traveler_evidence(self):
         report = audit(self.fixture())
         retained = report['retained_households'][0]

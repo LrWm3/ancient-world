@@ -237,6 +237,10 @@ def main():
                         help="add credit and combined arms with late-export recovery enabled")
     parser.add_argument("--service-order-procurement", action="store_true",
                         help="hold funded procurement on in every arm; add service lending in credit arms")
+    parser.add_argument("--named-office-service", action="store_true",
+                        help="use named office attendance in every arm")
+    parser.add_argument("--household-estate-reclamation", action="store_true",
+                        help="review unclaimed local cash; requires delivered named office work")
     parser.add_argument("--household-estate-inheritance", action="store_true",
                         help="allow local sole-descendant estate transfers in every arm")
     parser.add_argument("--demand-workshop-staffing", action="store_true",
@@ -288,6 +292,8 @@ def main():
         "contract_workshop_staffing": args.contract_workshop_staffing,
         "demand_workshop_staffing": args.demand_workshop_staffing,
         "household_estate_inheritance": args.household_estate_inheritance,
+        "household_estate_reclamation": args.household_estate_reclamation,
+        "named_office_service": args.named_office_service,
         "service_procurement_share_override": args.service_procurement_share,
         "compare_export_recovery": args.compare_export_recovery,
         "compare_institution_lenders": args.compare_institution_lenders,
@@ -308,6 +314,8 @@ def main():
                        f"--contract-workshop-staffing={str(args.contract_workshop_staffing).lower()}",
                        f"--demand-workshop-staffing={str(args.demand_workshop_staffing).lower()}",
                        f"--household-estate-inheritance={str(args.household_estate_inheritance).lower()}",
+                       f"--household-estate-reclamation={str(args.household_estate_reclamation).lower()}",
+                       f"--named-office-service={str(args.named_office_service).lower()}",
                        f"--service-order-credit={str(credit and args.service_order_procurement).lower()}",
                        f"--council-credit={str(credit).lower()}",
                        f"--shared-issuance={str(issuance).lower()}",

@@ -97,6 +97,12 @@ struct Args {
     /// Allow local sole-descendant inheritance of vacant household estates.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     household_estate_inheritance: Option<bool>,
+    /// Review unclaimed household cash using delivered named office work.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    household_estate_reclamation: Option<bool>,
+    /// Reserve and settle actual named administrative attendance.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    named_office_service: Option<bool>,
     /// Override the fraction of surplus town cash available to service procurement (0–1).
     /// Does not itself enable procurement; omission preserves the archived share.
     #[arg(long, value_parser = parse_procurement_share)]
@@ -210,6 +216,8 @@ fn main() -> Result<()> {
                 && args.contract_workshop_staffing.is_none()
                 && args.demand_workshop_staffing.is_none()
                 && args.household_estate_inheritance.is_none()
+                && args.household_estate_reclamation.is_none()
+                && args.named_office_service.is_none()
                 && args.service_procurement_share.is_none()
                 && args.export_default_recovery.is_none()
                 && args.shared_issuance.is_none()
@@ -474,6 +482,25 @@ fn main() -> Result<()> {
             .and_then(|s| s.household_economy.as_mut())
             .context("estate inheritance requires household accounts")?
             .inheritance
+            .enabled = enabled;
+    }
+    if let Some(enabled) = args.named_office_service {
+        generator
+            .civilizations
+            .as_mut()
+            .context("office service requires a history")?
+            .set_office_service(enabled)?;
+    }
+    if let Some(enabled) = args.household_estate_reclamation {
+        generator
+            .civilizations
+            .as_mut()
+            .context("estate reclamation requires a history")?
+            .society
+            .as_mut()
+            .and_then(|s| s.household_economy.as_mut())
+            .context("estate reclamation requires household accounts")?
+            .reclamation
             .enabled = enabled;
     }
     if let Some(share) = args.service_procurement_share {

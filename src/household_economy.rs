@@ -7,6 +7,7 @@ mod family_support;
 pub mod inheritance;
 mod nutrition;
 pub mod policy;
+pub mod reclamation;
 pub use family_support::{FamilyGift, FamilySupportPolicy};
 
 const DEFAULT_COMMUNAL_ACCESS_MONTHS: u32 = 12;
@@ -62,6 +63,8 @@ pub struct HouseholdAccount {
     pub inheritance_received: f64,
     #[serde(default)]
     pub inheritance_paid: f64,
+    #[serde(default)]
+    pub reclaimed: f64,
     pub cash: f64,
     pub wages: f64,
     #[serde(default)]
@@ -109,6 +112,8 @@ impl FoundingAccess {
 pub struct HouseholdEconomy {
     #[serde(default)]
     pub inheritance: inheritance::Inheritance,
+    #[serde(default)]
+    pub reclamation: reclamation::Reclamation,
     #[serde(default)]
     pub council_allocation: council_allocation::Policy,
     #[serde(default)]
@@ -160,6 +165,7 @@ impl HouseholdEconomy {
     pub fn new(month: u32) -> Self {
         Self {
             inheritance: inheritance::Inheritance::default(),
+            reclamation: reclamation::Reclamation::default(),
             council_allocation: council_allocation::Policy::default(),
             council_allocations: vec![],
             political_distribution: true,
@@ -223,6 +229,7 @@ impl HouseholdEconomy {
         council_allocation::validate(&self.council_allocations, h)?;
         family_support::validate(self, h)?;
         inheritance::validate(self, h)?;
+        reclamation::validate(self, h)?;
         for a in &self.accounts {
             ensure!(
                 a.livelihood.is_none_or(|weights| weights
@@ -239,6 +246,7 @@ impl HouseholdEconomy {
                     a.legal_compensation_received,
                     a.inheritance_received,
                     a.inheritance_paid,
+                    a.reclaimed,
                     a.family_received,
                     a.family_sent,
                     a.capital_invested,
@@ -269,6 +277,7 @@ impl HouseholdEconomy {
             ensure!(
                 (a.cash - a.wages - a.dividends - a.relief - a.inheritance_received
                     + a.inheritance_paid
+                    + a.reclaimed
                     - a.family_received
                     - a.legal_compensation_received
                     - a.credit_principal_received
@@ -289,6 +298,7 @@ impl HouseholdEconomy {
                             + a.credit_interest_received
                             + a.inheritance_received
                             + a.inheritance_paid
+                            + a.reclaimed
                             + a.family_received
                             + a.family_sent
                             + a.capital_invested

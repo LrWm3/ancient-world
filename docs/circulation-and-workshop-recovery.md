@@ -138,3 +138,13 @@ identity and excluding live members, travelers and indebted estates. The first
 screen exposed repeated residual transfers, so the revised policy protects three
 months of recorded food need before transferring cash. This is an implemented
 continuity pilot, not completion of unclaimed-estate or abandoned-site recovery.
+
+
+### Local cash review follow-up
+
+The [unclaimed-estate pilot](unclaimed-estate-reclamation.md) now exercises funded
+local administrative review while protecting known kin and a food reserve. Its
+matched 50-year comparison reclaims substantial cash but does not improve the
+population/food outcomes or rescue workshop operators. It remains opt-in. This
+closes a local transfer mechanism, not the broader circulation objective or
+physical recovery from abandoned settlements.
