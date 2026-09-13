@@ -899,3 +899,20 @@ Verification passed: two explicitly selected GPU fixtures (seasonal crop and
 checkpoint conservation; phosphorus limitation and manure retention), 19 CPU
 market tests, and strict all-target Clippy. The market command leaves its two
 unrelated hardware fixtures ignored; they are not counted as verified here.
+
+## Task-specific extraction rates
+
+Named fourteen access-rate parameters in `shaders/economy.wgsl`: mineral and
+wood base rates, worker and area denominator floors, generic/bronze/stone tool
+contributions, capability bounds, ore/depth/clay/timber difficulty, and the
+baseline/tool response coefficients. Catalog role IDs, task selectors and numeric
+identities remain inline. Equal-valued coefficients retain separate names when
+they express different material capabilities or policies.
+
+Reversing substitutions reconstructs the entire prior shader exactly. This pass
+changes no resource inventory, tool yield, arithmetic order or numeric type.
+
+Verification passed: the explicitly selected hardware extraction fixture checks
+that picks improve mining, axes improve forestry, depleted deposits are harder,
+and resource mass remains accounted for; it also checks an analytical untooled
+rate. One GPU test ran and passed. Strict all-target Clippy passed.

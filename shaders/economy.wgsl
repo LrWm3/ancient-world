@@ -62,6 +62,21 @@ const FOOD_PROCESSING_TARGET_MONTHS: f32 = 18.;
 const RAW_FOOD_STORAGE_MONTHS: f32 = 6.;
 const RAW_FOOD_ENERGY_FLOOR_KG: f32 = .001;
 const RAW_FOOD_MONTHLY_SPOILAGE: f32 = .005;
+// Task-specific resource access; capability changes rate, never source stocks.
+const EXTRACTION_MINERAL_BASE_KG_PER_WORKER_MONTH: f32 = 5.;
+const EXTRACTION_TIMBER_BASE_KG_PER_WORKER_MONTH: f32 = 20.;
+const EXTRACTION_MIN_WORKERS: f32 = 1.;
+const EXTRACTION_GENERIC_TOOL_CAPABILITY_PER_KG: f32 = .25;
+const EXTRACTION_BRONZE_TOOL_CAPABILITY_PER_KG: f32 = .25;
+const EXTRACTION_STONE_TOOL_CAPABILITY_PER_KG: f32 = .15;
+const EXTRACTION_MAX_CAPABILITY: f32 = 2.;
+const EXTRACTION_MIN_ORE_DIFFICULTY: f32 = .1;
+const EXTRACTION_ORE_DEPTH_DIFFICULTY: f32 = 2.;
+const EXTRACTION_CLAY_DIFFICULTY: f32 = .2;
+const EXTRACTION_TIMBER_BASE_DIFFICULTY: f32 = .4;
+const EXTRACTION_FOREST_AREA_FLOOR_M2: f32 = 1.;
+const EXTRACTION_UNTOOLED_CAPABILITY: f32 = .2;
+const EXTRACTION_TOOL_CAPABILITY_FACTOR: f32 = 2.;
 struct Economy {
  farm_workers:vec4<f32>, extraction_workers:vec4<f32>, construction_workers:vec4<f32>,
  production_probe:vec4<f32>, food_labor:vec4<f32>,
@@ -919,15 +934,15 @@ fn ore_good(e:Economy)->u32 {return select(1u,u32(e.extraction.x),e.extraction.x
 
 // Capability is task-specific. Labor improves access rate, never source inventory.
 fn extraction_rate(e:Economy,task:u32)->f32 {
- let base=select(5.,20.,task==0u);if catalog.methods[0].x==0. {return base;}
+ let base=select(EXTRACTION_MINERAL_BASE_KG_PER_WORKER_MONTH,EXTRACTION_TIMBER_BASE_KG_PER_WORKER_MONTH,task==0u);if catalog.methods[0].x==0. {return base;}
  let role=select(select(4.,2.,task==2u),3.,task==0u);
- let workers=max(1.,select(e.labor.z,e.labor.y,task==0u));
- var tools=e.goods[0].w*.25;
- if e.extraction.y>.5 {tools+=e.goods[10].y*.25+e.goods[10].w*.15;}
+ let workers=max(EXTRACTION_MIN_WORKERS,select(e.labor.z,e.labor.y,task==0u));
+ var tools=e.goods[0].w*EXTRACTION_GENERIC_TOOL_CAPABILITY_PER_KG;
+ if e.extraction.y>.5 {tools+=e.goods[10].y*EXTRACTION_BRONZE_TOOL_CAPABILITY_PER_KG+e.goods[10].w*EXTRACTION_STONE_TOOL_CAPABILITY_PER_KG;}
  for(var j=0u;j<6u;j++){if catalog.methods[j].x==role {let k=j+45u;tools+=e.goods[k/4u][k%4u]*catalog.methods[j].y;}}
- let capability=clamp(tools/workers,0.,2.);
- let difficulty=select(select(max(.1,e.extraction.z)+e.extraction.w*2.,.2,task==2u),.4+clamp(e.forest.x/max(e.claim.y,1.),0.,1.),task==0u);
- return base/(1.+difficulty/(.2+2.*capability));
+ let capability=clamp(tools/workers,0.,EXTRACTION_MAX_CAPABILITY);
+ let difficulty=select(select(max(EXTRACTION_MIN_ORE_DIFFICULTY,e.extraction.z)+e.extraction.w*EXTRACTION_ORE_DEPTH_DIFFICULTY,EXTRACTION_CLAY_DIFFICULTY,task==2u),EXTRACTION_TIMBER_BASE_DIFFICULTY+clamp(e.forest.x/max(e.claim.y,EXTRACTION_FOREST_AREA_FLOOR_M2),0.,1.),task==0u);
+ return base/(1.+difficulty/(EXTRACTION_UNTOOLED_CAPABILITY+EXTRACTION_TOOL_CAPABILITY_FACTOR*capability));
 }
 
 fn container_service(e:Economy)->f32 {
