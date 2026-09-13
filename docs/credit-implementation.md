@@ -658,3 +658,12 @@ including later incoming cash, until recovery clears the loss. Voluntary gifts u
 the same priority guard. A subsequent [estate recovery increment](estate-default-recovery.md)
 shares opening cash across live and defaulted claims. Broader bankruptcy policies
 and balance evaluation remain unfinished.
+
+## Actual tax-base loss boundary
+
+The [matched tax-base fixture](credit-tax-base-shock.md) now verifies a contracted
+council bridge against real annual collection. Retained taxable settlements repay;
+abandoning those sites after borrowing yields zero collection and eventual default.
+Every tested boundary preserves the money residual, and serialized continuation
+matches in each arm. The expenditure is explicit fixture setup, so useful service
+completion and automatic financing still need their own causal comparisons.

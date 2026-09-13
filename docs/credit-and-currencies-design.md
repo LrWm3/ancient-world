@@ -386,6 +386,9 @@ later possibilities, not requirements for either stage.
 - [x] Add shared currency ID, account adapters, loan records and exact transfer fixtures.
 - [ ] Add dated underwriting, source reservation and explicit lender allocation.
 - [ ] Pilot council tax-bridge credit; verify timing and failed-tax-base outcomes.
+  The [tax-base shock fixture](credit-tax-base-shock.md) covers real collection,
+  failed receipts and default after an explicit loan; automatic useful-work
+  comparisons remain outstanding.
 - [ ] Pilot commercial payees; add a delivery-paid contract only where needed.
 - [ ] Implement arrears, one bounded restructuring, default and closure/succession.
 - [ ] Add explorer debt/credit receipts, history events, archives and continuation tests.

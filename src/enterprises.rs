@@ -1164,6 +1164,126 @@ mod tests {
 
     #[test]
     #[ignore = "requires hardware GPU"]
+    fn council_tax_base_loss_changes_collection_and_default_without_creating_cash() {
+        use crate::credit::{Account, RepaymentSource, Status, Terms, SHARED_CURRENCY};
+        let mut g = world();
+        let h = g.civilizations.as_mut().unwrap();
+        // Observe real annual taxes before contracting a small bridge.
+        h.month = 12;
+        for site in &mut h.sites {
+            site.stocks.stock[3] = 0.;
+        }
+        h.social_year();
+        h.observe_credit_taxes();
+        h.month = 13;
+        let evidence = h.council_credit_evidence(0).unwrap();
+        assert!(evidence.expected_receipts > 20.);
+        let opening = h.credit_account_cash(Account::Council(0)).unwrap();
+        h.transfer_credit_cash(
+            Account::Council(0),
+            Account::Town(0),
+            SHARED_CURRENCY,
+            opening,
+            0.,
+        )
+        .unwrap();
+        h.commit_credit_loan(
+            Terms {
+                lender: Account::Town(0),
+                borrower: Account::Council(0),
+                currency: SHARED_CURRENCY,
+                source: RepaymentSource::AnnualTax {
+                    council: 0,
+                    collection_month: 24,
+                },
+                annual_simple_rate: 0.,
+                maturity_month: 25,
+                grace_months: 3,
+            },
+            10.,
+        )
+        .unwrap();
+        // A declared fixture expenditure, not simulated administration: move
+        // the bridge to a different existing account so it must be repaid from taxes.
+        h.transfer_credit_cash(
+            Account::Council(0),
+            Account::Town(1),
+            SHARED_CURRENCY,
+            10.,
+            0.,
+        )
+        .unwrap();
+        assert_eq!(h.credit_account_cash(Account::Council(0)).unwrap(), 0.);
+        h.credit.servicing_policy.available_cash_share = 1.;
+        let baseline = h.clone();
+        let residual = baseline.money_residual();
+        for lost_base in [false, true] {
+            let mut branch = baseline.clone();
+            if lost_base {
+                let controlled: Vec<_> = branch
+                    .sites
+                    .iter()
+                    .filter(|s| branch.controller(s.id) == 0)
+                    .map(|s| s.id)
+                    .collect();
+                for id in controlled {
+                    branch.sites[id as usize].abandoned = true;
+                }
+                assert_eq!(
+                    branch.council_credit_evidence(0).unwrap().expected_receipts,
+                    0.
+                );
+            }
+            let mut resumed: History =
+                serde_json::from_value(serde_json::to_value(&branch).unwrap()).unwrap();
+            for world in [&mut branch, &mut resumed] {
+                for month in 14..=28 {
+                    world.month = month;
+                    world.service_credit_month().unwrap();
+                    if month == 24 {
+                        // Actual Respond-phase collection follows Open servicing.
+                        world.social_year();
+                        world.observe_credit_taxes();
+                        let paid: f64 = world
+                            .society
+                            .as_ref()
+                            .unwrap()
+                            .council_funding
+                            .taxes
+                            .iter()
+                            .filter(|r| r.council == 0)
+                            .map(|r| f64::from(r.paid))
+                            .sum();
+                        if lost_base {
+                            assert_eq!(paid, 0.);
+                        } else {
+                            assert!(paid > 10.);
+                        }
+                        assert!(world.credit.loans[0].outstanding_principal > 0.);
+                    }
+                    world.validate_credit().unwrap();
+                    assert!((world.money_residual() - residual).abs() < 1e-7);
+                }
+                assert_eq!(
+                    world.credit.loans[0].status,
+                    if lost_base {
+                        Status::Defaulted
+                    } else {
+                        Status::Repaid
+                    }
+                );
+                assert_eq!(world.credit.loans.len(), 1);
+                assert_eq!(world.credit.issuance.total_issued(), 0.);
+            }
+            assert_eq!(
+                serde_json::to_value(branch).unwrap(),
+                serde_json::to_value(resumed).unwrap()
+            );
+        }
+    }
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
     fn persisted_credit_commits_cash_debt_and_failed_collection_together() {
         use crate::credit::{Account, RepaymentSource, Status, Terms, SHARED_CURRENCY};
         let mut g = world();
