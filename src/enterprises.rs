@@ -49,6 +49,11 @@ pub(crate) const SERVICE_QUOTE_MULTIPLIER: f64 = 1.25;
 
 pub mod orders;
 
+pub(crate) fn workshop_reference_wage(town: &crate::civilization::Site) -> f64 {
+    WAGE_REFERENCE_FOOD_KG_PER_MONTH
+        * town.economy.prices[crate::economy::FOOD].max(MIN_WAGE_FOOD_PRICE) as f64
+}
+
 /// Posted next-month labor offer; service prices remain independent of wage bids.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WagePolicy {
@@ -571,8 +576,7 @@ impl History {
             let site = f.site as usize;
             let family = f.family as usize;
             let town = &mut self.sites[site];
-            let reference = WAGE_REFERENCE_FOOD_KG_PER_MONTH
-                * town.economy.prices[crate::economy::FOOD].max(MIN_WAGE_FOOD_PRICE) as f64;
+            let reference = workshop_reference_wage(town);
             if refine {
                 let policy = f.wage_policy.get_or_insert_with(Default::default);
                 if let Some(next) = policy.pending.take() {
@@ -1466,6 +1470,121 @@ mod tests {
         assert_eq!(order.paid, 0.);
         assert_eq!(order.settled, Some(5));
         assert!((late.money_residual() - money).abs() < 1e-6);
+    }
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn funded_service_receipt_supports_only_bounded_operator_credit() {
+        let mut g = world();
+        install(&mut g);
+        let h = g.civilizations.as_mut().unwrap();
+        h.month = 3;
+        h.begin_service_reservations();
+        h.prepare_enterprises();
+        h.settle_enterprises();
+        let firm = h
+            .enterprises
+            .as_ref()
+            .unwrap()
+            .firms
+            .iter()
+            .find(|f| f.closed.is_none())
+            .unwrap()
+            .id;
+        let f = &mut h.enterprises.as_mut().unwrap().firms[firm as usize];
+        let site = f.site as usize;
+        // Explicit opening capitalization fixture: move the remaining invested
+        // cash back to its owner, preserving both cash and equity ledgers.
+        let returned = f.cash;
+        assert!(returned <= f.capital);
+        f.cash = 0.;
+        f.capital -= returned;
+        let owner = &mut h
+            .society
+            .as_mut()
+            .unwrap()
+            .household_economy
+            .as_mut()
+            .unwrap()
+            .accounts[f.owner as usize];
+        owner.cash += returned;
+        owner.capital_invested -= returned;
+        // A deliberately valuable service contract, not a new default fee.
+        f.service_rate = Some(1000.);
+        let transfer = withdraw(&mut h.sites[1].economy.finance[0], 1000.);
+        let added = deposit(&mut h.sites[site].economy.finance[0], transfer);
+        h.society.as_mut().unwrap().councils[0].treasury += transfer - added;
+        let money = h.money_residual();
+        h.fund_workshop_order(firm, 0.25, 4).unwrap();
+        h.month = 4;
+        h.credit.commercial_policy.enabled = true;
+        h.credit.commercial_policy.service_orders = true;
+        let mut production_opening = h.clone();
+        production_opening.month = 3;
+        let evidence = h.service_order_credit_evidence(0.05).unwrap();
+        assert_eq!(evidence.len(), 1);
+        assert!(evidence[0].expected_receipts > evidence[0].operating_costs);
+        assert!(evidence[0].operating_costs > 0.);
+        h.enterprises.as_ref().unwrap().validate(h).unwrap();
+        let mut disabled = h.clone();
+        disabled.credit.commercial_policy.service_orders = false;
+        assert_eq!(disabled.commercial_credit_month().unwrap(), 0);
+        let mut lost = h.clone();
+        lost.sites[site].economy.workshop_types
+            [h.enterprises.as_ref().unwrap().firms[firm as usize].family as usize][0] = 0.;
+        assert!(lost.service_order_credit_evidence(0.05).unwrap().is_empty());
+        assert_eq!(lost.commercial_credit_month().unwrap(), 0);
+        let mut costly = h.clone();
+        costly.sites[site].economy.prices[crate::economy::FOOD] = 1000.;
+        assert_eq!(costly.commercial_credit_month().unwrap(), 0);
+        assert_eq!(h.commercial_credit_month().unwrap(), 1);
+        let loan = &h.credit.loans[0];
+        assert_eq!(loan.terms.borrower, crate::credit::Account::Operator(firm));
+        assert_eq!(loan.terms.lender, crate::credit::Account::Town(site as u32));
+        assert!(loan.original_principal <= evidence[0].operating_costs);
+        assert_eq!(h.enterprises.as_ref().unwrap().orders[0].paid, 0.);
+        assert!((h.money_residual() - money).abs() < 1e-6);
+        h.validate_credit().unwrap();
+        h.enterprises.as_ref().unwrap().validate(h).unwrap();
+        let mut resumed: History =
+            serde_json::from_value(serde_json::to_value(&*h).unwrap()).unwrap();
+        assert_eq!(resumed.commercial_credit_month().unwrap(), 0);
+        assert_eq!(
+            serde_json::to_value(&*h).unwrap(),
+            serde_json::to_value(&resumed).unwrap()
+        );
+        // Now exercise the full monthly coordinator and actual GPU production
+        // from the pre-Reserve snapshot, without supplying completion amounts.
+        g.civilizations = Some(production_opening);
+        let path =
+            std::env::temp_dir().join(format!("service-credit-{}.world", std::process::id()));
+        g.save(&path).unwrap();
+        let mut control = Generator::load(g.gpu.clone(), &path).unwrap();
+        let mut checkpoint = Generator::load(g.gpu.clone(), &path).unwrap();
+        std::fs::remove_file(path).unwrap();
+        control
+            .civilizations
+            .as_mut()
+            .unwrap()
+            .credit
+            .commercial_policy
+            .service_orders = false;
+        g.advance_history(1).unwrap();
+        control.advance_history(1).unwrap();
+        checkpoint.advance_history(1).unwrap();
+        let funded = g.civilizations.as_ref().unwrap();
+        let unfunded = control.civilizations.as_ref().unwrap();
+        let operator = &funded.enterprises.as_ref().unwrap().firms[firm as usize];
+        let other = &unfunded.enterprises.as_ref().unwrap().firms[firm as usize];
+        assert!(operator.last_completed_work > other.last_completed_work);
+        assert!(operator.last_funded_work > other.last_funded_work);
+        assert!(funded.enterprises.as_ref().unwrap().orders[0].paid > 0.);
+        assert_eq!(unfunded.enterprises.as_ref().unwrap().orders[0].paid, 0.);
+        assert_eq!(
+            serde_json::to_value(funded).unwrap(),
+            serde_json::to_value(checkpoint.civilizations.as_ref().unwrap()).unwrap()
+        );
+        assert!((funded.money_residual() - money).abs() < 1e-6);
     }
 
     fn world() -> Generator {

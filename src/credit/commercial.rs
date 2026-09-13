@@ -16,10 +16,13 @@ const LENDER_SURPLUS_SHARE: f64 = 0.25;
 const ANNUAL_REQUIRED_RETURN: f64 = 0.06;
 const SHIPMENT_LOSS_ASSUMPTION: f64 = 0.05;
 const COMMERCIAL_REQUEST_NAMESPACE: u64 = 1 << 62;
+const SERVICE_REQUEST_NAMESPACE: u64 = 1 << 61;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Policy {
     pub enabled: bool,
+    #[serde(default)]
+    pub service_orders: bool,
     pub operating_cash_floor: f64,
     pub surplus_share: f64,
     pub annual_required_return: f64,
@@ -30,6 +33,7 @@ impl Default for Policy {
     fn default() -> Self {
         Self {
             enabled: false,
+            service_orders: false,
             operating_cash_floor: OPERATING_CASH_FLOOR,
             surplus_share: LENDER_SURPLUS_SHARE,
             annual_required_return: ANNUAL_REQUIRED_RETURN,
@@ -150,6 +154,9 @@ impl History {
         );
         let mut evidence = self.export_credit_evidence(policy.expected_loss_fraction)?;
         allocate_operating_costs(&mut evidence, &costs)?;
+        if policy.service_orders {
+            evidence.extend(self.service_order_credit_evidence(policy.expected_loss_fraction)?);
+        }
         let mut requests = Vec::new();
         let mut offers = Vec::new();
         let mut offered = BTreeSet::new();
@@ -214,6 +221,65 @@ impl History {
             }
             requests.push(Request {
                 id: COMMERCIAL_REQUEST_NAMESPACE | index as u64,
+                month: self.month,
+                principal: gap,
+                terms,
+            });
+        }
+        // The local paying town can voluntarily bridge its operator from cash
+        // left outside escrow. Keep these proposals in the same allocation round
+        // as exports so a town cannot offer its surplus twice.
+        for e in &evidence {
+            let Account::Operator(firm) = e.beneficiary else {
+                continue;
+            };
+            let super::RepaymentSource::ServiceOrder {
+                order,
+                payment_month,
+            } = e.source
+            else {
+                continue;
+            };
+            let operator = &self.enterprises.as_ref().unwrap().firms[firm as usize];
+            let payer = operator.site;
+            let gap = (e.operating_costs - self.credit_account_cash(e.beneficiary)?).max(0.);
+            if gap == 0. {
+                continue;
+            }
+            let lender = Account::Town(payer);
+            if offered.insert(payer) {
+                let cash = self.credit_account_cash(lender)?;
+                let reserve = costs[payer as usize].max(policy.operating_cash_floor);
+                offers.push(Offer {
+                    lender,
+                    month: self.month,
+                    cash,
+                    operating_reserve: reserve,
+                    offered_principal: (cash - reserve).max(0.) * policy.surplus_share,
+                    minimum_annual_rate: policy.annual_required_return,
+                });
+            }
+            let Some(maturity) = payment_month.checked_add(1) else {
+                continue;
+            };
+            let terms = Terms {
+                lender,
+                borrower: e.beneficiary,
+                currency: SHARED_CURRENCY,
+                source: e.source,
+                annual_simple_rate: required_annual_rate(
+                    policy.annual_required_return,
+                    policy.expected_loss_fraction,
+                    maturity - self.month,
+                ),
+                maturity_month: maturity,
+                grace_months: Terms::default_grace_months(),
+            };
+            if terms.validate(self.month).is_err() {
+                continue;
+            }
+            requests.push(Request {
+                id: SERVICE_REQUEST_NAMESPACE | order,
                 month: self.month,
                 principal: gap,
                 terms,

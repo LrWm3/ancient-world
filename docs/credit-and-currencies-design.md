@@ -16,6 +16,35 @@ systems. More money must not substitute for missing food or productive capacity.
 The [experiment protocol](#experiments-and-gates) separates those constraints
 from the question of whether either mechanism improves outcomes.
 
+## First delivery and review boundaries
+
+The first delivery is a **credit timing experiment**, not a banking system.
+Use the existing council and commercial accounts, a single currency identity,
+and a small number of dated contracts. Keep production, payroll, relief and
+procurement authoritative for what borrowers actually accomplish.
+
+| Work package | Deliverable | Evidence needed before widening scope |
+| --- | --- | --- |
+| Account audit | Ownership and monthly payment-boundary map | Every transfer has one payer, one recipient and one ledger entry. |
+| Credit foundation | Requests, voluntary offers, contracts and servicing | Exact cash transfers; bounded competing claims; no double-pledged receipts. |
+| Council pilot | Borrow against conservative future net taxes | More completed service during a timing gap; rejection after loss of a viable tax base. |
+| Commercial pilot | Borrow against an identified delivery or service payment | More completed work or deliveries; partial/lost proceeds can cause real lender losses. |
+| Issuance pilot | Dated, independently switchable capped creation | Declared supply changes reconcile; leadership turnover cannot reset caps. |
+| Comparison package | Four matched arms plus adverse cases | Separate production from affordability and borrower gains from lender service losses. |
+| Currency decision | Written go/no-go with remaining uncertainties | Useful effects persist after issuance ends, without repeated rescues or unsupported debt. |
+
+Choose cap values, operating reserves, loss assumptions and evaluation thresholds
+in a versioned experiment configuration before examining held-out worlds. These
+are game-design settings to test, not historical estimates. Record unmet loan
+demand as well as accepted loans: zero lending can mean no timing gap, no willing
+lender, or an insolvent borrower, and those require different responses.
+
+Stage 2 is a separate decision boundary in the design: it depends on evidence,
+not merely completing Stage 1 code. If Stage 1 remains inconclusive, retain the
+shared-currency tools and improve the experiment rather than silently enabling
+exchange or raising issuance limits. Household subsistence debt, collateral
+seizure, deposit creation and government bonds stay outside this first delivery.
+
 ## Implementation status
 
 Status: experimental council and commercial credit pilots and bounded shared-
@@ -76,9 +105,10 @@ delivery should close their evidence gaps before expanding the monetary model:
 2. **Make commercial repayment sources concrete.** Finish delivery-proceeds
    comparisons, including delayed and lost cargo. For workshop operators, first
    use the new [funded service-order foundation](workshop-service-orders.md),
-   then add automatic procurement and source-specific underwriting. The explicit
-   order API now reserves payer cash and settles completed work; that alone does
-   not establish automatic loan requests or credit-financed production.
+   and [optional operator underwriting](workshop-service-credit.md). The explicit
+   order API reserves cash, and a controlled GPU fixture now shows credit funding
+   completed work. Add automatic procurement and normal-fee comparisons next;
+   the deliberately valuable fixture contract does not establish a balance benefit.
 3. **Test lender costs as well as borrower benefits.** Compare council and
    institutional lending reserves. Measure maintenance, paid administration and
    service shortfalls alongside interest and defaults. A reserve policy that

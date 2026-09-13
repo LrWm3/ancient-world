@@ -314,7 +314,11 @@ pub fn resolve(
                 || month - e.observed_month > policy.evidence_age_months
             {
                 Decision::StaleEvidence
-            } else if payment_month(e.source) <= month
+            // A service fee is earned in Execute after this Reserve decision.
+            // Deliveries/taxes retain their existing strictly future boundary.
+            } else if payment_month(e.source) < month
+                || (payment_month(e.source) == month
+                    && !matches!(e.source, RepaymentSource::ServiceOrder { .. }))
                 || payment_month(e.source) >= t.maturity_month
             {
                 Decision::Timing
@@ -529,6 +533,55 @@ mod tests {
             },
         }
     }
+    #[test]
+    fn current_month_service_fee_can_fund_reserve_but_other_due_sources_cannot() {
+        for source in [
+            RepaymentSource::ServiceOrder {
+                order: 0,
+                payment_month: 1,
+            },
+            RepaymentSource::Export {
+                contract: 0,
+                payment_month: 1,
+            },
+            RepaymentSource::AnnualTax {
+                council: 0,
+                collection_month: 1,
+            },
+        ] {
+            let mut e = evidence();
+            e.source = source;
+            e.beneficiary = Account::Operator(0);
+            let mut r = request(1, 0);
+            r.terms.source = source;
+            r.terms.borrower = e.beneficiary;
+            r.terms.maturity_month = 2;
+            let grants = resolve(
+                1,
+                &Policy::default(),
+                &[],
+                &[offer(0)],
+                &[e.clone()],
+                &[r.clone()],
+            )
+            .unwrap();
+            if matches!(source, RepaymentSource::ServiceOrder { .. }) {
+                assert_eq!(grants[0].decision, Decision::Approved);
+                assert_eq!(grants[0].granted, 80.);
+                r.month = 2;
+                r.terms.maturity_month = 3;
+                let mut o = offer(0);
+                o.month = 2;
+                assert_eq!(
+                    resolve(2, &Policy::default(), &[], &[o], &[e], &[r]).unwrap()[0].decision,
+                    Decision::Timing
+                );
+            } else {
+                assert_eq!(grants[0].decision, Decision::Timing);
+            }
+        }
+    }
+
     #[test]
     fn capacity_receipts_distinguish_limits_and_validate_serialized_grants() {
         let run = |policy: Policy, offer: Offer, evidence: Evidence| {

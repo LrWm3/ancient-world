@@ -31,8 +31,9 @@ repayment. Funds still in escrow count once in the existing monetary ledger.
 Orders and their paid/refunded/remaining balances persist in history. Older
 archives default to no orders. With no orders, the existing service-invoice path
 remains in use. This initial interface has no automatic town procurement policy,
-no explorer controls, and no automatic loan requests backed by these orders yet.
-Those are remaining integration work, not implied by the payment record.
+and no explorer controls. [Optional service credit](workshop-service-credit.md)
+now constructs loan requests from existing orders; automatic procurement and
+active-order production comparisons remain unfinished.
 
 The focused fixture uses the existing GPU-backed workshop setup but supplies
 explicit completion amounts to isolate settlement. It compares zero, partial and

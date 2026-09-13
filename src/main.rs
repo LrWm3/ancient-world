@@ -82,6 +82,9 @@ struct Args {
     /// Experimental town working-capital loans against delivery-paid exports.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     commercial_credit: Option<bool>,
+    /// Include funded workshop orders when commercial credit is enabled.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    service_order_credit: Option<bool>,
     /// Recover old export defaults from bounded newly received delivery proceeds.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     export_default_recovery: Option<bool>,
@@ -176,6 +179,7 @@ fn main() -> Result<()> {
                 && args.institution_credit_lenders.is_none()
                 && args.institution_credit_operating_reserve.is_none()
                 && args.commercial_credit.is_none()
+                && args.service_order_credit.is_none()
                 && args.export_default_recovery.is_none()
                 && args.shared_issuance.is_none()
                 && args.delivery_paid_exports.is_none()
@@ -387,6 +391,15 @@ fn main() -> Result<()> {
             .commercial_policy
             .enabled = enabled;
     }
+    if let Some(enabled) = args.service_order_credit {
+        generator
+            .civilizations
+            .as_mut()
+            .context("service order credit requires a history")?
+            .credit
+            .commercial_policy
+            .service_orders = enabled;
+    }
     if let Some(enabled) = args.export_default_recovery {
         generator
             .civilizations
@@ -508,6 +521,23 @@ mod args_tests {
             );
         }
     }
+    #[test]
+    fn service_order_credit_flag_is_explicit_and_preserves_archive() {
+        for (args, expected) in [
+            (vec!["ancient-world"], None),
+            (vec!["ancient-world", "--service-order-credit"], Some(true)),
+            (
+                vec!["ancient-world", "--service-order-credit=false"],
+                Some(false),
+            ),
+        ] {
+            assert_eq!(
+                Args::try_parse_from(args).unwrap().service_order_credit,
+                expected
+            );
+        }
+    }
+
     #[test]
     fn export_recovery_flag_preserves_archive_when_omitted() {
         for (arguments, expected) in [

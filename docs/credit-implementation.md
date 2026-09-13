@@ -730,3 +730,17 @@ loan requests against these orders, and full production comparisons remain open.
 The no-order seed-1024 baseline completed 200 years and matched the prior full
 history exactly after removing only the added empty order vector. Active-order
 settlement fixtures passed, but automatic order/lending behavior remains unfinished.
+
+## Service-order underwriting integration
+
+[Optional operator service credit](workshop-service-credit.md) now joins commercial
+export requests in one funding round. Evidence retains current wage/rent costs,
+installed capacity and reserved fees; town offers exclude escrow. The due-month
+service fee is explicitly later than Reserve and earlier than next Open repayment.
+Automatic order posting and evidence of added physical production remain open.
+
+The controlled service-credit fixture now also runs the full monthly GPU pipeline:
+credit increases funded/completed operator work and produces earned order fees;
+the no-credit branch earns none. Checkpoint continuation matches. Its deliberately
+valuable fee is a mechanism fixture, not evidence that default pricing supports
+credit or that autonomous procurement improves long histories.

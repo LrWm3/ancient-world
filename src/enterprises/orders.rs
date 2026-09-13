@@ -30,6 +30,75 @@ pub struct ServiceOrder {
 }
 
 impl History {
+    /// A funded fee is still conditional on future work. Costs retain current
+    /// payroll quotes and rent; neither escrow nor loans are operator income.
+    pub fn service_order_credit_evidence(
+        &self,
+        loss: f64,
+    ) -> Result<Vec<crate::credit::underwriting::Evidence>> {
+        ensure!(
+            loss.is_finite() && (0. ..=1.).contains(&loss),
+            "invalid service loss assumption"
+        );
+        let Some(enterprises) = &self.enterprises else {
+            return Ok(vec![]);
+        };
+        validate(enterprises, self)?;
+        if !enterprises.enabled {
+            return Ok(vec![]);
+        }
+        let refined = self
+            .resolution
+            .as_ref()
+            .is_some_and(|r| r.workshop_individual);
+        let mut evidence = vec![];
+        for order in &enterprises.orders {
+            let firm = &enterprises.firms[order.firm as usize];
+            let town = &self.sites[order.site as usize];
+            if order.settled.is_some()
+                || order.due < self.month
+                || firm.closed.is_some()
+                || town.abandoned
+            {
+                continue;
+            }
+            let units = firm.leased_units.min(f64::from(
+                town.economy.workshop_types[firm.family as usize][0],
+            ));
+            let work = order
+                .funded_work
+                .min(units * f64::from(crate::production::WORKSHOP_WORKER_MONTHS_PER_UNIT));
+            if work <= 0. {
+                continue;
+            }
+            let reference = super::workshop_reference_wage(town);
+            let wage = reference
+                * if refined {
+                    firm.wage_policy
+                        .as_ref()
+                        .map_or(1., |p| p.pending.unwrap_or(p.multiplier))
+                } else {
+                    1.
+                };
+            let rent = units
+                * super::RENT_REFERENCE_WORK_MONTHS_PER_UNIT
+                * reference
+                * f64::from(order.due - self.month + 1);
+            evidence.push(crate::credit::underwriting::Evidence {
+                source: crate::credit::RepaymentSource::ServiceOrder {
+                    order: order.id,
+                    payment_month: order.due,
+                },
+                beneficiary: crate::credit::Account::Operator(firm.id),
+                observed_month: self.month,
+                expected_receipts: (work * order.price_per_work).min(order.escrow) * (1. - loss),
+                operating_costs: work * wage + rent,
+                expected_loss_fraction: loss,
+            });
+        }
+        Ok(evidence)
+    }
+
     /// Explicit opt-in order at a completed history boundary. This reserves money,
     /// not workers or materials, and cannot finance work already performed.
     pub fn fund_workshop_order(&mut self, firm: u32, work: f64, due: u32) -> Result<u64> {
