@@ -48,6 +48,8 @@ def main():
     parser.add_argument("--checkpoint", action="append", required=True, metavar="LABEL=PATH")
     parser.add_argument("--years", type=int, default=DEFAULT_HISTORY_YEARS)
     parser.add_argument("--output", type=Path, default=Path("output/monetary-experiment"))
+    parser.add_argument("--compare-export-recovery", action="store_true",
+                        help="add credit and combined arms with late-export recovery enabled")
     args = parser.parse_args()
     repo = Path(__file__).resolve().parents[1]
     if args.years <= 0:
@@ -80,11 +82,16 @@ def main():
         "checkpoints": {label: {"path": str(path), "sha256": digest(path)} for label, path in cases.items()},
         "years": args.years,
         "common_payment_policy": "delivery",
+        "compare_export_recovery": args.compare_export_recovery,
     }
     (out / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
+    arms = [(name, credit, issuance, False) for name, credit, issuance in ARMS]
+    if args.compare_export_recovery:
+        arms.extend((name + "-recovery", credit, issuance, True)
+                    for name, credit, issuance in ARMS if credit)
     results = []
     for label, checkpoint in cases.items():
-        for arm, credit, issuance in ARMS:
+        for arm, credit, issuance, recovery in arms:
             name = f"{label}-{arm}"
             archive = out / f"{name}.json"
             command = [str(fixed), "--headless", "--load", str(checkpoint), "--epochs", "0",
@@ -93,6 +100,8 @@ def main():
                        f"--council-credit={str(credit).lower()}",
                        f"--shared-issuance={str(issuance).lower()}",
                        "--history-export", str(archive)]
+            if args.compare_export_recovery:
+                command.append(f"--export-default-recovery={str(recovery).lower()}")
             started = time.monotonic()
             with (out / f"{name}.log").open("w") as log:
                 status = subprocess.run(command, cwd=repo, stdout=log, stderr=subprocess.STDOUT, check=False)
