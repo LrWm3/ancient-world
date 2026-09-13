@@ -38,9 +38,26 @@ enabled. Non-political legacy history keeps its existing representative behavior
 
 Internal selection uses the existing ambition, loyalty, skill and locally known
 heritage score, with a challenger margin to prevent ties from removing an
-incumbent. It is **not yet personal performance accountability**: administration,
-relief and promises still need dated officeholder attribution before they can
-fairly distinguish avoidable failure from unavailable resources.
+incumbent. Personal accountability now adds two local, dated signals:
+completed named office work, and civic petitions answered by a present ruler.
+A response records that person at resolution, not whoever holds office later.
+Delivered petitions earn credit; political refusal incurs blame only if funds
+and the delivery channel were available. Unfunded or impossible responses remain
+neutral for personal selection (existing faction grievance rules are unchanged).
+Relief here means delivered purchasing power, not a claim that food was purchased.
+
+Petition effects decay exponentially with a 60-month scale and saturate at ±0.5.
+Completed named office work accumulates bounded credit up to 0.30 with the same
+decay scale. Scarce labor, illness, and failed eligibility do not earn work
+credit, but do not incur blame. Office credit is retained per person/site while
+named office service remains enabled. Both signals are local to the candidate's
+site; no global reputation or transmission is inferred. Hereditary rulers remain
+exempt from annual performance contests. Candidate quality can now be negative;
+council ballot counts remain nonnegative.
+
+These are game rules, not calibrated political psychology. They do not cover
+every relief shipment, treaty obligation, or administrative failure. Older archives
+have unknown personal attribution and start without historical service credit.
 
 Heritage recognition adds at most 0.20 to faction appeal, before the existing
 bounded affiliation update. It uses current eligible member households, known
@@ -56,7 +73,7 @@ history archives. Political succession events identify both people and the
 retained governing faction. The existing office synchronization then follows the
 new ruler; this change does not add free administrative labor.
 
-Remaining extensions are personally attributed service accountability, institutional
+Remaining extensions are broader personally attributed commitments, institutional
 acting leaders/return recruitment, configurable franchise for inter-faction
 support, and a viewer control for these constitutional policies. Existing funded
 institution relocation remains available independently.
@@ -82,3 +99,23 @@ institution relocation remains available independently.
 These are controlled integration checks, not long-run balance calibration. Personal
 selection remains a small game rule; no claim of historically calibrated political
 behavior is made.
+
+### Personal accountability follow-up
+
+Controlled GPU fixture (seed 17): a ruler with delivered-petition credit retained
+office against a challenger with a 0.4 skill advantage. Removing only the personal
+attribution let the challenger win; household/property state remained identical.
+Funded opposition earned negative credit; the same opposition with no treasury
+funds remained neutral. Other people and remote sites received no credit.
+Changing ruler did not transfer responsibility, and serialized continuation,
+repeated resolution and aging preserved the expected scores.
+
+Named office service tests verify positive credit for completed work, no extra
+credit on repeated settlement, no credit for unavailable personal time or exhausted
+town labor, and identical save/resume outcomes. Production and finance accounting
+are unchanged.
+
+Verification: 146 ordinary library tests passed (129 extended/hardware cases
+ignored); all 9 civic-petition tests passed with ignored cases enabled; 3 leadership
+fixtures and the named-office service boundary fixture passed. These controlled
+comparisons establish the new causal connection, not long-history balance.

@@ -3,6 +3,9 @@ use crate::{civilization::History, participation::Presence, politics::Politics};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+const PETITION_CREDIT: f32 = 0.35;
+const PETITION_MEMORY_MONTHS: f32 = 60.0;
+const MAX_PETITION_CREDIT: f32 = 0.5;
 const ELIGIBLE_AGE_MONTHS: i64 = 216;
 const ABSENCE_GRACE_MONTHS: u32 = 6;
 const INTERNAL_CHALLENGE_MARGIN: f32 = 0.25;
@@ -62,9 +65,7 @@ impl Leadership {
                 (c as usize) < h.civilizations.len()
                     && m.last_scores
                         .iter()
-                        .all(|(id, score)| (*id as usize) < h.people.len()
-                            && score.is_finite()
-                            && *score >= 0.)
+                        .all(|(id, score)| (*id as usize) < h.people.len() && score.is_finite())
                     && [
                         m.absent_since,
                         m.last_review,
@@ -106,7 +107,7 @@ pub(crate) fn faction_heritage(h: &History, p: &Politics, observer: u32, faction
 }
 impl History {
     pub fn leadership_report(&self) -> serde_json::Value {
-        serde_json::json!({"month":self.month,"leadership":self.politics.as_ref().map(|p| &p.leadership),"rules":"New political baselines use governing-faction selection; council ballots currently give each eligible household one vote. Traits and witnessed heritage influence candidates; personal service-accountability is not yet scored."})
+        serde_json::json!({"month":self.month,"leadership":self.politics.as_ref().map(|p| &p.leadership),"rules":"New political baselines use governing-faction selection; council ballots currently give each eligible household one vote. Traits and witnessed heritage influence candidates; completed personal office work and attributed feasible petition responses affect selection. Resource shortfalls are not personal refusal."})
     }
     fn leadership_site(&self, person: u32, civilization: u32) -> Option<u32> {
         let p = self.people.get(person as usize)?;
@@ -126,13 +127,49 @@ impl History {
             _ => None,
         }
     }
+    pub(crate) fn personal_accountability(&self, person: u32, site: u32) -> f32 {
+        let petitions: f32 = self
+            .governance
+            .as_ref()
+            .into_iter()
+            .flat_map(|g| &g.petitions)
+            .filter(|p| p.site == site && p.responding_person == Some(person))
+            .filter_map(|p| {
+                let month = p.resolved?;
+                let effect = if p.honored {
+                    PETITION_CREDIT
+                } else if p.feasible_response
+                    && p.resolution_reason.as_deref() == Some("political opposition")
+                {
+                    -PETITION_CREDIT
+                } else {
+                    0.
+                };
+                Some(
+                    effect
+                        * (-(self.month.saturating_sub(month) as f32) / PETITION_MEMORY_MONTHS)
+                            .exp(),
+                )
+            })
+            .sum();
+        let service: f32 = self
+            .offices
+            .as_ref()
+            .and_then(|o| o.service.as_ref())
+            .into_iter()
+            .flat_map(|s| &s.records)
+            .filter(|r| r.person == person && r.site == site)
+            .map(|r| r.score(self.month))
+            .sum();
+        petitions.clamp(-MAX_PETITION_CREDIT, MAX_PETITION_CREDIT) + service
+    }
     fn leadership_score(&self, person: u32, site: u32) -> f32 {
         self.culture.as_ref().map_or(0., |c| {
             c.agents.get(person as usize).map_or(0., |a| {
                 a.traits[0] + LOYALTY_WEIGHT * a.traits[4] + a.skills[0]
             }) + PERSONAL_HERITAGE_WEIGHT
                 * crate::heritage_renown::score(c, site, self.month, |r| r.people.contains(&person))
-        })
+        }) + self.personal_accountability(person, site)
     }
     pub(crate) fn review_leadership(&mut self, annual: bool) {
         let Some(p) = self.politics.as_mut() else {
@@ -286,7 +323,21 @@ impl History {
                         .filter(|r| r.people.contains(&next) && r.weight(site, self.month) > 0.)
                         .map(|r| r.event)
                         .collect();
+                    let petition_causes: Vec<_> = self
+                        .governance
+                        .as_ref()
+                        .into_iter()
+                        .flat_map(|g| &g.petitions)
+                        .filter(|p| {
+                            p.site == site
+                                && p.responding_person
+                                    .is_some_and(|id| id == old || id == next)
+                                && (p.honored || p.feasible_response)
+                        })
+                        .filter_map(|p| p.outcome)
+                        .collect();
                     let event = self.events.last_mut().unwrap();
+                    event.causes.extend(petition_causes);
                     event.causes.extend(causes);
                     event.causes.sort_unstable();
                     event.causes.dedup();

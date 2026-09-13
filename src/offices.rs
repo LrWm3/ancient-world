@@ -383,9 +383,12 @@ mod tests {
             serde_json::to_value(&resumed).unwrap()
         );
         assert!(h.office_capacity(0) > 0.5);
+        assert!(h.personal_accountability(holder, 0) > 0.);
+        let credit = h.personal_accountability(holder, 0);
         assert_eq!(h.sites[0].economy.finance, finance);
         assert!((h.sites[0].economy.external[3] - external).abs() < 1e-6);
         assert!(h.settle_office_service().is_err());
+        assert_eq!(h.personal_accountability(holder, 0), credit);
         assert!(h.set_individual_participation(false).is_err());
         let mut unavailable = opening.clone();
         let available = unavailable
@@ -408,6 +411,7 @@ mod tests {
         unavailable.reserve_office_service().unwrap();
         unavailable.settle_office_service().unwrap();
         assert_eq!(unavailable.office_capacity(0), 0.5);
+        assert_eq!(unavailable.personal_accountability(holder, 0), 0.);
         let mut partial = opening.clone();
         let available = partial.participation.as_ref().unwrap().available(holder);
         partial
@@ -432,6 +436,7 @@ mod tests {
         scarce.reserve_office_service().unwrap();
         scarce.settle_office_service().unwrap();
         assert_eq!(scarce.office_capacity(0), 0.5);
+        assert_eq!(scarce.personal_accountability(holder, 0), 0.);
         let mut changed = opening;
         changed.reserve_office_service().unwrap();
         changed.offices.as_mut().unwrap().seats[0]

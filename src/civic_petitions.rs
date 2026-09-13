@@ -38,6 +38,12 @@ pub struct Petition {
     /// Legacy records leave attribution unknown.
     #[serde(default)]
     pub responding_faction: Option<u32>,
+    /// Present ruler at resolution; old records retain unknown responsibility.
+    #[serde(default)]
+    pub responding_person: Option<u32>,
+    /// Delivery and funds were available when the decision was made.
+    #[serde(default)]
+    pub feasible_response: bool,
     pub honored: bool,
     pub paid: f64,
 }
@@ -334,6 +340,8 @@ pub(crate) fn propose(h: &mut History, c: &mut Culture) {
             outcome: None,
             resolution_reason: None,
             responding_faction: None,
+            responding_person: None,
+            feasible_response: false,
             honored: false,
             paid: 0.,
         });
@@ -436,6 +444,13 @@ pub(crate) fn resolve(h: &mut History) {
             "insufficient council funds"
         };
         p.responding_faction = valid.then_some(governing);
+        let ruler = h.civilizations[p.controller as usize].leader;
+        p.responding_person = (valid
+            && h.people[ruler as usize].died.is_none()
+            && matches!(h.person_presence(ruler).1, crate::participation::Presence::Resident(site)
+                if h.controller(site) == p.controller))
+        .then_some(ruler);
+        p.feasible_response = valid && can_deliver && cash >= p.requested;
         p.resolution_reason = Some(reason.into());
         p.honored = honored;
         p.resolved = Some(h.month);
@@ -455,6 +470,9 @@ pub(crate) fn resolve(h: &mut History) {
             if government != p.faction {
                 ev.subjects.push(("faction".into(), government));
             }
+        }
+        if let Some(person) = p.responding_person {
+            ev.subjects.push(("person".into(), person));
         }
         p.outcome = Some(ev.id);
         ev.detail.push_str(&format!("; resolution: {reason}"));
@@ -490,6 +508,9 @@ pub(crate) fn validate(h: &History, petitions: &[Petition]) -> anyhow::Result<()
                                 .is_some_and(|f| f.civilization == p.controller)
                         })
                 })
+                && p.responding_person
+                    .is_none_or(|id| { p.resolved.is_some() && (id as usize) < h.people.len() })
+                && (!p.feasible_response || p.resolved.is_some())
                 && p.opened <= h.month
                 && p.pressure.is_finite()
                 && (0. ..=1.2).contains(&p.pressure)

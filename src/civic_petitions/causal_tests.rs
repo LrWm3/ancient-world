@@ -94,6 +94,8 @@ fn pending(h: &mut History, demand: Demand) {
         outcome: None,
         resolution_reason: None,
         responding_faction: None,
+        responding_person: None,
+        feasible_response: false,
         honored: false,
         paid: 0.,
     });
@@ -564,4 +566,87 @@ fn faction_alignment_responds_to_food_access_with_identical_town_stocks() {
             .map(|s| s.economy.goods)
             .collect::<Vec<_>>()
     );
+}
+
+#[test]
+#[ignore = "requires hardware GPU"]
+fn personal_responsibility_tracks_delivery_feasibility_and_selection() {
+    let mut h = fixture(17);
+    pending(&mut h, Demand::Learning);
+    let civ = h.controller(0) as usize;
+    let old = h.civilizations[civ].leader;
+    assert_eq!(
+        h.person_presence(old).1,
+        crate::participation::Presence::Resident(0)
+    );
+    let challenger = h
+        .society
+        .as_ref()
+        .unwrap()
+        .households
+        .iter()
+        .find(|f| f.site == 0 && f.head != old && h.political_household_eligible(f))
+        .unwrap()
+        .head;
+    h.sync_culture();
+    // Put both candidates in the responding faction and remove unrelated quality differences.
+    let faction = h.politics.as_ref().unwrap().governing[civ];
+    for f in &h.society.as_ref().unwrap().households {
+        if f.site == 0 {
+            h.politics.as_mut().unwrap().household_factions[f.id as usize] = faction;
+        }
+    }
+    for a in &mut h.culture.as_mut().unwrap().agents {
+        a.traits = [0.; 6];
+        a.skills = [0.; 4];
+    }
+    h.culture.as_mut().unwrap().agents[challenger as usize].skills[0] = 0.4;
+    let mut delivered = h.clone();
+    let initial = money(&delivered);
+    resolve(&mut delivered);
+    assert!((money(&delivered) - initial).abs() < 1e-8);
+    let p = &delivered.governance.as_ref().unwrap().petitions[0];
+    assert_eq!(p.responding_person, Some(old));
+    assert!(p.honored && p.feasible_response);
+    assert!(delivered.personal_accountability(old, 0) > 0.);
+    assert_eq!(delivered.personal_accountability(challenger, 0), 0.);
+    assert_eq!(delivered.personal_accountability(old, 1), 0.);
+    let mut no_evidence = delivered.clone();
+    no_evidence.governance.as_mut().unwrap().petitions[0].responding_person = None;
+    delivered.review_leadership(true);
+    no_evidence.review_leadership(true);
+    assert_eq!(delivered.civilizations[civ].leader, old);
+    assert_eq!(no_evidence.civilizations[civ].leader, challenger);
+    assert_eq!(
+        serde_json::to_value(&delivered.society).unwrap(),
+        serde_json::to_value(&no_evidence.society).unwrap()
+    );
+
+    // Opposing interest refuses a feasible learning petition; a simultaneous
+    // shortage must remain neutral even though the prose still says opposition.
+    let opposed = h
+        .politics
+        .as_ref()
+        .unwrap()
+        .factions
+        .iter()
+        .find(|f| f.civilization as usize == civ && f.interest == 2)
+        .unwrap()
+        .id;
+    h.politics.as_mut().unwrap().governing[civ] = opposed;
+    h.month += 9;
+    let mut shortage = h.clone();
+    shortage.society.as_mut().unwrap().councils[civ].treasury = 0.;
+    resolve(&mut h);
+    resolve(&mut shortage);
+    assert!(h.personal_accountability(old, 0) < 0.);
+    assert_eq!(shortage.personal_accountability(old, 0), 0.);
+    let score = h.personal_accountability(old, 0);
+    h.civilizations[civ].leader = challenger;
+    assert_eq!(h.personal_accountability(challenger, 0), 0.);
+    let mut resumed: History = serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
+    resolve(&mut resumed);
+    assert_eq!(resumed.personal_accountability(old, 0), score);
+    resumed.month += 60;
+    assert!(resumed.personal_accountability(old, 0) > score);
 }

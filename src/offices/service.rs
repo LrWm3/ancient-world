@@ -2,9 +2,27 @@
 use super::*;
 use crate::{labor::WorkReceipt, participation::Activity};
 
+const SERVICE_MEMORY_MONTHS: f32 = 60.0;
+const SERVICE_CREDIT_PER_WORK: f32 = 0.25;
+const MAX_SERVICE_CREDIT: f32 = 0.30;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Record {
+    pub person: u32,
+    pub site: u32,
+    pub month: u32,
+    pub credit: f32,
+}
+impl Record {
+    pub(crate) fn score(&self, month: u32) -> f32 {
+        self.credit * (-(month.saturating_sub(self.month) as f32) / SERVICE_MEMORY_MONTHS).exp()
+    }
+}
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Service {
     pub plans: Vec<Plan>,
+    #[serde(default)]
+    pub records: Vec<Record>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Plan {
@@ -198,12 +216,49 @@ impl History {
                 .plans[index]
                 .work
                 .settle(used as f64);
+            if used > 0. {
+                let records = &mut self
+                    .offices
+                    .as_mut()
+                    .unwrap()
+                    .service
+                    .as_mut()
+                    .unwrap()
+                    .records;
+                if let Some(r) = records
+                    .iter_mut()
+                    .find(|r| r.person == p.holder && r.site == p.site)
+                {
+                    r.credit = (r.score(self.month) + used * SERVICE_CREDIT_PER_WORK)
+                        .min(MAX_SERVICE_CREDIT);
+                    r.month = self.month;
+                } else {
+                    records.push(Record {
+                        person: p.holder,
+                        site: p.site,
+                        month: self.month,
+                        credit: (used * SERVICE_CREDIT_PER_WORK).min(MAX_SERVICE_CREDIT),
+                    });
+                }
+            }
         }
         Ok(())
     }
 }
 impl Service {
     pub(super) fn validate(&self, h: &History) -> Result<()> {
+        let mut keys = std::collections::BTreeSet::new();
+        for r in &self.records {
+            ensure!(
+                (r.person as usize) < h.people.len()
+                    && (r.site as usize) < h.sites.len()
+                    && r.month <= h.month
+                    && r.credit.is_finite()
+                    && (0. ..=MAX_SERVICE_CREDIT).contains(&r.credit)
+                    && keys.insert((r.person, r.site)),
+                "invalid personal office service memory"
+            );
+        }
         ensure!(
             h.participation.is_some() && self.plans.len() <= h.sites.len(),
             "invalid office service state"
