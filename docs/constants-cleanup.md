@@ -399,3 +399,13 @@ height/material constants, preserving the prior display's f64 arithmetic.
 Strict all-target Clippy passed. No simulation values or timing changed. The review
 also identified an outdated grain-container display, recorded separately for a
 behavioral correction rather than preserving its formula as new constants.
+
+## Seasonal sunlight parameters
+
+Reviewed `shaders/sunlight.wgsl`. Named the year length, equinox phase, monthly
+orbital angle and equatorial normalization at the top of the owning shader.
+Preserved literal precision and arithmetic order; unit bounds and numeric
+identities remain inline. The hardware-enabled solar geometry fixture passed
+against its independent rotating-surface integration reference, including both
+hemispheres, poles and three axial tilts. Core ecology, terrain and economy
+shaders still need their remaining semantic-parameter review.
