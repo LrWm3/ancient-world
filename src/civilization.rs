@@ -1073,8 +1073,10 @@ impl Engine {
             label: Some("Civilization simulation"),
             source: wgpu::ShaderSource::Wgsl(
                 format!(
-                    "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
+                    "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
                     SHADER_PARAMETERS,
+                    crate::gpu::SHADER_PARAMETERS,
+                    include_str!("../shaders/history_weather.wgsl"),
                     crate::society::SHADER_PARAMETERS,
                     crate::hazards::SHADER_PARAMETERS,
                     crate::agriculture::SHADER_PARAMETERS,

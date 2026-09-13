@@ -661,9 +661,9 @@ fn intervention(@builtin(global_invocation_id) g:vec3<u32>) {let i=id(g,p.dims.y
 // component of the fine watershed payload; receiving lake cells retain it.
 fn history_drought(i:u32)->f32 {
  if p.options.w==0u {return 1.;}
- let region=vec3<u32>(floor((pos(i,p.dims.x)+vec3(1.))*4.));
- let key=region.x+9u*region.y+81u*region.z;
- let period=(max(1u,p.event.w)-1u)/max(12u,p.event.z);
+ let region=vec3<u32>(floor((pos(i,p.dims.x)+vec3(1.))*HISTORY_WEATHER_BIN_SCALE));
+ let key=region.x+HISTORY_WEATHER_AXIS_STRIDE*region.y+HISTORY_WEATHER_PLANE_STRIDE*region.z;
+ let period=(max(1u,p.event.w)-1u)/max(MIN_HISTORY_WEATHER_REGIME_MONTHS,p.event.z);
  var v=key*7919u^period*104729u^p.dims.w;
  v=(v^(v>>16u))*0x7feb352du;v=(v^(v>>15u))*0x846ca68bu;v=v^(v>>16u);
  let drought=select(1.,1.-bitcast<f32>(p.event.y),f32(v&65535u)/65536.<bitcast<f32>(p.event.x));

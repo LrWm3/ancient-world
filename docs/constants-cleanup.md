@@ -496,3 +496,16 @@ serialized history before and after extraction (same backend, default history
 options). This checks that exercised path, not all alternative modes. Regional weather binning and dispatch constants in the civilization
 shader remain to be reviewed; the extraction above does not claim that every
 nontrivial literal in that file has been addressed.
+
+## Shared history-weather bins and dispatch stride
+
+Completed the settlement shader's remaining weather/dispatch parameter review.
+The ecology and settlement kernels now include `shaders/history_weather.wgsl`
+for their common spherical bin dimensions and minimum drought-regime duration.
+The settlement dispatch stride uses the existing GPU dimension limit and history
+workgroup size, matching CPU dispatch scheduling. Hash arithmetic, buffer indices
+and boolean encodings remain inline. No values or operation order changed.
+
+The hardware plot/recipe-conservation fixture passed, exercising both shader
+assemblies; strict all-target Clippy and executable build passed. This does not
+finish the remaining ecology, terrain, economy or map-rendering shader reviews.

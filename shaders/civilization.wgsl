@@ -60,7 +60,7 @@ struct Params { dims:vec4<u32>, options:vec4<u32>, weather:vec4<u32> }
 @group(0) @binding(4) var<storage,read_write> prospects:array<vec4<f32>>;
 @compute @workgroup_size(HISTORY_WORKGROUP_SIZE)
 fn survey(@builtin(global_invocation_id) g:vec3<u32>) {
- let i=g.x+g.y*65535u*64u;if i>=p.dims.x{return;}let c=world[i];
+ let i=g.x+g.y*MAX_DISPATCH_GROUPS_PER_DIMENSION*HISTORY_WORKGROUP_SIZE;if i>=p.dims.x{return;}let c=world[i];
  let warmth=clamp((c.hydro.y+SURVEY_COLD_OFFSET_C)/SURVEY_COLD_RAMP_C,0.,1.)*clamp((SURVEY_HEAT_CEILING_C-c.hydro.y)/SURVEY_HEAT_RAMP_C,0.,1.);
  let moisture=clamp(c.hydro.z/SURVEY_RAIN_SATURATION_MM_YEAR,0.,1.)*clamp((SURVEY_RAIN_CEILING_MM_YEAR-c.hydro.z)/SURVEY_EXCESS_RAIN_RAMP_MM_YEAR,0.,1.);
  let soil=clamp(c.life.y,SURVEY_MIN_SOIL_FACTOR,1.);let dry=c.tags.x==2u&&flood_depth(c)<SURVEY_MAX_FLOOD_DEPTH_M&&c.terrain.x<SURVEY_MAX_ELEVATION_M;
@@ -77,15 +77,15 @@ fn regional_weather(cell:u32)->f32 {
  let u=2.*(f32(cell%n)+.5)/f32(n)-1.;let v=2.*(f32((cell/n)%n)+.5)/f32(n)-1.;
  var dir=vec3(u,v,-1.);
  switch face {case 0u:{dir=vec3(1.,u,v);}case 1u:{dir=vec3(-1.,u,v);}case 2u:{dir=vec3(u,1.,v);}case 3u:{dir=vec3(u,-1.,v);}case 4u:{dir=vec3(u,v,1.);}default:{}}
- let region=vec3<u32>(floor((normalize(dir)+vec3(1.))*4.));
- let key=region.x+9u*region.y+81u*region.z;
- let period=(max(1u,p.dims.z)-1u)/max(12u,p.weather.z);
+ let region=vec3<u32>(floor((normalize(dir)+vec3(1.))*HISTORY_WEATHER_BIN_SCALE));
+ let key=region.x+HISTORY_WEATHER_AXIS_STRIDE*region.y+HISTORY_WEATHER_PLANE_STRIDE*region.z;
+ let period=(max(1u,p.dims.z)-1u)/max(MIN_HISTORY_WEATHER_REGIME_MONTHS,p.weather.z);
  let draw=f32(hash(key*7919u^period*104729u^p.dims.w)&65535u)/65536.;
  return select(1.,1.-bitcast<f32>(p.weather.y),draw<bitcast<f32>(p.weather.x));
 }
 @compute @workgroup_size(HISTORY_WORKGROUP_SIZE)
 fn month(@builtin(global_invocation_id) g:vec3<u32>) {
- let i=g.x+g.y*65535u*64u;if i>=p.dims.y{return;}var s=src[i];if p.options.x==2u {economies[i].production_probe=vec4(0.);weather_storage(i);}if s.stock.x<=0. {s.stock.z=0.;dst[i]=s;return;}
+ let i=g.x+g.y*MAX_DISPATCH_GROUPS_PER_DIMENSION*HISTORY_WORKGROUP_SIZE;if i>=p.dims.y{return;}var s=src[i];if p.options.x==2u {economies[i].production_probe=vec4(0.);weather_storage(i);}if s.stock.x<=0. {s.stock.z=0.;dst[i]=s;return;}
  var weather=(LEGACY_WEATHER_MIN_FACTOR+LEGACY_WEATHER_FACTOR_SPAN*f32(hash(p.dims.z^p.dims.w^u32(s.habitat.w)*7919u)&65535u)/65535.)*regional_weather(u32(s.habitat.z));
  if (p.options.w&2u)!=0u {let c=world[u32(s.habitat.z)];weather=clamp(c.climate.y/max(c.hydro.z,WEATHER_REFERENCE_RAIN_FLOOR),0.,MAX_REGIONAL_WEATHER_RATIO);}
  var cultivated=min(s.habitat.y,select(s.stock.x*select(LEGACY_CULTIVATED_HA_PER_PERSON,MANAGED_CULTIVATED_HA_PER_PERSON,p.options.x==2u),workers(i,s.stock.x)*worker_shares(economies[i],s.stock.x,workers(i,s.stock.x)*(1.-LAND_RECOVERY_WORK_PENALTY*select(0.,clamp(economies[i].soil.w,0.,1.),(p.options.w&2u)!=0u))).x*CULTIVATED_HECTARES_PER_WORKER_MONTH,(p.options.w&1u)==1u)); // ha, capped by available labor

@@ -267,9 +267,10 @@ impl Ecology {
             .next()
             .unwrap();
         let source = format!(
-            "{cell}\n{SHADER_PARAMETERS}\n{}\n{}\n{}",
+            "{cell}\n{SHADER_PARAMETERS}\n{}\n{}\n{}\n{}",
             crate::hazards::SHADER_PARAMETERS,
             include_str!("../shaders/sunlight.wgsl"),
+            include_str!("../shaders/history_weather.wgsl"),
             include_str!("../shaders/ecology.wgsl")
         );
         let module = d.create_shader_module(wgpu::ShaderModuleDescriptor {
