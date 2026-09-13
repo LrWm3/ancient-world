@@ -222,7 +222,7 @@ The completed `d50bceb` run's absolute relative monetary residual was at most
 These are native end-of-run accounting checks, not a claim of exact arithmetic or
 cross-hardware equivalence.
 
-A second corrected 500-year four-arm comparison is running from the original
+A second corrected 500-year four-arm comparison completed from the original
 seed-17 council-smoke founding checkpoint. It uses the same copied `d50bceb`
 executable; the runner revision separately records the added reporting fields.
 Raw files are under ignored `output/monetary-blocked-seed17-five-century/`.
@@ -235,6 +235,36 @@ food production and 0.003960 terminal need-weighted hunger. Credit recorded 22
 underwriting rounds, all `NoCapacity`, and originated no loans. Full histories
 differ only in the credit subtree. This extends the earlier credit null result
 to 500 years; it does not establish what a successfully funded bridge would do
-in this world. Issuance and combined arms remain in progress. The baseline and
+in this world. Issuance and combined arms have also completed. The baseline and
 credit elapsed times were 230.68 and 234.68 seconds with concurrent verification,
 so they are not controlled performance measurements.
+
+
+## Completed seed-17 comparison
+
+| Measure | Baseline / credit | Issuance / combined |
+| --- | ---: | ---: |
+| Ending residents | 104.410425 | 150.581521 |
+| Loans / defaults / remaining debt | 0 / 0 / 0 | 0 / 0 / 0 |
+| Issued | 0 | 1,250 |
+| Cumulative operator work | 107.3590 | 125.5742 |
+| Reported food production | 21,030,797 | 25,304,220 |
+| Terminal need-weighted hunger | 0.003960 | 0.013834 |
+| Council town support | 62,122.25 | 73,579.63 |
+| Ending council cash | 1,526.20 | 2,577.42 |
+| Ending household cash | 44,575.38 | 42,415.28 |
+| Ending town cash | 3,893.70 | 6,218.24 |
+
+All four arms passed native history validation. Histories within each table
+column differ only in their credit subtree. No loans, defaults, precision
+settlements or retained debt occurred. The maximum absolute relative monetary
+residual was 2.02e-7; the largest other managed residual was 8.43e-5. Issuance
+and combined elapsed times were 236.57 and 206.33 seconds with overlapping
+verification work, not a controlled speed comparison.
+
+Issuance accompanied more cumulative work/food and surviving residents here,
+but worse terminal hunger. Neither seed 17 nor seed 81 establishes a general
+food-access benefit. Their opposite operator-work responses also argue against
+using population alone to justify progression. These two 500-year tuning-seed
+comparisons are complete; account closure, immediate causal work/access fixtures
+and held-out evaluation still stand between this pilot and the Stage 2 gate.

@@ -12,6 +12,20 @@ struct Cell {
  strata: vec4<f32>, // top, middle, basement thickness m; cumulative bedrock removed m
 }
 struct Params { dims:vec4<u32>, physical:vec4<f32>, counts:vec4<u32>, aux:vec4<u32>, tuning:vec4<f32> }
+// Spatial noise, numeric representation and coast cleanup.
+const NOISE_BASE_WEIGHT:f32=.55;
+const NOISE_SECOND_FREQUENCY:f32=2.03;
+const NOISE_SECOND_WEIGHT:f32=.27;
+const NOISE_THIRD_FREQUENCY:f32=4.11;
+const NOISE_THIRD_WEIGHT:f32=.13;
+const NOISE_FOURTH_FREQUENCY:f32=8.23;
+const NOISE_FOURTH_WEIGHT:f32=.05;
+const SQUARE_METERS_PER_SQUARE_KM:f32=1e6;
+const UNRESOLVED_DRAINAGE_HEIGHT_M:f32=1e20;
+const LEGACY_MINERAL_CELL_GROUP_SIZE:u32=7u;
+const COAST_MAX_RETAINED_NEIGHBORS:u32=1u;
+const COAST_REPLACEMENT_NEIGHBORS:u32=3u;
+
 // Regional geology, deposit potential and legacy surface selection.
 const GEOLOGICAL_NOISE_OFFSET_SCALE:f32=200.;
 const ROCK_PROVINCE_FREQUENCY:f32=24.;
@@ -280,7 +294,7 @@ fn noise(q:vec3<f32>)->f32 {
  let i=vec3<i32>(floor(q)); let a=fract(q); let t=a*a*(3.-2.*a);
  return mix(mix(mix(lattice(i),lattice(i+vec3(1,0,0)),t.x),mix(lattice(i+vec3(0,1,0)),lattice(i+vec3(1,1,0)),t.x),t.y),mix(mix(lattice(i+vec3(0,0,1)),lattice(i+vec3(1,0,1)),t.x),mix(lattice(i+vec3(0,1,1)),lattice(i+vec3(1,1,1)),t.x),t.y),t.z);
 }
-fn fbm(q:vec3<f32>)->f32 { return noise(q)*.55+noise(q*2.03)*.27+noise(q*4.11)*.13+noise(q*8.23)*.05; }
+fn fbm(q:vec3<f32>)->f32 { return noise(q)*NOISE_BASE_WEIGHT+noise(q*NOISE_SECOND_FREQUENCY)*NOISE_SECOND_WEIGHT+noise(q*NOISE_THIRD_FREQUENCY)*NOISE_THIRD_WEIGHT+noise(q*NOISE_FOURTH_FREQUENCY)*NOISE_FOURTH_WEIGHT; }
 fn direction(f:u32,u:f32,v:f32)->vec3<f32> {
  var d=vec3(u,v,-1.);
  switch f { case 0u:{d=vec3(1.,u,v);} case 1u:{d=vec3(-1.,u,v);} case 2u:{d=vec3(u,1.,v);} case 3u:{d=vec3(u,-1.,v);} case 4u:{d=vec3(u,v,1.);} default:{} }
@@ -307,7 +321,7 @@ fn area(i:u32)->f32 {
  let n=f32(p.dims.x);let uv=2.*(vec2<f32>(vec2<u32>(i%p.dims.x,(i/p.dims.x)%p.dims.x))+.5)/n-1.;
  let t=1./(n*sqrt(3.));var sum=0.;
  for(var k=0u;k<4u;k++){let q=uv+vec2(select(-t,t,(k&1u)!=0u),select(-t,t,(k&2u)!=0u));sum+=pow(1.+dot(q,q),-1.5);}
- return sum/(n*n)*p.physical.x*p.physical.x*1e6;
+ return sum/(n*n)*p.physical.x*p.physical.x*SQUARE_METERS_PER_SQUARE_KM;
 }
 fn inner_distance(d:vec3<f32>,j:u32)->f32 {
 
@@ -501,7 +515,7 @@ fn tectonics(@builtin(global_invocation_id) g:vec3<u32>) {
 }
 @compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)
 fn drain_init(@builtin(global_invocation_id) g:vec3<u32>) {
- let i=cell_id(g);var c=src[i];c.routing.x=NONE;c.routing.y=NONE;c.routing.z=NONE;c.hydro.x=1e20;
+ let i=cell_id(g);var c=src[i];c.routing.x=NONE;c.routing.y=NONE;c.routing.z=NONE;c.hydro.x=UNRESOLVED_DRAINAGE_HEIGHT_M;
  if c.tags.x<2u {c.hydro.x=select(0.,planet[0].x,c.tags.x==1u);c.routing.y=0u;c.routing.z=c.tags.x;}
  scratch[i]=vec4(c.hydro.x,bitcast<vec3<f32>>(c.routing.xyz));dst[i]=c;
 }
@@ -646,7 +660,7 @@ fn ecology(@builtin(global_invocation_id) g:vec3<u32>) {
  if plant==NONE || c.tags.x<2u || c.water.x>TERRESTRIAL_PLANT_MAX_WATER_DEPTH_M {c.life.x=0.;c.ids.z=NONE;}
  var mineral=NONE;var potential=0.;c.geology.w=0.;
  for(var j=0u;j<p.counts.y;j++){let e=catalog[p.counts.x+j];if (e.ids.x&(1u<<c.ids.x))==0u {continue;}
- var score=e.a.x*rand(i/7u+j*43u)*(1.+c.geology.x*LEGACY_MINERAL_ACTIVITY_GAIN);
+ var score=e.a.x*rand(i/LEGACY_MINERAL_CELL_GROUP_SIZE+j*43u)*(1.+c.geology.x*LEGACY_MINERAL_ACTIVITY_GAIN);
  if p.tuning.w>0.&&e.ids.z!=0u {score=deposit_potential(c,pos(i),e);}
  if score>potential {potential=score;mineral=j;c.geology.w=e.a.z+max(0.,c.terrain.y);}}
  c.tags.y=mineral;c.geology.z=potential;dst[i]=c;
@@ -687,8 +701,8 @@ fn lake_update(@builtin(global_invocation_id) g:vec3<u32>) {
 fn coast_cleanup(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=cell_id(g);var c=src[i];var votes=array<u32,4>(0u,0u,0u,0u);
  for(var k=0u;k<4u;k++){votes[src[neighbor(i,k)].tags.x]+=1u;}
- if votes[c.tags.x]<=1u {
-  for(var r=0u;r<4u;r++){if votes[r]>=3u {
+ if votes[c.tags.x]<=COAST_MAX_RETAINED_NEIGHBORS {
+  for(var r=0u;r<4u;r++){if votes[r]>=COAST_REPLACEMENT_NEIGHBORS {
    c.tags.x=r;c.terrain.x=constrain(c.terrain.x,r);
    c.water.x=select(0.,max(0.,select(0.,INITIAL_GREAT_LAKE_LEVEL_M,r==1u)-c.terrain.x),r<2u);
    c.life.z=select(select(0.,INITIAL_GREAT_LAKE_SALINITY,r==1u),INITIAL_OCEAN_SALINITY,r==0u);
@@ -710,7 +724,7 @@ fn climate_check(@builtin(global_invocation_id) g:vec3<u32>) {
  dst[i]=c;
 }
 fn secondary(c:Cell)->bool { return c.tags.x>=2u && c.routing.z>=2u && c.routing.z!=NONE && c.hydro.x>c.terrain.x+SECONDARY_LAKE_MIN_DEPRESSION_M; }
-fn lake_weight(i:u32)->f32 { return area(i)/(4.*PI*p.physical.x*p.physical.x*1e6/f32(6u*p.dims.x*p.dims.x))*POOL_AREA_WEIGHT_SCALE; }
+fn lake_weight(i:u32)->f32 { return area(i)/(4.*PI*p.physical.x*p.physical.x*SQUARE_METERS_PER_SQUARE_KM/f32(6u*p.dims.x*p.dims.x))*POOL_AREA_WEIGHT_SCALE; }
 // Reuse the drainage/reduction scratch: water depth, terrain, area weight, spill.
 // Static geometry is prepared once; relaxation never copies the full Cell.
 @compute @workgroup_size(TERRAIN_WORKGROUP_EDGE,TERRAIN_WORKGROUP_EDGE)

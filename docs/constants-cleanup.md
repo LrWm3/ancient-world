@@ -629,3 +629,19 @@ the hardware province/host-rule and finite-column checks. The cross-seam
 secondary-lake fixture and strict all-target Clippy also passed. Remaining numeric
 review includes noise construction, discrete coast voting and other shader files;
 this does not declare the repository cleanup complete.
+
+## Planetary noise and coast voting
+
+Named noise-octave frequencies/weights, coast-neighbor voting thresholds, the
+legacy mineral sampling group size, square-kilometer conversion and unresolved
+routing sentinel in `shaders/simulation.wgsl`. Literal expansion reproduces the
+previous expressions exactly. The GPU geography/long-run fixture and strict
+all-target Clippy passed.
+
+The final literal inspection leaves hash/salt construction, interpolation and
+spherical geometry identities, array/category indices, unit-interval clamps and
+representation sentinels inline. This completes the shader's first semantic
+parameter review; it does not finish the larger ecology,
+economy and other outstanding repository review. The separate legacy surface
+selection's dormant locals are documented above rather than presented as active
+biological mechanisms.
