@@ -429,6 +429,119 @@ mod tests {
         h.observe_export_delivery(&delivery);
     }
     #[test]
+    fn delivery_proceeds_back_bounded_credit_and_repay_after_arrival() {
+        use crate::credit::{
+            underwriting::{Offer, Policy, Request},
+            Account, Status, Terms, SHARED_CURRENCY,
+        };
+        let mut h = fixture();
+        h.export_payment_timing = payments::Timing::Delivery;
+        evidence(&mut h);
+        evidence(&mut h);
+        h.fund_export_contracts(&[true]);
+        h.market_month(6371.);
+        let payment_month = h.export_payments[0].expected_month;
+        let mut observations = h.export_credit_evidence(0.).unwrap();
+        observations[0].operating_costs = 20.;
+        let source_budget = (observations[0].expected_receipts - 20.) * 0.5;
+        assert!(source_budget > 0.);
+        for id in 0..2 {
+            let offer = Offer {
+                lender: Account::Town(1),
+                month: h.month,
+                cash: h.credit_account_cash(Account::Town(1)).unwrap(),
+                operating_reserve: 100.,
+                offered_principal: 1000.,
+                minimum_annual_rate: 0.,
+            };
+            let request = Request {
+                id,
+                month: h.month,
+                principal: 1000.,
+                terms: Terms {
+                    lender: Account::Town(1),
+                    borrower: Account::Town(0),
+                    currency: SHARED_CURRENCY,
+                    source: observations[0].source,
+                    annual_simple_rate: 0.,
+                    maturity_month: payment_month + 1,
+                    grace_months: 3,
+                },
+            };
+            h.fund_credit_requests(
+                Policy::default(),
+                vec![offer],
+                observations.clone(),
+                vec![request],
+            )
+            .unwrap();
+        }
+        assert!(!h.credit.loans.is_empty());
+        let borrowed: f64 = h.credit.loans.iter().map(|l| l.original_principal).sum();
+        assert!(borrowed > 0. && borrowed <= source_budget);
+        assert!((borrowed - source_budget).abs() < 0.001);
+        h.validate_credit().unwrap();
+        assert!(h.economy_residuals().iter().all(|r| r.abs() < 0.001));
+        h.month = payment_month;
+        h.market_arrivals();
+        h.settle_export_payments().unwrap();
+        h.month += 1;
+        h.credit.servicing_policy.available_cash_share = 1.;
+        h.service_credit_month().unwrap();
+        assert!(h.credit.loans.iter().all(|l| l.status == Status::Repaid));
+        h.validate_credit().unwrap();
+        h.validate_export_payments().unwrap();
+        assert!(h.economy_residuals().iter().all(|r| r.abs() < 0.001));
+    }
+
+    #[test]
+    fn commercial_evidence_uses_actual_pending_payee_and_immutable_due_date() {
+        use crate::credit::{Account, RepaymentSource};
+        let mut h = fixture();
+        evidence(&mut h);
+        evidence(&mut h);
+        h.fund_export_contracts(&[true]);
+        h.market_month(6371.);
+        // Cash paid at dispatch is not another future receipt.
+        assert!(h.export_credit_evidence(0.1).unwrap().is_empty());
+        let mut h = fixture();
+        h.export_payment_timing = payments::Timing::Delivery;
+        evidence(&mut h);
+        evidence(&mut h);
+        h.fund_export_contracts(&[true]);
+        h.market_month(6371.);
+        let payment = h.export_payments[0].clone();
+        let initial = serde_json::to_value(&h).unwrap();
+        let observations = h.export_credit_evidence(0.1).unwrap();
+        assert_eq!(observations.len(), 1);
+        assert_eq!(observations[0].beneficiary, Account::Town(0));
+        assert_eq!(
+            observations[0].source,
+            RepaymentSource::Export {
+                contract: payment.contract,
+                payment_month: payment.expected_month,
+            }
+        );
+        assert!((observations[0].expected_receipts - payment.funded * 0.9).abs() < 1e-8);
+        assert_eq!(initial, serde_json::to_value(&h).unwrap());
+        h.cargo[0].kg *= 0.5;
+        assert!(
+            (h.export_credit_evidence(0.1).unwrap()[0].expected_receipts - payment.funded * 0.45)
+                .abs()
+                < 1e-8
+        );
+        h.cargo[0].arrives += 1;
+        assert!(h.export_credit_evidence(0.1).unwrap().is_empty());
+        h.cargo[0].arrives = payment.expected_month;
+        h.month = payment.expected_month;
+        assert!(h.export_credit_evidence(0.1).unwrap().is_empty());
+        h.market_arrivals();
+        h.settle_export_payments().unwrap();
+        assert!(h.export_credit_evidence(0.1).unwrap().is_empty());
+        assert!(h.export_credit_evidence(f64::NAN).is_err());
+    }
+
+    #[test]
     fn delivery_escrow_survives_expiry_and_pays_only_delivered_quantity() {
         for delivered_share in [0., 0.5, 1.] {
             let mut h = fixture();

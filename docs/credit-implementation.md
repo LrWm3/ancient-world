@@ -334,3 +334,27 @@ Single-run wall times were 10.31/9.42 seconds and are not a performance comparis
 This establishes live integration and a small negative population difference in
 one world, not a credit benefit, a long-run balance result, or permission to skip
 the planned multi-seed and shock experiments.
+
+## Commercial receipt evidence
+
+`export_credit_evidence(loss_assumption)` reads unresolved, buyer-funded delivery
+payments and produces dated evidence for their actual town payees. It aggregates
+payments sharing a contract and original due month, applies known remaining cargo
+mass and an explicit loss haircut, and never credits cash. Dispatch-paid sales,
+settled claims, abandoned payees and known-delayed/overdue shipments cannot back
+new requests. A delay does not manufacture a new source date that escapes an
+existing pledge. Borrower policy must still deduct operating commitments before
+requesting working capital; this adapter alone does not initiate loans.
+
+The export suite now has ten passing fixtures. New coverage checks forecasts
+against funded payments, half-loss, delay, due-date expiry and completed payment;
+it also funds competing requests against one receipt, verifies their combined
+principal stays within the unpledged allowance, and repays through the existing
+monthly servicing path after delivery. The repayment fixture uses zero interest
+and sufficient borrower cash to isolate transfer/pledge accounting; it is not a
+working-capital benefit or a risk-pricing calibration.
+
+At month 360 of the seed-17 delivery smoke run, the three pending payments all
+belonged to town 4: approximately 57.32, 67.69 and 62.86 due in months 361, 364 and
+367. That town already held approximately 5,196.98 cash. Automatic borrowing must
+therefore test an actual funding shortfall, not merely the existence of receivables.
