@@ -12,6 +12,43 @@ struct Cell {
  strata: vec4<f32>, // top, middle, basement thickness m; cumulative bedrock removed m
 }
 struct Params { dims:vec4<u32>, physical:vec4<f32>, counts:vec4<u32>, aux:vec4<u32>, tuning:vec4<f32> }
+// Artistic continent masks and guaranteed lake separation.
+const INNER_PLACEMENT_JITTER:f32=.18;
+const INNER_PLACEMENT_PHASE_RAD:f32=.23;
+const INNER_CENTER_MIN_ANGLE_RAD:f32=.32;
+const INNER_CENTER_ANGLE_SPAN_RAD:f32=.12;
+const INNER_BASE_RADIUS_CAP_RAD:f32=.195;
+const INNER_RADIUS_COUNT_SCALE:f32=.82;
+const INNER_SIZE_MIN_FACTOR:f32=.65;
+const INNER_SIZE_MAX_FACTOR:f32=1.15;
+const INNER_ASPECT_MIN:f32=.48;
+const INNER_ASPECT_SPAN:f32=.44;
+const INNER_ASPECT_RANK_SCALE:f32=1.618;
+const INNER_ASPECT_PHASE:f32=.17;
+const INNER_MIN_LOBES:f32=2.;
+const INNER_LOBE_COUNT_SPAN:f32=3.;
+const INNER_OUTLINE_BASE:f32=.84;
+const INNER_OUTLINE_PRIMARY_AMPLITUDE:f32=.20;
+const INNER_OUTLINE_PHASE_SPAN_RAD:f32=6.28;
+const INNER_OUTLINE_LOBE_AMPLITUDE:f32=.10;
+const INNER_OUTLINE_DETAIL_AMPLITUDE:f32=.05;
+const INNER_OUTLINE_DETAIL_FREQUENCY:f32=5.;
+const INNER_OUTLINE_NOISE_AMPLITUDE:f32=.16;
+const INNER_OUTLINE_NOISE_FREQUENCY:f32=65.;
+const INNER_RADIUS_CAP_RAD:f32=.21;
+const INNER_CHANNEL_RADIUS_FACTOR:f32=.90;
+const INNER_CHANNEL_SPACING_FACTOR:f32=.41;
+const ENCLOSING_SHORE_ANGLE_RAD:f32=.92;
+const ENCLOSING_SHORE_PRIMARY_AMPLITUDE_RAD:f32=.035;
+const ENCLOSING_SHORE_PRIMARY_FREQUENCY:f32=5.;
+const ENCLOSING_SHORE_DETAIL_AMPLITUDE_RAD:f32=.018;
+const ENCLOSING_SHORE_DETAIL_FREQUENCY:f32=11.;
+const EXTERIOR_SHORE_ANGLE_RAD:f32=1.67;
+const EXTERIOR_SHORE_NOISE_AMPLITUDE_RAD:f32=.4;
+const EXTERIOR_SHORE_NOISE_FREQUENCY:f32=5.;
+const EXTERIOR_SHORE_WAVE_AMPLITUDE_RAD:f32=.055;
+const EXTERIOR_SHORE_WAVE_FREQUENCY:f32=7.;
+
 // Plate-field motion and geological activity; rates use the geological clock.
 const PLATE_COUNT:u32=16u;
 const PLATE_BASE_ANGULAR_SPEED_PER_MYR:f32=.002;
@@ -175,31 +212,31 @@ fn inner_distance(d:vec3<f32>,j:u32)->f32 {
   // Bounded placement leaves a broad open-water belt inside the enclosing shore.
   let key=j*131u+1701u;
   let spacing=2.*PI/f32(p.dims.w);
-  let a=spacing*(f32(j)+.18*(rand(key)-.5))+.23;
-  let r=.32+.12*rand(key+1u);
+  let a=spacing*(f32(j)+INNER_PLACEMENT_JITTER*(rand(key)-.5))+INNER_PLACEMENT_PHASE_RAD;
+  let r=INNER_CENTER_MIN_ANGLE_RAD+INNER_CENTER_ANGLE_SPAN_RAD*rand(key+1u);
   let center=vec3(sin(r)*cos(a),sin(r)*sin(a),cos(r));
   let dist=acos(clamp(dot(d,center),-1.,1.));
   let bearing=atan2(dot(d,vec3(-sin(a),cos(a),0.)),dot(d,vec3(cos(r)*cos(a),cos(r)*sin(a),-sin(r))));
   // A permuted size sequence guarantees variety even when random samples agree.
   let rank=f32((j+p.dims.y%p.dims.w)%p.dims.w)/f32(p.dims.w-1u);
-  let size=min(.195,.82/f32(p.dims.w))*mix(.65,1.15,rank);
+  let size=min(INNER_BASE_RADIUS_CAP_RAD,INNER_RADIUS_COUNT_SCALE/f32(p.dims.w))*mix(INNER_SIZE_MIN_FACTOR,INNER_SIZE_MAX_FACTOR,rank);
   let orientation=rand(key+2u)*2.*PI;
   let theta=bearing-orientation;
-  let aspect=.48+.44*fract(rank*1.618+.17);
+  let aspect=INNER_ASPECT_MIN+INNER_ASPECT_SPAN*fract(rank*INNER_ASPECT_RANK_SCALE+INNER_ASPECT_PHASE);
   let ellipse=inverseSqrt(cos(theta)*cos(theta)+sin(theta)*sin(theta)/(aspect*aspect));
-  let lobes=2.+floor(rand(key+4u)*3.);
-  let outline=.84+.20*sin(theta+rand(key+3u)*6.28)
-      +.10*sin(theta*lobes+rand(key+5u)*6.28)+.05*sin(theta*5.+rand(key+6u)*6.28)+.16*(fbm(d*65.+f32(j)*17.)-.5);
+  let lobes=INNER_MIN_LOBES+floor(rand(key+4u)*INNER_LOBE_COUNT_SPAN);
+  let outline=INNER_OUTLINE_BASE+INNER_OUTLINE_PRIMARY_AMPLITUDE*sin(theta+rand(key+3u)*INNER_OUTLINE_PHASE_SPAN_RAD)
+      +INNER_OUTLINE_LOBE_AMPLITUDE*sin(theta*lobes+rand(key+5u)*INNER_OUTLINE_PHASE_SPAN_RAD)+INNER_OUTLINE_DETAIL_AMPLITUDE*sin(theta*INNER_OUTLINE_DETAIL_FREQUENCY+rand(key+6u)*INNER_OUTLINE_PHASE_SPAN_RAD)+INNER_OUTLINE_NOISE_AMPLITUDE*(fbm(d*INNER_OUTLINE_NOISE_FREQUENCY+f32(j)*17.)-.5);
   // Explicit cap also protects channels at the maximum continent count.
-  let radius=min(size*ellipse*outline,min(.21,.90*sin(spacing*.41)*sin(.32)));
+  let radius=min(size*ellipse*outline,min(INNER_RADIUS_CAP_RAD,INNER_CHANNEL_RADIUS_FACTOR*sin(spacing*INNER_CHANNEL_SPACING_FACTOR)*sin(INNER_CENTER_MIN_ANGLE_RAD)));
   return dist-radius;
 }
 fn enclosing_shore(d:vec3<f32>)->f32 {
- let az=atan2(d.y,d.x);return .92+.035*sin(az*5.+f32(p.dims.y%99u))+.018*sin(az*11.);
+ let az=atan2(d.y,d.x);return ENCLOSING_SHORE_ANGLE_RAD+ENCLOSING_SHORE_PRIMARY_AMPLITUDE_RAD*sin(az*ENCLOSING_SHORE_PRIMARY_FREQUENCY+f32(p.dims.y%99u))+ENCLOSING_SHORE_DETAIL_AMPLITUDE_RAD*sin(az*ENCLOSING_SHORE_DETAIL_FREQUENCY);
 }
 fn region(d:vec3<f32>)->u32 {
  let angle=acos(clamp(d.z,-1.,1.));let az=atan2(d.y,d.x);
- if angle>1.67+.4*(fbm(d*5.)-.5)+.055*sin(az*7.) {return 0u;}
+ if angle>EXTERIOR_SHORE_ANGLE_RAD+EXTERIOR_SHORE_NOISE_AMPLITUDE_RAD*(fbm(d*EXTERIOR_SHORE_NOISE_FREQUENCY)-.5)+EXTERIOR_SHORE_WAVE_AMPLITUDE_RAD*sin(az*EXTERIOR_SHORE_WAVE_FREQUENCY) {return 0u;}
  if angle>=enclosing_shore(d) {return 3u;}
  for(var j=0u;j<p.dims.w;j++){if inner_distance(d,j)<0. {return 2u;}}
  return 1u;

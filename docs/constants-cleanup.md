@@ -577,3 +577,19 @@ The hardware geography fixture passed its three-seed geography checks and
 30-epoch finite-state run. Strict all-target Clippy also passed.
 Planet-mask, initial terrain/stratigraphy, deposit-selection and legacy ecology
 parameters remain outstanding in this shader.
+
+## Continent-mask parameters
+
+Named inner-continent placement jitter, center angles, size/aspect variation,
+outline harmonics, channel protection and enclosing/exterior shore parameters in
+`shaders/simulation.wgsl`. The channel cap references the same minimum center
+angle used by placement. The original 6.28 outline phase span remains 6.28; it
+was not silently replaced by a more precise turn. Noise/hash seed offsets,
+categorical region IDs and spherical geometry identities remain inline.
+
+All 35 new declarations follow `Params`, preserving the shared `Cell` prefix.
+Expanding them reproduces the previous shader expressions exactly. Hardware
+geography checks passed for seeds 0, 42 and 999, followed by the 30-epoch
+finite-state check. Strict all-target Clippy passed.
+Initial terrain/stratigraphy, deposit-selection and legacy ecology parameters
+remain outstanding in this shader.
