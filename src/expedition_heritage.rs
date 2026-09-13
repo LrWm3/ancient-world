@@ -10,6 +10,9 @@ use serde::{Deserialize, Serialize};
 const BASE_FIND_BUCKETS: u32 = 3;
 const FIND_BUCKETS: u32 = 5;
 const EXPERIENCE_EXTRA_FIND_CHANCE: f32 = 0.75;
+const GENERIC_FIND_MASS_KG: f32 = 0.125;
+
+mod patron_finds;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Charter {
@@ -22,12 +25,30 @@ pub struct Charter {
 pub struct Find {
     #[serde(default)]
     pub category: FindCategory,
+    /// Stable patron-associated object type; legacy finds retain their generic category.
+    #[serde(default)]
+    pub patron_item: Option<String>,
     pub cell: u32,
     pub description: String,
     pub observed: u64,
     pub artifact: Option<u32>,
     #[serde(default)]
     pub studies: Vec<Study>,
+}
+
+impl Find {
+    fn item(&self) -> Option<&patron_finds::Item> {
+        self.patron_item.as_deref().and_then(patron_finds::get)
+    }
+    fn kind(&self) -> &str {
+        self.item().map_or(self.category.kind(), |i| i.kind)
+    }
+    fn material(&self) -> &str {
+        self.item().map_or(self.category.material(), |i| i.material)
+    }
+    fn mass(&self) -> f32 {
+        self.item().map_or(GENERIC_FIND_MASS_KG, |i| i.kg)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
@@ -181,6 +202,23 @@ pub(crate) fn survey(h: &mut History, e: &mut Expedition, cell: u32, already: bo
     if !matches!(category, FindCategory::Ceramic) {
         description = category.description().into();
     }
+    let patron_item = if e.objective == Objective::PatronSearch {
+        c.patron
+            .and_then(|id| h.culture.as_ref()?.patrons.get(id as usize))
+            .and_then(|patron| {
+                h.culture
+                    .as_ref()?
+                    .catalog
+                    .patrons
+                    .get(patron.archetype as usize)
+            })
+            .and_then(|archetype| patron_finds::choose(&archetype.id, hash >> 8))
+    } else {
+        None
+    };
+    if let Some(item) = patron_item {
+        description = format!("{} Its connection to the founding patron is an interpretation, not proof of ownership or identity.", item.description);
+    }
     h.event(
         "heritage_fragment_observed",
         Some(e.origin),
@@ -199,6 +237,7 @@ pub(crate) fn survey(h: &mut History, e: &mut Expedition, cell: u32, already: bo
         });
     c.find = Some(Find {
         category,
+        patron_item: patron_item.map(|i| i.id.into()),
         cell,
         description,
         observed: event.id,
@@ -219,16 +258,16 @@ pub(crate) fn deliver(h: &mut History, e: &mut Expedition) {
     if find.artifact.is_some() {
         return;
     }
-    let Some(good) = h.economy_catalog.as_ref().and_then(|c| {
-        c.goods
-            .iter()
-            .position(|g| g.id == find.category.material())
-    }) else {
+    let Some(good) = h
+        .economy_catalog
+        .as_ref()
+        .and_then(|c| c.goods.iter().position(|g| g.id == find.material()))
+    else {
         return;
     };
     let Some(c) = &mut h.culture else { return };
     let id = c.artifacts.len() as u32;
-    let mass = 0.125;
+    let mass = find.mass();
     // Explicit finite import from the external archaeological cache, once at port.
     h.sites[e.origin as usize].economy.initial[good] += mass;
     let composition = h.economy_catalog.as_ref().unwrap().composition(good);
@@ -252,7 +291,7 @@ pub(crate) fn deliver(h: &mut History, e: &mut Expedition) {
                     name: format!("{} voyage {}", h.sites[e.origin as usize].name, e.id),
                 }),
             ),
-        kind: find.category.kind().into(),
+        kind: find.kind().into(),
         creator: None,
         owner,
         claims: vec![],
@@ -273,7 +312,7 @@ pub(crate) fn deliver(h: &mut History, e: &mut Expedition) {
     if h.people[author as usize].died.is_none() {
         c.accounts.push(Account{id:c.accounts.len() as u32,tradition:charter.tradition,author:Some(author),institution:e.institution,month:h.month,facts:vec![find.observed,event_id],text:format!("Our interpreter considers the fragment relevant to our remembered origins. This remains a disputed reading, not proof of our patron's identity or mission. {}",find.description)});
     }
-    h.event("heritage_fragment_received",Some(e.origin),None,format!("Voyage {} delivered one 0.125 kg {} from cell {}; preserved for material study and competing interpretations",e.id,find.category.kind(),find.cell));
+    h.event("heritage_fragment_received",Some(e.origin),None,format!("Voyage {} delivered one {:.3} kg {} from cell {}; preserved for material study and competing interpretations",e.id,mass,find.kind(),find.cell));
     let event = h.events.last_mut().unwrap();
     event.causes.extend([e.cause, find.observed]);
     event.subjects.extend([
@@ -339,7 +378,10 @@ pub(crate) fn validate(h: &History, voyages: &[Expedition]) -> Result<()> {
             );
             if let Some(f) = &c.find {
                 ensure!(
-                    f.studies.len() <= 3
+                    f.patron_item
+                        .as_deref()
+                        .is_none_or(|id| patron_finds::get(id).is_some())
+                        && f.studies.len() <= 3
                         && f.studies.windows(2).all(|w| w[1].month >= w[0].month + 60),
                     "invalid heritage study schedule"
                 );
@@ -384,7 +426,7 @@ pub(crate) fn validate(h: &History, voyages: &[Expedition]) -> Result<()> {
                             && culture
                                 .artifacts
                                 .get(a as usize)
-                                .is_some_and(|a| a.kind == f.category.kind())),
+                                .is_some_and(|a| a.kind == f.kind())),
                     "invalid or duplicate heritage recovery"
                 );
             }
@@ -596,6 +638,49 @@ pub struct Study {
 mod tests {
     use super::*;
     #[test]
+    fn patron_find_content_covers_catalog_and_persists_without_retyping_legacy_finds() {
+        let patrons = crate::culture::PatronCatalog::bundled().unwrap();
+        let economy = crate::economy::EconomyCatalog::bundled().unwrap();
+        let mut ids = std::collections::BTreeSet::new();
+        for patron in &patrons.patrons {
+            let items: Vec<_> = patron_finds::ITEMS
+                .iter()
+                .filter(|i| i.patron == patron.id)
+                .collect();
+            assert!(items.len() >= 3, "{}", patron.id);
+            for (draw, item) in items.iter().enumerate() {
+                assert!(ids.insert(item.id));
+                assert_eq!(
+                    patron_finds::choose(&patron.id, draw as u32).unwrap().id,
+                    item.id
+                );
+                assert!(economy.goods.iter().any(|g| g.id == item.material));
+                assert!(item.kg.is_finite() && item.kg > 0.);
+                let f = Find {
+                    category: FindCategory::Ceramic,
+                    patron_item: Some(item.id.into()),
+                    cell: 0,
+                    description: item.description.into(),
+                    observed: 0,
+                    artifact: None,
+                    studies: vec![],
+                };
+                let restored: Find =
+                    serde_json::from_value(serde_json::to_value(&f).unwrap()).unwrap();
+                assert_eq!(restored.kind(), item.kind);
+                assert_eq!(restored.mass(), item.kg);
+            }
+        }
+        let legacy: Find = serde_json::from_value(serde_json::json!({
+            "category":"Ceramic","cell":0,"description":"old","observed":0,"artifact":null
+        }))
+        .unwrap();
+        assert_eq!(legacy.kind(), "ancient ceramic fragment");
+        assert_eq!(legacy.mass(), 0.125);
+        assert!(patron_finds::choose("unknown_custom_patron", 0).is_none());
+    }
+
+    #[test]
     fn experience_opens_opportunities_without_removing_baseline_finds() {
         let mut base = 0;
         let mut expert = 0;
@@ -692,6 +777,7 @@ mod tests {
                 motive: "Test".into(),
                 find: Some(Find {
                     category: FindCategory::Ceramic,
+                    patron_item: None,
                     cell: 0,
                     description: "marks".into(),
                     observed: 0,
@@ -1092,6 +1178,57 @@ mod tests {
         });
         h.culture = Some(c);
         let loyalty = h.governance.as_ref().unwrap().administrations[site as usize].loyalty;
+        // Each catalog patron changes actual survey selection. Each selected object
+        // carries its own material and mass through delivery without duplicate imports.
+        for archetype in 0..h.culture.as_ref().unwrap().catalog.patrons.len() {
+            let mut case = h.clone();
+            let patron_id = case.culture.as_ref().unwrap().patrons[0].id;
+            case.culture.as_mut().unwrap().patrons[0].archetype = archetype as u32;
+            let expected = case.culture.as_ref().unwrap().catalog.patrons[archetype]
+                .id
+                .clone();
+            let mut trip = voyage.clone();
+            trip.objective = Objective::PatronSearch;
+            trip.field_months = 1;
+            trip.heritage.as_mut().unwrap().patron = Some(patron_id);
+            trip.heritage.as_mut().unwrap().find = None;
+            let cell = (0u32..1000)
+                .find(|cell| {
+                    let hash = cell
+                        .wrapping_mul(747796405)
+                        .wrapping_add(case.seed.wrapping_mul(2891336453));
+                    find_opportunity(hash, 0.)
+                })
+                .unwrap();
+            survey(&mut case, &mut trip, cell, false);
+            let find = trip.heritage.as_ref().unwrap().find.as_ref().unwrap();
+            assert!(find
+                .patron_item
+                .as_ref()
+                .unwrap()
+                .starts_with(&format!("{expected}/")));
+            let kind = find.kind().to_string();
+            let mass = find.mass();
+            let material = case
+                .economy_catalog
+                .as_ref()
+                .unwrap()
+                .goods
+                .iter()
+                .position(|g| g.id == find.material())
+                .unwrap();
+            let before = case.sites[site as usize].economy.initial[material];
+            deliver(&mut case, &mut trip);
+            let object = case.culture.as_ref().unwrap().artifacts.last().unwrap();
+            assert_eq!(object.kind, kind);
+            assert_eq!(object.materials, vec![(material as u32, mass)]);
+            assert!(
+                (case.sites[site as usize].economy.initial[material] - before - mass).abs() < 1e-4
+            );
+            let after = case.sites[site as usize].economy.initial[material];
+            deliver(&mut case, &mut trip);
+            assert_eq!(case.sites[site as usize].economy.initial[material], after);
+        }
         let mut private = h.clone();
         let mut private_voyage = voyage.clone();
         private_voyage.public_funding = false;

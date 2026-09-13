@@ -657,8 +657,17 @@ fn heritage_voyages_preserve_minor_finds_and_checkpoint_continuity() {
         .as_ref()
         .expect("fragment from qualifying endpoint");
     let artifact = &h.culture.as_ref().unwrap().artifacts[find.artifact.unwrap() as usize];
-    assert_eq!(artifact.kind, "ancient ceramic fragment");
-    assert_eq!(artifact.materials.iter().map(|v| v.1).sum::<f32>(), 0.125);
+    let culture = h.culture.as_ref().unwrap();
+    let patron = &culture.patrons[e.heritage.as_ref().unwrap().patron.unwrap() as usize];
+    let archetype = &culture.catalog.patrons[patron.archetype as usize].id;
+    assert!(find
+        .patron_item
+        .as_ref()
+        .unwrap()
+        .starts_with(&format!("{archetype}/")));
+    assert_ne!(artifact.kind, "ancient ceramic fragment");
+    let mass = artifact.materials.iter().map(|v| v.1).sum::<f32>();
+    assert!((0.02..=1.2).contains(&mass));
     assert!(
         artifact.topic.is_none(),
         "minor artifact does not grant a technology"
