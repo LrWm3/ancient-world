@@ -174,9 +174,11 @@ must be an explicit extension with a boundary test.
 
 ## Remaining Stage 1 ownership boundary: closure and succession
 
-Current account adapters reject abandoned towns, inactive institutions and closed
-operators. That is useful for new-credit eligibility, but cannot also define
-whether an existing creditor can receive repayment. `enterprises::close` currently
+New-credit account adapters reject abandoned towns, inactive institutions and
+closed operators. Existing town debts now use retained town treasuries for
+settlement even after abandonment; the town stays abandoned and cannot enter a
+new contract. Inactive institutions and closed operators still need estate
+resolution before their creditors can reliably receive repayment. `enterprises::close` currently
 returns all operator cash to its household before closing; the legacy institution
 shutdown path moves treasury cash to its town. Neither operation first resolves
 credit claims. These paths need integration before general operator/institution

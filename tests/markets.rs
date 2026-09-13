@@ -1244,3 +1244,54 @@ fn affordable_claim_above_forgiveness_cap_retries_instead_of_defaulting() {
     h.validate_credit().unwrap();
     assert!(h.economy_residuals()[3].abs() < 1e-12);
 }
+
+#[test]
+fn abandoned_town_treasuries_settle_existing_debt_but_cannot_originate() {
+    use ancient_world::credit::{Account, RepaymentSource, Status, Terms, SHARED_CURRENCY};
+    for abandoned in [0, 1] {
+        let mut h = network();
+        for site in &mut h.sites {
+            site.economy.finance = [0.; 4];
+        }
+        h.sites[0].economy.finance = [100., 100., 0., 0.];
+        let terms = Terms {
+            lender: Account::Town(0),
+            borrower: Account::Town(1),
+            currency: SHARED_CURRENCY,
+            source: RepaymentSource::Export {
+                contract: 0,
+                payment_month: 11,
+            },
+            annual_simple_rate: 0.,
+            maturity_month: 12,
+            grace_months: 1,
+        };
+        h.commit_credit_loan(terms.clone(), 40.).unwrap().unwrap();
+        h.sites[abandoned].abandoned = true;
+        h.credit.servicing_policy.available_cash_share = 1.;
+        let opening = serde_json::to_value(&h).unwrap();
+        // Origination remains ineligible on either side, before money moves.
+        assert!(h.commit_credit_loan(terms, 1.).is_err());
+        assert_eq!(opening, serde_json::to_value(&h).unwrap());
+        let mut resumed: History = serde_json::from_value(opening).unwrap();
+        for world in [&mut h, &mut resumed] {
+            world.month = 12;
+            world.service_credit_month().unwrap();
+            assert_eq!(world.credit.loans[0].status, Status::Repaid);
+            assert_eq!(world.sites[0].economy.finance[0], 100.);
+            assert_eq!(world.sites[1].economy.finance[0], 0.);
+            assert_eq!(world.credit.service_receipts[0].paid, 40.);
+            assert!(world.credit.service_receipts[0].accounts_available);
+            assert!(world.sites[abandoned].abandoned);
+            assert!(world.economy_residuals()[3].abs() < 1e-12);
+            world.validate_credit().unwrap();
+            let once = serde_json::to_value(&world).unwrap();
+            world.service_credit_month().unwrap();
+            assert_eq!(once, serde_json::to_value(&world).unwrap());
+        }
+        assert_eq!(
+            serde_json::to_value(h).unwrap(),
+            serde_json::to_value(resumed).unwrap()
+        );
+    }
+}

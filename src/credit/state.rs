@@ -52,6 +52,10 @@ impl History {
             requested.is_finite() && requested > 0.,
             "invalid principal request"
         );
+        // Settlement can reach retained abandoned-town cash; new contracts may
+        // only involve currently eligible accounts. Preflight before any debit.
+        self.credit_balance(terms.lender)?;
+        self.credit_balance(terms.borrower)?;
         let id = self.credit.loans.len() as u64;
         let transfer =
             self.transfer_credit_cash(terms.lender, terms.borrower, terms.currency, requested, 0.)?;

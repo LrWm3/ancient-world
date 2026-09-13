@@ -540,3 +540,30 @@ Reproduce on a hardware GPU:
 ```sh
 cargo test --lib credit_funds_gpu_work_but_cannot_replace_materials -- --ignored --nocapture
 ```
+
+## Retained abandoned-town treasuries
+
+Abandonment no longer makes a town's existing debts uncollectible solely because
+its operating account is inactive. Monthly Open servicing and direct repayment
+can debit or credit the retained town treasury. Money remains attached to the
+same site; collection does not revive its population, reoccupy it or assign its
+assets to another civilization. Ordinary collection shares and protected balances
+still apply. An empty treasury is not replenished by this rule.
+
+Origination now explicitly preflights operating eligibility before transferring
+cash. Both an abandoned lender and an abandoned borrower are rejected without
+mutating balances or contracts; underwriting continues to use the active-account
+query. Missing accounts still fail. This separates settlement access from new
+credit eligibility without changing the monthly schedule or loan terms.
+
+The CPU market suite passed (15 tests; two unrelated hardware tests excluded).
+The new fixture checks both abandoned-party positions, exact repayment and money
+balance, unchanged abandonment, rejected new loans, idempotent monthly service
+and serialized continuation. Existing protected-cash, default, restructuring and
+precision-residue controls also passed.
+
+This is only the town-account part of closure handling. Closed operators still
+require debt-aware liquidation and receivable succession; inactive institutions
+need equivalent treatment of their distributed treasuries. Their account filters
+are deliberately unchanged. Neither automatic legal succession nor general
+estate administration is implemented by this change.

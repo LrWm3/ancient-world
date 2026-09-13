@@ -139,11 +139,21 @@ impl Transfer {
 
 impl History {
     pub(super) fn credit_balance(&self, account: Account) -> Result<Balance> {
+        self.account_balance(account, false)
+    }
+
+    /// Abandoned towns retain their treasury. Existing obligations can use it,
+    /// although the town is ineligible to enter a new lending contract.
+    pub(super) fn settlement_balance(&self, account: Account) -> Result<Balance> {
+        self.account_balance(account, true)
+    }
+
+    fn account_balance(&self, account: Account, settlement: bool) -> Result<Balance> {
         Ok(match account {
             Account::Town(id) => Balance::Single(
                 self.sites
                     .get(id as usize)
-                    .filter(|s| s.id == id && !s.abandoned)
+                    .filter(|s| s.id == id && (settlement || !s.abandoned))
                     .context("unavailable town account")?
                     .economy
                     .finance[0],
@@ -226,8 +236,8 @@ impl History {
         );
         let requested = principal + interest;
         let (debit, credit, actual) = quote(
-            self.credit_balance(from)?,
-            self.credit_balance(to)?,
+            self.settlement_balance(from)?,
+            self.settlement_balance(to)?,
             requested,
         )?;
         let paid_interest = actual.min(interest);
