@@ -53,7 +53,9 @@ impl CellRef {
         ensure!(!self.grid.world.is_empty(), "missing world identity");
         let n = self.grid.resolution;
         ensure!(
-            n.is_power_of_two() && (8..=1024).contains(&n) && self.cell < 6 * n * n,
+            n.is_power_of_two()
+                && crate::config::ALLOWED_GRID_RESOLUTION.contains(&n)
+                && self.cell < 6 * n * n,
             "invalid terrain cell reference"
         );
         Ok(grid::cell_direction(self.cell, n))

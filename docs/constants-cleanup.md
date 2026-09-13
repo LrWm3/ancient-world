@@ -55,6 +55,28 @@ semantic extraction pass (further shared-policy reconciliation may still apply):
 - `src/metallurgy.rs`
 - `src/resolution.rs`
 
+- `src/naming.rs`
+- `src/naming/evolution.rs`
+- `src/workshop_resolution.rs`
+- `src/local_places.rs`
+- `src/social_memory.rs`
+- `src/storage.rs`
+- `src/spatial.rs`
+
+Reviewed without further numeric extraction (geometry/layout arithmetic, static
+content, already named parameters, or independent test fixtures only):
+
+- `src/grid.rs`
+- `src/lib.rs`
+- `src/systems.rs`
+- `src/territory.rs`
+- `src/regional_mining.rs`
+- `src/environmental_returns.rs`
+- `src/continuity_fixture.rs`
+- `src/civic_petitions/causal_tests.rs`
+- `src/expedition_heritage/patron_finds.rs`
+- `src/leadership.rs`
+
 These files only received shared-constant substitutions or relocation of existing
 constant declarations, and still need their full semantic pass:
 
@@ -77,11 +99,9 @@ than blindly moved out of their types or layout checks.
 - `src/agriculture.rs`
 - `src/agriculture_participation.rs`
 - `src/catalog.rs`
-- `src/civic_petitions/causal_tests.rs`
 - `src/civic_petitions.rs`
 - `src/civilization/daughter.rs`
 - `src/civilization/production_forecast.rs`
-- `src/continuity_fixture.rs`
 - `src/culture/dynamics.rs`
 - `src/culture/learning.rs`
 - `src/culture/practices.rs`
@@ -90,12 +110,10 @@ than blindly moved out of their types or layout checks.
 - `src/discoveries/returns.rs`
 - `src/ecology.rs`
 - `src/enterprises.rs`
-- `src/environmental_returns.rs`
 - `src/expedition_heritage.rs`
 - `src/export_contracts.rs`
 - `src/faction_interests.rs`
 - `src/gpu.rs`
-- `src/grid.rs`
 - `src/hazards.rs`
 - `src/history_atlas.rs`
 - `src/history_environment.rs`
@@ -104,28 +122,17 @@ than blindly moved out of their types or layout checks.
 - `src/household_economy.rs`
 - `src/individual_demography.rs`
 - `src/labor.rs`
-- `src/lib.rs`
-- `src/local_places.rs`
 - `src/main.rs`
-- `src/naming/evolution.rs`
-- `src/naming.rs`
 - `src/navigation.rs`
 - `src/offices.rs`
 - `src/participation.rs`
 - `src/population_registry.rs`
 - `src/region.rs`
-- `src/regional_mining.rs`
 - `src/relocation/comparison.rs`
 - `src/resources.rs`
 - `src/shipping.rs`
-- `src/social_memory.rs`
 - `src/social_state.rs`
-- `src/spatial.rs`
-- `src/storage.rs`
-- `src/systems.rs`
-- `src/territory.rs`
 - `src/viewer.rs`
-- `src/workshop_resolution.rs`
 
 WGSL shaders also remain pending. CPU/GPU equations that share parameters need a
 coherent shared definition mechanism; duplicating renamed literals on each side
@@ -231,3 +238,24 @@ verification is recorded below.
 
 Follow-up: all 151 active library tests passed again (130 extended/GPU cases
 remain explicitly ignored); all-target Clippy, artifact and whitespace checks passed.
+
+## Naming, memory and workshop resolution batch (2026-09-12)
+
+Named lexical contact/production thresholds, adoption timing, random streams,
+reference weights, naming conventions and name-size limits. Shared vocabulary
+option bounds with validation. Food report producers and validators share their
+maximum reserve horizon. Recovery requests and execution share effort cost with
+the original f32 grant/f64 ledger arithmetic. Workshop offers, peer learning and
+receipt tolerances are named; service invoices and revision checks share the
+enterprise quote multiplier. Enterprise and cultural work files still need their
+full semantic passes. Archive size, checksum and chunking parameters are named;
+archive version/stride layouts remain explicit. Spatial validation shares config
+resolution limits.
+
+Strict all-target Clippy passed; 151 ordinary library tests passed before the
+final naming extraction. Remaining verification follows. The reviewed-without-edit
+list distinguishes files needing no extraction from pending files.
+
+Final verification for this batch: 151 active library tests passed after naming
+changes (130 explicitly ignored); strict all-target Clippy, artifact and diff
+checks passed.

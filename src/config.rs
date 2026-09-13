@@ -23,7 +23,7 @@ const ALLOWED_LAKE_ITERATIONS: std::ops::RangeInclusive<u32> = 16..=1048576;
 const ALLOWED_CROP_YIELD_SCALE: std::ops::RangeInclusive<f32> = 0.1..=1.;
 const ALLOWED_ISLAND_PHOSPHORUS_SCALE: std::ops::RangeInclusive<f32> = 0.01..=1.;
 const ALLOWED_PLOT_HECTARES: std::ops::RangeInclusive<f32> = 20. ..=5000.;
-const ALLOWED_GRID_RESOLUTION: std::ops::RangeInclusive<u32> = 8..=1024;
+pub(crate) const ALLOWED_GRID_RESOLUTION: std::ops::RangeInclusive<u32> = 8..=1024;
 const ALLOWED_RADIUS_KM: std::ops::RangeInclusive<f32> = 100.0..=100000.0;
 const ALLOWED_AXIAL_TILT_DEGREES: std::ops::RangeInclusive<f32> = 0.0..=90.0;
 const ALLOWED_INNER_CONTINENTS: std::ops::RangeInclusive<u32> = 2..=8;

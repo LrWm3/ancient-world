@@ -8,6 +8,8 @@ use crate::{
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
+pub(crate) const RECOVERY_WORKER_MONTHS: f64 = 0.1;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RecoveryRequest {
     pub site: u32,
@@ -62,17 +64,17 @@ impl Culture {
                 .get(r.site as usize)
                 .copied()
                 .unwrap_or(0.);
-            if work < 0.1 {
+            if work < RECOVERY_WORKER_MONTHS as f32 {
                 self.local_recoveries.push(r);
                 continue;
             }
             if self.recover_specific(h, r.site, r.person, r.artifact as usize) {
-                self.labor_spent += 0.1;
+                self.labor_spent += RECOVERY_WORKER_MONTHS;
                 crate::culture::work_requests::record_work(
                     &mut self.work_plans,
                     r.site,
                     h.month,
-                    0.1,
+                    RECOVERY_WORKER_MONTHS as f32,
                 );
                 h.events.last_mut().unwrap().causes.push(r.cause);
                 handled.insert(r.site);

@@ -2,6 +2,15 @@
 use crate::civilization::History;
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+const FOOD_REPORT_HALF_WEIGHT_MONTHS: f32 = 12.;
+const MAX_FOOD_PREFERENCE_BONUS: f32 = 0.25;
+const NEUTRAL_FOOD_RESERVE_MONTHS: f32 = 6.;
+const MIN_SUCCESSFUL_AID_KG: f32 = 18.;
+const MUTUAL_AID_REQUIRED_SUCCESSES: u32 = 2;
+const AID_CONFIDENCE_PRIOR_WEIGHT: f32 = 2.;
+const MAX_AID_PREFERENCE_BONUS: f32 = 0.25;
+const AID_HALF_WEIGHT_MONTHS: f32 = 120.;
+pub(crate) const MAX_REPORTED_FOOD_MONTHS: f32 = 24.;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Report {
@@ -17,10 +26,13 @@ impl Report {
         if month < self.received || month < self.observed {
             return 0.;
         }
-        1. / (1. + month.saturating_sub(self.observed) as f32 / 12.)
+        1. / (1. + month.saturating_sub(self.observed) as f32 / FOOD_REPORT_HALF_WEIGHT_MONTHS)
     }
     pub fn preference(&self, month: u32) -> f32 {
-        1. + 0.25 * self.weight(month) * ((self.food_months - 6.) / 6.).clamp(-1., 1.)
+        1. + MAX_FOOD_PREFERENCE_BONUS
+            * self.weight(month)
+            * ((self.food_months - NEUTRAL_FOOD_RESERVE_MONTHS) / NEUTRAL_FOOD_RESERVE_MONTHS)
+                .clamp(-1., 1.)
     }
 }
 /// Observed delivery outcomes, kept per recipient/donor pair rather than global reputation.
@@ -72,12 +84,14 @@ impl LocalMemory {
         a.received = month;
         a.cause = cause;
         a.delivered_kg += kg;
-        if kg >= 18. {
+        if kg >= MIN_SUCCESSFUL_AID_KG {
             a.successes += 1;
         } else {
             a.failures += 1;
         }
-        if a.successes >= 2 && !self.mutual_aid_sites.contains(&recipient) {
+        if a.successes >= MUTUAL_AID_REQUIRED_SUCCESSES
+            && !self.mutual_aid_sites.contains(&recipient)
+        {
             self.mutual_aid_sites.push(recipient);
         }
     }
@@ -86,15 +100,17 @@ impl LocalMemory {
             .iter()
             .find(|a| a.recipient == recipient && a.donor == donor && a.received <= month)
             .map_or(0., |a| {
-                let confidence = a.successes as f32 / (2. + a.successes as f32 + a.failures as f32);
-                0.25 * confidence / (1. + month.saturating_sub(a.received) as f32 / 120.)
+                let confidence = a.successes as f32
+                    / (AID_CONFIDENCE_PRIOR_WEIGHT + a.successes as f32 + a.failures as f32);
+                MAX_AID_PREFERENCE_BONUS * confidence
+                    / (1. + month.saturating_sub(a.received) as f32 / AID_HALF_WEIGHT_MONTHS)
             })
     }
     pub fn remember(&mut self, report: Report) {
         if report.observer == report.destination
             || report.observed > report.received
             || !report.food_months.is_finite()
-            || !(0. ..=24.).contains(&report.food_months)
+            || !(0. ..=MAX_REPORTED_FOOD_MONTHS).contains(&report.food_months)
         {
             return;
         }
@@ -143,7 +159,7 @@ impl LocalMemory {
                     && r.observed <= r.received
                     && r.received <= h.month
                     && r.food_months.is_finite()
-                    && (0. ..=24.).contains(&r.food_months)
+                    && (0. ..=MAX_REPORTED_FOOD_MONTHS).contains(&r.food_months)
                     && h.events.get(r.cause as usize).is_some()
                     && pairs.insert((r.observer, r.destination)),
                 "invalid local report"

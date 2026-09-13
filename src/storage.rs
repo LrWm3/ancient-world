@@ -11,6 +11,13 @@ use std::{
     io::{BufReader, BufWriter, Read, Write},
     path::Path,
 };
+const CHECKSUM_PRIME: u64 = 0x100000001b3;
+const CHECKSUM_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
+const MAX_METADATA_BYTES: u64 = 256 * 1024 * 1024;
+const MAX_ARCHIVE_BYTES: u64 = 4_500_000_000;
+const TERRAIN_WRITE_CHUNK_CELLS: usize = 4096;
+const VALID_GREAT_LAKE_LEVEL_M: std::ops::RangeInclusive<f32> = 85.0..=240.0;
+
 const MAGIC: &[u8; 8] = b"ANCIENT2";
 #[derive(Serialize, Deserialize)]
 struct Header {
@@ -32,7 +39,7 @@ struct Header {
 fn checksum(bytes: &[u8], mut value: u64) -> u64 {
     for b in bytes {
         value ^= *b as u64;
-        value = value.wrapping_mul(0x100000001b3);
+        value = value.wrapping_mul(CHECKSUM_PRIME);
     }
     value
 }
@@ -88,7 +95,7 @@ impl Generator {
         };
         let metadata = serde_json::to_vec(&header)?;
         ensure!(
-            metadata.len() <= 256 * 1024 * 1024,
+            metadata.len() as u64 <= MAX_METADATA_BYTES,
             "archive metadata exceeds 256 MiB"
         );
         let cells = self.snapshot()?;
@@ -98,12 +105,12 @@ impl Generator {
         writer.write_all(MAGIC)?;
         writer.write_all(&(metadata.len() as u64).to_le_bytes())?;
         writer.write_all(&metadata)?;
-        let mut sum = checksum(&metadata, 0xcbf29ce484222325);
+        let mut sum = checksum(&metadata, CHECKSUM_OFFSET_BASIS);
         ensure!(
             cfg!(target_endian = "little"),
             "world archives currently require a little-endian host"
         );
-        for chunk in cells.chunks(4096) {
+        for chunk in cells.chunks(TERRAIN_WRITE_CHUNK_CELLS) {
             let bytes = bytemuck::cast_slice(chunk);
             writer.write_all(bytes)?;
             sum = checksum(bytes, sum);
@@ -145,7 +152,10 @@ impl Generator {
     fn load_archive(gpu: ContextGpu, path: &Path, allow_legacy: bool) -> Result<Self> {
         let file = File::open(path).context("opening world archive")?;
         let length = file.metadata()?.len();
-        ensure!(length <= 4_500_000_000, "world archive exceeds size limit");
+        ensure!(
+            length <= MAX_ARCHIVE_BYTES,
+            "world archive exceeds size limit"
+        );
         let mut r = BufReader::new(file);
         let mut magic = [0; 8];
         r.read_exact(&mut magic)?;
@@ -154,7 +164,7 @@ impl Generator {
         let mut bytes = [0; 8];
         r.read_exact(&mut bytes)?;
         let len = u64::from_le_bytes(bytes);
-        ensure!(len <= 256 * 1024 * 1024, "archive metadata is too large");
+        ensure!(len <= MAX_METADATA_BYTES, "archive metadata is too large");
         let mut metadata = vec![0; len as usize];
         r.read_exact(&mut metadata)?;
         let mut header: Header = serde_json::from_slice(&metadata)?;
@@ -209,7 +219,7 @@ impl Generator {
         let mut cells = vec![Cell::default(); header.config.cells() as usize];
         let mut bytes = vec![0u8; cells.len() * terrain_stride];
         r.read_exact(&mut bytes)?;
-        let mut sum = checksum(&bytes, checksum(&metadata, 0xcbf29ce484222325));
+        let mut sum = checksum(&bytes, checksum(&metadata, CHECKSUM_OFFSET_BASIS));
         for (cell, chunk) in cells.iter_mut().zip(bytes.chunks_exact(terrain_stride)) {
             bytemuck::bytes_of_mut(cell)[..terrain_stride].copy_from_slice(chunk);
         }
@@ -299,7 +309,7 @@ impl Generator {
         generator.restore_cells(&cells, header.progress.epoch)?;
         ensure!(
             header.planet.iter().all(|x| x.is_finite())
-                && (85.0..=240.0).contains(&header.planet[0])
+                && VALID_GREAT_LAKE_LEVEL_M.contains(&header.planet[0])
                 && header.planet[1] >= 0.,
             "invalid planet reservoir state"
         );

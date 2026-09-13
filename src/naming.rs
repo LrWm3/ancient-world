@@ -3,6 +3,52 @@ mod evolution;
 pub use evolution::{Lexeme, WordUse};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+const HASH_MIX_A: u32 = 0x7feb352d;
+const HASH_MIX_B: u32 = 0x846ca68b;
+const HASH_SHIFT_A: u32 = 16;
+const HASH_SHIFT_B: u32 = 15;
+const KEY_HASH_OFFSET: u32 = 2166136261;
+const KEY_HASH_PRIME: u32 = 16777619;
+const CIVILIZATION_SEED_STRIDE: u32 = 7919;
+const LANGUAGE_STREAM: u32 = 0x6e616d65;
+const PERSON_SEED_STRIDE: u32 = 31337;
+const PATRON_STREAM: u32 = 0x70617472;
+const DESCRIPTOR_STREAM: u32 = 0x68656164;
+const WAR_STREAM: u32 = 0x776172;
+const SITE_REFERENCE_WEIGHT: u32 = 3;
+const TRADITION_REFERENCE_WEIGHT: u32 = 3;
+const PATRON_REFERENCE_WEIGHT: u32 = 2;
+const PERSON_REFERENCE_WEIGHT: u32 = 6;
+const MAX_INSTITUTION_REFERENCES: usize = 4;
+const MIN_LOCAL_PRODUCTION_KG: f32 = 1.;
+const FINAL_M_RETENTION_DENOMINATOR: u32 = 4;
+const FINAL_S_LOSS_DENOMINATOR: u32 = 2;
+const INITIAL_F_SHIFT_DENOMINATOR: u32 = 3;
+const CONVENTION_TICKETS: u32 = 10;
+const NATURE_FIRST_TICKET: u32 = 3;
+const NATURE_LAST_TICKET: u32 = 4;
+const LIVELIHOOD_FIRST_TICKET: u32 = 5;
+const LIVELIHOOD_LAST_TICKET: u32 = 6;
+const COMMEMORATION_FIRST_TICKET: u32 = 7;
+const COMMEMORATION_LAST_TICKET: u32 = 9;
+const PATRON_HOMELAND_LAST_TICKET: u32 = 2;
+const PATRON_GUIDE_FIRST_TICKET: u32 = 3;
+const PATRON_GUIDE_LAST_TICKET: u32 = 4;
+const PATRON_CHARACTER_FIRST_TICKET: u32 = 5;
+const PATRON_CHARACTER_LAST_TICKET: u32 = 6;
+const PATRON_SYMBOL_FIRST_TICKET: u32 = 7;
+const PATRON_SYMBOL_LAST_TICKET: u32 = 8;
+const MIN_SOURCE_STEM_CHARACTERS: usize = 3;
+const SOURCE_TOKEN_STRIDE: usize = 7;
+const SOURCE_INSERTION_STRIDE: usize = 11;
+const MAX_SOURCE_STEM_CHARACTERS: usize = 12;
+const ORDER_VARIANT_DENOMINATOR: u32 = 5;
+const FORM_VARIANT_DENOMINATOR: u32 = 4;
+const MAX_JOINED_NAME_CHARACTERS: usize = 20;
+const ABBREVIATED_WORD_CHARACTERS: usize = 4;
+const MAX_SEMANTIC_BYNAME_ATTEMPTS: u32 = 16;
+const BYNAME_FIRST_WORD_SLOT: usize = 100;
+const BYNAME_SECOND_WORD_SLOT: usize = 101;
 
 const ROOTS: &[(&str, &str)] = &[
     ("islet", "insela"),
@@ -537,13 +583,14 @@ const EMBLEMS: &[&str] = &[
     "banner",
 ];
 fn hash(mut x: u32) -> u32 {
-    x = (x ^ (x >> 16)).wrapping_mul(0x7feb352d);
-    x = (x ^ (x >> 15)).wrapping_mul(0x846ca68b);
-    x ^ (x >> 16)
+    x = (x ^ (x >> HASH_SHIFT_A)).wrapping_mul(HASH_MIX_A);
+    x = (x ^ (x >> HASH_SHIFT_B)).wrapping_mul(HASH_MIX_B);
+    x ^ (x >> HASH_SHIFT_A)
 }
 fn key_hash(s: &str) -> u32 {
-    s.bytes()
-        .fold(2166136261u32, |h, b| (h ^ b as u32).wrapping_mul(16777619))
+    s.bytes().fold(KEY_HASH_OFFSET, |h, b| {
+        (h ^ b as u32).wrapping_mul(KEY_HASH_PRIME)
+    })
 }
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Landmark {
@@ -586,7 +633,7 @@ impl PersonalContext {
                 id: site.id,
                 name: site.name.clone(),
             },
-            3,
+            SITE_REFERENCE_WEIGHT,
         ));
         for (g, material, occupation) in [
             (0, "timber", "carpenter"),
@@ -599,7 +646,7 @@ impl PersonalContext {
             (18, "cloth", "weaver"),
             (28, "water", "fisher"),
         ] {
-            if site.economy.made[g] > 1. {
+            if site.economy.made[g] > MIN_LOCAL_PRODUCTION_KG {
                 c.concepts.push(material.into());
                 c.concepts.push(occupation.into());
             }
@@ -616,7 +663,7 @@ impl PersonalContext {
                         id: t.id,
                         name: t.name.clone(),
                     },
-                    3,
+                    TRADITION_REFERENCE_WEIGHT,
                 ));
                 if let Some(p) = t.patron.and_then(|id| culture.patrons.get(id as usize)) {
                     c.references.push((
@@ -625,7 +672,7 @@ impl PersonalContext {
                             id: p.id,
                             name: p.name.clone(),
                         },
-                        2,
+                        PATRON_REFERENCE_WEIGHT,
                     ));
                 }
             }
@@ -634,7 +681,7 @@ impl PersonalContext {
                 .institutions
                 .iter()
                 .filter(|n| n.active && n.site == site.id)
-                .take(4)
+                .take(MAX_INSTITUTION_REFERENCES)
             {
                 c.references.push((
                     Source {
@@ -655,7 +702,7 @@ impl PersonalContext {
                 id: person.id,
                 name: person.name.clone(),
             },
-            6,
+            PERSON_REFERENCE_WEIGHT,
         ));
         self
     }
@@ -699,16 +746,17 @@ pub struct Language {
 }
 impl Language {
     pub fn new(world: u32, civilization: u32) -> Self {
-        let seed = hash(world ^ civilization.wrapping_mul(7919) ^ 0x6e616d65);
+        let seed =
+            hash(world ^ civilization.wrapping_mul(CIVILIZATION_SEED_STRIDE) ^ LANGUAGE_STREAM);
         let q = |salt| hash(seed ^ salt);
         let mut l = Self {
             name: String::new(),
             seed,
             palatalization: (q(1) % 3) as u8,
             lenition: (q(2) % 3) as u8,
-            lose_final_m: q(3) % 4 != 0,
-            lose_final_s: q(4) % 2 == 0,
-            initial_f_to_h: q(5) % 3 == 0,
+            lose_final_m: q(3) % FINAL_M_RETENTION_DENOMINATOR != 0,
+            lose_final_s: q(4) % FINAL_S_LOSS_DENOMINATOR == 0,
+            initial_f_to_h: q(5) % INITIAL_F_SHIFT_DENOMINATOR == 0,
             kt: ["kt", "it", "ch"][q(6) as usize % 3].into(),
             ai: ["ai", "e", "ae"][q(7) as usize % 3].into(),
             oi: ["oi", "u", "e"][q(8) as usize % 3].into(),
@@ -796,7 +844,7 @@ impl Language {
             && self.lexicon.iter().all(|(concept, options)| {
                 self.roots.contains_key(concept)
                     && !options.is_empty()
-                    && options.len() <= 3
+                    && options.len() <= evolution::MAX_LEXICAL_OPTIONS
                     && options
                         .iter()
                         .all(|w| !w.form.is_empty() && w.form.chars().all(|c| c.is_alphabetic()))
@@ -840,7 +888,7 @@ impl Language {
         if let Some(r) = self.names.get(&key) {
             return r.name.clone();
         }
-        let q = hash(self.seed ^ id.wrapping_mul(31337) ^ key_hash(category));
+        let q = hash(self.seed ^ id.wrapping_mul(PERSON_SEED_STRIDE) ^ key_hash(category));
         let virtue = VIRTUES[q as usize % VIRTUES.len()];
         let emblem = EMBLEMS[hash(q ^ 1) as usize % EMBLEMS.len()];
         let other = EMBLEMS[hash(q ^ 2) as usize % EMBLEMS.len()];
@@ -848,16 +896,18 @@ impl Language {
         // 30% commemoration. A third of the aspiration share uses celebration imagery.
         // Missing context falls back to an aspirational name.
         let mut source = None;
-        let (meanings, style) = match hash(q ^ 3) % 10 {
-            3..=4 => (vec![emblem, other], "nature pairing"),
-            5..=6 if !context.concepts.is_empty() => (
+        let (meanings, style) = match hash(q ^ 3) % CONVENTION_TICKETS {
+            NATURE_FIRST_TICKET..=NATURE_LAST_TICKET => (vec![emblem, other], "nature pairing"),
+            LIVELIHOOD_FIRST_TICKET..=LIVELIHOOD_LAST_TICKET if !context.concepts.is_empty() => (
                 vec![
                     emblem,
                     context.concepts[hash(q ^ 4) as usize % context.concepts.len()].as_str(),
                 ],
                 "local livelihood",
             ),
-            7..=9 if !context.references.is_empty() => {
+            COMMEMORATION_FIRST_TICKET..=COMMEMORATION_LAST_TICKET
+                if !context.references.is_empty() =>
+            {
                 let total: u32 = context.references.iter().map(|(_, w)| *w).sum();
                 let mut pick = hash(q ^ 5) % total.max(1);
                 for (s, w) in &context.references {
@@ -899,7 +949,7 @@ impl Language {
         if let Some(r) = self.names.get(&key) {
             return r.name.clone();
         }
-        let q = hash(self.seed ^ key_hash(&key) ^ 0x70617472);
+        let q = hash(self.seed ^ key_hash(&key) ^ PATRON_STREAM);
         let emblem = EMBLEMS[q as usize % EMBLEMS.len()];
         let other = EMBLEMS[hash(q ^ 1) as usize % EMBLEMS.len()];
         let quality = VIRTUES[hash(q ^ 2) as usize % VIRTUES.len()];
@@ -927,11 +977,17 @@ impl Language {
             ]
         };
         let role = roles[hash(q ^ 4) as usize % roles.len()];
-        let (meanings, style) = match hash(q ^ 5) % 10 {
-            0..=2 => (vec![local, quality], "homeland imagery"),
-            3..=4 => (vec![emblem, role], "guide epithet"),
-            5..=6 => (vec![quality, emblem], "character epithet"),
-            7..=8 => (vec![emblem, other], "symbolic pairing"),
+        let (meanings, style) = match hash(q ^ 5) % CONVENTION_TICKETS {
+            0..=PATRON_HOMELAND_LAST_TICKET => (vec![local, quality], "homeland imagery"),
+            PATRON_GUIDE_FIRST_TICKET..=PATRON_GUIDE_LAST_TICKET => {
+                (vec![emblem, role], "guide epithet")
+            }
+            PATRON_CHARACTER_FIRST_TICKET..=PATRON_CHARACTER_LAST_TICKET => {
+                (vec![quality, emblem], "character epithet")
+            }
+            PATRON_SYMBOL_FIRST_TICKET..=PATRON_SYMBOL_LAST_TICKET => {
+                (vec![emblem, other], "symbolic pairing")
+            }
             _ => (vec![other], "single emblem"),
         };
         let name = self.coin(&key, &meanings, None);
@@ -950,13 +1006,13 @@ impl Language {
                     .to_lowercase()
             })
             .filter(|s| {
-                s.chars().count() >= 3
+                s.chars().count() >= MIN_SOURCE_STEM_CHARACTERS
                     && s != &particle
                     && !matches!(s.as_str(), "of" | "the" | "and")
             })
             .collect();
         tokens
-            .get((q as usize / 7) % tokens.len().max(1))
+            .get((q as usize / SOURCE_TOKEN_STRIDE) % tokens.len().max(1))
             .cloned()
             .unwrap_or_else(|| self.word("memory"))
     }
@@ -1034,12 +1090,12 @@ impl Language {
             ],
             _ => return base,
         };
-        options[hash(self.seed ^ key_hash(key) ^ 0x68656164) as usize % options.len()]
+        options[hash(self.seed ^ key_hash(key) ^ DESCRIPTOR_STREAM) as usize % options.len()]
     }
     /// An attacker's commemorative label, not a claim that all sides use this name.
     pub fn war(&mut self, id: u32, target: Source, origin: Source, leader: Source) -> String {
         let key = format!("war:{id}");
-        let q = hash(self.seed ^ key_hash(&key) ^ 0x776172);
+        let q = hash(self.seed ^ key_hash(&key) ^ WAR_STREAM);
         let (meanings, source): (&[&str], Source) = match q % 6 {
             0 | 1 => (&["war"], target),
             2 => (&["claim", "war"], target),
@@ -1083,22 +1139,27 @@ impl Language {
             // Proper names retain their existing sound, rather than undergoing the shifts twice.
             let stem = self.source_stem(&s.name, q);
             words.insert(
-                (q as usize / 11) % (words.len() + 1),
-                stem.chars().take(12).collect::<String>().to_lowercase(),
+                (q as usize / SOURCE_INSERTION_STRIDE) % (words.len() + 1),
+                stem.chars()
+                    .take(MAX_SOURCE_STEM_CHARACTERS)
+                    .collect::<String>()
+                    .to_lowercase(),
             );
         }
         // Each language favors an order, but permits reversals and rotations.
-        if q % 5 == 0 {
+        if q % ORDER_VARIANT_DENOMINATOR == 0 {
             words.reverse();
-        } else if q % 5 == 1 && words.len() > 1 {
+        } else if q % ORDER_VARIANT_DENOMINATOR == 1 && words.len() > 1 {
             words.rotate_left(1);
         }
-        let mut form = if q % 4 == 0 {
-            (q / 4 % 5) as u8
+        let mut form = if q % FORM_VARIANT_DENOMINATOR == 0 {
+            (q / FORM_VARIANT_DENOMINATOR % 5) as u8
         } else {
             self.preferred_form
         };
-        if form == 1 && words.iter().map(|s| s.chars().count()).sum::<usize>() > 20 {
+        if form == 1
+            && words.iter().map(|s| s.chars().count()).sum::<usize>() > MAX_JOINED_NAME_CHARACTERS
+        {
             form = 0;
         }
         let text = match form {
@@ -1106,7 +1167,13 @@ impl Language {
             1 => title(&words.join("")),
             3 => words
                 .iter()
-                .map(|w| title(&w.chars().take(4).collect::<String>()))
+                .map(|w| {
+                    title(
+                        &w.chars()
+                            .take(ABBREVIATED_WORD_CHARACTERS)
+                            .collect::<String>(),
+                    )
+                })
                 .collect::<Vec<_>>()
                 .join(" "),
             4 => words
@@ -1144,11 +1211,13 @@ impl Language {
         let mut byname_words = vec![];
         while taken(&name) {
             let salt = hash(q.wrapping_add(attempt));
-            if attempt < 16 {
+            if attempt < MAX_SEMANTIC_BYNAME_ATTEMPTS {
                 let a = EMBLEMS[salt as usize % EMBLEMS.len()];
                 let b = VIRTUES[hash(salt) as usize % VIRTUES.len()];
-                let left = self.lexical_choice(a, key, 100 + attempt as usize * 2);
-                let right = self.lexical_choice(b, key, 101 + attempt as usize * 2);
+                let left =
+                    self.lexical_choice(a, key, BYNAME_FIRST_WORD_SLOT + attempt as usize * 2);
+                let right =
+                    self.lexical_choice(b, key, BYNAME_SECOND_WORD_SLOT + attempt as usize * 2);
                 name = format!("{text} {}", title(&format!("{}{}", left.form, right.form)));
                 byname_words = vec![
                     WordUse {

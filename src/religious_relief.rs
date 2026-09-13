@@ -241,7 +241,7 @@ impl History {
         let report_food_months = Some(
             (self.sites[appeal.host as usize].stocks.stock[1]
                 / (self.sites[appeal.host as usize].stocks.stock[0].max(1.) * 18.))
-                .clamp(0., 24.),
+                .clamp(0., crate::social_memory::MAX_REPORTED_FOOD_MONTHS),
         );
         self.sites[appeal.host as usize].economy.finance[0] += paid;
         let c = self.culture.as_mut().unwrap();

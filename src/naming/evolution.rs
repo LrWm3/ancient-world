@@ -2,6 +2,32 @@
 use super::{hash, key_hash, Language, Source};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+pub(super) const MAX_LEXICAL_OPTIONS: usize = 3;
+const MIN_WORD_CHARACTERS: usize = 3;
+const MAX_WORD_CHARACTERS: usize = 24;
+const MAX_EPONYM_CHARACTERS: usize = 16;
+const UPDATE_INTERVAL_MONTHS: u32 = 12;
+const MIN_CONTACT_YEARS: u32 = 3;
+const MAX_TRADE_BONUS_PERCENT: f64 = 30.;
+const TRADE_TICKET_KG: f64 = 100.;
+const MAX_EXTRA_TRADE_TICKETS: f64 = 8.;
+const MIN_SITE_AGE_MONTHS: u32 = 60;
+const MIN_INSTITUTION_AGE_MONTHS: u32 = 60;
+const PETITION_MEMORY_MONTHS: u32 = 120;
+const MIN_PRODUCTION_KG: f32 = 1000.;
+const MIN_INSTITUTION_EXPENSES: f64 = 50.;
+const MIN_PERSON_ACTIONS: u32 = 5;
+const ADAPTED_PRONUNCIATION_DENOMINATOR: u32 = 2;
+const ETYMOLOGY_ASSOCIATION_DENOMINATOR: u32 = 4;
+const BASE_BORROWING_DENOMINATOR: u32 = 5;
+const PRONUNCIATION_STREAM: u32 = 0x736f756e;
+const ETYMOLOGY_STREAM: u32 = 0x6574796d;
+const WORD_SLOT_STRIDE: u32 = 7919;
+const ANNUAL_BUDGET_STREAM: u32 = 0x62756467;
+const LEXICAL_STREAM: u32 = 0x6c657869;
+const LEXICAL_SLOT_STRIDE: u32 = 0x9e3779b9;
+const TRADE_STREAM: u32 = 0x74726164;
+const CANDIDATE_STREAM: u32 = 11;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Lexeme {
@@ -25,10 +51,11 @@ impl Language {
     fn pronunciation(&self, mut word: Lexeme, salt: u32) -> Lexeme {
         let original = word.form.clone();
         let adapted = self.evolve(&original);
-        word.adapted = hash(self.seed ^ salt ^ 0x736f756e) % 2 == 0
-            && adapted != original
-            && adapted.chars().count() >= 3
-            && adapted.chars().count() <= 24;
+        word.adapted =
+            hash(self.seed ^ salt ^ PRONUNCIATION_STREAM) % ADAPTED_PRONUNCIATION_DENOMINATOR == 0
+                && adapted != original
+                && adapted.chars().count() >= MIN_WORD_CHARACTERS
+                && adapted.chars().count() <= MAX_WORD_CHARACTERS;
         if word.adapted {
             word.form = adapted;
         }
@@ -36,7 +63,7 @@ impl Language {
         word
     }
     fn association(&self, activity: &str, source: &Source, salt: u32) -> (String, &'static str) {
-        if hash(salt ^ self.seed ^ 0x6574796d) % 4 == 0 {
+        if hash(salt ^ self.seed ^ ETYMOLOGY_STREAM) % ETYMOLOGY_ASSOCIATION_DENOMINATOR == 0 {
             if let Some(record) = self.names.get(&format!("{}:{}", source.kind, source.id)) {
                 let meanings: BTreeSet<_> = record
                     .meanings
@@ -71,7 +98,8 @@ impl Language {
             };
         };
         let total = (1u32 << options.len()) - 1;
-        let mut choice = hash(self.seed ^ key_hash(key) ^ (slot as u32).wrapping_mul(7919)) % total;
+        let mut choice =
+            hash(self.seed ^ key_hash(key) ^ (slot as u32).wrapping_mul(WORD_SLOT_STRIDE)) % total;
         for (i, word) in options.iter().enumerate() {
             let weight = 1 << i;
             if choice < weight {
@@ -86,8 +114,8 @@ impl Language {
     pub fn adopt_word(&mut self, concept: &str, word: Lexeme) -> bool {
         if concept == "of"
             || !self.roots.contains_key(concept)
-            || word.form.chars().count() < 3
-            || word.form.chars().count() > 24
+            || word.form.chars().count() < MIN_WORD_CHARACTERS
+            || word.form.chars().count() > MAX_WORD_CHARACTERS
             || !word.form.chars().all(|c| c.is_alphabetic())
         {
             return false;
@@ -110,7 +138,7 @@ impl Language {
             return false;
         }
         options.push(word);
-        if options.len() > 3 {
+        if options.len() > MAX_LEXICAL_OPTIONS {
             options.remove(0);
         }
         true
@@ -151,7 +179,7 @@ fn significant(kind: &str) -> bool {
     )
 }
 fn annual_slots(seed: u32, month: u32, events: usize) -> usize {
-    1 + hash(seed ^ month ^ 0x62756467) as usize % events.max(1)
+    1 + hash(seed ^ month ^ ANNUAL_BUDGET_STREAM) as usize % events.max(1)
 }
 
 impl crate::civilization::History {
@@ -171,7 +199,7 @@ impl crate::civilization::History {
         }
     }
     pub(crate) fn evolve_lexicons(&mut self) {
-        if self.month == 0 || self.month % 12 != 0 {
+        if self.month == 0 || self.month % UPDATE_INTERVAL_MONTHS != 0 {
             return;
         }
         // Completed snapshot: a borrowed word cannot hop through multiple languages this year.
@@ -211,7 +239,7 @@ impl crate::civilization::History {
                 .events
                 .iter()
                 .filter(|e| {
-                    e.month > self.month.saturating_sub(12)
+                    e.month > self.month.saturating_sub(UPDATE_INTERVAL_MONTHS)
                         && e.month <= self.month
                         && significant(&e.kind)
                         && (e.subjects.contains(&("civilization".into(), civ))
@@ -239,14 +267,24 @@ impl crate::civilization::History {
             let mut pending = Vec::new();
             let mut adopted = BTreeSet::new();
             let trade = std::mem::take(&mut l.trade_kg);
-            let trade_bonus = trade.values().copied().sum::<f64>().sqrt().min(30.) as u32;
+            let trade_bonus = trade
+                .values()
+                .copied()
+                .sum::<f64>()
+                .sqrt()
+                .min(MAX_TRADE_BONUS_PERCENT) as u32;
             for slot in 0..slots {
-                let q =
-                    hash(l.seed ^ self.month ^ 0x6c657869 ^ (slot as u32).wrapping_mul(0x9e3779b9));
+                let q = hash(
+                    l.seed
+                        ^ self.month
+                        ^ LEXICAL_STREAM
+                        ^ (slot as u32).wrapping_mul(LEXICAL_SLOT_STRIDE),
+                );
                 let mut candidates: Vec<(String, Lexeme, Option<u32>)> = vec![];
-                if q % 5 == 0 || hash(q ^ 0x74726164) % 100 < trade_bonus {
+                if q % BASE_BORROWING_DENOMINATOR == 0 || hash(q ^ TRADE_STREAM) % 100 < trade_bonus
+                {
                     for (&other, &years) in &l.contact_years {
-                        if years < 3 {
+                        if years < MIN_CONTACT_YEARS {
                             continue;
                         }
                         if let Some(words) = snapshot.get(&other) {
@@ -258,9 +296,10 @@ impl crate::civilization::History {
                                     loan.basis = "borrowed".into();
                                     loan = l.pronunciation(loan, q ^ other ^ key_hash(concept));
                                     let tickets = 1
-                                        + (trade.get(&other).copied().unwrap_or(0.) / 100.)
+                                        + (trade.get(&other).copied().unwrap_or(0.)
+                                            / TRADE_TICKET_KG)
                                             .sqrt()
-                                            .min(8.)
+                                            .min(MAX_EXTRA_TRADE_TICKETS)
                                             as usize;
                                     for _ in 0..tickets {
                                         candidates.push((concept.clone(), loan.clone(), None));
@@ -276,7 +315,7 @@ impl crate::civilization::History {
                         let form = l
                             .source_stem(&source.name, hash(q ^ source.id))
                             .chars()
-                            .take(16)
+                            .take(MAX_EPONYM_CHARACTERS)
                             .collect();
                         let (concept, basis) =
                             l.association(concept, &source, q ^ source.id ^ key_hash(concept));
@@ -297,7 +336,7 @@ impl crate::civilization::History {
                     for site in self.sites.iter().filter(|s| {
                         s.civilization == civ
                             && !s.abandoned
-                            && self.month.saturating_sub(s.founded) >= 60
+                            && self.month.saturating_sub(s.founded) >= MIN_SITE_AGE_MONTHS
                     }) {
                         for (good, concept) in [
                             (0, "timber"),
@@ -307,7 +346,7 @@ impl crate::civilization::History {
                             (18, "cloth"),
                             (28, "fisher"),
                         ] {
-                            if site.economy.made[good] >= 1000. {
+                            if site.economy.made[good] >= MIN_PRODUCTION_KG {
                                 add(
                                     concept,
                                     Source {
@@ -324,8 +363,9 @@ impl crate::civilization::History {
                         for petition in g.petitions.iter().filter(|p| {
                             p.honored
                                 && self.sites[p.site as usize].civilization == civ
-                                && p.resolved
-                                    .is_some_and(|m| self.month.saturating_sub(m) <= 120)
+                                && p.resolved.is_some_and(|m| {
+                                    self.month.saturating_sub(m) <= PETITION_MEMORY_MONTHS
+                                })
                         }) {
                             let n = &c.institutions[petition.institution as usize];
                             add(
@@ -342,8 +382,9 @@ impl crate::civilization::History {
                     if let Some(culture) = &self.culture {
                         for n in culture.institutions.iter().filter(|n| {
                             n.active
-                                && n.expenses >= 50.
-                                && self.month.saturating_sub(n.founded) >= 60
+                                && n.expenses >= MIN_INSTITUTION_EXPENSES
+                                && self.month.saturating_sub(n.founded)
+                                    >= MIN_INSTITUTION_AGE_MONTHS
                                 && self
                                     .sites
                                     .get(n.site as usize)
@@ -381,7 +422,11 @@ impl crate::civilization::History {
                                 Some(p.site),
                             );
                         }
-                        for a in culture.agents.iter().filter(|a| a.actions >= 5) {
+                        for a in culture
+                            .agents
+                            .iter()
+                            .filter(|a| a.actions >= MIN_PERSON_ACTIONS)
+                        {
                             let Some(p) = self
                                 .people
                                 .get(a.person as usize)
@@ -436,7 +481,7 @@ impl crate::civilization::History {
                     continue;
                 }
                 let (concept, mut word, site) =
-                    candidates.swap_remove(hash(q ^ 11) as usize % candidates.len());
+                    candidates.swap_remove(hash(q ^ CANDIDATE_STREAM) as usize % candidates.len());
                 if word.borrowed_from.is_none() {
                     word = l.pronunciation(word, q ^ key_hash(&concept));
                 }
@@ -481,8 +526,9 @@ impl crate::civilization::History {
                                 p.institution == source.id
                                     && p.honored
                                     && p.demand.concept() == concept
-                                    && p.resolved
-                                        .is_some_and(|m| self.month.saturating_sub(m) <= 120)
+                                    && p.resolved.is_some_and(|m| {
+                                        self.month.saturating_sub(m) <= PETITION_MEMORY_MONTHS
+                                    })
                             })
                             .and_then(|p| p.outcome)
                     }) {

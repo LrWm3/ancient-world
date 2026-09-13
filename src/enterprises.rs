@@ -7,6 +7,7 @@ use crate::{
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
+pub(crate) const SERVICE_QUOTE_MULTIPLIER: f64 = 1.25;
 
 /// Posted next-month labor offer; service prices remain independent of wage bids.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -54,7 +55,7 @@ impl WagePolicy {
         let payroll = hired * reference * self.multiplier;
         // Raises need demonstrated productive work, payment and a cash buffer.
         // The independent 1.25x service quote limits the affordable wage.
-        let profitable_ceiling = (1.25 * utilization * 0.9).clamp(0.6, 1.125);
+        let profitable_ceiling = (SERVICE_QUOTE_MULTIPLIER * utilization * 0.9).clamp(0.6, 1.125);
         let next = if self.shortage > 0.15
             && utilization >= 0.8
             && paid_invoice >= payroll
@@ -292,7 +293,7 @@ fn allocate_work(requests: [f64; 4], capacity: f64) -> [f32; 4] {
     requests.map(|request| work_floor(request * factor))
 }
 fn viable_entry(expected_work: f64, paid_shift: f64, units: f64) -> bool {
-    expected_work * 1.25 > paid_shift + units * 0.08
+    expected_work * SERVICE_QUOTE_MULTIPLIER > paid_shift + units * 0.08
 }
 
 // Equity investment is risk capital, not earned profit. Losses must be recovered
@@ -487,7 +488,7 @@ impl History {
                     policy.multiplier = next;
                 }
                 f.wage_rate = reference * policy.multiplier;
-                f.service_rate = Some(reference * 1.25);
+                f.service_rate = Some(reference * SERVICE_QUOTE_MULTIPLIER);
             } else {
                 f.wage_rate = reference;
                 f.service_rate = None;
@@ -683,7 +684,9 @@ impl History {
                 self.sites[f.site as usize].economy.enterprise_used[f.family as usize] as f64;
             f.last_completed_work = work;
             f.completed_work += work;
-            invoices[f.site as usize] += work * f.service_rate.unwrap_or(f.wage_rate * 1.25);
+            invoices[f.site as usize] += work
+                * f.service_rate
+                    .unwrap_or(f.wage_rate * SERVICE_QUOTE_MULTIPLIER);
         }
         // Gather per-town invoices first. A common affordability factor prevents first-operator priority.
         let mut funds = vec![0.; self.sites.len()];
@@ -709,7 +712,9 @@ impl History {
             .filter(|(_, f)| f.closed.is_none())
         {
             let site = f.site as usize;
-            let invoice = f.last_completed_work * f.service_rate.unwrap_or(f.wage_rate * 1.25);
+            let invoice = f.last_completed_work
+                * f.service_rate
+                    .unwrap_or(f.wage_rate * SERVICE_QUOTE_MULTIPLIER);
             let received = if invoices[site] <= 0. {
                 0.
             } else if last[site] == Some(i) {
@@ -739,7 +744,7 @@ impl History {
                         self.month,
                         [staff.expected, f.last_funded_work, f.last_completed_work],
                         f.cash,
-                        service / 1.25,
+                        service / SERVICE_QUOTE_MULTIPLIER,
                         received,
                     );
                 }

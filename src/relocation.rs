@@ -820,7 +820,7 @@ impl History {
                 let report_population = self.sites[from].stocks.stock[0];
                 let report_food_months = Some(
                     (self.sites[from].stocks.stock[1] / (report_population.max(1.) * 18.))
-                        .clamp(0., 24.),
+                        .clamp(0., crate::social_memory::MAX_REPORTED_FOOD_MONTHS),
                 );
                 let infection = self.infection_departure(from as u32, people);
                 let society = self.society.as_mut().unwrap();

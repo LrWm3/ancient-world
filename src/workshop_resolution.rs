@@ -4,6 +4,23 @@ use crate::{
     resolution::{Boundary, Metric, Mode, Receipt, System},
 };
 use serde::{Deserialize, Serialize};
+const HIRING_AMBITION_WEIGHT: f32 = 0.25;
+const BASE_WILLING_WORK_SHARE: f32 = 0.25;
+const WILLING_WORK_AMBITION_WEIGHT: f32 = 0.25;
+const WILLING_WORK_PRESSURE_WEIGHT: f32 = 0.5;
+const BASE_PAY_RESPONSE: f32 = 0.5;
+const OTHER_FAMILY_EXPERIENCE_WEIGHT: f64 = 0.2;
+const EXPERIENCE_HALF_RESPONSE_MONTHS: f64 = 12.;
+const PEER_LEARNING_PER_WORKER_MONTH: f64 = 0.05;
+const HOUSEHOLD_BUFFER_MONTHS: f64 = 2.;
+const CASH_PRESSURE_WEIGHT: f64 = 0.7;
+const HUNGER_PRESSURE_WEIGHT: f64 = 0.3;
+const JOB_PRACTICE_PREFERENCE_WEIGHT: f64 = 0.25;
+const WORK_TOLERANCE_MONTHS: f64 = 1e-6;
+const DEFAULT_AMBITION: f32 = 0.5;
+const MIN_FOOD_PRICE: f32 = 0.01;
+const REFERENCE_WAGE_FOOD_KG: f64 = 18.;
+const COMPLETION_TOLERANCE_MONTHS: f64 = 1e-5;
 
 pub(crate) const MAX_PRODUCTIVITY_BONUS: f32 = 0.75;
 const PEER_COMPETENCE_WEIGHT: f32 = 0.25;
@@ -46,11 +63,16 @@ impl Candidate {
         Offer {
             person: self.person,
             household: self.household,
-            score: self.familiarity + self.practice[family as usize] + 0.25 * self.ambition,
+            score: self.familiarity
+                + self.practice[family as usize]
+                + HIRING_AMBITION_WEIGHT * self.ambition,
             fraction: if wage <= 0. {
                 0.
             } else {
-                ((0.25 + 0.25 * self.ambition + 0.5 * self.pressure) * (0.5 + pay_response))
+                ((BASE_WILLING_WORK_SHARE
+                    + WILLING_WORK_AMBITION_WEIGHT * self.ambition
+                    + WILLING_WORK_PRESSURE_WEIGHT * self.pressure)
+                    * (BASE_PAY_RESPONSE + pay_response))
                     .clamp(0., 1.)
             },
         }
@@ -59,8 +81,9 @@ impl Candidate {
 fn practice_scores(total: f64, by_family: [f64; 4]) -> [f32; 4] {
     std::array::from_fn(|family| {
         // Includes untyped old work; this is a hiring score, not extra experience.
-        let relevant = by_family[family] + 0.2 * (total - by_family[family]).max(0.);
-        (relevant / (12. + relevant)) as f32
+        let relevant = by_family[family]
+            + OTHER_FAMILY_EXPERIENCE_WEIGHT * (total - by_family[family]).max(0.);
+        (relevant / (EXPERIENCE_HALF_RESPONSE_MONTHS + relevant)) as f32
     })
 }
 /// Learning by observation during real shared production, not extra teaching work.
@@ -91,20 +114,21 @@ fn peer_learning(crew: &[(u32, f64, f32, f32)]) -> Vec<(u32, f32)> {
                     (mentor.1 * learner.1 / demand) * (mentor.2 - learner.2) as f64
                 })
                 .sum();
-            let gain = (0.05 * exposure.min(learner.1)) as f32 * (1. - learner.3);
+            let gain = (PEER_LEARNING_PER_WORKER_MONTH * exposure.min(learner.1)) as f32
+                * (1. - learner.3);
             (learner.0, gain)
         })
         .collect()
 }
 fn household_pressure(cash: f64, food_need: f64, hunger: f64, food_price: f64) -> f32 {
     // A two-month gross food bill is a buffer target, not a new inventory.
-    let buffer = 2. * food_need.max(0.) * food_price;
+    let buffer = HOUSEHOLD_BUFFER_MONTHS * food_need.max(0.) * food_price;
     let cash_pressure = if buffer > 0. {
         (1. - cash.max(0.) / buffer).clamp(0., 1.)
     } else {
         0.
     };
-    (0.7 * cash_pressure + 0.3 * hunger.clamp(0., 1.)) as f32
+    (CASH_PRESSURE_WEIGHT * cash_pressure + HUNGER_PRESSURE_WEIGHT * hunger.clamp(0., 1.)) as f32
 }
 /// Explicit stable hiring priority; storage order never determines who gets the shift.
 pub(crate) fn resolve(
@@ -182,14 +206,14 @@ pub(crate) fn resolve_market(
         let mut proposals = vec![Vec::new(); jobs.len()];
         let mut any = false;
         for (person_index, candidate) in candidates.iter().enumerate() {
-            if pool.available(candidate.person) <= 1e-6 {
+            if pool.available(candidate.person) <= WORK_TOLERANCE_MONTHS as f32 {
                 continue;
             }
             let mut best: Option<(usize, f64)> = None;
             for (index, job) in jobs.iter().enumerate() {
                 if tried[person_index].contains(&index)
                     || job.wage <= 0.
-                    || job.expected as f64 - results[index].granted <= 1e-6
+                    || job.expected as f64 - results[index].granted <= WORK_TOLERANCE_MONTHS
                     || pool
                         .residents
                         .get(&candidate.person)
@@ -198,7 +222,8 @@ pub(crate) fn resolve_market(
                     continue;
                 }
                 let preference = job.wage / candidate.reference_wage
-                    + 0.25 * candidate.practice[job.family as usize] as f64;
+                    + JOB_PRACTICE_PREFERENCE_WEIGHT
+                        * candidate.practice[job.family as usize] as f64;
                 // Jobs are in stable identity order, which resolves exact ties.
                 if best.is_none_or(|(_, score)| preference > score) {
                     best = Some((index, preference));
@@ -231,7 +256,9 @@ pub(crate) fn staffing_revision(f: &crate::enterprises::Firm) -> u64 {
             f.last_requested_work.to_bits(),
             f.last_funded_work.to_bits(),
             f.wage_rate.to_bits(),
-            f.service_rate.unwrap_or(f.wage_rate * 1.25).to_bits(),
+            f.service_rate
+                .unwrap_or(f.wage_rate * crate::enterprises::SERVICE_QUOTE_MULTIPLIER)
+                .to_bits(),
             u64::from(f.family),
         ]
         .into_iter()
@@ -349,10 +376,10 @@ impl crate::civilization::History {
                 .culture
                 .as_ref()
                 .and_then(|c| c.agents.iter().find(|a| a.person == p.person));
-            let interest = agent.map_or(0.5, |a| a.traits[0]);
+            let interest = agent.map_or(DEFAULT_AMBITION, |a| a.traits[0]);
             let familiar = agent.map_or(0., |a| f32::from(a.occupation.contains("craft")));
-            let food_price =
-                self.sites[site as usize].economy.prices[crate::economy::FOOD].max(0.01) as f64;
+            let food_price = self.sites[site as usize].economy.prices[crate::economy::FOOD]
+                .max(MIN_FOOD_PRICE) as f64;
             let account = self
                 .society
                 .as_ref()
@@ -367,7 +394,8 @@ impl crate::civilization::History {
             // Completed work, not merely time paid for, develops hiring familiarity.
             let base = practice_scores(p.workshop_completed, p.workshop_practice);
             let practice = std::array::from_fn(|family| {
-                base[family] + 0.25 * p.workshop_learning[family] * (1. - base[family])
+                base[family]
+                    + PEER_COMPETENCE_WEIGHT * p.workshop_learning[family] * (1. - base[family])
             });
             offers[site as usize].push(Candidate {
                 person: p.person,
@@ -376,7 +404,7 @@ impl crate::civilization::History {
                 familiarity: familiar,
                 practice,
                 pressure,
-                reference_wage: 18. * food_price,
+                reference_wage: REFERENCE_WAGE_FOOD_KG * food_price,
             });
         }
         offers
@@ -411,7 +439,7 @@ impl crate::civilization::History {
             anyhow::ensure!(
                 f.last_completed_work.is_finite()
                     && f.last_completed_work >= 0.
-                    && f.last_completed_work <= s.granted + 1e-5,
+                    && f.last_completed_work <= s.granted + COMPLETION_TOLERANCE_MONTHS,
                 "workshop {} site {} month {} invalid execution {} for committed {} (funded {}, closed {:?})", f.id, f.site, self.month, f.last_completed_work, s.granted, f.last_funded_work, f.closed
             );
             let used = f.last_completed_work.min(s.granted).max(0.);
@@ -436,7 +464,7 @@ impl crate::civilization::History {
                         crew.push((
                             person,
                             completed,
-                            (experience / (12. + experience)) as f32,
+                            (experience / (EXPERIENCE_HALF_RESPONSE_MONTHS + experience)) as f32,
                             learning[f.family as usize],
                         ));
                     }

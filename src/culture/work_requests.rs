@@ -694,7 +694,10 @@ impl Culture {
         if self.artifacts.iter().any(|o| {
             o.lost && !o.destroyed && o.site.is_some_and(|id| h.sites[id as usize].cell == s.cell)
         }) {
-            requests.push(("local object recovery", 0.1));
+            requests.push((
+                "local object recovery",
+                crate::local_places::RECOVERY_WORKER_MONTHS as f32,
+            ));
         }
         if self.artifacts.iter().any(|o| {
             !o.lost
