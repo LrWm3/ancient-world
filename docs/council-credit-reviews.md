@@ -51,5 +51,5 @@ Verification: all 19 active market tests and seven reporting tests passed, as di
 strict all-target Clippy. Controlled cases cover missing evidence, disabled credit,
 closed routes, a lost current tax base, annual road obligations, successful funding,
 invalid diagnostic amounts, and same-month serialized continuation. The two
-extended market tests remain ignored in that command. A four-arm seed-1024
-comparison is running separately; this verification is not its balance result.
+extended market tests remain ignored in that command. The [four-arm seed-1024 comparison](council-credit-review-evaluation.md) also
+completed; it verifies unchanged existing values but finds no successful lending.

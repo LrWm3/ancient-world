@@ -686,3 +686,5 @@ older detailed capacity records are unavailable and explicitly marked as such.
 This is evidence about those prior inputs, not a rerun of current behavior.
 
 Council request construction now has [dated opportunity reviews](council-credit-reviews.md), including skipped cash gaps/evidence/contact cases and separate annual cost components. These diagnostics preserve the existing funding rules.
+
+The [completed seed-1024 review comparison](council-credit-review-evaluation.md) covers four 200-year arms: unchanged pre-existing results, no loans, and 12,000 council-month reviews per enabled arm. Most cash gaps never reach underwriting; the report separates those construction outcomes from rejected grants.
