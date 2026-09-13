@@ -147,6 +147,12 @@ const STAFFING_ORE_TARGET_KG_PER_PERSON: f32 = 2.;
 const STAFFING_TOOL_TARGET_KG_PER_PERSON: f32 = .3;
 const STAFFING_MINING_EXPANSION_TRANSFER: f32 = .12;
 const STAFFING_TOOL_SHORTAGE_CRAFT_TRANSFER: f32 = .08;
+// Fishing access and workforce limits; guild order is grazer, migrant, predator.
+const FISHERY_GUILD_CATCHABILITY: array<f32,3> = array<f32,3>(1.,.25,.1);
+const LEGACY_FISHERY_KG_PER_WORKER_MONTH: f32 = .02;
+const LEGACY_FISHERY_MONTHLY_ACCESSIBLE_FRACTION: f32 = .001;
+const FISHERY_MAX_WORKFORCE_SHARE: f32 = .25;
+const FISHERY_REMAINING_WORK_SHARE_FLOOR: f32 = .001;
 struct Economy {
  farm_workers:vec4<f32>, extraction_workers:vec4<f32>, construction_workers:vec4<f32>,
  production_probe:vec4<f32>, food_labor:vec4<f32>,
@@ -728,7 +734,7 @@ fn adaptive_fish_plots(){
  economies[i].fishery_plan=vec4(0.);economies[i].fishery_stats.w=0.;economies[i].fishery_choice.y=0.;economies[i].fishery_choice.z=0.;
  if economies[i].fishery.w<.5||economies[i].management.x<.5||economies[i].management.y<1.||s.stock.x<1.{continue;}
  let cell=u32(economies[i].management.y)-1u;var eco=ecology[cell];let area=economies[i].management.z;
- let slots=array<u32,3>(13u,15u,14u);let capture=array<f32,3>(1.,.25,.1);
+ let slots=array<u32,3>(13u,15u,14u);let capture=FISHERY_GUILD_CATCHABILITY;
  var density=0.;{let j=0u;density+=eco.pools[slots[j]].x*capture[j];}
 {let j=1u;density+=eco.pools[slots[j]].x*capture[j];}
 {let j=2u;density+=eco.pools[slots[j]].x*capture[j];}
@@ -831,11 +837,11 @@ fn fish_plots(){
  let cell=u32(e.management.y)-1u;let area=e.management.z;var eco=ecology[cell];let fish=28u;let chemistry=catalog.goods[fish].xyz;
  // One shared labor budget; larger river animals and predators are less catchable.
  // Guild changes must not make a populated fishery invisible to the economy.
- var remaining=workers(i,src[i].stock.x)*.02;
- let stocks=array<u32,3>(13u,15u,14u);let catchability=array<f32,3>(1.,.25,.1);
+ var remaining=workers(i,src[i].stock.x)*LEGACY_FISHERY_KG_PER_WORKER_MONTH;
+ let stocks=array<u32,3>(13u,15u,14u);let catchability=FISHERY_GUILD_CATCHABILITY;
  for(var prey=0u;prey<3u;prey++){
  let slot=stocks[prey];let available=eco.pools[slot].xyz*area;
- let caught=min(remaining,min(available.x/chemistry.x,min(available.y/chemistry.y,available.z/chemistry.z))*.001*catchability[prey]);
+ let caught=min(remaining,min(available.x/chemistry.x,min(available.y/chemistry.y,available.z/chemistry.z))*LEGACY_FISHERY_MONTHLY_ACCESSIBLE_FRACTION*catchability[prey]);
  eco.pools[slot]-=vec4(caught*chemistry/area,0.);eco.pools[27]-=vec4(caught*chemistry/area,0.);e.exchange+=vec4(caught*chemistry,0.);e.goods[fish/4u][fish%4u]+=caught;e.made[fish/4u][fish%4u]+=caught;e.agriculture.z+=caught;
  remaining=max(0.,remaining-caught);
  }
@@ -850,11 +856,11 @@ fn worker_shares(e:Economy,pop:f32,available_workers:f32)->vec4<f32>{
  if e.fishery.w>.5 {
   // Helpers reserve legacy fishing only for legacy sites. An idle adaptive
   // fishery must preserve exactly the same ordinary shares as a closed one.
-  let used=clamp((e.fishery_plan.y+e.fishery_plan.z)/max(available_workers,STAFFING_WORKER_FLOOR),0.,.25);
+  let used=clamp((e.fishery_plan.y+e.fishery_plan.z)/max(available_workers,STAFFING_WORKER_FLOOR),0.,FISHERY_MAX_WORKFORCE_SHARE);
   if used<=0.{return shares;}
   let reserved_craft=min(shares.w,e.exchange.w/max(available_workers,STAFFING_WORKER_FLOOR));
   shares.w-=reserved_craft;
-  shares*=max(0.,1.-used-reserved_craft)/max(1.-reserved_craft,.001);
+  shares*=max(0.,1.-used-reserved_craft)/max(1.-reserved_craft,FISHERY_REMAINING_WORK_SHARE_FLOOR);
   shares.w+=reserved_craft;
  }
  return shares;

@@ -1016,3 +1016,24 @@ covering responsive finite labor, conservation and batched/checkpoint continuati
 Strict all-target Clippy passed. An initial invocation used the library target and
 selected zero tests; it was corrected to `--test economy`, and the actual one-test
 result is the evidence reported here.
+
+## Fishing access and reserved workforce
+
+Named five more economy-shader parameters: shared guild catchability, legacy
+catch per worker-month, the legacy accessible-stock fraction, the adaptive
+workforce cap and the remaining-work denominator floor. Catchability is shared
+between the legacy and adaptive paths because both use the same guild ordering
+and relative capture policy. Stock indices remain structural IDs; no new wildlife
+or fishing behavior was introduced.
+
+The full previous shader is recovered by removing the declarations and reversing
+the substitutions. Values, types, arithmetic order and catch/removal accounting
+are unchanged. Broader adaptive fishing equipment, wear and profitability
+parameters still need review.
+
+Verification passed: the hardware economy test
+`fisheries_can_use_migratory_animals_without_aquatic_grazers` ran one test and
+confirmed available migratory stocks support catches without creating grazer
+biomass, while economy and ecology budgets remain within tolerance. Strict
+all-target Clippy passed. This is targeted verification, not completion of the
+remaining shader review.
