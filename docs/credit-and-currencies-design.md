@@ -1,8 +1,9 @@
 # Credit, issuance and currencies — design draft
 
 Status: experimental council and commercial credit pilots and bounded shared-
-currency issuance exist behind explicit switches. Negotiated restructuring policy,
-account closure handling, extended calibration and currency exchange remain pending.
+currency issuance exist behind explicit switches. Bounded restructuring and delayed-
+export negotiation also exist; account closure handling, extended calibration and
+currency exchange remain pending.
 See the [implementation record](credit-implementation.md) for evidence and limits.
 These pilots remain opt-in; implementation does not mean their balance gates pass.
 
@@ -10,6 +11,19 @@ This is a toy-economy experiment: test whether moving existing cash across time
 improves useful activity, then test bounded money creation, before introducing
 multiple currencies. Neither financial realism nor automatic population growth
 is an acceptance criterion. More cash cannot create food, workers or cargo.
+
+## Scope of this draft
+
+Treat the stages as experiments with decision gates, not a commitment to add every
+mechanism regardless of the results. Credit first tests a timing problem using
+existing money. Issuance then tests liquidity with an explicit external source.
+Neither substitutes for harvests, available labor or reliable deliveries. Distinct
+currencies follow only if the simpler experiments justify the added complexity.
+
+The delivery checklist tracks complete acceptance milestones, not merely whether
+code exists. An unchecked pilot can already run while its failure cases, reporting
+or balance evaluation remain unfinished. The implementation record is the source
+for detailed progress.
 
 ## Work order and decision points
 
