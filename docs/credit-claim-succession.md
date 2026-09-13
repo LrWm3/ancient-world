@@ -1,7 +1,8 @@
 # Creditor succession: ownership boundary and implementation work
 
-Status: design for the remaining assignment path. Retained estate settlement exists;
-claims are not yet assignable. The current validator now requires original borrower
+Status: a standalone dated-ownership primitive now exists in
+`src/credit/ownership.rs`. It is not yet connected to History, payments or archives;
+world claims are not yet assignable. Retained estate settlement exists; The current validator now requires original borrower
 and lender accounts to remain resolvable, with finite nonnegative cash, including
 closed accounts and fully settled contracts. Closing an account must not erase its
 historical identity.
@@ -102,3 +103,33 @@ Verification for the retained-account change: all 16 CPU market tests passed
 (two hardware tests remained ignored in that command), and strict all-target
 Clippy passed. Existing continuation checks in the abandoned-treasury fixture
 still pass. This change does not alter monthly transfer timing or balances.
+
+## Dated ownership foundation
+
+`Ownership` records append-only, whole-claim consensual assignments. Each request
+has a stable replay ID, loan, decision month, current owner, recipient, both consent
+identities and an optional causal reference. The ledger supplies a sequential
+assignment ID and next-month effective date. Dated lookup preserves the original
+lender through the decision month and preserves previous recipients after later
+assignments. No loan terms or cash records are mutated.
+
+Validation rejects duplicate requests, nonchronological decisions, missing loans,
+wrong current owners, overlapping pending assignments, self-assignment, assignment
+to the borrower, absent consent and invalid activation dates. Append validates a
+candidate before replacing state; errors leave the original ledger untouched.
+Loaded ledgers must be validated before lookup. Month overflow rejects safely.
+
+This primitive checks consent identities, not whether a real actor or estate
+was authorized to supply them. The History adapter must verify actual counterparties,
+legal authority and causal event references before calling it. Household settlement
+receipts, estate allocation, current-owner payments/recovery, exposure, consent
+integration and world persistence remain required before enabling assignments.
+There is deliberately no world switch or serialized History field accepting an
+ownership chain that existing payment code would ignore.
+
+Verification: all three ownership unit tests and strict all-target Clippy passed.
+Tests cover two successive owners, next-month boundaries, serialized continuation,
+unchanged original contracts, duplicate and unauthorized requests, overlapping
+assignments, self/debtor recipients, overflow, missing loans and corrupted loaded
+dates/IDs. They verify ledger semantics only; cash-routing integration fixtures
+remain necessary before enabling this in History.
