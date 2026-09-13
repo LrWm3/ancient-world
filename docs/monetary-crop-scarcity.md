@@ -61,3 +61,52 @@ while these runs execute, so the second runner's recorded Git revision/working-t
 state can describe later source edits. Compare the recorded binary hashes; those
 identify the actual shared executable. Elapsed times are not performance benchmarks
 while shader tests and compilation run alongside the experiments.
+
+## Completed 200-year comparison
+
+All eight runs completed with native validation enabled. Binary and checkpoint
+hashes match between batches. The control batch records revision `ef46feb`; later
+constants edits do not enter either executable. Results are terminal or cumulative,
+not estimates of a universal causal effect.
+
+| Yield | Arm | Ending people | Crop harvest, kg | Completed workshop work | Terminal hunger | Loans |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 0.5 | baseline | 177.847 | 12,928,696.50 | 403.131 | 0.02832 | 0 |
+| 0.5 | credit | 177.847 | 12,928,696.50 | 403.131 | 0.02832 | 0 |
+| 0.5 | issuance | 115.272 | 12,568,895.33 | 490.844 | 0.03879 | 0 |
+| 0.5 | combined | 140.234 | 12,634,890.99 | 492.293 | 0.02424 | 1 |
+| 0.1 | baseline | 0.000 | 184,374.37 | 8.906 | N/A | 0 |
+| 0.1 | credit | 0.000 | 184,374.37 | 8.906 | N/A | 0 |
+| 0.1 | issuance | 0.000 | 184,341.56 | 8.776 | N/A | 0 |
+| 0.1 | combined | 0.000 | 184,341.56 | 8.776 | N/A | 0 |
+
+Each issuance-enabled arm issued exactly 1,250 units under the existing cap.
+No arm defaulted, recovered a default loss or assigned an estate claim. The single
+control-combined loan ended in precision settlement with a 0.00016061883223672524
+write-off; that remains separate from insolvency. These worlds therefore do not
+exercise estate succession or demonstrate useful credit under harvest stress.
+
+The severe baseline and credit runs match on the reported outcomes, as do severe
+issuance and combined runs. All five sites are abandoned in each severe arm; the
+last recorded abandonment is month 358. Terminal food need is zero, so the runner
+reports hunger as unavailable. It must not be interpreted as successful famine
+relief. Retained household cash is about 49,995.64 units without issuance and
+51,245.64 with issuance; ending council cash is zero. These are retained balances
+after population loss, not evidence that surviving buyers could afford food.
+
+The first-year controlled mediator check above establishes an immediate reduction
+in harvest when yield is reduced. The much larger cumulative reduction over two
+centuries also includes fewer workers and years of abandoned production. Capped
+issuance did not prevent collapse in this scenario. This does not prove every
+possible redistribution or issuance policy would fail, nor separate production
+and access constraints in every intervening month.
+
+The control reproduces the previous mixed issuance outcome: more workshop work,
+but lower ending population and food production. Credit-only still originates no
+loans. The conclusion remains **no-go for Stage 2 on present evidence**. Further
+work should target causal financing opportunities, temporary/lost-receipt shocks
+and living household food access, rather than interpreting extra currency or a
+lower terminal hunger statistic as success.
+
+The maximum absolute terminal relative money residual was 2.76e-07; this
+is an endpoint measure, not a recorded maximum over every monthly boundary.

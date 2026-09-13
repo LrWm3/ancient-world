@@ -323,7 +323,9 @@ Report distributions and time series of:
 
 The [crop-scarcity comparison](monetary-crop-scarcity.md) extends the runner with an
 explicit, shared production intervention and reports actual crop harvest separately
-from aggregate food. Its sustained constraint does not replace transient shocks.
+from aggregate food. All eight 200-year arms completed: the severe case collapsed with or without
+credit/issuance, while control issuance remained mixed. The Stage 2 gate remains
+no-go on present evidence. This sustained constraint does not replace transient shocks.
 
 Required causal and boundary fixtures:
 
