@@ -1984,8 +1984,18 @@ mod tests {
             .unwrap();
         h.culture.as_mut().unwrap().institutions[id as usize].active = false;
         h.settle_credit_estates().unwrap();
+        assert_eq!(h.credit.ownership.assignments().len(), 1);
+        assert_eq!(
+            h.credit_owner_at(0, h.month).unwrap(),
+            Account::Institution(id)
+        );
         h.month = 15;
+        assert_eq!(h.credit_owner_at(0, h.month).unwrap(), Account::Town(0));
         let paid = h.pay_credit_loan(0, 10.).unwrap();
+        assert_eq!(
+            h.credit.cash_receipts.last().unwrap().transfer.to,
+            Account::Town(0)
+        );
         assert!(paid > 9.99);
         let n = &h.culture.as_ref().unwrap().institutions[id as usize];
         let pending = n.treasury;
@@ -2045,6 +2055,135 @@ mod tests {
             maturity_month: 15,
             grace_months: 1,
         };
+        // A cashless closed creditor can pass its claim to its owner; a firm
+        // owing live debt or an unrecovered default must retain that asset.
+        for indebted in [false, true] {
+            let mut h = base.clone();
+            let residual = h.economy_residuals()[3];
+            h.commit_credit_loan(terms(Account::Operator(0), Account::Town(0), 90), 10.)
+                .unwrap();
+            if indebted {
+                h.commit_credit_loan(terms(Account::Town(1), Account::Operator(0), 91), 20.)
+                    .unwrap();
+            }
+            let cash = h.enterprises.as_ref().unwrap().firms[0].cash;
+            h.transfer_credit_cash(
+                Account::Operator(0),
+                Account::Council(0),
+                SHARED_CURRENCY,
+                cash,
+                0.,
+            )
+            .unwrap();
+            let owner = h.enterprises.as_ref().unwrap().firms[0].owner;
+            h.enterprises.as_mut().unwrap().enabled = false;
+            h.prepare_enterprises();
+            h.settle_credit_estates().unwrap();
+            assert_eq!(
+                h.credit.ownership.assignments().len(),
+                usize::from(!indebted)
+            );
+            assert_eq!(h.credit_owner_at(0, h.month).unwrap(), Account::Operator(0));
+            let once = serde_json::to_value(&h).unwrap();
+            h.settle_credit_estates().unwrap();
+            assert_eq!(once, serde_json::to_value(&h).unwrap());
+            if indebted {
+                h.month = 17;
+                h.credit.servicing_policy.available_cash_share = 0.;
+                h.service_credit_month().unwrap();
+                assert_eq!(h.credit.loans[1].status, Status::Defaulted);
+                // Later incoming cash is still an estate asset: default must
+                // not make it available to the household ahead of creditors.
+                h.transfer_credit_cash(
+                    Account::Council(0),
+                    Account::Operator(0),
+                    SHARED_CURRENCY,
+                    5.,
+                    0.,
+                )
+                .unwrap();
+                let household_cash = h
+                    .society
+                    .as_ref()
+                    .unwrap()
+                    .household_economy
+                    .as_ref()
+                    .unwrap()
+                    .accounts[owner as usize]
+                    .cash;
+                h.settle_credit_estates().unwrap();
+                assert_eq!(h.enterprises.as_ref().unwrap().firms[0].cash, 5.);
+                assert_eq!(
+                    h.society
+                        .as_ref()
+                        .unwrap()
+                        .household_economy
+                        .as_ref()
+                        .unwrap()
+                        .accounts[owner as usize]
+                        .cash,
+                    household_cash
+                );
+                assert!(h.credit.ownership.assignments().is_empty());
+                h.transfer_credit_cash(
+                    Account::Council(0),
+                    Account::Operator(0),
+                    SHARED_CURRENCY,
+                    15.,
+                    0.,
+                )
+                .unwrap();
+                let recovered = h
+                    .recover_defaulted_credit(crate::credit::recovery::Request {
+                        id: 900,
+                        month: h.month,
+                        loan: 1,
+                        allowance: 20.,
+                        reason: crate::credit::recovery::Reason::EstateSurplus,
+                    })
+                    .unwrap();
+                assert_eq!(recovered, 20.);
+                h.settle_credit_estates().unwrap();
+                assert_eq!(h.credit.ownership.assignments().len(), 1);
+                assert_eq!(h.credit_owner_at(0, h.month).unwrap(), Account::Operator(0));
+                assert_eq!(
+                    h.credit_owner_at(0, h.month + 1).unwrap(),
+                    Account::Household(owner)
+                );
+                h.validate_credit().unwrap();
+            } else {
+                let mut restored: History = serde_json::from_value(once).unwrap();
+                for world in [&mut h, &mut restored] {
+                    world.month += 1;
+                    assert_eq!(
+                        world.credit_owner_at(0, world.month).unwrap(),
+                        Account::Household(owner)
+                    );
+                    let paid = world.pay_credit_loan(0, 5.).unwrap();
+                    assert!(paid > 0.);
+                    assert_eq!(
+                        world.credit.cash_receipts.last().unwrap().transfer.to,
+                        Account::Household(owner)
+                    );
+                    assert_eq!(world.enterprises.as_ref().unwrap().firms[0].cash, 0.);
+                    world.validate_credit().unwrap();
+                    world
+                        .society
+                        .as_ref()
+                        .unwrap()
+                        .household_economy
+                        .as_ref()
+                        .unwrap()
+                        .validate(world)
+                        .unwrap();
+                }
+                assert_eq!(
+                    serde_json::to_value(&h).unwrap(),
+                    serde_json::to_value(&restored).unwrap()
+                );
+            }
+            assert!((h.economy_residuals()[3] - residual).abs() < 1e-8);
+        }
         for insolvent in [false, true] {
             let mut h = base.clone();
             let residual = h.economy_residuals()[3];

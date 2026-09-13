@@ -2,8 +2,8 @@
 
 Status: consensual whole-claim assignments between existing operating account
 types now connect to History, dated repayments/recoveries, restructuring consent,
-lender exposure, explorer reports and archives. Household settlement-only recipients are supported; automatic legal estate
-succession remains unfinished. Original accounts must remain resolvable
+lender exposure, explorer reports and archives. Household settlement-only recipients and bounded automatic operator/institution
+estate succession are supported. Original accounts must remain resolvable
 with finite nonnegative cash, including after closure and final settlement.
 
 ## Why a new owner field is insufficient
@@ -133,7 +133,7 @@ receipts preserve both original terms and the consenting creditor at that month.
 Underwriting uses a transient portfolio view to charge inherited exposure to its
 current owner; persisted original loan terms remain unchanged. The explorer lists
 assignment effective dates alongside the original lender. Household settlement
-receipts are now implemented; legal estate succession remains unfinished.
+receipts and bounded estate succession are now implemented.
 
 Verification: all three ownership unit tests and strict all-target Clippy passed.
 Tests cover two successive owners, next-month boundaries, serialized continuation,
@@ -164,7 +164,7 @@ consent against identical opening states and shows inherited exposure exhausting
 low lender limit while a higher limit permits the same new request. All 17 CPU
 market tests passed; the two hardware tests in that target were not run by this
 command. Full-world balance effects of an automatic succession policy remain untested
-because that policy is not enabled or implemented yet.
+and are not established by these controlled tests.
 
 Verification for this integration: 17 CPU market tests, 13 export-contract tests
 and 22 credit unit tests passed. The recipient-balance rejection fixture also
@@ -199,3 +199,37 @@ creditor consent, and rejection of new household loans and credit debits. An ini
 fixture used a vector operation on the lost-household set; this was corrected before
 the passing run. Automatic estate succession and lost-household claim redistribution
 are not covered by this fixture.
+
+## Automatic closed-estate succession
+
+The existing estate pass now schedules receivables as well as distributing cash.
+A closed operator without borrowing obligations assigns eligible claims to its
+existing owner household; an inactive institution assigns them to its home town.
+The record distinguishes statutory estate authority from voluntary consent and
+preserves the original account, beneficiary and next-month activation date.
+It moves no cash and does not alter the borrower’s debt or original loan evidence.
+
+Zero-cash estates are included. Repeated passes within the month do not duplicate
+a pending assignment. Incoming payments during the decision month still reach the
+estate; payments from the next month reach the beneficiary. Institutional relocation
+is excluded, as are missing or lost household beneficiaries and transfers that
+would make a debtor its own creditor. Those claims remain in their original account.
+
+Both live borrowing debt and unrecovered default losses block distributions of
+cash and claims. Default is not permission to give away assets ahead of creditors.
+This same priority check applies to voluntary gifts. Explicit default recovery can
+reduce the retained loss; automatic general estate recovery is still unfinished.
+Lost-household claim succession and contested beneficiary selection remain outside
+this policy. The authority record is a compact policy decision, not a reconstructed
+legal proceeding or independent historical proof of every eligibility condition.
+
+Verification: both explicitly enabled hardware estate fixtures passed (one test
+each). The operator fixture covers zero-cash succession, decision-month ownership,
+next-month household receipts, repeated-pass idempotence, serialized continuation,
+cash retained after default and assignment permitted after an actual full recovery.
+The institutional fixture checks next-month town receipt and relocation exclusion.
+All 18 CPU market tests and 22 credit unit tests passed. The first broad estate
+filter ran zero tests because those fixtures are ignored by default; the subsequent
+explicit hardware invocations above supply the estate execution evidence.
+
+Strict all-target Clippy also passed after the final fixture update.

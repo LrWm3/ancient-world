@@ -2,8 +2,8 @@
 
 Status: experimental council and commercial credit pilots and bounded shared-
 currency issuance exist behind explicit switches. Bounded restructuring and delayed-
-export negotiation and bounded account-estate settlement also exist; legal claim
-succession, general estate recovery policies, extended calibration and currency exchange
+export negotiation and bounded account-estate settlement also exist; bounded operator/institution claim succession is implemented. General
+estate recovery policies, extended calibration and currency exchange
 remain pending.
 See the [implementation record](credit-implementation.md) for evidence and limits.
 The [credit-event regression](credit-chronicle-regression.md) verifies six matched
@@ -201,8 +201,7 @@ terms, and return residual cash to the existing owner. They can receive later
 repayments without reopening the enterprise. Unpaid claims keep their maturity
 and grace/default rules. Explicit post-default recovery is now available through
 the separate settlement API. An opt-in [late-export policy](export-default-recovery.md)
-allocates newly received proceeds; general estate recovery and legal succession
-remain pending.
+allocates newly received proceeds; general estate recovery allocation remains pending.
 
 [Institutional estates](institution-credit-estates.md) now retain shutdown cash
 for the same claim settlement, with only actual residual transfers going to the
@@ -214,8 +213,11 @@ also support explicit caller-supplied contracts.
 consensual assignment among existing operating account types. Payments, recovery,
 consent and exposure follow dated ownership while original contracts remain intact.
 Household beneficiaries now have settlement-only wallets and separate receipt
-accounting. Automatic legal estate succession remains in the ownership checklist
-below; no automatic claim-distribution policy is enabled.
+accounting. Closed solvent operators now schedule remaining claims to their owner
+household; closed institutions schedule them to their home town. Activation is next
+month, and live debt or unrecovered default losses prevent distribution of either
+cash or claims. Relocating institutions and missing/lost household successors retain
+their claims. This is bounded succession, not general estate adjudication.
 
 Remaining estate work and the broader acceptance requirements:
 
@@ -403,4 +405,4 @@ authorized cash against a recorded default loss without reopening debt, accruing
 new interest or erasing default history. Dated replay-safe receipts retain both
 account deltas. [Late-export recovery](export-default-recovery.md) now allocates new matching
 proceeds after live obligations and operating reserves. General estate recovery
-allocation and legal claim assignment remain pending; the broader closure/succession checklist stays open.
+allocation and succession without an eligible beneficiary remain pending; the broader closure/succession checklist stays open.

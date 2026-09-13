@@ -4,15 +4,36 @@ use crate::civilization::History;
 use anyhow::{ensure, Result};
 use std::collections::BTreeMap;
 
+const ESTATE_REQUEST_NAMESPACE: u64 = 1 << 63;
+
 impl super::state::Credit {
+    /// Preserve default losses as a priority claim for estate asset distributions,
+    /// even though servicing no longer treats them as interest-bearing debt.
+    fn unrecovered_credit_loss(&self, loan: &super::Loan) -> f64 {
+        let loss: f64 = loan
+            .entries
+            .iter()
+            .filter(|e| matches!(e.kind, super::EntryKind::WriteOff))
+            .map(|e| e.principal + e.interest)
+            .sum();
+        let recovered: f64 = self
+            .recoveries
+            .iter()
+            .filter(|r| r.request.loan == loan.id)
+            .map(|r| r.transfer.amount())
+            .sum();
+        (loss - recovered).max(0.)
+    }
+
     pub(crate) fn operator_has_debt(&self, id: u32) -> bool {
         self.account_has_debt(Account::Operator(id))
     }
 
-    fn account_has_debt(&self, account: Account) -> bool {
+    pub(super) fn account_has_debt(&self, account: Account) -> bool {
         self.loans.iter().any(|loan| {
             loan.terms.borrower == account
-                && matches!(loan.status, Status::Performing | Status::Arrears)
+                && (matches!(loan.status, Status::Performing | Status::Arrears)
+                    || self.unrecovered_credit_loss(loan) > 0.)
         })
     }
 }
@@ -49,7 +70,7 @@ impl History {
             );
         }
         if closed.is_empty() {
-            return Ok(());
+            return self.schedule_credit_estate_claims();
         }
         let mut loans = self.credit.loans.clone();
         let mut claims = BTreeMap::<Account, f64>::new();
@@ -88,7 +109,7 @@ impl History {
             }
         }
         // Incoming repayments to closed creditors remain their cash until here.
-        // Do not distribute it if the same estate still owes any live claim.
+        // Do not distribute it if the same estate still owes a live claim or an unrecovered default loss.
         let releasable: Vec<_> = closed
             .keys()
             .copied()
@@ -149,6 +170,129 @@ impl History {
             let f = &mut self.enterprises.as_mut().unwrap().firms[id as usize];
             f.liquidation += cash;
             f.cash = 0.;
+        }
+        self.schedule_credit_estate_claims()
+    }
+}
+
+impl History {
+    fn schedule_credit_estate_claims(&mut self) -> Result<()> {
+        use super::ownership::{Basis, Request};
+        let mut plans = Vec::new();
+        for loan in &self.credit.loans {
+            if !(matches!(loan.status, Status::Performing | Status::Arrears)
+                || loan.status == Status::Defaulted
+                    && self.credit.unrecovered_credit_loss(loan) > 0.)
+            {
+                continue;
+            }
+            if self
+                .credit
+                .ownership
+                .assignments()
+                .iter()
+                .any(|a| a.request.loan == loan.id && a.effective_month > self.month)
+            {
+                continue;
+            }
+            let from = self.credit.ownership.owner_at(loan, self.month)?;
+            if self.credit.account_has_debt(from) {
+                continue;
+            }
+            let (to, basis) = match from {
+                Account::Operator(id) => {
+                    let Some(f) = self
+                        .enterprises
+                        .as_ref()
+                        .and_then(|e| e.firms.get(id as usize))
+                    else {
+                        continue;
+                    };
+                    let Some(closed_month) = f.closed else {
+                        continue;
+                    };
+                    if self
+                        .society
+                        .as_ref()
+                        .is_none_or(|s| s.relocation.lost_households.contains(&f.owner))
+                    {
+                        continue;
+                    }
+                    (
+                        Account::Household(f.owner),
+                        Basis::OperatorEstate {
+                            household: f.owner,
+                            closed_month,
+                        },
+                    )
+                }
+                Account::Institution(id) => {
+                    let Some(c) = &self.culture else {
+                        continue;
+                    };
+                    let Some(n) = c.institutions.get(id as usize) else {
+                        continue;
+                    };
+                    if n.active
+                        || c.relocations
+                            .iter()
+                            .any(|r| r.institution == id && r.arrived.is_none())
+                    {
+                        continue;
+                    }
+                    (
+                        Account::Town(n.site),
+                        Basis::InstitutionEstate { site: n.site },
+                    )
+                }
+                _ => continue,
+            };
+            // Assignment is not forgiveness; a debtor inheriting its own claim
+            // needs a separately recorded cancellation rule, so retain it here.
+            if to == loan.terms.borrower {
+                continue;
+            }
+            let Ok(balance) = self.settlement_balance(to) else {
+                continue;
+            };
+            ensure!(
+                balance.value().is_finite() && balance.value() >= 0.,
+                "invalid estate successor cash"
+            );
+            plans.push((loan.id, from, to, basis));
+        }
+        for (loan, from, to, basis) in plans {
+            let mut id = ESTATE_REQUEST_NAMESPACE;
+            while self
+                .credit
+                .ownership
+                .assignments()
+                .iter()
+                .any(|a| a.request.id == id)
+            {
+                id = id
+                    .checked_add(1)
+                    .ok_or_else(|| anyhow::anyhow!("estate request IDs exhausted"))?;
+            }
+            let request = Request {
+                id,
+                loan,
+                month: self.month,
+                from,
+                to,
+                owner_consent: None,
+                recipient_consent: None,
+                cause: None,
+            };
+            let sequence = self.credit.ownership.assign_with_basis(
+                &self.credit.loans,
+                self.month,
+                request,
+                basis,
+            )?;
+            let effective = self.credit.ownership.assignments()[sequence as usize].effective_month;
+            self.record_credit_event(loan, "loan_assigned", format!(
+                "Closed estate {from:?} assigned its creditor claim on loan {loan} to {to:?}, effective month {effective}; no cash transferred or borrower obligation changed."));
         }
         Ok(())
     }

@@ -20,8 +20,23 @@ pub struct Request {
     pub cause: Option<u64>,
 }
 
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub enum Basis {
+    #[default]
+    Consent,
+    OperatorEstate {
+        household: u32,
+        closed_month: u32,
+    },
+    InstitutionEstate {
+        site: u32,
+    },
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Assignment {
+    #[serde(default)]
+    pub basis: Basis,
     pub sequence: u64,
     pub request: Request,
     pub effective_month: u32,
@@ -82,11 +97,32 @@ impl Ownership {
                 request.month >= effective
                     && request.from == owner
                     && request.from != request.to
-                    && request.to != loan.terms.borrower
-                    && request.owner_consent == Some(owner)
-                    && request.recipient_consent == Some(request.to),
+                    && request.to != loan.terms.borrower,
                 "conflicting or unauthorized claim assignment"
             );
+            let authorized = match assignment.basis {
+                Basis::Consent => {
+                    request.owner_consent == Some(owner)
+                        && request.recipient_consent == Some(request.to)
+                }
+                Basis::OperatorEstate {
+                    household,
+                    closed_month,
+                } => {
+                    matches!(request.from, Account::Operator(_))
+                        && request.to == Account::Household(household)
+                        && closed_month <= request.month
+                        && request.owner_consent.is_none()
+                        && request.recipient_consent.is_none()
+                }
+                Basis::InstitutionEstate { site } => {
+                    matches!(request.from, Account::Institution(_))
+                        && request.to == Account::Town(site)
+                        && request.owner_consent.is_none()
+                        && request.recipient_consent.is_none()
+                }
+            };
+            ensure!(authorized, "invalid assignment authority");
             owners.insert(request.loan, (request.to, assignment.effective_month));
             previous_month = request.month;
         }
@@ -97,6 +133,16 @@ impl Ownership {
     /// primitive does not authorize an estate distribution or mutate any account.
     /// The caller must resolve actual consent, legal identities and event evidence.
     pub fn assign(&mut self, loans: &[Loan], month: u32, request: Request) -> Result<u64> {
+        self.assign_with_basis(loans, month, request, Basis::Consent)
+    }
+
+    pub(super) fn assign_with_basis(
+        &mut self,
+        loans: &[Loan],
+        month: u32,
+        request: Request,
+        basis: Basis,
+    ) -> Result<u64> {
         self.validate(loans, month)?;
         ensure!(request.month == month, "assignment requires current month");
         let loan = loans
@@ -116,6 +162,7 @@ impl Ownership {
         let sequence = self.assignments.len() as u64;
         let mut candidate = self.clone();
         candidate.assignments.push(Assignment {
+            basis,
             sequence,
             request,
             effective_month,
@@ -164,7 +211,7 @@ impl crate::civilization::History {
 
     /// Explicit consent from both owning policies is required. Only operating
     /// accounts can make voluntary gifts; estate distributions are a separate policy.
-    /// Accounts with live borrowing claims cannot give away creditor assets.
+    /// Accounts with live borrowing claims or unrecovered defaults cannot give away assets.
     pub fn assign_credit_claim(&mut self, request: Request) -> Result<u64> {
         self.validate_credit()?;
         for party in [request.from, request.to] {
@@ -191,12 +238,7 @@ impl crate::civilization::History {
             );
         }
         ensure!(
-            !self
-                .credit
-                .loans
-                .iter()
-                .any(|l| l.terms.borrower == request.from
-                    && matches!(l.status, Status::Performing | Status::Arrears)),
+            !self.credit.account_has_debt(request.from),
             "indebted account cannot give away creditor assets"
         );
         if let Some(cause) = request.cause {

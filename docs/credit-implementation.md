@@ -629,7 +629,8 @@ and default exclusion remain intact. The API uses original counterparties,
 bounded actual cash and replay-safe requests. The opt-in
 [late-export recovery policy](export-default-recovery.md) now connects newly
 received matching proceeds to old defaults after live obligations and operating
-reserves. General estate recovery and claim succession remain unfinished.
+reserves. General estate recovery allocation remains unfinished; bounded operator/institution
+claim succession is described below.
 
 ## Read-only explorer and reusable contract reports
 
@@ -640,3 +641,20 @@ contracts without mutating accounting; the UI bounds recent-record lists.
 [Committed loan milestones](credit-chronicle.md) now connect funding, arrears,
 settlement, default, restructuring and recovery in the existing chronicle.
 Broader per-project causal reporting remains pending.
+
+## Closed-estate creditor succession
+
+Eligible closed operators now assign receivables to their existing owner household,
+and inactive institutions to their home town, through the dated ownership ledger.
+The estate pass includes accounts with zero cash and skips pending assignments,
+in-transit institutions, missing/lost household successors, debtor-as-successor
+cases and estates with borrowing claims. The beneficiary receives subsequent
+payments only from the following month; original terms and past receipts remain
+unchanged. The assignment records an estate basis rather than inventing consent.
+
+Review exposed a priority mismatch: unrecovered defaults previously blocked claim
+distribution but not residual cash distribution. Both now retain estate assets,
+including later incoming cash, until recovery clears the loss. Voluntary gifts use
+the same priority guard. This is asset retention, not an automatic bankruptcy or
+default-recovery allocator; broader estate recovery and balance evaluation remain
+unfinished.

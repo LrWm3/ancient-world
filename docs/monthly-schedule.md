@@ -505,3 +505,13 @@ remaining live debt, then shares a bounded proceeds allowance among matching old
 defaults. It never spends escrow or new same-pass recoveries. The first
 observation is a baseline; disabled observations advance so enabling cannot
 collect historical receipts retrospectively. Reserve planning is unchanged.
+
+### Closed-estate creditor succession
+
+The existing credit-estate passes also schedule surviving receivables for eligible
+operator-household and institution-town successors. Every assignment takes effect
+next month; repeated same-month passes skip pending assignments. No extra phase or
+same-month retroactive payment redirection is introduced. Live debt and unrecovered
+default losses retain both estate cash and creditor assets. In-transit institutional
+relocation preserves its legal identity and does not trigger assignment. See
+[creditor succession](credit-claim-succession.md) for eligibility and exclusions.
