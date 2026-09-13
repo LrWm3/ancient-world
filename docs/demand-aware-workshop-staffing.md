@@ -38,7 +38,30 @@ is conserved and the contract remains unearned. Restoring recipe orders permits 
 positive request again. The enabled policy also runs through the existing batched
 versus checkpoint-resumed execution comparison. The GPU fixture passed (one test, 4.50 seconds after compilation). The independent CLI override test passed, as did strict all-target Clippy, the
 native build and all 12 monetary report tests. A four-arm seed-1024, 50-year
-comparison is running from the same founding checkpoint as the prior staffing
-screen, with demand staffing enabled in all arms. Its outputs are local under
-`output/demand-staffing-screen/on/`; results are pending.
+comparison completed from the same founding checkpoint as the prior staffing
+screen, with demand staffing enabled in all arms. All four exited successfully.
+Outputs remain local under `output/demand-staffing-screen/on/`.
+
+| Measure | Prior, no issuance | Demand cap, no issuance | Prior, issuance | Demand cap, issuance |
+| --- | ---: | ---: | ---: | ---: |
+| Operator completed work | 21.652 | 21.575 | 22.013 | 20.415 |
+| Operator paid work | 38.556 | 31.023 | 35.482 | 27.003 |
+| Revenue minus wages and rent | -587.78 | -269.35 | -425.18 | -135.10 |
+| Operator records | 10 | 12 | 11 | 10 |
+| Operators still open at year 50 | 0 | 0 | 0 | 0 |
+| Population | 156.000 | 156.688 | 156.676 | 157.926 |
+| Terminal need-weighted hunger | 0.06117 | 0.06939 | 0.07178 | 0.06544 |
+
+Credit creates no loans in either enabled arm. Full histories match within each
+issuance pair after removing only the credit records. The maximum endpoint
+absolute relative money discrepancy for the new runs is 1.556e-7. That is an
+endpoint check, not a bound on every monthly residual.
+
+The cap reduces paid work and operating losses. Food access worsens without
+issuance and improves with it. All firms still close, and output falls in the
+issuance comparison. This is not sufficient evidence of viable workshops or an
+economy-wide improvement; keep the pilot opt-in. Next inspect input availability,
+forecast overcommitment and customer payment against wages/rent, retaining the
+original demand and suppressed/uncompleted service in diagnostics.
+
 Multi-seed viability and input-aware staffing remain outstanding.
