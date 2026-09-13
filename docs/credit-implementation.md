@@ -267,3 +267,25 @@ people, cargo and councils exactly matched the no-credit baseline; all ten activ
 market tests, both tax tests, strict Clippy and the live 30-year validation passed.
 This is evidence of preventing unsupported loans, not a successful repayment or
 productivity demonstration. The experiment gates remain open work.
+
+## Commercial source identity preparation
+
+Export evidence previously used only a mutable vector position and was removed
+after inactivity. A persistent identity registry now records its buyer, actual
+seller/payee, good and assignment date, separately from live procurement records.
+Retired identities remain archived so an old loan cannot accidentally refer to a
+later supplier that occupies the same vector slot. This is source provenance,
+not another inventory or account.
+
+New observed relationships receive identities on creation. Monthly Open assigns
+missing IDs in older archives before evidence expiry; these are explicitly marked
+legacy identity baselines, not invented historical contract dates. Quantities and
+escrow are preserved. Delivery-paid settlement and commercial credit underwriting
+are still the next integration steps; dispatch-paid behavior is unchanged.
+
+Identity verification: all seven export-contract tests passed, including legacy
+assignment, expiration, non-reused IDs, retirement rejection, checkpoint continuation
+and unchanged dispatch escrow settlement. All ten active market tests passed (two
+extended cases ignored); the hardware-enabled history checkpoint/export test and
+strict all-target Clippy passed. These checks establish stable source references,
+not delivery-paid accounting or automatic commercial borrowing.

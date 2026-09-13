@@ -26,8 +26,13 @@ const OBSERVED_ORDER_HEADROOM: f32 = 1.25;
 const MAX_ORDER_KG_PER_PERSON: f32 = 2.;
 const CONTRACT_DURATION_MONTHS: u32 = 6;
 
+pub mod identities;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ExportContract {
+    /// Missing only for archives predating persistent source identities.
+    #[serde(default)]
+    pub id: Option<u64>,
     pub buyer: u32,
     pub seller: u32,
     pub good: u32,
@@ -148,7 +153,9 @@ impl History {
                 }
             }
         } else {
+            let id = self.create_export_identity(cargo.to, cargo.from, cargo.good, false);
             self.export_contracts.push(ExportContract {
+                id: Some(id),
                 buyer: cargo.to,
                 seller: cargo.from,
                 good: cargo.good,
@@ -206,11 +213,22 @@ impl History {
             }
         }
         // Evidence expires too; a new successful supplier may then establish a relationship.
-        self.export_contracts.retain(|c| {
+        let retained = |c: &ExportContract| {
             c.escrow > 0.
                 || c.planned_kg > 0.
                 || self.month.saturating_sub(c.last_delivery) <= DELIVERY_EVIDENCE_MAX_AGE_MONTHS
-        });
+        };
+        for contract in &self.export_contracts {
+            if !retained(contract) {
+                if let Some(identity) = contract
+                    .id
+                    .and_then(|id| self.export_identities.get_mut(id as usize))
+                {
+                    identity.retired_month = Some(self.month);
+                }
+            }
+        }
+        self.export_contracts.retain(retained);
     }
     pub(crate) fn fund_export_contracts(&mut self, reachable: &[bool]) {
         if !self
@@ -377,6 +395,7 @@ mod tests {
             nutrition_initial: [21600., 960., 144.],
             cargo: vec![],
             export_contracts: vec![],
+            export_identities: vec![],
             society: None,
             politics: None,
             governance: None,
@@ -400,6 +419,44 @@ mod tests {
             weather_delay_months: 0,
         };
         h.observe_export_delivery(&delivery);
+    }
+    #[test]
+    fn export_source_ids_survive_expiry_and_legacy_assignment() {
+        let mut h = fixture();
+        evidence(&mut h);
+        assert_eq!(h.export_contracts[0].id, Some(0));
+        h.month = 30;
+        h.expire_export_contracts();
+        assert!(h.export_contracts.is_empty());
+        assert_eq!(h.export_identities.len(), 1);
+        assert_eq!(h.export_identities[0].retired_month, Some(30));
+        evidence(&mut h);
+        assert_eq!(h.export_contracts[0].id, Some(1));
+        h.validate_export_identities().unwrap();
+        let mut archive = serde_json::to_value(&h).unwrap();
+        archive.as_object_mut().unwrap().remove("export_identities");
+        archive["export_contracts"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("id");
+        let mut legacy: History = serde_json::from_value(archive).unwrap();
+        let before = legacy.export_contracts[0].escrow;
+        legacy.ensure_export_contract_identities().unwrap();
+        assert!(legacy.export_identities[0].legacy_baseline);
+        assert_eq!(legacy.export_identities[0].assigned_month, 30);
+        assert_eq!(legacy.export_contracts[0].escrow, before);
+        let once = serde_json::to_value(&legacy).unwrap();
+        legacy.ensure_export_contract_identities().unwrap();
+        assert_eq!(once, serde_json::to_value(&legacy).unwrap());
+        let mut resumed: History =
+            serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
+        resumed.month = 60;
+        resumed.expire_export_contracts();
+        evidence(&mut resumed);
+        assert_eq!(resumed.export_contracts[0].id, Some(2));
+        resumed.export_contracts[0].id = Some(0);
+        // Identical counterparties cannot resurrect a retired source identity.
+        assert!(resumed.validate_export_identities().is_err());
     }
     #[test]
     fn repeated_deliveries_required_and_escrow_refunds_without_minting_money() {

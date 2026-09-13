@@ -465,3 +465,9 @@ the reservation-boundary guard and before new service/work reservations. Request
 use current administration demand and the preceding month's relief request receipt;
 they never anticipate this month's retail result. Accepted principal is available
 to subsequent ordinary council spending. A dated decision marker prevents replay.
+
+Monthly Open assigns missing legacy export-source identities before market evidence
+can expire. New observed supplier relationships receive identities when created;
+retired identities remain in the archive after their active procurement record is
+removed. Assignment does not move escrow, goods or cash and does not fabricate an
+original contract date for older histories.

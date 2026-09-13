@@ -265,6 +265,8 @@ pub struct History {
     #[serde(default)]
     pub export_contracts: Vec<crate::export_contracts::ExportContract>,
     #[serde(default)]
+    pub export_identities: Vec<crate::export_contracts::identities::Identity>,
+    #[serde(default)]
     pub society: Option<Society>,
     #[serde(default)]
     pub politics: Option<crate::politics::Politics>,
@@ -567,6 +569,7 @@ impl History {
     }
     pub fn validate(&self, cells: &[crate::gpu::Cell]) -> Result<()> {
         self.validate_credit()?;
+        self.validate_export_identities()?;
         if let Some(d) = &self.contagion {
             d.validate(self)?;
         }
@@ -1256,6 +1259,7 @@ impl Generator {
             nutrition_initial: [0.; 3],
             cargo: vec![],
             export_contracts: vec![],
+            export_identities: vec![],
             society: None,
             politics: None,
             governance: None,
@@ -1359,6 +1363,7 @@ impl Generator {
             "civilization beta event limit reached"
         );
         h.month += 1;
+        h.ensure_export_contract_identities()?;
         h.trade_contact.prune(h.month);
         h.activate_monthly_policies();
         h.peace_payments();

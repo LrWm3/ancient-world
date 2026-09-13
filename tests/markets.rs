@@ -63,6 +63,7 @@ fn network() -> History {
         nutrition_initial: [0.; 3],
         cargo: vec![],
         export_contracts: vec![],
+        export_identities: vec![],
         politics: None,
         governance: None,
         shipping: None,
