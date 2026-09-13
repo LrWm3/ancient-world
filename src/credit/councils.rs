@@ -15,6 +15,7 @@ const ANNUAL_BRIDGE_RATE: f64 = 0.06;
 const ANNUAL_OPERATING_MONTHS: f64 = 12.;
 const MAX_RELIEF_OBSERVATION_AGE_MONTHS: u32 = 1;
 const COUNCIL_REQUEST_NAMESPACE: u64 = 1 << 63;
+const INSTITUTION_REQUEST_TAG: u64 = 1 << 62;
 
 /// Construction outcomes, before underwriting decides whether any loan is safe.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -44,6 +45,9 @@ pub struct Review {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Policy {
     pub enabled: bool,
+    /// Separate experimental opt-in; archived council-only policies stay unchanged.
+    #[serde(default)]
+    pub institution_lenders: bool,
     pub reserve_months: f64,
     pub reserve_floor: f64,
     pub surplus_share: f64,
@@ -54,6 +58,7 @@ impl Default for Policy {
     fn default() -> Self {
         Self {
             enabled: false,
+            institution_lenders: false,
             reserve_months: OPERATING_RESERVE_MONTHS,
             reserve_floor: MINIMUM_OPERATING_CASH,
             surplus_share: VOLUNTARY_SURPLUS_SHARE,
@@ -129,6 +134,40 @@ impl History {
                 });
             }
         }
+        // A local institution uses the same actual treasury adapter as explicit
+        // loans. Keep a year of operating needs; never treat donations as promised.
+        let mut institution_councils = std::collections::BTreeMap::new();
+        if policy.institution_lenders {
+            if let Some(culture) = &self.culture {
+                for institution in &culture.institutions {
+                    if !institution.operational()
+                        || self.sites[institution.site as usize].abandoned
+                        || !institution.members.contains(&institution.leader)
+                        || !culture
+                            .site_people(self, institution.site)
+                            .contains(&institution.leader)
+                    {
+                        continue;
+                    }
+                    let reserve = culture
+                        .institution_operating_target(self, institution)
+                        .max(policy.reserve_floor);
+                    let offered = (institution.treasury - reserve).max(0.) * policy.surplus_share;
+                    if offered > 0. {
+                        institution_councils
+                            .insert(institution.id, self.controller(institution.site));
+                        offers.push(Offer {
+                            lender: Account::Institution(institution.id),
+                            month: self.month,
+                            cash: institution.treasury,
+                            operating_reserve: reserve,
+                            offered_principal: offered,
+                            minimum_annual_rate: policy.annual_rate,
+                        });
+                    }
+                }
+            }
+        }
         // Direct open-route contacts only in this pilot; neither global knowledge
         // nor cash teleported between otherwise isolated councils creates offers.
         let mut contacts = BTreeSet::new();
@@ -197,8 +236,13 @@ impl History {
             let Some(maturity) = collection_month.checked_add(1) else {
                 continue;
             };
-            let lenders: Vec<_> = offers.iter().filter(|o|
-                matches!(o.lender, Account::Council(lender) if contacts.contains(&(id, lender))))
+            let lenders: Vec<_> = offers
+                .iter()
+                .filter(|o| match o.lender {
+                    Account::Council(lender) => contacts.contains(&(id, lender)),
+                    Account::Institution(lender) => institution_councils.get(&lender) == Some(&id),
+                    _ => false,
+                })
                 .collect();
             review.contacted_lenders = lenders.len();
             review.outcome = ReviewOutcome::NoContactedLender;
@@ -207,11 +251,13 @@ impl History {
             }
             review.outcome = ReviewOutcome::Submitted;
             for offer in &lenders {
-                let Account::Council(lender) = offer.lender else {
-                    unreachable!()
+                let (tag, lender) = match offer.lender {
+                    Account::Council(lender) => (0, lender),
+                    Account::Institution(lender) => (INSTITUTION_REQUEST_TAG, lender),
+                    _ => unreachable!(),
                 };
                 requests.push(Request {
-                    id: COUNCIL_REQUEST_NAMESPACE | (u64::from(id) << 32) | u64::from(lender),
+                    id: COUNCIL_REQUEST_NAMESPACE | tag | (u64::from(id) << 32) | u64::from(lender),
                     month: self.month,
                     principal: needed / lenders.len() as f64,
                     terms: Terms {
@@ -248,5 +294,137 @@ impl History {
         self.credit.council_reviews = reviews;
         self.credit.council_decided_month = Some(self.month);
         Ok(count)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn local_institution_lends_only_available_surplus_with_present_leadership() {
+        use crate::{
+            catalog::Catalog,
+            config::Config,
+            culture::{Institution, InstitutionKind},
+            gpu::{ContextGpu, Generator},
+            household_economy::council_allocation,
+        };
+        let mut g = Generator::new(
+            pollster::block_on(ContextGpu::headless()).unwrap(),
+            Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                ..Default::default()
+            },
+            Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        g.enable_society().unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        h.month = 13;
+        let leader = h.culture.as_ref().unwrap().site_people(h, 0)[0];
+        assert!(h.sites[0].economy.finance[0] >= 200.);
+        h.sites[0].economy.finance[0] -= 200.;
+        h.culture.as_mut().unwrap().institutions.push(Institution {
+            capacity: None,
+            id: 0,
+            name: "Local lending fixture".into(),
+            kind: InstitutionKind::Merchant,
+            site: 0,
+            tradition: None,
+            members: vec![leader],
+            leader,
+            treasury: 200.,
+            active: true,
+            founded: 0,
+            knowledge: Default::default(),
+            property: vec![],
+            dues: 200.,
+            expenses: 0.,
+        });
+        let society = h.society.as_mut().unwrap();
+        // Keep all cash with an existing owner; remove foreign council offers.
+        for council in &mut society.councils {
+            h.sites[council.civilization as usize].economy.finance[0] += council.treasury as f32;
+            council.treasury = 0.;
+        }
+        society.routes.iter_mut().for_each(|r| r.open = false);
+        society
+            .household_economy
+            .as_mut()
+            .unwrap()
+            .council_allocations = vec![council_allocation::Receipt {
+            month: 12,
+            council: 0,
+            policy: Default::default(),
+            treasury: 0.,
+            administration_forecast: 0.,
+            relief_requested: 4.,
+            relief_ceiling: 0.,
+            relief_granted: 0.,
+            relief_paid: 0.,
+        }];
+        h.credit.council_policy.enabled = true;
+        h.credit.council_policy.institution_lenders = true;
+        h.credit
+            .tax_observations
+            .push(super::super::taxes::Observation {
+                month: 12,
+                council: 0,
+                collected: 2000.,
+                support_requested: 0.,
+                road_requested: Some(0.),
+            });
+        let opening = h.clone();
+        for intervention in 0..5 {
+            let mut control = opening.clone();
+            match intervention {
+                0 => control.credit.council_policy.institution_lenders = false,
+                1 => control.culture.as_mut().unwrap().institutions[0].active = false,
+                2 => control.culture.as_mut().unwrap().institutions[0]
+                    .members
+                    .clear(),
+                3 => control.credit.council_policy.reserve_floor = 200.,
+                _ => control.credit.tax_observations[0].support_requested = 2000.,
+            }
+            assert_eq!(control.council_credit_month().unwrap(), 0);
+            assert_eq!(
+                control.culture.as_ref().unwrap().institutions[0].treasury,
+                200.
+            );
+        }
+        let money = h.money_residual();
+        assert_eq!(h.council_credit_month().unwrap(), 1);
+        let loan = &h.credit.loans[0];
+        assert_eq!(loan.terms.lender, Account::Institution(0));
+        assert_eq!(loan.terms.borrower, Account::Council(0));
+        assert!(loan.original_principal >= 4.);
+        assert!(h.culture.as_ref().unwrap().institutions[0].treasury >= 100.);
+        assert!((h.money_residual() - money).abs() < 1e-7);
+        h.validate_credit().unwrap();
+        let mut resumed: History =
+            serde_json::from_value(serde_json::to_value(&*h).unwrap()).unwrap();
+        assert_eq!(resumed.council_credit_month().unwrap(), 0);
+        assert_eq!(
+            serde_json::to_value(&*h).unwrap(),
+            serde_json::to_value(&resumed).unwrap()
+        );
+        // Removing this feature stops offers, not servicing the existing claim.
+        for world in [&mut *h, &mut resumed] {
+            world.credit.council_policy.institution_lenders = false;
+            world.credit.servicing_policy.available_cash_share = 1.;
+            world.credit.servicing_policy.protected_cash.clear();
+            world.month = 25;
+            world.service_credit_month().unwrap();
+        }
+        assert_eq!(
+            serde_json::to_value(&*h).unwrap(),
+            serde_json::to_value(&resumed).unwrap()
+        );
+        assert!(h.credit.loans[0].outstanding_principal < h.credit.loans[0].original_principal);
+        assert!((h.money_residual() - money).abs() < 1e-7);
     }
 }

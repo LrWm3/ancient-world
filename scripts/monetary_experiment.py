@@ -157,6 +157,8 @@ def main():
     parser.add_argument("--checkpoint", action="append", required=True, metavar="LABEL=PATH")
     parser.add_argument("--years", type=int, default=DEFAULT_HISTORY_YEARS)
     parser.add_argument("--output", type=Path, default=Path("output/monetary-experiment"))
+    parser.add_argument("--compare-institution-lenders", action="store_true",
+                        help="add credit/combined arms with local institutional council lenders")
     parser.add_argument("--compare-export-recovery", action="store_true",
                         help="add credit and combined arms with late-export recovery enabled")
     parser.add_argument("--crop-yield-scale", type=float,
@@ -197,11 +199,15 @@ def main():
         "crop_yield_scale_override": args.crop_yield_scale,
         "common_payment_policy": "delivery",
         "compare_export_recovery": args.compare_export_recovery,
+        "compare_institution_lenders": args.compare_institution_lenders,
     }
     (out / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
     arms = [(name, credit, issuance, False) for name, credit, issuance in ARMS]
     if args.compare_export_recovery:
         arms.extend((name + "-recovery", credit, issuance, True)
+                    for name, credit, issuance in ARMS if credit)
+    if args.compare_institution_lenders:
+        arms.extend((name + "-institution-lenders", credit, issuance, False)
                     for name, credit, issuance in ARMS if credit)
     results = []
     for label, checkpoint in cases.items():
@@ -214,6 +220,9 @@ def main():
                        f"--council-credit={str(credit).lower()}",
                        f"--shared-issuance={str(issuance).lower()}",
                        "--history-export", str(archive)]
+            if args.compare_institution_lenders:
+                enabled = name.endswith("-institution-lenders")
+                command.append(f"--institution-credit-lenders={str(enabled).lower()}")
             if args.crop_yield_scale is not None:
                 command.extend(("--crop-yield-scale", str(args.crop_yield_scale)))
             if args.compare_export_recovery:
@@ -228,6 +237,8 @@ def main():
                 result.update(credit_funnel(history))
                 result.update(council_construction(history))
                 loans = history["credit"]["loans"]
+                result["loans_by_original_lender_kind"] = dict(sorted(Counter(
+                    next(iter(l["terms"]["lender"])) for l in loans).items()))
                 result.update(population=sum(s["stocks"]["stock"][0] for s in history["sites"]),
                               loans=len(loans), defaults=sum(l["status"] == "Defaulted" for l in loans),
                               precision_blocked=sum(r.get("precision_blocked", False)

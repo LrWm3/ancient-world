@@ -83,6 +83,60 @@ impl Budget {
     }
 }
 impl crate::culture::Culture {
+    /// One year of administration and wear replacement, shared by funding and lending.
+    pub(crate) fn institution_operating_target(
+        &self,
+        h: &crate::civilization::History,
+        n: &crate::culture::Institution,
+    ) -> f64 {
+        let site = n.site;
+        let e = &h.sites[site as usize].economy;
+        let repairs = n
+            .capacity
+            .as_ref()
+            .and_then(|c| c.building.as_ref())
+            .map_or(0., |b| {
+                let a = &self.artifacts[b.artifact as usize];
+                if a.destroyed
+                    || a.lost
+                    || a.site != Some(site)
+                    || a.owner != crate::culture::Owner::Institution(n.id)
+                {
+                    return 0.;
+                }
+                b.facility.as_ref().map_or_else(
+                    || {
+                        a.materials
+                            .iter()
+                            .filter(|(g, _)| *g == 5)
+                            .map(|(_, kg)| *kg as f64)
+                            .sum::<f64>()
+                            * (crate::institution_capacity::LEGACY_BUILDING_WEAR_PER_QUARTER
+                                + crate::institution_capacity::LEGACY_DISRUPTION_WEAR_PER_QUARTER
+                                    * e.soil[3].clamp(0., 1.) as f64)
+                            * REPAIR_QUARTERS_PER_BUDGET
+                            * e.prices[5]
+                                .max(crate::institution_capacity::MIN_BRICK_PRICE_MONEY_PER_KG)
+                                as f64
+                    },
+                    |f| {
+                        f.rooms
+                            .iter()
+                            .flat_map(|r| &r.components)
+                            .map(|p| {
+                                p.kg as f64
+                                    * p.wear_at(e.soil[3]) as f64
+                                    * REPAIR_QUARTERS_PER_BUDGET
+                                    * e.prices[p.good as usize].max(
+                                        crate::institution_capacity::MIN_BRICK_PRICE_MONEY_PER_KG,
+                                    ) as f64
+                            })
+                            .sum()
+                    },
+                )
+            });
+        ADMINISTRATION_BUDGET_MONEY + repairs
+    }
     pub(crate) fn plan_institution_funding(
         &self,
         h: &crate::civilization::History,
@@ -99,49 +153,12 @@ impl crate::culture::Culture {
             .filter(|n| {
                 n.active
                     && n.site == site
-                    && h.month.is_multiple_of(crate::institution_capacity::UPDATE_INTERVAL_MONTHS)
+                    && h.month
+                        .is_multiple_of(crate::institution_capacity::UPDATE_INTERVAL_MONTHS)
                     && n.members.iter().any(|p| members.contains(p))
             })
             .map(|n| {
-                let repairs = n
-                    .capacity
-                    .as_ref()
-                    .and_then(|c| c.building.as_ref())
-                    .map_or(0., |b| {
-                        let a = &self.artifacts[b.artifact as usize];
-                        if a.destroyed
-                            || a.lost
-                            || a.site != Some(site)
-                            || a.owner != crate::culture::Owner::Institution(n.id)
-                        {
-                            return 0.;
-                        }
-                        b.facility.as_ref().map_or_else(
-                            || {
-                                a.materials
-                                    .iter()
-                                    .filter(|(g, _)| *g == 5)
-                                    .map(|(_, kg)| *kg as f64)
-                                    .sum::<f64>()
-                                    * (crate::institution_capacity::LEGACY_BUILDING_WEAR_PER_QUARTER + crate::institution_capacity::LEGACY_DISRUPTION_WEAR_PER_QUARTER * e.soil[3].clamp(0., 1.) as f64)
-                                    * REPAIR_QUARTERS_PER_BUDGET
-                                    * e.prices[5].max(crate::institution_capacity::MIN_BRICK_PRICE_MONEY_PER_KG) as f64
-                            },
-                            |f| {
-                                f.rooms
-                                    .iter()
-                                    .flat_map(|r| &r.components)
-                                    .map(|p| {
-                                        p.kg as f64
-                                            * p.wear_at(e.soil[3]) as f64
-                                            * REPAIR_QUARTERS_PER_BUDGET
-                                            * e.prices[p.good as usize].max(crate::institution_capacity::MIN_BRICK_PRICE_MONEY_PER_KG) as f64
-                                    })
-                                    .sum()
-                            },
-                        )
-                    });
-                let target = ADMINISTRATION_BUDGET_MONEY + repairs;
+                let target = self.institution_operating_target(h, n);
                 Request {
                     institution: n.id,
                     target,

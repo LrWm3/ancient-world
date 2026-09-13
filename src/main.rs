@@ -73,6 +73,9 @@ struct Args {
     /// Experimental council tax-bridge lending; false stops new loans, not repayment.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     council_credit: Option<bool>,
+    /// Allow surplus local institutional offers when council credit is enabled.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    institution_credit_lenders: Option<bool>,
     /// Experimental town working-capital loans against delivery-paid exports.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     commercial_credit: Option<bool>,
@@ -167,6 +170,7 @@ fn main() -> Result<()> {
                 && args.crop_yield_scale.is_none()
                 && args.history_export.is_none()
                 && args.council_credit.is_none()
+                && args.institution_credit_lenders.is_none()
                 && args.commercial_credit.is_none()
                 && args.export_default_recovery.is_none()
                 && args.shared_issuance.is_none()
@@ -340,6 +344,15 @@ fn main() -> Result<()> {
             .credit
             .council_policy
             .enabled = enabled;
+    }
+    if let Some(enabled) = args.institution_credit_lenders {
+        generator
+            .civilizations
+            .as_mut()
+            .context("institution credit requires a history")?
+            .credit
+            .council_policy
+            .institution_lenders = enabled;
     }
     if let Some(enabled) = args.shared_issuance {
         generator
@@ -535,6 +548,27 @@ mod args_tests {
             Args::try_parse_from(["ancient-world", "--council-credit=false"])
                 .unwrap()
                 .council_credit,
+            Some(false)
+        );
+    }
+    #[test]
+    fn institution_lender_switch_preserves_unspecified_archived_policy() {
+        assert_eq!(
+            Args::try_parse_from(["ancient-world"])
+                .unwrap()
+                .institution_credit_lenders,
+            None
+        );
+        assert_eq!(
+            Args::try_parse_from(["ancient-world", "--institution-credit-lenders"])
+                .unwrap()
+                .institution_credit_lenders,
+            Some(true)
+        );
+        assert_eq!(
+            Args::try_parse_from(["ancient-world", "--institution-credit-lenders=false"])
+                .unwrap()
+                .institution_credit_lenders,
             Some(false)
         );
     }
