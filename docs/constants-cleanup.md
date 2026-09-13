@@ -773,3 +773,15 @@ Literal expansion verifies the river expressions. The GPU thermal feeding and
 persistence fixture, routed-overflow/runoff fixture and strict all-target Clippy
 passed. An initial river filter matched zero tests; the explicitly named overflow
 fixture was subsequently run and passed. No new watershed behavior is claimed.
+
+## Ecology feedback and monthly weather parameters
+
+Named 22 parameters for derived fertility/cover, habitat classification thresholds,
+seasonal temperature and rain response, snowmelt, evaporation, infiltration,
+groundwater capacity/release, flood release and plot-water normalization. Separate
+habitat thresholds remain separate from similarly valued reporting thresholds;
+they serve different decisions. Hash arithmetic, category IDs, freezing zero and
+unit-interval bounds remain inline. Exact literal expansion matches all previous
+feedback/weather expressions. The GPU dry-month secondary-lake evaporation
+fixture and strict all-target Clippy passed. Remaining fallback traits and
+biological numerical/diagnostic bounds still need review.

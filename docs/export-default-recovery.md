@@ -55,7 +55,9 @@ partial batches surface an error rather than replaying committed transfers.
 
 General estate-surplus allocation and legal assignment of creditor claims remain
 unfinished. This policy does not promise better population or food outcomes;
-it needs balance evaluation after the integration fixtures pass.
+the [first paired balance run](export-recovery-experiment.md) produced no defaults
+and therefore no recoveries. It confirms inactivity without eligible claims,
+not an improvement in long-run outcomes.
 
 
 ## Verification

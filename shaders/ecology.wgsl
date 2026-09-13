@@ -13,6 +13,29 @@ struct Params {dims:vec4<u32>,physical:vec4<f32>,counts:vec4<u32>,options:vec4<u
 // Consumer feeding, replacement and finite-biomass numerical bounds.
 // Bounded pairwise currents and guild migration.
 // Fine river payload routing and floodplain exchange.
+// Surface feedback and monthly weather/water response.
+const ECO_FEEDBACK_MIN_LAND_FRACTION: f32 = .0001;
+const ECO_FERTILITY_P_SCALE_KG_M2: f32 = .004;
+const ECO_COVER_C_SCALE_KG_M2: f32 = 2.;
+const ECO_UPWELLING_HABITAT_THRESHOLD: f32 = .05;
+const ECO_WETLAND_SURFACE_DEPTH_M: f32 = .1;
+const ECO_CHEMO_HABITAT_PRODUCTION_KG_C_M2: f32 = .00001;
+const ECO_SULFUR_HABITAT_ENERGY_THRESHOLD: f32 = .02;
+const ECO_SULFUR_HABITAT_GROUNDWATER_M: f32 = .1;
+const ECO_HYDROGEN_HABITAT_KG_M2: f32 = .01;
+const ECO_WEATHER_REFERENCE_TILT_RAD: f32 = .40910518;
+const ECO_WEATHER_SEASONAL_AMPLITUDE_C: f32 = 12.;
+const ECO_WEATHER_PRECIPITATION_AMPLITUDE: f32 = .25;
+const ECO_WEATHER_MIN_LAND_FRACTION: f32 = .00001;
+const ECO_WEATHER_MM_TO_M: f32 = .001;
+const ECO_SNOWMELT_M_PER_C_YEAR: f32 = .025;
+const ECO_EVAPORATION_TEMPERATURE_OFFSET_C: f32 = 5.;
+const ECO_EVAPORATION_M_PER_C_YEAR: f32 = .015;
+const ECO_GROUNDWATER_CAPACITY_M: f32 = 100.;
+const ECO_INFILTRATION_PERMEABILITY_WEIGHT: f32 = .6;
+const ECO_GROUNDWATER_RELEASE_PER_YEAR: f32 = .04;
+const ECO_FLOOD_RELEASE_FRACTION_PER_STEP: f32 = .5;
+const ECO_PLOT_WATER_DIVISOR_GUARD: f32 = 1e-20;
 const ECO_RIVER_MIN_LAND_FRACTION: f32 = .000001;
 const ECO_RIVER_RETAINED_FRACTION: f32 = .2;
 const ECO_RIVER_ROUTED_FRACTION: f32 = .8;
@@ -794,12 +817,12 @@ fn river_clear(@builtin(global_invocation_id) g:vec3<u32>) {
 }
 @compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn feedback(@builtin(global_invocation_id) g:vec3<u32>) {
- let i=id(g,p.dims.x);let j=parent(i);let s=src[j];var c=terrain[i];let l=max(land(environment[j]),.0001);
- c.life.y=clamp(s.pools[17].z/(.004*l),0.,1.);c.life.x=select(0.,clamp((s.pools[0].x+s.pools[1].x+s.pools[2].x)/(2.*l),0.,1.),c.tags.x>=2u);
+ let i=id(g,p.dims.x);let j=parent(i);let s=src[j];var c=terrain[i];let l=max(land(environment[j]),ECO_FEEDBACK_MIN_LAND_FRACTION);
+ c.life.y=clamp(s.pools[17].z/(ECO_FERTILITY_P_SCALE_KG_M2*l),0.,1.);c.life.x=select(0.,clamp((s.pools[0].x+s.pools[1].x+s.pools[2].x)/(ECO_COVER_C_SCALE_KG_M2*l),0.,1.),c.tags.x>=2u);
  let chosen=u32(s.pools[0].w);c.ids.z=NONE;if chosen>0u&&c.tags.x>=2u {let t=catalog[plants_offset()+chosen-1u];if c.hydro.y>=t.a.x&&c.hydro.y<=t.a.y&&c.hydro.z>=t.a.z&&c.hydro.z<=t.a.w&&c.life.y>=t.b.x&&(t.ids.x==0u||c.tags.x==3u)&&(t.ids.y==3u||t.ids.y==catalog[c.ids.x].ids.x) {c.ids.z=chosen-1u;}}
  var habitat=0u;
- if c.tags.x==1u {habitat=select(6u,7u,s.pools[29].z>.05);}else if c.tags.x>=2u {
- if c.water.x>.1 {habitat=8u;}if s.pools[28].y>.00001 {habitat=5u;}if s.pools[26].y>.02&&c.water.y>.1 {habitat=4u;}if s.pools[26].x>.01 {habitat=3u;}
+ if c.tags.x==1u {habitat=select(6u,7u,s.pools[29].z>ECO_UPWELLING_HABITAT_THRESHOLD);}else if c.tags.x>=2u {
+ if c.water.x>ECO_WETLAND_SURFACE_DEPTH_M {habitat=8u;}if s.pools[28].y>ECO_CHEMO_HABITAT_PRODUCTION_KG_C_M2 {habitat=5u;}if s.pools[26].y>ECO_SULFUR_HABITAT_ENERGY_THRESHOLD&&c.water.y>ECO_SULFUR_HABITAT_GROUNDWATER_M {habitat=4u;}if s.pools[26].x>ECO_HYDROGEN_HABITAT_KG_M2 {habitat=3u;}
  }
  if habitat>0u {for(var b=0u;b<p.options.x;b++){if catalog[plants_offset()+p.counts.w+b].ids.x==habitat {c.ids.w=b;break;}}}
  terrain[i]=c;
@@ -825,22 +848,22 @@ fn history_drought(i:u32)->f32 {
 fn monthly_weather(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=id(g,p.dims.x);var c=terrain[i];let dt=p.physical.y;
  // Shared solar calendar; retain the weather amplitude at default 23.44-degree tilt.
- let seasonal=seasonal_declination_sine(season_month(),p.abundance.w)/sin(.40910518)*pos(i,p.dims.x).y;
- let temp=c.hydro.y+seasonal*12.;
- var unmanaged=1.;if p.options.w==1u {c.climate.y=max(0.,c.hydro.z)*(1.+seasonal*.25)*history_drought(i);if c.tags.x>=2u {unmanaged=clamp(1.-src[parent(i)].pools[24].w/max(land(environment[parent(i)]),.00001),0.,1.);}}
- let precipitation=unmanaged*max(0.,c.hydro.z)*.001*dt*(1.+seasonal*.25)*history_drought(i);
- let snow=select(0.,precipitation,temp<0.);let melt=min(c.water.z,max(temp,0.)*.025*dt);
+ let seasonal=seasonal_declination_sine(season_month(),p.abundance.w)/sin(ECO_WEATHER_REFERENCE_TILT_RAD)*pos(i,p.dims.x).y;
+ let temp=c.hydro.y+seasonal*ECO_WEATHER_SEASONAL_AMPLITUDE_C;
+ var unmanaged=1.;if p.options.w==1u {c.climate.y=max(0.,c.hydro.z)*(1.+seasonal*ECO_WEATHER_PRECIPITATION_AMPLITUDE)*history_drought(i);if c.tags.x>=2u {unmanaged=clamp(1.-src[parent(i)].pools[24].w/max(land(environment[parent(i)]),ECO_WEATHER_MIN_LAND_FRACTION),0.,1.);}}
+ let precipitation=unmanaged*max(0.,c.hydro.z)*ECO_WEATHER_MM_TO_M*dt*(1.+seasonal*ECO_WEATHER_PRECIPITATION_AMPLITUDE)*history_drought(i);
+ let snow=select(0.,precipitation,temp<0.);let melt=min(c.water.z,max(temp,0.)*ECO_SNOWMELT_M_PER_C_YEAR*dt);
  c.water.z+=snow-melt;let available=precipitation-snow+melt;
- let evaporation=min(available+c.water.x,max(temp+5.,0.)*.015*dt*unmanaged);
+ let evaporation=min(available+c.water.x,max(temp+ECO_EVAPORATION_TEMPERATURE_OFFSET_C,0.)*ECO_EVAPORATION_M_PER_C_YEAR*dt*unmanaged);
  c.budget.x=precipitation;c.budget.y=evaporation;c.life.w=0.;
  if c.tags.x<2u {c.water.x=max(0.,c.water.x+available-evaporation);}
  else {
  // Secondary lakes evaporate stored water too, rather than accumulating every
  // past wet month indefinitely. Rain is consumed before the existing reservoir.
  c.water.x=max(0.,c.water.x-max(0.,evaporation-available));
- let input=max(0.,available-evaporation);let infiltration=min(max(0.,100.-c.water.y),input*catalog[c.ids.x].a.y*.6);
- let release=c.water.y*.04*dt;c.water.y+=infiltration-release;
- let flood_release=select(0.,max(0.,c.water.x-max(0.,c.hydro.x-c.terrain.x))*.5,p.options.w==1u);c.water.x-=flood_release;
+ let input=max(0.,available-evaporation);let infiltration=min(max(0.,ECO_GROUNDWATER_CAPACITY_M-c.water.y),input*catalog[c.ids.x].a.y*ECO_INFILTRATION_PERMEABILITY_WEIGHT);
+ let release=c.water.y*ECO_GROUNDWATER_RELEASE_PER_YEAR*dt;c.water.y+=infiltration-release;
+ let flood_release=select(0.,max(0.,c.water.x-max(0.,c.hydro.x-c.terrain.x))*ECO_FLOOD_RELEASE_FRACTION_PER_STEP,p.options.w==1u);c.water.x-=flood_release;
  let runoff=input-infiltration+release+flood_release;let retained=min(runoff,max(0.,c.hydro.x-c.terrain.x-c.water.x));
  c.water.x+=retained;c.life.w=runoff-retained;
  }
@@ -852,7 +875,7 @@ fn monthly_weather(@builtin(global_invocation_id) g:vec3<u32>) {
 @compute @workgroup_size(ECOLOGY_WORKGROUP_EDGE,ECOLOGY_WORKGROUP_EDGE)
 fn reconcile_plots(@builtin(global_invocation_id) g:vec3<u32>) {
  let i=id(g,p.dims.x);let j=parent(i);let actual=environment[j].fields[7].w;
- let ratio=select(1.,clamp(src[j].pools[25].w/max(actual,1e-20),0.,1.),actual>0.);
+ let ratio=select(1.,clamp(src[j].pools[25].w/max(actual,ECO_PLOT_WATER_DIVISOR_GUARD),0.,1.),actual>0.);
  terrain[i].water=vec4(terrain[i].water.xyz*ratio,terrain[i].water.w);
  river_out[i]=vec4(river[i].xyz,river[i].w*ratio);
 }
