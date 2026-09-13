@@ -28,6 +28,7 @@ pub mod region;
 
 pub mod civilization;
 
+pub mod credit;
 pub mod economy;
 
 pub mod road_upkeep;

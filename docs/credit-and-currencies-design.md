@@ -1,6 +1,9 @@
 # Credit, issuance and currencies — design draft
 
-Status: proposed work, not implemented. Constants cleanup is paused separately.
+Status: implementation started. The standalone contract ledger exists; history
+account transfers, credit policy, issuance and exchange are still pending. See the
+[implementation record](credit-implementation.md) for current evidence. Constants
+cleanup continues separately while monetary verification runs.
 
 This is a toy-economy experiment: test whether moving existing cash across time
 improves useful activity, then test bounded money creation, before introducing
@@ -276,4 +279,4 @@ later possibilities, not requirements for either stage.
 
 Keep implementation increments independently reviewable. Generated trajectories
 and raw results belong under ignored `output/`; commit source and Markdown
-summaries only. This draft does not change current economic behavior or defaults.
+summaries only. The standalone ledger does not yet change current economic behavior or defaults.
