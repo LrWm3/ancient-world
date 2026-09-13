@@ -1,9 +1,10 @@
 # Credit, issuance and currencies — design draft
 
-Status: implementation started. The standalone contract ledger exists; history
-account transfers, credit policy, issuance and exchange are still pending. See the
-[implementation record](credit-implementation.md) for current evidence. Constants
-cleanup continues separately while monetary verification runs.
+Status: design draft with initial implementation components. Loan records, existing-
+account transfers, persistence and dated credit allocation exist. Automatic lending
+against observed receipts, scheduled debt servicing, issuance and exchange remain
+pending. See the [implementation record](credit-implementation.md) for evidence.
+The monetary experiment is not yet enabled in history.
 
 This is a toy-economy experiment: test whether moving existing cash across time
 improves useful activity, then test bounded money creation, before introducing
@@ -265,7 +266,7 @@ later possibilities, not requirements for either stage.
 ## Delivery checklist
 
 - [ ] Audit current account owners, tax timing, dispatch payments and ledger coverage.
-- [ ] Add shared currency ID, account adapters, loan records and exact transfer fixtures.
+- [x] Add shared currency ID, account adapters, loan records and exact transfer fixtures.
 - [ ] Add dated underwriting, source reservation and explicit lender allocation.
 - [ ] Pilot council tax-bridge credit; verify timing and failed-tax-base outcomes.
 - [ ] Pilot commercial payees; add a delivery-paid contract only where needed.
@@ -279,4 +280,4 @@ later possibilities, not requirements for either stage.
 
 Keep implementation increments independently reviewable. Generated trajectories
 and raw results belong under ignored `output/`; commit source and Markdown
-summaries only. The standalone ledger does not yet change current economic behavior or defaults.
+summaries only. The component APIs do not yet change automatic economic behavior or defaults.
