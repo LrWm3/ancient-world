@@ -2,6 +2,11 @@
 use crate::{civilization::History, culture::Culture};
 use serde::{Deserialize, Serialize};
 
+const RENOWN_DECAY_MONTHS: f32 = 120.0;
+const MIN_VISIT_RENOWN: f32 = 0.1;
+const VISIT_KM_PER_WORK_MONTH: f32 = 1200.0;
+const ROUND_TRIP_LEGS: f32 = 2.0;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Recognition {
     pub artifact: u32,
@@ -27,7 +32,7 @@ impl Recognition {
         {
             return 0.;
         }
-        self.survival / (1. + month.saturating_sub(self.month) as f32 / 120.)
+        self.survival / (1. + month.saturating_sub(self.month) as f32 / RENOWN_DECAY_MONTHS)
     }
 }
 
@@ -120,7 +125,7 @@ pub fn destination(
 ) -> Option<(u32, u32)> {
     c.heritage_renown
         .iter()
-        .filter(|r| r.tradition == tradition && r.weight(observer, h.month) > 0.1)
+        .filter(|r| r.tradition == tradition && r.weight(observer, h.month) > MIN_VISIT_RENOWN)
         .filter_map(|r| {
             let a = c.artifacts.get(r.artifact as usize)?;
             let site = a.site?;
@@ -134,7 +139,7 @@ pub fn destination(
                 return None;
             }
             let km = visit_distance(h, observer, site)?;
-            if km * 2. / 1200. > work.min(1.) {
+            if km * ROUND_TRIP_LEGS / VISIT_KM_PER_WORK_MONTH > work.min(1.) {
                 return None;
             }
             Some((r, site))

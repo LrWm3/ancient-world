@@ -2,6 +2,8 @@
 use super::*;
 use crate::{labor::WorkReceipt, participation::Activity};
 
+const OFFICE_WORK_MONTHS: f32 = 0.1;
+const MAX_REQUESTED_WORK_MONTHS: f64 = 0.10001;
 const SERVICE_MEMORY_MONTHS: f32 = 60.0;
 const SERVICE_CREDIT_PER_WORK: f32 = 0.25;
 const MAX_SERVICE_CREDIT: f32 = 0.30;
@@ -97,7 +99,7 @@ impl History {
             .collect();
         let mut plans = vec![];
         for (site, controller, holder) in holders {
-            let wanted = 0.1f32;
+            let wanted = OFFICE_WORK_MONTHS;
             let allowance = crate::labor::available(
                 &self.sites[site as usize],
                 self.society.is_some(),
@@ -299,7 +301,7 @@ impl Service {
                 (p.site as usize) < h.sites.len()
                     && (p.holder as usize) < h.people.len()
                     && p.work.month <= h.month
-                    && p.work.requested <= 0.10001
+                    && p.work.requested <= MAX_REQUESTED_WORK_MONTHS
                     && !self.plans[..i].iter().any(|other| other.site == p.site),
                 "invalid office service plan"
             );

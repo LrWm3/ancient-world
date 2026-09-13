@@ -27,6 +27,9 @@ semantic extraction pass (further shared-policy reconciliation may still apply):
 - `src/occupation.rs`
 - `src/facilities.rs`
 - `src/institution_capacity.rs`
+- `src/heritage_renown.rs`
+- `src/offices/service.rs`
+- `src/tool_access.rs` (reviewed; remaining literals are indices, identities and numeric bounds)
 
 These files only received shared-constant substitutions or relocation of existing
 constant declarations, and still need their full semantic pass:
@@ -75,7 +78,6 @@ than blindly moved out of their types or layout checks.
 - `src/gpu.rs`
 - `src/grid.rs`
 - `src/hazards.rs`
-- `src/heritage_renown.rs`
 - `src/history_atlas.rs`
 - `src/history_environment.rs`
 - `src/history_timeline.rs`
@@ -100,7 +102,6 @@ than blindly moved out of their types or layout checks.
 - `src/naming/evolution.rs`
 - `src/naming.rs`
 - `src/navigation.rs`
-- `src/offices/service.rs`
 - `src/offices.rs`
 - `src/participation.rs`
 - `src/population_registry.rs`
@@ -118,7 +119,6 @@ than blindly moved out of their types or layout checks.
 - `src/storage.rs`
 - `src/systems.rs`
 - `src/territory.rs`
-- `src/tool_access.rs`
 - `src/trade_contact.rs`
 - `src/vessels/crews.rs`
 - `src/vessels/resolution.rs`
