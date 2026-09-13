@@ -50,6 +50,9 @@ pub struct StaffingObservation {
     pub firm: u32,
     pub unconstrained_work: f64,
     pub ordered_work: f64,
+    /// None in older records that did not forecast current input feasibility.
+    #[serde(default)]
+    pub feasible_work: Option<f64>,
     pub requested_work: f64,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -81,7 +84,13 @@ impl Procurement {
                     .iter()
                     .all(|v| v.is_finite() && *v >= 0.)
                     && observation.requested_work <= observation.unconstrained_work
-                    && observation.requested_work <= observation.ordered_work,
+                    && observation.requested_work <= observation.ordered_work
+                    && observation.feasible_work.is_none_or(|work| {
+                        work.is_finite()
+                            && work >= 0.
+                            && work <= observation.ordered_work
+                            && observation.requested_work <= work
+                    }),
                 "invalid workshop demand observation"
             );
         }
@@ -168,13 +177,8 @@ impl History {
                 continue;
             }
             let units = f.leased_units.min(installed);
-            let demand: f64 = catalog
-                .recipes
-                .iter()
-                .zip(town.economy.orders)
-                .filter(|(r, _)| r.work[2] as u32 == f.family)
-                .map(|(r, batches)| f64::from(r.work[0]) * f64::from(batches))
-                .sum();
+            let demand =
+                super::industrial_order_work(catalog, &town.economy.orders, f.family as usize);
             let work = (demand * units / installed)
                 .min(units * f64::from(crate::production::WORKSHOP_WORKER_MONTHS_PER_UNIT));
             let price = f

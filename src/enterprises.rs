@@ -47,11 +47,36 @@ const MIN_IDLE_FUNDED_WORK: f64 = 0.01;
 
 pub(crate) const SERVICE_QUOTE_MULTIPLIER: f64 = 1.25;
 
+mod feasibility;
 pub mod orders;
 
 pub(crate) fn workshop_reference_wage(town: &crate::civilization::Site) -> f64 {
     WAGE_REFERENCE_FOOD_KG_PER_MONTH
         * town.economy.prices[crate::economy::FOOD].max(MIN_WAGE_FOOD_PRICE) as f64
+}
+
+/// Match production's industrial-work boundary: recipes with any edible output
+/// execute as household work and never earn `enterprise_used` service fees.
+/// This is ordered work, not an input reservation or a completion promise.
+fn industrial_order_work(
+    catalog: &crate::economy::EconomyCatalog,
+    orders: &[f32; crate::economy::GOODS],
+    family: usize,
+) -> f64 {
+    catalog
+        .recipes
+        .iter()
+        .zip(orders)
+        .filter(|(recipe, _)| {
+            recipe.work[2] as usize == family
+                && !recipe
+                    .output
+                    .iter()
+                    .zip(&catalog.goods)
+                    .any(|(amount, good)| *amount > 0. && good.food_energy > 0.)
+        })
+        .map(|(recipe, batches)| f64::from(recipe.work[0]) * f64::from(*batches))
+        .sum()
 }
 
 /// Posted next-month labor offer; service prices remain independent of wage bids.
@@ -575,6 +600,19 @@ impl History {
             })
             .collect();
         let mut requests = vec![[0.; 4]; self.sites.len()];
+        let stocked: Vec<_> = self
+            .sites
+            .iter()
+            .map(|site| {
+                if enterprises.procurement.demand_staffing {
+                    self.economy_catalog.as_ref().map_or([0.; 4], |catalog| {
+                        feasibility::stocked_work(catalog, &site.economy, self.month)
+                    })
+                } else {
+                    [0.; 4]
+                }
+            })
+            .collect();
         enterprises.procurement.staffing_observations.clear();
         let mut desired_work = vec![0.; enterprises.firms.len()];
         let mut contracted_work = vec![0_f64; enterprises.firms.len()];
@@ -625,16 +663,10 @@ impl History {
                 // The production planner has already assembled this month's
                 // recipe orders. Contracts cannot create physical output demand.
                 let ordered = self.economy_catalog.as_ref().map_or(0., |catalog| {
-                    catalog
-                        .recipes
-                        .iter()
-                        .zip(town.economy.orders)
-                        .filter(|(r, _)| r.work[2] as usize == family)
-                        .map(|(r, batches)| f64::from(r.work[0]) * f64::from(batches))
-                        .sum::<f64>()
-                        * lease_share
+                    industrial_order_work(catalog, &town.economy.orders, family) * lease_share
                 });
-                let limited = desired.min(ordered);
+                let feasible = (stocked[site][family] * lease_share).min(ordered);
+                let limited = desired.min(feasible);
                 enterprises
                     .procurement
                     .staffing_observations
@@ -643,6 +675,7 @@ impl History {
                         firm: f.id,
                         unconstrained_work: desired,
                         ordered_work: ordered,
+                        feasible_work: Some(feasible),
                         requested_work: limited,
                     });
                 limited
@@ -1668,6 +1701,14 @@ mod tests {
             s.economy.orders.fill(0.);
         }
         assert_eq!(no_demand.procure_workshop_services().unwrap(), 0);
+        // Food processing may share a recipe family, but the GPU assigns it
+        // to household work rather than a fee-earning private workshop.
+        let mut food_only = h.clone();
+        for recipe in &mut food_only.economy_catalog.as_mut().unwrap().recipes {
+            recipe.output.fill(0.);
+            recipe.output[14] = 1.; // Flour, with positive catalog food energy.
+        }
+        assert_eq!(food_only.procure_workshop_services().unwrap(), 0);
         let money = h.money_residual();
         let opening_cash = f64::from(h.sites[site].economy.finance[0]);
         let reserve = h.commercial_input_costs()[site].max(100.);
@@ -1740,6 +1781,27 @@ mod tests {
             .orders
             .iter()
             .all(|o| o.paid == 0.));
+        let mut missing_inputs = no_orders.clone();
+        missing_inputs.sites[site].economy.orders = request_contract.sites[site].economy.orders;
+        missing_inputs.sites[site].economy.goods.fill(0.);
+        let wages = missing_inputs.enterprises.as_ref().unwrap().firms[firm as usize].wages;
+        missing_inputs.begin_service_reservations();
+        missing_inputs.prepare_enterprises();
+        let operator = &missing_inputs.enterprises.as_ref().unwrap().firms[firm as usize];
+        assert_eq!(operator.last_requested_work, 0.);
+        assert_eq!(operator.wages, wages);
+        let mut food_shifts = no_orders.clone();
+        food_shifts.sites[site].economy.orders = request_contract.sites[site].economy.orders;
+        for recipe in &mut food_shifts.economy_catalog.as_mut().unwrap().recipes {
+            recipe.output.fill(0.);
+            recipe.output[14] = 1.;
+        }
+        let wages = food_shifts.enterprises.as_ref().unwrap().firms[firm as usize].wages;
+        food_shifts.begin_service_reservations();
+        food_shifts.prepare_enterprises();
+        let operator = &food_shifts.enterprises.as_ref().unwrap().firms[firm as usize];
+        assert_eq!(operator.last_funded_work, 0.);
+        assert_eq!(operator.wages, wages);
         no_orders.sites[site].economy.orders = request_contract.sites[site].economy.orders;
         no_orders.begin_service_reservations();
         no_orders.prepare_enterprises();

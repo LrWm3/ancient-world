@@ -526,3 +526,12 @@ after retail settlement in Execute/settle. It uses completed current-month named
 office attendance as a bounded case-throughput allowance; it creates no extra
 personal work grant. Reclaimed local cash is available to subsequent spending,
 not to already settled household purchases or completed production.
+
+
+Demand-aware workshop staffing can also apply a current-stock feasibility ceiling
+inside `prepare_enterprises`, after `plan_production`. It reads the completed
+opening inventory into scratch planning stock, never committing simulated goods.
+Only resulting attendance goes through existing cash/person reservations. Pending
+cargo and new extraction are not assumed to have arrived. See
+[workshop input feasibility](workshop-input-feasibility.md) for the distinction
+between this ceiling, funded work and GPU-completed work.

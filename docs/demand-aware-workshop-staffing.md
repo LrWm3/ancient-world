@@ -3,10 +3,12 @@
 An opt-in Reserve-phase policy limits workshop labor requests using the current
 recipe orders already assembled by `plan_production`. The previous policy uses
 lagged completed work, headroom, a minimum shift, and optionally due contracts.
-Those remain the unconstrained request. The new ceiling is the operator's leased
-share of the sum of requested recipe batches times recipe work in its family.
-The lower of that ceiling and the original request proceeds to cash and labor
-allocation. Rent remains payable; zero ordered work means zero wage reservation.
+Those remain the unconstrained request. Originally, the ceiling was the operator's
+leased share of requested recipe batches times recipe work in its family. The
+[current input-feasibility extension](workshop-input-feasibility.md) also caps it
+against a scratch-stock forecast and excludes food recipes that cannot earn
+operator fees. The lowest ceiling proceeds to cash and labor allocation. Rent
+remains payable; zero usable ordered work means zero wage reservation.
 
 This is a demand forecast, not an input reservation. A recipe order can still fail
 because of competing inputs, equipment, labor or downstream limits. Contracts
@@ -23,7 +25,8 @@ applies. No materials, town cash or income are created.
   arms and records it in local metadata. Without the flag it explicitly disables
   the pilot, just as the existing contract-staffing comparison does.
 - `staffing_observations` retains the latest Reserve boundary's firm, month,
-  unconstrained work, ordered-work ceiling and requested work before cash caps.
+  unconstrained work, ordered-work ceiling, optional input-feasible ceiling and
+  requested work before cash caps.
   Operator `last_requested_work` remains the post-cash request. Observations are
   forecasts, never additive work inventory.
 
@@ -64,4 +67,6 @@ economy-wide improvement; keep the pilot opt-in. Next inspect input availability
 forecast overcommitment and customer payment against wages/rent, retaining the
 original demand and suppressed/uncompleted service in diagnostics.
 
-Multi-seed viability and input-aware staffing remain outstanding.
+The table above describes the original demand-only implementation. Input-aware
+staffing is now implemented in the linked extension; multi-seed viability and
+satisfactory economy-wide outcomes remain unproven.

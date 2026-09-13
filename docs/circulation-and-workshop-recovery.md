@@ -148,3 +148,15 @@ matched 50-year comparison reclaims substantial cash but does not improve the
 population/food outcomes or rescue workshop operators. It remains opt-in. This
 closes a local transfer mechanism, not the broader circulation objective or
 physical recovery from abandoned settlements.
+
+
+### Input-aware workshop follow-up
+
+[Current-stock staffing](workshop-input-feasibility.md) now separates eligible
+industrial orders from household food processing and bounds private requests
+against shared stock, knowledge, storage and residue capacity. Controlled tests
+and three 50-year seed comparisons demonstrate the connection. Results vary:
+substantial improvement in seed 409, lower losses but less work in seed 1024,
+and slightly worse margins in seed 256. Unused GPU recipe labor and the mismatch
+between household cash in price signals and actual household purchasing are the
+next concrete investigations. Circulation and abandoned-site recovery remain open.
