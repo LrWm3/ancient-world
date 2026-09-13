@@ -95,6 +95,15 @@ pub const WORKSHOP_NAMES: [&str; 4] = [
     "Kilns",
     "Textiles and leather",
 ];
+// Production consumes installed capacity before household fallback. Preserve the
+// utilized part of those assets even when household capacity could hypothetically
+// have done the work. This is a repair target, never free capacity or a work grant.
+fn demonstrated_workshop_units(installed: f32, completed_work: f32) -> f32 {
+    installed
+        .max(0.)
+        .min(completed_work.max(0.) / WORKSHOP_WORKER_MONTHS_PER_UNIT)
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ProductionSettings {
@@ -860,9 +869,14 @@ impl History {
                     let desired = ((total - household).max(0.) / WORKSHOP_WORKER_MONTHS_PER_UNIT)
                         .min(pop * MAX_WORKSHOP_UNITS_PER_PERSON);
                     for (j, w) in work.iter().enumerate() {
+                        let utilized = demonstrated_workshop_units(
+                            e.workshop_types[j][0],
+                            e.workshop_types[j][2],
+                        );
+                        let target =
+                            (desired * w / total.max(MIN_WORKSHOP_PLAN_WORK)).max(utilized);
                         e.workshop_types[j][1] = e.workshop_types[j][1] * WORKSHOP_PLAN_RETENTION
-                            + desired * w / total.max(MIN_WORKSHOP_PLAN_WORK)
-                                * WORKSHOP_PLAN_SHARE_WEIGHT;
+                            + target * WORKSHOP_PLAN_SHARE_WEIGHT;
                     }
                     // Existing buildings retain their specialization; idle capacity cannot
                     // impersonate another industry's equipment.
@@ -1158,6 +1172,59 @@ impl History {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn utilized_workshop_repair_does_not_require_exhausting_household_capacity() {
+        // A quarter worker-month completed in installed equipment warrants
+        // maintaining 1/16 unit, even below the one-worker household fallback.
+        assert_eq!(demonstrated_workshop_units(0.1, 0.25), 0.0625);
+        assert_eq!(demonstrated_workshop_units(0.1, 0.), 0.);
+        // Household overflow cannot justify pretending more equipment was used.
+        assert_eq!(demonstrated_workshop_units(0.1, 4.), 0.1);
+        assert_eq!(demonstrated_workshop_units(0., 4.), 0.);
+    }
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn workshop_planning_repairs_used_assets_without_granting_resources() {
+        let mut g = crate::gpu::Generator::new(
+            pollster::block_on(crate::gpu::ContextGpu::headless()).unwrap(),
+            crate::config::Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                seed: 17,
+                ..Default::default()
+            },
+            crate::catalog::Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        let e = &mut h.sites[0].economy;
+        e.workshop = [2., 3., 0.2, 1.]; // Declared fixture equipment, not a planner import.
+        e.workshop_types = [[0.; 4]; 4];
+        e.workshop_types[2] = [0.1, 0.1, 0.25, 0.];
+        e.labor = [1000., 0., 0., 0.]; // Ample hypothetical household fallback.
+        e.goods[5] = 0.; // Real outstanding brick demand.
+        let goods = e.goods;
+        let assets = e.workshop;
+        let mut idle = h.clone();
+        idle.sites[0].economy.workshop_types[2][2] = 0.;
+        h.plan_production();
+        idle.plan_production();
+        let target = h.sites[0].economy.workshop_types[2][1];
+        assert!((target - 0.09625).abs() < 1e-6, "{target}");
+        assert!((idle.sites[0].economy.workshop_types[2][1] - 0.09).abs() < 1e-6);
+        assert_eq!(h.sites[0].economy.goods, goods);
+        assert_eq!(h.sites[0].economy.workshop, assets);
+        assert_eq!(h.sites[0].economy.workshop_types[2][0], 0.1);
+        let mut resumed: History =
+            serde_json::from_value(serde_json::to_value(&*h).unwrap()).unwrap();
+        h.plan_production();
+        resumed.plan_production();
+        assert_eq!(
+            h.sites[0].economy.workshop_types,
+            resumed.sites[0].economy.workshop_types
+        );
+    }
     fn planner(c: &EconomyCatalog) -> Planner<'_> {
         Planner {
             catalog: c,

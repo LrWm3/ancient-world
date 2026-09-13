@@ -404,3 +404,14 @@ worlds, with finite money/materials/work, but mixed population outcomes. The 10%
 variant was rejected. The retained 5% mechanism is a functional connection, not
 a declaration that economic recovery is solved: century runs still show very
 little late operator activity, and seed 256 loses its early population advantage.
+
+### Actual equipment use and repair targets
+
+[Workshop utilization repair](workshop-utilization-repair.md) corrects the
+specialized planner's assumption that hypothetical household craft capacity has
+already replaced completed work in installed equipment. Targets now retain the
+utilized portion of existing assets; execution still requires materials and work.
+Three matched fifty-year runs and a paired century extension are mixed: seed 409
+has sustained additional operator business at year 100, while seeds 1024 and 256
+still have no operators at year 50 and worse ending hunger. This is a maintenance
+correction, not a declaration that circulation or industrial recovery is solved.
