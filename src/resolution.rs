@@ -5,6 +5,13 @@ pub use crate::individual_demography::{
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
+const REVISION_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
+const REVISION_PRIME: u64 = 0x100000001b3;
+const MAX_RECEIPTS_PER_SITE: usize = 18;
+const MAX_COMPARISON_SUMMARIES: usize = 128;
+const MAX_RESEARCH_METRICS: usize = 15;
+const MAX_OTHER_METRICS: usize = 8;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Mode {
     Aggregate,
@@ -36,8 +43,8 @@ pub struct Boundary {
 }
 /// Deterministic numeric input fingerprint; not an identity or a security hash.
 pub(crate) fn revision(values: impl IntoIterator<Item = u64>) -> u64 {
-    values.into_iter().fold(0xcbf29ce484222325, |h, x| {
-        (h ^ x).wrapping_mul(0x100000001b3)
+    values.into_iter().fold(REVISION_OFFSET_BASIS, |h, x| {
+        (h ^ x).wrapping_mul(REVISION_PRIME)
     })
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -154,11 +161,11 @@ impl ResolutionState {
     }
     pub(crate) fn validate(&self, month: u32, sites: usize) -> Result<()> {
         ensure!(
-            self.receipts.len() <= sites * 18,
+            self.receipts.len() <= sites * MAX_RECEIPTS_PER_SITE,
             "unbounded resolution receipts"
         );
         ensure!(
-            self.summaries.len() <= 128
+            self.summaries.len() <= MAX_COMPARISON_SUMMARIES
                 && self.summaries.iter().all(|s| [
                     s.expected,
                     s.actual,
@@ -184,9 +191,9 @@ impl ResolutionState {
             ensure!(
                 r.metrics.len()
                     <= if r.boundary.system == System::Research {
-                        15
+                        MAX_RESEARCH_METRICS
                     } else {
-                        8
+                        MAX_OTHER_METRICS
                     }
                     && r.metrics.iter().all(|m| m.expected.is_finite()
                         && m.actual.is_finite()

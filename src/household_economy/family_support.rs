@@ -4,6 +4,12 @@ use crate::{civilization::History, participation::Presence};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+const DEFAULT_SURPLUS_SHARE: f64 = 0.25;
+const DEFAULT_FOOD_TARGET: f64 = 0.9;
+const MIN_DONOR_AGE_MONTHS: i64 = 216;
+const MIN_FAMILY_AFFINITY: f32 = 0.2;
+const MIN_FOOD_NEED: f64 = 1e-12;
+const TRANSFER_RELATIVE_TOLERANCE: f64 = 1e-8;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct FamilySupportPolicy {
@@ -15,8 +21,8 @@ pub struct FamilySupportPolicy {
 impl Default for FamilySupportPolicy {
     fn default() -> Self {
         Self {
-            surplus_share: 0.25,
-            food_target: 0.9,
+            surplus_share: DEFAULT_SURPLUS_SHARE,
+            food_target: DEFAULT_FOOD_TARGET,
         }
     }
 }
@@ -35,8 +41,7 @@ pub(super) struct Link {
 }
 
 pub(super) fn links(h: &History) -> Vec<Link> {
-    if h
-        .society
+    if h.society
         .as_ref()
         .and_then(|s| s.household_economy.as_ref())
         .is_none_or(|e| e.family_support.is_none())
@@ -69,7 +74,7 @@ pub(super) fn links(h: &History) -> Vec<Link> {
         let Some((donor, site)) = resident(person) else {
             continue;
         };
-        if h.month as i64 - i64::from(h.people[person as usize].born) < 216 {
+        if h.month as i64 - i64::from(h.people[person as usize].born) < MIN_DONOR_AGE_MONTHS {
             continue;
         }
         let Some(agent) = culture
@@ -104,7 +109,7 @@ pub(super) fn links(h: &History) -> Vec<Link> {
                 &parents,
                 true,
             );
-            if affinity <= 0.2 {
+            if affinity <= MIN_FAMILY_AFFINITY {
                 continue;
             }
             let strength = f64::from(generosity * affinity);
@@ -182,7 +187,7 @@ pub(super) fn settle(e: &mut HouseholdEconomy, plans: &[RetailPlan], links: &[Li
     }
     let mut budgets = vec![None; e.accounts.len()];
     for p in plans {
-        let common = p.free / p.need.max(1e-12);
+        let common = p.free / p.need.max(MIN_FOOD_NEED);
         for &id in &p.ids {
             let a = &e.accounts[id];
             let reserve = (1. - common).max(0.) * a.need * p.price;
@@ -246,7 +251,7 @@ pub(super) fn validate(e: &HouseholdEconomy, h: &History) -> Result<()> {
     let sent = e.accounts.iter().map(|a| a.family_sent).sum::<f64>();
     let received = e.accounts.iter().map(|a| a.family_received).sum::<f64>();
     ensure!(
-        (sent - received).abs() <= 1e-8 * (1. + sent),
+        (sent - received).abs() <= TRANSFER_RELATIVE_TOLERANCE * (1. + sent),
         "family transfers do not reconcile"
     );
     Ok(())

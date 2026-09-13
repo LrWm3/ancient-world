@@ -7,6 +7,7 @@ use crate::{
     grid,
 };
 use anyhow::{ensure, Result};
+const FULL_REFRESH_INTERVAL_MONTHS: u32 = 12;
 
 // Keep the bitwise WGSL gather ABI synchronized with terrain storage.
 const _: () = assert!(CELL_BYTES == 176);
@@ -205,7 +206,7 @@ impl HistoryEnvironment {
             || self.epoch != g.progress.epoch
             || self.buffer != g.current
             || (g.navigation_mode == crate::navigation::NavigationMode::CpuReference
-                && (month % 12 == 0
+                && (month % FULL_REFRESH_INTERVAL_MONTHS == 0
                     || h.society
                         .as_ref()
                         .is_some_and(|s| (s.routed_sites as usize) < h.sites.len())));

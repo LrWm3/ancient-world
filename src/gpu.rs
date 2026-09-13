@@ -4,6 +4,10 @@ use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, sync::mpsc, time::Instant};
 use wgpu::util::DeviceExt;
 
+const DEFAULT_MEMORY_BUDGET_BYTES: u64 = 4 * 1024 * 1024 * 1024;
+const COAST_CLEANUP_PASSES: u32 = 8;
+const DRAINAGE_DISPATCH_BATCH: u32 = 8;
+
 pub const CELL_BYTES: u64 = std::mem::size_of::<Cell>() as u64;
 pub const NONE: u32 = u32::MAX;
 #[repr(C)]
@@ -221,7 +225,7 @@ impl Generator {
         ensure!(size<=gpu.device.limits().max_storage_buffer_binding_size as u64 && size<=gpu.device.limits().max_buffer_size,"{}² per face needs a {} MiB storage binding; this GPU exposes only {} MiB. Select a lower resolution.",config.resolution,size/1048576,gpu.device.limits().max_storage_buffer_binding_size/1048576);
         // A conservative user-visible budget, independent of optional vendor memory queries.
         ensure!(
-            config.estimated_bytes() <= 4 * 1024 * 1024 * 1024,
+            config.estimated_bytes() <= DEFAULT_MEMORY_BUDGET_BYTES,
             "estimated simulation allocation exceeds 4 GiB safety budget"
         );
         let d = &gpu.device;
@@ -439,7 +443,7 @@ impl Generator {
             reduction_side: 0,
         };
         s.dispatch("initialize", 1)?;
-        s.dispatch("coast_cleanup", 8)?;
+        s.dispatch("coast_cleanup", COAST_CLEANUP_PASSES)?;
         Ok(s)
     }
     fn params(&self) -> Params {
@@ -581,7 +585,7 @@ impl Generator {
         let limit = self.config.lake_iteration_limit();
         let poll_passes = self.config.lake_poll_passes;
         ensure!(
-            matches!(poll_passes, 16 | 32 | 64 | 128),
+            crate::config::ALLOWED_LAKE_POLL_PASSES.contains(&poll_passes),
             "invalid lake polling interval"
         );
         while iterations < limit {
@@ -703,7 +707,7 @@ impl Generator {
         }
         let iterative = matches!(stage, Stage::Drainage | Stage::Basins | Stage::Flow);
         let batch = if iterative {
-            8.min(
+            DRAINAGE_DISPATCH_BATCH.min(
                 self.config
                     .max_drainage_iterations
                     .saturating_sub(self.progress.iteration),

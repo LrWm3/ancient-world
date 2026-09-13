@@ -2,6 +2,8 @@
 use crate::economy::{EconomyCatalog, Good, Recipe, GOODS};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+
+const OBJECT_BASE_PRICE_MARKUP: f32 = 1.5;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MaterialCatalog {
     pub variants: Vec<Variant>,
@@ -150,7 +152,7 @@ impl MaterialCatalog {
             c.goods[v.slot] = Good {
                 id: v.id.clone(),
                 name: v.id.replace('_', " "),
-                base_price: price / mass * 1.5,
+                base_price: price / mass * OBJECT_BASE_PRICE_MARKUP,
                 cnp: chem.map(|x| x / mass),
                 food_energy: 0.,
                 delay_spoilage: None,

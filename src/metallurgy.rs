@@ -5,6 +5,34 @@ use crate::{
 };
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+
+const AXE_IRON_FRACTION: f32 = 0.6;
+const PICK_IRON_FRACTION: f32 = 0.7;
+pub(crate) const HEMATITE_IRON_FRACTION: f32 = 0.7;
+pub(crate) const MAGNETITE_IRON_FRACTION: f32 = 0.72;
+pub(crate) const LIMONITE_IRON_FRACTION: f32 = 0.5;
+const CHALCOPYRITE_COPPER_FRACTION: f32 = 0.34;
+const MALACHITE_COPPER_FRACTION: f32 = 0.57;
+const CASSITERITE_TIN_FRACTION: f32 = 0.78;
+const BRONZE_COPPER_FRACTION: f32 = 0.9;
+const BRONZE_TIN_FRACTION: f32 = 0.1;
+const ORE_BASE_PRICE: f32 = 4.;
+const METAL_BASE_PRICE: f32 = 20.;
+const SMELTING_RECOVERY_FRACTION: f32 = 0.8;
+const SMELTING_FUEL_KG: f32 = 0.5;
+const PROCESSING_FUEL_KG: f32 = 0.1;
+const ALLOY_WORKER_MONTHS: f32 = 0.08;
+const BRONZE_TOOL_WORKER_MONTHS: f32 = 0.1;
+const COPPER_TOOL_WORKER_MONTHS: f32 = 0.08;
+const REMELTING_WORKER_MONTHS: f32 = 0.08;
+const REMELTING_RECOVERY_FRACTION: f32 = 0.9;
+const REMELTING_RESIDUE_KG: f32 = 0.1;
+const RESIDUE_CAPACITY_KG_PER_M2: f32 = 0.02;
+const SMELTING_CHAINS: [(usize, &str, usize, f32); 3] = [
+    (35, "chalcopyrite", 38, 0.18),
+    (36, "malachite", 38, 0.12),
+    (37, "cassiterite", 39, 0.16),
+];
 pub const ALLOY_GOODS: [(usize, &str); 10] = [
     (35, "chalcopyrite_ore"),
     (36, "malachite_ore"),
@@ -21,17 +49,19 @@ pub const ALLOY_GOODS: [(usize, &str); 10] = [
 pub fn metals(id: &str) -> [f32; 3] {
     match id {
         "metal_vessel" => [1., 0., 0.],
-        "metal_axe" => [0.6, 0., 0.],
-        "metal_pick" => [0.7, 0., 0.],
-        "hematite_ore" => [0.7, 0., 0.],
-        "magnetite_ore" => [0.72, 0., 0.],
-        "limonite_ore" => [0.5, 0., 0.],
-        "chalcopyrite_ore" => [0., 0.34, 0.],
-        "malachite_ore" => [0., 0.57, 0.],
-        "cassiterite_ore" => [0., 0., 0.78],
+        "metal_axe" => [AXE_IRON_FRACTION, 0., 0.],
+        "metal_pick" => [PICK_IRON_FRACTION, 0., 0.],
+        "hematite_ore" => [HEMATITE_IRON_FRACTION, 0., 0.],
+        "magnetite_ore" => [MAGNETITE_IRON_FRACTION, 0., 0.],
+        "limonite_ore" => [LIMONITE_IRON_FRACTION, 0., 0.],
+        "chalcopyrite_ore" => [0., CHALCOPYRITE_COPPER_FRACTION, 0.],
+        "malachite_ore" => [0., MALACHITE_COPPER_FRACTION, 0.],
+        "cassiterite_ore" => [0., 0., CASSITERITE_TIN_FRACTION],
         "copper" | "copper_tools" | "copper_scrap" => [0., 1., 0.],
         "tin" => [0., 0., 1.],
-        "bronze" | "bronze_tools" | "bronze_scrap" => [0., 0.9, 0.1],
+        "bronze" | "bronze_tools" | "bronze_scrap" => {
+            [0., BRONZE_COPPER_FRACTION, BRONZE_TIN_FRACTION]
+        }
         _ => [0.; 3],
     }
 }
@@ -104,43 +134,64 @@ impl EconomyCatalog {
             self.goods[k] = Good {
                 id: id.into(),
                 name: id.replace('_', " "),
-                base_price: if k < 38 { 4. } else { 20. },
+                base_price: if k < 38 {
+                    ORE_BASE_PRICE
+                } else {
+                    METAL_BASE_PRICE
+                },
                 cnp: [0.; 3],
                 food_energy: 0.,
                 delay_spoilage: None,
             };
         }
-        for (raw, id, metal, labor) in [
-            (35, "chalcopyrite", 38, 0.18),
-            (36, "malachite", 38, 0.12),
-            (37, "cassiterite", 39, 0.16),
-        ] {
+        for (raw, id, metal, labor) in SMELTING_CHAINS {
             let m = minerals
                 .minerals
                 .iter()
                 .find(|m| m.id == id)
                 .ok_or_else(|| anyhow::anyhow!("missing {id}"))?;
-            let recovered = m.yield_fraction * 0.8;
+            let recovered = m.yield_fraction * SMELTING_RECOVERY_FRACTION;
             self.recipes.push(recipe(
-                &[(raw, 1.), (6, 0.5)],
+                &[(raw, 1.), (6, SMELTING_FUEL_KG)],
                 &[(metal, recovered)],
                 labor,
                 1. - recovered,
             ));
         }
         self.recipes.push(recipe(
-            &[(38, 0.9), (39, 0.1), (6, 0.1)],
+            &[
+                (38, BRONZE_COPPER_FRACTION),
+                (39, BRONZE_TIN_FRACTION),
+                (6, PROCESSING_FUEL_KG),
+            ],
             &[(40, 1.)],
-            0.08,
+            ALLOY_WORKER_MONTHS,
             0.,
         ));
-        self.recipes.push(recipe(&[(40, 1.)], &[(41, 1.)], 0.1, 0.));
-        self.recipes
-            .push(recipe(&[(42, 1.), (6, 0.1)], &[(40, 0.9)], 0.08, 0.1));
-        self.recipes
-            .push(recipe(&[(38, 1.)], &[(43, 1.)], 0.08, 0.));
-        self.recipes
-            .push(recipe(&[(44, 1.), (6, 0.1)], &[(38, 0.9)], 0.08, 0.1));
+        self.recipes.push(recipe(
+            &[(40, 1.)],
+            &[(41, 1.)],
+            BRONZE_TOOL_WORKER_MONTHS,
+            0.,
+        ));
+        self.recipes.push(recipe(
+            &[(42, 1.), (6, PROCESSING_FUEL_KG)],
+            &[(40, REMELTING_RECOVERY_FRACTION)],
+            REMELTING_WORKER_MONTHS,
+            REMELTING_RESIDUE_KG,
+        ));
+        self.recipes.push(recipe(
+            &[(38, 1.)],
+            &[(43, 1.)],
+            COPPER_TOOL_WORKER_MONTHS,
+            0.,
+        ));
+        self.recipes.push(recipe(
+            &[(44, 1.), (6, PROCESSING_FUEL_KG)],
+            &[(38, REMELTING_RECOVERY_FRACTION)],
+            REMELTING_WORKER_MONTHS,
+            REMELTING_RESIDUE_KG,
+        ));
         // Existing smelting losses become physical only from this boundary onward.
         for r in &mut self.recipes {
             if r.input[32..35].iter().sum::<f32>() > 0. {
@@ -197,7 +248,7 @@ impl Generator {
         for s in &mut h.sites {
             s.economy.extraction[0] = r.sources[&s.cell].ore_good.unwrap_or(1) as f32;
             s.economy.extraction[1] = 1.;
-            s.economy.residue[2] = s.economy.claim[1] * 0.02;
+            s.economy.residue[2] = s.economy.claim[1] * RESIDUE_CAPACITY_KG_PER_M2;
         }
         h.event("alloy_processing",None,None,"Copper and tin sources identified; bronze tools and separate scrap chains established. Future mineral residues occupy finite on-site disposal land; old losses are not reconstructed".into());
         Ok(())

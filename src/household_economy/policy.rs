@@ -3,6 +3,25 @@ use super::HouseholdEconomy;
 use crate::civilization::History;
 use serde::{Deserialize, Serialize};
 
+const HUNGER_PRESSURE_SCALE: f32 = 4.;
+const COMMON_FOOD_HARDSHIP_INCREMENT: f32 = 0.15;
+const MAX_COMMON_FOOD_SHARE: f32 = 0.95;
+const RELIEF_HARDSHIP_INCREMENT: f32 = 0.08;
+const FOOD_TARGET_HARDSHIP_INCREMENT: f32 = 0.15;
+const MAX_POLICY_REVIEW_CHANGES: [f32; 5] = [0.05, 0.05, 0.005, 0.02, 0.05];
+
+const FACTION_PLATFORMS: [[f32; 5]; 9] = [
+    [0.65, 0.25, 0.01, 0.08, 0.90],  // growers
+    [0.35, 0.20, 0.04, 0.04, 0.80],  // merchants
+    [0.40, 0.25, 0.02, 0.04, 0.80],  // retainers
+    [0.50, 0.35, 0.01, 0.07, 0.90],  // artisans
+    [0.50, 0.25, 0.01, 0.06, 0.85],  // scholars
+    [0.65, 0.20, 0.005, 0.12, 0.95], // congregations
+    [0.80, 0.30, 0.0, 0.18, 1.0],    // bread leagues
+    [0.70, 0.20, 0.005, 0.12, 0.95], // revivalists
+    [0.40, 0.30, 0.02, 0.03, 0.80],  // warbands
+];
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DistributionPolicy {
     pub common: f32,
@@ -34,23 +53,13 @@ impl DistributionPolicy {
     }
     /// Move gradually toward a faction platform; hardship changes the platform, not stocks.
     fn revise(self, interest: usize, hunger: f32) -> Self {
-        let platforms = [
-            [0.65, 0.25, 0.01, 0.08, 0.90],  // growers
-            [0.35, 0.20, 0.04, 0.04, 0.80],  // merchants
-            [0.40, 0.25, 0.02, 0.04, 0.80],  // retainers
-            [0.50, 0.35, 0.01, 0.07, 0.90],  // artisans
-            [0.50, 0.25, 0.01, 0.06, 0.85],  // scholars
-            [0.65, 0.20, 0.005, 0.12, 0.95], // congregations
-            [0.80, 0.30, 0.0, 0.18, 1.0],    // bread leagues
-            [0.70, 0.20, 0.005, 0.12, 0.95], // revivalists
-            [0.40, 0.30, 0.02, 0.03, 0.80],  // warbands
-        ];
-        let mut target = platforms[interest];
-        let pressure = (hunger * 4.).clamp(0., 1.);
-        target[0] = (target[0] + 0.15 * pressure).min(0.95);
+        let mut target = FACTION_PLATFORMS[interest];
+        let pressure = (hunger * HUNGER_PRESSURE_SCALE).clamp(0., 1.);
+        target[0] =
+            (target[0] + COMMON_FOOD_HARDSHIP_INCREMENT * pressure).min(MAX_COMMON_FOOD_SHARE);
         target[2] *= 1. - pressure;
-        target[3] += 0.08 * pressure;
-        target[4] = (target[4] + 0.15 * pressure).min(1.);
+        target[3] += RELIEF_HARDSHIP_INCREMENT * pressure;
+        target[4] = (target[4] + FOOD_TARGET_HARDSHIP_INCREMENT * pressure).min(1.);
         let current = [
             self.common,
             self.payroll,
@@ -58,7 +67,7 @@ impl DistributionPolicy {
             self.relief,
             self.food_target,
         ];
-        let limits = [0.05, 0.05, 0.005, 0.02, 0.05];
+        let limits = MAX_POLICY_REVIEW_CHANGES;
         let next: [f32; 5] = std::array::from_fn(|i| {
             current[i] + (target[i] - current[i]).clamp(-limits[i], limits[i])
         });

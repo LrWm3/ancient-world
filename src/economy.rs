@@ -247,9 +247,9 @@ impl EconomyCatalog {
             );
             let iron_content = |amounts: &[f32; GOODS]| -> f32 {
                 [
-                    ("hematite_ore", 0.7),
-                    ("magnetite_ore", 0.72),
-                    ("limonite_ore", 0.5),
+                    ("hematite_ore", crate::metallurgy::HEMATITE_IRON_FRACTION),
+                    ("magnetite_ore", crate::metallurgy::MAGNETITE_IRON_FRACTION),
+                    ("limonite_ore", crate::metallurgy::LIMONITE_IRON_FRACTION),
                 ]
                 .iter()
                 .filter_map(|(id, f)| self.index(id).map(|i| amounts[i] * f))

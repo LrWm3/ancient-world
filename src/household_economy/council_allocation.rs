@@ -1,5 +1,9 @@
 //! A scoped household-relief policy, not escrow or a change to payment timing.
 use serde::{Deserialize, Serialize};
+
+const TOWN_SUPPORT_HUNGER_THRESHOLD: f32 = 0.05;
+const TOWN_CASH_TARGET_MONEY_PER_RESIDENT: f64 = 10.;
+const ALLOCATION_TOLERANCE_MONEY: f64 = 1e-7;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Policy {
     #[default]
@@ -15,10 +19,10 @@ pub enum TownSupportPolicy {
 }
 impl TownSupportPolicy {
     pub(crate) fn request(self, population: f32, cash: f32, hunger: f32) -> f64 {
-        if hunger <= 0.05 {
+        if hunger <= TOWN_SUPPORT_HUNGER_THRESHOLD {
             return 0.;
         }
-        let target = population as f64 * 10.;
+        let target = population as f64 * TOWN_CASH_TARGET_MONEY_PER_RESIDENT;
         match self {
             Self::Existing => target,
             Self::CashGap => (target - cash as f64).max(0.),
@@ -95,15 +99,17 @@ pub(super) fn validate(
             "invalid council allocation amounts"
         );
         anyhow::ensure!(
-            r.relief_paid <= r.relief_granted + 1e-7
-                && r.relief_granted <= r.relief_ceiling + 1e-7
-                && r.relief_ceiling <= r.treasury + 1e-7
-                && r.relief_ceiling <= r.relief_requested + 1e-7,
+            r.relief_paid <= r.relief_granted + ALLOCATION_TOLERANCE_MONEY
+                && r.relief_granted <= r.relief_ceiling + ALLOCATION_TOLERANCE_MONEY
+                && r.relief_ceiling <= r.treasury + ALLOCATION_TOLERANCE_MONEY
+                && r.relief_ceiling <= r.relief_requested + ALLOCATION_TOLERANCE_MONEY,
             "council allocation exceeds budget"
         );
         if r.policy == Policy::ProtectAdministration {
             anyhow::ensure!(
-                r.relief_granted <= (r.treasury - r.administration_forecast).max(0.) + 1e-7,
+                r.relief_granted
+                    <= (r.treasury - r.administration_forecast).max(0.)
+                        + ALLOCATION_TOLERANCE_MONEY,
                 "relief spends protected administration allowance"
             );
         }

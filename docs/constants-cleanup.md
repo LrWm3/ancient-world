@@ -46,6 +46,15 @@ semantic extraction pass (further shared-policy reconciliation may still apply):
 - `src/vessels/resolution.rs`
 - `src/tool_access.rs` (reviewed; remaining literals are indices, identities and numeric bounds)
 
+- `src/config.rs`
+- `src/freight.rs`
+- `src/household_economy/council_allocation.rs`
+- `src/household_economy/family_support.rs`
+- `src/household_economy/policy.rs`
+- `src/materials.rs`
+- `src/metallurgy.rs`
+- `src/resolution.rs`
+
 These files only received shared-constant substitutions or relocation of existing
 constant declarations, and still need their full semantic pass:
 
@@ -72,7 +81,6 @@ than blindly moved out of their types or layout checks.
 - `src/civic_petitions.rs`
 - `src/civilization/daughter.rs`
 - `src/civilization/production_forecast.rs`
-- `src/config.rs`
 - `src/continuity_fixture.rs`
 - `src/culture/dynamics.rs`
 - `src/culture/learning.rs`
@@ -86,25 +94,19 @@ than blindly moved out of their types or layout checks.
 - `src/expedition_heritage.rs`
 - `src/export_contracts.rs`
 - `src/faction_interests.rs`
-- `src/freight.rs`
 - `src/gpu.rs`
 - `src/grid.rs`
 - `src/hazards.rs`
 - `src/history_atlas.rs`
 - `src/history_environment.rs`
 - `src/history_timeline.rs`
-- `src/household_economy/council_allocation.rs`
-- `src/household_economy/family_support.rs`
 - `src/household_economy/nutrition.rs`
-- `src/household_economy/policy.rs`
 - `src/household_economy.rs`
 - `src/individual_demography.rs`
 - `src/labor.rs`
 - `src/lib.rs`
 - `src/local_places.rs`
 - `src/main.rs`
-- `src/materials.rs`
-- `src/metallurgy.rs`
 - `src/naming/evolution.rs`
 - `src/naming.rs`
 - `src/navigation.rs`
@@ -114,7 +116,6 @@ than blindly moved out of their types or layout checks.
 - `src/region.rs`
 - `src/regional_mining.rs`
 - `src/relocation/comparison.rs`
-- `src/resolution.rs`
 - `src/resources.rs`
 - `src/shipping.rs`
 - `src/social_memory.rs`
@@ -136,7 +137,7 @@ The first batch passed the ordinary library suite and the focused continuity
 checks, including GPU cases for relocation, petitions, disease, peace and sieges.
 Raw results stay under ignored `output/`.
 
-Final batch verification:
+Initial batch verification:
 
 - `cargo test --lib`: 146 passed, 125 hardware/extended cases ignored.
 - Explicit include-ignored runs for institutional capacity, military rosters,
@@ -213,3 +214,20 @@ Verification: 151 ordinary library tests passed (130 extended checks ignored).
 Explicit include-ignored runs passed domestic, institutional funding, room service
 and institutional capacity suites, including GPU fixtures. All-target Clippy with
 warnings denied passed. No intended behavior or archive layout change.
+
+## Configuration and material-processing batch (2026-09-12)
+
+Named configuration defaults and allowed ranges, household faction policy tables,
+family support thresholds, freight capacity parameters, resolution receipt limits,
+material markup and metallurgy recipes. Mineral validation shares the metallurgy
+fractions. GPU lake polling shares the configuration limits. GPU dispatch and
+history refresh received partial extraction; their shader interfaces remain in
+the pending review. Fixed archive slots and independent expected recipes stay
+literal.
+
+The ordinary library suite passed 151 tests before the family-support and GPU
+limit follow-up; strict all-target Clippy passed after those additions. Follow-up
+verification is recorded below.
+
+Follow-up: all 151 active library tests passed again (130 extended/GPU cases
+remain explicitly ignored); all-target Clippy, artifact and whitespace checks passed.

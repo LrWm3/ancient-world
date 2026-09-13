@@ -2,6 +2,10 @@
 use crate::civilization::History;
 use std::collections::BTreeMap;
 
+const BASE_ROAD_CAPACITY_FRACTION: f32 = 0.5;
+const IMPROVED_ROAD_CAPACITY_FRACTION: f32 = 0.5;
+const FULL_ROAD_SURFACE_KG: f64 = 1000.;
+
 #[derive(Clone, Default)]
 pub(crate) struct FreightPath {
     pub stops: Vec<u32>,
@@ -75,7 +79,9 @@ impl History {
                     f32::INFINITY
                 } else {
                     gross(edge[0]).min(gross(edge[1]))
-                        * (0.5 + 0.5 * (r.road_bricks / 1000.).clamp(0., 1.) as f32)
+                        * (BASE_ROAD_CAPACITY_FRACTION
+                            + IMPROVED_ROAD_CAPACITY_FRACTION
+                                * (r.road_bricks / FULL_ROAD_SURFACE_KG).clamp(0., 1.) as f32)
                 }
             })
             .fold(0_f32, f32::max);
