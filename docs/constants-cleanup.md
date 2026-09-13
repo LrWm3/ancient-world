@@ -432,3 +432,19 @@ expression order are unchanged; hash mixing, layout indices and interpolation
 identities remain inline. The hardware-enabled
 `gpu_history_checkpoints_and_exports` fixture passed, including regional rendering.
 This completes this file's pass, not the remaining planetary shader review.
+
+## Society shader illness and calendar parameters
+
+Named the common ration share and bounded redistribution passes, numerical division
+floor, monthly illness sources/retention, weather bounds, shortage-duration
+threshold, crop year/planting interval and seed reserve in `shaders/society.wgsl`.
+Housing-related exposure now uses the existing shared material-per-person
+constants. Values, numeric types and arithmetic order are preserved.
+
+The isolated hardware ration fixture includes the shader's parameter declarations
+and passed its boundedness, conservation and priority checks. The full GPU
+plot-reservation/recipe conservation fixture also passed, exercising production
+shader assembly and a monthly history step. Strict all-target Clippy passed.
+This is a partial society shader review: the shared CPU/GPU ration
+priority bound still needs consolidation; layout flags and simple identities stay
+inline. Planetary and ecological shaders remain outstanding.

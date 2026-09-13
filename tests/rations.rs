@@ -16,6 +16,7 @@ fn older_demography_defaults_to_equal_rations() {
 fn gpu_rations_are_bounded_conservative_and_protect_prioritized_cohorts() {
     let gpu = pollster::block_on(ContextGpu::headless()).unwrap();
     let source = include_str!("../shaders/society.wgsl");
+    let parameters = source.split("struct Demography").next().unwrap();
     let kernel = source
         .split("fn allocate_rations")
         .nth(1)
@@ -24,7 +25,7 @@ fn gpu_rations_are_bounded_conservative_and_protect_prioritized_cohorts() {
         .next()
         .unwrap();
     let shader = format!(
-        "fn allocate_rations{kernel}
+        "{parameters}\nfn allocate_rations{kernel}
 struct Fixture {{ need:vec4<f32>, priority:vec4<f32> }}
 @group(0) @binding(0) var<storage,read> cases:array<Fixture>;
 @group(0) @binding(1) var<storage,read_write> result:array<vec4<f32>>;
