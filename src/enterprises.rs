@@ -115,6 +115,8 @@ impl WagePolicy {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Firm {
     #[serde(default)]
+    pub financing: crate::credit::accounts::Financing,
+    #[serde(default)]
     pub wage_policy: Option<WagePolicy>,
     /// None preserves legacy wage-indexed fees; refined contracts fix this at posting.
     #[serde(default)]
@@ -268,8 +270,13 @@ impl Enterprises {
                 .all(|x| x.is_finite() && *x >= 0.),
                 "invalid enterprise account"
             );
+            ensure!(f.financing.validate(), "invalid enterprise financing");
             ensure!(
-                (f.cash - f.capital - f.revenue + f.wages + f.rent + f.dividends + f.liquidation)
+                (f.cash - f.capital - f.revenue - f.financing.net_cash()
+                    + f.wages
+                    + f.rent
+                    + f.dividends
+                    + f.liquidation)
                     .abs()
                     < CAPITAL_RELATIVE_TOLERANCE * (1. + f.capital + f.revenue),
                 "enterprise cash ledger does not reconcile"
@@ -342,7 +349,7 @@ fn viable_entry(expected_work: f64, paid_shift: f64, units: f64) -> bool {
 // Equity investment is risk capital, not earned profit. Losses must be recovered
 // before dividends resume; the operating reserve is an additional independent cap.
 fn distributable_profit(f: &Firm) -> f64 {
-    let earned = (f.revenue - f.wages - f.rent - f.dividends).max(0.);
+    let earned = (f.revenue + f.financing.net_interest() - f.wages - f.rent - f.dividends).max(0.);
     let surplus = (f.cash - PAYROLL_RESERVE_MONTHS * f.last_funded_work * f.wage_rate).max(0.)
         * SURPLUS_DIVIDEND_FRACTION;
     earned.min(surplus)
@@ -492,6 +499,7 @@ impl History {
                     e.accounts[owner].capital_invested += capital;
                     let id = enterprises.firms.len() as u32;
                     enterprises.firms.push(Firm {
+                        financing: Default::default(),
                         wage_policy: None,
                         service_rate: None,
                         staffing: None,
@@ -1079,6 +1087,68 @@ mod tests {
             }
         }
     }
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn credit_account_transfers_preserve_cash_and_operator_income() {
+        use crate::credit::{Account, SHARED_CURRENCY};
+        let mut g = world();
+        install(&mut g);
+        let h = g.civilizations.as_mut().unwrap();
+        h.month = 3;
+        h.prepare_enterprises();
+        let firm = h
+            .enterprises
+            .as_ref()
+            .unwrap()
+            .firms
+            .iter()
+            .find(|f| f.closed.is_none() && f.cash > 1.)
+            .unwrap()
+            .id;
+        let from = Account::Operator(firm);
+        let to = Account::Town(0);
+        let baseline = h.economy_residuals()[3];
+        let revenue = h.enterprises.as_ref().unwrap().firms[firm as usize].revenue;
+        let paid = h
+            .transfer_credit_cash(from, to, SHARED_CURRENCY, 1., 0.)
+            .unwrap();
+        assert_eq!(paid.amount(), 1.);
+        assert_eq!(
+            h.enterprises.as_ref().unwrap().firms[firm as usize].revenue,
+            revenue
+        );
+        h.enterprises.as_ref().unwrap().validate(h).unwrap();
+        assert!((h.economy_residuals()[3] - baseline).abs() < 1e-10);
+        let before = serde_json::to_value(&*h).unwrap();
+        assert!(h
+            .transfer_credit_cash(to, Account::Operator(u32::MAX), SHARED_CURRENCY, 1., 0.)
+            .is_err());
+        assert_eq!(before, serde_json::to_value(&*h).unwrap());
+        let mut restored: History = serde_json::from_value(before).unwrap();
+        for history in [&mut *h, &mut restored] {
+            let receipt = history
+                .transfer_credit_cash(to, from, SHARED_CURRENCY, 0.75, 0.25)
+                .unwrap();
+            assert_eq!(receipt.principal, 0.75);
+            assert_eq!(receipt.interest, 0.25);
+            history
+                .enterprises
+                .as_ref()
+                .unwrap()
+                .validate(history)
+                .unwrap();
+            assert!((history.economy_residuals()[3] - baseline).abs() < 1e-10);
+            let f = &history.enterprises.as_ref().unwrap().firms[firm as usize];
+            assert_eq!(f.revenue, revenue);
+            assert_eq!(f.financing.net_cash(), 0.);
+            assert_eq!(f.financing.net_interest(), 0.25);
+        }
+        assert_eq!(
+            serde_json::to_value(h).unwrap(),
+            serde_json::to_value(restored).unwrap()
+        );
+    }
+
     fn world() -> Generator {
         world_seed(Config::default().seed)
     }

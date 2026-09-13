@@ -69,3 +69,33 @@ payment rejection without mutation. The complete ordinary library suite passed
 155 tests (130 extended/GPU cases remain explicitly ignored). Strict all-target
 Clippy passed. These checks establish a tested component, not integrated monetary
 conservation or a favorable balance result. Raw logs remain in ignored `output/`.
+
+## Existing-account settlement adapter
+
+`src/credit/accounts.rs` now resolves council, institution, town and operator IDs
+into their existing balances. Unsupported currencies, missing/inactive accounts,
+self transfers and invalid amounts are rejected before mutation. This component
+still requires the pending underwriting and loan-commit layer; calling a cash
+adapter alone is not evidence of an authorized loan.
+
+A quote caps payment to actual funds and reduces the candidate until both account
+representations admit the same debit and credit. If precision prevents a useful
+exact transfer, it returns zero without modifying either account. It does not
+mint a rounding balance, overdraw the lender or claim the requested amount was
+paid. Both endpoints and cumulative operator counters are checked before commit.
+
+Operators persist separate principal-received/paid and interest-received/paid
+counters. Their cash reconciliation includes these flows. Only net interest
+enters the earned-profit calculation; principal does not become service revenue
+or earned dividends. Old operator records default all financing counters to zero.
+No automatic loan origination, collection, issuance or policy is enabled yet.
+
+Adapter verification: seven focused credit tests passed, including 500 combinations
+of account precision, balance scale and requested amount. The hardware-enabled
+operator/town fixture passed, verifying equal cash changes, unchanged service
+revenue, operator reconciliation, rejection without mutation and serialized
+continuation. The ordinary library suite passed 158 tests (131 extended cases
+ignored), and strict all-target Clippy passed. Initial tests exposed a precision
+case that a common-step-size quote did not handle; the final quote checks actual
+endpoint changes and declines incompatible transfers. These are accounting tests,
+not the planned multi-seed credit/issuance balance experiments.

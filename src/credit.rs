@@ -11,6 +11,8 @@ const MAX_LOAN_TERM_MONTHS: u32 = 120;
 const DEFAULT_GRACE_MONTHS: u32 = 3;
 const LEDGER_RELATIVE_TOLERANCE: f64 = 1e-10;
 
+pub mod accounts;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct CurrencyId(pub u32);
 
