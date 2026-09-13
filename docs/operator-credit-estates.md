@@ -6,7 +6,7 @@ cash to its owner. A debt-free closure keeps the existing immediate return of
 cash. A closed creditor can receive payments on its existing loans; it cannot
 issue a new loan or resume production.
 
-`credit::estates` resolves closed operator accounts using the existing cash,
+`credit::estates` resolves closed operator and [institutional](institution-credit-estates.md) accounts using the existing cash,
 financing and capital-return ledgers. At each settlement window it:
 
 1. Observes opening estate cash and accrues existing borrowing obligations to
@@ -41,8 +41,8 @@ An insolvent estate does not automatically erase its remaining debt at closure.
 It retains the original maturity, interest and grace/default rules. Incoming
 receivables can therefore still service its obligations. A defaulted claim keeps
 its loss record; post-default recovery and general bankruptcy priority are not
-implemented here. Inactive institutional treasuries still require their own
-closure integration.
+implemented here. Institutional closure uses the same pass, with a separate exclusion for
+institutions temporarily inactive during relocation.
 
 ## Verification
 
@@ -67,4 +67,4 @@ cargo test --lib operator_estates_pay_claims_before_owners_and_receive_later_rep
 Regression verification also passed: all 15 CPU market tests (two unrelated GPU
 market tests excluded), the existing six-month funded/unfunded GPU workshop and
 checkpoint comparison, and strict all-target Clippy. These are focused execution
-checks; long-run credit balance and institutional estates remain separate work.
+checks; long-run credit balance and broader legal succession remain separate work.

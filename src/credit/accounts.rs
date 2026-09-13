@@ -142,7 +142,7 @@ impl History {
         self.account_balance(account, false)
     }
 
-    /// Retained town and closed-operator cash can settle existing obligations.
+    /// Retained town, institution and operator cash can settle existing obligations.
     /// Operating eligibility remains a separate origination requirement.
     pub(super) fn settlement_balance(&self, account: Account) -> Result<Balance> {
         self.account_balance(account, true)
@@ -170,7 +170,7 @@ impl History {
                 self.culture
                     .as_ref()
                     .and_then(|c| c.institutions.get(id as usize))
-                    .filter(|n| n.id == id && n.active)
+                    .filter(|n| n.id == id && (settlement || n.active))
                     .context("unavailable institution account")?
                     .treasury,
             ),

@@ -183,8 +183,9 @@ repayments without reopening the enterprise. Unpaid claims keep their maturity
 and grace/default rules; post-default recovery and general legal succession
 remain pending.
 
-Inactive institutions still need closure integration: their legacy shutdown path
-moves treasury cash to the town before resolving credit claims. The automatic
+[Institutional estates](institution-credit-estates.md) now retain shutdown cash
+for the same claim settlement, with only actual residual transfers going to the
+home town. Temporarily inactive relocating institutions are excluded. The automatic
 pilots use councils and town commercial payees, while the broader account types
 also support explicit caller-supplied contracts.
 
@@ -219,8 +220,8 @@ firm, a closed creditor whose borrower later pays, simultaneous debtor/creditor
 closure, institution relocation versus dissolution, and a council leader change.
 Test cash and claims independently: an assigned receivable is not spendable money,
 and a write-off does not erase cash already returned to an owner. Town settlement
-and the bounded operator estate mechanism cover part of this boundary; they do
-not complete institutional closure, claim assignment or post-default recovery.
+and bounded operator/institution estate mechanisms cover part of this boundary;
+they do not complete legal claim assignment or post-default recovery.
 
 ## Stage 1B: bounded shared-currency issuance
 

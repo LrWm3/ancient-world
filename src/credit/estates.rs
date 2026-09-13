@@ -1,4 +1,4 @@
-//! Retained operator cash, early repayment and residual owner distributions.
+//! Retained closed-account cash, early repayment and residual distributions.
 use super::{Account, Status};
 use crate::civilization::History;
 use anyhow::{ensure, Result};
@@ -6,40 +6,58 @@ use std::collections::BTreeMap;
 
 impl super::state::Credit {
     pub(crate) fn operator_has_debt(&self, id: u32) -> bool {
+        self.account_has_debt(Account::Operator(id))
+    }
+
+    fn account_has_debt(&self, account: Account) -> bool {
         self.loans.iter().any(|loan| {
-            loan.terms.borrower == Account::Operator(id)
+            loan.terms.borrower == account
                 && matches!(loan.status, Status::Performing | Status::Arrears)
         })
     }
 }
 
 impl History {
-    /// Called after Open collection and after each operator closure window.
+    /// Called around Open collection and after operator/cultural closure windows.
     /// Equal-ranking claims share an opening cash snapshot, including unmatured
     /// loans whose existing terms permit early repayment. Unpaid claims retain
     /// their original maturity/default rules; closure never fabricates a loss.
-    pub(crate) fn settle_operator_estates(&mut self) -> Result<()> {
-        let Some(enterprises) = &self.enterprises else {
-            return Ok(());
-        };
-        let closed: BTreeMap<_, _> = enterprises
-            .firms
-            .iter()
-            .filter(|f| f.closed.is_some() && f.cash > 0.)
-            .map(|f| (f.id, f.cash))
-            .collect();
+    pub(crate) fn settle_credit_estates(&mut self) -> Result<()> {
+        let mut closed = BTreeMap::<Account, f64>::new();
+        if let Some(enterprises) = &self.enterprises {
+            closed.extend(
+                enterprises
+                    .firms
+                    .iter()
+                    .filter(|f| f.closed.is_some() && f.cash > 0.)
+                    .map(|f| (Account::Operator(f.id), f.cash)),
+            );
+        }
+        if let Some(culture) = &self.culture {
+            let traveling: std::collections::BTreeSet<_> = culture
+                .relocations
+                .iter()
+                .filter(|m| m.arrived.is_none())
+                .map(|m| m.institution)
+                .collect();
+            closed.extend(
+                culture
+                    .institutions
+                    .iter()
+                    .filter(|n| !n.active && n.treasury > 0. && !traveling.contains(&n.id))
+                    .map(|n| (Account::Institution(n.id), n.treasury)),
+            );
+        }
         if closed.is_empty() {
             return Ok(());
         }
         let mut loans = self.credit.loans.clone();
-        let mut claims = BTreeMap::<u32, f64>::new();
+        let mut claims = BTreeMap::<Account, f64>::new();
         for loan in &mut loans {
-            if let Account::Operator(id) = loan.terms.borrower {
-                if closed.contains_key(&id) {
-                    loan.accrue_to(self.month)?;
-                    if matches!(loan.status, Status::Performing | Status::Arrears) {
-                        *claims.entry(id).or_default() += loan.total_due();
-                    }
+            if closed.contains_key(&loan.terms.borrower) {
+                loan.accrue_to(self.month)?;
+                if matches!(loan.status, Status::Performing | Status::Arrears) {
+                    *claims.entry(loan.terms.borrower).or_default() += loan.total_due();
                 }
             }
         }
@@ -49,14 +67,15 @@ impl History {
         );
         let mut plans = Vec::new();
         for loan in &loans {
-            if let Account::Operator(id) = loan.terms.borrower {
-                if let Some(cash) = closed.get(&id) {
-                    if matches!(loan.status, Status::Performing | Status::Arrears)
-                        && claims[&id] > 0.
-                        && self.settlement_balance(loan.terms.lender).is_ok()
-                    {
-                        plans.push((loan.id, loan.total_due() * (cash / claims[&id]).min(1.)));
-                    }
+            if let Some(cash) = closed.get(&loan.terms.borrower) {
+                if matches!(loan.status, Status::Performing | Status::Arrears)
+                    && claims[&loan.terms.borrower] > 0.
+                    && self.settlement_balance(loan.terms.lender).is_ok()
+                {
+                    plans.push((
+                        loan.id,
+                        loan.total_due() * (cash / claims[&loan.terms.borrower]).min(1.),
+                    ));
                 }
             }
         }
@@ -71,9 +90,32 @@ impl History {
         let releasable: Vec<_> = closed
             .keys()
             .copied()
-            .filter(|id| !self.credit.operator_has_debt(*id))
+            .filter(|account| !self.credit.account_has_debt(*account))
             .collect();
-        for id in releasable {
+        for account in releasable {
+            if let Account::Institution(id) = account {
+                let n = &self.culture.as_ref().unwrap().institutions[id as usize];
+                let (site, cash, expenses) = (n.site, n.treasury, n.expenses);
+                ensure!(
+                    (expenses + cash).is_finite(),
+                    "institution estate distribution overflow"
+                );
+                let actual = self
+                    .transfer_credit_cash(
+                        account,
+                        Account::Town(site),
+                        super::SHARED_CURRENCY,
+                        cash,
+                        0.,
+                    )?
+                    .amount();
+                self.culture.as_mut().unwrap().institutions[id as usize].expenses += actual;
+                // A precision-blocked remainder stays in the original treasury.
+                continue;
+            }
+            let Account::Operator(id) = account else {
+                unreachable!("closed account kind");
+            };
             let f = &self.enterprises.as_ref().unwrap().firms[id as usize];
             if f.cash == 0. {
                 continue;

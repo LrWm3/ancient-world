@@ -584,3 +584,18 @@ the estate pass. Insolvent unpaid claims retain their normal maturity and defaul
 rules, rather than becoming fabricated repayment at closure. Inactive institution
 shutdown, post-default recovery, general legal assignment and broader balance
 evaluation remain unfinished. This does not enable automatic operator lending.
+
+## Institutional shutdown and traveling accounts
+
+[Institutional estates](institution-credit-estates.md) now share the operator
+estate settlement policy. Shutdown retains cash for live claims; debt-free
+residuals go to the existing home town through an exact transfer. Inactive
+creditors can receive later repayments without acquiring new-credit eligibility.
+Untransferable town-precision remainders remain in their original treasury.
+
+An unfinished institutional relocation excludes its temporarily inactive account
+from liquidation. The funded relocation fixture includes a live loan and verifies
+that estate processing leaves the traveling institution, treasury and claims
+unchanged before arrival. This preserves relocation as continuity rather than
+mistaking it for dissolution. Formal legal assignments and post-default recovery
+remain unfinished.

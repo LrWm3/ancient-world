@@ -2175,9 +2175,8 @@ impl Culture {
             }
             if h.sites[site as usize].abandoned || people.is_empty() {
                 n.active = false;
-                h.sites[site as usize].economy.finance[0] += n.treasury as f32;
-                n.expenses += n.treasury;
-                n.treasury = 0.;
+                // The Respond estate window resolves claims before returning
+                // residual treasury cash to the town. Inactivity is not payment.
             }
         }
         for ti in 0..self.traditions.len() {

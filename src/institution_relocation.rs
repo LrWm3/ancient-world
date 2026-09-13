@@ -277,9 +277,29 @@ mod tests {
             capacity: Some(crate::institution_capacity::Capacity::new(h.month)),
         });
         h.culture = Some(c);
+        h.commit_credit_loan(
+            crate::credit::Terms {
+                lender: crate::credit::Account::Institution(id),
+                borrower: crate::credit::Account::Town(to),
+                currency: crate::credit::SHARED_CURRENCY,
+                source: crate::credit::RepaymentSource::ServiceOrder {
+                    order: 0,
+                    payment_month: h.month + 12,
+                },
+                annual_simple_rate: 0.,
+                maturity_month: h.month + 12,
+                grace_months: 1,
+            },
+            10.,
+        )
+        .unwrap()
+        .unwrap();
         let treasury = h.culture.as_ref().unwrap().institutions[id as usize].treasury;
         h.relocate_institution(id, to).unwrap();
         assert!(h.relocate_institution(id, to).is_err());
+        let traveling = serde_json::to_value(&*h).unwrap();
+        h.settle_credit_estates().unwrap();
+        assert_eq!(traveling, serde_json::to_value(&*h).unwrap());
         let c = h.culture.as_ref().unwrap();
         assert_eq!(c.artifacts[artifact as usize].site, None);
         assert!(c.institutions[id as usize].treasury < treasury);

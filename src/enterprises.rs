@@ -1837,6 +1837,193 @@ mod tests {
 
     #[test]
     #[ignore = "requires hardware GPU"]
+    fn institutional_estates_retain_claims_and_return_only_actual_residual_cash() {
+        use crate::credit::{Account, RepaymentSource, Status, Terms, SHARED_CURRENCY};
+        use crate::culture::{Institution, InstitutionKind};
+        let mut g = world();
+        let base = g.civilizations.as_mut().unwrap();
+        base.month = 3;
+        let id = base.culture.as_ref().unwrap().institutions.len() as u32;
+        base.culture
+            .as_mut()
+            .unwrap()
+            .institutions
+            .push(Institution {
+                id,
+                name: "Estate fixture".into(),
+                kind: InstitutionKind::Scholarly,
+                site: 0,
+                tradition: None,
+                members: vec![base.civilizations[0].leader],
+                leader: base.civilizations[0].leader,
+                treasury: 0.,
+                active: true,
+                founded: 3,
+                knowledge: Default::default(),
+                property: vec![],
+                dues: 0.,
+                expenses: 0.,
+                capacity: None,
+            });
+        let terms = |lender, borrower, source| Terms {
+            lender,
+            borrower,
+            currency: SHARED_CURRENCY,
+            source: RepaymentSource::ServiceOrder {
+                order: source,
+                payment_month: 15,
+            },
+            annual_simple_rate: 0.,
+            maturity_month: 15,
+            grace_months: 1,
+        };
+        for insolvent in [false, true] {
+            let mut h = base.clone();
+            let residual = h.economy_residuals()[3];
+            for lender in [1, 2] {
+                h.commit_credit_loan(
+                    terms(
+                        Account::Town(lender),
+                        Account::Institution(id),
+                        lender as u64,
+                    ),
+                    20.,
+                )
+                .unwrap()
+                .unwrap();
+            }
+            if insolvent {
+                h.transfer_credit_cash(
+                    Account::Institution(id),
+                    Account::Council(0),
+                    SHARED_CURRENCY,
+                    30.,
+                    0.,
+                )
+                .unwrap();
+            } else {
+                h.transfer_credit_cash(
+                    Account::Town(3),
+                    Account::Institution(id),
+                    SHARED_CURRENCY,
+                    20.,
+                    0.,
+                )
+                .unwrap();
+            }
+            // Moving an active institution does not liquidate its treasury or
+            // alter the identities of its loans.
+            let mut relocated = h.clone();
+            relocated.culture.as_mut().unwrap().institutions[id as usize].site = 1;
+            let before = serde_json::to_value(&relocated).unwrap();
+            relocated.settle_credit_estates().unwrap();
+            assert_eq!(before, serde_json::to_value(&relocated).unwrap());
+            h.culture.as_mut().unwrap().institutions[id as usize].active = false;
+            let opening = serde_json::to_value(&h).unwrap();
+            assert!(h
+                .commit_credit_loan(terms(Account::Town(1), Account::Institution(id), 3), 1.)
+                .is_err());
+            assert_eq!(opening, serde_json::to_value(&h).unwrap());
+            let mut resumed: History = serde_json::from_value(opening).unwrap();
+            for world in [&mut h, &mut resumed] {
+                let town_cash = world.sites[0].economy.finance[0] as f64;
+                world.settle_credit_estates().unwrap();
+                let n = &world.culture.as_ref().unwrap().institutions[id as usize];
+                assert!(!n.active);
+                assert_eq!(n.dues, 0.); // Loan principal is not institutional income.
+                assert!((world.economy_residuals()[3] - residual).abs() < 1e-8);
+                let payments: Vec<_> = world
+                    .credit
+                    .cash_receipts
+                    .iter()
+                    .filter(|r| !r.disbursement)
+                    .map(|r| r.transfer.amount())
+                    .collect();
+                if insolvent {
+                    assert_eq!(payments, vec![5., 5.]);
+                    assert_eq!(n.expenses, 0.);
+                    assert_eq!(world.sites[0].economy.finance[0] as f64, town_cash);
+                    assert!(world
+                        .credit
+                        .loans
+                        .iter()
+                        .all(|l| l.outstanding_principal == 15. && l.status == Status::Performing));
+                } else {
+                    assert_eq!(payments, vec![20., 20.]);
+                    assert!(world
+                        .credit
+                        .loans
+                        .iter()
+                        .all(|l| l.status == Status::Repaid));
+                    let received = world.sites[0].economy.finance[0] as f64 - town_cash;
+                    assert_eq!(received, n.expenses);
+                    assert!((received + n.treasury - 20.).abs() < 1e-8);
+                }
+                world.validate_credit().unwrap();
+                let once = serde_json::to_value(&world).unwrap();
+                world.settle_credit_estates().unwrap();
+                assert_eq!(once, serde_json::to_value(&world).unwrap());
+            }
+            assert_eq!(
+                serde_json::to_value(h).unwrap(),
+                serde_json::to_value(resumed).unwrap()
+            );
+        }
+        let mut h = base.clone();
+        let residual = h.economy_residuals()[3];
+        h.transfer_credit_cash(
+            Account::Town(3),
+            Account::Institution(id),
+            SHARED_CURRENCY,
+            20.,
+            0.,
+        )
+        .unwrap();
+        h.commit_credit_loan(terms(Account::Institution(id), Account::Town(1), 4), 10.)
+            .unwrap()
+            .unwrap();
+        h.culture.as_mut().unwrap().institutions[id as usize].active = false;
+        h.settle_credit_estates().unwrap();
+        h.month = 15;
+        let paid = h.pay_credit_loan(0, 10.).unwrap();
+        assert!(paid > 9.99);
+        let n = &h.culture.as_ref().unwrap().institutions[id as usize];
+        let pending = n.treasury;
+        let expenses = n.expenses;
+        let town_cash = h.sites[0].economy.finance[0] as f64;
+        h.settle_credit_estates().unwrap();
+        let n = &h.culture.as_ref().unwrap().institutions[id as usize];
+        let received = h.sites[0].economy.finance[0] as f64 - town_cash;
+        assert_eq!(n.expenses - expenses, received);
+        assert!((pending - n.treasury - received).abs() < 1e-8);
+        assert!(!n.active);
+        h.validate_credit().unwrap();
+        assert!((h.economy_residuals()[3] - residual).abs() < 1e-8);
+
+        // Force the annual cultural shutdown condition and verify that its
+        // treasury survives until the explicit Respond estate window.
+        let mut h = base.clone();
+        h.commit_credit_loan(terms(Account::Town(1), Account::Institution(id), 6), 20.)
+            .unwrap()
+            .unwrap();
+        h.sites[0].abandoned = true;
+        h.month = 12;
+        h.culture_month();
+        let n = &h.culture.as_ref().unwrap().institutions[id as usize];
+        assert!(!n.active);
+        assert_eq!(n.treasury, 20.);
+        assert_eq!(n.expenses, 0.);
+        h.settle_credit_estates().unwrap();
+        assert_eq!(h.credit.loans[0].status, Status::Repaid);
+        assert_eq!(
+            h.culture.as_ref().unwrap().institutions[id as usize].treasury,
+            0.
+        );
+        h.validate_credit().unwrap();
+    }
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
     fn operator_estates_pay_claims_before_owners_and_receive_later_repayments() {
         use crate::credit::{Account, RepaymentSource, Status, Terms, SHARED_CURRENCY};
         let mut g = world();
@@ -1913,7 +2100,7 @@ mod tests {
             assert_eq!(snapshot, serde_json::to_value(&h).unwrap());
             let mut resumed: History = serde_json::from_value(snapshot).unwrap();
             for world in [&mut h, &mut resumed] {
-                world.settle_operator_estates().unwrap();
+                world.settle_credit_estates().unwrap();
                 let expected = if insolvent { 5. } else { 20. };
                 let payments: Vec<_> = world
                     .credit
@@ -1952,7 +2139,7 @@ mod tests {
                 world.enterprises.as_ref().unwrap().validate(world).unwrap();
                 assert!((world.economy_residuals()[3] - residual).abs() < 1e-8);
                 let once = serde_json::to_value(&world).unwrap();
-                world.settle_operator_estates().unwrap();
+                world.settle_credit_estates().unwrap();
                 assert_eq!(once, serde_json::to_value(&world).unwrap());
             }
             assert_eq!(
@@ -1984,7 +2171,7 @@ mod tests {
         // Town cash uses f32, so assert against the actual exact-transfer receipt.
         assert!(paid > 9.99 && paid <= 10.);
         assert_eq!(h.enterprises.as_ref().unwrap().firms[0].cash, paid);
-        h.settle_operator_estates().unwrap();
+        h.settle_credit_estates().unwrap();
         assert_eq!(h.enterprises.as_ref().unwrap().firms[0].cash, 0.);
         assert!(h.enterprises.as_ref().unwrap().firms[0].closed.is_some());
         assert_eq!(

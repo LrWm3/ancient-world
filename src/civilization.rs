@@ -1398,9 +1398,9 @@ impl Generator {
         h.answer_appeals_observed(&relief_observations)?;
         h.restore_returning_settlements();
         self.prepare_economy(h);
-        h.settle_operator_estates()?;
+        h.settle_credit_estates()?;
         h.service_credit_month()?;
-        h.settle_operator_estates()?;
+        h.settle_credit_estates()?;
         if h.resources.is_some() && h.sites.iter().any(|s| s.economy.claim[3] < 0.5) {
             engine.upload(self, h);
             engine.claim(self);
@@ -1464,7 +1464,7 @@ impl Generator {
         h.renegotiate_export_credit_month()?;
         h.commercial_credit_month()?;
         h.prepare_enterprises();
-        h.settle_operator_estates()?;
+        h.settle_credit_estates()?;
         h.prepare_vessels();
         if h.agriculture_refinement_enabled() {
             let forecast = engine.forecast_labor(self, h)?;
@@ -1501,7 +1501,7 @@ impl Generator {
         h.settle_agriculture()?;
         h.settle_resources(extraction_allowances)?;
         h.settle_enterprises();
-        h.settle_operator_estates()?;
+        h.settle_credit_estates()?;
         h.settle_workshop_resolutions()?;
         h.settle_vessel_crews()?;
         h.storage_events();
@@ -1531,6 +1531,7 @@ impl Generator {
         h.social_month()?;
         h.genealogy_month();
         h.culture_month();
+        h.settle_credit_estates()?;
         h.office_month();
         h.resolve_artifact_petitions();
         let governance_observations = h.observe_governance();

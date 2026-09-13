@@ -16,7 +16,7 @@ fn patron_catalog_and_inverse_service_are_bounded() {
     let human = c.patrons.iter().find(|p| p.id == "human_guide").unwrap();
     assert_eq!(human.name, "Human guide");
     assert_eq!(human.kind, "intelligent");
-    assert!(human.appearance.contains("ordinary human"));
+    assert_eq!(human.appearance, "An ape-like biped.");
     let o = FoundingOptions::default();
     for v in [0.85, 1., 1.15] {
         assert!(o.duration(false, 1., v) < o.duration(false, 0., v));

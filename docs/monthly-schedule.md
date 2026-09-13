@@ -490,3 +490,8 @@ Execute/settle. Each pass plans against its own opening cash. It repays existing
 claims before releasing retained cash to the owner; closing a workshop does not
 turn its borrowings into household capital. New credit still requires an active
 operator. This is an explicit financial settlement hook, not a scheduler reorder.
+
+Institutional shutdown now defers treasury distribution to the shared estate pass
+immediately after Respond's `culture_month`. The same pass excludes institutions
+with unfinished relocation journeys. See [institutional estates](institution-credit-estates.md)
+for the explicit difference between shutdown and temporary inactivity.
