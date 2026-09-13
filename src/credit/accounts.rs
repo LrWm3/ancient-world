@@ -142,8 +142,8 @@ impl History {
         self.account_balance(account, false)
     }
 
-    /// Abandoned towns retain their treasury. Existing obligations can use it,
-    /// although the town is ineligible to enter a new lending contract.
+    /// Retained town and closed-operator cash can settle existing obligations.
+    /// Operating eligibility remains a separate origination requirement.
     pub(super) fn settlement_balance(&self, account: Account) -> Result<Balance> {
         self.account_balance(account, true)
     }
@@ -178,7 +178,7 @@ impl History {
                 self.enterprises
                     .as_ref()
                     .and_then(|e| e.firms.get(id as usize))
-                    .filter(|f| f.id == id && f.closed.is_none())
+                    .filter(|f| f.id == id && (settlement || f.closed.is_none()))
                     .context("unavailable operator account")?
                     .cash,
             ),

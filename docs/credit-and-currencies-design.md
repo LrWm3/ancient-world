@@ -175,17 +175,20 @@ must be an explicit extension with a boundary test.
 ## Remaining Stage 1 ownership boundary: closure and succession
 
 New-credit account adapters reject abandoned towns, inactive institutions and
-closed operators. Existing town debts now use retained town treasuries for
-settlement even after abandonment; the town stays abandoned and cannot enter a
-new contract. Inactive institutions and closed operators still need estate
-resolution before their creditors can reliably receive repayment. `enterprises::close` currently
-returns all operator cash to its household before closing; the legacy institution
-shutdown path moves treasury cash to its town. Neither operation first resolves
-credit claims. These paths need integration before general operator/institution
-lending is considered complete. The automatic pilots currently use councils and
-town commercial payees, but account adapters already expose the broader types.
+closed operators. Existing town debts use retained town treasuries after
+abandonment. [Closed operator accounts](operator-credit-estates.md) now retain
+cash for borrowing claims, repay proportionally using existing early-repayment
+terms, and return residual cash to the existing owner. They can receive later
+repayments without reopening the enterprise. Unpaid claims keep their maturity
+and grace/default rules; post-default recovery and general legal succession
+remain pending.
 
-Implement this as a separate, reviewed increment:
+Inactive institutions still need closure integration: their legacy shutdown path
+moves treasury cash to the town before resolving credit claims. The automatic
+pilots use councils and town commercial payees, while the broader account types
+also support explicit caller-supplied contracts.
+
+Remaining estate work and the broader acceptance requirements:
 
 1. Separate operating eligibility from legal account/estate existence. Closing
    prevents new borrowing and offers immediately. Existing claims keep their IDs
@@ -215,8 +218,9 @@ Required fixtures include an indebted firm closing with ample cash, an insolvent
 firm, a closed creditor whose borrower later pays, simultaneous debtor/creditor
 closure, institution relocation versus dissolution, and a council leader change.
 Test cash and claims independently: an assigned receivable is not spendable money,
-and a write-off does not erase cash already returned to an owner. This section is
-remaining work, not a claim that an estate mechanism is implemented.
+and a write-off does not erase cash already returned to an owner. Town settlement
+and the bounded operator estate mechanism cover part of this boundary; they do
+not complete institutional closure, claim assignment or post-default recovery.
 
 ## Stage 1B: bounded shared-currency issuance
 

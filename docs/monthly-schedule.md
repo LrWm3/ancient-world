@@ -481,3 +481,12 @@ commitments. Consent/coverage receipts record accepted or declined extensions.
 Open has already collected due money and applied expired grace periods; this
 operation cannot reverse those outcomes or lend fresh principal. The immutable
 source remains pledged during the single permitted extension.
+
+## Closed operator credit accounts
+
+[Operator estate settlement](operator-credit-estates.md) runs before and after
+Open debt collection and after the two operator closure windows in Reserve and
+Execute/settle. Each pass plans against its own opening cash. It repays existing
+claims before releasing retained cash to the owner; closing a workshop does not
+turn its borrowings into household capital. New credit still requires an active
+operator. This is an explicit financial settlement hook, not a scheduler reorder.

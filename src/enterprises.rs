@@ -283,9 +283,8 @@ impl Enterprises {
             );
             ensure!(
                 f.completed_work <= f.paid_work + COMPLETED_WORK_TOLERANCE * (1. + f.paid_work)
-                    && f.last_completed_work <= f.last_funded_work + COMPLETED_WORK_TOLERANCE
-                    && (f.closed.is_none() || f.cash == 0.),
-                "unfunded enterprise work or stranded liquidation"
+                    && f.last_completed_work <= f.last_funded_work + COMPLETED_WORK_TOLERANCE,
+                "unfunded enterprise work"
             );
         }
         if !self.firms.is_empty() {
@@ -314,11 +313,13 @@ impl Enterprises {
         Ok(())
     }
 }
-fn close(f: &mut Firm, owner: &mut HouseholdAccount, month: u32, reason: &str) {
-    owner.cash += f.cash;
-    owner.capital_returned += f.cash;
-    f.liquidation += f.cash;
-    f.cash = 0.;
+fn close(f: &mut Firm, owner: &mut HouseholdAccount, month: u32, reason: &str, retain: bool) {
+    if !retain {
+        owner.cash += f.cash;
+        owner.capital_returned += f.cash;
+        f.liquidation += f.cash;
+        f.cash = 0.;
+    }
     f.closed = Some(month);
     f.closing_reason = Some(reason.into());
 }
@@ -431,8 +432,14 @@ impl History {
                 None
             };
             if let Some(reason) = reason {
-                close(f, &mut e.accounts[f.owner as usize], self.month, reason);
-                notices.push(("enterprise_closed",f.site,format!("Workshop operator {} closed: {}; remaining cash returned to household {} and equipment lease released",f.id,reason,f.owner)));
+                close(
+                    f,
+                    &mut e.accounts[f.owner as usize],
+                    self.month,
+                    reason,
+                    self.credit.operator_has_debt(f.id),
+                );
+                notices.push(("enterprise_closed",f.site,format!("Workshop operator {} closed: {}; cash retained for outstanding debt or returned to household {} and equipment lease released",f.id,reason,f.owner)));
             }
         }
         // Founders supply actual wallet capital. No city grant, loan or new workshop is implied.
@@ -841,7 +848,13 @@ impl History {
                 None
             };
             if let Some(reason) = reason {
-                close(f, &mut e.accounts[f.owner as usize], self.month, reason);
+                close(
+                    f,
+                    &mut e.accounts[f.owner as usize],
+                    self.month,
+                    reason,
+                    self.credit.operator_has_debt(f.id),
+                );
                 notices.push((f.site,format!("Workshop operator {} closed: {}; revenue {:.2}, wages {:.2}, rent {:.2}, liquidation {:.2}; lease returned to communal production",f.id,reason,f.revenue,f.wages,f.rent,f.liquidation)));
             }
         }
@@ -1820,6 +1833,201 @@ mod tests {
         );
         assert!(e.enterprise_used[1] <= e.enterprise_plan[1] + 1e-4);
         assert!(h.economy_residuals().iter().all(|r| r.abs() < 0.02));
+    }
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn operator_estates_pay_claims_before_owners_and_receive_later_repayments() {
+        use crate::credit::{Account, RepaymentSource, Status, Terms, SHARED_CURRENCY};
+        let mut g = world();
+        install(&mut g);
+        let base = g.civilizations.as_mut().unwrap();
+        base.month = 3;
+        base.prepare_enterprises();
+        base.settle_enterprises();
+        assert_eq!(base.enterprises.as_ref().unwrap().firms.len(), 1);
+        let terms = |lender, borrower, source| Terms {
+            lender,
+            borrower,
+            currency: SHARED_CURRENCY,
+            source: RepaymentSource::ServiceOrder {
+                order: source,
+                payment_month: 15,
+            },
+            annual_simple_rate: 0.,
+            maturity_month: 15,
+            grace_months: 1,
+        };
+        for insolvent in [false, true] {
+            let mut h = base.clone();
+            let residual = h.economy_residuals()[3];
+            for lender in [1, 2] {
+                h.commit_credit_loan(
+                    terms(Account::Town(lender), Account::Operator(0), lender as u64),
+                    20.,
+                )
+                .unwrap()
+                .unwrap();
+            }
+            if insolvent {
+                let cash = h.enterprises.as_ref().unwrap().firms[0].cash;
+                h.transfer_credit_cash(
+                    Account::Operator(0),
+                    Account::Council(0),
+                    SHARED_CURRENCY,
+                    cash - 10.,
+                    0.,
+                )
+                .unwrap();
+            }
+            let opening = h.enterprises.as_ref().unwrap().firms[0].cash;
+            let owner = h.enterprises.as_ref().unwrap().firms[0].owner as usize;
+            let returned = h
+                .society
+                .as_ref()
+                .unwrap()
+                .household_economy
+                .as_ref()
+                .unwrap()
+                .accounts[owner]
+                .capital_returned;
+            h.enterprises.as_mut().unwrap().enabled = false;
+            h.prepare_enterprises();
+            assert!(h.enterprises.as_ref().unwrap().firms[0].closed.is_some());
+            assert_eq!(h.enterprises.as_ref().unwrap().firms[0].cash, opening);
+            assert_eq!(
+                h.society
+                    .as_ref()
+                    .unwrap()
+                    .household_economy
+                    .as_ref()
+                    .unwrap()
+                    .accounts[owner]
+                    .capital_returned,
+                returned
+            );
+            let snapshot = serde_json::to_value(&h).unwrap();
+            assert!(h
+                .commit_credit_loan(terms(Account::Town(1), Account::Operator(0), 3), 1.)
+                .is_err());
+            assert_eq!(snapshot, serde_json::to_value(&h).unwrap());
+            let mut resumed: History = serde_json::from_value(snapshot).unwrap();
+            for world in [&mut h, &mut resumed] {
+                world.settle_operator_estates().unwrap();
+                let expected = if insolvent { 5. } else { 20. };
+                let payments: Vec<_> = world
+                    .credit
+                    .cash_receipts
+                    .iter()
+                    .filter(|r| !r.disbursement)
+                    .map(|r| r.transfer.amount())
+                    .collect();
+                assert_eq!(payments, vec![expected, expected]);
+                if insolvent {
+                    assert!(world
+                        .credit
+                        .loans
+                        .iter()
+                        .all(|l| l.outstanding_principal == 15. && l.status == Status::Performing));
+                } else {
+                    assert!(world
+                        .credit
+                        .loans
+                        .iter()
+                        .all(|l| l.status == Status::Repaid));
+                }
+                assert_eq!(world.enterprises.as_ref().unwrap().firms[0].cash, 0.);
+                let distributed = world
+                    .society
+                    .as_ref()
+                    .unwrap()
+                    .household_economy
+                    .as_ref()
+                    .unwrap()
+                    .accounts[owner]
+                    .capital_returned
+                    - returned;
+                assert!((distributed - (opening - 2. * expected)).abs() < 1e-8);
+                world.validate_credit().unwrap();
+                world.enterprises.as_ref().unwrap().validate(world).unwrap();
+                assert!((world.economy_residuals()[3] - residual).abs() < 1e-8);
+                let once = serde_json::to_value(&world).unwrap();
+                world.settle_operator_estates().unwrap();
+                assert_eq!(once, serde_json::to_value(&world).unwrap());
+            }
+            assert_eq!(
+                serde_json::to_value(h).unwrap(),
+                serde_json::to_value(resumed).unwrap()
+            );
+        }
+        // A closed creditor's identity survives: later repayment enters its
+        // account, then reaches the existing owner without reopening the firm.
+        let mut h = base.clone();
+        let residual = h.economy_residuals()[3];
+        h.commit_credit_loan(terms(Account::Operator(0), Account::Town(0), 4), 10.)
+            .unwrap()
+            .unwrap();
+        h.enterprises.as_mut().unwrap().enabled = false;
+        h.prepare_enterprises();
+        let owner = h.enterprises.as_ref().unwrap().firms[0].owner as usize;
+        let returned = h
+            .society
+            .as_ref()
+            .unwrap()
+            .household_economy
+            .as_ref()
+            .unwrap()
+            .accounts[owner]
+            .capital_returned;
+        h.month = 15;
+        let paid = h.pay_credit_loan(0, 10.).unwrap();
+        // Town cash uses f32, so assert against the actual exact-transfer receipt.
+        assert!(paid > 9.99 && paid <= 10.);
+        assert_eq!(h.enterprises.as_ref().unwrap().firms[0].cash, paid);
+        h.settle_operator_estates().unwrap();
+        assert_eq!(h.enterprises.as_ref().unwrap().firms[0].cash, 0.);
+        assert!(h.enterprises.as_ref().unwrap().firms[0].closed.is_some());
+        assert_eq!(
+            h.society
+                .as_ref()
+                .unwrap()
+                .household_economy
+                .as_ref()
+                .unwrap()
+                .accounts[owner]
+                .capital_returned,
+            returned + paid
+        );
+        h.validate_credit().unwrap();
+        h.enterprises.as_ref().unwrap().validate(&h).unwrap();
+        assert!((h.economy_residuals()[3] - residual).abs() < 1e-8);
+
+        // Exercise the actual Reserve closure and settlement hooks too.
+        let h = g.civilizations.as_mut().unwrap();
+        h.commit_credit_loan(terms(Account::Town(1), Account::Operator(0), 5), 20.)
+            .unwrap()
+            .unwrap();
+        h.enterprises.as_mut().unwrap().enabled = false;
+        let path =
+            std::env::temp_dir().join(format!("operator-estate-{}.world", std::process::id()));
+        g.save(&path).unwrap();
+        let mut resumed = Generator::load(g.gpu.clone(), &path).unwrap();
+        std::fs::remove_file(path).unwrap();
+        for world in [&mut g, &mut resumed] {
+            world.advance_history(1).unwrap();
+            let h = world.civilizations.as_ref().unwrap();
+            assert_eq!(h.credit.loans[0].status, Status::Repaid);
+            assert!(h.enterprises.as_ref().unwrap().firms[0].closed.is_some());
+            assert_eq!(h.enterprises.as_ref().unwrap().firms[0].cash, 0.);
+            assert_eq!(h.sites[0].economy.enterprise_used[1], 0.);
+            h.validate_credit().unwrap();
+            h.enterprises.as_ref().unwrap().validate(h).unwrap();
+            assert!(h.economy_residuals().iter().all(|v| v.abs() < 0.02));
+        }
+        assert_eq!(
+            serde_json::to_vec(&g.civilizations).unwrap(),
+            serde_json::to_vec(&resumed.civilizations).unwrap()
+        );
     }
 
     #[test]

@@ -567,3 +567,20 @@ require debt-aware liquidation and receivable succession; inactive institutions
 need equivalent treatment of their distributed treasuries. Their account filters
 are deliberately unchanged. Neither automatic legal succession nor general
 estate administration is implemented by this change.
+
+
+## Operator credit estates
+
+[Closed operator accounts](operator-credit-estates.md) now keep borrowing claims
+ahead of liquidation returns. Closure retains cash for live debts; proportional
+early repayment uses actual existing money and the original contracts. Closed
+creditors can receive later payments and return residual cash to their existing
+household owner. No account reopens and no household inherits personal borrowing
+liability. Plans use opening estate cash rather than spending another estate's
+same-pass incoming payment according to iteration order.
+
+Open settlement and the existing Reserve/Execute closure windows explicitly call
+the estate pass. Insolvent unpaid claims retain their normal maturity and default
+rules, rather than becoming fabricated repayment at closure. Inactive institution
+shutdown, post-default recovery, general legal assignment and broader balance
+evaluation remain unfinished. This does not enable automatic operator lending.

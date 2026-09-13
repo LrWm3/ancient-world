@@ -16,6 +16,7 @@ const LEDGER_RELATIVE_TOLERANCE: f64 = 1e-10;
 pub mod accounts;
 pub mod commercial;
 pub mod councils;
+pub mod estates;
 pub mod exports;
 pub mod issuance;
 pub mod restructuring;
