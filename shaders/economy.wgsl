@@ -150,9 +150,22 @@ const STAFFING_TOOL_SHORTAGE_CRAFT_TRANSFER: f32 = .08;
 // Fishing access and workforce limits; guild order is grazer, migrant, predator.
 const FISHERY_GUILD_CATCHABILITY: array<f32,3> = array<f32,3>(1.,.25,.1);
 const LEGACY_FISHERY_KG_PER_WORKER_MONTH: f32 = .02;
-const LEGACY_FISHERY_MONTHLY_ACCESSIBLE_FRACTION: f32 = .001;
+const FISHERY_MONTHLY_ACCESSIBLE_FRACTION: f32 = .001;
 const FISHERY_MAX_WORKFORCE_SHARE: f32 = .25;
 const FISHERY_REMAINING_WORK_SHARE_FLOOR: f32 = .001;
+// Adaptive equipment, investment forecasts and finite catch guards.
+const FISHERY_MONTHLY_EQUIPMENT_WEAR: f32 = .003;
+const FISHERY_RAW_STOCK_TARGET_MONTHS: f32 = 6.;
+const FISHERY_ENERGY_DENOMINATOR_FLOOR: f32 = .001;
+const FISHERY_CATCH_RATE_FLOOR: f32 = .001;
+const FISHERY_CREW_DENOMINATOR_FLOOR: f32 = .001;
+const FISHERY_FOOD_RETURN_FLOOR: f32 = .001;
+const FISHERY_TRAP_PRODUCTIVITY: f32 = .35;
+const FISHERY_OUTFIT_PRODUCTIVITY_BONUS: f32 = .65;
+const FISHERY_CONSTRUCTION_WORKER_MONTHS_PER_CREW: f32 = 2.;
+const FISHERY_AMORTIZATION_MONTHS: f32 = 12.;
+const FISHERY_CONSTRUCTION_WORK_SHARE: f32 = .25;
+const FISHERY_NUTRIENT_FRACTION_FLOOR: f32 = 1e-9;
 struct Economy {
  farm_workers:vec4<f32>, extraction_workers:vec4<f32>, construction_workers:vec4<f32>,
  production_probe:vec4<f32>, food_labor:vec4<f32>,
@@ -717,18 +730,18 @@ fn adaptive_fish_plots(){
  if economies[i].fishery.w<.5 && dot(economies[i].fishery.xyz,vec3(1.))+economies[i].fishery_traps.x<=0.{continue;}
  let s=src[i];let materials=array<u32,3>(0u,3u,16u);let cost=vec3(FISHERY_BOAT_WOOD_KG_PER_CREW,FISHERY_BOAT_TOOLS_KG_PER_CREW,FISHERY_BOAT_CLOTH_KG_PER_CREW);
  {let j=0u;
-  let good=materials[j];let worn=economies[i].fishery[j]*.003;economies[i].fishery[j]-=worn;
+  let good=materials[j];let worn=economies[i].fishery[j]*FISHERY_MONTHLY_EQUIPMENT_WEAR;economies[i].fishery[j]-=worn;
   economies[i].used[good/4u][good%4u]+=worn;economies[i].detritus+=vec4(worn*catalog.goods[good].xyz,0.);economies[i].fishery_stats.x+=worn;
  }
 {let j=1u;
-  let good=materials[j];let worn=economies[i].fishery[j]*.003;economies[i].fishery[j]-=worn;
+  let good=materials[j];let worn=economies[i].fishery[j]*FISHERY_MONTHLY_EQUIPMENT_WEAR;economies[i].fishery[j]-=worn;
   economies[i].used[good/4u][good%4u]+=worn;economies[i].detritus+=vec4(worn*catalog.goods[good].xyz,0.);economies[i].fishery_stats.x+=worn;
  }
 {let j=2u;
-  let good=materials[j];let worn=economies[i].fishery[j]*.003;economies[i].fishery[j]-=worn;
+  let good=materials[j];let worn=economies[i].fishery[j]*FISHERY_MONTHLY_EQUIPMENT_WEAR;economies[i].fishery[j]-=worn;
   economies[i].used[good/4u][good%4u]+=worn;economies[i].detritus+=vec4(worn*catalog.goods[good].xyz,0.);economies[i].fishery_stats.x+=worn;
  }
- let trap_wear=economies[i].fishery_traps.x*.003;
+ let trap_wear=economies[i].fishery_traps.x*FISHERY_MONTHLY_EQUIPMENT_WEAR;
  economies[i].fishery_traps.x-=trap_wear;economies[i].fishery_traps.z+=trap_wear;
  economies[i].used[0].x+=trap_wear;economies[i].detritus+=vec4(trap_wear*catalog.goods[0].xyz,0.);
  economies[i].fishery_plan=vec4(0.);economies[i].fishery_stats.w=0.;economies[i].fishery_choice.y=0.;economies[i].fishery_choice.z=0.;
@@ -744,25 +757,25 @@ fn adaptive_fish_plots(){
  var stored=s.stock.y;for(var good=8u;good<63u;good++){stored+=economies[i].goods[good/4u][good%4u]*catalog.goods[good].w;}
  let chem=catalog.goods[28].xyz;
  let energy=min(catalog.goods[28].w,min(chem.x/FOOD_CARBON_FRACTION,min(chem.y/FOOD_NITROGEN_FRACTION,chem.z/FOOD_PHOSPHORUS_FRACTION)));
- let deficit=max(0.,s.stock.x*18.*economies[i].fishery_config.w-stored);
- let wanted=min(deficit/max(energy,.001),max(0.,s.stock.x*18.*6./max(energy,.001)-economies[i].goods[7].x));
+ let deficit=max(0.,s.stock.x*CIVILIAN_RESERVE_KG_PER_PERSON_MONTH*economies[i].fishery_config.w-stored);
+ let wanted=min(deficit/max(energy,FISHERY_ENERGY_DENOMINATOR_FLOOR),max(0.,s.stock.x*CIVILIAN_RESERVE_KG_PER_PERSON_MONTH*FISHERY_RAW_STOCK_TARGET_MONTHS/max(energy,FISHERY_ENERGY_DENOMINATOR_FLOOR)-economies[i].goods[7].x));
  let rate=economies[i].fishery_config.y*response;
- var desired=min(workforce*economies[i].fishery_config.x*response,wanted/max(rate,.001));
+ var desired=min(workforce*economies[i].fishery_config.x*response,wanted/max(rate,FISHERY_CATCH_RATE_FLOOR));
  let capacity=min(economies[i].fishery.x/cost.x,min(economies[i].fishery.y/cost.y,economies[i].fishery.z/cost.z));
  let trap_capacity=select(0.,economies[i].fishery_traps.x/FISHERY_TRAP_WOOD_KG_PER_CREW,economies[i].fishery_traps.w>.5);
  var factor=1.;
  if economies[i].fishery_choice.w>.5 {
   // Expected mix uses installed outfits; new primitive crews have lower returns.
-  let efficiency=select(1.,.35+.65*clamp(capacity/max(desired,.001),0.,1.),economies[i].fishery_traps.w>.5);
+  let efficiency=select(1.,FISHERY_TRAP_PRODUCTIVITY+FISHERY_OUTFIT_PRODUCTIVITY_BONUS*clamp(capacity/max(desired,FISHERY_CREW_DENOMINATOR_FLOOR),0.,1.),economies[i].fishery_traps.w>.5);
   // Amortize two construction worker-months over twelve months for new capacity.
-  let investment=2./12.*clamp((desired-capacity-trap_capacity)/max(desired,.001),0.,1.);
+  let investment=FISHERY_CONSTRUCTION_WORKER_MONTHS_PER_CREW/FISHERY_AMORTIZATION_MONTHS*clamp((desired-capacity-trap_capacity)/max(desired,FISHERY_CREW_DENOMINATOR_FLOOR),0.,1.);
   let expected=rate*energy*efficiency/(1.+investment);
   economies[i].fishery_choice.y=expected;
-  factor=clamp(1.-economies[i].fishery_choice.x/max(expected,.001),0.,1.);
+  factor=clamp(1.-economies[i].fishery_choice.x/max(expected,FISHERY_FOOD_RETURN_FLOOR),0.,1.);
  }
  economies[i].fishery_choice.z=factor;desired*=factor;
  economies[i].fishery_plan.x=desired;
- var build=min(max(0.,desired-capacity-trap_capacity),desired*.25/2.);
+ var build=min(max(0.,desired-capacity-trap_capacity),desired*FISHERY_CONSTRUCTION_WORK_SHARE/FISHERY_CONSTRUCTION_WORKER_MONTHS_PER_CREW);
  {let j=0u;
   let good=materials[j];let reserved=select(0.,s.stock.x*FISHERY_TOOLS_RESERVE_KG_PER_PERSON,good==3u);
   build=min(build,max(0.,economies[i].goods[good/4u][good%4u]-reserved)/cost[j]);
@@ -788,41 +801,41 @@ fn adaptive_fish_plots(){
  // or spun fiber. It is slower, still consumes timber and the same construction work.
  var trap_build=0.;
  if economies[i].fishery_traps.w>.5 {
-  trap_build=min(max(0.,desired-capacity-build-trap_capacity),min(max(0.,desired*.25/2.-build),economies[i].goods[0].x/FISHERY_TRAP_WOOD_KG_PER_CREW));
+  trap_build=min(max(0.,desired-capacity-build-trap_capacity),min(max(0.,desired*FISHERY_CONSTRUCTION_WORK_SHARE/FISHERY_CONSTRUCTION_WORKER_MONTHS_PER_CREW-build),economies[i].goods[0].x/FISHERY_TRAP_WOOD_KG_PER_CREW));
  }
  // Clamp the transferred mass, not just units: (stock/20)*20 can round above stock.
  let trap_mass=min(economies[i].goods[0].x,trap_build*FISHERY_TRAP_WOOD_KG_PER_CREW);trap_build=trap_mass/FISHERY_TRAP_WOOD_KG_PER_CREW;
  economies[i].goods[0].x-=trap_mass;
  economies[i].fishery_traps.x+=trap_mass;economies[i].fishery_traps.y+=trap_mass;
- economies[i].fishery_plan.z=(build+trap_build)*2.;
+ economies[i].fishery_plan.z=(build+trap_build)*FISHERY_CONSTRUCTION_WORKER_MONTHS_PER_CREW;
  let crew=min(max(0.,desired-economies[i].fishery_plan.z),capacity+build);
  let trap_crew=min(max(0.,desired-economies[i].fishery_plan.z-crew),trap_capacity+trap_build);
- let potential=(crew+trap_crew*.35)*rate;
- let realized_rate=select(rate,potential/max(crew+trap_crew,.001),trap_crew>0.);
+ let potential=(crew+trap_crew*FISHERY_TRAP_PRODUCTIVITY)*rate;
+ let realized_rate=select(rate,potential/max(crew+trap_crew,FISHERY_CREW_DENOMINATOR_FLOOR),trap_crew>0.);
  var remaining=min(wanted,potential);
  var catch_total=0.;
  {let j=0u;
   let slot=slots[j];let available=eco.pools[slot].xyz*area;
-  let caught=min(remaining,min(available.x/max(chem.x,1e-9),min(available.y/max(chem.y,1e-9),available.z/max(chem.z,1e-9)))*.001*capture[j]);
+  let caught=min(remaining,min(available.x/max(chem.x,FISHERY_NUTRIENT_FRACTION_FLOOR),min(available.y/max(chem.y,FISHERY_NUTRIENT_FRACTION_FLOOR),available.z/max(chem.z,FISHERY_NUTRIENT_FRACTION_FLOOR)))*FISHERY_MONTHLY_ACCESSIBLE_FRACTION*capture[j]);
   eco.pools[slot]-=vec4(caught*chem/area,0.);eco.pools[27]-=vec4(caught*chem/area,0.);
   economies[i].exchange+=vec4(caught*chem,0.);economies[i].goods[7].x+=caught;economies[i].made[7].x+=caught;
   remaining=max(0.,remaining-caught);catch_total+=caught;
  }
 {let j=1u;
   let slot=slots[j];let available=eco.pools[slot].xyz*area;
-  let caught=min(remaining,min(available.x/max(chem.x,1e-9),min(available.y/max(chem.y,1e-9),available.z/max(chem.z,1e-9)))*.001*capture[j]);
+  let caught=min(remaining,min(available.x/max(chem.x,FISHERY_NUTRIENT_FRACTION_FLOOR),min(available.y/max(chem.y,FISHERY_NUTRIENT_FRACTION_FLOOR),available.z/max(chem.z,FISHERY_NUTRIENT_FRACTION_FLOOR)))*FISHERY_MONTHLY_ACCESSIBLE_FRACTION*capture[j]);
   eco.pools[slot]-=vec4(caught*chem/area,0.);eco.pools[27]-=vec4(caught*chem/area,0.);
   economies[i].exchange+=vec4(caught*chem,0.);economies[i].goods[7].x+=caught;economies[i].made[7].x+=caught;
   remaining=max(0.,remaining-caught);catch_total+=caught;
  }
 {let j=2u;
   let slot=slots[j];let available=eco.pools[slot].xyz*area;
-  let caught=min(remaining,min(available.x/max(chem.x,1e-9),min(available.y/max(chem.y,1e-9),available.z/max(chem.z,1e-9)))*.001*capture[j]);
+  let caught=min(remaining,min(available.x/max(chem.x,FISHERY_NUTRIENT_FRACTION_FLOOR),min(available.y/max(chem.y,FISHERY_NUTRIENT_FRACTION_FLOOR),available.z/max(chem.z,FISHERY_NUTRIENT_FRACTION_FLOOR)))*FISHERY_MONTHLY_ACCESSIBLE_FRACTION*capture[j]);
   eco.pools[slot]-=vec4(caught*chem/area,0.);eco.pools[27]-=vec4(caught*chem/area,0.);
   economies[i].exchange+=vec4(caught*chem,0.);economies[i].goods[7].x+=caught;economies[i].made[7].x+=caught;
   remaining=max(0.,remaining-caught);catch_total+=caught;
  }
- economies[i].fishery_plan.y=catch_total/max(realized_rate,.001);economies[i].fishery_plan.w=catch_total;economies[i].agriculture.z+=catch_total;
+ economies[i].fishery_plan.y=catch_total/max(realized_rate,FISHERY_CATCH_RATE_FLOOR);economies[i].fishery_plan.w=catch_total;economies[i].agriculture.z+=catch_total;
  economies[i].fishery_stats.y+=economies[i].fishery_plan.y+economies[i].fishery_plan.z;
  ecology[cell]=eco;continue;
  }
@@ -841,7 +854,7 @@ fn fish_plots(){
  let stocks=array<u32,3>(13u,15u,14u);let catchability=FISHERY_GUILD_CATCHABILITY;
  for(var prey=0u;prey<3u;prey++){
  let slot=stocks[prey];let available=eco.pools[slot].xyz*area;
- let caught=min(remaining,min(available.x/chemistry.x,min(available.y/chemistry.y,available.z/chemistry.z))*LEGACY_FISHERY_MONTHLY_ACCESSIBLE_FRACTION*catchability[prey]);
+ let caught=min(remaining,min(available.x/chemistry.x,min(available.y/chemistry.y,available.z/chemistry.z))*FISHERY_MONTHLY_ACCESSIBLE_FRACTION*catchability[prey]);
  eco.pools[slot]-=vec4(caught*chemistry/area,0.);eco.pools[27]-=vec4(caught*chemistry/area,0.);e.exchange+=vec4(caught*chemistry,0.);e.goods[fish/4u][fish%4u]+=caught;e.made[fish/4u][fish%4u]+=caught;e.agriculture.z+=caught;
  remaining=max(0.,remaining-caught);
  }

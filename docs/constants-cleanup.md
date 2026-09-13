@@ -1037,3 +1037,25 @@ confirmed available migratory stocks support catches without creating grazer
 biomass, while economy and ecology budgets remain within tolerance. Strict
 all-target Clippy passed. This is targeted verification, not completion of the
 remaining shader review.
+
+## Adaptive fishing equipment and profitability forecasts
+
+Named twelve remaining equipment, construction, catch and denominator parameters
+in `adaptive_fish_plots`. Forecast and execution now share named primitive-trap
+productivity and construction work; different denominator units retain distinct
+names. Both fishing paths use the same named accessible-stock fraction. Food
+stock targets reference the existing shared civilian monthly ration constant.
+
+Reversing substitutions reconstructs the old adaptive function exactly, and the
+legacy change is only a rename of its accessible-stock constant. Numeric types,
+values and operation order are preserved. CPU equipment forecasting still uses
+its existing named 0.997 retention, the complement of this 0.003 monthly wear;
+no new runtime subtraction was introduced.
+
+The simultaneous monetary screening uses the fixed `02b74c3` executable copied
+before this extraction. It is not evidence for the changed shader or a clean
+performance benchmark when run alongside GPU verification.
+
+Verification passed: the hardware migratory-stock/catch conservation fixture ran
+one test, and strict all-target Clippy passed. The captured source reversal and
+these checks cover this extraction; the broader constants audit remains active.
