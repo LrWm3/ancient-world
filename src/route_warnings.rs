@@ -2,6 +2,9 @@
 use crate::civilization::History;
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+
+const MAX_ROUTE_PREFERENCE_PENALTY: f32 = 0.6;
+const WARNING_HALF_DECAY_MONTHS: f32 = 6.0;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Encounter {
     pub from: u32,
@@ -21,7 +24,8 @@ impl Warning {
         if month < self.received || month < self.encounter.observed {
             return 1.;
         }
-        1. - 0.6 / (1. + (month - self.encounter.observed) as f32 / 6.)
+        1. - MAX_ROUTE_PREFERENCE_PENALTY
+            / (1. + (month - self.encounter.observed) as f32 / WARNING_HALF_DECAY_MONTHS)
     }
 }
 impl crate::social_memory::LocalMemory {

@@ -2,6 +2,17 @@
 use crate::civilization::History;
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+
+const TRANSMISSION_RATE_PER_MONTH: f64 = 0.8;
+const EXPOSED_PROGRESSION_FRACTION_PER_MONTH: f64 = 0.6;
+const RECOVERY_FRACTION_PER_MONTH: f64 = 0.5;
+const IMMUNITY_LOSS_FRACTION_PER_MONTH: f64 = 0.01;
+const INFECTIOUS_HEALTH_BURDEN_SCALE: f64 = 0.5;
+const INITIAL_EXPOSED_PEOPLE: f64 = 1.0;
+const CARGO_CONTACT_PEOPLE: f64 = 2.0;
+const CARGO_EXPOSURE_DECAY_PER_MONTH: f64 = 0.35;
+const MIN_PARTITION_POPULATION: f64 = 1e-12;
+const INVENTORY_RELATIVE_TOLERANCE: f64 = 1e-5;
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Pool {
     pub seir: [f64; 4],
@@ -35,10 +46,11 @@ impl Pool {
     pub fn advance(&mut self) {
         // Monthly bounded transitions all use the completed opening snapshot.
         let old = self.seir;
-        let exposure = old[0] * (1. - (-0.8 * old[2] / self.total().max(1.)).exp());
-        let infectious = old[1] * 0.6;
-        let recovered = old[2] * 0.5;
-        let waned = old[3] * 0.01;
+        let exposure =
+            old[0] * (1. - (-TRANSMISSION_RATE_PER_MONTH * old[2] / self.total().max(1.)).exp());
+        let infectious = old[1] * EXPOSED_PROGRESSION_FRACTION_PER_MONTH;
+        let recovered = old[2] * RECOVERY_FRACTION_PER_MONTH;
+        let waned = old[3] * IMMUNITY_LOSS_FRACTION_PER_MONTH;
         self.seir = [
             old[0] - exposure + waned,
             old[1] + exposure - infectious,
@@ -47,7 +59,7 @@ impl Pool {
         ];
     }
     pub fn take(&mut self, people: f64) -> Pool {
-        let share = (people / self.total().max(1e-12)).clamp(0., 1.);
+        let share = (people / self.total().max(MIN_PARTITION_POPULATION)).clamp(0., 1.);
         let mut out = Self::default();
         for k in 0..4 {
             out.seir[k] = self.seir[k] * share;
@@ -92,7 +104,7 @@ impl History {
             pool.reconcile(site.stocks.stock[0] as f64);
         }
         if !d.seeded && !d.sites.is_empty() {
-            d.sites[0].expose(1.);
+            d.sites[0].expose(INITIAL_EXPOSED_PEOPLE);
             d.seeded = true;
             self.event(
                 "infection_baseline",
@@ -114,7 +126,8 @@ impl History {
         }
         for (pool, site) in d.sites.iter().zip(&mut self.sites) {
             // Lower bound on the existing remembered burden, not a second death/labor debit.
-            let burden = (0.5 * pool.seir[2] / pool.total().max(1.)) as f32;
+            let burden =
+                (INFECTIOUS_HEALTH_BURDEN_SCALE * pool.seir[2] / pool.total().max(1.)) as f32;
             site.demography.health[0] = site.demography.health[0].max(burden);
         }
         d.month = Some(self.month);
@@ -167,7 +180,9 @@ impl History {
         let age = self.month.saturating_sub(exposure.observed) as f64;
         // A bounded transport-attendant contact, not organisms carried by the goods.
         // Delay reduces viable exposure; no source state is refreshed on arrival.
-        let dose = 2. * (exposure.infectious + exposure.exposed) * (-0.35 * age).exp();
+        let dose = CARGO_CONTACT_PEOPLE
+            * (exposure.infectious + exposure.exposed)
+            * (-CARGO_EXPOSURE_DECAY_PER_MONTH * age).exp();
         d.sites[to as usize].reconcile(self.sites[to as usize].stocks.stock[0] as f64);
         d.imported_exposure += d.sites[to as usize].expose(dose);
     }
@@ -237,7 +252,7 @@ fn validate_pool(p: &Pool) -> Result<()> {
             && p.outgoing.is_finite()
             && p.outgoing >= 0.
             && (p.total() - (p.added - p.removed + p.incoming - p.outgoing)).abs()
-                < 1e-5 * p.total().max(1.),
+                < INVENTORY_RELATIVE_TOLERANCE * p.total().max(1.),
         "invalid infection inventory"
     );
     Ok(())

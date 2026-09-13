@@ -100,7 +100,7 @@ impl Politics {
         ensure!(
             matches!(self.version, 1 | 2)
                 && self.started <= h.month
-                && self.occupation_months <= 12,
+                && self.occupation_months <= crate::occupation::MAX_OCCUPATION_MONTHS,
             "invalid political version or clock"
         );
         ensure!(
@@ -933,7 +933,8 @@ impl History {
                     || (w.attacker == defender && w.defender == attacker))
                     && w.ended
                         .is_none_or(|m| w.outcome != "peace obligations breached"
-                            && self.month.saturating_sub(m) < 120)),
+                            && self.month.saturating_sub(m)
+                                < crate::governance::DEFAULT_TRUCE_MONTHS)),
             "active war or ten-year truce"
         );
         let distance = self
@@ -956,12 +957,15 @@ impl History {
                 .any(|r| r.origin == origin),
             "settlement already has an expedition"
         );
-        let months = (distance / 150.).ceil().max(1.) as u32;
+        let months = (distance / crate::society::LAND_TRAVEL_KM_PER_MONTH)
+            .ceil()
+            .max(1.) as u32;
         let s = &self.sites[origin as usize];
-        let reserve = s.stocks.stock[0] * 18. * 3.;
-        let soldiers = (s.demography.ages[1] * 0.25)
-            .min(s.economy.goods[3])
-            .min((s.stocks.stock[1] - reserve).max(0.) / (18. * (months * 2 + 3) as f32));
+        let reserve = s.stocks.stock[0] * crate::economy::CIVILIAN_RESERVE_KG_PER_PERSON_MONTH * 3.;
+        let soldiers = (s.demography.ages[1] * 0.25).min(s.economy.goods[3]).min(
+            (s.stocks.stock[1] - reserve).max(0.)
+                / (crate::military::SOLDIER_FOOD_KG_PER_MONTH * (months * 2 + 3) as f32),
+        );
         ensure!(
             soldiers >= 3.,
             "insufficient adult manpower, tools or campaign provisions"
@@ -969,7 +973,7 @@ impl History {
         let id = p.wars.len() as u32;
         let recruits = self.recruit_service_people(origin, soldiers.floor() as usize, 3)?;
         let soldiers = recruits.people.len() as f32;
-        let food = soldiers * 18. * (months * 2 + 3) as f32;
+        let food = soldiers * crate::military::SOLDIER_FOOD_KG_PER_MONTH * (months * 2 + 3) as f32;
         let raid_id = self.society.as_ref().unwrap().next_raid;
         self.assign_military_people(raid_id, origin, &recruits.people);
         let source = |site: u32| crate::naming::Source {
@@ -1109,7 +1113,7 @@ impl Generator {
         );
         let count = h.civilizations.len();
         h.politics = Some(Politics {
-            occupation_months: 3,
+            occupation_months: crate::occupation::DEFAULT_OCCUPATION_MONTHS,
             version: 1,
             started: h.month,
             kin: vec![],

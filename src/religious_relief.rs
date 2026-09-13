@@ -155,7 +155,9 @@ impl History {
         let Some(route) = society.routes.get(appeal.route as usize) else {
             return false;
         };
-        let months = (route.cost_km / 150.).ceil().max(1.) as u32;
+        let months = (route.cost_km / crate::society::LAND_TRAVEL_KM_PER_MONTH)
+            .ceil()
+            .max(1.) as u32;
         let host = &self.sites[appeal.host as usize];
         let hostile = self.politics.as_ref().is_some_and(|p| {
             p.wars.iter().any(|w| {

@@ -6,6 +6,19 @@ use crate::{
 };
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+
+const MIN_DEFENSE_PROJECT_BRICKS_KG: f32 = 100.0;
+const MAX_DEFENSE_PROJECT_BRICKS_KG: f32 = 100_000.0;
+const CONSTRUCTION_BRICKS_KG_PER_WORK_MONTH: f32 = 500.0;
+const MAX_CONSTRUCTION_WORK_MONTHS_PER_MONTH: f32 = 0.5;
+const MIN_AVAILABLE_WORK_MONTHS: f32 = 1e-6;
+const MIN_DEFENSE_WORK_MONTHS: f32 = 0.01;
+const BREACHED_DEFENSE_INTEGRITY: f32 = 0.02;
+const DEFENSE_WEAR_WORK_MONTHS_PER_SOLDIER_MONTH: f32 = 0.02;
+const CIVILIAN_RESERVE_MONTHS: f32 = 2.0;
+const MILITARY_FREIGHT_KG_PER_PERSON: f32 = 10.0;
+const MIN_SUPPLY_SHIPMENT_KG: f32 = 1.0;
+const CONSTRUCTION_WORK_TOLERANCE_MONTHS: f32 = 1e-3;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Defense {
     pub site: u32,
@@ -52,7 +65,8 @@ impl History {
         ensure!(
             (site as usize) < self.sites.len()
                 && bricks.is_finite()
-                && (100. ..=100_000.).contains(&bricks),
+                && (MIN_DEFENSE_PROJECT_BRICKS_KG..=MAX_DEFENSE_PROJECT_BRICKS_KG)
+                    .contains(&bricks),
             "invalid defense project"
         );
         ensure!(
@@ -93,7 +107,7 @@ impl History {
             a.materials[0].1 += bricks;
             a.events.push(event);
             let old = d.required;
-            d.required += bricks / 500.;
+            d.required += bricks / CONSTRUCTION_BRICKS_KG_PER_WORK_MONTH;
             d.integrity *= old / d.required;
         } else {
             let c = self.culture.as_mut().unwrap();
@@ -117,7 +131,7 @@ impl History {
             self.military.siege.defenses.push(Defense {
                 site,
                 artifact,
-                required: bricks / 500.,
+                required: bricks / CONSTRUCTION_BRICKS_KG_PER_WORK_MONTH,
                 completed: 0.,
                 integrity: 0.,
                 work: Default::default(),
@@ -134,7 +148,7 @@ impl History {
                 continue;
             }
             let wanted = (d.required - d.completed)
-                .clamp(0., 0.5)
+                .clamp(0., MAX_CONSTRUCTION_WORK_MONTHS_PER_MONTH)
                 .min(crate::labor::available(
                     &self.sites[d.site as usize],
                     self.society.is_some(),
@@ -155,7 +169,7 @@ impl History {
                     self.participation.as_ref().is_none_or(|p| {
                         p.residents.get(id).is_some_and(|r| {
                             r.presence == crate::participation::Presence::Resident(d.site)
-                        }) && p.available(*id) > 1e-6
+                        }) && p.available(*id) > MIN_AVAILABLE_WORK_MONTHS
                     })
                 })
                 .collect::<Vec<_>>();
@@ -216,7 +230,8 @@ impl History {
                     self.participation.as_mut().unwrap().settle(id, used)?;
                 }
                 d.completed += used;
-                d.integrity = (d.integrity + used / d.required.max(0.01)).min(1.);
+                d.integrity =
+                    (d.integrity + used / d.required.max(MIN_DEFENSE_WORK_MONTHS)).min(1.);
                 self.sites[d.site as usize].economy.external[3] =
                     (self.sites[d.site as usize].economy.external[3] - d.work.granted as f32)
                         .max(0.);
@@ -281,7 +296,7 @@ impl History {
         }
         let Some(di) = self.military.siege.defenses.iter().position(|d| {
             d.site == r.target
-                && d.integrity > 0.02
+                && d.integrity > BREACHED_DEFENSE_INTEGRITY
                 && self
                     .culture
                     .as_ref()
@@ -327,7 +342,9 @@ impl History {
             return true;
         }
         self.military.siege.sieges[i].observed = self.month;
-        let return_food = r.soldiers * 18. * (r.return_duration(society) + 1) as f32;
+        let return_food = r.soldiers
+            * crate::military::SOLDIER_FOOD_KG_PER_MONTH
+            * (r.return_duration(society) + crate::military::RETURN_PROVISION_MARGIN_MONTHS) as f32;
         if r.food < return_food || self.sites[r.target as usize].abandoned {
             self.military.siege.sieges[i].ended = Some(self.month);
             self.military.siege.sieges[i].reason = "withdrew to preserve return provisions".into();
@@ -348,7 +365,9 @@ impl History {
             return true;
         }
         let d = &mut self.military.siege.defenses[di];
-        d.integrity = (d.integrity - r.soldiers * 0.02 / d.required.max(1.)).max(0.);
+        d.integrity = (d.integrity
+            - r.soldiers * DEFENSE_WEAR_WORK_MONTHS_PER_SOLDIER_MONTH / d.required.max(1.))
+        .max(0.);
         r.arrives = self.month + 1; // One supplied siege interval, no repeated battle this month.
         true
     }
@@ -387,7 +406,11 @@ impl History {
             .ok_or_else(|| anyhow::anyhow!("no open direct supply corridor"))?;
         let edge = [r.origin.min(r.target), r.origin.max(r.target)];
         let source = &self.sites[r.origin as usize];
-        let available = (source.stocks.stock[1] - source.stocks.stock[0] * 18. * 2.).max(0.);
+        let available = (source.stocks.stock[1]
+            - source.stocks.stock[0]
+                * crate::economy::CIVILIAN_RESERVE_KG_PER_PERSON_MONTH
+                * CIVILIAN_RESERVE_MONTHS)
+            .max(0.);
         let reserved: f32 = self
             .military
             .siege
@@ -400,9 +423,9 @@ impl History {
             .min(available)
             .min(self.road_freight_capacity(edge))
             .min(self.land_freight_capacity(r.origin))
-            .min((source.stocks.stock[0] * 10. - reserved).max(0.));
+            .min((source.stocks.stock[0] * MILITARY_FREIGHT_KG_PER_PERSON - reserved).max(0.));
         ensure!(
-            food >= 1.,
+            food >= MIN_SUPPLY_SHIPMENT_KG,
             "no food or freight capacity above civilian reserve"
         );
         let (from, to, route_id, duration) =
@@ -494,7 +517,7 @@ impl State {
                     && d.required > 0.
                     && d.completed.is_finite()
                     && d.completed >= 0.
-                    && d.completed <= d.required + 1e-3
+                    && d.completed <= d.required + CONSTRUCTION_WORK_TOLERANCE_MONTHS
                     && (0. ..=1.).contains(&d.integrity),
                 "invalid defense"
             );
@@ -507,7 +530,7 @@ impl State {
                     && s.food.is_finite()
                     && s.food >= 0.
                     && s.duration > 0
-                    && s.duration <= 10
+                    && s.duration <= crate::military::MAX_CAMPAIGN_TRAVEL_MONTHS
                     && s.departed <= h.month
                     && s.due > s.departed
                     && s.finished.is_none_or(|m| m >= s.departed && m <= h.month)

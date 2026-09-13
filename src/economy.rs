@@ -2,6 +2,8 @@
 use crate::{civilization::History, gpu::Generator, grid};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+pub(crate) const CIVILIAN_RESERVE_KG_PER_PERSON_MONTH: f32 = 18.0;
+
 pub const GOODS: usize = 64;
 pub const FOOD: usize = 63;
 pub const IDS: [&str; 8] = [
@@ -1545,7 +1547,10 @@ impl History {
                     } else {
                         self.sites[seller].economy.goods[k] -= amount;
                     }
-                    let arrives = self.month + (distance / 150.).ceil().max(1.) as u32;
+                    let arrives = self.month
+                        + (distance / crate::society::LAND_TRAVEL_KM_PER_MONTH)
+                            .ceil()
+                            .max(1.) as u32;
                     self.cargo.push(Cargo {
                         infection: None,
                         voyage_clock: sea_lane.map(|_| crate::vessels::VoyageClock {

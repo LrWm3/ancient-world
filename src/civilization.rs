@@ -1648,7 +1648,9 @@ impl History {
                         let travel = self.route_cost(j as u32, i as u32).unwrap_or_else(|| {
                             distance(self.sites[j].cell, self.sites[i].cell, n) * radius
                         });
-                        let months = (travel / 150.).ceil().max(1.) as u32;
+                        let months = (travel / crate::society::LAND_TRAVEL_KM_PER_MONTH)
+                            .ceil()
+                            .max(1.) as u32;
                         self.shipments.push(Shipment {
                             appeal_cause: None,
                             relief_route: None,

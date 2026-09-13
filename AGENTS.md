@@ -119,3 +119,16 @@ request either the legacy hunger-triggered ceiling or the gap to a working-cash
 target. It retains annual timing and shared council money. Tax/support observations
 record the actual boundary, rather than treating ending treasury as evidence of
 revenue adequacy. These policies do not establish universal council allocation.
+
+## Named simulation parameters
+
+Keep meaningful rates, thresholds, durations and costs as `UPPER_SNAKE_CASE`
+constants immediately after imports in the owning file. Include units where useful
+(e.g. `TRAVEL_KM_PER_MONTH`). Leave trivial numeric identities, indexing and
+independent test fixtures inline. Editable catalog values remain catalog data.
+If several files implement the same policy, define its constant once in their
+shared subsystem module; do not create a project-wide `consts.rs`. Equal numeric
+values do not necessarily represent the same policy. During extraction, preserve
+numeric types, values and arithmetic order; balance changes belong in a separate
+change. Track the ongoing file-by-file cleanup in
+[the constants cleanup record](docs/constants-cleanup.md).

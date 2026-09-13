@@ -8,11 +8,16 @@ use crate::{
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, BinaryHeap};
+
+pub(crate) const LAND_TRAVEL_KM_PER_MONTH: f32 = 150.0;
+
 // Inverse multiplication can round above the food used to bound recruitment.
 // Debit and carry the same bounded quantity; never repair an overdraw by minting food.
 fn raid_muster(adults: f32, available_food: f32, months: u32) -> (f32, f32) {
-    let men = (adults * 0.1).min(available_food / (18. * (months + 1) as f32));
-    let food = (men * 18. * (months + 1) as f32).min(available_food);
+    let men = (adults * 0.1)
+        .min(available_food / (crate::military::SOLDIER_FOOD_KG_PER_MONTH * (months + 1) as f32));
+    let food = (men * crate::military::SOLDIER_FOOD_KG_PER_MONTH * (months + 1) as f32)
+        .min(available_food);
     (men, food)
 }
 #[cfg(test)]
@@ -539,7 +544,7 @@ impl Society {
                     && r.soldiers >= 0.
                     && r.food.is_finite()
                     && r.food >= 0.
-                    && r.travel_months <= 10
+                    && r.travel_months <= crate::military::MAX_CAMPAIGN_TRAVEL_MONTHS
                     && r.occupation_until
                         .is_none_or(|m| m == r.arrives && !r.returning && r.war.is_some())
                     && r.arrives > h.month
@@ -913,14 +918,16 @@ impl History {
         for mut raid in raids {
             let before_supply = raid.soldiers;
             self.advance_military_experience(&raid);
-            let consume = raid.food.min(raid.soldiers * 18.);
+            let consume = raid
+                .food
+                .min(raid.soldiers * crate::military::SOLDIER_FOOD_KG_PER_MONTH);
             raid.food -= consume;
             let origin = &mut self.sites[raid.origin as usize];
             origin.stocks.ledger[1] += consume;
             for (k, v) in FOOD_CNP.iter().enumerate() {
                 origin.economy.external[k] -= consume * *v as f32;
             }
-            if consume + 0.001 < raid.soldiers * 18. {
+            if consume + 0.001 < raid.soldiers * crate::military::SOLDIER_FOOD_KG_PER_MONTH {
                 let expected = raid.soldiers * 0.1;
                 self.military_losses(&mut raid, expected, "insufficient provisions");
             }
@@ -1355,7 +1362,8 @@ impl History {
                         .is_some_and(|c| c < 900.)
             });
             if let Some(j) = target {
-                let months = (self.route_cost(i as u32, j as u32).unwrap() / 150.)
+                let months = (self.route_cost(i as u32, j as u32).unwrap()
+                    / crate::society::LAND_TRAVEL_KM_PER_MONTH)
                     .ceil()
                     .max(1.) as u32;
                 let (men, _) = raid_muster(
@@ -1371,7 +1379,8 @@ impl History {
                     continue;
                 };
                 let men = recruits.people.len() as f32;
-                let food = (men * 18. * (months + 1) as f32).min(self.sites[i].stocks.stock[1]);
+                let food = (men * crate::military::SOLDIER_FOOD_KG_PER_MONTH * (months + 1) as f32)
+                    .min(self.sites[i].stocks.stock[1]);
                 let id = self.society.as_ref().unwrap().next_raid;
                 self.assign_military_people(id, i as u32, &recruits.people);
                 let site = &mut self.sites[i];

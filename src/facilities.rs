@@ -5,6 +5,28 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
+const DISRUPTION_WEAR_MULTIPLIER: f32 = 10.0;
+const MIN_MATERIAL_PRICE_MONEY_PER_KG: f32 = 0.01;
+const RELIGIOUS_SPACE_PER_MEMBER: f32 = 1.5;
+const MERCHANT_SPACE_PER_MEMBER: f32 = 2.0;
+const CRAFT_SPACE_PER_MEMBER: f32 = 1.25;
+const MIN_SPACE_DEMAND: f32 = 2.0;
+const MAX_SPACE_DEMAND: f32 = 64.0;
+const EXPANSION_CASH_RESERVE_MONEY: f64 = 10.0;
+const EXPANSION_SPEND_FRACTION: f64 = 0.75;
+const UPKEEP_RESERVE_QUARTERS: f64 = 4.0;
+const MAX_CONSTRUCTION_STOCK_FRACTION: f32 = 0.5;
+const MIN_ROOM_CAPACITY: f32 = 2.0;
+const MAX_ROOM_CAPACITY: f32 = 16.0;
+const MAX_ROOMS: usize = 32;
+const MIN_EXPANSION_WORK_MONTHS: f32 = 0.025;
+const MIN_EXPANSION_CONDITION: f32 = 0.8;
+pub(crate) const FOUNDING_WORK_MONTHS: f32 = 0.2;
+pub(crate) const MAX_REPAIR_FRACTION_PER_QUARTER: f32 = 0.1;
+
+const INVESTMENT_QUARTERS: f64 = 80.;
+const WORK_VALUE_MONEY_PER_WORK_MONTH: f64 = 20.;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Component {
     pub good: u32,
@@ -17,13 +39,13 @@ impl Component {
     /// Catalog wear is also a bounded resilience proxy under local disruption.
     /// This is a game rule: roof loads, fire resistance and rot are not separately solved.
     pub fn wear_at(&self, disruption: f32) -> f32 {
-        (self.wear * (1. + 10. * disruption.clamp(0., 1.))).min(1.)
+        (self.wear * (1. + DISRUPTION_WEAR_MULTIPLIER * disruption.clamp(0., 1.))).min(1.)
     }
 }
 /// Repair inputs are measured after the currently due administration fee.
 /// Keep one subsequent fee in the existing account; this is not a new cash stock.
 pub(crate) fn repair_budget(treasury: f64) -> f64 {
-    (treasury - 0.5).max(0.)
+    (treasury - crate::institution_capacity::UPKEEP_FEE_MONEY_PER_QUARTER).max(0.)
 }
 fn affordable_mass(cash: f64, price: f64) -> f32 {
     let bound = cash / price;
@@ -33,8 +55,6 @@ fn affordable_mass(cash: f64, price: f64) -> f32 {
     }
     mass
 }
-const INVESTMENT_QUARTERS: f64 = 80.;
-const WORK_VALUE: f64 = 20.;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Room {
     pub method: String,
@@ -59,7 +79,9 @@ impl Room {
     pub fn cost(&self, e: &Economy) -> f64 {
         self.materials()
             .iter()
-            .map(|&(g, m)| m as f64 * e.prices[g as usize].max(0.01) as f64)
+            .map(|&(g, m)| {
+                m as f64 * e.prices[g as usize].max(MIN_MATERIAL_PRICE_MONEY_PER_KG) as f64
+            })
             .sum()
     }
     pub fn usable(&self) -> f32 {
@@ -77,12 +99,12 @@ impl Room {
 }
 pub fn demand(kind: &InstitutionKind, members: usize) -> f32 {
     let factor = match kind {
-        InstitutionKind::Religious => 1.5,
-        InstitutionKind::Merchant => 2.,
-        InstitutionKind::Craft => 1.25,
+        InstitutionKind::Religious => RELIGIOUS_SPACE_PER_MEMBER,
+        InstitutionKind::Merchant => MERCHANT_SPACE_PER_MEMBER,
+        InstitutionKind::Craft => CRAFT_SPACE_PER_MEMBER,
         InstitutionKind::Scholarly => 1.,
     };
-    (members as f32 * factor).clamp(2., 64.)
+    (members as f32 * factor).clamp(MIN_SPACE_DEMAND, MAX_SPACE_DEMAND)
 }
 /// Keep ten cash for administration plus a year of component upkeep in cash.
 /// Investment uses three quarters of the remainder; quotations and purchases share this limit.
@@ -94,11 +116,11 @@ pub fn expansion_budget(f: &Facility, e: &Economy, treasury: f64) -> f64 {
         .map(|p| {
             p.kg as f64
                 * p.wear_at(e.soil[3]) as f64
-                * 4.
-                * e.prices[p.good as usize].max(0.01) as f64
+                * UPKEEP_RESERVE_QUARTERS
+                * e.prices[p.good as usize].max(MIN_MATERIAL_PRICE_MONEY_PER_KG) as f64
         })
         .sum();
-    (treasury - 10. - upkeep).max(0.) * 0.75
+    (treasury - EXPANSION_CASH_RESERVE_MONEY - upkeep).max(0.) * EXPANSION_SPEND_FRACTION
 }
 /// Select one affordable extension, preserving a finite stock reserve. No planned goods count as stock.
 pub fn choose(c: &EconomyCatalog, e: &Economy, target: f32, budget: f64) -> Option<Room> {
@@ -113,14 +135,18 @@ pub fn choose(c: &EconomyCatalog, e: &Economy, target: f32, budget: f64) -> Opti
             *per.entry(rg).or_default() += roof.kg;
             let unit_cost: f64 = per
                 .iter()
-                .map(|(&g, &m)| m as f64 * e.prices[g as usize].max(0.01) as f64)
+                .map(|(&g, &m)| {
+                    m as f64 * e.prices[g as usize].max(MIN_MATERIAL_PRICE_MONEY_PER_KG) as f64
+                })
                 .sum();
-            let mut units = target.min(16.).min((budget / unit_cost) as f32);
+            let mut units = target
+                .min(MAX_ROOM_CAPACITY)
+                .min((budget / unit_cost) as f32);
             for (&g, &kg) in &per {
-                units = units.min(e.goods[g as usize] * 0.5 / kg);
+                units = units.min(e.goods[g as usize] * MAX_CONSTRUCTION_STOCK_FRACTION / kg);
             }
             units = units.floor();
-            if units < 2. {
+            if units < MIN_ROOM_CAPACITY {
                 continue;
             }
             let room = Room {
@@ -150,8 +176,9 @@ pub fn choose(c: &EconomyCatalog, e: &Economy, target: f32, budget: f64) -> Opti
                 .components
                 .iter()
                 .map(|p| {
-                    let material = p.kg as f64 * e.prices[p.good as usize].max(0.01) as f64;
-                    (material + WORK_VALUE * p.work as f64)
+                    let material = p.kg as f64
+                        * e.prices[p.good as usize].max(MIN_MATERIAL_PRICE_MONEY_PER_KG) as f64;
+                    (material + WORK_VALUE_MONEY_PER_WORK_MONTH * p.work as f64)
                         * (1. + INVESTMENT_QUARTERS * p.wear_at(e.soil[3]) as f64)
                         / units as f64
                 })
@@ -218,7 +245,7 @@ impl Facility {
                 c.kg *= actual / m;
             }
         }
-        let built = room.remaining_work.min(0.2);
+        let built = room.remaining_work.min(FOUNDING_WORK_MONTHS);
         room.remaining_work -= built;
         Self {
             rooms: vec![room],
@@ -239,10 +266,10 @@ impl Facility {
                 continue;
             }
             for p in &r.components {
-                let price = e.prices[p.good as usize].max(0.01) as f64;
+                let price = e.prices[p.good as usize].max(MIN_MATERIAL_PRICE_MONEY_PER_KG) as f64;
                 let damage = p.wear_at(e.soil[3]);
                 let repair = (1. - p.condition + damage)
-                    .clamp(0., 0.1)
+                    .clamp(0., MAX_REPAIR_FRACTION_PER_QUARTER)
                     .min(labor / p.work)
                     .min((cash / (p.kg as f64 * price)) as f32);
                 let mass = repair * p.kg;
@@ -264,14 +291,14 @@ impl Facility {
     }
     pub fn valid(&self, c: &EconomyCatalog, a: &Artifact) -> bool {
         !self.rooms.is_empty()
-            && self.rooms.len() <= 32
+            && self.rooms.len() <= MAX_ROOMS
             && self.invested.is_finite()
             && self.invested >= 0.
             && self.construction_work.is_finite()
             && self.construction_work >= 0.
             && self.rooms.iter().all(|r| {
                 r.capacity.is_finite()
-                    && (2. ..=16.).contains(&r.capacity)
+                    && (MIN_ROOM_CAPACITY..=MAX_ROOM_CAPACITY).contains(&r.capacity)
                     && r.remaining_work.is_finite()
                     && r.remaining_work >= 0.
                     && r.remaining_work <= r.components.iter().map(|p| p.work).sum::<f32>()
@@ -319,9 +346,9 @@ impl Facility {
             for p in &mut r.components {
                 p.condition = (p.condition - p.wear_at(e.soil[3])).max(0.);
                 let g = p.good as usize;
-                let price = e.prices[g].max(0.01) as f64;
+                let price = e.prices[g].max(MIN_MATERIAL_PRICE_MONEY_PER_KG) as f64;
                 let improvement = (1. - p.condition)
-                    .min(0.1)
+                    .min(MAX_REPAIR_FRACTION_PER_QUARTER)
                     .min(available / p.work)
                     .min(e.goods[g] / p.kg)
                     .min((repair_budget(*treasury) / (p.kg as f64 * price)) as f32);
@@ -345,11 +372,11 @@ impl Facility {
         }
         let mut expanded = false;
         // Protect operating reserves; finish and repair existing rooms before expansion.
-        if available >= 0.025
+        if available >= MIN_EXPANSION_WORK_MONTHS
             && self.remaining() == 0.
-            && self.condition() >= 0.8
-            && target - self.planned() >= 2.
-            && self.rooms.len() < 32
+            && self.condition() >= MIN_EXPANSION_CONDITION
+            && target - self.planned() >= MIN_ROOM_CAPACITY
+            && self.rooms.len() < MAX_ROOMS
         {
             if let Some(mut room) = choose(
                 c,

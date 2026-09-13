@@ -2,6 +2,14 @@
 use crate::{civilization::History, governance::Treaty};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+
+const MAX_OBLIGATION_MONEY: f64 = 1e9;
+const MAX_INSTALLMENT_MONTHS: u32 = 60;
+const OFFER_EXPIRY_MONTHS: u32 = 3;
+const BREACH_AFTER_MISSED_PAYMENTS: u32 = 3;
+const BREACH_TRUST_LOSS_PERCENTAGE_POINTS: f32 = 25.0;
+const PAYMENT_TOLERANCE_MONEY: f64 = 1e-8;
+const RECEIPT_TOLERANCE_MONEY: f64 = 1e-6;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Payment {
     pub month: u32,
@@ -32,7 +40,10 @@ impl Peace {
 impl History {
     pub fn offer_peace(&mut self, war: u32, payer: u32, total: f64, months: u32) -> Result<u32> {
         ensure!(
-            total.is_finite() && total > 0. && total <= 1e9 && (1..=60).contains(&months),
+            total.is_finite()
+                && total > 0.
+                && total <= MAX_OBLIGATION_MONEY
+                && (1..=MAX_INSTALLMENT_MONTHS).contains(&months),
             "invalid peace terms"
         );
         let w = self
@@ -56,7 +67,7 @@ impl History {
         ensure!(
             !g.peace.iter().any(|p| p.war == war
                 && p.breached.is_none()
-                && (p.accepted.is_some() || self.month < p.offered + 3)),
+                && (p.accepted.is_some() || self.month < p.offered + OFFER_EXPIRY_MONTHS)),
             "active peace offer"
         );
         self.event("peace_offer",Some(w.goal),None,format!("Council {payer} offered {total:.2} to council {payee} over {months} months for mutual withdrawal"));
@@ -90,7 +101,9 @@ impl History {
             .ok_or_else(|| anyhow::anyhow!("unknown offer"))?
             .clone();
         ensure!(
-            p.accepted.is_none() && self.month < p.offered + 3 && accepting_council == p.payee,
+            p.accepted.is_none()
+                && self.month < p.offered + OFFER_EXPIRY_MONTHS
+                && accepting_council == p.payee,
             "offer expired or wrong accepting party"
         );
         ensure!(
@@ -155,7 +168,7 @@ impl History {
             id: treaty,
             parties,
             signed: self.month,
-            expires: self.month + 120,
+            expires: self.month + crate::governance::DEFAULT_TRUCE_MONTHS,
             expired: None,
             cause,
         });
@@ -177,7 +190,7 @@ impl History {
         for p in &mut g.peace {
             let Some(start) = p.accepted else { continue };
             if p.breached.is_some()
-                || p.paid() >= p.total - 1e-8
+                || p.paid() >= p.total - PAYMENT_TOLERANCE_MONEY
                 || p.receipts.last().is_some_and(|r| r.month >= self.month)
             {
                 continue;
@@ -190,7 +203,11 @@ impl History {
             society.councils[p.payer as usize].treasury -= paid;
             society.councils[p.payee as usize].treasury += paid;
             let arrears = (due - paid).max(0.);
-            p.missed = if arrears > 1e-8 { p.missed + 1 } else { 0 };
+            p.missed = if arrears > PAYMENT_TOLERANCE_MONEY {
+                p.missed + 1
+            } else {
+                0
+            };
             p.receipts.push(Payment {
                 month: self.month,
                 due,
@@ -207,14 +224,14 @@ impl History {
                 ),
             );
             self.events.last_mut().unwrap().causes.push(p.cause);
-            if p.missed >= 3 {
+            if p.missed >= BREACH_AFTER_MISSED_PAYMENTS {
                 p.breached = Some(self.month);
                 let t = &mut g.treaties[p.treaty.unwrap() as usize];
                 t.expires = self.month;
                 t.expired = Some(self.month);
                 for r in &mut g.relations {
                     if r.parties == t.parties {
-                        r.trust = (r.trust - 25.).max(0.);
+                        r.trust = (r.trust - BREACH_TRUST_LOSS_PERCENTAGE_POINTS).max(0.);
                     }
                 }
                 self.politics.as_mut().unwrap().wars[p.war as usize].outcome =
@@ -246,11 +263,11 @@ pub(crate) fn validate(h: &History, terms: &[Peace]) -> Result<()> {
                 && p.payer != p.payee
                 && p.total.is_finite()
                 && p.total > 0.
-                && p.total <= 1e9
-                && (1..=60).contains(&p.months)
+                && p.total <= MAX_OBLIGATION_MONEY
+                && (1..=MAX_INSTALLMENT_MONTHS).contains(&p.months)
                 && p.offered <= h.month
                 && p.accepted.is_none_or(|m| m >= p.offered && m <= h.month)
-                && p.paid() <= p.total + 1e-6
+                && p.paid() <= p.total + RECEIPT_TOLERANCE_MONEY
                 && (p.cause as usize) < h.events.len()
                 && p.accepted.is_some() == p.treaty.is_some()
                 && p.accepted.is_some() != p.receipts.is_empty()
@@ -269,8 +286,8 @@ pub(crate) fn validate(h: &History, terms: &[Peace]) -> Result<()> {
                     && r.arrears.is_finite()
                     && r.due >= 0.
                     && r.paid >= 0.
-                    && r.paid <= r.due + 1e-8
-                    && (r.due - r.paid - r.arrears).abs() < 1e-6)
+                    && r.paid <= r.due + PAYMENT_TOLERANCE_MONEY
+                    && (r.due - r.paid - r.arrears).abs() < RECEIPT_TOLERANCE_MONEY)
                 && p.receipts.windows(2).all(|r| r[0].month < r[1].month),
             "invalid peace obligation"
         );

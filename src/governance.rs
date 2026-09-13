@@ -3,6 +3,10 @@ use crate::{civilization::History, gpu::Generator};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
+pub(crate) const DEFAULT_TRUCE_MONTHS: u32 = 120;
+const MIN_TREATY_MONTHS: u32 = 12;
+const MAX_TREATY_MONTHS: u32 = 600;
+
 /// Completed local evidence, separate from live payroll and political commitments.
 #[derive(Clone, Debug)]
 pub(crate) struct GovernanceObservations {
@@ -192,7 +196,7 @@ impl Governance {
                     && t.signed >= self.started
                     && t.signed <= h.month
                     && t.expires > t.signed
-                    && t.expires - t.signed <= 600
+                    && t.expires - t.signed <= MAX_TREATY_MONTHS
                     && t.expired.is_none_or(|m| m >= t.expires && m <= h.month)
                     && (t.cause as usize) < h.events.len(),
                 "invalid treaty"
@@ -500,7 +504,7 @@ impl History {
             .map(|r| r.parties)
             .collect();
         for [a, b] in offers {
-            let _ = self.sign_treaty(a, b, 120);
+            let _ = self.sign_treaty(a, b, DEFAULT_TRUCE_MONTHS);
         }
     }
     pub(crate) fn sign_treaty(&mut self, a: u32, b: u32, months: u32) -> Result<u32> {
@@ -508,7 +512,7 @@ impl History {
             a != b
                 && (a as usize) < self.civilizations.len()
                 && (b as usize) < self.civilizations.len()
-                && (12..=600).contains(&months),
+                && (MIN_TREATY_MONTHS..=MAX_TREATY_MONTHS).contains(&months),
             "invalid treaty parties or duration"
         );
         let g = self

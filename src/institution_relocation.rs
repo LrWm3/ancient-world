@@ -3,6 +3,10 @@ use crate::{civilization::History, culture::Owner, gpu::Generator};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
+const MIN_DESTINATION_MEMBERS: usize = 2;
+const RELOCATION_BASE_COST_MONEY: f64 = 10.0;
+const RELOCATION_COST_MONEY_PER_MONTH: f64 = 5.0;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Move {
     pub institution: u32,
@@ -46,7 +50,7 @@ impl History {
         );
         let present = c.site_people(self, to);
         ensure!(
-            n.members.iter().filter(|p| present.contains(p)).count() >= 2,
+            n.members.iter().filter(|p| present.contains(p)).count() >= MIN_DESTINATION_MEMBERS,
             "destination needs two present members"
         );
         let route = self
@@ -59,8 +63,10 @@ impl History {
                 })
             })
             .ok_or_else(|| anyhow::anyhow!("no open direct relocation route"))?;
-        let duration = (route.cost_km / 150.).ceil().max(1.) as u32;
-        let quote = 10. + duration as f64 * 5.;
+        let duration = (route.cost_km / crate::society::LAND_TRAVEL_KM_PER_MONTH)
+            .ceil()
+            .max(1.) as u32;
+        let quote = RELOCATION_BASE_COST_MONEY + duration as f64 * RELOCATION_COST_MONEY_PER_MONTH;
         let from = n.site;
         // Pay the origin's existing transport account with its representable increment.
         let before = self.sites[from as usize].economy.finance[0];

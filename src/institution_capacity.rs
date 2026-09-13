@@ -1,5 +1,26 @@
 //! Persistent institutional readiness, supported by finite quarterly work and money.
 use serde::{Deserialize, Serialize};
+
+pub(crate) const UPKEEP_FEE_MONEY_PER_QUARTER: f64 = 0.5;
+const UPDATE_INTERVAL_MONTHS: u32 = 3;
+const INITIAL_READINESS: f32 = 0.5;
+const SUPPORTED_READINESS_GAIN_PER_QUARTER: f32 = 0.12;
+const UNSUPPORTED_READINESS_LOSS_PER_QUARTER: f32 = 0.08;
+const DISRUPTION_READINESS_LOSS_PER_QUARTER: f32 = 0.12;
+const MIN_OPERATIONAL_READINESS: f32 = 0.25;
+const RECOVERED_READINESS: f32 = 0.6;
+const MIN_OPERATIONAL_BUILDING_CONDITION: f32 = 0.25;
+const RESTORED_BUILDING_CONDITION: f32 = 0.7;
+const LARGE_BUILDING_UPKEEP_WORK_MONTHS: f32 = 0.125;
+const BASIC_UPKEEP_WORK_MONTHS: f32 = 0.025;
+const LEGACY_REPLACEMENT_WORK_MONTHS: f32 = 0.1;
+const LEGACY_BUILDING_WEAR_PER_QUARTER: f32 = 0.0025;
+const LEGACY_DISRUPTION_WEAR_PER_QUARTER: f32 = 0.08;
+const MIN_BRICK_PRICE_MONEY_PER_KG: f32 = 0.01;
+const OPERATING_CORE_MEMBERS: usize = 2;
+
+pub const HALL_BRICKS_KG: f32 = 2_000.;
+pub const HALL_WORK_MONTHS: f32 = 4.;
 /// Distribution between institutional duties; it does not change execution timing.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WorkPolicy {
@@ -23,7 +44,7 @@ impl Priority {
     ) {
         plans.sort_by_key(|p| p.institution);
         if self == Self::Rotating && !plans.is_empty() {
-            let offset = (month / 3 + site) as usize % plans.len();
+            let offset = (month / UPDATE_INTERVAL_MONTHS + site) as usize % plans.len();
             plans.rotate_left(offset);
         }
     }
@@ -54,8 +75,6 @@ pub struct MeetingPlace {
     pub repair_paid: f64,
     pub dilapidated: bool,
 }
-pub const HALL_BRICKS_KG: f32 = 2_000.;
-pub const HALL_WORK_MONTHS: f32 = 4.;
 
 impl MeetingPlace {
     pub fn facility(artifact: u32, f: crate::facilities::Facility) -> Self {
@@ -68,7 +87,7 @@ impl MeetingPlace {
     }
     pub fn hall(artifact: u32) -> Self {
         Self {
-            construction_remaining: HALL_WORK_MONTHS - 0.2,
+            construction_remaining: HALL_WORK_MONTHS - crate::facilities::FOUNDING_WORK_MONTHS,
             condition: 0.,
             ..Self::new(artifact)
         }
@@ -89,7 +108,7 @@ impl Capacity {
     pub fn new(month: u32) -> Self {
         Self {
             mandate: None,
-            readiness: 0.5,
+            readiness: INITIAL_READINESS,
             paid: 0.,
             work: 0.,
             observed: month,
@@ -98,9 +117,10 @@ impl Capacity {
         }
     }
     fn advance(&mut self, support: f32, disruption: f32) {
-        self.readiness =
-            (self.readiness + 0.12 * support - 0.08 * (1. - support) - 0.12 * disruption)
-                .clamp(0., 1.);
+        self.readiness = (self.readiness + SUPPORTED_READINESS_GAIN_PER_QUARTER * support
+            - UNSUPPORTED_READINESS_LOSS_PER_QUARTER * (1. - support)
+            - DISRUPTION_READINESS_LOSS_PER_QUARTER * disruption)
+            .clamp(0., 1.);
     }
 }
 impl crate::culture::Institution {
@@ -108,10 +128,10 @@ impl crate::culture::Institution {
         self.active
             && self.capacity.as_ref().is_none_or(|c| {
                 c.mandate.as_ref().is_none_or(|m| m.holder.is_some())
-                    && c.readiness >= 0.25
+                    && c.readiness >= MIN_OPERATIONAL_READINESS
                     && c.building.as_ref().is_none_or(|b| {
                         (b.facility.is_some() || b.construction_remaining == 0.)
-                            && b.condition >= 0.25
+                            && b.condition >= MIN_OPERATIONAL_BUILDING_CONDITION
                     })
             })
     }
@@ -124,7 +144,7 @@ fn operating_space(
     crate::facilities::demand(
         kind,
         if working_core {
-            members.min(2)
+            members.min(OPERATING_CORE_MEMBERS)
         } else {
             members
         },
@@ -175,9 +195,9 @@ impl crate::culture::Culture {
                         .any(|&(g, mass)| g == 5 && mass >= HALL_BRICKS_KG)
             });
         if large {
-            0.125
+            LARGE_BUILDING_UPKEEP_WORK_MONTHS
         } else {
-            0.025
+            BASIC_UPKEEP_WORK_MONTHS
         }
     }
     pub(crate) fn maintain_institutions(&mut self, h: &mut crate::civilization::History) {
@@ -218,9 +238,9 @@ impl crate::culture::Culture {
             });
             let work_limit =
                 if large_building || c.building.as_ref().is_some_and(|b| b.facility.is_some()) {
-                    0.125
+                    LARGE_BUILDING_UPKEEP_WORK_MONTHS
                 } else {
-                    0.025
+                    BASIC_UPKEEP_WORK_MONTHS
                 };
             let assigned = self.work_plans.get(i).and_then(|p| p.upkeep.as_ref());
             let stale = self
@@ -249,7 +269,11 @@ impl crate::culture::Culture {
             } else {
                 (available.get(i).copied().unwrap_or(0.) / counts[i].max(1) as f32).min(work_limit)
             };
-            let fee = if work > 0. { n.treasury.min(0.5) } else { 0. };
+            let fee = if work > 0. {
+                n.treasury.min(UPKEEP_FEE_MONEY_PER_QUARTER)
+            } else {
+                0.
+            };
             let pool = &mut h.sites[i].economy.finance[0];
             let old = *pool;
             let mut next = (old as f64 + fee) as f32;
@@ -291,7 +315,7 @@ impl crate::culture::Culture {
                             &mut h.sites[i].economy,
                             h.economy_catalog.as_ref().unwrap(),
                             &mut n.treasury,
-                            (work - 0.025).max(0.),
+                            (work - BASIC_UPKEEP_WORK_MONTHS).max(0.),
                             target,
                         );
                         repair_work = used;
@@ -342,7 +366,7 @@ impl crate::culture::Culture {
                     let replacement_work = if large_building {
                         HALL_WORK_MONTHS
                     } else {
-                        0.1
+                        LEGACY_REPLACEMENT_WORK_MONTHS
                     };
                     if accessible && b.construction_remaining > 0. {
                         let built = work.min(b.construction_remaining);
@@ -361,12 +385,14 @@ impl crate::culture::Culture {
                         }
                     } else if accessible {
                         b.condition = (b.condition
-                            - 0.0025
-                            - 0.08 * h.sites[i].economy.soil[3].clamp(0., 1.))
+                            - LEGACY_BUILDING_WEAR_PER_QUARTER
+                            - LEGACY_DISRUPTION_WEAR_PER_QUARTER
+                                * h.sites[i].economy.soil[3].clamp(0., 1.))
                         .max(0.);
-                        let price = h.sites[i].economy.prices[5].max(0.01) as f64;
+                        let price =
+                            h.sites[i].economy.prices[5].max(MIN_BRICK_PRICE_MONEY_PER_KG) as f64;
                         let improvement = (1. - b.condition)
-                            .min(0.1)
+                            .min(crate::facilities::MAX_REPAIR_FRACTION_PER_QUARTER)
                             .min(work / replacement_work)
                             .min(h.sites[i].economy.goods[5] / embodied)
                             .min(
@@ -417,16 +443,18 @@ impl crate::culture::Culture {
                         b.condition = 0.;
                     }
                     building_support = b.condition;
-                    let event =
-                        if !b.dilapidated && b.construction_remaining == 0. && b.condition < 0.25 {
-                            b.dilapidated = true;
-                            Some("meeting_place_dilapidated")
-                        } else if b.dilapidated && b.condition >= 0.7 {
-                            b.dilapidated = false;
-                            Some("meeting_place_repaired")
-                        } else {
-                            None
-                        };
+                    let event = if !b.dilapidated
+                        && b.construction_remaining == 0.
+                        && b.condition < MIN_OPERATIONAL_BUILDING_CONDITION
+                    {
+                        b.dilapidated = true;
+                        Some("meeting_place_dilapidated")
+                    } else if b.dilapidated && b.condition >= RESTORED_BUILDING_CONDITION {
+                        b.dilapidated = false;
+                        Some("meeting_place_repaired")
+                    } else {
+                        None
+                    };
                     if let Some(kind) = event {
                         let cause = self.artifacts[b.artifact as usize].events.last().copied();
                         h.event(kind,Some(n.site),None,format!("{} meeting place condition {:.0}%; cumulative replacement bricks {:.3} kg",n.name,b.condition*100.,b.repaired_kg));
@@ -440,16 +468,16 @@ impl crate::culture::Culture {
                     }
                 }
             }
-            let support = ((work - repair_work).max(0.) / 0.025)
+            let support = ((work - repair_work).max(0.) / BASIC_UPKEEP_WORK_MONTHS)
                 .min(building_support)
-                .min((paid / 0.5) as f32)
-                .min((living as f32 / 2.).min(1.));
+                .min((paid / UPKEEP_FEE_MONEY_PER_QUARTER) as f32)
+                .min((living as f32 / OPERATING_CORE_MEMBERS as f32).min(1.));
             c.advance(support, h.sites[i].economy.soil[3].clamp(0., 1.));
             c.observed = h.month;
-            let event = if !c.impaired && c.readiness < 0.25 {
+            let event = if !c.impaired && c.readiness < MIN_OPERATIONAL_READINESS {
                 c.impaired = true;
                 Some("institution_impaired")
-            } else if c.impaired && c.readiness >= 0.6 {
+            } else if c.impaired && c.readiness >= RECOVERED_READINESS {
                 c.impaired = false;
                 Some("institution_recovered")
             } else {

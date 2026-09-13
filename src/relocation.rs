@@ -2,6 +2,8 @@
 use crate::{civilization::History, economy::FOOD_CNP};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+
+const DESTINATION_DISTANCE_SCALE_KM: f32 = 150.0;
 mod comparison;
 
 /// Transient decision inputs captured after consumption, before response actions.
@@ -339,7 +341,10 @@ impl History {
                 && !j.returning
             {
                 j.returning = true;
-                j.arrives = self.month + (r.cost_km / 150.).ceil().max(1.) as u32;
+                j.arrives = self.month
+                    + (r.cost_km / crate::society::LAND_TRAVEL_KM_PER_MONTH)
+                        .ceil()
+                        .max(1.) as u32;
                 self.relocation_event(
                     "household_returning",
                     &j,
@@ -728,7 +733,9 @@ impl History {
                     .map(Journey::population)
                     .sum::<f32>();
                 let demand_pop = t.stocks.stock[0] + pending + pop;
-                let months = (r.cost_km / 150.).ceil().max(1.) as u32;
+                let months = (r.cost_km / crate::society::LAND_TRAVEL_KM_PER_MONTH)
+                    .ceil()
+                    .max(1.) as u32;
                 let provisions = pop * 18. * (months + reserve_months) as f32;
                 let resident_need = t.demography.ages[..3]
                     .iter()
@@ -768,7 +775,7 @@ impl History {
                 let score = (fertile_capacity - demand_pop)
                     * (0.25 + self.relief_affinity(from as u32, to))
                     * self.destination_memory(from as u32, to)
-                    / (1. + r.cost_km / 150.);
+                    / (1. + r.cost_km / DESTINATION_DISTANCE_SCALE_KM);
                 if best.as_ref().is_none_or(|&(_, _, _, v)| score > v) {
                     best = Some((to, r.id, months, score));
                 }

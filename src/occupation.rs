@@ -3,6 +3,10 @@ use crate::{
     civilization::History,
     society::{Raid, Society},
 };
+
+pub(crate) const DEFAULT_OCCUPATION_MONTHS: u32 = 3;
+pub(crate) const MAX_OCCUPATION_MONTHS: u32 = 12;
+const FULL_COERCION_SOLDIERS_PER_RESIDENT: f32 = 0.1;
 impl Raid {
     pub(crate) fn return_duration(&self, society: &Society) -> u32 {
         if self.travel_months > 0 {
@@ -16,7 +20,11 @@ impl Raid {
                 (r.from == self.origin && r.to == self.target)
                     || (r.to == self.origin && r.from == self.target)
             })
-            .map_or(1, |r| (r.cost_km / 150.).ceil().max(1.) as u32)
+            .map_or(1, |r| {
+                (r.cost_km / crate::society::LAND_TRAVEL_KM_PER_MONTH)
+                    .ceil()
+                    .max(1.) as u32
+            })
     }
 }
 impl History {
@@ -56,7 +64,11 @@ impl History {
             || allegiance != Some(self.controller(raid.origin))
         {
             Some("political access lost")
-        } else if raid.food < raid.soldiers * 18. * (months + 1) as f32 {
+        } else if raid.food
+            < raid.soldiers
+                * crate::military::SOLDIER_FOOD_KG_PER_MONTH
+                * (months + crate::military::RETURN_PROVISION_MARGIN_MONTHS) as f32
+        {
             Some("provisions reserved for withdrawal")
         } else {
             None
@@ -97,7 +109,7 @@ impl History {
                 .map(|r| r.soldiers)
                 .sum::<f32>()
         });
-        (soldiers / (s.stocks.stock[0] * 0.1).max(1.)).clamp(0., 1.)
+        (soldiers / (s.stocks.stock[0] * FULL_COERCION_SOLDIERS_PER_RESIDENT).max(1.)).clamp(0., 1.)
     }
 }
 
@@ -109,7 +121,10 @@ impl crate::gpu::Generator {
             self.progress.stage == crate::gpu::Stage::Boundary,
             "occupation policy requires a completed boundary"
         );
-        anyhow::ensure!(months <= 12, "occupation duration must be 0–12 months");
+        anyhow::ensure!(
+            months <= MAX_OCCUPATION_MONTHS,
+            "occupation duration must be 0–12 months"
+        );
         let h = self
             .civilizations
             .as_mut()

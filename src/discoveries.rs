@@ -7,9 +7,16 @@ use crate::{
 };
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
-pub mod returns;
+
+// Research work passes through f32 labor grants with a minimum useful allocation.
+// A sub-milligram remainder must not strand a completed 1.5 kg study forever.
+// This is an eligibility tolerance only: never round up consumed mass or ledgers.
+const STUDY_KG: f64 = 1.5;
+const STUDY_TOLERANCE_KG: f64 = 1e-6;
 pub const CNP: [[f64; 3]; 2] = [[0.45, 0.02, 0.003], [0., 0., 0.08]];
 pub const NAMES: [&str; 2] = ["faultroot resin", "phosphatic crust"];
+pub mod returns;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Source {
     pub cell: u32,
@@ -86,11 +93,6 @@ pub struct Discoveries {
     pub worker_months: f64,
     pub worker_months_reserved: f64,
 }
-// Research work passes through f32 labor grants with a minimum useful allocation.
-// A sub-milligram remainder must not strand a completed 1.5 kg study forever.
-// This is an eligibility tolerance only: never round up consumed mass or ledgers.
-const STUDY_KG: f64 = 1.5;
-const STUDY_TOLERANCE_KG: f64 = 1e-6;
 pub(crate) fn study_complete(kg: f64) -> bool {
     kg >= STUDY_KG - STUDY_TOLERANCE_KG
 }

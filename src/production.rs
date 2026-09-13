@@ -4,6 +4,13 @@ use crate::{
     economy::{EconomyCatalog, FOOD, GOODS},
 };
 use serde::{Deserialize, Serialize};
+
+pub const WORKSHOP_NAMES: [&str; 4] = [
+    "General crafts",
+    "Metalworking",
+    "Kilns",
+    "Textiles and leather",
+];
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ProductionSettings {
@@ -67,12 +74,6 @@ impl Default for ProductionSettings {
         }
     }
 }
-pub const WORKSHOP_NAMES: [&str; 4] = [
-    "General crafts",
-    "Metalworking",
-    "Kilns",
-    "Textiles and leather",
-];
 pub fn empty_slots() -> [f32; GOODS] {
     [0.; GOODS]
 }

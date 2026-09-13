@@ -2,6 +2,10 @@
 use crate::{civilization::History, culture::Owner};
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+
+const MAX_COMPENSATION_MONEY: f64 = 1e9;
+const HEARING_WORK_MONTHS: f64 = 0.05;
+const PETITION_EXPIRY_MONTHS: u32 = 12;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Remedy {
     Return,
@@ -72,7 +76,10 @@ impl History {
             "petition requires a local office"
         );
         if let Remedy::Compensation(p) = remedy {
-            ensure!(p.is_finite() && p > 0. && p <= 1e9, "invalid compensation");
+            ensure!(
+                p.is_finite() && p > 0. && p <= MAX_COMPENSATION_MONEY,
+                "invalid compensation"
+            );
         }
         let g = self
             .governance
@@ -243,11 +250,11 @@ impl History {
                                 && Some(plan.holder) == office.and_then(|o| o.holder())
                                 && plan.work.month == self.month
                                 && plan.work.settled
-                                && plan.work.used >= 0.05
+                                && plan.work.used >= HEARING_WORK_MONTHS
                         })
                     });
             if !funded || used.contains(&p.site) {
-                if self.month < p.opened + 12 {
+                if self.month < p.opened + PETITION_EXPIRY_MONTHS {
                     continue;
                 }
                 p.outcome = "unresolved: no funded hearing within twelve months".into();
@@ -356,7 +363,10 @@ pub(crate) fn validate(h: &History, petitions: &[Petition]) -> Result<()> {
             "invalid artifact petition"
         );
         if let Remedy::Compensation(p) = p.remedy {
-            ensure!(p.is_finite() && p > 0. && p <= 1e9, "invalid compensation");
+            ensure!(
+                p.is_finite() && p > 0. && p <= MAX_COMPENSATION_MONEY,
+                "invalid compensation"
+            );
         }
     }
     Ok(())

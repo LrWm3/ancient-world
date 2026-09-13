@@ -227,7 +227,9 @@ impl History {
             .iter()
             .map(|&&(_, ref a, affinity, hostile, shortage)| {
                 let r = &self.society.as_ref().unwrap().routes[a.route as usize];
-                let months = (r.cost_km / 150.).ceil().max(1.) as u32;
+                let months = (r.cost_km / crate::society::LAND_TRAVEL_KM_PER_MONTH)
+                    .ceil()
+                    .max(1.) as u32;
                 let allowed = affinity >= 0.2 + months as f32 * 0.025
                     && !hostile
                     && !self.sites[a.host as usize].abandoned
@@ -257,7 +259,9 @@ impl History {
         for k in order {
             let &(i, ref a, affinity, hostile, shortage) = pending[k];
             let r = self.society.as_ref().unwrap().routes[a.route as usize].clone();
-            let months = (r.cost_km / 150.).ceil().max(1.) as u32;
+            let months = (r.cost_km / crate::society::LAND_TRAVEL_KM_PER_MONTH)
+                .ceil()
+                .max(1.) as u32;
             let host = &self.sites[a.host as usize];
             let surplus = (host.stocks.stock[1] - host.stocks.stock[0] * 18. * 12.).max(0.);
             let willing = affinity >= 0.2 + months as f32 * 0.025;

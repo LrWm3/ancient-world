@@ -6,6 +6,17 @@ use crate::{
 };
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+
+const CREW_ROLES: [&str; 8] = [
+    "captain",
+    "navigator",
+    "naturalist",
+    "engineer",
+    "guard",
+    "guard",
+    "porter",
+    "porter",
+];
 const FOOD_CNP: [f32; 3] = [0.45, 0.02, 0.003];
 const WOOD_CNP: [f32; 3] = [0.5, 0.002, 0.0002];
 const LIMIT: usize = 512;
@@ -183,16 +194,6 @@ fn team_skill(crew: &[Crew], legacy: f32, role: &str) -> f32 {
     };
     (0.5 * general + 0.5 * specialist).clamp(0., 1.)
 }
-const CREW_ROLES: [&str; 8] = [
-    "captain",
-    "navigator",
-    "naturalist",
-    "engineer",
-    "guard",
-    "guard",
-    "porter",
-    "porter",
-];
 
 // Only completed, surviving voyage records are passed here. Role-specific practice
 // transfers fully; a different specialty supplies at most half its competence.
@@ -624,7 +625,10 @@ impl Expeditions {
                     port: i as u32,
                     cells,
                     km,
-                    travel_months: (km / 600. + p.access_km / 150.).ceil().max(1.) as u32,
+                    travel_months: (km / 600.
+                        + p.access_km / crate::society::LAND_TRAVEL_KM_PER_MONTH)
+                        .ceil()
+                        .max(1.) as u32,
                 });
             }
         }

@@ -5,6 +5,15 @@ use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+const MAX_SERVICE_PREPAREDNESS_BONUS: f32 = 0.15;
+const FULL_PREPAREDNESS_SERVICE_MONTHS: f32 = 120.0;
+const CASUALTY_RANDOM_STREAM: u32 = 991;
+const RETURNING_ELDER_AGE_MONTHS: i32 = 720;
+
+pub(crate) const SOLDIER_FOOD_KG_PER_MONTH: f32 = 18.0;
+pub(crate) const MAX_CAMPAIGN_TRAVEL_MONTHS: u32 = 10;
+pub(crate) const RETURN_PROVISION_MARGIN_MONTHS: u32 = 1;
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Military {
     #[serde(default)]
@@ -123,14 +132,13 @@ impl History {
         if people.is_empty() {
             return 1.;
         }
-        1. + 0.15
+        1. + MAX_SERVICE_PREPAREDNESS_BONUS
             * people
                 .iter()
                 .map(|p| {
-                    self.military
-                        .careers
-                        .get(p)
-                        .map_or(0., |c| (c.months_served as f32 / 120.).min(1.))
+                    self.military.careers.get(p).map_or(0., |c| {
+                        (c.months_served as f32 / FULL_PREPAREDNESS_SERVICE_MONTHS).min(1.)
+                    })
                 })
                 .sum::<f32>()
             / people.len() as f32
@@ -160,8 +168,13 @@ impl History {
             };
             // Order-independent identity selection, with a subsystem-specific stream.
             members.sort_by_key(|&p| {
-                crate::expeditions::random(self.seed, p, self.month, raid.id.wrapping_add(991))
-                    .to_bits()
+                crate::expeditions::random(
+                    self.seed,
+                    p,
+                    self.month,
+                    raid.id.wrapping_add(CASUALTY_RANDOM_STREAM),
+                )
+                .to_bits()
             });
             let lost: Vec<_> = members.drain(..count).collect();
             members.sort_unstable();
@@ -225,7 +238,7 @@ impl History {
         if let Some(people) = &raid.members {
             for &id in people {
                 self.military.duties.remove(&id);
-                if self.month as i32 - self.people[id as usize].born >= 720 {
+                if self.month as i32 - self.people[id as usize].born >= RETURNING_ELDER_AGE_MONTHS {
                     elders += 1.;
                 }
             }
