@@ -2,14 +2,19 @@
 use crate::{civilization::History, culture::Culture};
 use serde::{Deserialize, Serialize};
 
-const RENOWN_DECAY_MONTHS: f32 = 120.0;
+pub(crate) const PERSONAL_LEADERSHIP_WEIGHT: f32 = 0.30;
+const RENOWN_HALF_LIFE_MONTHS: f32 = 240.0;
+const ORDINARY_RETURN_STRENGTH: f32 = 0.35;
+const RESCUE_RETURN_STRENGTH: f32 = 0.65;
 const MIN_VISIT_RENOWN: f32 = 0.1;
 const VISIT_KM_PER_WORK_MONTH: f32 = 1200.0;
 const ROUND_TRIP_LEGS: f32 = 2.0;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Recognition {
-    pub artifact: u32,
+    pub artifact: Option<u32>,
+    #[serde(default = "full_strength")]
+    pub strength: f32,
     pub expedition: u32,
     pub event: u64,
     pub month: u32,
@@ -23,6 +28,10 @@ pub struct Recognition {
     pub witnesses: Vec<(u32, u32)>,
 }
 
+fn full_strength() -> f32 {
+    1.
+}
+
 impl Recognition {
     pub fn weight(&self, observer: u32, month: u32) -> f32 {
         if !self
@@ -32,7 +41,9 @@ impl Recognition {
         {
             return 0.;
         }
-        self.survival / (1. + month.saturating_sub(self.month) as f32 / RENOWN_DECAY_MONTHS)
+        self.strength
+            * self.survival
+            * (-((month.saturating_sub(self.month) as f32) / RENOWN_HALF_LIFE_MONTHS)).exp2()
     }
 }
 
@@ -127,7 +138,7 @@ pub fn destination(
         .iter()
         .filter(|r| r.tradition == tradition && r.weight(observer, h.month) > MIN_VISIT_RENOWN)
         .filter_map(|r| {
-            let a = c.artifacts.get(r.artifact as usize)?;
+            let a = c.artifacts.get(r.artifact? as usize)?;
             let site = a.site?;
             let present = c.site_people(h, site);
             if a.lost
@@ -149,15 +160,17 @@ pub fn destination(
                 .total_cmp(&b.weight(observer, h.month))
                 .then_with(|| b.artifact.cmp(&a.artifact))
         })
-        .map(|(r, site)| (site, r.artifact))
+        .map(|(r, site)| (site, r.artifact.unwrap()))
 }
 
 pub fn validate(c: &Culture, h: &History) -> anyhow::Result<()> {
     let mut artifacts = std::collections::BTreeSet::new();
     for r in &c.heritage_renown {
         anyhow::ensure!(
-            artifacts.insert(r.artifact)
-                && (r.artifact as usize) < c.artifacts.len()
+            r.artifact
+                .is_none_or(|a| artifacts.insert(a) && (a as usize) < c.artifacts.len())
+                && r.strength.is_finite()
+                && (0. ..=1.).contains(&r.strength)
                 && r.month <= h.month
                 && (r.origin as usize) < h.sites.len()
                 && (r.civilization as usize) < h.civilizations.len()
@@ -167,9 +180,10 @@ pub fn validate(c: &Culture, h: &History) -> anyhow::Result<()> {
                 && r.people.iter().all(|&p| (p as usize) < h.people.len())
                 && r.survival.is_finite()
                 && (0. ..=1.).contains(&r.survival)
-                && h.events
-                    .get(r.event as usize)
-                    .is_some_and(|e| e.kind == "heritage_fragment_received" && e.month == r.month),
+                && h.events.get(r.event as usize).is_some_and(|e| matches!(
+                    e.kind.as_str(),
+                    "heritage_fragment_received" | "expedition_return"
+                ) && e.month == r.month),
             "invalid heritage recognition"
         );
         let mut sites = std::collections::BTreeSet::new();
@@ -184,13 +198,63 @@ pub fn validate(c: &Culture, h: &History) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Successful returns without a recovered object still establish witnessed achievement.
+/// Rescue credit requires an observed recovery, not merely a rescue charter.
+pub(crate) fn returned(
+    h: &mut History,
+    e: &crate::expeditions::Expedition,
+    event: u64,
+    rescued: bool,
+) {
+    if e.survivors() == 0 || (!e.confirmed && !rescued) {
+        return;
+    }
+    let Some(c) = &mut h.culture else { return };
+    if c.heritage_renown.iter().any(|r| r.expedition == e.id) {
+        return;
+    }
+    let Some(tradition) = c.site_faith.get(e.origin as usize).copied() else {
+        return;
+    };
+    let strength = expedition_strength(e.objective, rescued);
+    c.heritage_renown.push(Recognition {
+        artifact: None,
+        strength,
+        expedition: e.id,
+        event,
+        month: h.month,
+        origin: e.origin,
+        civilization: e.sponsor,
+        tradition,
+        institution: e.institution,
+        people: e
+            .crew
+            .iter()
+            .filter(|p| p.alive)
+            .filter_map(|p| p.person)
+            .collect(),
+        survival: e.survivors() as f32 / e.crew.len().max(1) as f32,
+        witnesses: vec![(e.origin, h.month)],
+    });
+}
+
+pub(crate) fn expedition_strength(objective: crate::expeditions::Objective, rescued: bool) -> f32 {
+    use crate::expeditions::Objective;
+    match objective {
+        Objective::PatronSearch | Objective::Inscriptions | Objective::OldLiterature => 1.,
+        _ if rescued => RESCUE_RETURN_STRENGTH,
+        _ => ORDINARY_RETURN_STRENGTH,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
     fn recognition_requires_witnesses_and_fades_without_repeated_awards() {
         let mut r = Recognition {
-            artifact: 0,
+            artifact: Some(0),
+            strength: 1.,
             expedition: 0,
             event: 0,
             month: 12,
@@ -204,8 +268,15 @@ mod tests {
         };
         assert_eq!(r.weight(1, 12), 0.);
         assert_eq!(r.weight(0, 12), 0.5);
-        assert_eq!(r.weight(0, 132), 0.25);
+        assert_eq!(r.weight(0, 252), 0.25);
+        assert_eq!(r.weight(0, 492), 0.125);
+        let ordinary = expedition_strength(crate::expeditions::Objective::Ecology, false);
+        assert!(ordinary < expedition_strength(crate::expeditions::Objective::Rescue, true));
+        assert!(
+            expedition_strength(crate::expeditions::Objective::Rescue, true)
+                < expedition_strength(crate::expeditions::Objective::OldLiterature, false)
+        );
         r.witnesses.push((1, 132));
-        assert_eq!(r.weight(1, 132), 0.25, "late news does not rejuvenate fame");
+        assert_eq!(r.weight(1, 252), 0.25, "late news does not rejuvenate fame");
     }
 }

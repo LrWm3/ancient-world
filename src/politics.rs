@@ -828,9 +828,10 @@ impl History {
                                 .and_then(|c| c.agents.get(head as usize))
                                 .map_or(0., |a| a.traits[0] + a.traits[4] * 0.5 + a.skills[0])
                                 + self.culture.as_ref().map_or(0., |c| {
-                                    0.15 * crate::heritage_renown::score(c, site, self.month, |r| {
-                                        r.people.contains(&head)
-                                    })
+                                    crate::heritage_renown::PERSONAL_LEADERSHIP_WEIGHT
+                                        * crate::heritage_renown::score(c, site, self.month, |r| {
+                                            r.people.contains(&head)
+                                        })
                                 })
                         };
                         score(a.head, a.site)

@@ -9,7 +9,7 @@ const MAX_PETITION_CREDIT: f32 = 0.5;
 const ELIGIBLE_AGE_MONTHS: i64 = 216;
 const ABSENCE_GRACE_MONTHS: u32 = 6;
 const INTERNAL_CHALLENGE_MARGIN: f32 = 0.25;
-const PERSONAL_HERITAGE_WEIGHT: f32 = 0.15;
+
 const FACTION_HERITAGE_WEIGHT: f32 = 0.20;
 const LOYALTY_WEIGHT: f32 = 0.5;
 const COUNCIL_QUALITY_WEIGHT: f32 = 0.25;
@@ -167,7 +167,7 @@ impl History {
         self.culture.as_ref().map_or(0., |c| {
             c.agents.get(person as usize).map_or(0., |a| {
                 a.traits[0] + LOYALTY_WEIGHT * a.traits[4] + a.skills[0]
-            }) + PERSONAL_HERITAGE_WEIGHT
+            }) + crate::heritage_renown::PERSONAL_LEADERSHIP_WEIGHT
                 * crate::heritage_renown::score(c, site, self.month, |r| r.people.contains(&person))
         }) + self.personal_accountability(person, site)
     }
@@ -566,7 +566,8 @@ mod tests {
             .unwrap()
             .heritage_renown
             .push(crate::heritage_renown::Recognition {
-                artifact: 0,
+                artifact: Some(0),
+                strength: 1.,
                 expedition: 0,
                 event: 0,
                 month: h.month,

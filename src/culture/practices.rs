@@ -71,7 +71,11 @@ impl Culture {
         if let Some((_, artifact)) = heritage {
             let event = h.events.last_mut().unwrap();
             event.subjects.push(("artifact".into(), artifact));
-            if let Some(r) = self.heritage_renown.iter().find(|r| r.artifact == artifact) {
+            if let Some(r) = self
+                .heritage_renown
+                .iter()
+                .find(|r| r.artifact == Some(artifact))
+            {
                 event.causes.push(r.event);
             }
             event

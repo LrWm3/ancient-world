@@ -332,6 +332,7 @@ impl History {
             s.economy.enterprise_lease = [0.; 4];
             s.economy.enterprise_plan = [0.; 4];
             s.economy.enterprise_used = [0.; 4];
+            s.economy.enterprise_productivity = [0.; 4];
         }
         let Some(mut enterprises) = self.enterprises.take() else {
             return;
@@ -609,6 +610,13 @@ impl History {
                 0
             };
             town.economy.enterprise_plan[family] = work as f32;
+            town.economy.enterprise_productivity[family] = f
+                .staffing
+                .as_ref()
+                .zip(self.participation.as_ref())
+                .map_or(0., |(staff, pool)| {
+                    crate::workshop_resolution::productivity_bonus(pool, staff, family)
+                });
             let weights = ids
                 .iter()
                 .map(|&id| {
@@ -1530,6 +1538,69 @@ mod tests {
             .validate(h)
             .unwrap();
     }
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn experienced_work_has_bounded_productivity_with_finite_inputs() {
+        let mut g = world();
+        install(&mut g);
+        g.enable_politics().unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        h.month = 3;
+        h.enable_individual_demography().unwrap();
+        h.set_workshop_refinement(true).unwrap();
+        h.begin_service_reservations();
+        for r in h.participation.as_mut().unwrap().residents.values_mut() {
+            r.workshop_completed = 120.;
+            r.workshop_practice = [0., 120., 0., 0.];
+        }
+        h.prepare_enterprises();
+        assert!(h.sites[0].economy.enterprise_productivity[1] > 0.);
+        assert!(h.sites[0].economy.enterprise_productivity[1] < 0.75);
+        let paid = h.enterprises.as_ref().unwrap().firms[0].last_funded_work;
+        assert!(paid > 0.);
+        // Continue the ordinary monthly pipeline, which refreshes assignments.
+        h.settle_enterprises();
+        // Preparatory fixture reservation must be settled before a new month.
+        h.settle_workshop_resolutions().unwrap();
+        let path =
+            std::env::temp_dir().join(format!("worker-experience-{}.world", std::process::id()));
+        g.save(&path).unwrap();
+        let mut novice = Generator::load(g.gpu.clone(), &path).unwrap();
+        std::fs::remove_file(path).unwrap();
+        for r in novice
+            .civilizations
+            .as_mut()
+            .unwrap()
+            .participation
+            .as_mut()
+            .unwrap()
+            .residents
+            .values_mut()
+        {
+            r.workshop_completed = 0.;
+            r.workshop_practice = [0.; 4];
+            r.workshop_learning = [0.; 4];
+        }
+        g.advance_history(1).unwrap();
+        novice.advance_history(1).unwrap();
+        let h = g.civilizations.as_ref().unwrap();
+        let e = &h.sites[0].economy;
+        assert!(e.enterprise_productivity[1] > 0.);
+        let n = &novice.civilizations.as_ref().unwrap().sites[0].economy;
+        assert_eq!(n.enterprise_productivity[1], 0.);
+        assert!((n.enterprise_plan[1] - e.enterprise_plan[1]).abs() < 1e-4);
+        assert!(
+            e.workshop_types[1][2] >= n.workshop_types[1][2] && e.logistics[2] > n.logistics[2],
+            "expert output {} vs novice {}, unused time {} vs {}",
+            e.workshop_types[1][2],
+            n.workshop_types[1][2],
+            e.logistics[2],
+            n.logistics[2]
+        );
+        assert!(e.enterprise_used[1] <= e.enterprise_plan[1] + 1e-4);
+        assert!(h.economy_residuals().iter().all(|r| r.abs() < 0.02));
+    }
+
     #[test]
     #[ignore = "requires hardware GPU"]
     fn prepaid_capacity_gates_gpu_work_and_checkpoint_matches() {

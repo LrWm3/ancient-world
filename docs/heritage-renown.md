@@ -1,7 +1,7 @@
 # Heritage renown
 
-A successful archaeological return now creates one dated recognition record linked
-to its unique artifact, expedition, returning named crew, sponsoring civilization,
+A successful return creates one dated recognition record linked
+to its optional artifact, expedition, returning named crew, sponsoring civilization,
 institution and tradition. The received-fragment event references these actors.
 Repeated delivery cannot create a second object or award. Older archives default
 to no recognition records; prior voyages are not retroactively awarded fame.
@@ -20,8 +20,8 @@ cargo hold: the prior completed witness snapshot supplies the news, without
 reconstructing what the crew knew at dispatch. A completed delivery still counts
 if its route subsequently closes. Each observer retains its first-receipt date.
 
-Weight is the returning fraction of the crew, divided by
-(1 + months since return / 120). Late news does not refresh the achievement.
+Weight is the returning fraction of the crew times the objective weight,
+decaying exponentially with a 240-month half-life. Late news does not refresh the achievement.
 Combined recognition saturates as total / (1 + total); it cannot grow without
 bound. These are intentionally modest game weights, not empirical prestige units.
 
@@ -30,7 +30,7 @@ bound. These are intentionally modest game weights, not empirical prestige units
 - Among operational institutions that already meet the full sponsorship funding
   threshold, locally known heritage success breaks ties within the preferred
   institutional type. Renown cannot finance an expedition or bypass recruitment.
-- Returning named crew receive up to 0.15 additional council-candidate score where
+- Returning named crew receive up to 0.30 additional council-candidate score where
   their achievement is known. Existing faction membership, eligibility and support
   requirements remain. Fame does not add skill or surviving crew.
 - Known heritage adds up to 0.15 relative religious appeal in the existing
@@ -80,3 +80,6 @@ Commands: cargo test --lib heritage; cargo test --lib culture::dynamics;
 cargo test --lib pilgrimage. Each test command used
 -- --include-ignored --test-threads=1. These are controlled mechanism and regression
 checks, not a multi-century calibration of prestige or religious outcomes.
+
+See [experience and renown](expedition-experience-and-renown.md) for ordinary
+research, rescue and heritage-focused award weights.

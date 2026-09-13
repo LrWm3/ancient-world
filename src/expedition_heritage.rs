@@ -6,6 +6,11 @@ use crate::{
 };
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+
+const BASE_FIND_BUCKETS: u32 = 3;
+const FIND_BUCKETS: u32 = 5;
+const EXPERIENCE_EXTRA_FIND_CHANCE: f32 = 0.75;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Charter {
     pub tradition: u32,
@@ -138,7 +143,14 @@ pub fn charter(h: &History, origin: u32, objective: Objective) -> Result<Option<
         find: None,
     }))
 }
+fn find_opportunity(hash: u32, experience: f32) -> bool {
+    let mixed = hash ^ (hash >> 16);
+    mixed % FIND_BUCKETS < BASE_FIND_BUCKETS
+        || (((mixed.rotate_left(13) as f64 / (u32::MAX as f64 + 1.)) as f32)
+            < experience.clamp(0., 1.) * EXPERIENCE_EXTRA_FIND_CHANCE)
+}
 pub(crate) fn survey(h: &mut History, e: &mut Expedition, cell: u32, already: bool) {
+    let expertise = e.research_skill().clamp(0., 1.);
     let survivors = e.survivors();
     let Some(c) = &mut e.heritage else { return };
     if already || c.find.is_some() || e.field_months != 1 || survivors == 0 {
@@ -148,7 +160,7 @@ pub(crate) fn survey(h: &mut History, e: &mut Expedition, cell: u32, already: bo
     let hash = cell
         .wrapping_mul(747796405)
         .wrapping_add(h.seed.wrapping_mul(2891336453));
-    if (hash ^ (hash >> 16)) % 5 >= 3 {
+    if !find_opportunity(hash, expertise) {
         return;
     }
     let category = if e.objective == Objective::PatronSearch {
@@ -287,7 +299,8 @@ pub(crate) fn deliver(h: &mut History, e: &mut Expedition) {
         .unwrap()
         .heritage_renown
         .push(crate::heritage_renown::Recognition {
-            artifact: id,
+            artifact: Some(id),
+            strength: crate::heritage_renown::expedition_strength(e.objective, false),
             expedition: e.id,
             event: received,
             month: h.month,
@@ -582,6 +595,25 @@ pub struct Study {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn experience_opens_opportunities_without_removing_baseline_finds() {
+        let mut base = 0;
+        let mut expert = 0;
+        for cell in 0u32..10000 {
+            let hash = cell
+                .wrapping_mul(747796405)
+                .wrapping_add(17u32.wrapping_mul(2891336453));
+            let b = find_opportunity(hash, 0.);
+            let e = find_opportunity(hash, 1.);
+            assert!(!b || e);
+            assert!(!find_opportunity(hash, 0.5) || e);
+            base += usize::from(b);
+            expert += usize::from(e);
+        }
+        assert!((5500..6500).contains(&base));
+        assert!((8500..9500).contains(&expert));
+    }
+
     #[test]
     fn writing_batches_never_overdraw_or_charge_unrepresentable_stock() {
         for stock in [0., 0.049, 0.05, 1., 123., 10000., 1_000_000., f32::INFINITY] {
@@ -1068,6 +1100,40 @@ mod tests {
             private.governance.as_ref().unwrap().administrations[site as usize].loyalty,
             loyalty
         );
+        // Observation returns earn recognition without creating objects or inventories.
+        let mut ordinary = h.clone();
+        ordinary.culture.as_mut().unwrap().heritage_renown.clear();
+        let mut observation = voyage.clone();
+        observation.objective = Objective::Ecology;
+        observation.confirmed = true;
+        ordinary.event(
+            "expedition_return",
+            Some(site),
+            None,
+            "Controlled successful return".into(),
+        );
+        let receipt = ordinary.events.last().unwrap().id;
+        let objects = ordinary.culture.as_ref().unwrap().artifacts.len();
+        crate::heritage_renown::returned(&mut ordinary, &observation, receipt, false);
+        crate::heritage_renown::returned(&mut ordinary, &observation, receipt, false);
+        let awards = &ordinary.culture.as_ref().unwrap().heritage_renown;
+        assert_eq!(awards.len(), 1);
+        assert!(awards[0].artifact.is_none());
+        let ordinary_weight = awards[0].strength;
+        assert_eq!(ordinary.culture.as_ref().unwrap().artifacts.len(), objects);
+        crate::heritage_renown::validate(ordinary.culture.as_ref().unwrap(), &ordinary).unwrap();
+        observation.confirmed = false;
+        observation.objective = Objective::Rescue;
+        ordinary.culture.as_mut().unwrap().heritage_renown.clear();
+        crate::heritage_renown::returned(&mut ordinary, &observation, receipt, false);
+        assert!(ordinary
+            .culture
+            .as_ref()
+            .unwrap()
+            .heritage_renown
+            .is_empty());
+        crate::heritage_renown::returned(&mut ordinary, &observation, receipt, true);
+        assert!(ordinary.culture.as_ref().unwrap().heritage_renown[0].strength > ordinary_weight);
         deliver(h, &mut voyage);
         assert_eq!(
             h.governance.as_ref().unwrap().administrations[site as usize].loyalty,

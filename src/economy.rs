@@ -431,6 +431,9 @@ pub struct Economy {
     pub enterprise_plan: [f32; 4],
     #[serde(default)]
     pub enterprise_used: [f32; 4],
+    /// Opening named-worker proficiency bonus by family; zero means untrained.
+    #[serde(default)]
+    pub enterprise_productivity: [f32; 4],
     /// Enabled, receiving ecology cell + 1, receiving area m2, known-practice bitmask.
     #[serde(default)]
     pub management: [f32; 4],
@@ -603,6 +606,10 @@ impl Economy {
         let all = bytemuck::cast_slice::<u8, f32>(bytes);
         all.iter().all(|v| v.is_finite())
             && [0., 1., 32., 33., 34., 35., 36., 37.].contains(&self.extraction[0])
+            && self
+                .enterprise_productivity
+                .iter()
+                .all(|v| (0. ..=crate::workshop_resolution::MAX_PRODUCTIVITY_BONUS).contains(v))
             && (0. ..=1.).contains(&self.waterworks_recovery[1])
             && (0. ..=1.).contains(&self.fishery_choice[3])
             && (0. ..=1.).contains(&self.fishery_choice[2])
@@ -654,6 +661,7 @@ impl Economy {
                 .chain(&self.workshop_plan)
                 .chain(self.workshop_types.iter().flatten())
                 .chain(&self.enterprise_lease)
+                .chain(&self.enterprise_productivity)
                 .chain(&self.enterprise_plan)
                 .chain(&self.enterprise_used)
                 .chain(&self.made)

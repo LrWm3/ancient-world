@@ -1279,7 +1279,26 @@ impl History {
                 x.knowledge[e.sponsor as usize] =
                     (x.knowledge[e.sponsor as usize] + e.findings).min(100.);
                 record(self,&e,"expedition_return",format!("{} survivors returned; {:0.1} points of confirmed {:?} observations; sponsor knowledge {:0.1}",e.survivors(),e.findings,e.objective,x.knowledge[e.sponsor as usize]));
+                let returned_event = self.events.last().unwrap().id;
                 crate::expedition_heritage::deliver(self, &mut e);
+                let rescued = e
+                    .rescue
+                    .and_then(|id| x.voyages.get(id as usize))
+                    .is_some_and(|target| {
+                        target.phase == Phase::Rescued
+                            && target.crew.iter().any(|original| {
+                                original.alive
+                                    && e.crew.iter().any(|returned| {
+                                        returned.alive
+                                            && match (original.person, returned.person) {
+                                                (Some(a), Some(b)) => a == b,
+                                                (None, None) => original.name == returned.name,
+                                                _ => false,
+                                            }
+                                    })
+                            })
+                    });
+                crate::heritage_renown::returned(self, &e, returned_event, rescued);
             }
             if e.phase.active() && self.month == e.departed + 2 * r.travel_months + 8 {
                 record(

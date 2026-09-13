@@ -4,6 +4,10 @@ use crate::{
     resolution::{Boundary, Metric, Mode, Receipt, System},
 };
 use serde::{Deserialize, Serialize};
+
+pub(crate) const MAX_PRODUCTIVITY_BONUS: f32 = 0.75;
+const PEER_COMPETENCE_WEIGHT: f32 = 0.25;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Staffing {
     pub boundary: Boundary,
@@ -454,6 +458,33 @@ impl crate::civilization::History {
         Ok(())
     }
 }
+/// Grant-weighted opening competence. Neither completed time nor payroll is multiplied.
+pub(crate) fn productivity_bonus(pool: &Participation, staff: &Staffing, family: usize) -> f32 {
+    if staff.mode != Mode::Individual || staff.granted <= 0. {
+        return 0.;
+    }
+    let mut weighted = 0.;
+    let mut time = 0.;
+    for &id in &staff.commitments {
+        if let Some(c) = pool.commitments.get(id as usize) {
+            for &(person, work) in &c.people {
+                if let Some(r) = pool.residents.get(&person) {
+                    let base = practice_scores(r.workshop_completed, r.workshop_practice)[family];
+                    let skill =
+                        base + PEER_COMPETENCE_WEIGHT * r.workshop_learning[family] * (1. - base);
+                    weighted += work * skill.clamp(0., 1.);
+                    time += work;
+                }
+            }
+        }
+    }
+    if time > 0. {
+        MAX_PRODUCTIVITY_BONUS * weighted / time
+    } else {
+        0.
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

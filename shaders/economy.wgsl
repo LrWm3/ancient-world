@@ -6,7 +6,7 @@ struct Economy {
  extraction:vec4<f32>,
  return_flow:vec4<f32>, land_return:vec4<f32>,
  targets:array<vec4<f32>,16>, orders:array<vec4<f32>,16>, logistics:vec4<f32>, storage:vec4<f32>, storage_plan:vec4<f32>, housing:vec4<f32>, housing_plan:vec4<f32>, waterworks:vec4<f32>, waterworks_plan:vec4<f32>, water_service:vec4<f32>, workshop:vec4<f32>, workshop_plan:vec4<f32>, workshop_types:array<vec4<f32>,4>,
- enterprise_lease:vec4<f32>, enterprise_plan:vec4<f32>, enterprise_used:vec4<f32>,
+ enterprise_lease:vec4<f32>, enterprise_plan:vec4<f32>, enterprise_used:vec4<f32>, enterprise_productivity:vec4<f32>,
  management:vec4<f32>, crops:array<vec4<f32>,6>, herds:array<vec4<f32>,3>, agriculture:vec4<f32>,
  goods:array<vec4<f32>,16>, made:array<vec4<f32>,16>, used:array<vec4<f32>,16>, initial:array<vec4<f32>,16>, prices:array<vec4<f32>,16>,
  soil:vec4<f32>, detritus:vec4<f32>, forest:vec4<f32>, reserves:vec4<f32>, exchange:vec4<f32>, baseline:vec4<f32>, water:vec4<f32>, finance:vec4<f32>, labor:vec4<f32>, claim:vec4<f32>, diagnostics:vec4<f32>, policy:vec4<f32>,
@@ -267,7 +267,7 @@ fn building_work(input:Economy,s:Site,available_workers:f32)->BuildingResult {
   for(var j=0u;j<4u;j++) {
    let leased=min(type_capacity[j],4.*e.enterprise_lease[j]*.998);
    type_capacity[j]-=leased;
-   firm_capacity[j]=min(leased,e.enterprise_plan[j]);
+   firm_capacity[j]=min(leased,e.enterprise_plan[j]*(1.+e.enterprise_productivity[j]));
   }
  }
 
@@ -343,6 +343,11 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
   var household=false;
   for(var k=0u;k<64u;k++){if recipe.output[k/4u][k%4u]>0. && catalog.goods[k].w>0.{household=true;}}
   let industry=u32(recipe.work.z);
+  let competence=1.+e.enterprise_productivity[industry];
+  if !household && specialized && wave==1u {
+   let saved_time=firm_capacity[industry]*(1.-1./competence);
+   batches=min(labor*competence,labor+saved_time)/max(unit_work,.001)/min(5.,f32(p.options.y-step));
+  }
   if !household{
    var capacity=industrial_capacity;
    if specialized{capacity=type_capacity[industry]+firm_capacity[industry]+household_capacity;}
@@ -367,9 +372,12 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
   let deposited=select(0.,batches*recipe.work.w,e.extraction.y>.5);
   e.residue.x+=deposited;e.residue.y+=deposited;e.reserves.w-=deposited;
   completed[r]+=batches;
-  labor=max(0.,labor-batches*unit_work);
-  if wave==0u {e.tool_work.y+=batches*unit_work;}
-  if tool_output>0. {e.tool_work.z+=batches*unit_work;e.tool_work.w+=batches*tool_output;}
+  let output_work=batches*unit_work;
+  let contracted_output=select(0.,min(firm_capacity[industry],output_work),!household && specialized);
+  let actual_time=output_work-contracted_output*(1.-1./competence);
+  labor=max(0.,labor-actual_time);
+  if wave==0u {e.tool_work.y+=actual_time;}
+  if tool_output>0. {e.tool_work.z+=actual_time;e.tool_work.w+=batches*tool_output;}
   if !household{
    let work=batches*unit_work;
    industrial_capacity=max(0.,industrial_capacity-work);e.workshop_plan.w+=work;
@@ -381,7 +389,7 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
     let contracted=min(firm_capacity[industry],equipped);
     firm_capacity[industry]=max(0.,firm_capacity[industry]-contracted);
     type_capacity[industry]=max(0.,type_capacity[industry]-(equipped-contracted));
-    e.enterprise_used[industry]+=contracted;
+    e.enterprise_used[industry]+=contracted/competence;
     household_capacity=max(0.,household_capacity-(work-equipped));
    }
   }
