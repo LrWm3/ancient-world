@@ -1,7 +1,7 @@
 import copy
 import unittest
 
-from monetary_experiment import credit_funnel, council_construction
+from monetary_experiment import credit_funnel, council_construction, comparison_arms, institution_arm_settings, institution_outcomes
 
 
 def fixture():
@@ -23,6 +23,37 @@ def fixture():
 
 
 class CreditReportingTests(unittest.TestCase):
+    def test_reserve_comparison_has_isolated_controls_without_duplicate_arms(self):
+        arms = comparison_arms(institution_lenders=True, institution_reserves=True)
+        self.assertEqual(len(arms), 8)
+        self.assertEqual(len({a[0] for a in arms}), 8)
+        for name, credit, issuance, recovery in arms:
+            lenders, operating = institution_arm_settings(name)
+            self.assertFalse(recovery)
+            if operating:
+                self.assertTrue(lenders and credit)
+            if name in ("baseline", "credit", "issuance", "combined"):
+                self.assertEqual((lenders, operating), (False, False))
+            if name.endswith("-institution-lenders"):
+                self.assertEqual((lenders, operating), (True, False))
+        self.assertEqual(len(comparison_arms()), 4)
+        self.assertEqual(len(comparison_arms(institution_lenders=True)), 6)
+
+    def test_institution_report_keeps_inactive_cash_and_missing_capacity_visible(self):
+        h = {"culture": {"institutions": [
+            {"active": True, "treasury": 5., "expenses": 3., "capacity": {
+                "paid": 2., "work": 0.5, "building": {"repair_paid": 1.}}},
+            {"active": False, "treasury": 7., "expenses": 0., "capacity": None},
+        ]}}
+        r = institution_outcomes(h)
+        self.assertEqual(r["active_institutions"], 1)
+        self.assertEqual(r["ending_institution_cash"], 12.)
+        self.assertEqual(r["ending_inactive_institution_cash"], 7.)
+        self.assertEqual(r["institution_capacity_records"], 1)
+        self.assertEqual(r["recorded_institution_upkeep_paid"], 2.)
+        self.assertEqual(r["recorded_institution_repair_paid"], 1.)
+        self.assertFalse(institution_outcomes({"culture": None})["institution_records_available"])
+
     def test_council_reviews_count_boundaries_not_loans(self):
         self.assertFalse(council_construction(fixture())["council_construction_records_available"])
         h = fixture()

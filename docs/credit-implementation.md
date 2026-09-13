@@ -695,3 +695,8 @@ quote, require local leadership, and retain the existing underwriting and settle
 path. Controlled tests pass; the [six-arm seed comparison](institution-credit-evaluation.md)
 completed with no loans or effects. Institutional reserve scaling still needs a
 controlled comparison.
+
+[Institutional reserve policies](institution-credit-reserves.md) now distinguish
+the inherited council cash floor from an annual operating-cost reserve. The old
+policy remains the default. Controlled tests pass; the eight-arm reserve comparison
+is running, with institutional upkeep/repair and cash metrics added to reporting.

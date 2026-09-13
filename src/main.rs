@@ -76,6 +76,9 @@ struct Args {
     /// Allow surplus local institutional offers when council credit is enabled.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     institution_credit_lenders: Option<bool>,
+    /// Reserve institutional annual operating costs instead of the council cash floor.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    institution_credit_operating_reserve: Option<bool>,
     /// Experimental town working-capital loans against delivery-paid exports.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     commercial_credit: Option<bool>,
@@ -171,6 +174,7 @@ fn main() -> Result<()> {
                 && args.history_export.is_none()
                 && args.council_credit.is_none()
                 && args.institution_credit_lenders.is_none()
+                && args.institution_credit_operating_reserve.is_none()
                 && args.commercial_credit.is_none()
                 && args.export_default_recovery.is_none()
                 && args.shared_issuance.is_none()
@@ -353,6 +357,19 @@ fn main() -> Result<()> {
             .credit
             .council_policy
             .institution_lenders = enabled;
+    }
+    if let Some(enabled) = args.institution_credit_operating_reserve {
+        generator
+            .civilizations
+            .as_mut()
+            .context("institution credit requires a history")?
+            .credit
+            .council_policy
+            .institution_reserve = if enabled {
+            ancient_world::credit::councils::InstitutionReserve::AnnualOperatingCosts
+        } else {
+            ancient_world::credit::councils::InstitutionReserve::CouncilFloor
+        };
     }
     if let Some(enabled) = args.shared_issuance {
         generator
@@ -569,6 +586,30 @@ mod args_tests {
             Args::try_parse_from(["ancient-world", "--institution-credit-lenders=false"])
                 .unwrap()
                 .institution_credit_lenders,
+            Some(false)
+        );
+    }
+    #[test]
+    fn institutional_operating_reserve_can_be_selected_or_preserved() {
+        assert_eq!(
+            Args::try_parse_from(["ancient-world"])
+                .unwrap()
+                .institution_credit_operating_reserve,
+            None
+        );
+        assert_eq!(
+            Args::try_parse_from(["ancient-world", "--institution-credit-operating-reserve"])
+                .unwrap()
+                .institution_credit_operating_reserve,
+            Some(true)
+        );
+        assert_eq!(
+            Args::try_parse_from([
+                "ancient-world",
+                "--institution-credit-operating-reserve=false"
+            ])
+            .unwrap()
+            .institution_credit_operating_reserve,
             Some(false)
         );
     }

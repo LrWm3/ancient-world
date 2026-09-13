@@ -21,6 +21,25 @@ ARMS = (
 )
 
 
+def comparison_arms(export_recovery=False, institution_lenders=False, institution_reserves=False):
+    arms = [(name, credit, issuance, False) for name, credit, issuance in ARMS]
+    if export_recovery:
+        arms.extend((name + "-recovery", credit, issuance, True)
+                    for name, credit, issuance in ARMS if credit)
+    if institution_lenders or institution_reserves:
+        arms.extend((name + "-institution-lenders", credit, issuance, False)
+                    for name, credit, issuance in ARMS if credit)
+    if institution_reserves:
+        arms.extend((name + "-institution-operating-reserve", credit, issuance, False)
+                    for name, credit, issuance in ARMS if credit)
+    return arms
+
+
+def institution_arm_settings(name):
+    operating = name.endswith("-institution-operating-reserve")
+    return name.endswith("-institution-lenders") or operating, operating
+
+
 def digest(path):
     with path.open("rb") as source:
         return hashlib.file_digest(source, "sha256").hexdigest()
@@ -45,6 +64,28 @@ def activity_and_access(history):
         "ending_town_cash": sum(s["economy"]["finance"][0] for s in history["sites"]),
     }
 
+
+
+def institution_outcomes(history):
+    """Endpoint accounts and recorded cumulative capacity work, not closure counts."""
+    culture = history.get("culture")
+    if culture is None:
+        return {"institution_records_available": False}
+    institutions = culture["institutions"]
+    capacities = [n["capacity"] for n in institutions if n.get("capacity") is not None]
+    buildings = [c["building"] for c in capacities if c.get("building") is not None]
+    return {
+        "institution_records_available": True,
+        "institution_count": len(institutions),
+        "active_institutions": sum(n["active"] for n in institutions),
+        "ending_institution_cash": sum(n["treasury"] for n in institutions),
+        "ending_inactive_institution_cash": sum(n["treasury"] for n in institutions if not n["active"]),
+        "institution_expenses": sum(n["expenses"] for n in institutions),
+        "institution_capacity_records": len(capacities),
+        "recorded_institution_upkeep_paid": sum(c["paid"] for c in capacities),
+        "recorded_institution_upkeep_work": sum(c["work"] for c in capacities),
+        "recorded_institution_repair_paid": sum(b["repair_paid"] for b in buildings),
+    }
 
 
 def credit_funnel(history):
@@ -157,6 +198,8 @@ def main():
     parser.add_argument("--checkpoint", action="append", required=True, metavar="LABEL=PATH")
     parser.add_argument("--years", type=int, default=DEFAULT_HISTORY_YEARS)
     parser.add_argument("--output", type=Path, default=Path("output/monetary-experiment"))
+    parser.add_argument("--compare-institution-reserves", action="store_true",
+                        help="compare council-floor and annual-operating institutional reserves")
     parser.add_argument("--compare-institution-lenders", action="store_true",
                         help="add credit/combined arms with local institutional council lenders")
     parser.add_argument("--compare-export-recovery", action="store_true",
@@ -200,15 +243,11 @@ def main():
         "common_payment_policy": "delivery",
         "compare_export_recovery": args.compare_export_recovery,
         "compare_institution_lenders": args.compare_institution_lenders,
+        "compare_institution_reserves": args.compare_institution_reserves,
     }
     (out / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
-    arms = [(name, credit, issuance, False) for name, credit, issuance in ARMS]
-    if args.compare_export_recovery:
-        arms.extend((name + "-recovery", credit, issuance, True)
-                    for name, credit, issuance in ARMS if credit)
-    if args.compare_institution_lenders:
-        arms.extend((name + "-institution-lenders", credit, issuance, False)
-                    for name, credit, issuance in ARMS if credit)
+    arms = comparison_arms(args.compare_export_recovery, args.compare_institution_lenders,
+                           args.compare_institution_reserves)
     results = []
     for label, checkpoint in cases.items():
         for arm, credit, issuance, recovery in arms:
@@ -220,9 +259,11 @@ def main():
                        f"--council-credit={str(credit).lower()}",
                        f"--shared-issuance={str(issuance).lower()}",
                        "--history-export", str(archive)]
-            if args.compare_institution_lenders:
-                enabled = name.endswith("-institution-lenders")
+            if args.compare_institution_lenders or args.compare_institution_reserves:
+                enabled, operating = institution_arm_settings(name)
                 command.append(f"--institution-credit-lenders={str(enabled).lower()}")
+                if args.compare_institution_reserves:
+                    command.append(f"--institution-credit-operating-reserve={str(operating).lower()}")
             if args.crop_yield_scale is not None:
                 command.extend(("--crop-yield-scale", str(args.crop_yield_scale)))
             if args.compare_export_recovery:
@@ -234,6 +275,7 @@ def main():
             if status.returncode == 0:
                 history = json.loads(archive.read_text())
                 result.update(activity_and_access(history))
+                result.update(institution_outcomes(history))
                 result.update(credit_funnel(history))
                 result.update(council_construction(history))
                 loans = history["credit"]["loans"]

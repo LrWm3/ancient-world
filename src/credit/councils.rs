@@ -17,6 +17,14 @@ const MAX_RELIEF_OBSERVATION_AGE_MONTHS: u32 = 1;
 const COUNCIL_REQUEST_NAMESPACE: u64 = 1 << 63;
 const INSTITUTION_REQUEST_TAG: u64 = 1 << 62;
 
+/// Retain the historical floor unless an operating-cost comparison is requested.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum InstitutionReserve {
+    #[default]
+    CouncilFloor,
+    AnnualOperatingCosts,
+}
+
 /// Construction outcomes, before underwriting decides whether any loan is safe.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ReviewOutcome {
@@ -48,6 +56,8 @@ pub struct Policy {
     /// Separate experimental opt-in; archived council-only policies stay unchanged.
     #[serde(default)]
     pub institution_lenders: bool,
+    #[serde(default)]
+    pub institution_reserve: InstitutionReserve,
     pub reserve_months: f64,
     pub reserve_floor: f64,
     pub surplus_share: f64,
@@ -59,6 +69,7 @@ impl Default for Policy {
         Self {
             enabled: false,
             institution_lenders: false,
+            institution_reserve: InstitutionReserve::default(),
             reserve_months: OPERATING_RESERVE_MONTHS,
             reserve_floor: MINIMUM_OPERATING_CASH,
             surplus_share: VOLUNTARY_SURPLUS_SHARE,
@@ -162,9 +173,11 @@ impl History {
                     {
                         continue;
                     }
-                    let reserve = culture
-                        .institution_operating_target(self, institution)
-                        .max(policy.reserve_floor);
+                    let operating = culture.institution_operating_target(self, institution);
+                    let reserve = match policy.institution_reserve {
+                        InstitutionReserve::CouncilFloor => operating.max(policy.reserve_floor),
+                        InstitutionReserve::AnnualOperatingCosts => operating,
+                    };
                     let offered = (institution.treasury - reserve).max(0.) * policy.surplus_share;
                     if offered > 0. {
                         institution_councils
@@ -426,6 +439,27 @@ mod tests {
                 200.
             );
         }
+        // The same small institution cannot lend under the inherited floor,
+        // but can lend from cash exceeding its own annual operating budget.
+        let mut small = opening.clone();
+        small.culture.as_mut().unwrap().institutions[0].treasury -= 175.;
+        small.sites[0].economy.finance[0] += 175.;
+        let mut fixed_floor = small.clone();
+        assert_eq!(fixed_floor.council_credit_month().unwrap(), 0);
+        small.credit.council_policy.institution_reserve = InstitutionReserve::AnnualOperatingCosts;
+        let small_money = small.money_residual();
+        assert_eq!(small.council_credit_month().unwrap(), 1);
+        assert!(small.culture.as_ref().unwrap().institutions[0].treasury >= 2.);
+        assert!(small.credit.loans[0].original_principal <= (25. - 2.) * 0.25);
+        assert!((small.money_residual() - small_money).abs() < 1e-7);
+        small.validate_credit().unwrap();
+        let mut replay: History =
+            serde_json::from_value(serde_json::to_value(&small).unwrap()).unwrap();
+        assert_eq!(replay.council_credit_month().unwrap(), 0);
+        assert_eq!(
+            serde_json::to_value(&small).unwrap(),
+            serde_json::to_value(&replay).unwrap()
+        );
         let money = h.money_residual();
         assert_eq!(h.council_credit_month().unwrap(), 1);
         let loan = &h.credit.loans[0];
