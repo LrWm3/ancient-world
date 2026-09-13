@@ -230,7 +230,7 @@ impl HouseholdEconomy {
         family_support::validate(self, h)?;
         inheritance::validate(self, h)?;
         reclamation::validate(self, h)?;
-        for a in &self.accounts {
+        for (account_id, a) in self.accounts.iter().enumerate() {
             ensure!(
                 a.livelihood.is_none_or(|weights| weights
                     .iter()
@@ -265,7 +265,7 @@ impl HouseholdEconomy {
                 ]
                 .iter()
                 .all(|v| v.is_finite() && *v >= 0.),
-                "invalid household account"
+                "invalid household account {account_id} at month {}: {a:?}", h.month
             );
             ensure!(
                 a.hunger <= 1.
@@ -334,6 +334,10 @@ pub(crate) fn deposit(pool: &mut f32, requested: f64) -> f64 {
     *pool = next;
     next as f64 - old as f64
 }
+fn bounded_dividend(budget: f64, share: f64, total: f64, remaining: f64) -> f64 {
+    (budget * share / total).min(remaining)
+}
+
 // Allocate a finite payroll by the preceding production step’s allocated sector work, then by resident earnings weights.
 // No workers, goods or money are added. The final recipient absorbs only rounding residue.
 fn sector_payroll(weights: &[[f64; 4]], work: [f64; 4], payroll: f64) -> Vec<[f64; 4]> {
@@ -492,6 +496,12 @@ impl History {
                     .map(|id| member_counts.get(id).copied().unwrap_or([0.; 3]))
                     .collect::<Vec<_>>(),
             );
+            let adult_shares = nutrition::adult_shares(
+                s.demography.ages[1] as f64,
+                &ids.iter()
+                    .map(|id| member_counts.get(id).copied().unwrap_or([0.; 3]))
+                    .collect::<Vec<_>>(),
+            );
             let price = s.economy.prices[crate::economy::FOOD].max(MIN_FOOD_PRICE) as f64;
             let mut municipal_work = s.economy.labor;
             if let Some(earnings) = &farm_earnings {
@@ -531,18 +541,14 @@ impl History {
                 .max(0.) as f64;
             let eligible: Vec<_> = ids
                 .iter()
-                .map(|&id| {
-                    !e.resident_payroll
-                        || if complete_roster {
-                            member_counts
-                                .get(&id)
-                                .is_some_and(|m| m.iter().sum::<f64>() > 0.)
-                        } else {
-                            society.households[id].vacant_since.is_none()
-                                || member_counts
-                                    .get(&id)
-                                    .is_some_and(|m| m.iter().sum::<f64>() > 0.)
-                        }
+                .enumerate()
+                .map(|(j, &id)| {
+                    !e.resident_payroll || (adult_shares[j] > 0. && (if complete_roster {
+                        member_counts.get(&id).is_some_and(|m| m[1] > 0.)
+                    } else {
+                        society.households[id].vacant_since.is_none()
+                            || member_counts.get(&id).is_some_and(|m| m[1] > 0.)
+                    }))
                 })
                 .collect();
             let payroll_request = (labor * PAYROLL_FOOD_KG_PER_WORKER_MONTH * price)
@@ -564,12 +570,18 @@ impl History {
             let work = municipal_work.map(|w| w.max(0.) as f64);
             let mut weights = ids
                 .iter()
-                .map(|&id| {
+                .enumerate()
+                .map(|(j, &id)| {
                     let mut weights = if e.occupational_payroll {
                         e.accounts[id].livelihood.unwrap_or([1.; 4])
                     } else {
                         [1.; 4]
                     };
+                    if e.resident_payroll {
+                        for weight in &mut weights {
+                            *weight *= adult_shares[j];
+                        }
+                    }
                     if let Some(earnings) = &farm_earnings {
                         weights[0] = earnings.get(&id).copied().unwrap_or(0.);
                     }
@@ -620,7 +632,7 @@ impl History {
                     0.
                 } else if Some(j) == last_paid {
                     wage_left
-                } else if e.occupational_payroll || farm_earnings.is_some() {
+                } else if e.resident_payroll || e.occupational_payroll || farm_earnings.is_some() {
                     paid_sectors[j].iter().sum::<f64>().min(wage_left)
                 } else {
                     payroll / eligible_ids.len() as f64
@@ -628,7 +640,7 @@ impl History {
                 let dividend = if j + 1 == ids.len() {
                     dividend_left
                 } else {
-                    dividends * society.households[id].share / shares
+                    bounded_dividend(dividends, society.households[id].share, shares, dividend_left)
                 };
                 wage_left -= wage;
                 dividend_left -= dividend;
@@ -933,6 +945,38 @@ impl crate::gpu::Generator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn rounding_cannot_assign_negative_dividends_to_empty_estates() {
+        let shares = [0.7661074377979527, 0.7042198668434126, 0.6613830572238304, 0.];
+        let budget = 0.11016204891721182;
+        let total = shares.iter().sum::<f64>();
+        let mut remaining = budget;
+        for share in &shares[..3] {
+            let paid = bounded_dividend(budget, *share, total, remaining);
+            assert!(paid >= 0. && paid <= remaining);
+            remaining -= paid;
+        }
+        assert!((0. ..1e-15).contains(&remaining));
+        // The former unbounded calculation overpaid before the last recipient.
+        let old_remaining = shares[..3].iter().fold(budget, |r, share| r - budget * share / total);
+        assert!(old_remaining < 0.);
+    }
+
+    #[test]
+    fn aggregate_payroll_follows_adults_without_creating_work_or_cash() {
+        let members = [[2., 2., 0.], [0., 1., 0.], [3., 0., 1.]];
+        let adults = nutrition::adult_shares(3., &members);
+        assert_eq!(adults, vec![2., 1., 0.]);
+        let weights: Vec<_> = adults.iter().map(|&n| [n; 4]).collect();
+        let pay = sector_payroll(&weights, [3., 0., 0., 0.], 90.);
+        assert_eq!(pay, vec![[60., 0., 0., 0.], [30., 0., 0., 0.], [0.; 4]]);
+        assert_eq!(pay.iter().flatten().sum::<f64>(), 90.);
+        // Sparse identities neither enlarge nor remove aggregate adult stocks.
+        assert_eq!(nutrition::adult_shares(6., &members), vec![3., 2., 1.]);
+        assert_eq!(nutrition::adult_shares(1.5, &members), vec![1., 0.5, 0.]);
+        assert_eq!(nutrition::adult_shares(0., &members), vec![0.; 3]);
+    }
+
     #[test]
     fn founding_entitlement_tapers_without_restarting_or_migrating_legacy_archives() {
         let e = HouseholdEconomy::new(0);

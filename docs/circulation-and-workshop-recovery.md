@@ -284,3 +284,15 @@ three-seed comparison produces lower material quotes and still-positive operator
 margins, but lower populations and mixed hunger. See
 [ownership-aware quote demand](market-demand-ownership.md). This is an accounting
 of plausible buyers, not evidence that cheap nominal quotes solve circulation.
+
+### Household earnings follow adult cohort shares
+
+Aggregate resident payroll now weights represented adults as well as occupations,
+while named-sector earnings retain their actual-work overrides. It redistributes
+existing payroll instead of raising it. A long-run failure exposed tiny negative
+dividend remainders; individual dividends are now bounded by the remaining budget.
+Four focused GPU checks and 14 CPU household tests pass. All three corrected
+50-year runs complete: two show materially higher population and lower hunger,
+while the third is slightly worse. Workshop margins remain positive. See
+[household adult payroll](household-adult-payroll.md) for the initial failure,
+correction, comparison and outstanding supply/access questions.

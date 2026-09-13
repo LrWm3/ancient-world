@@ -30,6 +30,18 @@ pub(super) fn food_needs(ages: [f64; 3], members: &[[f64; 3]]) -> Vec<f64> {
         })
         .collect()
 }
+/// Project the existing adult cohort onto households, using the same sparse
+/// membership rule as food needs. This assigns shares, never extra workers.
+pub(super) fn adult_shares(adults: f64, members: &[[f64; 3]]) -> Vec<f64> {
+    if members.is_empty() {
+        return vec![];
+    }
+    let known: f64 = members.iter().map(|m| m[1]).sum();
+    let scale = if known > 0. { (adults / known).min(1.) } else { 0. };
+    let residual = (adults - known).max(0.) / members.len() as f64;
+    members.iter().map(|m| m[1] * scale + residual).collect()
+}
+
 impl RetailPlan {
     pub(super) fn food_allocation(&self, eaten: f64) -> Vec<(usize, f64, f64)> {
         let free = eaten.min(self.free);
