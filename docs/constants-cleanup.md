@@ -1078,3 +1078,20 @@ shared-policy reconciliation. The seasonal-crop GPU fixture passed (one test,
 including dormant seed and full-season material accounting), and strict all-target
 Clippy passed. Monetary comparisons use the frozen executable from before this
 extraction and cannot validate the edited shader.
+
+
+## Geological spatial offsets
+
+Named five remaining spatial parameters in the simulation shader: inner-continent
+outline separation, the three-component plate-warp offset, outer geological
+activity offset, legacy rock-selection quantization and basin noise offset.
+Equal values in unrelated fields retain separate names because they are separate
+spatial choices. Hash mechanics, interpolation identities and encoded geology
+categories remain inline. Exact reversal reconstructs the previous shader;
+parameter values, types and arithmetic are unchanged.
+
+The GPU province-coherence/host-compatibility fixture passed (one test spanning
+seeds 17, 81 and 256 with provinces disabled/enabled), and strict all-target Clippy
+passed. This completes these spatial offsets, not the
+remaining shader/viewer audit. Concurrent monetary observations use a fixed
+pre-extraction executable and are not verification of the changed shader.

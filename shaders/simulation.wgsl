@@ -1,3 +1,9 @@
+// Spatial noise offsets keep unrelated geological fields decorrelated.
+const INNER_OUTLINE_NOISE_OFFSET_PER_CONTINENT: f32 = 17.;
+const PLATE_WARP_NOISE_OFFSETS: vec3<f32> = vec3(17.,39.,71.);
+const OUTER_ACTIVITY_NOISE_OFFSET: f32 = 71.;
+const LEGACY_ROCK_SEED_QUANTIZATION: f32 = 100000.;
+const GEOLOGICAL_BASIN_NOISE_OFFSET: vec3<f32> = vec3(19.,37.,71.);
 struct Cell {
  terrain: vec4<f32>, // elevation m, sediment m, soil m, crust age Myr
  climate: vec4<f32>, // temperature C, precipitation mm/year, vapor mm, wind m/s
@@ -342,7 +348,7 @@ fn inner_distance(d:vec3<f32>,j:u32)->f32 {
   let ellipse=inverseSqrt(cos(theta)*cos(theta)+sin(theta)*sin(theta)/(aspect*aspect));
   let lobes=INNER_MIN_LOBES+floor(rand(key+4u)*INNER_LOBE_COUNT_SPAN);
   let outline=INNER_OUTLINE_BASE+INNER_OUTLINE_PRIMARY_AMPLITUDE*sin(theta+rand(key+3u)*INNER_OUTLINE_PHASE_SPAN_RAD)
-      +INNER_OUTLINE_LOBE_AMPLITUDE*sin(theta*lobes+rand(key+5u)*INNER_OUTLINE_PHASE_SPAN_RAD)+INNER_OUTLINE_DETAIL_AMPLITUDE*sin(theta*INNER_OUTLINE_DETAIL_FREQUENCY+rand(key+6u)*INNER_OUTLINE_PHASE_SPAN_RAD)+INNER_OUTLINE_NOISE_AMPLITUDE*(fbm(d*INNER_OUTLINE_NOISE_FREQUENCY+f32(j)*17.)-.5);
+      +INNER_OUTLINE_LOBE_AMPLITUDE*sin(theta*lobes+rand(key+5u)*INNER_OUTLINE_PHASE_SPAN_RAD)+INNER_OUTLINE_DETAIL_AMPLITUDE*sin(theta*INNER_OUTLINE_DETAIL_FREQUENCY+rand(key+6u)*INNER_OUTLINE_PHASE_SPAN_RAD)+INNER_OUTLINE_NOISE_AMPLITUDE*(fbm(d*INNER_OUTLINE_NOISE_FREQUENCY+f32(j)*INNER_OUTLINE_NOISE_OFFSET_PER_CONTINENT)-.5);
   // Explicit cap also protects channels at the maximum continent count.
   let radius=min(size*ellipse*outline,min(INNER_RADIUS_CAP_RAD,INNER_CHANNEL_RADIUS_FACTOR*sin(spacing*INNER_CHANNEL_SPACING_FACTOR)*sin(INNER_CENTER_MIN_ANGLE_RAD)));
   return dist-radius;
@@ -374,7 +380,7 @@ fn plate_seed(j:u32)->vec3<f32> {
  return base*cos(t)+cross(axis,base)*sin(t)+axis*dot(axis,base)*(1.-cos(t));
 }
 fn plate(point:vec3<f32>)->vec3<f32> {
- let warp=vec3(fbm(point*PLATE_WARP_FREQUENCY+17.),fbm(point*PLATE_WARP_FREQUENCY+39.),fbm(point*PLATE_WARP_FREQUENCY+71.))-.5;
+ let warp=vec3(fbm(point*PLATE_WARP_FREQUENCY+PLATE_WARP_NOISE_OFFSETS.x),fbm(point*PLATE_WARP_FREQUENCY+PLATE_WARP_NOISE_OFFSETS.y),fbm(point*PLATE_WARP_FREQUENCY+PLATE_WARP_NOISE_OFFSETS.z))-.5;
  let d=normalize(point+warp*PLATE_WARP_AMPLITUDE);
  var best=-2.;var second=-2.;var id=0u;var other=0u;
  for(var j=0u;j<PLATE_COUNT;j++){let s=dot(d,plate_seed(j));if s>best {second=best;other=id;best=s;id=j;} else if s>second {second=s;other=j;}}
@@ -387,12 +393,12 @@ fn plate(point:vec3<f32>)->vec3<f32> {
 fn geological_activity(d:vec3<f32>,stress:f32,r:u32)->f32 {
  // Regional source distributions: old outer plateaus coexist with rejuvenated belts;
  // inner continents keep uncommon but fully active geothermal exceptions.
- if r==3u {return stress*(OUTER_ACTIVITY_BASE+OUTER_ACTIVITY_BELT_GAIN*smoothstep(OUTER_ACTIVITY_BELT_START,OUTER_ACTIVITY_BELT_FULL,fbm(d*OUTER_ACTIVITY_NOISE_FREQUENCY+71.)));}
+ if r==3u {return stress*(OUTER_ACTIVITY_BASE+OUTER_ACTIVITY_BELT_GAIN*smoothstep(OUTER_ACTIVITY_BELT_START,OUTER_ACTIVITY_BELT_FULL,fbm(d*OUTER_ACTIVITY_NOISE_FREQUENCY+OUTER_ACTIVITY_NOISE_OFFSET)));}
  if r==2u {return stress*(INNER_ACTIVITY_BASE+INNER_ACTIVITY_BELT_GAIN*smoothstep(INNER_ACTIVITY_STRESS_START,INNER_ACTIVITY_STRESS_FULL,stress));}
  return stress;
 }
 fn rock_for(f:u32,r:f32)->u32 {
- var id=0u;var score=-1.;for(var j=0u;j<p.counts.x;j++){if catalog[j].ids.x==f {let s=rand(j*117u+u32(r*100000.));if s>score {id=j;score=s;}}}return id;
+ var id=0u;var score=-1.;for(var j=0u;j<p.counts.x;j++){if catalog[j].ids.x==f {let s=rand(j*117u+u32(r*LEGACY_ROCK_SEED_QUANTIZATION));if s>score {id=j;score=s;}}}return id;
 }
 // Continuous world-space fields do not depend on cube-face indexing or resolution.
 fn province_rock(f:u32,d:vec3<f32>,legacy:f32)->u32 {
@@ -405,7 +411,7 @@ fn province_rock(f:u32,d:vec3<f32>,legacy:f32)->u32 {
 }
 // Broad depositional/exposure settings; these are regional proxies, not a basin solver.
 fn geological_setting(d:vec3<f32>,pl:vec3<f32>,h:f32,r:u32)->u32 {
- let basin=noise(d*GEOLOGICAL_BASIN_FREQUENCY+vec3(19.,37.,71.));
+ let basin=noise(d*GEOLOGICAL_BASIN_FREQUENCY+GEOLOGICAL_BASIN_NOISE_OFFSET);
  let arc=pl.y*smoothstep(ARC_CONVERGENCE_START,ARC_CONVERGENCE_FULL,pl.z);
  if r==0u {return 1u;}
  if arc>VOLCANIC_SETTING_ARC_THRESHOLD {return 1u;}
