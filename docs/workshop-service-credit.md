@@ -67,7 +67,8 @@ valuable contract; it does not calibrate normal fees.
 
 A separate analytical timing fixture distinguishes current-month service fees
 from current-month tax/export sources and rejects expired service fees. Matched active-order seed comparisons remain required before claiming a general
-economic benefit. Automatic procurement remains unfinished.
+economic benefit. [Automatic procurement](workshop-service-procurement.md) is now
+available as a separate opt-in policy; its balance evaluation remains unfinished.
 
 Verification passed: the hardware-backed underwriting/full-production fixture,
 the analytical timing fixture, the CLI override fixture and strict all-target

@@ -110,7 +110,10 @@ delivery should close their evidence gaps before expanding the monetary model:
    completed work. The [ordinary-fee comparison](normal-service-credit-comparison.md)
    exposed a partial-funding forecast gap. The [grant-dependent check](service-credit-funding-check.md)
    now rejects those unsupported loans while retaining viable partial funding.
-   Add automatic procurement and longer normal-economy comparisons next. The deliberately
+   [Bounded automatic procurement](workshop-service-procurement.md) now posts
+   next-month contracts from lagged production demand and surplus town cash.
+   Run longer normal-economy comparisons next, retaining procurement in all credit
+   arms and separately comparing it with ordinary invoicing. The deliberately
    valuable fixture contract does not establish a balance benefit.
 3. **Test lender costs as well as borrower benefits.** Compare council and
    institutional lending reserves. Measure maintenance, paid administration and

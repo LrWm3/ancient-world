@@ -759,3 +759,16 @@ committing cash. Unsupported proposals preserve their capacity/funding diagnosti
 but commit neither loans nor pledges. The ordinary-fee comparison rejects the
 previous uneconomic loans; the valuable-contract GPU fixture and analytical viable
 partial-loan case still pass. No costs, fee rates or coverage limits were relaxed.
+
+
+## Automatic service procurement
+
+[The opt-in procurement policy](workshop-service-procurement.md) now collects
+lagged family-level production demand and proportionally allocates a capped town
+cash surplus to next-month escrow. It runs once in Close before the final economy
+upload; setup-only boundaries skip it. Actual completed work remains responsible
+for operator receipts and debt service. The controlled GPU fixture passes disabled,
+no-demand, no-surplus, replay, escrow and checkpoint/batch cases. The runner can
+hold procurement constant across its four monetary arms and reports cumulative
+fees/refunds separately from terminal outstanding escrow and latest requests.
+Normal-world balance effects remain unverified.

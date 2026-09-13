@@ -1565,6 +1565,9 @@ impl Generator {
         h.prepare_society_with_navigation(terrain, self.config.radius_km, navigation)?;
         h.prepare_politics(terrain);
         h.prepare_governance();
+        if record {
+            h.procure_workshop_services()?;
+        }
         self.prepare_economy(h);
         engine.upload(self, h);
         engine.claim(self);

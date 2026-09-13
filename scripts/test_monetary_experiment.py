@@ -1,7 +1,7 @@
 import copy
 import unittest
 
-from monetary_experiment import credit_funnel, council_construction, comparison_arms, institution_arm_settings, institution_outcomes
+from monetary_experiment import credit_funnel, council_construction, comparison_arms, institution_arm_settings, institution_outcomes, service_order_outcomes
 
 
 def fixture():
@@ -23,6 +23,21 @@ def fixture():
 
 
 class CreditReportingTests(unittest.TestCase):
+    def test_service_order_reporting_separates_flows_from_remaining_escrow(self):
+        self.assertEqual(service_order_outcomes({})["service_orders"], 0)
+        result = service_order_outcomes({"enterprises": {
+            "orders": [
+                {"settled": 4, "funded": 10., "paid": 6., "refunded": 3., "escrow": 1.},
+                {"settled": None, "funded": 4., "paid": 0., "refunded": 0., "escrow": 4.},
+            ], "procurement": {"claims": [{"requested_fee": 8., "funded": 4.}]},
+        }})
+        self.assertEqual(result["service_orders_pending"], 1)
+        self.assertEqual(result["service_order_escrow"], 5.)
+        self.assertEqual(result["service_order_funding"], 14.)
+        self.assertEqual(result["service_order_paid"] + result["service_order_refunded"]
+                         + result["service_order_escrow"], result["service_order_funding"])
+        self.assertEqual(result["terminal_procurement_requested"], 8.)
+
     def test_reserve_comparison_has_isolated_controls_without_duplicate_arms(self):
         arms = comparison_arms(institution_lenders=True, institution_reserves=True)
         self.assertEqual(len(arms), 8)

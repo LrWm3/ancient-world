@@ -9,6 +9,59 @@ use serde::{Deserialize, Serialize};
 
 const MAX_ORDER_HORIZON_MONTHS: u32 = 12;
 const ORDER_LEDGER_RELATIVE_TOLERANCE: f64 = 1e-9;
+const PROCUREMENT_CASH_RESERVE: f64 = 100.;
+const PROCUREMENT_SURPLUS_SHARE: f64 = 0.25;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Procurement {
+    pub enabled: bool,
+    pub cash_reserve: f64,
+    pub surplus_share: f64,
+    pub last_month: Option<u32>,
+    pub claims: Vec<ProcurementClaim>,
+}
+impl Default for Procurement {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            cash_reserve: PROCUREMENT_CASH_RESERVE,
+            surplus_share: PROCUREMENT_SURPLUS_SHARE,
+            last_month: None,
+            claims: vec![],
+        }
+    }
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ProcurementClaim {
+    pub firm: u32,
+    pub requested_fee: f64,
+    pub allowance: f64,
+    pub funded: f64,
+    pub order: Option<u64>,
+}
+impl Procurement {
+    fn validate(&self, month: u32) -> Result<()> {
+        ensure!(
+            self.cash_reserve.is_finite()
+                && self.cash_reserve >= 0.
+                && self.surplus_share.is_finite()
+                && (0. ..=1.).contains(&self.surplus_share)
+                && self.last_month.is_none_or(|m| m <= month),
+            "invalid service procurement policy"
+        );
+        for claim in &self.claims {
+            ensure!(
+                [claim.requested_fee, claim.allowance, claim.funded]
+                    .iter()
+                    .all(|v| v.is_finite() && *v >= 0.)
+                    && claim.funded <= claim.allowance
+                    && claim.allowance <= claim.requested_fee,
+                "invalid service procurement allowance"
+            );
+        }
+        Ok(())
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ServiceOrder {
@@ -30,6 +83,112 @@ pub struct ServiceOrder {
 }
 
 impl History {
+    /// Close-phase commitments for next month, based on the last production plan.
+    /// Requests share a site cash envelope before any escrow is withdrawn.
+    pub fn procure_workshop_services(&mut self) -> Result<usize> {
+        let Some(enterprises) = &self.enterprises else {
+            return Ok(0);
+        };
+        let policy = enterprises.procurement.clone();
+        policy.validate(self.month)?;
+        if !enterprises.enabled || !policy.enabled || policy.last_month == Some(self.month) {
+            return Ok(0);
+        }
+        let Some(catalog) = &self.economy_catalog else {
+            return Ok(0);
+        };
+        let due = self
+            .month
+            .checked_add(1)
+            .ok_or_else(|| anyhow::anyhow!("service date overflow"))?;
+        let costs = self.commercial_input_costs();
+        let mut requests = vec![];
+        let mut totals = vec![0_f64; self.sites.len()];
+        for f in &enterprises.firms {
+            let town = &self.sites[f.site as usize];
+            if f.closed.is_some()
+                || town.abandoned
+                || enterprises
+                    .orders
+                    .iter()
+                    .any(|o| o.firm == f.id && o.settled.is_none())
+            {
+                continue;
+            }
+            let installed = f64::from(town.economy.workshop_types[f.family as usize][0]);
+            if installed <= 0. {
+                continue;
+            }
+            let units = f.leased_units.min(installed);
+            let demand: f64 = catalog
+                .recipes
+                .iter()
+                .zip(town.economy.orders)
+                .filter(|(r, _)| r.work[2] as u32 == f.family)
+                .map(|(r, batches)| f64::from(r.work[0]) * f64::from(batches))
+                .sum();
+            let work = (demand * units / installed)
+                .min(units * f64::from(crate::production::WORKSHOP_WORKER_MONTHS_PER_UNIT));
+            let price = f
+                .service_rate
+                .unwrap_or(f.wage_rate * SERVICE_QUOTE_MULTIPLIER);
+            let quote = work * price;
+            if quote <= 0. || price <= 0. {
+                continue;
+            }
+            ensure!(quote.is_finite(), "invalid procurement quote");
+            totals[f.site as usize] += quote;
+            requests.push((f.site, f.family, f.id, price, quote));
+        }
+        ensure!(
+            totals.iter().all(|v| v.is_finite()),
+            "procurement demand overflow"
+        );
+        requests.sort_by_key(|r| (r.0, r.1, r.2));
+        let budgets: Vec<f64> = self
+            .sites
+            .iter()
+            .enumerate()
+            .map(|(i, s)| {
+                (f64::from(s.economy.finance[0]) - costs[i].max(policy.cash_reserve)).max(0.)
+                    * policy.surplus_share
+            })
+            .collect();
+        let mut claims = vec![];
+        let mut count = 0;
+        for (site, _, firm, price, quote) in requests {
+            let allowance = quote * (budgets[site as usize] / totals[site as usize]).min(1.);
+            let opening = self.sites[site as usize].economy.finance[0];
+            // Round retained f32 cash upward so escrow cannot exceed its grant.
+            let retained = (f64::from(opening) - allowance).max(0.);
+            let mut closing = retained as f32;
+            if f64::from(closing) < retained {
+                closing = f32::from_bits(closing.to_bits() + 1);
+            }
+            let fee = (f64::from(opening) - f64::from(closing)).max(0.);
+            let mut preview = opening;
+            let actual = withdraw(&mut preview, (fee / price) * price);
+            let mut claim = ProcurementClaim {
+                firm,
+                requested_fee: quote,
+                allowance,
+                funded: 0.,
+                order: None,
+            };
+            if actual > 0. && actual <= allowance {
+                let id = self.fund_workshop_order(firm, fee / price, due)?;
+                claim.funded = self.enterprises.as_ref().unwrap().orders[id as usize].funded;
+                claim.order = Some(id);
+                count += 1;
+            }
+            claims.push(claim);
+        }
+        let procurement = &mut self.enterprises.as_mut().unwrap().procurement;
+        procurement.last_month = Some(self.month);
+        procurement.claims = claims;
+        procurement.validate(self.month)?;
+        Ok(count)
+    }
     /// A funded fee is still conditional on future work. Costs retain current
     /// payroll quotes and rent; neither escrow nor loans are operator income.
     pub fn service_order_credit_evidence(
@@ -168,6 +327,26 @@ impl History {
 }
 
 pub(super) fn validate(enterprises: &Enterprises, h: &History) -> Result<()> {
+    enterprises.procurement.validate(h.month)?;
+    for claim in &enterprises.procurement.claims {
+        ensure!(
+            (claim.firm as usize) < enterprises.firms.len(),
+            "invalid procurement firm"
+        );
+        if let Some(id) = claim.order {
+            ensure!(
+                enterprises
+                    .orders
+                    .get(id as usize)
+                    .is_some_and(|o| o.firm == claim.firm
+                        && o.funded == claim.funded
+                        && Some(o.posted) == enterprises.procurement.last_month),
+                "procurement receipt differs from escrow"
+            );
+        } else {
+            ensure!(claim.funded == 0., "unrecorded procurement funding");
+        }
+    }
     let mut pending = std::collections::BTreeSet::new();
     for (id, order) in enterprises.orders.iter().enumerate() {
         ensure!(

@@ -161,6 +161,8 @@ pub struct Firm {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Enterprises {
     #[serde(default)]
+    pub procurement: orders::Procurement,
+    #[serde(default)]
     pub orders: Vec<orders::ServiceOrder>,
     pub enabled: bool,
     pub firms: Vec<Firm>,
@@ -169,6 +171,7 @@ impl Default for Enterprises {
     fn default() -> Self {
         Self {
             enabled: true,
+            procurement: Default::default(),
             orders: vec![],
             firms: vec![],
         }
@@ -378,7 +381,8 @@ impl History {
             .as_ref()
             .map(|e| e.orders.as_slice())
             .unwrap_or(&[]);
-        serde_json::json!({"service_orders": orders.len(),
+        serde_json::json!({"procurement": self.enterprises.as_ref().map(|e| &e.procurement),
+            "service_orders": orders.len(),
             "service_escrow": orders.iter().map(|o| o.escrow).sum::<f64>(),
             "service_order_paid": orders.iter().map(|o| o.paid).sum::<f64>(),
             "service_order_refunded": orders.iter().map(|o| o.refunded).sum::<f64>(),
@@ -1585,6 +1589,88 @@ mod tests {
             serde_json::to_value(checkpoint.civilizations.as_ref().unwrap()).unwrap()
         );
         assert!((funded.money_residual() - money).abs() < 1e-6);
+    }
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn automatic_service_procurement_reserves_surplus_once_and_resumes() {
+        let mut g = world();
+        install(&mut g);
+        let h = g.civilizations.as_mut().unwrap();
+        h.month = 3;
+        h.begin_service_reservations();
+        h.plan_production();
+        h.prepare_enterprises();
+        h.settle_enterprises();
+        let firm = h
+            .enterprises
+            .as_ref()
+            .unwrap()
+            .firms
+            .iter()
+            .find(|f| f.closed.is_none())
+            .unwrap()
+            .id;
+        let site = h.enterprises.as_ref().unwrap().firms[firm as usize].site as usize;
+        let moved = withdraw(&mut h.sites[1].economy.finance[0], 1000.);
+        let deposited = deposit(&mut h.sites[site].economy.finance[0], moved);
+        h.society.as_mut().unwrap().councils[0].treasury += moved - deposited;
+        assert_eq!(h.procure_workshop_services().unwrap(), 0);
+        h.enterprises.as_mut().unwrap().procurement.enabled = true;
+        let mut no_cash = h.clone();
+        no_cash
+            .enterprises
+            .as_mut()
+            .unwrap()
+            .procurement
+            .cash_reserve = 1e9;
+        assert_eq!(no_cash.procure_workshop_services().unwrap(), 0);
+        let mut no_demand = h.clone();
+        for s in &mut no_demand.sites {
+            s.economy.orders.fill(0.);
+        }
+        assert_eq!(no_demand.procure_workshop_services().unwrap(), 0);
+        let money = h.money_residual();
+        let opening_cash = f64::from(h.sites[site].economy.finance[0]);
+        let reserve = h.commercial_input_costs()[site].max(100.);
+        assert!(h.procure_workshop_services().unwrap() > 0);
+        let e = h.enterprises.as_ref().unwrap();
+        let spent: f64 = e.procurement.claims.iter().map(|c| c.funded).sum();
+        assert!(spent <= (opening_cash - reserve).max(0.) * 0.25);
+        assert!(e.orders.iter().all(|o| o.due == 4 && o.paid == 0.));
+        assert!((h.money_residual() - money).abs() < 1e-6);
+        e.validate(h).unwrap();
+        let before = serde_json::to_value(&*h).unwrap();
+        assert_eq!(h.procure_workshop_services().unwrap(), 0);
+        assert_eq!(before, serde_json::to_value(&*h).unwrap());
+        let mut corrupt = h.clone();
+        corrupt.enterprises.as_mut().unwrap().procurement.claims[0].funded += 1.;
+        assert!(corrupt
+            .enterprises
+            .as_ref()
+            .unwrap()
+            .validate(&corrupt)
+            .is_err());
+        let path =
+            std::env::temp_dir().join(format!("service-procurement-{}.world", std::process::id()));
+        g.save(&path).unwrap();
+        let mut resumed = Generator::load(g.gpu.clone(), &path).unwrap();
+        std::fs::remove_file(path).unwrap();
+        g.advance_history(3).unwrap();
+        for _ in 0..3 {
+            resumed.advance_history(1).unwrap();
+        }
+        let h = g.civilizations.as_ref().unwrap();
+        assert_eq!(
+            h.enterprises.as_ref().unwrap().procurement.last_month,
+            Some(6)
+        );
+        assert!(h.enterprises.as_ref().unwrap().orders[0].settled.is_some());
+        assert_eq!(
+            serde_json::to_value(h).unwrap(),
+            serde_json::to_value(resumed.civilizations.as_ref().unwrap()).unwrap()
+        );
+        assert!((h.money_residual() - money).abs() < 1e-6);
     }
 
     #[test]

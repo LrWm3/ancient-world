@@ -85,6 +85,9 @@ struct Args {
     /// Include funded workshop orders when commercial credit is enabled.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     service_order_credit: Option<bool>,
+    /// Reserve surplus town cash for next-month workshop service orders.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    service_order_procurement: Option<bool>,
     /// Recover old export defaults from bounded newly received delivery proceeds.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     export_default_recovery: Option<bool>,
@@ -180,6 +183,7 @@ fn main() -> Result<()> {
                 && args.institution_credit_operating_reserve.is_none()
                 && args.commercial_credit.is_none()
                 && args.service_order_credit.is_none()
+                && args.service_order_procurement.is_none()
                 && args.export_default_recovery.is_none()
                 && args.shared_issuance.is_none()
                 && args.delivery_paid_exports.is_none()
@@ -400,6 +404,17 @@ fn main() -> Result<()> {
             .commercial_policy
             .service_orders = enabled;
     }
+    if let Some(enabled) = args.service_order_procurement {
+        generator
+            .civilizations
+            .as_mut()
+            .context("service procurement requires a history")?
+            .enterprises
+            .as_mut()
+            .context("service procurement requires enterprises")?
+            .procurement
+            .enabled = enabled;
+    }
     if let Some(enabled) = args.export_default_recovery {
         generator
             .civilizations
@@ -521,6 +536,25 @@ mod args_tests {
             );
         }
     }
+    #[test]
+    fn service_procurement_flag_is_independent_and_preserves_archive() {
+        for (args, expected) in [
+            (vec!["ancient-world"], None),
+            (
+                vec!["ancient-world", "--service-order-procurement"],
+                Some(true),
+            ),
+            (
+                vec!["ancient-world", "--service-order-procurement=false"],
+                Some(false),
+            ),
+        ] {
+            let args = Args::try_parse_from(args).unwrap();
+            assert_eq!(args.service_order_procurement, expected);
+            assert_eq!(args.service_order_credit, None);
+        }
+    }
+
     #[test]
     fn service_order_credit_flag_is_explicit_and_preserves_archive() {
         for (args, expected) in [

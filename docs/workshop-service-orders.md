@@ -63,3 +63,9 @@ history exactly matched `output/monetary-institution-reserves/1024-baseline.json
 Ending population was 98.3713. This checks inactive-path continuation, including
 previously committed constants changes; it does not evaluate active orders or
 credit-backed production. The concurrent shader fixture is separate verification.
+
+
+[Bounded automatic procurement](workshop-service-procurement.md) is now available
+as an independent opt-in policy. It reserves next-month fees from capped town
+surplus using the existing order and refund path. Explicit API posting remains
+available. Ordinary invoicing is still the default.

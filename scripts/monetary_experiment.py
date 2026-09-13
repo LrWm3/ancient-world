@@ -88,6 +88,23 @@ def institution_outcomes(history):
     }
 
 
+def service_order_outcomes(history):
+    """Durable cumulative payments, plus explicitly terminal procurement claims."""
+    enterprises = history.get("enterprises") or {}
+    orders = enterprises.get("orders", [])
+    claims = (enterprises.get("procurement") or {}).get("claims", [])
+    return {
+        "service_orders": len(orders),
+        "service_orders_pending": sum(o["settled"] is None for o in orders),
+        "service_order_funding": sum(o["funded"] for o in orders),
+        "service_order_paid": sum(o["paid"] for o in orders),
+        "service_order_refunded": sum(o["refunded"] for o in orders),
+        "service_order_escrow": sum(o["escrow"] for o in orders),
+        "terminal_procurement_requested": sum(c["requested_fee"] for c in claims),
+        "terminal_procurement_funded": sum(c["funded"] for c in claims),
+    }
+
+
 def credit_funnel(history):
     """Recorded requests, numerical grants and actual principal are different stocks.
 
@@ -204,6 +221,8 @@ def main():
                         help="add credit/combined arms with local institutional council lenders")
     parser.add_argument("--compare-export-recovery", action="store_true",
                         help="add credit and combined arms with late-export recovery enabled")
+    parser.add_argument("--service-order-procurement", action="store_true",
+                        help="hold funded procurement on in every arm; add service lending in credit arms")
     parser.add_argument("--crop-yield-scale", type=float,
                         help="same explicit crop-yield intervention in every arm (0.1–1)")
     args = parser.parse_args()
@@ -241,6 +260,7 @@ def main():
         "years": args.years,
         "crop_yield_scale_override": args.crop_yield_scale,
         "common_payment_policy": "delivery",
+        "service_order_procurement": args.service_order_procurement,
         "compare_export_recovery": args.compare_export_recovery,
         "compare_institution_lenders": args.compare_institution_lenders,
         "compare_institution_reserves": args.compare_institution_reserves,
@@ -256,6 +276,8 @@ def main():
             command = [str(fixed), "--headless", "--load", str(checkpoint), "--epochs", "0",
                        "--history-years", str(args.years), "--delivery-paid-exports",
                        f"--commercial-credit={str(credit).lower()}",
+                       f"--service-order-procurement={str(args.service_order_procurement).lower()}",
+                       f"--service-order-credit={str(credit and args.service_order_procurement).lower()}",
                        f"--council-credit={str(credit).lower()}",
                        f"--shared-issuance={str(issuance).lower()}",
                        "--history-export", str(archive)]
@@ -275,6 +297,7 @@ def main():
             if status.returncode == 0:
                 history = json.loads(archive.read_text())
                 result.update(activity_and_access(history))
+                result.update(service_order_outcomes(history))
                 result.update(institution_outcomes(history))
                 result.update(credit_funnel(history))
                 result.update(council_construction(history))
