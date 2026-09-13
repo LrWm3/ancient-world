@@ -4,6 +4,33 @@ use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+const MATERIAL_MIGRATION_WEIGHT: f32 = 0.7;
+const DISRUPTION_MIGRATION_WEIGHT: f32 = 0.3;
+const MORALE_HUNGER_WEIGHT: f32 = 0.45;
+const MORALE_DISEASE_WEIGHT: f32 = 0.2;
+const MORALE_DISRUPTION_WEIGHT: f32 = 0.25;
+const MORALE_INEQUALITY_WEIGHT: f32 = 0.1;
+const PRESSURE_RISE_RATE: f32 = 0.18;
+const PRESSURE_RECOVERY_RATE: f32 = 0.08;
+const HOUSEHOLD_COUNT_TOLERANCE: f32 = 0.01;
+const MAX_NORMALIZED_SHARE_SUM: f32 = 1.00001;
+const LABOR_NORMALIZATION_FLOOR: f32 = 0.000001;
+const DISTRIBUTION_NORMALIZATION_FLOOR: f64 = 1e-12;
+const OWNERSHIP_RELATIVE_BINS: [f64; 7] = [0.125, 0.25, 0.5, 1., 2., 4., 8.];
+const CASH_BUFFER_MONTH_BINS: [f64; 7] = [0.125, 0.25, 0.5, 1., 2., 4., 8.];
+const FOOD_SHORTAGE_BINS: [f64; 3] = [0.02, 0.1, 0.3];
+const MIN_OBSERVED_FOOD_PRICE: f32 = 0.01;
+const DEPRIVATION_PRESSURE_THRESHOLD: f32 = 0.25;
+const DEPRIVATION_RECOVERY_THRESHOLD: f32 = 0.1;
+const DEPRIVATION_NOTICE_MONTHS: u32 = 3;
+const DEPRIVATION_RECOVERY_MONTHS: u32 = 6;
+const CROWDING_PRESSURE_THRESHOLD: f32 = 0.15;
+const CROWDING_RECOVERY_THRESHOLD: f32 = 0.05;
+const SOCIAL_STRAIN_THRESHOLD: f32 = 0.55;
+const SOCIAL_RECOVERY_THRESHOLD: f32 = 0.25;
+const SOCIAL_STRAIN_NOTICE_MONTHS: u32 = 3;
+const SOCIAL_RECOVERY_MONTHS: u32 = 6;
+
 pub const NO_TRADITION: u32 = u32::MAX;
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, bytemuck::Pod, bytemuck::Zeroable)]
@@ -66,21 +93,21 @@ impl SocialCell {
         self.pressure[0]
             .max(self.household_stress[2])
             .max(self.housing[2])
-            * 0.7
-            + self.pressure[2] * 0.3
+            * MATERIAL_MIGRATION_WEIGHT
+            + self.pressure[2] * DISRUPTION_MIGRATION_WEIGHT
     }
     pub fn morale(&self) -> f32 {
-        1. - (self.pressure[0] * 0.45
-            + self.pressure[1] * 0.2
-            + self.pressure[2] * 0.25
-            + self.pressure[3] * 0.1)
+        1. - (self.pressure[0] * MORALE_HUNGER_WEIGHT
+            + self.pressure[1] * MORALE_DISEASE_WEIGHT
+            + self.pressure[2] * MORALE_DISRUPTION_WEIGHT
+            + self.pressure[3] * MORALE_INEQUALITY_WEIGHT)
     }
     fn accumulate(&mut self) {
         for k in 0..4 {
             let rate = if self.exposure[k] > self.pressure[k] {
-                0.18
+                PRESSURE_RISE_RATE
             } else {
-                0.08
+                PRESSURE_RECOVERY_RATE
             };
             self.pressure[k] =
                 (self.pressure[k] + (self.exposure[k] - self.pressure[k]) * rate).clamp(0., 1.);
@@ -132,7 +159,8 @@ impl SocialState {
                 c.household_stress[..3].iter().all(|v| *v <= 1.)
                     && c.distribution_status[2] <= 1
                     && c.distribution_status[3] <= self.observed
-                    && (c.food_security.iter().sum::<f32>() - c.household_stress[3]).abs() < 0.01,
+                    && (c.food_security.iter().sum::<f32>() - c.household_stress[3]).abs()
+                        < HOUSEHOLD_COUNT_TOLERANCE,
                 "invalid household deprivation summary"
             );
             ensure!(
@@ -140,8 +168,9 @@ impl SocialState {
                 "invalid social status"
             );
             ensure!(
-                c.faith.iter().sum::<f32>() <= 1.00001
-                    && c.factions.iter().chain(&c.additional_factions).sum::<f32>() <= 1.00001,
+                c.faith.iter().sum::<f32>() <= MAX_NORMALIZED_SHARE_SUM
+                    && c.factions.iter().chain(&c.additional_factions).sum::<f32>()
+                        <= MAX_NORMALIZED_SHARE_SUM,
                 "invalid social prevalence totals"
             );
             ensure!(
@@ -216,7 +245,7 @@ impl History {
             let adults = site.demography.ages[1];
             let labor = site.economy.labor;
             let total = labor.iter().sum::<f32>();
-            let scale = (adults / total.max(0.000001)).min(1.);
+            let scale = (adults / total.max(LABOR_NORMALIZATION_FLOOR)).min(1.);
             for (k, workers) in labor.iter().enumerate() {
                 c.livelihoods[1][k] = workers * scale;
             }
@@ -227,8 +256,8 @@ impl History {
             let sum = shares[i].iter().sum::<f64>();
             let mut gini = 0.;
             for (j, share) in shares[i].iter().enumerate() {
-                let relative = share * n as f64 / sum.max(1e-12);
-                let bin = [0.125, 0.25, 0.5, 1., 2., 4., 8.]
+                let relative = share * n as f64 / sum.max(DISTRIBUTION_NORMALIZATION_FLOOR);
+                let bin = OWNERSHIP_RELATIVE_BINS
                     .iter()
                     .position(|b| relative < *b)
                     .unwrap_or(7);
@@ -242,15 +271,16 @@ impl History {
             c.household_stress[3] = 0.;
             let monthly_need = site.demography.ages[..3]
                 .iter()
-                .zip([10., 18., 14.])
+                .zip(crate::society::AGE_RATIONS_KG_PER_MONTH)
                 .map(|(a, r)| *a as f64 * r)
                 .sum::<f64>()
                 / (n.max(1) as f64);
-            let cost = monthly_need * site.economy.prices[crate::economy::FOOD].max(0.01) as f64;
+            let cost = monthly_need
+                * site.economy.prices[crate::economy::FOOD].max(MIN_OBSERVED_FOOD_PRICE) as f64;
             for a in &accounts[i] {
                 if cost > 0. {
                     let months = a.cash / cost;
-                    let bin = [0.125, 0.25, 0.5, 1., 2., 4., 8.]
+                    let bin = CASH_BUFFER_MONTH_BINS
                         .iter()
                         .position(|v| months < *v)
                         .unwrap_or(7);
@@ -264,7 +294,7 @@ impl History {
                         .as_ref()
                         .is_some_and(|e| e.observed == self.month)
                 {
-                    let bin = [0.02, 0.1, 0.3]
+                    let bin = FOOD_SHORTAGE_BINS
                         .iter()
                         .position(|v| a.hunger <= *v)
                         .unwrap_or(3);
@@ -281,27 +311,27 @@ impl History {
             if elapsed && c.household_stress[3] > 0. {
                 let severe = c.household_stress[1];
                 let rate = if severe > c.household_stress[2] {
-                    0.18
+                    PRESSURE_RISE_RATE
                 } else {
-                    0.08
+                    PRESSURE_RECOVERY_RATE
                 };
                 c.household_stress[2] =
                     (c.household_stress[2] + rate * (severe - c.household_stress[2])).clamp(0., 1.);
                 let d = &mut c.distribution_status;
-                d[0] = if c.household_stress[2] >= 0.25 {
+                d[0] = if c.household_stress[2] >= DEPRIVATION_PRESSURE_THRESHOLD {
                     d[0].saturating_add(1)
                 } else {
                     0
                 };
-                d[1] = if c.household_stress[2] < 0.1 {
+                d[1] = if c.household_stress[2] < DEPRIVATION_RECOVERY_THRESHOLD {
                     d[1].saturating_add(1)
                 } else {
                     0
                 };
-                if d[2] == 0 && d[0] >= 3 {
+                if d[2] == 0 && d[0] >= DEPRIVATION_NOTICE_MONTHS {
                     d[2] = 1;
                     events.push((i,"household_deprivation",format!("Persistent household deprivation: {:.0} of {:.0} observed households have more than 30% unmet food need; mean household shortage {:.0}%",c.food_security[3],c.household_stress[3],c.household_stress[0]*100.)));
-                } else if d[2] == 1 && d[1] >= 6 {
+                } else if d[2] == 1 && d[1] >= DEPRIVATION_RECOVERY_MONTHS {
                     d[2] = 0;
                     events.push((i,"household_deprivation_recovery","Six observed months below the persistent household-deprivation threshold; this does not imply every household is secure".into()));
                 }
@@ -319,7 +349,8 @@ impl History {
                 if j < 4 {
                     c.traditions[j] = *id;
                 }
-                c.faith[j.min(4)] += (*share / faith_total.max(1e-12)) as f32;
+                c.faith[j.min(4)] +=
+                    (*share / faith_total.max(DISTRIBUTION_NORMALIZATION_FLOOR)) as f32;
             }
             // Roundoff cannot make a prevalence exceed one.
             for x in &mut c.faith {
@@ -327,24 +358,27 @@ impl History {
             }
             let faction_total = factions[i].iter().sum::<f64>();
             for k in 0..3 {
-                c.factions[k] = (factions[i][k] / faction_total.max(1e-12)) as f32;
+                c.factions[k] =
+                    (factions[i][k] / faction_total.max(DISTRIBUTION_NORMALIZATION_FLOOR)) as f32;
             }
             for k in 0..6 {
-                c.additional_factions[k] = (factions[i][k + 3] / faction_total.max(1e-12)) as f32;
+                c.additional_factions[k] = (factions[i][k + 3]
+                    / faction_total.max(DISTRIBUTION_NORMALIZATION_FLOOR))
+                    as f32;
             }
             c.housing[0] = site.economy.housing_capacity();
             c.housing[1] = site.economy.crowding(site.stocks.stock[0]);
             if elapsed {
                 let rate = if c.housing[1] > c.housing[2] {
-                    0.18
+                    PRESSURE_RISE_RATE
                 } else {
-                    0.08
+                    PRESSURE_RECOVERY_RATE
                 };
                 c.housing[2] += (c.housing[1] - c.housing[2]) * rate;
-                if c.housing[2] > 0.15 && c.housing[3] < 0.5 {
+                if c.housing[2] > CROWDING_PRESSURE_THRESHOLD && c.housing[3] < 0.5 {
                     c.housing[3] = 1.;
                     events.push((i,"housing_pressure",format!("Persistent crowding: {:.0}% lack shelter capacity; {:.1} residents, {:.1} places",c.housing[1]*100.,site.stocks.stock[0],c.housing[0])));
-                } else if c.housing[2] < 0.05 && c.housing[3] > 0.5 {
+                } else if c.housing[2] < CROWDING_RECOVERY_THRESHOLD && c.housing[3] > 0.5 {
                     c.housing[3] = 0.;
                     events.push((
                         i,
@@ -360,25 +394,29 @@ impl History {
                 site.stocks.stock[3].clamp(0., 1.),
                 site.demography.health[0].clamp(0., 1.),
                 site.economy.soil[3].clamp(0., 1.),
-                (gini / (n as f64 * sum).max(1e-12)).clamp(0., 1.) as f32,
+                (gini / (n as f64 * sum).max(DISTRIBUTION_NORMALIZATION_FLOOR)).clamp(0., 1.)
+                    as f32,
             ];
             if elapsed {
                 c.accumulate();
                 let distress = c.pressure[0].max(c.pressure[2]);
-                c.status[0] = if distress > 0.55 {
+                c.status[0] = if distress > SOCIAL_STRAIN_THRESHOLD {
                     c.status[0].saturating_add(1)
                 } else {
                     0
                 };
-                c.status[1] = if distress < 0.25 {
+                c.status[1] = if distress < SOCIAL_RECOVERY_THRESHOLD {
                     c.status[1].saturating_add(1)
                 } else {
                     0
                 };
-                if site.stocks.stock[0] > 0. && c.status[2] == 0 && c.status[0] >= 3 {
+                if site.stocks.stock[0] > 0.
+                    && c.status[2] == 0
+                    && c.status[0] >= SOCIAL_STRAIN_NOTICE_MONTHS
+                {
                     c.status[2] = 1;
                     events.push((i,"social_strain",format!("Sustained hardship: hunger pressure {:.0}%, disruption {:.0}%; current food shortage {:.0}%",c.pressure[0]*100.,c.pressure[2]*100.,c.exposure[0]*100.)));
-                } else if c.status[2] == 1 && c.status[1] >= 6 {
+                } else if c.status[2] == 1 && c.status[1] >= SOCIAL_RECOVERY_MONTHS {
                     c.status[2] = 0;
                     if site.stocks.stock[0] > 0. {
                         events.push((i,"social_recovery",format!("Six months below the recovery threshold; hunger pressure {:.0}%, disruption {:.0}%",c.pressure[0]*100.,c.pressure[2]*100.)));

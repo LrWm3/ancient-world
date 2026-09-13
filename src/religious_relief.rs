@@ -6,6 +6,17 @@ use crate::{
 };
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
+
+const RELIEF_ACCOUNT_TOLERANCE: f64 = 1e-5;
+const BASE_RECIPROCAL_SUPPORT: f32 = 0.5;
+const MAX_RECIPROCAL_SUPPORT_BONUS: f32 = 0.5;
+const MAX_RELIGIOUS_RELIEF_JOURNEY_MONTHS: u32 = 12;
+const RELIGIOUS_DONOR_RESERVE_MONTHS: f32 = 6.;
+const MIN_RELIEF_FOOD_PRICE: f32 = 0.01;
+const HOSPITALITY_TREASURY_FRACTION: f64 = 0.25;
+const ORDINARY_RELIEF_TREASURY_FRACTION: f64 = 0.1;
+const REQUIRED_SUCCESSFUL_MISSIONS: usize = 2;
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ReligiousRelief {
     pub enabled: bool,
@@ -68,10 +79,10 @@ impl ReligiousRelief {
                         } else {
                             0.
                         }
-                    && m.report_food_months
-                        .is_none_or(|v| v.is_finite() && (0. ..=24.).contains(&v))
+                    && m.report_food_months.is_none_or(|v| v.is_finite()
+                        && (0. ..=crate::social_memory::MAX_REPORTED_FOOD_MONTHS).contains(&v))
                     && m.promised_kg.is_finite()
-                    && m.promised_kg >= 18.
+                    && m.promised_kg >= crate::relief::MIN_RELIEF_SHIPMENT_KG
                     && m.paid.is_finite()
                     && m.paid > 0.
                     && m.delivered_kg
@@ -89,7 +100,7 @@ impl ReligiousRelief {
         let returned: f64 = self.missions.iter().map(|m| m.returned_kg as f64).sum();
         let repaid: f64 = self.missions.iter().map(|m| m.repayment_kg as f64).sum();
         ensure!(
-            (returned - repaid).abs() <= 1e-5 * repaid.max(1.),
+            (returned - repaid).abs() <= RELIEF_ACCOUNT_TOLERANCE * repaid.max(1.),
             "reciprocal credit imbalance"
         );
         for m in &self.missions {
@@ -132,7 +143,9 @@ impl ReligiousRelief {
             .filter(|m| m.recipient == site && m.institution == institution)
             .filter_map(|m| m.delivered_kg)
             .sum();
-        0.5 + 0.5 * received / (received + population.max(1.) * 18.)
+        BASE_RECIPROCAL_SUPPORT
+            + MAX_RECIPROCAL_SUPPORT_BONUS * received
+                / (received + population.max(1.) * crate::relief::RELIEF_RATION_KG_PER_PERSON_MONTH)
     }
     /// Locally witnessed assistance, bounded and distinct from conversion or global reputation.
     pub fn received_kg(&self, site: u32, host: u32) -> f32 {
@@ -171,16 +184,20 @@ impl History {
         if hostile
             || !route.open
             || route.flood_months > 0
-            || months > 12
-            || self.month.saturating_sub(appeal.reported) > 18
+            || months > MAX_RELIGIOUS_RELIEF_JOURNEY_MONTHS
+            || self.month.saturating_sub(appeal.reported) > crate::relief::MAX_APPEAL_AGE_MONTHS
             || host.abandoned
             || self.sites[appeal.origin as usize].abandoned
-            || host.stocks.stock[3] > 0.01
+            || host.stocks.stock[3] > crate::relief::MAX_DONOR_SHORTAGE
         {
             return false;
         }
-        let surplus = (host.stocks.stock[1] - host.stocks.stock[0] * 18. * 6.).max(0.);
-        let price = host.economy.prices[crate::economy::FOOD].max(0.01);
+        let surplus = (host.stocks.stock[1]
+            - host.stocks.stock[0]
+                * crate::relief::RELIEF_RATION_KG_PER_PERSON_MONTH
+                * RELIGIOUS_DONOR_RESERVE_MONTHS)
+            .max(0.);
+        let price = host.economy.prices[crate::economy::FOOD].max(MIN_RELIEF_FOOD_PRICE);
         let witness_faith = c.household_faith.get(appeal.household as usize).copied();
         let present = c.site_people(self, appeal.host);
         let candidate = c
@@ -215,10 +232,19 @@ impl History {
                 if !hospitality && !learned && !returning_help && n.tradition != witness_faith {
                     return None;
                 }
-                let budget = n.treasury * if hospitality { 0.25 } else { 0.1 };
+                let budget = n.treasury
+                    * if hospitality {
+                        HOSPITALITY_TREASURY_FRACTION
+                    } else {
+                        ORDINARY_RELIEF_TREASURY_FRACTION
+                    };
                 let kg = surplus
-                    .min(appeal.population * 18. * 3.)
-                    .min(3000. / months as f32)
+                    .min(
+                        appeal.population
+                            * crate::relief::RELIEF_RATION_KG_PER_PERSON_MONTH
+                            * crate::relief::RELIEF_TARGET_MONTHS,
+                    )
+                    .min(crate::relief::RELIEF_TRANSPORT_KG_MONTHS / months as f32)
                     .min(self.land_freight_capacity(appeal.host))
                     .min(self.land_freight_capacity(appeal.origin))
                     .min((budget / price as f64) as f32);
@@ -228,7 +254,7 @@ impl History {
                     return None;
                 }
                 let kg = kg.min(receipt / price);
-                (kg >= 18.).then_some((n.id, kg, receipt, room))
+                (kg >= crate::relief::MIN_RELIEF_SHIPMENT_KG).then_some((n.id, kg, receipt, room))
             })
             .max_by(|a, b| a.1.total_cmp(&b.1).then_with(|| b.0.cmp(&a.0)));
         let Some((institution, kg, paid, room)) = candidate else {
@@ -240,7 +266,8 @@ impl History {
         self.sites[appeal.host as usize].stocks.stock[1] -= kg;
         let report_food_months = Some(
             (self.sites[appeal.host as usize].stocks.stock[1]
-                / (self.sites[appeal.host as usize].stocks.stock[0].max(1.) * 18.))
+                / (self.sites[appeal.host as usize].stocks.stock[0].max(1.)
+                    * crate::relief::RELIEF_RATION_KG_PER_PERSON_MONTH))
                 .clamp(0., crate::social_memory::MAX_REPORTED_FOOD_MONTHS),
         );
         self.sites[appeal.host as usize].economy.finance[0] += paid;
@@ -329,9 +356,13 @@ impl History {
             && c.religious_relief
                 .missions
                 .iter()
-                .filter(|m| m.recipient == recipient && m.delivered_kg.is_some_and(|v| v >= 18.))
+                .filter(|m| {
+                    m.recipient == recipient
+                        && m.delivered_kg
+                            .is_some_and(|v| v >= crate::relief::MIN_RELIEF_SHIPMENT_KG)
+                })
                 .count()
-                >= 2;
+                >= REQUIRED_SUCCESSFUL_MISSIONS;
         if learn {
             c.religious_relief.memory.mutual_aid_sites.push(recipient);
         }

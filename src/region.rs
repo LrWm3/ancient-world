@@ -4,6 +4,31 @@ use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use wgpu::util::DeviceExt;
+
+crate::shared_shader_parameters!(SHADER_PARAMETERS {
+    const REGION_WORKGROUP_EDGE: u32 = 8;
+});
+const MIN_REGION_RESOLUTION: u32 = 16;
+const MAX_REGION_RESOLUTION: u32 = 1024;
+const MAX_REGION_RADIUS_FRACTION: f32 = 0.5;
+const POLAR_FRAME_THRESHOLD: f32 = 0.95;
+const REGIONAL_MEMORY_BUDGET_BYTES: u64 = 4 * 1024 * 1024 * 1024;
+const RELAXATION_WAVES_PER_EDGE: u32 = 64;
+const REGION_FNV_OFFSET: u64 = 0xcbf29ce484222325;
+const REGION_FNV_PRIME: u64 = 0x100000001b3;
+const VISIBLE_LAKE_DEPTH_M: f32 = 0.5;
+const VISIBLE_RIVER_ANNUAL_FLOW_M3: f32 = 1e7;
+const LAKE_COLOR: [f32; 3] = [25., 85., 125.];
+const RIVER_COLOR: [f32; 3] = [40., 110., 140.];
+const BARE_LAND_COLOR: [f32; 3] = [135., 115., 75.];
+const VEGETATION_COLOR_SHIFT: [f32; 3] = [-90., 25., -10.];
+const SLOPE_SHADE_WEIGHT: f32 = 0.8;
+const MIN_SLOPE_SHADE: f32 = 0.55;
+const MAX_SLOPE_SHADE: f32 = 1.4;
+const SNOW_DISPLAY_TEMPERATURE_C: f32 = -2.;
+const SNOW_DISPLAY_MAX_WATER_DEPTH_M: f32 = 0.05;
+const SNOW_COLOR: [f32; 3] = [220., 230., 235.];
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct RegionalCell {
@@ -79,17 +104,20 @@ impl Generator {
         resolution: u32,
     ) -> Result<Region> {
         ensure!(
-            resolution.is_power_of_two() && (16..=1024).contains(&resolution),
+            resolution.is_power_of_two()
+                && (MIN_REGION_RESOLUTION..=MAX_REGION_RESOLUTION).contains(&resolution),
             "regional resolution must be 16–1024, power of two"
         );
         ensure!(
-            width_km.is_finite() && width_km >= 1. && width_km <= self.config.radius_km * 0.5,
+            width_km.is_finite()
+                && width_km >= 1.
+                && width_km <= self.config.radius_km * MAX_REGION_RADIUS_FRACTION,
             "regional extent must be 1 km to half the planet radius"
         );
         let length = center.iter().map(|x| x * x).sum::<f32>().sqrt();
         ensure!(length.is_finite() && length > 0., "invalid regional center");
         let center = center.map(|x| x / length);
-        let up = if center[1].abs() > 0.95 {
+        let up = if center[1].abs() > POLAR_FRAME_THRESHOLD {
             [1., 0., 0.]
         } else {
             [0., 1., 0.]
@@ -110,7 +138,7 @@ impl Generator {
             resolution as u64 * resolution as u64 * std::mem::size_of::<RegionalCell>() as u64;
         ensure!(
             size <= d.limits().max_storage_buffer_binding_size as u64
-                && self.config.estimated_bytes() + size * 2 < 4 * 1024 * 1024 * 1024,
+                && self.config.estimated_bytes() + size * 2 < REGIONAL_MEMORY_BUDGET_BYTES,
             "regional buffers exceed GPU memory budget"
         );
         let u = Uniforms {
@@ -193,7 +221,14 @@ impl Generator {
         d.push_error_scope(wgpu::ErrorFilter::Validation);
         let module = d.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Regional simulation"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/region_compute.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(
+                format!(
+                    "{}\n{}",
+                    SHADER_PARAMETERS,
+                    include_str!("../shaders/region_compute.wgsl")
+                )
+                .into(),
+            ),
         });
         let mut side = 0;
         let mut iterations = [0; 3];
@@ -216,7 +251,7 @@ impl Generator {
             }
             let iterative = (1..=3).contains(&stage);
             let limit = if iterative {
-                resolution * resolution.min(64)
+                resolution * resolution.min(RELAXATION_WAVES_PER_EDGE)
             } else {
                 1
             };
@@ -228,7 +263,11 @@ impl Generator {
                     let mut pass = encoder.begin_compute_pass(&Default::default());
                     pass.set_pipeline(&pipeline);
                     pass.set_bind_group(0, &groups[side], &[]);
-                    pass.dispatch_workgroups(resolution / 8, resolution / 8, 1);
+                    pass.dispatch_workgroups(
+                        resolution / REGION_WORKGROUP_EDGE,
+                        resolution / REGION_WORKGROUP_EDGE,
+                        1,
+                    );
                 }
                 self.gpu.queue.submit(Some(encoder.finish()));
                 side = 1 - side;
@@ -274,8 +313,8 @@ impl Generator {
             spatial: Some(crate::spatial::SurveyRef {
                 id: crate::spatial::new_world_id()
                     .bytes()
-                    .fold(0xcbf29ce484222325u64, |hash, byte| {
-                        (hash ^ byte as u64).wrapping_mul(0x100000001b3)
+                    .fold(REGION_FNV_OFFSET, |hash, byte| {
+                        (hash ^ byte as u64).wrapping_mul(REGION_FNV_PRIME)
                     }),
                 grid: crate::spatial::GridRef {
                     world: self
@@ -350,19 +389,26 @@ impl Region {
         let n = self.resolution;
         let mut image = image::RgbImage::new(n, n);
         for (i, c) in self.cells.iter().enumerate() {
-            let mut color = if c.water[0] > 0.5 {
-                [25., 85., 125.]
-            } else if c.water[2] > 1e7 {
-                [40., 110., 140.]
+            let mut color = if c.water[0] > VISIBLE_LAKE_DEPTH_M {
+                LAKE_COLOR
+            } else if c.water[2] > VISIBLE_RIVER_ANNUAL_FLOW_M3 {
+                RIVER_COLOR
             } else {
                 let v = c.climate[3];
-                [135. - 90. * v, 115. + 25. * v, 75. - 10. * v]
+                [
+                    BARE_LAND_COLOR[0] - (-VEGETATION_COLOR_SHIFT[0]) * v,
+                    BARE_LAND_COLOR[1] + VEGETATION_COLOR_SHIFT[1] * v,
+                    BARE_LAND_COLOR[2] - (-VEGETATION_COLOR_SHIFT[2]) * v,
+                ]
             };
             let other = &self.cells[if i % n as usize > 0 { i - 1 } else { i }];
-            let shade = (1. + (c.surface[0] - other.surface[0]) / c.surface[3].sqrt() * 0.8)
-                .clamp(0.55, 1.4);
-            if c.climate[0] < -2. && c.water[0] < 0.05 {
-                color = [220., 230., 235.];
+            let shade = (1.
+                + (c.surface[0] - other.surface[0]) / c.surface[3].sqrt() * SLOPE_SHADE_WEIGHT)
+                .clamp(MIN_SLOPE_SHADE, MAX_SLOPE_SHADE);
+            if c.climate[0] < SNOW_DISPLAY_TEMPERATURE_C
+                && c.water[0] < SNOW_DISPLAY_MAX_WATER_DEPTH_M
+            {
+                color = SNOW_COLOR;
             }
             image.put_pixel(
                 i as u32 % n,

@@ -8,6 +8,43 @@ use crate::{
 use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
+const RESEARCH_RELATIVE_TOLERANCE: f64 = 1e-6;
+const RESEARCH_ABSOLUTE_TOLERANCE_KG: f64 = 1e-8;
+const MAX_STUDY_BATCH_KG: f64 = 0.25;
+const MAX_PROCESSING_BATCH_KG: f64 = 1.;
+const REMEDY_ILLNESS_THRESHOLD: f32 = 0.01;
+const ILL_TOWN_REMEDY_KG_PER_RESIDENT: f64 = 0.01;
+const HEALTHY_TOWN_REMEDY_KG_PER_RESIDENT: f64 = 0.0005;
+const REMEDY_INPUT_PER_OUTPUT: f64 = 2.;
+const REMEDY_KG_PER_RESIDENT_MONTH: f64 = 0.005;
+const REMEDY_MAX_ILLNESS_REDUCTION: f64 = 0.02;
+const REMEDY_YIELD_FRACTION: f64 = 0.5;
+const REMEDY_MONTHLY_EXPIRY_FRACTION: f64 = 0.01;
+const SOURCE_MIN_TEMPERATURE_C: f32 = -5.;
+const SOURCE_MAX_TEMPERATURE_C: f32 = 40.;
+const SOURCE_MIN_VEGETATION_COVER: f64 = 0.15;
+const ORGANIC_SOURCE_BASELINE_KG: f64 = 240.;
+const ORGANIC_SOURCE_PASSIVE_FRACTION: f64 = 0.25;
+const ORGANIC_SOURCE_ACTIVITY_WEIGHT: f64 = 0.75;
+const PHOSPHATIC_SOURCE_BASELINE_KG: f64 = 400.;
+const MAX_EXPEDITION_SAMPLES_KG: f64 = 12.;
+const COLLECTION_BASE_KG: f64 = 2.;
+const COLLECTION_FULL_TOOLS_KG: f64 = 12.;
+const BOTANICAL_COLLECTION_FRACTION: f64 = 0.5;
+const TEACHING_INTERVAL_MONTHS: u32 = 12;
+const TEACHING_WORKER_MONTHS: f64 = 0.25;
+const TEACHING_WRITING_KG: f64 = 0.05;
+const PROCESSING_KG_PER_WORKER_MONTH: f64 = 0.5;
+const PROCESSING_WORKER_MONTHS_PER_KG: f64 = 2.;
+const PROCESSING_TOOLS_KG_PER_KG: f64 = 0.1;
+const PROCESSING_FUEL_KG_PER_KG: f64 = 0.2;
+const BATCH_NOTICE_INTERVAL: u32 = 12;
+const RELEASED_WORK_NOTICE_THRESHOLD: f64 = 1e-5;
+const MAX_RESEARCH_WORKER_MONTHS: f64 = 2.;
+const DEFAULT_RESEARCH_INTEREST: f32 = 0.5;
+const RESEARCH_EXPERIENCE_SCALE_MONTHS: f64 = 12.;
+const MAX_RESEARCH_PARTICIPANTS: usize = 4;
+
 // Research work passes through f32 labor grants with a minimum useful allocation.
 // A sub-milligram remainder must not strand a completed 1.5 kg study forever.
 // This is an eligibility tolerance only: never round up consumed mass or ledgers.
@@ -101,19 +138,20 @@ fn method_known(w: &Workshop, kind: usize) -> bool {
 }
 fn processing_limit(w: &Workshop, kind: usize, site: &crate::civilization::Site) -> f64 {
     if !method_known(w, kind) {
-        return (STUDY_KG - w.studied[kind]).min(0.25);
+        return (STUDY_KG - w.studied[kind]).min(MAX_STUDY_BATCH_KG);
     }
     if kind == 0 {
         // Keep a small emergency reserve in healthy towns, two months of doses during illness.
         let target = site.stocks.stock[0] as f64
-            * if site.demography.health[0] > 0.01 {
-                0.01
+            * if site.demography.health[0] > REMEDY_ILLNESS_THRESHOLD {
+                ILL_TOWN_REMEDY_KG_PER_RESIDENT
             } else {
-                0.0005
+                HEALTHY_TOWN_REMEDY_KG_PER_RESIDENT
             };
-        return ((target - w.remedy).max(0.) * 2.).min(1.);
+        return ((target - w.remedy).max(0.) * REMEDY_INPUT_PER_OUTPUT)
+            .min(MAX_PROCESSING_BATCH_KG);
     }
-    1.
+    MAX_PROCESSING_BATCH_KG
 }
 fn exchange(h: &mut History, site: u32, kind: usize, kg: f64) {
     for k in 0..3 {
@@ -131,12 +169,14 @@ fn event(h: &mut History, site: u32, cause: Option<u64>, kind: &str, text: Strin
 fn apply_stored_remedy(h: &mut History, w: &mut Workshop) -> f64 {
     let s = &mut h.sites[w.site as usize];
     let mut consumed = 0.;
-    if s.demography.health[0] > 0.01 && s.stocks.stock[0] > 0. {
-        let demand = s.stocks.stock[0] as f64 * 0.005;
+    if s.demography.health[0] > REMEDY_ILLNESS_THRESHOLD && s.stocks.stock[0] > 0. {
+        let demand = s.stocks.stock[0] as f64 * REMEDY_KG_PER_RESIDENT_MONTH;
         let used = w.remedy.min(demand);
         w.remedy -= used;
         consumed = used;
-        s.demography.health[0] = (s.demography.health[0] - (0.02 * used / demand) as f32).max(0.);
+        s.demography.health[0] = (s.demography.health[0]
+            - (REMEDY_MAX_ILLNESS_REDUCTION * used / demand) as f32)
+            .max(0.);
         for k in 0..3 {
             s.economy.external[k] -= (used * CNP[0][k]) as f32;
         }
@@ -233,7 +273,9 @@ impl Discoveries {
             ensure!(
                 (source.cell as usize) < cells.len()
                     && cells[source.cell as usize].meta[0] == 3
-                    && (h.living.is_some() || cells[source.cell as usize].water[0] < 0.25)
+                    && (h.living.is_some()
+                        || cells[source.cell as usize].water[0]
+                            < crate::hazards::FLOOD_EXPOSURE_DEPTH_M)
                     && cells_seen.insert(source.cell),
                 "invalid or duplicated specimen source"
             );
@@ -243,7 +285,7 @@ impl Discoveries {
                         .into_iter()
                         .all(|v| v.is_finite() && v >= 0.)
                         && (source.initial[k] - source.remaining[k] - source.collected[k]).abs()
-                            < 1e-6 * source.initial[k].max(1.),
+                            < RESEARCH_RELATIVE_TOLERANCE * source.initial[k].max(1.),
                     "specimen source creates material"
                 );
             }
@@ -264,9 +306,9 @@ impl Discoveries {
                     );
                 }
                 ensure!(
-                    plan.botanical_kg
-                        .iter()
-                        .all(|v| v.is_finite() && *v >= 0. && *v <= 0.25 + 1e-8),
+                    plan.botanical_kg.iter().all(|v| v.is_finite()
+                        && *v >= 0.
+                        && *v <= returns::MAX_BOTANICAL_BATCH_KG + RESEARCH_ABSOLUTE_TOLERANCE_KG),
                     "invalid botanical work request"
                 );
             }
@@ -281,7 +323,9 @@ impl Discoveries {
                         .chain(&w.curated)
                         .chain([&w.remedy])
                         .all(|v| v.is_finite() && *v >= 0.)
-                    && w.studied.iter().all(|v| *v <= 1.5 + 1e-8),
+                    && w.studied
+                        .iter()
+                        .all(|v| *v <= STUDY_KG + RESEARCH_ABSOLUTE_TOLERANCE_KG),
                 "invalid research workshop"
             );
             for learned in w.learned.into_iter().flatten() {
@@ -305,7 +349,7 @@ impl Discoveries {
                             0.
                         })
                     .abs()
-                        < 1e-6 * w.delivered[k].max(1.),
+                        < RESEARCH_RELATIVE_TOLERANCE * w.delivered[k].max(1.),
                     "workshop specimen ledger mismatch"
                 );
                 ensure!(
@@ -337,39 +381,41 @@ impl Discoveries {
         );
         ensure!(
             self.worker_months
-                <= self.worker_months_reserved + 1e-6 * self.worker_months_reserved.max(1.),
+                <= self.worker_months_reserved
+                    + RESEARCH_RELATIVE_TOLERANCE * self.worker_months_reserved.max(1.),
             "workshop uses unreserved labor"
         );
         for k in 0..2 {
             ensure!(
                 (self.studied[k] - self.workshops.iter().map(|w| w.studied[k]).sum::<f64>()).abs()
-                    < 1e-6 * self.studied[k].max(1.)
+                    < RESEARCH_RELATIVE_TOLERANCE * self.studied[k].max(1.)
                     && (self.processed[k]
                         - self.workshops.iter().map(|w| w.processed[k]).sum::<f64>())
                     .abs()
-                        < 1e-6 * self.processed[k].max(1.)
+                        < RESEARCH_RELATIVE_TOLERANCE * self.processed[k].max(1.)
                     && (self.curated[k] - self.workshops.iter().map(|w| w.curated[k]).sum::<f64>())
                         .abs()
-                        < 1e-6 * self.curated[k].max(1.),
+                        < RESEARCH_RELATIVE_TOLERANCE * self.curated[k].max(1.),
                 "research ledger mismatch"
             );
             ensure!(
                 (self.collected[k] - self.sources.iter().map(|s| s.collected[k]).sum::<f64>())
                     .abs()
-                    < 1e-6 * self.collected[k].max(1.),
+                    < RESEARCH_RELATIVE_TOLERANCE * self.collected[k].max(1.),
                 "collection source ledger mismatch"
             );
         }
         ensure!(
-            (self.remedy_made - self.processed[0] * 0.5).abs() < 1e-6 * self.remedy_made.max(1.)
+            (self.remedy_made - self.processed[0] * REMEDY_YIELD_FRACTION).abs()
+                < RESEARCH_RELATIVE_TOLERANCE * self.remedy_made.max(1.)
                 && (self.phosphorus_applied - self.processed[1] * CNP[1][2]).abs()
-                    < 1e-6 * self.phosphorus_applied.max(1.),
+                    < RESEARCH_RELATIVE_TOLERANCE * self.phosphorus_applied.max(1.),
             "specimen processing yield mismatch"
         );
         ensure!(
             self.residuals(x)
                 .iter()
-                .all(|v| v.is_finite() && v.abs() < 1e-6),
+                .all(|v| v.is_finite() && v.abs() < RESEARCH_RELATIVE_TOLERANCE),
             "specimen conservation residual exceeds tolerance"
         );
         Ok(())
@@ -381,7 +427,9 @@ impl Discoveries {
         cell_id: u32,
         cell: &Cell,
     ) {
-        if h.living.is_some() && crate::hazards::flood_depth(cell) >= 0.25 {
+        if h.living.is_some()
+            && crate::hazards::flood_depth(cell) >= crate::hazards::FLOOD_EXPOSURE_DEPTH_M
+        {
             return;
         }
         let kind = match e.objective {
@@ -394,12 +442,17 @@ impl Discoveries {
         } else {
             let activity = cell.geology[0].clamp(0., 1.) as f64;
             let life = cell.life[0].clamp(0., 1.) as f64;
-            let bio = if (-5. ..=40.).contains(&cell.climate[0]) && life > 0.15 {
-                240. * life * (0.25 + 0.75 * activity)
+            let bio = if (SOURCE_MIN_TEMPERATURE_C..=SOURCE_MAX_TEMPERATURE_C)
+                .contains(&cell.climate[0])
+                && life > SOURCE_MIN_VEGETATION_COVER
+            {
+                ORGANIC_SOURCE_BASELINE_KG
+                    * life
+                    * (ORGANIC_SOURCE_PASSIVE_FRACTION + ORGANIC_SOURCE_ACTIVITY_WEIGHT * activity)
             } else {
                 0.
             };
-            let initial = [bio, 400. * activity];
+            let initial = [bio, PHOSPHATIC_SOURCE_BASELINE_KG * activity];
             self.sources.push(Source {
                 cell: cell_id,
                 initial,
@@ -409,10 +462,12 @@ impl Discoveries {
             event(h,e.origin,Some(e.cause),"specimen_source",format!("Accessible coastal baseline at cell {cell_id}: {:.1} kg organic collection material, {:.1} kg phosphatic crust; no replenishment during frozen planetary history",initial[0],initial[1]));
             self.sources.len() - 1
         };
-        let capacity = (12. - e.samples.iter().sum::<f64>()).max(0.);
-        let kg = (2. * e.research_skill() as f64 * (e.tools as f64 / 12.).min(1.))
-            .min(capacity)
-            .min(self.sources[index].remaining[kind]);
+        let capacity = (MAX_EXPEDITION_SAMPLES_KG - e.samples.iter().sum::<f64>()).max(0.);
+        let kg = (COLLECTION_BASE_KG
+            * e.research_skill() as f64
+            * (e.tools as f64 / COLLECTION_FULL_TOOLS_KG).min(1.))
+        .min(capacity)
+        .min(self.sources[index].remaining[kind]);
         if kg <= 0. {
             return;
         }
@@ -424,11 +479,11 @@ impl Discoveries {
         if kind == 0 {
             // Half the accessible organic collection is retained as typed botanical material.
             let profile = (cell_id.wrapping_add(h.seed) % 3) as usize;
-            e.botanicals[profile] += kg * 0.5;
+            e.botanicals[profile] += kg * BOTANICAL_COLLECTION_FRACTION;
             e.botanical_sources[profile] = Some(cell_id);
         }
         exchange(h, e.origin, kind, kg);
-        if src.remaining[kind] <= 1e-8 {
+        if src.remaining[kind] <= RESEARCH_ABSOLUTE_TOLERANCE_KG {
             event(
                 h,
                 e.origin,
@@ -521,7 +576,7 @@ impl Discoveries {
                 .filter(|p| p.commitment.is_some())
                 .map_or(f32::MAX, |p| h.personal_grant_live(p.commitment));
             let s = &mut h.sites[site];
-            let expired = w.remedy * 0.01;
+            let expired = w.remedy * REMEDY_MONTHLY_EXPIRY_FRACTION;
             w.remedy -= expired;
             self.remedy_expired += expired;
             for k in 0..3 {
@@ -550,9 +605,9 @@ impl Discoveries {
             self.worker_months_reserved += labor;
             for (k, name) in NAMES.iter().enumerate() {
                 if w.work_plan.as_ref().is_none_or(|p| p.teachers[k].is_some())
-                    && h.month.is_multiple_of(12)
+                    && h.month.is_multiple_of(TEACHING_INTERVAL_MONTHS)
                     && !method_known(w, k)
-                    && labor >= 0.25
+                    && labor >= TEACHING_WORKER_MONTHS
                 {
                     if let Some(teacher) = teachers
                         .iter()
@@ -574,15 +629,15 @@ impl Discoveries {
                         {
                             let ratios = h.economy_catalog.as_ref().unwrap().composition(good);
                             let e = &mut h.sites[site].economy;
-                            if e.goods[good] >= 0.05 {
-                                e.goods[good] -= 0.05;
-                                e.used[good] += 0.05;
-                                e.reserves[3] += 0.05;
+                            if e.goods[good] >= TEACHING_WRITING_KG as f32 {
+                                e.goods[good] -= TEACHING_WRITING_KG as f32;
+                                e.used[good] += TEACHING_WRITING_KG as f32;
+                                e.reserves[3] += TEACHING_WRITING_KG as f32;
                                 for (j, r) in ratios.into_iter().enumerate() {
-                                    e.detritus[j] += 0.05 * r;
+                                    e.detritus[j] += TEACHING_WRITING_KG as f32 * r;
                                 }
-                                labor -= 0.25;
-                                self.worker_months += 0.25;
+                                labor -= TEACHING_WORKER_MONTHS;
+                                self.worker_months += TEACHING_WORKER_MONTHS;
                                 event(h,w.site,teacher.learned[k].or(teacher.causes[k]),
                                     "specimen_method_transmitted",format!("Researchers copied the {} method from {} through an open route; specimens still must be acquired locally",name,h.sites[teacher.site as usize].name));
                                 w.learned[k] = h.events.last().map(|e| e.id);
@@ -605,10 +660,10 @@ impl Discoveries {
                             .map_or(f64::INFINITY, |p| p.processing_kg[k]),
                     )
                     .min(limit)
-                    .min(labor * 0.5)
-                    .min(e.goods[3] as f64 / 0.1)
-                    .min(e.goods[6] as f64 / 0.2);
-                if kg <= 1e-8 {
+                    .min(labor * PROCESSING_KG_PER_WORKER_MONTH)
+                    .min(e.goods[3] as f64 / PROCESSING_TOOLS_KG_PER_KG)
+                    .min(e.goods[6] as f64 / PROCESSING_FUEL_KG_PER_KG);
+                if kg <= RESEARCH_ABSOLUTE_TOLERANCE_KG {
                     continue;
                 }
                 if let Some(outcomes) = w.work_plan.as_mut().and_then(|p| p.outcomes.as_mut()) {
@@ -616,14 +671,19 @@ impl Discoveries {
                         outcomes.actual[k] += kg;
                         outcomes.methods_actual[k] |= study_complete(w.studied[k] + kg);
                     } else {
-                        outcomes.actual[2 + k] += kg * if k == 0 { 0.5 } else { CNP[1][2] };
+                        outcomes.actual[2 + k] += kg
+                            * if k == 0 {
+                                REMEDY_YIELD_FRACTION
+                            } else {
+                                CNP[1][2]
+                            };
                     }
                 }
                 w.samples[k] -= kg;
-                labor -= kg * 2.;
-                self.worker_months += kg * 2.;
-                let tools = (kg * 0.1) as f32;
-                let fuel = (kg * 0.2) as f32;
+                labor -= kg * PROCESSING_WORKER_MONTHS_PER_KG;
+                self.worker_months += kg * PROCESSING_WORKER_MONTHS_PER_KG;
+                let tools = (kg * PROCESSING_TOOLS_KG_PER_KG) as f32;
+                let fuel = (kg * PROCESSING_FUEL_KG_PER_KG) as f32;
                 e.goods[3] -= tools;
                 e.used[3] += tools;
                 e.reserves[3] += tools;
@@ -642,14 +702,14 @@ impl Discoveries {
                     w.processed[k] += kg;
                     w.batches[k] += 1;
                     if k == 0 {
-                        w.remedy += kg * 0.5;
-                        self.remedy_made += kg * 0.5;
-                        exchange(h, w.site, 0, -kg * 0.5);
+                        w.remedy += kg * REMEDY_YIELD_FRACTION;
+                        self.remedy_made += kg * REMEDY_YIELD_FRACTION;
+                        exchange(h, w.site, 0, -kg * REMEDY_YIELD_FRACTION);
                     } else {
                         h.sites[site].economy.soil[2] += (kg * CNP[1][2]) as f32;
                         self.phosphorus_applied += kg * CNP[1][2];
                     }
-                    if w.batches[k] == 1 || w.batches[k].is_multiple_of(12) {
+                    if w.batches[k] == 1 || w.batches[k].is_multiple_of(BATCH_NOTICE_INTERVAL) {
                         event(
                             h,
                             w.site,
@@ -677,7 +737,9 @@ impl Discoveries {
                         p.cancellation = Some("stale month".into());
                     }
                     p.receipt.settle(self.worker_months - before_work);
-                    if p.receipt.released > 1e-5 && p.cancellation.is_none() {
+                    if p.receipt.released > RELEASED_WORK_NOTICE_THRESHOLD
+                        && p.cancellation.is_none()
+                    {
                         p.cancellation = Some("planned teacher, supplies or execution labor unavailable; remainder expired".into());
                     }
                 }
@@ -701,8 +763,8 @@ fn plan_work(h: &History, workshop: &Workshop, teachers: &[Workshop]) -> Researc
     if site.abandoned || !workshop.enabled {
         return plan;
     }
-    let budget =
-        crate::labor::available(site, h.society.is_some(), h.living.is_some()).min(2.) as f64;
+    let budget = crate::labor::available(site, h.society.is_some(), h.living.is_some())
+        .min(MAX_RESEARCH_WORKER_MONTHS as f32) as f64;
     let mut w = workshop.clone();
     let mut tools = site.economy.goods[3] as f64;
     let mut fuel = site.economy.goods[6] as f64;
@@ -713,10 +775,10 @@ fn plan_work(h: &History, workshop: &Workshop, teachers: &[Workshop]) -> Researc
         .map_or(0., |g| site.economy.goods[g] as f64);
     let mut work = 0.;
     for k in 0..2 {
-        if budget - work >= 0.25
-            && h.month.is_multiple_of(12)
+        if budget - work >= TEACHING_WORKER_MONTHS
+            && h.month.is_multiple_of(TEACHING_INTERVAL_MONTHS)
             && !method_known(&w, k)
-            && writing >= 0.05
+            && writing >= TEACHING_WRITING_KG
             && teachers.iter().any(|t| {
                 t.site != w.site
                     && !h.sites[t.site as usize].abandoned
@@ -734,35 +796,41 @@ fn plan_work(h: &History, workshop: &Workshop, teachers: &[Workshop]) -> Researc
                 })
                 .map(|t| t.site)
                 .min();
-            work += 0.25;
-            writing -= 0.05;
+            work += TEACHING_WORKER_MONTHS;
+            writing -= TEACHING_WRITING_KG;
             w.learned[k] = Some(0); // Forecast only; no historical discovery is committed.
             plan.outcomes.as_mut().unwrap().methods_expected[k] = true;
         }
         let kg = w.samples[k]
             .min(processing_limit(&w, k, site))
-            .min(tools / 0.1)
-            .min(fuel / 0.2)
-            .min((budget - work).max(0.) * 0.5);
+            .min(tools / PROCESSING_TOOLS_KG_PER_KG)
+            .min(fuel / PROCESSING_FUEL_KG_PER_KG)
+            .min((budget - work).max(0.) * PROCESSING_KG_PER_WORKER_MONTH);
         plan.processing_kg[k] = kg;
         let outcomes = plan.outcomes.as_mut().unwrap();
         if !method_known(&w, k) {
             outcomes.expected[k] = kg;
             outcomes.methods_expected[k] |= study_complete(w.studied[k] + kg);
         } else {
-            outcomes.expected[2 + k] = kg * if k == 0 { 0.5 } else { CNP[1][2] };
+            outcomes.expected[2 + k] = kg
+                * if k == 0 {
+                    REMEDY_YIELD_FRACTION
+                } else {
+                    CNP[1][2]
+                };
         }
-        work += kg * 2.;
-        tools -= kg * 0.1;
-        fuel -= kg * 0.2;
+        work += kg * PROCESSING_WORKER_MONTHS_PER_KG;
+        tools -= kg * PROCESSING_TOOLS_KG_PER_KG;
+        fuel -= kg * PROCESSING_FUEL_KG_PER_KG;
     }
     for k in 0..3 {
         let kg = returns::limit(&w.botanicals, k)
-            .min(tools / 0.1)
-            .min(fuel / 0.2)
-            .min((budget - work).max(0.) / 2.);
+            .min(tools / PROCESSING_TOOLS_KG_PER_KG)
+            .min(fuel / PROCESSING_FUEL_KG_PER_KG)
+            .min((budget - work).max(0.) / PROCESSING_WORKER_MONTHS_PER_KG);
         // Only plan an application if its destination good exists, as execution requires.
-        let studying = w.botanicals.studied[k] < 0.25 - 1e-8;
+        let studying =
+            w.botanicals.studied[k] < returns::BOTANICAL_STUDY_KG - RESEARCH_ABSOLUTE_TOLERANCE_KG;
         let supported = h
             .economy_catalog
             .as_ref()
@@ -770,11 +838,11 @@ fn plan_work(h: &History, workshop: &Workshop, teachers: &[Workshop]) -> Researc
         let kg = if studying || supported { kg } else { 0. };
         plan.botanical_kg[k] = kg;
         plan.outcomes.as_mut().unwrap().botanical_expected[k + if studying { 0 } else { 3 }] = kg;
-        work += 2. * kg;
-        tools -= 0.1 * kg;
-        fuel -= 0.2 * kg;
+        work += PROCESSING_WORKER_MONTHS_PER_KG * kg;
+        tools -= PROCESSING_TOOLS_KG_PER_KG * kg;
+        fuel -= PROCESSING_FUEL_KG_PER_KG * kg;
     }
-    plan.receipt.requested = work.min(2.);
+    plan.receipt.requested = work.min(MAX_RESEARCH_WORKER_MONTHS);
     plan.receipt.granted = plan.receipt.requested;
     plan
 }
@@ -829,12 +897,20 @@ impl History {
                             .culture
                             .as_ref()
                             .and_then(|c| c.agents.get(p.person as usize))
-                            .map_or(0.5, |a| a.traits[3]);
-                        (p.person, interest as f64 + (p.completed[1] / 12.).min(1.))
+                            .map_or(DEFAULT_RESEARCH_INTEREST, |a| a.traits[3]);
+                        (
+                            p.person,
+                            interest as f64
+                                + (p.completed[1] / RESEARCH_EXPERIENCE_SCALE_MONTHS).min(1.),
+                        )
                     })
                     .collect();
                 candidates.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
-                let ids: Vec<_> = candidates.into_iter().take(4).map(|p| p.0).collect();
+                let ids: Vec<_> = candidates
+                    .into_iter()
+                    .take(MAX_RESEARCH_PARTICIPANTS)
+                    .map(|p| p.0)
+                    .collect();
                 plan.commitment = state.reserve(
                     self.month,
                     site,

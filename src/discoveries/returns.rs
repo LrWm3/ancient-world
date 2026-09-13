@@ -1,5 +1,18 @@
 //! Typed botanical collections share the original finite organic source and cargo ledger.
 use super::*;
+
+pub(super) const BOTANICAL_STUDY_KG: f64 = 0.25;
+pub(super) const MAX_BOTANICAL_BATCH_KG: f64 = 0.25;
+const MAX_BOTANICAL_STUDY_BATCH_KG: f64 = 0.1;
+const MAX_BOTANICAL_OUTPUT_FRACTION: f64 = 0.5;
+const CROP_TEMPERATURE_MARGIN_C: f32 = 5.;
+const MIN_CROP_RAINFALL_FRACTION: f32 = 0.5;
+const MIN_TRIAL_SOIL_N_KG: f32 = 0.001;
+const MIN_TRIAL_SOIL_P_KG: f32 = 0.0001;
+const BOTANICAL_WATER_M3_PER_KG: f64 = 0.2;
+const MIN_FOLLOWUP_SOURCE_KG: f64 = 0.1;
+const FOLLOWUP_GOOD_KG_PER_RESIDENT: f32 = 0.05;
+
 pub const NAMES: [&str; 3] = [
     "silver bast fibers",
     "ironberry pigment material",
@@ -38,10 +51,12 @@ impl Botanicals {
                 .iter()
                 .all(|v| v.is_finite() && *v >= 0.)
                     && (self.received[k] - self.stock[k] - self.used[k]).abs()
-                        < 1e-6 * self.received[k].max(1.)
-                    && self.studied[k] <= self.used[k] + 1e-8
-                    && self.studied[k] <= 0.25 + 1e-8
-                    && self.output[k] <= (self.used[k] - self.studied[k]) * 0.5 + 1e-6,
+                        < RESEARCH_RELATIVE_TOLERANCE * self.received[k].max(1.)
+                    && self.studied[k] <= self.used[k] + RESEARCH_ABSOLUTE_TOLERANCE_KG
+                    && self.studied[k] <= BOTANICAL_STUDY_KG + RESEARCH_ABSOLUTE_TOLERANCE_KG
+                    && self.output[k]
+                        <= (self.used[k] - self.studied[k]) * MAX_BOTANICAL_OUTPUT_FRACTION
+                            + RESEARCH_RELATIVE_TOLERANCE,
                 "botanical collection ledger mismatch"
             );
             ensure!(
@@ -62,20 +77,22 @@ pub(super) fn limit(b: &Botanicals, k: usize) -> f64 {
     if b.policy[k] == Use::Store {
         return 0.;
     }
-    if b.studied[k] < 0.25 - 1e-8 {
-        return b.stock[k].min(0.25 - b.studied[k]).min(0.1);
+    if b.studied[k] < BOTANICAL_STUDY_KG - RESEARCH_ABSOLUTE_TOLERANCE_KG {
+        return b.stock[k]
+            .min(BOTANICAL_STUDY_KG - b.studied[k])
+            .min(MAX_BOTANICAL_STUDY_BATCH_KG);
     }
     if b.policy[k] == Use::Study {
         return 0.;
     }
-    b.stock[k].min(0.25)
+    b.stock[k].min(MAX_BOTANICAL_BATCH_KG)
 }
 /// Conservatively bound all output constituents by the input composition.
 fn yield_fraction(output: [f32; 3]) -> f64 {
     output
         .into_iter()
         .zip(CNP[0])
-        .fold(0.5_f64, |fraction, (out, input)| {
+        .fold(MAX_BOTANICAL_OUTPUT_FRACTION, |fraction, (out, input)| {
             if out > 0. {
                 fraction.min(input / out as f64)
             } else {
@@ -94,13 +111,14 @@ pub(super) fn process(h: &mut History, w: &mut Workshop, cells: &[Cell], labor: 
             continue;
         };
         let s = &h.sites[w.site as usize];
-        let studying = w.botanicals.studied[k] < 0.25 - 1e-8;
+        let studying =
+            w.botanicals.studied[k] < BOTANICAL_STUDY_KG - RESEARCH_ABSOLUTE_TOLERANCE_KG;
         let kg = limit(&w.botanicals, k)
             .min(plan.botanical_kg[k])
-            .min(*labor / 2.)
-            .min(s.economy.goods[3] as f64 / 0.1)
-            .min(s.economy.goods[6] as f64 / 0.2);
-        if kg <= 1e-8 {
+            .min(*labor / PROCESSING_WORKER_MONTHS_PER_KG)
+            .min(s.economy.goods[3] as f64 / PROCESSING_TOOLS_KG_PER_KG)
+            .min(s.economy.goods[6] as f64 / PROCESSING_FUEL_KG_PER_KG);
+        if kg <= RESEARCH_ABSOLUTE_TOLERANCE_KG {
             continue;
         }
         let crop = h
@@ -111,15 +129,15 @@ pub(super) fn process(h: &mut History, w: &mut Workshop, cells: &[Cell], labor: 
         let crop_index = crop.map(|(i, _)| i);
         let habitat = crop.is_some_and(|(_, crop)| {
             cells.get(s.cell as usize).is_some_and(|cell| {
-                cell.climate[0] > crop.temperature[0] + 5.
-                    && cell.climate[0] < crop.temperature[1] - 5.
-                    && cell.hydro[2] >= crop.rainfall_mm * 0.5
+                cell.climate[0] > crop.temperature[0] + CROP_TEMPERATURE_MARGIN_C
+                    && cell.climate[0] < crop.temperature[1] - CROP_TEMPERATURE_MARGIN_C
+                    && cell.hydro[2] >= crop.rainfall_mm * MIN_CROP_RAINFALL_FRACTION
             })
         }) && s.economy.management[0] > 0.
             && crop_index.is_some_and(|i| s.economy.crops[i][0] > 0.)
-            && s.economy.soil[1] >= 0.001
-            && s.economy.soil[2] >= 0.0001
-            && s.economy.water[0] as f64 >= kg * 0.2;
+            && s.economy.soil[1] >= MIN_TRIAL_SOIL_N_KG
+            && s.economy.soil[2] >= MIN_TRIAL_SOIL_P_KG
+            && s.economy.water[0] as f64 >= kg * BOTANICAL_WATER_M3_PER_KG;
         let good = h
             .economy_catalog
             .as_ref()
@@ -147,11 +165,11 @@ pub(super) fn process(h: &mut History, w: &mut Workshop, cells: &[Cell], labor: 
         } else {
             w.botanicals.attempts[k] += 1;
         }
-        *labor = (*labor - 2. * kg).max(0.);
-        completed += 2. * kg;
+        *labor = (*labor - PROCESSING_WORKER_MONTHS_PER_KG * kg).max(0.);
+        completed += PROCESSING_WORKER_MONTHS_PER_KG * kg;
         let e = &mut h.sites[w.site as usize].economy;
-        let tools = (kg * 0.1) as f32;
-        let fuel = (kg * 0.2) as f32;
+        let tools = (kg * PROCESSING_TOOLS_KG_PER_KG) as f32;
+        let fuel = (kg * PROCESSING_FUEL_KG_PER_KG) as f32;
         e.goods[3] -= tools;
         e.used[3] += tools;
         e.reserves[3] += tools;
@@ -161,8 +179,8 @@ pub(super) fn process(h: &mut History, w: &mut Workshop, cells: &[Cell], labor: 
         if output > 0. {
             if k == 2 {
                 e.crops[crop_index.unwrap()][2] += output as f32;
-                e.water[0] -= (kg * 0.2) as f32;
-                e.water[3] += (kg * 0.2) as f32;
+                e.water[0] -= (kg * BOTANICAL_WATER_M3_PER_KG) as f32;
+                e.water[3] += (kg * BOTANICAL_WATER_M3_PER_KG) as f32;
             } else {
                 let good = good.unwrap();
                 e.goods[good] += output as f32;
@@ -172,10 +190,13 @@ pub(super) fn process(h: &mut History, w: &mut Workshop, cells: &[Cell], labor: 
         for (j, ratio) in composition.into_iter().enumerate() {
             e.detritus[j] += (kg * CNP[0][j] - output * ratio as f64).max(0.) as f32;
         }
-        if studying && w.botanicals.studied[k] >= 0.25 - 1e-8 {
+        if studying
+            && w.botanicals.studied[k] >= BOTANICAL_STUDY_KG - RESEARCH_ABSOLUTE_TOLERANCE_KG
+        {
             event(h,w.site,w.botanicals.causes[k],"botanical_trial_method",format!("Destructive trials established preparation of {}; further applications still consume material and work",name));
         } else if !studying
-            && (w.botanicals.attempts[k] == 1 || w.botanicals.attempts[k].is_multiple_of(12))
+            && (w.botanicals.attempts[k] == 1
+                || w.botanicals.attempts[k].is_multiple_of(BATCH_NOTICE_INTERVAL))
         {
             event(
                 h,
@@ -185,7 +206,7 @@ pub(super) fn process(h: &mut History, w: &mut Workshop, cells: &[Cell], labor: 
                 format!(
                     "{}: consumed {kg:.3} kg and {:.3} worker-months; {output:.3} kg {}. {}",
                     name,
-                    2. * kg,
+                    PROCESSING_WORKER_MONTHS_PER_KG * kg,
                     [
                         "usable fiber",
                         "writing preparation",
@@ -239,7 +260,7 @@ pub(crate) fn followup(h: &History, d: &Discoveries, site: u32, cell: u32) -> Op
     if !d
         .sources
         .iter()
-        .any(|s| s.cell == cell && s.remaining[0] > 0.1)
+        .any(|s| s.cell == cell && s.remaining[0] > MIN_FOLLOWUP_SOURCE_KG)
     {
         return None;
     }
@@ -247,7 +268,7 @@ pub(crate) fn followup(h: &History, d: &Discoveries, site: u32, cell: u32) -> Op
         if w.botanicals.policy[k] != Use::Apply
             || w.botanicals.sources[k] != Some(cell)
             || w.botanicals.output[k] <= 0.
-            || w.botanicals.stock[k] >= 0.25
+            || w.botanicals.stock[k] >= MAX_BOTANICAL_BATCH_KG
         {
             continue;
         }
@@ -256,7 +277,7 @@ pub(crate) fn followup(h: &History, d: &Discoveries, site: u32, cell: u32) -> Op
             .as_ref()?
             .index(["fiber", "writing_material", "flax"][k])?;
         let town = &h.sites[site as usize];
-        let target = town.stocks.stock[0].max(1.) * 0.05;
+        let target = town.stocks.stock[0].max(1.) * FOLLOWUP_GOOD_KG_PER_RESIDENT;
         if town.economy.goods[good] >= target {
             continue;
         }

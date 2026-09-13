@@ -58,7 +58,7 @@ fn macro_fields(d:vec3<f32>)->Macro {
  if cell.tags.x>=2u&&weight>land_weight {land=cell.tags.x;land_weight=weight;}
  }return Macro(height,lake,land,body);
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(REGION_WORKGROUP_EDGE,REGION_WORKGROUP_EDGE)
 fn generate(@builtin(global_invocation_id) g:vec3<u32>) {
  if any(g.xy>=vec2(u.dims.x)){return;}let i=g.y*u.dims.x+g.x;let d=sample_direction(i);let c=planet[index(d)];
  // World-space noise makes relief repeatable independently of patch orientation.
@@ -71,7 +71,7 @@ fn generate(@builtin(global_invocation_id) g:vec3<u32>) {
  let outlet=edge(i)||water>0.;let spill=select(1e20,h,outlet);
  dst[i]=Tile(vec4(h,c.terrain.y,max(.02,c.terrain.z),area),vec4(t,rain,c.life.y,c.life.x),vec4(water,spill,0.,runoff*area),vec4(c.ids.xyz,select(inherited.land,select(inherited.body,c.tags.x,c.tags.x>=2u),water>0.)),vec4(NONE,select(NONE,0u,outlet),index(d),select(0u,1u,water>0.)),vec4(water*area,select(0.,f32(c.tags.y+1u),c.tags.y!=NONE),c.geology.z,max(0.,c.geology.w+h-c.terrain.x)),c.strata,vec4(c.ids.x,c.tags.z,c.tags.w,0u));
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(REGION_WORKGROUP_EDGE,REGION_WORKGROUP_EDGE)
 fn drainage(@builtin(global_invocation_id) g:vec3<u32>) {
  if any(g.xy>=vec2(u.dims.x)){return;}let i=g.y*u.dims.x+g.x;var c=src[i];if edge(i)||c.route.w==1u {dst[i]=c;return;}
  c.water.y=1e20;c.route.x=NONE;c.route.y=NONE;
@@ -81,7 +81,7 @@ fn drainage(@builtin(global_invocation_id) g:vec3<u32>) {
  if spill<c.water.y||(spill==c.water.y&&(slope>previous||(slope==previous&&(rank<c.route.y||(rank==c.route.y&&hash(j)<hash(c.route.x)))))){c.water.y=spill;c.route.x=j;c.route.y=rank;}}
  if c.route.x!=src[i].route.x||c.route.y!=src[i].route.y||c.water.y!=src[i].water.y {atomicAdd(&changed,1u);}dst[i]=c;
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(REGION_WORKGROUP_EDGE,REGION_WORKGROUP_EDGE)
 fn flow(@builtin(global_invocation_id) g:vec3<u32>) {
  if any(g.xy>=vec2(u.dims.x)){return;}let i=g.y*u.dims.x+g.x;var c=src[i];var amount=c.water.w;
  for(var k=0u;k<8u;k++){let j=adjacent(i,k);if j!=NONE&&src[j].route.x==i{amount+=src[j].water.z;}}
@@ -90,7 +90,7 @@ fn flow(@builtin(global_invocation_id) g:vec3<u32>) {
  c.water.x=select(retained/c.surface.w,c.water.x,c.route.w==1u);c.water.z=amount-retained;
  if abs(c.water.z-src[i].water.z)>.001 {atomicAdd(&changed,1u);}dst[i]=c;
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(REGION_WORKGROUP_EDGE,REGION_WORKGROUP_EDGE)
 fn habitat(@builtin(global_invocation_id) g:vec3<u32>) {
  if any(g.xy>=vec2(u.dims.x)){return;}let i=g.y*u.dims.x+g.x;var c=src[i];var slope=0.;
  // Eight-neighbor gradients use the corresponding horizontal distance.
@@ -110,7 +110,7 @@ fn local_transfer(i:u32,j:u32)->f32 {
  let head=a.surface.x+a.water.x-max(a.surface.x,b.surface.x+b.water.x);if head<=max(.0005,abs(a.surface.x)*.0000005){return 0.;}
  return min(a.water.x*a.surface.w*.24,head*a.surface.w*b.surface.w/(a.surface.w+b.surface.w)*.48);
 }
-@compute @workgroup_size(8,8)
+@compute @workgroup_size(REGION_WORKGROUP_EDGE,REGION_WORKGROUP_EDGE)
 fn pools(@builtin(global_invocation_id) g:vec3<u32>) {
  if any(g.xy>=vec2(u.dims.x)){return;}let i=g.y*u.dims.x+g.x;var c=src[i];var net=0.;
  for(var k=0u;k<4u;k++){let j=adjacent(i,k);if j!=NONE{net+=local_transfer(j,i)-local_transfer(i,j);}}

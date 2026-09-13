@@ -4,6 +4,29 @@ use crate::{
     culture::{Culture, InstitutionKind},
 };
 use serde::{Deserialize, Serialize};
+
+const PETITION_MEMORY_HALF_WEIGHT_MONTHS: f32 = 60.;
+const HONORED_FACTION_CREDIT: f32 = 0.25;
+const FAILED_RESPONSIBLE_FACTION_CREDIT: f32 = -0.15;
+const PETITION_COOLDOWN_MONTHS: u32 = 60;
+const MIN_ADVOCATE_COHESION: f32 = 0.25;
+const RELIGIOUS_RELIEF_FIT_BONUS: f32 = 0.1;
+const LEARNING_SECURITY_FIT: f32 = 0.35;
+const FACTION_SUPPORT_FIT_WEIGHT: f32 = 0.1;
+const MIN_PETITION_FIT: f32 = 0.3;
+pub(crate) const HEARING_WORKER_MONTHS: f64 = 0.1;
+const REQUEST_MONEY_PER_RESIDENT: f64 = 0.05;
+const MIN_REQUEST_MONEY: f64 = 5.;
+const MAX_REQUEST_MONEY: f64 = 100.;
+const EARLIEST_RESPONSE_MONTHS: u32 = 3;
+const URGENT_RELIEF_PRESSURE: f32 = 0.6;
+const RESPONSE_DEADLINE_MONTHS: u32 = 12;
+const GRANTED_AUTONOMY_INCREASE: f32 = 0.15;
+const MAX_PETITION_AUTONOMY: f32 = 0.85;
+const HONORED_LOYALTY_GAIN: f32 = 0.025;
+const FAILED_LOYALTY_LOSS: f32 = 0.015;
+const MAX_RECORDED_PRESSURE: f32 = 1.2;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Demand {
     Relief,
@@ -71,7 +94,7 @@ pub fn credit(h: &History, politics: &crate::politics::Politics, site: u32, inte
         responsible,
         p.honored,
         p.resolution_reason.as_deref(),
-    ) / (1. + age / 60.)
+    ) / (1. + age / PETITION_MEMORY_HALF_WEIGHT_MONTHS)
 }
 
 /// Successful representation earns credit; refusal does not discredit an opposition
@@ -79,7 +102,7 @@ pub fn credit(h: &History, politics: &crate::politics::Politics, site: u32, inte
 fn outcome_credit(advocate: bool, responsible: bool, honored: bool, reason: Option<&str>) -> f32 {
     if honored {
         if advocate || responsible {
-            0.25
+            HONORED_FACTION_CREDIT
         } else {
             0.
         }
@@ -89,7 +112,7 @@ fn outcome_credit(advocate: bool, responsible: bool, honored: bool, reason: Opti
             Some("political opposition" | "insufficient council funds")
         )
     {
-        -0.15
+        FAILED_RESPONSIBLE_FACTION_CREDIT
     } else {
         0.
     }
@@ -149,10 +172,10 @@ fn candidates(h: &History, c: &Culture, target: u32) -> Vec<Hearing> {
     let mut proposals = vec![];
     for site in h.sites.iter().filter(|s| s.id == target) {
         if site.abandoned
-            || g.petitions
-                .iter()
-                .rev()
-                .any(|p| p.site == site.id && (p.resolved.is_none() || h.month < p.opened + 60))
+            || g.petitions.iter().rev().any(|p| {
+                p.site == site.id
+                    && (p.resolved.is_none() || h.month < p.opened + PETITION_COOLDOWN_MONTHS)
+            })
         {
             continue;
         }
@@ -169,11 +192,9 @@ fn candidates(h: &History, c: &Culture, target: u32) -> Vec<Hearing> {
                 .tradition
                 .and_then(|id| c.traditions.get(id as usize))
                 .map(|t| t.themes);
-            for faction in politics
-                .factions
-                .iter()
-                .filter(|f| f.civilization == site.civilization && f.cohesion >= 0.25)
-            {
+            for faction in politics.factions.iter().filter(|f| {
+                f.civilization == site.civilization && f.cohesion >= MIN_ADVOCATE_COHESION
+            }) {
                 let represented = society
                     .households
                     .iter()
@@ -205,7 +226,7 @@ fn candidates(h: &History, c: &Culture, target: u32) -> Vec<Hearing> {
                             + if institution.kind == InstitutionKind::Religious
                                 && themes.is_some_and(|t| t.contains(&0) || t.contains(&5))
                             {
-                                0.1
+                                RELIGIOUS_RELIEF_FIT_BONUS
                             } else {
                                 0.
                             }
@@ -214,7 +235,7 @@ fn candidates(h: &History, c: &Culture, target: u32) -> Vec<Hearing> {
                         if institution.kind == InstitutionKind::Scholarly
                             || institution.kind == InstitutionKind::Craft
                         {
-                            0.35 * (1. - pressure[0])
+                            LEARNING_SECURITY_FIT * (1. - pressure[0])
                         } else {
                             0.
                         }
@@ -224,8 +245,8 @@ fn candidates(h: &History, c: &Culture, target: u32) -> Vec<Hearing> {
                             * (1. - g.administrations[site.id as usize].autonomy)
                     }
                 };
-                let score = fit + 0.1 * faction.support;
-                if score < 0.3 {
+                let score = fit + FACTION_SUPPORT_FIT_WEIGHT * faction.support;
+                if score < MIN_PETITION_FIT {
                     continue;
                 }
                 proposals.push(Hearing {
@@ -255,7 +276,8 @@ pub(crate) fn propose(h: &mut History, c: &mut Culture) {
         .iter()
         .filter_map(|site| {
             if !c.work_allowed(site.id, "petition hearing")
-                || c.labor_budget.get(site.id as usize).copied().unwrap_or(0.) < 0.1
+                || c.labor_budget.get(site.id as usize).copied().unwrap_or(0.)
+                    < HEARING_WORKER_MONTHS as f32
             {
                 return None;
             }
@@ -294,13 +316,19 @@ pub(crate) fn propose(h: &mut History, c: &mut Culture) {
         if !c.consume_service_space(h.month, site, institution, request.service()) {
             continue;
         }
-        c.labor_budget[site as usize] -= 0.1;
-        c.labor_spent += 0.1;
-        crate::culture::work_requests::record_work(&mut c.work_plans, site, h.month, 0.1);
+        c.labor_budget[site as usize] -= HEARING_WORKER_MONTHS as f32;
+        c.labor_spent += HEARING_WORKER_MONTHS;
+        crate::culture::work_requests::record_work(
+            &mut c.work_plans,
+            site,
+            h.month,
+            HEARING_WORKER_MONTHS as f32,
+        );
         let requested = if demand == Demand::Autonomy {
             0.
         } else {
-            (h.sites[site as usize].stocks.stock[0] as f64 * 0.05).clamp(5., 100.)
+            (h.sites[site as usize].stocks.stock[0] as f64 * REQUEST_MONEY_PER_RESIDENT)
+                .clamp(MIN_REQUEST_MONEY, MAX_REQUEST_MONEY)
         };
         h.event(
             "civic_petition",
@@ -352,7 +380,7 @@ pub(crate) fn resolve(h: &mut History) {
         return;
     };
     for p in &mut g.petitions {
-        if p.resolved.is_some() || h.month < p.opened + 3 {
+        if p.resolved.is_some() || h.month < p.opened + EARLIEST_RESPONSE_MONTHS {
             continue;
         }
         let valid = !h.sites[p.site as usize].abandoned
@@ -364,7 +392,9 @@ pub(crate) fn resolve(h: &mut History) {
         let interest = h.politics.as_ref().unwrap().factions[governing as usize].interest;
         let willing = governing == p.faction
             || match p.demand {
-                Demand::Relief => p.pressure >= 0.6 || matches!(interest, 0 | 5 | 6),
+                Demand::Relief => {
+                    p.pressure >= URGENT_RELIEF_PRESSURE || matches!(interest, 0 | 5 | 6)
+                }
                 Demand::Learning => matches!(interest, 1 | 3 | 4),
                 Demand::Autonomy => !crate::faction_interests::resists_autonomy(interest),
             };
@@ -396,7 +426,7 @@ pub(crate) fn resolve(h: &mut History) {
             _ => true,
         };
         let honored = valid && willing && can_deliver && cash >= p.requested;
-        if !honored && valid && h.month < p.opened + 12 {
+        if !honored && valid && h.month < p.opened + RESPONSE_DEADLINE_MONTHS {
             continue;
         }
         if honored {
@@ -421,8 +451,8 @@ pub(crate) fn resolve(h: &mut History) {
                 }
                 Demand::Autonomy => {
                     g.administrations[p.site as usize].autonomy =
-                        (g.administrations[p.site as usize].autonomy + 0.15)
-                            .min(0.85)
+                        (g.administrations[p.site as usize].autonomy + GRANTED_AUTONOMY_INCREASE)
+                            .min(MAX_PETITION_AUTONOMY)
                             .max(g.administrations[p.site as usize].autonomy)
                 }
             }
@@ -456,7 +486,13 @@ pub(crate) fn resolve(h: &mut History) {
         p.resolved = Some(h.month);
         let a = &mut g.administrations[p.site as usize];
         if valid {
-            a.loyalty = (a.loyalty + if honored { 0.025 } else { -0.015 }).clamp(0., 1.);
+            a.loyalty = (a.loyalty
+                + if honored {
+                    HONORED_LOYALTY_GAIN
+                } else {
+                    -FAILED_LOYALTY_LOSS
+                })
+            .clamp(0., 1.);
         }
         h.event(if honored {"civic_petition_honored"} else {"civic_petition_lapsed"},Some(p.site),None,
             format!("{:?} petition {} {}: {:.1} transferred; grants fund purchasing power or institutional upkeep, not automatic food or knowledge",p.demand,p.cause,if honored{"honored"}else{"closed without delivery"},p.paid));
@@ -513,9 +549,9 @@ pub(crate) fn validate(h: &History, petitions: &[Petition]) -> anyhow::Result<()
                 && (!p.feasible_response || p.resolved.is_some())
                 && p.opened <= h.month
                 && p.pressure.is_finite()
-                && (0. ..=1.2).contains(&p.pressure)
+                && (0. ..=MAX_RECORDED_PRESSURE).contains(&p.pressure)
                 && p.requested.is_finite()
-                && (0. ..=100.).contains(&p.requested)
+                && (0. ..=MAX_REQUEST_MONEY).contains(&p.requested)
                 && p.paid.is_finite()
                 && p.paid >= 0.
                 && p.paid <= p.requested
@@ -523,7 +559,8 @@ pub(crate) fn validate(h: &History, petitions: &[Petition]) -> anyhow::Result<()
                     .get(p.cause as usize)
                     .is_some_and(|e| e.kind == "civic_petition" && e.month == p.opened)
                 && p.resolved.is_some() == p.outcome.is_some()
-                && p.resolved.is_none_or(|m| m >= p.opened + 3 && m <= h.month)
+                && p.resolved
+                    .is_none_or(|m| m >= p.opened + EARLIEST_RESPONSE_MONTHS && m <= h.month)
                 && p.outcome
                     .is_none_or(|id| h.events.get(id as usize).is_some_and(|e| e.month
                         == p.resolved.unwrap()

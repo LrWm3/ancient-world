@@ -84,9 +84,20 @@ semantic extraction pass (further shared-policy reconciliation may still apply):
 - `src/civilization/daughter.rs`
 - `src/household_economy/nutrition.rs`
 
+- `src/civic_petitions.rs`
+- `src/discoveries.rs`
+- `src/discoveries/returns.rs`
+- `src/history_timeline.rs`
+- `src/main.rs`
+- `src/region.rs`
+- `src/relief.rs`
+- `src/religious_relief.rs`
+- `src/social_state.rs`
+
 Reviewed without further numeric extraction (geometry/layout arithmetic, static
 content, already named parameters, or independent test fixtures only):
 
+- `src/history_atlas.rs` (map projection and drawing style only)
 - `src/grid.rs`
 - `src/lib.rs`
 - `src/systems.rs`
@@ -106,35 +117,25 @@ constant declarations, and still need their full semantic pass:
 - `src/politics.rs`
 - `src/economy.rs`
 - `src/civilization.rs`
-- `src/relief.rs`
-- `src/religious_relief.rs`
 - `src/expeditions.rs`
-- `src/discoveries.rs`
 - `src/production.rs`
 
 The remaining source files below have not yet received this cleanup. Associated
 API constants and compile-time assertions should be reviewed in context rather
 than blindly moved out of their types or layout checks.
 
-- `src/civic_petitions.rs`
 - `src/civilization/production_forecast.rs`
 - `src/culture/dynamics.rs`
 - `src/culture/practices.rs`
 - `src/culture/work_requests.rs`
 - `src/culture.rs`
-- `src/discoveries/returns.rs`
 - `src/ecology.rs`
 - `src/enterprises.rs`
 - `src/expedition_heritage.rs`
 - `src/export_contracts.rs`
 - `src/gpu.rs`
-- `src/history_atlas.rs`
-- `src/history_timeline.rs`
 - `src/household_economy.rs`
-- `src/main.rs`
-- `src/region.rs`
 - `src/shipping.rs`
-- `src/social_state.rs`
 - `src/viewer.rs`
 
 WGSL shaders still need their complete semantic passes. Shared agricultural and
@@ -314,3 +315,17 @@ All ten individual-demography tests passed with ignored GPU fixtures enabled,
 including travel, defense, birthdays and checkpoint continuation. All 151 active
 library tests passed (130 explicitly ignored); strict all-target Clippy, repository
 artifact policy and whitespace checks passed.
+
+## Discovery, relief and explorer batch
+
+Named research processing and teaching limits, petitions, relief shipment and donor
+policies, social-pressure memory and notification thresholds. Research forecasts
+and execution share specimen costs; secular and religious relief share transfer
+limits while retaining their different donor reserves. CLI defaults share config
+values; regional CPU/WGSL dispatch geometry shares one declaration. Regional
+terrain shader policies still need their full pass. Map projection and drawing
+style literals were reviewed without unnecessary extraction.
+
+Verification: all four discovery tests passed with GPU fixtures enabled. The
+regional GPU drainage/runoff fixture passed. All 151 active library tests passed
+(130 extended cases ignored), and strict all-target Clippy passed. No tuning or intended behavior change.

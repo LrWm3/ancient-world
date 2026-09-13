@@ -5,6 +5,23 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
+pub(crate) const MIN_RELIEF_SHIPMENT_KG: f32 = 18.;
+pub(crate) const RELIEF_RATION_KG_PER_PERSON_MONTH: f32 = 18.;
+pub(crate) const MAX_APPEAL_AGE_MONTHS: u32 = 18;
+pub(crate) const MAX_DONOR_SHORTAGE: f32 = 0.01;
+pub(crate) const RELIEF_TARGET_MONTHS: f32 = 3.;
+pub(crate) const RELIEF_TRANSPORT_KG_MONTHS: f32 = 3000.;
+const UNKNOWN_RELATION_AFFINITY: f32 = 0.25;
+const DIPLOMATIC_TRUST_SCALE: f32 = 100.;
+const TRADE_CONTACT_SCALE: f32 = 100.;
+const MAX_TRADE_AFFINITY_BONUS: f32 = 0.2;
+const MAX_RECIPROCITY_AFFINITY_BONUS: f32 = 0.15;
+const KIN_AFFINITY_BONUS: f32 = 0.2;
+const APPEAL_COOLDOWN_MONTHS: u32 = 24;
+const SECULAR_DONOR_RESERVE_MONTHS: f32 = 12.;
+const MIN_DONOR_AFFINITY: f32 = 0.2;
+const AFFINITY_REQUIRED_PER_TRAVEL_MONTH: f32 = 0.025;
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Appeal {
     pub origin: u32,
@@ -61,7 +78,7 @@ fn allocate_relief(claims: &[ReliefClaim], food: &[f32], freight: &[f32]) -> Vec
                 grant = f32::from_bits(grant.to_bits().saturating_sub(1));
             }
             // Below the existing minimum journey load: release it, do not send a token shipment.
-            if grant >= 18. {
+            if grant >= MIN_RELIEF_SHIPMENT_KG {
                 grant
             } else {
                 0.
@@ -85,8 +102,10 @@ impl History {
                     .iter()
                     .find(|r| r.parties.contains(&a) && r.parties.contains(&b))
             })
-            .map_or(0.25, |r| {
-                (r.trust / 100. + (r.trade_contacts as f32 / 100.).min(0.2)).min(1.)
+            .map_or(UNKNOWN_RELATION_AFFINITY, |r| {
+                (r.trust / DIPLOMATIC_TRUST_SCALE
+                    + (r.trade_contacts as f32 / TRADE_CONTACT_SCALE).min(MAX_TRADE_AFFINITY_BONUS))
+                .min(1.)
             });
         let kin = self.society.as_ref().is_some_and(|s| {
             s.households.iter().any(|hh| {
@@ -101,12 +120,14 @@ impl History {
             .as_ref()
             .filter(|c| c.religious_relief.enabled)
             .map_or(0., |c| c.religious_relief.received_kg(from, to));
-        let trust =
-            0.15 * received / (received + self.sites[from as usize].stocks.stock[0].max(1.) * 18.);
+        let trust = MAX_RECIPROCITY_AFFINITY_BONUS * received
+            / (received
+                + self.sites[from as usize].stocks.stock[0].max(1.)
+                    * RELIEF_RATION_KG_PER_PERSON_MONTH);
         let reciprocity = self.culture.as_ref().map_or(0., |c| {
             c.religious_relief.memory.reciprocity(to, from, self.month)
         });
-        (diplomatic + if kin { 0.2 } else { 0. } + trust + reciprocity).min(1.)
+        (diplomatic + if kin { KIN_AFFINITY_BONUS } else { 0. } + trust + reciprocity).min(1.)
     }
     pub(crate) fn receive_appeal(&mut self, j: &Journey) {
         if !j.seek_help || j.returning {
@@ -123,7 +144,7 @@ impl History {
             .appeals
             .iter()
             .rev()
-            .any(|a| a.origin == j.from && self.month < a.received + 24)
+            .any(|a| a.origin == j.from && self.month < a.received + APPEAL_COOLDOWN_MONTHS)
         {
             return;
         }
@@ -216,7 +237,13 @@ impl History {
         let food: Vec<_> = self
             .sites
             .iter()
-            .map(|s| (s.stocks.stock[1] - s.stocks.stock[0] * 18. * 12.).max(0.))
+            .map(|s| {
+                (s.stocks.stock[1]
+                    - s.stocks.stock[0]
+                        * RELIEF_RATION_KG_PER_PERSON_MONTH
+                        * SECULAR_DONOR_RESERVE_MONTHS)
+                    .max(0.)
+            })
             .collect();
         let freight: Vec<_> = self
             .sites
@@ -230,19 +257,20 @@ impl History {
                 let months = (r.cost_km / crate::society::LAND_TRAVEL_KM_PER_MONTH)
                     .ceil()
                     .max(1.) as u32;
-                let allowed = affinity >= 0.2 + months as f32 * 0.025
+                let allowed = affinity
+                    >= MIN_DONOR_AFFINITY + months as f32 * AFFINITY_REQUIRED_PER_TRAVEL_MONTH
                     && !hostile
                     && !self.sites[a.host as usize].abandoned
                     && r.open
                     && r.flood_months == 0
-                    && self.month - a.reported <= 18
-                    && shortage <= 0.01;
+                    && self.month - a.reported <= MAX_APPEAL_AGE_MONTHS
+                    && shortage <= MAX_DONOR_SHORTAGE;
                 ReliefClaim {
                     host: a.host as usize,
                     origin: a.origin as usize,
                     requested: if allowed {
-                        (a.population * 18. * 3.)
-                            .min(3000. / months as f32)
+                        (a.population * RELIEF_RATION_KG_PER_PERSON_MONTH * RELIEF_TARGET_MONTHS)
+                            .min(RELIEF_TRANSPORT_KG_MONTHS / months as f32)
                             .min(food[a.host as usize])
                             .min(freight[a.host as usize])
                             .min(freight[a.origin as usize])
@@ -255,7 +283,7 @@ impl History {
         let grants = allocate_relief(&claims, &food, &freight);
         // Commit all funded secular shipments before any religious fallback may reserve resources.
         let mut order: Vec<_> = (0..pending.len()).collect();
-        order.sort_by_key(|&k| grants[k] < 18.);
+        order.sort_by_key(|&k| grants[k] < MIN_RELIEF_SHIPMENT_KG);
         for k in order {
             let &(i, ref a, affinity, hostile, shortage) = pending[k];
             let r = self.society.as_ref().unwrap().routes[a.route as usize].clone();
@@ -263,14 +291,22 @@ impl History {
                 .ceil()
                 .max(1.) as u32;
             let host = &self.sites[a.host as usize];
-            let surplus = (host.stocks.stock[1] - host.stocks.stock[0] * 18. * 12.).max(0.);
-            let willing = affinity >= 0.2 + months as f32 * 0.025;
+            let surplus = (host.stocks.stock[1]
+                - host.stocks.stock[0]
+                    * RELIEF_RATION_KG_PER_PERSON_MONTH
+                    * SECULAR_DONOR_RESERVE_MONTHS)
+                .max(0.);
+            let willing =
+                affinity >= MIN_DONOR_AFFINITY + months as f32 * AFFINITY_REQUIRED_PER_TRAVEL_MONTH;
             // Live checks protect against f32 subtraction rounding at the commit boundary.
             let amount = grants[k]
                 .min(surplus)
                 .min(self.land_freight_capacity(a.host))
                 .min(self.land_freight_capacity(a.origin));
-            if amount < 18. && grants[k] < 18. && self.sponsor_religious_relief(a) {
+            if amount < MIN_RELIEF_SHIPMENT_KG
+                && grants[k] < MIN_RELIEF_SHIPMENT_KG
+                && self.sponsor_religious_relief(a)
+            {
                 let response = self.events.last().unwrap().id;
                 self.society.as_mut().unwrap().relocation.appeals[i].response = Some(response);
                 continue;
@@ -282,16 +318,16 @@ impl History {
                 "hostile political relations"
             } else if !r.open || r.flood_months > 0 {
                 "route unavailable"
-            } else if self.month - a.reported > 18 {
+            } else if self.month - a.reported > MAX_APPEAL_AGE_MONTHS {
                 "report too old"
             } else if !willing {
                 "ties too weak for this distance"
-            } else if amount < 18. || shortage > 0.01 {
+            } else if amount < MIN_RELIEF_SHIPMENT_KG || shortage > MAX_DONOR_SHORTAGE {
                 "insufficient safe host surplus"
             } else {
                 "host can afford a limited shipment"
             };
-            let kind = if amount >= 18. {
+            let kind = if amount >= MIN_RELIEF_SHIPMENT_KG {
                 "appeal_relief_sent"
             } else {
                 "relief_appeal_declined"
@@ -309,7 +345,7 @@ impl History {
             e.causes.push(a.cause);
             let response = e.id;
             self.society.as_mut().unwrap().relocation.appeals[i].response = Some(response);
-            if amount >= 18. {
+            if amount >= MIN_RELIEF_SHIPMENT_KG {
                 self.sites[a.host as usize].stocks.stock[1] -= amount;
                 self.shipments.push(Shipment {
                     from: a.host,

@@ -4,6 +4,13 @@ use eframe::egui;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
+const NEARBY_EVENT_WINDOW_MONTHS: u32 = 6;
+const MAX_DISPLAYED_EVENTS: usize = 100;
+const MAX_DISPLAYED_CAUSES: usize = 30;
+const CHART_MIN_WIDTH_PX: f32 = 100.;
+const CHART_HEIGHT_PX: f32 = 62.;
+const EVENT_LIST_HEIGHT_PX: f32 = 190.;
+
 pub const RETAINED_MONTHS: usize = 600;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Observation {
@@ -86,7 +93,10 @@ fn chart(
         selected.map_or_else(|| "no observation".into(), |s| format!("{:.1}", value(s)))
     ));
     let (rect, _) = ui.allocate_exact_size(
-        egui::vec2(ui.available_width().max(100.), 62.),
+        egui::vec2(
+            ui.available_width().max(CHART_MIN_WIDTH_PX),
+            CHART_HEIGHT_PX,
+        ),
         egui::Sense::hover(),
     );
     let painter = ui.painter_at(rect);
@@ -203,7 +213,7 @@ impl TimelineView {
         let month = self.month.unwrap_or(h.month);
         egui::ScrollArea::vertical()
             .id_salt("timeline_events")
-            .max_height(190.)
+            .max_height(EVENT_LIST_HEIGHT_PX)
             .show(ui, |ui| {
                 let mut count = 0;
                 for e in h
@@ -223,9 +233,10 @@ impl TimelineView {
                             || e.subjects
                                 .iter()
                                 .any(|(kind, id)| kind == "site" && *id == site.id))
-                            && (self.all_events || e.month.abs_diff(month) <= 6)
+                            && (self.all_events
+                                || e.month.abs_diff(month) <= NEARBY_EVENT_WINDOW_MONTHS)
                     })
-                    .take(100)
+                    .take(MAX_DISPLAYED_EVENTS)
                 {
                     count += 1;
                     if ui
@@ -301,7 +312,7 @@ impl TimelineView {
                     .events
                     .iter()
                     .filter(|next| next.causes.contains(&e.id))
-                    .take(30)
+                    .take(MAX_DISPLAYED_CAUSES)
                 {
                     if ui
                         .small_button(format!("#{} {}", effect.id, effect.kind))

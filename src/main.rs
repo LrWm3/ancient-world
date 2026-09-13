@@ -8,6 +8,12 @@ use ancient_world::{
 use anyhow::{Context, Result};
 use clap::Parser;
 use std::{path::PathBuf, time::Instant};
+
+const BENCHMARK_RESOLUTIONS: [u32; 3] = [256, 512, 1024];
+const PROGRESS_INTERVAL_SECONDS: u64 = 5;
+const EXPORT_ATLAS_WIDTH_PX: u32 = 2048;
+const EXPORT_ATLAS_HEIGHT_PX: u32 = 1024;
+
 #[derive(Parser)]
 #[command(about = "GPU natural-history planet generator and explorer")]
 struct Args {
@@ -83,9 +89,9 @@ struct Args {
     /// Evolve two epochs in the desktop, capture its rendered viewport, and exit.
     #[arg(long)]
     smoke_test: Option<PathBuf>,
-    #[arg(long, default_value_t = 512)]
+    #[arg(long, default_value_t = ancient_world::config::DEFAULT_RESOLUTION)]
     resolution: u32,
-    #[arg(long, default_value_t = 42)]
+    #[arg(long, default_value_t = ancient_world::config::DEFAULT_SEED)]
     seed: u32,
     /// Epochs to run in headless mode (desktop starts paused).
     #[arg(long, default_value_t = 1)]
@@ -178,7 +184,7 @@ fn main() -> Result<()> {
     if args.benchmark {
         let gpu = pollster::block_on(ContextGpu::headless())?;
         let mut reports = Vec::new();
-        for n in [256, 512, 1024] {
+        for n in BENCHMARK_RESOLUTIONS {
             let start = Instant::now();
             let mut generator = Generator::new(
                 gpu.clone(),
@@ -230,7 +236,7 @@ fn main() -> Result<()> {
     let mut last = Instant::now();
     while generator.progress.epoch < target {
         generator.advance()?;
-        if last.elapsed().as_secs() >= 5 {
+        if last.elapsed().as_secs() >= PROGRESS_INTERVAL_SECONDS {
             eprintln!(
                 "epoch {} · {} · pass {} · {} changed",
                 generator.progress.epoch,
@@ -347,7 +353,7 @@ fn main() -> Result<()> {
         generator.save(path)?;
     }
     if let Some(path) = args.export {
-        let map = MapRenderer::new(&generator, 2048, 1024)?;
+        let map = MapRenderer::new(&generator, EXPORT_ATLAS_WIDTH_PX, EXPORT_ATLAS_HEIGHT_PX)?;
         map.render(&generator, args.layer, Camera::atlas(), None);
         map.export_png(&generator, path)?;
     }

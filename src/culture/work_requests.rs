@@ -863,7 +863,10 @@ impl Culture {
         }
         // The same read-only scorer supplies the dated hearing's represented parties.
         if crate::civic_petitions::forecast(h, self, site).is_some() {
-            requests.push(("petition hearing", 0.1));
+            requests.push((
+                "petition hearing",
+                crate::civic_petitions::HEARING_WORKER_MONTHS as f32,
+            ));
         }
         requests
     }
