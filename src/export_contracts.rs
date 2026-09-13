@@ -451,6 +451,30 @@ mod tests {
         assert!(rich.credit.loans.is_empty());
         h.sites[0].economy.finance[0] = 0.;
         h.sites[0].economy.finance[1] = 0.;
+        // An additional funded receipt outside the supported loan duration
+        // cannot dilute a feasible request against the original delivery.
+        let mut nearby = h.clone();
+        nearby.economy_catalog.as_mut().unwrap().recipes[0].input[1] = 1.;
+        let mut mixed = nearby.clone();
+        let mut payment = mixed.export_payments[0].clone();
+        payment.id = mixed.export_payments.len() as u64;
+        payment.expected_month = mixed.month + 121;
+        let mut cargo = mixed.cargo[0].clone();
+        cargo.export_payment = Some(payment.id);
+        cargo.arrives = payment.expected_month;
+        // Fund this fixture cargo from actual buyer cash and seller inventory.
+        mixed.sites[payment.buyer as usize].economy.finance[0] -= payment.funded as f32;
+        mixed.sites[payment.seller as usize].economy.goods[cargo.good as usize] -= cargo.kg;
+        mixed.export_payments.push(payment);
+        mixed.cargo.push(cargo);
+        assert!(mixed.sites.iter().all(|s| s.economy.finance[0] >= 0.));
+        let residual = mixed.money_residual();
+        assert_eq!(nearby.commercial_credit_month().unwrap(), 1);
+        assert_eq!(mixed.commercial_credit_month().unwrap(), 1);
+        assert_eq!(nearby.credit.loans[0].original_principal, 2.);
+        assert_eq!(mixed.credit.loans[0].original_principal, 2.);
+        mixed.validate_credit().unwrap();
+        assert!((mixed.money_residual() - residual).abs() < 1e-12);
         let mut reserved = h.clone();
         reserved.credit.commercial_policy.operating_cash_floor = 10000.;
         assert_eq!(reserved.commercial_credit_month().unwrap(), 0);

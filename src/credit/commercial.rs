@@ -155,12 +155,6 @@ impl History {
         let mut offered = BTreeSet::new();
         // Split each town's one funding gap across its eligible receipts. The
         // resolver then applies shared borrower, lender and pledged-source caps.
-        let mut source_counts = vec![0_usize; self.sites.len()];
-        for e in &evidence {
-            if let Account::Town(id) = e.beneficiary {
-                source_counts[id as usize] += 1;
-            }
-        }
         for (index, e) in evidence.iter().enumerate() {
             let Account::Town(seller) = e.beneficiary else {
                 continue;
@@ -221,9 +215,20 @@ impl History {
             requests.push(Request {
                 id: COMMERCIAL_REQUEST_NAMESPACE | index as u64,
                 month: self.month,
-                principal: gap / source_counts[seller as usize] as f64,
+                principal: gap,
                 terms,
             });
+        }
+        // Divide only among requests that survived duration/counterparty checks.
+        // An unusable distant receipt must not consume another source's share of
+        // the funding gap. Underwriting still caps each source and lender; this
+        // does not reallocate rejected or capacity-limited grants afterward.
+        let mut source_counts = BTreeMap::<Account, usize>::new();
+        for request in &requests {
+            *source_counts.entry(request.terms.borrower).or_default() += 1;
+        }
+        for request in &mut requests {
+            request.principal /= source_counts[&request.terms.borrower] as f64;
         }
         let count = if requests.is_empty() {
             0

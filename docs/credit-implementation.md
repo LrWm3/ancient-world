@@ -667,3 +667,11 @@ abandoning those sites after borrowing yields zero collection and eventual defau
 Every tested boundary preserves the money residual, and serialized continuation
 matches in each arm. The expenditure is explicit fixture setup, so useful service
 completion and automatic financing still need their own causal comparisons.
+
+## Feasible commercial request shares
+
+The [request-allocation correction](commercial-request-allocation.md) moves the
+funding-gap split after request construction checks. Unsupported-duration sources
+and skipped counterparties no longer dilute an otherwise feasible request.
+Underwriting still caps receipts, cash and exposure independently. A matched
+funded-cargo fixture verifies the change; no ensemble benefit is inferred.
