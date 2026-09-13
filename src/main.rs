@@ -100,6 +100,9 @@ struct Args {
     /// Review unclaimed household cash using delivered named office work.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     household_estate_reclamation: Option<bool>,
+    /// Buy retained bulk stocks using buyer-provided round-trip land freight.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    abandoned_stock_recovery: Option<bool>,
     /// Reserve and settle actual named administrative attendance.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     named_office_service: Option<bool>,
@@ -217,6 +220,7 @@ fn main() -> Result<()> {
                 && args.demand_workshop_staffing.is_none()
                 && args.household_estate_inheritance.is_none()
                 && args.household_estate_reclamation.is_none()
+                && args.abandoned_stock_recovery.is_none()
                 && args.named_office_service.is_none()
                 && args.service_procurement_share.is_none()
                 && args.export_default_recovery.is_none()
@@ -490,6 +494,16 @@ fn main() -> Result<()> {
             .as_mut()
             .context("office service requires a history")?
             .set_office_service(enabled)?;
+    }
+    if let Some(enabled) = args.abandoned_stock_recovery {
+        generator
+            .civilizations
+            .as_mut()
+            .context("stock recovery requires a history")?
+            .society
+            .as_mut()
+            .context("stock recovery requires society")?
+            .stock_recovery = enabled;
     }
     if let Some(enabled) = args.household_estate_reclamation {
         generator

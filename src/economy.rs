@@ -774,6 +774,9 @@ impl Economy {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Cargo {
+    /// Bonded estate stock awaiting collection/return, not contact with residents.
+    #[serde(default)]
+    pub recovery: bool,
     #[serde(default)]
     pub export_payment: Option<u64>,
     #[serde(default)]
@@ -1161,7 +1164,8 @@ impl History {
                 continue;
             }
             if c.arrives <= self.month
-                && (self.freight_path_flooded(&c.freight_edges)
+                && ((c.recovery && !self.recovery_route_open(c.from, c.to))
+                    || self.freight_path_flooded(&c.freight_edges)
                     || self.flood_blocks_delivery(c.from, c.to, c.sea_lane))
             {
                 let payment_effect = if c.export_payment.is_some() {
@@ -1225,9 +1229,11 @@ impl History {
                 }
                 self.resolve_export_payment(&c, c.kg);
                 self.observe_export_delivery(&c);
-                self.observe_lexical_trade(c.from, c.to, c.kg);
-                self.trade_contact
-                    .observe(self.month, c.from, c.to, c.kg as f64);
+                if !c.recovery {
+                    self.observe_lexical_trade(c.from, c.to, c.kg);
+                    self.trade_contact
+                        .observe(self.month, c.from, c.to, c.kg as f64);
+                }
                 if c.weather_delay_months > 0 {
                     self.event(
                         "cargo_weather_recovered",
@@ -1257,7 +1263,11 @@ impl History {
                     observed[c.to as usize][c.good as usize][1] += c.kg as f64;
                 }
                 self.event(
-                    "market_arrival",
+                    if c.recovery {
+                        "stock_recovery_arrival"
+                    } else {
+                        "market_arrival"
+                    },
                     Some(c.to),
                     Some(c.from),
                     format!(
@@ -1716,6 +1726,7 @@ impl History {
                         )
                     });
                     self.cargo.push(Cargo {
+                        recovery: false,
                         export_payment,
                         infection: None,
                         voyage_clock: sea_lane.map(|_| crate::vessels::VoyageClock {
@@ -1745,6 +1756,7 @@ impl History {
                 }
             }
         }
+        self.recover_abandoned_stocks();
     }
 }
 
@@ -1807,6 +1819,7 @@ mod freight_tests {
         // Cheaper supplier's carriers are already away with goods removed at dispatch.
         h.sites[1].economy.goods[3] -= 10.;
         h.cargo.push(Cargo {
+            recovery: false,
             export_payment: None,
             infection: None,
             voyage_clock: None,
@@ -1971,6 +1984,7 @@ mod freight_tests {
         let mut blocked = h.clone();
         blocked.sites[1].economy.goods[4] -= 3.;
         blocked.cargo.push(Cargo {
+            recovery: false,
             export_payment: None,
             infection: None,
             voyage_clock: None,

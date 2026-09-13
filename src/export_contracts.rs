@@ -412,6 +412,7 @@ mod tests {
     }
     fn evidence(h: &mut History) {
         let delivery = Cargo {
+            recovery: false,
             export_payment: None,
             infection: None,
             voyage_clock: None,

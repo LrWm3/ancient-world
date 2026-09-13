@@ -542,3 +542,14 @@ Ordered GPU production keeps its tool-priority and ordinary sharing sweeps, then
 runs one spare-capacity sweep against the same remaining budgets and completed
 orders. This does not reopen Reserve, pay additional attendance, or release work
 backward to earlier services. See [the allocation fixture](workshop-input-feasibility.md#follow-up-reclaiming-unused-recipe-allowances).
+
+### Experimental abandoned-stock recovery
+
+With `Society.stock_recovery` enabled, quarterly market decisions finish ordinary
+procurement first, then offer remaining cash/storage/freight to paid bulk-stock
+recovery. The source must be empty, abandoned, on the same inner continent and
+under the same administration. Source stock becomes bonded cargo, and source
+estate cash receives the actual purchase price. Buyer inventory changes only on
+return in Open's ordinary cargo-arrival path. Recovery occupies existing aggregate
+freight throughout a round trip; it is not another named labor reservation.
+See [scope and accounting](abandoned-stock-recovery.md).

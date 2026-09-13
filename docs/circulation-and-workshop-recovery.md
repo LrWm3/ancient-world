@@ -188,3 +188,9 @@ household purchasing distribution from physical import and production constraint
 Five audit fixtures now pass, including large lifetime flows that do not change
 cash totals and missing-counter handling. The twelve monetary runner fixtures also
 pass. Raw runs and audit outputs remain under ignored `output/`.
+
+The [paid bulk-stock recovery pilot](abandoned-stock-recovery.md) now connects
+retained source inventories to occupied buyers through bounded round-trip land
+cargo. It preserves estate cash and claims rather than confiscating them. Initial
+scope is direct routes under one administration; broader access and balance tests
+remain outstanding. This is resource circulation, not a solution to retained money.

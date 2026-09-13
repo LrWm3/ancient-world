@@ -398,6 +398,9 @@ impl FundingTotals {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Society {
+    /// Experimental paid bulk-stock recovery; old archives leave it disabled.
+    #[serde(default)]
+    pub stock_recovery: bool,
     #[serde(default)]
     pub town_support_policy: crate::household_economy::council_allocation::TownSupportPolicy,
     #[serde(default)]
@@ -1656,6 +1659,7 @@ impl Generator {
             "society requires an economy without an existing social baseline"
         );
         h.society = Some(Society {
+            stock_recovery: false,
             town_support_policy: Default::default(),
             council_funding: Default::default(),
             household_economy: Some(crate::household_economy::HouseholdEconomy::new(h.month)),

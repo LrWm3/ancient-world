@@ -360,6 +360,7 @@ mod integration {
         h.sites[1].economy.finance[0] -= 1.;
         h.sites[0].economy.finance[0] += 1.;
         h.cargo.push(crate::economy::Cargo {
+            recovery: false,
             export_payment: None,
             infection: Some(super::Exposure {
                 observed: h.month,

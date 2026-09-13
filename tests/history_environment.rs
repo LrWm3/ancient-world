@@ -354,6 +354,7 @@ fn due_food_cargo_prevents_current_consumption_shortage() {
     assert!(food > 0.);
     h.sites[1].stocks.stock[1] -= food;
     h.cargo.push(Cargo {
+        recovery: false,
         export_payment: None,
         infection: None,
         voyage_clock: None,

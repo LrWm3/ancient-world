@@ -115,6 +115,7 @@ pub mod history_environment;
 pub mod navigation;
 
 mod freight;
+pub mod stock_recovery;
 
 mod labor;
 mod learning_resolution;

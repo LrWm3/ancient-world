@@ -512,6 +512,7 @@ mod tests {
         } // suppress new market orders
         delivery.sites[route.from as usize].stocks.stock[1] -= 10.;
         delivery.cargo.push(crate::economy::Cargo {
+            recovery: false,
             export_payment: None,
             infection: None,
             voyage_clock: None,
@@ -573,6 +574,7 @@ mod tests {
                 }
             }
             lost.cargo.push(crate::economy::Cargo {
+                recovery: false,
                 export_payment: None,
                 infection: None,
                 voyage_clock: None,
@@ -621,6 +623,7 @@ mod tests {
                 source.economy.baseline[k] += 10. * ratio;
             }
             perishables.cargo.push(crate::economy::Cargo {
+                recovery: false,
                 export_payment: None,
                 infection: None,
                 voyage_clock: None,

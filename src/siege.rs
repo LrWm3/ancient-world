@@ -598,6 +598,7 @@ mod tests {
             reason: String::new(),
         });
         let parcel = crate::economy::Cargo {
+            recovery: false,
             export_payment: None,
             infection: None,
             voyage_clock: None,
