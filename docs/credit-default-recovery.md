@@ -44,10 +44,11 @@ list and do not fabricate recoveries.
 
 ## Integration boundary
 
-This is a reusable settlement operation, like explicit loan origination; no
-automatic recovery spending policy is enabled. Calling systems must decide the
-allowance and consent before settlement. Future late-delivery or estate policies
-must share available money with live obligations and protected operating needs,
+This is a reusable settlement operation, like explicit loan origination. The
+opt-in [late-export policy](export-default-recovery.md) now supplies bounded
+allowances after live debt servicing. Other calling systems must decide their
+allowance and consent before settlement. Estate policies must share available
+money with live obligations and protected operating needs,
 and must not count a loss recovery as restoring ordinary borrowing eligibility.
 General claim assignment and legal succession remain separate unfinished work.
 
@@ -67,5 +68,5 @@ the added opening/closing account deltas close that gap. Strict all-target
 Clippy and Python syntax validation of the experiment reporter passed.
 
 The two GPU-only market fixtures were not rerun for this sparse accounting API.
-No automatic recovery policy is active, so no new long-run balance result is
-claimed.
+Automatic export recovery remains disabled by default. Its separate integration
+fixtures are documented in the linked policy record; no long-run benefit is claimed.

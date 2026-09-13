@@ -3,7 +3,7 @@
 Status: experimental council and commercial credit pilots and bounded shared-
 currency issuance exist behind explicit switches. Bounded restructuring and delayed-
 export negotiation and bounded account-estate settlement also exist; legal claim
-succession, automatic recovery policies, extended calibration and currency exchange
+succession, general estate recovery policies, extended calibration and currency exchange
 remain pending.
 See the [implementation record](credit-implementation.md) for evidence and limits.
 These pilots remain opt-in; implementation does not mean their balance gates pass.
@@ -198,8 +198,9 @@ cash for borrowing claims, repay proportionally using existing early-repayment
 terms, and return residual cash to the existing owner. They can receive later
 repayments without reopening the enterprise. Unpaid claims keep their maturity
 and grace/default rules. Explicit post-default recovery is now available through
-the separate settlement API; automatic recovery policy and general legal
-succession remain pending.
+the separate settlement API. An opt-in [late-export policy](export-default-recovery.md)
+allocates newly received proceeds; general estate recovery and legal succession
+remain pending.
 
 [Institutional estates](institution-credit-estates.md) now retain shutdown cash
 for the same claim settlement, with only actual residual transfers going to the
@@ -391,5 +392,6 @@ distinct currencies and exchange remain unimplemented.
 The [explicit recovery operation](credit-default-recovery.md) now transfers
 authorized cash against a recorded default loss without reopening debt, accruing
 new interest or erasing default history. Dated replay-safe receipts retain both
-account deltas. Automatic windfall/estate recovery allocation and legal claim
-assignment remain pending; the broader closure/succession checklist stays open.
+account deltas. [Late-export recovery](export-default-recovery.md) now allocates new matching
+proceeds after live obligations and operating reserves. General estate recovery
+allocation and legal claim assignment remain pending; the broader closure/succession checklist stays open.

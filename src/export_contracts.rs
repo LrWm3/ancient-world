@@ -479,6 +479,140 @@ mod tests {
     }
 
     #[test]
+    fn late_delivery_recovers_old_defaults_after_reserves_without_replaying() {
+        use crate::credit::{Account, Status, Terms, SHARED_CURRENCY};
+        let mut h = fixture();
+        h.credit.export_recovery.policy.enabled = true;
+        h.credit.export_recovery.policy.proceeds_share = 0.01;
+        h.recover_delayed_exports_month().unwrap(); // Explicit opening baseline.
+        h.export_payment_timing = payments::Timing::Delivery;
+        evidence(&mut h);
+        evidence(&mut h);
+        h.fund_export_contracts(&[true]);
+        h.market_month(6371.);
+        let source = h.export_credit_evidence(0.).unwrap().remove(0).source;
+        let due = h.export_payments[0].expected_month;
+        for principal in [20., 60.] {
+            h.commit_credit_loan(
+                Terms {
+                    lender: Account::Town(1),
+                    borrower: Account::Town(0),
+                    source,
+                    currency: SHARED_CURRENCY,
+                    annual_simple_rate: 0.,
+                    maturity_month: due + 1,
+                    grace_months: 0,
+                },
+                principal,
+            )
+            .unwrap()
+            .unwrap();
+        }
+        h.cargo[0].arrives = due + 3;
+        h.month = due + 1;
+        for loan in &mut h.credit.loans {
+            loan.accrue_to(h.month).unwrap();
+            loan.write_off(h.month).unwrap();
+        }
+        h.recover_delayed_exports_month().unwrap();
+        assert!(
+            h.credit.recoveries.is_empty(),
+            "in-transit escrow is not paid cash"
+        );
+        h.month = due + 3;
+        h.market_arrivals();
+        h.settle_export_payments().unwrap();
+        let paid = h.export_payments[0].seller_paid;
+        assert!(paid > 0.);
+        let opening = serde_json::to_value(&h).unwrap();
+        let mut resumed: History = serde_json::from_value(opening.clone()).unwrap();
+        let mut protected = h.clone();
+        protected.credit.export_recovery.policy.operating_cash_floor =
+            f64::from(protected.sites[0].economy.finance[0]);
+        protected.recover_delayed_exports_month().unwrap();
+        assert!(protected.credit.recoveries.is_empty());
+        // A live claim remains senior even though its borrowed cash was spent.
+        let mut live = h.clone();
+        let cash_before = f64::from(live.sites[0].economy.finance[0]);
+        live.credit.export_recovery.policy.operating_cash_floor = cash_before - 1.;
+        live.commit_credit_loan(
+            Terms {
+                lender: Account::Town(1),
+                borrower: Account::Town(0),
+                source: crate::credit::RepaymentSource::ServiceOrder {
+                    order: 999,
+                    payment_month: live.month + 1,
+                },
+                currency: SHARED_CURRENCY,
+                annual_simple_rate: 0.,
+                maturity_month: live.month + 2,
+                grace_months: 0,
+            },
+            10.,
+        )
+        .unwrap()
+        .unwrap();
+        // An unrelated payment consumes that financing; it is not debt service.
+        live.transfer_credit_cash(Account::Town(0), Account::Town(1), SHARED_CURRENCY, 10., 0.)
+            .unwrap();
+        live.recover_delayed_exports_month().unwrap();
+        assert!(
+            live.credit.recoveries.is_empty(),
+            "live debt must remain senior"
+        );
+        live.validate_credit().unwrap();
+        let mut invalid = h.clone();
+        invalid.credit.export_recovery.policy.proceeds_share = 2.;
+        assert!(invalid.validate_credit().is_err());
+        let mut disabled = h.clone();
+        disabled.credit.export_recovery.policy.enabled = false;
+        disabled.recover_delayed_exports_month().unwrap();
+        disabled.month += 1;
+        disabled.credit.export_recovery.policy.enabled = true;
+        disabled.recover_delayed_exports_month().unwrap();
+        assert!(
+            disabled.credit.recoveries.is_empty(),
+            "enabling must not replay old receipts"
+        );
+        let mut legacy = h.clone();
+        legacy.credit.export_recovery = Default::default();
+        legacy.credit.export_recovery.policy.enabled = true;
+        legacy.recover_delayed_exports_month().unwrap();
+        assert!(
+            legacy.credit.recoveries.is_empty(),
+            "old archive begins at a baseline"
+        );
+        for world in [&mut h, &mut resumed] {
+            world.recover_delayed_exports_month().unwrap();
+            let total: f64 = world
+                .credit
+                .recoveries
+                .iter()
+                .map(|r| r.transfer.amount())
+                .sum();
+            assert!(total > 0. && total <= paid * 0.01);
+            assert_eq!(world.credit.recoveries.len(), 2);
+            let a = &world.credit.recoveries[0];
+            let b = &world.credit.recoveries[1];
+            assert!((b.request.allowance - a.request.allowance * 3.).abs() < 1e-10);
+            assert!(world
+                .credit
+                .loans
+                .iter()
+                .all(|l| l.status == Status::Defaulted));
+            let once = serde_json::to_value(&world).unwrap();
+            world.recover_delayed_exports_month().unwrap();
+            assert_eq!(once, serde_json::to_value(&world).unwrap());
+            world.validate_credit().unwrap();
+            assert!(world.economy_residuals().iter().all(|r| r.abs() < 0.001));
+        }
+        assert_eq!(
+            serde_json::to_value(&h).unwrap(),
+            serde_json::to_value(&resumed).unwrap()
+        );
+    }
+
+    #[test]
     fn delivery_proceeds_back_bounded_credit_and_repay_after_arrival() {
         use crate::credit::{
             underwriting::{Offer, Policy, Request},

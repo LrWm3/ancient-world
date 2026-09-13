@@ -1400,6 +1400,7 @@ impl Generator {
         self.prepare_economy(h);
         h.settle_credit_estates()?;
         h.service_credit_month()?;
+        h.recover_delayed_exports_month()?;
         h.settle_credit_estates()?;
         if h.resources.is_some() && h.sites.iter().any(|s| s.economy.claim[3] < 0.5) {
             engine.upload(self, h);

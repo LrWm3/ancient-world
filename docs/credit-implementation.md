@@ -626,5 +626,7 @@ expense distinction.
 [Default recovery](credit-default-recovery.md) records voluntary/authorized
 post-default returns separately from ordinary repayments. Original loan losses
 and default exclusion remain intact. The API uses original counterparties,
-bounded actual cash and replay-safe requests; automatic recovery policy and
-claim succession remain unfinished.
+bounded actual cash and replay-safe requests. The opt-in
+[late-export recovery policy](export-default-recovery.md) now connects newly
+received matching proceeds to old defaults after live obligations and operating
+reserves. General estate recovery and claim succession remain unfinished.

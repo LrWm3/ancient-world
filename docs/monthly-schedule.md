@@ -495,3 +495,13 @@ Institutional shutdown now defers treasury distribution to the shared estate pas
 immediately after Respond's `culture_month`. The same pass excludes institutions
 with unfinished relocation journeys. See [institutional estates](institution-credit-estates.md)
 for the explicit difference between shutdown and temporary inactivity.
+
+## Late-export loss recovery
+
+The opt-in [export recovery policy](export-default-recovery.md) runs in Open
+immediately after live-debt servicing and before the second estate settlement.
+It observes actual seller cash increments, protects operating reserves and all
+remaining live debt, then shares a bounded proceeds allowance among matching old
+defaults. It never spends escrow or new same-pass recoveries. The first
+observation is a baseline; disabled observations advance so enabling cannot
+collect historical receipts retrospectively. Reserve planning is unchanged.

@@ -17,6 +17,7 @@ pub mod accounts;
 pub mod commercial;
 pub mod councils;
 pub mod estates;
+pub mod export_recovery;
 pub mod exports;
 pub mod issuance;
 pub mod recovery;

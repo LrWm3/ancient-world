@@ -14,6 +14,8 @@ pub struct CashReceipt {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Credit {
     #[serde(default)]
+    pub export_recovery: super::export_recovery::State,
+    #[serde(default)]
     pub recoveries: Vec<super::recovery::Receipt>,
     #[serde(default)]
     pub restructurings: Vec<super::restructuring::Receipt>,
@@ -111,6 +113,7 @@ impl History {
 
     pub fn validate_credit(&self) -> Result<()> {
         self.validate_credit_recoveries()?;
+        self.validate_export_recovery()?;
         let mut restructurings = std::collections::BTreeSet::new();
         for receipt in &self.credit.restructurings {
             receipt.validate(self.month)?;
