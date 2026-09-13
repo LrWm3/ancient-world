@@ -11,6 +11,21 @@ improves useful activity, then test bounded money creation, before introducing
 multiple currencies. Neither financial realism nor automatic population growth
 is an acceptance criterion. More cash cannot create food, workers or cargo.
 
+## Work order and decision points
+
+| Increment | Reviewable result | Decision before continuing |
+| --- | --- | --- |
+| Stage 1A: existing-money credit | Council tax bridge and commercial payment pilot, with debt and cash receipts | Verify that loans fund otherwise feasible activity and reject borrowers without credible net receipts. |
+| Stage 1B: bounded issuance | Independently enabled issuance into council treasuries; four matched experiment arms | Check whether benefits survive shocks without growing debt, issuance dependence or recurring rescues. |
+| Stage 2A: currency ownership | Persistent denominations, account balances and explicit migration of existing claims | Verify ownership and obligations survive migration and checkpoint continuation. |
+| Stage 2B: exchange | Trade/tax acceptance, finite dealer reserves and observed-demand quotes | Verify both currency legs conserve money and unavailable reserves actually constrain trade. |
+
+Complete the credit experiment before adding issuance; run the combined comparison
+before introducing distinct currencies. A failed gate means revisiting the model
+or retaining the simpler stage, rather than automatically expanding the system.
+The checklist below separates planned work from completed foundations; the linked
+implementation record contains the detailed status and experiment results.
+
 ## Existing foundations and constraints
 
 - Towns hold market cash in `Economy.finance`; councils and institutions have
@@ -280,4 +295,5 @@ later possibilities, not requirements for either stage.
 
 Keep implementation increments independently reviewable. Generated trajectories
 and raw results belong under ignored `output/`; commit source and Markdown
-summaries only. The component APIs do not yet change automatic economic behavior or defaults.
+summaries only. The council credit pilot is opt-in; planned issuance and exchange
+are not implemented behavior.
