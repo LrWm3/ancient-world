@@ -9,6 +9,31 @@ use std::collections::BTreeMap;
 )]
 #[serde(rename_all = "kebab-case")]
 pub enum System {
+    CouncilCredit,
+    InstitutionCreditLenders,
+    InstitutionCreditOperatingReserve,
+    CommercialCredit,
+    ServiceOrderCredit,
+    ServiceOrderProcurement,
+    ContractWorkshopStaffing,
+    DemandWorkshopStaffing,
+    HouseholdEstateInheritance,
+    HouseholdClothing,
+    HouseholdWealthTax,
+    CouncilWelfareReserves,
+    NeedsBasedFood,
+    GradualNutrition,
+    FoodSolidarity,
+    DemographicAudit,
+    StagedHarbors,
+    PracticalResearch,
+    HouseholdEstateReclamation,
+    AbandonedStockRecovery,
+    NamedOfficeService,
+    ExportDefaultRecovery,
+    SharedIssuance,
+    DeliveryPaidExports,
+
     OccupationalPayroll,
     NegotiatedAutonomy,
     CivicPetitions,
@@ -49,8 +74,66 @@ pub enum System {
     ExportContracts,
     SupplierProfitability,
 }
+mod policies;
 impl System {
+    pub const REGISTERED_POLICIES: &'static [Self] = &[
+        Self::CouncilCredit,
+        Self::InstitutionCreditLenders,
+        Self::InstitutionCreditOperatingReserve,
+        Self::CommercialCredit,
+        Self::ServiceOrderCredit,
+        Self::ServiceOrderProcurement,
+        Self::ContractWorkshopStaffing,
+        Self::DemandWorkshopStaffing,
+        Self::HouseholdEstateInheritance,
+        Self::HouseholdClothing,
+        Self::HouseholdWealthTax,
+        Self::CouncilWelfareReserves,
+        Self::NeedsBasedFood,
+        Self::GradualNutrition,
+        Self::FoodSolidarity,
+        Self::DemographicAudit,
+        Self::StagedHarbors,
+        Self::PracticalResearch,
+        Self::HouseholdEstateReclamation,
+        Self::AbandonedStockRecovery,
+        Self::NamedOfficeService,
+        Self::ExportDefaultRecovery,
+        Self::SharedIssuance,
+        Self::DeliveryPaidExports,
+    ];
+    pub fn is_registered_policy(self) -> bool {
+        Self::REGISTERED_POLICIES.contains(&self)
+    }
+    pub fn default_enabled(self) -> bool {
+        !self.is_registered_policy()
+    }
+
     pub const ALL: &'static [Self] = &[
+        Self::CouncilCredit,
+        Self::InstitutionCreditLenders,
+        Self::InstitutionCreditOperatingReserve,
+        Self::CommercialCredit,
+        Self::ServiceOrderCredit,
+        Self::ServiceOrderProcurement,
+        Self::ContractWorkshopStaffing,
+        Self::DemandWorkshopStaffing,
+        Self::HouseholdEstateInheritance,
+        Self::HouseholdClothing,
+        Self::HouseholdWealthTax,
+        Self::CouncilWelfareReserves,
+        Self::NeedsBasedFood,
+        Self::GradualNutrition,
+        Self::FoodSolidarity,
+        Self::DemographicAudit,
+        Self::StagedHarbors,
+        Self::PracticalResearch,
+        Self::HouseholdEstateReclamation,
+        Self::AbandonedStockRecovery,
+        Self::NamedOfficeService,
+        Self::ExportDefaultRecovery,
+        Self::SharedIssuance,
+        Self::DeliveryPaidExports,
         Self::OccupationalPayroll,
         Self::NegotiatedAutonomy,
         Self::CivicPetitions,
@@ -100,6 +183,28 @@ impl System {
     }
     fn requires(self) -> &'static [Self] {
         match self {
+            Self::ContractWorkshopStaffing
+            | Self::DemandWorkshopStaffing
+            | Self::ServiceOrderProcurement => &[Self::Enterprises, Self::Workshops],
+            Self::StagedHarbors => &[Self::Shipping],
+            Self::NamedOfficeService | Self::HouseholdEstateReclamation => &[Self::Offices],
+            Self::CouncilCredit
+            | Self::InstitutionCreditLenders
+            | Self::InstitutionCreditOperatingReserve
+            | Self::SharedIssuance
+            | Self::CommercialCredit
+            | Self::ServiceOrderCredit
+            | Self::HouseholdEstateInheritance
+            | Self::HouseholdClothing
+            | Self::HouseholdWealthTax
+            | Self::CouncilWelfareReserves
+            | Self::NeedsBasedFood
+            | Self::GradualNutrition
+            | Self::FoodSolidarity
+            | Self::DemographicAudit
+            | Self::AbandonedStockRecovery => &[Self::Society],
+            Self::DeliveryPaidExports | Self::ExportDefaultRecovery => &[Self::ExportContracts],
+            Self::PracticalResearch => &[Self::Society],
             Self::OccupationalPayroll => &[Self::Society],
             Self::CivicPetitions => &[Self::Governance],
             Self::NegotiatedAutonomy => &[Self::Governance],
@@ -139,12 +244,15 @@ impl System {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Systems {
-    /// Missing entries default on. Explicitly disabled prerequisites suppress descendants.
+    /// Missing entries use each system's documented default; disabled prerequisites suppress descendants.
     pub overrides: BTreeMap<System, bool>,
 }
 impl Systems {
     pub fn enabled(&self, s: System) -> bool {
-        self.overrides.get(&s).copied().unwrap_or(true)
+        self.overrides
+            .get(&s)
+            .copied()
+            .unwrap_or_else(|| s.default_enabled())
             && s.requires().iter().all(|p| self.enabled(*p))
     }
     /// Interactive selection enables prerequisites or clears contradictory child overrides.
@@ -321,12 +429,34 @@ impl Generator {
             l.environmental_returns = false;
         }
         self.config.systems = options.clone();
+        self.apply_registered_policies(options)?;
         Ok(())
     }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn registry_names_defaults_and_policy_list_stay_complete() {
+        use clap::ValueEnum;
+        assert_eq!(System::ALL, System::value_variants());
+        let unique: std::collections::BTreeSet<_> = System::ALL.iter().collect();
+        assert_eq!(unique.len(), System::ALL.len());
+        for &system in System::REGISTERED_POLICIES {
+            assert!(System::ALL.contains(&system));
+            assert!(!system.default_enabled());
+            assert_eq!(
+                <System as ValueEnum>::from_str(&system.label(), false).unwrap(),
+                system
+            );
+            let mut options = Systems::default();
+            options.select(system, true);
+            options.validate().unwrap();
+            assert!(options.enabled(system));
+            let restored: Systems = toml::from_str(&toml::to_string(&options).unwrap()).unwrap();
+            assert_eq!(restored, options);
+        }
+    }
     #[test]
     fn each_individual_disable_produces_a_valid_catalog() {
         for &system in System::ALL {
@@ -350,7 +480,9 @@ mod tests {
     #[test]
     fn defaults_dependencies_and_conflicts() {
         let mut options = Systems::default();
-        assert!(System::ALL.iter().all(|s| options.enabled(*s)));
+        assert!(System::ALL
+            .iter()
+            .all(|s| options.enabled(*s) == s.default_enabled()));
         options.overrides.insert(System::Society, false);
         assert!(!options.enabled(System::Discoveries));
         assert!(options.enabled(System::LivingWorld));

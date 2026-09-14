@@ -18,8 +18,10 @@ mise exec rust@1.89.0 -- cargo run --release
 The explorer starts paused. Use **Evolve** or **Step** to advance generation. Drag
 the globe to orbit, drag the atlas to pan, scroll to zoom, and select a cell to
 inspect it. Defaults can be expensive; start with a smaller resolution if needed.
-Open **Civilizations beta** to experiment with histories on the inner continents. New histories enable optional systems by default; expand **Optional systems** before
-founding to change them.
+Open **Civilizations beta** to experiment with histories on the inner continents.
+New histories enable the standard systems by default; recent policy experiments
+remain opt-in. Expand **Optional systems and experiments** before founding to
+change them.
 
 ```sh
 # Small headless experiment; generated files stay in output/
@@ -33,7 +35,7 @@ cargo run --release -- --load output/planet.world
 cargo run --release -- --help
 ```
 
-New headless histories also default to all systems on. Override individual systems
+New headless histories use the same defaults. Override individual systems
 with `--disable-system` or `--enable-system` (comma-separated names; see `--help`):
 
 ```sh

@@ -1685,10 +1685,20 @@ impl App {
                 &mut self.founding_options.aid_enabled,
                 "Patron founding aid",
             );
-            ui.collapsing("Optional systems (default on)", |ui| {
+            ui.collapsing("Optional systems and experiments", |ui| {
                 for &system in crate::systems::System::ALL {
                     let mut enabled = self.generator.config.systems.enabled(system);
-                    if ui.checkbox(&mut enabled, system.label()).changed() {
+                    if ui
+                        .checkbox(
+                            &mut enabled,
+                            if system.is_registered_policy() {
+                                format!("{} (opt-in)", system.label())
+                            } else {
+                                system.label()
+                            },
+                        )
+                        .changed()
+                    {
                         self.generator.config.systems.select(system, enabled);
                     }
                 }

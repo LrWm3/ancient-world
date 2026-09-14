@@ -383,6 +383,7 @@ impl Generator {
             .as_ref()
             .is_some_and(|h| h.living.is_some());
         generator.validate_living_boundary()?;
+        generator.refresh_registered_policies();
         Ok(generator)
     }
 }

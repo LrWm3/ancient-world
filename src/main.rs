@@ -19,7 +19,7 @@ const EXPORT_ATLAS_HEIGHT_PX: u32 = 1024;
 struct Args {
     #[arg(long)]
     headless: bool,
-    /// Explicitly enable startup systems (comma-separated; all default on for new histories).
+    /// Explicitly enable startup systems (comma-separated; experimental policies default off).
     #[arg(long, value_enum, value_delimiter = ',')]
     enable_system: Vec<System>,
     /// Disable startup systems and their dependents before founding.
@@ -198,6 +198,104 @@ struct Args {
     #[arg(long)]
     benchmark: bool,
 }
+impl Args {
+    fn system_requests(&self) -> Result<std::collections::BTreeMap<System, bool>> {
+        let mut overrides = std::collections::BTreeMap::new();
+        for &system in &self.disable_system {
+            overrides.insert(system, false);
+        }
+        let mut enable = self.enable_system.clone();
+        for (requested, system) in [
+            (self.society, System::Society),
+            (self.politics, System::Politics),
+            (self.governance, System::Governance),
+            (self.offices, System::Offices),
+            (self.shipping, System::Shipping),
+            (self.expeditions, System::Expeditions),
+            (self.discoveries, System::Discoveries),
+            (self.living_world, System::LivingWorld),
+        ] {
+            if requested {
+                enable.push(system);
+            }
+        }
+        for system in enable {
+            anyhow::ensure!(
+                overrides.get(&system) != Some(&false),
+                "{} was both enabled and disabled",
+                system.label()
+            );
+            overrides.insert(system, true);
+        }
+        for (system, value) in self.policy_aliases() {
+            if let Some(enabled) = value {
+                if let Some(previous) = overrides.insert(system, enabled) {
+                    anyhow::ensure!(
+                        previous == enabled,
+                        "{} has contradictory registry/alias requests",
+                        system.label()
+                    );
+                }
+            }
+        }
+        Ok(overrides)
+    }
+    fn policy_aliases(&self) -> [(System, Option<bool>); 24] {
+        [
+            (System::CouncilCredit, self.council_credit),
+            (
+                System::InstitutionCreditLenders,
+                self.institution_credit_lenders,
+            ),
+            (
+                System::InstitutionCreditOperatingReserve,
+                self.institution_credit_operating_reserve,
+            ),
+            (System::CommercialCredit, self.commercial_credit),
+            (System::ServiceOrderCredit, self.service_order_credit),
+            (
+                System::ServiceOrderProcurement,
+                self.service_order_procurement,
+            ),
+            (
+                System::ContractWorkshopStaffing,
+                self.contract_workshop_staffing,
+            ),
+            (
+                System::DemandWorkshopStaffing,
+                self.demand_workshop_staffing,
+            ),
+            (
+                System::HouseholdEstateInheritance,
+                self.household_estate_inheritance,
+            ),
+            (System::HouseholdClothing, self.household_clothing),
+            (System::HouseholdWealthTax, self.household_wealth_tax),
+            (
+                System::CouncilWelfareReserves,
+                self.council_welfare_reserves,
+            ),
+            (System::NeedsBasedFood, self.needs_based_food),
+            (System::GradualNutrition, self.gradual_nutrition),
+            (System::FoodSolidarity, self.food_solidarity),
+            (System::DemographicAudit, self.demographic_audit),
+            (System::StagedHarbors, self.staged_harbors),
+            (System::PracticalResearch, self.practical_research),
+            (
+                System::HouseholdEstateReclamation,
+                self.household_estate_reclamation,
+            ),
+            (
+                System::AbandonedStockRecovery,
+                self.abandoned_stock_recovery,
+            ),
+            (System::NamedOfficeService, self.named_office_service),
+            (System::ExportDefaultRecovery, self.export_default_recovery),
+            (System::SharedIssuance, self.shared_issuance),
+            (System::DeliveryPaidExports, self.delivery_paid_exports),
+        ]
+    }
+}
 fn parse_procurement_share(value: &str) -> std::result::Result<f64, String> {
     let share: f64 = value
         .parse()
@@ -210,33 +308,7 @@ fn parse_procurement_share(value: &str) -> std::result::Result<f64, String> {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let mut overrides = std::collections::BTreeMap::new();
-    for &system in &args.disable_system {
-        overrides.insert(system, false);
-    }
-    let mut enable = args.enable_system.clone();
-    for (requested, system) in [
-        (args.society, System::Society),
-        (args.politics, System::Politics),
-        (args.governance, System::Governance),
-        (args.offices, System::Offices),
-        (args.shipping, System::Shipping),
-        (args.expeditions, System::Expeditions),
-        (args.discoveries, System::Discoveries),
-        (args.living_world, System::LivingWorld),
-    ] {
-        if requested {
-            enable.push(system);
-        }
-    }
-    for system in enable {
-        anyhow::ensure!(
-            overrides.get(&system) != Some(&false),
-            "{} was both enabled and disabled",
-            system.label()
-        );
-        overrides.insert(system, true);
-    }
+    let overrides = args.system_requests()?;
     anyhow::ensure!(
         args.headless
             || (args.civilizations.is_none()
@@ -432,246 +504,17 @@ fn main() -> Result<()> {
     }
     if args.civilizations.is_some() || !requested_systems.overrides.is_empty() {
         let mut systems = generator.config.systems.clone();
-        systems.overrides.extend(requested_systems.overrides);
-        generator.apply_systems(&systems)?;
-    }
-    if let Some(enabled) = args.council_credit {
-        generator
-            .civilizations
-            .as_mut()
-            .context("council credit requires a history")?
-            .credit
-            .council_policy
-            .enabled = enabled;
-    }
-    if let Some(enabled) = args.institution_credit_lenders {
-        generator
-            .civilizations
-            .as_mut()
-            .context("institution credit requires a history")?
-            .credit
-            .council_policy
-            .institution_lenders = enabled;
-    }
-    if let Some(enabled) = args.institution_credit_operating_reserve {
-        generator
-            .civilizations
-            .as_mut()
-            .context("institution credit requires a history")?
-            .credit
-            .council_policy
-            .institution_reserve = if enabled {
-            ancient_world::credit::councils::InstitutionReserve::AnnualOperatingCosts
+        let policy_only = args.civilizations.is_none()
+            && requested_systems
+                .overrides
+                .keys()
+                .all(|s| s.is_registered_policy());
+        if policy_only {
+            generator.apply_registered_policies(&requested_systems)?;
         } else {
-            ancient_world::credit::councils::InstitutionReserve::CouncilFloor
-        };
-    }
-    if let Some(enabled) = args.shared_issuance {
-        generator
-            .civilizations
-            .as_mut()
-            .context("shared issuance requires a history")?
-            .configure_shared_issuance(enabled)?;
-    }
-    if let Some(enabled) = args.commercial_credit {
-        generator
-            .civilizations
-            .as_mut()
-            .context("commercial credit requires a history")?
-            .credit
-            .commercial_policy
-            .enabled = enabled;
-    }
-    if let Some(enabled) = args.service_order_credit {
-        generator
-            .civilizations
-            .as_mut()
-            .context("service order credit requires a history")?
-            .credit
-            .commercial_policy
-            .service_orders = enabled;
-    }
-    if let Some(enabled) = args.service_order_procurement {
-        generator
-            .civilizations
-            .as_mut()
-            .context("service procurement requires a history")?
-            .enterprises
-            .as_mut()
-            .context("service procurement requires enterprises")?
-            .procurement
-            .enabled = enabled;
-    }
-    if let Some(enabled) = args.contract_workshop_staffing {
-        generator
-            .civilizations
-            .as_mut()
-            .context("contract workshop staffing requires a history")?
-            .enterprises
-            .as_mut()
-            .context("contract workshop staffing requires enterprises")?
-            .procurement
-            .contract_staffing = enabled;
-    }
-    if let Some(enabled) = args.demand_workshop_staffing {
-        generator
-            .civilizations
-            .as_mut()
-            .context("demand workshop staffing requires a history")?
-            .enterprises
-            .as_mut()
-            .context("demand workshop staffing requires enterprises")?
-            .procurement
-            .demand_staffing = enabled;
-    }
-    for (setting, value) in [(0, args.needs_based_food), (1, args.gradual_nutrition)] {
-        if let Some(enabled) = value {
-            let h = generator
-                .civilizations
-                .as_mut()
-                .context("food experiments require history")?;
-            anyhow::ensure!(
-                !(setting == 1 && enabled && h.individual_demography_enabled()),
-                "gradual nutrition currently requires aggregate demography"
-            );
-            let e = h
-                .society
-                .as_mut()
-                .and_then(|s| s.household_economy.as_mut())
-                .context("food experiments require household accounts")?;
-            if setting == 0 {
-                e.needs_based_food = enabled;
-            } else {
-                e.gradual_nutrition = enabled;
-            }
+            systems.overrides.extend(requested_systems.overrides);
+            generator.apply_systems(&systems)?;
         }
-    }
-    if let Some(enabled) = args.staged_harbors {
-        generator
-            .civilizations
-            .as_mut()
-            .and_then(|h| h.shipping.as_mut())
-            .context("staged harbors require shipping")?
-            .staged_harbors = enabled;
-    }
-    if let Some(enabled) = args.demographic_audit {
-        let h = generator
-            .civilizations
-            .as_mut()
-            .context("demographic audit requires history")?;
-        anyhow::ensure!(
-            !enabled
-                || (h.society.is_some()
-                    && h.resolution.is_none()
-                    && !h.individual_demography_enabled()),
-            "demographic audit requires GPU aggregate demography without resolution overrides"
-        );
-        if enabled {
-            h.demographic_audit.get_or_insert_with(Default::default);
-        } else {
-            h.demographic_audit = None;
-        }
-    }
-    if let Some(enabled) = args.food_solidarity {
-        generator
-            .civilizations
-            .as_mut()
-            .context("solidarity requires history")?
-            .society
-            .as_mut()
-            .and_then(|s| s.household_economy.as_mut())
-            .context("solidarity requires household accounts")?
-            .solidarity
-            .enabled = enabled;
-    }
-    if let Some(enabled) = args.council_welfare_reserves {
-        generator
-            .civilizations
-            .as_mut()
-            .context("welfare requires history")?
-            .society
-            .as_mut()
-            .and_then(|s| s.household_economy.as_mut())
-            .context("welfare requires household accounts")?
-            .council_allocation = if enabled {
-            ancient_world::household_economy::council_allocation::Policy::NeedsFirst
-        } else {
-            ancient_world::household_economy::council_allocation::Policy::Existing
-        };
-    }
-    if let Some(enabled) = args.household_wealth_tax {
-        generator
-            .civilizations
-            .as_mut()
-            .context("wealth tax requires history")?
-            .society
-            .as_mut()
-            .and_then(|s| s.household_economy.as_mut())
-            .context("wealth tax requires household accounts")?
-            .wealth_tax
-            .enabled = enabled;
-    }
-    if let Some(enabled) = args.practical_research {
-        generator
-            .civilizations
-            .as_mut()
-            .context("research requires history")?
-            .culture
-            .as_mut()
-            .context("research requires culture")?
-            .practical_research = enabled;
-    }
-    if let Some(enabled) = args.household_clothing {
-        generator
-            .civilizations
-            .as_mut()
-            .context("clothing requires history")?
-            .society
-            .as_mut()
-            .and_then(|s| s.household_economy.as_mut())
-            .context("clothing requires household accounts")?
-            .clothing_enabled = enabled;
-    }
-    if let Some(enabled) = args.household_estate_inheritance {
-        generator
-            .civilizations
-            .as_mut()
-            .context("estate inheritance requires a history")?
-            .society
-            .as_mut()
-            .and_then(|s| s.household_economy.as_mut())
-            .context("estate inheritance requires household accounts")?
-            .inheritance
-            .enabled = enabled;
-    }
-    if let Some(enabled) = args.named_office_service {
-        generator
-            .civilizations
-            .as_mut()
-            .context("office service requires a history")?
-            .set_office_service(enabled)?;
-    }
-    if let Some(enabled) = args.abandoned_stock_recovery {
-        generator
-            .civilizations
-            .as_mut()
-            .context("stock recovery requires a history")?
-            .society
-            .as_mut()
-            .context("stock recovery requires society")?
-            .stock_recovery = enabled;
-    }
-    if let Some(enabled) = args.household_estate_reclamation {
-        generator
-            .civilizations
-            .as_mut()
-            .context("estate reclamation requires a history")?
-            .society
-            .as_mut()
-            .and_then(|s| s.household_economy.as_mut())
-            .context("estate reclamation requires household accounts")?
-            .reclamation
-            .enabled = enabled;
     }
     if let Some(share) = args.service_procurement_share {
         generator
@@ -683,27 +526,6 @@ fn main() -> Result<()> {
             .context("service procurement share requires enterprises")?
             .procurement
             .surplus_share = share;
-    }
-    if let Some(enabled) = args.export_default_recovery {
-        generator
-            .civilizations
-            .as_mut()
-            .context("export default recovery requires a history")?
-            .credit
-            .export_recovery
-            .policy
-            .enabled = enabled;
-    }
-    if let Some(enabled) = args.delivery_paid_exports {
-        generator
-            .civilizations
-            .as_mut()
-            .context("delivery-paid exports require a history")?
-            .export_payment_timing = if enabled {
-            ancient_world::export_contracts::payments::Timing::Delivery
-        } else {
-            ancient_world::export_contracts::payments::Timing::Dispatch
-        };
     }
     if let Some(months) = args.base_granary_months {
         let history = generator
@@ -796,6 +618,62 @@ fn main() -> Result<()> {
 #[cfg(test)]
 mod args_tests {
     use super::*;
+    #[test]
+    fn conflicting_aliases_are_rejected_before_startup() {
+        let args = Args::try_parse_from([
+            "ancient-world",
+            "--enable-system",
+            "council-credit",
+            "--council-credit=false",
+        ])
+        .unwrap();
+        assert!(args.system_requests().is_err());
+        let args = Args::try_parse_from([
+            "ancient-world",
+            "--disable-system",
+            "food-solidarity",
+            "--food-solidarity=false",
+        ])
+        .unwrap();
+        assert_eq!(
+            args.system_requests().unwrap().get(&System::FoodSolidarity),
+            Some(&false)
+        );
+    }
+    #[test]
+    fn every_recent_alias_has_a_registry_entry() {
+        for &system in System::REGISTERED_POLICIES {
+            for enabled in [false, true] {
+                let flag = format!("--{}={enabled}", system.label());
+                let args = Args::try_parse_from(["ancient-world", &flag]).unwrap();
+                assert_eq!(
+                    args.policy_aliases()
+                        .into_iter()
+                        .filter(|(_, v)| v.is_some())
+                        .collect::<Vec<_>>(),
+                    vec![(system, Some(enabled))]
+                );
+                let args = Args::try_parse_from([
+                    "ancient-world",
+                    if enabled {
+                        "--enable-system"
+                    } else {
+                        "--disable-system"
+                    },
+                    &system.label(),
+                ])
+                .unwrap();
+                assert_eq!(
+                    if enabled {
+                        args.enable_system
+                    } else {
+                        args.disable_system
+                    },
+                    vec![system]
+                );
+            }
+        }
+    }
     #[test]
     fn issuance_flag_preserves_archive_when_omitted() {
         for (arguments, expected) in [

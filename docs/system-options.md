@@ -1,24 +1,22 @@
 # Optional system startup controls
 
-New desktop and CLI histories start with every implemented optional extension in
-`System::ALL` enabled. The registry covers social history and indicators, politics,
-governance, offices, shipping, expeditions and specimens, living ecology, shared
-resources, mineral/alloy processing, environmental returns, enterprises and
-occupational payroll. It also enables the optional production, facilities, market,
-farming and fishery rules, including experimental adaptive prices and fishing.
-This changes default behavior; it is not evidence that the combined settings have
-been calibrated over long histories. Diagnostic ablations such as open wildlife
-barriers and fixed labor remain off. They remove normal constraints rather than
-add systems. Patron aid remains default on with its existing separate control.
+New desktop and CLI histories enable the original world/history extensions by
+default: social history, politics, governance, offices, shipping, expeditions,
+living ecology, shared resources, production, facilities, markets and fisheries.
+The more recent policy experiments are also in `System::ALL`, but remain **opt-in**.
+Registering an experiment does not change its balance default. Use
+`System::default_enabled()` rather than assuming every registry entry defaults on.
+Patron aid retains its separate default-on founding control.
 
-Desktop: before founding, expand **Optional systems (default on)**. Checking a
-system enables its prerequisites. Unchecking a prerequisite disables dependent
-systems. Existing live policy controls remain available after founding.
+Desktop: before founding, expand **Optional systems and experiments**. Recent
+experiments are marked **opt-in**. Checking a system enables its structural
+prerequisites; unchecking a prerequisite suppresses dependents. Existing live
+policy controls remain available after founding.
 
 CLI:
 
 ```sh
-# All extensions on without a chain of enable flags:
+# Standard extensions on, recent policy experiments off:
 cargo run --release -- --headless --civilizations 5 --history-years 10
 # No voyages/specimens; retain the rest:
 cargo run --release -- --headless --civilizations 5 --disable-system expeditions
@@ -42,7 +40,7 @@ expeditions = false
 adaptive-prices = false
 ```
 
-Absent entries default on. CLI overrides take precedence over configuration entries.
+Absent entries use their per-system default. CLI overrides take precedence over configuration entries.
 Startup options override the corresponding economy-catalog booleans; numeric catalog
 parameters remain as supplied. Disabling society also suppresses politics,
 governance, offices, shipping, expeditions, discoveries, enterprises and payroll.
@@ -51,12 +49,51 @@ required by mineral processing, which is required by alloys. Workshop specializa
 require workshops; supplier profitability requires export contracts. Fishery
 subsystems require their parent fishery settings.
 
+## Recent registered policies (default off)
+
+Every name below works with `--enable-system` / `--disable-system`, TOML
+`systems.overrides`, and the desktop startup list. The previous
+`--name[=true|false]` flags are compatibility aliases routed through the same
+implementation; contradictory alias/registry requests fail before GPU startup.
+
+| Area | Registry names |
+| --- | --- |
+| Credit and issuance | `council-credit`, `institution-credit-lenders`, `institution-credit-operating-reserve`, `commercial-credit`, `service-order-credit`, `shared-issuance` |
+| Procurement and work | `service-order-procurement`, `contract-workshop-staffing`, `demand-workshop-staffing`, `named-office-service` |
+| Household distribution | `household-estate-inheritance`, `household-estate-reclamation`, `household-clothing`, `household-wealth-tax`, `council-welfare-reserves` |
+| Food and observation | `needs-based-food`, `gradual-nutrition`, `food-solidarity`, `demographic-audit` |
+| Knowledge and logistics | `practical-research`, `staged-harbors`, `abandoned-stock-recovery` |
+| Export settlement | `export-default-recovery`, `delivery-paid-exports` |
+
+Credit subpolicies can be configured while new lending is disabled: enabling
+institutional offers or service-order eligibility does not itself enable credit.
+Structural prerequisites still apply (households/councils need society, harbor
+staging needs shipping, office service needs offices, workshop staffing needs
+enterprises and workshops). Gradual nutrition and demographic auditing retain
+their existing demographic-mode restrictions. No configuration switch clears
+loan obligations or resets an issuance authorization window.
+
+```sh
+# New history with selected experiments:
+cargo run --release -- --headless --civilizations 5 \
+  --enable-system household-wealth-tax,council-welfare-reserves,practical-research
+# Change only a live policy in an existing history:
+cargo run --release -- --headless --load output/example.world --epochs 0 \
+  --disable-system council-credit --history-years 1
+```
+
+Numeric controls are not binary systems: `--founding-food-months`,
+`--base-granary-months`, `--service-procurement-share` and `--crop-yield-scale`
+retain their current validation and ownership. New founding food/storage defaults
+remain 48 months; this registration does not alter that balance change.
+
 ## Existing saves and the library
 
 Loading without explicit overrides preserves the saved baselines and policies,
-including histories made before this default change. An explicit override requests
-application of the startup configuration, adding missing enabled baselines and
-applying the editable rule switches. Established baselines containing persistent
+including histories made before this default change. A request containing only recent registered policies changes only those policies,
+using existing baselines. Requests for the original startup systems still apply
+the startup configuration, adding missing enabled baselines and applying its
+editable rules. Established baselines containing persistent
 people, sources or cargo cannot be removed through startup flags: requesting that
 fails before edits. Choose those omissions before founding a new history. This
 avoids deleting inventories or stranded journeys. Policy switches that already
@@ -66,10 +103,15 @@ support live changes can still be changed through their existing controls/APIs.
 called after successful founding and optional catalog configuration. The low-level
 `found_civilizations*` and individual `enable_*` methods remain explicit for diagnostic
 fixtures and callers constructing custom baselines. They do not apply the application
-preset automatically. `Config.systems` archives the startup choices. No dense GPU
+preset automatically. `Generator::apply_registered_policies` stages explicit live
+policy changes on a history copy and commits the batch only after every change
+succeeds. Unspecified policies retain their actual saved state. Loading imports
+older policy fields into the registry without changing history, so old CLI
+experiments become discoverable too. `History::registered_policy_enabled` reads
+the actual policy; `Config.systems` records the configuration choices. No dense GPU
 state layout changes are needed.
 
-## Verification
+## Original startup verification
 
 Tests cover default-on selection, dependency suppression, conflicting explicit
 requests, option-name parsing and configuration serialization. The GPU startup
@@ -95,3 +137,32 @@ booleans, including dependent food-security staffing. Contradictory CLI requests
 failed before GPU initialization. These worlds start from initialized terrain and
 are short startup smoke tests, not a calibrated performance or seed comparison.
 Generated JSON and logs remain under ignored `output/system-options/`.
+
+## Registry expansion verification
+
+The registry/CLI unit checks compare `System::ALL` to the parser's variants,
+check unique names, default-off experiments, per-entry serialization and all 24
+compatibility aliases. The optional GPU policy fixture exercises each binding,
+preservation of unrelated settings, missing-parent errors, atomic failed batches,
+and finite issuance authorization. The startup fixture checks archive continuation.
+
+```sh
+CARGO_INCREMENTAL=0 cargo test --lib --bin ancient-world
+CARGO_INCREMENTAL=0 cargo test --lib registered_policies_apply_preserve_and_resume -- --ignored --nocapture
+CARGO_INCREMENTAL=0 cargo test --lib all_on_and_disabled_startups_resume -- --ignored --nocapture
+```
+
+The five-year founding regression is also rerun to detect unintended default
+changes. These are registration and compatibility checks, not a balance claim
+for enabling all experiments together.
+
+Expansion results on the available Quadro RTX 5000: 213 library tests and 16 CLI
+checks passed; 157 hardware tests remained ignored in the ordinary library run.
+Both targeted GPU registry/startup tests passed, including old-entry import and
+exact save/resume continuation. All 12 founding-regression arms passed with the
+same reported populations and 15 legacy shortage town-months as before this change.
+Clippy passed with warnings denied. A one-year replay of the same seed-1024 archive
+using `--household-wealth-tax=true` versus `--enable-system household-wealth-tax`
+produced identical full history exports. The archive's existing living baseline
+and disabled council-credit/issuance policies were preserved. Raw outputs remain
+under ignored `output/`; no experiment artifacts are committed.
