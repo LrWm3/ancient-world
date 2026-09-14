@@ -296,3 +296,25 @@ Reproduce this final comparison by additionally enabling:
   seed. No larger-resolution, cross-hardware or empirical calibration claim is
   supported by this screen. All run outputs remain ignored; no raw artifacts are
   committed.
+
+## Agreed baseline for subsequent investigations
+
+Following this screen, the user selected the improved nutrient settings for further
+investigations. The application defaults and existing saved worlds remain unchanged.
+Use this preset for fresh comparative histories:
+
+```sh
+python3 scripts/run_growth_investigation.py --seed 1024 \
+  --resolution 32 --ecology-resolution 32 --epochs 1 --civilizations 5 \
+  --history-years 50 --enable-system demographic-audit \
+  --history-export output/nutrient-investigation.json
+```
+
+The wrapper supplies retention 0.95 and release 5e-7, prints the native command,
+and forwards other arguments. `--binary` selects a different native build.
+Explicit nutrient arguments override the preset, allowing the original 0.85/1e-7
+control. It does not enable common-food entitlement or change other policy choices.
+When loading an old common-food experiment for a purchasing comparison, also use
+`--disable-system needs-based-food`: loading otherwise preserves that saved policy.
+As in the original screen, retention changes existing towns only, while release
+is a global archived production setting and applies to subsequent daughter towns.
