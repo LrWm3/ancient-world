@@ -144,3 +144,7 @@ ignored. The combined Python reporter/circulation suite passes all 12 tests.
 Follow-up: [early food supply and staged harbors](early-food-and-staged-harbors.md)
 separates the aggregate supply gap from inaccessible town reserves and tests opening
 small, materially funded harbors before full construction is complete.
+
+The observer also supports [monthly town-food traces](monthly-food-balance.md),
+retaining the latest 60 months of managed aggregate production boundaries. Older
+archives have no retrospective rows; the annual demographic summaries remain intact.

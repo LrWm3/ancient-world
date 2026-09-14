@@ -5,10 +5,14 @@ use serde::{Deserialize, Serialize};
 const MONTHS_PER_YEAR: u32 = 12;
 const RETAINED_YEARS: usize = 200;
 
+pub mod food;
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Audit {
     pub last_month: Option<u32>,
     pub years: Vec<Year>,
+    #[serde(default)]
+    pub food: food::Trace,
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Year {

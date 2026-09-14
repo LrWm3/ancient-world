@@ -97,3 +97,8 @@ No new GPU layout, readback or simulation randomness was introduced; the existin
 binary ran these comparisons. Full Rust tests were not rerun for this Python/docs
 change. Founding archives and raw experiment artifacts are intentionally not
 committed, so reproducing these exact numbers requires the retained local inputs.
+
+Follow-up: [monthly food balances](monthly-food-balance.md) include the imported
+provisions and trace actual exhaustion. They qualify the staffing hypothesis:
+some gaps are immediately before harvest, while export reserves and unavailable
+routes prevent redistribution. Low first-year output alone was not an explanation.

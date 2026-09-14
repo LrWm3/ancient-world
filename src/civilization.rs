@@ -1513,7 +1513,13 @@ impl Generator {
             Some(
                 h.sites
                     .iter()
-                    .map(|s| (s.stocks.people, s.stocks.stock[0] > 0.))
+                    .map(|s| {
+                        (
+                            s.stocks.people,
+                            s.stocks.stock[0] > 0.,
+                            crate::demographic_audit::food::Boundary::from_site(s),
+                        )
+                    })
                     .collect::<Vec<_>>(),
             )
         } else {
@@ -1526,13 +1532,21 @@ impl Generator {
         engine.dispatch(self, false, h.sites.len() as u32);
         engine.read(self, h, true)?;
         if let Some(before) = audit_before {
+            let audit = h.demographic_audit.as_mut().unwrap();
+            if audit.last_month.is_none_or(|m| h.month > m) {
+                for (site, (_, ran, opening)) in h.sites.iter().zip(&before) {
+                    if *ran && site.economy.management[0] > 0.5 {
+                        audit.food.record(h.month, site, *opening);
+                    }
+                }
+            }
             h.demographic_audit.as_mut().unwrap().record(
                 h.month,
                 h.sites
                     .iter()
                     .zip(before)
-                    .filter(|(_, (_, ran))| *ran)
-                    .map(|(s, (old, _))| {
+                    .filter(|(_, (_, ran, _))| *ran)
+                    .map(|(s, (old, _, _))| {
                         (
                             s.demography,
                             [
@@ -1732,6 +1746,12 @@ impl Generator {
                 self.history_close_month(&mut h, &engine, terrain, navigation.as_deref(), false)?;
             }
             for _ in 0..months {
+                let food_opening = h.demographic_audit.as_ref().map(|_| {
+                    h.sites
+                        .iter()
+                        .map(|s| (s.id, crate::demographic_audit::food::Boundary::from_site(s)))
+                        .collect()
+                });
                 let deliveries =
                     self.history_open_month(&mut h, &engine, terrain, navigation.as_deref())?;
                 let (extraction, retail) = self.history_reserve_month(&mut h, &engine, terrain)?;
@@ -1739,6 +1759,13 @@ impl Generator {
                     self.history_execute_month(&mut h, &engine, &extraction, retail)?;
                 self.history_respond_month(&mut h, terrain, navigation.as_deref(), &deliveries)?;
                 self.history_close_month(&mut h, &engine, terrain, navigation.as_deref(), true)?;
+                if let Some(opening) = food_opening {
+                    h.demographic_audit
+                        .as_mut()
+                        .unwrap()
+                        .food
+                        .finish(h.month, &opening, &h.sites);
+                }
             }
             if h.version == 2 {
                 let mut e = self.gpu.device.create_command_encoder(&Default::default());
