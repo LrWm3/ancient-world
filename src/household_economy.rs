@@ -116,6 +116,12 @@ impl FoundingAccess {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HouseholdEconomy {
+    /// Counterfactual: all current dietary need may access finite local food.
+    #[serde(default)]
+    pub needs_based_food: bool,
+    /// Aggregate demographic pilot: accumulated nutritional stress.
+    #[serde(default)]
+    pub gradual_nutrition: bool,
     #[serde(default)]
     pub wealth_tax: wealth_tax::Policy,
     #[serde(default)]
@@ -176,6 +182,8 @@ fn nutrition_enabled() -> bool {
 impl HouseholdEconomy {
     pub fn new(month: u32) -> Self {
         Self {
+            needs_based_food: false,
+            gradual_nutrition: false,
             wealth_tax: Default::default(),
             clothing_enabled: false,
             clothing_month: None,
@@ -210,6 +218,18 @@ impl HouseholdEconomy {
             .map_or(self.common_share, |p| p.share(month, self.common_share))
     }
     pub fn validate(&self, h: &History) -> Result<()> {
+        ensure!(
+            !self.gradual_nutrition || !h.individual_demography_enabled(),
+            "gradual nutrition currently requires aggregate demography"
+        );
+        ensure!(
+            h.sites.iter().all(|s| s
+                .demography
+                .nutrition
+                .iter()
+                .all(|v| v.is_finite() && (0. ..=1.).contains(v))),
+            "invalid nutritional stress memory"
+        );
         ensure!(
             self.started <= self.observed && self.observed <= h.month,
             "invalid household economy clock"
@@ -446,6 +466,13 @@ impl History {
         let Some(e) = society.household_economy.as_mut() else {
             return vec![];
         };
+        for site in &mut self.sites {
+            site.demography.nutrition[3] = if e.gradual_nutrition && !complete_roster {
+                1.
+            } else {
+                0.
+            };
+        }
         let policies: Vec<_> = society
             .councils
             .iter()
@@ -646,11 +673,14 @@ impl History {
             let last_paid = eligible_ids.last().copied();
             let mut wage_left = payroll;
             let mut dividend_left = dividends;
-            let common_share = e
-                .founding_access
-                .filter(|_| s.founded == 0)
-                .map_or(policy.common, |p| p.share(self.month, policy.common))
-                as f64;
+            let common_share = if e.needs_based_food {
+                1.
+            } else {
+                e.founding_access
+                    .filter(|_| s.founded == 0)
+                    .map_or(policy.common, |p| p.share(self.month, policy.common))
+                    as f64
+            };
             let free = need * common_share;
             let mut demand = vec![];
             for (j, &id) in ids.iter().enumerate() {
@@ -1561,5 +1591,121 @@ mod tests {
         old.as_object_mut().unwrap().remove("household_economy");
         let old: crate::society::Society = serde_json::from_value(old).unwrap();
         assert!(old.household_economy.is_none());
+    }
+}
+
+#[cfg(test)]
+mod food_health_experiments {
+    use super::*;
+    use crate::{
+        catalog::Catalog,
+        config::Config,
+        gpu::{ContextGpu, Generator},
+    };
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn needs_access_and_gradual_health_boundaries() {
+        let mut g = Generator::new(
+            pollster::block_on(ContextGpu::headless()).unwrap(),
+            Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                ..Default::default()
+            },
+            Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        g.enable_society().unwrap();
+        let h = g.civilizations.as_mut().unwrap();
+        let pristine = h.clone();
+        for site in &mut h.sites {
+            site.economy.finance[0] = 0.;
+        }
+        let society = h.society.as_mut().unwrap();
+        for council in &mut society.councils {
+            council.treasury = 0.;
+            council.distribution = None;
+        }
+        let e = society.household_economy.as_mut().unwrap();
+        e.founding_access = None;
+        e.common_share = 0.;
+        e.payroll_share = 0.;
+        e.dividend_share = 0.;
+        e.relief_share = 0.;
+        for account in &mut e.accounts {
+            account.cash = 0.;
+        }
+        let mut market = h.clone();
+        let initial_money = h.economy_residuals()[4];
+        let initial_food = h
+            .sites
+            .iter()
+            .map(|s| s.stocks.stock[1])
+            .collect::<Vec<_>>();
+        let market_plans = market.prepare_household_retail();
+        assert!(market_plans
+            .iter()
+            .all(|p| p.free + p.demand.iter().sum::<f64>() == 0.));
+        h.society
+            .as_mut()
+            .unwrap()
+            .household_economy
+            .as_mut()
+            .unwrap()
+            .needs_based_food = true;
+        let plans = h.prepare_household_retail();
+        assert!(plans
+            .iter()
+            .all(|p| p.need == p.free && p.demand.iter().all(|v| *v == 0.)));
+        for p in &plans {
+            let finite_food = p.need * 0.4;
+            let allocated = p.food_allocation(finite_food);
+            assert!(
+                (allocated.iter().map(|(_, c, b)| c + b).sum::<f64>() - finite_food).abs() < 1e-7
+            );
+            assert!(allocated.iter().all(|(_, _, b)| *b == 0.));
+        }
+        assert_eq!(
+            initial_food,
+            h.sites
+                .iter()
+                .map(|s| s.stocks.stock[1])
+                .collect::<Vec<_>>()
+        );
+        assert!((initial_money - h.economy_residuals()[4]).abs() < 1e-7);
+        *h = pristine;
+        let e = h
+            .society
+            .as_mut()
+            .unwrap()
+            .household_economy
+            .as_mut()
+            .unwrap();
+        e.gradual_nutrition = true;
+        e.needs_based_food = true;
+        for site in &mut h.sites {
+            site.demography.nutrition = [0.6, 0.6, 0.6, 1.];
+        }
+        g.advance_history(1).unwrap();
+        let h = g.civilizations.as_ref().unwrap();
+        for site in &h.sites {
+            let d = &site.demography;
+            for k in 0..3 {
+                let shortage = if d.ration_need[k] > 0. {
+                    1. - d.ration_eaten[k] / d.ration_need[k]
+                } else {
+                    0.
+                };
+                let expected = 0.6 + (shortage - 0.6) / if shortage < 0.6 { 3. } else { 6. };
+                assert!((d.nutrition[k] - expected).abs() < 1e-5);
+            }
+        }
+        let restored: History = serde_json::from_value(serde_json::to_value(h).unwrap()).unwrap();
+        assert_eq!(
+            serde_json::to_value(h).unwrap(),
+            serde_json::to_value(restored).unwrap()
+        );
     }
 }

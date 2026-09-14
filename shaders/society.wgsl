@@ -1,4 +1,6 @@
 // Monthly population, ration and crop-calendar parameters.
+const NUTRITION_DECLINE_MONTHS:f32=6.;
+const NUTRITION_RECOVERY_MONTHS:f32=3.;
 const RATION_COMMON_SUFFICIENCY_SHARE:f32=.5;
 const RATION_REDISTRIBUTION_PASSES:u32=3u;
 const DEMOGRAPHY_DIVISION_FLOOR:f32=1e-20;
@@ -17,7 +19,7 @@ const HARVEST_SEED_RESERVE_SHARE:f32=.05;
 const EXPOSURE_POPULATION_FLOOR:f32=1.;
 const SEED_RATIO_POPULATION_FLOOR:f32=1.;
 
-struct Demography {ages:vec4<f32>, crops:vec4<f32>, health:vec4<f32>, ration_priority:vec4<f32>, ration_need:vec4<f32>, ration_eaten:vec4<f32>, household_food:vec4<f32>}
+struct Demography {ages:vec4<f32>, crops:vec4<f32>, health:vec4<f32>, ration_priority:vec4<f32>, ration_need:vec4<f32>, ration_eaten:vec4<f32>, household_food:vec4<f32>, nutrition:vec4<f32>}
 @group(0) @binding(8) var<storage,read_write> demography:array<Demography>;
 // Opening-month illness reduces effective work, not population. The burden is
 // an abstract index: at its ordinary cap of 0.5, work is reduced by 25%.
@@ -59,8 +61,18 @@ fn demographic_month(i:u32,shortage:f32,food:f32)->vec2<f32> {
   let crowding=select(0.,clamp(1.-(e.housing.z+min(e.housing.x/HOUSING_WOOD_KG_PER_PERSON,e.housing.y/HOUSING_BRICKS_KG_PER_PERSON))/max(dot(old,vec3(1.)),EXPOSURE_POPULATION_FLOOR),0.,1.),e.housing_plan.w>.5);
   contamination=(contamination+CROWDING_MONTHLY_ILLNESS*crowding)*(1.-SANITATION_MAX_ILLNESS_REDUCTION*e.waterworks_plan.w)+UNSAFE_WATER_MONTHLY_ILLNESS*e.water_service.y;
  }
- let disease=clamp(d.health.x*MONTHLY_ILLNESS_RETENTION+shortage*SHORTAGE_MONTHLY_ILLNESS+contamination,0.,MAX_DISEASE_BURDEN);
- let losses=old*min(vec3(MAX_MONTHLY_MORTALITY),vec3(CHILD_BASE_MONTHLY_MORTALITY,ADULT_BASE_MONTHLY_MORTALITY,ELDER_BASE_MONTHLY_MORTALITY)+hunger*vec3(CHILD_HUNGER_MORTALITY,ADULT_HUNGER_MORTALITY,ELDER_HUNGER_MORTALITY)+vec3(disease*DISEASE_MORTALITY));
+ var mortality_hunger=hunger;
+ var illness_shortage=shortage;
+ if d.nutrition.w>.5 {
+  let previous=d.nutrition.xyz;
+  let timescale=select(vec3(NUTRITION_DECLINE_MONTHS),vec3(NUTRITION_RECOVERY_MONTHS),hunger<previous);
+  let memory=clamp(previous+(hunger-previous)/timescale,vec3(0.),vec3(1.));
+  d.nutrition=vec4(memory,1.);
+  mortality_hunger=max(memory*memory,max(vec3(0.),(hunger-vec3(ACUTE_HUNGER_THRESHOLD))*ACUTE_HUNGER_SCALE));
+  illness_shortage=dot(mortality_hunger,need)/max(dot(need,vec3(1.)),DEMOGRAPHY_DIVISION_FLOOR);
+ }
+ let disease=clamp(d.health.x*MONTHLY_ILLNESS_RETENTION+illness_shortage*SHORTAGE_MONTHLY_ILLNESS+contamination,0.,MAX_DISEASE_BURDEN);
+ let losses=old*min(vec3(MAX_MONTHLY_MORTALITY),vec3(CHILD_BASE_MONTHLY_MORTALITY,ADULT_BASE_MONTHLY_MORTALITY,ELDER_BASE_MONTHLY_MORTALITY)+mortality_hunger*vec3(CHILD_HUNGER_MORTALITY,ADULT_HUNGER_MORTALITY,ELDER_HUNGER_MORTALITY)+vec3(disease*DISEASE_MORTALITY));
  let born=old.y*MONTHLY_BIRTH_RATE_PER_ADULT*(1.-hunger.y)*(1.-disease);
  var weather=regional_weather(u32(src[i].habitat.z));if (p.options.w&2u)!=0u {let c=world[u32(src[i].habitat.z)];weather=clamp(c.climate.y/max(c.hydro.z,WEATHER_REFERENCE_RAIN_FLOOR),0.,MAX_REGIONAL_WEATHER_RATIO);}
  // Identity-owned mode retains GPU ration/weather/disease work, but commits

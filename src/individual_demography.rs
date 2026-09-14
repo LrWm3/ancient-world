@@ -207,6 +207,29 @@ impl DemographicProjection {
         };
         refined
     }
+    fn from_site_exposure(opening: [f64; 3], d: crate::society::Demography) -> Self {
+        let mut projection =
+            Self::from_exposure(opening, d.ration_need, d.ration_eaten, d.health[0]);
+        if d.nutrition[3] > 0.5 {
+            for b in 0..3 {
+                let hunger = if d.ration_need[b] > 0. {
+                    (1. - d.ration_eaten[b] / d.ration_need[b]).clamp(0., 1.)
+                } else {
+                    0.
+                };
+                let stress = (d.nutrition[b] * d.nutrition[b]).max(
+                    ((hunger - crate::society::ACUTE_HUNGER_THRESHOLD)
+                        * crate::society::ACUTE_HUNGER_SCALE)
+                        .max(0.),
+                );
+                projection.mortality[b] = crate::society::BASE_MONTHLY_MORTALITY[b]
+                    + stress as f64 * crate::society::HUNGER_MORTALITY[b]
+                    + d.health[0].clamp(0., crate::society::MAX_DISEASE_BURDEN) as f64
+                        * crate::society::DISEASE_MORTALITY;
+            }
+        }
+        projection
+    }
     fn from_exposure(opening: [f64; 3], need: [f32; 4], eaten: [f32; 4], disease: f32) -> Self {
         let hunger: [f64; 3] = std::array::from_fn(|b| {
             if need[b] > 0. {
@@ -584,12 +607,8 @@ impl History {
                 (0..3).all(|b| d.ages[b] as f64 == observation.opening[site][b]),
                 "demographic opening stocks changed before resolution"
             );
-            let projection = DemographicProjection::from_exposure(
-                observation.opening[site],
-                d.ration_need,
-                d.ration_eaten,
-                d.health[0],
-            );
+            let projection =
+                DemographicProjection::from_site_exposure(observation.opening[site], d);
             let people: Vec<_> = observation.people[site]
                 .iter()
                 .map(|&(id, band)| (id, band, self.people[id as usize].born))
@@ -1328,5 +1347,33 @@ mod tests {
         let old = serde_json::to_value(&*h).unwrap();
         assert!(h.enable_individual_demography().is_err());
         assert_eq!(old, serde_json::to_value(&*h).unwrap());
+    }
+}
+
+#[cfg(test)]
+mod gradual_nutrition_tests {
+    use super::*;
+    #[test]
+    fn moderate_chronic_deficit_and_acute_starvation_have_distinct_costs() {
+        let mut d = crate::society::Demography {
+            ration_need: [100.; 4],
+            ration_eaten: [95.; 4],
+            nutrition: [0.05, 0.05, 0.05, 1.],
+            ..Default::default()
+        };
+        let p = DemographicProjection::from_site_exposure([10.; 3], d);
+        for b in 0..3 {
+            let expected = crate::society::BASE_MONTHLY_MORTALITY[b]
+                + 0.0025 * crate::society::HUNGER_MORTALITY[b];
+            assert!((p.mortality[b] - expected).abs() < 1e-8);
+        }
+        d.ration_eaten = [0.; 4];
+        let p = DemographicProjection::from_site_exposure([10.; 3], d);
+        for b in 0..3 {
+            assert_eq!(
+                p.mortality[b],
+                crate::society::BASE_MONTHLY_MORTALITY[b] + crate::society::HUNGER_MORTALITY[b]
+            );
+        }
     }
 }

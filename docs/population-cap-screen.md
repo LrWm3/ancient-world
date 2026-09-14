@@ -94,3 +94,8 @@ Native GPU runs exercised the enlarged allocations; strict all-target Clippy pas
 No full-capacity stress or individual-authoritative demographic comparison is
 claimed. Raw outputs and the old executable remain ignored under
 `output/population-cap-screen/`; no generated binary or history is committed.
+
+Follow-up: [food access and nutritional stress](food-access-and-nutritional-stress.md)
+tests the two mechanisms independently and together. Gentler health effects improve
+survival across the three seeds, while fully common food exposes a municipal
+revenue tradeoff.

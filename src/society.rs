@@ -52,6 +52,8 @@ const DEFAULT_COUNCIL_TAX_RATE: f32 = 0.03;
 pub(crate) const SOUTHERN_HARVEST_MONTH: f32 = 2.;
 pub(crate) const NORTHERN_HARVEST_MONTH: f32 = 8.;
 crate::shared_shader_parameters!(SHADER_PARAMETERS {
+    pub(crate) const ACUTE_HUNGER_THRESHOLD: f32 = 0.5;
+    pub(crate) const ACUTE_HUNGER_SCALE: f32 = 2.;
     pub const MAX_RATION_PRIORITY: f32 = 3.;
     pub(crate) const CROP_CALENDAR_MONTHS: u32 = 12;
     pub(crate) const CHILD_RATION_KG_PER_MONTH: f64 = 10.;
@@ -138,6 +140,9 @@ pub struct Demography {
     #[serde(default)]
     /// Retail entitlement cap, enabled flag, last pre-consumption available food, reserved.
     pub household_food: [f32; 4],
+    /// Smoothed child/adult/elder dietary deficit; aggregate health pilot enabled.
+    #[serde(default)]
+    pub nutrition: [f32; 4],
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Household {

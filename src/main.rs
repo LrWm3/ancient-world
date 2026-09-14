@@ -106,6 +106,12 @@ struct Args {
     /// Cover full household food budgets using council reserves above administrative needs.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     council_welfare_reserves: Option<bool>,
+    /// Let full dietary need access existing town food regardless of wallet cash.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    needs_based_food: Option<bool>,
+    /// Use accumulated nutritional stress for aggregate mortality and illness.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    gradual_nutrition: Option<bool>,
     /// Fund local experiments to recover missing production knowledge.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     practical_research: Option<bool>,
@@ -234,6 +240,8 @@ fn main() -> Result<()> {
                 && args.household_clothing.is_none()
                 && args.household_wealth_tax.is_none()
                 && args.council_welfare_reserves.is_none()
+                && args.needs_based_food.is_none()
+                && args.gradual_nutrition.is_none()
                 && args.practical_research.is_none()
                 && args.household_estate_reclamation.is_none()
                 && args.abandoned_stock_recovery.is_none()
@@ -491,6 +499,28 @@ fn main() -> Result<()> {
             .context("demand workshop staffing requires enterprises")?
             .procurement
             .demand_staffing = enabled;
+    }
+    for (setting, value) in [(0, args.needs_based_food), (1, args.gradual_nutrition)] {
+        if let Some(enabled) = value {
+            let h = generator
+                .civilizations
+                .as_mut()
+                .context("food experiments require history")?;
+            anyhow::ensure!(
+                !(setting == 1 && enabled && h.individual_demography_enabled()),
+                "gradual nutrition currently requires aggregate demography"
+            );
+            let e = h
+                .society
+                .as_mut()
+                .and_then(|s| s.household_economy.as_mut())
+                .context("food experiments require household accounts")?;
+            if setting == 0 {
+                e.needs_based_food = enabled;
+            } else {
+                e.gradual_nutrition = enabled;
+            }
+        }
     }
     if let Some(enabled) = args.council_welfare_reserves {
         generator
