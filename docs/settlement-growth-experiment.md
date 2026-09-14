@@ -186,3 +186,45 @@ more realized food under the other production limits. Relief altered actual food
 access without directly increasing the yield parameter. Biological and economic
 feedbacks can subsequently change total production in the access and health arms.
 No century or millennium run was launched as part of this preparation.
+
+## Default long-run results, 2026-09-14
+
+The documented release command was run unchanged on a Quadro RTX 5000 with
+Max-Q Design. It used three seeds, six modes, 256 terrain/ecology resolution,
+16 founding civilizations, and individual demographic resolution. Wall time was
+about 94 minutes; completed gate stages accounted for 4,936 seconds. The output
+directory is approximately 9.1 GB. The process exited nonzero because two arms
+hit the same explicit individual-roster consistency error; the runner continued
+all other arms before reporting the failures.
+
+Every valid arm reached the first gate and stopped for recent population decline.
+No arm reached years 200, 500, or 1,000. Population and recent slope at the first
+gate were:
+
+| Seed | Baseline | Health | Access | Yield | Expansion | Combined |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 17 | 988 (−8.29/y) | 1,076 (−5.71/y) | 1,437 (−4.13/y) | 843 (−9.21/y) | 988 (−8.29/y) | 1,548 (−2.58/y) |
+| 81 | error, year 92 | 795 (−6.75/y) | 964 (−1.09/y) | 738 (−9.61/y) | error, year 92 | 1,006 (−0.92/y) |
+| 256 | 831 (−6.56/y) | 913 (−4.23/y) | 1,033 (−0.62/y) | 833 (−5.96/y) | 831 (−6.56/y) | 1,041 (−0.65/y) |
+
+The access treatment consistently retained more population and had the shallowest
+decline. Combined also improved retention, but still reversed by the first gate.
+Yield did not reliably improve the final population. Expansion produced the same
+trajectory as baseline because the populations never reached the daughter-founding
+threshold; its relaxed settings were not the active constraint. Settlement records
+remained at 15 or 16, while candidate surveys retained many unused locations, so
+these runs were demographic tests rather than settlement-cap tests.
+
+The two failed arms were `seed-81/baseline` and `seed-81/expansion`, both at month
+1,110 (year 92). Site 1 had aggregate age cohorts `[4, 11, 3]`, but its prior-age
+resident roster required `[4, 14, 3]`. The error occurred after repeated
+`household_represented` and `inheritance` events. This is the known unfinished
+individual-demography boundary: named residents, household membership and
+fractional/aggregate aging have diverged. It is an implementation blocker for
+trusting long individual-resolution runs, not evidence of population decline.
+
+The largest economy residual reported by completed arms was about `2.96e-5`, with
+food and population residuals remaining finite. Before using the 200-year gates,
+repair resident-roster reconciliation at this boundary, then rerun the same suite
+in a new output directory. The existing archives and `error.json` files preserve
+the failure evidence; generated outputs remain under ignored `output/`.
