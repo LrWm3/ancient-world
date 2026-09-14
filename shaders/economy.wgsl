@@ -89,7 +89,6 @@ const FARM_RUNOFF_FLUSHING_DEPTH_M: f32 = .2;
 const FARM_RUNOFF_VOLUME_FLOOR_M3: f32 = 1.;
 const FARM_DOMESTIC_WATER_M3_PER_PERSON_MONTH: f32 = .09;
 const FARM_WATER_NEED_FLOOR_M3: f32 = 1e-6;
-const FARM_PHOSPHORUS_RELEASE_MONTHLY_FRACTION: f32 = .0000001;
 const FARM_DETRITUS_MONTHLY_DECAY_FRACTION: f32 = .08;
 const FARM_FIXATION_COST_FLOOR: f32 = 1.;
 const FARM_FIXATION_MAX_POTENTIAL_SHARE: f32 = .05;
@@ -467,7 +466,7 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
   e.water.x-=supplied;e.water.w+=supplied;e.water_service.x+=supplied;
   e.water_service.y=clamp(1.-supplied/max(need,FARM_WATER_NEED_FLOOR_M3),0.,1.);
  }
- let release=min(e.reserves.x,e.reserves.x*FARM_PHOSPHORUS_RELEASE_MONTHLY_FRACTION);e.reserves.x-=release;e.soil.z+=release;
+ let release=min(e.reserves.x,e.reserves.x*p.storage_policy.y);e.reserves.x-=release;e.soil.z+=release;
  let decay=e.detritus.xyz*FARM_DETRITUS_MONTHLY_DECAY_FRACTION;e.detritus-=vec4(decay,0.);e.soil+=vec4(0.,decay.yz,0.);e.exchange.x-=decay.x;
  let fixation_cost=max(FARM_FIXATION_COST_FLOOR,catalog.herds[0].z);
  let fixed=min(potential*FARM_FIXATION_MAX_POTENTIAL_SHARE/fixation_cost,area*FARM_FIXATION_KG_N_PER_M2_YEAR/f32(CROP_CALENDAR_MONTHS)*e.policy.x*clamp((t.hydro.y+FARM_FIXATION_TEMPERATURE_OFFSET_C)/FARM_FIXATION_TEMPERATURE_RAMP_C,0.,1.));

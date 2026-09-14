@@ -233,6 +233,11 @@ impl EconomyCatalog {
             "base granary capacity must be 12–120 adult-ration months"
         );
         ensure!(
+            (0. ..=crate::production::MAX_PHOSPHORUS_RELEASE_MONTHLY_FRACTION)
+                .contains(&self.production.phosphorus_release_monthly_fraction),
+            "invalid monthly geological phosphorus release fraction"
+        );
+        ensure!(
             (0. ..=1.).contains(&self.production.waterworks_target_fraction),
             "invalid waterworks target fraction"
         );

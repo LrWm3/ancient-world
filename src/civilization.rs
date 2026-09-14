@@ -1038,7 +1038,10 @@ impl Engine {
                 catalog.weather.regime_months,
                 g.config.resolution,
                 catalog.production.base_granary_months.to_bits(),
-                0,
+                catalog
+                    .production
+                    .phosphorus_release_monthly_fraction
+                    .to_bits(),
                 0,
                 0,
             ]),
@@ -2063,7 +2066,13 @@ impl Engine {
                         c.production.base_granary_months
                     })
                     .to_bits(),
-                0,
+                h.economy_catalog
+                    .as_ref()
+                    .map_or(
+                        crate::production::DEFAULT_PHOSPHORUS_RELEASE_MONTHLY_FRACTION,
+                        |c| c.production.phosphorus_release_monthly_fraction,
+                    )
+                    .to_bits(),
                 0,
                 0,
             ]),

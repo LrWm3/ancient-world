@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 
 pub const DEFAULT_BASE_GRANARY_MONTHS: f32 = 12.;
 pub const MAX_BASE_GRANARY_MONTHS: f32 = 120.;
+pub const DEFAULT_PHOSPHORUS_RELEASE_MONTHLY_FRACTION: f32 = 0.0000001;
+pub const MAX_PHOSPHORUS_RELEASE_MONTHLY_FRACTION: f32 = 0.0001;
 const FACILITY_REPAIR_FORECAST_WORKER_MONTHS: f32 = 0.1;
 const DEFAULT_INITIAL_HOUSING_PER_PERSON: f32 = 1.1;
 const DEFAULT_CONTRACT_MARGIN: f32 = 0.1;
@@ -130,6 +132,8 @@ pub struct ProductionSettings {
     pub persistent_storage: bool,
     /// Experimental baseline food capacity in adult-ration months per current resident.
     pub base_granary_months: f32,
+    /// Monthly transfer from finite geological phosphorus to available farm soil.
+    pub phosphorus_release_monthly_fraction: f32,
     pub persistent_housing: bool,
     pub waterworks: bool,
     /// Restore lost installed service before optional shelter headroom.
@@ -161,6 +165,7 @@ impl Default for ProductionSettings {
             workshops: false,
             persistent_storage: false,
             base_granary_months: DEFAULT_BASE_GRANARY_MONTHS,
+            phosphorus_release_monthly_fraction: DEFAULT_PHOSPHORUS_RELEASE_MONTHLY_FRACTION,
             persistent_housing: false,
             waterworks: false,
             waterworks_repair_priority: false,

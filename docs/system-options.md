@@ -84,7 +84,9 @@ cargo run --release -- --headless --load output/example.world --epochs 0 \
 
 Numeric controls are not binary systems: `--founding-food-months`,
 `--base-granary-months`, `--service-procurement-share` and `--crop-yield-scale`
-retain their current validation and ownership. New founding food/storage defaults
+retain their current validation and ownership. The [farm nutrient screen](growth-nutrient-screen.md)
+also exposes numeric retention and geological-release controls, without new binary systems.
+New founding food/storage defaults
 remain 48 months; this registration does not alter that balance change.
 
 ## Existing saves and the library

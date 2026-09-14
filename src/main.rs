@@ -40,6 +40,12 @@ struct Args {
     /// Baseline granary capacity in adult-ration months per resident (12–120; new founding default 48); ordinary spoilage remains active.
     #[arg(long)]
     base_granary_months: Option<f32>,
+    /// Fraction of finite geological farm phosphorus released monthly (0–0.0001).
+    #[arg(long)]
+    farm_phosphorus_release: Option<f32>,
+    /// Set existing towns' nutrient return fraction (0–1), retaining other site policies.
+    #[arg(long)]
+    farm_nutrient_retention: Option<f32>,
     /// Explicitly upgrade a saved first-beta history to managed ecological farming and markets.
     #[arg(long)]
     upgrade_economy: bool,
@@ -549,6 +555,35 @@ fn main() -> Result<()> {
             .as_mut()
             .context("founding food requires a history")?
             .set_founding_food_months(months)?;
+    }
+    if let Some(fraction) = args.farm_phosphorus_release {
+        let h = generator
+            .civilizations
+            .as_mut()
+            .context("phosphorus release requires history")?;
+        let catalog = h
+            .economy_catalog
+            .as_mut()
+            .context("phosphorus release requires managed farming")?;
+        catalog.production.phosphorus_release_monthly_fraction = fraction;
+        catalog.validate()?;
+    }
+    if let Some(fraction) = args.farm_nutrient_retention {
+        let policies: Vec<_> = generator
+            .civilizations
+            .as_ref()
+            .context("nutrient retention requires history")?
+            .sites
+            .iter()
+            .map(|site| {
+                let mut policy = site.economy.policy;
+                policy[1] = fraction;
+                (site.id, policy)
+            })
+            .collect();
+        for (site, policy) in policies {
+            generator.set_site_policy(site, policy)?;
+        }
     }
     if args.history_years > 0 {
         generator.advance_history(
