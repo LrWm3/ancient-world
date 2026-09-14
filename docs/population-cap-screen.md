@@ -12,9 +12,10 @@ hard maximum population per town in the aggregate demographic equations. The
 Initial population, birth/mortality parameters, land, food, money and founding
 requirements are unchanged.
 
-Candidate sampling remains capped at 2,048 and geography can supply fewer suitable
-sites. Raising that sampling cap would change the experiment's available geography,
-so this comparison leaves it alone. This change is not a demonstrated capacity or
+Candidate sampling was capped at 2,048 in the comparison below. It now shares the
+2,560-settlement ceiling; geography can still supply fewer suitable sites. Existing
+worlds retain their saved candidate lists rather than gaining new locations on load.
+The comparison below predates this sampling change. This is not a demonstrated capacity or
 performance benchmark at 2,560 inhabited settlements or 500,000 residents. Archive
 size limits and other sparse-record limits also remain independent.
 
