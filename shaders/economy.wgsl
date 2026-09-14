@@ -457,7 +457,8 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  let capacity=area*(FARM_WATER_BASE_STORAGE_M+FARM_WATER_POLICY_STORAGE_M*e.policy.z)+select(0.,min(e.waterworks.x/WATERWORKS_WOOD_KG_PER_PERSON,e.waterworks.y/WATERWORKS_BRICKS_KG_PER_PERSON),e.waterworks.w>.5);let runoff=max(0.,e.water.x-capacity);e.water.x-=runoff;e.water.w+=runoff;
  if e.land_return.x>.5 {
   // Dissolved nutrient export is bounded by actual runoff and soil inventories.
-  let fraction=min(FARM_RUNOFF_MAX_NUTRIENT_FRACTION,runoff/max(area*FARM_RUNOFF_FLUSHING_DEPTH_M,FARM_RUNOFF_VOLUME_FLOOR_M3));let nutrients=e.soil.xyz*fraction;
+  // Less mobile P remains in available soil; debit and downstream return use the same actual flux.
+  let fraction=min(FARM_RUNOFF_MAX_NUTRIENT_FRACTION,runoff/max(area*FARM_RUNOFF_FLUSHING_DEPTH_M,FARM_RUNOFF_VOLUME_FLOOR_M3));let nutrients=e.soil.xyz*fraction*vec3(1.,1.,p.storage_policy.w);
   e.soil-=vec4(nutrients,0.);e.exchange-=vec4(nutrients,0.);
   e.return_flow+=vec4(nutrients,runoff);e.phosphorus_probe.x=nutrients.z;
  }

@@ -52,7 +52,7 @@ struct Cell {
 }
 
 struct Site { stock:vec4<f32>, habitat:vec4<f32>, ledger:vec4<f32>, people:vec4<f32> }
-// storage_policy: granary months, phosphorus release fraction, background mortality scale, reserved.
+// storage_policy: granary months, phosphorus release fraction, background mortality scale, phosphorus runoff mobility.
 struct Params { dims:vec4<u32>, options:vec4<u32>, weather:vec4<u32>, storage_policy:vec4<f32> }
 @group(0) @binding(0) var<storage,read> world:array<Cell>;
 @group(0) @binding(1) var<storage,read> src:array<Site>;

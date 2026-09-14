@@ -192,3 +192,7 @@ retention and loss rates, alongside emergency export-reserve policy and usable
 routes. They do not justify globally multiplying food output or claiming every
 future decline has the same cause. The new tools make those follow-up comparisons
 measurable; no default production or distribution policy changed here.
+
+Follow-up: [farm nutrient replenishment and retention](farm-nutrient-retention.md)
+tests reduced phosphorus runoff mobility and stronger consumed-food recycling
+while retaining the original geological release rate.

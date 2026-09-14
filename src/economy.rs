@@ -243,6 +243,10 @@ impl EconomyCatalog {
             "invalid monthly geological phosphorus release fraction"
         );
         ensure!(
+            (0. ..=1.).contains(&self.production.phosphorus_runoff_mobility),
+            "phosphorus runoff mobility must be finite and in 0..1"
+        );
+        ensure!(
             (0. ..=1.).contains(&self.production.waterworks_target_fraction),
             "invalid waterworks target fraction"
         );

@@ -127,6 +127,12 @@ struct Args {
     /// Diagnostic intervention: release existing geological P faster, never import it.
     #[arg(long)]
     phosphorus_release: Option<f32>,
+    /// Diagnostic retention control: fraction of soil P exposed to runoff (0..1).
+    #[arg(long)]
+    phosphorus_mobility: Option<f32>,
+    /// Initial-site consumed-food nutrient return fraction; later policies remain active.
+    #[arg(long)]
+    manure_retained: Option<f32>,
     /// Diagnostic intervention: allocate existing town food by need without purchase.
     #[arg(long)]
     needs_based_food: bool,
@@ -344,6 +350,31 @@ fn run_arm(args: &Args, gpu: &ContextGpu, base: &Path, seed: u32, mode: Mode) ->
                 .as_mut()
                 .unwrap()
                 .needs_based_food = true;
+        }
+        if let Some(mobility) = args.phosphorus_mobility {
+            let catalog = g
+                .civilizations
+                .as_mut()
+                .unwrap()
+                .economy_catalog
+                .as_mut()
+                .unwrap();
+            catalog.production.phosphorus_runoff_mobility = mobility;
+            catalog.validate()?;
+        }
+        if let Some(retained) = args.manure_retained {
+            let policies: Vec<_> = g
+                .civilizations
+                .as_ref()
+                .unwrap()
+                .sites
+                .iter()
+                .map(|s| (s.id, s.economy.policy))
+                .collect();
+            for (id, mut policy) in policies {
+                policy[1] = retained;
+                g.set_site_policy(id, policy)?;
+            }
         }
     }
     if args.food_diagnostics {
@@ -569,6 +600,10 @@ fn main() -> Result<()> {
     if args.phosphorus_release.is_some() || args.needs_based_food {
         spec["diagnostic_interventions"] = json!({"phosphorus_release":args.phosphorus_release,
             "needs_based_food":args.needs_based_food});
+    }
+    if args.phosphorus_mobility.is_some() || args.manure_retained.is_some() {
+        spec["nutrient_interventions"] = json!({"phosphorus_mobility":args.phosphorus_mobility,
+            "manure_retained":args.manure_retained});
     }
     let spec_path = args.output.join("suite.json");
     if spec_path.exists() {

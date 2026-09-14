@@ -1055,7 +1055,7 @@ impl Engine {
                     .phosphorus_release_monthly_fraction
                     .to_bits(),
                 1f32.to_bits(),
-                0,
+                catalog.production.phosphorus_runoff_mobility.to_bits(),
             ]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
@@ -2071,7 +2071,12 @@ impl Engine {
                     )
                     .to_bits(),
                 (h.growth.background_mortality_scale as f32).to_bits(),
-                0,
+                h.economy_catalog
+                    .as_ref()
+                    .map_or(crate::production::DEFAULT_PHOSPHORUS_RUNOFF_MOBILITY, |c| {
+                        c.production.phosphorus_runoff_mobility
+                    })
+                    .to_bits(),
             ]),
         );
     }
