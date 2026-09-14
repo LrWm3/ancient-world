@@ -86,7 +86,7 @@ fn regional_weather(cell:u32)->f32 {
 }
 @compute @workgroup_size(HISTORY_WORKGROUP_SIZE)
 fn month(@builtin(global_invocation_id) g:vec3<u32>) {
- let i=g.x+g.y*MAX_DISPATCH_GROUPS_PER_DIMENSION*HISTORY_WORKGROUP_SIZE;if i>=p.dims.y{return;}var s=src[i];if p.options.x==2u {economies[i].production_probe=vec4(0.);weather_storage(i);}if s.stock.x<=0. {s.stock.z=0.;dst[i]=s;return;}
+ let i=g.x+g.y*MAX_DISPATCH_GROUPS_PER_DIMENSION*HISTORY_WORKGROUP_SIZE;if i>=p.dims.y{return;}var s=src[i];if p.options.x==2u {economies[i].production_probe=vec4(0.);economies[i].phosphorus_probe=vec4(0.);for(var j=0u;j<3u;j++){economies[i].crop_probe[j]=vec4(0.);}weather_storage(i);}if s.stock.x<=0. {s.stock.z=0.;dst[i]=s;return;}
  var weather=(LEGACY_WEATHER_MIN_FACTOR+LEGACY_WEATHER_FACTOR_SPAN*f32(hash(p.dims.z^p.dims.w^u32(s.habitat.w)*7919u)&65535u)/65535.)*regional_weather(u32(s.habitat.z));
  if (p.options.w&2u)!=0u {let c=world[u32(s.habitat.z)];weather=clamp(c.climate.y/max(c.hydro.z,WEATHER_REFERENCE_RAIN_FLOOR),0.,MAX_REGIONAL_WEATHER_RATIO);}
  var cultivated=min(s.habitat.y,select(s.stock.x*select(LEGACY_CULTIVATED_HA_PER_PERSON,MANAGED_CULTIVATED_HA_PER_PERSON,p.options.x==2u),workers(i,s.stock.x)*worker_shares(economies[i],s.stock.x,workers(i,s.stock.x)*(1.-LAND_RECOVERY_WORK_PENALTY*select(0.,clamp(economies[i].soil.w,0.,1.),(p.options.w&2u)!=0u))).x*CULTIVATED_HECTARES_PER_WORKER_MONTH,(p.options.w&1u)==1u)); // ha, capped by available labor

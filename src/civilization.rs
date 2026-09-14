@@ -1527,11 +1527,7 @@ impl Generator {
     ) -> Result<f64> {
         let production_started = std::time::Instant::now();
         let deaths_before: Vec<_> = h.sites.iter().map(|s| s.stocks.people[1]).collect();
-        let audit_before = if h.demographic_audit.is_some()
-            && h.resolution.is_none()
-            && h.society.is_some()
-            && !h.individual_demography_enabled()
-        {
+        let audit_before = if h.demographic_audit.is_some() && h.society.is_some() {
             Some(
                 h.sites
                     .iter()
@@ -1562,22 +1558,27 @@ impl Generator {
                     }
                 }
             }
-            h.demographic_audit.as_mut().unwrap().record(
-                h.month,
-                h.sites
-                    .iter()
-                    .zip(before)
-                    .filter(|(_, (_, ran, _))| *ran)
-                    .map(|(s, (old, _, _))| {
-                        (
-                            s.demography,
-                            [
-                                s.stocks.people[0] as f64 - old[0] as f64,
-                                s.stocks.people[1] as f64 - old[1] as f64,
-                            ],
-                        )
-                    }),
-            );
+            // Food boundary evidence applies to both demographic authorities.
+            // Legacy demographic counters below are measured before individual
+            // resolution commits. They cannot describe its realized births/deaths.
+            if h.resolution.is_none() && !h.individual_demography_enabled() {
+                h.demographic_audit.as_mut().unwrap().record(
+                    h.month,
+                    h.sites
+                        .iter()
+                        .zip(before)
+                        .filter(|(_, (_, ran, _))| *ran)
+                        .map(|(s, (old, _, _))| {
+                            (
+                                s.demography,
+                                [
+                                    s.stocks.people[0] as f64 - old[0] as f64,
+                                    s.stocks.people[1] as f64 - old[1] as f64,
+                                ],
+                            )
+                        }),
+                );
+            }
         }
         h.settle_domestic_care();
         h.settle_office_service()?;

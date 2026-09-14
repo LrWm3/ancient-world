@@ -97,6 +97,9 @@ experiment. Complete checkpoints contain configuration and catalogs.
 
 ## Reading the results and testing caps
 
+For monthly production, physical food and affordability evidence, use
+`--food-diagnostics`; see [the food diagnostic protocol](growth-food-diagnostics.md).
+
 Each seed/mode directory contains `annual.jsonl`, `progress.json`, `summary.json`,
 `effective-settings.json`, and gate `.world` archives. A failed arm also has
 `error.json`. Root metadata records settings, source revision and GPU. Annual data
@@ -211,16 +214,15 @@ The access treatment consistently retained more population and had the shallowes
 decline. Combined also improved retention, but still reversed by the first gate.
 Yield did not reliably improve the final population. Expansion produced the same
 trajectory as baseline because the populations never reached the daughter-founding
-threshold; its relaxed settings were not the active constraint. Settlement records
-remained at 15 or 16, while candidate surveys retained many unused locations, so
+threshold; its relaxed settings were not the active constraint. No arm expanded
+beyond the initial 16 settlement records, while candidate surveys retained many unused locations, so
 these runs were demographic tests rather than settlement-cap tests.
 
 The two failed arms were `seed-81/baseline` and `seed-81/expansion`, both at month
 1,110 (year 92). Site 1 had aggregate age cohorts `[4, 11, 3]`, but its prior-age
 resident roster required `[4, 14, 3]`. The error occurred after repeated
-`household_represented` and `inheritance` events. This is the known unfinished
-individual-demography boundary: named residents, household membership and
-fractional/aggregate aging have diverged. It is an implementation blocker for
+`household_represented` and `inheritance` events. This establishes a roster/cohort
+mismatch, not its root cause. It is an implementation blocker for
 trusting long individual-resolution runs, not evidence of population decline.
 
 The largest economy residual reported by completed arms was about `2.96e-5`, with
@@ -228,3 +230,8 @@ food and population residuals remaining finite. Before using the 200-year gates,
 repair resident-roster reconciliation at this boundary, then rerun the same suite
 in a new output directory. The existing archives and `error.json` files preserve
 the failure evidence; generated outputs remain under ignored `output/`.
+
+The subsequent [monthly food investigation](growth-food-diagnostics.md) separates
+affordability, local food shortages, phosphorus limitation and export barriers.
+It also finds a finite-phosphorus intervention that maintains growth through year
+50 in seed 17; the century result above does not establish an unavoidable ceiling.

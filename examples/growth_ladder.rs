@@ -121,6 +121,15 @@ struct Args {
     /// At each arm's first gate verify actual one-month checkpoint continuation.
     #[arg(long)]
     verify_resume: bool,
+    /// Write monthly site-level food/production boundary evidence (under output/).
+    #[arg(long)]
+    food_diagnostics: bool,
+    /// Diagnostic intervention: release existing geological P faster, never import it.
+    #[arg(long)]
+    phosphorus_release: Option<f32>,
+    /// Diagnostic intervention: allocate existing town food by need without purchase.
+    #[arg(long)]
+    needs_based_food: bool,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Sample {
@@ -313,7 +322,69 @@ fn run_arm(args: &Args, gpu: &ContextGpu, base: &Path, seed: u32, mode: Mode) ->
     let mut g = Generator::load(gpu.clone(), &progress.checkpoint)?;
     if progress.year == 0 {
         mode.apply(&mut g, args.settlement_cap)?;
+        if let Some(rate) = args.phosphorus_release {
+            let catalog = g
+                .civilizations
+                .as_mut()
+                .unwrap()
+                .economy_catalog
+                .as_mut()
+                .unwrap();
+            catalog.production.phosphorus_release_monthly_fraction = rate;
+            catalog.validate()?;
+        }
+        if args.needs_based_food {
+            g.civilizations
+                .as_mut()
+                .unwrap()
+                .society
+                .as_mut()
+                .unwrap()
+                .household_economy
+                .as_mut()
+                .unwrap()
+                .needs_based_food = true;
+        }
     }
+    if args.food_diagnostics {
+        g.civilizations
+            .as_mut()
+            .unwrap()
+            .demographic_audit
+            .get_or_insert_with(Default::default);
+    }
+    // Resume keeps only observations at/before the durable checkpoint, just like annual rows.
+    let diagnostic_path = folder.join("food-monthly.jsonl");
+    let mut diagnostic_out = if args.food_diagnostics {
+        let retained = if args.resume && diagnostic_path.exists() {
+            fs::read_to_string(&diagnostic_path)?
+                .lines()
+                .map(|line| {
+                    Ok((
+                        serde_json::from_str::<serde_json::Value>(line)?,
+                        line.to_owned(),
+                    ))
+                })
+                .collect::<Result<Vec<_>>>()?
+                .into_iter()
+                .filter(|(v, _)| {
+                    v["month"]
+                        .as_u64()
+                        .is_some_and(|m| m <= u64::from(progress.year * MONTHS_PER_YEAR))
+                })
+                .map(|(_, line)| line)
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        };
+        let mut file = fs::File::create(&diagnostic_path)?;
+        for line in retained {
+            writeln!(file, "{line}")?;
+        }
+        Some(file)
+    } else {
+        None
+    };
     ensure!(
         g.civilizations.as_ref().unwrap().month == progress.year * MONTHS_PER_YEAR,
         "checkpoint month differs from progress"
@@ -321,7 +392,10 @@ fn run_arm(args: &Args, gpu: &ContextGpu, base: &Path, seed: u32, mode: Mode) ->
     write_json(
         &folder.join("effective-settings.json"),
         &json!({"mode":mode,"growth":g.civilizations.as_ref().unwrap().growth,
-        "config":g.config,"systems":g.config.systems,"base_checkpoint":base}),
+        "config":g.config,"systems":g.config.systems,"base_checkpoint":base,
+        "production":g.civilizations.as_ref().unwrap().economy_catalog.as_ref().map(|c|&c.production),
+        "needs_based_food":g.civilizations.as_ref().unwrap().society.as_ref()
+            .and_then(|s|s.household_economy.as_ref()).map(|e|e.needs_based_food)}),
     )?;
     let annual = folder.join("annual.jsonl");
     let mut samples: Vec<Sample> = if args.resume && annual.exists() {
@@ -357,13 +431,52 @@ fn run_arm(args: &Args, gpu: &ContextGpu, base: &Path, seed: u32, mode: Mode) ->
     {
         let start = Instant::now();
         while g.civilizations.as_ref().unwrap().month < gate * MONTHS_PER_YEAR {
-            g.advance_history(MONTHS_PER_YEAR).with_context(|| {
-                format!(
-                    "seed {seed} mode {} year {}",
-                    mode.label(),
-                    g.civilizations.as_ref().unwrap().month / MONTHS_PER_YEAR
-                )
-            })?;
+            for _ in 0..if args.food_diagnostics {
+                MONTHS_PER_YEAR
+            } else {
+                1
+            } {
+                g.advance_history(if args.food_diagnostics {
+                    1
+                } else {
+                    MONTHS_PER_YEAR
+                })
+                .with_context(|| {
+                    format!(
+                        "seed {seed} mode {} year {}",
+                        mode.label(),
+                        g.civilizations.as_ref().unwrap().month / MONTHS_PER_YEAR
+                    )
+                })?;
+                if let Some(out) = &mut diagnostic_out {
+                    let h = g.civilizations.as_ref().unwrap();
+                    let audit = h.demographic_audit.as_ref().unwrap();
+                    let rows: Vec<_> = audit
+                        .food
+                        .months
+                        .iter()
+                        .filter(|r| r.month == h.month)
+                        .collect();
+                    let sites: Vec<_> = h.sites.iter().map(|s| json!({
+                    "site":s.id,"population":s.stocks.stock[0],"ages":s.demography.ages,
+                    "births_deaths":s.stocks.people,"crop_stocks":s.economy.crops,
+                    "water_service":s.economy.water_service,"soil":s.economy.soil,
+                    "reserves":s.economy.reserves,"agriculture":s.economy.agriculture,
+                    "labor":s.economy.labor,"food_labor":s.economy.food_labor,
+                    "finance":s.economy.finance,"prices":s.economy.prices.as_slice(),
+                    "waterworks":s.economy.waterworks_plan,
+                    "households":h.society.as_ref().and_then(|s|s.household_economy.as_ref()).map(|e|
+                        e.accounts.iter().filter(|a|a.food_site==Some(s.id)).collect::<Vec<_>>())
+                })).collect();
+                    writeln!(
+                        out,
+                        "{}",
+                        json!({"month":h.month,"food":rows,"sites":sites,
+                            "food_requests":h.trade_contact.food_requests})
+                    )?;
+                    out.flush()?;
+                }
+            }
             let row = sample(&g);
             writeln!(out, "{}", serde_json::to_string(&row)?)?;
             out.flush()?;
@@ -448,11 +561,15 @@ fn main() -> Result<()> {
             .starts_with(root.canonicalize()?),
         "experiment outputs must be under ignored output/"
     );
-    let spec = json!({"version":1,"seeds":args.seeds,"modes":args.modes,"resolution":args.resolution,"ecology_resolution":args.ecology_resolution,
+    let mut spec = json!({"version":1,"seeds":args.seeds,"modes":args.modes,"resolution":args.resolution,"ecology_resolution":args.ecology_resolution,
         "civilizations":args.civilizations,"epochs":args.epochs,"gates":args.gates,"trend_years":args.trend_years,
         "reversal_fraction":args.reversal_fraction,"settlement_cap":args.settlement_cap,"aggregate":args.aggregate,
         "health_scale":HEALTH_BACKGROUND_SCALE,"yield_multiplier":YIELD_MULTIPLIER,
         "expansion_population_scale":EXPANSION_POPULATION_SCALE,"expansion_reserve_months":EXPANSION_RESERVE_MONTHS});
+    if args.phosphorus_release.is_some() || args.needs_based_food {
+        spec["diagnostic_interventions"] = json!({"phosphorus_release":args.phosphorus_release,
+            "needs_based_food":args.needs_based_food});
+    }
     let spec_path = args.output.join("suite.json");
     if spec_path.exists() {
         ensure!(

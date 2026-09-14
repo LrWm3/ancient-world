@@ -172,7 +172,7 @@ const FISHERY_CONSTRUCTION_WORK_SHARE: f32 = .25;
 const FISHERY_NUTRIENT_FRACTION_FLOOR: f32 = 1e-9;
 struct Economy {
  farm_workers:vec4<f32>, extraction_workers:vec4<f32>, construction_workers:vec4<f32>, harbor_work:vec4<f32>,
- production_probe:vec4<f32>, food_labor:vec4<f32>,
+ production_probe:vec4<f32>, crop_probe:array<vec4<f32>,3>, phosphorus_probe:vec4<f32>, food_labor:vec4<f32>,
  tool_craft:vec4<f32>, tool_work:vec4<f32>, tool_orders:array<vec4<f32>,16>,
  residue:vec4<f32>,
  extraction:vec4<f32>,
@@ -459,7 +459,7 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
   // Dissolved nutrient export is bounded by actual runoff and soil inventories.
   let fraction=min(FARM_RUNOFF_MAX_NUTRIENT_FRACTION,runoff/max(area*FARM_RUNOFF_FLUSHING_DEPTH_M,FARM_RUNOFF_VOLUME_FLOOR_M3));let nutrients=e.soil.xyz*fraction;
   e.soil-=vec4(nutrients,0.);e.exchange-=vec4(nutrients,0.);
-  e.return_flow+=vec4(nutrients,runoff);
+  e.return_flow+=vec4(nutrients,runoff);e.phosphorus_probe.x=nutrients.z;
  }
  if e.waterworks.w>.5 {
   let need=s.stock.x*FARM_DOMESTIC_WATER_M3_PER_PERSON_MONTH;let supplied=min(e.water.x,need);
@@ -468,6 +468,7 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
  }
  let release=min(e.reserves.x,e.reserves.x*p.storage_policy.y);e.reserves.x-=release;e.soil.z+=release;
  let decay=e.detritus.xyz*FARM_DETRITUS_MONTHLY_DECAY_FRACTION;e.detritus-=vec4(decay,0.);e.soil+=vec4(0.,decay.yz,0.);e.exchange.x-=decay.x;
+ e.phosphorus_probe.y=release;e.phosphorus_probe.z=decay.z;
  let fixation_cost=max(FARM_FIXATION_COST_FLOOR,catalog.herds[0].z);
  let fixed=min(potential*FARM_FIXATION_MAX_POTENTIAL_SHARE/fixation_cost,area*FARM_FIXATION_KG_N_PER_M2_YEAR/f32(CROP_CALENDAR_MONTHS)*e.policy.x*clamp((t.hydro.y+FARM_FIXATION_TEMPERATURE_OFFSET_C)/FARM_FIXATION_TEMPERATURE_RAMP_C,0.,1.));
  e.soil.y+=fixed;e.exchange.y+=fixed;
@@ -627,7 +628,7 @@ fn ecological_production(i:u32,potential:f32,weather:f32)->f32 {
 }
 fn return_food(i:u32,amount:f32){
  var e=economies[i];let nutrients=amount*vec2(FOOD_NITROGEN_FRACTION,FOOD_PHOSPHORUS_FRACTION);let returned=nutrients*e.policy.y;
- e.detritus+=vec4(0.,returned,0.);e.exchange-=vec4(amount*FOOD_CARBON_FRACTION,nutrients-returned,0.);e.diagnostics.z=returned.x;e.diagnostics.w=returned.y;economies[i]=e;
+ e.detritus+=vec4(0.,returned,0.);e.exchange-=vec4(amount*FOOD_CARBON_FRACTION,nutrients-returned,0.);e.diagnostics.z=returned.x;e.diagnostics.w=returned.y;e.phosphorus_probe.w+=returned.y;economies[i]=e;
 }
 
 // Canopy proxy across sowing, expansion, flowering, filling and senescence.
@@ -677,6 +678,10 @@ fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
  let supply=max(vec3(e.soil.yz,e.water.x),vec3(0.));
  let fractions=select(vec3(1.),min(vec3(1.),supply/max(total_need,vec3(CROP_RESOURCE_DEMAND_FLOOR))),total_need>vec3(0.));
  let fulfilled=min(fractions.x,min(fractions.y,fractions.z));
+ var requested_growth=0.;for(var j=0u;j<6u;j++){requested_growth+=demands[j];}
+ e.crop_probe[0]=vec4(total_need,requested_growth);
+ e.crop_probe[1]=vec4(supply,fulfilled);
+ e.crop_probe[2]=vec4(potential,temp,moisture,0.);
  if fulfilled<1. {e.diagnostics.x=select(select(3.,2.,fractions.y<=fractions.z),1.,fractions.x<=min(fractions.y,fractions.z));}
  for(var j=0u;j<6u;j++){
   let params=catalog.crops[j*2u];let growth_params=catalog.crops[j*2u+1u];let good=u32(params.x);let chemistry=catalog.goods[good].xyz;var c=e.crops[j];
@@ -689,6 +694,7 @@ fn managed_production(i:u32,input:Economy,potential:f32,weather:f32)->Economy {
   // Guard only against final float32 subtraction error, not sequential allocation.
   let capacity=min(e.soil.y/max(chemistry.y,CROP_NUTRIENT_FRACTION_FLOOR),min(e.soil.z/max(chemistry.z,CROP_NUTRIENT_FRACTION_FLOOR),e.water.x/growth_params.y));
   let growth=max(0.,min(demands[j]*fulfilled,capacity));
+  e.crop_probe[2].w+=growth;
   e.soil.y=max(0.,e.soil.y-growth*chemistry.y);e.soil.z=max(0.,e.soil.z-growth*chemistry.z);e.exchange.x+=growth*chemistry.x;e.water.x-=growth*growth_params.y;e.water.w+=growth*growth_params.y;c.y+=growth;e.agriculture.x+=growth;
   if month==harvest {
    let lost=c.y*(1.-farm_attendance(e));c.y-=lost;e.detritus+=vec4(lost*chemistry,0.);

@@ -457,6 +457,15 @@ pub struct Economy {
     /// Last production inputs: tool multiplier, cultivated ha, effective tools kg, population.
     #[serde(default)]
     pub production_probe: [f32; 4],
+    /// Managed crop observations only: demand N/P/water and unconstrained growth kg;
+    /// supply N/P/water and fulfilled fraction; potential kg, temperature C,
+    /// moisture proxy mm/year, and actual growth kg. Never used for decisions.
+    #[serde(default)]
+    pub crop_probe: [[f32; 4]; 3],
+    /// Monthly phosphorus kg: runoff export, geological release, detrital
+    /// mineralization, and consumed-food return. Observations, not inventories.
+    #[serde(default)]
+    pub phosphorus_probe: [f32; 4],
     /// Remembered food pressure, target pressure, food reserve months, effective tool deficit.
     #[serde(default)]
     pub food_labor: [f32; 4],
