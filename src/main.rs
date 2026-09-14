@@ -34,10 +34,10 @@ struct Args {
     /// Matched founding control: retain patrons and provisions but disable practical aid.
     #[arg(long, requires = "civilizations")]
     no_patron_aid: bool,
-    /// Increase human arrival provisions to this many adult-ration months (12–120), only at month zero; storage is unchanged.
+    /// Human arrival provisions in adult-ration months (12–120; new founding default 48). Existing inventories can only increase at month zero.
     #[arg(long)]
     founding_food_months: Option<u32>,
-    /// Experiment: baseline granary capacity in adult-ration months per resident (12–120); ordinary spoilage remains active.
+    /// Baseline granary capacity in adult-ration months per resident (12–120; new founding default 48); ordinary spoilage remains active.
     #[arg(long)]
     base_granary_months: Option<f32>,
     /// Explicitly upgrade a saved first-beta history to managed ecological farming and markets.
@@ -412,6 +412,12 @@ fn main() -> Result<()> {
         generator.found_civilizations_with_catalog(
             count,
             ancient_world::culture::FoundingOptions {
+                food_months: args
+                    .founding_food_months
+                    .unwrap_or(ancient_world::culture::FoundingOptions::default().food_months),
+                granary_months: args
+                    .base_granary_months
+                    .unwrap_or(ancient_world::culture::FoundingOptions::default().granary_months),
                 aid_enabled: !args.no_patron_aid,
                 ..Default::default()
             },

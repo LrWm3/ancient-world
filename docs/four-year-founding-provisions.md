@@ -11,7 +11,59 @@ in that arm. Population reaches approximately 654 from an initial 600. Later
 shortages still develop, but year-twenty populations remain above the controls.
 This is toy-world balance evidence, not historical calibration.
 
-## Controls and implementation
+## New founding defaults and regression
+
+New patron-led foundings now use 48 adult-ration months of declared food and
+48 months of baseline granary capacity. This buys an establishment period without
+changing harvest yields, removing spoilage, or making people immune to hunger.
+Old archives retain their saved inventories and capacity; missing older fields
+still deserialize as 12 months. Daughter towns retain their existing allowance.
+`FoundingOptions.food_months` and `.granary_months` expose the defaults through the
+API. For a new CLI founding, `--founding-food-months 12 --base-granary-months 12`
+selects the old allowance. An already-declared archive inventory cannot be reduced
+using the food override.
+
+Run the optional, self-contained GPU regression with:
+
+```sh
+CARGO_INCREMENTAL=0 cargo test --test founding_food -- --ignored --nocapture
+```
+
+It generates fresh 32/32 worlds for seeds 1024, 256 and 409, advances one geological
+epoch, founds five civilizations, applies the CLI system defaults, and runs 60
+months in both frozen and living history. It compares the new defaults with
+12-month food/storage controls (12 runs total). No saved
+experiment archives are required. It checks declared food and storage, requires
+all 300 town-month observations per seed, and rejects unmet rations above 0.01 kg
+or more than 0.01 nutrition-attributed deaths. Unlike a check of ending stocks,
+this detects a shortage followed by recovery and failures of food access.
+At least one old-allowance control must exhibit hunger, guarding against an
+uninformative fixture in which neither allowance matters.
+It is ignored during ordinary tests because it requires a GPU. It is a small
+founding guard, not a promise that every seed, resolution, custom policy or later
+economy remains viable.
+
+### Fresh-world regression result
+
+The 12-run regression passed on the available Quadro RTX 5000 in 39.3 seconds
+excluding compilation. All six new-default runs reached 654.19 people from 600,
+with no ration shortfall above 0.01 kg in 1,800 town-month observations. Summed
+nutrition-attributed deaths were 0.000056 per run (floating-point residue).
+The old allowance exposed 15 shortage town-months across its six controls.
+Seed 1024 ended at 632.51 people in frozen history and 623.55 in living history,
+with respectively 19.03 and 19.84 nutrition-attributed deaths. The other two
+controls remained viable; larger inventories need not help an already-sufficient
+town over this horizon.
+
+These are newly generated worlds with current system defaults, not replays of
+the older archives below. The initial fixture omitted society initialization;
+the missing-observation assertion failed rather than producing an empty pass.
+The corrected fixture uses the CLI system initialization path. No changes to
+harvest parameters or household policies were needed for this guard.
+The regular library suite also passed: 212 tests, with 156 opt-in tests ignored.
+Clippy passed for the library, CLI and regression target with warnings denied.
+
+## Original comparison controls and implementation
 
 Three arms use the same founding archives, seeds 1024, 256 and 409, frozen 32/32
 worlds and preceding screen's policies. Production, trade, work allocation,
@@ -43,13 +95,14 @@ explicit founding-provisions event. Repeating the same target adds nothing again
 a lower target cannot withdraw previously declared provisions. Food targets are
 bounded to 12–120 months and do not create recurring supplies or money.
 
-The storage option changes archived `production.base_granary_months`, default 12,
+The storage option changes archived `production.base_granary_months` (legacy fallback 12),
 bounded to 12–120. It enters the existing GPU capacity equation; normal container
 bonuses and spoilage remain active. It is a **baseline-capacity experiment**, not
 construction purchased from timber, bricks or labor. Capacity scales with current
 population just as the original granary rule did, so this arm changes long-term
 storage rules too, not merely the size of a temporary landing cache. It does not
-provide generic workshop/warehouse capacity. Normal defaults remain unchanged.
+provide generic workshop/warehouse capacity. The original comparison kept defaults unchanged; the new-founding defaults above
+now adopt its food-and-storage arm.
 
 ## Storage explains most of the food-only loss
 

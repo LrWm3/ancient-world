@@ -1,14 +1,12 @@
-//! Explicit month-zero provision experiments; storage and daughter founding are unchanged.
+//! Explicit arrival inventory imports; daughter founding keeps its own allowance.
 use super::{History, FOUNDING_PROVISION_KG_PER_PERSON_MONTH};
+use crate::culture::{MAX_FOUNDING_FOOD_MONTHS, MIN_FOUNDING_FOOD_MONTHS};
 use anyhow::{ensure, Result};
 use std::collections::BTreeSet;
 
-const MIN_PROVISION_MONTHS: u32 = 12;
-const MAX_PROVISION_MONTHS: u32 = 120;
-
 fn additional_food(people: f32, previously_declared: f32, months: u32) -> Result<f32> {
     ensure!(
-        (MIN_PROVISION_MONTHS..=MAX_PROVISION_MONTHS).contains(&months),
+        (MIN_FOUNDING_FOOD_MONTHS..=MAX_FOUNDING_FOOD_MONTHS).contains(&months),
         "founding food must be 12–120 months"
     );
     ensure!(
@@ -83,6 +81,19 @@ impl History {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn new_founding_defaults_and_legacy_options_are_distinct() {
+        let options = crate::culture::FoundingOptions::default();
+        assert_eq!(options.food_months, 48);
+        assert_eq!(options.granary_months, 48.);
+        options.validate().unwrap();
+        let mut old = serde_json::to_value(options).unwrap();
+        old.as_object_mut().unwrap().remove("food_months");
+        old.as_object_mut().unwrap().remove("granary_months");
+        let restored: crate::culture::FoundingOptions = serde_json::from_value(old).unwrap();
+        assert_eq!(restored.food_months, 12);
+        assert_eq!(restored.granary_months, 12.);
+    }
     #[test]
     fn archived_granary_default_and_capacity_bounds() {
         let mut catalog = crate::economy::EconomyCatalog::bundled().unwrap();

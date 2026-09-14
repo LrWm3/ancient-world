@@ -14,6 +14,12 @@ pub(crate) mod work_requests;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+/// New arrivals receive four adult-ration years and matching baseline storage.
+const DEFAULT_FOUNDING_FOOD_MONTHS: u32 = 48;
+pub(crate) const MIN_FOUNDING_FOOD_MONTHS: u32 = 12;
+pub(crate) const MAX_FOUNDING_FOOD_MONTHS: u32 = 120;
+const DEFAULT_FOUNDING_GRANARY_MONTHS: f32 = 48.;
+
 const HASH_ID_MULTIPLIER: u32 = 7919;
 const HASH_MONTH_MULTIPLIER: u32 = 104729;
 const HASH_STREAM_MULTIPLIER: u32 = 0x9e3779b9;
@@ -143,8 +149,18 @@ fn unit(seed: u32, id: u32, time: u32, stream: u32) -> f32 {
     x = (x ^ (x >> 15)).wrapping_mul(HASH_SECOND_MULTIPLIER);
     ((x ^ (x >> 16)) >> 8) as f32 / 16777216.
 }
+fn legacy_founding_food_months() -> u32 {
+    MIN_FOUNDING_FOOD_MONTHS
+}
+fn legacy_founding_granary_months() -> f32 {
+    crate::production::DEFAULT_BASE_GRANARY_MONTHS
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FoundingOptions {
+    #[serde(default = "legacy_founding_food_months")]
+    pub food_months: u32,
+    #[serde(default = "legacy_founding_granary_months")]
+    pub granary_months: f32,
     pub animal_months: u32,
     pub intelligent_months: u32,
     pub variance: [f32; 2],
@@ -153,6 +169,8 @@ pub struct FoundingOptions {
 impl Default for FoundingOptions {
     fn default() -> Self {
         Self {
+            food_months: DEFAULT_FOUNDING_FOOD_MONTHS,
+            granary_months: DEFAULT_FOUNDING_GRANARY_MONTHS,
             animal_months: DEFAULT_ANIMAL_SERVICE_MONTHS,
             intelligent_months: DEFAULT_INTELLIGENT_SERVICE_MONTHS,
             variance: DEFAULT_SERVICE_VARIANCE,
@@ -163,7 +181,12 @@ impl Default for FoundingOptions {
 impl FoundingOptions {
     pub fn validate(&self) -> Result<()> {
         ensure!(
-            (1..=MAX_PATRON_SERVICE_MONTHS).contains(&self.animal_months)
+            (MIN_FOUNDING_FOOD_MONTHS..=MAX_FOUNDING_FOOD_MONTHS).contains(&self.food_months)
+                && self.granary_months.is_finite()
+                && (crate::production::DEFAULT_BASE_GRANARY_MONTHS
+                    ..=crate::production::MAX_BASE_GRANARY_MONTHS)
+                    .contains(&self.granary_months)
+                && (1..=MAX_PATRON_SERVICE_MONTHS).contains(&self.animal_months)
                 && (1..=MAX_PATRON_SERVICE_MONTHS).contains(&self.intelligent_months)
                 && self
                     .variance
@@ -2581,6 +2604,8 @@ impl Generator {
     ) -> Result<()> {
         options.validate()?;
         catalog.validate()?;
+        let food_months = options.food_months;
+        let granary_months = options.granary_months;
         self.found_civilizations_base(count)?;
         let result = (|| {
             let cells = self.snapshot()?;
@@ -2591,7 +2616,16 @@ impl Generator {
             self.civilizations
                 .as_mut()
                 .unwrap()
-                .initialize_culture(&cells, options, catalog, coasts)
+                .initialize_culture(&cells, options, catalog, coasts)?;
+            let history = self.civilizations.as_mut().unwrap();
+            history.set_founding_food_months(food_months)?;
+            history
+                .economy_catalog
+                .as_mut()
+                .unwrap()
+                .production
+                .base_granary_months = granary_months;
+            Ok(())
         })();
         if result.is_err() {
             self.civilizations = None;
