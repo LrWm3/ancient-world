@@ -205,6 +205,8 @@ pub struct Candidate {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct History {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub demographic_audit: Option<crate::demographic_audit::Audit>,
     #[serde(default)]
     pub credit: crate::credit::state::Credit,
     #[serde(default)]
@@ -1258,6 +1260,7 @@ impl Generator {
             person_duties: Default::default(),
             service_allocation: Default::default(),
             domestic: Some(Default::default()),
+            demographic_audit: None,
             named_demography: Some(Default::default()),
             resolution: None,
             military: Default::default(),
@@ -1502,12 +1505,44 @@ impl Generator {
     ) -> Result<f64> {
         let production_started = std::time::Instant::now();
         let deaths_before: Vec<_> = h.sites.iter().map(|s| s.stocks.people[1]).collect();
+        let audit_before = if h.demographic_audit.is_some()
+            && h.resolution.is_none()
+            && h.society.is_some()
+            && !h.individual_demography_enabled()
+        {
+            Some(
+                h.sites
+                    .iter()
+                    .map(|s| (s.stocks.people, s.stocks.stock[0] > 0.))
+                    .collect::<Vec<_>>(),
+            )
+        } else {
+            None
+        };
         let individual_observation = h.observe_individual_demography()?;
         engine.upload(self, h);
         engine.claim(self);
         engine.fish(self);
         engine.dispatch(self, false, h.sites.len() as u32);
         engine.read(self, h, true)?;
+        if let Some(before) = audit_before {
+            h.demographic_audit.as_mut().unwrap().record(
+                h.month,
+                h.sites
+                    .iter()
+                    .zip(before)
+                    .filter(|(_, (_, ran))| *ran)
+                    .map(|(s, (old, _))| {
+                        (
+                            s.demography,
+                            [
+                                s.stocks.people[0] as f64 - old[0] as f64,
+                                s.stocks.people[1] as f64 - old[1] as f64,
+                            ],
+                        )
+                    }),
+            );
+        }
         h.settle_domestic_care();
         h.settle_office_service()?;
         h.settle_defense_work()?;

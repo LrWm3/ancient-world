@@ -158,3 +158,5 @@ pub mod contagion;
 pub mod peace;
 
 pub mod siege;
+
+pub mod demographic_audit;

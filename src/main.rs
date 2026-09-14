@@ -115,6 +115,9 @@ struct Args {
     /// Local surplus-wallet contributions for stock-backed food purchasing gaps.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     food_solidarity: Option<bool>,
+    /// Retain annual aggregate GPU demographic exposure diagnostics (no behavior changes).
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    demographic_audit: Option<bool>,
     /// Fund local experiments to recover missing production knowledge.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     practical_research: Option<bool>,
@@ -246,6 +249,7 @@ fn main() -> Result<()> {
                 && args.needs_based_food.is_none()
                 && args.gradual_nutrition.is_none()
                 && args.food_solidarity.is_none()
+                && args.demographic_audit.is_none()
                 && args.practical_research.is_none()
                 && args.household_estate_reclamation.is_none()
                 && args.abandoned_stock_recovery.is_none()
@@ -524,6 +528,24 @@ fn main() -> Result<()> {
             } else {
                 e.gradual_nutrition = enabled;
             }
+        }
+    }
+    if let Some(enabled) = args.demographic_audit {
+        let h = generator
+            .civilizations
+            .as_mut()
+            .context("demographic audit requires history")?;
+        anyhow::ensure!(
+            !enabled
+                || (h.society.is_some()
+                    && h.resolution.is_none()
+                    && !h.individual_demography_enabled()),
+            "demographic audit requires GPU aggregate demography without resolution overrides"
+        );
+        if enabled {
+            h.demographic_audit.get_or_insert_with(Default::default);
+        } else {
+            h.demographic_audit = None;
         }
     }
     if let Some(enabled) = args.food_solidarity {

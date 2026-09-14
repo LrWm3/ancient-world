@@ -5,6 +5,7 @@ use ancient_world::{
 };
 fn network() -> History {
     History {
+        demographic_audit: None,
         credit: Default::default(),
         contagion: None,
         trade_contact: Default::default(),

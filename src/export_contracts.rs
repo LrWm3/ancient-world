@@ -342,6 +342,7 @@ mod tests {
             person_duties: Default::default(),
             service_allocation: Default::default(),
             domestic: None,
+            demographic_audit: None,
             named_demography: None,
             military: Default::default(),
             participation: None,

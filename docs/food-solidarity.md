@@ -130,3 +130,8 @@ Disabled-policy regression: a fresh seed-1024 century run matches the entire
 previous health-only history export after removing only the new default policy
 and zero transfer counters. This is one same-backend regression, not an assertion
 of universal bitwise portability.
+
+The subsequent [demographic window audit](demographic-window-audit.md) finds that
+physical food shortages already drive heavy losses in years two and three, before
+purchasing gaps become substantial. It records the mediators at the GPU boundary
+instead of inferring early causes from late surviving households.
