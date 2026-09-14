@@ -121,3 +121,6 @@ food entitlement. Endpoint readiness is useful but does not establish that schoo
 guilds or religious services delivered enough useful work to change those outcomes.
 A funding-only arm and a larger seed ensemble would further distinguish the joint
 policy's benefits and costs. No default changes are justified by these two seeds.
+
+The [local bottleneck follow-up](growth-local-bottlenecks.md) completes the
+funding-only arm and examines the late site-level food and work observations.
