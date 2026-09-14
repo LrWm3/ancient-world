@@ -318,3 +318,6 @@ When loading an old common-food experiment for a purchasing comparison, also use
 `--disable-system needs-based-food`: loading otherwise preserves that saved policy.
 As in the original screen, retention changes existing towns only, while release
 is a global archived production setting and applies to subsequent daughter towns.
+
+Further purchasing and funding comparisons are recorded in
+[the purchasing follow-up](growth-purchasing-followup.md).
