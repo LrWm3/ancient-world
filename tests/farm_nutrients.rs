@@ -100,3 +100,91 @@ fn geological_release_consumes_source_and_resumes() {
         );
     }
 }
+
+#[test]
+#[ignore = "requires GPU; 200-year positive-growth scenario, not a default-balance guarantee"]
+fn nutrient_and_food_access_scenario_supports_continued_expansion() {
+    use ancient_world::systems::System;
+    let gpu = pollster::block_on(ContextGpu::headless()).unwrap();
+    let mut g = Generator::new(
+        gpu,
+        Config {
+            resolution: 32,
+            ecology_resolution: 32,
+            seed: 1024,
+            ..Default::default()
+        },
+        Catalog::bundled().unwrap(),
+    )
+    .unwrap();
+    g.run_epochs(1).unwrap();
+    g.found_civilizations(5).unwrap();
+    let mut systems = g.config.systems.clone();
+    systems.select(System::NeedsBasedFood, true);
+    systems.select(System::DemographicAudit, true);
+    g.apply_systems(&systems).unwrap();
+    g.civilizations
+        .as_mut()
+        .unwrap()
+        .economy_catalog
+        .as_mut()
+        .unwrap()
+        .production
+        .phosphorus_release_monthly_fraction = 5e-7;
+    let ids: Vec<_> = g
+        .civilizations
+        .as_ref()
+        .unwrap()
+        .sites
+        .iter()
+        .map(|s| (s.id, s.economy.policy))
+        .collect();
+    for (id, mut policy) in ids {
+        policy[1] = 0.95;
+        g.set_site_policy(id, policy).unwrap();
+    }
+    assert_eq!(g.civilizations.as_ref().unwrap().initial_population, 600.);
+    g.advance_history(2400).unwrap();
+    let h = g.civilizations.as_ref().unwrap();
+    let population: f32 = h.sites.iter().map(|s| s.stocks.stock[0]).sum();
+    let active = h
+        .sites
+        .iter()
+        .filter(|s| !s.abandoned && s.stocks.stock[0] > 0.)
+        .count();
+    let audit = h.demographic_audit.as_ref().unwrap();
+    assert_eq!(audit.years.len(), 200);
+    let late_births: f64 = audit
+        .years
+        .iter()
+        .filter(|r| r.year > 190)
+        .map(|r| r.observed_births)
+        .sum();
+    let late_deaths: f64 = audit
+        .years
+        .iter()
+        .filter(|r| r.year > 190)
+        .map(|r| r.observed_deaths)
+        .sum();
+    assert!(
+        population > 1500.,
+        "only {population} people after 200 years"
+    );
+    assert!(active >= 8, "only {active} active settlements");
+    assert!(
+        late_births > late_deaths,
+        "late growth ceased: {late_births} births, {late_deaths} deaths"
+    );
+    assert!(h.sites.iter().any(|s| s.founded > 1200 && !s.abandoned));
+    assert!(h
+        .culture
+        .as_ref()
+        .unwrap()
+        .institutions
+        .iter()
+        .any(|i| i.active));
+    assert!(h.population_residual().abs() < 0.001);
+    assert!(h.food_residual().abs() < 0.001);
+    assert!(h.economy_residuals().iter().all(|v| v.abs() < 0.001));
+    println!("growth scenario: {population:.2} people, {active} active towns; final-decade births/deaths {late_births:.2}/{late_deaths:.2}");
+}

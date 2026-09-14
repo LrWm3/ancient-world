@@ -73,6 +73,13 @@ enterprises and workshops). Gradual nutrition and demographic auditing retain
 their existing demographic-mode restrictions. No configuration switch clears
 loan obligations or resets an issuance authorization window.
 
+Enabled policy is distinct from delivered capacity. Wealth-tax collection and
+estate reclamation require completed `named-office-service` work; the policy
+switches do not implicitly fund or activate that service. Enable it explicitly for
+an operational comparison, then inspect collection/review receipts. Available
+staff, funds, taxable balances and eligible estates can still prevent execution.
+See the [growth and circulation screen](growth-nutrient-screen.md).
+
 ```sh
 # New history with selected experiments:
 cargo run --release -- --headless --civilizations 5 \

@@ -320,6 +320,8 @@ fn main() -> Result<()> {
             || (args.civilizations.is_none()
                 && args.history_years == 0
                 && args.crop_yield_scale.is_none()
+                && args.farm_phosphorus_release.is_none()
+                && args.farm_nutrient_retention.is_none()
                 && args.history_export.is_none()
                 && args.council_credit.is_none()
                 && args.institution_credit_lenders.is_none()
