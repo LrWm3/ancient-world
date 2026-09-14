@@ -63,6 +63,13 @@ impl History {
                 .as_ref()
                 .and_then(|s| s.household_economy.as_ref())
                 .is_some_and(|e| e.gradual_nutrition),
+            System::InstitutionWorkingCore => self
+                .culture
+                .as_ref()
+                .is_some_and(|c| c.institution_working_core),
+            System::InstitutionOperatingFunding => self.culture.as_ref().is_some_and(|c| {
+                c.institution_funding == crate::institution_funding::Policy::Operating
+            }),
             System::MunicipalFoodRelief => self
                 .society
                 .as_ref()
@@ -190,6 +197,22 @@ impl History {
                     .and_then(|s| s.household_economy.as_mut())
                     .context("food policy requires household accounts")?
                     .gradual_nutrition = enabled;
+            }
+            System::InstitutionWorkingCore => {
+                self.culture
+                    .as_mut()
+                    .context("institution working core requires culture")?
+                    .institution_working_core = enabled;
+            }
+            System::InstitutionOperatingFunding => {
+                self.culture
+                    .as_mut()
+                    .context("institution funding requires culture")?
+                    .institution_funding = if enabled {
+                    crate::institution_funding::Policy::Operating
+                } else {
+                    crate::institution_funding::Policy::Legacy
+                };
             }
             System::MunicipalFoodRelief => {
                 self.society

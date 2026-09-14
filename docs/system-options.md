@@ -179,3 +179,9 @@ under ignored `output/`; no experiment artifacts are committed.
 `municipal-food-relief` is an opt-in town-funded purchasing transfer after council
 and household help. It protects a working-cash allowance and only backs purchases
 with opening food stocks. See [municipal food relief](municipal-food-relief.md).
+
+Institution service comparisons can independently enable `institution-working-core`
+(core rather than full-membership operating space) and `institution-operating-funding`
+(quoted operating budgets instead of legacy donations). Both retain their existing
+archived culture policies and are opt-in. Neither enables named administration or
+changes institutional work priority. See [the growing-world service comparison](institution-growth-followup.md).

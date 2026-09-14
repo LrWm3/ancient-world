@@ -529,28 +529,34 @@ impl Society {
             "invalid council"
         );
         ensure!(
-            self.households.len() <= MAX_HOUSEHOLDS
-                && self
-                    .households
-                    .iter()
-                    .enumerate()
-                    .all(|(i, f)| f.id == i as u32
-                        && (f.site as usize) < h.sites.len()
-                        && h.people
-                            .get(f.head as usize)
-                            .is_some_and(|p| match f.vacant_since {
-                                Some(month) =>
-                                    month <= h.month
-                                        && month >= f.founded
-                                        && p.died.is_some_and(|d| d <= month),
-                                None => p.died.is_none(),
-                            })
-                        && f.share.is_finite()
-                        && f.share >= 0.
-                        && f.founded <= h.month
-                        && f.parent.is_none_or(|p| p < f.id)),
-            "invalid household or lineage"
+            self.households.len() <= MAX_HOUSEHOLDS,
+            "household limit exceeded at month {}",
+            h.month
         );
+        for (i, f) in self.households.iter().enumerate() {
+            ensure!(
+                f.id == i as u32
+                    && (f.site as usize) < h.sites.len()
+                    && h.people
+                        .get(f.head as usize)
+                        .is_some_and(|p| match f.vacant_since {
+                            Some(month) =>
+                                month <= h.month
+                                    && month >= f.founded
+                                    && p.died.is_some_and(|d| d <= month),
+                            None => p.died.is_none(),
+                        })
+                    && f.share.is_finite()
+                    && f.share >= 0.
+                    && f.founded <= h.month
+                    && f.parent.is_none_or(|p| p < f.id),
+                "invalid household or lineage at month {}: index={}, household={:?}, head={:?}",
+                h.month,
+                i,
+                f,
+                h.people.get(f.head as usize)
+            );
+        }
         let heads = self
             .households
             .iter()
@@ -803,32 +809,37 @@ impl History {
                 for family in 0..count {
                     let id = society.households.len() as u32;
                     let leader = self.civilizations[site.civilization as usize].leader;
-                    let head =
-                        if family == 0 && !society.households.iter().any(|f| f.head == leader) {
-                            leader
-                        } else {
-                            let person = self.people.len() as u32;
-                            self.people.push(Person {
-                                id: person,
-                                name: self.civilizations[site.civilization as usize]
-                                    .naming(self.seed)
-                                    .person_with(
-                                        "person",
-                                        person,
-                                        &crate::naming::PersonalContext::local(
-                                            site,
-                                            self.culture.as_ref(),
-                                        ),
+                    let head = if family == 0
+                        && self
+                            .people
+                            .get(leader as usize)
+                            .is_some_and(|p| p.died.is_none())
+                        && !society.households.iter().any(|f| f.head == leader)
+                    {
+                        leader
+                    } else {
+                        let person = self.people.len() as u32;
+                        self.people.push(Person {
+                            id: person,
+                            name: self.civilizations[site.civilization as usize]
+                                .naming(self.seed)
+                                .person_with(
+                                    "person",
+                                    person,
+                                    &crate::naming::PersonalContext::local(
+                                        site,
+                                        self.culture.as_ref(),
                                     ),
-                                civilization: site.civilization,
-                                born: self.month as i32
-                                    - INITIAL_HEAD_MIN_AGE_MONTHS
-                                    - (family as i32 % INITIAL_HEAD_AGE_SPAN_YEARS) * 12,
-                                died: None,
-                                predecessor: None,
-                            });
-                            person
-                        };
+                                ),
+                            civilization: site.civilization,
+                            born: self.month as i32
+                                - INITIAL_HEAD_MIN_AGE_MONTHS
+                                - (family as i32 % INITIAL_HEAD_AGE_SPAN_YEARS) * 12,
+                            died: None,
+                            predecessor: None,
+                        });
+                        person
+                    };
                     society.households.push(Household {
                         id,
                         site: site.id,
@@ -1752,6 +1763,53 @@ impl Generator {
 mod tests {
     use super::*;
     use crate::{catalog::Catalog, config::Config, gpu::ContextGpu};
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn founding_households_do_not_reuse_deceased_leaders() {
+        let mut g = Generator::new(
+            pollster::block_on(ContextGpu::headless()).unwrap(),
+            Config {
+                resolution: 32,
+                ecology_resolution: 16,
+                ..Default::default()
+            },
+            Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        g.enable_society().unwrap();
+        let cells = g.snapshot().unwrap();
+        let radius = g.config.radius_km;
+        let h = g.civilizations.as_mut().unwrap();
+        let mut former_leader = h.people[h.civilizations[0].leader as usize].clone();
+        let deceased = h.people.len() as u32;
+        former_leader.id = deceased;
+        former_leader.died = Some(h.month);
+        let death = former_leader.died;
+        h.people.push(former_leader);
+        h.civilizations[0].leader = deceased;
+        let mut daughter = h
+            .sites
+            .iter()
+            .find(|s| s.civilization == 0)
+            .unwrap()
+            .clone();
+        daughter.id = h.sites.len() as u32;
+        h.sites.push(daughter);
+        // Exercise household initialization directly: political succession remains
+        // outside this fixture, and the new site has no previous household heads.
+        h.prepare_society_with_navigation(&cells, radius, None)
+            .unwrap();
+        let society = h.society.as_ref().unwrap();
+        assert!(!society.households.is_empty());
+        assert!(society
+            .households
+            .iter()
+            .all(|f| f.head != deceased && h.people[f.head as usize].died.is_none()));
+        assert_eq!(h.people[deceased as usize].died, death);
+        assert_eq!(h.civilizations[0].leader, deceased);
+    }
 
     #[test]
     #[ignore = "requires hardware GPU"]
