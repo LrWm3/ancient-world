@@ -41,8 +41,13 @@ def summarize(history):
     decade = [y for y in years if last_year - 10 < y['year'] <= last_year]
     need = sum(y['food_need_kg'] for y in years)
     active = [n for n in institutions if n['active']]
+    municipal = society['household_economy'].get('municipal_relief', {})
+    municipal_receipts = municipal.get('receipts', [])
     return {
         'seed': history['seed'], 'month': history['month'],
+        'municipal_relief_month': municipal.get('month'),
+        'municipal_relief_requested': sum(r['requested'] for r in municipal_receipts),
+        'municipal_relief_paid': sum(r['paid'] for r in municipal_receipts),
         'population': sum(s['stocks']['stock'][0] for s in sites),
         'active_towns': sum(not s['abandoned'] for s in sites),
         'total_towns': len(sites),

@@ -150,3 +150,7 @@ Separately, a communal-food policy still needs a sustainable service-payment pat
 its disappearance of food-sale revenue is real. That question should remain a
 separate comparison rather than bundling a purchasing reform, institution subsidy
 and new tax into one change. No default was changed based on these four runs.
+
+The next implemented comparison is [municipal food relief](municipal-food-relief.md):
+a finite, opt-in town-to-household purchasing transfer. Both tested seeds expand
+and retain positive late natural growth, while institutional services remain weak.

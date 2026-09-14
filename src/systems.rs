@@ -24,6 +24,7 @@ pub enum System {
     NeedsBasedFood,
     GradualNutrition,
     FoodSolidarity,
+    MunicipalFoodRelief,
     DemographicAudit,
     StagedHarbors,
     PracticalResearch,
@@ -92,6 +93,7 @@ impl System {
         Self::NeedsBasedFood,
         Self::GradualNutrition,
         Self::FoodSolidarity,
+        Self::MunicipalFoodRelief,
         Self::DemographicAudit,
         Self::StagedHarbors,
         Self::PracticalResearch,
@@ -125,6 +127,7 @@ impl System {
         Self::NeedsBasedFood,
         Self::GradualNutrition,
         Self::FoodSolidarity,
+        Self::MunicipalFoodRelief,
         Self::DemographicAudit,
         Self::StagedHarbors,
         Self::PracticalResearch,
@@ -200,6 +203,7 @@ impl System {
             | Self::CouncilWelfareReserves
             | Self::NeedsBasedFood
             | Self::GradualNutrition
+            | Self::MunicipalFoodRelief
             | Self::FoodSolidarity
             | Self::DemographicAudit
             | Self::AbandonedStockRecovery => &[Self::Society],

@@ -63,6 +63,11 @@ impl History {
                 .as_ref()
                 .and_then(|s| s.household_economy.as_ref())
                 .is_some_and(|e| e.gradual_nutrition),
+            System::MunicipalFoodRelief => self
+                .society
+                .as_ref()
+                .and_then(|s| s.household_economy.as_ref())
+                .is_some_and(|e| e.municipal_relief.enabled),
             System::FoodSolidarity => self
                 .society
                 .as_ref()
@@ -185,6 +190,14 @@ impl History {
                     .and_then(|s| s.household_economy.as_mut())
                     .context("food policy requires household accounts")?
                     .gradual_nutrition = enabled;
+            }
+            System::MunicipalFoodRelief => {
+                self.society
+                    .as_mut()
+                    .and_then(|s| s.household_economy.as_mut())
+                    .context("municipal relief requires household accounts")?
+                    .municipal_relief
+                    .enabled = enabled;
             }
             System::FoodSolidarity => {
                 self.society

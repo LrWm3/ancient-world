@@ -6,6 +6,7 @@ pub mod clothing;
 pub mod council_allocation;
 mod family_support;
 pub mod inheritance;
+pub mod municipal_relief;
 mod nutrition;
 pub mod policy;
 pub mod reclamation;
@@ -123,6 +124,8 @@ impl FoundingAccess {
 pub struct HouseholdEconomy {
     #[serde(default)]
     pub solidarity: solidarity::Policy,
+    #[serde(default)]
+    pub municipal_relief: municipal_relief::Policy,
     /// Counterfactual: all current dietary need may access finite local food.
     #[serde(default)]
     pub needs_based_food: bool,
@@ -190,6 +193,7 @@ impl HouseholdEconomy {
     pub fn new(month: u32) -> Self {
         Self {
             solidarity: Default::default(),
+            municipal_relief: Default::default(),
             needs_based_food: false,
             gradual_nutrition: false,
             wealth_tax: Default::default(),
@@ -309,6 +313,7 @@ impl HouseholdEconomy {
         inheritance::validate(self, h)?;
         reclamation::validate(self, h)?;
         wealth_tax::validate(self, h)?;
+        municipal_relief::validate(self, h)?;
         ensure!(
             self.clothing_month.is_none_or(|m| m <= h.month),
             "invalid clothing clock"
@@ -853,6 +858,7 @@ impl History {
                 .collect::<Vec<_>>(),
             self.month,
         );
+        municipal_relief::settle(e, &plans, &mut self.sites, self.month);
         for p in &mut plans {
             for (j, &id) in p.ids.iter().enumerate() {
                 p.demand[j] = (p.needs[j]

@@ -61,7 +61,7 @@ implementation; contradictory alias/registry requests fail before GPU startup.
 | Credit and issuance | `council-credit`, `institution-credit-lenders`, `institution-credit-operating-reserve`, `commercial-credit`, `service-order-credit`, `shared-issuance` |
 | Procurement and work | `service-order-procurement`, `contract-workshop-staffing`, `demand-workshop-staffing`, `named-office-service` |
 | Household distribution | `household-estate-inheritance`, `household-estate-reclamation`, `household-clothing`, `household-wealth-tax`, `council-welfare-reserves` |
-| Food and observation | `needs-based-food`, `gradual-nutrition`, `food-solidarity`, `demographic-audit` |
+| Food and observation | `needs-based-food`, `gradual-nutrition`, `food-solidarity`, `municipal-food-relief`, `demographic-audit` |
 | Knowledge and logistics | `practical-research`, `staged-harbors`, `abandoned-stock-recovery` |
 | Export settlement | `export-default-recovery`, `delivery-paid-exports` |
 
@@ -175,3 +175,7 @@ using `--household-wealth-tax=true` versus `--enable-system household-wealth-tax
 produced identical full history exports. The archive's existing living baseline
 and disabled council-credit/issuance policies were preserved. Raw outputs remain
 under ignored `output/`; no experiment artifacts are committed.
+
+`municipal-food-relief` is an opt-in town-funded purchasing transfer after council
+and household help. It protects a working-cash allowance and only backs purchases
+with opening food stocks. See [municipal food relief](municipal-food-relief.md).
