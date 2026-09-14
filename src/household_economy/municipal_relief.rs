@@ -12,18 +12,31 @@ const MONEY_TOLERANCE: f64 = 1e-7;
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Policy {
     pub enabled: bool,
+    /// Use surplus above protected working cash to meet current food gaps.
+    #[serde(default)]
+    pub needs_first: bool,
     pub month: Option<u32>,
     pub receipts: Vec<Receipt>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Receipt {
     pub site: u32,
+    #[serde(default)]
+    pub needs_first: bool,
     pub opening_cash: f64,
     pub protected_cash: f64,
     pub requested: f64,
     pub food_backed: f64,
     pub allowance: f64,
     pub paid: f64,
+}
+fn allowance(cash: f64, protected: f64, needs_first: bool) -> f64 {
+    (cash - protected).max(0.)
+        * if needs_first {
+            1.
+        } else {
+            MONTHLY_SURPLUS_SHARE
+        }
 }
 fn transfer(
     e: &mut HouseholdEconomy,
@@ -49,7 +62,8 @@ fn transfer(
     let protected_cash = population.max(0.) as f64 * WORKING_CASH_PER_RESIDENT;
     let requested = requests.iter().sum::<f64>();
     let food_backed = (food.min(p.need) - funded).max(0.) * p.price;
-    let allowance = (opening_cash - protected_cash).max(0.) * MONTHLY_SURPLUS_SHARE;
+    let needs_first = e.municipal_relief.needs_first;
+    let allowance = allowance(opening_cash, protected_cash, needs_first);
     let budget = requested.min(food_backed).min(allowance);
     // Round the remaining f32 account upward, so payment never exceeds its ceiling.
     let mut remaining = (opening_cash - budget) as f32;
@@ -64,6 +78,7 @@ fn transfer(
     }
     Receipt {
         site: p.site as u32,
+        needs_first,
         opening_cash,
         protected_cash,
         requested,
@@ -127,8 +142,7 @@ pub(super) fn validate(e: &HouseholdEconomy, h: &History) -> Result<()> {
             "municipal relief amounts"
         );
         ensure!(
-            (r.allowance - (r.opening_cash - r.protected_cash).max(0.) * MONTHLY_SURPLUS_SHARE)
-                .abs()
+            (r.allowance - allowance(r.opening_cash, r.protected_cash, r.needs_first)).abs()
                 <= MONEY_TOLERANCE
                 && r.paid <= r.allowance.min(r.requested).min(r.food_backed) + MONEY_TOLERANCE,
             "municipal relief exceeds available budget"
@@ -155,6 +169,33 @@ mod tests {
             },
         )
     }
+    #[test]
+    fn needs_first_removes_throttle_but_not_food_or_cash_constraints() {
+        let (mut e, p) = fixture();
+        e.municipal_relief.needs_first = true;
+        let mut cash = 2000.;
+        let r = transfer(&mut e, &p, &mut cash, 100., 200.);
+        assert_eq!(r.paid, 200.);
+        assert_eq!(cash, 1800.);
+        assert_eq!(e.accounts.iter().map(|a| a.cash).sum::<f64>(), 200.);
+        let (mut short, p) = fixture();
+        short.municipal_relief.needs_first = true;
+        let mut cash = 1050.;
+        assert_eq!(transfer(&mut short, &p, &mut cash, 100., 200.).paid, 50.);
+        assert_eq!(cash, 1000.);
+        let (mut empty, p) = fixture();
+        empty.municipal_relief.needs_first = true;
+        let mut cash = 2000.;
+        assert_eq!(transfer(&mut empty, &p, &mut cash, 100., 0.).paid, 0.);
+        assert_eq!(cash, 2000.);
+        let old: Policy =
+            serde_json::from_str(r#"{"enabled":true,"month":null,"receipts":[]}"#).unwrap();
+        assert!(!old.needs_first);
+        let restored: HouseholdEconomy =
+            serde_json::from_value(serde_json::to_value(&e).unwrap()).unwrap();
+        assert!(restored.municipal_relief.needs_first);
+    }
+
     #[test]
     fn finite_transfer_respects_food_cash_and_existing_entitlements() {
         let (mut e, p) = fixture();

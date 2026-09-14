@@ -36,6 +36,17 @@ class FundingSummaryTests(unittest.TestCase):
         self.assertEqual(result['institution_cash'], 3)
         self.assertEqual(result['household_cash'], 50)
 
+    def test_intervention_window_excludes_preexisting_history(self):
+        result = summarize(self.fixture(), after_year=10)
+        self.assertEqual(result['physical_gap_pct'], 0)
+        self.assertEqual(result['access_gap_pct'], 10)
+        self.assertEqual(result['audit_months'], 12)
+        self.assertEqual(result['audit_first_year'], 20)
+        self.assertEqual(result['window_births'], 3)
+        self.assertEqual(result['town_cash'], 30)
+        with self.assertRaises(ValueError):
+            summarize(self.fixture(), after_year=20)
+
     def test_readiness_alone_does_not_establish_operation(self):
         institution = {'active': True, 'capacity': {
             'readiness': 1, 'mandate': {'holder': None}, 'building': None}}

@@ -101,3 +101,7 @@ history after removing the newly introduced, disabled `municipal_relief` field.
 This is stronger than endpoint agreement for the disabled path. It does not claim
 cross-GPU identity or whole-generator checkpoint equivalence with the policy on;
 the focused continuation test covers the new transfer state itself.
+
+An opt-in [needs-first municipal allocation](municipal-needs-first.md) now compares
+covering food gaps from surplus cash against the original 5% allowance. It keeps
+the working reserve, physical food checks, monthly boundary and cash accounting.

@@ -191,3 +191,10 @@ The existing food-connection investment mechanism has a numeric planning horizon
 `production.food_connection_target_months` in the economy catalog. The default
 remains three months. This changes prospective construction demand, not available
 food or vessel capacity. See [the horizon experiment](food-connection-horizon.md).
+
+`municipal-welfare-reserves` selects needs-first allocation of municipal surplus
+for food purchasing assistance. It requires `municipal-food-relief` to actually
+transfer funds; the controls remain independently enableable. The default is the
+existing 5% surplus allowance, and disabling the new option restores it. Both
+policies protect working cash and require available food. See the
+[matched-checkpoint comparison](municipal-needs-first.md).

@@ -70,6 +70,11 @@ impl History {
             System::InstitutionOperatingFunding => self.culture.as_ref().is_some_and(|c| {
                 c.institution_funding == crate::institution_funding::Policy::Operating
             }),
+            System::MunicipalWelfareReserves => self
+                .society
+                .as_ref()
+                .and_then(|s| s.household_economy.as_ref())
+                .is_some_and(|e| e.municipal_relief.needs_first),
             System::MunicipalFoodRelief => self
                 .society
                 .as_ref()
@@ -213,6 +218,14 @@ impl History {
                 } else {
                     crate::institution_funding::Policy::Legacy
                 };
+            }
+            System::MunicipalWelfareReserves => {
+                self.society
+                    .as_mut()
+                    .and_then(|s| s.household_economy.as_mut())
+                    .context("municipal welfare requires household accounts")?
+                    .municipal_relief
+                    .needs_first = enabled;
             }
             System::MunicipalFoodRelief => {
                 self.society

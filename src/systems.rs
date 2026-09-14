@@ -25,6 +25,7 @@ pub enum System {
     GradualNutrition,
     FoodSolidarity,
     MunicipalFoodRelief,
+    MunicipalWelfareReserves,
     InstitutionWorkingCore,
     InstitutionOperatingFunding,
     DemographicAudit,
@@ -96,6 +97,7 @@ impl System {
         Self::GradualNutrition,
         Self::FoodSolidarity,
         Self::MunicipalFoodRelief,
+        Self::MunicipalWelfareReserves,
         Self::InstitutionWorkingCore,
         Self::InstitutionOperatingFunding,
         Self::DemographicAudit,
@@ -132,6 +134,7 @@ impl System {
         Self::GradualNutrition,
         Self::FoodSolidarity,
         Self::MunicipalFoodRelief,
+        Self::MunicipalWelfareReserves,
         Self::InstitutionWorkingCore,
         Self::InstitutionOperatingFunding,
         Self::DemographicAudit,
@@ -211,6 +214,7 @@ impl System {
             | Self::GradualNutrition
             | Self::InstitutionWorkingCore
             | Self::InstitutionOperatingFunding
+            | Self::MunicipalWelfareReserves
             | Self::MunicipalFoodRelief
             | Self::FoodSolidarity
             | Self::DemographicAudit
