@@ -139,3 +139,6 @@ checkpoint equivalence or cross-hardware study. No century-scale staged-harbor
 balance claim is made by this short screen.
 The ordinary market integration target also passes 19 tests, with two extended
 cases ignored.
+
+The next investigation, [founding farm balance](founding-farm-balance.md), traces
+local crop harvests, cultivation and resource probes through years one to three.
