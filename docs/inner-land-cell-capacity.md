@@ -38,3 +38,6 @@ positive and below the full grid size. Run time totaled approximately 9.78 secon
 excluding compilation; the first run includes additional initialization overhead.
 Raw CSV and build output remain under ignored `output/`; only this summary and
 source are committed.
+
+For matched population-growth treatments, staged checkpoints and cap comparisons,
+see [the settlement growth experiment](settlement-growth-experiment.md).

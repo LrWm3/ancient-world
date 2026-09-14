@@ -72,7 +72,7 @@ fn demographic_month(i:u32,shortage:f32,food:f32)->vec2<f32> {
   illness_shortage=dot(mortality_hunger,need)/max(dot(need,vec3(1.)),DEMOGRAPHY_DIVISION_FLOOR);
  }
  let disease=clamp(d.health.x*MONTHLY_ILLNESS_RETENTION+illness_shortage*SHORTAGE_MONTHLY_ILLNESS+contamination,0.,MAX_DISEASE_BURDEN);
- let losses=old*min(vec3(MAX_MONTHLY_MORTALITY),vec3(CHILD_BASE_MONTHLY_MORTALITY,ADULT_BASE_MONTHLY_MORTALITY,ELDER_BASE_MONTHLY_MORTALITY)+mortality_hunger*vec3(CHILD_HUNGER_MORTALITY,ADULT_HUNGER_MORTALITY,ELDER_HUNGER_MORTALITY)+vec3(disease*DISEASE_MORTALITY));
+ let losses=old*min(vec3(MAX_MONTHLY_MORTALITY),vec3(CHILD_BASE_MONTHLY_MORTALITY,ADULT_BASE_MONTHLY_MORTALITY,ELDER_BASE_MONTHLY_MORTALITY)*p.storage_policy.z+mortality_hunger*vec3(CHILD_HUNGER_MORTALITY,ADULT_HUNGER_MORTALITY,ELDER_HUNGER_MORTALITY)+vec3(disease*DISEASE_MORTALITY));
  let born=old.y*MONTHLY_BIRTH_RATE_PER_ADULT*(1.-hunger.y)*(1.-disease);
  var weather=regional_weather(u32(src[i].habitat.z));if (p.options.w&2u)!=0u {let c=world[u32(src[i].habitat.z)];weather=clamp(c.climate.y/max(c.hydro.z,WEATHER_REFERENCE_RAIN_FLOOR),0.,MAX_REGIONAL_WEATHER_RATIO);}
  // Identity-owned mode retains GPU ration/weather/disease work, but commits

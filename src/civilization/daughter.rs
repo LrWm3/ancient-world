@@ -1,7 +1,7 @@
 //! Annual daughter founding refines a population target into whole households.
 use super::{
     Candidate, History, DAUGHTER_MAX_POPULATION, DAUGHTER_MIN_POPULATION,
-    FOUNDING_PROVISION_KG_PER_PERSON_MONTH, FOUNDING_PROVISION_MONTHS, MAX_SETTLEMENTS,
+    FOUNDING_PROVISION_KG_PER_PERSON_MONTH,
 };
 use crate::population_registry::age_band;
 use std::collections::BTreeSet;
@@ -16,7 +16,7 @@ impl History {
         target: f32,
     ) -> bool {
         if !self.individual_demography_enabled()
-            || self.sites.len() >= MAX_SETTLEMENTS
+            || self.sites.len() >= self.growth.settlement_limit
             || !target.is_finite()
             || target < DAUGHTER_MIN_POPULATION
             || self.sites[from].abandoned
@@ -55,7 +55,9 @@ impl History {
         }
         let population = people.len() as f32;
         let source = &self.sites[from];
-        let food = population * FOUNDING_PROVISION_KG_PER_PERSON_MONTH * FOUNDING_PROVISION_MONTHS;
+        let food = population
+            * FOUNDING_PROVISION_KG_PER_PERSON_MONTH
+            * self.growth.founding_reserve_months;
         if population < DAUGHTER_MIN_POPULATION
             || ages[1] < 1.
             || population >= source.stocks.stock[0]

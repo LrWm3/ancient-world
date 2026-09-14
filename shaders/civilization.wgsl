@@ -52,6 +52,7 @@ struct Cell {
 }
 
 struct Site { stock:vec4<f32>, habitat:vec4<f32>, ledger:vec4<f32>, people:vec4<f32> }
+// storage_policy: granary months, phosphorus release fraction, background mortality scale, reserved.
 struct Params { dims:vec4<u32>, options:vec4<u32>, weather:vec4<u32>, storage_policy:vec4<f32> }
 @group(0) @binding(0) var<storage,read> world:array<Cell>;
 @group(0) @binding(1) var<storage,read> src:array<Site>;
@@ -120,7 +121,7 @@ fn month(@builtin(global_invocation_id) g:vec3<u32>) {
  let overflow=max(0.,available-eaten-capacity);
  let spoilage=ordinary_spoilage+overflow;
  if p.options.x==2u {return_food(i,eaten+ordinary_spoilage);var e=economies[i];e.detritus+=vec4(overflow*LEGACY_FOOD_CNP_FRACTION,0.);economies[i]=e;}
- var births=s.stock.x*LEGACY_MONTHLY_BIRTH_RATE*(1.-shortage);var deaths=s.stock.x*(LEGACY_MONTHLY_DEATH_RATE+shortage*LEGACY_MONTHLY_STARVATION_DEATH_RATE);
+ var births=s.stock.x*LEGACY_MONTHLY_BIRTH_RATE*(1.-shortage);var deaths=s.stock.x*(LEGACY_MONTHLY_DEATH_RATE*p.storage_policy.z+shortage*LEGACY_MONTHLY_STARVATION_DEATH_RATE);
  if (p.options.w&1u)==1u {let change=demographic_month(i,shortage,eaten);births=change.x;deaths=change.y;}
  s.stock.x=max(0.,s.stock.x+births-deaths);
  // Cohorts are authoritative; separately integrating their sum accumulates drift after collapse.

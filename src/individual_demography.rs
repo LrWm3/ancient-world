@@ -607,8 +607,14 @@ impl History {
                 (0..3).all(|b| d.ages[b] as f64 == observation.opening[site][b]),
                 "demographic opening stocks changed before resolution"
             );
-            let projection =
+            let mut projection =
                 DemographicProjection::from_site_exposure(observation.opening[site], d);
+            for b in 0..3 {
+                projection.mortality[b] = self.growth.mortality(
+                    projection.mortality[b],
+                    crate::society::BASE_MONTHLY_MORTALITY[b],
+                );
+            }
             let people: Vec<_> = observation.people[site]
                 .iter()
                 .map(|&(id, band)| (id, band, self.people[id as usize].born))
@@ -630,7 +636,15 @@ impl History {
             };
             let personal_mortality: std::collections::BTreeMap<_, _> = people
                 .iter()
-                .filter_map(|(id, _, _)| mortality.get(id).map(|r| (*id, *r)))
+                .filter_map(|(id, band, _)| {
+                    mortality.get(id).map(|r| {
+                        (
+                            *id,
+                            self.growth
+                                .mortality(*r, crate::society::BASE_MONTHLY_MORTALITY[*band]),
+                        )
+                    })
+                })
                 .collect();
             let outcome = resolved_projection.resolve_with_mortality(
                 mode,

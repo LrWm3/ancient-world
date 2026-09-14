@@ -1,6 +1,7 @@
 //! Civilization beta: GPU habitat/production/demography, sparse social history on CPU.
 mod daughter;
 mod founding_provisions;
+pub mod growth;
 mod production_forecast;
 use crate::{
     economy::{Cargo, Economy, EconomyCatalog, Recipe},
@@ -18,7 +19,8 @@ const MIN_TOWN_POPULATION: f32 = 100.;
 const HASH_FIRST_MULTIPLIER: u32 = 0x7feb352d;
 const HASH_SECOND_MULTIPLIER: u32 = 0x846ca68b;
 const MAX_HISTORY_EVENTS: usize = 1_000_000;
-const MAX_FOUNDING_CANDIDATES: usize = MAX_SETTLEMENTS;
+// Candidate survey capacity is independent of experimental settlement soft limits.
+const MAX_FOUNDING_CANDIDATES: usize = 2_560;
 const MAX_HISTORY_MONTHS: u32 = 120000;
 const MAX_ADVANCEMENT_MONTHS: u32 = 12000;
 const MAX_CIVILIZATIONS: u32 = 16;
@@ -206,6 +208,8 @@ pub struct Candidate {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct History {
+    #[serde(default)]
+    pub growth: growth::Growth,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub demographic_audit: Option<crate::demographic_audit::Audit>,
     #[serde(default)]
@@ -586,6 +590,7 @@ impl History {
         (self.initial_population + born - died - living) / (self.initial_population + born).max(1.)
     }
     pub fn validate(&self, cells: &[crate::gpu::Cell]) -> Result<()> {
+        self.growth.validate()?;
         self.validate_credit()?;
         self.validate_export_identities()?;
         self.validate_export_payments()?;
@@ -1049,7 +1054,7 @@ impl Engine {
                     .production
                     .phosphorus_release_monthly_fraction
                     .to_bits(),
-                0,
+                1f32.to_bits(),
                 0,
             ]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
@@ -1268,6 +1273,7 @@ impl Generator {
         };
         candidates.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.cell.cmp(&b.cell)));
         let mut h = History {
+            growth: Default::default(),
             credit: Default::default(),
             contagion: Some(Default::default()),
             trade_contact: Default::default(),
@@ -1904,60 +1910,38 @@ impl History {
             }
         }
         let old_len = self.sites.len();
+        if self.growth.audit_enabled {
+            self.growth.review = Some(growth::Review {
+                month: self.month,
+                ..Default::default()
+            });
+        }
         for i in 0..old_len {
-            if self.sites.len() >= MAX_SETTLEMENTS {
+            if !self.growth.audit_enabled && self.sites.len() >= self.growth.settlement_limit {
                 break;
             }
-            let s = &self.sites[i];
-            if s.abandoned
-                || self
-                    .living
-                    .as_ref()
-                    .and_then(|l| l.floods.get(&s.id))
-                    .is_some_and(|f| f.persistent)
-                || s.stocks.stock[0] < DAUGHTER_MIN_ORIGIN_POPULATION
-                || s.stocks.stock[1]
-                    < s.stocks.stock[0]
-                        * FOUNDING_PROVISION_KG_PER_PERSON_MONTH
-                        * FOUNDING_PROVISION_MONTHS
-            {
-                continue;
-            }
-            let candidate = self
-                .candidates
-                .iter()
-                .filter(|c| {
-                    c.island == s.island
-                        && c.available_for_founding(terrain)
-                        && self.sites.iter().all(|s| s.cell != c.cell)
-                        && distance(c.cell, s.cell, n) * radius < DAUGHTER_MAX_DISTANCE_KM
-                })
-                .max_by(|a, b| {
-                    let attractiveness = |c: &Candidate| {
-                        c.yield_kg
-                            / (1.
-                                + distance(c.cell, s.cell, n) * radius / DAUGHTER_DISTANCE_SCALE_KM)
-                    };
-                    attractiveness(a).total_cmp(&attractiveness(b))
-                })
-                .cloned();
-            if let Some(c) = candidate {
-                // Productive homelands retain households longer; better farmland
-                // encourages dispersal. Travel cost enters destination selection.
-                let threshold = DAUGHTER_MIN_ORIGIN_POPULATION
-                    + DAUGHTER_SURPLUS_THRESHOLD
-                        * (s.stocks.habitat[0] / c.yield_kg.max(1.)).clamp(
-                            *DAUGHTER_YIELD_RATIO_RANGE.start(),
-                            *DAUGHTER_YIELD_RATIO_RANGE.end(),
-                        );
-                if s.stocks.stock[0] < threshold {
+            let c = match self.daughter_opportunity(i, radius, terrain) {
+                Ok(c) => c,
+                Err(reason) => {
+                    self.growth.record(i as u32, reason);
                     continue;
                 }
+            };
+            {
+                let s = &self.sites[i];
                 let civ = s.civilization;
                 let settlers = (s.stocks.stock[0] * DAUGHTER_POPULATION_SHARE)
                     .clamp(DAUGHTER_MIN_POPULATION, DAUGHTER_MAX_POPULATION);
                 if self.individual_demography_enabled() {
-                    self.found_resident_daughter(i, &c, settlers);
+                    let founded = self.found_resident_daughter(i, &c, settlers);
+                    self.growth.record(
+                        i as u32,
+                        if founded {
+                            "founded"
+                        } else {
+                            "household_admission"
+                        },
+                    );
                     continue;
                 }
                 let cohort_fraction = settlers / s.stocks.stock[0];
@@ -1965,8 +1949,9 @@ impl History {
                 for age in &mut migrant_ages[..3] {
                     *age *= cohort_fraction;
                 }
-                let food =
-                    settlers * FOUNDING_PROVISION_KG_PER_PERSON_MONTH * FOUNDING_PROVISION_MONTHS;
+                let food = settlers
+                    * FOUNDING_PROVISION_KG_PER_PERSON_MONTH
+                    * self.growth.founding_reserve_months;
                 self.sites[i].stocks.stock[0] -= settlers;
                 self.sites[i].stocks.stock[1] -= food;
                 self.sites[i].stocks.people[3] += settlers;
@@ -1983,6 +1968,7 @@ impl History {
                     self.sites[i].economy.finance[0] -= cash;
                     self.sites.last_mut().unwrap().economy.finance[0] = cash;
                 }
+                self.growth.record(i as u32, "founded");
                 self.event(
                     "migration",
                     Some(i as u32),
@@ -2083,7 +2069,7 @@ impl Engine {
                         |c| c.production.phosphorus_release_monthly_fraction,
                     )
                     .to_bits(),
-                0,
+                (h.growth.background_mortality_scale as f32).to_bits(),
                 0,
             ]),
         );
