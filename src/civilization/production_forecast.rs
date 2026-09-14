@@ -32,7 +32,10 @@ impl Engine {
         if h.sites.is_empty() {
             return Ok(vec![]);
         }
-        ensure!(h.sites.len() <= LIMIT, "production forecast site limit");
+        ensure!(
+            h.sites.len() <= MAX_SETTLEMENTS,
+            "production forecast site limit"
+        );
         self.upload(g, h);
         let mut encoder = g.gpu.device.create_command_encoder(&Default::default());
         {

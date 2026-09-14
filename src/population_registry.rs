@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 pub(crate) const WORKING_START_AGE_MONTHS: i32 = 180;
 pub(crate) const WORKING_END_AGE_MONTHS: i32 = 720;
 pub(crate) const INDEPENDENT_HOME_AGE_MONTHS: i32 = 216;
-pub(crate) const MAX_NAMED_POPULATION: usize = 50000;
+pub(crate) const MAX_NAMED_POPULATION: usize = 500_000;
 const INITIAL_COHORT_AGES_MONTHS: [(i32, i32); 3] = [(0, 180), (180, 540), (720, 240)];
 const ROSTER_INITIAL_AGE_STREAM: u32 = 219;
 const CHILD_LAST_MONTH: i64 = WORKING_START_AGE_MONTHS as i64 - 1;

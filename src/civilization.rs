@@ -67,7 +67,7 @@ const DAUGHTER_MIN_POPULATION: f32 = 40.;
 const DAUGHTER_MAX_POPULATION: f32 = 90.;
 const FOUNDING_PROVISION_KG_PER_PERSON_MONTH: f32 = 18.;
 const FOUNDING_PROVISION_MONTHS: f32 = 12.;
-const LIMIT: usize = 256;
+const MAX_SETTLEMENTS: usize = 2_560;
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Stocks {
@@ -653,7 +653,7 @@ impl History {
         ensure!(
             (self.version == 1 || self.version == 2)
                 && !self.sites.is_empty()
-                && self.sites.len() <= LIMIT
+                && self.sites.len() <= MAX_SETTLEMENTS
                 && self.events.len() <= MAX_HISTORY_EVENTS
                 && self.candidates.len() <= MAX_FOUNDING_CANDIDATES
                 && self.month <= MAX_HISTORY_MONTHS,
@@ -891,6 +891,23 @@ impl Engine {
                     < crate::gpu::DEFAULT_MEMORY_BUDGET_BYTES,
             "civilization survey exceeds GPU memory budget"
         );
+        let history_buffer_bytes = [
+            MAX_SETTLEMENTS as u64 * std::mem::size_of::<Stocks>() as u64,
+            MAX_SETTLEMENTS as u64 * std::mem::size_of::<Stocks>() as u64,
+            MAX_SETTLEMENTS as u64 * std::mem::size_of::<Demography>() as u64,
+            MAX_SETTLEMENTS as u64 * std::mem::size_of::<Economy>() as u64,
+        ];
+        ensure!(
+            history_buffer_bytes.iter().all(|&size| size
+                <= d.limits().max_storage_buffer_binding_size as u64
+                && size <= d.limits().max_buffer_size)
+                && g.config.estimated_bytes()
+                    + bytes
+                    + ecological_bytes
+                    + history_buffer_bytes.iter().sum::<u64>()
+                    < crate::gpu::DEFAULT_MEMORY_BUDGET_BYTES,
+            "settlement capacity exceeds GPU buffer or memory budget"
+        );
         let buffer = |size, usage| {
             d.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Civilization beta"),
@@ -900,11 +917,11 @@ impl Engine {
             })
         };
         let input = buffer(
-            LIMIT as u64 * std::mem::size_of::<Stocks>() as u64,
+            MAX_SETTLEMENTS as u64 * std::mem::size_of::<Stocks>() as u64,
             wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         );
         let output = buffer(
-            LIMIT as u64 * std::mem::size_of::<Stocks>() as u64,
+            MAX_SETTLEMENTS as u64 * std::mem::size_of::<Stocks>() as u64,
             wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
         );
         let prospects = buffer(
@@ -912,13 +929,13 @@ impl Engine {
             wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
         );
         let demographic = buffer(
-            LIMIT as u64 * std::mem::size_of::<Demography>() as u64,
+            MAX_SETTLEMENTS as u64 * std::mem::size_of::<Demography>() as u64,
             wgpu::BufferUsages::STORAGE
                 | wgpu::BufferUsages::COPY_DST
                 | wgpu::BufferUsages::COPY_SRC,
         );
         let economic = buffer(
-            LIMIT as u64 * std::mem::size_of::<Economy>() as u64,
+            MAX_SETTLEMENTS as u64 * std::mem::size_of::<Economy>() as u64,
             wgpu::BufferUsages::STORAGE
                 | wgpu::BufferUsages::COPY_DST
                 | wgpu::BufferUsages::COPY_SRC,
@@ -1809,7 +1826,7 @@ impl History {
         }
         let old_len = self.sites.len();
         for i in 0..old_len {
-            if self.sites.len() >= LIMIT {
+            if self.sites.len() >= MAX_SETTLEMENTS {
                 break;
             }
             let s = &self.sites[i];
