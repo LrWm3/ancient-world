@@ -1209,6 +1209,7 @@ mod tests {
         h.people[ids[0] as usize].born = 9 - 180;
         h.people[ids[1] as usize].born = 10 - 180;
         let mut j = Journey {
+            restoration: None,
             infection: None,
             warning: None,
             roster: Some(TravelRoster {

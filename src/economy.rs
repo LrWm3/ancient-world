@@ -1052,6 +1052,15 @@ impl History {
                     society.routes.iter().map(|r| r.road_bricks).sum::<f64>() * *ratio as f64;
             }
             for j in &society.relocation.journeys {
+                if let Some(cargo) = &j.restoration {
+                    goods[0] -= cargo.wood as f64;
+                    goods[5] -= cargo.bricks as f64;
+                    for (good, quantity) in cargo.goods(catalog) {
+                        for k in 0..3 {
+                            held[k] += quantity as f64 * catalog.composition(good)[k] as f64;
+                        }
+                    }
+                }
                 money += j.cash as f64;
                 goods[3] -= j.tools as f64;
                 for k in 0..3 {

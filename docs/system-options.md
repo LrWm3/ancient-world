@@ -198,3 +198,8 @@ transfer funds; the controls remain independently enableable. The default is the
 existing 5% surplus allowance, and disabling the new option restores it. Both
 policies protect working cash and require available food. See the
 [matched-checkpoint comparison](municipal-needs-first.md).
+
+`ruin-resettlement` is an opt-in society/politics policy for funded household restoration of
+abandoned sites. It uses managed crops and existing land routes. Old archives keep
+it disabled; already-funded journeys and dated ownership notices continue when new
+proposals are disabled. See [ruin resettlement](ruin-resettlement.md).

@@ -83,3 +83,8 @@ Verification passed: one CPU admission test and four GPU tests (flood recovery,
 lifecycle/reoccupation, conserved relocation, and living-history snapshot sharing).
 The recovery test round-trips history JSON; it does not claim a full world-archive
 continuation comparison. No new seed balance runs were needed for this admission fix.
+
+The later [ruin-resettlement policy](ruin-resettlement.md) now adds a separate funded
+path for new households to restore an abandoned site. Ordinary relocation and
+new-site daughter founding keep their original restrictions. The policy reuses the
+existing site and records a new occupation, including expiring dormant claims.

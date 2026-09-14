@@ -871,6 +871,7 @@ mod tests {
             .relocation
             .journeys
             .push(crate::relocation::Journey {
+                restoration: None,
                 infection: None,
                 warning: None,
                 roster: Some(Default::default()),

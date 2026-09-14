@@ -1434,6 +1434,7 @@ impl Generator {
         let relief_observations = h.observe_relief();
         h.answer_appeals_observed(&relief_observations)?;
         h.restore_returning_settlements();
+        h.resettlement_claims_month();
         self.prepare_economy(h);
         h.settle_credit_estates()?;
         h.service_credit_month()?;
@@ -1613,6 +1614,7 @@ impl Generator {
         h.release_cultural_work();
         h.expedition_month(terrain);
         h.relocation_departures_observed(&relocation_observations)?;
+        h.resettlement_departures(terrain);
         h.settlement_lifecycle_month();
         h.sync_offices();
         h.social_month()?;
@@ -2575,7 +2577,7 @@ impl Generator {
 }
 
 impl History {
-    fn restore_returning_settlements(&mut self) {
+    pub(crate) fn restore_returning_settlements(&mut self) {
         for i in 0..self.sites.len() {
             let s = &mut self.sites[i];
             if s.abandoned && s.stocks.stock[0] >= MIN_VIABLE_SETTLEMENT_POPULATION {
@@ -2584,7 +2586,12 @@ impl History {
                 s.lifecycle.pending_months = 0;
                 s.lifecycle.pending_size = None;
                 s.lifecycle.size = SettlementSize::from_population(s.stocks.stock[0]);
-                self.event("settlement_reoccupied", Some(i as u32), None, "Returning residents reoccupied the site; existing people and property retained".into());
+                self.event(
+                    "settlement_reoccupied",
+                    Some(i as u32),
+                    None,
+                    "Residents reoccupied the site; existing people and property retained".into(),
+                );
             }
         }
     }

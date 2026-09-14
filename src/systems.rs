@@ -33,6 +33,7 @@ pub enum System {
     PracticalResearch,
     HouseholdEstateReclamation,
     AbandonedStockRecovery,
+    RuinResettlement,
     NamedOfficeService,
     ExportDefaultRecovery,
     SharedIssuance,
@@ -105,6 +106,7 @@ impl System {
         Self::PracticalResearch,
         Self::HouseholdEstateReclamation,
         Self::AbandonedStockRecovery,
+        Self::RuinResettlement,
         Self::NamedOfficeService,
         Self::ExportDefaultRecovery,
         Self::SharedIssuance,
@@ -142,6 +144,7 @@ impl System {
         Self::PracticalResearch,
         Self::HouseholdEstateReclamation,
         Self::AbandonedStockRecovery,
+        Self::RuinResettlement,
         Self::NamedOfficeService,
         Self::ExportDefaultRecovery,
         Self::SharedIssuance,
@@ -219,6 +222,7 @@ impl System {
             | Self::FoodSolidarity
             | Self::DemographicAudit
             | Self::AbandonedStockRecovery => &[Self::Society],
+            Self::RuinResettlement => &[Self::Society, Self::Politics],
             Self::DeliveryPaidExports | Self::ExportDefaultRecovery => &[Self::ExportContracts],
             Self::PracticalResearch => &[Self::Society],
             Self::OccupationalPayroll => &[Self::Society],

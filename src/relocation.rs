@@ -53,6 +53,7 @@ const PORTABLE_TOOLS_KG_PER_RESIDENT: f32 = 0.5;
 
 const DESTINATION_DISTANCE_SCALE_KM: f32 = 150.0;
 mod comparison;
+pub mod resettlement;
 
 /// Transient decision inputs captured after consumption, before response actions.
 /// Financial, food and housing capacity checks still use live reservations at commit.
@@ -76,6 +77,7 @@ struct RelocationSiteObservation {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RelocationState {
+    pub resettlement: resettlement::State,
     /// Old archives remain disabled unless explicitly enabled.
     pub enabled: bool,
     pub witnessed_relief: bool,
@@ -107,6 +109,8 @@ pub struct TravelRoster {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Journey {
+    #[serde(default)]
+    pub restoration: Option<resettlement::Cargo>,
     #[serde(default)]
     pub infection: Option<crate::contagion::Pool>,
     #[serde(default)]
@@ -155,6 +159,7 @@ impl RelocationState {
                 .all(|&id| (id as usize) < society.households.len()),
             "invalid lost household"
         );
+        self.resettlement.validate(h)?;
         for a in &self.appeals {
             ensure!(
                 (a.origin as usize) < h.sites.len()
@@ -191,6 +196,9 @@ impl RelocationState {
             );
         }
         for j in &self.journeys {
+            if let Some(cargo) = &j.restoration {
+                cargo.validate(h)?;
+            }
             if let Some(roster) = &j.roster {
                 ensure!(
                     roster
@@ -255,9 +263,10 @@ impl RelocationState {
                         .iter()
                         .chain([&j.food, &j.cash, &j.tools])
                         .all(|v| v.is_finite() && *v >= 0.)
-                    && h.events
-                        .get(j.cause as usize)
-                        .is_some_and(|e| e.kind == "household_departure"),
+                    && h.events.get(j.cause as usize).is_some_and(|e| matches!(
+                        e.kind.as_str(),
+                        "household_departure" | "resettlement_departure"
+                    )),
                 "invalid household journey"
             );
         }
@@ -352,6 +361,9 @@ impl History {
                 origin.economy.finance[0] += j.cash; // ownership of the unspent estate
                 origin.economy.used[3] += j.tools;
                 origin.economy.reserves[3] += j.tools; // tools lost to the regional mineral pool
+                if let Some(cargo) = &j.restoration {
+                    cargo.lose_supplies(origin, self.economy_catalog.as_ref().unwrap());
+                }
                 origin.stocks.ledger[2] += j.food;
                 for (k, ratio) in FOOD_CNP.iter().enumerate() {
                     origin.economy.external[k] -= j.food * *ratio as f32;
@@ -382,7 +394,8 @@ impl History {
             }
             // A failed destination cannot absorb refugees: return along the reopened
             // route, paying the same travel time and continuing to consume supplies.
-            if (self.sites[j.to as usize].abandoned
+            if ((self.sites[j.to as usize].abandoned && j.restoration.is_none())
+                || (j.restoration.is_some() && !self.resettlement_arrival_safe(&j))
                 || !self.sites[j.to as usize]
                     .economy
                     .housing_accepts(self.sites[j.to as usize].stocks.stock[0] + j.population()))
@@ -469,6 +482,11 @@ impl History {
         if j.returning {
             j.to = j.from;
         }
+        let restoring =
+            !j.returning && j.restoration.is_some() && self.sites[j.to as usize].abandoned;
+        if restoring {
+            self.begin_resettlement(&j);
+        }
         let report_destination = j.from;
         if self.individual_demography_enabled() {
             self.align_individual_arrival(&mut j);
@@ -481,6 +499,9 @@ impl History {
         target.stocks.stock[1] += j.food;
         target.economy.finance[0] += j.cash;
         target.economy.goods[3] += j.tools;
+        if let Some(cargo) = &j.restoration {
+            cargo.return_supplies(target);
+        }
         for k in 0..3 {
             target.demography.ages[k] += j.cohorts[k];
         }
@@ -493,9 +514,23 @@ impl History {
                 .filter(|hh| hh.site == j.from && hh.id != j.household)
                 .map(|hh| hh.share)
                 .sum::<f64>();
-            let new_share = (pop / (old_pop + pop).max(1.))
-                .clamp(MIN_ARRIVAL_OWNERSHIP_SHARE, MAX_ARRIVAL_OWNERSHIP_SHARE)
-                as f64;
+            let destination_shares: f64 = society
+                .households
+                .iter()
+                .filter(|h| h.site == j.to)
+                .map(|h| h.share)
+                .sum();
+            let new_share = if restoring {
+                if destination_shares > 0. {
+                    resettlement::PROVISIONAL_SETTLER_SHARE as f64
+                } else {
+                    1.
+                }
+            } else {
+                (pop / (old_pop + pop).max(1.))
+                    .clamp(MIN_ARRIVAL_OWNERSHIP_SHARE, MAX_ARRIVAL_OWNERSHIP_SHARE)
+                    as f64
+            };
             for hh in &mut society.households {
                 if hh.id == j.household {
                     hh.site = j.to;
@@ -897,6 +932,7 @@ impl History {
                 let society = self.society.as_mut().unwrap();
                 society.relocation.sites[from].last_departure = self.month;
                 society.relocation.journeys.push(Journey {
+                    restoration: None,
                     infection,
                     warning: None,
                     roster: Some(TravelRoster {

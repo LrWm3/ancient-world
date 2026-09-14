@@ -95,6 +95,10 @@ impl History {
                 .as_ref()
                 .and_then(|s| s.household_economy.as_ref())
                 .is_some_and(|e| e.reclamation.enabled),
+            System::RuinResettlement => self
+                .society
+                .as_ref()
+                .is_some_and(|s| s.relocation.resettlement.enabled),
             System::AbandonedStockRecovery => {
                 self.society.as_ref().is_some_and(|s| s.stock_recovery)
             }
@@ -278,6 +282,14 @@ impl History {
                     .reclamation
                     .enabled = enabled;
             }
+            System::RuinResettlement => {
+                self.society
+                    .as_mut()
+                    .context("resettlement requires society")?
+                    .relocation
+                    .resettlement
+                    .enabled = enabled;
+            }
             System::AbandonedStockRecovery => {
                 self.society
                     .as_mut()
@@ -334,6 +346,7 @@ impl Generator {
                 for parent in system.requires() {
                     let present = match parent {
                         System::Society => history.society.is_some(),
+                        System::Politics => history.politics.is_some(),
                         System::Shipping => history.shipping.is_some(),
                         System::Offices => history.offices.is_some(),
                         System::Enterprises => history.enterprises.is_some(),
