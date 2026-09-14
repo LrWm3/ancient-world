@@ -43,6 +43,9 @@ struct Args {
     /// Fraction of finite geological farm phosphorus released monthly (0–0.0001).
     #[arg(long)]
     farm_phosphorus_release: Option<f32>,
+    /// Food stock horizon for prospective annual harbor investment (0–24 months; default 3).
+    #[arg(long)]
+    food_connection_months: Option<f32>,
     /// Set existing towns' nutrient return fraction (0–1), retaining other site policies.
     #[arg(long)]
     farm_nutrient_retention: Option<f32>,
@@ -557,6 +560,18 @@ fn main() -> Result<()> {
             .as_mut()
             .context("founding food requires a history")?
             .set_founding_food_months(months)?;
+    }
+    if let Some(months) = args.food_connection_months {
+        let h = generator
+            .civilizations
+            .as_mut()
+            .context("food connection horizon requires history")?;
+        let catalog = h
+            .economy_catalog
+            .as_mut()
+            .context("food connection horizon requires economy")?;
+        catalog.production.food_connection_target_months = months;
+        catalog.validate()?;
     }
     if let Some(fraction) = args.farm_phosphorus_release {
         let h = generator

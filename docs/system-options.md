@@ -185,3 +185,9 @@ Institution service comparisons can independently enable `institution-working-co
 (quoted operating budgets instead of legacy donations). Both retain their existing
 archived culture policies and are opt-in. Neither enables named administration or
 changes institutional work priority. See [the growing-world service comparison](institution-growth-followup.md).
+
+The existing food-connection investment mechanism has a numeric planning horizon:
+`--food-connection-months 0..24`, stored as
+`production.food_connection_target_months` in the economy catalog. The default
+remains three months. This changes prospective construction demand, not available
+food or vessel capacity. See [the horizon experiment](food-connection-horizon.md).

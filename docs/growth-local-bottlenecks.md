@@ -101,3 +101,6 @@ intervention against the same opening state. Measure delivered food and the
 pre-harvest deficit first; population is a downstream outcome. Do not solve a
 missing vessel or food source by silently minting cargo, cash or labor. Larger
 seed ensembles and default-resolution evaluation remain outstanding.
+
+The [food-connection horizon experiment](food-connection-horizon.md) tests whether
+annual infrastructure planning recognizes prospective shortages early enough.

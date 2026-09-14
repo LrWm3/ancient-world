@@ -14,7 +14,8 @@ const HARBOR_MATERIAL_TOLERANCE_KG: f32 = 0.001;
 const MAX_SEA_LANE_KM: f32 = 20_000.;
 const HARBOR_TOOLS_RESERVE_KG_PER_PERSON: f32 = 0.5;
 const HARBOR_MAX_ANNUAL_TOOL_INVESTMENT_SHARE: f32 = 0.05;
-const CONNECTION_FOOD_TARGET_MONTHS: f32 = 3.;
+pub(crate) const DEFAULT_CONNECTION_FOOD_TARGET_MONTHS: f32 = 3.;
+pub(crate) const MAX_CONNECTION_FOOD_TARGET_MONTHS: f32 = 24.;
 const CONNECTION_MIN_QUOTE_MONEY_PER_KG: f32 = 0.0001;
 const HARBOR_BUILDING_RESERVE_KG_PER_PERSON: f32 = 1.;
 const HARBOR_ANNUAL_WEAR_FRACTION: f32 = 0.02;
@@ -680,7 +681,7 @@ impl History {
                     .sum();
                 let shortage = (buyer.stocks.stock[0]
                     * CIVILIAN_RESERVE_KG_PER_PERSON_MONTH
-                    * CONNECTION_FOOD_TARGET_MONTHS
+                    * catalog.production.food_connection_target_months
                     - buyer.stocks.stock[1]
                     - incoming)
                     .max(0.);
@@ -994,6 +995,28 @@ mod harbor_tests {
         let chosen = connection.food_connection_investments();
         assert_eq!(chosen.iter().filter(|&&v| v).count(), 2);
         assert!(sites.iter().all(|&i| chosen[i]));
+        // An annual decision can miss a post-harvest buyer with six months of
+        // stock. A longer horizon recognizes it, without creating cargo or reserving resources.
+        let mut forward = connection.clone();
+        forward.sites[sites[1]].stocks.stock[1] = 10. * CIVILIAN_RESERVE_KG_PER_PERSON_MONTH * 6.;
+        assert!(!forward.food_connection_investments().iter().any(|&v| v));
+        forward
+            .economy_catalog
+            .as_mut()
+            .unwrap()
+            .production
+            .food_connection_target_months = 12.;
+        let before = serde_json::to_value(&forward).unwrap();
+        assert!(sites
+            .iter()
+            .all(|&i| forward.food_connection_investments()[i]));
+        assert_eq!(serde_json::to_value(&forward).unwrap(), before);
+        let restored: History = serde_json::from_value(before).unwrap();
+        assert_eq!(
+            restored.food_connection_investments(),
+            forward.food_connection_investments()
+        );
+
         for case in 0..4 {
             let mut no = connection.clone();
             if case == 0 {

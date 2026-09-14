@@ -114,6 +114,8 @@ pub struct ProductionSettings {
     pub enabled: bool,
     /// Bounded annual investment in a prospective food connection; false is an ablation.
     pub food_connection_investment: bool,
+    /// Prospective buyer stock horizon for annual harbor investment, not free food.
+    pub food_connection_target_months: f32,
     /// Adapt staffing to feasible work; missing archive settings retain fixed staffing.
     pub adaptive_labor: bool,
     /// Diagnostic ablation: constant 62/8/10/20 percent work shares (fishery deducted).
@@ -156,6 +158,7 @@ impl Default for ProductionSettings {
         Self {
             enabled: false,
             food_connection_investment: true,
+            food_connection_target_months: crate::shipping::DEFAULT_CONNECTION_FOOD_TARGET_MONTHS,
             adaptive_labor: false,
             diagnostic_fixed_labor: false,
             food_security_labor: false,
@@ -1182,6 +1185,24 @@ impl History {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn connection_horizon_defaults_validates_and_roundtrips() {
+        let old: ProductionSettings = serde_json::from_str("{}").unwrap();
+        assert_eq!(old.food_connection_target_months, 3.);
+        let mut catalog = crate::economy::EconomyCatalog::bundled().unwrap();
+        for bad in [-1., 25., f32::NAN, f32::INFINITY] {
+            catalog.production.food_connection_target_months = bad;
+            assert!(catalog.validate().is_err());
+        }
+        for months in [0., 3., 12., 24.] {
+            catalog.production.food_connection_target_months = months;
+            catalog.validate().unwrap();
+            let restored: ProductionSettings =
+                serde_json::from_value(serde_json::to_value(&catalog.production).unwrap()).unwrap();
+            assert_eq!(restored.food_connection_target_months, months);
+        }
+    }
+
     #[test]
     fn utilized_workshop_repair_does_not_require_exhausting_household_capacity() {
         // A quarter worker-month completed in installed equipment warrants

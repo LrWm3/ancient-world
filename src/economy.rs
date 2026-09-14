@@ -227,6 +227,11 @@ impl EconomyCatalog {
             "diagnostic fixed staffing requires production planning"
         );
         ensure!(
+            (0. ..=crate::shipping::MAX_CONNECTION_FOOD_TARGET_MONTHS)
+                .contains(&self.production.food_connection_target_months),
+            "food connection planning horizon must be 0–24 months"
+        );
+        ensure!(
             (crate::production::DEFAULT_BASE_GRANARY_MONTHS
                 ..=crate::production::MAX_BASE_GRANARY_MONTHS)
                 .contains(&self.production.base_granary_months),
