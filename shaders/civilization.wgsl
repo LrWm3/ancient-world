@@ -52,7 +52,7 @@ struct Cell {
 }
 
 struct Site { stock:vec4<f32>, habitat:vec4<f32>, ledger:vec4<f32>, people:vec4<f32> }
-struct Params { dims:vec4<u32>, options:vec4<u32>, weather:vec4<u32> }
+struct Params { dims:vec4<u32>, options:vec4<u32>, weather:vec4<u32>, storage_policy:vec4<f32> }
 @group(0) @binding(0) var<storage,read> world:array<Cell>;
 @group(0) @binding(1) var<storage,read> src:array<Site>;
 @group(0) @binding(2) var<storage,read_write> dst:array<Site>;
@@ -110,9 +110,9 @@ fn month(@builtin(global_invocation_id) g:vec3<u32>) {
  let growth=produced;
  if (p.options.w&1u)==1u && economies[i].management.x<.5 {produced=crop_calendar(i,produced);}
  let storage=select(1.,1.-LEGACY_CONTAINER_MAX_SPOILAGE_REDUCTION*clamp(container_service(economies[i])/max(LEGACY_CONTAINER_POPULATION_FLOOR,s.stock.x*LEGACY_CONTAINER_KG_PER_PERSON),0.,1.),p.options.x==2u);
- // Basic granaries hold one harvest year; manufactured storage adds up to
+ // Configurable baseline granaries default to one harvest year; manufactured storage adds up to
  // another year. Unprotected overflow spoils after this month's consumption.
- let capacity=s.stock.x*LEGACY_RATION_KG_PER_PERSON_MONTH*(LEGACY_GRANARY_BASE_MONTHS+LEGACY_GRANARY_EXTENSION_MONTHS*(1.-storage));
+ let capacity=s.stock.x*LEGACY_RATION_KG_PER_PERSON_MONTH*(max(LEGACY_GRANARY_BASE_MONTHS,p.storage_policy.x)+LEGACY_GRANARY_EXTENSION_MONTHS*(1.-storage));
  let ordinary_spoilage=s.stock.y*LEGACY_MONTHLY_FOOD_SPOILAGE*storage;
  let available=s.stock.y-ordinary_spoilage+produced;
  let need=select(s.stock.x*LEGACY_RATION_KG_PER_PERSON_MONTH,dot(demography[i].ages.xyz,vec3(CHILD_RATION_KG_PER_MONTH,ADULT_RATION_KG_PER_MONTH,ELDER_RATION_KG_PER_MONTH)),(p.options.w&1u)==1u);let entitlement=select(need,min(need,demography[i].household_food.x),demography[i].household_food.y>0.5);let eaten=min(available,entitlement);let shortage=clamp(1.-eaten/max(need,LEGACY_NEED_DIVISOR_FLOOR_KG),0.,1.);

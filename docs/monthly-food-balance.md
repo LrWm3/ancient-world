@@ -139,3 +139,6 @@ spoilage/export arithmetic, physical versus access shortfall, missing observatio
 and detection of an unclassified withdrawal. Rust fixtures check ID-based missing
 boundaries, retention, serialization continuation and old-audit loading. Full-world
 checkpoint continuation and cross-GPU behavior were not newly tested here.
+
+Follow-up: [four-year founding provisions](four-year-founding-provisions.md) compares
+extra food alone with extra food plus storage, including five- and twenty-year results.

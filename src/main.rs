@@ -34,6 +34,12 @@ struct Args {
     /// Matched founding control: retain patrons and provisions but disable practical aid.
     #[arg(long, requires = "civilizations")]
     no_patron_aid: bool,
+    /// Increase human arrival provisions to this many adult-ration months (12–120), only at month zero; storage is unchanged.
+    #[arg(long)]
+    founding_food_months: Option<u32>,
+    /// Experiment: baseline granary capacity in adult-ration months per resident (12–120); ordinary spoilage remains active.
+    #[arg(long)]
+    base_granary_months: Option<f32>,
     /// Explicitly upgrade a saved first-beta history to managed ecological farming and markets.
     #[arg(long)]
     upgrade_economy: bool,
@@ -692,6 +698,29 @@ fn main() -> Result<()> {
         } else {
             ancient_world::export_contracts::payments::Timing::Dispatch
         };
+    }
+    if let Some(months) = args.base_granary_months {
+        let history = generator
+            .civilizations
+            .as_mut()
+            .context("granary experiment requires a history")?;
+        anyhow::ensure!(
+            history.month == 0,
+            "granary experiment requires a month-zero history"
+        );
+        let catalog = history
+            .economy_catalog
+            .as_mut()
+            .context("granary experiment requires managed farming")?;
+        catalog.production.base_granary_months = months;
+        catalog.validate()?;
+    }
+    if let Some(months) = args.founding_food_months {
+        generator
+            .civilizations
+            .as_mut()
+            .context("founding food requires a history")?
+            .set_founding_food_months(months)?;
     }
     if args.history_years > 0 {
         generator.advance_history(

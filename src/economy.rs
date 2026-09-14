@@ -227,6 +227,12 @@ impl EconomyCatalog {
             "diagnostic fixed staffing requires production planning"
         );
         ensure!(
+            (crate::production::DEFAULT_BASE_GRANARY_MONTHS
+                ..=crate::production::MAX_BASE_GRANARY_MONTHS)
+                .contains(&self.production.base_granary_months),
+            "base granary capacity must be 12–120 adult-ration months"
+        );
+        ensure!(
             (0. ..=1.).contains(&self.production.waterworks_target_fraction),
             "invalid waterworks target fraction"
         );

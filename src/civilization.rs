@@ -1,5 +1,6 @@
 //! Civilization beta: GPU habitat/production/demography, sparse social history on CPU.
 mod daughter;
+mod founding_provisions;
 mod production_forecast;
 use crate::{
     economy::{Cargo, Economy, EconomyCatalog, Recipe},
@@ -1036,6 +1037,10 @@ impl Engine {
                 catalog.weather.drought_severity.to_bits(),
                 catalog.weather.regime_months,
                 g.config.resolution,
+                catalog.production.base_granary_months.to_bits(),
+                0,
+                0,
+                0,
             ]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
@@ -2052,6 +2057,15 @@ impl Engine {
                 weather.drought_severity.to_bits(),
                 weather.regime_months,
                 g.config.resolution,
+                h.economy_catalog
+                    .as_ref()
+                    .map_or(crate::production::DEFAULT_BASE_GRANARY_MONTHS, |c| {
+                        c.production.base_granary_months
+                    })
+                    .to_bits(),
+                0,
+                0,
+                0,
             ]),
         );
     }

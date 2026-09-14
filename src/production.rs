@@ -5,6 +5,8 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
+pub const DEFAULT_BASE_GRANARY_MONTHS: f32 = 12.;
+pub const MAX_BASE_GRANARY_MONTHS: f32 = 120.;
 const FACILITY_REPAIR_FORECAST_WORKER_MONTHS: f32 = 0.1;
 const DEFAULT_INITIAL_HOUSING_PER_PERSON: f32 = 1.1;
 const DEFAULT_CONTRACT_MARGIN: f32 = 0.1;
@@ -126,6 +128,8 @@ pub struct ProductionSettings {
     /// Require finite industrial workshop assets; absent archive setting is legacy.
     pub workshops: bool,
     pub persistent_storage: bool,
+    /// Experimental baseline food capacity in adult-ration months per current resident.
+    pub base_granary_months: f32,
     pub persistent_housing: bool,
     pub waterworks: bool,
     /// Restore lost installed service before optional shelter headroom.
@@ -156,6 +160,7 @@ impl Default for ProductionSettings {
             toolmaking_expertise: false,
             workshops: false,
             persistent_storage: false,
+            base_granary_months: DEFAULT_BASE_GRANARY_MONTHS,
             persistent_housing: false,
             waterworks: false,
             waterworks_repair_priority: false,
