@@ -299,6 +299,16 @@ fn random(mut x: u32) -> u32 {
     x = (x ^ (x >> 15)).wrapping_mul(HASH_SECOND_MULTIPLIER);
     x ^ (x >> 16)
 }
+impl Candidate {
+    /// Survey identity persists through floods; admission uses this month's terrain.
+    fn available_for_founding(&self, terrain: &[crate::gpu::Cell]) -> bool {
+        terrain.get(self.cell as usize).is_some_and(|cell| {
+            cell.meta[0] == 2
+                && crate::hazards::flood_depth(cell) < crate::hazards::FLOOD_EXPOSURE_DEPTH_M
+        })
+    }
+}
+
 pub(crate) fn distance(a: u32, b: u32, n: u32) -> f32 {
     let a = grid::cell_direction(a, n);
     let b = grid::cell_direction(b, n);
@@ -734,16 +744,13 @@ impl History {
         );
         }
         ensure!(
-            self.candidates
-                .iter()
-                .all(|c| cells
-                    .get(c.cell as usize)
-                    .is_some_and(|v| v.meta[0] == 2
-                        && v.water[0] < crate::hazards::MIN_NAVIGABLE_WATER_DEPTH_M)
-                    && c.yield_kg.is_finite()
-                    && c.yield_kg > 0.
-                    && c.hectares.is_finite()
-                    && c.hectares > 0.),
+            self.candidates.iter().all(|c| cells
+                .get(c.cell as usize)
+                .is_some_and(|v| v.meta[0] == 2)
+                && c.yield_kg.is_finite()
+                && c.yield_kg > 0.
+                && c.hectares.is_finite()
+                && c.hectares > 0.),
             "invalid settlement candidate"
         );
         ensure!(
@@ -1617,7 +1624,7 @@ impl Generator {
         let governance_observations = h.observe_governance();
         h.governance_month_observed(&governance_observations)?;
         if h.month % 12 == 0 {
-            h.annual(self.config.radius_km);
+            h.annual(self.config.radius_km, terrain);
             h.prepare_society_with_navigation(terrain, self.config.radius_km, navigation)?;
             h.prepare_politics(terrain);
             h.prepare_governance();
@@ -1813,7 +1820,7 @@ impl Generator {
     }
 }
 impl History {
-    fn annual(&mut self, radius: f32) {
+    fn annual(&mut self, radius: f32, terrain: &[crate::gpu::Cell]) {
         self.evolve_lexicons();
         let n = self.terrain_resolution;
         for i in 0..self.sites.len() {
@@ -1919,6 +1926,7 @@ impl History {
                 .iter()
                 .filter(|c| {
                     c.island == s.island
+                        && c.available_for_founding(terrain)
                         && self.sites.iter().all(|s| s.cell != c.cell)
                         && distance(c.cell, s.cell, n) * radius < DAUGHTER_MAX_DISTANCE_KM
                 })
@@ -2404,12 +2412,7 @@ impl Generator {
             return self.validate_living_boundary();
         }
         self.initialize_history_boundary()?;
-        let terrain = self.snapshot()?;
         let h = self.civilizations.as_mut().unwrap();
-        h.candidates.retain(|c| {
-            crate::hazards::flood_depth(&terrain[c.cell as usize])
-                < crate::hazards::MIN_NAVIGABLE_WATER_DEPTH_M
-        });
         h.living = Some(LivingHistory {
             environmental_returns: false,
             history_start: h.month,
@@ -2553,10 +2556,6 @@ impl Generator {
             let mut environment = self.history_environment.take().unwrap_or_default();
             environment.refresh(self)?;
             let terrain = environment.for_month(self.civilizations.as_ref().unwrap().month + 1)?;
-            self.civilizations.as_mut().unwrap().candidates.retain(|c| {
-                crate::hazards::flood_depth(&terrain[c.cell as usize])
-                    < crate::hazards::MIN_NAVIGABLE_WATER_DEPTH_M
-            });
             self.advance_history_with_terrain(1, Some(terrain))?;
             self.commit_environmental_returns()?;
             self.reconcile_managed_land();
@@ -2731,6 +2730,81 @@ impl History {
 mod lifecycle_tests {
     use super::*;
     use crate::{catalog::Catalog, config::Config, gpu::ContextGpu};
+
+    #[test]
+    fn candidate_flood_admission_uses_effective_depth() {
+        let candidate = Candidate {
+            naming_landmark: None,
+            cell: 0,
+            island: 0,
+            yield_kg: 1000.,
+            hectares: 160.,
+            score: 1000.,
+        };
+        let mut terrain = [crate::gpu::Cell::default()];
+        terrain[0].meta[0] = 2;
+        assert!(candidate.available_for_founding(&terrain));
+        terrain[0].water[0] = 0.25;
+        assert!(!candidate.available_for_founding(&terrain));
+        // River storage is area averaged: 2 cm can imply a flooded corridor.
+        terrain[0].water[0] = 0.02;
+        terrain[0].water[3] = 2.;
+        assert!(!candidate.available_for_founding(&terrain));
+        terrain[0].water[0] = 0.;
+        assert!(candidate.available_for_founding(&terrain));
+        terrain[0].meta[0] = 3;
+        assert!(!candidate.available_for_founding(&terrain));
+        assert!(!candidate.available_for_founding(&[]));
+    }
+
+    #[test]
+    #[ignore = "requires hardware GPU"]
+    fn flooded_candidate_survives_resume_and_can_be_founded_after_recovery() {
+        let mut g = Generator::new(
+            pollster::block_on(ContextGpu::headless()).unwrap(),
+            Config {
+                resolution: 64,
+                ecology_resolution: 16,
+                seed: 17,
+                ..Default::default()
+            },
+            Catalog::bundled().unwrap(),
+        )
+        .unwrap();
+        g.found_civilizations(5).unwrap();
+        g.enable_society().unwrap();
+        let mut terrain = g.snapshot().unwrap();
+        let radius = g.config.radius_km;
+        let h = g.civilizations.as_mut().unwrap();
+        let candidate = h
+            .candidates
+            .iter()
+            .find(|c| {
+                c.island == h.sites[0].island
+                    && h.sites.iter().all(|s| s.cell != c.cell)
+                    && distance(c.cell, h.sites[0].cell, 64) * radius < DAUGHTER_MAX_DISTANCE_KM
+            })
+            .unwrap()
+            .clone();
+        terrain[candidate.cell as usize].water[0] = 1.;
+        // Wet prospective sites remain valid archive records.
+        h.validate(&terrain).unwrap();
+        h.candidates = vec![candidate.clone()];
+        h.sites[0].stocks.stock[0] = 500.;
+        h.sites[0].demography.ages[..3].copy_from_slice(&[150., 300., 50.]);
+        h.sites[0].stocks.stock[1] = 500. * 18. * 24.;
+        let sites = h.sites.len();
+        h.annual(radius, &terrain);
+        assert_eq!(h.sites.len(), sites);
+        assert_eq!(h.candidates.len(), 1);
+        let mut restored: History =
+            serde_json::from_str(&serde_json::to_string(h).unwrap()).unwrap();
+        terrain[candidate.cell as usize].water[0] = 0.;
+        restored.annual(radius, &terrain);
+        assert_eq!(restored.sites.len(), sites + 1);
+        assert_eq!(restored.sites.last().unwrap().cell, candidate.cell);
+        assert_eq!(restored.candidates.len(), 1);
+    }
 
     #[test]
     #[ignore = "requires hardware GPU"]

@@ -46,3 +46,40 @@ The harsh worlds each recorded 27 size changes. Seed 17 ended with 5 towns, 7 vi
 `python3 scripts/settlement_audit.py WORLD... --output REPORT.json` reconstructs abandonment/reoccupation from events and fails on local activity notices at ruined sites or nonzero resident cohorts in ruins. It intentionally treats historical archives made before this fix as audit failures when they contain the old ghost events.
 
 All six final archives passed the activity audit: **zero local activity notices after abandonment**, and zero remaining resident cohorts in ruins. Complete collapse occurred at years 31.33 and 29.33; neither world emitted any further events through year 100. The largest reported relative conservation residual was **2.82327e-05**. These small-grid, two-seed comparisons are regression evidence, not a universal historical calibration.
+
+
+## Candidate flooding and reoccupation review
+
+Surveyed candidate identities now survive temporary flooding. Annual daughter
+founding checks the completed terrain snapshot and rejects candidates at or above
+0.25 m effective flood depth, including river-corridor concentration. When water
+recedes, the same candidate is eligible again without a new survey. Saved candidate
+records may therefore be flooded; archive validation still requires valid inner
+land, positive finite yield and area. Living-history activation and monthly steps
+no longer delete candidates. Previously removed candidates in older saves are not
+reconstructed by this change.
+
+Reoccupation is currently limited to returning residents. The monthly Open phase
+can reactivate an abandoned site when actual residents return, preserving its ID,
+remaining property and historical records. A household whose intended destination
+fails can retrace its journey home, including to an abandoned origin.
+
+An unrelated settlement group cannot currently choose ruins for resettlement:
+ordinary relocation rejects abandoned destinations, and aggregate/individual
+daughter founding rejects any cell with an existing site record, even a ruin.
+Thus ruins are not intrinsically uninhabitable, but there is no general funded
+resettlement proposal. Adding one would need to transfer actual settlers,
+provisions and portable property, reuse the site's identity and surviving assets,
+and resolve administration and existing property claims. This review does not
+implement that additional policy.
+
+Regression coverage: the CPU flood-admission fixture covers dry, threshold,
+river-corridor, recovered, outer-land and missing-cell cases. The GPU founding
+fixture retains a flooded candidate through history serialization, refuses founding
+while wet, and admits it after recovery. Existing lifecycle and relocation fixtures
+cover returning residents and failed-destination return journeys.
+
+Verification passed: one CPU admission test and four GPU tests (flood recovery,
+lifecycle/reoccupation, conserved relocation, and living-history snapshot sharing).
+The recovery test round-trips history JSON; it does not claim a full world-archive
+continuation comparison. No new seed balance runs were needed for this admission fix.
