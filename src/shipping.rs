@@ -19,6 +19,7 @@ const CONNECTION_MIN_QUOTE_MONEY_PER_KG: f32 = 0.0001;
 const HARBOR_BUILDING_RESERVE_KG_PER_PERSON: f32 = 1.;
 const HARBOR_ANNUAL_WEAR_FRACTION: f32 = 0.02;
 const COMMISSIONING_MATERIAL_FRACTION: f32 = 0.999;
+const STAGED_COMMISSIONING_MATERIAL_FRACTION: f32 = 0.25;
 const HARBOR_DISRUPTION_CAPACITY_KG: f32 = 500.;
 const HARBOR_RECOVERY_CAPACITY_KG: f32 = 800.;
 const LEGACY_MAX_TRADE_DISTANCE_KM: f32 = 3000.;
@@ -77,6 +78,18 @@ pub struct Port {
     pub flood_months: u32,
 }
 impl Port {
+    fn ready_to_commission(&self, staged: bool) -> bool {
+        let fraction = if staged {
+            STAGED_COMMISSIONING_MATERIAL_FRACTION
+        } else {
+            COMMISSIONING_MATERIAL_FRACTION
+        };
+        self.assets
+            .iter()
+            .zip(TARGET)
+            .all(|(a, t)| *a >= t * fraction)
+    }
+
     /// Next annual build/repair deficit, including wear applied before construction.
     /// Forecast only: this does not reserve stock, money or worker capacity.
     pub(crate) fn material_deficit(&self) -> [f32; 3] {
@@ -138,6 +151,8 @@ pub struct SeaLane {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Shipping {
+    #[serde(default)]
+    pub staged_harbors: bool,
     pub version: u32,
     pub started: u32,
     pub surveyed_sites: u32,
@@ -539,14 +554,14 @@ impl History {
             // into completed recipes. The receipt only attributes the protected share.
             s.economy.harbor_work[3] =
                 (s.economy.harbor_work[1] - s.economy.harbor_work[2]).max(0.);
-            if p.commissioned.is_none()
-                && p.assets
-                    .iter()
-                    .zip(TARGET)
-                    .all(|(a, t)| *a >= t * COMMISSIONING_MATERIAL_FRACTION)
-            {
+            if p.commissioned.is_none() && p.ready_to_commission(shipping.staged_harbors) {
                 p.commissioned = Some(self.month);
-                self.event("port_opened",Some(p.site),None,"Harbor and merchant boats commissioned from 200 kg timber, 10 kg tools and 100 kg masonry; 1000 kg shared transport capacity".into());
+                let detail = if shipping.staged_harbors {
+                    format!("A working harbor opened with {:.1} kg timber, {:.1} kg tools and {:.1} kg masonry; {:.0} kg installed handling capacity. Voyages still require funded vessels and crews.", p.assets[0], p.assets[1], p.assets[2], p.harbor_capacity())
+                } else {
+                    "Harbor and merchant boats commissioned from 200 kg timber, 10 kg tools and 100 kg masonry; 1000 kg shared transport capacity".into()
+                };
+                self.event("port_opened", Some(p.site), None, detail);
             }
         }
         self.shipping = Some(shipping);
@@ -821,6 +836,7 @@ impl Generator {
             "shipping requires social history without an existing shipping baseline"
         );
         h.shipping = Some(Shipping {
+            staged_harbors: false,
             version: 1,
             started: h.month,
             surveyed_sites: 0,
@@ -867,6 +883,38 @@ impl Generator {
 #[cfg(test)]
 mod harbor_tests {
     use super::*;
+    #[test]
+    fn staged_opening_requires_every_material_and_does_not_create_fleet_capacity() {
+        let mut p = Port {
+            fleet: Some(Default::default()),
+            work: None,
+            site: 0,
+            access: vec![],
+            water_cell: 0,
+            access_km: 1.,
+            assets: TARGET.map(|v| v * 0.25),
+            commissioned: None,
+            flood_months: 0,
+        };
+        assert!(p.ready_to_commission(true));
+        assert!(!p.ready_to_commission(false));
+        assert_eq!(p.harbor_capacity(), 0.);
+        for k in 0..3 {
+            let mut short = p.clone();
+            short.assets[k] *= 0.99;
+            assert!(!short.ready_to_commission(true));
+        }
+        p.commissioned = Some(12);
+        assert_eq!(p.harbor_capacity(), 250.);
+        assert_eq!(p.capacity(), 0., "no vessels means no cargo capacity");
+        p.assets = TARGET;
+        assert!(p.ready_to_commission(false));
+        assert_eq!(p.harbor_capacity(), 1000.);
+        p.flood_months = 1;
+        assert_eq!(p.harbor_capacity(), 0.);
+        let restored: Port = serde_json::from_value(serde_json::to_value(&p).unwrap()).unwrap();
+        assert_eq!(restored.capacity(), p.capacity());
+    }
     #[test]
     fn scarce_tool_investment_retains_working_stock() {
         assert!((construction_reserve(3, 160., 22.) - 20.9).abs() < 1e-5);

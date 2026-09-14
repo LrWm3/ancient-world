@@ -371,6 +371,7 @@ mod tests {
     #[test]
     fn cargo_claims_use_actual_sea_endpoints() {
         let shipping = crate::shipping::Shipping {
+            staged_harbors: false,
             version: 1,
             started: 0,
             surveyed_sites: 3,

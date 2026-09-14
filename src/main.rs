@@ -118,6 +118,9 @@ struct Args {
     /// Retain annual aggregate GPU demographic exposure diagnostics (no behavior changes).
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     demographic_audit: Option<bool>,
+    /// Open small harbors at one quarter of each material target, with proportional capacity.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    staged_harbors: Option<bool>,
     /// Fund local experiments to recover missing production knowledge.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     practical_research: Option<bool>,
@@ -250,6 +253,7 @@ fn main() -> Result<()> {
                 && args.gradual_nutrition.is_none()
                 && args.food_solidarity.is_none()
                 && args.demographic_audit.is_none()
+                && args.staged_harbors.is_none()
                 && args.practical_research.is_none()
                 && args.household_estate_reclamation.is_none()
                 && args.abandoned_stock_recovery.is_none()
@@ -529,6 +533,14 @@ fn main() -> Result<()> {
                 e.gradual_nutrition = enabled;
             }
         }
+    }
+    if let Some(enabled) = args.staged_harbors {
+        generator
+            .civilizations
+            .as_mut()
+            .and_then(|h| h.shipping.as_mut())
+            .context("staged harbors require shipping")?
+            .staged_harbors = enabled;
     }
     if let Some(enabled) = args.demographic_audit {
         let h = generator

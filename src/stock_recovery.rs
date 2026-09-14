@@ -482,6 +482,7 @@ mod tests {
             sea.sites[1].island = sea.sites[0].island.wrapping_add(1);
             sea.society.as_mut().unwrap().routes.clear();
             sea.shipping = Some(Shipping {
+                staged_harbors: false,
                 version: 1,
                 started: 0,
                 surveyed_sites: 2,

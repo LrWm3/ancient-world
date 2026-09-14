@@ -140,3 +140,7 @@ explicitly disables the audit. This was a fixture update, not a relaxed check or
 an economic behavior change.
 The market integration target passes 19 ordinary tests, with two extended tests
 ignored. The combined Python reporter/circulation suite passes all 12 tests.
+
+Follow-up: [early food supply and staged harbors](early-food-and-staged-harbors.md)
+separates the aggregate supply gap from inaccessible town reserves and tests opening
+small, materially funded harbors before full construction is complete.

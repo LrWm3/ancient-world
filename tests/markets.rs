@@ -376,6 +376,7 @@ fn shipping_shares_capacity_between_lanes_and_respects_port_closures() {
     }
     h.society.as_mut().unwrap().routes.clear();
     h.shipping = Some(Shipping {
+        staged_harbors: false,
         version: 1,
         started: 0,
         surveyed_sites: 3,
@@ -521,6 +522,7 @@ fn sea_arrival_cannot_bypass_hostile_inland_transit() {
         }],
     });
     h.shipping = Some(Shipping {
+        staged_harbors: false,
         version: 1,
         started: 0,
         surveyed_sites: 4,
