@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 
-HOUSEHOLD_FLOW_FIELDS = ("wages", "dividends", "relief", "food_spending", "wealth_tax_paid")
+HOUSEHOLD_FLOW_FIELDS = ("wages", "dividends", "relief", "food_spending", "wealth_tax_paid", "solidarity_sent", "solidarity_received")
 
 
 def household_flows(accounts):

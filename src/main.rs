@@ -112,6 +112,9 @@ struct Args {
     /// Use accumulated nutritional stress for aggregate mortality and illness.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     gradual_nutrition: Option<bool>,
+    /// Local surplus-wallet contributions for stock-backed food purchasing gaps.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    food_solidarity: Option<bool>,
     /// Fund local experiments to recover missing production knowledge.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     practical_research: Option<bool>,
@@ -242,6 +245,7 @@ fn main() -> Result<()> {
                 && args.council_welfare_reserves.is_none()
                 && args.needs_based_food.is_none()
                 && args.gradual_nutrition.is_none()
+                && args.food_solidarity.is_none()
                 && args.practical_research.is_none()
                 && args.household_estate_reclamation.is_none()
                 && args.abandoned_stock_recovery.is_none()
@@ -521,6 +525,18 @@ fn main() -> Result<()> {
                 e.gradual_nutrition = enabled;
             }
         }
+    }
+    if let Some(enabled) = args.food_solidarity {
+        generator
+            .civilizations
+            .as_mut()
+            .context("solidarity requires history")?
+            .society
+            .as_mut()
+            .and_then(|s| s.household_economy.as_mut())
+            .context("solidarity requires household accounts")?
+            .solidarity
+            .enabled = enabled;
     }
     if let Some(enabled) = args.council_welfare_reserves {
         generator

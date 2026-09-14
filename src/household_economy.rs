@@ -9,6 +9,7 @@ pub mod inheritance;
 mod nutrition;
 pub mod policy;
 pub mod reclamation;
+pub mod solidarity;
 pub mod wealth_tax;
 pub use family_support::{FamilyGift, FamilySupportPolicy};
 
@@ -66,6 +67,10 @@ pub struct HouseholdAccount {
     #[serde(default)]
     pub family_sent: f64,
     #[serde(default)]
+    pub solidarity_sent: f64,
+    #[serde(default)]
+    pub solidarity_received: f64,
+    #[serde(default)]
     pub inheritance_received: f64,
     #[serde(default)]
     pub inheritance_paid: f64,
@@ -116,6 +121,8 @@ impl FoundingAccess {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HouseholdEconomy {
+    #[serde(default)]
+    pub solidarity: solidarity::Policy,
     /// Counterfactual: all current dietary need may access finite local food.
     #[serde(default)]
     pub needs_based_food: bool,
@@ -182,6 +189,7 @@ fn nutrition_enabled() -> bool {
 impl HouseholdEconomy {
     pub fn new(month: u32) -> Self {
         Self {
+            solidarity: Default::default(),
             needs_based_food: false,
             gradual_nutrition: false,
             wealth_tax: Default::default(),
@@ -218,6 +226,41 @@ impl HouseholdEconomy {
             .map_or(self.common_share, |p| p.share(month, self.common_share))
     }
     pub fn validate(&self, h: &History) -> Result<()> {
+        ensure!(
+            (self
+                .accounts
+                .iter()
+                .map(|a| a.solidarity_sent - a.solidarity_received)
+                .sum::<f64>())
+            .abs()
+                < BALANCE_TOLERANCE
+                    * (1. + self.accounts.iter().map(|a| a.solidarity_sent).sum::<f64>()),
+            "food solidarity transfers do not balance"
+        );
+        ensure!(
+            self.solidarity.month.is_none_or(|m| m <= h.month)
+                && self.solidarity.receipts.len() <= h.sites.len()
+                && self
+                    .solidarity
+                    .receipts
+                    .iter()
+                    .all(|r| (r.site as usize) < h.sites.len()
+                        && [
+                            r.requested,
+                            r.donor_allowance,
+                            r.stock_backed_budget,
+                            r.transferred
+                        ]
+                        .iter()
+                        .all(|v| v.is_finite() && *v >= 0.)
+                        && r.transferred
+                            <= r.requested
+                                .min(r.donor_allowance)
+                                .min(r.stock_backed_budget)
+                                + BALANCE_TOLERANCE),
+            "invalid food solidarity receipts"
+        );
+
         ensure!(
             !self.gradual_nutrition || !h.individual_demography_enabled(),
             "gradual nutrition currently requires aggregate demography"
@@ -290,6 +333,8 @@ impl HouseholdEconomy {
                     a.reclaimed,
                     a.family_received,
                     a.family_sent,
+                    a.solidarity_sent,
+                    a.solidarity_received,
                     a.capital_invested,
                     a.capital_returned,
                     a.employer_income,
@@ -320,6 +365,8 @@ impl HouseholdEconomy {
                 (a.cash - a.wages - a.dividends - a.relief - a.inheritance_received
                     + a.inheritance_paid
                     + a.reclaimed
+                    - a.solidarity_received
+                    + a.solidarity_sent
                     - a.family_received
                     - a.legal_compensation_received
                     - a.credit_principal_received
@@ -343,6 +390,8 @@ impl HouseholdEconomy {
                             + a.inheritance_received
                             + a.inheritance_paid
                             + a.reclaimed
+                            + a.solidarity_received
+                            + a.solidarity_sent
                             + a.family_received
                             + a.family_sent
                             + a.capital_invested
@@ -794,6 +843,16 @@ impl History {
                 ..receipt
             });
         }
+        solidarity::settle(
+            e,
+            &plans,
+            &self
+                .sites
+                .iter()
+                .map(|s| s.stocks.stock[1] as f64)
+                .collect::<Vec<_>>(),
+            self.month,
+        );
         for p in &mut plans {
             for (j, &id) in p.ids.iter().enumerate() {
                 p.demand[j] = (p.needs[j]

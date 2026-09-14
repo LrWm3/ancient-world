@@ -87,6 +87,17 @@ class CirculationAuditTests(unittest.TestCase):
         self.assertEqual(report['household_cumulative_flows']['wages'], 1000)
         self.assertEqual(report['sites'][0]['household_cumulative_flows']['food_spending'], 1040)
 
+    def test_solidarity_counters_are_transfers_not_extra_cash(self):
+        h = self.fixture()
+        before = audit(h)
+        e = h['society']['household_economy']
+        e['accounts'][0]['solidarity_sent'] = 100
+        e['accounts'][0]['solidarity_received'] = 100
+        after = audit(h)
+        self.assertEqual(before['cash'], after['cash'])
+        self.assertEqual(after['household_cumulative_flows']['solidarity_sent'], 100)
+        self.assertEqual(after['household_cumulative_flows']['solidarity_received'], 100)
+
     def test_wealth_tax_is_a_transfer_not_new_money(self):
         history = self.fixture()
         economy = history['society']['household_economy']

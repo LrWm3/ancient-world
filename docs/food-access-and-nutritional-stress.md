@@ -152,3 +152,7 @@ exactly matches the previous version after removing the added default fields.
 The final health-only build also exactly reproduces its earlier century export.
 These two additional runs bring new native runs to eleven. The comparison is
 same-backend repeatability, not a substitute for a save/resume or cross-GPU study.
+
+Follow-up: [local food solidarity](food-solidarity.md) tests surplus-wallet
+contributions while preserving ordinary food-sale payments. Its three-seed screen
+improves access in two seeds but does not establish population recovery.
