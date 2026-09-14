@@ -1,6 +1,6 @@
 # Patron foundings and living traditions
 
-New histories now start with named guides accompanying the initial human communities from the Ancient World. The voyage is a recorded prologue; settlements and daughter towns remain on the inner continents. Existing histories receive an explicitly identified cultural baseline, without invented witnesses or retroactive patrons.
+New histories now start with named guides accompanying the initial human communities from the Ancient World following their collective banishment. The voyage is a recorded prologue; settlements and daughter towns remain on the inner continents. Existing histories receive an explicitly identified cultural baseline, without invented witnesses or retroactive patrons.
 
 ## Running and inspecting
 
@@ -22,7 +22,7 @@ Reusable APIs include `found_civilizations_with_options`, `found_civilizations_w
 ## Mechanics and accounting
 
 - `assets/patrons.toml` contains eight semi-intelligent animals and five intelligent beings, including a blameless human guide. Appearance, communication, ecological origin preference, teaching, and aid strength are editable. Default service is 84 or 36 months, scaled by seeded variance and divided by `1 + aid_strength`.
-- Each patron has an actual Ancient World origin, a coastal island landing connected to its settlement, a schematic voyage, founding witnesses, intended departure, delivered effort, and a separate finite sustenance ledger. Patrons depart even when their town has failed. Their mandate remains unknown.
+- Each patron has an actual Ancient World origin, a coastal island landing connected to its settlement, a schematic voyage, founding witnesses, intended departure, delivered effort, and a separate finite sustenance ledger. Patrons depart even when their town has failed. Their immediate task is complete once their time has been served.
 - Assistance trains existing people, makes construction materials from existing stocks, and reduces existing raid risks. It creates no money, food, or fertility. Learned knowledge persists after departure. Effort is recorded by activity; scouting records nearby surveyed cells in a living witness’s place knowledge and improves navigation skill. Service includes its final month, and later offerings follow the actual departure anniversary.
 - Traditions begin with four independently drawn human themes. A patron may weakly influence one theme. Accounts cite factual events and their human transmitters. Household affiliation survives changes in political administration. Contact, hardship, leadership and sustained support can produce adoption, reinterpretation, syncretism, and schism while retaining patron ancestry.
 - Six disposition axes and skills extend existing historical people. Quarterly actions use locally present adults, available materials, money and reserved craft labor. Named people teach, organize institutions, sponsor charitable transfers, make manuscripts or objects, undertake local pilgrimages, seek office, and sometimes steal objects. These activities share a finite quarterly work allowance. Succession considers personal ambition and loyalty.
