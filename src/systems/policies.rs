@@ -415,7 +415,7 @@ mod tests {
                     .as_ref()
                     .unwrap()
                     .registered_policy_enabled(system),
-                Some(false)
+                Some(system.default_enabled())
             );
             for enabled in [true, false] {
                 g.apply_registered_policies(&Systems {
@@ -479,6 +479,7 @@ mod tests {
         );
         assert!(resumed.config.systems.enabled(System::HouseholdWealthTax));
         assert!(resumed.config.systems.enabled(System::PracticalResearch));
+        assert!(!resumed.config.systems.enabled(System::RuinResettlement));
         g.refresh_registered_policies();
         g.advance_history(2).unwrap();
         resumed.advance_history(1).unwrap();

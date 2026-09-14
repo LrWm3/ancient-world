@@ -3,7 +3,8 @@
 New desktop and CLI histories enable the original world/history extensions by
 default: social history, politics, governance, offices, shipping, expeditions,
 living ecology, shared resources, production, facilities, markets and fisheries.
-The more recent policy experiments are also in `System::ALL`, but remain **opt-in**.
+Most recent policy experiments remain **opt-in**. Ruin resettlement is registered
+as a **default-on** policy, subject to its society and politics prerequisites.
 Registering an experiment does not change its balance default. Use
 `System::default_enabled()` rather than assuming every registry entry defaults on.
 Patron aid retains its separate default-on founding control.
@@ -199,7 +200,8 @@ existing 5% surplus allowance, and disabling the new option restores it. Both
 policies protect working cash and require available food. See the
 [matched-checkpoint comparison](municipal-needs-first.md).
 
-`ruin-resettlement` is an opt-in society/politics policy for funded household restoration of
-abandoned sites. It uses managed crops and existing land routes. Old archives keep
-it disabled; already-funded journeys and dated ownership notices continue when new
-proposals are disabled. See [ruin resettlement](ruin-resettlement.md).
+`ruin-resettlement` is a default-on society/politics policy for funded household
+restoration of abandoned sites. It uses managed crops and existing land routes.
+Explicit saved disable settings are preserved; missing settings default on. Use
+`--disable-system ruin-resettlement` to opt out; already-funded journeys and dated
+ownership notices continue when new proposals are disabled. See [ruin resettlement](ruin-resettlement.md).

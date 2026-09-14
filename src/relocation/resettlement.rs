@@ -29,13 +29,23 @@ const DISTANCE_WEIGHT: f32 = 0.1;
 const CLAIM_WINDOW_OCCUPIED_MONTHS: u32 = 120;
 pub(super) const PROVISIONAL_SETTLER_SHARE: f32 = 0.05;
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct State {
     pub enabled: bool,
     pub last_review: Option<u32>,
     pub last_claim_month: Option<u32>,
     pub occupations: Vec<Occupation>,
+}
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            enabled: crate::systems::System::RuinResettlement.default_enabled(),
+            last_review: None,
+            last_claim_month: None,
+            occupations: Vec::new(),
+        }
+    }
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Cargo {
@@ -838,6 +848,18 @@ impl crate::gpu::Generator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn resettlement_defaults_on_but_preserves_saved_disable() {
+        assert!(State::default().enabled);
+        assert!(serde_json::from_str::<State>("{}").unwrap().enabled);
+        let disabled: State = serde_json::from_str(r#"{"enabled":false}"#).unwrap();
+        assert!(!disabled.enabled);
+        assert!(
+            !serde_json::from_value::<State>(serde_json::to_value(disabled).unwrap())
+                .unwrap()
+                .enabled
+        );
+    }
     fn fixture() -> (crate::gpu::Generator, u32, u32, Vec<Cell>) {
         let mut g = crate::gpu::Generator::new(
             pollster::block_on(crate::gpu::ContextGpu::headless()).unwrap(),
@@ -942,6 +964,14 @@ mod tests {
             }
         }
         h.society.as_mut().unwrap().relocation.resettlement.enabled = true;
+        // This synthetic ruin was introduced after the normal annual review.
+        // Reopen that decision window only in this controlled fixture.
+        h.society
+            .as_mut()
+            .unwrap()
+            .relocation
+            .resettlement
+            .last_review = None;
         (g, household, to, terrain)
     }
     fn compare_ledgers(h: &History, baseline: [f64; 6], food: f64, pop: f64) {

@@ -116,7 +116,7 @@ impl System {
         Self::REGISTERED_POLICIES.contains(&self)
     }
     pub fn default_enabled(self) -> bool {
-        !self.is_registered_policy()
+        self == Self::RuinResettlement || !self.is_registered_policy()
     }
 
     pub const ALL: &'static [Self] = &[
@@ -449,7 +449,13 @@ impl Generator {
             l.environmental_returns = false;
         }
         self.config.systems = options.clone();
-        self.apply_registered_policies(options)?;
+        // Startup applies this default-on policy even when a prerequisite is disabled.
+        // Loaded-history interventions still change only explicitly requested policies.
+        let mut policies = options.clone();
+        policies
+            .overrides
+            .insert(RuinResettlement, options.enabled(RuinResettlement));
+        self.apply_registered_policies(&policies)?;
         Ok(())
     }
 }
@@ -464,7 +470,7 @@ mod tests {
         assert_eq!(unique.len(), System::ALL.len());
         for &system in System::REGISTERED_POLICIES {
             assert!(System::ALL.contains(&system));
-            assert!(!system.default_enabled());
+            assert_eq!(system.default_enabled(), system == System::RuinResettlement);
             assert_eq!(
                 <System as ValueEnum>::from_str(&system.label(), false).unwrap(),
                 system
@@ -495,6 +501,7 @@ mod tests {
         assert!(options.enabled(System::Society));
         options.select(System::Shipping, false);
         assert!(!options.enabled(System::Discoveries));
+        assert!(options.enabled(System::RuinResettlement));
         options.validate().unwrap();
     }
     #[test]
@@ -505,6 +512,7 @@ mod tests {
             .all(|s| options.enabled(*s) == s.default_enabled()));
         options.overrides.insert(System::Society, false);
         assert!(!options.enabled(System::Discoveries));
+        assert!(!options.enabled(System::RuinResettlement));
         assert!(options.enabled(System::LivingWorld));
         options.validate().unwrap();
         options.overrides.insert(System::Expeditions, true);

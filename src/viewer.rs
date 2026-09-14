@@ -1691,7 +1691,7 @@ impl App {
                     if ui
                         .checkbox(
                             &mut enabled,
-                            if system.is_registered_policy() {
+                            if !system.default_enabled() {
                                 format!("{} (opt-in)", system.label())
                             } else {
                                 system.label()

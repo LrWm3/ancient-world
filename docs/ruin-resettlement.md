@@ -1,8 +1,9 @@
 # Restoring abandoned settlements
 
-`ruin-resettlement` is an opt-in registered policy requiring society and politics. It operates
-on the existing managed economy and crop inventories, with one household per
-successful foothold. Existing saves default to no new restoration proposals.
+`ruin-resettlement` is a default-on registered policy requiring society and
+politics. It operates on the existing managed economy and crop inventories, with
+one household per successful foothold. Saves with an explicit disabled setting
+preserve it; missing settings use the enabled default.
 Disabling proposals does not cancel funded journeys or erase occupation claims.
 
 ## Admission and scheduling
@@ -100,8 +101,10 @@ Ordinary relocation may bring later households once the place is active and meet
 its usual food/housing conditions. Existing regional farm and resource limits
 continue to constrain recovery.
 
-Use `--enable-system ruin-resettlement` on a history with society, politics and managed
-farming, or select the registered policy in the explorer. Events link the sponsor,
+New histories enable restoration when society and politics are enabled. Use
+`--disable-system ruin-resettlement` to stop new proposals, or
+`--enable-system ruin-resettlement` to enable it explicitly on a compatible history.
+The explorer exposes the same registered policy. Events link the sponsor,
 origin, destination, household, journey and title notices; occupation records live
 under `society.relocation.resettlement` in exported history.
 
@@ -139,3 +142,9 @@ selected GPU regressions passed**. The latter include all six restoration tests,
 ordinary relocation conservation, decline/reoccupation, flooded-candidate recovery,
 and registry enable/disable/archive continuation. The selected GPU run took 8.44 s
 excluding compilation. No long seed ensemble was run for this change.
+
+Default-on follow-up: 220 ordinary library tests and seven selected GPU tests
+passed (the six restoration cases plus registry application/archive continuation).
+Checks include default enablement, explicit saved disable settings, prerequisite
+suppression and once-per-year proposal timing. This changes activation defaults,
+not funding, survival or ownership thresholds.
