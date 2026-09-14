@@ -132,20 +132,3 @@ values do not necessarily represent the same policy. During extraction, preserve
 numeric types, values and arithmetic order; balance changes belong in a separate
 change. Track the ongoing file-by-file cleanup in
 [the constants cleanup record](docs/constants-cleanup.md).
-
-## Growth-investigation baseline
-
-For subsequent population/economy investigations, use nutrient retention **0.95**
-and geological farm phosphorus release **5e-7 per month**. Use
-`scripts/run_growth_investigation.py` to supply these native CLI options, or pass
-`--farm-nutrient-retention 0.95 --farm-phosphorus-release 0.0000005` explicitly.
-Keep normal household food purchasing as the comparison baseline; do not implicitly
-turn on `needs-based-food`. If loading a previous common-food counterfactual,
-explicitly disable that system for a purchasing comparison.
-
-This is the agreed investigation preset, not a change to application defaults or
-an instruction to rewrite existing archives. Record overrides in each test summary.
-The retention override applies to towns present when the run starts; later daughter
-towns retain their own initial policy. The geological release rate also applies to
-new towns. See [the nutrient growth screen](docs/growth-nutrient-screen.md) for the
-controls, limitations and original 0.85 / 1e-7 comparison values.
