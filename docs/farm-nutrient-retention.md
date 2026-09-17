@@ -158,3 +158,8 @@ farms on a fixed footprint. The most useful follow-ups are:
 
 The present controls provide measurable interventions for that work without
 changing the monthly schedule or weakening conservation.
+
+Follow-up: [fixed-footprint nutrient comparisons](fixed-footprint-nutrients.md)
+remove settlement expansion as a source of new managed soil inventories.
+[Daughter planting supplies](daughter-planting-supplies.md) addresses the separate
+seed-establishment failure with a finite parent-funded founding transaction.
