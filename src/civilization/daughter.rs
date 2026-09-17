@@ -25,6 +25,9 @@ impl History {
         {
             return false;
         }
+        let Some(seeds) = self.daughter_seed_plan(from) else {
+            return false;
+        };
         let Some(society) = &self.society else {
             return false;
         };
@@ -98,6 +101,7 @@ impl History {
         }
         self.found(candidate, civilization, population, food);
         let to = self.sites.len() - 1;
+        self.commit_daughter_seeds(from, to, seeds);
         let site = &mut self.sites[to];
         site.stocks.people[2] += population;
         site.demography.ages[..3].copy_from_slice(&ages);
@@ -175,6 +179,29 @@ mod tests {
             .unwrap()
             .clone();
         let before = h.clone();
+        let mut seedless = before.clone();
+        for crop in &mut seedless.sites[0].economy.crops {
+            crop[2] = 0.;
+        }
+        for good in &mut seedless.sites[0].economy.goods {
+            *good = 0.;
+        }
+        let seedless_before = serde_json::to_value(&seedless).unwrap();
+        assert!(!seedless.found_resident_daughter(0, &c, 40.));
+        assert_eq!(seedless_before, serde_json::to_value(&seedless).unwrap());
+
+        // A parent whose dormant seeds are planted can use real raw grain instead.
+        let mut grain_donor = seedless.clone();
+        let wheat = grain_donor
+            .economy_catalog
+            .as_ref()
+            .unwrap()
+            .index("wheat")
+            .unwrap();
+        grain_donor.sites[0].economy.goods[wheat] = 10.;
+        assert!(grain_donor.found_resident_daughter(0, &c, 40.));
+        assert_eq!(grain_donor.sites.last().unwrap().economy.crops[0][2], 2.);
+        assert_eq!(grain_donor.sites[0].economy.goods[wheat], 8.);
         let mut unfunded = before.clone();
         unfunded.sites[0].stocks.stock[1] = 0.;
         let unfunded_before = serde_json::to_value(&unfunded).unwrap();
@@ -246,12 +273,34 @@ mod tests {
             assert!((shares - 1.).abs() < 1e-9);
         }
         let mut replay: History =
-            serde_json::from_value(serde_json::to_value(before).unwrap()).unwrap();
+            serde_json::from_value(serde_json::to_value(&before).unwrap()).unwrap();
         assert!(replay.found_resident_daughter(0, &c, 40.));
         assert_eq!(
             serde_json::to_value(&replay).unwrap(),
             serde_json::to_value(&*h).unwrap()
         );
+        for crop in 0..6 {
+            let catalog = h.economy_catalog.as_ref().unwrap();
+            let good = catalog
+                .index(&catalog.agriculture.as_ref().unwrap().crops[crop].good)
+                .unwrap();
+            let total = |h: &History| {
+                h.sites
+                    .iter()
+                    .map(|s| f64::from(s.economy.goods[good]) + f64::from(s.economy.crops[crop][2]))
+                    .sum::<f64>()
+            };
+            assert!((total(h) - total(&before)).abs() < 1e-5);
+        }
+        let carried = h.sites[to].economy.crops.map(|c| c[2]);
+        assert!(carried.iter().any(|s| *s >= 0.1));
+        let mut initialized = g.civilizations.take().unwrap();
+        g.prepare_economy(&mut initialized);
+        assert_eq!(initialized.sites[to].economy.crops.map(|c| c[2]), carried);
+        let once = serde_json::to_value(&initialized).unwrap();
+        g.prepare_economy(&mut initialized);
+        assert_eq!(serde_json::to_value(&initialized).unwrap(), once);
+        g.civilizations = Some(initialized);
         // Newly populated sites must survive normal initialization without inventing
         // household heads, then reproduce both checkpoint and monthly/batch schedules.
         g.advance_history(1).unwrap();
@@ -267,6 +316,14 @@ mod tests {
         assert_eq!(
             serde_json::to_value(&g.civilizations).unwrap(),
             serde_json::to_value(&resumed.civilizations).unwrap()
+        );
+        assert!(
+            g.civilizations.as_ref().unwrap().sites[to]
+                .economy
+                .crops
+                .iter()
+                .any(|crop| crop[3] > 0.),
+            "the daughter must establish and harvest a real crop"
         );
     }
 }

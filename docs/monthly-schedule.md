@@ -1,5 +1,11 @@
 # Monthly history schedule
 
+Annual daughter founding in Respond now includes an atomic
+[planting-supply check and transfer](daughter-planting-supplies.md). The actual
+parent supplies finite seed/raw crop goods; Close preserves them when initializing
+the new economy. An unfunded planting packet postpones founding rather than
+creating a seedless town. It does not reopen production or Reserve.
+
 The schedule is a game rule, not a claim about historical time. All stages execute
 once per simulated month, independent of API batch size. No additional planetary
 readbacks or whole-world observation copies are introduced.

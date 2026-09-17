@@ -1,6 +1,7 @@
 //! Civilization beta: GPU habitat/production/demography, sparse social history on CPU.
 mod daughter;
 mod founding_provisions;
+mod founding_seeds;
 pub mod growth;
 mod production_forecast;
 use crate::{
@@ -52,8 +53,6 @@ const LEGACY_LEADER_OLD_AGE_MONTHS: i32 = 720;
 const LEGACY_LEADER_DEATH_CHANCE_DENOMINATOR: u32 = 12;
 const LEGACY_SUCCESSOR_AGE_MONTHS: i32 = 360;
 const INITIAL_MANAGED_HECTARES_PER_PERSON: f32 = 2.;
-const DAUGHTER_CROP_SEED_SHARE: f32 = 0.2;
-const DAUGHTER_MAX_CROP_SEED_KG: f32 = 2.;
 const DAUGHTER_LIVESTOCK_SHARE: f32 = 0.2;
 const CLAIM_AREA_RELATIVE_TOLERANCE: f32 = 0.00001;
 const TOWN_DOWNGRADE_POPULATION: f32 = 90.;
@@ -1946,6 +1945,7 @@ impl History {
                     continue;
                 }
                 let cohort_fraction = settlers / s.stocks.stock[0];
+                let seeds = self.daughter_seed_plan(i).expect("admitted seed supply");
                 let mut migrant_ages = s.demography.ages;
                 for age in &mut migrant_ages[..3] {
                     *age *= cohort_fraction;
@@ -1957,6 +1957,7 @@ impl History {
                 self.sites[i].stocks.stock[1] -= food;
                 self.sites[i].stocks.people[3] += settlers;
                 self.found(&c, civ, settlers, food);
+                self.commit_daughter_seeds(i, self.sites.len() - 1, seeds);
                 self.sites.last_mut().unwrap().stocks.people[2] += settlers;
                 if self.society.is_some() {
                     for (k, amount) in migrant_ages[..3].iter().enumerate() {
@@ -2186,6 +2187,7 @@ impl Generator {
         for s in &mut h.sites {
             if s.economy.claim[1] == 0. {
                 let carried_cash = s.economy.finance[0];
+                let carried_seeds = s.economy.crops.map(|c| c[2]);
                 // Sites present at upgrade are baseline residents; later founding imports no capital.
                 let founder = s.stocks.people[2] == 0. && s.founded == 0;
                 s.economy = Economy::new(
@@ -2200,6 +2202,9 @@ impl Generator {
                     new_sites.push(s.id);
                 }
                 s.economy.finance[0] += carried_cash;
+                for (crop, seeds) in s.economy.crops.iter_mut().zip(carried_seeds) {
+                    crop[2] += seeds;
+                }
                 if h.farming_mode == Some(false) {
                     s.economy.management[0] = 0.;
                 }
@@ -2228,12 +2233,6 @@ impl Generator {
                 })
                 .map(|s| s.id as usize)
             {
-                for crop in 0..6 {
-                    let seeds = (h.sites[source].economy.crops[crop][2] * DAUGHTER_CROP_SEED_SHARE)
-                        .min(DAUGHTER_MAX_CROP_SEED_KG);
-                    h.sites[source].economy.crops[crop][2] -= seeds;
-                    h.sites[id as usize].economy.crops[crop][2] += seeds;
-                }
                 for herd in 0..3 {
                     let animals = h.sites[source].economy.herds[herd][0] * DAUGHTER_LIVESTOCK_SHARE;
                     h.sites[source].economy.herds[herd][0] -= animals;

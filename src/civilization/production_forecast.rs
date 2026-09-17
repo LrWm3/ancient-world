@@ -562,8 +562,10 @@ mod agriculture_tests {
         ready.validate_agriculture().unwrap();
         // Normal monthly pipeline, plus persistence and execution-speed equivalence.
         g.advance_history(2).unwrap();
-        let path =
-            std::env::temp_dir().join(format!("farm-participation-{}.world", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "farm-participation-{}-{extraction}-{construction}.world",
+            std::process::id()
+        ));
         g.save(&path).unwrap();
         let mut resumed = Generator::load(g.gpu.clone(), &path).unwrap();
         std::fs::remove_file(path).unwrap();

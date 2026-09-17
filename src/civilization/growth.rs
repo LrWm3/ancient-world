@@ -146,6 +146,9 @@ impl History {
         if self.sites.len() >= self.growth.settlement_limit {
             return Err("settlement_cap");
         }
+        if self.daughter_seed_plan(i).is_none() {
+            return Err("planting_supplies");
+        }
         Ok(candidate.clone())
     }
     /// All currently living population, including military, relocation and expedition travelers.
@@ -222,6 +225,17 @@ mod tests {
         );
         assert_eq!(h.candidates.len(), candidates);
         h.growth.settlement_limit = MAX_SETTLEMENTS;
+        let mut seedless = h.clone();
+        seedless.sites[site].economy.goods.fill(0.);
+        for crop in &mut seedless.sites[site].economy.crops {
+            crop[2] = 0.;
+        }
+        assert_eq!(
+            seedless
+                .daughter_opportunity(site, 1., &terrain)
+                .unwrap_err(),
+            "planting_supplies"
+        );
         h.sites[site].stocks.stock[0] = 150.;
         assert_eq!(
             h.daughter_opportunity(site, 1., &terrain).unwrap_err(),
