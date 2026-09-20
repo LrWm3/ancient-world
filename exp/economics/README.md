@@ -1,0 +1,244 @@
+# Stand-alone agent-based economics experiment
+
+Status: the process-based simulation is implemented and runs on CPU.
+An opt-in household scenario adds agreement-formed collective agents, pooled
+income/storage, shared shelter, member debt support, and spare-labor decisions.
+A controlled specialization fixture adds mining/refining, tool creation and repair,
+fishing, livestock, plot-attached housing and annual commodity-or-coin taxes.
+One-person and four-person scenarios plan repeated harvests and meet nutrition/warmth needs using generic
+process definitions, state-owned plots and dated use rights. The broader architecture remains a
+proposal; general markets, general-purpose finance and population demographics are not implemented.
+The 32-person trading fixture now uses upfront coin tool purchases and state
+advances against projected future commodity production, with finite treasury funding.
+A finite state offer now exchanges grain for a durable labor-saving tool.
+The storage experiment adds finite shared stores, a two-grain annual tax, treasury
+token issuance and voluntary grain sales to the state. Tokens require no storage.
+Foraging now provides an alternative food through finite shared supply; consumption
+and planning support substitutable foods.
+Generic requirement consequences now connect deprivation to capacity and terminal
+lifecycle states, with a separate institution-upkeep fixture using the same machinery.
+
+The central question is: **can the same kind of decision-maker produce, consume,
+trade and coordinate resources without separate simulation code for every social
+role?** A farmer, craft worker or trader should emerge from needs, resources,
+rights, capabilities and selected processes, rather than require a different agent
+class. Processes describe possible transformations; transactions record outcomes.
+
+- [Households](HOUSEHOLDS.md): adult agreements, pooled resources, shared dwelling services and household decisions.
+- [State prices and tool economics](STATE-PRICING.md): 1.50 resale, 0.75 spot purchases, 0.50 forwards and productivity calibration.
+- [Additional plots](ADDITIONAL-PLOTS.md): productivity-tested requests, finite land and per-plot annual taxes.
+- [Upfront tool purchases and forwards](FORWARD-TRADING.md): coin prices, production projections and state financing.
+- [Output-share control](TRADING.md): earlier fractional royalties and provider-count tuning.
+- [Specialized activities](ACTIVITIES.md): catalogs, work targets, durable outcomes and CPU results.
+- [Four people](FOUR-PEOPLE.md): three additional people and shared-resource limits.
+- [Storage and currency](STORAGE-CURRENCY.md): capacity, annual issuance and grain sales.
+- [Foraging](FORAGING.md): food substitution, immediate relief, and crop-work conflict on CPU.
+- [Design](DESIGN.md): generic agents and persons, rights, multi-period processes,
+  bounded planning, transaction effects and monthly settlement barriers.
+- [Production audit](PRODUCTION-AUDIT.md): combined rent/tool/experience comparison,
+  idle-crop diagnosis and a feasible surplus-producing work calendar.
+- [Experiments](EXPERIMENTS.md): small scenarios, controls, observations and criteria
+  for retaining or rejecting the design.
+
+This is an independent Rust crate with its own manifest, lockfile and toolchain.
+It does not depend on the main world generator, GPU, terrain, history or catalogs.
+The only direct library dependency is [CubeCL 0.10.0](https://docs.rs/cubecl/0.10.0/),
+with its CPU backend enabled. The test kernel and launch helper are generic over
+CubeCL's runtime; CUDA and other backends can be selected in later work. They are
+not enabled or verified by this CPU smoke test.
+
+## Run the simulation
+
+The new specialization fixture runs 36 months:
+
+```sh
+cd exp/economics
+cargo +1.92.0 run --locked -- specialized-activities
+cargo +1.92.0 run --locked -- specialized-32
+cargo +1.92.0 run --locked -- households-32
+cargo +1.92.0 run --locked -- trading-32
+cargo +1.92.0 run --locked --example activities_audit
+```
+
+From the repository root:
+
+```sh
+cd exp/economics
+cargo +1.92.0 run --locked -- four-person-exchange
+cargo +1.92.0 run --locked -- four-person-scaled
+cargo +1.92.0 run --locked -- storage-exchange
+cargo +1.92.0 run --locked -- repeated-harvests
+cargo +1.92.0 run --locked -- warmth-food-first
+cargo +1.92.0 run --locked -- warmth-first
+cargo +1.92.0 run --locked -- conditions-warmth-first
+cargo +1.92.0 run --locked -- institution-recovery
+cargo +1.92.0 run --locked -- forecast-harvest
+cargo +1.92.0 run --locked -- forecast-cold
+cargo +1.92.0 run --locked -- tool-beneficial
+cargo +1.92.0 run --locked -- tool-food-risk
+cargo +1.92.0 run --locked -- experience-manual
+cargo +1.92.0 run --locked -- experience-tool
+cargo +1.92.0 run --locked -- annual-access
+cargo +1.92.0 run --locked -- annual-arrears
+cargo +1.92.0 run --locked -- offer-short
+cargo +1.92.0 run --locked -- offer-long
+cargo +1.92.0 run --locked -- payment-protected
+cargo +1.92.0 run --locked -- payment-trap-protected
+```
+
+These commands execute 60 modeled months using **CubeCL's CPU runtime** and
+print a Markdown balance table plus need-specific decision/transaction trace.
+The original `baseline` and its controls still run nine months. Use `--help` for
+all 68 scenarios. Redirect traces to `../../output/economics/` when keeping
+local runs.
+
+Foraging controls run nine months:
+
+```sh
+cargo +1.92.0 run --locked -- forage-bridge
+cargo +1.92.0 run --locked -- forage-conflict
+cargo +1.92.0 run --locked -- forage-conflict-long
+cargo +1.92.0 run --locked --example foraging_audit
+```
+
+Repeated harvests consume seed at planting and return seed at harvest. Seven crops
+complete in 60 months, with no food shortage and an eighth crop underway. Adding
+warmth with food-first priority also meets both needs throughout. Warmth-first
+instead prioritizes fuel buffers over critical crop work and loses its harvest.
+These original controls omit consequences. The `conditions-` variants add
+persistent deprivation, gradual recovery, capacity penalties and terminal states.
+`institution-upkeep`, `institution-recovery` and `institution-supplied` exercise the
+same rules with upkeep and administrative capacity instead of food and labor.
+The legacy policies do not anticipate condition effects. The optional
+`ConsequenceAware` policy compares bounded forecasts using the same process and
+condition evaluator, then commits only the selected current-month work.
+`forecast-harvest`, `forecast-cold`, `forecast-resupply` and `forecast-scarcity`
+exercise that policy; matched controls retain fixed priorities.
+The cold fixture starts at month six and runs 60 months from that boundary. See [the CPU results](RESULTS.md)
+for the paired-policy evidence and controls.
+
+The six tool fixtures compare beneficial purchase, a matched no-offer control,
+unsafe food spending, unavailable/exhausted equipment and last-use fallback. A
+three-grain purchase buys six assisted harvests, each saving one labor unit. Wear
+occurs only on completed use. These are fixed barter offers from a passive state,
+not negotiated prices or an autonomous seller.
+
+Experience fixtures award practice for completed harvests. Four points unlock
+a one-labor manual technique; the fourth harvest still uses its original technique.
+An experienced operator preserves the tool when manual work costs the same.
+Forecasts include these gains. Practice belongs to the operator and cannot be
+traded; missing inputs still prevent learning.
+
+Annual-access fixtures start with an accepted agreement: one grain per year for
+plot access, first due twelve months after activation. Due payments precede new
+work. Arrears block new planting but allow existing crops to finish; committed
+harvest output can clear debt before consumption. The fixed payment has priority
+over consumption, so these fixtures explicitly measure resulting food shortages.
+The separate `offer-` fixtures compare accepting posted terms with declining.
+Acceptance activates access and dates the first bill twelve months later.
+The horizon comparison holds the configured buffer at six months and extends
+decision forecasts from six to eighteen months. Contract-linked candidates also
+look ahead through production lead time. Negotiation remains unimplemented.
+
+Payment fixtures compare default DebtFirst with opt-in ProtectEssentials under
+identical opening resources and terms. Protection preserves current essential
+consumption inputs from rent collection, leaving arrears that still block planting.
+With dated production candidates, both normal runs meet all food provisions and
+payments. In the scarce pair protection delays death by one month without restoring
+production. See [current results](DATED-CANDIDATES.md) before treating a protected
+payment budget as a sustainable solution.
+
+Planning, rights checks, joint reservation, grouping and structural transitions
+run in ordinary Rust. A runtime-generic CubeCL kernel gathers integer effects
+into candidate account balances, which the host validates before publication.
+The CLI always selects the CPU runtime; tests also use a Rust reference gather
+and a separate raw-effect balance audit. This is a correctness experiment,
+not a performance benchmark or a fully device-resident simulation.
+
+## Validate the simulation and compute setup
+
+From the repository root:
+
+```sh
+cd exp/economics
+cargo +1.92.0 test --locked
+cargo +1.92.0 fmt --check
+cargo +1.92.0 clippy --locked --all-targets -- -D warnings
+```
+
+Rust 1.92.0 is pinned locally because CubeCL's dependency graph requires a newer
+compiler than the main application's Rust 1.89.0. The explicit toolchain in these
+commands also works when a shell sets `RUSTUP_TOOLCHAIN=1.89.0`, which overrides
+directory toolchain files. Install it if needed:
+
+```sh
+rustup toolchain install 1.92.0 --profile minimal --component rustfmt --component clippy
+```
+
+The first build downloads Rust dependencies and the CPU backend's LLVM/MLIR bundle
+through CubeCL's `tracel-llvm` dependencies. Their bundle cache is outside the
+repository under `~/.cache/tracel`. A working native compiler/linker and network
+access are needed for initial setup; no CUDA toolkit or GPU is needed for this test.
+
+The test uploads five `f32` values, dispatches an add-one kernel across eight units,
+reads the output back through the CPU runtime, and compares all results exactly.
+Negative, fractional and zero inputs exercise arithmetic; the excess units exercise
+the tail guard. This checks macro compilation, CPU kernel compilation/execution,
+buffer transfer and readback rather than only importing the dependency.
+
+Verified on Linux x86_64 with Rust 1.92.0: the full regression run passed 102
+tests, followed by all six final exchange tests (including one additional
+provider-selection test). Formatting and strict all-target Clippy passed.
+The new 72-month trading scenario matches CPU/reference state, ledger and reports
+exactly; see [the provider-count comparison](TRADING.md#observed-72-month-comparison).
+Earlier controls remain covered by their regression tests. CUDA and other backends
+remain unverified.
+
+## Design and artifact boundaries
+
+The architecture is transaction-first: agents read committed state and emit
+intents; resolution stages reserve resources and produce transactions; grouped
+effects are validated and committed at explicit monthly boundaries. The implemented
+boundaries are Open, productive process execution (including planning/reservation),
+consumption and Close. Worlds with equipment offers or stock bids add Acquire after Open: barter
+settles before the dated productive plan executes. Agreement worlds add Due after
+Open and ClearArrears after Productive. General market stages remain empty.
+
+The two-link planner connects each need to consumption and a producing process,
+scores dated shortfall reduction and requests at most one new productive instance
+per need per participant per month. Duplicate producers selected by multiple needs are
+collapsed. Explicit need ranks or continuation priority allocate the shared budget;
+this heuristic does not jointly optimize all need chains. The forecast policy
+compares continuation-first and each-need-first rollouts, with optional deferral
+of new work this month. Equipment offers add buy-now versus keep-food alternatives,
+with physical wear and manual fallback included in each forecast. It supports one
+participant, at most four requirements and four posted offers;
+it does not search all possible action sequences. Future fixture shocks are
+excluded from its observations. Processes execute from catalog data; there is no
+occupation switch or farming-specific phase. The catalog and initial scenarios
+are editable in [scenario.rs](src/scenario.rs). Process failure currently means
+abort with sunk inputs retained and occupancy released. More failure policies,
+weather, multi-need optimization and file-based checkpoints are future work.
+
+Committed records retain effects, before/after process transitions, dated provision
+receipts, condition changes and terminal transitions. Close evaluates consequences;
+next Open applies the most restrictive capacity modifier. Parameters are abstract
+fixture values, not calibrated human or institutional survival thresholds. They support
+replay from the same initial world, plus in-memory continuation at every barrier.
+They are trusted internal operation records, not an external transaction API.
+
+Use the main project as a source of lessons, not as a required runtime dependency.
+In particular, preserve finite resources, explicit allocation, dated decisions and
+requested-versus-completed accounting. The experiment does not promise numerical
+parity with Ancient World or replace its monthly coordinator.
+
+Keep source, editable scenarios, documentation and curated Markdown findings here.
+Generated runs, checkpoints, traces and build artifacts should go under the
+repository's ignored `output/economics/`, outside this source directory. The local
+Cargo configuration directs build output there when run from this directory.
+If invoking Cargo elsewhere with `--manifest-path`, explicitly pass
+`--target-dir output/economics/target` from the repository root because Cargo does
+not discover the manifest directory's configuration from that invocation. This
+follows the [repository artifact policy](../../AGENTS.md).
+
+Dated payments now inform production candidates; see [the CPU comparison](DATED-CANDIDATES.md).
