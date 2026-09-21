@@ -253,9 +253,34 @@ impl OpportunitySearch for NeedDirectedOpportunitySearch {
                 .filter(|a| world.transaction_policy.is_none() || relevant.contains(&a.id))
                 .collect();
             access.sort_by_key(|o| o.id);
+            let snapshot = crate::simulation::Simulation::new(
+                world.clone(),
+                state.clone(),
+                crate::compute::Backend::Reference,
+            )?;
             let memberships: Vec<_> = actors
                 .iter()
-                .flat_map(|a| crate::membership::candidates(world, state, *a))
+                .flat_map(|&agent| {
+                    crate::offers::discover(world, state, agent)
+                        .into_iter()
+                        .filter_map(move |offer| {
+                            if let crate::offers::Id::Membership(id) = offer.id {
+                                Some((id, agent))
+                            } else {
+                                None
+                            }
+                        })
+                })
+                .filter(|&(id, agent)| {
+                    crate::offers::feasible(
+                        &snapshot,
+                        &[crate::offers::Request::new(
+                            crate::offers::Id::Membership(id),
+                            agent,
+                        )],
+                    )
+                    .is_ok()
+                })
                 .collect();
             for &membership in &memberships {
                 offers.push(vec![PlanStep::AcceptMembership {
@@ -264,33 +289,39 @@ impl OpportunitySearch for NeedDirectedOpportunitySearch {
                 }]);
             }
             for offer in access {
-                if !actors.contains(&offer.debtor) {
-                    continue;
-                }
-                for membership in std::iter::once(None).chain(
-                    memberships
-                        .iter()
-                        .copied()
-                        .filter(|(_, a)| *a == offer.debtor)
-                        .map(Some),
-                ) {
-                    let mut preview = state.clone();
-                    if let Some((id, agent)) = membership {
-                        let m = crate::membership::acceptance(world, &preview, id, agent)?;
-                        preview
-                            .memberships
-                            .insert((m.member, m.organization, m.role), m);
-                    }
-                    if crate::commitments::acceptance(world, &preview, offer.id).is_ok() {
-                        let mut steps = Vec::new();
-                        if let Some((offer, agent)) = membership {
-                            steps.push(PlanStep::AcceptMembership { offer, agent });
+                for &applicant in actors
+                    .iter()
+                    .filter(|&&a| a == offer.debtor || world.open_access_offers.contains(&offer.id))
+                {
+                    for membership in std::iter::once(None).chain(
+                        memberships
+                            .iter()
+                            .copied()
+                            .filter(|(_, a)| *a == applicant)
+                            .map(Some),
+                    ) {
+                        let mut bundle = Vec::new();
+                        if let Some((id, agent)) = membership {
+                            bundle.push(crate::offers::Request::new(
+                                crate::offers::Id::Membership(id),
+                                agent,
+                            ));
                         }
-                        steps.push(PlanStep::AcceptLand {
-                            offer: offer.id,
-                            agent: offer.debtor,
-                        });
-                        offers.push(steps);
+                        bundle.push(crate::offers::Request::new(
+                            crate::offers::Id::Land(offer.id),
+                            applicant,
+                        ));
+                        if crate::offers::feasible(&snapshot, &bundle).is_ok() {
+                            let mut steps = Vec::new();
+                            if let Some((offer, agent)) = membership {
+                                steps.push(PlanStep::AcceptMembership { offer, agent });
+                            }
+                            steps.push(PlanStep::AcceptLand {
+                                offer: offer.id,
+                                agent: applicant,
+                            });
+                            offers.push(steps);
+                        }
                     }
                 }
             }

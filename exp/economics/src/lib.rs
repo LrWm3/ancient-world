@@ -76,3 +76,10 @@ pub mod membership;
 pub mod search;
 
 pub mod finance;
+
+pub mod agreements;
+
+pub mod offers;
+
+pub mod allocation;
+pub mod competition;

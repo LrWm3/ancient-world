@@ -176,8 +176,9 @@ fn validate_state(world: &World, state: &State) -> Result<(), String> {
                                     .values()
                                     .any(|a| a.right == right && a.activated <= p.start))
                             && r.asset == asset
-                            && r.holder == p.operator
-                            && r.output_owner == p.beneficiary
+                            && crate::commitments::holder(world, state, r) == Some(p.operator)
+                            && crate::commitments::output_owner(world, state, r)
+                                == Some(p.beneficiary)
                             && r.from <= p.start
                             && r.through >= p.reserved_through
                     })
@@ -312,16 +313,34 @@ pub(crate) fn commit_core(
     } else if batch.plot_request.is_some() {
         return Err("plot request outside review boundary".into());
     }
+    if batch.allocation.is_some() {
+        crate::competition::validate_batch(world, state, batch, effect_limit)?;
+    }
+    if batch.access_applicant.is_some() && batch.accept_access.is_none() {
+        return Err("applicant without access acceptance".into());
+    }
     let mut staged = state.clone();
-    if let Some((offer, agent)) = batch.accept_membership {
-        let membership = crate::membership::acceptance(world, state, offer, agent)?;
+    for (offer, agent) in batch
+        .accept_membership
+        .into_iter()
+        .chain(batch.additional_memberships.iter().copied())
+    {
+        let membership = crate::membership::acceptance(world, &staged, offer, agent)?;
         staged.memberships.insert(
             (membership.member, membership.organization, membership.role),
             membership,
         );
     }
     if let Some(id) = batch.accept_access {
-        let agreement = crate::commitments::acceptance(world, &staged, id)?;
+        let agreement = if let Some(applicant) = batch.access_applicant {
+            crate::commitments::acceptance_for(world, &staged, id, applicant)?
+        } else {
+            crate::commitments::acceptance(world, &staged, id)?
+        };
+        staged.accepted_agreements.insert(id, agreement);
+    }
+    for &(id, applicant) in &batch.additional_access {
+        let agreement = crate::commitments::acceptance_for(world, &staged, id, applicant)?;
         staged.accepted_agreements.insert(id, agreement);
     }
     if let Some(s) = expected_commitments {
@@ -559,7 +578,7 @@ fn validate_process_transaction(
     }
     let mut effects = BTreeMap::<Account, i64>::new();
     if after.status == Status::Aborted {
-        expected.status = Status::Aborted;
+        crate::agreements::ProductionTerms::from_definition(definition).fail(&mut expected);
     } else {
         for amount in services.unwrap_or(&stage.monthly_services) {
             *effects

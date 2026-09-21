@@ -53,6 +53,56 @@ pub struct Settlement {
     pub transactions: Vec<Transaction>,
 }
 
+impl Agreement {
+    pub fn contract(
+        &self,
+        world: &World,
+        state: &State,
+    ) -> Result<crate::agreements::Agreement, String> {
+        use crate::agreements::{
+            Agreement, Consequence, Grant, Identity, Obligation, PaymentTerms,
+        };
+        let right = world
+            .rights
+            .iter()
+            .find(|r| r.id == self.right)
+            .ok_or("missing agreement right")?;
+        let consequence = Consequence::SuspendNewUse(Grant::LandUse(self.right));
+        Ok(Agreement {
+            identity: Identity::Land(self.id),
+            grantor: crate::agreements::Counterparty::Agent(self.creditor),
+            production: None,
+            holder: self.debtor,
+            accepted_month: self.activated,
+            through: Some(right.through),
+            grants: vec![Grant::LandUse(self.right)],
+            payments: vec![PaymentTerms {
+                transfer: Transfer {
+                    from: self.debtor,
+                    to: self.creditor,
+                    amount: self.payment.clone(),
+                },
+                first_due: self
+                    .activated
+                    .checked_add(MONTHS_PER_YEAR)
+                    .ok_or("due date overflow")?,
+                interval_months: MONTHS_PER_YEAR,
+                through: right.through,
+                on_unpaid: consequence.clone(),
+            }],
+            obligations: state
+                .obligations
+                .values()
+                .filter(|o| o.agreement == self.id)
+                .map(|o| Obligation {
+                    claim: o.claim(self),
+                    on_unpaid: consequence.clone(),
+                })
+                .collect(),
+        })
+    }
+}
+
 pub fn can_start(world: &World, state: &State, right: u32) -> bool {
     if world.access_offers.iter().any(|o| o.right == right)
         && !state.accepted_agreements.values().any(|a| a.right == right)
@@ -60,11 +110,13 @@ pub fn can_start(world: &World, state: &State, right: u32) -> bool {
         return false;
     }
     active(world, state).filter(|a| a.right == right).all(|a| {
-        state.month >= a.activated
-            && !state
-                .obligations
-                .values()
-                .any(|o| o.agreement == a.id && o.claim(a).blocks(FailureRule::BlockNewUse))
+        a.contract(world, state).is_ok_and(|contract| {
+            contract.permits(
+                state.month,
+                &crate::agreements::Grant::LandUse(right),
+                crate::agreements::Use::Start,
+            )
+        })
     })
 }
 
@@ -72,26 +124,20 @@ pub fn evaluate(world: &World, state: &State) -> Result<Settlement, String> {
     let mut obligations = state.obligations.clone();
     if state.phase == Phase::Due {
         for a in active(world, state) {
-            let right = world
-                .rights
-                .iter()
-                .find(|r| r.id == a.right)
-                .ok_or("missing agreement right")?;
-            let mut due = a
-                .activated
-                .checked_add(MONTHS_PER_YEAR)
-                .ok_or("due date overflow")?;
-            while due <= state.month && due <= right.through {
-                obligations.entry((a.id, due)).or_insert(Obligation {
-                    agreement: a.id,
-                    due,
-                    owed: a.payment.quantity,
-                    paid: 0,
-                    in_kind_paid: 0,
-                });
-                due = due
-                    .checked_add(MONTHS_PER_YEAR)
-                    .ok_or("due date overflow")?;
+            for terms in a.contract(world, state)?.payments {
+                let mut due = terms.first_due;
+                while due <= state.month && due <= terms.through {
+                    obligations.entry((a.id, due)).or_insert(Obligation {
+                        agreement: a.id,
+                        due,
+                        owed: terms.transfer.amount.quantity,
+                        paid: 0,
+                        in_kind_paid: 0,
+                    });
+                    due = due
+                        .checked_add(terms.interval_months)
+                        .ok_or("due date overflow")?;
+                }
             }
         }
     }
@@ -200,6 +246,13 @@ pub fn evaluate(world: &World, state: &State) -> Result<Settlement, String> {
 }
 
 pub fn validate(world: &World, state: &State) -> Result<(), String> {
+    if world
+        .open_access_offers
+        .iter()
+        .any(|id| !world.access_offers.iter().any(|a| a.id == *id))
+    {
+        return Err("unknown open access offer".into());
+    }
     let mut ids = BTreeSet::new();
     let mut rights = BTreeSet::new();
     for a in world.agreements.iter().chain(&world.access_offers) {
@@ -214,7 +267,9 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             || a.activated.checked_add(MONTHS_PER_YEAR).is_none()
             || a.activated != right.from
             || right.holder != a.debtor
-            || a.creditor == a.debtor
+            || (world.open_access_offers.contains(&a.id)
+                && (a.debtor != a.creditor || right.output_owner != a.creditor))
+            || (a.creditor == a.debtor && !world.open_access_offers.contains(&a.id))
             || a.payment.quantity <= 0
             || !world
                 .assets
@@ -237,6 +292,12 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             .ok_or("unknown accepted offer")?;
         let mut expected = template.clone();
         expected.activated = a.activated;
+        if world.open_access_offers.contains(&id) {
+            if a.debtor == a.creditor || !world.agents.iter().any(|p| p.id == a.debtor) {
+                return Err("invalid open offer applicant".into());
+            }
+            expected.debtor = a.debtor;
+        }
         let right = world
             .rights
             .iter()
@@ -292,6 +353,32 @@ pub fn acceptance(world: &World, state: &State, id: u32) -> Result<Agreement, St
         .iter()
         .find(|o| o.id == id)
         .ok_or("unknown access offer")?;
+    if world.open_access_offers.contains(&id) {
+        return Err("open access offer requires an explicit applicant".into());
+    }
+    acceptance_for(world, state, id, offer.debtor)
+}
+
+pub fn acceptance_for(
+    world: &World,
+    state: &State,
+    id: u32,
+    applicant: AgentId,
+) -> Result<Agreement, String> {
+    let template = world
+        .access_offers
+        .iter()
+        .find(|o| o.id == id)
+        .ok_or("unknown access offer")?;
+    if !world.agents.iter().any(|a| a.id == applicant)
+        || applicant == template.creditor
+        || (!world.open_access_offers.contains(&id) && applicant != template.debtor)
+    {
+        return Err("invalid access applicant".into());
+    }
+    let mut bound = template.clone();
+    bound.debtor = applicant;
+    let offer = &bound;
     if !crate::opportunities::permits(
         world,
         state,
@@ -447,6 +534,30 @@ pub(crate) fn projected_claims(
         }
     }
     claims
+}
+
+/// An open template conveys no right until its agreement is accepted.
+pub fn holder(world: &World, state: &State, right: &UseRight) -> Option<AgentId> {
+    if let Some(a) = world
+        .access_offers
+        .iter()
+        .find(|a| a.right == right.id && world.open_access_offers.contains(&a.id))
+    {
+        state.accepted_agreements.get(&a.id).map(|a| a.debtor)
+    } else {
+        Some(right.holder)
+    }
+}
+pub fn output_owner(world: &World, state: &State, right: &UseRight) -> Option<AgentId> {
+    if world
+        .access_offers
+        .iter()
+        .any(|a| a.right == right.id && world.open_access_offers.contains(&a.id))
+    {
+        holder(world, state, right)
+    } else {
+        Some(right.output_owner)
+    }
 }
 
 #[cfg(test)]

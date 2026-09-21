@@ -29,6 +29,30 @@ pub struct Agreement {
     pub accepted_month: u32,
 }
 
+impl Agreement {
+    pub fn contract(&self) -> crate::agreements::Agreement {
+        use crate::agreements::{Agreement, Grant, Identity};
+        Agreement {
+            identity: Identity::Membership {
+                member: self.member,
+                organization: self.organization,
+                role: self.role,
+            },
+            grantor: crate::agreements::Counterparty::Agent(self.organization),
+            production: None,
+            holder: self.member,
+            accepted_month: self.accepted_month,
+            through: None,
+            grants: vec![Grant::Membership {
+                organization: self.organization,
+                role: self.role,
+            }],
+            payments: vec![],
+            obligations: vec![],
+        }
+    }
+}
+
 pub fn acceptance(
     world: &World,
     state: &State,

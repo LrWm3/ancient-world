@@ -19,11 +19,11 @@ pub struct Simulation {
 }
 
 #[derive(Clone, Debug)]
-struct Request {
-    agent: AgentId,
-    definition: DefinitionId,
-    existing: Option<u64>,
-    need: Option<ResourceId>,
+pub(crate) struct Request {
+    pub(crate) agent: AgentId,
+    pub(crate) definition: DefinitionId,
+    pub(crate) existing: Option<u64>,
+    pub(crate) need: Option<ResourceId>,
 }
 
 impl Simulation {
@@ -62,6 +62,10 @@ impl Simulation {
             production_plan: None,
             commitments: None,
             accept_access: None,
+            access_applicant: None,
+            additional_access: vec![],
+            additional_memberships: vec![],
+            allocation: None,
             plot_request: None,
         };
         match self.state.phase {
@@ -81,6 +85,8 @@ impl Simulation {
                         .as_ref()
                         .filter(|r| r.reason == crate::plots::Reason::Accepted)
                         .and_then(|r| r.offer);
+                } else if self.world.competition.is_some() {
+                    crate::competition::choose(self, &mut batch)?;
                 } else if self.world.priority == Priority::ConsequenceAware {
                     crate::planning::choose(self, &mut batch)?;
                 }
@@ -452,7 +458,8 @@ impl Simulation {
                         .rights
                         .iter()
                         .filter(|r| {
-                            r.holder == participant.agent
+                            crate::commitments::holder(&self.world, &self.state, r)
+                                == Some(participant.agent)
                                 && self
                                     .world
                                     .assets
@@ -461,7 +468,10 @@ impl Simulation {
                         })
                         .collect();
                     if !relevant.is_empty()
-                        && !relevant.iter().any(|r| r.output_owner == participant.agent)
+                        && !relevant.iter().any(|r| {
+                            crate::commitments::output_owner(&self.world, &self.state, r)
+                                == Some(participant.agent)
+                        })
                     {
                         continue;
                     }
@@ -580,7 +590,8 @@ impl Simulation {
                         .rights
                         .iter()
                         .filter(|r| {
-                            r.holder == participant.agent
+                            crate::commitments::holder(&self.world, &self.state, r)
+                                == Some(participant.agent)
                                 && self
                                     .world
                                     .assets
@@ -589,7 +600,10 @@ impl Simulation {
                         })
                         .collect();
                     relevant.is_empty()
-                        || relevant.iter().any(|r| r.output_owner == participant.agent)
+                        || relevant.iter().any(|r| {
+                            crate::commitments::output_owner(&self.world, &self.state, r)
+                                == Some(participant.agent)
+                        })
                 })
             })
             .filter_map(|d| {
@@ -885,7 +899,7 @@ impl Simulation {
                     .rights
                     .iter()
                     .filter(|right| {
-                        right.holder == r.agent
+                        crate::commitments::holder(&self.world, &self.state, right) == Some(r.agent)
                             && right.from <= self.state.month
                             && right.through >= self.state.month
                             && self
@@ -902,11 +916,9 @@ impl Simulation {
                 let had_unpaid = rights.iter().any(|r| {
                     crate::commitments::active(&self.world, &self.state).any(|a| {
                         a.right == r.id
-                            && self
-                                .state
-                                .obligations
-                                .values()
-                                .any(|o| o.agreement == a.id && o.paid < o.owed)
+                            && a.contract(&self.world, &self.state).is_ok_and(|contract| {
+                                !contract.evaluate(self.state.month).breaches.is_empty()
+                            })
                     })
                 });
                 rights.retain(|right| {
@@ -939,10 +951,12 @@ impl Simulation {
                 let right = rights.first().ok_or(Reason::Occupied)?;
                 p.asset = Some(right.asset);
                 p.right = Some(right.id);
-                p.beneficiary = right.output_owner;
+                p.beneficiary = crate::commitments::output_owner(&self.world, &self.state, right)
+                    .ok_or(Reason::MissingRight)?;
             } else if !self.world.rights.iter().any(|right| {
                 Some(right.id) == p.right
-                    && right.holder == p.operator
+                    && crate::commitments::holder(&self.world, &self.state, right)
+                        == Some(p.operator)
                     && right.from <= self.state.month
                     && right.through >= p.reserved_through
             }) {
@@ -1077,6 +1091,23 @@ impl Simulation {
     }
 
     fn resolve(&self, requests: Vec<Request>, batch: &mut Batch) -> Result<(), String> {
+        let requests = requests
+            .into_iter()
+            .map(|r| crate::offers::Request {
+                offer: crate::offers::Id::Process(r.definition),
+                agent: r.agent,
+                continuing: r.existing,
+                need: r.need,
+            })
+            .collect::<Vec<_>>();
+        crate::offers::resolve(self, &requests, batch)
+    }
+
+    pub(crate) fn resolve_work(
+        &self,
+        requests: Vec<Request>,
+        batch: &mut Batch,
+    ) -> Result<(), String> {
         let mut budget = self.state.balances.clone();
         let mut stored = crate::storage::usage(&self.world, &self.state.balances);
         let mut reserved = BTreeMap::new();
@@ -1105,7 +1136,7 @@ impl Simulation {
                     if let Some(id) = r.existing {
                         let before = self.state.processes[&id].clone();
                         let mut after = before.clone();
-                        after.status = Status::Aborted;
+                        crate::agreements::ProductionTerms::from_definition(d).fail(&mut after);
                         batch.transactions.push(Transaction {
                             technique_use: None,
                             trade: None,

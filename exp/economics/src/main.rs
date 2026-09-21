@@ -5,7 +5,7 @@ fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     if args.len() > 1 || args.first().is_some_and(|a| a == "--help") {
         println!(
-            "Usage: cargo +1.92.0 run --locked -- [scenario]\nNine-month controls: baseline, short-food, no-seed, no-right, short-right, missed-work, no-need, disabled, continuing-first, new-first\n60-month scenarios: {}\nForaging controls (nine months): {}\nSpecialized activities (36 months): specialized-activities, specialized-32\nHouseholds (24 months): households-32\nTool trading (72 months): trading-32, trading-32-no-forward, trading-32-share, trading-32-plots, trading-32-no-plots\nOpportunity marketplace (36 months): opportunity-farming\nAll scenarios use CubeCL CPU settlement.",
+            "Usage: cargo +1.92.0 run --locked -- [scenario]\nNine-month controls: baseline, short-food, no-seed, no-right, short-right, missed-work, no-need, disabled, continuing-first, new-first\n60-month scenarios: {}\nForaging controls (nine months): {}\nSpecialized activities (36 months): specialized-activities, specialized-32\nHouseholds (24 months): households-32\nTool trading (72 months): trading-32, trading-32-no-forward, trading-32-share, trading-32-plots, trading-32-no-plots\nOpportunity marketplace (36 months): opportunity-farming, opportunity-two-plots, opportunity-one-plot\nAll scenarios use CubeCL CPU settlement.",
             [
                 LONG_SCENARIOS,
                 CONDITION_SCENARIOS,
@@ -47,6 +47,27 @@ fn run() -> Result<(), String> {
             membership.role,
             membership.accepted_month
         );
+    }
+    for round in simulation
+        .ledger
+        .iter()
+        .filter_map(|b| b.allocation.as_ref())
+    {
+        println!(
+            "- Offers {:?} allocation at month {}: {:?}, seed {}.",
+            round.offers, round.context.round, round.policy, round.context.seed
+        );
+        println!("  - Final applicant/offer assignments: {:?}.", round.awards);
+        for receipt in &round.receipts {
+            println!(
+                "  - Applicant {}: priority {}, requested {}, grant {}, {:?}.",
+                receipt.claim.id,
+                receipt.claim.priority,
+                receipt.claim.requested,
+                receipt.offered,
+                receipt.outcome
+            );
+        }
     }
     if trading {
         println!(
@@ -382,6 +403,9 @@ fn run() -> Result<(), String> {
                 decision.search_budget.max_candidates,
                 decision.search_budget_exhausted
             );
+            for reason in &decision.rejection_reasons {
+                println!("  - Rejected commitment plan: {reason}");
+            }
             for (i, candidate) in decision.alternatives.iter().enumerate() {
                 println!(
                     "  - Alternative {i}: steps {:?}; work {:?}; reason {}; score {:?}; first work {:?}.",
@@ -391,6 +415,13 @@ fn run() -> Result<(), String> {
                     candidate.score,
                     candidate.first_work
                 );
+                for agreement in &candidate.commitments.processes {
+                    println!(
+                        "    - Commitment {:?}: {:?} by forecast end.",
+                        agreement.identity,
+                        agreement.evaluate(decision.through).status
+                    );
+                }
             }
         }
     }

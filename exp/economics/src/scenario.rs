@@ -36,7 +36,13 @@ pub const LONG_SCENARIOS: &[&str] = &[
 ];
 
 pub fn scenario_months(name: &str) -> u32 {
-    if name == "opportunity-farming" {
+    if [
+        "opportunity-farming",
+        "opportunity-two-plots",
+        "opportunity-one-plot",
+    ]
+    .contains(&name)
+    {
         return crate::opportunities::RUN_MONTHS;
     }
     if name == "households-32" {
@@ -150,6 +156,8 @@ pub fn with_warmth(warmth_first: bool) -> (World, State) {
 
 pub fn baseline() -> (World, State) {
     let world = World {
+        competition: None,
+        open_access_offers: Default::default(),
         agent_search: Default::default(),
         transaction_policy: None,
         households: vec![],
@@ -327,6 +335,16 @@ pub const PAYMENT_SCENARIOS: &[&str] = &[
 ];
 
 pub fn named(name: &str) -> Result<(World, State), String> {
+    if ["opportunity-two-plots", "opportunity-one-plot"].contains(&name) {
+        return crate::competition::scenario(
+            if name == "opportunity-two-plots" {
+                2
+            } else {
+                1
+            },
+            crate::competition::DEFAULT_SEED,
+        );
+    }
     if name == "opportunity-farming" {
         return crate::membership::scenario();
     }

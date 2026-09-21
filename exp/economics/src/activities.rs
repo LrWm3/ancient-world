@@ -59,7 +59,7 @@ pub fn attached_access(
         site == Some(plot)
             && world.rights.iter().any(|r| {
                 r.asset == plot
-                    && r.holder == asset.owner
+                    && crate::commitments::holder(world, state, r) == Some(asset.owner)
                     && r.from <= state.month
                     && r.through >= state.month
             })
@@ -117,7 +117,7 @@ pub fn wants(world: &World, state: &State, order: &WorkOrder) -> bool {
     let spare_site = d.asset_kind.is_some_and(|kind| {
         !world.activities.shared_sites.contains(&d.id)
             && world.rights.iter().any(|r| {
-                r.holder == order.agent
+                crate::commitments::holder(world, state, r) == Some(order.agent)
                     && r.from <= state.month
                     && r.through >= state.month
                     && crate::commitments::can_start(world, state, r.id)

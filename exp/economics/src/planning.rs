@@ -16,12 +16,13 @@ const MAX_POSTED_OFFERS: usize = 4;
 const MAX_SUBSTITUTE_PRODUCERS: usize = 4;
 const SCORE_SCALE: u64 = 1000;
 
-/// Survival, impairment, deprivation, terminal coverage, then work; lower wins.
+/// Survival, impairment, deprivation, broken commitments, coverage, then work; lower wins.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Score {
     pub terminal_months: u64,
     pub impaired_months: u64,
     pub deprivation: u64,
+    pub broken_commitments: u64,
     pub buffer_gap: u64,
     pub work: u64,
 }
@@ -31,6 +32,7 @@ pub struct Forecast {
     pub score: Score,
     pub outcomes: Vec<MonthReport>,
     pub first_work: Vec<Receipt>,
+    pub commitments: CommitmentAssessment,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Decision {
@@ -39,10 +41,109 @@ pub struct Decision {
     pub search_budget_exhausted: bool,
     pub candidates_generated: usize,
     pub candidates_rejected: usize,
+    pub rejection_reasons: Vec<String>,
     pub month: u32,
     pub through: u32,
     pub alternatives: Vec<Forecast>,
     pub selected: usize,
+}
+
+/// Current promises plus starts accepted in this boundary, not hypothetical
+/// later starts. Capacity rows are forecasts, never advance reservations.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CommitmentAssessment {
+    pub processes: Vec<crate::agreements::Agreement>,
+    pub capacity: Vec<CapacityClaim>,
+    pub work: Vec<WorkWindow>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WorkWindow {
+    pub month: u32,
+    pub receipts: Vec<Receipt>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CapacityClaim {
+    pub month: u32,
+    pub agent: AgentId,
+    pub resource: ResourceId,
+    pub required: i64,
+    pub expected_available: i32,
+}
+
+fn assess(
+    sim: &Simulation,
+    work: &Batch,
+    forecast: &Simulation,
+) -> Result<CommitmentAssessment, String> {
+    let mut committed: std::collections::BTreeMap<_, _> = sim
+        .state
+        .processes
+        .values()
+        .filter(|p| p.status == Status::Active)
+        .map(|p| (p.id, p.clone()))
+        .collect();
+    for t in &work.transactions {
+        if let Some(c) = &t.process {
+            committed.insert(c.after.id, c.after.clone());
+        }
+    }
+    let mut demand = std::collections::BTreeMap::<(u32, AgentId, ResourceId), i64>::new();
+    let mut processes = Vec::new();
+    for p in committed.values() {
+        let terms =
+            crate::agreements::ProductionTerms::from_definition(sim.world.definition(p.definition));
+        for (month, amounts) in terms.schedule(p.start)? {
+            if month < sim.state.month {
+                continue;
+            }
+            for a in amounts {
+                if sim
+                    .world
+                    .resources
+                    .iter()
+                    .any(|r| r.id == a.resource && r.kind == ResourceKind::Capacity)
+                {
+                    *demand.entry((month, p.operator, a.resource)).or_default() +=
+                        i64::from(a.quantity);
+                }
+            }
+        }
+        let final_instance = forecast.state.processes.get(&p.id).unwrap_or(p);
+        processes.push(crate::agreements::process(&sim.world, final_instance));
+    }
+    let capacity = demand
+        .into_iter()
+        .map(|((month, agent, resource), required)| {
+            let base = sim
+                .world
+                .participants
+                .iter()
+                .find(|p| p.agent == agent && p.capacity.resource == resource)
+                .map_or(0, |p| p.capacity.quantity);
+            CapacityClaim {
+                month,
+                agent,
+                resource,
+                required,
+                expected_available: crate::maintenance::capacity(
+                    &sim.world, &sim.state, agent, resource, base,
+                ),
+            }
+        })
+        .collect();
+    Ok(CommitmentAssessment {
+        processes,
+        capacity,
+        work: forecast
+            .ledger
+            .iter()
+            .filter(|b| b.phase == Phase::Productive)
+            .map(|b| WorkWindow {
+                month: b.month,
+                receipts: b.receipts.clone(),
+            })
+            .collect(),
+    })
 }
 
 pub fn validate(world: &World) -> Result<(), String> {
@@ -125,30 +226,16 @@ fn acquisition(sim: &Simulation, base: &Batch, plan: &CandidatePlan) -> Result<B
         return Err("acquisition proposal outside Acquire".into());
     }
     let mut batch = base.clone();
-    let mut preview = sim.state.clone();
+    let mut requests = Vec::new();
     for step in &plan.steps {
         match *step {
-            PlanStep::AcceptMembership { offer, agent } => {
-                if batch.accept_membership.is_some() {
-                    return Err("multiple membership steps unsupported".into());
-                }
-                let m = crate::membership::acceptance(&sim.world, &preview, offer, agent)?;
-                preview
-                    .memberships
-                    .insert((m.member, m.organization, m.role), m);
-                batch.accept_membership = Some((offer, agent));
-            }
-            PlanStep::AcceptLand { offer, agent } => {
-                if batch.accept_access.is_some() {
-                    return Err("multiple land steps unsupported".into());
-                }
-                let a = crate::commitments::acceptance(&sim.world, &preview, offer)?;
-                if a.debtor != agent {
-                    return Err("land applicant differs from offer".into());
-                }
-                preview.accepted_agreements.insert(offer, a);
-                batch.accept_access = Some(offer);
-            }
+            PlanStep::AcceptMembership { offer, agent } => requests.push(
+                crate::offers::Request::new(crate::offers::Id::Membership(offer), agent),
+            ),
+            PlanStep::AcceptLand { offer, agent } => requests.push(crate::offers::Request::new(
+                crate::offers::Id::Land(offer),
+                agent,
+            )),
             PlanStep::BuyEquipment { offer, agent } => {
                 batch.transactions.push(crate::equipment::transaction(
                     &sim.world,
@@ -168,6 +255,7 @@ fn acquisition(sim: &Simulation, base: &Batch, plan: &CandidatePlan) -> Result<B
             }
         }
     }
+    crate::offers::resolve(sim, &requests, &mut batch)?;
     Ok(batch)
 }
 
@@ -198,6 +286,27 @@ pub fn evaluate_candidates(
     if sim.world.transaction_policy.is_some() && !sim.world.access_offers.is_empty() {
         horizon = horizon.max(crate::commitments::MONTHS_PER_YEAR + 1);
     }
+    if sim.world.transaction_policy.is_some() {
+        // Follow a newly accepted production promise through its full duration.
+        horizon = horizon.max(
+            sim.world
+                .definitions
+                .iter()
+                .filter(|d| d.enabled && d.execution == Execution::Productive)
+                .map(|d| d.duration())
+                .max()
+                .unwrap_or(1),
+        );
+        horizon = horizon.max(
+            sim.state
+                .processes
+                .values()
+                .filter(|p| p.status == Status::Active)
+                .map(|p| p.reserved_through.saturating_sub(sim.state.month) + 1)
+                .max()
+                .unwrap_or(1),
+        );
+    }
     let end = sim
         .state
         .month
@@ -205,26 +314,31 @@ pub fn evaluate_candidates(
         .ok_or("forecast horizon overflow")?;
     let candidates_generated = result.candidates.len();
     let mut alternatives = Vec::new();
+    let mut rejection_reasons = Vec::new();
     let mut first_batches = Vec::new();
     for plan in result.candidates {
-        let Ok(acquisition) = acquisition(sim, batch, &plan) else {
-            continue;
+        let acquisition = match acquisition(sim, batch, &plan) {
+            Ok(batch) => batch,
+            Err(reason) => {
+                rejection_reasons.push(reason);
+                continue;
+            }
         };
         if sim.state.phase == Phase::Acquire {
             let mut preview = sim.state.clone();
-            if commit(
+            if let Err(reason) = commit(
                 &sim.world,
                 &mut preview,
                 &acquisition,
                 Backend::Reference,
                 sim.effect_limit,
-            )
-            .is_err()
-            {
+            ) {
+                rejection_reasons.push(reason);
                 continue;
             }
         }
         let mut forecast_world = sim.world.clone();
+        forecast_world.competition = None;
         forecast_world.priority = plan.work.priority;
         forecast_world.capacity_overrides.clear();
         forecast_world
@@ -264,6 +378,22 @@ pub fn evaluate_candidates(
         while forecast.state.month < end {
             forecast.step()?;
         }
+        let commitments = assess(sim, &work, &forecast)?;
+        if sim.world.transaction_policy.is_some()
+            && commitments.processes.iter().any(|a| {
+                a.accepted_month == sim.state.month
+                    && a.production.as_ref().is_some_and(|p| {
+                        !sim.state.processes.contains_key(&p.instance.id)
+                            && p.instance.status == Status::Aborted
+                    })
+            })
+        {
+            rejection_reasons.push(format!(
+                "{}: newly accepted production commitment is forecast to fail",
+                plan.explanation
+            ));
+            continue;
+        }
         if sim.world.transaction_policy.is_some()
             && plan.access_offer().is_some()
             && forecast
@@ -271,11 +401,28 @@ pub fn evaluate_candidates(
                 .iter()
                 .any(|r| r.obligations.values().any(|o| o.paid < o.owed))
         {
+            rejection_reasons.push(format!(
+                "{}: land payment is forecast to remain unpaid",
+                plan.explanation
+            ));
             continue;
+        }
+        let mut candidate_score = score(&forecast);
+        if sim.world.transaction_policy.is_some() {
+            candidate_score.broken_commitments = commitments
+                .processes
+                .iter()
+                .filter(|a| {
+                    a.production
+                        .as_ref()
+                        .is_some_and(|p| p.instance.status == Status::Aborted)
+                })
+                .count() as u64;
         }
         alternatives.push(Forecast {
             plan,
-            score: score(&forecast),
+            score: candidate_score,
+            commitments,
             outcomes: forecast.reports,
             first_work: work.receipts.clone(),
         });
@@ -294,6 +441,7 @@ pub fn evaluate_candidates(
         search_budget_exhausted: result.budget_exhausted,
         candidates_generated,
         candidates_rejected: candidates_generated - alternatives.len(),
+        rejection_reasons,
         month: sim.state.month,
         through: end - 1,
         alternatives,

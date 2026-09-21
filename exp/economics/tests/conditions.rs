@@ -381,6 +381,10 @@ fn terminal_operators_cannot_replay_even_capacity_free_consumption() {
         production_plan: None,
         commitments: None,
         accept_access: None,
+        access_applicant: None,
+        additional_access: vec![],
+        additional_memberships: vec![],
+        allocation: None,
         plot_request: None,
         transactions: vec![Transaction {
             technique_use: None,

@@ -34,7 +34,14 @@ pub fn permits(world: &World, state: &State, agent: AgentId, action: Action) -> 
             .is_some_and(|kind| p.permissions.contains(&(*kind, action)))
             || state.memberships.values().any(|m| {
                 m.member == agent
-                    && m.organization == p.authority
+                    && m.contract().permits(
+                        state.month,
+                        &crate::agreements::Grant::Membership {
+                            organization: p.authority,
+                            role: m.role,
+                        },
+                        crate::agreements::Use::Start,
+                    )
                     && p.membership_permissions.contains(&(m.role, action))
             })
     })
@@ -77,7 +84,7 @@ pub fn discover<'a>(world: &'a World, state: &State, agent: AgentId) -> Vec<Oppo
     let mut access: Vec<_> = world.access_offers.iter().collect();
     access.sort_by_key(|a| a.id);
     for a in access {
-        if a.debtor == agent
+        if (a.debtor == agent || world.open_access_offers.contains(&a.id))
             && discoverable(world, state, agent, Action::LandAccess)
             && world
                 .transaction_policy
@@ -110,11 +117,11 @@ pub fn processes<'a>(
     if world.transaction_policy.is_none() {
         return world.definitions.iter().collect();
     }
-    discover(world, state, agent)
+    crate::offers::discover(world, state, agent)
         .into_iter()
-        .filter_map(|o| match o {
-            Opportunity::Environment(d) if permits(world, state, agent, Action::Process(d.id)) => {
-                Some(d)
+        .filter_map(|offer| match offer.id {
+            crate::offers::Id::Process(id) if permits(world, state, agent, Action::Process(id)) => {
+                Some(world.definition(id))
             }
             _ => None,
         })
