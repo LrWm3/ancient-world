@@ -70,16 +70,12 @@ pub fn transaction(world: &World, state: &State, trade: Trade) -> Result<Transac
     }
     Ok(Transaction {
         cause: format!("accept equipment offer {}", offer.id),
-        effects: vec![
-            Effect {
-                account: (trade.buyer, offer.price.resource),
-                delta: -offer.price.quantity,
-            },
-            Effect {
-                account: (offer.seller, offer.price.resource),
-                delta: offer.price.quantity,
-            },
-        ],
+        effects: crate::finance::exchange_payment(
+            trade.buyer,
+            offer.seller,
+            offer.price.clone(),
+            state.balance(trade.buyer, offer.price.resource),
+        )?,
         process: None,
         technique_use: None,
         trade: Some(trade),

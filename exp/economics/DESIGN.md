@@ -1134,3 +1134,10 @@ contribution carries, storage checks, and CPU gathers make the complete action
 atomic and replayable. Current household planning is a net-output heuristic;
 collective production targets, outside pooled sales, joint credit underwriting,
 and general multi-period bargaining remain future extensions.
+
+## Shared financial settlement
+
+Transfers, dated obligations, acceptance conditions and scoped failure rules now
+share a settlement vocabulary. Land and forward receipts provide authoritative
+claim views; purchases share full-payment transfer legs. See [FINANCE.md](FINANCE.md)
+for implemented paths, preserved monthly boundaries and remaining specialized behavior.

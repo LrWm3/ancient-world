@@ -1,4 +1,5 @@
 //! Prepaid commodity forwards finance atomic, upfront tool purchases.
+use crate::finance::{self, Condition, FailureRule, Transfer};
 use crate::{
     compute::Backend,
     equipment::DurableAsset,
@@ -79,6 +80,21 @@ pub enum Event {
     },
 }
 
+impl Contract {
+    pub fn claim(&self) -> finance::Obligation {
+        finance::Obligation {
+            transfer: Transfer {
+                from: self.debtor,
+                to: self.creditor,
+                amount: self.goods.clone(),
+            },
+            settled: self.delivered,
+            condition: Condition::OnOrAfterMonth(self.due),
+            failure: FailureRule::BlockNewAdvance,
+        }
+    }
+}
+
 pub fn policy(world: &World) -> Option<&Policy> {
     world.market.as_ref().and_then(|m| m.cash.as_ref())
 }
@@ -88,7 +104,7 @@ pub fn pledged(state: &State, debtor: AgentId, resource: ResourceId) -> i32 {
         .forwards
         .values()
         .filter(|c| c.debtor == debtor && c.goods.resource == resource)
-        .map(|c| c.goods.quantity - c.delivered)
+        .map(|c| c.claim().outstanding())
         .sum()
 }
 
@@ -257,7 +273,7 @@ pub fn purchase(
             .exchange
             .forwards
             .values()
-            .any(|c| c.debtor == buyer && c.delivered < c.goods.quantity)
+            .any(|c| c.debtor == buyer && c.claim().blocks(FailureRule::BlockNewAdvance))
         {
             return Ok(rejected(buyer, asset.id, price, Reason::ExistingForward));
         }
@@ -394,14 +410,13 @@ pub fn settle(
             .copied()
             .unwrap_or(0)
             .max(household_protected.get(&account).copied().unwrap_or(0));
-        let quantity = (c.goods.quantity - c.delivered)
-            .min((available.get(&account).copied().unwrap_or(0) - protected).max(0))
-            .min(crate::storage::room(
-                world,
-                stored,
-                c.creditor,
-                c.goods.resource,
-            ));
+        let claim = c.claim();
+        let quantity = claim.payable(
+            state.month,
+            true,
+            available.get(&account).copied().unwrap_or(0) - protected,
+            crate::storage::room(world, stored, c.creditor, c.goods.resource),
+        );
         if quantity == 0 {
             continue;
         }
@@ -410,16 +425,7 @@ pub fn settle(
             contract: c.id,
             quantity,
         });
-        t.effects = vec![
-            Effect {
-                account,
-                delta: -quantity,
-            },
-            Effect {
-                account: (c.creditor, c.goods.resource),
-                delta: quantity,
-            },
-        ];
+        t.effects = claim.payment(quantity)?;
         *available.entry(account).or_default() -= quantity;
         crate::storage::apply(world, stored, &t.effects);
         result.push(t);

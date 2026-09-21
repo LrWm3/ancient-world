@@ -248,3 +248,5 @@ not discover the manifest directory's configuration from that invocation. This
 follows the [repository artifact policy](../../AGENTS.md).
 
 Dated payments now inform production candidates; see [the CPU comparison](DATED-CANDIDATES.md).
+
+Shared settlement primitives and migration scope: [FINANCE.md](FINANCE.md).

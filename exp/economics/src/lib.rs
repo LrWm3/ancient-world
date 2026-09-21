@@ -74,3 +74,5 @@ pub mod opportunities;
 pub mod membership;
 
 pub mod search;
+
+pub mod finance;

@@ -1,4 +1,5 @@
 //! Accepted access agreements and dated obligations; no party-role branches.
+use crate::finance::{self, Condition, FailureRule, Transfer};
 use crate::model::*;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -30,6 +31,20 @@ pub struct Obligation {
     /// Native commodity units actually received; coin settlement must not mint.
     pub in_kind_paid: i32,
 }
+impl Obligation {
+    pub fn claim(&self, agreement: &Agreement) -> finance::Obligation {
+        finance::Obligation {
+            transfer: Transfer {
+                from: agreement.debtor,
+                to: agreement.creditor,
+                amount: Amount::new(agreement.payment.resource, self.owed),
+            },
+            settled: self.paid,
+            condition: Condition::OnOrAfterMonth(self.due),
+            failure: FailureRule::BlockNewUse,
+        }
+    }
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Settlement {
     pub policy: PaymentPolicy,
@@ -49,7 +64,7 @@ pub fn can_start(world: &World, state: &State, right: u32) -> bool {
             && !state
                 .obligations
                 .values()
-                .any(|o| o.agreement == a.id && o.paid < o.owed)
+                .any(|o| o.agreement == a.id && o.claim(a).blocks(FailureRule::BlockNewUse))
     })
 }
 
@@ -100,12 +115,13 @@ pub fn evaluate(world: &World, state: &State) -> Result<Settlement, String> {
             continue;
         }
         let available = budget.entry((a.debtor, a.payment.resource)).or_default();
-        let paid = (o.owed - o.paid).min(*available).min(crate::storage::room(
-            world,
-            &stored,
-            a.creditor,
-            a.payment.resource,
-        ));
+        let claim = o.claim(a);
+        let paid = claim.payable(
+            state.month,
+            true,
+            *available,
+            crate::storage::room(world, &stored, a.creditor, a.payment.resource),
+        );
         let previously_paid = o.in_kind_paid;
         if paid > 0 {
             *available -= paid;
@@ -113,16 +129,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Settlement, String> {
             o.in_kind_paid += paid;
             transactions.push(Transaction {
                 cause: format!("agreement {} due {}: pay {}", a.id, o.due, paid),
-                effects: vec![
-                    Effect {
-                        account: (a.debtor, a.payment.resource),
-                        delta: -paid,
-                    },
-                    Effect {
-                        account: (a.creditor, a.payment.resource),
-                        delta: paid,
-                    },
-                ],
+                effects: claim.payment(paid)?,
                 process: None,
                 technique_use: None,
                 trade: None,
@@ -167,16 +174,12 @@ pub fn evaluate(world: &World, state: &State) -> Result<Settlement, String> {
                         "agreement {} due {}: pay {} units with {} coins",
                         a.id, o.due, units, coins
                     ),
-                    effects: vec![
-                        Effect {
-                            account: (a.debtor, alternative.resource),
-                            delta: -coins,
-                        },
-                        Effect {
-                            account: (a.creditor, alternative.resource),
-                            delta: coins,
-                        },
-                    ],
+                    effects: Transfer {
+                        from: a.debtor,
+                        to: a.creditor,
+                        amount: Amount::new(alternative.resource, coins),
+                    }
+                    .effects()?,
                     process: None,
                     technique_use: None,
                     trade: None,

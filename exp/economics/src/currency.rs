@@ -59,24 +59,18 @@ pub fn transaction(world: &World, state: &State, trade: StockTrade) -> Result<Tr
     {
         return Err("unavailable or unfunded stock bid".into());
     }
-    let effects = vec![
-        Effect {
-            account: (trade.seller, bid.goods.resource),
-            delta: -bid.goods.quantity,
-        },
-        Effect {
-            account: (bid.buyer, bid.goods.resource),
-            delta: bid.goods.quantity,
-        },
-        Effect {
-            account: (bid.buyer, bid.payment.resource),
-            delta: -bid.payment.quantity,
-        },
-        Effect {
-            account: (trade.seller, bid.payment.resource),
-            delta: bid.payment.quantity,
-        },
-    ];
+    let mut effects = crate::finance::exchange_payment(
+        trade.seller,
+        bid.buyer,
+        bid.goods.clone(),
+        state.balance(trade.seller, bid.goods.resource),
+    )?;
+    effects.extend(crate::finance::exchange_payment(
+        bid.buyer,
+        trade.seller,
+        bid.payment.clone(),
+        state.balance(bid.buyer, bid.payment.resource),
+    )?);
     if !crate::storage::fits(
         world,
         &crate::storage::usage(world, &state.balances),
