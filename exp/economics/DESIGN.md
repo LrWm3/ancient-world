@@ -1141,3 +1141,32 @@ Transfers, dated obligations, acceptance conditions and scoped failure rules now
 share a settlement vocabulary. Land and forward receipts provide authoritative
 claim views; purchases share full-payment transfer legs. See [FINANCE.md](FINANCE.md)
 for implemented paths, preserved monthly boundaries and remaining specialized behavior.
+
+## Shared agreement consequences
+
+Citizenship and land access now expose a common accepted-agreement structure with
+parties, grants, payment terms, dated claims and explicit consequences. The shared
+evaluator drives membership authorization and land new-use restrictions. Arrears
+suspend starting work on the affected right; existing crops continue, and settlement
+restores access. Status and consequences are derived from committed receipts. See
+[AGREEMENTS.md](AGREEMENTS.md) for timing, tests and the limits of this first slice.
+
+## Production agreements and common offer resolution
+
+Farming and other processes now expose environmental agreement terms and explicit
+abort-without-refund consequences. Citizenship, land and process requests share an
+offer resolver; Acquire can reserve dated productive work without executing it
+early. Candidate forecasts expose current commitments, dated capacity claims and
+competing work. Governed candidates reject a new commitment forecast to fail;
+urgent needs still outrank preserving existing commitments. See
+[MARKET-AGREEMENTS.md](MARKET-AGREEMENTS.md) for implementation, controls and limits.
+
+## Contested offer allocation
+
+Search proposes conditional applications; allocation is a separate swappable policy
+over a dated resource pool. Eligibility and contract feasibility remain in domain
+adapters, and failed reservations leave capacity available for the next claim. The
+first open land adapter prioritizes applicants without tenure and uses a seeded
+lottery for ties. Only the award creates rights, annual rent and dated work; losing
+is not breach. See [CONTESTED-OFFERS.md](CONTESTED-OFFERS.md) for the generic policy
+interface, simultaneous alternative-offer matching and two-person CPU controls.

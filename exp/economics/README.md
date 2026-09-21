@@ -29,6 +29,9 @@ role?** A farmer, craft worker or trader should emerge from needs, resources,
 rights, capabilities and selected processes, rather than require a different agent
 class. Processes describe possible transformations; transactions record outcomes.
 
+- [Contested offers](CONTESTED-OFFERS.md): generic allocation policies, open land applications and two-person CPU controls.
+- [Production agreements and common offers](MARKET-AGREEMENTS.md): farming terms, atomic acceptance and planning across monthly commitments.
+- [Shared agreements and consequences](AGREEMENTS.md): citizenship and land grants, obligations, restrictions and restoration.
 - [Swappable opportunity search](SEARCH.md): named strategies, common candidate plans, shared evaluation and search budgets.
 - [Households](HOUSEHOLDS.md): adult agreements, pooled resources, shared dwelling services and household decisions.
 - [State prices and tool economics](STATE-PRICING.md): 1.50 resale, 0.75 spot purchases, 0.50 forwards and productivity calibration.
