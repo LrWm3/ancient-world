@@ -289,6 +289,18 @@ pub fn acceptance(world: &World, state: &State, id: u32) -> Result<Agreement, St
         .iter()
         .find(|o| o.id == id)
         .ok_or("unknown access offer")?;
+    if !crate::opportunities::permits(
+        world,
+        state,
+        offer.debtor,
+        crate::opportunities::Action::LandAccess,
+    ) || world
+        .transaction_policy
+        .as_ref()
+        .is_some_and(|p| offer.creditor != p.authority)
+    {
+        return Err("state policy denies land access".into());
+    }
     let right = world
         .rights
         .iter()

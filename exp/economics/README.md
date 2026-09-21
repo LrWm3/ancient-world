@@ -1,6 +1,11 @@
 # Stand-alone agent-based economics experiment
 
 Status: the process-based simulation is implemented and runs on CPU.
+The individual [opportunity marketplace](OPPORTUNITIES.md) now links food/warmth
+needs to cultivation, state land agreements and wood collection, with state-defined
+transaction permissions per agent type and [citizenship membership](CITIZENSHIP.md).
+The state posts citizenship; accepting it enables land agreements and cultivation. Run `cargo +1.92.0 run --locked -- opportunity-farming`
+from this directory.
 An opt-in household scenario adds agreement-formed collective agents, pooled
 income/storage, shared shelter, member debt support, and spare-labor decisions.
 A controlled specialization fixture adds mining/refining, tool creation and repair,
@@ -24,6 +29,7 @@ role?** A farmer, craft worker or trader should emerge from needs, resources,
 rights, capabilities and selected processes, rather than require a different agent
 class. Processes describe possible transformations; transactions record outcomes.
 
+- [Swappable opportunity search](SEARCH.md): named strategies, common candidate plans, shared evaluation and search budgets.
 - [Households](HOUSEHOLDS.md): adult agreements, pooled resources, shared dwelling services and household decisions.
 - [State prices and tool economics](STATE-PRICING.md): 1.50 resale, 0.75 spot purchases, 0.50 forwards and productivity calibration.
 - [Additional plots](ADDITIONAL-PLOTS.md): productivity-tested requests, finite land and per-plot annual taxes.

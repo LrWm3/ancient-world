@@ -37,6 +37,29 @@ and settlement applies the resulting effects at explicit visibility barriers.
 The same pattern supports production, consumption and lifecycle changes even when
 no market or counterparty is involved.
 
+## Implemented swappable search
+
+[NeedDirectedOpportunitySearch](SEARCH.md) now owns candidate generation behind
+a read-only `OpportunitySearch` interface. Typed candidate plans carry ordered
+acquisition steps and a work proposal; the shared evaluator expands dated work,
+forecasts consequences and selects by the existing score. Agent configuration
+selects a strategy and candidate budget. Search diagnostics record the strategy,
+explanations and exhaustion. The existing joint forecast requires its participants
+to use one shared configuration. Settlement and monthly timing are unchanged.
+
+## Implemented individual opportunity marketplace
+
+The [opportunity experiment](OPPORTUNITIES.md) places process opportunities and
+state land-access offers behind a shared discovery interface. Agents follow
+need/resource/access links, then compare dated commitment forecasts. Process and
+agreement catalogs retain execution terms; acquisition and monthly execution use
+the existing settlement barriers. State-defined agent-type permissions constrain
+discovery, acceptance and settlement. [Citizenship](CITIZENSHIP.md) now creates
+a membership agreement granting scoped land-access and cultivation permissions.
+The planner can forecast and atomically accept citizenship plus land before
+executing its dated production plan. This is the initial permission layer for a
+future laws system; ZIP pricing and a general contract planner remain unimplemented.
+
 ## Implemented durable equipment and finite barter
 
 Equipment is a separate mutable asset table: identity, owner, kind, remaining

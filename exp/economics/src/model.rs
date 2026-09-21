@@ -134,6 +134,8 @@ impl Phase {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct State {
+    pub memberships:
+        BTreeMap<(AgentId, AgentId, crate::membership::Role), crate::membership::Agreement>,
     pub household_remainders: BTreeMap<Account, i32>,
     pub exchange: crate::exchange::ExchangeState,
     pub month: u32,
@@ -174,6 +176,8 @@ pub struct ScheduledStart {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct World {
+    pub agent_search: BTreeMap<AgentId, crate::search::SearchConfig>,
+    pub transaction_policy: Option<crate::opportunities::Policy>,
     pub households: Vec<crate::households::Agreement>,
     pub market: Option<crate::exchange::Market>,
     pub activities: crate::activities::Activities,
@@ -249,6 +253,7 @@ pub enum Reason {
     InsufficientCapacity,
     InsufficientStorage,
     Disabled,
+    NotPermitted,
     Inactive,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -263,6 +268,7 @@ pub struct Receipt {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Batch {
+    pub accept_membership: Option<(u32, AgentId)>,
     pub household: Option<crate::households::Boundary>,
     pub id: u64,
     pub month: u32,
@@ -318,6 +324,7 @@ impl Batch {
             production_plan: None,
             commitments: None,
             accept_access: None,
+            accept_membership: None,
             plot_request: None,
         }
     }

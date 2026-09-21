@@ -68,3 +68,9 @@ pub mod forward;
 pub mod plots;
 
 pub mod households;
+
+pub mod opportunities;
+
+pub mod membership;
+
+pub mod search;

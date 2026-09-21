@@ -36,6 +36,9 @@ pub const LONG_SCENARIOS: &[&str] = &[
 ];
 
 pub fn scenario_months(name: &str) -> u32 {
+    if name == "opportunity-farming" {
+        return crate::opportunities::RUN_MONTHS;
+    }
     if name == "households-32" {
         return 24;
     }
@@ -147,6 +150,8 @@ pub fn with_warmth(warmth_first: bool) -> (World, State) {
 
 pub fn baseline() -> (World, State) {
     let world = World {
+        agent_search: Default::default(),
+        transaction_policy: None,
         households: vec![],
         market: None,
         activities: Default::default(),
@@ -286,6 +291,7 @@ pub fn baseline() -> (World, State) {
         scheduled_starts: Vec::new(),
     };
     let state = State {
+        memberships: Default::default(),
         household_remainders: BTreeMap::new(),
         exchange: Default::default(),
         month: 1,
@@ -321,6 +327,9 @@ pub const PAYMENT_SCENARIOS: &[&str] = &[
 ];
 
 pub fn named(name: &str) -> Result<(World, State), String> {
+    if name == "opportunity-farming" {
+        return crate::membership::scenario();
+    }
     if name == "households-32" {
         return crate::households::scenario();
     }

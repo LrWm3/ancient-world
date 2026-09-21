@@ -41,11 +41,12 @@ fn buying_settles_before_dated_joint_work_and_spends_exactly_one_tool_use() {
     assert!(sim.state.pending_production.is_some());
     let acquisition = sim.ledger.last().unwrap();
     let d = acquisition.decision.as_ref().unwrap();
-    assert_eq!(d.alternatives[d.selected].offer, Some(1));
+    assert_eq!(d.alternatives[d.selected].plan.equipment_offer(), Some(1));
     assert!(
         d.alternatives
             .iter()
-            .any(|a| a.offer.is_none() && a.score > d.alternatives[d.selected].score)
+            .any(|a| a.plan.equipment_offer().is_none()
+                && a.score > d.alternatives[d.selected].score)
     );
     let plan = sim.state.pending_production.clone().unwrap();
     sim.step().unwrap();
@@ -126,8 +127,18 @@ fn useful_investment_survives_and_food_risk_is_declined() {
     commit_batch(&mut forced, &purchase).unwrap();
     risk.step().unwrap();
     let decision = risk.ledger.last().unwrap().decision.as_ref().unwrap();
-    assert_eq!(decision.alternatives[decision.selected].offer, None);
-    assert!(decision.alternatives.iter().any(|a| a.offer == Some(1)));
+    assert_eq!(
+        decision.alternatives[decision.selected]
+            .plan
+            .equipment_offer(),
+        None
+    );
+    assert!(
+        decision
+            .alternatives
+            .iter()
+            .any(|a| a.plan.equipment_offer() == Some(1))
+    );
     while risk.state.month <= 6 {
         risk.step().unwrap();
     }

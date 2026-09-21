@@ -11,6 +11,8 @@ const MAX_PLANNING_HORIZON_MONTHS: u32 = 120;
 const MAX_PROCESS_DURATION_MONTHS: u32 = 120;
 
 pub fn validate_world(world: &World, state: &State) -> Result<(), String> {
+    crate::opportunities::validate(world)?;
+    crate::membership::validate(world, state)?;
     crate::households::validate(world, state)?;
     fn unique(ids: impl Iterator<Item = u32>) -> bool {
         let mut seen = BTreeSet::new();
@@ -311,8 +313,15 @@ pub(crate) fn commit_core(
         return Err("plot request outside review boundary".into());
     }
     let mut staged = state.clone();
+    if let Some((offer, agent)) = batch.accept_membership {
+        let membership = crate::membership::acceptance(world, state, offer, agent)?;
+        staged.memberships.insert(
+            (membership.member, membership.organization, membership.role),
+            membership,
+        );
+    }
     if let Some(id) = batch.accept_access {
-        let agreement = crate::commitments::acceptance(world, state, id)?;
+        let agreement = crate::commitments::acceptance(world, &staged, id)?;
         staged.accepted_agreements.insert(id, agreement);
     }
     if let Some(s) = expected_commitments {
@@ -473,6 +482,10 @@ pub(crate) fn commit_core(
     if matches!(state.phase, Phase::Open | Phase::Due)
         && (!world.offers.is_empty()
             || !world.access_offers.is_empty()
+            || world
+                .transaction_policy
+                .as_ref()
+                .is_some_and(|p| !p.membership_offers.is_empty())
             || !world.bids.is_empty()
             || world.market.is_some())
     {
@@ -506,6 +519,16 @@ fn validate_process_transaction(
 ) -> Result<(), String> {
     let month = state.month;
     let after = &change.after;
+    if after.status != Status::Aborted
+        && !crate::opportunities::permits(
+            world,
+            state,
+            after.operator,
+            crate::opportunities::Action::Process(definition.id),
+        )
+    {
+        return Err("state policy denies process execution".into());
+    }
     let mut expected = if let Some(before) = &change.before {
         before.clone()
     } else {

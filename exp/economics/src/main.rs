@@ -5,7 +5,7 @@ fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     if args.len() > 1 || args.first().is_some_and(|a| a == "--help") {
         println!(
-            "Usage: cargo +1.92.0 run --locked -- [scenario]\nNine-month controls: baseline, short-food, no-seed, no-right, short-right, missed-work, no-need, disabled, continuing-first, new-first\n60-month scenarios: {}\nForaging controls (nine months): {}\nSpecialized activities (36 months): specialized-activities, specialized-32\nHouseholds (24 months): households-32\nTool trading (72 months): trading-32, trading-32-no-forward, trading-32-share, trading-32-plots, trading-32-no-plots\nAll scenarios use CubeCL CPU settlement.",
+            "Usage: cargo +1.92.0 run --locked -- [scenario]\nNine-month controls: baseline, short-food, no-seed, no-right, short-right, missed-work, no-need, disabled, continuing-first, new-first\n60-month scenarios: {}\nForaging controls (nine months): {}\nSpecialized activities (36 months): specialized-activities, specialized-32\nHouseholds (24 months): households-32\nTool trading (72 months): trading-32, trading-32-no-forward, trading-32-share, trading-32-plots, trading-32-no-plots\nOpportunity marketplace (36 months): opportunity-farming\nAll scenarios use CubeCL CPU settlement.",
             [
                 LONG_SCENARIOS,
                 CONDITION_SCENARIOS,
@@ -38,6 +38,16 @@ fn run() -> Result<(), String> {
     println!(
         "# Economics CPU run: {name}\n\nDuration: {months} months, starting at month {start_month}. Backend: CubeCL CPU; deterministic conditions.\n"
     );
+    for membership in simulation.state.memberships.values() {
+        println!(
+            "- Agent {} accepted membership offer {} with organization {} (role {}) in month {}.",
+            membership.member,
+            membership.source_offer,
+            membership.organization,
+            membership.role,
+            membership.accepted_month
+        );
+    }
     if trading {
         println!(
             "- Stock and money amounts use hundredths: 100 ticks = one unit. Cash-market labor uses quarter units; legacy controls retain whole labor units."
@@ -364,16 +374,20 @@ fn run() -> Result<(), String> {
                 matches,
                 observed.len()
             );
+            println!(
+                "  - Search: {}; generated {}, rejected {}, limit {}, budget exhausted {}.",
+                decision.search_name,
+                decision.candidates_generated,
+                decision.candidates_rejected,
+                decision.search_budget.max_candidates,
+                decision.search_budget_exhausted
+            );
             for (i, candidate) in decision.alternatives.iter().enumerate() {
                 println!(
-                    "  - Alternative {i}: {:?}, defer new work {}; prefer process {:?}; offer {:?}; access {:?}; stock bid {:?}; trade agents {:?}; {:?}; first work {:?}.",
-                    candidate.priority,
-                    candidate.defer_new,
-                    candidate.preferred_process,
-                    candidate.offer,
-                    candidate.access_offer,
-                    candidate.stock_bid,
-                    candidate.trade_agents,
+                    "  - Alternative {i}: steps {:?}; work {:?}; reason {}; score {:?}; first work {:?}.",
+                    candidate.plan.steps,
+                    candidate.plan.work,
+                    candidate.plan.explanation,
                     candidate.score,
                     candidate.first_work
                 );

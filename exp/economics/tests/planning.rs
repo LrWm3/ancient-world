@@ -92,7 +92,7 @@ fn severe_cold_reverses_the_choice_but_does_not_restore_lost_seed() {
     }));
     let d = batch.decision.unwrap();
     let selected = &d.alternatives[d.selected];
-    assert_eq!(selected.priority, Priority::NeedFirstFor(WARMTH));
+    assert_eq!(selected.plan.work.priority, Priority::NeedFirstFor(WARMTH));
     assert_eq!(selected.score.terminal_months, 0);
     assert!(d.alternatives.iter().any(|a| a.score.terminal_months > 0));
     let forecast = run("forecast-cold", Backend::Reference);

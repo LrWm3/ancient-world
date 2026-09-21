@@ -50,6 +50,7 @@ impl Simulation {
 
     pub(crate) fn step_core(&mut self) -> Result<(), String> {
         let mut batch = Batch {
+            accept_membership: None,
             household: None,
             id: self.state.next_batch,
             month: self.state.month,
@@ -360,16 +361,15 @@ impl Simulation {
         if crate::substitution::recipes(&self.world, need.resource).len() > 1 {
             return self.plan_substitutes(participant, need, preferred);
         }
-        let mut consumers: Vec<_> = self
-            .world
-            .definitions
-            .iter()
-            .filter(|d| {
-                d.enabled
-                    && d.execution == Execution::Consumption
-                    && d.outputs[0].resource == need.resource
-            })
-            .collect();
+        let mut consumers: Vec<_> =
+            crate::opportunities::processes(&self.world, &self.state, participant.agent)
+                .into_iter()
+                .filter(|d| {
+                    d.enabled
+                        && d.execution == Execution::Consumption
+                        && d.outputs[0].resource == need.resource
+                })
+                .collect();
         consumers.sort_by_key(|d| d.id);
         if consumers.is_empty() {
             return (None, Reason::NoKnownChain);
@@ -430,7 +430,9 @@ impl Simulation {
                 continue;
             }
             any_deficit = true;
-            for producer in &self.world.definitions {
+            for producer in
+                crate::opportunities::processes(&self.world, &self.state, participant.agent)
+            {
                 if producer.execution != Execution::Productive
                     || !producer
                         .outputs
@@ -844,6 +846,14 @@ impl Simulation {
         stored: &BTreeMap<AgentId, i128>,
     ) -> Result<(ProcessInstance, Option<crate::equipment::TechniqueUse>), Reason> {
         let d = self.world.definition(r.definition);
+        if !crate::opportunities::permits(
+            &self.world,
+            &self.state,
+            r.agent,
+            crate::opportunities::Action::Process(d.id),
+        ) {
+            return Err(Reason::NotPermitted);
+        }
         if self.state.terminal.contains_key(&r.agent) {
             return Err(Reason::Inactive);
         }

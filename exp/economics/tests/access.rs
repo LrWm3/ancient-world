@@ -70,7 +70,7 @@ fn short_horizon_misses_price_difference_long_horizon_sees_first_bill() {
     let best = |d: &economics_compute_smoke::planning::Decision, id| {
         d.alternatives
             .iter()
-            .filter(|a| a.access_offer == Some(id))
+            .filter(|a| a.plan.access_offer() == Some(id))
             .map(|a| a.score.clone())
             .min()
             .unwrap()
@@ -88,7 +88,11 @@ fn short_horizon_misses_price_difference_long_horizon_sees_first_bill() {
             .iter()
             .all(|a| a.outcomes.iter().all(|r| r.obligations.is_empty()))
     );
-    assert!(ld.alternatives.iter().any(|a| a.access_offer.is_none()));
+    assert!(
+        ld.alternatives
+            .iter()
+            .any(|a| a.plan.access_offer().is_none())
+    );
     let mut no_seed = new("offer-no-seed", Backend::Reference);
     acquire(&mut no_seed);
     no_seed.step().unwrap();
@@ -103,7 +107,7 @@ fn short_horizon_misses_price_difference_long_horizon_sees_first_bill() {
             .unwrap()
             .alternatives
             .iter()
-            .any(|a| a.access_offer == Some(1))
+            .any(|a| a.plan.access_offer() == Some(1))
     );
 }
 
