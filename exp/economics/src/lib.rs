@@ -97,3 +97,5 @@ pub mod consequence_priority;
 pub mod negotiation;
 
 pub mod marketplace;
+
+pub mod zip;

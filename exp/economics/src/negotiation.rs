@@ -3,7 +3,7 @@ use crate::{
     finance,
     marketplace::{self, Side},
     model::*,
-    opportunities, storage,
+    opportunities, storage, zip,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -23,10 +23,11 @@ pub const MARKETPLACE: AgentId = 90;
 pub const GRAIN_MARKET: marketplace::MarketId = 1;
 const PRICE_TICK: i32 = 1;
 
-/// A first quote policy, not ZIP. Prices are integer payment units per whole lot.
+/// Alternative quote policies. Prices are integer payment units per whole lot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum QuotePolicy {
     Fixed,
+    Zip(zip::Config),
     Concede { ticks: i32 },
 }
 impl QuotePolicy {
@@ -84,6 +85,9 @@ pub struct Round {
     pub seller: AgentId,
     pub month: u32,
     pub quotes: Vec<Quotes>,
+    pub events: Vec<zip::Event>,
+    pub buyer_learning: Option<zip::Learning>,
+    pub seller_learning: Option<zip::Learning>,
     pub outcome: Outcome,
 }
 
@@ -103,6 +107,7 @@ pub fn validate(world: &World) -> Result<(), String> {
             && t.opening_quote > 0
             && match t.policy {
                 QuotePolicy::Fixed => true,
+                QuotePolicy::Zip(config) => config.valid(),
                 QuotePolicy::Concede { ticks } => ticks > 0,
             }
     };
@@ -172,6 +177,9 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Round>, String> {
         seller: s.seller.agent,
         month: state.month,
         quotes: vec![],
+        events: vec![],
+        buyer_learning: None,
+        seller_learning: None,
         outcome: Outcome::NoAgreement,
     };
     if [s.buyer.agent, s.seller.agent]
@@ -185,8 +193,16 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Round>, String> {
         result.outcome = Outcome::UnsupportedMarket;
         return Ok(Some(result));
     };
-    let mut bid = marketplace::opening(state, s, Side::Buy);
-    let mut ask = marketplace::opening(state, s, Side::Sell);
+    let mut buyer_learning = marketplace::learning(state, s, Side::Buy);
+    let mut seller_learning = marketplace::learning(state, s, Side::Sell);
+    let mut bid = buyer_learning.as_ref().map_or_else(
+        || marketplace::opening(state, s, Side::Buy),
+        |l| l.quote(s.buyer.limit, market.price_tick, Side::Buy),
+    );
+    let mut ask = seller_learning.as_ref().map_or_else(
+        || marketplace::opening(state, s, Side::Sell),
+        |l| l.quote(s.seller.limit, market.price_tick, Side::Sell),
+    );
     for round in 1..=s.max_rounds {
         result.quotes.push(Quotes { round, bid, ask });
         if bid >= ask {
@@ -205,18 +221,78 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Round>, String> {
             } else {
                 Outcome::Traded { price }
             };
+            let event = if matches!(result.outcome, Outcome::Traded { .. }) {
+                zip::Event::Trade { price }
+            } else {
+                zip::Event::SettlementFailed { price }
+            };
+            observe(
+                s,
+                market.price_tick,
+                &mut buyer_learning,
+                &mut seller_learning,
+                &event,
+            );
+            result.events.push(event);
             break;
+        }
+        for event in [
+            zip::Event::Rejected {
+                side: Side::Buy,
+                price: bid,
+            },
+            zip::Event::Rejected {
+                side: Side::Sell,
+                price: ask,
+            },
+        ] {
+            observe(
+                s,
+                market.price_tick,
+                &mut buyer_learning,
+                &mut seller_learning,
+                &event,
+            );
+            result.events.push(event);
         }
         // Each side uses only its own limit and policy after the public rejection.
         // Neither side's update reads the other's private limit.
-        let next_bid = s.buyer.policy.next(bid, s.buyer.limit, true);
-        let next_ask = s.seller.policy.next(ask, s.seller.limit, false);
-        if (next_bid, next_ask) == (bid, ask) {
+        let next_bid = buyer_learning.as_ref().map_or_else(
+            || s.buyer.policy.next(bid, s.buyer.limit, true),
+            |l| l.quote(s.buyer.limit, market.price_tick, Side::Buy),
+        );
+        let next_ask = seller_learning.as_ref().map_or_else(
+            || s.seller.policy.next(ask, s.seller.limit, false),
+            |l| l.quote(s.seller.limit, market.price_tick, Side::Sell),
+        );
+        if buyer_learning.is_none()
+            && seller_learning.is_none()
+            && (next_bid, next_ask) == (bid, ask)
+        {
             break;
         }
         (bid, ask) = (next_bid, next_ask);
     }
+    result.buyer_learning = buyer_learning;
+    result.seller_learning = seller_learning;
     Ok(Some(result))
+}
+
+fn observe(
+    s: &Session,
+    tick: i32,
+    buyer: &mut Option<zip::Learning>,
+    seller: &mut Option<zip::Learning>,
+    event: &zip::Event,
+) {
+    for (trader, side, learning) in [
+        (&s.buyer, Side::Buy, buyer),
+        (&s.seller, Side::Sell, seller),
+    ] {
+        if let (QuotePolicy::Zip(config), Some(l)) = (trader.policy, learning) {
+            l.observe(config, side, trader.limit, tick, event);
+        }
+    }
 }
 
 pub fn transactions(
