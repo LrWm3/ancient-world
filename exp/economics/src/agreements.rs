@@ -11,6 +11,7 @@ pub enum Identity {
     },
     Land(u32),
     Process(u64),
+    Loan(u32),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -26,6 +27,13 @@ pub enum Consequence {
     SuspendNewUse(Grant),
     /// Abort the process, forfeit its outputs and retain already consumed inputs.
     AbortWithoutRefund,
+    /// Accepted enforcement terms, not permission to seize without settlement checks.
+    RepossessCollateral {
+        asset: AssetId,
+        creditor: AgentId,
+        grace_months: u32,
+        settlement: crate::credit::CollateralSettlement,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -191,11 +199,180 @@ impl ProductionTerms {
     pub fn fail(&self, instance: &mut ProcessInstance) {
         match self.on_unfulfilled {
             Consequence::AbortWithoutRefund => instance.status = crate::model::Status::Aborted,
-            Consequence::SuspendNewUse(_) => {
+            Consequence::SuspendNewUse(_) | Consequence::RepossessCollateral { .. } => {
                 unreachable!("production terms use a production consequence")
             }
         }
     }
+}
+
+/// Shared inspection entry point. Loan lifecycle and balances retain their domain
+/// meaning instead of being coerced into land-use or process status.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum View<'a> {
+    Agreement(Box<Agreement>),
+    Loan(LoanView<'a>),
+}
+
+impl View<'_> {
+    pub fn identity(&self) -> Identity {
+        match self {
+            Self::Agreement(a) => a.identity.clone(),
+            Self::Loan(a) => Identity::Loan(a.record.id),
+        }
+    }
+
+    pub fn grantor(&self) -> Counterparty {
+        match self {
+            Self::Agreement(a) => a.grantor,
+            Self::Loan(a) => Counterparty::Agent(a.record.creditor),
+        }
+    }
+
+    pub fn holder(&self) -> AgentId {
+        match self {
+            Self::Agreement(a) => a.holder,
+            Self::Loan(a) => a.record.debtor,
+        }
+    }
+
+    pub fn accepted_month(&self) -> u32 {
+        match self {
+            Self::Agreement(a) => a.accepted_month,
+            Self::Loan(a) => a.record.opened,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LoanState {
+    Current,
+    /// Observed arrears from a committed collection attempt, not a forecast.
+    Overdue {
+        since: u32,
+    },
+    PendingSale {
+        listed: u32,
+    },
+    Deficiency,
+    Repaid,
+}
+
+/// Borrowed inspection of one authoritative loan at a specific committed boundary.
+/// No independent debt, status or accepted terms are persisted by this adapter.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LoanView<'a> {
+    record: &'a crate::credit::Loan,
+    month: u32,
+    phase: Phase,
+    title_holder: AgentId,
+    listing: Option<&'a crate::resale::PendingSale>,
+}
+
+impl<'a> LoanView<'a> {
+    /// Accepted terms and current balances from the book, never the offer catalog.
+    pub fn record(&self) -> &'a crate::credit::Loan {
+        self.record
+    }
+
+    /// Phase is the next boundary to execute. No interest or payment is simulated.
+    pub fn boundary(&self) -> (u32, Phase) {
+        (self.month, self.phase)
+    }
+
+    pub fn title_holder(&self) -> AgentId {
+        self.title_holder
+    }
+
+    pub fn state(&self) -> LoanState {
+        use crate::credit::Status;
+        match self.record.status {
+            Status::Active => self
+                .record
+                .first_unpaid
+                .map_or(LoanState::Current, |since| LoanState::Overdue { since }),
+            Status::PendingSale => LoanState::PendingSale {
+                listed: self.listing.expect("validated pending sale view").listed,
+            },
+            Status::Enforced => LoanState::Deficiency,
+            Status::Repaid => LoanState::Repaid,
+        }
+    }
+
+    pub fn outstanding(&self) -> Result<Amount, String> {
+        Ok(Amount::new(self.record.denomination, self.record.debt()?))
+    }
+
+    /// Current collectible claim shared by debtor and creditor. Pending sale pauses
+    /// borrower collection without extinguishing outstanding principal or interest.
+    /// This is not a payment reservation; Due still accrues and validates normally.
+    pub fn claim(&self) -> Result<Option<finance::Obligation>, String> {
+        if matches!(
+            self.state(),
+            LoanState::PendingSale { .. } | LoanState::Repaid
+        ) {
+            return Ok(None);
+        }
+        let claim = self.record.claim(self.month)?;
+        Ok((claim.outstanding() > 0).then_some(claim))
+    }
+
+    pub fn on_default(&self) -> Consequence {
+        Consequence::RepossessCollateral {
+            asset: self.record.collateral.asset,
+            creditor: self.record.creditor,
+            grace_months: self.record.grace_months,
+            settlement: self.record.collateral.settlement.clone(),
+        }
+    }
+}
+
+/// Inspect accepted contracts involving this holder or grantor. Catalog offers
+/// are excluded. Terminal contracts remain inspectable. Assumes validated state.
+/// Domain grouping and stable IDs make output independent of catalog row order.
+pub fn for_agent<'a>(
+    world: &World,
+    state: &'a State,
+    agent: AgentId,
+) -> Result<Vec<View<'a>>, String> {
+    let mut views: Vec<_> = state
+        .memberships
+        .values()
+        .map(|a| View::Agreement(Box::new(a.contract())))
+        .collect();
+    let mut land: Vec<_> = crate::commitments::active(world, state).collect();
+    land.sort_by_key(|a| a.id);
+    for a in land {
+        views.push(View::Agreement(Box::new(a.contract(world, state)?)));
+    }
+    views.extend(
+        state
+            .processes
+            .values()
+            .map(|p| View::Agreement(Box::new(process(world, p)))),
+    );
+    for record in state.credit.loans.values() {
+        if record.debtor != agent && record.creditor != agent {
+            continue;
+        }
+        let listing = state.credit.pending_sales.get(&record.id);
+        if (record.status == crate::credit::Status::PendingSale) != listing.is_some() {
+            return Err("loan view has inconsistent pending sale".into());
+        }
+        views.push(View::Loan(LoanView {
+            record,
+            month: state.month,
+            phase: state.phase,
+            title_holder: crate::credit::owner(world, state, record.collateral.asset)
+                .ok_or("loan view has missing collateral owner")?,
+            listing,
+        }));
+    }
+    views.retain(|a| {
+        a.accepted_month() <= state.month
+            && (a.holder() == agent || a.grantor() == Counterparty::Agent(agent))
+    });
+    Ok(views)
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProductionCommitment {
