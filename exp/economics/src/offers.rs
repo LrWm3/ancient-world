@@ -7,6 +7,7 @@ pub enum Id {
     Membership(u32),
     Land(u32),
     Process(DefinitionId),
+    FinancedPurchase(u32),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Terms {
@@ -16,6 +17,11 @@ pub enum Terms {
     Collection {
         production: ProductionTerms,
         supply: crate::pool_market::Supply,
+    },
+    /// The first adapter retains the configured buyer, date and downpayment.
+    FinancedPurchase {
+        offer: crate::credit::Offer,
+        application: crate::credit::Application,
     },
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -42,7 +48,7 @@ impl Request {
 }
 
 pub fn discover(world: &World, state: &State, agent: AgentId) -> Vec<Offer> {
-    crate::opportunities::discover(world, state, agent)
+    let mut offers: Vec<_> = crate::opportunities::discover(world, state, agent)
         .into_iter()
         .map(|o| match o {
             crate::opportunities::Opportunity::Membership(m) => Offer {
@@ -67,7 +73,39 @@ pub fn discover(world: &World, state: &State, agent: AgentId) -> Vec<Offer> {
                 },
             },
         })
-        .collect()
+        .collect();
+    if let Some(c) = &world.credit
+        && c.application.buyer == agent
+        && state.month <= c.application.month
+    {
+        offers.extend(
+            crate::credit::discover(world, state, agent)
+                .into_iter()
+                .filter(|o| o.id == c.application.offer)
+                .map(|o| Offer {
+                    id: Id::FinancedPurchase(o.id),
+                    terms: Terms::FinancedPurchase {
+                        offer: o.clone(),
+                        application: c.application.clone(),
+                    },
+                }),
+        );
+    }
+    offers
+}
+
+/// Scripted buyer policy; acceptance still passes through the common dispatcher.
+pub(crate) fn scripted_credit_request(world: &World, state: &State) -> Option<Request> {
+    let c = world.credit.as_ref()?;
+    (state.phase == Phase::Acquire
+        && c.application.month == state.month
+        && !state.credit.loans.contains_key(&c.application.offer))
+    .then(|| {
+        Request::new(
+            Id::FinancedPurchase(c.application.offer),
+            c.application.buyer,
+        )
+    })
 }
 
 /// Shared dispatcher used by search acquisitions and normal process allocation.
@@ -77,6 +115,29 @@ pub(crate) fn resolve(
     requests: &[Request],
     batch: &mut Batch,
 ) -> Result<(), String> {
+    if requests
+        .iter()
+        .any(|r| matches!(r.offer, Id::FinancedPurchase(_)))
+    {
+        if requests.len() != 1 || *batch != Batch::empty(&sim.state) {
+            return Err("financed purchase requires a standalone acquisition request".into());
+        }
+        let request = &requests[0];
+        if scripted_credit_request(&sim.world, &sim.state).as_ref() != Some(request) {
+            return Err("financed purchase differs from configured application or is stale".into());
+        }
+        // Credit owns funding, collateral checks and the exact rejection receipts.
+        let credit = crate::credit::evaluate(&sim.world, &sim.state)?;
+        let mut staged = batch.clone();
+        staged.transactions = credit
+            .as_ref()
+            .ok_or("missing credit boundary")?
+            .transactions
+            .clone();
+        staged.credit = credit;
+        *batch = staged;
+        return Ok(());
+    }
     let mut staged_batch = batch.clone();
     let mut preview = sim.state.clone();
     let mut work = Vec::new();
@@ -85,6 +146,7 @@ pub(crate) fn resolve(
             return Err("unknown offer applicant".into());
         }
         match request.offer {
+            Id::FinancedPurchase(_) => unreachable!("handled above"),
             Id::Membership(offer) => {
                 if request.continuing.is_some() || !work.is_empty() {
                     return Err("duplicate or misordered membership acceptance".into());
@@ -168,6 +230,33 @@ pub(crate) fn resolve(
 /// productive work; its first execution still occurs at Productive. All existing
 /// processes precede requested new work. Automatic planning uses its own ordering.
 pub fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, String> {
+    if requests
+        .iter()
+        .any(|r| matches!(r.offer, Id::FinancedPurchase(_)))
+    {
+        let mut batch = Batch::empty(&sim.state);
+        resolve(sim, requests, &mut batch)?;
+        let boundary = batch
+            .credit
+            .as_ref()
+            .ok_or("missing financed purchase receipt")?;
+        if !boundary
+            .events
+            .iter()
+            .any(|e| matches!(e, crate::credit::Event::Purchased { .. }))
+        {
+            return Err(format!("financed purchase rejected: {:?}", boundary.events));
+        }
+        let mut checked = sim.state.clone();
+        crate::settlement::commit(
+            &sim.world,
+            &mut checked,
+            &batch,
+            Backend::Reference,
+            sim.effect_limit,
+        )?;
+        return Ok(batch);
+    }
     if requests.iter().any(|r| r.continuing.is_some()) {
         return Err("explicit acceptance requests must be new offers".into());
     }

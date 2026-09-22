@@ -362,6 +362,14 @@ pub fn discover<'a>(world: &'a World, state: &State, buyer: AgentId) -> Vec<&'a 
                     && buyer != o.loan.creditor
                     && world.agents.iter().any(|a| a.id == buyer)
                     && !state.terminal.contains_key(&buyer)
+                    && !state.terminal.contains_key(&o.sale.seller)
+                    && !state.terminal.contains_key(&o.loan.creditor)
+                    && !state.credit.loans.contains_key(&o.id)
+                    && !state
+                        .credit
+                        .loans
+                        .values()
+                        .any(|l| l.collateral.pledged && l.collateral.asset == o.sale.asset)
                     && owner(world, state, o.sale.asset) == Some(o.sale.seller)
             })
             .collect()

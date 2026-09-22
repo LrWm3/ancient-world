@@ -75,8 +75,13 @@ impl Simulation {
         if self.world.credit.is_some()
             && matches!(self.state.phase, Phase::Open | Phase::Due | Phase::Acquire)
         {
-            batch.credit = crate::credit::evaluate(&self.world, &self.state)?;
-            batch.transactions = batch.credit.as_ref().unwrap().transactions.clone();
+            if let Some(request) = crate::offers::scripted_credit_request(&self.world, &self.state)
+            {
+                crate::offers::resolve(self, &[request], &mut batch)?;
+            } else {
+                batch.credit = crate::credit::evaluate(&self.world, &self.state)?;
+                batch.transactions = batch.credit.as_ref().unwrap().transactions.clone();
+            }
         } else {
             match self.state.phase {
                 Phase::Open => Self::open(&self.world, &self.state, &mut batch),
