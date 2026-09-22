@@ -1093,6 +1093,10 @@ now transfer active crop agreements with the plot, preserving progress and futur
 work requirements. Fixed-value settlement makes no adjustment for the crop;
 resale-proceeds settlement remains a possible agreement policy extension. This is
 not yet combined with this production-forward scenario or autonomous borrowing.
+An opt-in [remaining-value work policy](REMAINING-VALUE.md) compares inherited
+continuing work with one-month opportunities using the shared offer resolver and
+bounded reference forecasts. It values future stock changes and competing work;
+it remains separate from urgent-need consequence scoring.
 
 ## Additional productive sites
 

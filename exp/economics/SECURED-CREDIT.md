@@ -111,6 +111,11 @@ services, not an automatic capacity gain from repossession. With capacity, the
 existing continuing-work policy maintains the crop. Without it, the existing
 missed-work consequence aborts the crop at Productive, not during transfer.
 
+A subsequent [remaining-value policy](REMAINING-VALUE.md) now lets the state
+compare continuation against wood collection and waiting, using the same
+ownership transfer and fixed settlement terms. The controls below retain their
+original continuing-work policy as a comparison.
+
 Two six-month CPU controls plant with one seed in month one and repossess during
 growth in month three. Each uses the same 60-coin settlement value:
 
