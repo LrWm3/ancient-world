@@ -3,8 +3,9 @@
 Implemented as an isolated financial experiment in `src/credit.rs`. A person
 purchases a plot with initial coins and a secured loan. Purchase, monthly interest,
 repayment and default settle through the existing transaction and CPU commit path.
-The application and repayment cashflows are supplied controls, not yet decisions
-made by the farming planner. A second control connects an active crop to ownership
+Application terms and repayment cashflows remain supplied controls. An opt-in
+[borrowing comparison](BORROWING-DECISIONS.md) now chooses whether to accept the
+configured offer using needs, productive work and projected coin payments. A second control connects an active crop to ownership
 and follows it through repossession, maintenance or neglect.
 
 ## Generic pieces

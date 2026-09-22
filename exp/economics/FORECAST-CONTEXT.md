@@ -27,7 +27,8 @@ when the snapshot is taken before Open. This preserves the pilot's existing
 observation rules; it is not an agent-specific visibility or announcement system.
 Past transfers do not replay because execution remains dated. Unaccepted offers
 remain possibilities rather than contractual future receipts. Existing configured
-credit applications remain known scripted plans, not autonomous borrowing.
+credit applications remain known configured plans. The [borrowing comparison](BORROWING-DECISIONS.md)
+explicitly forks accepting/declining that application; it does not search arbitrary loans.
 
 ## What stays separate
 
