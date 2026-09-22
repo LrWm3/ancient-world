@@ -24,6 +24,7 @@ alternative coin payments from creating fictitious grain collections or issuance
 | Land payments | Dated claim, outstanding amount, bounded payment, transfer legs, new-use restriction | Annual bill creation, rights duration, oldest-due ordering, essential reserves, coin conversion and collection-linked issuance |
 | Prepaid harvest delivery | Dated claim, outstanding amount, bounded payment, transfer legs, new-advance restriction | Forecast underwriting, prices, treasury funding, protected stock and delivery receipts |
 | Stock exchange | Full payment legs on acceptance | Posted prices, both parties' opening stock, joint storage check |
+| Bilateral negotiation pilot | Both full transfer legs on acceptance | Reservation limits, quote policies, dated price receipt, permissions, joint storage check |
 | Equipment purchase | Full payment leg on acceptance | Ownership, remaining life, single-fill validation and atomic asset transfer |
 
 Cash financing of specialist tools remains a multi-party transaction: the buyer
@@ -46,7 +47,8 @@ before maturity, preserving the existing underwriting rule; its delivery only
 becomes payable at maturity. Neither consequence forgives unpaid amounts.
 
 This is a small settlement foundation, not a universal contract interpreter.
-Arbitrary event triggers, interest, collateral, guarantees, negotiated prices,
+A scoped [negotiated-pricing pilot](NEGOTIATED-PRICING.md) now reuses its exchange
+legs. Arbitrary event triggers, interest, collateral, guarantees, ZIP pricing,
 priority across all claims, insolvency and double-entry financial statements
 remain future work. Future contract types should supply their terms and receipts
 through this shared view before introducing a second settlement mechanism.

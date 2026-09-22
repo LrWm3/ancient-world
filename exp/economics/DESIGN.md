@@ -1228,3 +1228,16 @@ ties. Feasibility, atomic reservation, fallback planning and dated execution rem
 separate. [CONSEQUENCE-PRIORITY.md](CONSEQUENCE-PRIORITY.md) records a cold-versus-tool
 comparison and a covered-warmth investment control, including the welfare and
 investment tradeoff and the limits of the forecast reports.
+
+
+### Bilateral negotiated pricing pilot
+
+An opt-in dated session separates per-agent reservation limits and quote policies
+from stock/payment settlement. Fixed and bounded-concession policies can negotiate
+one whole lot during Acquire; crossing quotes still require live permissions,
+stock, funding and receiving space. The existing financial transfer primitives
+and CPU gather publish both legs atomically, with a revalidated quote receipt.
+See [NEGOTIATED-PRICING.md](NEGOTIATED-PRICING.md) for results and limits. This is
+a controlled pricing experiment with supplied valuations; integration with
+need-driven orders, multi-party allocation and persistent ZIP learning remains
+future work.

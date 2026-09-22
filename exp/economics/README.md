@@ -29,6 +29,7 @@ role?** A farmer, craft worker or trader should emerge from needs, resources,
 rights, capabilities and selected processes, rather than require a different agent
 class. Processes describe possible transformations; transactions record outcomes.
 
+- [Negotiated pricing](NEGOTIATED-PRICING.md): bilateral reservation prices, bounded quote concessions and atomic CPU exchange.
 - [Consequence-based allocation](CONSEQUENCE-PRIORITY.md): urgent warmth versus tool investment, with controlled CPU outcomes.
 - [Shared-access learning](ACCESS-LEARNING.md): realized-access estimates and optimistic/learned CPU comparisons.
 - [Intermediary resource experiment](INTERMEDIARY.md): competing tool projections, atomic inputs, fallback work and CPU harvest outcomes.
