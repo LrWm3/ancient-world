@@ -1206,3 +1206,14 @@ existing Acquire phase retains the final productive plan. Tool creation and
 later harvest benefits arise only from completed process records. This bounded
 driver leaves the default search unchanged and still treats future shared supply
 as an expectation, not a delivery commitment.
+
+
+### Observed access expectations
+
+The intermediary driver can retain person/resource-account observations after
+Productive settlement and use a bounded, quantity-weighted access estimate in
+later forecasts. This changes only speculative future supply, preserving actual
+opening budgets, allocation rules and dated work. See [ACCESS-LEARNING.md](ACCESS-LEARNING.md)
+for timing, fallback accounting, fractional forecast supply and the controlled
+negative result: forecast changes did not improve completed outcomes in the
+12-month scenarios tested.

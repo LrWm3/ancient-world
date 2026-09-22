@@ -136,3 +136,9 @@ equipment, process offers and opportunities. The final three-test intermediary
 run also checks that the cold control explicitly selects fuel collection.
 Clippy (`--all-targets -- -D warnings`), formatting, diff checks and the repository
 artifact policy passed. Logs remain under ignored `output/economics/`.
+
+
+An opt-in [access-learning extension](ACCESS-LEARNING.md) now discounts future
+speculative shared supply using recent realized access. The original optimistic
+mode remains the default; the controlled comparison reports no improvement in
+completed food/warmth outcomes for the tested settings.
