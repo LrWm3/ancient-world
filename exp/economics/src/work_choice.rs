@@ -184,20 +184,11 @@ fn work(sim: &Simulation, c: &Config, plan: &Plan) -> Result<Batch, String> {
 }
 fn forecast(sim: &Simulation, c: &Config, plan: Plan) -> Result<Forecast, String> {
     let mut f = sim.clone();
+    (f.world, f.state) = crate::forecast::ForecastContext::new(&sim.world, &sim.state).into_parts();
     f.world.work_choice = None; // bounded explicit rollout; no recursive search
     f.backend = Backend::Reference;
     f.ledger.clear();
     f.reports.clear();
-    // Future fixture shocks and discretionary transfers are not observations.
-    f.world.capacity_overrides.clear();
-    f.world
-        .scheduled_starts
-        .retain(|s| s.month == sim.state.month);
-    if let Some(credit) = &mut f.world.credit {
-        // A future resale is uncertain; never recursively predict a buyer bid.
-        credit.resale_buyer = None;
-        credit.transfers.retain(|t| t.month <= sim.state.month);
-    }
     let participant = f
         .world
         .participants

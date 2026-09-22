@@ -29,29 +29,8 @@ pub struct SearchConfig {
     pub budget: SearchBudget,
 }
 
-/// Sanitized snapshot: known catalogs and current observations, without future
-/// capacity shocks or future scripted starts. No reference to live mutable state.
-pub struct SearchContext {
-    world: World,
-    state: State,
-}
-impl SearchContext {
-    pub fn new(world: &World, state: &State) -> Self {
-        let mut world = world.clone();
-        world.capacity_overrides.clear();
-        world.scheduled_starts.retain(|s| s.month == state.month);
-        Self {
-            world,
-            state: state.clone(),
-        }
-    }
-    pub fn world(&self) -> &World {
-        &self.world
-    }
-    pub fn state(&self) -> &State {
-        &self.state
-    }
-}
+/// Compatibility name for the shared observation boundary.
+pub use crate::forecast::ForecastContext as SearchContext;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PlanStep {

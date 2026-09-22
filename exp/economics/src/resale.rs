@@ -98,12 +98,11 @@ pub fn bid(
     buyer: &Buyer,
     available: i32,
 ) -> Result<Bid, String> {
+    let context = crate::forecast::ForecastContext::new(world, state);
     let mut scores = Vec::new();
     for acquire in [false, true] {
-        let mut w = world.clone();
+        let (mut w, mut s) = context.clone().into_parts();
         w.work_choice = Some(buyer.preferences.clone());
-        w.credit.as_mut().unwrap().resale_buyer = None;
-        let mut s = state.clone();
         s.phase = Phase::Productive; // purchase is before this month's work
         if acquire {
             s.credit.pending_sales.remove(&loan.id);

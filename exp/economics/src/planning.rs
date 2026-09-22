@@ -337,14 +337,11 @@ pub fn evaluate_candidates(
                 continue;
             }
         }
-        let mut forecast_world = sim.world.clone();
+        let (mut forecast_world, forecast_state) =
+            crate::forecast::ForecastContext::new(&sim.world, &sim.state).into_parts();
         forecast_world.competition = None;
         forecast_world.priority = plan.work.priority;
-        forecast_world.capacity_overrides.clear();
-        forecast_world
-            .scheduled_starts
-            .retain(|s| s.month == sim.state.month);
-        let mut forecast = Simulation::new(forecast_world, sim.state.clone(), Backend::Reference)?;
+        let mut forecast = Simulation::new(forecast_world, forecast_state, Backend::Reference)?;
         forecast.effect_limit = sim.effect_limit;
         let mut first = acquisition;
         let mut work;
