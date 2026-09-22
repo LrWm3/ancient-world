@@ -178,6 +178,7 @@ pub struct ScheduledStart {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct World {
+    pub work_choice: Option<crate::work_choice::Config>,
     pub credit: Option<crate::credit::Config>,
     pub marketplaces: Vec<crate::marketplace::Marketplace>,
     pub negotiation: Option<crate::negotiation::Session>,
@@ -277,6 +278,7 @@ pub struct Receipt {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Batch {
+    pub work_choice: Option<crate::work_choice::Decision>,
     pub credit: Option<crate::credit::Boundary>,
     pub negotiation: Option<crate::negotiation::Round>,
     pub pool_market: Option<crate::pool_market::Round>,
@@ -329,6 +331,7 @@ impl MonthReport {
 impl Batch {
     pub fn empty(state: &State) -> Self {
         Self {
+            work_choice: None,
             credit: None,
             negotiation: None,
             household: None,

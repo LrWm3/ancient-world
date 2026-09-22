@@ -101,3 +101,5 @@ pub mod marketplace;
 pub mod zip;
 
 pub mod credit;
+
+pub mod work_choice;

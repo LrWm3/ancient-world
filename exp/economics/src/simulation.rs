@@ -50,6 +50,7 @@ impl Simulation {
 
     pub(crate) fn step_core(&mut self) -> Result<(), String> {
         let mut batch = Batch {
+            work_choice: None,
             credit: None,
             negotiation: None,
             accept_membership: None,
@@ -235,6 +236,10 @@ impl Simulation {
     }
 
     fn productive(&self, batch: &mut Batch) -> Result<(), String> {
+        if self.world.work_choice.is_some() {
+            *batch = crate::work_choice::evaluate(self)?;
+            return Ok(());
+        }
         if let Some(plan) = &self.state.pending_production {
             *batch = *plan.clone();
             return Ok(());
@@ -255,6 +260,16 @@ impl Simulation {
         defer_new: bool,
         preferred: Option<DefinitionId>,
     ) -> Result<(), String> {
+        let requests = self.productive_requests(batch, defer_new, preferred)?;
+        self.resolve(requests, batch)
+    }
+
+    pub(crate) fn productive_requests(
+        &self,
+        batch: &mut Batch,
+        defer_new: bool,
+        preferred: Option<DefinitionId>,
+    ) -> Result<Vec<Request>, String> {
         let mut requests: Vec<_> = self
             .state
             .processes
@@ -380,7 +395,7 @@ impl Simulation {
                 r.existing,
             )
         });
-        self.resolve(requests, batch)
+        Ok(requests)
     }
 
     fn sorted_needs(participant: &Participant) -> Vec<&Requirement> {
