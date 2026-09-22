@@ -112,7 +112,8 @@ contract interpreter. The adapter methods are `membership::Agreement::contract`,
 `commitments::Agreement::contract` and `agreements::process`. A common offer
 interface dispatches to existing domain catalogs. The secured-credit pilot now
 exposes its accepted terms and collateral consequences through inspection, but
-credit/resale acceptance still does not use the common offer dispatcher.
+financed-purchase acceptance now uses the common offer dispatcher for the
+configured application. Resale acceptance remains separate.
 Arbitrary negotiated grants, general selectable penalties and termination are
 not implemented by a universal interpreter.
 Citizenship's action permissions still come from the state's role policy.

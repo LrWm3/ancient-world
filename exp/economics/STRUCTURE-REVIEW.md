@@ -12,6 +12,11 @@ for its lifecycle distinctions, boundary semantics and tests. Other standardizat
 options in this review remain proposals; the original findings below describe
 the reviewed baseline.
 
+The next increment adds a [financed-purchase offer adapter](SECURED-CREDIT.md#common-offer-adapter).
+It retains the scripted application and existing credit settlement. General
+borrowing search, shared forecast construction and composition with other
+acquisition drivers remain proposals.
+
 ## What exists today
 
 The foundation already separates decisions from publication. Agents and policies

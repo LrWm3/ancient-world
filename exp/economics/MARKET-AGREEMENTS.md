@@ -38,7 +38,7 @@ remain subject to its validated transactions.
 
 ## One offer interface
 
-`offers` provides namespaced IDs (`Membership`, `Land`, `Process`), a common request
+`offers` provides namespaced IDs (`Membership`, `Land`, `Process`, `FinancedPurchase`), a common request
 record, and these operations:
 
 1. `discover`: visible terms, including opportunities with obtainable prerequisites.

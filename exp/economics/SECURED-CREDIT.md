@@ -9,6 +9,54 @@ and follows it through repossession, maintenance or neglect.
 
 ## Generic pieces
 
+### Common offer adapter
+
+Financed purchases now use `offers::discover`, `prepare`, `feasible` and `accept`
+with `Id::FinancedPurchase(offer_id)`. Discovered terms include the sale/loan offer
+and the configured application, making its buyer, date and downpayment visible.
+The monthly driver's scripted application also passes through this dispatcher.
+Credit still owns funding checks, collateral availability and settlement receipts.
+
+Discovery excludes inactive counterparties, already-used loan IDs, unavailable
+title and pledged collateral. It does not promise affordability. The common
+adapter exposes only the configured application to its buyer, through its stated
+month; acceptance requires that month's Acquire boundary. It does not yet permit
+arbitrary buyer applications, negotiate a downpayment or select borrowing through
+need-directed search.
+
+For example, at the configured Acquire boundary:
+
+```rust,ignore
+let request = offers::Request::new(offers::Id::FinancedPurchase(1), buyer);
+offers::feasible(&sim, &[request.clone()])?; // read-only
+offers::accept(&mut sim, &[request])?;     // ordinary atomic settlement
+```
+
+Opening coins fund the downpayment and advance. Prepared batches revalidate
+against current terms, title, debt and dated state before publication; they are
+not binding price reservations. ID-only requests use current terms when prepared.
+Purchase receipts make cash, title and loan changes visible together before
+Productive. Existing Due interest/collection and later collateral resale timing
+are unchanged. Failed explicit acceptance changes neither state nor ledger; the
+monthly driver retains its ordinary credit rejection receipt and proceeds.
+
+This first adapter requires one standalone financed-purchase request. Duplicate
+requests and bundles with production or other acquisitions are rejected rather
+than implying joint reservation support. Existing credit incompatibility guards
+remain. Resale bids still use their separate pilot resolver.
+
+### Domain records
+
+The common-offer adapter passed four focused tests covering discovery, read-only
+feasibility, explicit/automatic receipt equality, both funding failures, changed
+terms and ownership, duplicate acceptance, unsupported bundles, an independent
+lender and checkpoint continuation. Together with process-offer, credit, resale,
+collateral-crop and loan-view regressions, **36 tests passed**. CPU/reference
+comparisons and all-target Clippy passed. No new simulation parameters or monthly
+phases were introduced.
+
+Run `cargo +1.92.0 test --locked --test credit_offers` from this directory.
+
 - `Sale`: seller, asset and price.
 - `LoanOffer`: creditor, denomination, maximum principal, monthly rate, term and
   arrears grace period.
