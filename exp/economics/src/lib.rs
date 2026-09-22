@@ -103,3 +103,5 @@ pub mod zip;
 pub mod credit;
 
 pub mod work_choice;
+
+pub mod resale;

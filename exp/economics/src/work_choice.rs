@@ -194,6 +194,8 @@ fn forecast(sim: &Simulation, c: &Config, plan: Plan) -> Result<Forecast, String
         .scheduled_starts
         .retain(|s| s.month == sim.state.month);
     if let Some(credit) = &mut f.world.credit {
+        // A future resale is uncertain; never recursively predict a buyer bid.
+        credit.resale_buyer = None;
         credit.transfers.retain(|t| t.month <= sim.state.month);
     }
     let participant = f

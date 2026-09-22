@@ -38,16 +38,17 @@ pub struct Collateral {
     pub settlement: CollateralSettlement,
     pub pledged: bool,
 }
-/// Agreement-selected settlement rule. Resale proceeds may be added later;
-/// they require a pending sale and cannot be substituted for an immediate quote.
+/// Agreement-selected settlement: immediate fixed credit or actual later proceeds.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CollateralSettlement {
     FixedValue { value: i32 },
+    ResaleProceeds { minimum_price: i32 },
 }
 impl CollateralSettlement {
-    pub fn fixed_value(&self) -> i32 {
+    fn is_valid(&self) -> bool {
         match *self {
-            Self::FixedValue { value } => value,
+            Self::FixedValue { value } => value > 0,
+            Self::ResaleProceeds { minimum_price } => minimum_price > 0,
         }
     }
 }
@@ -78,6 +79,7 @@ pub struct ScheduledTransfer {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
+    pub resale_buyer: Option<crate::resale::Buyer>,
     /// These use rights and their active processes follow asset ownership.
     pub attached_rights: BTreeSet<u32>,
     pub offers: Vec<Offer>,
@@ -90,6 +92,7 @@ pub enum Status {
     Active,
     Repaid,
     Enforced,
+    PendingSale,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Loan {
@@ -143,7 +146,7 @@ impl Loan {
             failure: finance::FailureRule::CarryArrears,
         })
     }
-    fn apply_payment(&mut self, amount: i32) {
+    pub(crate) fn apply_payment(&mut self, amount: i32) {
         let interest = amount.min(self.interest);
         self.interest -= interest;
         self.principal -= amount - interest;
@@ -157,6 +160,7 @@ impl Loan {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Book {
+    pub pending_sales: BTreeMap<u32, crate::resale::PendingSale>,
     pub loans: BTreeMap<u32, Loan>,
     /// Overrides to the catalog's opening asset ownership and carrying value.
     pub owners: BTreeMap<AssetId, AgentId>,
@@ -171,6 +175,31 @@ pub enum Rejection {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
+    RepossessedForSale {
+        loan: u32,
+        asset: AssetId,
+        minimum_price: i32,
+    },
+    ResaleNoBuyer {
+        loan: u32,
+    },
+    ResaleBid {
+        loan: u32,
+        quote: crate::resale::Bid,
+    },
+    ResaleRejected {
+        loan: u32,
+        bid: i32,
+        minimum_price: i32,
+    },
+    Resold {
+        loan: u32,
+        buyer: AgentId,
+        price: i32,
+        debt_credit: i32,
+        surplus: i32,
+        remaining_debt: i32,
+    },
     Endowed {
         agent: AgentId,
         amount: Amount,
@@ -228,6 +257,10 @@ pub struct Boundary {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BalanceSheet {
+    /// Memo only: controlled for realization, excluded from lender equity.
+    pub collateral_in_custody: i64,
+    /// Subset of assets: borrower interest awaiting actual realization.
+    pub assets_awaiting_sale: i64,
     pub coins: i64,
     pub assets: i64,
     pub principal_receivable: i64,
@@ -263,9 +296,34 @@ pub fn balance_sheet(
     if let Some(c) = &world.credit {
         let mut seen = BTreeSet::new();
         for o in &c.offers {
+            let pending =
+                state.credit.loans.values().find(|l| {
+                    l.status == Status::PendingSale && l.collateral.asset == o.sale.asset
+                });
+            let economic_owner = pending
+                .map(|l| l.debtor)
+                .or_else(|| owner(world, state, o.sale.asset));
+            if o.sale.price.resource == coin && pending.is_some_and(|l| l.creditor == agent) {
+                b.collateral_in_custody += i64::from(
+                    *state
+                        .credit
+                        .values
+                        .get(&o.sale.asset)
+                        .unwrap_or(&o.sale.price.quantity),
+                );
+            }
+            if o.sale.price.resource == coin && pending.is_some_and(|l| l.debtor == agent) {
+                b.assets_awaiting_sale += i64::from(
+                    *state
+                        .credit
+                        .values
+                        .get(&o.sale.asset)
+                        .unwrap_or(&o.sale.price.quantity),
+                );
+            }
             if o.sale.price.resource == coin
                 && seen.insert(o.sale.asset)
-                && owner(world, state, o.sale.asset) == Some(agent)
+                && economic_owner == Some(agent)
             {
                 b.assets += i64::from(
                     *state
@@ -380,7 +438,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             || o.loan.term_months > MAX_TERM_MONTHS
             || o.loan.grace_months > MAX_TERM_MONTHS
             || o.collateral.asset != o.sale.asset
-            || o.collateral.settlement.fixed_value() <= 0
+            || !o.collateral.settlement.is_valid()
             || !o.collateral.pledged
         {
             return Err("invalid financed purchase offer".into());
@@ -419,6 +477,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             return Err("invalid asset carrying value".into());
         }
     }
+    crate::resale::validate(world, state)?;
     let mut pledged = BTreeSet::new();
     for (&id, l) in &state.credit.loans {
         if id != l.id
@@ -440,7 +499,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             || l.last_accrued < l.opened
             || l.last_accrued > state.month
             || !assets.contains(&l.collateral.asset)
-            || l.collateral.settlement.fixed_value() <= 0
+            || !l.collateral.settlement.is_valid()
             || (l.collateral.pledged
                 && (!pledged.insert(l.collateral.asset)
                     || owner(world, state, l.collateral.asset) != Some(l.debtor)))
@@ -465,7 +524,7 @@ fn tx(cause: String, effects: Vec<Effect>) -> Transaction {
         royalty: None,
     }
 }
-fn transfer(
+pub(crate) fn transfer(
     out: &mut Boundary,
     budgets: &mut BTreeMap<Account, i32>,
     from: AgentId,
@@ -586,7 +645,7 @@ fn purchase(
 }
 /// Transfer control and future output, never elapsed work or sunk inputs.
 /// Personal need goals and personal future labor do not transfer with the asset.
-fn transfer_attachments(
+pub(crate) fn transfer_attachments(
     world: &World,
     state: &State,
     out: &mut Boundary,
@@ -624,7 +683,7 @@ fn due(
     let ids: Vec<_> = out.after.loans.keys().copied().collect();
     for id in ids {
         let mut l = out.after.loans[&id].clone();
-        if l.status == Status::Repaid || state.month <= l.opened {
+        if matches!(l.status, Status::Repaid | Status::PendingSale) || state.month <= l.opened {
             continue;
         }
         if l.status == Status::Active {
@@ -673,7 +732,30 @@ fn due(
                 since,
             });
             if l.status == Status::Active && state.month - since >= l.grace_months {
-                let value = l.collateral.settlement.fixed_value();
+                if let CollateralSettlement::ResaleProceeds { minimum_price } =
+                    l.collateral.settlement
+                {
+                    transfer_attachments(world, state, out, l.collateral.asset, l.creditor);
+                    out.after.owners.insert(l.collateral.asset, l.creditor);
+                    l.collateral.pledged = false;
+                    l.status = Status::PendingSale;
+                    out.after.pending_sales.insert(
+                        id,
+                        crate::resale::PendingSale {
+                            listed: state.month,
+                        },
+                    );
+                    out.events.push(Event::RepossessedForSale {
+                        loan: id,
+                        asset: l.collateral.asset,
+                        minimum_price,
+                    });
+                    out.after.loans.insert(id, l);
+                    continue;
+                }
+                let CollateralSettlement::FixedValue { value } = l.collateral.settlement else {
+                    unreachable!()
+                };
                 let debt = l.debt()?;
                 let credit = value.min(debt);
                 let surplus = (value - debt).max(0);
@@ -759,7 +841,10 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
             }
         }
         Phase::Due => due(world, state, &mut out, &mut budgets)?,
-        Phase::Acquire => purchase(world, state, c, &mut out, &mut budgets)?,
+        Phase::Acquire => {
+            purchase(world, state, c, &mut out, &mut budgets)?;
+            crate::resale::settle(world, state, &mut out, &mut budgets)?;
+        }
         _ => {}
     }
     Ok(Some(out))
@@ -807,6 +892,7 @@ pub fn scenario(case: &str) -> Result<(World, State), String> {
         _ => return Err("unknown credit scenario".into()),
     };
     w.credit = Some(Config {
+        resale_buyer: None,
         attached_rights: BTreeSet::new(),
         offers: vec![Offer {
             id: 1,
