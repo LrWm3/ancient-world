@@ -4,6 +4,7 @@ use crate::{
     access_expectations::{Estimate, Memory, Mode, Observation},
     allocation::{Claim, Context, Outcome, Policy},
     compute::Backend,
+    consequence_priority::{self, Assessment, Harm},
     model::*,
     planning::Score,
     resolution::{self, Mechanism, Resolution},
@@ -17,6 +18,7 @@ pub const RUN_MONTHS: u32 = 12;
 const FORECAST_MONTHS: u32 = 12;
 const MAX_PARTICIPANTS: usize = 4;
 const MAX_ACTIONS: usize = 16;
+const HARM_SCALE: u64 = 1000;
 const RESOLUTION_SCOPE: u64 = 0;
 const TOOL_WOOD: i32 = 2;
 const TOOL_LABOR: i32 = 2;
@@ -24,12 +26,14 @@ const TOOL_HARVEST_LABOR: i32 = 1;
 const TOOL_LIFETIME: u32 = 2;
 const TOOL_MULTIPLIER: u32 = 2;
 const OPENING_WOOD: i32 = 3;
+const CONTESTED_WOOD: i32 = 2;
 const WOOD_REGENERATION: i32 = 1;
 const OPENING_FOOD: i32 = 5;
 const OPENING_FUEL: i32 = 2;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Projection {
+    pub harm: Vec<Harm>,
     pub action: Option<DefinitionId>,
     pub score: Score,
     pub immediate_buffer_gap: u64,
@@ -45,6 +49,8 @@ pub struct Decision {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Round {
+    pub allocation_mode: consequence_priority::Mode,
+    pub assessments: BTreeMap<u64, Assessment>,
     pub expectations: BTreeMap<(AgentId, Account), Estimate>,
     pub month: u32,
     pub policy: Policy,
@@ -53,6 +59,7 @@ pub struct Round {
 }
 #[derive(Clone, Debug)]
 pub struct Experiment {
+    pub allocation_mode: consequence_priority::Mode,
     pub access_mode: Mode,
     pub access_memory: Memory,
     pub simulation: Simulation,
@@ -77,12 +84,13 @@ impl Experiment {
             }
             return self.simulation.step();
         }
-        let (batch, round) = prepare_with_access(
+        let (batch, round) = prepare_with_policy(
             &self.simulation,
             self.policy,
             self.seed,
             self.access_mode,
             &self.access_memory,
+            self.allocation_mode,
         )?;
         crate::settlement::commit(
             &self.simulation.world,
@@ -193,7 +201,7 @@ fn project(
     agent: AgentId,
     requests: &[Request],
     expectations: &BTreeMap<(AgentId, Account), Estimate>,
-) -> Result<(Score, u64), String> {
+) -> Result<(Score, u64, Vec<Harm>), String> {
     let mut f = sim.clone();
     f.backend = Backend::Reference;
     f.world.competition = None;
@@ -253,7 +261,34 @@ fn project(
         .values()
         .filter(|p| p.status == Status::Aborted)
         .count() as u64;
-    Ok((score, immediate_buffer_gap))
+    let harm = f
+        .reports
+        .iter()
+        .map(|r| {
+            let mut impaired = 0;
+            let mut deprivation = 0;
+            for rule in f
+                .world
+                .condition_rules
+                .iter()
+                .filter(|rule| rule.subject == r.agent)
+            {
+                let points = r
+                    .conditions
+                    .get(&rule.provision)
+                    .map_or(0, |c| c.deprivation);
+                impaired += u64::from(points >= rule.impaired_at);
+                deprivation += u64::from(points) * HARM_SCALE / u64::from(rule.terminal_at);
+            }
+            Harm {
+                month: r.month,
+                terminal: u64::from(r.terminal.is_some()),
+                impaired,
+                deprivation,
+            }
+        })
+        .collect();
+    Ok((score, immediate_buffer_gap, harm))
 }
 
 fn choose(
@@ -263,8 +298,9 @@ fn choose(
     excluded: Option<DefinitionId>,
     expectations: &BTreeMap<(AgentId, Account), Estimate>,
 ) -> Result<(Option<DefinitionId>, Vec<Projection>), String> {
-    let (score, immediate_buffer_gap) = project(sim, agent, base, expectations)?;
+    let (score, immediate_buffer_gap, harm) = project(sim, agent, base, expectations)?;
     let mut alternatives = vec![Projection {
+        harm,
         action: None,
         score,
         immediate_buffer_gap,
@@ -279,8 +315,9 @@ fn choose(
         if !completed(&work(sim, &trial)?, agent, id) {
             continue;
         }
-        let (score, immediate_buffer_gap) = project(sim, agent, &trial, expectations)?;
+        let (score, immediate_buffer_gap, harm) = project(sim, agent, &trial, expectations)?;
         alternatives.push(Projection {
+            harm,
             action: Some(id),
             score,
             immediate_buffer_gap,
@@ -304,6 +341,24 @@ pub fn prepare_with_access(
     seed: u64,
     mode: Mode,
     memory: &Memory,
+) -> Result<(Batch, Round), String> {
+    prepare_with_policy(
+        sim,
+        policy,
+        seed,
+        mode,
+        memory,
+        consequence_priority::Mode::Existing,
+    )
+}
+
+pub fn prepare_with_policy(
+    sim: &Simulation,
+    policy: Policy,
+    seed: u64,
+    mode: Mode,
+    memory: &Memory,
+    allocation_mode: consequence_priority::Mode,
 ) -> Result<(Batch, Round), String> {
     if sim.world.participants.len() > MAX_PARTICIPANTS
         || sim.state.phase != Phase::Acquire
@@ -412,13 +467,50 @@ pub fn prepare_with_access(
             fallback_alternatives: vec![],
         });
     }
-    let (resolution, mut accepted) = resolution::resolve(
-        Context {
-            seed,
-            pool: RESOLUTION_SCOPE,
-            round: u64::from(sim.state.month),
-        },
+    let assessments: BTreeMap<_, _> = decisions
+        .iter()
+        .filter_map(|d| {
+            d.selected.map(|selected| {
+                (
+                    u64::from(d.agent),
+                    Assessment {
+                        denied: d
+                            .alternatives
+                            .iter()
+                            .find(|p| p.action.is_none())
+                            .unwrap()
+                            .harm
+                            .clone(),
+                        accepted: d
+                            .alternatives
+                            .iter()
+                            .find(|p| p.action == Some(selected))
+                            .unwrap()
+                            .harm
+                            .clone(),
+                    },
+                )
+            })
+        })
+        .collect();
+    let context = Context {
+        seed,
+        pool: RESOLUTION_SCOPE,
+        round: u64::from(sim.state.month),
+    };
+    let ranked = consequence_priority::Ranking::new(
+        context,
         &policy,
+        &claims.iter().map(|r| r.claim.clone()).collect::<Vec<_>>(),
+        &assessments,
+    )?;
+    let ranking: &dyn crate::allocation::RankingPolicy = match allocation_mode {
+        consequence_priority::Mode::Existing => &policy,
+        consequence_priority::Mode::AvoidHarm => &ranked,
+    };
+    let (resolution, mut accepted) = resolution::resolve(
+        context,
+        ranking,
         Mechanism::ConditionalBundle,
         &available,
         &claims,
@@ -460,6 +552,8 @@ pub fn prepare_with_access(
     Ok((
         batch,
         Round {
+            allocation_mode,
+            assessments,
             expectations,
             month: sim.state.month,
             policy,
@@ -601,6 +695,7 @@ pub fn scenario(backend: Backend) -> Result<Experiment, String> {
     }
     sim = Simulation::new(sim.world, sim.state, backend)?;
     Ok(Experiment {
+        allocation_mode: consequence_priority::Mode::Existing,
         access_mode: Mode::Optimistic,
         access_memory: Memory::default(),
         simulation: sim,
@@ -608,4 +703,27 @@ pub fn scenario(backend: Backend) -> Result<Experiment, String> {
         seed: crate::competition::DEFAULT_SEED,
         rounds: vec![],
     })
+}
+
+/// Same agents and terms: the lower-ranked applicant either needs warmth now or
+/// has the original fuel buffer. Two wood can fund a tool or fuel, but not both.
+pub fn consequence_scenario(covered: bool, backend: Backend) -> Result<Experiment, String> {
+    use crate::scenario::*;
+    let mut e = scenario(backend)?;
+    let pool = e
+        .simulation
+        .world
+        .pools
+        .iter_mut()
+        .find(|p| p.account == (STATE_AGENT, RAW_WOOD))
+        .unwrap();
+    pool.capacity = CONTESTED_WOOD;
+    e.simulation
+        .state
+        .balances
+        .insert((STATE_AGENT, RAW_WOOD), CONTESTED_WOOD);
+    if !covered {
+        e.simulation.state.balances.insert((PERSON + 1, FUEL), 0);
+    }
+    Ok(e)
 }
