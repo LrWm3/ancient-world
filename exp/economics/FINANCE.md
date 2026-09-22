@@ -1,7 +1,8 @@
 # Shared financial primitives
 
 Implemented in `src/finance.rs`. These primitives serve the existing economics
-experiment; they do not introduce banks, interest-bearing credit or new markets.
+experiment. A separate [secured-credit pilot](SECURED-CREDIT.md) now builds on
+them for financed asset purchases, monthly interest and collateral consequences.
 
 - `Transfer`: a positive commodity amount between distinct agents, producing
   equal debit and credit effects. World validation and batch settlement still
@@ -48,8 +49,9 @@ becomes payable at maturity. Neither consequence forgives unpaid amounts.
 
 This is a small settlement foundation, not a universal contract interpreter.
 A scoped [negotiated-pricing pilot](NEGOTIATED-PRICING.md) now reuses its exchange
-legs, including an opt-in [ZIP quoting policy](ZIP.md). Arbitrary event triggers,
-interest, collateral, guarantees,
+legs, including an opt-in [ZIP quoting policy](ZIP.md). The secured-credit pilot
+adds scoped interest, collateral and symmetric loan balance-sheet views.
+Arbitrary event triggers, guarantees,
 priority across all claims, insolvency and double-entry financial statements
 remain future work. Future contract types should supply their terms and receipts
 through this shared view before introducing a second settlement mechanism.

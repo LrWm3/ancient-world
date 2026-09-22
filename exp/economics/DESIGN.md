@@ -1086,7 +1086,10 @@ The forward is a dated claim attached to a ledger transaction, rather than an
 agent method that directly changes another balance. It feeds production claims
 and protects promised stocks from spot sale. Forecasting remains host-side and
 local: future competition and shocks may defeat the forecast. This pilot does
-not implement a general loan, collateral or insolvency system.
+not implement a general loan, collateral or insolvency system. A separate
+[secured-credit experiment](SECURED-CREDIT.md) now tests financed asset purchases,
+monthly interest and collateral enforcement in isolation; it is not yet combined
+with this production-forward scenario.
 
 ## Additional productive sites
 
