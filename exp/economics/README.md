@@ -29,6 +29,7 @@ role?** A farmer, craft worker or trader should emerge from needs, resources,
 rights, capabilities and selected processes, rather than require a different agent
 class. Processes describe possible transformations; transactions record outcomes.
 
+- [Shared forecast context](FORECAST-CONTEXT.md): common observation rules for search, work choices and resale valuation.
 - [Structure review](STRUCTURE-REVIEW.md): current interfaces, standardization opportunities and a proposed first increment.
 - [Collateral resale](COLLATERAL-RESALE.md): pending sales, buyer valuation, actual proceeds and a possible borrower-redemption extension.
 - [Remaining-value work choices](REMAINING-VALUE.md): maintain an inherited crop, choose wood collection or wait using bounded forecasts.

@@ -20,7 +20,8 @@ pub trait OpportunitySearch {
 }
 ```
 
-`SearchContext` owns a read-only snapshot of current state and known catalogs.
+`SearchContext` is now an alias for the [shared forecast context](FORECAST-CONTEXT.md).
+It owns a read-only snapshot of current state and known catalogs.
 Future fixture capacity overrides and future scripted starts are removed before
 any strategy can see it. This is the existing observation model, not a new
 partial-knowledge or beliefs system. A strategy has no live simulation handle.

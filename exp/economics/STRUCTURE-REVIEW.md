@@ -14,8 +14,9 @@ the reviewed baseline.
 
 The next increment adds a [financed-purchase offer adapter](SECURED-CREDIT.md#common-offer-adapter).
 It retains the scripted application and existing credit settlement. General
-borrowing search, shared forecast construction and composition with other
-acquisition drivers remain proposals.
+borrowing search and composition with other acquisition drivers remain proposals.
+Shared observation construction is now implemented for search/planning, work
+choice and resale; see [forecast context](FORECAST-CONTEXT.md).
 
 ## What exists today
 
