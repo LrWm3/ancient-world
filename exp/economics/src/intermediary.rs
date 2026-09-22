@@ -1,6 +1,7 @@
 //! Bounded experiment: independent conditional forecasts, joint input reservation,
 //! then one fallback decision against the retained work. Uses the existing phases.
 use crate::{
+    access_expectations::{Estimate, Memory, Mode, Observation},
     allocation::{Claim, Context, Outcome, Policy},
     compute::Backend,
     model::*,
@@ -44,6 +45,7 @@ pub struct Decision {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Round {
+    pub expectations: BTreeMap<(AgentId, Account), Estimate>,
     pub month: u32,
     pub policy: Policy,
     pub decisions: Vec<Decision>,
@@ -51,6 +53,8 @@ pub struct Round {
 }
 #[derive(Clone, Debug)]
 pub struct Experiment {
+    pub access_mode: Mode,
+    pub access_memory: Memory,
     pub simulation: Simulation,
     pub policy: Policy,
     pub seed: u64,
@@ -59,9 +63,27 @@ pub struct Experiment {
 impl Experiment {
     pub fn step(&mut self) -> Result<(), String> {
         if self.simulation.state.phase != Phase::Acquire {
+            if self.simulation.state.phase == Phase::Productive {
+                // Stage both physical settlement and learning so an observation
+                // error cannot leave the experiment half advanced.
+                let mut next = self.clone();
+                next.simulation.step()?;
+                let round = next.rounds.last().ok_or("missing intermediary decision")?;
+                let batch = next.simulation.ledger.last().unwrap();
+                let rows = observations(&next.simulation.world, round, batch)?;
+                next.access_memory.record(batch.month, rows)?;
+                *self = next;
+                return Ok(());
+            }
             return self.simulation.step();
         }
-        let (batch, round) = prepare(&self.simulation, self.policy, self.seed)?;
+        let (batch, round) = prepare_with_access(
+            &self.simulation,
+            self.policy,
+            self.seed,
+            self.access_mode,
+            &self.access_memory,
+        )?;
         crate::settlement::commit(
             &self.simulation.world,
             &mut self.simulation.state,
@@ -166,7 +188,12 @@ fn candidates(sim: &Simulation, agent: AgentId) -> Vec<DefinitionId> {
     ids.into_iter().collect()
 }
 
-fn project(sim: &Simulation, agent: AgentId, requests: &[Request]) -> Result<(Score, u64), String> {
+fn project(
+    sim: &Simulation,
+    agent: AgentId,
+    requests: &[Request],
+    expectations: &BTreeMap<(AgentId, Account), Estimate>,
+) -> Result<(Score, u64), String> {
     let mut f = sim.clone();
     f.backend = Backend::Reference;
     f.world.competition = None;
@@ -186,7 +213,36 @@ fn project(sim: &Simulation, agent: AgentId, requests: &[Request]) -> Result<(Sc
     f.state.processes.retain(|_, p| p.operator == agent);
     f.state.terminal.retain(|a, _| *a == agent);
     let immediate_buffer_gap = crate::planning::score(&f).buffer_gap;
-    f.run_months(FORECAST_MONTHS)?;
+    // Only future speculative access is discounted. Current candidate work was
+    // settled above against the real opening stock, including retained grants.
+    let mut flows = Vec::new();
+    for pool in &f.world.pools {
+        let estimate = expectations[&(agent, pool.account)];
+        let mut carry = 0;
+        let stock = f.state.balance(pool.account.0, pool.account.1);
+        f.state
+            .balances
+            .insert(pool.account, estimate.portion(stock, &mut carry)?);
+        flows.push((pool.account, pool.monthly_regeneration, estimate, carry));
+    }
+    let end = f
+        .state
+        .month
+        .checked_add(FORECAST_MONTHS)
+        .ok_or("forecast month overflow")?;
+    while f.state.month < end {
+        if f.state.phase == Phase::Open {
+            for (account, regeneration, estimate, carry) in &mut flows {
+                f.world
+                    .pools
+                    .iter_mut()
+                    .find(|p| p.account == *account)
+                    .unwrap()
+                    .monthly_regeneration = estimate.portion(*regeneration, carry)?;
+            }
+        }
+        f.step()?;
+    }
     for b in &mut f.ledger {
         b.receipts.retain(|r| r.agent == agent);
     }
@@ -205,8 +261,9 @@ fn choose(
     agent: AgentId,
     base: &[Request],
     excluded: Option<DefinitionId>,
+    expectations: &BTreeMap<(AgentId, Account), Estimate>,
 ) -> Result<(Option<DefinitionId>, Vec<Projection>), String> {
-    let (score, immediate_buffer_gap) = project(sim, agent, base)?;
+    let (score, immediate_buffer_gap) = project(sim, agent, base, expectations)?;
     let mut alternatives = vec![Projection {
         action: None,
         score,
@@ -222,7 +279,7 @@ fn choose(
         if !completed(&work(sim, &trial)?, agent, id) {
             continue;
         }
-        let (score, immediate_buffer_gap) = project(sim, agent, &trial)?;
+        let (score, immediate_buffer_gap) = project(sim, agent, &trial, expectations)?;
         alternatives.push(Projection {
             action: Some(id),
             score,
@@ -238,6 +295,16 @@ fn choose(
 }
 
 pub fn prepare(sim: &Simulation, policy: Policy, seed: u64) -> Result<(Batch, Round), String> {
+    prepare_with_access(sim, policy, seed, Mode::Optimistic, &Memory::default())
+}
+
+pub fn prepare_with_access(
+    sim: &Simulation,
+    policy: Policy,
+    seed: u64,
+    mode: Mode,
+    memory: &Memory,
+) -> Result<(Batch, Round), String> {
     if sim.world.participants.len() > MAX_PARTICIPANTS
         || sim.state.phase != Phase::Acquire
         || sim.world.pool_market.is_some()
@@ -247,6 +314,16 @@ pub fn prepare(sim: &Simulation, policy: Policy, seed: u64) -> Result<(Batch, Ro
     {
         return Err("intermediary experiment requires an unshared Acquire boundary without other market drivers".into());
     }
+    let expectations = memory.snapshot(
+        sim.state.month,
+        sim.world.participants.iter().map(|p| p.agent),
+        &sim.world
+            .pools
+            .iter()
+            .map(|p| p.account)
+            .collect::<Vec<_>>(),
+        mode,
+    );
     let mut preview = sim.clone();
     let mut batch = Batch::empty(&sim.state);
     crate::settlement::commit(
@@ -302,7 +379,7 @@ pub fn prepare(sim: &Simulation, policy: Policy, seed: u64) -> Result<(Batch, Ro
     let mut decisions = Vec::new();
     let mut claims = Vec::new();
     for agent in agents {
-        let (selected, alternatives) = choose(&preview, agent, &base, None)?;
+        let (selected, alternatives) = choose(&preview, agent, &base, None, &expectations)?;
         if let Some(id) = selected {
             let d = sim.world.definition(id);
             let mut inputs = BTreeMap::<Account, u32>::new();
@@ -371,7 +448,8 @@ pub fn prepare(sim: &Simulation, policy: Policy, seed: u64) -> Result<(Batch, Ro
             .iter_mut()
             .find(|d| u64::from(d.agent) == receipt.claim.id)
             .unwrap();
-        let (action, alternatives) = choose(&preview, d.agent, &accepted, d.selected)?;
+        let (action, alternatives) =
+            choose(&preview, d.agent, &accepted, d.selected, &expectations)?;
         d.fallback = action;
         d.fallback_alternatives = alternatives;
         if let Some(id) = action {
@@ -382,12 +460,70 @@ pub fn prepare(sim: &Simulation, policy: Policy, seed: u64) -> Result<(Batch, Ro
     Ok((
         batch,
         Round {
+            expectations,
             month: sim.state.month,
             policy,
             decisions,
             resolution,
         },
     ))
+}
+
+fn observations(world: &World, round: &Round, batch: &Batch) -> Result<Vec<Observation>, String> {
+    if round.month != batch.month {
+        return Err("stale access learning round".into());
+    }
+    let pools: BTreeSet<_> = world.pools.iter().map(|p| p.account).collect();
+    let mut rows = Vec::new();
+    for d in &round.decisions {
+        let mut requested = BTreeMap::<Account, u32>::new();
+        let receipt = round
+            .resolution
+            .receipts
+            .iter()
+            .find(|r| r.claim.id == u64::from(d.agent));
+        // A permission/storage/labor rejection is not evidence of resource access.
+        let initial = receipt
+            .filter(|r| !matches!(r.outcome, Outcome::Rejected(_)))
+            .and(d.selected);
+        for id in [initial, d.fallback].into_iter().flatten() {
+            let mut action = BTreeMap::<Account, u32>::new();
+            for a in &world.definition(id).stages[0].entry_inputs {
+                let account = crate::pools::input_account(world, id, d.agent, a.resource);
+                if pools.contains(&account) {
+                    *action.entry(account).or_default() += a.quantity as u32;
+                }
+            }
+            for (account, q) in action {
+                let previous = requested.entry(account).or_default();
+                *previous = (*previous).max(q);
+            }
+        }
+        for (account, requested) in requested {
+            let received = batch
+                .transactions
+                .iter()
+                .filter(|t| {
+                    t.process.as_ref().is_some_and(|p| {
+                        p.before.is_none()
+                            && p.after.operator == d.agent
+                            && [d.selected, d.fallback].contains(&Some(p.after.definition))
+                    })
+                })
+                .flat_map(|t| &t.effects)
+                .filter(|e| e.account == account && e.delta < 0)
+                .map(|e| e.delta.unsigned_abs())
+                .sum();
+            rows.push(Observation {
+                month: batch.month,
+                agent: d.agent,
+                account,
+                requested,
+                received,
+            });
+        }
+    }
+    Ok(rows)
 }
 
 pub fn scenario(backend: Backend) -> Result<Experiment, String> {
@@ -465,6 +601,8 @@ pub fn scenario(backend: Backend) -> Result<Experiment, String> {
     }
     sim = Simulation::new(sim.world, sim.state, backend)?;
     Ok(Experiment {
+        access_mode: Mode::Optimistic,
+        access_memory: Memory::default(),
         simulation: sim,
         policy: Policy::StablePriority,
         seed: crate::competition::DEFAULT_SEED,
