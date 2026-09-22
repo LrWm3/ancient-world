@@ -538,6 +538,9 @@ pub(crate) fn projected_claims(
 
 /// An open template conveys no right until its agreement is accepted.
 pub fn holder(world: &World, state: &State, right: &UseRight) -> Option<AgentId> {
+    if crate::credit::follows_owner(world, right.id) {
+        return crate::credit::owner(world, state, right.asset);
+    }
     if let Some(a) = world
         .access_offers
         .iter()
@@ -549,6 +552,9 @@ pub fn holder(world: &World, state: &State, right: &UseRight) -> Option<AgentId>
     }
 }
 pub fn output_owner(world: &World, state: &State, right: &UseRight) -> Option<AgentId> {
+    if crate::credit::follows_owner(world, right.id) {
+        return holder(world, state, right);
+    }
     if world
         .access_offers
         .iter()

@@ -13,6 +13,8 @@ const TERM_MONTHS: u32 = 4;
 const GRACE_MONTHS: u32 = 1;
 const DISTRESSED_VALUE: i32 = 6_000;
 const MAX_TERM_MONTHS: u32 = 120;
+const CROP_PROVIDED_LABOR: i32 = 2;
+const CROP_INITIAL_SEED: i32 = 1;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Sale {
@@ -33,9 +35,21 @@ pub struct LoanOffer {
 pub struct Collateral {
     pub asset: AssetId,
     pub priority: u32,
-    /// Agreed value credited upon transfer to lender; no liquidation market yet.
-    pub enforcement_value: i32,
+    pub settlement: CollateralSettlement,
     pub pledged: bool,
+}
+/// Agreement-selected settlement rule. Resale proceeds may be added later;
+/// they require a pending sale and cannot be substituted for an immediate quote.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CollateralSettlement {
+    FixedValue { value: i32 },
+}
+impl CollateralSettlement {
+    pub fn fixed_value(&self) -> i32 {
+        match *self {
+            Self::FixedValue { value } => value,
+        }
+    }
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Offer {
@@ -64,6 +78,8 @@ pub struct ScheduledTransfer {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
+    /// These use rights and their active processes follow asset ownership.
+    pub attached_rights: BTreeSet<u32>,
     pub offers: Vec<Offer>,
     pub application: Application,
     pub endowments: Vec<Endowment>,
@@ -205,6 +221,7 @@ pub enum Event {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Boundary {
+    pub attachments: Vec<ProcessChange>,
     pub after: Book,
     pub events: Vec<Event>,
     pub transactions: Vec<Transaction>,
@@ -300,12 +317,9 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             Err("credit book without configuration".into())
         };
     };
-    // Composition with productive access and other acquisition/collection
-    // drivers requires shared funding and ownership rights rules first.
-    if !world.participants.is_empty()
-        || !world.definitions.is_empty()
-        || !world.rights.is_empty()
-        || !world.agreements.is_empty()
+    // Ownership-following production is supported. Other acquisition/collection
+    // drivers still require shared funding and ownership rules.
+    if !world.agreements.is_empty()
         || !world.access_offers.is_empty()
         || world.market.is_some()
         || world.negotiation.is_some()
@@ -317,8 +331,24 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         || !world.issuance.is_empty()
         || !world.pools.is_empty()
         || world.transaction_policy.is_some()
+        || state.pending_production.is_some()
     {
-        return Err("credit pilot requires isolated finance boundaries".into());
+        return Err(
+            "credit pilot cannot combine unrelated acquisition or collection drivers".into(),
+        );
+    }
+    if world
+        .rights
+        .iter()
+        .any(|r| !c.attached_rights.contains(&r.id))
+        || c.attached_rights.iter().any(|id| {
+            !world
+                .rights
+                .iter()
+                .any(|r| r.id == *id && c.offers.iter().any(|o| o.sale.asset == r.asset))
+        })
+    {
+        return Err("credit production requires explicit ownership-following rights".into());
     }
     let agent = |id| world.agents.iter().any(|a| a.id == id);
     let coin = |id| {
@@ -350,7 +380,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             || o.loan.term_months > MAX_TERM_MONTHS
             || o.loan.grace_months > MAX_TERM_MONTHS
             || o.collateral.asset != o.sale.asset
-            || o.collateral.enforcement_value <= 0
+            || o.collateral.settlement.fixed_value() <= 0
             || !o.collateral.pledged
         {
             return Err("invalid financed purchase offer".into());
@@ -410,7 +440,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             || l.last_accrued < l.opened
             || l.last_accrued > state.month
             || !assets.contains(&l.collateral.asset)
-            || l.collateral.enforcement_value <= 0
+            || l.collateral.settlement.fixed_value() <= 0
             || (l.collateral.pledged
                 && (!pledged.insert(l.collateral.asset)
                     || owner(world, state, l.collateral.asset) != Some(l.debtor)))
@@ -520,6 +550,7 @@ fn purchase(
         coin,
         principal,
     )?;
+    transfer_attachments(world, state, out, o.sale.asset, a.buyer);
     out.after.owners.insert(o.sale.asset, a.buyer);
     out.after.values.insert(o.sale.asset, o.sale.price.quantity);
     out.after.loans.insert(
@@ -553,7 +584,39 @@ fn purchase(
     });
     Ok(())
 }
+/// Transfer control and future output, never elapsed work or sunk inputs.
+/// Personal need goals and personal future labor do not transfer with the asset.
+fn transfer_attachments(
+    world: &World,
+    state: &State,
+    out: &mut Boundary,
+    asset: AssetId,
+    to: AgentId,
+) {
+    for p in state.processes.values().filter(|p| {
+        p.status == crate::model::Status::Active
+            && p.asset == Some(asset)
+            && p.right.is_some_and(|id| follows_owner(world, id))
+    }) {
+        let mut after = p.clone();
+        after.operator = to;
+        after.beneficiary = to;
+        after.goal = None;
+        out.attachments.push(ProcessChange {
+            before: Some(p.clone()),
+            after,
+        });
+    }
+}
+pub fn follows_owner(world: &World, right: u32) -> bool {
+    world
+        .credit
+        .as_ref()
+        .is_some_and(|c| c.attached_rights.contains(&right))
+}
+
 fn due(
+    world: &World,
     state: &State,
     out: &mut Boundary,
     budgets: &mut BTreeMap<Account, i32>,
@@ -610,7 +673,7 @@ fn due(
                 since,
             });
             if l.status == Status::Active && state.month - since >= l.grace_months {
-                let value = l.collateral.enforcement_value;
+                let value = l.collateral.settlement.fixed_value();
                 let debt = l.debt()?;
                 let credit = value.min(debt);
                 let surplus = (value - debt).max(0);
@@ -624,6 +687,7 @@ fn due(
                         .push(Event::EnforcementDeferred { loan: id, surplus });
                 } else {
                     transfer(out, budgets, l.creditor, l.debtor, l.denomination, surplus)?;
+                    transfer_attachments(world, state, out, l.collateral.asset, l.creditor);
                     out.after.owners.insert(l.collateral.asset, l.creditor);
                     out.after.values.insert(l.collateral.asset, value);
                     l.collateral.pledged = false;
@@ -652,6 +716,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
         return Ok(None);
     }
     let mut out = Boundary {
+        attachments: vec![],
         after: state.credit.clone(),
         events: vec![],
         transactions: vec![],
@@ -659,6 +724,9 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
     let mut budgets = state.balances.clone();
     match state.phase {
         Phase::Open => {
+            let mut opening = Batch::empty(state);
+            crate::simulation::Simulation::open(world, state, &mut opening);
+            out.transactions.extend(opening.transactions);
             if state.month == 1 {
                 for e in &c.endowments {
                     out.transactions.push(tx(
@@ -690,7 +758,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
                 });
             }
         }
-        Phase::Due => due(state, &mut out, &mut budgets)?,
+        Phase::Due => due(world, state, &mut out, &mut budgets)?,
         Phase::Acquire => purchase(world, state, c, &mut out, &mut budgets)?,
         _ => {}
     }
@@ -739,6 +807,7 @@ pub fn scenario(case: &str) -> Result<(World, State), String> {
         _ => return Err("unknown credit scenario".into()),
     };
     w.credit = Some(Config {
+        attached_rights: BTreeSet::new(),
         offers: vec![Offer {
             id: 1,
             sale: Sale {
@@ -758,10 +827,12 @@ pub fn scenario(case: &str) -> Result<(World, State), String> {
             collateral: Collateral {
                 asset: PLOT,
                 priority: 1,
-                enforcement_value: if case == "surplus" {
-                    PRICE_TICKS
-                } else {
-                    DISTRESSED_VALUE
+                settlement: CollateralSettlement::FixedValue {
+                    value: if case == "surplus" {
+                        PRICE_TICKS
+                    } else {
+                        DISTRESSED_VALUE
+                    },
                 },
                 pledged: true,
             },
@@ -792,4 +863,47 @@ pub fn scenario(case: &str) -> Result<(World, State), String> {
         transfers,
     });
     Ok((w, s))
+}
+
+/// Controlled crop attachment: same debt and valuation whether maintained or not.
+/// The state capacity is an explicit supplied service, not labor created by title.
+pub fn crop_scenario(maintain: bool) -> Result<(World, State), String> {
+    use crate::scenario::{GRAIN, GROW, LABOR, PERSON, SEED, STATE_AGENT};
+    let (mut world, mut state) = scenario("default")?;
+    let (catalog, _) = crate::scenario::baseline();
+    world.resources.extend(
+        catalog
+            .resources
+            .into_iter()
+            .filter(|r| [GRAIN, SEED, LABOR].contains(&r.id)),
+    );
+    world.definitions = catalog
+        .definitions
+        .into_iter()
+        .filter(|d| d.id == GROW)
+        .collect();
+    world.definitions[0]
+        .outputs
+        .push(Amount::new(SEED, CROP_INITIAL_SEED));
+    world.rights = catalog.rights;
+    world.credit.as_mut().unwrap().attached_rights = world.rights.iter().map(|r| r.id).collect();
+    world.participants = vec![
+        Participant {
+            agent: PERSON,
+            capacity: Amount::new(LABOR, CROP_PROVIDED_LABOR),
+            needs: vec![],
+        },
+        Participant {
+            agent: STATE_AGENT,
+            capacity: Amount::new(LABOR, if maintain { CROP_PROVIDED_LABOR } else { 0 }),
+            needs: vec![],
+        },
+    ];
+    world.scheduled_starts.push(ScheduledStart {
+        month: 1,
+        agent: PERSON,
+        definition: GROW,
+    });
+    state.balances.insert((PERSON, SEED), CROP_INITIAL_SEED);
+    Ok((world, state))
 }

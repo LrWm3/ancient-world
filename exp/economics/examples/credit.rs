@@ -52,5 +52,22 @@ fn main() -> Result<(), String> {
             }
         }
     }
+    println!("\n| Crop control | Crop status | State grain | State seed | Remaining debt ticks |");
+    println!("| --- | --- | --- | --- | --- |");
+    for maintain in [true, false] {
+        let (world, state) = credit::crop_scenario(maintain)?;
+        let mut sim = Simulation::new(world, state, Backend::CubeCpu)?;
+        sim.run_months(MONTHS)?;
+        println!(
+            "| {} | {:?} | {} | {} | {} |",
+            if maintain { "maintain" } else { "neglect" },
+            sim.state.processes.values().next().unwrap().status,
+            sim.state
+                .balance(STATE_AGENT, economics_compute_smoke::scenario::GRAIN),
+            sim.state
+                .balance(STATE_AGENT, economics_compute_smoke::scenario::SEED),
+            sim.state.credit.loans[&1].principal
+        );
+    }
     Ok(())
 }

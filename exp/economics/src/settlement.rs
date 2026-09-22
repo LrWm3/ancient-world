@@ -180,9 +180,12 @@ fn validate_state(world: &World, state: &State) -> Result<(), String> {
                                     .values()
                                     .any(|a| a.right == right && a.activated <= p.start))
                             && r.asset == asset
-                            && crate::commitments::holder(world, state, r) == Some(p.operator)
-                            && crate::commitments::output_owner(world, state, r)
-                                == Some(p.beneficiary)
+                            && ((p.status != Status::Active
+                                && crate::credit::follows_owner(world, r.id))
+                                || (crate::commitments::holder(world, state, r)
+                                    == Some(p.operator)
+                                    && crate::commitments::output_owner(world, state, r)
+                                        == Some(p.beneficiary)))
                             && r.from <= p.start
                             && r.through >= p.reserved_through
                     })
@@ -366,6 +369,13 @@ pub(crate) fn commit_core(
     }
     if let Some(boundary) = &batch.credit {
         staged.credit = boundary.after.clone();
+        // Exact transfers were checked by credit::validate_batch above. This is
+        // a change of control at acquisition/collection, not process execution.
+        for change in &boundary.attachments {
+            staged
+                .processes
+                .insert(change.after.id, change.after.clone());
+        }
     }
     staged.pending_production = batch.production_plan.clone();
     if let Some(settlement) = &batch.maintenance {

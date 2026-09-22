@@ -78,7 +78,7 @@ impl Simulation {
             batch.transactions = batch.credit.as_ref().unwrap().transactions.clone();
         } else {
             match self.state.phase {
-                Phase::Open => self.open(&mut batch),
+                Phase::Open => Self::open(&self.world, &self.state, &mut batch),
                 Phase::Due | Phase::ClearArrears => {
                     let settlement = crate::commitments::evaluate(&self.world, &self.state)?;
                     batch.transactions = settlement.transactions.clone();
@@ -163,9 +163,9 @@ impl Simulation {
         people
     }
 
-    fn open(&self, batch: &mut Batch) {
-        let mut effects = crate::activities::expiration(&self.world, &self.state);
-        effects.extend(crate::pools::regeneration(&self.world, &self.state));
+    pub(crate) fn open(world: &World, state: &State, batch: &mut Batch) {
+        let mut effects = crate::activities::expiration(world, state);
+        effects.extend(crate::pools::regeneration(world, state));
         if !effects.is_empty() {
             batch.transactions.push(Transaction {
                 cause: "shared pool regeneration".into(),
@@ -181,31 +181,29 @@ impl Simulation {
         }
         // Regeneration is an explicit source; unused services and previous-period
         // fulfillment expire. Stock accounts never reset here.
-        let mut agents: Vec<_> = self.world.agents.iter().collect();
+        let mut agents: Vec<_> = world.agents.iter().collect();
         agents.sort_by_key(|a| a.id);
-        let mut resources: Vec<_> = self.world.resources.iter().collect();
+        let mut resources: Vec<_> = world.resources.iter().collect();
         resources.sort_by_key(|r| r.id);
         for agent in agents {
             for resource in &resources {
                 if resource.kind == ResourceKind::Stock {
                     continue;
                 }
-                let old = self.state.balance(agent.id, resource.id);
-                let base = self
-                    .world
+                let old = state.balance(agent.id, resource.id);
+                let base = world
                     .participants
                     .iter()
                     .find(|p| p.agent == agent.id && p.capacity.resource == resource.id)
                     .map(|p| {
-                        self.world
+                        world
                             .capacity_overrides
-                            .get(&(self.state.month, p.agent))
+                            .get(&(state.month, p.agent))
                             .copied()
                             .unwrap_or(p.capacity.quantity)
                     })
                     .unwrap_or(0);
-                let new =
-                    maintenance::capacity(&self.world, &self.state, agent.id, resource.id, base);
+                let new = maintenance::capacity(world, state, agent.id, resource.id, base);
                 let mut effects = Vec::new();
                 if old != 0 {
                     effects.push(Effect {
