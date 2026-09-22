@@ -50,6 +50,7 @@ impl Simulation {
 
     pub(crate) fn step_core(&mut self) -> Result<(), String> {
         let mut batch = Batch {
+            credit: None,
             negotiation: None,
             accept_membership: None,
             household: None,
@@ -70,40 +71,50 @@ impl Simulation {
             pool_market: None,
             plot_request: None,
         };
-        match self.state.phase {
-            Phase::Open => self.open(&mut batch),
-            Phase::Due | Phase::ClearArrears => {
-                let settlement = crate::commitments::evaluate(&self.world, &self.state)?;
-                batch.transactions = settlement.transactions.clone();
-                batch.commitments = Some(settlement);
-            }
-            Phase::Acquire => {
-                if self.world.negotiation.is_some() {
-                    batch.negotiation = crate::negotiation::evaluate(&self.world, &self.state)?;
-                    batch.transactions = crate::negotiation::transactions(
-                        &self.world,
-                        &self.state,
-                        &batch.negotiation,
-                    )?;
-                } else if self.world.market.is_some() {
-                    batch.transactions = crate::exchange::resolve(&self.world, &self.state)?;
-                    batch.plot_request =
-                        crate::plots::after_market(&self.world, &self.state, &batch.transactions)?;
-                    batch.accept_access = batch
-                        .plot_request
-                        .as_ref()
-                        .filter(|r| r.reason == crate::plots::Reason::Accepted)
-                        .and_then(|r| r.offer);
-                } else if self.world.competition.is_some() {
-                    crate::competition::choose(self, &mut batch)?;
-                } else if self.world.priority == Priority::ConsequenceAware {
-                    crate::planning::choose(self, &mut batch)?;
+        if self.world.credit.is_some()
+            && matches!(self.state.phase, Phase::Open | Phase::Due | Phase::Acquire)
+        {
+            batch.credit = crate::credit::evaluate(&self.world, &self.state)?;
+            batch.transactions = batch.credit.as_ref().unwrap().transactions.clone();
+        } else {
+            match self.state.phase {
+                Phase::Open => self.open(&mut batch),
+                Phase::Due | Phase::ClearArrears => {
+                    let settlement = crate::commitments::evaluate(&self.world, &self.state)?;
+                    batch.transactions = settlement.transactions.clone();
+                    batch.commitments = Some(settlement);
                 }
-            }
-            Phase::Productive => self.productive(&mut batch)?,
-            Phase::Consumption => self.consume(&mut batch)?,
-            Phase::Close => {
-                batch.maintenance = Some(maintenance::evaluate(&self.world, &self.state)?);
+                Phase::Acquire => {
+                    if self.world.negotiation.is_some() {
+                        batch.negotiation = crate::negotiation::evaluate(&self.world, &self.state)?;
+                        batch.transactions = crate::negotiation::transactions(
+                            &self.world,
+                            &self.state,
+                            &batch.negotiation,
+                        )?;
+                    } else if self.world.market.is_some() {
+                        batch.transactions = crate::exchange::resolve(&self.world, &self.state)?;
+                        batch.plot_request = crate::plots::after_market(
+                            &self.world,
+                            &self.state,
+                            &batch.transactions,
+                        )?;
+                        batch.accept_access = batch
+                            .plot_request
+                            .as_ref()
+                            .filter(|r| r.reason == crate::plots::Reason::Accepted)
+                            .and_then(|r| r.offer);
+                    } else if self.world.competition.is_some() {
+                        crate::competition::choose(self, &mut batch)?;
+                    } else if self.world.priority == Priority::ConsequenceAware {
+                        crate::planning::choose(self, &mut batch)?;
+                    }
+                }
+                Phase::Productive => self.productive(&mut batch)?,
+                Phase::Consumption => self.consume(&mut batch)?,
+                Phase::Close => {
+                    batch.maintenance = Some(maintenance::evaluate(&self.world, &self.state)?);
+                }
             }
         }
         let mut reports = if self.state.phase == Phase::Close {

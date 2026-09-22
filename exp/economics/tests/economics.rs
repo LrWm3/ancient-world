@@ -330,6 +330,7 @@ fn gross_spending_and_overflow_fail_atomically_even_with_positive_net_effects() 
     let (world, mut state) = baseline();
     let before = state.clone();
     let mut batch = Batch {
+        credit: None,
         negotiation: None,
         accept_membership: None,
         household: None,

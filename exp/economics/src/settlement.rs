@@ -125,6 +125,7 @@ pub fn validate_world(world: &World, state: &State) -> Result<(), String> {
 
 fn validate_state(world: &World, state: &State) -> Result<(), String> {
     crate::marketplace::validate(world, state)?;
+    crate::credit::validate(world, state)?;
     crate::activities::validate(world, state)?;
     crate::exchange::validate(world, state)?;
     crate::storage::validate(world, state)?;
@@ -233,6 +234,7 @@ pub(crate) fn commit_core(
     }
     crate::pool_market::validate_batch(world, state, batch, effect_limit)?;
     crate::negotiation::validate_batch(world, state, batch)?;
+    crate::credit::validate_batch(world, state, batch)?;
     let count = batch
         .transactions
         .iter()
@@ -257,11 +259,12 @@ pub(crate) fn commit_core(
     if batch.production_plan.is_some() && batch.phase != Phase::Acquire {
         return Err("production plan outside acquisition boundary".into());
     }
-    let expected_commitments = if matches!(batch.phase, Phase::Due | Phase::ClearArrears) {
-        Some(crate::commitments::evaluate(world, state)?)
-    } else {
-        None
-    };
+    let expected_commitments =
+        if world.credit.is_none() && matches!(batch.phase, Phase::Due | Phase::ClearArrears) {
+            Some(crate::commitments::evaluate(world, state)?)
+        } else {
+            None
+        };
     if batch.commitments != expected_commitments
         || expected_commitments
             .as_ref()
@@ -360,6 +363,9 @@ pub(crate) fn commit_core(
                 .ok_or("missing negotiation session")?,
             round,
         );
+    }
+    if let Some(boundary) = &batch.credit {
+        staged.credit = boundary.after.clone();
     }
     staged.pending_production = batch.production_plan.clone();
     if let Some(settlement) = &batch.maintenance {
@@ -522,12 +528,15 @@ pub(crate) fn commit_core(
                 .is_some_and(|p| !p.membership_offers.is_empty())
             || !world.bids.is_empty()
             || world.market.is_some()
-            || world.negotiation.is_some())
+            || world.negotiation.is_some()
+            || world.credit.is_some())
     {
         staged.phase = Phase::Acquire;
     }
     if state.phase == Phase::Open
-        && (!world.agreements.is_empty() || !world.access_offers.is_empty())
+        && (!world.agreements.is_empty()
+            || !world.access_offers.is_empty()
+            || world.credit.is_some())
     {
         staged.phase = Phase::Due;
     }

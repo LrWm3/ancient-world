@@ -99,3 +99,5 @@ pub mod negotiation;
 pub mod marketplace;
 
 pub mod zip;
+
+pub mod credit;
