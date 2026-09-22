@@ -450,7 +450,7 @@ pub fn evaluate_candidates(
     Ok(())
 }
 
-fn score(sim: &Simulation) -> Score {
+pub(crate) fn score(sim: &Simulation) -> Score {
     let mut score = Score::default();
     for row in &sim.reports {
         if row.terminal.is_some() {

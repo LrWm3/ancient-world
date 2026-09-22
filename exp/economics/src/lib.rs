@@ -87,3 +87,5 @@ pub mod competition;
 pub mod pool_market;
 
 pub mod resolution;
+
+pub mod intermediary;
