@@ -1241,3 +1241,15 @@ See [NEGOTIATED-PRICING.md](NEGOTIATED-PRICING.md) for results and limits. This 
 a controlled pricing experiment with supplied valuations; integration with
 need-driven orders, multi-party allocation and persistent ZIP learning remains
 future work.
+
+
+### Marketplace agent component
+
+The bilateral pilot now routes sessions through a marketplace agent with an
+explicit catalog of goods/payment pairs, lot sizes and price ticks. Initial
+access requires person classification plus state stock-trading permission; no
+membership or dissolution flow is added. The agent holds venue history and
+pricing records per participant, market and buy/sell side. Settled transfers
+still run directly between participants. [MARKETPLACE.md](MARKETPLACE.md)
+describes discovery, atomic memory updates, continuation checks and the boundary
+between remembered concession quotes and future ZIP learning.

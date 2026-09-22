@@ -3,6 +3,8 @@
 Implemented opt-in, dated negotiation between two generic agents. One offers a
 whole stock lot; the other pays in an existing stock resource used as coins.
 The CPU example uses two people and grain. No state agent sets their price.
+Negotiations now route through a [marketplace agent](MARKETPLACE.md), which
+requires person participants and explicitly lists grain-for-coins exchange.
 
 Run from `exp/economics`:
 
@@ -12,7 +14,7 @@ cargo +1.92.0 run --locked --example negotiation
 
 ## Terms and quote policies
 
-`World.negotiation` holds one `Session`: month, buyer, seller, goods and quantity,
+`World.negotiation` holds one `Session`: marketplace, market, month, buyer, seller, goods and quantity,
 payment resource, and a bounded number of quote rounds. Each trader supplies an
 opening quote, a private reservation limit, and a `QuotePolicy`:
 
@@ -31,7 +33,7 @@ coin denominations. The fixture treats balances as coin ticks; no conversion or
 currency issuance occurs during exchange.
 
 When bid reaches or exceeds ask, both parties accept the midpoint, rounded down
-to a payment tick. That price remains within both quotes and both reservation
+to the market catalog's price tick. That price remains within both quotes and both reservation
 limits. This midpoint rule is an explicit bilateral price rule, not a claim to
 implement an order-book auction. Stop on agreement, unchanged quotes, or the
 configured round limit (at most 64). A limit on rounds counts quote observations,
@@ -49,7 +51,8 @@ The pilot owns an isolated Acquire window in the existing monthly scheduler:
 1. Open makes the current boundary visible; any existing Due phase still precedes
    Acquire.
 2. Acquire reads current holdings and the scheduled session. Both agents must be
-   active and permitted to perform `StockTrade` under the existing state policy.
+   classified as people, active and permitted to perform `StockTrade` under the
+   existing state policy. The session must match the venue's listed trade terms.
 3. Quote rounds change no holdings and reserve no resources.
 4. Crossing quotes must still pass full-lot seller stock, buyer payment and joint
    receiving-storage checks. Failure records a reason and emits no transfer.
@@ -108,8 +111,9 @@ priority. Formatting, Clippy with warnings denied and artifact checks pass.
 The scenario supplies orders and reservation values. Agents do not yet derive
 willingness to pay from need deficits, replacement opportunities or expected
 future income. The example isolates exchange and contains no production or
-consumption. Quotes reset only when a new session is configured; there is no
-learning across sessions, negotiation cost, strategic signaling, competing
+consumption. The marketplace now remembers each participant's last quote per market and side;
+new sessions with the same policy resume it within their current limits. There
+is no adaptive ZIP learning, negotiation cost, strategic signaling, competing
 counterparties or welfare claim about the resulting price.
 
 The next useful extension is to generate a buy order from a food deficit and a
