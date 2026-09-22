@@ -1180,3 +1180,17 @@ work reservations. Dated receipts distinguish demand, feasible work, reservation
 and completion, with joint wood/labor validation at settlement. Unfilled requests
 affect actual stock and subsequent need conditions. See [WOOD-MARKET.md](WOOD-MARKET.md)
 for the generic adapter's scope, CPU policy controls and observed scarcity effects.
+
+
+### Swappable resource resolution
+
+The collection window now separates ranking from how requests are accepted.
+`resolution::resolve` takes dated availability, per-lot prerequisite accounts,
+claims, a ranking policy, and either `Immediate` or `ConditionalBundle`.
+Immediate accepts an authorized smaller number of complete lots; conditional
+bundles require all requested lots. Both reserve every immediate input together,
+and discard rejected candidate plans without holding their inputs. The wood
+adapter uses this interface with its existing process feasibility checks;
+settlement verifies the dated result. See [RESOLUTION.md](RESOLUTION.md) for
+controlled results and the boundary between this primitive and future
+multi-stage dependencies, counteroffers, negotiation and cooperation.

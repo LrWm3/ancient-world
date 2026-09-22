@@ -121,3 +121,9 @@ work before this allocation window rather than optimizing every use of labor at 
 
 Generated run and test logs stay under ignored `output/economics/`; this Markdown
 records settings, outcomes and limitations.
+
+
+The collection adapter now uses the shared [resource resolution interface](RESOLUTION.md).
+These reported scenarios retain its default `Immediate` mechanism. The opt-in
+`ConditionalBundle` mechanism requires the person's full new collection request;
+it can be paired with any existing ranking policy without moving monthly work.
