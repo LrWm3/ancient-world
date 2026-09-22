@@ -85,3 +85,5 @@ pub mod allocation;
 pub mod competition;
 
 pub mod pool_market;
+
+pub mod resolution;

@@ -1,10 +1,11 @@
 //! Recurring environmental collection offers. Quantities are whole process lots;
 //! private services and shared stock must be reserved together.
 use crate::{
-    allocation::{self, Claim, Context, Policy, Receipt},
+    allocation::{Claim, Context, Policy, Receipt},
     compute::Backend,
     model::*,
     offers,
+    resolution::{self, Mechanism},
     simulation::{Request, Simulation},
 };
 use std::collections::BTreeMap;
@@ -24,9 +25,11 @@ pub struct Config {
     pub account: Account,
     pub seed: u64,
     pub policy: Policy,
+    pub mechanism: Mechanism,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Supply {
+    pub mechanism: Mechanism,
     pub month: u32,
     pub definition: DefinitionId,
     pub account: Account,
@@ -35,6 +38,7 @@ pub struct Supply {
 }
 pub fn supply(world: &World, state: &State) -> Option<Supply> {
     world.pool_market.as_ref().map(|c| Supply {
+        mechanism: c.mechanism,
         month: state.month,
         definition: c.definition,
         account: c.account,
@@ -44,7 +48,8 @@ pub fn supply(world: &World, state: &State) -> Option<Supply> {
 }
 
 /// Preview a pool round using the same typed process requests as other offers.
-/// Partial fulfillment is allowed and recorded; this is not all-or-nothing bundle acceptance.
+/// The configured mechanism allows partial lots or requires each person's complete
+/// collection request. Continuing work remains outside those new bundles.
 pub fn prepare(sim: &Simulation, requests: &[offers::Request]) -> Result<Batch, String> {
     if sim.state.phase != Phase::Productive {
         return Err("collection preview requires Productive".into());
@@ -94,6 +99,7 @@ pub struct Round {
     pub requests: Vec<offers::Request>,
     pub demands: Vec<Demand>,
     pub receipts: Vec<Receipt>,
+    pub resolution: resolution::Resolution,
 }
 
 pub fn validate(world: &World) -> Result<(), String> {
@@ -277,21 +283,37 @@ pub(crate) fn resolve(
             feasible,
             urgent,
         });
-        if feasible > 0 {
+        if feasible > 0 || c.mechanism == Mechanism::ConditionalBundle {
             claims.push(Claim {
                 id: u64::from(agent),
                 priority: u32::from(!urgent),
-                requested: feasible,
+                requested: if c.mechanism == Mechanism::ConditionalBundle {
+                    requested
+                } else {
+                    feasible
+                },
                 minimum: 1,
             });
         }
     }
-    let receipts = allocation::resolve(
+    let resolution_requests: Vec<_> = claims
+        .into_iter()
+        .map(|claim| resolution::Request {
+            claim,
+            inputs: BTreeMap::from([(c.account, unit as u32)]),
+        })
+        .collect();
+    let (resolution, work) = resolution::resolve(
         context,
         &c.policy,
-        u32::try_from(available_stock / unit).map_err(|_| "negative collection availability")?,
-        &claims,
-        |claim, granted| {
+        c.mechanism,
+        &BTreeMap::from([(
+            c.account,
+            u32::try_from(available_stock).map_err(|_| "negative collection availability")?,
+        )]),
+        &resolution_requests,
+        &work,
+        |work, claim, granted| {
             let mut trial = work.clone();
             let agent = claim.id as AgentId;
             for _ in 0..granted {
@@ -307,7 +329,7 @@ pub(crate) fn resolve(
             if completed(&checked, c.definition, agent) != granted as usize {
                 return Err("joint collection reservation failed".into());
             }
-            work = trial;
+            *work = trial;
             Ok(())
         },
     )?;
@@ -322,7 +344,8 @@ pub(crate) fn resolve(
         units_per_lot: unit,
         requests: opening_requests,
         demands,
-        receipts,
+        receipts: resolution.receipts.clone(),
+        resolution,
     });
     Ok(())
 }
@@ -413,6 +436,7 @@ pub fn scenario(supply: &str, policy: Policy) -> Result<(World, State), String> 
         account: (STATE_AGENT, RAW_WOOD),
         seed: crate::competition::DEFAULT_SEED,
         policy,
+        mechanism: Mechanism::Immediate,
     };
     sim.world
         .definitions

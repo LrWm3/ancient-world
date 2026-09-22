@@ -258,3 +258,90 @@ fn scarcity_reduces_capacity_before_crop_failure_and_receipts_reconcile() {
         assert!(removed <= round.available_stock);
     }
 }
+
+#[test]
+fn conditional_collection_bundle_releases_labor_and_stock_on_cpu() {
+    use economics_compute_smoke::resolution::Mechanism;
+    let mut s = sim("sufficient", Backend::CubeCpu);
+    productive(&mut s);
+    s.world.pool_market.as_mut().unwrap().policy = Policy::StablePriority;
+    let mut r = requests(&s, 1);
+    r.push(Request::new(Id::Process(PREPARE_FUEL), PERSON));
+    let immediate = pool_market::prepare(&s, &r).unwrap();
+    assert_eq!(
+        immediate.pool_market.as_ref().unwrap().receipts[0].outcome,
+        Outcome::Reserved(1)
+    );
+    s.world.pool_market.as_mut().unwrap().mechanism = Mechanism::ConditionalBundle;
+    let batch = pool_market::prepare(&s, &r).unwrap();
+    let round = batch.pool_market.as_ref().unwrap();
+    assert_eq!(round.receipts[0].outcome, Outcome::InsufficientCapacity);
+    assert_eq!(round.receipts[1].outcome, Outcome::Reserved(1));
+    assert_eq!(
+        round.resolution.shortfalls[&u64::from(PERSON)][0].required,
+        4
+    );
+    let opening = s.state.clone();
+    let mut forged = batch.clone();
+    forged.pool_market.as_mut().unwrap().resolution.mechanism = Mechanism::Immediate;
+    assert!(
+        settlement::commit(&s.world, &mut s.state, &forged, s.backend, s.effect_limit).is_err()
+    );
+    assert_eq!(s.state, opening);
+    let mut reference = s.clone();
+    settlement::commit(&s.world, &mut s.state, &batch, s.backend, s.effect_limit).unwrap();
+    settlement::commit(
+        &reference.world,
+        &mut reference.state,
+        &batch,
+        Backend::Reference,
+        reference.effect_limit,
+    )
+    .unwrap();
+    assert_eq!(s.state, reference.state);
+    assert_eq!(s.state.balance(PERSON, LABOR), 2); // only crop attendance
+    assert_eq!(s.state.balance(PERSON + 1, LABOR), 1);
+    assert_eq!(s.state.balance(STATE_AGENT, RAW_WOOD), 0);
+}
+
+#[test]
+fn conditional_mechanism_survives_monthly_checkpoint_execution() {
+    use economics_compute_smoke::resolution::Mechanism;
+    let mut cpu = sim("ample", Backend::CubeCpu);
+    cpu.world.pool_market.as_mut().unwrap().mechanism = Mechanism::ConditionalBundle;
+    let mut reference = cpu.clone();
+    reference.backend = Backend::Reference;
+    reference.world.participants.reverse();
+    cpu.run_months(3).unwrap();
+    reference.run_months(3).unwrap();
+    assert_eq!(cpu.state, reference.state);
+    assert_eq!(cpu.ledger, reference.ledger);
+    let mut resumed = cpu.clone();
+    cpu.run_months(3).unwrap();
+    for _ in 0..3 {
+        resumed.run_months(1).unwrap();
+    }
+    assert_eq!(cpu.state, resumed.state);
+    assert_eq!(cpu.ledger, resumed.ledger);
+}
+
+#[test]
+fn bundle_cannot_shrink_to_private_feasibility_or_hold_failed_inputs() {
+    use economics_compute_smoke::resolution::Mechanism;
+    let mut s = sim("ample", Backend::Reference);
+    productive(&mut s);
+    s.world.pool_market.as_mut().unwrap().policy = Policy::StablePriority;
+    s.world.pool_market.as_mut().unwrap().mechanism = Mechanism::ConditionalBundle;
+    s.state.balances.insert((PERSON, LABOR), 2); // crop + only one collection lot
+    let mut r = requests(&s, 1);
+    r.push(Request::new(Id::Process(PREPARE_FUEL), PERSON));
+    let b = pool_market::prepare(&s, &r).unwrap();
+    let round = b.pool_market.as_ref().unwrap();
+    assert_eq!(round.demands[0].requested, 2);
+    assert_eq!(round.demands[0].feasible, 1);
+    assert!(matches!(round.receipts[0].outcome, Outcome::Rejected(_)));
+    assert_eq!(round.receipts[1].outcome, Outcome::Reserved(1));
+    assert_eq!(round.resolution.remaining[&(STATE_AGENT, RAW_WOOD)], 2);
+    settlement::commit(&s.world, &mut s.state, &b, s.backend, s.effect_limit).unwrap();
+    assert_eq!(s.state.balance(PERSON, LABOR), 1);
+}
