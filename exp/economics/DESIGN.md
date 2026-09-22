@@ -1217,3 +1217,14 @@ opening budgets, allocation rules and dated work. See [ACCESS-LEARNING.md](ACCES
 for timing, fallback accounting, fractional forecast supply and the controlled
 negative result: forecast changes did not improve completed outcomes in the
 12-month scenarios tested.
+
+
+### Consequence-based ranking pilot
+
+The intermediary driver can rank submitted input bundles by the projected harm
+avoided by accepting them. Dated acceptance/denial forecasts expose severity,
+timing and magnitude; a generic ranking adapter uses the existing policy to break
+ties. Feasibility, atomic reservation, fallback planning and dated execution remain
+separate. [CONSEQUENCE-PRIORITY.md](CONSEQUENCE-PRIORITY.md) records a cold-versus-tool
+comparison and a covered-warmth investment control, including the welfare and
+investment tradeoff and the limits of the forecast reports.

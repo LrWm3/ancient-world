@@ -142,3 +142,9 @@ An opt-in [access-learning extension](ACCESS-LEARNING.md) now discounts future
 speculative shared supply using recent realized access. The original optimistic
 mode remains the default; the controlled comparison reports no improvement in
 completed food/warmth outcomes for the tested settings.
+
+
+An independent opt-in [consequence ranking mode](CONSEQUENCE-PRIORITY.md) uses
+acceptance-versus-denial forecasts to rank submitted bundles. It protects urgent
+warmth in the tested contested-input scenario while leaving investment admissible
+when immediate needs are covered; other markets retain their existing ranking.
