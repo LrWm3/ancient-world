@@ -39,10 +39,9 @@ implement an order-book auction. Stop on agreement, unchanged quotes, or the
 configured round limit (at most 64). A limit on rounds counts quote observations,
 including the initial quotes. It does not advance simulated months.
 
-This is deterministic concession bargaining, **not ZIP**. Policy selection is
-separate from transfer construction and settlement. A later ZIP policy will need
-persistent trader learning state and a defined public market event stream; merely
-renaming concession steps would not implement it.
+The original comparison below uses deterministic concessions. The marketplace
+now also supports an opt-in [ZIP margin policy](ZIP.md), with persistent learning
+and explicit public events. Transfer construction and settlement are shared.
 
 ## Timing, authority and settlement
 
@@ -113,11 +112,11 @@ willingness to pay from need deficits, replacement opportunities or expected
 future income. The example isolates exchange and contains no production or
 consumption. The marketplace now remembers each participant's last quote per market and side;
 new sessions with the same policy resume it within their current limits. There
-is no adaptive ZIP learning, negotiation cost, strategic signaling, competing
+is now scoped [ZIP learning](ZIP.md), but no negotiation cost, strategic signaling, competing
 counterparties or welfare claim about the resulting price.
 
 The next useful extension is to generate a buy order from a food deficit and a
 sell order from surplus after protected needs and commitments. Keep valuation,
-quote policy, counterparty allocation and settlement separate. Once repeated
-orders and observed market events exist, compare an implemented ZIP policy with
-this simple concession baseline using the same starting resources and orders.
+quote policy, counterparty allocation and settlement separate. The [ZIP comparison](ZIP.md) now uses repeated supplied orders and public price
+events against this concession baseline; need-driven order generation remains
+separate work.

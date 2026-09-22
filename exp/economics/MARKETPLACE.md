@@ -55,15 +55,17 @@ The venue's committed state stores:
 - History of dated negotiation outcomes and quote pairs, including buyer/seller
   identity, market ID and failed attempts against supported venue identities.
 - Pricing records keyed by `(participant, market, buy/sell side)` within that venue.
-  Each record holds the quote policy, last quoted price and observation month.
+  Each record holds the quote policy, last quoted price and observation month;
+  [ZIP records](ZIP.md) also hold margin, momentum and seeded random state.
 
 There is no buyer/seller-pair pricing key: another counterparty in the same market
 would encounter that participant's same side-specific pricing state. Buy and sell
-strategies remain separate. This is the intended location for later ZIP state;
-the implemented strategies remain fixed quotes and bounded concessions.
+strategies remain separate. Implemented strategies are fixed quotes, bounded
+concessions and the opt-in [bilateral ZIP margin policy](ZIP.md).
 
 When another session is explicitly scheduled, the same policy resumes its last
-quote, clamped to the participant's current reservation limit. Changing policy
+quote, clamped to the participant's current reservation limit. ZIP instead resumes
+its learned margin and reprices it against the current limit. Changing policy
 starts from the new session's opening quote. Quotes observed during no-agreement
 or failed-settlement outcomes can be retained; an ineligible/unlisted attempt has
 no quotes and therefore does not overwrite pricing records. No orders are
@@ -99,7 +101,8 @@ repository artifact check pass. Generated output remains under ignored
 
 This is a venue around the existing one-lot bilateral experiment, with supplied
 orders and reservation values. There is no order book, simultaneous matching of
-many participants, ZIP learning, fee model or automatic market-making. Existing
+many participants, fee model or automatic market-making. ZIP learning is scoped
+to the bilateral event stream described in [ZIP.md](ZIP.md). Existing
 acquisition-driver composition restrictions still apply. The public discovery
 function exposes supported trades; need-driven opportunity search does not yet
 create buy/sell orders from that catalog.

@@ -58,7 +58,8 @@ discovery, acceptance and settlement. [Citizenship](CITIZENSHIP.md) now creates
 a membership agreement granting scoped land-access and cultivation permissions.
 The planner can forecast and atomically accept citizenship plus land before
 executing its dated production plan. This is the initial permission layer for a
-future laws system; ZIP pricing and a general contract planner remain unimplemented.
+future laws system. A scoped [ZIP pricing pilot](ZIP.md) is implemented; a general
+contract planner remains future work.
 
 ## Implemented durable equipment and finite barter
 
@@ -1239,8 +1240,8 @@ stock, funding and receiving space. The existing financial transfer primitives
 and CPU gather publish both legs atomically, with a revalidated quote receipt.
 See [NEGOTIATED-PRICING.md](NEGOTIATED-PRICING.md) for results and limits. This is
 a controlled pricing experiment with supplied valuations; integration with
-need-driven orders, multi-party allocation and persistent ZIP learning remains
-future work.
+need-driven orders and multi-party allocation remain future work. Persistent
+ZIP learning is now available in the bilateral pilot.
 
 
 ### Marketplace agent component
@@ -1252,4 +1253,16 @@ membership or dissolution flow is added. The agent holds venue history and
 pricing records per participant, market and buy/sell side. Settled transfers
 still run directly between participants. [MARKETPLACE.md](MARKETPLACE.md)
 describes discovery, atomic memory updates, continuation checks and the boundary
-between remembered concession quotes and future ZIP learning.
+between remembered concession quotes and learned ZIP margins.
+
+
+### ZIP margin learning
+
+`QuotePolicy::Zip` retains signed margins, smoothed price adjustments and seeded
+random state per participant, market and side. Public rejected quotes and
+completed trade prices drive learning; failed physical settlement is a distinct
+event. Acquire prepares ending learner states and commit validates and publishes
+them with transfers. [ZIP.md](ZIP.md) documents the published rule, explicit
+adaptations to paired quotes and midpoint pricing, numerical choices and the CPU
+comparison: equal completed trade counts to concessions, different surplus
+splits and more quote rounds in these controlled scenarios.

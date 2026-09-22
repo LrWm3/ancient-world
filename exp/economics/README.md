@@ -29,6 +29,7 @@ role?** A farmer, craft worker or trader should emerge from needs, resources,
 rights, capabilities and selected processes, rather than require a different agent
 class. Processes describe possible transformations; transactions record outcomes.
 
+- [ZIP pricing](ZIP.md): persistent margin learning and repeated CPU comparisons with fixed/concession policies.
 - [Marketplace agent](MARKETPLACE.md): person-only access, explicit grain/coin catalog and persistent participant pricing records.
 - [Negotiated pricing](NEGOTIATED-PRICING.md): bilateral reservation prices, bounded quote concessions and atomic CPU exchange.
 - [Consequence-based allocation](CONSEQUENCE-PRIORITY.md): urgent warmth versus tool investment, with controlled CPU outcomes.

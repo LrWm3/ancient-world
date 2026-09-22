@@ -48,7 +48,8 @@ becomes payable at maturity. Neither consequence forgives unpaid amounts.
 
 This is a small settlement foundation, not a universal contract interpreter.
 A scoped [negotiated-pricing pilot](NEGOTIATED-PRICING.md) now reuses its exchange
-legs. Arbitrary event triggers, interest, collateral, guarantees, ZIP pricing,
+legs, including an opt-in [ZIP quoting policy](ZIP.md). Arbitrary event triggers,
+interest, collateral, guarantees,
 priority across all claims, insolvency and double-entry financial statements
 remain future work. Future contract types should supply their terms and receipts
 through this shared view before introducing a second settlement mechanism.
