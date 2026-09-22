@@ -176,6 +176,7 @@ pub struct ScheduledStart {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct World {
+    pub negotiation: Option<crate::negotiation::Session>,
     pub pool_market: Option<crate::pool_market::Config>,
     pub competition: Option<crate::competition::Config>,
     /// Open access templates bind their debtor and right holder only on acceptance.
@@ -272,6 +273,7 @@ pub struct Receipt {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Batch {
+    pub negotiation: Option<crate::negotiation::Round>,
     pub pool_market: Option<crate::pool_market::Round>,
     pub additional_access: Vec<(u32, AgentId)>,
     pub additional_memberships: Vec<(u32, AgentId)>,
@@ -322,6 +324,7 @@ impl MonthReport {
 impl Batch {
     pub fn empty(state: &State) -> Self {
         Self {
+            negotiation: None,
             household: None,
             id: state.next_batch,
             month: state.month,

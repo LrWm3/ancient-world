@@ -159,6 +159,7 @@ pub fn with_warmth(warmth_first: bool) -> (World, State) {
 
 pub fn baseline() -> (World, State) {
     let world = World {
+        negotiation: None,
         pool_market: None,
         competition: None,
         open_access_offers: Default::default(),

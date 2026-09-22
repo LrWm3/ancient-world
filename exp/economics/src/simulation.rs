@@ -50,6 +50,7 @@ impl Simulation {
 
     pub(crate) fn step_core(&mut self) -> Result<(), String> {
         let mut batch = Batch {
+            negotiation: None,
             accept_membership: None,
             household: None,
             id: self.state.next_batch,
@@ -77,7 +78,14 @@ impl Simulation {
                 batch.commitments = Some(settlement);
             }
             Phase::Acquire => {
-                if self.world.market.is_some() {
+                if self.world.negotiation.is_some() {
+                    batch.negotiation = crate::negotiation::evaluate(&self.world, &self.state)?;
+                    batch.transactions = crate::negotiation::transactions(
+                        &self.world,
+                        &self.state,
+                        &batch.negotiation,
+                    )?;
+                } else if self.world.market.is_some() {
                     batch.transactions = crate::exchange::resolve(&self.world, &self.state)?;
                     batch.plot_request =
                         crate::plots::after_market(&self.world, &self.state, &batch.transactions)?;
