@@ -29,7 +29,8 @@ role?** A farmer, craft worker or trader should emerge from needs, resources,
 rights, capabilities and selected processes, rather than require a different agent
 class. Processes describe possible transformations; transactions record outcomes.
 
-- [Collateral resale](COLLATERAL-RESALE.md): pending sales, buyer valuation, cash-limited bids and settlement from actual proceeds.
+- [Structure review](STRUCTURE-REVIEW.md): current interfaces, standardization opportunities and a proposed first increment.
+- [Collateral resale](COLLATERAL-RESALE.md): pending sales, buyer valuation, actual proceeds and a possible borrower-redemption extension.
 - [Remaining-value work choices](REMAINING-VALUE.md): maintain an inherited crop, choose wood collection or wait using bounded forecasts.
 - [Secured credit](SECURED-CREDIT.md): financed plots, monthly interest, balance sheets and fixed-value repossession with attached crops on CPU.
 - [ZIP pricing](ZIP.md): persistent margin learning and repeated CPU comparisons with fixed/concession policies.

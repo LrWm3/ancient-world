@@ -118,6 +118,41 @@ neither is included in loan recovery. Applying interim income or reimbursing cos
 would need separate terms. Sale fees, multiple liens, write-offs, custody expiry,
 redemption, reserve-price adaptation and an auction remain unimplemented.
 
+## Possible extension: borrower repayment before resale
+
+**Proposal only — not planned or implemented.** An optional accepted-agreement
+term could let the original borrower redeem collateral while its sale is pending.
+This would repay the frozen outstanding debt in full, rather than merely cure an
+overdue installment or reinstate the original loan schedule.
+
+At an eligible Acquire boundary, collect redemption and purchase requests against
+the same opening state. A suggested initial resolution policy is borrower
+repayment first: a fully funded redemption wins; an absent or unfunded request
+leaves the listing available to the buyer. Ranking is separate from feasibility
+and settlement, and should remain replaceable. For a first control, use the same
+earliest eligible month as resale (the month after repossession).
+
+Successful redemption would atomically transfer the debt amount from borrower to
+creditor, clear principal and interest on both balance sheets, remove the listing
+and custody accounting, and return title and any still-active crop to the borrower.
+Crop progress and future work obligations follow the plot; previously consumed
+inputs are not refunded and harvested goods remain with their current owner.
+Insufficient payment would reserve nothing. Incoming proceeds from another action
+in this boundary would not enlarge the opening spending budget.
+
+The accepted terms should state eligibility, the repayment amount, the competing
+request policy and the cutoff at completed resale. The initial proposal has no
+fee, partial redemption or claim against interim harvests. Whether later variants
+credit custody income/costs is a separate agreement-policy question.
+
+Controls would cover sufficient and insufficient funds, no request, redemption
+and purchase competing in the same month, an aborted or completed attached crop,
+and rejection after sale. Verify atomic cash/debt/title updates, no double sale or
+repayment, and CPU/reference, batching and checkpoint consistency.
+
+See the [structure review](STRUCTURE-REVIEW.md) for the interface standardization
+recommended before extending these competing actions.
+
 ## Verification
 
 Run from this directory:
