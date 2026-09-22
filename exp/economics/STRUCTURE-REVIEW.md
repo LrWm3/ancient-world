@@ -6,6 +6,12 @@ changes accompany this document. The scope is the standalone experiment, not the
 main civilization scheduler. Findings describe interface gaps, not demonstrated
 accounting failures.
 
+Follow-up: the first increment below is now implemented as read-only
+`agreements::for_agent` / `LoanView` inspection. See [shared agreements](AGREEMENTS.md)
+for its lifecycle distinctions, boundary semantics and tests. Other standardization
+options in this review remain proposals; the original findings below describe
+the reviewed baseline.
+
 ## What exists today
 
 The foundation already separates decisions from publication. Agents and policies

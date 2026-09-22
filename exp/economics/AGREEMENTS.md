@@ -12,10 +12,63 @@ shared evaluator is used by membership authorization and land-use checks in both
 planning and settlement. Land billing reads the shared recurring payment terms.
 Offer eligibility and atomic acceptance remain in their domain resolvers.
 
+`agreements::for_agent(world, state, agent)` now provides a shared inspection entry
+point for accepted membership, land, process and secured-loan agreements involving
+that holder or grantor. It excludes unaccepted catalog offers and retains terminal
+agreements. It groups domains and orders by stable IDs, independent of catalog row
+order. It is a read-only query over validated state, not an acceptance or payment
+interface. A separate output beneficiary who is neither holder nor grantor is not
+included by this participant filter.
+
 | Agreement | Grant | Obligation | Consequence |
 | --- | --- | --- | --- |
 | Citizenship | Membership in the issuing state with a role; state policy maps the role to actions | None after acceptance | None: there is no upkeep obligation to breach |
 | Land access | Use of a particular right, within its dated duration | Payment annually, first due 12 months after acceptance | Unpaid due amounts suspend **new use of that grant** until fully settled |
+| Secured loan | Accepted coin financing, identified by `Identity::Loan` | Scheduled principal and accrued interest; collectible deficiency after enforcement | `RepossessCollateral` identifies asset, creditor, grace period and accepted fixed-value/resale settlement terms |
+
+## Read-only loan adapter
+
+The inspection result is a typed `View`: existing domains expose `Agreement`,
+while loans expose `LoanView`. Both provide identity, grantor, holder and acceptance
+month. A loan's grantor is its creditor, not necessarily the asset seller.
+
+`LoanView::record()` borrows the authoritative `credit::Loan`. Original principal,
+denomination, rate, duration, grace, collateral priority and settlement terms come
+from the accepted loan, not today's offer catalog. Current principal, interest,
+pledge and accrual fields come from that same record; no second mutable balance
+or lifecycle registry is introduced. Changing an unaccepted catalog offer cannot
+rewrite the inspected accepted terms.
+
+`LoanView::state()` preserves domain distinctions:
+
+| State | Meaning |
+| --- | --- |
+| Current | Active loan with no recorded failed collection |
+| Overdue | Active loan with a committed `first_unpaid` month |
+| PendingSale | Repossessed collateral awaiting realization, with listing month |
+| Deficiency | Enforced loan with remaining collectible debt |
+| Repaid | Principal and interest cleared, including repayment through collateral proceeds |
+
+`outstanding()` returns total debt in its denomination. `claim()` returns the
+current shared financial claim, or none when no amount is due, the debt is repaid,
+or pending resale pauses collection. **No claim does not necessarily mean no
+debt.** In pending sale, full debt remains on both balance sheets, the creditor
+holds title/custody and the borrower retains the restricted financial asset.
+`title_holder()` reports current title; it must not be interpreted as the owner
+of every financial interest or historical crop output.
+
+The view's `boundary()` records the current month and next phase to execute.
+Inspection does not accrue interest or run collection. Before Due, a scheduled
+installment may be visible without recorded arrears or that month's uncommitted
+interest. After Due, the same query reflects committed accrual and payment.
+`on_default()` describes accepted enforcement terms; it neither predicts an
+automatic seizure nor bypasses grace, funding or settlement checks.
+
+This adapter deliberately does not run loans through the land/process status
+evaluator. Their enforcement and custody states retain their own typed meaning.
+Credit offer acceptance, repayment scheduling, resale and balance-sheet calculation
+are unchanged. Borrower redemption remains a
+[possible extension](COLLATERAL-RESALE.md#possible-extension-borrower-repayment-before-resale).
 
 ## Consequences are agreement terms
 
@@ -57,9 +110,11 @@ agreement and payment receipts.
 This is a common accepted-agreement and consequence interface, not yet a universal
 contract interpreter. The adapter methods are `membership::Agreement::contract`,
 `commitments::Agreement::contract` and `agreements::process`. A common offer
-interface dispatches to existing domain catalogs; arbitrary negotiated grants,
-selectable penalties, grace periods,
-termination, collateral seizure and other contract types are not implemented.
+interface dispatches to existing domain catalogs. The secured-credit pilot now
+exposes its accepted terms and collateral consequences through inspection, but
+credit/resale acceptance still does not use the common offer dispatcher.
+Arbitrary negotiated grants, general selectable penalties and termination are
+not implemented by a universal interpreter.
 Citizenship's action permissions still come from the state's role policy.
 
 ## Validation
@@ -74,3 +129,16 @@ Results: 35 focused and integration tests passed. Four 18-month reference
 regression controls retained identical state, reports and committed batches
 (excluding planner diagnostics). Formatting, Clippy with warnings denied and
 repository artifact checks passed. Local test outputs are under ignored `output/`.
+
+Loan inspection adds five tests covering accepted terms versus edited offers,
+namespaced identities and participant filtering, pre/post-Due observations,
+fixed-value enforcement, pending-sale custody, realized deficiency and repayment.
+They compare inspected claims with both balance sheets and verify unchanged
+state, ledger and reports across reference/CPU execution. The new query does not
+change monthly scheduling or checkpoint data.
+
+Loan-view, agreement, credit, resale, collateral-crop, finance, membership and
+commitment suites passed **45 tests**. After boxing the larger inspection variant
+to keep the enum compact, the eight loan-view/agreement tests passed again.
+All-target Clippy passed with warnings denied. Run the focused additions with
+`cargo +1.92.0 test --locked --test loan_views` from this directory.
