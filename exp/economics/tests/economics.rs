@@ -341,6 +341,7 @@ fn gross_spending_and_overflow_fail_atomically_even_with_positive_net_effects() 
         additional_access: vec![],
         additional_memberships: vec![],
         allocation: None,
+        pool_market: None,
         plot_request: None,
         id: 0,
         month: 1,

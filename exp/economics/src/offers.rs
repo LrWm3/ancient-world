@@ -13,6 +13,10 @@ pub enum Terms {
     Membership(crate::membership::Offer),
     Land(crate::commitments::Agreement),
     Production(ProductionTerms),
+    Collection {
+        production: ProductionTerms,
+        supply: crate::pool_market::Supply,
+    },
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Offer {
@@ -51,7 +55,16 @@ pub fn discover(world: &World, state: &State, agent: AgentId) -> Vec<Offer> {
             },
             crate::opportunities::Opportunity::Environment(d) => Offer {
                 id: Id::Process(d.id),
-                terms: Terms::Production(ProductionTerms::from_definition(d)),
+                terms: if let Some(supply) =
+                    crate::pool_market::supply(world, state).filter(|s| s.definition == d.id)
+                {
+                    Terms::Collection {
+                        production: ProductionTerms::from_definition(d),
+                        supply,
+                    }
+                } else {
+                    Terms::Production(ProductionTerms::from_definition(d))
+                },
             },
         })
         .collect()
@@ -143,7 +156,8 @@ pub(crate) fn resolve(
             }
         }
     }
-    if !work.is_empty() {
+    if !work.is_empty() || (sim.world.pool_market.is_some() && sim.state.phase == Phase::Productive)
+    {
         sim.resolve_work(work, &mut staged_batch)?;
     }
     *batch = staged_batch;

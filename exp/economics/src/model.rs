@@ -176,6 +176,7 @@ pub struct ScheduledStart {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct World {
+    pub pool_market: Option<crate::pool_market::Config>,
     pub competition: Option<crate::competition::Config>,
     /// Open access templates bind their debtor and right holder only on acceptance.
     pub open_access_offers: std::collections::BTreeSet<u32>,
@@ -271,6 +272,7 @@ pub struct Receipt {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Batch {
+    pub pool_market: Option<crate::pool_market::Round>,
     pub additional_access: Vec<(u32, AgentId)>,
     pub additional_memberships: Vec<(u32, AgentId)>,
     pub allocation: Option<crate::competition::Round>,
@@ -335,6 +337,7 @@ impl Batch {
             additional_access: vec![],
             additional_memberships: vec![],
             allocation: None,
+            pool_market: None,
             accept_membership: None,
             plot_request: None,
         }

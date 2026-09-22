@@ -66,6 +66,7 @@ impl Simulation {
             additional_access: vec![],
             additional_memberships: vec![],
             allocation: None,
+            pool_market: None,
             plot_request: None,
         };
         match self.state.phase {
@@ -259,12 +260,28 @@ impl Simulation {
                 if let Some(definition) = candidate {
                     // A joint-output producer requested by two needs starts once.
                     if selected.insert(definition) {
-                        requests.push(Request {
-                            agent: participant.agent,
-                            definition,
-                            existing: None,
-                            need: Some(need.resource),
-                        });
+                        let count = if self
+                            .world
+                            .pool_market
+                            .as_ref()
+                            .is_some_and(|c| c.definition == definition)
+                        {
+                            crate::pool_market::demand(&self.world, &self.state, participant.agent)?
+                                .0
+                        } else {
+                            1
+                        };
+                        if count as usize > self.effect_limit.saturating_sub(requests.len()) {
+                            return Err("productive request capacity exceeded".into());
+                        }
+                        for _ in 0..count {
+                            requests.push(Request {
+                                agent: participant.agent,
+                                definition,
+                                existing: None,
+                                need: Some(need.resource),
+                            });
+                        }
                     }
                 } else {
                     batch.receipts.push(Receipt {
@@ -1104,6 +1121,18 @@ impl Simulation {
     }
 
     pub(crate) fn resolve_work(
+        &self,
+        requests: Vec<Request>,
+        batch: &mut Batch,
+    ) -> Result<(), String> {
+        if self.world.pool_market.is_some() && self.state.phase == Phase::Productive {
+            crate::pool_market::resolve(self, requests, batch)
+        } else {
+            self.resolve_work_unallocated(requests, batch)
+        }
+    }
+
+    pub(crate) fn resolve_work_unallocated(
         &self,
         requests: Vec<Request>,
         batch: &mut Batch,

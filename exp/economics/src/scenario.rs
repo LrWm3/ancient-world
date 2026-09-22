@@ -36,6 +36,9 @@ pub const LONG_SCENARIOS: &[&str] = &[
 ];
 
 pub fn scenario_months(name: &str) -> u32 {
+    if name.starts_with("wood-market-") {
+        return crate::pool_market::RUN_MONTHS;
+    }
     if [
         "opportunity-farming",
         "opportunity-two-plots",
@@ -156,6 +159,7 @@ pub fn with_warmth(warmth_first: bool) -> (World, State) {
 
 pub fn baseline() -> (World, State) {
     let world = World {
+        pool_market: None,
         competition: None,
         open_access_offers: Default::default(),
         agent_search: Default::default(),
@@ -335,6 +339,14 @@ pub const PAYMENT_SCENARIOS: &[&str] = &[
 ];
 
 pub fn named(name: &str) -> Result<(World, State), String> {
+    if let Some(supply) = name.strip_prefix("wood-market-") {
+        let (supply, policy) = supply
+            .strip_suffix("-lottery")
+            .map_or((supply, crate::allocation::Policy::PriorityLottery), |s| {
+                (s, crate::allocation::Policy::Lottery)
+            });
+        return crate::pool_market::scenario(supply, policy);
+    }
     if ["opportunity-two-plots", "opportunity-one-plot"].contains(&name) {
         return crate::competition::scenario(
             if name == "opportunity-two-plots" {

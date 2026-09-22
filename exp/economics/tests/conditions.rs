@@ -385,6 +385,7 @@ fn terminal_operators_cannot_replay_even_capacity_free_consumption() {
         additional_access: vec![],
         additional_memberships: vec![],
         allocation: None,
+        pool_market: None,
         plot_request: None,
         transactions: vec![Transaction {
             technique_use: None,

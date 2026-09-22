@@ -12,6 +12,7 @@ const MAX_PROCESS_DURATION_MONTHS: u32 = 120;
 
 pub fn validate_world(world: &World, state: &State) -> Result<(), String> {
     crate::opportunities::validate(world)?;
+    crate::pool_market::validate(world)?;
     crate::membership::validate(world, state)?;
     crate::households::validate(world, state)?;
     fn unique(ids: impl Iterator<Item = u32>) -> bool {
@@ -228,6 +229,7 @@ pub(crate) fn commit_core(
     if (batch.id, batch.month, batch.phase) != (state.next_batch, state.month, state.phase) {
         return Err("duplicate, stale or out-of-order batch".into());
     }
+    crate::pool_market::validate_batch(world, state, batch, effect_limit)?;
     let count = batch
         .transactions
         .iter()

@@ -83,3 +83,5 @@ pub mod offers;
 
 pub mod allocation;
 pub mod competition;
+
+pub mod pool_market;

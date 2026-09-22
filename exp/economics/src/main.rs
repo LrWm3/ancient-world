@@ -5,7 +5,7 @@ fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     if args.len() > 1 || args.first().is_some_and(|a| a == "--help") {
         println!(
-            "Usage: cargo +1.92.0 run --locked -- [scenario]\nNine-month controls: baseline, short-food, no-seed, no-right, short-right, missed-work, no-need, disabled, continuing-first, new-first\n60-month scenarios: {}\nForaging controls (nine months): {}\nSpecialized activities (36 months): specialized-activities, specialized-32\nHouseholds (24 months): households-32\nTool trading (72 months): trading-32, trading-32-no-forward, trading-32-share, trading-32-plots, trading-32-no-plots\nOpportunity marketplace (36 months): opportunity-farming, opportunity-two-plots, opportunity-one-plot\nAll scenarios use CubeCL CPU settlement.",
+            "Usage: cargo +1.92.0 run --locked -- [scenario]\nNine-month controls: baseline, short-food, no-seed, no-right, short-right, missed-work, no-need, disabled, continuing-first, new-first\n60-month scenarios: {}\nForaging controls (nine months): {}\nSpecialized activities (36 months): specialized-activities, specialized-32\nHouseholds (24 months): households-32\nTool trading (72 months): trading-32, trading-32-no-forward, trading-32-share, trading-32-plots, trading-32-no-plots\nOpportunity marketplace (36 months): opportunity-farming, opportunity-two-plots, opportunity-one-plot\nWood market (36 months after admission): wood-market-ample, wood-market-sufficient, wood-market-scarce; append -lottery for the policy control.\nAll scenarios use CubeCL CPU settlement.",
             [
                 LONG_SCENARIOS,
                 CONDITION_SCENARIOS,
@@ -448,6 +448,51 @@ fn run() -> Result<(), String> {
                     t.month, t.subject, t.state, resources[&t.reason].name
                 );
             }
+        }
+    }
+    if let Some(config) = &simulation.world.pool_market {
+        println!(
+            "\n## Collection allocation\n\nPolicy: {:?}; seed {}. Quantities below are whole collection lots.\n",
+            config.policy, config.seed
+        );
+        println!(
+            "| Month | Stock offered | Requested | Privately feasible | Reserved | Completed | Unreserved |\n| --- | --- | --- | --- | --- | --- | --- |"
+        );
+        for batch in &simulation.ledger {
+            let Some(round) = &batch.pool_market else {
+                continue;
+            };
+            let requested: u32 = round.demands.iter().map(|d| d.requested).sum();
+            let feasible: u32 = round.demands.iter().map(|d| d.feasible).sum();
+            let reserved: u32 = round
+                .receipts
+                .iter()
+                .map(|r| {
+                    if let economics_compute_smoke::allocation::Outcome::Reserved(n) = r.outcome {
+                        n
+                    } else {
+                        0
+                    }
+                })
+                .sum();
+            let completed = batch
+                .transactions
+                .iter()
+                .filter_map(|t| t.process.as_ref())
+                .filter(|p| {
+                    p.after.definition == config.definition && p.after.status == Status::Completed
+                })
+                .count();
+            println!(
+                "| {} | {} | {} | {} | {} | {} | {} |",
+                batch.month,
+                round.available_stock,
+                requested,
+                feasible,
+                reserved,
+                completed,
+                requested - reserved
+            );
         }
     }
     println!("\n## Totals\n");
