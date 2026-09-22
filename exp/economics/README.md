@@ -29,6 +29,7 @@ role?** A farmer, craft worker or trader should emerge from needs, resources,
 rights, capabilities and selected processes, rather than require a different agent
 class. Processes describe possible transformations; transactions record outcomes.
 
+- [Intermediary resource experiment](INTERMEDIARY.md): competing tool projections, atomic inputs, fallback work and CPU harvest outcomes.
 - [Resource resolution](RESOLUTION.md): separate ranking from immediate or atomic bundle acceptance.
 - [Monthly wood market](WOOD-MARKET.md): quantity allocation, urgency versus lottery, and scarcity consequences on CPU.
 - [Contested offers](CONTESTED-OFFERS.md): generic allocation policies, open land applications and two-person CPU controls.

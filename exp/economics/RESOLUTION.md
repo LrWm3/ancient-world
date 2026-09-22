@@ -113,3 +113,9 @@ economic balance or globally feasible forecasts.
 private-labor regression added after the full run compiled. Clippy with
 `--all-targets -- -D warnings`, formatting, diff checks and the repository
 artifact policy passed. Raw logs remain under ignored `output/economics/`.
+
+
+The [intermediary resource pilot](INTERMEDIARY.md) now exercises this interface
+with competing toolmaking projections and one fallback decision. It uses actual
+durable completion to enable later production, without adding future-delivery
+reservations or a general multi-stage contract planner.

@@ -1194,3 +1194,15 @@ adapter uses this interface with its existing process feasibility checks;
 settlement verifies the dated result. See [RESOLUTION.md](RESOLUTION.md) for
 controlled results and the boundary between this primitive and future
 multi-stage dependencies, counteroffers, negotiation and cooperation.
+
+
+### Intermediary opportunity pilot
+
+The opt-in [two-person intermediary experiment](INTERMEDIARY.md) links catalog
+need-serving production to durable creation opportunities. Each person forecasts
+one action independently; the shared bundle resolver secures immediate inputs,
+then rejected applicants reconsider one fallback against retained work. The
+existing Acquire phase retains the final productive plan. Tool creation and
+later harvest benefits arise only from completed process records. This bounded
+driver leaves the default search unchanged and still treats future shared supply
+as an expectation, not a delivery commitment.
