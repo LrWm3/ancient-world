@@ -79,6 +79,7 @@ pub struct ScheduledTransfer {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
+    pub purchase_policy: crate::borrowing::Policy,
     pub resale_buyer: Option<crate::resale::Buyer>,
     /// These use rights and their active processes follow asset ownership.
     pub attached_rights: BTreeSet<u32>,
@@ -250,6 +251,7 @@ pub enum Event {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Boundary {
+    pub decision: Option<crate::borrowing::Decision>,
     pub attachments: Vec<ProcessChange>,
     pub after: Book,
     pub events: Vec<Event>,
@@ -383,6 +385,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             Err("credit book without configuration".into())
         };
     };
+    crate::borrowing::validate(world)?;
     // Ownership-following production is supported. Other acquisition/collection
     // drivers still require shared funding and ownership rules.
     if !world.agreements.is_empty()
@@ -806,6 +809,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
         return Ok(None);
     }
     let mut out = Boundary {
+        decision: None,
         attachments: vec![],
         after: state.credit.clone(),
         events: vec![],
@@ -850,7 +854,23 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
         }
         Phase::Due => due(world, state, &mut out, &mut budgets)?,
         Phase::Acquire => {
-            purchase(world, state, c, &mut out, &mut budgets)?;
+            let should_purchase = match &c.purchase_policy {
+                crate::borrowing::Policy::Scripted => true,
+                crate::borrowing::Policy::Decline => false,
+                crate::borrowing::Policy::Compare(_)
+                    if c.application.month == state.month
+                        && !state.credit.loans.contains_key(&c.application.offer) =>
+                {
+                    let decision = crate::borrowing::evaluate(world, state)?;
+                    let accept = decision.accept;
+                    out.decision = Some(decision);
+                    accept
+                }
+                crate::borrowing::Policy::Compare(_) => false,
+            };
+            if should_purchase {
+                purchase(world, state, c, &mut out, &mut budgets)?;
+            }
             crate::resale::settle(world, state, &mut out, &mut budgets)?;
         }
         _ => {}
@@ -900,6 +920,7 @@ pub fn scenario(case: &str) -> Result<(World, State), String> {
         _ => return Err("unknown credit scenario".into()),
     };
     w.credit = Some(Config {
+        purchase_policy: crate::borrowing::Policy::Scripted,
         resale_buyer: None,
         attached_rights: BTreeSet::new(),
         offers: vec![Offer {

@@ -107,3 +107,5 @@ pub mod work_choice;
 pub mod resale;
 
 pub mod forecast;
+
+pub mod borrowing;
