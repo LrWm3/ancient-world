@@ -1170,3 +1170,13 @@ first open land adapter prioritizes applicants without tenure and uses a seeded
 lottery for ties. Only the award creates rights, annual rent and dated work; losing
 is not breach. See [CONTESTED-OFFERS.md](CONTESTED-OFFERS.md) for the generic policy
 interface, simultaneous alternative-offer matching and two-person CPU controls.
+
+## Recurring environmental collection
+
+An opt-in collection offer exposes dated stock and units per process lot through
+the common marketplace. Agents submit quantities based on projected needs; the
+shared allocation policy grants whole lots after private feasibility and existing
+work reservations. Dated receipts distinguish demand, feasible work, reservations
+and completion, with joint wood/labor validation at settlement. Unfilled requests
+affect actual stock and subsequent need conditions. See [WOOD-MARKET.md](WOOD-MARKET.md)
+for the generic adapter's scope, CPU policy controls and observed scarcity effects.
