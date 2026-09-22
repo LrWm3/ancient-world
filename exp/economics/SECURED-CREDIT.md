@@ -4,14 +4,16 @@ Implemented as an isolated financial experiment in `src/credit.rs`. A person
 purchases a plot with initial coins and a secured loan. Purchase, monthly interest,
 repayment and default settle through the existing transaction and CPU commit path.
 The application and repayment cashflows are supplied controls, not yet decisions
-made by the farming planner.
+made by the farming planner. A second control connects an active crop to ownership
+and follows it through repossession, maintenance or neglect.
 
 ## Generic pieces
 
 - `Sale`: seller, asset and price.
 - `LoanOffer`: creditor, denomination, maximum principal, monthly rate, term and
   arrears grace period.
-- `Collateral`: asset, priority and agreed enforcement value.
+- `Collateral`: asset, priority and an agreement-selected settlement rule;
+  `CollateralSettlement::FixedValue { value }` is the implemented policy.
 - `Offer`: sale and financing terms, with minimum downpayment.
 - `Application`: buyer, offer, acceptance month and downpayment.
 - `Loan`: accepted terms, parties, outstanding principal, accrued interest,
@@ -31,8 +33,9 @@ and receivables, less payables. These are scoped views of listed assets and loan
 not complete financial statements for every existing subsystem.
 
 `World.assets` describes opening ownership. `credit::owner` applies the book's
-subsequent title changes. Existing farming rights have not yet been connected to
-this ownership view; validation prevents mixing this fixture with those systems.
+subsequent title changes. Rights explicitly listed in `Config.attached_rights`
+follow that ownership for both cultivation and future output entitlement. Legacy
+access agreements remain separate and cannot be combined with this fixture.
 
 ## Monthly boundaries and policy
 
@@ -77,6 +80,57 @@ the borrower bears a loss if it is below the asset's purchase carrying value.
 Deficiency receivables remain valued at face, without expected-loss provisions.
 Priority is recorded, but multiple liens on an asset are rejected.
 
+## Standing crops follow ownership; settlement value stays fixed
+
+The selected rule is **option 1: no crop-value adjustment**. The lender receives
+the standing crop opportunity and its remaining work requirements at the agreed
+fixed settlement value. A nearly mature, newly planted or failing crop does not
+change the amount credited against debt. The crop has economic consequences but
+is not separately appraised in the collateral settlement or loan balance sheets.
+
+At purchase or repossession, active processes bound to an ownership-following
+right transfer atomically with title. The receipt records their before/after
+state. Operator and output beneficiary become the new owner; the previous
+operator's personal planning goal is cleared. Definition, stage, elapsed work,
+start date, occupancy end date and active status remain unchanged. No seed is
+refunded and no output is produced by the transfer. Completed/aborted process
+records, harvested goods and the former owner's labor balances stay where they
+were. Already incurred debt also remains with the borrower.
+
+Open regenerates capacities once using the existing opening implementation. Due
+can then transfer the crop before Productive allocates that month's work. The
+new controller must supply its own available services and remaining stage inputs;
+ownership does not create labor or transfer the previous owner's future labor.
+The crop's occupancy end date is not an escrow of somebody's labor. There is no
+pending production plan across this boundary in the supported credit fixture.
+
+The current process engine combines controller and worker in `operator`. Hiring
+someone else to supply work and choosing a resale are later integrations. In the
+control, the state receives explicitly configured capacity to represent available
+services, not an automatic capacity gain from repossession. With capacity, the
+existing continuing-work policy maintains the crop. Without it, the existing
+missed-work consequence aborts the crop at Productive, not during transfer.
+
+Two six-month CPU controls plant with one seed in month one and repossess during
+growth in month three. Each uses the same 60-coin settlement value:
+
+| New owner's available labor per month | Crop at month six | State outputs | Remaining debt |
+| --- | --- | --- | ---: |
+| 2 units | Completed | 8 grain, 1 seed | 21.60 coins |
+| 0 units | Aborted | None | 21.60 coins |
+
+Both preserve crop progress at the ownership boundary. The original person
+receives no future harvest. A separate completed-crop control retains its already
+harvested goods with the person. If surplus payment cannot be funded, enforcement
+and the crop transfer both wait. Five attachment tests cover these outcomes,
+tampered/missing transfer receipts and reference/CPU, monthly/batched and
+checkpoint-resumed equivalence. Run `cargo +1.92.0 test --locked --test collateral_crop`;
+the `credit` example also prints the maintained/neglected comparison.
+
+After the attachment change, `cargo +1.92.0 test --locked --tests` passed all
+234 tests. Clippy with warnings denied and formatting checks also passed. CPU
+example output and raw verification logs remain in ignored `output/economics/`.
+
 ## CPU controls
 
 Run from this directory:
@@ -113,12 +167,19 @@ does not change final state. Generated logs remain under ignored `output/economi
 
 ## Next integration boundary
 
-Expose this offer through common opportunity discovery, let planning compare
-future instalments against production and essential needs, and make ownership
-grant cultivation access. Repossession must then remove future access without
-retroactively undoing completed work. This experiment deliberately rejects mixed
-production, household, marketplace and legacy access configurations until their
-accounting and rights boundaries are connected.
+Expose this offer through common opportunity discovery and let planning compare
+future instalments against production and essential needs. Ownership-following
+production now works, but automatic borrowing decisions, production-funded coin
+repayment, household, marketplace and legacy access integration remain separate.
+
+**Possible extension, not implemented: option 3, settlement from actual resale
+proceeds.** Add another agreement-selected settlement policy alongside fixed
+value. It would need a pending-sale state, explicit control and maintenance of
+the attached crop while awaiting sale, a market transaction, and a later debt/
+surplus settlement. Define selling costs, interest during the wait and what
+happens if no buyer arrives. It must not treat an asking price as proceeds or
+clear debt twice. Crop transfer remains independent of the choice of settlement
+policy; changing the policy should not require a different crop process.
 
 Negotiated loan terms, refinancing, unsecured lending, multiple competing claims,
 guarantors, liquidation markets, write-offs and general insolvency remain future

@@ -1088,8 +1088,11 @@ and protects promised stocks from spot sale. Forecasting remains host-side and
 local: future competition and shocks may defeat the forecast. This pilot does
 not implement a general loan, collateral or insolvency system. A separate
 [secured-credit experiment](SECURED-CREDIT.md) now tests financed asset purchases,
-monthly interest and collateral enforcement in isolation; it is not yet combined
-with this production-forward scenario.
+monthly interest and collateral enforcement. Explicit ownership-following rights
+now transfer active crop agreements with the plot, preserving progress and future
+work requirements. Fixed-value settlement makes no adjustment for the crop;
+resale-proceeds settlement remains a possible agreement policy extension. This is
+not yet combined with this production-forward scenario or autonomous borrowing.
 
 ## Additional productive sites
 
