@@ -1,5 +1,11 @@
 //! Bounded bilateral quote discovery, separate from physical settlement.
-use crate::{finance, model::*, opportunities, storage};
+use crate::{
+    finance,
+    marketplace::{self, Side},
+    model::*,
+    opportunities, storage,
+};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub const MAX_QUOTE_ROUNDS: u32 = 64;
 const BUYER: AgentId = 88;
@@ -13,6 +19,9 @@ const OPENING_BID: i32 = 20;
 const OPENING_ASK: i32 = 60;
 const CONCESSION_TICKS: i32 = 5;
 const EXAMPLE_ROUNDS: u32 = 10;
+pub const MARKETPLACE: AgentId = 90;
+pub const GRAIN_MARKET: marketplace::MarketId = 1;
+const PRICE_TICK: i32 = 1;
 
 /// A first quote policy, not ZIP. Prices are integer payment units per whole lot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -42,6 +51,8 @@ pub struct Trader {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Session {
+    pub marketplace: AgentId,
+    pub market: marketplace::MarketId,
     pub month: u32,
     pub buyer: Trader,
     pub seller: Trader,
@@ -59,6 +70,7 @@ pub struct Quotes {
 pub enum Outcome {
     Traded { price: i32 },
     NoAgreement,
+    UnsupportedMarket,
     Ineligible,
     InsufficientGoods,
     InsufficientPayment,
@@ -66,6 +78,10 @@ pub enum Outcome {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Round {
+    pub marketplace: AgentId,
+    pub market: marketplace::MarketId,
+    pub buyer: AgentId,
+    pub seller: AgentId,
     pub month: u32,
     pub quotes: Vec<Quotes>,
     pub outcome: Outcome,
@@ -90,7 +106,8 @@ pub fn validate(world: &World) -> Result<(), String> {
                 QuotePolicy::Concede { ticks } => ticks > 0,
             }
     };
-    if s.month == 0
+    if marketplace::venue(world, s.marketplace).is_none()
+        || s.month == 0
         || s.max_rounds == 0
         || s.max_rounds > MAX_QUOTE_ROUNDS
         || !trader(&s.buyer)
@@ -140,6 +157,7 @@ fn effects(state: &State, s: &Session, price: i32) -> Result<Vec<Effect>, String
 /// mutually acceptable, funded whole-lot exchange emits effects.
 pub fn evaluate(world: &World, state: &State) -> Result<Option<Round>, String> {
     validate(world)?;
+    marketplace::validate(world, state)?;
     let Some(s) = world
         .negotiation
         .as_ref()
@@ -148,24 +166,32 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Round>, String> {
         return Ok(None);
     };
     let mut result = Round {
+        marketplace: s.marketplace,
+        market: s.market,
+        buyer: s.buyer.agent,
+        seller: s.seller.agent,
         month: state.month,
         quotes: vec![],
         outcome: Outcome::NoAgreement,
     };
-    if [s.buyer.agent, s.seller.agent].iter().any(|a| {
-        state.terminal.contains_key(a)
-            || !opportunities::permits(world, state, *a, opportunities::Action::StockTrade)
-    }) {
+    if [s.buyer.agent, s.seller.agent]
+        .iter()
+        .any(|a| !marketplace::eligible(world, state, s.marketplace, *a))
+    {
         result.outcome = Outcome::Ineligible;
         return Ok(Some(result));
     }
-    let mut bid = s.buyer.opening_quote;
-    let mut ask = s.seller.opening_quote;
+    let Some(market) = marketplace::supported(world, s) else {
+        result.outcome = Outcome::UnsupportedMarket;
+        return Ok(Some(result));
+    };
+    let mut bid = marketplace::opening(state, s, Side::Buy);
+    let mut ask = marketplace::opening(state, s, Side::Sell);
     for round in 1..=s.max_rounds {
         result.quotes.push(Quotes { round, bid, ask });
         if bid >= ask {
             // Midpoint rounded down to a payment tick. Always within both quotes.
-            let price = ask + (bid - ask) / 2;
+            let price = ask + ((bid - ask) / market.price_tick / 2) * market.price_tick;
             result.outcome = if state.balance(s.seller.agent, s.goods.resource) < s.goods.quantity {
                 Outcome::InsufficientGoods
             } else if state.balance(s.buyer.agent, s.payment) < price {
@@ -211,8 +237,8 @@ pub fn transactions(
         .ok_or("missing negotiation terms")?;
     Ok(vec![Transaction {
         cause: format!(
-            "negotiated stock exchange {} -> {} at {}",
-            s.seller.agent, s.buyer.agent, price
+            "marketplace {} market {}: negotiated stock exchange {} -> {} at {}",
+            s.marketplace, s.market, s.seller.agent, s.buyer.agent, price
         ),
         effects: effects(state, s, *price)?,
         process: None,
@@ -242,10 +268,39 @@ pub fn validate_batch(world: &World, state: &State, batch: &Batch) -> Result<(),
 /// Controlled one-lot exchange: one buyer and one seller, no state price setter.
 pub fn scenario() -> (World, State) {
     let (mut world, mut state) = crate::scenario::baseline();
-    world.agents.retain(|a| a.id == BUYER);
+
     world.agents.push(Agent {
         id: SELLER,
         name: "grain seller".into(),
+    });
+    world.agents.push(Agent {
+        id: MARKETPLACE,
+        name: "grain marketplace".into(),
+    });
+    world.transaction_policy = Some(opportunities::Policy {
+        authority: crate::scenario::STATE_AGENT,
+        membership_offers: vec![],
+        membership_permissions: BTreeSet::new(),
+        agent_types: BTreeMap::from([
+            (BUYER, opportunities::PERSON_TYPE),
+            (SELLER, opportunities::PERSON_TYPE),
+            (MARKETPLACE, marketplace::MARKETPLACE_TYPE),
+            (crate::scenario::STATE_AGENT, opportunities::STATE_TYPE),
+        ]),
+        permissions: BTreeSet::from([(
+            opportunities::PERSON_TYPE,
+            opportunities::Action::StockTrade,
+        )]),
+    });
+    world.marketplaces.push(marketplace::Marketplace {
+        agent: MARKETPLACE,
+        required_type: opportunities::PERSON_TYPE,
+        markets: vec![marketplace::Market {
+            id: GRAIN_MARKET,
+            goods: Amount::new(crate::scenario::GRAIN, GRAIN_LOT),
+            payment: crate::scenario::TOKEN,
+            price_tick: PRICE_TICK,
+        }],
     });
     world.assets.clear();
     world.rights.clear();
@@ -267,6 +322,8 @@ pub fn scenario() -> (World, State) {
         .balances
         .insert((SELLER, crate::scenario::GRAIN), GRAIN_LOT);
     world.negotiation = Some(Session {
+        marketplace: MARKETPLACE,
+        market: GRAIN_MARKET,
         month: 1,
         buyer: Trader {
             agent: BUYER,

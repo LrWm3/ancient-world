@@ -124,6 +124,7 @@ pub fn validate_world(world: &World, state: &State) -> Result<(), String> {
 }
 
 fn validate_state(world: &World, state: &State) -> Result<(), String> {
+    crate::marketplace::validate(world, state)?;
     crate::activities::validate(world, state)?;
     crate::exchange::validate(world, state)?;
     crate::storage::validate(world, state)?;
@@ -349,6 +350,16 @@ pub(crate) fn commit_core(
     }
     if let Some(s) = expected_commitments {
         staged.obligations = s.obligations;
+    }
+    if let Some(round) = &batch.negotiation {
+        crate::marketplace::record(
+            &mut staged,
+            world
+                .negotiation
+                .as_ref()
+                .ok_or("missing negotiation session")?,
+            round,
+        );
     }
     staged.pending_production = batch.production_plan.clone();
     if let Some(settlement) = &batch.maintenance {

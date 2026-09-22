@@ -6,6 +6,24 @@ use economics_compute_smoke::{
 };
 
 fn main() -> Result<(), String> {
+    let (catalog, _) = negotiation::scenario();
+    for venue in &catalog.marketplaces {
+        println!(
+            "Marketplace {} requires agent type {} (person).",
+            venue.agent, venue.required_type
+        );
+        for market in &venue.markets {
+            let name = |id| &catalog.resources.iter().find(|r| r.id == id).unwrap().name;
+            println!(
+                "Market {} facilitates {} {} for {}; price tick {} per lot.\n",
+                market.id,
+                market.goods.quantity,
+                name(market.goods.resource),
+                name(market.payment),
+                market.price_tick
+            );
+        }
+    }
     println!(
         "| Case | Quotes (bid/ask, payment ticks per lot) | Outcome | Buyer grain | Buyer coins | Seller grain | Seller coins |"
     );

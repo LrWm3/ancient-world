@@ -159,6 +159,7 @@ pub fn with_warmth(warmth_first: bool) -> (World, State) {
 
 pub fn baseline() -> (World, State) {
     let world = World {
+        marketplaces: vec![],
         negotiation: None,
         pool_market: None,
         competition: None,
@@ -304,6 +305,7 @@ pub fn baseline() -> (World, State) {
         scheduled_starts: Vec::new(),
     };
     let state = State {
+        marketplaces: Default::default(),
         memberships: Default::default(),
         household_remainders: BTreeMap::new(),
         exchange: Default::default(),

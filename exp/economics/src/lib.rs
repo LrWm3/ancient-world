@@ -95,3 +95,5 @@ pub mod access_expectations;
 pub mod consequence_priority;
 
 pub mod negotiation;
+
+pub mod marketplace;

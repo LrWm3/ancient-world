@@ -134,6 +134,7 @@ impl Phase {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct State {
+    pub marketplaces: BTreeMap<AgentId, crate::marketplace::Memory>,
     pub memberships:
         BTreeMap<(AgentId, AgentId, crate::membership::Role), crate::membership::Agreement>,
     pub household_remainders: BTreeMap<Account, i32>,
@@ -176,6 +177,7 @@ pub struct ScheduledStart {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct World {
+    pub marketplaces: Vec<crate::marketplace::Marketplace>,
     pub negotiation: Option<crate::negotiation::Session>,
     pub pool_market: Option<crate::pool_market::Config>,
     pub competition: Option<crate::competition::Config>,
