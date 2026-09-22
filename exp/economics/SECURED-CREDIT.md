@@ -13,7 +13,8 @@ and follows it through repossession, maintenance or neglect.
 - `LoanOffer`: creditor, denomination, maximum principal, monthly rate, term and
   arrears grace period.
 - `Collateral`: asset, priority and an agreement-selected settlement rule;
-  `CollateralSettlement::FixedValue { value }` is the implemented policy.
+  `FixedValue { value }` and the opt-in [resale-proceeds policy](COLLATERAL-RESALE.md)
+  are implemented variants of `CollateralSettlement`.
 - `Offer`: sale and financing terms, with minimum downpayment.
 - `Application`: buyer, offer, acceptance month and downpayment.
 - `Loan`: accepted terms, parties, outstanding principal, accrued interest,
@@ -82,7 +83,7 @@ Priority is recorded, but multiple liens on an asset are rejected.
 
 ## Standing crops follow ownership; settlement value stays fixed
 
-The selected rule is **option 1: no crop-value adjustment**. The lender receives
+The baseline rule is **option 1: no crop-value adjustment**. The lender receives
 the standing crop opportunity and its remaining work requirements at the agreed
 fixed settlement value. A nearly mature, newly planted or failing crop does not
 change the amount credited against debt. The crop has economic consequences but
@@ -105,7 +106,9 @@ The crop's occupancy end date is not an escrow of somebody's labor. There is no
 pending production plan across this boundary in the supported credit fixture.
 
 The current process engine combines controller and worker in `operator`. Hiring
-someone else to supply work and choosing a resale are later integrations. In the
+someone else to supply work remains a later integration. The separate
+[resale pilot](COLLATERAL-RESALE.md) now transfers the plot and crop to a cash buyer.
+In the
 control, the state receives explicitly configured capacity to represent available
 services, not an automatic capacity gain from repossession. With capacity, the
 existing continuing-work policy maintains the crop. Without it, the existing
@@ -177,16 +180,14 @@ future instalments against production and essential needs. Ownership-following
 production now works, but automatic borrowing decisions, production-funded coin
 repayment, household, marketplace and legacy access integration remain separate.
 
-**Possible extension, not implemented: option 3, settlement from actual resale
-proceeds.** Add another agreement-selected settlement policy alongside fixed
-value. It would need a pending-sale state, explicit control and maintenance of
-the attached crop while awaiting sale, a market transaction, and a later debt/
-surplus settlement. Define selling costs, interest during the wait and what
-happens if no buyer arrives. It must not treat an asking price as proceeds or
-clear debt twice. Crop transfer remains independent of the choice of settlement
-policy; changing the policy should not require a different crop process.
+**Implemented opt-in extension: option 3, settlement from actual resale
+proceeds.** The [resale pilot](COLLATERAL-RESALE.md) adds pending custody, a
+cash-limited prospective buyer, frozen interest after repossession and atomic
+debt/surplus settlement from actual payment. Missing buyers and insufficient bids
+leave the asset pending. Fixed-value settlement remains available; both variants
+use the same crop-transfer machinery.
 
 Negotiated loan terms, refinancing, unsecured lending, multiple competing claims,
-guarantors, liquidation markets, write-offs and general insolvency remain future
+guarantors, competitive liquidation markets, write-offs and general insolvency remain future
 work. This establishes a secured financing component, not a universal contract
 interpreter or a sustainable farming-and-mortgage economy.

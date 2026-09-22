@@ -119,6 +119,8 @@ warnings denied and formatting checks passed. CPU example output and raw logs
 remain under ignored `output/economics/`.
 
 This policy is not yet a replacement for the consequence-aware needs planner.
+The [collateral resale pilot](COLLATERAL-RESALE.md) reuses its forecasts to compare
+a prospective buyer's work with and without the asset and derive a bid premium.
 It does not value survival, deprivation, uncertainty, resale, hired labor or
 contractual penalties beyond the existing crop-failure consequence. It also does
 not make borrowing autonomous or fund loan payments through sales. The next

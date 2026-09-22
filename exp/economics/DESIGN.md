@@ -100,7 +100,8 @@ mandatory productive assets alongside the optional technique, and configurable
 monthly condition decay (used for herd upkeep). Houses attach to plots and provide
 expiring shelter service through the same process/consumption path. One optional
 labor-saving tool and one mandatory productive asset can support an action; arbitrary
-equipment bundles, negotiation and a resale planner remain unimplemented.
+equipment bundles, negotiated equipment prices and an equipment resale planner
+remain unimplemented. The later collateral resale pilot is scoped to financed plots.
 The state has finite stock but no autonomous selling policy. Forecasts assume no
 later purchases, then reconsider next month; they do not value unused equipment
 at the horizon or optimize saving wear for more valuable future work. A six-month
@@ -1091,7 +1092,9 @@ not implement a general loan, collateral or insolvency system. A separate
 monthly interest and collateral enforcement. Explicit ownership-following rights
 now transfer active crop agreements with the plot, preserving progress and future
 work requirements. Fixed-value settlement makes no adjustment for the crop;
-resale-proceeds settlement remains a possible agreement policy extension. This is
+an opt-in [resale-proceeds policy](COLLATERAL-RESALE.md) now defers recovery until
+an actual funded buyer transaction, retaining pending custody and crop work.
+This is
 not yet combined with this production-forward scenario or autonomous borrowing.
 An opt-in [remaining-value work policy](REMAINING-VALUE.md) compares inherited
 continuing work with one-month opportunities using the shared offer resolver and
