@@ -186,6 +186,18 @@ pub(crate) fn generate_for(
     policy: &Policy,
     session: &negotiation::Session,
 ) -> Result<Decision, String> {
+    generate_for_horizon(world, state, resources, policy, session, 1)
+}
+
+/// Buying ahead is an explicit planner horizon; legacy orders remain immediate.
+pub(crate) fn generate_for_horizon(
+    world: &World,
+    state: &State,
+    resources: &Resources,
+    policy: &Policy,
+    session: &negotiation::Session,
+    months: u32,
+) -> Result<Decision, String> {
     let mut observed = state.clone();
     observed.balances = resources.holdings.clone();
     let mut protected = BTreeMap::new();
@@ -221,8 +233,8 @@ pub(crate) fn generate_for(
     let mut with_goods = stock_map(&resources.holdings, agent);
     *with_goods.entry(session.goods.resource).or_default() += i128::from(session.goods.quantity);
     let mut after = unclaimed(&with_goods, &commitments);
-    let buyer_deficits = consume(world, &observed, agent, 1, &mut before, false);
-    let buyer_after_purchase = consume(world, &observed, agent, 1, &mut after, false);
+    let buyer_deficits = consume(world, &observed, agent, months, &mut before, false);
+    let buyer_after_purchase = consume(world, &observed, agent, months, &mut after, false);
     let useful = buyer_after_purchase
         .iter()
         .any(|(r, q)| *q < buyer_deficits[r])

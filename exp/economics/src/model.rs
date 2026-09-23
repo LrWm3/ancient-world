@@ -179,6 +179,7 @@ pub struct ScheduledStart {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct World {
+    pub production_market: Option<crate::production_market::Config>,
     pub town_market: Option<crate::town_market::Config>,
     pub work_choice: Option<crate::work_choice::Config>,
     pub credit: Option<crate::credit::Config>,

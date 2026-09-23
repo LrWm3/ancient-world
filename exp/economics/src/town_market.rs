@@ -26,6 +26,10 @@ pub struct Entry {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
+    /// Opt-in need-based side selection instead of the registered side.
+    pub adaptive: bool,
+    /// Scoped cap on completed lots, also used by observation-limited forecasts.
+    pub match_limit: Option<u32>,
     pub venue: AgentId,
     pub market: marketplace::MarketId,
     pub town: AgentId,
@@ -60,6 +64,7 @@ pub struct Attempt {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Round {
+    pub planning: Option<crate::production_market::Decision>,
     pub month: u32,
     pub orders: Vec<Order>,
     pub attempts: Vec<Attempt>,
@@ -103,7 +108,7 @@ fn pair(world: &World, c: &Config, t: &Entry, month: u32) -> Result<Session, Str
     let other = c
         .traders
         .iter()
-        .filter(|e| e.side != t.side)
+        .filter(|e| e.trader.agent != t.trader.agent && (c.adaptive || e.side != t.side))
         .min_by_key(|e| e.trader.agent)
         .ok_or("market requires both sides")?;
     let (b, s) = if t.side == Side::Buy {
@@ -145,6 +150,11 @@ pub fn validate(world: &World) -> Result<(), String> {
     }
     let mut ids = BTreeSet::new();
     for t in &c.traders {
+        if c.adaptive
+            && (t.trader.opening_quote != t.trader.limit || t.trader.policy != QuotePolicy::Fixed)
+        {
+            return Err("adaptive sides initially require fixed quotes at supplied limits".into());
+        }
         if matches!(t.trader.policy, QuotePolicy::Concede { .. }) {
             return Err("town quote policy must be Fixed or Zip".into());
         }
@@ -235,6 +245,8 @@ pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
         .as_ref()
         .filter(|a| a.month == state.month)
         .ok_or("missing current opening admission")?;
+    let planning = crate::production_market::choose(world, state)?;
+    let choices = crate::production_market::choices(world, planning.as_ref());
     let mut resources = Resources::opening(world, state);
     let mut orders = Vec::new();
     for t in &c.traders {
@@ -244,28 +256,50 @@ pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
         {
             continue;
         }
-        let s = pair(world, c, t, state.month)?;
-        let d = need_orders::generate_for(world, state, &resources, &c.reserve, &s)?;
-        let exists = if t.side == Side::Buy {
-            d.buy.is_some()
+        let sides = if c.adaptive {
+            vec![Side::Buy, Side::Sell]
         } else {
-            d.sell.is_some()
+            vec![t.side]
         };
-        if exists {
-            let quote = marketplace::learning(state, &s, t.side).map_or_else(
-                || marketplace::opening(state, &s, t.side),
-                |l| l.quote(t.trader.limit, m.price_tick, t.side),
-            );
-            orders.push(Order {
-                agent: t.trader.agent,
-                side: t.side,
-                quote,
-                protected: d
-                    .protected
-                    .into_iter()
-                    .filter(|((a, _), _)| *a == t.trader.agent)
-                    .collect(),
-            });
+        for side in sides {
+            if side == Side::Buy && choices.get(&t.trader.agent).is_some_and(|p| !p.buy) {
+                continue;
+            }
+            let entry = Entry {
+                side,
+                trader: t.trader.clone(),
+            };
+            let s = pair(world, c, &entry, state.month)?;
+            let d = need_orders::generate_for_horizon(
+                world,
+                state,
+                &resources,
+                &c.reserve,
+                &s,
+                world.production_market.as_ref().map_or(1, |p| p.horizon),
+            )?;
+            let exists = if side == Side::Buy {
+                d.buy.is_some()
+            } else {
+                d.sell.is_some()
+            };
+            if exists {
+                let quote = marketplace::learning(state, &s, side).map_or_else(
+                    || marketplace::opening(state, &s, side),
+                    |l| l.quote(t.trader.limit, m.price_tick, side),
+                );
+                orders.push(Order {
+                    agent: t.trader.agent,
+                    side,
+                    quote,
+                    protected: d
+                        .protected
+                        .into_iter()
+                        .filter(|((a, _), _)| *a == t.trader.agent)
+                        .collect(),
+                });
+                break; // At most one side for each good at this boundary.
+            }
         }
     }
     orders.sort_by_key(|o| (o.side, o.agent));
@@ -277,6 +311,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
     let mut pricing_state = state.clone();
     let mut result = Round {
         month: state.month,
+        planning,
         orders: vec![],
         attempts: vec![],
         transactions: vec![],
@@ -285,7 +320,15 @@ pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
         unfilled_buy: 0,
         unfilled_sell: 0,
     };
+    let limit = if world.production_market.as_ref().is_some_and(|p| !p.trading) {
+        Some(0)
+    } else {
+        c.match_limit
+    };
     for buyer in &buyers {
+        if limit.is_some_and(|n| result.transactions.len() >= n as usize) {
+            break;
+        }
         for seller in &sellers {
             if filled.contains(&seller.agent) {
                 continue;
@@ -444,6 +487,8 @@ pub fn scenario() -> (World, State) {
     })
     .collect();
     w.town_market = Some(Config {
+        adaptive: false,
+        match_limit: None,
         venue: base.marketplace,
         market: base.market,
         town: TOWN,

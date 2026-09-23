@@ -254,6 +254,10 @@ impl Simulation {
     }
 
     fn productive(&self, batch: &mut Batch) -> Result<(), String> {
+        if self.world.production_market.is_some() {
+            *batch = crate::production_market::work(self)?;
+            return Ok(());
+        }
         if self.world.work_choice.is_some() {
             *batch = crate::work_choice::evaluate(self)?;
             return Ok(());
