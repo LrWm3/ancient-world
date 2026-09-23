@@ -14,6 +14,9 @@ ownership, membership, governance and valuation. These are goals, not implemente
 features; the [integration matrix](INTEGRATION-STATUS.md) records current support.
 Physical-world expansion and autonomous state planning remain later priorities.
 
+Optional [external telemetry](TELEMETRY.md) exports metrics and committed-event
+logs from scenario runners without instrumenting agent or settlement code.
+
 Status: the process-based simulation is implemented and runs on CPU.
 The individual [opportunity marketplace](OPPORTUNITIES.md) now links food/warmth
 needs to cultivation, state land agreements and wood collection, with state-defined
