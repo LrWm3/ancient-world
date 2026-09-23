@@ -78,6 +78,8 @@ impl Simulation {
             if let Some(request) = crate::offers::scripted_credit_request(&self.world, &self.state)
             {
                 crate::offers::resolve(self, &[request], &mut batch)?;
+            } else if self.state.phase == Phase::Acquire && self.world.negotiation.is_some() {
+                batch = crate::acquisition::evaluate(&self.world, &self.state)?;
             } else {
                 batch.credit = crate::credit::evaluate(&self.world, &self.state)?;
                 batch.transactions = batch.credit.as_ref().unwrap().transactions.clone();

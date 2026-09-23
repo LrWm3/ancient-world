@@ -237,8 +237,7 @@ pub(crate) fn commit_core(
         return Err("duplicate, stale or out-of-order batch".into());
     }
     crate::pool_market::validate_batch(world, state, batch, effect_limit)?;
-    crate::negotiation::validate_batch(world, state, batch)?;
-    crate::credit::validate_batch(world, state, batch)?;
+    crate::acquisition::validate_batch(world, state, batch)?;
     crate::work_choice::validate_batch(world, state, batch, effect_limit)?;
     let count = batch
         .transactions

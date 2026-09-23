@@ -127,14 +127,13 @@ pub fn validate(world: &World) -> Result<(), String> {
     {
         return Err("invalid negotiation terms".into());
     }
-    // This pilot owns one Acquire window. Composition with other acquisition
-    // drivers needs a shared reservation boundary before it can be enabled.
+    // Credit shares explicit reservations; other acquisition drivers remain isolated.
     if world.market.is_some()
         || world.competition.is_some()
         || world.pool_market.is_some()
         || !world.households.is_empty()
         || !world.offers.is_empty()
-        || !world.bids.is_empty()
+        || (!world.bids.is_empty() && world.credit.is_none())
         || !world.access_offers.is_empty()
     {
         return Err("negotiation pilot requires an isolated acquisition driver".into());
@@ -161,6 +160,18 @@ fn effects(state: &State, s: &Session, price: i32) -> Result<Vec<Effect>, String
 /// Reads one immutable acquisition boundary. Quotes reserve nothing; only a
 /// mutually acceptable, funded whole-lot exchange emits effects.
 pub fn evaluate(world: &World, state: &State) -> Result<Option<Round>, String> {
+    evaluate_with(
+        world,
+        state,
+        &crate::acquisition::Resources::opening(world, state),
+    )
+}
+
+pub(crate) fn evaluate_with(
+    world: &World,
+    state: &State,
+    resources: &crate::acquisition::Resources,
+) -> Result<Option<Round>, String> {
     validate(world)?;
     marketplace::validate(world, state)?;
     let Some(s) = world
@@ -208,15 +219,23 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Round>, String> {
         if bid >= ask {
             // Midpoint rounded down to a payment tick. Always within both quotes.
             let price = ask + ((bid - ask) / market.price_tick / 2) * market.price_tick;
-            result.outcome = if state.balance(s.seller.agent, s.goods.resource) < s.goods.quantity {
+            result.outcome = if resources
+                .available
+                .get(&(s.seller.agent, s.goods.resource))
+                .copied()
+                .unwrap_or(0)
+                < s.goods.quantity
+            {
                 Outcome::InsufficientGoods
-            } else if state.balance(s.buyer.agent, s.payment) < price {
+            } else if resources
+                .available
+                .get(&(s.buyer.agent, s.payment))
+                .copied()
+                .unwrap_or(0)
+                < price
+            {
                 Outcome::InsufficientPayment
-            } else if !storage::fits(
-                world,
-                &storage::usage(world, &state.balances),
-                &effects(state, s, price)?,
-            ) {
+            } else if !storage::fits(world, &resources.storage, &effects(state, s, price)?) {
                 Outcome::InsufficientStorage
             } else {
                 Outcome::Traded { price }

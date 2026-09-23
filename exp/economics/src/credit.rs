@@ -365,7 +365,12 @@ pub fn discover<'a>(world: &'a World, state: &State, buyer: AgentId) -> Vec<&'a 
         c.offers
             .iter()
             .filter(|o| {
-                buyer != o.sale.seller
+                crate::opportunities::permits(
+                    world,
+                    state,
+                    buyer,
+                    crate::opportunities::Action::FinancedPurchase,
+                ) && buyer != o.sale.seller
                     && buyer != o.loan.creditor
                     && world.agents.iter().any(|a| a.id == buyer)
                     && !state.terminal.contains_key(&buyer)
@@ -390,6 +395,12 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             Err("credit book without configuration".into())
         };
     };
+    if world.negotiation.is_some() && c.stock_sales.as_ref().is_some_and(|p| p.joint.is_some()) {
+        return Err("joint production reservations do not yet compose with negotiation".into());
+    }
+    if world.transaction_policy.is_some() && c.resale_buyer.is_some() {
+        return Err("permission-gated collateral resale is not yet supported".into());
+    }
     crate::borrowing::validate(world)?;
     crate::stock_sale::validate(world, state)?;
     // Ownership-following production is supported. Other acquisition/collection
@@ -397,7 +408,6 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     if !world.agreements.is_empty()
         || !world.access_offers.is_empty()
         || world.market.is_some()
-        || world.negotiation.is_some()
         || world.competition.is_some()
         || world.pool_market.is_some()
         || !world.households.is_empty()
@@ -405,7 +415,6 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         || (!world.bids.is_empty() && c.stock_sales.is_none())
         || !world.issuance.is_empty()
         || !world.pools.is_empty()
-        || world.transaction_policy.is_some()
         || state.pending_production.as_ref().is_some_and(|plan| {
             state.phase != Phase::Productive
                 || plan.phase != Phase::Productive
@@ -587,7 +596,12 @@ fn purchase(
         .checked_sub(a.downpayment)
         .ok_or("purchase amount overflow")?;
     let coin = o.loan.denomination;
-    let reason = if [a.buyer, o.sale.seller, o.loan.creditor]
+    let reason = if !crate::opportunities::permits(
+        world,
+        state,
+        a.buyer,
+        crate::opportunities::Action::FinancedPurchase,
+    ) || [a.buyer, o.sale.seller, o.loan.creditor]
         .iter()
         .any(|id| state.terminal.contains_key(id))
         || a.buyer == o.sale.seller

@@ -186,8 +186,15 @@ pub(crate) fn settle(
         storage::apply(world, &mut used, &t.effects);
     }
     let room = storage::room(world, &used, bid.buyer, bid.goods.resource) / bid.goods.quantity;
-    let active =
-        !state.terminal.contains_key(&p.seller) && !state.terminal.contains_key(&bid.buyer);
+    let active = [p.seller, bid.buyer].iter().all(|agent| {
+        !state.terminal.contains_key(agent)
+            && crate::opportunities::permits(
+                world,
+                state,
+                *agent,
+                crate::opportunities::Action::StockTrade,
+            )
+    });
     let limit = if active {
         desired.min(p.max_lots_per_month).min(funding).min(room)
     } else {

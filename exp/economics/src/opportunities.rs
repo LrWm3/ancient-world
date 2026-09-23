@@ -14,6 +14,7 @@ pub enum Action {
     Membership,
     EquipmentTrade,
     StockTrade,
+    FinancedPurchase,
 }
 
 /// A state's explicit allow-list. Unclassified types and unlisted actions are denied.
@@ -188,15 +189,19 @@ pub fn validate(world: &World) -> Result<(), String> {
         if p.permissions.iter().chain(p.membership_permissions.iter()).any(|(_, action)| matches!(action, Action::Process(id) if !world.definitions.iter().any(|d| d.id == *id))) {
             return Err("unknown permitted process".into());
         }
-        // This first governed marketplace deliberately supports physical and
-        // state-access offers only. Other resolvers need bilateral rules first.
+        // Credit stock bids check both parties; legacy exchange drivers still
+        // require bilateral permission rules before enabling governance.
         if world.market.is_some()
             || !world.offers.is_empty()
-            || !world.bids.is_empty()
+            || (!world.bids.is_empty()
+                && world
+                    .credit
+                    .as_ref()
+                    .is_none_or(|c| c.stock_sales.is_none()))
             || !world.households.is_empty()
         {
             return Err(
-                "governed marketplace currently supports processes and state access only".into(),
+                "governance does not support this legacy exchange or household driver".into(),
             );
         }
     }
