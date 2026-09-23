@@ -68,8 +68,36 @@ pub enum Policy {
     Plan,
     Fixed(BTreeMap<AgentId, Choice>),
 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CounterpartyExpectation {
+    #[default]
+    Ordinary,
+    /// Experimental public prior-plan signal; never read this month's decisions.
+    LastPublishedPlan,
+}
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Persistence {
+    #[default]
+    Monthly,
+    Hold {
+        months: u32,
+    },
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SelectionReason {
+    Replanned,
+    Retained,
+    SafetyOverride,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ObservedChoice {
+    pub month: u32,
+    pub choice: Choice,
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
+    pub counterparties: CounterpartyExpectation,
+    pub persistence: Persistence,
     pub demand: DemandSignal,
     pub horizon: u32,
     pub trading: bool,
@@ -112,12 +140,15 @@ pub struct Forecast {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PersonDecision {
+    pub selection_reason: SelectionReason,
+    pub retain_through: u32,
     pub agent: AgentId,
     pub alternatives: Vec<Forecast>,
     pub selected: usize,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Decision {
+    pub counterparties: BTreeMap<AgentId, ObservedChoice>,
     pub month: u32,
     pub through: u32,
     pub belief: BTreeMap<crate::marketplace::MarketId, Belief>,
@@ -133,6 +164,10 @@ pub fn validate(w: &World) -> Result<(), String> {
         .iter()
         .filter(|d| d.enabled && d.execution == Execution::Productive)
         .collect();
+    if matches!(c.persistence, Persistence::Hold { months } if months == 0 || months > MAX_HORIZON)
+    {
+        return Err("persistence duration outside planning bounds".into());
+    }
     if w.town_market.as_ref().is_none_or(|m| !m.adaptive)
         || w.participants.is_empty()
         || w.participants.len() > MAX_PEOPLE
@@ -170,7 +205,9 @@ pub(crate) fn validate_state(w: &World, s: &State) -> Result<(), String> {
     for r in &s.town_market.history {
         if let Some(d) = &r.planning {
             let mut ids = std::collections::BTreeSet::new();
-            if d.month != r.month
+            if d.counterparties.values().any(|o| o.month >= d.month)
+                || d.people.iter().any(|p| p.retain_through < d.month)
+                || d.month != r.month
                 || d.through < d.month
                 || d.belief.values().any(|b| b.through >= d.month)
                 || d.people.iter().any(|p| {
@@ -325,6 +362,11 @@ fn forecast(
     b: &BTreeMap<crate::marketplace::MarketId, Belief>,
 ) -> Result<Forecast, String> {
     let c = w.production_market.as_ref().unwrap();
+    let mut policies: BTreeMap<_, _> = observed_choices(w, s)
+        .into_iter()
+        .map(|(agent, observed)| (agent, observed.choice))
+        .collect();
+    policies.insert(agent, choice);
     let (mut world, mut state) = ForecastContext::new(w, s).into_parts();
     // Historical alternatives are diagnostics, not inputs to a fixed-policy branch.
     // Keep every market observation and accepted process, but avoid copying these
@@ -332,15 +374,13 @@ fn forecast(
     for r in &mut state.town_market.history {
         r.planning = None;
     }
-    world.production_market.as_mut().unwrap().policy =
-        Policy::Fixed(BTreeMap::from([(agent, choice)]));
+    world.production_market.as_mut().unwrap().policy = Policy::Fixed(policies);
     let mut sim = Simulation::new(world, state, Backend::Reference)?;
     let end = s
         .month
         .checked_add(c.horizon)
         .ok_or("market forecast overflow")?;
-    // Other agents retain ordinary need-directed work; their future choices are
-    // hypotheses, not observations of their eventual live policies.
+    // Counterparty choices are dated hypotheses, not observations of future decisions.
     while sim.state.month < end {
         if sim.state.phase == Phase::Acquire && sim.state.month > s.month {
             let m = sim.world.town_market.as_mut().unwrap();
@@ -457,6 +497,77 @@ fn forecast(
         stock_value,
     })
 }
+fn prior_decision(s: &State) -> Option<&Decision> {
+    s.town_market
+        .history
+        .iter()
+        .rev()
+        .filter(|r| r.month < s.month)
+        .find_map(|r| r.planning.as_ref())
+}
+fn observed_choices(w: &World, s: &State) -> BTreeMap<AgentId, ObservedChoice> {
+    if w.production_market
+        .as_ref()
+        .is_none_or(|c| c.counterparties == CounterpartyExpectation::Ordinary)
+    {
+        return BTreeMap::new();
+    }
+    prior_decision(s)
+        .map(|d| {
+            d.people
+                .iter()
+                .map(|p| {
+                    (
+                        p.agent,
+                        ObservedChoice {
+                            month: d.month,
+                            choice: p.alternatives[p.selected].choice,
+                        },
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+fn safety_score(p: &Participant, f: &Forecast) -> (bool, Vec<i64>, usize) {
+    (
+        f.terminal,
+        crate::forecast::needs::score(&p.needs, &f.deficits),
+        f.failures,
+    )
+}
+fn persistent_selection(
+    policy: Persistence,
+    month: u32,
+    p: &Participant,
+    previous: Option<&PersonDecision>,
+    alternatives: &[Forecast],
+    selected: usize,
+) -> Result<(usize, SelectionReason, u32), String> {
+    Ok(match policy {
+        Persistence::Monthly => (selected, SelectionReason::Replanned, month),
+        Persistence::Hold { months } => {
+            let next = month
+                .checked_add(months - 1)
+                .ok_or("persistence date overflow")?;
+            if let Some(previous) = previous
+                && previous.retain_through >= month
+                && let Some(held) = alternatives
+                    .iter()
+                    .position(|f| f.choice == previous.alternatives[previous.selected].choice)
+            {
+                if safety_score(p, &alternatives[selected]) < safety_score(p, &alternatives[held]) {
+                    (selected, SelectionReason::SafetyOverride, next)
+                } else {
+                    (held, SelectionReason::Retained, previous.retain_through)
+                }
+            } else {
+                (selected, SelectionReason::Replanned, next)
+            }
+        }
+    })
+}
+
 pub fn choose(w: &World, s: &State) -> Result<Option<Decision>, String> {
     let Some(c) = &w.production_market else {
         return Ok(None);
@@ -510,13 +621,24 @@ pub fn choose(w: &World, s: &State) -> Result<Option<Decision>, String> {
                 )
             })
             .unwrap();
+        let (selected, selection_reason, retain_through) = persistent_selection(
+            c.persistence,
+            s.month,
+            p,
+            prior_decision(s).and_then(|d| d.people.iter().find(|a| a.agent == p.agent)),
+            &alternatives,
+            selected,
+        )?;
         people.push(PersonDecision {
+            selection_reason,
+            retain_through,
             agent: p.agent,
             alternatives,
             selected,
         });
     }
     Ok(Some(Decision {
+        counterparties: observed_choices(w, s),
         month: s.month,
         through: s.month + c.horizon - 1,
         belief,
@@ -673,6 +795,8 @@ pub fn scenario(trading: bool) -> (World, State) {
     w.horizon = EXAMPLE_HORIZON;
     w.priority = Priority::ContinuingFirst;
     w.production_market = Some(Config {
+        counterparties: CounterpartyExpectation::Ordinary,
+        persistence: Persistence::Monthly,
         demand: DemandSignal::CompletedOnly,
         horizon: EXAMPLE_HORIZON,
         trading,
@@ -709,4 +833,78 @@ pub fn reciprocal_scenario(trading: bool) -> (World, State) {
             price_tick: 1,
         });
     (w, s)
+}
+
+#[cfg(test)]
+mod persistence_tests {
+    use super::*;
+    fn forecast(choice: Choice) -> Forecast {
+        Forecast {
+            choice,
+            deficits: BTreeMap::from([(4, 0)]),
+            terminal: false,
+            failures: 0,
+            buffer_gap: 0,
+            closing_coins: 0,
+            sales: BTreeMap::new(),
+            purchases: BTreeMap::new(),
+            labor: 0,
+            stock_value: 0,
+        }
+    }
+    #[test]
+    fn holds_ignore_wealth_but_expire_and_yield_to_safety() {
+        let p = Participant {
+            agent: 1,
+            capacity: Amount::new(3, 2),
+            needs: vec![Requirement {
+                resource: 4,
+                quantity: 1,
+                priority: 0,
+            }],
+        };
+        let held = forecast(Choice {
+            work: Work::Wait,
+            buy: Purchases::All,
+        });
+        let mut better = forecast(Choice::default());
+        better.closing_coins = 10;
+        let previous = PersonDecision {
+            agent: 1,
+            selected: 0,
+            alternatives: vec![held.clone()],
+            retain_through: 3,
+            selection_reason: SelectionReason::Replanned,
+        };
+        let mut alternatives = vec![held, better];
+        let policy = Persistence::Hold { months: 3 };
+        assert_eq!(
+            persistent_selection(policy, 2, &p, Some(&previous), &alternatives, 1).unwrap(),
+            (0, SelectionReason::Retained, 3)
+        );
+        assert_eq!(
+            persistent_selection(policy, 4, &p, Some(&previous), &alternatives, 1).unwrap(),
+            (1, SelectionReason::Replanned, 6)
+        );
+        alternatives[0].deficits.insert(4, 1);
+        assert_eq!(
+            persistent_selection(policy, 2, &p, Some(&previous), &alternatives, 1).unwrap(),
+            (1, SelectionReason::SafetyOverride, 4)
+        );
+        alternatives[0].deficits.insert(4, 0);
+        alternatives[0].failures = 1;
+        assert_eq!(
+            persistent_selection(policy, 2, &p, Some(&previous), &alternatives, 1)
+                .unwrap()
+                .1,
+            SelectionReason::SafetyOverride
+        );
+        alternatives[0].terminal = true;
+        assert_eq!(
+            persistent_selection(policy, 2, &p, Some(&previous), &alternatives, 1)
+                .unwrap()
+                .1,
+            SelectionReason::SafetyOverride
+        );
+    }
 }

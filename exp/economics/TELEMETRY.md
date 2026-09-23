@@ -221,3 +221,8 @@ exclusions now appear in the [review follow-up](OBSERVER-REVIEW.md#order-generat
 Order-generation receipts also identify their effective buy/reserve windows. The
 [shared order-horizon comparison](ORDER-HORIZONS.md) tests 6/2, 2/2 and 6/6 months
 without changing the six-month production planner.
+
+[Planning variants](CALIBRATION.md) add selection reason, hold-through date and
+dated assumed counterparty choices to `plan` records. A retained candidate may
+not be the current wealth-maximizing alternative: the explicit persistence policy
+allows safety improvements to override a hold, but not wealth-only improvements.

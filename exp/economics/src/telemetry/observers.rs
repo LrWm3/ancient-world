@@ -70,8 +70,11 @@ pub(super) fn batch(
                     .collect();
                 records.push(json!({"kind":"plan","agent":person.agent,"through":decision.through,
                     "planner":"production_market",
-                    "assumptions":{"own_choice":"held_over_horizon","other_agents":"ordinary_work_allow_all_purchases",
+                    "assumptions":{"own_choice":"held_over_horizon","other_agents":world.production_market.as_ref().map(|c|format!("{:?}",c.counterparties)),
+                        "counterparty_choices":decision.counterparties.iter().filter(|(agent,_)|**agent!=person.agent).map(|(agent,o)|json!({"agent":agent,"month":o.month,"work":format!("{:?}",o.choice.work),"buy":format!("{:?}",o.choice.buy)})).collect::<Vec<_>>(),
                         "demand_signal":world.production_market.as_ref().map(|c|format!("{:?}",c.demand))},
+                    "persistence":world.production_market.as_ref().map(|c|format!("{:?}",c.persistence)),
+                    "selection_reason":format!("{:?}",person.selection_reason),"retain_through":person.retain_through,
                     "selected":person.selected,"candidate_count":person.alternatives.len(),
                     "needs":needs,"beliefs":beliefs,"forecast":forecast(chosen),
                     "ranking":"terminal, priority-ordered deficits, failures, buffer_gap, descending(closing_coins+stock_value), labor, candidate_index"}));
