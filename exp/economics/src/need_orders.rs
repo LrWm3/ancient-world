@@ -3,7 +3,7 @@
 use crate::{acquisition::Resources, model::*, negotiation, opportunities, substitution};
 use std::collections::BTreeMap;
 
-const MAX_RESERVE_MONTHS: u32 = 24;
+pub(crate) const MAX_RESERVE_MONTHS: u32 = 24;
 const EXAMPLE_RESERVE_MONTHS: u32 = 2;
 const EXAMPLE_SELLER: AgentId = 89;
 const EXAMPLE_GRAIN: i32 = 10;

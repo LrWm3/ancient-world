@@ -37,8 +37,17 @@ pub enum ClearingPriority {
     MarketId,
     ReverseMarketId,
 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum OrderHorizon {
+    /// Existing buying horizon (planner or one month) and separate reserve policy.
+    #[default]
+    Legacy,
+    /// One horizon for both demand and protected stock; production planning is unchanged.
+    Aligned(u32),
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
+    pub order_horizon: OrderHorizon,
     pub additional: Vec<Listing>,
     pub priority: ClearingPriority,
     /// Opt-in need-based side selection instead of the registered side.
@@ -94,6 +103,8 @@ pub struct OrderReceipt {
     pub reason: OrderReason,
     pub resource: ResourceId,
     pub lot: i32,
+    pub buy_months: u32,
+    pub reserve_months: u32,
     /// Only populated when need/reserve evaluation actually ran.
     pub available: Option<i32>,
     pub protected: Option<i128>,
@@ -214,6 +225,10 @@ pub fn validate(world: &World) -> Result<(), String> {
     if !(2..=MAX_TRADERS).contains(&c.traders.len()) || !world.agents.iter().any(|a| a.id == c.town)
     {
         return Err("invalid town market participants or town".into());
+    }
+    if matches!(c.order_horizon, OrderHorizon::Aligned(months) if !(1..=need_orders::MAX_RESERVE_MONTHS).contains(&months))
+    {
+        return Err("aligned order horizon must be within reserve horizon bounds".into());
     }
     if c.additional.len() + 1 > MAX_LISTINGS {
         return Err("too many town listings".into());
@@ -396,6 +411,14 @@ fn orders(
         .as_ref()
         .filter(|a| a.month == state.month)
         .ok_or("missing current opening admission")?;
+    let (buy_months, reserve_months) = match c.order_horizon {
+        OrderHorizon::Legacy => (
+            world.production_market.as_ref().map_or(1, |p| p.horizon),
+            c.reserve.reserve_months,
+        ),
+        OrderHorizon::Aligned(months) => (months, months),
+    };
+    let reserve = need_orders::Policy { reserve_months };
     let mut orders = Vec::new();
     let mut receipts = Vec::new();
     for t in &c.traders {
@@ -423,6 +446,8 @@ fn orders(
                 reason: OrderReason::Submitted,
                 resource: m.goods.resource,
                 lot: m.goods.quantity,
+                buy_months,
+                reserve_months,
                 available: None,
                 protected: None,
                 deficits_before: None,
@@ -450,12 +475,7 @@ fn orders(
             };
             let s = pair(world, c, &entry, state.month)?;
             let d = need_orders::generate_for_horizon(
-                world,
-                state,
-                resources,
-                &c.reserve,
-                &s,
-                world.production_market.as_ref().map_or(1, |p| p.horizon),
+                world, state, resources, &reserve, &s, buy_months,
             )?;
             let exists = if side == Side::Buy {
                 d.buy.is_some()
@@ -697,6 +717,7 @@ pub fn scenario() -> (World, State) {
     })
     .collect();
     w.town_market = Some(Config {
+        order_horizon: OrderHorizon::Legacy,
         additional: vec![],
         priority: ClearingPriority::MarketId,
         adaptive: false,

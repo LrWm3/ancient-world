@@ -88,6 +88,17 @@ fn main() -> Result<(), String> {
         };
         w.production_market.as_mut().unwrap().demand =
             production_market::DemandSignal::IncludeUnfilledBids;
+        if let Ok(value) = std::env::var("ORDER_HORIZON") {
+            let horizon = match value.as_str() {
+                "legacy" => economics_compute_smoke::town_market::OrderHorizon::Legacy,
+                _ => economics_compute_smoke::town_market::OrderHorizon::Aligned(
+                    value
+                        .parse()
+                        .map_err(|_| "ORDER_HORIZON must be legacy or a positive month count")?,
+                ),
+            };
+            w.town_market.as_mut().unwrap().order_horizon = horizon;
+        }
         if mode == "directed" {
             use production_market::{Choice, Policy, Purchases, Work};
             // Diagnostic only: establish whether chosen complementary work can

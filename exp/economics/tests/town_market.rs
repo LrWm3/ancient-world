@@ -509,3 +509,82 @@ fn adaptive_receipts_distinguish_policy_protection_and_buy_first() {
         );
     }
 }
+
+#[test]
+fn aligned_horizons_remove_this_stock_surplus_and_demand_overlap() {
+    use economics_compute_smoke::{
+        production_market::{self, Choice, Policy},
+        scenario::FUEL,
+    };
+    use town_market::{OrderHorizon, OrderReason};
+    for (policy, buy, protected, side) in [
+        (OrderHorizon::Legacy, 6, 2, Side::Buy),
+        (OrderHorizon::Aligned(2), 2, 2, Side::Sell),
+        (OrderHorizon::Aligned(6), 6, 3, Side::Buy),
+    ] {
+        let (mut w, mut s) = production_market::reciprocal_scenario(true);
+        w.town_market.as_mut().unwrap().order_horizon = policy;
+        w.production_market.as_mut().unwrap().policy = Policy::Fixed(
+            w.participants
+                .iter()
+                .map(|p| (p.agent, Choice::default()))
+                .collect(),
+        );
+        s.balances.insert((PERSON, FUEL), 3);
+        let sim = opening(w, s, Backend::Reference);
+        assert_eq!(sim.world.production_market.as_ref().unwrap().horizon, 6);
+        let r = town_market::evaluate(&sim.world, &sim.state).unwrap();
+        let rows: Vec<_> = r
+            .order_receipts
+            .iter()
+            .filter(|r| r.agent == PERSON && r.market == production_market::WOOD_MARKET)
+            .collect();
+        assert_eq!(rows[0].buy_months, buy);
+        assert_eq!(rows[0].protected, Some(protected));
+        assert!(
+            rows.iter()
+                .any(|r| r.side == side && r.reason == OrderReason::Submitted)
+        );
+        if policy == OrderHorizon::Aligned(2) {
+            assert_eq!(rows[0].reason, OrderReason::NoNeedImprovement);
+        }
+    }
+    for bad in [0, 25] {
+        let (mut w, s) = town_market::scenario();
+        w.town_market.as_mut().unwrap().order_horizon = OrderHorizon::Aligned(bad);
+        assert!(Simulation::new(w, s, Backend::Reference).is_err());
+    }
+}
+
+#[test]
+fn aligned_horizons_match_cpu_checkpoint_and_reordered_fixed_policy_runs() {
+    use economics_compute_smoke::production_market::{self, Choice, Policy};
+    for months in [2, 6] {
+        let (mut w, s) = production_market::reciprocal_scenario(true);
+        w.town_market.as_mut().unwrap().order_horizon = town_market::OrderHorizon::Aligned(months);
+        w.production_market.as_mut().unwrap().policy = Policy::Fixed(
+            w.participants
+                .iter()
+                .map(|p| (p.agent, Choice::default()))
+                .collect(),
+        );
+        let mut reference = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+        reference.run_months(4).unwrap();
+        w.participants.reverse();
+        w.town_market.as_mut().unwrap().traders.reverse();
+        w.town_market.as_mut().unwrap().additional[0]
+            .traders
+            .reverse();
+        let mut cpu = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+        for _ in 0..4 {
+            cpu.step().unwrap();
+            cpu.state = Simulation::new(cpu.world.clone(), cpu.state.clone(), Backend::CubeCpu)
+                .unwrap()
+                .state;
+            cpu.run_months(1).unwrap();
+        }
+        assert_eq!(reference.state, cpu.state);
+        assert_eq!(reference.ledger, cpu.ledger);
+        assert_eq!(reference.reports, cpu.reports);
+    }
+}
