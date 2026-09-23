@@ -145,3 +145,66 @@ The CPU scenario console independently agrees on deficits, volumes, capacity
 debits, balances and process failures. Raw logs remain under ignored `output/`.
 This is an observational comparison, not a parameter sweep or intervention; the
 full Rust suite was not rerun because no simulation or observer code changed.
+
+## Order-generation follow-up
+
+Implemented the missing domain receipts and reran the same twelve-month autonomous
+CPU case with `TELEMETRY_PLANNING=selected` and `TELEMETRY_SETTLEMENT=true` into
+`output/economics/order-generation-review/`. No economic policy was changed.
+The new output exactly matches the prior run's selected plans, full-horizon
+outcomes, committed transactions, market observations, balances and need metrics.
+There are 192 new receipts across the two goods, with zero omitted log records.
+
+For the wood book's 48 buy-side and 48 sell-side opportunities:
+
+| Side | First decisive outcome | Count |
+| --- | --- | ---: |
+| Buy | Submitted | 8 |
+| Buy | Purchase policy excludes wood | 40 |
+| Sell | Submitted | 8 |
+| Sell | Stock protected for needs/commitments | 26 |
+| Sell | Less than one lot in opening stock | 6 |
+| Sell | Buy already selected | 8 |
+
+There were no eligibility exclusions or no-need-improvement rejections in this
+particular wood sample. This is not a claim that all policy-blocked buyers would
+otherwise have needed, afforded or stored a purchase; those later gates were not
+reached. Submitted buy/sell counts still never overlap in the same month.
+
+The receipts explain concrete boundaries:
+
+- Month two: all four buy sides are policy-blocked. Agents 88/89 have three units
+  with two protected, so each submits one sell lot. Agents 91/92 have one unit,
+  all protected, so neither submits a sell order.
+- Month seven: buyers are again policy-blocked; 91/92 have three units with two
+  protected and post sells, while 88/89 protect both of their two units.
+- Month eight: all four submit buys, and all four sell sides are skipped solely
+  because the buy side was selected first. The buy evaluations show 88/89 holding
+  three units with two protected and 91/92 holding four with two protected. Thus
+  everybody has at least one lot above the protection threshold, yet nobody is
+  permitted to submit a sell side at this boundary.
+
+Month eight exposes an additional structural mismatch: the buy test examines a
+six-month horizon, while the seller protects two months. An agent can therefore
+have both a long-horizon demand for another unit and stock above its shorter
+protection threshold. Each hypothetical purchase reduces that agent's warmth
+shortfall by one. The hardcoded buy-first, one-side rule turns all four into
+buyers. This evidence establishes why the sell sides were skipped, not that
+executing every possible sale would improve their actual long-term outcomes.
+
+This makes **explicit order-side selection** a useful next bounded policy test,
+with current buy-first as the control. Evaluate buy and sell candidates against a
+consistent planning basis, then choose a side according to a named policy. Simply
+switching everybody to sell-first could create the reverse imbalance; permitting
+both sides would also need self-trade prevention and shared resource budgets.
+The counterparty-forecast mismatch remains relevant; changing side selection alone
+is not yet demonstrated to solve it. No such behavioral change is included here.
+
+Verification covers forged-receipt rejection, absent-admission and missing-stock
+reasons, policy exclusions, protected stock, buy-first suppression, submitted-order
+correspondence, and telemetry distinguishing submission from subsequent funding or
+storage failure. Town, reciprocal-market and telemetry suites pass (33 tests),
+including CPU/catalog-reordering/checkpoint controls; strict Clippy passes. An
+initial ordering test caught receipts following trader registration order; canonical
+side/agent sorting corrected the diagnostic ordering without changing matching.
+Raw runs and test output remain ignored under `output/`.

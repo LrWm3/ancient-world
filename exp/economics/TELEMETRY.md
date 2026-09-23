@@ -171,8 +171,8 @@ window, its comparison is filtered out. Continue stepping through the observer
 even during filtered months to preserve the actual path for tracked plans.
 
 Current coverage is deliberately explicit: production-market search, town-market
-orders/match attempts, and common batch work receipts. Legacy search variants,
-credit/default waterfalls, agreements and every pre-order rejection are not yet
+order-generation gates, orders/match attempts, and common batch work receipts.
+Legacy search variants, credit/default waterfalls and agreements are not yet
 fully exported. An absent order does not acquire an invented rejection reason.
 Specialized observers can extend these records as concrete diagnostics require.
 
@@ -191,3 +191,29 @@ not evidence that autonomous reciprocal wood trading has been solved.
 
 The [twelve-month observer review](OBSERVER-REVIEW.md) applies these observers to
 the missing autonomous wood trades, with a directed control and remaining gaps.
+
+## Order-generation receipts
+
+Settlement observation now includes `order_generation`: one receipt per configured
+agent/market/side at Acquire. Adaptive books inspect both sides; fixed-side books
+record only the configured side. Reasons are `Submitted`, `NotAdmitted`,
+`Inactive`, `Ineligible`, `PurchasePolicy`, `OtherSideSelected`,
+`NoNeedImprovement`, `InsufficientOpeningStock`, or `ProtectedStock`.
+
+These are first decisive gates, not exhaustive hypothetical failures. The existing
+buy-first rule still selects at most one side. When a buy is submitted, its sell
+receipt is `OtherSideSelected`, with no pretend reserve evaluation. Likewise,
+policy/eligibility exclusions carry null evaluation fields. Evaluated receipts
+contain goods resource, lot size, opening availability, protected quantity and,
+for buys, need deficits before/after one hypothetical purchase. Protected quantities
+include needs and known commitments; no goods are reserved by recording a receipt.
+Insufficient opening stock takes precedence when there is less than one lot;
+otherwise a rejected sale is classified as protected stock.
+
+Inputs are the same opening balances and dated admission used by order generation,
+before either book settles. Receipts do not add a second evaluation or shift work
+between phases. Funding/storage constraints still belong to matching; a submitted
+buy can subsequently fail either check. Receipts are stored in the domain round,
+recomputed during atomic settlement validation, and exported only after commit.
+Stable side/agent ordering preserves catalog-reordering equivalence. Detailed
+exclusions now appear in the [review follow-up](OBSERVER-REVIEW.md#order-generation-follow-up).
