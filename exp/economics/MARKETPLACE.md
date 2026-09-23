@@ -1,9 +1,11 @@
-# Marketplace agent: person-only exchange venue
+# Marketplace agent and exchange catalog
 
 Implemented as a component on an ordinary agent. The initial marketplace exists
 at initialization, has no membership agreement, admission fee, formation or
 dissolution flow, and owns no participant inventory. It facilitates exchange
-between eligible people through the existing Acquire and settlement boundaries.
+between eligible agents through the existing Acquire and settlement boundaries.
+The original negotiation fixture admits only people; the physical minting fixture
+also admits the state.
 
 ## Initial venue and trade catalog
 
@@ -16,7 +18,7 @@ and marketplace agent 90. Its catalog is:
 
 An eligible person can be buyer or seller. Only this catalog entry is enabled:
 wood, seed, tools, land rights and services are not yet listed. The catalog is
-editable `Marketplace.markets` data, with stable market IDs, stock commodity,
+editable `Marketplace.markets` data, with stable market IDs, commodity,
 lot quantity, payment resource and price tick. Adding a catalog entry declares
 support; it does not create goods, counterparties or orders.
 
@@ -30,17 +32,24 @@ cargo +1.92.0 run --locked --example negotiation
 
 ## Eligibility and existing state rules
 
-The venue's `required_type` is `PERSON_TYPE`. Classification comes from the
+The venue's `allowed_types` set is `{PERSON_TYPE}` in the negotiation fixture.
+Classification comes from the
 existing state transaction policy's `agent_types` table; there is no second type
-registry and no membership list. An unclassified agent is ineligible. A state,
-marketplace or other non-person remains ineligible even if its type has permission
-to perform stock exchanges.
+registry and no membership list. An unclassified or unlisted type is ineligible,
+even if it has permission to perform stock exchanges. An empty set admits nobody.
+The venue itself cannot trade through its own catalog.
 
 Both parties must also be active and permitted to perform `StockTrade` under the
 existing state policy. The venue cannot grant an exception to state rules. These
 checks apply to discovery and negotiation and are repeated during settlement.
 The marketplace itself must be active. No new lifecycle or membership machinery
 is introduced.
+
+The catalog accepts stock goods and period capacities, with stock payment.
+Bilateral negotiation still requires stock goods. The [physical minting pilot](MINTING.md)
+provides dated capacity exchange: both parties additionally need `CapacityTrade`
+permission, and the transferred hours expire at the next Open boundary. Merely
+listing labor does not create an employment agreement or reserve future work.
 
 ## Routing, recording and pricing state
 

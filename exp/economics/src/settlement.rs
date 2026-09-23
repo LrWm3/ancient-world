@@ -12,6 +12,7 @@ const MAX_PROCESS_DURATION_MONTHS: u32 = 120;
 
 pub fn validate_world(world: &World, state: &State) -> Result<(), String> {
     crate::opportunities::validate(world)?;
+    crate::minting::validate(world)?;
     crate::negotiation::validate(world)?;
     crate::town_market::validate(world)?;
     crate::production_market::validate(world)?;
@@ -240,6 +241,7 @@ pub(crate) fn commit_core(
     if (batch.id, batch.month, batch.phase) != (state.next_batch, state.month, state.phase) {
         return Err("duplicate, stale or out-of-order batch".into());
     }
+    crate::minting::validate_batch(world, state, batch)?;
     crate::pool_market::validate_batch(world, state, batch, effect_limit)?;
     crate::acquisition::validate_batch(world, state, batch)?;
     crate::town_market::validate_batch(world, state, batch)?;
@@ -547,6 +549,7 @@ pub(crate) fn commit_core(
             || !world.bids.is_empty()
             || world.market.is_some()
             || world.negotiation.is_some()
+            || world.minting.is_some()
             || world.town_market.is_some()
             || world.credit.is_some())
     {

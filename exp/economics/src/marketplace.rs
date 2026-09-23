@@ -20,7 +20,7 @@ pub struct Market {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Marketplace {
     pub agent: AgentId,
-    pub required_type: opportunities::AgentType,
+    pub allowed_types: BTreeSet<opportunities::AgentType>,
     /// Explicit catalog of facilitated exchanges, not owned inventory.
     pub markets: Vec<Market>,
 }
@@ -50,10 +50,11 @@ pub fn eligible(world: &World, state: &State, marketplace: AgentId, participant:
         !state.terminal.contains_key(&marketplace)
             && !state.terminal.contains_key(&participant)
             && participant != marketplace
-            && world
-                .transaction_policy
-                .as_ref()
-                .is_some_and(|p| p.agent_types.get(&participant) == Some(&m.required_type))
+            && world.transaction_policy.as_ref().is_some_and(|p| {
+                p.agent_types
+                    .get(&participant)
+                    .is_some_and(|t| m.allowed_types.contains(t))
+            })
             && opportunities::permits(world, state, participant, opportunities::Action::StockTrade)
     })
 }
@@ -168,12 +169,14 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                 || market.goods.quantity <= 0
                 || market.price_tick <= 0
                 || market.goods.resource == market.payment
-                || [market.goods.resource, market.payment].iter().any(|id| {
-                    !world
-                        .resources
-                        .iter()
-                        .any(|r| r.id == *id && r.kind == ResourceKind::Stock)
+                || !world.resources.iter().any(|r| {
+                    r.id == market.goods.resource
+                        && matches!(r.kind, ResourceKind::Stock | ResourceKind::Capacity)
                 })
+                || !world
+                    .resources
+                    .iter()
+                    .any(|r| r.id == market.payment && r.kind == ResourceKind::Stock)
             {
                 return Err("invalid marketplace trade catalog".into());
             }

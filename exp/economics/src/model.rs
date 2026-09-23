@@ -179,6 +179,7 @@ pub struct ScheduledStart {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct World {
+    pub minting: Option<crate::minting::Config>,
     pub production_market: Option<crate::production_market::Config>,
     pub town_market: Option<crate::town_market::Config>,
     pub work_choice: Option<crate::work_choice::Config>,
@@ -282,6 +283,7 @@ pub struct Receipt {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Batch {
+    pub minting: Option<crate::minting::Boundary>,
     pub town_market: Option<crate::town_market::Boundary>,
     pub work_choice: Option<crate::work_choice::Decision>,
     pub credit: Option<crate::credit::Boundary>,
@@ -336,6 +338,7 @@ impl MonthReport {
 impl Batch {
     pub fn empty(state: &State) -> Self {
         Self {
+            minting: None,
             work_choice: None,
             credit: None,
             negotiation: None,

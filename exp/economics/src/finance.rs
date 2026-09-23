@@ -1,7 +1,9 @@
 //! Shared settlement primitives. Domain agreements own terms and authoritative receipts.
 use crate::model::*;
 
-/// A stock transfer, not issuance or destruction. Atomicity is provided by batch commit.
+/// Conserved account transfer, not issuance or destruction. Domain resolvers
+/// restrict resource kinds and dates (including same-month capacity delegation).
+/// Atomicity is provided by batch commit.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Transfer {
     pub from: AgentId,

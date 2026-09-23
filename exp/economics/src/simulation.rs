@@ -50,6 +50,7 @@ impl Simulation {
 
     pub(crate) fn step_core(&mut self) -> Result<(), String> {
         let mut batch = Batch {
+            minting: None,
             work_choice: None,
             credit: None,
             negotiation: None,
@@ -95,7 +96,10 @@ impl Simulation {
                     batch.commitments = Some(settlement);
                 }
                 Phase::Acquire => {
-                    if self.world.town_market.is_some() {
+                    if self.world.minting.is_some() {
+                        batch.minting = crate::minting::evaluate(&self.world, &self.state)?;
+                        batch.transactions = batch.minting.as_ref().unwrap().transactions.clone();
+                    } else if self.world.town_market.is_some() {
                         let boundary = crate::town_market::evaluate(&self.world, &self.state)?;
                         batch.transactions = boundary.transactions.clone();
                         batch.town_market = Some(crate::town_market::Boundary::Market(boundary));

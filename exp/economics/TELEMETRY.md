@@ -243,3 +243,13 @@ Posted offer receipts also include acceptance/rejection and proposer/recipient
 assessments for each revision. `joint_projections` separates centralized forecasts
 from individual forecasts; it remains zero for Posted discovery.
 See [cooperative discovery](COOPERATION.md) for the information and failure policies.
+
+## Physical minting observer
+
+With settlement observation enabled, the [minting pilot](MINTING.md) emits
+`physical_minting_market` records for accepted/rejected packages, with dated
+counterparties, market IDs, prices and rejection reasons. `physical_coin_issuance`
+records identify the issuer, completed process, coin resource and quantity.
+Generic transaction logs retain all material, money and capacity legs. Agent
+filters select packages involving a selected buyer/seller and issuance by a
+selected issuer. Observation does not participate in reservations or settlement.

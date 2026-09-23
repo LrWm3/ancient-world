@@ -417,7 +417,7 @@ pub fn scenario() -> (World, State) {
     });
     world.marketplaces.push(marketplace::Marketplace {
         agent: MARKETPLACE,
-        required_type: opportunities::PERSON_TYPE,
+        allowed_types: BTreeSet::from([opportunities::PERSON_TYPE]),
         markets: vec![marketplace::Market {
             id: GRAIN_MARKET,
             goods: Amount::new(crate::scenario::GRAIN, GRAIN_LOT),

@@ -41,6 +41,41 @@ pub(super) fn batch(
 ) -> Vec<Value> {
     let mut records = vec![];
     if config.settlement
+        && let Some(c) = &world.minting
+    {
+        if let Some(boundary) = &batch.minting {
+            for receipt in &boundary.receipts {
+                let deals: Vec<_> = c
+                    .deals
+                    .iter()
+                    .filter(|d| receipt.deals.contains(&d.id))
+                    .collect();
+                if deals
+                    .iter()
+                    .any(|d| selected(config, d.buyer) || selected(config, d.seller))
+                {
+                    records.push(json!({"kind":"physical_minting_market","package":receipt.package,
+                        "accepted":receipt.accepted,"reason":receipt.reason,
+                        "deals":deals.iter().map(|d|json!({"id":d.id,"month":d.month,
+                            "market":d.market,"buyer":d.buyer,"seller":d.seller,"price":d.price})).collect::<Vec<_>>()}));
+                }
+            }
+        }
+        if selected(config, c.issuer) {
+            for p in batch
+                .transactions
+                .iter()
+                .filter_map(|t| t.process.as_ref())
+                .filter(|p| {
+                    p.after.definition == c.definition && p.after.status == Status::Completed
+                })
+            {
+                records.push(json!({"kind":"physical_coin_issuance","issuer":c.issuer,
+                    "process":p.after.id,"coin":c.coin,"quantity":world.definition(c.definition).outputs[0].quantity}));
+            }
+        }
+    }
+    if config.settlement
         && let Some(credit) = &batch.credit
     {
         let visible = |loan: &crate::credit::Loan| {

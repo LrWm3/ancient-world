@@ -64,7 +64,8 @@ class. Processes describe possible transformations; transactions record outcomes
 - [Remaining-value work choices](REMAINING-VALUE.md): maintain an inherited crop, choose wood collection or wait using bounded forecasts.
 - [Secured credit](SECURED-CREDIT.md): financed plots, monthly interest, balance sheets and fixed-value repossession with attached crops on CPU.
 - [ZIP pricing](ZIP.md): persistent margin learning and repeated CPU comparisons with fixed/concession policies.
-- [Marketplace agent](MARKETPLACE.md): person-only access, explicit grain/coin catalog and persistent participant pricing records.
+- [Marketplace agent](MARKETPLACE.md): configurable admitted agent types, explicit catalogs and persistent participant pricing records.
+- [Physical minting](MINTING.md): wheat sales fund metal and dated labor purchases; actual production creates coins, with treasury/material/labor shortfall controls.
 - [Negotiated pricing](NEGOTIATED-PRICING.md): bilateral reservation prices, bounded quote concessions and atomic CPU exchange.
 - [Consequence-based allocation](CONSEQUENCE-PRIORITY.md): urgent warmth versus tool investment, with controlled CPU outcomes.
 - [Shared-access learning](ACCESS-LEARNING.md): realized-access estimates and optimistic/learned CPU comparisons.

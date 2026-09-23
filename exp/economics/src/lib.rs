@@ -133,3 +133,5 @@ pub mod credit_stress;
 pub mod cooperation;
 
 pub mod laws;
+
+pub mod minting;

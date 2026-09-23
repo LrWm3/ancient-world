@@ -9,8 +9,8 @@ fn main() -> Result<(), String> {
     let (catalog, _) = negotiation::scenario();
     for venue in &catalog.marketplaces {
         println!(
-            "Marketplace {} requires agent type {} (person).",
-            venue.agent, venue.required_type
+            "Marketplace {} admits agent types {:?}.",
+            venue.agent, venue.allowed_types
         );
         for market in &venue.markets {
             let name = |id| &catalog.resources.iter().find(|r| r.id == id).unwrap().name;

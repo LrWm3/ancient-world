@@ -159,6 +159,7 @@ pub fn with_warmth(warmth_first: bool) -> (World, State) {
 
 pub fn baseline() -> (World, State) {
     let world = World {
+        minting: None,
         production_market: None,
         work_choice: None,
         credit: None,
