@@ -11,6 +11,12 @@ const LEGACY_RIGHT_END: u32 = 9;
 fn main() -> Result<(), String> {
     for short_right in [true, false] {
         let (mut world, state) = stock_sale::scenario("funded")?;
+        // Keep the historical permission comparison independent of the need-limit guard.
+        if let economics_compute_smoke::borrowing::Policy::Compare(c) =
+            &mut world.credit.as_mut().unwrap().purchase_policy
+        {
+            c.need_limits.clear();
+        }
         if short_right {
             for right in &mut world.rights {
                 right.through = LEGACY_RIGHT_END;

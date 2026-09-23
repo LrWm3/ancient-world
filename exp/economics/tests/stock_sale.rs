@@ -215,14 +215,25 @@ fn removing_food_reserve_can_make_debt_payable_by_sacrificing_meals() {
     assert_eq!(p.closing_debt, 0);
     assert_eq!(p.deficits[&NUTRITION], 9);
     assert_eq!(p.months[0].sold_stock, 2);
-    // The comparative borrowing score alone is not an absolute food safeguard.
-    assert!(d.accept);
+    assert!(!d.accept);
+    assert_eq!(
+        d.reason,
+        Reason::NeedLimitExceeded {
+            resource: NUTRITION,
+            projected: 9,
+            maximum: 0
+        }
+    );
 }
 
 #[test]
 fn cultivation_right_duration_explains_late_hunger_without_a_planner_change() {
     use economics_compute_smoke::scenario::{GROW, SEED};
     let mut extended = sim("funded", Backend::CubeCpu);
+    // Isolate the right-duration diagnosis from the newer absolute borrowing guard.
+    if let Policy::Compare(c) = &mut extended.world.credit.as_mut().unwrap().purchase_policy {
+        c.need_limits.clear();
+    }
     let mut short = extended.clone();
     short.world.rights[0].through = 9;
     let mut same_world = short.world.clone();

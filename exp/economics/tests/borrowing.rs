@@ -96,8 +96,10 @@ fn grain_and_hidden_gifts_do_not_pay_installments_and_short_horizons_are_rejecte
     let d = borrowing::evaluate(&s.world, &s.state).unwrap();
     assert_eq!(d.reason, Reason::InstallmentShortfall);
     assert_eq!(d.purchase.unwrap().missed_payment, Some(2));
-    s.world.credit.as_mut().unwrap().purchase_policy =
-        Policy::Compare(borrowing::Config { horizon_months: 4 });
+    s.world.credit.as_mut().unwrap().purchase_policy = Policy::Compare(borrowing::Config {
+        horizon_months: 4,
+        need_limits: Default::default(),
+    });
     assert!(Simulation::new(s.world, s.state, Backend::Reference).is_err());
 }
 #[test]
@@ -154,4 +156,125 @@ fn monthly_batch_checkpoint_and_reordered_reference_agree() {
         assert_eq!(cpu.state, monthly.state);
         assert_eq!(cpu.ledger, monthly.ledger);
     }
+}
+
+#[test]
+fn absolute_need_limit_rejects_repayable_loans_even_when_declining_is_worse() {
+    let (w, state) = economics_compute_smoke::stock_sale::scenario("food-tight").unwrap();
+    let mut s = Simulation::new(w, state, Backend::CubeCpu).unwrap();
+    s.world
+        .credit
+        .as_mut()
+        .unwrap()
+        .stock_sales
+        .as_mut()
+        .unwrap()
+        .reserve_months = 0;
+    acquire(&mut s);
+    let before = s.state.clone();
+    let rejected = borrowing::evaluate(&s.world, &s.state).unwrap();
+    assert_eq!(s.state, before);
+    assert_eq!(rejected.purchase.as_ref().unwrap().closing_debt, 0);
+    assert_eq!(rejected.purchase.as_ref().unwrap().missed_payment, None);
+    assert!(rejected.decline.deficits[&NUTRITION] > 9);
+    assert_eq!(
+        rejected.reason,
+        Reason::NeedLimitExceeded {
+            resource: NUTRITION,
+            projected: 9,
+            maximum: 0
+        }
+    );
+    assert!(!rejected.accept);
+    assert!(
+        offers::feasible(
+            &s,
+            &[offers::Request::new(
+                offers::Id::FinancedPurchase(1),
+                PERSON
+            )]
+        )
+        .is_err()
+    );
+    let valid = batch(&s);
+    let mut forged = valid.clone();
+    forged
+        .credit
+        .as_mut()
+        .unwrap()
+        .decision
+        .as_mut()
+        .unwrap()
+        .need_limits
+        .clear();
+    assert!(
+        settlement::commit(
+            &s.world,
+            &mut s.state,
+            &forged,
+            Backend::CubeCpu,
+            DEFAULT_EFFECT_LIMIT
+        )
+        .is_err()
+    );
+    assert_eq!(s.state, before);
+    let mut live = s.clone();
+    let mut reference = s.clone();
+    reference.backend = Backend::Reference;
+    live.run_months(18).unwrap();
+    for _ in 0..18 {
+        reference.run_months(1).unwrap();
+    }
+    assert!(live.state.credit.loans.is_empty());
+    assert_eq!(live.state, reference.state);
+    assert_eq!(live.ledger, reference.ledger);
+    assert_eq!(
+        live.state.balance(PERSON, TOKEN),
+        rejected.decline.closing_coins
+    );
+    for (maximum, accept) in [(8, false), (9, true)] {
+        if let Policy::Compare(c) = &mut s.world.credit.as_mut().unwrap().purchase_policy {
+            c.need_limits.insert(NUTRITION, maximum);
+        }
+        assert_eq!(
+            borrowing::evaluate(&s.world, &s.state).unwrap().accept,
+            accept
+        );
+    }
+    if let Policy::Compare(c) = &mut s.world.credit.as_mut().unwrap().purchase_policy {
+        c.need_limits.clear();
+    }
+    assert!(borrowing::evaluate(&s.world, &s.state).unwrap().accept);
+}
+
+#[test]
+fn limits_validate_resources_and_follow_generic_provision_ids() {
+    const OTHER_PROVISION: ResourceId = 777;
+    let mut s = sim("affordable", Backend::Reference);
+    for (resource, maximum) in [(NUTRITION, -1), (OTHER_PROVISION, 0)] {
+        if let Policy::Compare(c) = &mut s.world.credit.as_mut().unwrap().purchase_policy {
+            c.need_limits = [(resource, maximum)].into();
+        }
+        assert!(borrowing::validate(&s.world).is_err());
+    }
+    s.world
+        .resources
+        .iter_mut()
+        .find(|r| r.id == NUTRITION)
+        .unwrap()
+        .id = OTHER_PROVISION;
+    for d in &mut s.world.definitions {
+        for output in &mut d.outputs {
+            if output.resource == NUTRITION {
+                output.resource = OTHER_PROVISION;
+            }
+        }
+    }
+    s.world.participants[0].needs[0].resource = OTHER_PROVISION;
+    assert!(borrowing::validate(&s.world).is_ok());
+    acquire(&mut s);
+    let d = borrowing::evaluate(&s.world, &s.state).unwrap();
+    assert!(d.accept);
+    assert_eq!(d.need_limits[&OTHER_PROVISION], 0);
+    assert_eq!(d.purchase.unwrap().deficits[&OTHER_PROVISION], 0);
 }

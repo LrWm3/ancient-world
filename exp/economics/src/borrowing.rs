@@ -24,6 +24,8 @@ pub enum Policy {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
     pub horizon_months: u32,
+    /// Maximum cumulative unmet units per provision over this forecast. Empty is unconstrained.
+    pub need_limits: BTreeMap<ResourceId, i64>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Month {
@@ -52,6 +54,11 @@ pub enum Reason {
     InstallmentShortfall,
     Infeasible(String),
     NotBeneficial,
+    NeedLimitExceeded {
+        resource: ResourceId,
+        projected: i64,
+        maximum: i64,
+    },
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Decision {
@@ -59,6 +66,7 @@ pub struct Decision {
     pub offer: u32,
     pub month: u32,
     pub through: u32,
+    pub need_limits: BTreeMap<ResourceId, i64>,
     pub decline: Projection,
     pub purchase: Option<Projection>,
     pub accept: bool,
@@ -91,6 +99,23 @@ pub fn validate(world: &World) -> Result<(), String> {
         || !world.scheduled_starts.is_empty()
     {
         return Err("borrowing comparison requires a needs-bearing buyer, ordinary work policy and a horizon covering all installments".into());
+    }
+    let participant = world
+        .participants
+        .iter()
+        .find(|p| p.agent == c.application.buyer)
+        .unwrap();
+    if config.need_limits.iter().any(|(resource, maximum)| {
+        *maximum < 0
+            || !participant
+                .needs
+                .iter()
+                .any(|n| n.resource == *resource && n.quantity > 0)
+    }) {
+        return Err(
+            "borrowing need limits require nonnegative bounds on the borrower's positive needs"
+                .into(),
+        );
     }
     Ok(())
 }
@@ -273,9 +298,21 @@ pub fn evaluate(world: &World, state: &State) -> Result<Decision, String> {
             i64::from(p.closing_debt) - i64::from(p.closing_coins),
         )
     };
+    let violation = purchase.as_ref().ok().and_then(|p| {
+        needs.iter().find_map(|n| {
+            let maximum = *config.need_limits.get(&n.resource)?;
+            let projected = p.deficits.get(&n.resource).copied().unwrap_or(0);
+            (projected > maximum).then_some(Reason::NeedLimitExceeded {
+                resource: n.resource,
+                projected,
+                maximum,
+            })
+        })
+    });
     let reason = match &purchase {
         Err(e) => Reason::Infeasible(e.clone()),
         Ok(p) if p.missed_payment.is_some() || p.closing_debt > 0 => Reason::InstallmentShortfall,
+        Ok(_) if violation.is_some() => violation.unwrap(),
         Ok(p) if score(p) < score(&decline) => Reason::Beneficial,
         Ok(_) => Reason::NotBeneficial,
     };
@@ -287,6 +324,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Decision, String> {
             .month
             .checked_add(config.horizon_months - 1)
             .ok_or("borrowing horizon overflow")?,
+        need_limits: config.need_limits.clone(),
         decline,
         purchase: purchase.ok(),
         accept: reason == Reason::Beneficial,
@@ -332,6 +370,7 @@ pub fn scenario(case: &str) -> Result<(World, State), String> {
     let c = w.credit.as_mut().unwrap();
     c.purchase_policy = Policy::Compare(Config {
         horizon_months: DECISION_MONTHS,
+        need_limits: BTreeMap::new(),
     });
     c.endowments
         .iter_mut()

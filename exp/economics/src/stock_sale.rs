@@ -234,7 +234,7 @@ pub(crate) fn settle(
 }
 
 pub fn scenario(case: &str) -> Result<(World, State), String> {
-    use crate::scenario::{GRAIN, GROW, PERSON, SEED, STATE_AGENT, TOKEN};
+    use crate::scenario::{GRAIN, GROW, NUTRITION, PERSON, SEED, STATE_AGENT, TOKEN};
     let (mut w, s) = crate::borrowing::scenario("affordable")?;
     for right in &mut w.rights {
         right.through = CULTIVATION_RIGHT_MONTHS;
@@ -243,6 +243,7 @@ pub fn scenario(case: &str) -> Result<(World, State), String> {
     c.offers[0].loan.term_months = LOAN_MONTHS;
     c.purchase_policy = crate::borrowing::Policy::Compare(crate::borrowing::Config {
         horizon_months: FORECAST_MONTHS,
+        need_limits: BTreeMap::from([(NUTRITION, 0)]),
     });
     c.endowments
         .iter_mut()
