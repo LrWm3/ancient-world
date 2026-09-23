@@ -308,3 +308,7 @@ and optional counterparty-expectation / plan-persistence variants under the same
 [Harvest-funded loan stress controls](CREDIT-STRESS.md) compare normal repayment,
 a lost harvest followed by recovery, and repeated harvest failure with crop-preserving
 repossession. The CPU runner exposes monthly balance sheets and settlement receipts.
+
+[Cooperative discovery](COOPERATION.md) compares mutual candidate-plan search with
+market-posted bilateral agreements. Both use dated exchanges and cancellation on
+failed delivery; two-person CPU controls cover repeated cooperation and a lost harvest.

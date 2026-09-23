@@ -233,3 +233,10 @@ when settlement observation is enabled. These distinguish cash repayment from de
 cleared through repossession even when both end with status `Repaid`. They are
 filtered by either counterparty and read committed receipts; broader credit/resale
 coverage remains future work. See [credit stress controls](CREDIT-STRESS.md).
+
+The opt-in cooperative planner emits `cooperation` records with agreement identity,
+public offers, dated terms, selected work preferences, acceptance scores, logical
+forecast counts, completed deliveries and failures. They are enabled by settlement
+or planning observation. Agreement trade volume appears in ordinary market metrics;
+there are no synthetic spot-order or negotiation-attempt records for these deliveries.
+See [cooperative discovery](COOPERATION.md) for the information and failure policies.
