@@ -131,3 +131,17 @@ reserves actual stocks, money and storage, and productive execution honors ongoi
 work before new requests. Adaptive market sides use fixed supplied quotes. This
 does not integrate household budgets, credit or legacy state trading into the town
 book. The original fixed-side ZIP pilot remains available.
+
+## Reciprocal-market extension
+
+[Grain and wood exchange](RECIPROCAL-MARKET.md) adds a second listing with shared
+opening money, stocks and storage, per-good observations and purchase choices,
+and selectable market clearing priority. Historical unfilled bids can signal
+possible future demand; actual and forecast settlement still require finite
+resources. This remains a four-person fixed-quote experiment. Household budgets,
+credit and adaptive ZIP are not integrated by this extension.
+
+The directed complementary-work control sustains grain/wood exchange and keeps
+all four people funded. The autonomous planner has not demonstrated that result;
+its forecasts and monthly replanning can fail to provide anticipated supply.
+Use the linked results to distinguish settlement support from emergent behavior.

@@ -1,6 +1,8 @@
 # Production and purchase planning through a town market
 
-Implemented bounded CPU pilot. Four people can cultivate grain and collect fuel
+Implemented bounded CPU pilot. The original single-good results below describe
+that version; [reciprocal-market planning](RECIPROCAL-MARKET.md) extends it with
+wood trading, per-good purchases and an optional unfilled-bid forecast signal. Four people can cultivate grain and collect fuel
 wood, choosing work and purchases from the same opening observation. This extends
 [the town market](TOWN-MARKET.md); it does not replace the other experiment drivers.
 

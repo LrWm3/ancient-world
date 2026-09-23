@@ -128,3 +128,8 @@ The opt-in [production and market pilot](PRODUCTION-MARKET.md) now connects this
 book to repeated cultivation and wood collection. It adds need-based side changes,
 bounded purchases ahead of consumption and dated work/purchase decisions. Its
 adaptive sides use fixed quotes; the original fixed-side ZIP scenario is unchanged.
+
+[Reciprocal trading](RECIPROCAL-MARKET.md) extends the book to two listed goods.
+Orders share opening resources, clearing priority is explicit, and monthly prices
+and volumes are now keyed by market ID. The original single-good fixed/ZIP
+scenario retains its matching rules.
