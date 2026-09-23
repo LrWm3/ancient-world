@@ -123,3 +123,8 @@ supply household or other institutional orders through explicit budgets and mand
 or add a production/credit case with resource reservations. Other open choices are
 endogenous valuation, selectable matching/tiebreak policies, multiple lots, movement
 and delivery costs, and the use of market observations in future projections.
+
+The opt-in [production and market pilot](PRODUCTION-MARKET.md) now connects this
+book to repeated cultivation and wood collection. It adds need-based side changes,
+bounded purchases ahead of consumption and dated work/purchase decisions. Its
+adaptive sides use fixed quotes; the original fixed-side ZIP scenario is unchanged.

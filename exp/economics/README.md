@@ -45,6 +45,7 @@ rights, capabilities and selected processes, rather than require a different age
 class. Processes describe possible transformations; transactions record outcomes.
 
 - [Verification stress test](VERIFICATION-STRESS-TEST.md): staged evidence from minting and markets through institutional finance and alternative civilizations; experimental targets, not final-game content.
+- [Production and market planning](PRODUCTION-MARKET.md): four people compare work, buying and waiting; repeated crops, observed demand and trade/no-trade controls.
 - [Four-person town market](TOWN-MARKET.md): local admission, competing bids/asks, monthly prices and volume, with fixed or ZIP quotes.
 - [Need-generated orders](NEED-ORDERS.md): consumption deficits and protected surplus create recurring bilateral orders, with concession or ZIP pricing.
 - [Integration status](INTEGRATION-STATUS.md): shared credit/exchange reservations, permission checks, planning contracts and an explicit compatibility matrix.

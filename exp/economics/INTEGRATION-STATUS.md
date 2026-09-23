@@ -121,3 +121,13 @@ The other review work remains separate: deprivation consequences in the credit
 fixtures, controlled planner ablations, uncertainty and competing sellers. The
 broader architecture and speculative extensions remain proposals unless a linked
 implementation report says otherwise.
+
+## Production and market planning pilot
+
+[Production-market planning](PRODUCTION-MARKET.md) adds an opt-in four-person
+comparison of ordinary work, producer preferences, waiting and buying. Decisions
+use bounded reference rollouts and preceding market observations; live clearing
+reserves actual stocks, money and storage, and productive execution honors ongoing
+work before new requests. Adaptive market sides use fixed supplied quotes. This
+does not integrate household budgets, credit or legacy state trading into the town
+book. The original fixed-side ZIP pilot remains available.
