@@ -38,7 +38,8 @@ compose arbitrary acquisition drivers. Other credit isolation guards remain.
 The 18-month fixture uses a 100-coin plot, 20-coin downpayment, 80-coin loan,
 1% monthly outstanding-principal interest and twelve installments. The person
 starts with 65 coins, five grain and one seed. A six-month crop produces twelve
-grain and one seed. Nutrition demand is one unit/month. Grain and seed occupy
+grain and one seed. Ownership-following cultivation rights run through month 120,
+independently of the observation window. Nutrition demand is one unit/month. Grain and seed occupy
 storage; coins do not. Each party has 100 storage units. State opening coins are
 1,000; its separate posted purchase allowance is 120 coins unless limited below.
 
@@ -49,15 +50,16 @@ bridge funding. Prices are experimental calibrations, not historical estimates.
 
 | Case | Bid price / grain | Purchase allowance | Borrowing decision | Purchase projection |
 | --- | ---: | ---: | --- | --- |
-| Funded | 12 coins | 120 coins | Accept | Repays; 2 nutrition deficits |
+| Funded | 12 coins | 120 coins | Accept | Repays; 0 nutrition deficits |
 | Limited allowance | 12 coins | 12 coins | Decline | Misses month-9 installment |
 | Food-tight price | 6 coins | 120 coins | Decline | Misses month-11 installment |
-| Food-tight, reserve disabled | 6 coins | 120 coins | Accept | Repays, but 10 nutrition deficits |
+| Food-tight, reserve disabled | 6 coins | 120 coins | Accept | Repays, but 9 nutrition deficits |
 
-Funded execution sells two grain in each of months 7 and 8: four grain for 48
-coins. The loan repays in month 13, with 5.20 coins total interest and 7.80 coins
-remaining. Declining under this policy produces seven nutrition deficits versus
-two when borrowing. Monthly sales, closing money and deficits match the selected
+Funded execution sells two grain in each of months 7, 8, 15 and 16: eight grain
+for 96 coins over 18 months. The loan repays in month 13, with 5.20 coins total
+interest and 7.80 coins remaining then; later sales leave 55.80 coins at month 18.
+Declining under this policy produces seven nutrition deficits versus zero when
+borrowing. Monthly sales, closing money and deficits match the selected
 forecast. With only downpayment savings, the same funded bid cannot prevent a
 month-2 payment shortfall: future harvests do not bridge earlier obligations.
 
@@ -67,16 +69,19 @@ remain counterfactual. Collateral enforcement can clear their debt, so zero endi
 debt alone is insufficient evidence of successful repayment.
 
 Disabling the food reserve sells opening food immediately and makes the cheap-price
-loan payable at the cost of ten unmet nutrition units. The comparative borrowing
+loan payable at the cost of nine unmet nutrition units. The comparative borrowing
 score still accepts against its own decline branch under that same selling policy.
 It does **not** impose an absolute acceptable-food threshold. This control shows
 why a repayment check cannot replace protection of essential stocks.
 
-The ordinary production policy is unchanged. The funded run has late deficits in
-months 16 and 18 and no further sales during the observation window. Sustainable
-repeated production, longer-horizon food security and joint production/sale planning
-remain open work; the result demonstrates production-funded repayment, not a
-self-sustaining economy. Known posted bids survive forecast cloning, while future
+The ordinary production policy is unchanged. The original fixture inherited a
+cultivation right ending in month 9 from the short baseline experiment, which
+prevented a second crop and caused two late food deficits. Extending this fixture's
+right to month 120 removes those deficits without a planner change. The
+[repeated-credit audit](REPEATED-CREDIT.md) preserves the old right as a control and
+checks six harvests with no nutrition deficits over 60 months. This is a finite,
+deterministic run, not evidence of resilience to shocks or indefinite permission.
+Known posted bids survive forecast cloning, while future
 scripted gifts and shocks remain hidden; deterministic projections are not promises
 of future access or yields.
 
@@ -90,8 +95,9 @@ cargo +1.92.0 test --locked --test stock_sale --test borrowing --test credit --t
 cargo +1.92.0 clippy --locked --all-targets -- -D warnings
 ```
 
-Six new tests cover the controls, bridge timing, conservation, reserve/quantity/
+Seven stock-sale tests cover the controls, bridge timing, conservation, reserve/quantity/
 funding/storage bounds, allowance exhaustion, forged receipts, replay rejection,
-and CPU/reference, monthly/batched and checkpoint continuation equality. Together
-with the listed regression suites, 39 tests passed; all-target Clippy passed.
+and CPU/reference, monthly/batched and checkpoint continuation equality. The repeated-credit change reran stock-sale, borrowing, credit and credit-offer
+suites: 24 tests passed, along with all-target Clippy. The earlier integration
+also checked resale, forecast-context and storage-currency suites.
 Generated run output stays under ignored `output/economics/`.
