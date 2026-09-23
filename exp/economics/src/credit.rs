@@ -254,6 +254,7 @@ pub enum Event {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Boundary {
+    pub production_plan: Option<Box<Batch>>,
     pub stock_sale: Option<crate::stock_sale::Receipt>,
     pub decision: Option<crate::borrowing::Decision>,
     pub attachments: Vec<ProcessChange>,
@@ -405,7 +406,12 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         || !world.issuance.is_empty()
         || !world.pools.is_empty()
         || world.transaction_policy.is_some()
-        || state.pending_production.is_some()
+        || state.pending_production.as_ref().is_some_and(|plan| {
+            state.phase != Phase::Productive
+                || plan.phase != Phase::Productive
+                || plan.month != state.month
+                || plan.id != state.next_batch
+        })
     {
         return Err(
             "credit pilot cannot combine unrelated acquisition or collection drivers".into(),
@@ -814,6 +820,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
         return Ok(None);
     }
     let mut out = Boundary {
+        production_plan: None,
         stock_sale: None,
         decision: None,
         attachments: vec![],
@@ -887,6 +894,8 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
 pub fn validate_batch(world: &World, state: &State, batch: &Batch) -> Result<(), String> {
     let expected = evaluate(world, state)?;
     if batch.credit != expected
+        || (expected.is_some()
+            && batch.production_plan != expected.as_ref().and_then(|e| e.production_plan.clone()))
         || expected
             .as_ref()
             .is_some_and(|e| e.transactions != batch.transactions)

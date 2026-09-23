@@ -81,6 +81,7 @@ impl Simulation {
             } else {
                 batch.credit = crate::credit::evaluate(&self.world, &self.state)?;
                 batch.transactions = batch.credit.as_ref().unwrap().transactions.clone();
+                batch.production_plan = batch.credit.as_ref().unwrap().production_plan.clone();
             }
         } else {
             match self.state.phase {

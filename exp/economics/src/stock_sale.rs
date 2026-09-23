@@ -21,6 +21,7 @@ const CULTIVATION_RIGHT_MONTHS: u32 = 120;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Policy {
+    pub joint: Option<crate::joint_plan::Policy>,
     pub forecast: Option<crate::sale_plan::Policy>,
     pub bid: u32,
     pub seller: AgentId,
@@ -31,6 +32,7 @@ pub struct Policy {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Receipt {
+    pub joint: Option<crate::joint_plan::Decision>,
     pub decision: Option<crate::sale_plan::Decision>,
     pub bid: u32,
     pub seller: AgentId,
@@ -84,6 +86,12 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         || c.resale_buyer.is_some()
     {
         return Err("invalid scoped posted-sale policy".into());
+    }
+    if p.joint.is_some() && p.forecast.is_some() {
+        return Err("choose one sale planner".into());
+    }
+    if let Some(policy) = &p.joint {
+        crate::joint_plan::validate(world, p.seller, policy)?;
     }
     if let Some(policy) = &p.forecast {
         crate::sale_plan::validate(world, p.seller, policy)?;
@@ -191,6 +199,18 @@ pub(crate) fn settle(
         .map(|policy| crate::sale_plan::choose(world, state, &out.after, limit, policy))
         .transpose()?;
     let limit = decision.as_ref().map_or(limit, |d| d.selected_lots);
+    let joint = p
+        .joint
+        .as_ref()
+        .map(|policy| crate::joint_plan::choose(world, state, &out.after, limit, policy))
+        .transpose()?;
+    let limit = joint
+        .as_ref()
+        .map_or(limit, |(d, _)| d.alternatives[d.selected].lots);
+    let joint = joint.map(|(d, plan)| {
+        out.production_plan = Some(plan);
+        d
+    });
     let mut sold = 0_i32;
     for _ in 0..limit {
         let transaction = currency::transaction(
@@ -227,6 +247,7 @@ pub(crate) fn settle(
         .checked_add(coins)
         .ok_or("purchase budget overflow")?;
     out.stock_sale = Some(Receipt {
+        joint,
         decision,
         bid: bid.id,
         seller: p.seller,
@@ -264,6 +285,7 @@ pub fn scenario(case: &str) -> Result<(World, State), String> {
         .amount
         .quantity = BRIDGE_COINS;
     c.stock_sales = Some(Policy {
+        joint: None,
         forecast: None,
         bid: SALE_BID,
         seller: PERSON,
@@ -312,6 +334,18 @@ pub fn forecast_scenario(case: &str) -> Result<(World, State), String> {
     p.forecast = Some(crate::sale_plan::Policy {
         horizon_months: RESERVE_MONTHS,
         need_limits: BTreeMap::from([(crate::scenario::NUTRITION, 0)]),
+    });
+    Ok((w, s))
+}
+
+pub fn joint_scenario(case: &str) -> Result<(World, State), String> {
+    let (mut w, s) = scenario(case)?;
+    let p = w.credit.as_mut().unwrap().stock_sales.as_mut().unwrap();
+    p.reserve_months = 0;
+    p.joint = Some(crate::joint_plan::Policy {
+        horizon_months: FORECAST_MONTHS,
+        need_limits: BTreeMap::from([(crate::scenario::NUTRITION, 0)]),
+        future_reserves: vec![0, RESERVE_MONTHS],
     });
     Ok((w, s))
 }

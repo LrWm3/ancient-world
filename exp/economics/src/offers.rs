@@ -134,6 +134,7 @@ pub(crate) fn resolve(
             .ok_or("missing credit boundary")?
             .transactions
             .clone();
+        staged.production_plan = credit.as_ref().and_then(|c| c.production_plan.clone());
         staged.credit = credit;
         *batch = staged;
         return Ok(());
