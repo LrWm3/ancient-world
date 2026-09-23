@@ -112,3 +112,41 @@ CPU/reference equality, monthly/batched execution and checkpoint/catalog-order
 continuation. Credit, common-offer, resale, forecast-context and loan-view suites
 bring the tested total to **31 passing tests**. All-target Clippy passed. Generated
 CPU results remain under ignored `output/economics/`.
+
+## Absolute need limits
+
+`Compare(Config)` can now set `need_limits: BTreeMap<ResourceId, i64>`: the maximum
+cumulative unmet provision units allowed in the purchase projection over the
+configured horizon. A zero cap permits no deficit. Limits are inclusive; omitted
+needs have no absolute cap. Negative limits and resources not present among the
+borrower's positive needs are rejected. Units belong to each provision, so warmth,
+nutrition or institutional upkeep can be constrained without a person/food branch.
+These are raw unmet units, not accumulated condition/deprivation points.
+
+After checking feasibility and installment coverage, borrowing checks these caps
+before comparing the two branches. A violation returns `NeedLimitExceeded` with
+resource, projected shortfall and maximum. Multiple violations are reported in
+need-priority/resource order. The decision receipt stores the configured caps and
+both projections; normal credit revalidation rejects altered receipts. Installment
+failure remains the primary reason when both payments and needs fail.
+
+The production-funded fixture requires zero unmet nutrition over its 18-month
+forecast. Its funded, food-reserving case still accepts and meets all needs. The
+six-coin price with food reserves disabled projects repayment but nine unmet
+nutrition units and now declines. The old comparative policy accepted it because
+its decline branch was even worse. A cap of eight rejects; nine permits comparison
+and accepts. Clearing the map restores comparative-only behavior. Original
+borrowing fixtures keep empty maps to preserve their existing controls.
+
+This is an origination constraint, not a new live consumption policy, an emergency
+response or a guarantee. Declining can leave unmet needs, including under the same
+harmful stock-sale policy; no rescue action is invented. `Scripted` origination
+remains an explicit experimental bypass. Limits are horizon-dependent and do not
+capture consecutive deprivation, terminal conditions outside the horizon or
+unobserved shocks. The repeated-right audit clears the limits in both branches
+to retain its isolated historical permission comparison.
+
+Validation for this increment: 26 tests across borrowing, stock-sale, credit and
+credit-offer suites, plus all-target Clippy. New controls cover exact cap boundaries,
+invalid limits, renamed provision IDs, refusal through common offer acceptance,
+forged caps, actual no-loan execution and CPU/reference monthly continuation.

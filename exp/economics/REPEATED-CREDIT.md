@@ -40,8 +40,9 @@ The corrected 18-month funded case now sells eight grain for 96 coins and closes
 with 55.80 coins. Limited purchasing allowance and the lower-price case still
 reject borrowing for installment shortfalls. Removing the food reserve still
 allows harmful sales: the corrected unprotected control incurs nine nutrition
-deficit units, even though it repays. Thus the cultivation fix does not resolve
-the separate need for an absolute deprivation constraint on borrowing.
+deficit units, even though it repays. The newer [absolute need limit](BORROWING-DECISIONS.md#absolute-need-limits) rejects
+that loan. This audit explicitly clears the guard in both right-duration branches
+to preserve the isolated historical comparison.
 
 ## Verification and limits
 

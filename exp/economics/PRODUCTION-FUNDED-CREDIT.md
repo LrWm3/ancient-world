@@ -53,7 +53,7 @@ bridge funding. Prices are experimental calibrations, not historical estimates.
 | Funded | 12 coins | 120 coins | Accept | Repays; 0 nutrition deficits |
 | Limited allowance | 12 coins | 12 coins | Decline | Misses month-9 installment |
 | Food-tight price | 6 coins | 120 coins | Decline | Misses month-11 installment |
-| Food-tight, reserve disabled | 6 coins | 120 coins | Accept | Repays, but 9 nutrition deficits |
+| Food-tight, reserve disabled | 6 coins | 120 coins | Decline: need limit | Would repay, but 9 nutrition deficits |
 
 Funded execution sells two grain in each of months 7, 8, 15 and 16: eight grain
 for 96 coins over 18 months. The loan repays in month 13, with 5.20 coins total
@@ -69,10 +69,11 @@ remain counterfactual. Collateral enforcement can clear their debt, so zero endi
 debt alone is insufficient evidence of successful repayment.
 
 Disabling the food reserve sells opening food immediately and makes the cheap-price
-loan payable at the cost of nine unmet nutrition units. The comparative borrowing
-score still accepts against its own decline branch under that same selling policy.
-It does **not** impose an absolute acceptable-food threshold. This control shows
-why a repayment check cannot replace protection of essential stocks.
+loan payable at the cost of nine unmet nutrition units. The original comparative borrowing
+score accepted against its own worse decline branch under that same selling policy.
+The fixture now sets an absolute zero-deficit nutrition cap and rejects this loan.
+Both branches remain visible in the receipt. This does not repair harmful selling
+or guarantee food when declining; see [absolute need limits](BORROWING-DECISIONS.md#absolute-need-limits).
 
 The ordinary production policy is unchanged. The original fixture inherited a
 cultivation right ending in month 9 from the short baseline experiment, which
