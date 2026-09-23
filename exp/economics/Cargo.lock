@@ -922,6 +922,7 @@ name = "economics-compute-smoke"
 version = "0.1.0"
 dependencies = [
  "cubecl",
+ "serde_json",
 ]
 
 [[package]]

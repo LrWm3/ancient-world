@@ -5,12 +5,63 @@ use economics_compute_smoke::{
     production_market::{self, WOOD_MARKET},
     scenario::{LABOR, NUTRITION, TOKEN, WARMTH},
     simulation::Simulation,
+    telemetry::{Config, Observer},
 };
+const DEFAULT_MONTHS: u32 = 48;
+
+// All configuration stays in the runner; economic code knows nothing of telemetry.
+fn observer(mode: &str) -> Result<Option<Observer<std::io::BufWriter<std::fs::File>>>, String> {
+    let Some(directory) = std::env::var_os("TELEMETRY_DIR") else {
+        return Ok(None);
+    };
+    let mut config = Config::default();
+    if let Ok(value) = std::env::var("TELEMETRY_MODE") {
+        match value.as_str() {
+            "metrics" => config.logs = false,
+            "logs" => config.metrics = false,
+            "both" => {}
+            _ => return Err("TELEMETRY_MODE must be metrics, logs, or both".into()),
+        }
+    }
+    if let Ok(value) = std::env::var("TELEMETRY_AGENTS") {
+        config.agents = value
+            .split(',')
+            .map(|s| {
+                s.trim().parse().map_err(|_| {
+                    "TELEMETRY_AGENTS must contain comma-separated agent IDs".to_string()
+                })
+            })
+            .collect::<Result<_, _>>()?;
+    }
+    for (name, target) in [
+        ("TELEMETRY_FIRST_MONTH", &mut config.first_month),
+        ("TELEMETRY_EVERY", &mut config.metric_every),
+    ] {
+        if let Ok(value) = std::env::var(name) {
+            *target = value.parse().map_err(|_| format!("invalid {name}"))?;
+        }
+    }
+    if let Ok(value) = std::env::var("TELEMETRY_LAST_MONTH") {
+        config.last_month = Some(value.parse().map_err(|_| "invalid TELEMETRY_LAST_MONTH")?);
+    }
+    if let Ok(value) = std::env::var("TELEMETRY_LOG_LIMIT") {
+        config.log_limit = value.parse().map_err(|_| "invalid TELEMETRY_LOG_LIMIT")?;
+    }
+    let directory = std::path::PathBuf::from(directory);
+    std::fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(directory.join(format!("{mode}.jsonl")))
+        .map_err(|e| e.to_string())?;
+    Observer::new(std::io::BufWriter::new(file), mode, config).map(Some)
+}
+
 fn main() -> Result<(), String> {
     let months = std::env::var("MONTHS")
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or(48);
+        .unwrap_or(DEFAULT_MONTHS);
     for mode in ["none", "grain", "both", "directed"] {
         if std::env::var("CASE").is_ok_and(|v| v != mode) {
             continue;
@@ -47,8 +98,21 @@ fn main() -> Result<(), String> {
             w.production_market.as_mut().unwrap().policy = Policy::Fixed(policies);
         }
         let mut sim = Simulation::new(w, s, Backend::CubeCpu)?;
+        let mut telemetry = observer(mode)?;
         for _ in 0..months {
-            sim.run_months(1)?;
+            let result = if let Some(observer) = &mut telemetry {
+                observer.run_months(&mut sim, 1)
+            } else {
+                sim.run_months(1)
+            };
+            if let Err(error) = result {
+                if let Some(observer) = telemetry.take()
+                    && let Err(output_error) = observer.finish()
+                {
+                    return Err(format!("{error}; {output_error}"));
+                }
+                return Err(error);
+            }
             if std::env::var_os("DETAIL").is_some() {
                 println!(
                     "month {} balances {:?} decisions {:?}",
@@ -97,6 +161,9 @@ fn main() -> Result<(), String> {
                         .count()
                 );
             }
+        }
+        if let Some(observer) = telemetry {
+            observer.finish()?;
         }
         for r in &sim.state.town_market.history {
             println!("{mode} month={} books={:?}", r.month, r.markets);
