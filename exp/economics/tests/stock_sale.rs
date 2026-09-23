@@ -1,0 +1,217 @@
+use economics_compute_smoke::{
+    borrowing::{self, Policy, Reason},
+    compute::Backend,
+    credit,
+    model::*,
+    scenario::{GRAIN, NUTRITION, PERSON, STATE_AGENT, TOKEN},
+    settlement::{self, DEFAULT_EFFECT_LIMIT},
+    simulation::Simulation,
+    stock_sale,
+};
+fn sim(case: &str, backend: Backend) -> Simulation {
+    let (w, s) = stock_sale::scenario(case).unwrap();
+    Simulation::new(w, s, backend).unwrap()
+}
+fn acquire(s: &mut Simulation) {
+    s.step().unwrap();
+    s.step().unwrap();
+    assert_eq!(s.state.phase, Phase::Acquire);
+}
+#[test]
+fn production_sales_support_repayment_only_with_sufficient_bid_funding_and_price() {
+    for (case, accept, missed) in [
+        ("funded", true, None),
+        ("limited", false, Some(9)),
+        ("food-tight", false, Some(11)),
+    ] {
+        let mut s = sim(case, Backend::CubeCpu);
+        acquire(&mut s);
+        let d = borrowing::evaluate(&s.world, &s.state).unwrap();
+        assert_eq!(d.accept, accept);
+        assert_eq!(d.purchase.as_ref().unwrap().missed_payment, missed);
+        assert_eq!(
+            d.reason,
+            if accept {
+                Reason::Beneficial
+            } else {
+                Reason::InstallmentShortfall
+            }
+        );
+        s.run_months(18).unwrap();
+        let selected = if accept {
+            d.purchase.as_ref().unwrap()
+        } else {
+            &d.decline
+        };
+        assert_eq!(s.state.balance(PERSON, TOKEN), selected.closing_coins);
+        let deficits: i64 = s
+            .reports
+            .iter()
+            .filter(|r| r.agent == PERSON)
+            .map(|r| i64::from(r.deficit(NUTRITION)))
+            .sum();
+        assert_eq!(deficits, selected.deficits[&NUTRITION]);
+        assert_eq!(s.state.credit.loans.len(), usize::from(accept));
+        let sales: Vec<_> = s
+            .ledger
+            .iter()
+            .filter_map(|b| {
+                b.credit
+                    .as_ref()
+                    .and_then(|c| c.stock_sale.as_ref())
+                    .filter(|r| r.goods > 0)
+                    .map(|r| (b.month, r.goods, r.coins))
+            })
+            .collect();
+        if accept {
+            assert_eq!(sales, vec![(7, 2, 2400), (8, 2, 2400)]);
+            assert_eq!(s.state.credit.stock_spent, 4800);
+            assert_eq!(s.state.balance(PERSON, TOKEN), 780);
+            assert_eq!(s.state.credit.loans[&1].status, credit::Status::Repaid);
+            assert_eq!(deficits, 2);
+        }
+        for b in &s.ledger {
+            for t in &b.transactions {
+                if t.stock_trade.is_some() {
+                    for resource in [GRAIN, TOKEN] {
+                        assert_eq!(
+                            t.effects
+                                .iter()
+                                .filter(|e| e.account.1 == resource)
+                                .map(|e| e.delta)
+                                .sum::<i32>(),
+                            0
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+#[test]
+fn sales_respect_food_quantity_treasury_storage_and_total_allowance() {
+    for (stock, cash, capacity, spent, expected) in [
+        (6, 10000, 100, 0, 0),
+        (7, 10000, 100, 0, 1),
+        (20, 10000, 100, 0, 2),
+        (20, 1199, 100, 0, 0),
+        (20, 10000, 1, 0, 1),
+        (20, 10000, 100, 12000, 0),
+    ] {
+        let mut s = sim("funded", Backend::Reference);
+        s.world.credit.as_mut().unwrap().purchase_policy = Policy::Decline;
+        acquire(&mut s);
+        s.state.balances.insert((PERSON, GRAIN), stock);
+        s.state.balances.insert((STATE_AGENT, TOKEN), cash);
+        s.world.storage.capacities.insert(STATE_AGENT, capacity);
+        s.state.credit.stock_spent = spent;
+        let b = credit::evaluate(&s.world, &s.state).unwrap().unwrap();
+        let r = b.stock_sale.unwrap();
+        assert_eq!(r.reserve, 6);
+        assert_eq!(r.sold_lots, expected);
+        assert!(stock - r.goods >= 6);
+        assert_eq!(b.after.stock_spent, spent + r.coins);
+    }
+}
+#[test]
+fn later_harvest_cannot_pay_an_earlier_installment() {
+    let mut s = sim("funded", Backend::Reference);
+    acquire(&mut s);
+    s.state.balances.insert((PERSON, TOKEN), 2000);
+    let d = borrowing::evaluate(&s.world, &s.state).unwrap();
+    assert!(!d.accept);
+    assert_eq!(d.purchase.unwrap().missed_payment, Some(2));
+}
+#[test]
+fn forged_sale_receipts_are_atomic_and_committed_sales_cannot_repeat() {
+    let mut s = sim("funded", Backend::Reference);
+    s.world.credit.as_mut().unwrap().purchase_policy = Policy::Decline;
+    acquire(&mut s);
+    s.state.balances.insert((PERSON, GRAIN), 10);
+    let mut valid = Batch::empty(&s.state);
+    valid.credit = credit::evaluate(&s.world, &s.state).unwrap();
+    valid.transactions = valid.credit.as_ref().unwrap().transactions.clone();
+    let before = s.state.clone();
+    for variant in 0..3 {
+        let mut b = valid.clone();
+        let c = b.credit.as_mut().unwrap();
+        match variant {
+            0 => c.stock_sale = None,
+            1 => c.stock_sale.as_mut().unwrap().goods += 1,
+            _ => c.after.stock_spent += 1,
+        }
+        assert!(
+            settlement::commit(
+                &s.world,
+                &mut s.state,
+                &b,
+                Backend::Reference,
+                DEFAULT_EFFECT_LIMIT
+            )
+            .is_err()
+        );
+        assert_eq!(s.state, before);
+    }
+    settlement::commit(
+        &s.world,
+        &mut s.state,
+        &valid,
+        Backend::Reference,
+        DEFAULT_EFFECT_LIMIT,
+    )
+    .unwrap();
+    let after = s.state.clone();
+    assert!(
+        settlement::commit(
+            &s.world,
+            &mut s.state,
+            &valid,
+            Backend::Reference,
+            DEFAULT_EFFECT_LIMIT
+        )
+        .is_err()
+    );
+    assert_eq!(s.state, after);
+}
+#[test]
+fn cpu_monthly_checkpoint_and_reordered_reference_match() {
+    let mut cpu = sim("funded", Backend::CubeCpu);
+    cpu.run_months(7).unwrap();
+    let mut reference = cpu.clone();
+    reference.backend = Backend::Reference;
+    reference.world.definitions.reverse();
+    reference.world.agents.reverse();
+    reference.world.resources.reverse();
+    let mut monthly = cpu.clone();
+    cpu.run_months(11).unwrap();
+    reference.run_months(11).unwrap();
+    for _ in 0..11 {
+        monthly.run_months(1).unwrap();
+    }
+    assert_eq!(cpu.state, reference.state);
+    assert_eq!(cpu.ledger, reference.ledger);
+    assert_eq!(cpu.state, monthly.state);
+    assert_eq!(cpu.ledger, monthly.ledger);
+}
+
+#[test]
+fn removing_food_reserve_can_make_debt_payable_by_sacrificing_meals() {
+    let mut s = sim("food-tight", Backend::Reference);
+    s.world
+        .credit
+        .as_mut()
+        .unwrap()
+        .stock_sales
+        .as_mut()
+        .unwrap()
+        .reserve_months = 0;
+    acquire(&mut s);
+    let d = borrowing::evaluate(&s.world, &s.state).unwrap();
+    let p = d.purchase.unwrap();
+    assert_eq!(p.missed_payment, None);
+    assert_eq!(p.closing_debt, 0);
+    assert_eq!(p.deficits[&NUTRITION], 10);
+    assert_eq!(p.months[0].sold_stock, 2);
+    // The comparative borrowing score alone is not an absolute food safeguard.
+    assert!(d.accept);
+}

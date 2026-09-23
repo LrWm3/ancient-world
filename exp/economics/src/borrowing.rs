@@ -27,6 +27,8 @@ pub struct Config {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Month {
+    pub sold_stock: i32,
+    pub sale_coins: i32,
     pub month: u32,
     pub coins: i32,
     pub debt: i32,
@@ -143,11 +145,26 @@ fn project(context: &ForecastContext, accept: bool, horizon: u32) -> Result<Proj
         closing_debt: 0,
         missed_payment: None,
     };
+    let sale = sim
+        .ledger
+        .last()
+        .and_then(|b| b.credit.as_ref())
+        .and_then(|b| b.stock_sale.as_ref());
+    let mut sold_stock = sale.map_or(0, |s| s.goods);
+    let mut sale_coins = sale.map_or(0, |s| s.coins);
     let mut monthly_labor = 0;
     while sim.state.month < end {
         let month = sim.state.month;
         sim.step()?;
         let batch = sim.ledger.last().unwrap();
+        if let Some(sale) = batch.credit.as_ref().and_then(|b| b.stock_sale.as_ref()) {
+            sold_stock = sold_stock
+                .checked_add(sale.goods)
+                .ok_or("projected sales overflow")?;
+            sale_coins = sale_coins
+                .checked_add(sale.coins)
+                .ok_or("projected sale coins overflow")?;
+        }
         monthly_labor += batch
             .transactions
             .iter()
@@ -184,6 +201,8 @@ fn project(context: &ForecastContext, accept: bool, horizon: u32) -> Result<Proj
                 *result.deficits.entry(*r).or_default() += i64::from(*n);
             }
             result.months.push(Month {
+                sold_stock,
+                sale_coins,
                 month,
                 coins: sim.state.balance(agent, coin),
                 debt: loan.map(|l| l.debt()).transpose()?.unwrap_or(0),
@@ -192,6 +211,8 @@ fn project(context: &ForecastContext, accept: bool, horizon: u32) -> Result<Proj
                 first_unpaid: loan.and_then(|l| l.first_unpaid),
             });
             monthly_labor = 0;
+            sold_stock = 0;
+            sale_coins = 0;
         }
     }
     result.failed_processes = sim

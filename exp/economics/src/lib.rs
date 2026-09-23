@@ -109,3 +109,5 @@ pub mod resale;
 pub mod forecast;
 
 pub mod borrowing;
+
+pub mod stock_sale;

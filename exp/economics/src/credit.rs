@@ -79,6 +79,7 @@ pub struct ScheduledTransfer {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
+    pub stock_sales: Option<crate::stock_sale::Policy>,
     pub purchase_policy: crate::borrowing::Policy,
     pub resale_buyer: Option<crate::resale::Buyer>,
     /// These use rights and their active processes follow asset ownership.
@@ -161,6 +162,8 @@ impl Loan {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Book {
+    /// Actual spending against the scoped posted-stock purchase budget.
+    pub stock_spent: i32,
     pub pending_sales: BTreeMap<u32, crate::resale::PendingSale>,
     pub loans: BTreeMap<u32, Loan>,
     /// Overrides to the catalog's opening asset ownership and carrying value.
@@ -251,6 +254,7 @@ pub enum Event {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Boundary {
+    pub stock_sale: Option<crate::stock_sale::Receipt>,
     pub decision: Option<crate::borrowing::Decision>,
     pub attachments: Vec<ProcessChange>,
     pub after: Book,
@@ -386,6 +390,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         };
     };
     crate::borrowing::validate(world)?;
+    crate::stock_sale::validate(world, state)?;
     // Ownership-following production is supported. Other acquisition/collection
     // drivers still require shared funding and ownership rules.
     if !world.agreements.is_empty()
@@ -396,7 +401,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         || world.pool_market.is_some()
         || !world.households.is_empty()
         || !world.offers.is_empty()
-        || !world.bids.is_empty()
+        || (!world.bids.is_empty() && c.stock_sales.is_none())
         || !world.issuance.is_empty()
         || !world.pools.is_empty()
         || world.transaction_policy.is_some()
@@ -809,6 +814,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
         return Ok(None);
     }
     let mut out = Boundary {
+        stock_sale: None,
         decision: None,
         attachments: vec![],
         after: state.credit.clone(),
@@ -872,6 +878,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
                 purchase(world, state, c, &mut out, &mut budgets)?;
             }
             crate::resale::settle(world, state, &mut out, &mut budgets)?;
+            crate::stock_sale::settle(world, state, &mut out, &mut budgets)?;
         }
         _ => {}
     }
@@ -920,6 +927,7 @@ pub fn scenario(case: &str) -> Result<(World, State), String> {
         _ => return Err("unknown credit scenario".into()),
     };
     w.credit = Some(Config {
+        stock_sales: None,
         purchase_policy: crate::borrowing::Policy::Scripted,
         resale_buyer: None,
         attached_rights: BTreeSet::new(),
