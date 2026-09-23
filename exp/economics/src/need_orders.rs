@@ -176,6 +176,16 @@ pub(crate) fn generate(
         return Ok(None);
     };
     let session = world.negotiation.as_ref().ok_or("missing order template")?;
+    generate_for(world, state, resources, policy, session).map(Some)
+}
+
+pub(crate) fn generate_for(
+    world: &World,
+    state: &State,
+    resources: &Resources,
+    policy: &Policy,
+    session: &negotiation::Session,
+) -> Result<Decision, String> {
     let mut observed = state.clone();
     observed.balances = resources.holdings.clone();
     let mut protected = BTreeMap::new();
@@ -222,7 +232,7 @@ pub(crate) fn generate(
     let account = (session.seller.agent, session.goods.resource);
     let surplus = i128::from(resources.available.get(&account).copied().unwrap_or(0))
         - protected.get(&account).copied().unwrap_or(0);
-    Ok(Some(Decision {
+    Ok(Decision {
         month: state.month,
         buy: useful.then(|| Order {
             agent,
@@ -237,7 +247,7 @@ pub(crate) fn generate(
         buyer_deficits,
         buyer_after_purchase,
         protected,
-    }))
+    })
 }
 
 /// Two people consuming finite grain stocks; order generation runs before consumption.

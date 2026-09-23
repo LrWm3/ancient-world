@@ -322,7 +322,7 @@ pub(crate) fn evaluate_with(
     Ok(Some(result))
 }
 
-fn observe(
+pub(crate) fn observe(
     s: &Session,
     tick: i32,
     buyer: &mut Option<zip::Learning>,

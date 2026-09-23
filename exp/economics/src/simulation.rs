@@ -53,6 +53,7 @@ impl Simulation {
             work_choice: None,
             credit: None,
             negotiation: None,
+            town_market: None,
             accept_membership: None,
             household: None,
             id: self.state.next_batch,
@@ -94,7 +95,11 @@ impl Simulation {
                     batch.commitments = Some(settlement);
                 }
                 Phase::Acquire => {
-                    if self.world.negotiation.is_some() {
+                    if self.world.town_market.is_some() {
+                        let boundary = crate::town_market::evaluate(&self.world, &self.state)?;
+                        batch.transactions = boundary.transactions.clone();
+                        batch.town_market = Some(crate::town_market::Boundary::Market(boundary));
+                    } else if self.world.negotiation.is_some() {
                         batch.negotiation = crate::negotiation::evaluate(&self.world, &self.state)?;
                         batch.transactions = crate::negotiation::transactions(
                             &self.world,
@@ -131,6 +136,11 @@ impl Simulation {
         } else {
             Vec::new()
         };
+        if self.world.town_market.is_some() && self.state.phase == Phase::Open {
+            batch.town_market = Some(crate::town_market::Boundary::Admission(
+                crate::town_market::admission(&self.world, &self.state)?,
+            ));
+        }
         crate::settlement::commit_core(
             &self.world,
             &mut self.state,

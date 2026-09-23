@@ -163,6 +163,7 @@ pub fn baseline() -> (World, State) {
         credit: None,
         marketplaces: vec![],
         negotiation: None,
+        town_market: None,
         need_orders: None,
         pool_market: None,
         competition: None,
@@ -310,6 +311,7 @@ pub fn baseline() -> (World, State) {
     let state = State {
         credit: Default::default(),
         marketplaces: Default::default(),
+        town_market: Default::default(),
         memberships: Default::default(),
         household_remainders: BTreeMap::new(),
         exchange: Default::default(),

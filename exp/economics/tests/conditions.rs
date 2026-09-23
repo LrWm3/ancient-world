@@ -373,6 +373,7 @@ fn terminal_operators_cannot_replay_even_capacity_free_consumption() {
         work_choice: None,
         credit: None,
         negotiation: None,
+        town_market: None,
         accept_membership: None,
         household: None,
         id: before.next_batch,

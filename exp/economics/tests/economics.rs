@@ -333,6 +333,7 @@ fn gross_spending_and_overflow_fail_atomically_even_with_positive_net_effects() 
         work_choice: None,
         credit: None,
         negotiation: None,
+        town_market: None,
         accept_membership: None,
         household: None,
         maintenance: None,

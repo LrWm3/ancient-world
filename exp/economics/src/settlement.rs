@@ -13,6 +13,7 @@ const MAX_PROCESS_DURATION_MONTHS: u32 = 120;
 pub fn validate_world(world: &World, state: &State) -> Result<(), String> {
     crate::opportunities::validate(world)?;
     crate::negotiation::validate(world)?;
+    crate::town_market::validate(world)?;
     crate::pool_market::validate(world)?;
     crate::membership::validate(world, state)?;
     crate::households::validate(world, state)?;
@@ -125,6 +126,7 @@ pub fn validate_world(world: &World, state: &State) -> Result<(), String> {
 
 fn validate_state(world: &World, state: &State) -> Result<(), String> {
     crate::marketplace::validate(world, state)?;
+    crate::town_market::validate_state(world, state)?;
     crate::credit::validate(world, state)?;
     crate::work_choice::validate(world, state)?;
     crate::activities::validate(world, state)?;
@@ -238,6 +240,7 @@ pub(crate) fn commit_core(
     }
     crate::pool_market::validate_batch(world, state, batch, effect_limit)?;
     crate::acquisition::validate_batch(world, state, batch)?;
+    crate::town_market::validate_batch(world, state, batch)?;
     crate::work_choice::validate_batch(world, state, batch, effect_limit)?;
     let count = batch
         .transactions
@@ -332,6 +335,7 @@ pub(crate) fn commit_core(
         return Err("applicant without access acceptance".into());
     }
     let mut staged = state.clone();
+    crate::town_market::record(&mut staged, &batch.town_market);
     for (offer, agent) in batch
         .accept_membership
         .into_iter()
@@ -540,6 +544,7 @@ pub(crate) fn commit_core(
             || !world.bids.is_empty()
             || world.market.is_some()
             || world.negotiation.is_some()
+            || world.town_market.is_some()
             || world.credit.is_some())
     {
         staged.phase = Phase::Acquire;

@@ -134,6 +134,7 @@ impl Phase {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct State {
+    pub town_market: crate::town_market::Book,
     pub credit: crate::credit::Book,
     pub marketplaces: BTreeMap<AgentId, crate::marketplace::Memory>,
     pub memberships:
@@ -178,6 +179,7 @@ pub struct ScheduledStart {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct World {
+    pub town_market: Option<crate::town_market::Config>,
     pub work_choice: Option<crate::work_choice::Config>,
     pub credit: Option<crate::credit::Config>,
     pub marketplaces: Vec<crate::marketplace::Marketplace>,
@@ -279,6 +281,7 @@ pub struct Receipt {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Batch {
+    pub town_market: Option<crate::town_market::Boundary>,
     pub work_choice: Option<crate::work_choice::Decision>,
     pub credit: Option<crate::credit::Boundary>,
     pub negotiation: Option<crate::negotiation::Round>,
@@ -335,6 +338,7 @@ impl Batch {
             work_choice: None,
             credit: None,
             negotiation: None,
+            town_market: None,
             household: None,
             id: state.next_batch,
             month: state.month,
