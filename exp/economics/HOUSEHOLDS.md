@@ -10,8 +10,8 @@ search. No children have been added.
 
 This page documents the existing pilot. The [project goals](GOALS.md) replace its
 representative spare-labor policy with a founding agreement directing 20% of each
-member's available monthly labor to the household. Immutable constitutions,
-changeable charters, governance by persons and swappable allocation policies should
+member's available monthly labor to the household. Constitution templates with
+static charter parameters, governance by persons and swappable allocation policies should
 control that work. Leadership selection, membership and ownership are separate.
 These changes, market integration and complete estate handling are not implemented
 by the current household fixture.

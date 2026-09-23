@@ -7,7 +7,8 @@ population, labor or wealth. Start with small scenarios and rebuild broader
 capabilities on these shared primitives.
 
 The [project goals](GOALS.md) set the direction: lawful formation, immutable
-constitutions, bounded charters, governance by persons, swappable decision policies,
+constitution templates, initially static charter parameters, governance by persons,
+swappable decision policies,
 contributed labor, local bid/ask marketplaces and explicit estates. They distinguish
 ownership, membership, governance and valuation. These are goals, not implemented
 features; the [integration matrix](INTEGRATION-STATUS.md) records current support.

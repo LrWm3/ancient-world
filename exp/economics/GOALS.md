@@ -36,17 +36,24 @@ from Ancient World can be recreated incrementally on this foundation.
 | Concept | Meaning and intended boundary |
 | --- | --- |
 | Law | Rules within a jurisdiction governing recognition, founding, agreements, rights and permissible actions |
-| Constitution | Immutable founding rules, including which choices are delegated to charter or policy and who may make them |
-| Charter | Changeable organizational arrangements selected within the constitution's explicitly delegated choices |
-| Governance | Persons and procedures authorized to set the charter and policies, including succession, elections, rotation and terms |
+| Constitution | A founding template defining rules, parameter slots and permitted policy choices |
+| Charter | The parameter values filled in for a particular constitution; static initially |
+| Governance | Persons and procedures authorized to set policies within the founding rules, including succession, elections, rotation and terms |
 | Decision policy | Operational objectives, priorities, horizons and allocation/tiebreak rules used to select actions |
 | Membership | An agreement specifying participation, contributions, benefits, eligibility and exit obligations |
 | Ownership | Claims over an organization or its assets, with transfer and distribution rights where permitted |
 | Valuation | A balance sheet or forecast of value; it neither grants control nor implies something can be sold |
 
+As a first idea, treat the constitution as a template and the charter as its
+filled-in parameters. For example, a constitution might permit a monthly labor
+contribution percentage, with a household's charter supplying 20%. Both remain
+static after founding for now. This is a provisional distinction, not a settled
+requirement for a separate charter amendment system. Revisiting charter changes
+and who may authorize them is later design work.
+
 Leadership selection and operational decision policy are separate. Leaders set
-charter and policy within their authority; they do not choose every operational
-action. Persons should occupy governance and policy-setting roles, including below
+policies within the constitution and its fixed charter parameters; they do not
+choose every operational action. Persons should occupy governance and policy-setting roles, including below
 the state level. Owning an organization need not imply governing it, working for
 it or being a member. An owner may establish dividend rules and delegate governance
 to a person or member collective without working there. A household may have no
@@ -54,13 +61,14 @@ owner and still own assets, make projections and maintain a balance sheet.
 
 Initially, commercial constitutions should come from predefined templates and
 remain immutable, including after sale or transfer of ownership. A transfer must
-be permitted by the constitution and the relevant marketplace. A charter change
-cannot silently amend the constitution or override applicable law.
+be permitted by the constitution and the relevant marketplace. Transfer does not
+change the static charter. Any future charter amendment mechanism must respect
+the constitution and applicable law.
 
 ## Law, recognition and delegated institutions
 
-Start with states defining law and organizations setting charters and policies
-within legal limits. Law determines which organizations may form, their founding
+Start with states defining law and organizations filling in their charters at
+founding and setting policies within legal limits. Law determines which organizations may form, their founding
 requirements, recognized agreement shapes, interpretation of rights and permitted
 actions after founding. Different states may choose different rules:
 
@@ -171,8 +179,10 @@ and maximizing projected gain over six months without giving those outcomes extr
 priority. An objective may take risks, but cannot bypass law, mandates or resource
 constraints. Decisions and consequences should reveal those tradeoffs.
 
-Individuals should also be able to revise their own policy or personal charter at
-explicit intervals. Personality-driven self-governance can come later. The initial
+Individuals should also eventually be able to revise their own policy at explicit
+intervals. A personal charter, if used, would initially remain static like an
+organizational charter; charter revision and personality-driven self-governance
+can come later. The initial
 positive-outcome policy is adequate provided its selection, parameters, revision
 boundary and history are explicit and swappable. Organizations change policies
 through authorized governors; changing policy does not erase existing agreements
