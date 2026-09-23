@@ -64,11 +64,14 @@ fn production_sales_support_repayment_only_with_sufficient_bid_funding_and_price
             })
             .collect();
         if accept {
-            assert_eq!(sales, vec![(7, 2, 2400), (8, 2, 2400)]);
-            assert_eq!(s.state.credit.stock_spent, 4800);
-            assert_eq!(s.state.balance(PERSON, TOKEN), 780);
+            assert_eq!(
+                sales,
+                vec![(7, 2, 2400), (8, 2, 2400), (15, 2, 2400), (16, 2, 2400)]
+            );
+            assert_eq!(s.state.credit.stock_spent, 9600);
+            assert_eq!(s.state.balance(PERSON, TOKEN), 5580);
             assert_eq!(s.state.credit.loans[&1].status, credit::Status::Repaid);
-            assert_eq!(deficits, 2);
+            assert_eq!(deficits, 0);
         }
         for b in &s.ledger {
             for t in &b.transactions {
@@ -183,9 +186,9 @@ fn cpu_monthly_checkpoint_and_reordered_reference_match() {
     reference.world.agents.reverse();
     reference.world.resources.reverse();
     let mut monthly = cpu.clone();
-    cpu.run_months(11).unwrap();
-    reference.run_months(11).unwrap();
-    for _ in 0..11 {
+    cpu.run_months(53).unwrap();
+    reference.run_months(53).unwrap();
+    for _ in 0..53 {
         monthly.run_months(1).unwrap();
     }
     assert_eq!(cpu.state, reference.state);
@@ -210,8 +213,77 @@ fn removing_food_reserve_can_make_debt_payable_by_sacrificing_meals() {
     let p = d.purchase.unwrap();
     assert_eq!(p.missed_payment, None);
     assert_eq!(p.closing_debt, 0);
-    assert_eq!(p.deficits[&NUTRITION], 10);
+    assert_eq!(p.deficits[&NUTRITION], 9);
     assert_eq!(p.months[0].sold_stock, 2);
     // The comparative borrowing score alone is not an absolute food safeguard.
     assert!(d.accept);
+}
+
+#[test]
+fn cultivation_right_duration_explains_late_hunger_without_a_planner_change() {
+    use economics_compute_smoke::scenario::{GROW, SEED};
+    let mut extended = sim("funded", Backend::CubeCpu);
+    let mut short = extended.clone();
+    short.world.rights[0].through = 9;
+    let mut same_world = short.world.clone();
+    same_world.rights = extended.world.rights.clone();
+    assert_eq!(same_world, extended.world);
+    assert_eq!(short.state, extended.state);
+    short.run_months(18).unwrap();
+    let deficit: i32 = short
+        .reports
+        .iter()
+        .filter(|r| r.agent == PERSON)
+        .map(|r| r.deficit(NUTRITION))
+        .sum();
+    assert_eq!(deficit, 2);
+    let old_harvests: Vec<_> = short
+        .state
+        .processes
+        .values()
+        .filter(|p| p.definition == GROW && p.status == Status::Completed)
+        .map(|p| p.reserved_through)
+        .collect();
+    assert_eq!(old_harvests, vec![6]);
+    assert_eq!(short.state.balance(PERSON, SEED), 1);
+
+    // Check every committed boundary: seed is either held or invested in one crop.
+    while extended.state.month <= 60 {
+        extended.step().unwrap();
+        let active = extended
+            .state
+            .processes
+            .values()
+            .filter(|p| p.definition == GROW && p.status == Status::Active)
+            .count() as i32;
+        assert_eq!(extended.state.balance(PERSON, SEED) + active, 1);
+    }
+    assert!(
+        extended
+            .reports
+            .iter()
+            .filter(|r| r.agent == PERSON)
+            .all(|r| r.deficit(NUTRITION) == 0)
+    );
+    let harvests: Vec<_> = extended
+        .state
+        .processes
+        .values()
+        .filter(|p| p.definition == GROW && p.status == Status::Completed)
+        .map(|p| p.reserved_through)
+        .collect();
+    assert_eq!(harvests, vec![6, 14, 22, 32, 44, 56]);
+    assert_eq!(extended.state.credit.stock_spent, 12000);
+    assert_eq!(extended.state.balance(PERSON, TOKEN), 7980);
+    assert_eq!(
+        extended.state.credit.loans[&1].status,
+        credit::Status::Repaid
+    );
+    assert!(
+        extended
+            .state
+            .processes
+            .values()
+            .all(|p| p.status != Status::Aborted)
+    );
 }

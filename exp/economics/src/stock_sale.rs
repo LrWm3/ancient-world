@@ -16,6 +16,8 @@ const LOAN_MONTHS: u32 = 12;
 const FORECAST_MONTHS: u32 = 18;
 const CROP_GRAIN: i32 = 12;
 const STORE_CAPACITY: i32 = 100;
+// Ownership-following cultivation permission, independent of the observation window.
+const CULTIVATION_RIGHT_MONTHS: u32 = 120;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Policy {
@@ -234,6 +236,9 @@ pub(crate) fn settle(
 pub fn scenario(case: &str) -> Result<(World, State), String> {
     use crate::scenario::{GRAIN, GROW, PERSON, SEED, STATE_AGENT, TOKEN};
     let (mut w, s) = crate::borrowing::scenario("affordable")?;
+    for right in &mut w.rights {
+        right.through = CULTIVATION_RIGHT_MONTHS;
+    }
     let c = w.credit.as_mut().unwrap();
     c.offers[0].loan.term_months = LOAN_MONTHS;
     c.purchase_policy = crate::borrowing::Policy::Compare(crate::borrowing::Config {
