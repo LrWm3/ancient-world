@@ -239,4 +239,7 @@ public offers, dated terms, selected work preferences, acceptance scores, logica
 forecast counts, completed deliveries and failures. They are enabled by settlement
 or planning observation. Agreement trade volume appears in ordinary market metrics;
 there are no synthetic spot-order or negotiation-attempt records for these deliveries.
+Posted offer receipts also include acceptance/rejection and proposer/recipient
+assessments for each revision. `joint_projections` separates centralized forecasts
+from individual forecasts; it remains zero for Posted discovery.
 See [cooperative discovery](COOPERATION.md) for the information and failure policies.

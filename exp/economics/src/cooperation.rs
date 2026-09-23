@@ -42,6 +42,10 @@ pub struct Offer {
     pub proposer: AgentId,
     pub expires: u32,
     pub deliveries: Vec<Delivery>,
+    /// Reply assessments are diagnostic receipts, not shared planning inputs.
+    pub proposer_assessment: Assessment,
+    pub replies: Vec<Assessment>,
+    pub accepted: bool,
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Score {
@@ -69,6 +73,7 @@ pub struct Boundary {
     pub assessments: Vec<Assessment>,
     pub event: String,
     pub projections: usize,
+    pub joint_projections: usize,
     pub completed: Vec<Delivery>,
     pub failure: Option<String>,
 }
@@ -265,6 +270,29 @@ fn terms(
     out.sort_by_key(|d| (d.month, d.market));
     Ok(out)
 }
+/// Same quantities and prices, either regular delivery or the seller's goods
+/// deferred to the last month. Payment remains delivery-versus-payment.
+fn menus(
+    w: &World,
+    s: &State,
+    seller: AgentId,
+    market: marketplace::MarketId,
+) -> Result<Vec<Vec<Delivery>>, String> {
+    let regular = terms(w, s, seller, market)?;
+    let mut deferred = regular.clone();
+    let end = s
+        .month
+        .checked_add(TERM_MONTHS - 1)
+        .ok_or("contract date overflow")?;
+    for d in &mut deferred {
+        if d.goods.from == seller {
+            d.month = end;
+        }
+    }
+    deferred.sort_by_key(|d| (d.month, d.market));
+    Ok(vec![deferred, regular])
+}
+
 fn contract(
     s: &State,
     choices: BTreeMap<AgentId, Choice>,
@@ -349,7 +377,7 @@ struct Projection {
 }
 /// Conditional individual forecasts endow ONLY the other party with its promised
 /// outgoing amounts, disable its needs/work, and never inspect its chosen plan.
-/// This is a promise assumption, not a live grant. The joint gate removes it.
+/// This is a promise assumption, not a live grant or a guarantee.
 fn project(
     w: &World,
     s: &State,
@@ -379,6 +407,7 @@ fn project(
         p.needs.clear();
         p.capacity.quantity = 0;
         state.processes.retain(|_, p| p.operator != other);
+        state.balances.retain(|(owner, _), _| *owner != other);
         // Only the counterparty's hypothetical budget changes. No promised
         // receipts finance the evaluating person's earlier outgoing payments.
         for d in &c.deliveries {
@@ -517,7 +546,7 @@ fn baseline(w: &World, s: &State, count: &mut usize) -> Result<BTreeMap<AgentId,
                 .collect();
             let c = contract(s, choices, vec![])?;
             *count += 1;
-            let p = project(w, s, &c, None)?;
+            let p = project(w, s, &c, Some(*agent))?;
             if best.get(agent).is_none_or(|v| &p.scores[agent] < v) {
                 best.insert(*agent, p.scores[agent].clone());
             }
@@ -538,70 +567,83 @@ fn discover(
         .map(|m| m.market)
         .collect();
     let mut accepted: Vec<(Vec<Score>, Contract, Vec<Assessment>)> = vec![];
+
     if mode == Discovery::Mutual {
-        for market in &markets {
-            let deliveries = terms(w, s, ids[0], *market)?;
-            for a in candidates(w) {
-                for z in candidates(w) {
-                    let c = contract(
-                        s,
-                        BTreeMap::from([(ids[0], a), (ids[1], z)]),
-                        deliveries.clone(),
-                    )?;
-                    b.projections += 1;
-                    let p = project(w, s, &c, None)?;
-                    let checks = assess(w, s, &c, &p, &base);
-                    if checks.iter().all(|v| v.acceptable)
-                        && checks.iter().any(|v| v.proposed < v.baseline)
-                    {
-                        accepted.push((
-                            ids.iter().map(|a| p.scores[a].clone()).collect(),
-                            c,
-                            checks,
-                        ));
+        let mut seen = vec![];
+        for seller in &ids {
+            for market in &markets {
+                for deliveries in menus(w, s, *seller, *market)? {
+                    if seen.contains(&deliveries) {
+                        continue;
+                    }
+                    seen.push(deliveries.clone());
+                    for a in candidates(w) {
+                        for z in candidates(w) {
+                            let c = contract(
+                                s,
+                                BTreeMap::from([(ids[0], a), (ids[1], z)]),
+                                deliveries.clone(),
+                            )?;
+                            b.projections += 1;
+                            b.joint_projections += 1;
+                            let p = project(w, s, &c, None)?;
+                            let checks = assess(w, s, &c, &p, &base);
+                            if checks.iter().all(|v| v.acceptable)
+                                && checks.iter().any(|v| v.proposed < v.baseline)
+                            {
+                                accepted.push((
+                                    ids.iter().map(|a| p.scores[a].clone()).collect(),
+                                    c,
+                                    checks,
+                                ));
+                            }
+                        }
                     }
                 }
             }
         }
     } else {
-        // One offer per proposer, selected using its own conditional forecast.
+        // Stable proposer priority. Each proposer ranks distinct public terms by
+        // its own best plan; rejection advances to its next terms in this boundary.
         for proposer in &ids {
             let other = *ids.iter().find(|a| *a != proposer).unwrap();
             let mut offers = vec![];
             for market in &markets {
-                for choice in candidates(w) {
-                    let c = contract(
-                        s,
-                        BTreeMap::from([
-                            (*proposer, choice),
-                            (
-                                other,
-                                Choice {
-                                    work: Work::Wait,
-                                    buy: Purchases::None,
-                                },
-                            ),
-                        ]),
-                        terms(w, s, *proposer, *market)?,
-                    )?;
-                    b.projections += 1;
-                    let p = project(w, s, &c, Some(*proposer))?;
-                    let check = assess(w, s, &c, &p, &base)
-                        .into_iter()
-                        .find(|a| a.agent == *proposer)
-                        .unwrap();
-                    if check.acceptable && check.proposed < check.baseline {
-                        offers.push((check.proposed, c));
+                for deliveries in menus(w, s, *proposer, *market)? {
+                    let mut plans = vec![];
+                    for choice in candidates(w) {
+                        let c = contract(
+                            s,
+                            BTreeMap::from([
+                                (*proposer, choice),
+                                (
+                                    other,
+                                    Choice {
+                                        work: Work::Wait,
+                                        buy: Purchases::None,
+                                    },
+                                ),
+                            ]),
+                            deliveries.clone(),
+                        )?;
+                        b.projections += 1;
+                        let p = project(w, s, &c, Some(*proposer))?;
+                        let check = assess(w, s, &c, &p, &base)
+                            .into_iter()
+                            .find(|a| a.agent == *proposer)
+                            .unwrap();
+                        if check.acceptable && check.proposed < check.baseline {
+                            plans.push((check, c));
+                        }
+                    }
+                    plans.sort_by(|a, b| a.0.proposed.cmp(&b.0.proposed));
+                    if let Some(plan) = plans.into_iter().next() {
+                        offers.push(plan);
                     }
                 }
             }
-            offers.sort_by(|a, b| a.0.cmp(&b.0));
-            if let Some((_, offer)) = offers.into_iter().next() {
-                b.offers.push(Offer {
-                    proposer: *proposer,
-                    expires: s.month,
-                    deliveries: offer.deliveries.clone(),
-                });
+            offers.sort_by(|a, b| a.0.proposed.cmp(&b.0.proposed));
+            for (proposal, offer) in offers {
                 let mut replies = vec![];
                 for choice in candidates(w) {
                     let mut c = offer.clone();
@@ -612,25 +654,24 @@ fn discover(
                         .into_iter()
                         .find(|a| a.agent == other)
                         .unwrap();
-                    if check.acceptable {
-                        replies.push((check.proposed, c));
-                    }
+                    replies.push((check, c));
                 }
-                replies.sort_by(|a, b| a.0.cmp(&b.0));
-                if let Some((_, c)) = replies.into_iter().next() {
-                    // Same final shared-resource and mutual-benefit gate as mutual search.
-                    b.projections += 1;
-                    let p = project(w, s, &c, None)?;
-                    let checks = assess(w, s, &c, &p, &base);
-                    if checks.iter().all(|v| v.acceptable)
-                        && checks.iter().any(|v| v.proposed < v.baseline)
-                    {
-                        accepted.push((
-                            ids.iter().map(|a| p.scores[a].clone()).collect(),
-                            c,
-                            checks,
-                        ));
-                    }
+                replies.sort_by(|a, b| a.0.proposed.cmp(&b.0.proposed));
+                let selected = replies.iter().find(|(a, _)| a.acceptable);
+                b.offers.push(Offer {
+                    proposer: *proposer,
+                    expires: s.month,
+                    deliveries: offer.deliveries.clone(),
+                    proposer_assessment: proposal.clone(),
+                    replies: replies.iter().map(|(a, _)| a.clone()).collect(),
+                    accepted: selected.is_some(),
+                });
+                if let Some((reply, c)) = selected {
+                    // Two independent consents. No joint rollout, score arbitration,
+                    // or access to the other person's selected work in either forecast.
+                    b.assessments = vec![proposal, reply.clone()];
+                    b.assessments.sort_by_key(|a| a.agent);
+                    return Ok(Some(c.clone()));
                 }
             }
         }
@@ -661,6 +702,7 @@ pub fn evaluate(w: &World, s: &State) -> Result<Option<Round>, String> {
         assessments: vec![],
         event: "Continuing".into(),
         projections: 0,
+        joint_projections: 0,
         completed: vec![],
         failure: None,
     };
@@ -771,7 +813,22 @@ mod tests {
         let before = sim.state.clone();
         let wait = project(&sim.world, &sim.state, &c, Some(ids[0])).unwrap();
         c.choices.get_mut(&ids[1]).unwrap().work = Work::Produce(crate::scenario::PREPARE_FUEL);
-        let work = project(&sim.world, &sim.state, &c, Some(ids[0])).unwrap();
+        let mut hidden_world = sim.world.clone();
+        let mut hidden_state = sim.state.clone();
+        hidden_world
+            .participants
+            .iter_mut()
+            .find(|p| p.agent == ids[1])
+            .unwrap()
+            .capacity
+            .quantity = 100;
+        hidden_state
+            .balances
+            .insert((ids[1], crate::scenario::GRAIN), 1000);
+        hidden_state
+            .balances
+            .insert((ids[1], crate::scenario::TOKEN), 0);
+        let work = project(&hidden_world, &hidden_state, &c, Some(ids[0])).unwrap();
         assert_eq!(wait.scores[&ids[0]], work.scores[&ids[0]]);
         assert_eq!(wait.coins[&ids[0]], work.coins[&ids[0]]);
         assert_eq!(sim.state, before);

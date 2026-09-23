@@ -74,8 +74,16 @@ fn both_mechanisms_discover_reciprocal_exchange_and_keep_finite_money_for_72_mon
                     .any(|r| !r.cooperation.as_ref().unwrap().offers.is_empty())
             );
             for b in history.iter().filter_map(|r| r.cooperation.as_ref()) {
-                let mut proposers = std::collections::BTreeSet::new();
-                assert!(b.offers.iter().all(|o| proposers.insert(o.proposer)));
+                assert_eq!(b.joint_projections, 0);
+                assert!(b.offers.iter().filter(|o| o.accepted).count() <= 1);
+                for (i, offer) in b.offers.iter().enumerate() {
+                    assert!(
+                        !b.offers[..i]
+                            .iter()
+                            .any(|earlier| earlier.proposer == offer.proposer
+                                && earlier.deliveries == offer.deliveries)
+                    );
+                }
             }
         }
     }
@@ -92,15 +100,15 @@ fn unanticipated_lost_harvest_cancels_future_deliveries_without_reversing_previo
             normal.state.town_market.history,
             shock.state.town_market.history
         );
-        shock.run_months(3).unwrap();
+        shock.run_months(5).unwrap();
         let failed = shock.state.town_market.history.last().unwrap();
         let c = failed.cooperation.as_ref().unwrap();
-        assert_eq!(failed.month, 4);
+        assert_eq!(failed.month, 6);
         assert_eq!(c.event, "Failed");
         assert!(c.active.is_none() && c.completed.is_empty() && failed.transactions.is_empty());
         assert!(c.failure.is_some());
-        assert_eq!(shock.state.balance(calibration::CROP_PERSON, TOKEN), 22);
-        assert_eq!(shock.state.balance(calibration::WOOD_PERSON, TOKEN), 26);
+        assert_eq!(shock.state.balance(calibration::CROP_PERSON, TOKEN), 14);
+        assert_eq!(shock.state.balance(calibration::WOOD_PERSON, TOKEN), 34);
         assert!(
             shock
                 .state
@@ -247,8 +255,9 @@ fn agreement_does_not_reuse_current_incoming_money_or_ignore_market_admission() 
         .unwrap()
         .clone();
     sim.world.production_market.as_mut().unwrap().policy = Policy::Agreement(Box::new(c));
-    // Month two: the grain seller is owed four coins, but must independently
+    // Month six: the grain seller is owed twelve coins, but must independently
     // fund its two-coin fuel purchase from the opening balance.
+    sim.run_months(4).unwrap();
     sim.state
         .balances
         .insert((calibration::CROP_PERSON, TOKEN), 0);
@@ -289,7 +298,7 @@ fn observer_records_posted_terms_accepted_assessments_and_failed_delivery() {
         },
     )
     .unwrap();
-    observer.run_months(&mut sim, 4).unwrap();
+    observer.run_months(&mut sim, 6).unwrap();
     let bytes = observer.finish().unwrap();
     let rows: Vec<serde_json::Value> = std::str::from_utf8(&bytes)
         .unwrap()
@@ -301,7 +310,7 @@ fn observer_records_posted_terms_accepted_assessments_and_failed_delivery() {
         .find(|r| r["kind"] == "cooperation" && r["event"] == "Accepted")
         .unwrap();
     assert_eq!(accepted["through"], 6);
-    assert_eq!(accepted["offers"].as_array().unwrap().len(), 2);
+    assert_eq!(accepted["offers"].as_array().unwrap().len(), 1);
     assert_eq!(accepted["deliveries"].as_array().unwrap().len(), 9);
     assert!(
         accepted["assessments"]
@@ -314,11 +323,76 @@ fn observer_records_posted_terms_accepted_assessments_and_failed_delivery() {
         .iter()
         .find(|r| r["kind"] == "cooperation" && r["event"] == "Failed")
         .unwrap();
-    assert_eq!(failed["month"], 4);
+    assert_eq!(failed["month"], 6);
     assert!(failed["failure"].is_string());
     assert!(failed["completed"].as_array().unwrap().is_empty());
     let mut plain = simulation(Discovery::Posted, Backend::CubeCpu, true);
-    plain.run_months(4).unwrap();
+    plain.run_months(6).unwrap();
     assert_eq!(sim.state, plain.state);
     assert_eq!(sim.ledger, plain.ledger);
+}
+
+#[test]
+fn receiver_rejects_late_food_and_accepts_revision_without_joint_planning() {
+    for mode in [Discovery::Mutual, Discovery::Posted] {
+        let mut sim = simulation(mode, Backend::CubeCpu, false);
+        sim.state.balances.insert(
+            (
+                calibration::WOOD_PERSON,
+                economics_compute_smoke::scenario::GRAIN,
+            ),
+            2,
+        );
+        sim.run_months(6).unwrap();
+        let b = sim.state.town_market.history[0]
+            .cooperation
+            .as_ref()
+            .unwrap();
+        assert_eq!(b.event, "Accepted");
+        let grain_dates: Vec<_> = b
+            .active
+            .as_ref()
+            .unwrap()
+            .deliveries
+            .iter()
+            .filter(|d| d.goods.amount.resource == economics_compute_smoke::scenario::GRAIN)
+            .map(|d| d.month)
+            .collect();
+        assert_eq!(grain_dates, vec![2, 4, 6]);
+        if mode == Discovery::Posted {
+            assert_eq!(b.joint_projections, 0);
+            assert_eq!(b.offers.len(), 2);
+            assert_eq!(b.offers[0].proposer, b.offers[1].proposer);
+            assert!(!b.offers[0].accepted);
+            assert!(b.offers[0].proposer_assessment.acceptable);
+            assert!(
+                b.offers[0].proposer_assessment.proposed
+                    < b.offers[1].proposer_assessment.proposed
+            );
+            assert!(b.offers[0].replies.iter().all(|r| !r.acceptable));
+            assert!(b.offers[1].accepted);
+            assert!(b.offers[1].replies.iter().any(|r| r.acceptable));
+        } else {
+            assert!(b.joint_projections > 0);
+        }
+        assert!(
+            sim.reports
+                .iter()
+                .all(|r| r.deficit(NUTRITION) == 0 && r.deficit(WARMTH) == 0)
+        );
+        assert_eq!(
+            sim.state
+                .town_market
+                .history
+                .last()
+                .unwrap()
+                .cooperation
+                .as_ref()
+                .unwrap()
+                .event,
+            "Completed"
+        );
+        assert_eq!(sim.state.balance(calibration::CROP_PERSON, TOKEN), 24);
+        assert_eq!(sim.state.balance(calibration::WOOD_PERSON, TOKEN), 24);
+    }
 }

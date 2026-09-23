@@ -1,151 +1,166 @@
 # Two ways to discover cooperative agreements
 
-Implemented as opt-in `production_market::Policy::Cooperate` variants:
-`Discovery::Mutual` and `Discovery::Posted`. They use the same two-person
-[calibration fixture](CALIBRATION.md), candidate work policies, six-month horizon,
-fixed prices, contract terms, acceptance criteria and settlement path. The default
-individual planner is unchanged.
+Opt-in `production_market::Policy::Cooperate` compares `Discovery::Mutual`
+with `Discovery::Posted` in the two-person [calibration fixture](CALIBRATION.md).
+Both use the same bounded terms menu, work candidates, six-month horizon, fixed
+prices, individual acceptance criteria and dated settlement. The default individual
+planner is unchanged.
 
-## Shared agreement and bounded search
+**Posted acceptance has no centralized joint feasibility forecast.** Each person
+consents using its own conditional projection. Mutual search remains a centralized
+comparison. Neither mechanism guarantees performance after an unexpected shock.
 
-Each candidate agreement names both parties, their selected work preferences, a
-start/end month and dated delivery-versus-payment obligations. The public offer
-contains only delivery/payment terms and its proposer/expiry; it does not publish
-a counterparty's work plan. Contract terms are kept in committed market history.
+## Shared terms and decisions
 
-The initial menu is deliberately small: one resource unit per month in each
-direction, expressed using existing market lots. One person delivers two grain for
-four coins every second month; the other delivers one fuel for two coins monthly.
-The reverse assignment is also considered. A six-month agreement therefore has
-nine deliveries and twelve coins flowing each way. Prices come from the fixture's
-fixed trader quotes. Quantities are a supplied menu, not yet generated from arbitrary
-need sizes, bargaining or ZIP. No one is preassigned the farming or wood role.
+Each contract records parties, selected work preferences, start/end dates and
+delivery-versus-payment obligations. Public offers publish deliveries and payments;
+the recipient does not receive the proposer's work plan as a planning input.
+Work choices and assessments remain available in diagnostic receipts.
 
-Candidate work preferences are ordinary need-directed work, waiting, crop production
-and fuel production, derived from the enabled process catalog. Existing processes
-retain continuing-work priority. An accepted preference does not create labor,
-seed, rights or outputs, and ordinary fallback work remains available.
+The menu exchanges six grain and six fuel over six months, with twelve coins
+flowing each way. Grain trades in two-unit lots for four coins; fuel trades in
+one-unit lots for two coins. Both seller assignments are available. For each
+assignment there are two schedules:
 
-Each person's outside option is its best candidate without exchange over the same
-six months. Scores compare terminal outcome, priority-ordered need deficits,
-aborted processes, a two-month closing need buffer, then actual productive labor.
-Both must be no worse by that lexicographic score, and at least one must improve.
-Each must also end the agreement with at least its opening coins. This restrictive
-cash-neutral-or-better gate is specific to this recurring-exchange pilot; it is
-not a general investment valuation policy or an absolute zero-deficit requirement.
+- Regular: grain every second month, fuel monthly.
+- Deferred seller delivery: the proposing seller delivers all its goods in the
+  final month; the other party delivers regularly.
 
-All actual monthly cash/material constraints are checked in the joint forecast.
-Ending cash alone does not establish affordability. The same bounded resource and
-storage checks run again against live holdings before each delivery batch.
+Payment always occurs with delivery. Deferring goods also defers their payment.
+Amounts and prices do not change. Mutual search receives the union of both
+proposers' menus, deduplicated. These are fixture terms, not inferred quantities,
+negotiated prices or ZIP.
 
-## Mutual plans
+Work candidates come from the enabled process catalog: ordinary need-directed
+work, waiting, crop production and fuel production. Continuing processes retain
+priority; a preferred activity does not create labor, seed, rights or outputs.
 
-The matcher enumerates both goods assignments and the Cartesian product of work
-candidates. It projects the combined arrangement, evaluates each participant's
-outcome against its own outside option, and selects a mutually acceptable candidate.
-Both may reject. Candidate arbitration is explicit and deterministic: scores in
-sorted participant-ID order, then stable candidate enumeration. This favors the
-first participant among mutually acceptable alternatives; it is not a fairness
-claim or a population-wide welfare optimizer.
+Each person's outside option is its best no-exchange candidate over six months.
+Scores compare terminal outcome, priority-ordered deficits, aborted processes,
+a two-month closing need buffer, then productive labor. Both must be no worse
+than their outside option; at least one must improve. Each must finish with at
+least its opening coins. This last condition is a restrictive recurring-exchange
+rule, not a general investment policy. Acceptance does not impose an absolute
+zero-deficit requirement.
 
-## Market-posted agreements
+## Mutual search
 
-Each person evaluates potential terms against its **own** candidate work plans and
-posts at most one beneficial offer. Offers expire at that Acquire boundary. The
-other person independently searches its own work choices against the published
-terms and may accept or reject. A final joint feasibility/benefit check precedes
-acceptance; only one agreement can be active for this pair.
+The matcher enumerates schedules and pairs of work preferences, runs joint
+forecasts from actual resources and checks both people's outcomes. Acceptable
+candidates are ranked by score in sorted participant-ID order, then enumeration
+order. This privileges the first person's outcome among acceptable alternatives;
+it is not a fairness or social-welfare optimizer.
 
-Individual forecasts are explicitly conditional on promised deliveries. In a
-private clone only, the counterparty is given enough hypothetical outgoing stock
-and coins to honor the promise, its work choice is replaced with Wait, its active
-processes are removed and its needs disabled. The evaluating person's endowments
-and outgoing budgets are unchanged. A focused test proves changing the hidden
-counterparty work choice cannot change this conditional assessment. These are
-promise assumptions, not observations, live grants or guarantees.
+## Posted offers, rejection and revision
 
-The final joint check removes those hypothetical endowments and executes **both
-actual selected plans** from actual opening resources. Thus an attractive proposal
-can still fail acceptance. This check has full access to submitted plans; the
-pilot does not establish distributed proof of feasibility or private-information
-market clearing. Posted offers are bilateral and scoped to the existing pair,
-not a persistent general marketplace offer book or common-offer adapter yet.
+Within Acquire, proposers take turns in stable participant-ID order. A proposer:
 
-Both approaches use `cooperation::Contract`, the existing finance transfer primitive,
-Acquire resource reservations and the ordinary CPU transaction commit. This adds
-a scoped agreement domain, not a second universal contract interpreter.
+1. Independently evaluates each schedule against its own work candidates.
+2. Retains its best strictly beneficial, affordable plan for each distinct set of terms.
+3. Ranks those offers by its own score. Equal scores retain menu order, with
+   deferred delivery before regular delivery.
+4. Posts its first offer. The recipient evaluates its own work candidates against
+   those public terms and accepts its best acceptable response.
+5. If rejected, posts the next ranked terms. If all are rejected, the next
+   proposer takes its turn.
 
-## Timing, reservations and consequences
+The first agreement with two consents is accepted. There is no joint rollout,
+central comparison of the two submitted plans, or joint-score arbitration.
+Revision exhausts a small fixed menu within one boundary; it does not learn new
+terms from rejection, persist an offer book or negotiate across months. Only one
+agreement may be active for this pair.
 
-Open admits participants and establishes capacities. Acquire discovers/accepts an
-agreement when none is active, then settles that month's dated trades. Accepted
-work preferences guide Productive; production and consumption use existing rules.
-Renewal is considered after expiration. Neither approach reads future capacity
-shocks; forecasts go through `ForecastContext`.
+Individual forecasts assume the other party honors its promises. In a private
+forecast clone, that party's balances are replaced by its promised outgoing
+quantities and coins, its work becomes Wait, and its needs, active processes and
+storage limit are removed. The evaluating person's resources and budgets are
+unchanged. Even no-trade outside options use this individual projection path.
+A test changes the other person's selected work, capacity, food and coins without
+changing the evaluating person's assessment.
 
-All outgoing legs draw from opening balances. Incoming coins cannot fund another
-outgoing leg in that same Acquire batch. Storage and participant eligibility are
-checked as well. Transactions and the dated agreement receipt are re-evaluated
-before atomic publication, so forged or replayed acceptance cannot reserve twice.
-Only one active agreement is supported, preventing overlapping accepted proposals
-in this isolated driver. Future labor and stocks are **not escrowed**: the selected
-work policy persists, ongoing processes reserve through existing machinery, and
-future delivery is an obligation subject to failure. This is not multi-agreement
-future-capacity allocation. Switching between the two discovery variants preserves
-an active agreement; removing the cooperative planner while one is active is rejected.
+These hypothetical resources never enter live state. The code still uses the
+existing world forecast engine and records both choices for execution; it is not
+a separate distributed runtime or a general privacy boundary. This isolated
+fixture has distinct plots and one active agreement. Conditional forecasts do
+not solve competing future claims on shared resources or overlapping promises.
 
-If any scheduled trade is unfundable or a participant is unavailable, none of that
-month's agreement trades settle. The receipt records failure and cancels all remaining
-deliveries. Previous trades remain final; no refunds, damages, arrears collection,
-reputation penalty or insurance are invented. Existing production can continue under
-ordinary work policy. Parties may propose a new agreement next month.
+## Timing and consequences
 
-Scheduled delivery uses its accepted terms rather than the spot order generator's
-six-month stock-protection threshold. The full-cycle forecast and closing buffer
-are its acceptance test. Consequently comparison with the earlier autonomous spot
-baseline changes both planning and interaction rules; only the two new mechanisms
-are a controlled discovery comparison.
+Open establishes capacities and market admission. Acquire discovers an agreement
+and settles due trades. Productive uses the accepted work preferences; production
+and consumption follow the existing schedule. Future shocks are removed by
+`ForecastContext`. Monthly, batched and checkpoint execution use the same phases.
 
-## CPU results
+Each monthly package reserves all outgoing legs against opening money and goods.
+Incoming coins cannot finance another outgoing leg in that batch. Live storage,
+market eligibility and finite budgets remain enforced. These are settlement
+checks, not a prediction that future promises are feasible.
 
-Both mechanisms produced identical economic paths in these deterministic controls:
+Any failed delivery cancels the entire current package and all remaining
+deliveries. Earlier trades remain final. Receipts identify the failing resource,
+party, date and available budget where applicable. There are no refunds, damages,
+insurance, arrears collection or automatic seed replacement. Parties may try
+again next month.
 
-| Run | Food deficit | Warmth deficit | Grain traded | Fuel traded | Ending coins 88 / 91 | Accepted / completed / failed agreements |
-| --- | ---: | ---: | ---: | ---: | --- | --- |
-| Mutual, 72 months | 0 | 0 | 70 | 71 | 22 / 26 | 12 / 11 / 0 |
-| Posted, 72 months | 0 | 0 | 70 | 71 | 22 / 26 | 12 / 11 / 0 |
-| Mutual, lost first harvest, 24 months | 15 | 5 | 8 | 9 | 22 / 26 | 2 / 1 / 1 |
-| Posted, lost first harvest, 24 months | 15 | 5 | 8 | 9 | 22 / 26 | 2 / 1 / 1 |
+Committed receipts and transactions are re-evaluated before atomic publication,
+including replay/forgery checks. For Posted, this repeats the independent
+assessments; it does not restore a joint forecast. Future labor and stock are
+not escrowed. Changing discovery mode preserves active agreements; abandoning
+the cooperative planner while an agreement is active is rejected.
 
-The unshocked agreement starts in month 1; month 7 renewal is declined; another
-starts in month 8, then every six months. Month 72 is inside the last agreement,
-so ending 22/26 cash reflects unmatched timing within that cycle. Every completed
-agreement ends at 24/24. Final `(grain, fuel)` holdings are `(8, 5)` and `(4, 5)`;
-total productive labor is 125 units. This is repeated feasible exchange under
-finite money/storage, not a proof of indefinite sustainability.
+Both mechanisms use `cooperation::Contract`, finance transfers and existing
+Acquire reservations. This remains a scoped contract domain rather than a new
+universal agreement interpreter. Scheduled exchanges also differ from the earlier
+spot-order planner's stock-protection rule, so that earlier baseline is not a
+controlled comparison of discovery alone.
 
-Logical forecast counts in the accepted/rejected discovery receipts total **520
-for mutual versus 436 for posted** over 72 months. The shock runs use 640 versus
-480. Counts include outside-option searches and final checks, but exclude repeated
-validation of the same receipt; they are not runtime benchmarks. Fewer candidates
-are explored by posted offers, which can also miss an arrangement that a second
-choice offer or reply would find. Equal outcomes here do not establish equivalence
-between the mechanisms.
+## CPU controls after removing the posted joint check
 
-The shock removes person 88's labor in month 3 after the initial agreement has
-been accepted, aborting its first crop. Month 4's grain delivery fails and the
-agreement cancels, preserving the earlier coin transfers. One new agreement starts
-in month 13 and completes, but recovery is incomplete. The aborted crop also loses
-its seed input, so this is persistent productive damage from one missed harvest,
-not merely a one-month income delay. No seed market, emergency financing or restart
-assistance is present. Forecast acceptance never guaranteed resilience to this shock.
+| Control | Mechanism | Food / warmth deficits | Grain / fuel traded | Ending coins 88 / 91 | Accepted / completed / failed |
+| --- | --- | --- | --- | --- | --- |
+| Normal, 72 months | Mutual | 0 / 0 | 70 / 71 | 22 / 26 | 12 / 11 / 0 |
+| Normal, 72 months | Posted | 0 / 0 | 70 / 71 | 22 / 26 | 12 / 11 / 0 |
+| Lost first harvest, 24 months | Mutual | 14 / 7 | 6 / 11 | 14 / 34 | 2 / 1 / 1 |
+| Lost first harvest, 24 months | Posted | 14 / 7 | 6 / 11 | 14 / 34 | 2 / 1 / 1 |
+
+Normal runs finish with grain/fuel stocks of 8/5 for person 88 and 4/5 for person
+91. Every completed agreement restores coins to 24/24; 22/26 at month 72 is
+within-cycle timing. Mutual uses 1,352 logical projections, including 1,248 joint
+projections. Posted uses 384, all individual, and records two rejected offers.
+These counts exclude repeated receipt validation and are not runtime benchmarks.
+
+With the larger initial food reserves, both accept a deferred grain schedule.
+The surprise loss of person 88's month-three labor destroys its first crop.
+Delivery consequently fails in month six, after five fuel purchases, leaving
+14/34 coins. The lost seed continues to limit recovery. Shock runs use 1,456
+projections for Mutual (1,344 joint) and 660 for Posted (zero joint), with 31
+rejected posted offers. The new schedule changes exposure relative to the
+previous regular-delivery-only experiment; these are replacement results.
+
+### Controlled rejection and revision
+
+Give the wood producer two initial grain instead of six; keep all other
+resources, prices and production rules unchanged. Its own forecast rejects
+waiting until month six for grain. The same proposer revises to delivery in
+months two, four and six, which the recipient accepts. Mutual search also selects
+regular grain delivery. Both complete the six-month agreement with no unmet
+food/warmth needs and coins restored to 24/24.
+
+Posted receipts retain the proposer assessment, every recipient candidate
+assessment, rejected terms and accepted revision. Proposer ranking is private
+score followed by stable menu order: a first offer may be preferred by a tie,
+rather than a strict improvement. This control demonstrates useful refusal and
+revision without jointly inspecting the parties' plans. It does not establish
+general convergence, fairness, shock resilience or shared-resource feasibility.
 
 ## Running and verification
 
-From `exp/economics`, use fresh output directories:
+From `exp/economics`, use fresh ignored output directories:
 
 ```sh
 MONTHS=72 TELEMETRY_DIR=../../output/economics/cooperation-demo \
+  cargo +1.92.0 run --locked --example cooperation
+VARIANT=low-food MONTHS=6 TELEMETRY_DIR=../../output/economics/cooperation-revision-demo \
   cargo +1.92.0 run --locked --example cooperation
 SHOCK=harvest MONTHS=24 TELEMETRY_DIR=../../output/economics/cooperation-shock-demo \
   cargo +1.92.0 run --locked --example cooperation
@@ -153,25 +168,19 @@ cargo +1.92.0 test --locked --test cooperation
 cargo +1.92.0 test --locked --lib cooperation::tests
 ```
 
-The runner executes both mechanisms and writes ordinary observer JSONL. Cooperative
-records include public offers, accepted dated terms, individual assessments, logical
-projection counts, completed deliveries and failures. Market volume/price records
-include agreement settlements; these do not fabricate spot orders or negotiation
-attempts. Raw logs remain under ignored `output/`.
+Observers expose dated terms, proposer/reply assessments, rejected and accepted
+offers, total/joint projection counts, completed trades and failures. Financial
+volume and posted-price observations include contract deliveries without
+fabricating spot orders. Raw logs and JSONL stay under ignored `output/`.
 
-Focused tests cover 72-month finite-budget operation, surprise failure, zero-cash
-rejection, no reuse of incoming money, marketplace admission, atomic rejection of
-forged/replayed receipts, conditional-information isolation, and observer neutrality.
-Both discovery modes compare CPU monthly/checkpoint execution against reference
-batched execution, including the shock and reordered participant/process catalogs.
+Focused coverage includes repeated finite-money operation, rejection/revision,
+zero-cash refusal, hidden-harvest failure, no same-batch money reuse, admission,
+forgery/replay, individual forecast isolation and observer neutrality. CPU monthly
+and checkpoint execution are compared with reference batches and reordered
+participant/process catalogs for both modes, with and without the shock.
 
-All 56 focused tests passed: seven cooperative integration tests, one conditional
-forecast unit test, three calibration, nine production-market, nine reciprocal-market,
-ten telemetry and seventeen town-market tests. The final checkpoint/receipt guards
-were also rerun directly. Strict all-target Clippy and formatting checks passed;
-the full crate suite was not run.
-
-The next useful comparison is a richer but still bounded offer menu: quantities,
-dates or cashflow timing that permit one mechanism to find an arrangement the other
-misses. Shock recovery is a separate question involving seed replacement, reserves
-or negotiated restructuring; discovery alone did not solve it.
+Validation passed: eight cooperative integration tests, one individual-projection
+unit test, and 48 regression tests across calibration, production markets,
+reciprocal markets, telemetry and town markets. The final receipt additions and
+strict proposer-preference assertion were also checked directly. Strict
+all-target Clippy and formatting passed. The full crate suite was not run.
