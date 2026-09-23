@@ -17,7 +17,8 @@ This changes neither monthly phase order nor when installments fall due.
    Incoming cash or goods cannot finance another leg in this batch. Storage tracks
    net reserved effects, so a confirmed outgoing stock transfer frees room.
 3. Bilateral quote discovery uses opening permissions and pricing memory, with the
-   remaining money, stock and storage limits. Crossed quotes can still fail funding.
+   remaining money, stock and storage limits. Optional need-generated orders use net
+   reserved holdings; crossed quotes can still fail funding.
 4. Settlement recomputes both components together and checks the exact combined
    transaction list before publishing balances, loans, title or ZIP memory.
 
@@ -27,7 +28,7 @@ acceptable 40-tick grain purchase fails. With 2,050 opening ticks both settle an
 inside the same batch. Rejected exchange does not undo a valid financed purchase;
 a forged batch or buffer overflow publishes neither component.
 
-The resource view is deliberately small: outgoing balance reservations and net
+The resource view is deliberately small: outgoing balance reservations, net holdings and net
 storage usage. It is not a universal resource auction. Credit still owns title,
 collateral and loan rules; negotiation owns quotes and learning. Individual domain
 previews do not authorize the combined batch. Use the shared resolver for that.
@@ -53,11 +54,11 @@ collateral resale remains rejected pending explicit buyer/seller rules.
 | Scripted secured purchase + bilateral fixed/concession/ZIP exchange | Shared Acquire reservations and CPU controls |
 | Finite state stock bid + bilateral exchange | Shared stock, money and net storage; state bid retains its posted price |
 | Credit origination + existing citizenship/type permissions | Supported; due enforcement remains independent of permission |
-| Borrowing/sale-only forecast + configured negotiation | Uses the same resolver in hypothetical branches; no endogenous order generation |
+| Borrowing/sale-only forecast + configured negotiation | Uses the same resolver in hypothetical branches; optional bounded consumption orders |
 | Joint dated production plan + negotiation | Explicitly rejected; future work reservations need their own shared budget contract |
 | Credit/negotiation + households | Still rejected; pooled purchase resources and loan support need explicit receipts |
 | Legacy equipment/forward exchange, competing-access or pool-market drivers + credit/negotiation | Still rejected |
-| Need-directed search creating marketplace orders | Not implemented; bilateral parties, lot and reservation prices remain supplied |
+| Need-generated marketplace orders | [Bounded consumption/surplus policy](NEED-ORDERS.md) implemented; bilateral parties, lot and reservation prices remain supplied |
 | State posted bids learning ZIP prices | Not implemented; co-settlement does not change the price-setting policy |
 
 These exclusions are intentional validation boundaries, not claims that every

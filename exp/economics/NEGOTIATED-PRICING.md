@@ -119,8 +119,9 @@ new sessions with the same policy resume it within their current limits. There
 is now scoped [ZIP learning](ZIP.md), but no negotiation cost, strategic signaling, competing
 counterparties or welfare claim about the resulting price.
 
-The next useful extension is to generate a buy order from a food deficit and a
-sell order from surplus after protected needs and commitments. Keep valuation,
-quote policy, counterparty allocation and settlement separate. The [ZIP comparison](ZIP.md) now uses repeated supplied orders and public price
-events against this concession baseline; need-driven order generation remains
-separate work.
+The [need-order extension](NEED-ORDERS.md) now generates a buy order from a
+consumption deficit and a sell order from surplus after protected needs and
+commitments. It retains supplied counterparties, lot sizes and reservation values.
+Valuation, quote policy and settlement remain separate. The original
+[ZIP comparison](ZIP.md) uses repeated supplied orders; the new CPU fixture tests
+ZIP with generated orders and skipped sessions.

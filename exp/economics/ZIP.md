@@ -134,5 +134,7 @@ These are two-person implementation controls with externally supplied values and
 orders. Asymmetric initial margins, midpoint pricing, the tick size, round budget
 and two sampled seeds influence the observed surplus split. There is no claim
 of competitive equilibrium, calibrated behavior, or superiority over concessions.
+A separate [need-order pilot](NEED-ORDERS.md) now generates consumption demand and
+protected-surplus supply while retaining supplied limits and counterparties.
 Need-derived valuations, multi-buyer/multi-seller matching and a richer event
 stream remain separate next experiments.

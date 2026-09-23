@@ -68,8 +68,9 @@ quote, clamped to the participant's current reservation limit. ZIP instead resum
 its learned margin and reprices it against the current limit. Changing policy
 starts from the new session's opening quote. Quotes observed during no-agreement
 or failed-settlement outcomes can be retained; an ineligible/unlisted attempt has
-no quotes and therefore does not overwrite pricing records. No orders are
-implicitly renewed and no further sessions are automatically generated.
+no quotes and therefore does not overwrite pricing records. By default no orders are
+implicitly renewed. The opt-in [need-order policy](NEED-ORDERS.md) instead evaluates
+new demand and surplus each month from the configured start month.
 
 Quote history and pricing updates are published on the same staged boundary as
 transfer effects. Tampered receipts, changed eligibility or changed catalogs
@@ -100,10 +101,10 @@ repository artifact check pass. Generated output remains under ignored
 ## Current scope
 
 This is a venue around the existing one-lot bilateral experiment, with supplied
-orders and reservation values. There is no order book, simultaneous matching of
+reservation values and either supplied or bounded need-generated orders. There is no order book, simultaneous matching of
 many participants, fee model or automatic market-making. ZIP learning is scoped
 to the bilateral event stream described in [ZIP.md](ZIP.md). Existing
 restrictions still apply except for the supported credit/state-bid combination
 through the [shared acquisition resolver](INTEGRATION-STATUS.md). The public discovery
-function exposes supported trades; need-driven opportunity search does not yet
-create buy/sell orders from that catalog.
+function exposes supported trades. The [need-order pilot](NEED-ORDERS.md) creates
+buy/sell orders for one configured listing; general multi-market search remains absent.

@@ -11,7 +11,10 @@ The larger architecture below remains a proposal, not a planned commitment.
 The experiment's existing barriers are Open, optional Due, optional Acquire,
 Productive, Consumption, optional ClearArrears and Close. Credit and negotiated
 exchange can share Acquire with explicit outgoing-resource reservations and
-atomic validation. Installments remain due before acquisition; same-batch incoming
+atomic validation. An opt-in [need-order policy](NEED-ORDERS.md) generates
+consumption demand and protected-surplus supply for one configured bilateral
+listing, retaining supplied lot sizes and private price limits.
+Installments remain due before acquisition; same-batch incoming
 cash cannot fund another acquisition. Joint production planning commits dated work
 for Productive and is not yet composable with negotiated exchange. Household and
 legacy market integrations retain their documented restrictions. This standalone
