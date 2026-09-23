@@ -5,7 +5,7 @@ use economics_compute_smoke::{
     production_market::{self, WOOD_MARKET},
     scenario::{LABOR, NUTRITION, TOKEN, WARMTH},
     simulation::Simulation,
-    telemetry::{Config, Observer},
+    telemetry::{Config, Observer, PlanningDetail},
 };
 const DEFAULT_MONTHS: u32 = 48;
 
@@ -15,6 +15,21 @@ fn observer(mode: &str) -> Result<Option<Observer<std::io::BufWriter<std::fs::Fi
         return Ok(None);
     };
     let mut config = Config::default();
+    if let Ok(value) = std::env::var("TELEMETRY_PLANNING") {
+        config.planning = match value.as_str() {
+            "off" => PlanningDetail::Off,
+            "selected" => PlanningDetail::Selected,
+            "alternatives" => PlanningDetail::Alternatives,
+            _ => return Err("TELEMETRY_PLANNING must be off, selected, or alternatives".into()),
+        };
+    }
+    if let Ok(value) = std::env::var("TELEMETRY_SETTLEMENT") {
+        config.settlement = match value.as_str() {
+            "true" => true,
+            "false" => false,
+            _ => return Err("TELEMETRY_SETTLEMENT must be true or false".into()),
+        };
+    }
     if let Ok(value) = std::env::var("TELEMETRY_MODE") {
         match value.as_str() {
             "metrics" => config.logs = false,

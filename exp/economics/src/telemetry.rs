@@ -7,11 +7,23 @@ use std::{
     io::Write,
 };
 
+mod observers;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PlanningDetail {
+    #[default]
+    Off,
+    Selected,
+    Alternatives,
+}
+
 const SCHEMA_VERSION: u32 = 1;
 const DEFAULT_LOG_LIMIT: usize = 100_000;
 
 #[derive(Clone, Debug)]
 pub struct Config {
+    pub planning: PlanningDetail,
+    pub settlement: bool,
     pub metrics: bool,
     pub logs: bool,
     /// Empty means all agents. Market totals remain whole-market observations.
@@ -25,6 +37,8 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            planning: PlanningDetail::Off,
+            settlement: false,
             metrics: true,
             logs: true,
             agents: BTreeSet::new(),
@@ -46,6 +60,7 @@ pub struct Observer<W: Write> {
     omitted_logs: usize,
     failed: bool,
     attached: bool,
+    pending: Vec<observers::Pending>,
     flows: BTreeMap<(u32, AgentId, u32), (i64, i64)>,
 }
 impl<W: Write> Observer<W> {
@@ -65,9 +80,11 @@ impl<W: Write> Observer<W> {
             omitted_logs: 0,
             failed: false,
             attached: false,
+            pending: vec![],
             flows: BTreeMap::new(),
         };
         observer.write(json!({"kind":"start", "config": {
+            "planning":format!("{:?}",observer.config.planning), "settlement":observer.config.settlement,
             "metrics":observer.config.metrics, "logs":observer.config.logs,
             "agents":observer.config.agents, "first_month":observer.config.first_month,
             "last_month":observer.config.last_month, "metric_every":observer.config.metric_every,
@@ -133,6 +150,12 @@ impl<W: Write> Observer<W> {
         let phase = format!("{:?}", sim.state.phase);
         let result = sim.step();
         for batch in &sim.ledger[batches..] {
+            if self.month(batch.month) {
+                for record in observers::batch(&self.config, &sim.world, batch, &mut self.pending) {
+                    self.log(record)?;
+                }
+            }
+            observers::outcomes(batch, &mut self.pending);
             if self.metric(batch.month) {
                 for effect in batch.transactions.iter().flat_map(|t| &t.effects) {
                     if self.agent(effect.account.0) {
@@ -188,6 +211,14 @@ impl<W: Write> Observer<W> {
                 }
             }
         }
+        observers::reports(&sim.reports[reports..], &mut self.pending);
+        if sim.state.month > month {
+            for record in observers::close(month, &mut self.pending) {
+                if self.month(month) {
+                    self.log(record)?;
+                }
+            }
+        }
         for report in &sim.reports[reports..] {
             if !self.metric(report.month) || !self.agent(report.agent) {
                 continue;
@@ -229,7 +260,7 @@ impl<W: Write> Observer<W> {
             }
         }
         if let Err(error) = &result
-            && self.config.logs
+            && (self.config.logs || self.config.settlement)
             && self.month(month)
         {
             self.log(
@@ -256,7 +287,7 @@ impl<W: Write> Observer<W> {
             return Err("telemetry output previously failed".into());
         }
         self.write(json!({"kind":"finish","written_logs":self.written_logs,
-            "omitted_logs":self.omitted_logs}))?;
+            "omitted_logs":self.omitted_logs,"pending_plan_outcomes":self.pending.len()}))?;
         self.writer
             .flush()
             .map_err(|e| format!("telemetry flush failed: {e}; simulation is not rolled back"))?;
