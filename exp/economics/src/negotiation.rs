@@ -402,6 +402,7 @@ pub fn scenario() -> (World, State) {
         membership_offers: vec![],
         laws: vec![],
         agreement_forms: None,
+        agreement_limits: Default::default(),
         membership_permissions: BTreeSet::new(),
         agent_types: BTreeMap::from([
             (BUYER, opportunities::PERSON_TYPE),

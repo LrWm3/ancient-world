@@ -379,11 +379,11 @@ pub fn acceptance_for(
     let mut bound = template.clone();
     bound.debtor = applicant;
     let offer = &bound;
-    if !crate::laws::evaluate_agreement(
+    if !crate::laws::evaluate_terms(
         world,
         state,
         offer.debtor,
-        crate::laws::AgreementForm::LandUseLease,
+        crate::laws::lease_terms(world, state, offer).ok_or("invalid lease duration")?,
     )
     .allowed
         || world

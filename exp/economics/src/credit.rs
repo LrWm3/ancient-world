@@ -365,11 +365,13 @@ pub fn discover<'a>(world: &'a World, state: &State, buyer: AgentId) -> Vec<&'a 
         c.offers
             .iter()
             .filter(|o| {
-                crate::laws::evaluate_agreement(
+                crate::laws::evaluate_terms(
                     world,
                     state,
                     buyer,
-                    crate::laws::AgreementForm::FinancedAssetPurchase,
+                    crate::laws::Terms::FinancedPurchase {
+                        monthly_rate_bps: o.loan.monthly_rate_bps,
+                    },
                 )
                 .allowed
                     && buyer != o.sale.seller
@@ -598,11 +600,13 @@ fn purchase(
         .checked_sub(a.downpayment)
         .ok_or("purchase amount overflow")?;
     let coin = o.loan.denomination;
-    let reason = if !crate::laws::evaluate_agreement(
+    let reason = if !crate::laws::evaluate_terms(
         world,
         state,
         a.buyer,
-        crate::laws::AgreementForm::FinancedAssetPurchase,
+        crate::laws::Terms::FinancedPurchase {
+            monthly_rate_bps: o.loan.monthly_rate_bps,
+        },
     )
     .allowed
         || [a.buyer, o.sale.seller, o.loan.creditor]

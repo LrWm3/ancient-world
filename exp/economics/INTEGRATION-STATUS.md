@@ -153,5 +153,6 @@ Supported permission call sites share prohibition and required-membership checks
 legacy exchange/household combinations remain unsupported. This is not yet
 jurisdictional law or organizational founding law. An opt-in recognition catalog
 now permits or refuses new land-use leases and financed asset purchases; existing
-agreements retain servicing and use-right semantics. Recognition does not yet bound
-contract terms or integrate lease-versus-purchase planning.
+agreements retain servicing and use-right semantics. Separate optional ceilings
+now bound remaining lease duration and monthly loan interest at new entry.
+These controls do not integrate lease-versus-purchase planning or negotiated terms.

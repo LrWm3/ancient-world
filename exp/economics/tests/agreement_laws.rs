@@ -274,3 +274,246 @@ fn withdrawing_recognition_does_not_block_collateral_enforcement() {
             .any(|e| matches!(e, credit::Event::Enforced { .. }))
     );
 }
+
+#[test]
+fn interest_ceiling_is_inclusive_and_never_rewrites_the_offer() {
+    for delta in [-1, 0, 1] {
+        let mut m = mortgage(None, Backend::CubeCpu);
+        let rate = m.world.credit.as_ref().unwrap().offers[0]
+            .loan
+            .monthly_rate_bps;
+        let maximum = u32::try_from(i64::from(rate) + delta).unwrap();
+        m.world
+            .transaction_policy
+            .as_mut()
+            .unwrap()
+            .agreement_limits
+            .max_monthly_interest_bps = Some(maximum);
+        let terms = laws::Terms::FinancedPurchase {
+            monthly_rate_bps: rate,
+        };
+        let decision = laws::evaluate_terms(&m.world, &m.state, PERSON, terms);
+        assert_eq!(decision.allowed, delta >= 0);
+        assert_eq!(
+            !credit::discover(&m.world, &m.state, PERSON).is_empty(),
+            delta >= 0
+        );
+        if delta < 0 {
+            assert_eq!(
+                decision.reasons,
+                vec![Reason::TermLimit {
+                    term: laws::Term::MonthlyInterestBps,
+                    actual: rate,
+                    maximum,
+                }]
+            );
+        }
+        m.run_months(1).unwrap();
+        assert_eq!(!m.state.credit.loans.is_empty(), delta >= 0);
+        assert_eq!(
+            m.world.credit.as_ref().unwrap().offers[0]
+                .loan
+                .monthly_rate_bps,
+            rate
+        );
+    }
+    let mut m = mortgage(None, Backend::CubeCpu);
+    m.world.credit.as_mut().unwrap().offers[0]
+        .loan
+        .monthly_rate_bps = 0;
+    m.world
+        .transaction_policy
+        .as_mut()
+        .unwrap()
+        .agreement_limits
+        .max_monthly_interest_bps = Some(0);
+    m.run_months(1).unwrap();
+    assert!(!m.state.credit.loans.is_empty());
+}
+
+#[test]
+fn lease_ceiling_counts_inclusive_remaining_months_and_waiting_can_make_it_legal() {
+    for delta in [-1, 0, 1] {
+        let mut l = lease(None, Backend::CubeCpu);
+        let offer = &l.world.access_offers[0];
+        let laws::Terms::Lease { months } = laws::lease_terms(&l.world, &l.state, offer).unwrap()
+        else {
+            panic!()
+        };
+        assert_eq!(months, l.world.rights[0].through - l.state.month + 1);
+        let maximum = u32::try_from(i64::from(months) + delta).unwrap();
+        l.world
+            .transaction_policy
+            .as_mut()
+            .unwrap()
+            .agreement_limits
+            .max_lease_months = Some(maximum);
+        assert_eq!(
+            opportunities::discover(&l.world, &l.state, PERSON)
+                .iter()
+                .any(|o| matches!(o, opportunities::Opportunity::StateAccess(_))),
+            delta >= 0
+        );
+        acquire(&mut l);
+        assert_eq!(
+            commitments::acceptance(&l.world, &l.state, 1).is_ok(),
+            delta >= 0
+        );
+        if delta < 0 {
+            let decision =
+                laws::evaluate_terms(&l.world, &l.state, PERSON, laws::Terms::Lease { months });
+            assert_eq!(
+                decision.reasons,
+                vec![Reason::TermLimit {
+                    term: laws::Term::LeaseMonths,
+                    actual: months,
+                    maximum
+                }]
+            );
+            l.run_months(1).unwrap();
+            assert!(l.state.accepted_agreements.is_empty());
+            acquire(&mut l);
+            assert!(commitments::acceptance(&l.world, &l.state, 1).is_ok());
+        }
+    }
+}
+
+#[test]
+fn term_caps_do_not_hide_lawful_membership_prerequisites() {
+    let (mut w, s) = economics_compute_smoke::membership::scenario().unwrap();
+    let laws::Terms::Lease { months } = laws::lease_terms(&w, &s, &w.access_offers[0]).unwrap()
+    else {
+        panic!()
+    };
+    w.transaction_policy
+        .as_mut()
+        .unwrap()
+        .agreement_limits
+        .max_lease_months = Some(months);
+    assert!(!opportunities::permits(&w, &s, PERSON, Action::LandAccess));
+    assert!(
+        opportunities::discover(&w, &s, PERSON)
+            .iter()
+            .any(|o| matches!(o, opportunities::Opportunity::StateAccess(_)))
+    );
+    w.transaction_policy
+        .as_mut()
+        .unwrap()
+        .agreement_limits
+        .max_lease_months = Some(months - 1);
+    assert!(
+        !opportunities::discover(&w, &s, PERSON)
+            .iter()
+            .any(|o| matches!(o, opportunities::Opportunity::StateAccess(_)))
+    );
+}
+
+#[test]
+fn term_caps_reject_pending_batches_without_partial_publication() {
+    let mut m = mortgage(None, Backend::CubeCpu);
+    acquire(&mut m);
+    let mut batch = Batch::empty(&m.state);
+    batch.credit = credit::evaluate(&m.world, &m.state).unwrap();
+    batch.transactions = batch.credit.as_ref().unwrap().transactions.clone();
+    m.world
+        .transaction_policy
+        .as_mut()
+        .unwrap()
+        .agreement_limits
+        .max_monthly_interest_bps = Some(0);
+    let before = m.state.clone();
+    assert!(
+        settlement::commit(
+            &m.world,
+            &mut m.state,
+            &batch,
+            Backend::CubeCpu,
+            DEFAULT_EFFECT_LIMIT
+        )
+        .is_err()
+    );
+    assert_eq!(before, m.state);
+    let mut l = lease(None, Backend::CubeCpu);
+    acquire(&mut l);
+    let mut batch = Batch::empty(&l.state);
+    batch.accept_access = Some(1);
+    l.world
+        .transaction_policy
+        .as_mut()
+        .unwrap()
+        .agreement_limits
+        .max_lease_months = Some(0);
+    let before = l.state.clone();
+    assert!(
+        settlement::commit(
+            &l.world,
+            &mut l.state,
+            &batch,
+            Backend::CubeCpu,
+            DEFAULT_EFFECT_LIMIT
+        )
+        .is_err()
+    );
+    assert_eq!(before, l.state);
+}
+
+#[test]
+fn tightened_caps_preserve_existing_rates_and_rent_across_cpu_checkpoints() {
+    for is_credit in [false, true] {
+        let mut original = if is_credit {
+            mortgage(None, Backend::Reference)
+        } else {
+            lease(None, Backend::Reference)
+        };
+        original.run_months(1).unwrap();
+        let mut w = original.world.clone();
+        w.transaction_policy.as_mut().unwrap().agreement_limits = laws::AgreementLimits {
+            max_lease_months: Some(0),
+            max_monthly_interest_bps: Some(0),
+        };
+        let mut restricted = Simulation::new(w, original.state.clone(), Backend::CubeCpu).unwrap();
+        let months = if is_credit { 5 } else { 14 };
+        let start = original.ledger.len();
+        original.run_months(months).unwrap();
+        for _ in 0..months {
+            acquire(&mut restricted);
+            restricted.state = Simulation::new(
+                restricted.world.clone(),
+                restricted.state.clone(),
+                Backend::CubeCpu,
+            )
+            .unwrap()
+            .state;
+            restricted.run_months(1).unwrap();
+        }
+        assert_eq!(original.state, restricted.state);
+        assert_eq!(&original.ledger[start..], restricted.ledger);
+        if is_credit {
+            assert!(
+                restricted
+                    .state
+                    .credit
+                    .loans
+                    .values()
+                    .all(|l| l.debt().unwrap() == 0)
+            );
+            assert!(
+                restricted
+                    .state
+                    .credit
+                    .loans
+                    .values()
+                    .all(|l| l.monthly_rate_bps > 0)
+            );
+        } else {
+            assert!(!restricted.state.obligations.is_empty());
+            assert!(
+                restricted
+                    .state
+                    .obligations
+                    .values()
+                    .all(|o| o.paid == o.owed)
+            );
+        }
+    }
+}

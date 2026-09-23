@@ -87,7 +87,8 @@ are treated as existing agreements, rather than as applications for new recognit
 Tests manually replace the static catalog between committed boundaries to exercise
 this distinction. There is no enacted-law event, amendment schedule, historical law
 archive, retroactive invalidation or compensation mechanism yet. Nor does the
-catalog validate interest limits, deposits, tenure durations or founding charters.
+catalog itself validate deposits or founding charters. Term ceilings are a separate
+layer, described below.
 
 Six additional tests compare catalog alternatives on identical openings within
 the existing lease and mortgage fixtures. Both allow-list and empty-list cases run
@@ -99,6 +100,55 @@ repossession of collateral on an existing loan. Denied-form controls compare
 six-month reference batches with monthly CPU execution
 and checkpoints. These are two separate fixtures, not a new integrated planner
 choosing between leasing and buying the same plot.
+
+## Legal ceilings on agreement terms
+
+`Policy.agreement_limits` now supplies two optional, authority-wide ceilings:
+
+```rust
+laws::AgreementLimits {
+    max_lease_months: Some(120),
+    max_monthly_interest_bps: Some(100),
+}
+```
+
+Interest uses the loan's existing **monthly basis points**, so 100 means 1% per
+month, not an annual rate. Both ceilings are inclusive. `None` imposes no ceiling;
+zero is a real limit (only zero-interest loans pass a zero interest ceiling).
+
+Lease duration is the remaining tenure at new acceptance, including the expiry
+month: `right.through - acceptance_month + 1`. Discovery before an offer activates
+uses its activation month as the earliest possible start. Date arithmetic is
+checked. Existing acceptance still checks availability and expiry independently.
+Waiting can make a previously excessive remaining duration fit the cap; neither
+the offer's expiration nor its annual payment is changed.
+
+`laws::evaluate_terms` combines form recognition, action permission and the supplied
+terms. `TermLimit` reports the term, offered value and maximum. The narrower
+`evaluate_agreement` API checks only form recognition and permission, so domain
+acceptance uses the term-aware API. The terms are derived from the actual catalog
+offer at discovery and acceptance, not supplied as a claim by the applicant.
+
+Lease discovery checks the terms separately from prospective citizenship permission,
+so a lawful prerequisite remains visible but citizenship cannot make an excessive
+lease legal. Financed-purchase discovery and origination check the actual monthly
+loan rate. Forbidden terms are rejected; there is no automatic repricing, truncation
+or counteroffer. The existing credit receipt classifies such refusal as
+`Ineligible`; the legal evaluator supplies the detailed reason.
+
+Ceilings apply to **new entry only**. Tightening a cap does not revise an accepted
+loan rate, shorten an existing right or change rent. Controlled continuation tests
+tighten both ceilings to zero after acceptance, resume on CPU at checkpoints, and
+match unchanged reference state and ledger through repayment or annual rent
+settlement. As with recognition withdrawal, this is a test of static policy
+replacement, not an implemented legislation or amendment system.
+
+Five term-specific tests cover values below/at/above ceilings, zero-interest
+acceptance, remaining lease duration, citizenship discovery, atomic rejection of
+prepared/forged batches, and continuation of previously accepted terms. These
+extend the six agreement-recognition controls. The caps do not yet cover total
+borrowing cost, fees, rate changes, deposits, rents, loan maturity, organizational
+charters or different rules by actor type.
 
 ## Verification
 
@@ -133,21 +183,19 @@ cargo +1.92.0 test --locked --test membership --test opportunities --test acquis
 
 These are static, single-authority rules in world configuration. There are no
 territorial jurisdictions, delegated rulemakers, autonomous legislation, amendment
-dates, organizational recognition templates, charter limits, legal contract-term
-bounds, courts or illegal-action enforcement. Structured decisions are callable
+dates, organizational recognition templates, charter limits, courts or
+illegal-action enforcement. Term bounds currently cover only lease duration
+and monthly loan interest. Structured decisions are callable
 inspection results; existing generic denial receipts are not yet a complete legal
 observer stream.
 
-A useful next extension is legal bounds on the terms of a recognized form:
-for example, a maximum monthly interest rate or a permitted lease duration,
-with the same distinction between new entry and existing obligations.
-Organizational founding templates and constitution/charter constraints can later
-build on this separation between recognition, permission and feasibility.
+A useful next extension is to expose legal denial reasons through the existing
+planning/settlement observers, so a scenario can distinguish a missing permission,
+unrecognized form and excessive term without separate inspection. Negotiating
+legal alternatives and organizational founding templates can follow, keeping
+recognition, permission, terms and economic feasibility distinct.
 
-Validation: all 36 focused tests passed (six laws, eight acquisition, eight
-membership, seven negotiation and seven opportunity tests), along with strict
-all-target Clippy and formatting. The full crate suite was not run.
-
-Agreement-form validation: all 50 focused tests passed (six recognition controls
-plus 44 acquisition, borrowing, credit, laws, membership and opportunity tests).
-Strict all-target Clippy and formatting passed; the full crate suite was not run.
+Validation after term ceilings: all 62 focused tests passed (11 agreement-form
+and term controls, six laws, eight acquisition, six borrowing, nine credit, eight
+membership, seven negotiation and seven opportunity tests). Strict all-target
+Clippy and formatting passed. The full crate suite was not run.

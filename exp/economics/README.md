@@ -318,4 +318,5 @@ a food-constrained recipient and a lost harvest.
 [Static legal constraints](LAWS.md) add named prohibitions and membership requirements
 over existing type/membership grants, plus recognition of new land-use leases and
 financed asset purchases. CPU controls cover denial reasons and continued servicing
-of agreements accepted before recognition is withdrawn.
+of agreements accepted before recognition is withdrawn. Optional ceilings constrain
+new lease duration and monthly loan interest without changing accepted terms.

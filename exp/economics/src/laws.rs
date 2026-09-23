@@ -28,8 +28,9 @@ pub fn recognizes(w: &World, form: AgreementForm) -> bool {
             .is_none_or(|forms| forms.contains(&form))
     })
 }
-/// New agreement entry only. Existing rights, servicing and enforcement do not
-/// call this check; withdrawing recognition does not retroactively void contracts.
+/// Form recognition and action permission only; use evaluate_terms at acceptance.
+/// Existing rights, servicing and enforcement do not call this check; withdrawing
+/// recognition does not retroactively void contracts.
 pub fn evaluate_agreement(w: &World, s: &State, agent: AgentId, form: AgreementForm) -> Decision {
     let mut decision = evaluate(w, s, agent, form.action());
     if !recognizes(w, form) {
@@ -40,6 +41,82 @@ pub fn evaluate_agreement(w: &World, s: &State, agent: AgentId, form: AgreementF
         decision.reasons.push(Reason::UnrecognizedForm { form });
     }
     decision
+}
+
+/// Inclusive ceilings for new agreements. None is unbounded; zero is a real cap.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct AgreementLimits {
+    pub max_lease_months: Option<u32>,
+    pub max_monthly_interest_bps: Option<u32>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Term {
+    LeaseMonths,
+    MonthlyInterestBps,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Terms {
+    Lease { months: u32 },
+    FinancedPurchase { monthly_rate_bps: u32 },
+}
+impl Terms {
+    fn form(self) -> AgreementForm {
+        match self {
+            Self::Lease { .. } => AgreementForm::LandUseLease,
+            Self::FinancedPurchase { .. } => AgreementForm::FinancedAssetPurchase,
+        }
+    }
+}
+/// Pure term inspection also used for prerequisite discovery before permission
+/// has been obtained. Passing this check grants no action or agreement recognition.
+pub fn term_reasons(w: &World, terms: Terms) -> Vec<Reason> {
+    let Some(p) = &w.transaction_policy else {
+        return vec![];
+    };
+    let (term, actual, maximum) = match terms {
+        Terms::Lease { months } => (
+            Term::LeaseMonths,
+            months,
+            p.agreement_limits.max_lease_months,
+        ),
+        Terms::FinancedPurchase { monthly_rate_bps } => (
+            Term::MonthlyInterestBps,
+            monthly_rate_bps,
+            p.agreement_limits.max_monthly_interest_bps,
+        ),
+    };
+    maximum
+        .filter(|max| actual > *max)
+        .map_or(vec![], |maximum| {
+            vec![Reason::TermLimit {
+                term,
+                actual,
+                maximum,
+            }]
+        })
+}
+pub fn evaluate_terms(w: &World, s: &State, agent: AgentId, terms: Terms) -> Decision {
+    let mut decision = evaluate_agreement(w, s, agent, terms.form());
+    let reasons = term_reasons(w, terms);
+    if !reasons.is_empty() {
+        decision.allowed = false;
+        decision
+            .reasons
+            .retain(|r| !matches!(r, Reason::Granted | Reason::UnrestrictedLegacy));
+        decision.reasons.extend(reasons);
+    }
+    decision
+}
+/// The existing right expires on an inclusive month. New acceptance resets the
+/// agreement's activation date; duration is remaining tenure, not the old offer age.
+pub fn lease_terms(w: &World, s: &State, offer: &crate::commitments::Agreement) -> Option<Terms> {
+    let right = w.rights.iter().find(|r| r.id == offer.right)?;
+    let start = s.month.max(offer.activated);
+    right
+        .through
+        .checked_sub(start)?
+        .checked_add(1)
+        .map(|months| Terms::Lease { months })
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -62,6 +139,11 @@ pub enum Reason {
     Granted,
     Unclassified,
     NoGrant,
+    TermLimit {
+        term: Term,
+        actual: u32,
+        maximum: u32,
+    },
     UnrecognizedForm {
         form: AgreementForm,
     },

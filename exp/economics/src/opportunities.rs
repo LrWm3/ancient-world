@@ -24,6 +24,7 @@ pub struct Policy {
     pub authority: AgentId,
     pub laws: Vec<crate::laws::Rule>,
     pub agreement_forms: Option<BTreeSet<crate::laws::AgreementForm>>,
+    pub agreement_limits: crate::laws::AgreementLimits,
     pub membership_offers: Vec<crate::membership::Offer>,
     pub membership_permissions: BTreeSet<(crate::membership::Role, Action)>,
     pub agent_types: BTreeMap<AgentId, AgentType>,
@@ -89,6 +90,8 @@ pub fn discover<'a>(world: &'a World, state: &State, agent: AgentId) -> Vec<Oppo
     for a in access {
         if (a.debtor == agent || world.open_access_offers.contains(&a.id))
             && crate::laws::recognizes(world, crate::laws::AgreementForm::LandUseLease)
+            && crate::laws::lease_terms(world, state, a)
+                .is_some_and(|t| crate::laws::term_reasons(world, t).is_empty())
             && discoverable(world, state, agent, Action::LandAccess)
             && world
                 .transaction_policy
@@ -253,6 +256,7 @@ pub fn scenario() -> Result<(World, State), String> {
         authority: STATE_AGENT,
         laws: vec![],
         agreement_forms: None,
+        agreement_limits: Default::default(),
         membership_offers: vec![],
         membership_permissions: Default::default(),
         agent_types: BTreeMap::from([(PERSON, PERSON_TYPE), (STATE_AGENT, STATE_TYPE)]),

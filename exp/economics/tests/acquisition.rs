@@ -331,6 +331,7 @@ fn state_stock_bid_obeys_both_parties_trade_permissions() {
         membership_offers: vec![],
         laws: vec![],
         agreement_forms: None,
+        agreement_limits: Default::default(),
         membership_permissions: BTreeSet::new(),
         agent_types: BTreeMap::from([(PERSON, PERSON_TYPE), (STATE_AGENT, STATE_TYPE)]),
         permissions: BTreeSet::from([(PERSON_TYPE, Action::StockTrade)]),
