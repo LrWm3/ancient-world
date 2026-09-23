@@ -21,6 +21,7 @@ const CULTIVATION_RIGHT_MONTHS: u32 = 120;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Policy {
+    pub forecast: Option<crate::sale_plan::Policy>,
     pub bid: u32,
     pub seller: AgentId,
     pub reserve_months: u32,
@@ -30,6 +31,7 @@ pub struct Policy {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Receipt {
+    pub decision: Option<crate::sale_plan::Decision>,
     pub bid: u32,
     pub seller: AgentId,
     pub reserve: i32,
@@ -82,6 +84,9 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         || c.resale_buyer.is_some()
     {
         return Err("invalid scoped posted-sale policy".into());
+    }
+    if let Some(policy) = &p.forecast {
+        crate::sale_plan::validate(world, p.seller, policy)?;
     }
     reserve(world, p, bid.goods.resource)?;
     Ok(())
@@ -180,6 +185,12 @@ pub(crate) fn settle(
     } else {
         0
     };
+    let decision = p
+        .forecast
+        .as_ref()
+        .map(|policy| crate::sale_plan::choose(world, state, &out.after, limit, policy))
+        .transpose()?;
+    let limit = decision.as_ref().map_or(limit, |d| d.selected_lots);
     let mut sold = 0_i32;
     for _ in 0..limit {
         let transaction = currency::transaction(
@@ -216,6 +227,7 @@ pub(crate) fn settle(
         .checked_add(coins)
         .ok_or("purchase budget overflow")?;
     out.stock_sale = Some(Receipt {
+        decision,
         bid: bid.id,
         seller: p.seller,
         reserve,
@@ -252,6 +264,7 @@ pub fn scenario(case: &str) -> Result<(World, State), String> {
         .amount
         .quantity = BRIDGE_COINS;
     c.stock_sales = Some(Policy {
+        forecast: None,
         bid: SALE_BID,
         seller: PERSON,
         reserve_months: RESERVE_MONTHS,
@@ -288,5 +301,17 @@ pub fn scenario(case: &str) -> Result<(World, State), String> {
     w.storage.weights.insert(SEED, 1);
     w.storage.capacities.insert(PERSON, STORE_CAPACITY);
     w.storage.capacities.insert(STATE_AGENT, STORE_CAPACITY);
+    Ok((w, s))
+}
+
+/// Opt-in comparison; the fixed-reserve fixtures remain controls.
+pub fn forecast_scenario(case: &str) -> Result<(World, State), String> {
+    let (mut w, s) = scenario(case)?;
+    let p = w.credit.as_mut().unwrap().stock_sales.as_mut().unwrap();
+    p.reserve_months = 0;
+    p.forecast = Some(crate::sale_plan::Policy {
+        horizon_months: RESERVE_MONTHS,
+        need_limits: BTreeMap::from([(crate::scenario::NUTRITION, 0)]),
+    });
     Ok((w, s))
 }

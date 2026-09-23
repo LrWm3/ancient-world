@@ -111,3 +111,5 @@ pub mod forecast;
 pub mod borrowing;
 
 pub mod stock_sale;
+
+pub mod sale_plan;
