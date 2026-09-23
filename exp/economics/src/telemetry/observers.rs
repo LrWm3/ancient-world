@@ -44,8 +44,16 @@ pub(super) fn batch(
         && let Some(c) = &world.minting
     {
         if let Some(boundary) = &batch.minting {
+            if let Some(plan) = &boundary.plan
+                && selected(config, c.issuer)
+            {
+                records.push(json!({"kind":"physical_minting_orders","issuer":c.issuer,
+                    "required_funding":plan.required_funding,"reason":plan.reason,
+                    "orders":plan.orders.iter().map(|o|json!({"agent":o.agent,"market":o.market,
+                        "side":format!("{:?}",o.side),"limit":o.limit,"lots":o.lots})).collect::<Vec<_>>()}));
+            }
             for receipt in &boundary.receipts {
-                let deals: Vec<_> = c
+                let deals: Vec<_> = boundary
                     .deals
                     .iter()
                     .filter(|d| receipt.deals.contains(&d.id))

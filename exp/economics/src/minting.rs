@@ -1,4 +1,4 @@
-//! Physical issuance pilot: fixed dated market exchanges, paid capacity delegation,
+//! Physical issuance pilot: scripted or generated dated exchanges, paid capacity delegation,
 //! then ordinary production. No incoming payment finances its own acquisition batch.
 use crate::{
     acquisition::Resources,
@@ -8,6 +8,8 @@ use crate::{
     opportunities::{self, Action},
 };
 use std::collections::{BTreeMap, BTreeSet};
+
+pub mod orders;
 
 pub const ISSUER: AgentId = 0;
 pub const SUPPLIER: AgentId = 88;
@@ -48,6 +50,7 @@ pub struct Config {
     pub definition: DefinitionId,
     pub venue: AgentId,
     pub deals: Vec<Deal>,
+    pub order_policy: Option<orders::Policy>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Receipt {
@@ -59,6 +62,8 @@ pub struct Receipt {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Boundary {
     pub month: u32,
+    pub plan: Option<orders::Plan>,
+    pub deals: Vec<Deal>,
     pub receipts: Vec<Receipt>,
     pub transactions: Vec<Transaction>,
 }
@@ -124,13 +129,28 @@ pub fn evaluate(w: &World, s: &State) -> Result<Option<Boundary>, String> {
     if s.phase != Phase::Acquire {
         return Ok(None);
     }
+    let plan = c
+        .order_policy
+        .as_ref()
+        .map(|p| orders::generate(w, s, c, p))
+        .transpose()?;
+    let mut deals = plan.as_ref().map(|p| p.deals.clone()).unwrap_or_else(|| {
+        c.deals
+            .iter()
+            .filter(|d| d.month == s.month)
+            .cloned()
+            .collect()
+    });
+    deals.sort_by_key(|d| (d.package, d.id));
     let mut packages = BTreeMap::<u32, Vec<&Deal>>::new();
-    for d in c.deals.iter().filter(|d| d.month == s.month) {
+    for d in &deals {
         packages.entry(d.package).or_default().push(d);
     }
     let mut resources = Resources::opening(w, s);
     let mut out = Boundary {
         month: s.month,
+        plan,
+        deals: deals.clone(),
         receipts: vec![],
         transactions: vec![],
     };
@@ -228,6 +248,9 @@ pub fn validate(w: &World) -> Result<(), String> {
         return Err("minting requires one material-and-labor process producing the coin".into());
     }
     let venue = marketplace::venue(w, c.venue).ok_or("missing mint market")?;
+    if let Some(p) = &c.order_policy {
+        orders::validate(w, c, p)?;
+    }
     let mut ids = BTreeSet::new();
     for deal in &c.deals {
         let m = venue
@@ -442,6 +465,7 @@ pub fn scenario(case: &str) -> Result<(World, State), String> {
         coin: COIN,
         definition: MINT,
         venue: VENUE,
+        order_policy: None,
         deals: vec![
             Deal {
                 id: 1,
@@ -506,5 +530,50 @@ pub fn scenario(case: &str) -> Result<(World, State), String> {
         }
         _ => return Err("unknown physical minting case".into()),
     }
+    Ok((w, s))
+}
+
+/// Same production target and initial stocks as the fixed-term control.
+pub fn order_scenario(case: &str) -> Result<(World, State), String> {
+    use marketplace::Side;
+    let (mut w, s) = scenario(case)?;
+    let c = w.minting.as_mut().unwrap();
+    c.deals.clear();
+    c.order_policy = Some(orders::Policy {
+        month: MINT_MONTH,
+        sale_market: WHEAT,
+        sale_limit: WHEAT_LOT,
+        input_limits: BTreeMap::from([(METAL, METAL_LOT), (HOURS, WAGE)]),
+        quotes: vec![
+            orders::Quote {
+                agent: SUPPLIER,
+                market: WHEAT,
+                side: Side::Buy,
+                limit: WHEAT_LOT,
+                holding: WHEAT_LOT,
+            },
+            orders::Quote {
+                agent: WORKER,
+                market: WHEAT,
+                side: Side::Buy,
+                limit: WHEAT_LOT,
+                holding: WHEAT_LOT,
+            },
+            orders::Quote {
+                agent: SUPPLIER,
+                market: METAL,
+                side: Side::Sell,
+                limit: METAL_LOT,
+                holding: 0,
+            },
+            orders::Quote {
+                agent: WORKER,
+                market: HOURS,
+                side: Side::Sell,
+                limit: WAGE,
+                holding: 0,
+            },
+        ],
+    });
     Ok((w, s))
 }

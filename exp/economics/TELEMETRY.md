@@ -253,3 +253,10 @@ records identify the issuer, completed process, coin resource and quantity.
 Generic transaction logs retain all material, money and capacity legs. Agent
 filters select packages involving a selected buyer/seller and issuance by a
 selected issuer. Observation does not participate in reservations or settlement.
+
+The generated mint-order variant also emits `physical_minting_orders` for a selected
+issuer: required funding, orders (agent, market, side, limit and lots), and the
+plan outcome. Package records now resolve trades from the committed boundary,
+so generated counterparties are visible even with no scripted deals. Failure
+reasons identify unfunded targets or unfilled input markets; they do not enumerate
+every suppressed quote or attempted counterparty.

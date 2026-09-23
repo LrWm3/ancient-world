@@ -60,7 +60,7 @@ collateral resale remains rejected pending explicit buyer/seller rules.
 | Legacy equipment/forward exchange, competing-access or pool-market drivers + credit/negotiation | Still rejected |
 | Need-generated marketplace orders | [Bounded consumption/surplus policy](NEED-ORDERS.md) implemented; bilateral parties, lot and reservation prices remain supplied |
 | Four-person monthly town book | [Implemented separately](TOWN-MARKET.md): locality, generated orders, multiple counterparties, fixed/ZIP quotes; credit and households remain excluded |
-| Physical minting + fixed dated stock/capacity exchange | [Isolated CPU pilot](MINTING.md); excludes other acquisition drivers and collection-linked issuance |
+| Physical minting + scripted or generated dated stock/capacity orders | [Isolated CPU pilot](MINTING.md); excludes other acquisition drivers and collection-linked issuance |
 | State posted bids learning ZIP prices | Not implemented; co-settlement does not change the price-setting policy |
 
 These exclusions are intentional validation boundaries, not claims that every

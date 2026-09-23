@@ -3,8 +3,10 @@
 Implemented as an isolated CPU pilot. A state sells wheat for existing coins,
 uses those proceeds in a later month to buy metal and labor, and executes an
 ordinary production process that creates coins. This tests funding, permission,
-physical inputs and supply accounting together. The issuance target, counterparties
-and fixed prices are supplied scenario data, not autonomous state planning or ZIP.
+physical inputs and supply accounting together. The fixed control supplies bilateral deals. An opt-in order policy now generates
+state wheat asks and recipe-input bids and chooses counterparties from crossing
+quotes. The production target and reservation prices remain configured; this is
+not autonomous monetary policy or ZIP.
 
 ## Three economic agents and a marketplace
 
@@ -92,18 +94,86 @@ TELEMETRY_DIR=../../output/economics/physical-minting-demo-new \
 The runner prints the four comparisons and writes metrics, transactions and
 settlement-observer JSONL under ignored output. No generated artifacts belong in Git.
 
+## Generated order variant
+
+`minting::orders::Policy` replaces scripted deals for one dated mint target. It
+reads the same immutable Acquire snapshot, with no extra execution phase:
+
+- Sum the recipe's material and service requirements, subtract owned stocks, and
+  calculate missing whole lots. Before the target month, current capacity cannot
+  count as future labor. Budget at configured bid ceilings, not assumed cheap asks.
+- Before the target date, offer enough whole wheat lots to cover the funding gap,
+  capped by owned wheat. No sales are needed if opening treasury already covers
+  procurement. Lot rounding may raise more coins than the exact gap.
+- Counterparties generate bids toward configured stock targets and asks above
+  protected reserves. They keep their own price limits; these are simple inventory
+  policies, not full need/utility forecasts. Unclassified/ineligible actors cannot
+  participate. Actual settlement still checks money, storage and labor permission.
+- At the target date, submit input bids only if opening coins cover the bid-ceiling
+  budget. Never finance these bids with same-batch sales or expected new coins.
+- Match the issuer's buys against cheapest crossing asks and its sales against
+  highest crossing bids, breaking price ties by agent ID. Trades execute at the
+  seller's ask. Input markets resolve in market-ID order against one shared opening
+  resource budget. Try another eligible counterparty if a candidate cannot settle.
+- Commit procurement only if every missing input lot matches. Otherwise discard
+  all tentative input trades and retain a reason identifying unfilled markets.
+  Earlier wheat sales are not undone. After the target date, stop issuing orders.
+
+The mint still starts through its existing dated production request. Acquiring
+inputs is not completion; production validation and supply accounting are unchanged.
+Configuration requires exactly one matching scheduled start, no scripted deals,
+and one distinct listing for each recipe input. It bounds quote count and lots;
+this is a small conditional procurement book, not an arbitrary order-book engine.
+
+All four CPU controls reproduce the fixed variant's balances and outcomes above.
+Additional controls show:
+
+| Change | Generated response / outcome |
+| --- | --- |
+| State already has two metal and one coin | Funding requirement falls to four; sells one wheat lot and buys labor only |
+| State starts with six coins | No wheat sale; waits until month two to acquire dated labor |
+| Labor ask falls from four to three | Trades at three; state ends with 11 coins after minting |
+| Another eligible seller offers metal for one | Chooses that seller; protecting its entire stock instead selects the original supplier |
+| Labor ask exceeds the bid ceiling | No input purchases or minting; worker can collect firewood |
+| No wheat demand, or no room for metal | No unsupported financing or partial procurement |
+| Mint permission revoked or mint disabled | No issuer orders; no issuance |
+
+Ten new tests cover these responses, shortfalls, participant admission and labor
+permissions, supplied-price crossing, protected stock, same-month funding, receipt
+tampering, invalid configuration, telemetry transparency, CPU/reference equality,
+actor/quote reordering and restart after each phase. The original eight mint tests
+remain unchanged and pass. One regression during development caught unsorted new
+receipt data under reordered scripted deals; receipts are now canonically ordered.
+The acquisition, marketplace and telemetry regressions also passed (42 tests
+including both mint suites), as did all-target Clippy with warnings denied.
+
+```sh
+cargo +1.92.0 test --locked --test mint_orders --test minting
+MINT_ORDERS=true TELEMETRY_DIR=../../output/economics/mint-orders-new \
+  cargo +1.92.0 run --locked --example minting
+```
+
+`physical_minting_orders` telemetry records required funding, emitted orders and
+the plan outcome, including insufficient treasury and unmatched input markets.
+Package telemetry uses resolved dated deals, including generated counterparties.
+The matcher does not record every suppressed counterparty order or every candidate
+it tried; its failure reason is a bounded diagnostic, not a complete causal trace.
+
 ## Scope and next extension
 
 The driver explicitly excludes credit, household pooling, negotiated/town/production
 market drivers and collection-linked issuance. It uses existing agents, venue
 catalogs, permissions, transfers, resource reservations, processes and CPU gather;
 it does not establish that these excluded pilots compose with physical minting.
-The fixed exchanges have package receipts but do not update ZIP pricing memory or
+Both variants have package receipts but neither updates ZIP pricing memory or
 the town market's price/volume history.
 
 There is no mining process, mint equipment, tax collection, consumption planning,
 state objective search or legal delegation of mint authority to another agent in
-this scenario. The sensible next extension is replacing supplied procurement with
-state-generated bids and wheat asks while keeping this same funding and production
-boundary. Only then should repeated issuance targets and pricing feedback be
-compared against these fixed-term controls.
+this scenario. State-generated orders now provide the next control alongside supplied deals.
+Reservation prices, private stock targets and the mint date are still supplied.
+The state may sell wheat even when future input supply will prove insufficient;
+it has no guaranteed counterparty commitments. Conservative ceiling budgets may
+also defer a purchase that cheaper realized prices could fund. Repeated issuance,
+changing quote policies and future supply expectations should be tested separately
+against these controls before attempting to combine all marketplace drivers.

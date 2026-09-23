@@ -9,8 +9,13 @@ fn main() -> Result<(), String> {
     let directory =
         std::env::var("TELEMETRY_DIR").map_err(|_| "set TELEMETRY_DIR under ignored output/")?;
     std::fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+    let generated = std::env::var("MINT_ORDERS").as_deref() == Ok("true");
     for case in ["normal", "treasury", "metal", "labor"] {
-        let (w, s) = minting::scenario(case)?;
+        let (w, s) = if generated {
+            minting::order_scenario(case)?
+        } else {
+            minting::scenario(case)?
+        };
         let mut sim = Simulation::new(w, s, Backend::CubeCpu)?;
         let file = std::fs::OpenOptions::new()
             .write(true)
@@ -43,6 +48,12 @@ fn main() -> Result<(), String> {
         );
         for b in &sim.ledger {
             if let Some(r) = &b.minting {
+                if let Some(plan) = &r.plan {
+                    println!(
+                        "month={} funding={} reason={} orders={:?}",
+                        r.month, plan.required_funding, plan.reason, plan.orders
+                    );
+                }
                 for p in &r.receipts {
                     println!(
                         "month={} package={} accepted={} reason={:?}",
