@@ -4,6 +4,9 @@ use crate::{
 };
 use std::collections::BTreeMap;
 
+pub const WOOD_MARKET: crate::marketplace::MarketId = 2;
+const WOOD_LOT: i32 = 1;
+const WOOD_PRICE: i32 = 2;
 const MAX_HORIZON: u32 = 12;
 const MAX_PEOPLE: usize = 4;
 const MAX_PRODUCERS: usize = 3;
@@ -37,15 +40,26 @@ pub enum Work {
     Produce(DefinitionId),
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Purchases {
+    None,
+    All,
+    Market(crate::marketplace::MarketId),
+}
+impl Purchases {
+    pub fn allows(self, market: crate::marketplace::MarketId) -> bool {
+        self == Self::All || self == Self::Market(market)
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Choice {
     pub work: Work,
-    pub buy: bool,
+    pub buy: Purchases,
 }
 impl Default for Choice {
     fn default() -> Self {
         Self {
             work: Work::Ordinary,
-            buy: true,
+            buy: Purchases::All,
         }
     }
 }
@@ -56,9 +70,23 @@ pub enum Policy {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
+    pub demand: DemandSignal,
     pub horizon: u32,
     pub trading: bool,
     pub policy: Policy,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DemandSignal {
+    CompletedOnly,
+    IncludeUnfilledBids,
+}
+impl DemandSignal {
+    fn limit(self, b: &Belief) -> u32 {
+        match self {
+            Self::CompletedOnly => b.lots_per_month,
+            Self::IncludeUnfilledBids => b.lots_per_month.max(b.interested_lots),
+        }
+    }
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Belief {
@@ -66,6 +94,8 @@ pub struct Belief {
     pub price: Option<i32>,
     /// Largest completed monthly volume in the observation window, in whole lots.
     pub lots_per_month: u32,
+    /// Largest unfilled bid volume, an interest signal rather than a sale promise.
+    pub interested_lots: u32,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Forecast {
@@ -75,8 +105,8 @@ pub struct Forecast {
     pub failures: usize,
     pub buffer_gap: i128,
     pub closing_coins: i32,
-    pub sales: i32,
-    pub purchases: i32,
+    pub sales: BTreeMap<crate::marketplace::MarketId, i32>,
+    pub purchases: BTreeMap<crate::marketplace::MarketId, i32>,
     pub labor: i64,
     pub stock_value: i64,
 }
@@ -90,7 +120,7 @@ pub struct PersonDecision {
 pub struct Decision {
     pub month: u32,
     pub through: u32,
-    pub belief: Belief,
+    pub belief: BTreeMap<crate::marketplace::MarketId, Belief>,
     pub people: Vec<PersonDecision>,
 }
 
@@ -128,6 +158,7 @@ pub fn validate(w: &World) -> Result<(), String> {
         for (agent, choice) in choices {
             if !w.participants.iter().any(|p| p.agent == *agent)
                 || matches!(choice.work,Work::Produce(id) if !producers.iter().any(|d|d.id==id))
+                || matches!(choice.buy, Purchases::Market(id) if !crate::town_market::listings(w.town_market.as_ref().unwrap()).iter().any(|m|m.market==id))
             {
                 return Err("invalid fixed production choice".into());
             }
@@ -141,12 +172,12 @@ pub(crate) fn validate_state(w: &World, s: &State) -> Result<(), String> {
             let mut ids = std::collections::BTreeSet::new();
             if d.month != r.month
                 || d.through < d.month
-                || d.belief.through >= d.month
+                || d.belief.values().any(|b| b.through >= d.month)
                 || d.people.iter().any(|p| {
                     !ids.insert(p.agent)
                         || !w.participants.iter().any(|a| a.agent == p.agent)
                         || p.selected >= p.alternatives.len()
-                        || p.alternatives.len() > 2 * (MAX_PRODUCERS + 2)
+                        || p.alternatives.len() > 4 * (MAX_PRODUCERS + 2)
                         || p.alternatives.iter().any(|a| {
                             matches!(a.choice.work,
                             Work::Produce(id) if !w.definitions.iter().any(|d|
@@ -186,31 +217,46 @@ pub fn choices(w: &World, d: Option<&Decision>) -> BTreeMap<AgentId, Choice> {
             .unwrap_or_default(),
     }
 }
-pub fn belief(w: &World, s: &State) -> Belief {
-    let m = w.town_market.as_ref().unwrap();
-    let lot = crate::marketplace::venue(w, m.venue)
-        .unwrap()
-        .markets
+pub fn belief(w: &World, s: &State) -> BTreeMap<crate::marketplace::MarketId, Belief> {
+    crate::town_market::listings(w.town_market.as_ref().unwrap())
         .iter()
-        .find(|a| a.id == m.market)
-        .unwrap()
-        .goods
-        .quantity;
-    let rows: Vec<_> = s
-        .town_market
-        .history
-        .iter()
-        .filter(|r| r.month < s.month && r.month >= s.month.saturating_sub(OBSERVATION_MONTHS))
-        .collect();
-    Belief {
-        through: s.month.saturating_sub(1),
-        price: rows.iter().rev().find_map(|r| r.posted_price),
-        lots_per_month: rows
-            .iter()
-            .map(|r| (r.volume / lot) as u32)
-            .max()
-            .unwrap_or(0),
-    }
+        .map(|m| {
+            let lot = crate::marketplace::venue(w, m.venue)
+                .unwrap()
+                .markets
+                .iter()
+                .find(|a| a.id == m.market)
+                .unwrap()
+                .goods
+                .quantity;
+            let rows: Vec<_> = s
+                .town_market
+                .history
+                .iter()
+                .filter(|r| {
+                    r.month < s.month && r.month >= s.month.saturating_sub(OBSERVATION_MONTHS)
+                })
+                .filter_map(|r| r.markets.get(&m.market))
+                .collect();
+            (
+                m.market,
+                Belief {
+                    through: s.month.saturating_sub(1),
+                    price: rows.iter().rev().find_map(|r| r.posted_price),
+                    lots_per_month: rows
+                        .iter()
+                        .map(|r| (r.volume / lot) as u32)
+                        .max()
+                        .unwrap_or(0),
+                    interested_lots: rows
+                        .iter()
+                        .map(|r| (r.unfilled_buy / lot) as u32)
+                        .max()
+                        .unwrap_or(0),
+                },
+            )
+        })
+        .collect()
 }
 
 pub(crate) fn work(sim: &Simulation) -> Result<Batch, String> {
@@ -276,10 +322,16 @@ fn forecast(
     s: &State,
     agent: AgentId,
     choice: Choice,
-    b: &Belief,
+    b: &BTreeMap<crate::marketplace::MarketId, Belief>,
 ) -> Result<Forecast, String> {
     let c = w.production_market.as_ref().unwrap();
-    let (mut world, state) = ForecastContext::new(w, s).into_parts();
+    let (mut world, mut state) = ForecastContext::new(w, s).into_parts();
+    // Historical alternatives are diagnostics, not inputs to a fixed-policy branch.
+    // Keep every market observation and accepted process, but avoid copying these
+    // large transcripts at every hypothetical settlement boundary.
+    for r in &mut state.town_market.history {
+        r.planning = None;
+    }
     world.production_market.as_mut().unwrap().policy =
         Policy::Fixed(BTreeMap::from([(agent, choice)]));
     let mut sim = Simulation::new(world, state, Backend::Reference)?;
@@ -291,7 +343,11 @@ fn forecast(
     // hypotheses, not observations of their eventual live policies.
     while sim.state.month < end {
         if sim.state.phase == Phase::Acquire && sim.state.month > s.month {
-            sim.world.town_market.as_mut().unwrap().match_limit = Some(b.lots_per_month);
+            let m = sim.world.town_market.as_mut().unwrap();
+            m.match_limit = Some(c.demand.limit(&b[&m.market]));
+            for l in &mut m.additional {
+                l.match_limit = Some(c.demand.limit(&b[&l.market]));
+            }
         }
         sim.step()?;
     }
@@ -343,8 +399,8 @@ fn forecast(
         .iter()
         .find(|a| a.id == m.market)
         .unwrap();
-    let mut sales = 0;
-    let mut purchases = 0;
+    let mut sales = BTreeMap::new();
+    let mut purchases = BTreeMap::new();
     for r in sim
         .state
         .town_market
@@ -355,26 +411,39 @@ fn forecast(
         for a in &r.attempts {
             if matches!(a.round.outcome, crate::negotiation::Outcome::Traded { .. }) {
                 if a.session.seller.agent == agent {
-                    sales += a.session.goods.quantity;
+                    *sales.entry(a.session.market).or_default() += a.session.goods.quantity;
                 }
                 if a.session.buyer.agent == agent {
-                    purchases += a.session.goods.quantity;
+                    *purchases.entry(a.session.market).or_default() += a.session.goods.quantity;
                 }
             }
         }
     }
-    // Value at most one surplus lot using observed prices, never as spendable cash.
-    let surplus = stocks
-        .get(&terms.goods.resource)
-        .copied()
-        .unwrap_or(0)
-        .max(0)
-        .min(i128::from(terms.goods.quantity));
-    let stock_value = if b.lots_per_month > 0 {
-        (surplus * i128::from(b.price.unwrap_or(0)) / i128::from(terms.goods.quantity)) as i64
-    } else {
-        0
-    };
+    // One surplus lot per distinct listed good; price observations never become cash.
+    let stock_value = crate::town_market::listings(m)
+        .iter()
+        .map(|listing| {
+            let terms = crate::marketplace::venue(w, listing.venue)
+                .unwrap()
+                .markets
+                .iter()
+                .find(|a| a.id == listing.market)
+                .unwrap();
+            let surplus = stocks
+                .get(&terms.goods.resource)
+                .copied()
+                .unwrap_or(0)
+                .max(0)
+                .min(i128::from(terms.goods.quantity));
+            let belief = &b[&listing.market];
+            if belief.lots_per_month > 0 {
+                (surplus * i128::from(belief.price.unwrap_or(0)) / i128::from(terms.goods.quantity))
+                    as i64
+            } else {
+                0
+            }
+        })
+        .sum();
     Ok(Forecast {
         choice,
         deficits,
@@ -412,11 +481,18 @@ pub fn choose(w: &World, s: &State) -> Result<Option<Decision>, String> {
         .filter(|p| !s.terminal.contains_key(&p.agent))
         .collect();
     participants.sort_by_key(|p| p.agent);
+    let mut buying = vec![Purchases::None, Purchases::All];
+    let listings = crate::town_market::listings(w.town_market.as_ref().unwrap());
+    if listings.len() > 1 {
+        let mut ids: Vec<_> = listings.iter().map(|l| l.market).collect();
+        ids.sort();
+        buying.extend(ids.into_iter().map(Purchases::Market));
+    }
     let mut people = vec![];
     for p in participants {
         let mut alternatives = vec![];
         for &work in &works {
-            for buy in [false, true] {
+            for &buy in &buying {
                 alternatives.push(forecast(w, s, p.agent, Choice { work, buy }, &belief)?);
             }
         }
@@ -596,9 +672,40 @@ pub fn scenario(trading: bool) -> (World, State) {
     w.horizon = EXAMPLE_HORIZON;
     w.priority = Priority::ContinuingFirst;
     w.production_market = Some(Config {
+        demand: DemandSignal::CompletedOnly,
         horizon: EXAMPLE_HORIZON,
         trading,
         policy: Policy::Plan,
     });
+    (w, s)
+}
+
+/// Same people, endowments and technologies; only the wood listing is added.
+pub fn reciprocal_scenario(trading: bool) -> (World, State) {
+    let (mut w, s) = scenario(trading);
+    w.production_market.as_mut().unwrap().demand = DemandSignal::IncludeUnfilledBids;
+    let c = w.town_market.as_mut().unwrap();
+    let mut traders = c.traders.clone();
+    for t in &mut traders {
+        t.trader.limit = WOOD_PRICE;
+        t.trader.opening_quote = WOOD_PRICE;
+    }
+    c.additional.push(crate::town_market::Listing {
+        market: WOOD_MARKET,
+        traders,
+        match_limit: None,
+    });
+    let venue = c.venue;
+    w.marketplaces
+        .iter_mut()
+        .find(|m| m.agent == venue)
+        .unwrap()
+        .markets
+        .push(crate::marketplace::Market {
+            id: WOOD_MARKET,
+            goods: Amount::new(crate::scenario::FUEL, WOOD_LOT),
+            payment: crate::scenario::TOKEN,
+            price_tick: 1,
+        });
     (w, s)
 }

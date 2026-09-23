@@ -1,3 +1,4 @@
+use economics_compute_smoke::negotiation::GRAIN_MARKET;
 use economics_compute_smoke::{
     compute::Backend,
     model::{ResourceKind, Status},
@@ -40,7 +41,7 @@ fn main() -> Result<(), String> {
                 .town_market
                 .history
                 .iter()
-                .map(|r| r.volume)
+                .map(|r| r.markets[&GRAIN_MARKET].volume)
                 .sum::<i32>(),
             sim.state
                 .processes
@@ -74,8 +75,8 @@ fn main() -> Result<(), String> {
             println!(
                 "month {} price {:?} volume {} choices {:?}",
                 r.month,
-                r.posted_price,
-                r.volume,
+                r.markets[&GRAIN_MARKET].posted_price,
+                r.markets[&GRAIN_MARKET].volume,
                 plans
                     .people
                     .iter()

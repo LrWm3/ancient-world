@@ -1,3 +1,4 @@
+use economics_compute_smoke::negotiation::GRAIN_MARKET;
 use economics_compute_smoke::{
     compute::Backend,
     marketplace::Side,
@@ -30,7 +31,12 @@ fn cpu_matches_two_pairs_then_releases_no_new_price_without_trades() {
     sim.step().unwrap();
     let r = &sim.state.town_market.history[0];
     assert_eq!(
-        (r.volume, r.posted_price, r.unfilled_buy, r.unfilled_sell),
+        (
+            r.markets[&GRAIN_MARKET].volume,
+            r.markets[&GRAIN_MARKET].posted_price,
+            r.markets[&GRAIN_MARKET].unfilled_buy,
+            r.markets[&GRAIN_MARKET].unfilled_sell
+        ),
         (4, Some(40), 0, 0)
     );
     assert_eq!(
@@ -50,13 +56,19 @@ fn cpu_matches_two_pairs_then_releases_no_new_price_without_trades() {
     }
     sim.run_months(6).unwrap();
     let r = &sim.state.town_market.history[1];
-    assert_eq!((r.volume, r.posted_price), (0, None));
+    assert_eq!(
+        (
+            r.markets[&GRAIN_MARKET].volume,
+            r.markets[&GRAIN_MARKET].posted_price
+        ),
+        (0, None)
+    );
     assert_eq!(
         sim.state
             .town_market
             .history
             .iter()
-            .map(|r| r.volume)
+            .map(|r| r.markets[&GRAIN_MARKET].volume)
             .sum::<i32>(),
         8
     );
@@ -89,7 +101,13 @@ fn scarce_lot_has_one_winner_and_id_ties_ignore_registration_order() {
         let mut sim = opening(w, s.clone(), Backend::Reference);
         sim.step().unwrap();
         let r = &sim.state.town_market.history[0];
-        assert_eq!((r.volume, r.unfilled_buy), (2, 2));
+        assert_eq!(
+            (
+                r.markets[&GRAIN_MARKET].volume,
+                r.markets[&GRAIN_MARKET].unfilled_buy
+            ),
+            (2, 2)
+        );
         assert_eq!(sim.state.balance(PERSON, GRAIN), 2);
         assert_eq!(sim.state.balance(91, GRAIN), 0);
         if let Some(e) = &expected {
@@ -112,7 +130,7 @@ fn failed_funding_or_storage_leaves_seller_available_to_next_buyer() {
         let mut sim = opening(w, s, Backend::Reference);
         sim.step().unwrap();
         let r = &sim.state.town_market.history[0];
-        assert_eq!(r.volume, 2);
+        assert_eq!(r.markets[&GRAIN_MARKET].volume, 2);
         assert_eq!(r.attempts.len(), 2);
         assert_eq!(
             r.attempts[0].round.outcome,
@@ -124,7 +142,7 @@ fn failed_funding_or_storage_leaves_seller_available_to_next_buyer() {
         );
         assert_eq!(sim.state.balance(91, GRAIN), 2);
         assert_eq!(sim.state.balance(PERSON, GRAIN), 0);
-        assert_eq!(r.posted_price, Some(35));
+        assert_eq!(r.markets[&GRAIN_MARKET].posted_price, Some(35));
     }
 }
 #[test]
@@ -189,7 +207,12 @@ fn uncrossed_and_all_failed_books_have_no_price_or_volume() {
         sim.step().unwrap();
         let r = &sim.state.town_market.history[0];
         assert_eq!(
-            (r.volume, r.posted_price, r.unfilled_buy, r.unfilled_sell),
+            (
+                r.markets[&GRAIN_MARKET].volume,
+                r.markets[&GRAIN_MARKET].posted_price,
+                r.markets[&GRAIN_MARKET].unfilled_buy,
+                r.markets[&GRAIN_MARKET].unfilled_sell
+            ),
             (0, None, 4, 4)
         );
         assert_eq!(sim.state.balance(89, GRAIN), 10);
@@ -206,7 +229,7 @@ fn forged_receipts_transfers_and_replay_do_not_publish_any_part() {
             0 => b.town_market = None,
             1 => {
                 if let Some(Boundary::Market(r)) = &mut b.town_market {
-                    r.posted_price = Some(1)
+                    r.markets.get_mut(&GRAIN_MARKET).unwrap().posted_price = Some(1)
                 }
             }
             2 => b.transactions.pop().map(|_| ()).unwrap(),
@@ -302,7 +325,7 @@ fn last_completed_price_does_not_reprice_earlier_transfers() {
     let r = &sim.state.town_market.history[0];
     assert_eq!(r.attempts[0].round.outcome, Outcome::Traded { price: 45 });
     assert_eq!(r.attempts[1].round.outcome, Outcome::Traded { price: 40 });
-    assert_eq!(r.posted_price, Some(40));
+    assert_eq!(r.markets[&GRAIN_MARKET].posted_price, Some(40));
     assert_eq!(sim.state.balance(PERSON, TOKEN), 55);
     assert_eq!(
         [PERSON, 89, 91, 92]
@@ -350,7 +373,10 @@ fn zip_accumulates_failed_and_completed_events_without_requoting_the_book() {
         memory.pricing[&(89, r.attempts[0].session.market, Side::Sell)].learning,
         Some(expected)
     );
-    assert_eq!(sim.state.town_market.history[0].volume, 2);
+    assert_eq!(
+        sim.state.town_market.history[0].markets[&GRAIN_MARKET].volume,
+        2
+    );
 }
 
 #[test]

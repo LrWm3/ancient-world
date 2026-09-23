@@ -1,3 +1,4 @@
+use economics_compute_smoke::negotiation::GRAIN_MARKET;
 use economics_compute_smoke::{
     compute::Backend,
     marketplace::Side,
@@ -30,7 +31,7 @@ fn sides_follow_stock_and_buying_ahead_preserves_seller_buffer() {
     s.balances.insert((89, GRAIN), 8);
     let sim = opening(w.clone(), s.clone());
     let r = town_market::evaluate(&sim.world, &sim.state).unwrap();
-    assert_eq!(r.volume, 2);
+    assert_eq!(r.markets[&GRAIN_MARKET].volume, 2);
     assert!(
         r.orders
             .iter()
@@ -69,7 +70,7 @@ fn missing_seed_blocks_new_crop_and_wait_honors_existing_work() {
         PERSON,
         Choice {
             work: Work::Produce(GROW),
-            buy: false,
+            buy: pm::Purchases::None,
         },
     )]));
     let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
@@ -93,7 +94,7 @@ fn missing_seed_blocks_new_crop_and_wait_honors_existing_work() {
         PERSON,
         Choice {
             work: Work::Wait,
-            buy: false,
+            buy: pm::Purchases::None,
         },
     )]));
     sim.run_months(2).unwrap();
@@ -139,11 +140,14 @@ fn observed_demand_expires_and_absent_buyers_create_no_cash() {
     s.balances.insert((89, GRAIN), 10);
     let mut sim = opening(w, s);
     sim.step().unwrap();
-    assert!(sim.state.town_market.history[0].volume > 0);
+    assert!(sim.state.town_market.history[0].markets[&GRAIN_MARKET].volume > 0);
     // Current clearing results are not yesterday's observed demand.
-    assert_eq!(pm::belief(&sim.world, &sim.state).lots_per_month, 0);
+    assert_eq!(
+        pm::belief(&sim.world, &sim.state)[&GRAIN_MARKET].lots_per_month,
+        0
+    );
     sim.run_months(1).unwrap();
-    assert!(pm::belief(&sim.world, &sim.state).lots_per_month > 0);
+    assert!(pm::belief(&sim.world, &sim.state)[&GRAIN_MARKET].lots_per_month > 0);
     let cash = sim
         .state
         .balances
@@ -155,7 +159,10 @@ fn observed_demand_expires_and_absent_buyers_create_no_cash() {
         sim.state.town_market.positions.insert(a, 100);
     }
     sim.run_months(7).unwrap();
-    assert_eq!(pm::belief(&sim.world, &sim.state).lots_per_month, 0);
+    assert_eq!(
+        pm::belief(&sim.world, &sim.state)[&GRAIN_MARKET].lots_per_month,
+        0
+    );
     assert_eq!(
         sim.state
             .balances
@@ -171,7 +178,8 @@ fn observed_demand_expires_and_absent_buyers_create_no_cash() {
             .history
             .iter()
             .skip(1)
-            .all(|r| r.volume == 0 && r.posted_price.is_none())
+            .all(|r| r.markets[&GRAIN_MARKET].volume == 0
+                && r.markets[&GRAIN_MARKET].posted_price.is_none())
     );
 }
 #[test]
@@ -233,7 +241,7 @@ fn trade_comparison_keeps_finite_money_and_repeated_crops() {
             .town_market
             .history
             .iter()
-            .map(|r| r.volume)
+            .map(|r| r.markets[&GRAIN_MARKET].volume)
             .sum::<i32>();
         outcomes.push((food, warmth, volume));
     }
@@ -283,7 +291,7 @@ fn incompatible_or_unbounded_planners_are_rejected() {
                     PERSON,
                     Choice {
                         work: Work::Produce(999),
-                        buy: true,
+                        buy: pm::Purchases::All,
                     },
                 )]))
             }
@@ -303,15 +311,19 @@ fn observed_price_values_unsold_stock_without_creating_spendable_cash() {
     sim.step().unwrap();
     let a = pm::choose(&sim.world, &sim.state).unwrap().unwrap();
     let mut observed = sim.state.clone();
-    observed.town_market.history[0].posted_price = Some(8);
+    observed.town_market.history[0]
+        .markets
+        .get_mut(&GRAIN_MARKET)
+        .unwrap()
+        .posted_price = Some(8);
     let b = pm::choose(&sim.world, &observed).unwrap().unwrap();
-    assert_eq!(a.belief.price, Some(4));
-    assert_eq!(b.belief.price, Some(8));
+    assert_eq!(a.belief[&GRAIN_MARKET].price, Some(4));
+    assert_eq!(b.belief[&GRAIN_MARKET].price, Some(8));
     let mut valued = false;
     for (a, b) in a.people.iter().zip(&b.people) {
         for (a, b) in a.alternatives.iter().zip(&b.alternatives) {
             assert_eq!(a.closing_coins, b.closing_coins);
-            assert_eq!((a.sales, a.purchases), (b.sales, b.purchases));
+            assert_eq!((&a.sales, &a.purchases), (&b.sales, &b.purchases));
             if a.stock_value > 0 {
                 assert_eq!(b.stock_value, 2 * a.stock_value);
                 valued = true;

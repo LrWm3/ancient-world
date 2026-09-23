@@ -1,3 +1,4 @@
+use economics_compute_smoke::negotiation::GRAIN_MARKET;
 use economics_compute_smoke::{
     compute::Backend, scenario::NUTRITION, simulation::Simulation, town_market,
 };
@@ -18,7 +19,12 @@ fn main() -> Result<(), String> {
             .sum();
         println!(
             "| {} | {:?} | {} | {} | {} | {} |",
-            r.month, r.posted_price, r.volume, r.unfilled_buy, r.unfilled_sell, deficit
+            r.month,
+            r.markets[&GRAIN_MARKET].posted_price,
+            r.markets[&GRAIN_MARKET].volume,
+            r.markets[&GRAIN_MARKET].unfilled_buy,
+            r.markets[&GRAIN_MARKET].unfilled_sell,
+            deficit
         );
     }
     Ok(())

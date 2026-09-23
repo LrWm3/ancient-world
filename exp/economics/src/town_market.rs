@@ -8,6 +8,7 @@ use crate::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+const MAX_LISTINGS: usize = 2;
 const MAX_TRADERS: usize = 32;
 const SECOND_BUYER: AgentId = 91;
 const SECOND_SELLER: AgentId = 92;
@@ -24,8 +25,22 @@ pub struct Entry {
     pub side: Side,
     pub trader: Trader,
 }
+/// A second listed good shares admission, money and storage with the first.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Listing {
+    pub market: marketplace::MarketId,
+    pub traders: Vec<Entry>,
+    pub match_limit: Option<u32>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ClearingPriority {
+    MarketId,
+    ReverseMarketId,
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
+    pub additional: Vec<Listing>,
+    pub priority: ClearingPriority,
     /// Opt-in need-based side selection instead of the registered side.
     pub adaptive: bool,
     /// Scoped cap on completed lots, also used by observation-limited forecasts.
@@ -52,6 +67,7 @@ pub struct Admission {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Order {
+    pub market: marketplace::MarketId,
     pub agent: AgentId,
     pub side: Side,
     pub quote: i32,
@@ -69,11 +85,34 @@ pub struct Round {
     pub orders: Vec<Order>,
     pub attempts: Vec<Attempt>,
     pub transactions: Vec<Transaction>,
-    /// Last completed match price this month; None is not a zero or a stale price.
+    pub markets: BTreeMap<marketplace::MarketId, MarketResult>,
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct MarketResult {
+    /// Last completed match this month; no trade means None.
     pub posted_price: Option<i32>,
     pub volume: i32,
     pub unfilled_buy: i32,
     pub unfilled_sell: i32,
+}
+/// Canonical listing order is independent of catalog/vector order. Allocation
+/// priority is explicit and changes only the order of reservations in Acquire.
+pub fn listings(c: &Config) -> Vec<Config> {
+    let mut primary = c.clone();
+    primary.additional.clear();
+    let mut rows = vec![primary.clone()];
+    for l in &c.additional {
+        let mut row = primary.clone();
+        row.market = l.market;
+        row.traders = l.traders.clone();
+        row.match_limit = l.match_limit;
+        rows.push(row);
+    }
+    rows.sort_by_key(|r| r.market);
+    if c.priority == ClearingPriority::ReverseMarketId {
+        rows.reverse();
+    }
+    rows
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Boundary {
@@ -148,25 +187,52 @@ pub fn validate(world: &World) -> Result<(), String> {
     {
         return Err("invalid town market participants or town".into());
     }
-    let mut ids = BTreeSet::new();
-    for t in &c.traders {
-        if c.adaptive
-            && (t.trader.opening_quote != t.trader.limit || t.trader.policy != QuotePolicy::Fixed)
+    if c.additional.len() + 1 > MAX_LISTINGS {
+        return Err("too many town listings".into());
+    }
+    let mut markets = BTreeSet::new();
+    let mut goods = BTreeSet::new();
+    let payment = catalog(world, c)?.payment;
+    let participants: BTreeSet<_> = c.traders.iter().map(|t| t.trader.agent).collect();
+    for row in listings(c) {
+        let c = &row;
+        let m = catalog(world, c)?;
+        if !markets.insert(c.market)
+            || !goods.insert(m.goods.resource)
+            || m.payment != payment
+            || c.traders
+                .iter()
+                .map(|t| t.trader.agent)
+                .collect::<BTreeSet<_>>()
+                != participants
         {
-            return Err("adaptive sides initially require fixed quotes at supplied limits".into());
+            return Err(
+                "town listings require distinct goods, common payment and participants".into(),
+            );
         }
-        if matches!(t.trader.policy, QuotePolicy::Concede { .. }) {
-            return Err("town quote policy must be Fixed or Zip".into());
-        }
-        if !ids.insert(t.trader.agent) {
-            return Err("duplicate town trader".into());
-        }
-        let s = pair(world, c, t, 1)?;
-        let mut w = template(world, s.clone());
-        w.need_orders = Some(c.reserve.clone());
-        negotiation::validate(&w)?;
-        if marketplace::supported(&w, &s).is_none() {
-            return Err("unsupported town market terms".into());
+        let mut ids = BTreeSet::new();
+        for t in &c.traders {
+            if c.adaptive
+                && (t.trader.opening_quote != t.trader.limit
+                    || t.trader.policy != QuotePolicy::Fixed)
+            {
+                return Err(
+                    "adaptive sides initially require fixed quotes at supplied limits".into(),
+                );
+            }
+            if matches!(t.trader.policy, QuotePolicy::Concede { .. }) {
+                return Err("town quote policy must be Fixed or Zip".into());
+            }
+            if !ids.insert(t.trader.agent) {
+                return Err("duplicate town trader".into());
+            }
+            let s = pair(world, c, t, 1)?;
+            let mut w = template(world, s.clone());
+            w.need_orders = Some(c.reserve.clone());
+            negotiation::validate(&w)?;
+            if marketplace::supported(&w, &s).is_none() {
+                return Err("unsupported town market terms".into());
+            }
         }
     }
     Ok(())
@@ -180,6 +246,20 @@ pub(crate) fn validate_state(world: &World, state: &State) -> Result<(), String>
             Err("town market state without configuration".into())
         };
     };
+    let ids: BTreeSet<_> = listings(c).iter().map(|l| l.market).collect();
+    if book.history.iter().any(|r| {
+        r.markets.keys().copied().collect::<BTreeSet<_>>() != ids
+            || r.markets.values().any(|m| {
+                m.volume < 0
+                    || m.unfilled_buy < 0
+                    || m.unfilled_sell < 0
+                    || (m.volume == 0) != m.posted_price.is_none()
+                    || m.posted_price.is_some_and(|p| p <= 0)
+            })
+            || r.orders.iter().any(|o| !ids.contains(&o.market))
+    }) {
+        return Err("invalid town market observations".into());
+    }
     if book
         .positions
         .keys()
@@ -238,6 +318,47 @@ pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
         return Err("town matching requires Acquire".into());
     }
     let c = world.town_market.as_ref().ok_or("missing town market")?;
+    let planning = crate::production_market::choose(world, state)?;
+    let choices = crate::production_market::choices(world, planning.as_ref());
+    let opening = Resources::opening(world, state);
+    let mut resources = opening.clone();
+    let mut pricing_state = state.clone();
+    let mut result = Round {
+        month: state.month,
+        planning,
+        orders: vec![],
+        attempts: vec![],
+        transactions: vec![],
+        markets: BTreeMap::new(),
+    };
+    // Every order observes the same opening holdings, before either good settles.
+    let books = listings(c)
+        .into_iter()
+        .map(|c| {
+            let orders = orders(world, state, &c, &choices, &opening)?;
+            Ok((c, orders))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    for (c, orders) in books {
+        clear(
+            world,
+            state,
+            &c,
+            orders,
+            &mut resources,
+            &mut pricing_state,
+            &mut result,
+        )?;
+    }
+    Ok(result)
+}
+fn orders(
+    world: &World,
+    state: &State,
+    c: &Config,
+    choices: &BTreeMap<AgentId, crate::production_market::Choice>,
+    resources: &Resources,
+) -> Result<Vec<Order>, String> {
     let m = catalog(world, c)?;
     let admitted = state
         .town_market
@@ -245,9 +366,6 @@ pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
         .as_ref()
         .filter(|a| a.month == state.month)
         .ok_or("missing current opening admission")?;
-    let planning = crate::production_market::choose(world, state)?;
-    let choices = crate::production_market::choices(world, planning.as_ref());
-    let mut resources = Resources::opening(world, state);
     let mut orders = Vec::new();
     for t in &c.traders {
         if !admitted.eligible.contains(&t.trader.agent)
@@ -262,7 +380,11 @@ pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
             vec![t.side]
         };
         for side in sides {
-            if side == Side::Buy && choices.get(&t.trader.agent).is_some_and(|p| !p.buy) {
+            if side == Side::Buy
+                && choices
+                    .get(&t.trader.agent)
+                    .is_some_and(|p| !p.buy.allows(c.market))
+            {
                 continue;
             }
             let entry = Entry {
@@ -273,7 +395,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
             let d = need_orders::generate_for_horizon(
                 world,
                 state,
-                &resources,
+                resources,
                 &c.reserve,
                 &s,
                 world.production_market.as_ref().map_or(1, |p| p.horizon),
@@ -289,6 +411,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
                     |l| l.quote(t.trader.limit, m.price_tick, side),
                 );
                 orders.push(Order {
+                    market: c.market,
                     agent: t.trader.agent,
                     side,
                     quote,
@@ -303,30 +426,32 @@ pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
         }
     }
     orders.sort_by_key(|o| (o.side, o.agent));
+    Ok(orders)
+}
+fn clear(
+    world: &World,
+    state: &State,
+    c: &Config,
+    orders: Vec<Order>,
+    resources: &mut Resources,
+    pricing_state: &mut State,
+    result: &mut Round,
+) -> Result<(), String> {
+    let m = catalog(world, c)?;
+    let mut observation = MarketResult::default();
+    let mut completed = 0;
     let mut buyers: Vec<_> = orders.iter().filter(|o| o.side == Side::Buy).collect();
     let mut sellers: Vec<_> = orders.iter().filter(|o| o.side == Side::Sell).collect();
     buyers.sort_by_key(|o| (std::cmp::Reverse(o.quote), o.agent));
     sellers.sort_by_key(|o| (o.quote, o.agent));
     let mut filled = BTreeSet::new();
-    let mut pricing_state = state.clone();
-    let mut result = Round {
-        month: state.month,
-        planning,
-        orders: vec![],
-        attempts: vec![],
-        transactions: vec![],
-        posted_price: None,
-        volume: 0,
-        unfilled_buy: 0,
-        unfilled_sell: 0,
-    };
     let limit = if world.production_market.as_ref().is_some_and(|p| !p.trading) {
         Some(0)
     } else {
         c.match_limit
     };
     for buyer in &buyers {
-        if limit.is_some_and(|n| result.transactions.len() >= n as usize) {
+        if limit.is_some_and(|n| completed >= n) {
             break;
         }
         for seller in &sellers {
@@ -356,8 +481,8 @@ pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
                 negotiation::evaluate_with(&w, state, &spendable)?.ok_or("missing town match")?;
             // Orders keep their opening quotes for this book. Learning accumulates
             // public events in match order and affects only subsequent books.
-            round.buyer_learning = marketplace::learning(&pricing_state, &s, Side::Buy);
-            round.seller_learning = marketplace::learning(&pricing_state, &s, Side::Sell);
+            round.buyer_learning = marketplace::learning(pricing_state, &s, Side::Buy);
+            round.seller_learning = marketplace::learning(pricing_state, &s, Side::Sell);
             for event in &round.events {
                 negotiation::observe(
                     &s,
@@ -367,16 +492,17 @@ pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
                     event,
                 );
             }
-            marketplace::record(&mut pricing_state, &s, &round);
+            marketplace::record(pricing_state, &s, &round);
             if let Outcome::Traded { price } = round.outcome {
                 let transactions = negotiation::transactions(&w, state, &Some(round.clone()))?;
                 resources.reserve(world, &transactions)?;
                 result.transactions.extend(transactions);
-                result.volume = result
+                observation.volume = observation
                     .volume
                     .checked_add(m.goods.quantity)
                     .ok_or("market volume overflow")?;
-                result.posted_price = Some(price);
+                observation.posted_price = Some(price);
+                completed += 1;
                 filled.insert(buyer.agent);
                 filled.insert(seller.agent);
             }
@@ -386,12 +512,12 @@ pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
             }
         }
     }
-    result.unfilled_buy =
+    observation.unfilled_buy =
         i32::try_from(buyers.iter().filter(|o| !filled.contains(&o.agent)).count())
             .unwrap()
             .checked_mul(m.goods.quantity)
             .ok_or("order volume overflow")?;
-    result.unfilled_sell = i32::try_from(
+    observation.unfilled_sell = i32::try_from(
         sellers
             .iter()
             .filter(|o| !filled.contains(&o.agent))
@@ -400,8 +526,9 @@ pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
     .unwrap()
     .checked_mul(m.goods.quantity)
     .ok_or("order volume overflow")?;
-    result.orders = orders;
-    Ok(result)
+    result.orders.extend(orders);
+    result.markets.insert(c.market, observation);
+    Ok(())
 }
 pub(crate) fn validate_batch(world: &World, state: &State, batch: &Batch) -> Result<(), String> {
     let expected = if world.town_market.is_none() {
@@ -487,6 +614,8 @@ pub fn scenario() -> (World, State) {
     })
     .collect();
     w.town_market = Some(Config {
+        additional: vec![],
+        priority: ClearingPriority::MarketId,
         adaptive: false,
         match_limit: None,
         venue: base.marketplace,
