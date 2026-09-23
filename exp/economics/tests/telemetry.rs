@@ -422,6 +422,11 @@ fn settlement_exports_recorded_funding_and_storage_failures() {
                 "InsufficientPayment"
             }
         );
+        let generation = rows
+            .iter()
+            .find(|r| r["kind"] == "order_generation" && r["agent"] == PERSON && r["side"] == "Buy")
+            .unwrap();
+        assert_eq!(generation["reason"], "Submitted"); // Funding/storage belong to matching, not this gate.
         assert_eq!(attempt["completed"], 0);
         assert!(attempt["price"].is_null());
         assert_eq!(sim.state.balance(PERSON, GRAIN), 0);

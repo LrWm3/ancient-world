@@ -419,3 +419,93 @@ fn admission_and_buffer_failures_are_atomic() {
     assert!(settlement::commit(&w, &mut state, &b, Backend::Reference, 1).is_err());
     assert_eq!(state, initial.state);
 }
+
+#[test]
+fn order_generation_receipts_explain_omissions_and_reject_forgery() {
+    use town_market::OrderReason;
+    let (w, mut s) = town_market::scenario();
+    s.town_market.positions.insert(PERSON, 3);
+    s.balances.insert((89, GRAIN), 0);
+    let mut sim = opening(w, s, Backend::Reference);
+    let r = town_market::evaluate(&sim.world, &sim.state).unwrap();
+    let absent = r.order_receipts.iter().find(|r| r.agent == PERSON).unwrap();
+    assert_eq!(absent.reason, OrderReason::NotAdmitted);
+    assert!(absent.available.is_none());
+    let empty = r.order_receipts.iter().find(|r| r.agent == 89).unwrap();
+    assert_eq!(empty.reason, OrderReason::InsufficientOpeningStock);
+    assert_eq!(empty.available, Some(0));
+    let mut b = batch(&sim);
+    if let Some(Boundary::Market(r)) = &mut b.town_market {
+        r.order_receipts[0].reason = OrderReason::Submitted;
+    }
+    let before = sim.state.clone();
+    assert!(
+        settlement::commit(
+            &sim.world,
+            &mut sim.state,
+            &b,
+            Backend::Reference,
+            DEFAULT_EFFECT_LIMIT
+        )
+        .is_err()
+    );
+    assert_eq!(sim.state, before);
+}
+
+#[test]
+fn adaptive_receipts_distinguish_policy_protection_and_buy_first() {
+    use economics_compute_smoke::production_market::{self, Choice, Policy, Purchases, Work};
+    use town_market::OrderReason;
+    let (mut w, s) = production_market::reciprocal_scenario(true);
+    w.production_market.as_mut().unwrap().policy = Policy::Fixed(
+        w.participants
+            .iter()
+            .map(|p| {
+                (
+                    p.agent,
+                    Choice {
+                        work: Work::Ordinary,
+                        buy: Purchases::Market(GRAIN_MARKET),
+                    },
+                )
+            })
+            .collect(),
+    );
+    let mut sim = opening(w, s, Backend::Reference);
+    let r = town_market::evaluate(&sim.world, &sim.state).unwrap();
+    assert_eq!(r.order_receipts.len(), 16);
+    let wood: Vec<_> = r
+        .order_receipts
+        .iter()
+        .filter(|r| r.market == production_market::WOOD_MARKET)
+        .collect();
+    for r in wood.iter().filter(|r| r.side == Side::Buy) {
+        assert_eq!(r.reason, OrderReason::PurchasePolicy);
+        assert!(r.deficits_before.is_none());
+    }
+    assert!(wood.iter().any(|r| r.reason == OrderReason::ProtectedStock));
+    sim.world.production_market.as_mut().unwrap().policy = Policy::Fixed(
+        sim.world
+            .participants
+            .iter()
+            .map(|p| (p.agent, Choice::default()))
+            .collect(),
+    );
+    let r = town_market::evaluate(&sim.world, &sim.state).unwrap();
+    assert!(
+        r.order_receipts
+            .iter()
+            .any(|r| r.reason == OrderReason::OtherSideSelected)
+    );
+    for row in r
+        .order_receipts
+        .iter()
+        .filter(|r| r.reason == OrderReason::Submitted)
+    {
+        assert!(
+            r.orders
+                .iter()
+                .any(|o| o.agent == row.agent && o.side == row.side && o.market == row.market)
+        );
+    }
+}

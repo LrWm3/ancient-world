@@ -73,6 +73,33 @@ pub struct Order {
     pub quote: i32,
     pub protected: BTreeMap<Account, i128>,
 }
+/// First decisive gate, not an exhaustive set of counterfactual failures.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OrderReason {
+    Submitted,
+    NotAdmitted,
+    Inactive,
+    Ineligible,
+    PurchasePolicy,
+    OtherSideSelected,
+    NoNeedImprovement,
+    InsufficientOpeningStock,
+    ProtectedStock,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OrderReceipt {
+    pub market: marketplace::MarketId,
+    pub agent: AgentId,
+    pub side: Side,
+    pub reason: OrderReason,
+    pub resource: ResourceId,
+    pub lot: i32,
+    /// Only populated when need/reserve evaluation actually ran.
+    pub available: Option<i32>,
+    pub protected: Option<i128>,
+    pub deficits_before: Option<BTreeMap<ResourceId, i64>>,
+    pub deficits_after: Option<BTreeMap<ResourceId, i64>>,
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Attempt {
     pub session: Session,
@@ -83,6 +110,7 @@ pub struct Round {
     pub planning: Option<crate::production_market::Decision>,
     pub month: u32,
     pub orders: Vec<Order>,
+    pub order_receipts: Vec<OrderReceipt>,
     pub attempts: Vec<Attempt>,
     pub transactions: Vec<Transaction>,
     pub markets: BTreeMap<marketplace::MarketId, MarketResult>,
@@ -327,6 +355,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
         month: state.month,
         planning,
         orders: vec![],
+        order_receipts: vec![],
         attempts: vec![],
         transactions: vec![],
         markets: BTreeMap::new(),
@@ -335,7 +364,8 @@ pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
     let books = listings(c)
         .into_iter()
         .map(|c| {
-            let orders = orders(world, state, &c, &choices, &opening)?;
+            let (orders, receipts) = orders(world, state, &c, &choices, &opening)?;
+            result.order_receipts.extend(receipts);
             Ok((c, orders))
         })
         .collect::<Result<Vec<_>, String>>()?;
@@ -358,7 +388,7 @@ fn orders(
     c: &Config,
     choices: &BTreeMap<AgentId, crate::production_market::Choice>,
     resources: &Resources,
-) -> Result<Vec<Order>, String> {
+) -> Result<(Vec<Order>, Vec<OrderReceipt>), String> {
     let m = catalog(world, c)?;
     let admitted = state
         .town_market
@@ -367,24 +397,51 @@ fn orders(
         .filter(|a| a.month == state.month)
         .ok_or("missing current opening admission")?;
     let mut orders = Vec::new();
+    let mut receipts = Vec::new();
     for t in &c.traders {
-        if !admitted.eligible.contains(&t.trader.agent)
-            || state.terminal.contains_key(&t.trader.agent)
-            || !marketplace::eligible(world, state, c.venue, t.trader.agent)
-        {
-            continue;
-        }
+        let agent = t.trader.agent;
+        let gate = if !admitted.eligible.contains(&agent) {
+            Some(OrderReason::NotAdmitted)
+        } else if state.terminal.contains_key(&agent) {
+            Some(OrderReason::Inactive)
+        } else if !marketplace::eligible(world, state, c.venue, agent) {
+            Some(OrderReason::Ineligible)
+        } else {
+            None
+        };
         let sides = if c.adaptive {
             vec![Side::Buy, Side::Sell]
         } else {
             vec![t.side]
         };
+        let mut submitted = false;
         for side in sides {
-            if side == Side::Buy
-                && choices
-                    .get(&t.trader.agent)
-                    .is_some_and(|p| !p.buy.allows(c.market))
-            {
+            let mut receipt = OrderReceipt {
+                market: c.market,
+                agent,
+                side,
+                reason: OrderReason::Submitted,
+                resource: m.goods.resource,
+                lot: m.goods.quantity,
+                available: None,
+                protected: None,
+                deficits_before: None,
+                deficits_after: None,
+            };
+            let skipped = gate.or_else(|| {
+                if submitted {
+                    Some(OrderReason::OtherSideSelected)
+                } else if side == Side::Buy
+                    && choices.get(&agent).is_some_and(|p| !p.buy.allows(c.market))
+                {
+                    Some(OrderReason::PurchasePolicy)
+                } else {
+                    None
+                }
+            });
+            if let Some(reason) = skipped {
+                receipt.reason = reason;
+                receipts.push(receipt);
                 continue;
             }
             let entry = Entry {
@@ -405,6 +462,22 @@ fn orders(
             } else {
                 d.sell.is_some()
             };
+            let available = resources
+                .available
+                .get(&(agent, m.goods.resource))
+                .copied()
+                .unwrap_or(0);
+            let protected = d
+                .protected
+                .get(&(agent, m.goods.resource))
+                .copied()
+                .unwrap_or(0);
+            receipt.available = Some(available);
+            receipt.protected = Some(protected);
+            if side == Side::Buy {
+                receipt.deficits_before = Some(d.buyer_deficits.clone());
+                receipt.deficits_after = Some(d.buyer_after_purchase.clone());
+            }
             if exists {
                 let quote = marketplace::learning(state, &s, side).map_or_else(
                     || marketplace::opening(state, &s, side),
@@ -412,21 +485,31 @@ fn orders(
                 );
                 orders.push(Order {
                     market: c.market,
-                    agent: t.trader.agent,
+                    agent,
                     side,
                     quote,
                     protected: d
                         .protected
                         .into_iter()
-                        .filter(|((a, _), _)| *a == t.trader.agent)
+                        .filter(|((a, _), _)| *a == agent)
                         .collect(),
                 });
-                break; // At most one side for each good at this boundary.
+                submitted = true;
+            } else {
+                receipt.reason = if side == Side::Buy {
+                    OrderReason::NoNeedImprovement
+                } else if available < m.goods.quantity {
+                    OrderReason::InsufficientOpeningStock
+                } else {
+                    OrderReason::ProtectedStock
+                };
             }
+            receipts.push(receipt);
         }
     }
     orders.sort_by_key(|o| (o.side, o.agent));
-    Ok(orders)
+    receipts.sort_by_key(|r| (r.side, r.agent));
+    Ok((orders, receipts))
 }
 fn clear(
     world: &World,

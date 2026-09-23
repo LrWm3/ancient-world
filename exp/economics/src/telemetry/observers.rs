@@ -94,6 +94,17 @@ pub(super) fn batch(
             }
         }
         if config.settlement {
+            for (index, r) in round.order_receipts.iter().enumerate() {
+                if !selected(config, r.agent) {
+                    continue;
+                }
+                records.push(json!({"kind":"order_generation","index":index,"agent":r.agent,
+                    "market":r.market,"side":format!("{:?}",r.side),"reason":format!("{:?}",r.reason),
+                    "resource":r.resource,"lot":r.lot,"available":r.available,
+                    "protected":r.protected.map(|q|q.to_string()),
+                    "deficits_before":r.deficits_before,"deficits_after":r.deficits_after}));
+            }
+
             for (index, order) in round.orders.iter().enumerate() {
                 if !selected(config, order.agent) {
                     continue;
