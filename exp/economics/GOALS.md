@@ -218,3 +218,13 @@ agents actually meet needs and remain viable; conservation alone does not show
 that the economy works. Scale from one or a few people to 32 only after the small
 case is understandable. Document unsupported combinations rather than implying
 that individually tested pilots form a complete economy.
+
+## Verification through demanding financial systems
+
+The [verification stress-test program](VERIFICATION-STRESS-TEST.md) develops these
+goals through minting, markets, forwards and lending, then increasingly demanding
+financial and institutional compositions. Modern institutions are experimental
+tests of the primitives, not promised Ancient World content. Alternative species
+and civilizations should vary needs, knowledge, settlement and organizational
+norms through definitions and policies. Each stage requires mechanical, agentic
+and composition evidence rather than merely a catalog entry.

@@ -44,6 +44,7 @@ role?** A farmer, craft worker or trader should emerge from needs, resources,
 rights, capabilities and selected processes, rather than require a different agent
 class. Processes describe possible transformations; transactions record outcomes.
 
+- [Verification stress test](VERIFICATION-STRESS-TEST.md): staged evidence from minting and markets through institutional finance and alternative civilizations; experimental targets, not final-game content.
 - [Need-generated orders](NEED-ORDERS.md): consumption deficits and protected surplus create recurring bilateral orders, with concession or ZIP pricing.
 - [Integration status](INTEGRATION-STATUS.md): shared credit/exchange reservations, permission checks, planning contracts and an explicit compatibility matrix.
 - [Joint production and sale planning](JOINT-PLANNING.md): bounded multi-cycle work/sale alternatives with dated execution and explicit scarcity fallback.
