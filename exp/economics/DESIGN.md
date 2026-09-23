@@ -6,7 +6,8 @@ compose. Generic agents, rights, staged processes, need consequences, bounded
 planning and validated transaction batches are implemented. Separate fixtures
 cover repeated harvests, warmth, tools, storage, token issuance, specialization,
 households, citizenship, contested offers, bilateral ZIP pricing and secured credit.
-The larger architecture below remains a proposal, not a planned commitment.
+The [project goals](GOALS.md) define the intended institutional and market direction.
+The larger architecture below remains a proposal; goals are not implementation claims.
 
 The experiment's existing barriers are Open, optional Due, optional Acquire,
 Productive, Consumption, optional ClearArrears and Close. Credit and negotiated
@@ -327,11 +328,15 @@ A firm or household could later use the same agent interface with different
 components. An organization gets no free human work capacity or biological food
 requirement. If persons belong to a household, define whether consumption is
 budgeted by the household or individuals; membership must not duplicate needs,
-inventory or work. Whether an organization needs its own decision policy rather
-than just a delegated account remains an experiment.
+inventory or work. Organizational agents should have their own decision policies, bounded by law,
+founding constitutions, charters and the mandates of their human governors.
+Ownership, membership and policy-setting authority remain distinct. The
+[goals](GOALS.md) define these terms and the intended household redesign.
 
-Assets, process definitions, markets and contracts are records, not automatically agents.
-An agent may control them without each object needing goals or a policy.
+Assets, process definitions and contracts are records, not automatically agents.
+Marketplaces should have institutional identity, participation rules and catalogs;
+the current venue pilot already uses an agent. Its order book, price observations
+and transactions are records rather than additional autonomous agents.
 
 ## Data-oriented state and authoritative ownership
 

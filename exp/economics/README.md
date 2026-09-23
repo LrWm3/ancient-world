@@ -1,5 +1,18 @@
 # Stand-alone agent-based economics experiment
 
+The goal is a consistent economy built from generic agents, explicit agreements
+and planning from needs and available opportunities. Persons remain individuals;
+organizations coordinate real members and delegated resources without duplicating
+population, labor or wealth. Start with small scenarios and rebuild broader
+capabilities on these shared primitives.
+
+The [project goals](GOALS.md) set the direction: lawful formation, immutable
+constitutions, bounded charters, governance by persons, swappable decision policies,
+contributed labor, local bid/ask marketplaces and explicit estates. They distinguish
+ownership, membership, governance and valuation. These are goals, not implemented
+features; the [integration matrix](INTEGRATION-STATUS.md) records current support.
+Physical-world expansion and autonomous state planning remain later priorities.
+
 Status: the process-based simulation is implemented and runs on CPU.
 The individual [opportunity marketplace](OPPORTUNITIES.md) now links food/warmth
 needs to cultivation, state land agreements and wood collection, with state-defined
@@ -7,7 +20,8 @@ transaction permissions per agent type and [citizenship membership](CITIZENSHIP.
 The state posts citizenship; accepting it enables land agreements and cultivation. Run `cargo +1.92.0 run --locked -- opportunity-farming`
 from this directory.
 An opt-in household scenario adds agreement-formed collective agents, pooled
-income/storage, shared shelter, member tax/forward support, and spare-labor decisions.
+income/storage, shared shelter, member tax/forward support, and spare-labor decisions. This is the existing pilot; the target redesign uses
+explicit labor contributions and constitutional governance, as described in the goals.
 A controlled specialization fixture adds mining/refining, tool creation and repair,
 fishing, livestock, plot-attached housing and annual commodity-or-coin taxes.
 One-person and four-person scenarios plan repeated harvests and meet nutrition/warmth needs using generic
