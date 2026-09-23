@@ -299,3 +299,8 @@ Shared settlement primitives and migration scope: [FINANCE.md](FINANCE.md).
 Production and reciprocal-market scenarios now use a shared six-month buying and
 selling horizon by default. See the [horizon comparison](ORDER-HORIZONS.md);
 `ORDER_HORIZON=legacy` retains the old 6/2 diagnostic control.
+
+The [two-person calibration](CALIBRATION.md) compares autarky, directed exchange,
+and optional counterparty-expectation / plan-persistence variants under the same
+6/6 rules. Run `cargo +1.92.0 run --locked --example calibration` with
+`TELEMETRY_DIR` set to a fresh directory under ignored `output/`.
