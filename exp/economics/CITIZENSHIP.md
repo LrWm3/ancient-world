@@ -61,7 +61,10 @@ There is still a bounded policy portfolio, not a general contract solver. A batc
 supports at most one new membership and one land agreement. Indirect chains of
 multiple memberships, concurrent state jurisdictions, membership withdrawal and
 law changes are outside this slice. Accepted agreements retain their source offer
-in the catalog for checkpoint validation. ZIP pricing remains unimplemented.
+in the catalog for checkpoint validation. [ZIP pricing](ZIP.md) now runs in its
+bilateral marketplace pilot. Existing citizenship can also grant financed-purchase
+permission in the [credit/exchange integration](INTEGRATION-STATUS.md); automatic
+membership acquisition as a mortgage prerequisite is not implemented.
 
 ## CPU result and controls
 

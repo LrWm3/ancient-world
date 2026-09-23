@@ -14,13 +14,19 @@ the reviewed baseline.
 
 The next increment adds a [financed-purchase offer adapter](SECURED-CREDIT.md#common-offer-adapter).
 It retains the scripted application and existing credit settlement. General
-borrowing search and composition with other acquisition drivers remain proposals.
+borrowing search remains a proposal; acquisition composition now has the scoped
+credit/exchange implementation described below.
 A bounded [borrowing comparison](BORROWING-DECISIONS.md) can now accept or decline
 one configured offer; general borrowing search remains outside that pilot.
 Shared observation construction is now implemented for search/planning, work
 choice and resale; see [forecast context](FORECAST-CONTEXT.md).
 
-## What exists today
+Current follow-up: [integration status](INTEGRATION-STATUS.md) records the shared
+credit/negotiation acquisition boundary, membership-based credit permission and
+common need-constraint helpers. Its compatibility matrix supersedes baseline
+claims below about missing interfaces. The remaining suggestions remain proposals.
+
+## Reviewed baseline
 
 The foundation already separates decisions from publication. Agents and policies
 propose work; domain resolvers produce effects and receipts; settlement validates

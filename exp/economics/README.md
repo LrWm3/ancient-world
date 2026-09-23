@@ -7,7 +7,7 @@ transaction permissions per agent type and [citizenship membership](CITIZENSHIP.
 The state posts citizenship; accepting it enables land agreements and cultivation. Run `cargo +1.92.0 run --locked -- opportunity-farming`
 from this directory.
 An opt-in household scenario adds agreement-formed collective agents, pooled
-income/storage, shared shelter, member debt support, and spare-labor decisions.
+income/storage, shared shelter, member tax/forward support, and spare-labor decisions.
 A controlled specialization fixture adds mining/refining, tool creation and repair,
 fishing, livestock, plot-attached housing and annual commodity-or-coin taxes.
 One-person and four-person scenarios plan repeated harvests and meet nutrition/warmth needs using generic
@@ -29,13 +29,14 @@ role?** A farmer, craft worker or trader should emerge from needs, resources,
 rights, capabilities and selected processes, rather than require a different agent
 class. Processes describe possible transformations; transactions record outcomes.
 
+- [Integration status](INTEGRATION-STATUS.md): shared credit/exchange reservations, permission checks, planning contracts and an explicit compatibility matrix.
 - [Joint production and sale planning](JOINT-PLANNING.md): bounded multi-cycle work/sale alternatives with dated execution and explicit scarcity fallback.
 - [Bounded sale planning](SALE-PLANNING.md): forecast sale quantities against dated production and needs, with explicit horizon limitations.
 - [Repeated-credit audit](REPEATED-CREDIT.md): cultivation-right expiry explains missed meals; six harvests over 60 months after correcting the fixture.
 - [Production-funded credit](PRODUCTION-FUNDED-CREDIT.md): finite grain bids, protected food reserves and harvest-funded mortgage installments.
 - [Borrowing decisions](BORROWING-DECISIONS.md): accept/decline forecasts over needs, labor and actual coin payments.
 - [Shared forecast context](FORECAST-CONTEXT.md): common observation rules for search, work choices and resale valuation.
-- [Structure review](STRUCTURE-REVIEW.md): current interfaces, standardization opportunities and a proposed first increment.
+- [Structure review](STRUCTURE-REVIEW.md): historical findings and links to implemented follow-ups.
 - [Collateral resale](COLLATERAL-RESALE.md): pending sales, buyer valuation, actual proceeds and a possible borrower-redemption extension.
 - [Remaining-value work choices](REMAINING-VALUE.md): maintain an inherited crop, choose wood collection or wait using bounded forecasts.
 - [Secured credit](SECURED-CREDIT.md): financed plots, monthly interest, balance sheets and fixed-value repossession with attached crops on CPU.

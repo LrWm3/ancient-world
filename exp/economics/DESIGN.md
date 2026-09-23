@@ -1,22 +1,21 @@
 # Agent-centered economics: processes and transaction-first execution
 
-Status: architecture proposal with a first implemented CPU slice. Generic agents,
-generic participant components, rights, staged processes, bounded planning and transactional
-settlement now run in the single-harvest, repeated-harvest and competing-warmth
-scenarios described in [the results](RESULTS.md). Generic requirement consequences
-also run for people and a separate institution fixture.
-Finite durable-tool barter, substitutable food, shared-pool foraging, fixed storage,
-collection-linked token issuance, posted grain purchases and catalog-driven craft,
-extraction, livestock and housing activities are implemented; general markets and the broader monthly pipeline remain proposals,
-not planned commitments.
+Status: architecture proposal with implemented CPU pilots. See the
+[current integration matrix](INTEGRATION-STATUS.md) for which features actually
+compose. Generic agents, rights, staged processes, need consequences, bounded
+planning and validated transaction batches are implemented. Separate fixtures
+cover repeated harvests, warmth, tools, storage, token issuance, specialization,
+households, citizenship, contested offers, bilateral ZIP pricing and secured credit.
+The larger architecture below remains a proposal, not a planned commitment.
 
-The base implementation uses four barriers: Open, productive processes (with planning
-and reservation), consumption, and Close. Equipment-offer and stock-bid worlds add an Acquire
-barrier after Open. Agreement worlds also settle annual dues before acquisition
-and arrears after production; other market stages remain empty. It
-supports deterministic two-link planning, abort-on-failure processes and in-memory
-checkpoints and an optional bounded consequence-aware policy; the richer
-policies below are extensions unless noted otherwise.
+The experiment's existing barriers are Open, optional Due, optional Acquire,
+Productive, Consumption, optional ClearArrears and Close. Credit and negotiated
+exchange can share Acquire with explicit outgoing-resource reservations and
+atomic validation. Installments remain due before acquisition; same-batch incoming
+cash cannot fund another acquisition. Joint production planning commits dated work
+for Productive and is not yet composable with negotiated exchange. Household and
+legacy market integrations retain their documented restrictions. This standalone
+scheduler does not replace the main civilization scheduler.
 
 The economic model is built from **needs, resources, rights, capabilities and
 processes**. Processes describe available transformations; agents select them;

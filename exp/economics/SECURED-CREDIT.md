@@ -1,6 +1,6 @@
 # Secured asset financing on CPU
 
-Implemented as an isolated financial experiment in `src/credit.rs`. A person
+Implemented as a secured-financing component in `src/credit.rs`. A person
 purchases a plot with initial coins and a secured loan. Purchase, monthly interest,
 repayment and default settle through the existing transaction and CPU commit path.
 Application terms and repayment cashflows remain supplied controls. An opt-in
@@ -19,7 +19,8 @@ The monthly driver's scripted application also passes through this dispatcher.
 Credit still owns funding checks, collateral availability and settlement receipts.
 
 Discovery excludes inactive counterparties, already-used loan IDs, unavailable
-title and pledged collateral. It does not promise affordability. The common
+title, pledged collateral and buyers lacking `FinancedPurchase` permission when
+a state policy exists. It does not promise affordability. The common
 adapter exposes only the configured application to its buyer, through its stated
 month; acceptance requires that month's Acquire boundary. It does not yet permit
 arbitrary buyer applications, negotiate a downpayment or select borrowing through
@@ -44,7 +45,10 @@ monthly driver retains its ordinary credit rejection receipt and proceeds.
 This first adapter requires one standalone financed-purchase request. Duplicate
 requests and bundles with production or other acquisitions are rejected rather
 than implying joint reservation support. Existing credit incompatibility guards
-remain. Resale bids still use their separate pilot resolver.
+remain except that a configured bilateral negotiation can share the acquisition
+batch through the [shared resolver](INTEGRATION-STATUS.md). That session is a
+separate driver, not an extra financed-purchase request. Resale bids still use
+their separate pilot resolver.
 
 ### Domain records
 
@@ -224,10 +228,13 @@ does not change final state. Generated logs remain under ignored `output/economi
 
 ## Next integration boundary
 
-Expose this offer through common opportunity discovery and let planning compare
-future instalments against production and essential needs. Ownership-following
-production now works, but automatic borrowing decisions, production-funded coin
-repayment, household, marketplace and legacy access integration remain separate.
+Common offer discovery, bounded accept/decline borrowing, ownership-following
+production and production-funded coin repayment are implemented in their linked
+pilots. Credit and bilateral marketplace exchange now share acquisition budgets;
+existing citizenship can authorize financed purchases. See the
+[integration matrix](INTEGRATION-STATUS.md) for exact supported combinations.
+Households, legacy access and joint production plans with negotiated exchange
+still require additional integration.
 
 **Implemented opt-in extension: option 3, settlement from actual resale
 proceeds.** The [resale pilot](COLLATERAL-RESALE.md) adds pending custody, a
@@ -245,5 +252,6 @@ interpreter or a sustainable farming-and-mortgage economy.
 
 The optional [production-funded credit pilot](PRODUCTION-FUNDED-CREDIT.md) permits
 one posted stock bid with explicit food/input reserves, quantity and funding caps
-inside Acquire. Forecasts use the same settlement path. This is a narrow exception
-to credit acquisition isolation, not general market composition.
+inside Acquire. Forecasts use the same settlement path. It can now share the
+[acquisition boundary](INTEGRATION-STATUS.md) with a bilateral negotiation; the
+posted bid retains its own pricing policy and finite spending allowance.

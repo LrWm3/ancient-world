@@ -1,7 +1,8 @@
 # Shared forecast observation context
 
 Implemented in `src/forecast.rs`. Need-directed search, its planning rollouts,
-remaining-value work choices and collateral resale valuation now construct their
+remaining-value work choices, collateral resale valuation, borrowing, sale-only
+and joint production/sale planning construct their
 observations through `ForecastContext`. `search::SearchContext` remains a public
 alias, so existing search strategies keep their interface.
 
@@ -48,9 +49,17 @@ separate meanings. Domain hypotheses remain domain code; the shared context does
 not introduce a universal action language. Normal simulation settlement still
 validates and publishes actual decisions.
 
+## Shared need accounting
+
+Borrowing, sale-only and joint planning use `forecast::needs` to validate limits,
+accumulate deficits and compare priority-ordered provisions. Their candidate sets,
+horizons, objectives and fallback rules remain separate. See the
+[planning contracts](INTEGRATION-STATUS.md#standardized-planning-contracts).
+
 ## Scope and verification
 
-This extraction covers search/planning, work choice and resale. The older forward
+This shared boundary covers search/planning, work choice, resale, borrowing,
+sale-only and joint production/sale planning. The older forward
 production projection has its own specialized construction and is not migrated
 in this increment. Full catalogs/state are visible: private information,
 uncertainty distributions and alternative observation policies are not implemented.

@@ -86,8 +86,11 @@ are no jurisdictions, enactment dates, enforcement probabilities, penalties,
 appeals or grandfathering rules yet. Those can later determine the permission
 query without becoming branches in the individual decision-maker. Permissions
 also do not create physical resources or replace right/stock/capacity checks.
-Governed worlds currently reject the older equipment, stock-trading, specialist
-market and household configurations until their permission semantics are defined.
+Governed worlds support bilateral marketplace `StockTrade`, credit's finite state
+stock bid (both parties checked), and `FinancedPurchase` origination. Existing
+citizenship may grant these actions; accepted debt still settles if permission is
+later removed. See the [integration matrix](INTEGRATION-STATUS.md). Older equipment,
+specialist-market and household configurations still require permission semantics.
 Worlds with no transaction policy preserve previous behavior.
 
 ZIP is not implemented. It can later supply negotiable prices for trading offers;

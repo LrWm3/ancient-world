@@ -45,7 +45,9 @@ and explicit public events. Transfer construction and settlement are shared.
 
 ## Timing, authority and settlement
 
-The pilot owns an isolated Acquire window in the existing monthly scheduler:
+The standalone pilot uses Acquire in the existing monthly scheduler. With credit
+enabled, the [shared resolver](INTEGRATION-STATUS.md) reserves credit transfers
+first and applies the following exchange checks to remaining resources:
 
 1. Open makes the current boundary visible; any existing Due phase still precedes
    Acquire.
@@ -68,10 +70,12 @@ trusted simulation records, not an authenticated external trading API.
 
 There is one indivisible lot: no partial fills, no temporary credit, and no use
 of incoming money to fund another purchase in the same boundary. No-trade rounds
-advance the normal acquisition barrier without changing resources. The configured
+advance the normal acquisition barrier without exchange effects; an independently
+valid credit component can still settle in the combined case. The configured
 session occurs only in its scheduled month; later months do not repeat it.
 
-This driver is opt-in. Existing posted-price exchange, contested opportunities,
+This driver is opt-in. Secured credit and its finite state stock bid now compose
+through shared reservations. Legacy posted-price exchange, contested opportunities,
 shared-pool markets, equipment offers, access offers and households cannot be
 combined with it yet. Their acquisition requests need a common reservation
 boundary before composition. Existing scenarios leave negotiation unset and

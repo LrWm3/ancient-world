@@ -103,6 +103,7 @@ This is a venue around the existing one-lot bilateral experiment, with supplied
 orders and reservation values. There is no order book, simultaneous matching of
 many participants, fee model or automatic market-making. ZIP learning is scoped
 to the bilateral event stream described in [ZIP.md](ZIP.md). Existing
-acquisition-driver composition restrictions still apply. The public discovery
+restrictions still apply except for the supported credit/state-bid combination
+through the [shared acquisition resolver](INTEGRATION-STATUS.md). The public discovery
 function exposes supported trades; need-driven opportunity search does not yet
 create buy/sell orders from that catalog.
