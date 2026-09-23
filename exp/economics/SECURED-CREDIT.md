@@ -240,3 +240,10 @@ Negotiated loan terms, refinancing, unsecured lending, multiple competing claims
 guarantors, competitive liquidation markets, write-offs and general insolvency remain future
 work. This establishes a secured financing component, not a universal contract
 interpreter or a sustainable farming-and-mortgage economy.
+
+## Scoped stock-sale extension
+
+The optional [production-funded credit pilot](PRODUCTION-FUNDED-CREDIT.md) permits
+one posted stock bid with explicit food/input reserves, quantity and funding caps
+inside Acquire. Forecasts use the same settlement path. This is a narrow exception
+to credit acquisition isolation, not general market composition.

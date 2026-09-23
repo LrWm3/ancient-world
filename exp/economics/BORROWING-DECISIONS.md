@@ -90,9 +90,10 @@ Current fixture nutrition deficits are measured; no additional deprivation rule
 was added. Uncertain yields and shocks can invalidate a forecast after acceptance.
 A horizon long enough to repay debt is not proof of lifetime sustainability.
 
-A later increment could make an actual grain-sale opportunity available to both
-branches, then assess production-funded installments using committed exchange
-rules. Automatic borrowing must not treat a configured future gift or unsold
+The opt-in [production-funded credit pilot](PRODUCTION-FUNDED-CREDIT.md) now
+makes a bounded grain-sale opportunity available to both branches and assesses
+production-funded installments using committed exchange rules. The original
+fixtures here retain their no-sale controls. Automatic borrowing must not treat a configured future gift or unsold
 harvest as available money.
 
 ## Verification
