@@ -314,3 +314,6 @@ market-posted bilateral agreements. Both use dated exchanges and cancellation on
 failed delivery. Posted offers use independent assessments and rejection/revision,
 without a joint feasibility forecast; CPU controls cover repeated cooperation,
 a food-constrained recipient and a lost harvest.
+
+[Static legal constraints](LAWS.md) add named prohibitions and membership requirements
+over existing type/membership grants, with structured denial reasons and CPU controls.

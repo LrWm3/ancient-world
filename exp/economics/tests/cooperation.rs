@@ -366,8 +366,7 @@ fn receiver_rejects_late_food_and_accepts_revision_without_joint_planning() {
             assert!(!b.offers[0].accepted);
             assert!(b.offers[0].proposer_assessment.acceptable);
             assert!(
-                b.offers[0].proposer_assessment.proposed
-                    < b.offers[1].proposer_assessment.proposed
+                b.offers[0].proposer_assessment.proposed < b.offers[1].proposer_assessment.proposed
             );
             assert!(b.offers[0].replies.iter().all(|r| !r.acceptable));
             assert!(b.offers[1].accepted);

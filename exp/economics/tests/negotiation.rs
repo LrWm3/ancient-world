@@ -117,6 +117,7 @@ fn crossed_quotes_still_require_stock_money_storage_and_permission() {
                 sim.world.transaction_policy = Some(Policy {
                     authority: 89,
                     membership_offers: vec![],
+                    laws: vec![],
                     membership_permissions: BTreeSet::new(),
                     agent_types: BTreeMap::from([(88, PERSON_TYPE), (89, PERSON_TYPE)]),
                     permissions: BTreeSet::new(),

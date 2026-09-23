@@ -145,3 +145,10 @@ The directed complementary-work control sustains grain/wood exchange and keeps
 all four people funded. The autonomous planner has not demonstrated that result;
 its forecasts and monthly replanning can fail to provide anticipated supply.
 Use the linked results to distinguish settlement support from emergent behavior.
+
+## Static law constraints
+
+[Named laws](LAWS.md) constrain the existing single-authority transaction policy.
+Supported permission call sites share prohibition and required-membership checks;
+legacy exchange/household combinations remain unsupported. This is not yet
+jurisdictional law, agreement-form recognition or organizational founding law.

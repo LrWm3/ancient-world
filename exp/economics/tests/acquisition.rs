@@ -329,6 +329,7 @@ fn state_stock_bid_obeys_both_parties_trade_permissions() {
     w.transaction_policy = Some(Policy {
         authority: STATE_AGENT,
         membership_offers: vec![],
+        laws: vec![],
         membership_permissions: BTreeSet::new(),
         agent_types: BTreeMap::from([(PERSON, PERSON_TYPE), (STATE_AGENT, STATE_TYPE)]),
         permissions: BTreeSet::from([(PERSON_TYPE, Action::StockTrade)]),

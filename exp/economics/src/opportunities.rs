@@ -22,6 +22,7 @@ pub enum Action {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Policy {
     pub authority: AgentId,
+    pub laws: Vec<crate::laws::Rule>,
     pub membership_offers: Vec<crate::membership::Offer>,
     pub membership_permissions: BTreeSet<(crate::membership::Role, Action)>,
     pub agent_types: BTreeMap<AgentId, AgentType>,
@@ -29,23 +30,7 @@ pub struct Policy {
 }
 
 pub fn permits(world: &World, state: &State, agent: AgentId, action: Action) -> bool {
-    world.transaction_policy.as_ref().is_none_or(|p| {
-        p.agent_types
-            .get(&agent)
-            .is_some_and(|kind| p.permissions.contains(&(*kind, action)))
-            || state.memberships.values().any(|m| {
-                m.member == agent
-                    && m.contract().permits(
-                        state.month,
-                        &crate::agreements::Grant::Membership {
-                            organization: p.authority,
-                            role: m.role,
-                        },
-                        crate::agreements::Use::Start,
-                    )
-                    && p.membership_permissions.contains(&(m.role, action))
-            })
-    })
+    crate::laws::evaluate(world, state, agent, action).allowed
 }
 
 /// Visible prerequisites can be obtained; visibility is not authorization.
@@ -54,13 +39,29 @@ fn discoverable(world: &World, state: &State, agent: AgentId, action: Action) ->
         let Some(kind) = p.agent_types.get(&agent) else {
             return false;
         };
-        permits(world, state, agent, action)
-            || (p.permissions.contains(&(*kind, Action::Membership))
-                && p.membership_offers.iter().any(|o| {
-                    o.organization == p.authority
-                        && o.eligible_type == *kind
-                        && p.membership_permissions.contains(&(o.role, action))
-                }))
+        if permits(world, state, agent, action) {
+            return true;
+        }
+        // Preview one obtainable membership, matching the acquisition pilot.
+        // A membership offer cannot lift an explicit prohibition.
+        permits(world, state, agent, Action::Membership)
+            && p.membership_offers.iter().any(|o| {
+                if o.organization != p.authority || o.eligible_type != *kind {
+                    return false;
+                }
+                let mut preview = state.clone();
+                let agreement = crate::membership::Agreement {
+                    member: agent,
+                    organization: o.organization,
+                    role: o.role,
+                    source_offer: o.id,
+                    accepted_month: state.month,
+                };
+                preview
+                    .memberships
+                    .insert((agent, o.organization, o.role), agreement);
+                permits(world, &preview, agent, action)
+            })
     })
 }
 
@@ -182,6 +183,7 @@ pub fn relevant_access(world: &World, state: &State, agent: AgentId) -> BTreeSet
 
 pub fn validate(world: &World) -> Result<(), String> {
     if let Some(p) = &world.transaction_policy {
+        crate::laws::validate(world, p)?;
         let known = |id| world.agents.iter().any(|a| a.id == id);
         if !known(p.authority) || p.agent_types.keys().any(|id| !known(*id)) {
             return Err("invalid transaction policy authority/agent".into());
@@ -247,6 +249,7 @@ pub fn scenario() -> Result<(World, State), String> {
     });
     world.transaction_policy = Some(Policy {
         authority: STATE_AGENT,
+        laws: vec![],
         membership_offers: vec![],
         membership_permissions: Default::default(),
         agent_types: BTreeMap::from([(PERSON, PERSON_TYPE), (STATE_AGENT, STATE_TYPE)]),
