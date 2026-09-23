@@ -208,3 +208,7 @@ including CPU/catalog-reordering/checkpoint controls; strict Clippy passes. An
 initial ordering test caught receipts following trader registration order; canonical
 side/agent sorting corrected the diagnostic ordering without changing matching.
 Raw runs and test output remain ignored under `output/`.
+
+The next [shared-horizon experiment](ORDER-HORIZONS.md) tests alignment before
+changing side selection: it removes the mixed-window stock signal but does not
+improve overall need satisfaction in the two variants tested.

@@ -217,3 +217,7 @@ buy can subsequently fail either check. Receipts are stored in the domain round,
 recomputed during atomic settlement validation, and exported only after commit.
 Stable side/agent ordering preserves catalog-reordering equivalence. Detailed
 exclusions now appear in the [review follow-up](OBSERVER-REVIEW.md#order-generation-follow-up).
+
+Order-generation receipts also identify their effective buy/reserve windows. The
+[shared order-horizon comparison](ORDER-HORIZONS.md) tests 6/2, 2/2 and 6/6 months
+without changing the six-month production planner.
