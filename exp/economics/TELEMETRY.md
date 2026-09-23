@@ -1,7 +1,7 @@
 # External metrics and committed-event logs
 
-Implemented first step. Decision explanations and specialized subsystem observers
-are deferred. The observer wraps the public `Simulation::step()` boundary and reads
+Implemented: base metrics/logs plus optional production-market planning and
+settlement observers. Broader subsystem coverage remains incremental. The observer wraps the public `Simulation::step()` boundary and reads
 new ledger entries and reports. No telemetry calls were added to agents, planning,
 settlement, or the monthly scheduler. Private forecast simulations are not observed.
 
@@ -112,3 +112,79 @@ Later subsystem observers can inspect existing receipts for payment/default
 outcomes, order rejection details, or forecasts versus realized actions. Add
 missing facts to domain receipts only when a concrete diagnostic needs them;
 avoid scattering logging calls throughout the economic code.
+
+## Planning and settlement observers
+
+Enable these independently of `TELEMETRY_MODE`:
+
+```sh
+MONTHS=6 CASE=both TELEMETRY_AGENTS=88 TELEMETRY_PLANNING=selected \
+  TELEMETRY_SETTLEMENT=true TELEMETRY_DIR=../../output/economics/observer-demo \
+  cargo +1.92.0 run --locked --example reciprocal_market
+```
+
+`TELEMETRY_PLANNING` accepts `off` (default), `selected`, or `alternatives`.
+`TELEMETRY_SETTLEMENT` accepts `false` (default) or `true`. Both use the existing
+inclusive month/agent filters and shared log limit; metrics cadence does not sample
+these records. They can run with base logs disabled. Settlement also enables
+`step_error` records. Full transaction effects remain in the base logs.
+
+The implementation lives in `src/telemetry/observers.rs`, outside economic code.
+It reads real committed records and never reruns planning or matching.
+
+| Kind | Content |
+| --- | --- |
+| `plan` | Production-market selected candidate, candidate index/count, dated price/demand beliefs, needs/priorities, ranking rule, and forecast |
+| `plan_alternative` | Optional candidate choice and forecast, keyed by plan batch, agent and candidate index |
+| `market_order` | Submitted side/quote and protected balances, keyed by batch and order index |
+| `market_attempt` | Buyer/seller, goods quantity, quotes, recorded outcome, actual completed quantity and nullable price |
+| `work_receipt` | Agent, need/process definition, recorded reason, requested/allocated/completed work |
+| `plan_outcome` | Original selected forecast versus actual sales, purchases and need deficits over the **same full horizon** |
+
+Batch IDs link plans, orders, attempts, work receipts and base transaction records
+at a committed boundary. Order/attempt indices are local to their record kind;
+they are not a fabricated one-to-one transaction attribution. Work in a later
+phase has its own batch; join by month/agent/definition where available. Reasons
+are the domain's recorded enum values, not generated explanations. Protected
+balances are policy guards, not escrow. Large integer buffer gaps and protected
+quantities are decimal strings to preserve `i128` values.
+
+The ranking is lexicographic: avoid terminal outcomes, minimize need deficits in
+priority order, minimize process failures and buffer gaps, maximize closing coins
+plus bounded stock value, minimize capacity debits, then break ties by candidate
+index. Alternatives expose the inputs to that ranking. They do not claim that a
+selected candidate is globally optimal. Fixed diagnostic policies have no
+search transcript and therefore emit no `plan` records.
+
+Forecast sales/purchases are quantities per market over the entire forecast
+window, not current-month promises. Actuals accumulate only completed matches;
+failed attempts contribute zero. An outcome appears at Close of the forecast's
+end month. Empty market maps mean zero completed quantity. The real agents can
+replan every month, whereas the original forecast holds a candidate fixed; a
+difference alone does not prove a settlement bug or identify a causal explanation.
+
+An observer tracks only plans it encounters while attached. It does not recreate
+old plans on restart or infer a full-horizon result from partial observations.
+`finish.pending_plan_outcomes` reports outstanding comparisons when a run ends
+before their horizons. If the ending month is outside the configured export
+window, its comparison is filtered out. Continue stepping through the observer
+even during filtered months to preserve the actual path for tracked plans.
+
+Current coverage is deliberately explicit: production-market search, town-market
+orders/match attempts, and common batch work receipts. Legacy search variants,
+credit/default waterfalls, agreements and every pre-order rejection are not yet
+fully exported. An absent order does not acquire an invented rejection reason.
+Specialized observers can extend these records as concrete diagnostics require.
+
+Observer-extension verification: ten telemetry tests passed, including full-horizon
+CPU observation equivalence, optional alternatives, filtered counterparties,
+shared log limits, and exact funding/storage rejection outcomes. Formatting and
+strict all-target Clippy checks passed. The full economic suite was not rerun.
+
+A six-month autonomous two-market CPU run filtered to agent 88 exported six plans,
+ten submitted orders, two match attempts, 22 work receipts and one completed
+forecast comparison; five later plans still awaited their horizons. No logs were
+omitted. The initial forecast predicted no trade and one unit of warmth deficit;
+the realized six-month path bought two grain units, sold two grain units and had
+zero food/warmth deficits. This demonstrates dated forecast/outcome inspection,
+not evidence that autonomous reciprocal wood trading has been solved.
