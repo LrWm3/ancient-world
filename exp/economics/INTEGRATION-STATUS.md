@@ -151,4 +151,7 @@ Use the linked results to distinguish settlement support from emergent behavior.
 [Named laws](LAWS.md) constrain the existing single-authority transaction policy.
 Supported permission call sites share prohibition and required-membership checks;
 legacy exchange/household combinations remain unsupported. This is not yet
-jurisdictional law, agreement-form recognition or organizational founding law.
+jurisdictional law or organizational founding law. An opt-in recognition catalog
+now permits or refuses new land-use leases and financed asset purchases; existing
+agreements retain servicing and use-right semantics. Recognition does not yet bound
+contract terms or integrate lease-versus-purchase planning.

@@ -47,6 +47,59 @@ rules. Due debt and enforcement retain their existing handling independently of
 permission to originate a new loan. This is not a new cancellation, restitution or
 grandfathering policy for existing contracts.
 
+## Recognized agreement forms
+
+The authority can now configure `Policy.agreement_forms` with an explicit set:
+
+| Form | Current meaning |
+| --- | --- |
+| `LandUseLease` | Accept the existing land-use agreement: dated use right in exchange for annual payment, with ownership retained |
+| `FinancedAssetPurchase` | Accept an asset sale bundled with a collateralized coin loan; the current control purchases a plot |
+
+`None` preserves recognition of both forms for earlier scenarios. An explicit
+empty set recognizes neither. A lease-only state can retain land ownership;
+a purchase-only state can refuse new leases while permitting financed purchase.
+The latter form applies to financed assets generally, not only plots. This catalog
+does not govern cash purchases, collateral resale, inheritance or other agreement
+forms not yet connected to recognition.
+
+`laws::evaluate_agreement` combines recognition with the existing action check.
+A refused form produces `UnrecognizedForm` identifying that form and the policy
+authority. Recognition does not supply an action permission, citizenship, a right,
+money or collateral. Type/membership prohibitions still apply. Current recognition
+is authority-wide; actor-specific constraints remain in the action rules.
+
+Unrecognized leases are removed from opportunity discovery and rejected by the
+land-acceptance resolver. Unrecognized financed purchases are hidden from credit
+discovery and rejected by origination, including scripted applications. The
+existing credit rejection receipt remains `Ineligible`; the legal evaluation API
+provides the more specific reason. Commit-time re-evaluation rejects a purchase
+prepared before recognition was withdrawn, and forged lease acceptance is atomic.
+
+### Existing agreements
+
+Recognition applies only to entering new agreements. Withdrawing a form leaves
+accepted land-use rights, annual payments, outstanding debt, collateral and due
+servicing in place. It does not independently authorize new process execution:
+the existing action laws and rights still govern use. Preconfigured agreements
+are treated as existing agreements, rather than as applications for new recognition.
+
+Tests manually replace the static catalog between committed boundaries to exercise
+this distinction. There is no enacted-law event, amendment schedule, historical law
+archive, retroactive invalidation or compensation mechanism yet. Nor does the
+catalog validate interest limits, deposits, tenure durations or founding charters.
+
+Six additional tests compare catalog alternatives on identical openings within
+the existing lease and mortgage fixtures. Both allow-list and empty-list cases run
+on CPU. Existing-agreement controls accept first, withdraw recognition, then compare
+continued CPU execution with unchanged reference execution: the mortgage finishes
+repaying and the lease continues harvesting and paying its annual obligation.
+A default control also verifies that withdrawing recognition cannot prevent
+repossession of collateral on an existing loan. Denied-form controls compare
+six-month reference batches with monthly CPU execution
+and checkpoints. These are two separate fixtures, not a new integrated planner
+choosing between leasing and buying the same plot.
+
 ## Verification
 
 The six focused law tests check:
@@ -72,7 +125,7 @@ of a bounded legal constraint, not evidence that the prohibited economy is viabl
 Run from `exp/economics`:
 
 ```sh
-cargo +1.92.0 test --locked --test laws -- --nocapture
+cargo +1.92.0 test --locked --test laws --test agreement_laws -- --nocapture
 cargo +1.92.0 test --locked --test membership --test opportunities --test acquisition --test negotiation
 ```
 
@@ -85,13 +138,16 @@ bounds, courts or illegal-action enforcement. Structured decisions are callable
 inspection results; existing generic denial receipts are not yet a complete legal
 observer stream.
 
-A useful next extension is recognized agreement forms: distinguish permitted land
-leases from financed purchases under different laws, including bounded terms and
-explicit treatment of existing agreements. Organizational founding templates and
-constitution/charter constraints can then use the same separation between legal
-recognition, permission and feasibility. Keep those additions distinct from
-operational policy and resource allocation.
+A useful next extension is legal bounds on the terms of a recognized form:
+for example, a maximum monthly interest rate or a permitted lease duration,
+with the same distinction between new entry and existing obligations.
+Organizational founding templates and constitution/charter constraints can later
+build on this separation between recognition, permission and feasibility.
 
 Validation: all 36 focused tests passed (six laws, eight acquisition, eight
 membership, seven negotiation and seven opportunity tests), along with strict
 all-target Clippy and formatting. The full crate suite was not run.
+
+Agreement-form validation: all 50 focused tests passed (six recognition controls
+plus 44 acquisition, borrowing, credit, laws, membership and opportunity tests).
+Strict all-target Clippy and formatting passed; the full crate suite was not run.

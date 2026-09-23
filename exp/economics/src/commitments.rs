@@ -379,15 +379,17 @@ pub fn acceptance_for(
     let mut bound = template.clone();
     bound.debtor = applicant;
     let offer = &bound;
-    if !crate::opportunities::permits(
+    if !crate::laws::evaluate_agreement(
         world,
         state,
         offer.debtor,
-        crate::opportunities::Action::LandAccess,
-    ) || world
-        .transaction_policy
-        .as_ref()
-        .is_some_and(|p| offer.creditor != p.authority)
+        crate::laws::AgreementForm::LandUseLease,
+    )
+    .allowed
+        || world
+            .transaction_policy
+            .as_ref()
+            .is_some_and(|p| offer.creditor != p.authority)
     {
         return Err("state policy denies land access".into());
     }

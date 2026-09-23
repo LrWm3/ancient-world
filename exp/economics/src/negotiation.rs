@@ -401,6 +401,7 @@ pub fn scenario() -> (World, State) {
         authority: crate::scenario::STATE_AGENT,
         membership_offers: vec![],
         laws: vec![],
+        agreement_forms: None,
         membership_permissions: BTreeSet::new(),
         agent_types: BTreeMap::from([
             (BUYER, opportunities::PERSON_TYPE),

@@ -23,6 +23,7 @@ pub enum Action {
 pub struct Policy {
     pub authority: AgentId,
     pub laws: Vec<crate::laws::Rule>,
+    pub agreement_forms: Option<BTreeSet<crate::laws::AgreementForm>>,
     pub membership_offers: Vec<crate::membership::Offer>,
     pub membership_permissions: BTreeSet<(crate::membership::Role, Action)>,
     pub agent_types: BTreeMap<AgentId, AgentType>,
@@ -87,6 +88,7 @@ pub fn discover<'a>(world: &'a World, state: &State, agent: AgentId) -> Vec<Oppo
     access.sort_by_key(|a| a.id);
     for a in access {
         if (a.debtor == agent || world.open_access_offers.contains(&a.id))
+            && crate::laws::recognizes(world, crate::laws::AgreementForm::LandUseLease)
             && discoverable(world, state, agent, Action::LandAccess)
             && world
                 .transaction_policy
@@ -250,6 +252,7 @@ pub fn scenario() -> Result<(World, State), String> {
     world.transaction_policy = Some(Policy {
         authority: STATE_AGENT,
         laws: vec![],
+        agreement_forms: None,
         membership_offers: vec![],
         membership_permissions: Default::default(),
         agent_types: BTreeMap::from([(PERSON, PERSON_TYPE), (STATE_AGENT, STATE_TYPE)]),

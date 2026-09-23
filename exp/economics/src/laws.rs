@@ -5,6 +5,43 @@ use crate::{
     opportunities::{Action, AgentType, Policy},
 };
 
+/// Recognized shapes of newly entered agreements, not permissions to act.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum AgreementForm {
+    LandUseLease,
+    FinancedAssetPurchase,
+}
+impl AgreementForm {
+    fn action(self) -> Action {
+        match self {
+            Self::LandUseLease => Action::LandAccess,
+            Self::FinancedAssetPurchase => Action::FinancedPurchase,
+        }
+    }
+}
+/// An absent catalog preserves older scenarios. An explicit empty catalog
+/// recognizes neither of the supported forms.
+pub fn recognizes(w: &World, form: AgreementForm) -> bool {
+    w.transaction_policy.as_ref().is_none_or(|p| {
+        p.agreement_forms
+            .as_ref()
+            .is_none_or(|forms| forms.contains(&form))
+    })
+}
+/// New agreement entry only. Existing rights, servicing and enforcement do not
+/// call this check; withdrawing recognition does not retroactively void contracts.
+pub fn evaluate_agreement(w: &World, s: &State, agent: AgentId, form: AgreementForm) -> Decision {
+    let mut decision = evaluate(w, s, agent, form.action());
+    if !recognizes(w, form) {
+        decision.allowed = false;
+        decision
+            .reasons
+            .retain(|r| !matches!(r, Reason::Granted | Reason::UnrestrictedLegacy));
+        decision.reasons.push(Reason::UnrecognizedForm { form });
+    }
+    decision
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Requirement {
     Prohibited,
@@ -25,6 +62,9 @@ pub enum Reason {
     Granted,
     Unclassified,
     NoGrant,
+    UnrecognizedForm {
+        form: AgreementForm,
+    },
     Prohibited {
         rule: u32,
     },

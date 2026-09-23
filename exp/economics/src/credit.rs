@@ -365,12 +365,14 @@ pub fn discover<'a>(world: &'a World, state: &State, buyer: AgentId) -> Vec<&'a 
         c.offers
             .iter()
             .filter(|o| {
-                crate::opportunities::permits(
+                crate::laws::evaluate_agreement(
                     world,
                     state,
                     buyer,
-                    crate::opportunities::Action::FinancedPurchase,
-                ) && buyer != o.sale.seller
+                    crate::laws::AgreementForm::FinancedAssetPurchase,
+                )
+                .allowed
+                    && buyer != o.sale.seller
                     && buyer != o.loan.creditor
                     && world.agents.iter().any(|a| a.id == buyer)
                     && !state.terminal.contains_key(&buyer)
@@ -596,14 +598,16 @@ fn purchase(
         .checked_sub(a.downpayment)
         .ok_or("purchase amount overflow")?;
     let coin = o.loan.denomination;
-    let reason = if !crate::opportunities::permits(
+    let reason = if !crate::laws::evaluate_agreement(
         world,
         state,
         a.buyer,
-        crate::opportunities::Action::FinancedPurchase,
-    ) || [a.buyer, o.sale.seller, o.loan.creditor]
-        .iter()
-        .any(|id| state.terminal.contains_key(id))
+        crate::laws::AgreementForm::FinancedAssetPurchase,
+    )
+    .allowed
+        || [a.buyer, o.sale.seller, o.loan.creditor]
+            .iter()
+            .any(|id| state.terminal.contains_key(id))
         || a.buyer == o.sale.seller
         || a.buyer == o.loan.creditor
     {
