@@ -66,6 +66,9 @@ impl Default for Choice {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Policy {
     Plan,
+    Cooperate(crate::cooperation::Discovery),
+    /// Fully specified conditional plan, also used in isolated forecast branches.
+    Agreement(Box<crate::cooperation::Contract>),
     Fixed(BTreeMap<AgentId, Choice>),
 }
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -189,6 +192,7 @@ pub fn validate(w: &World) -> Result<(), String> {
             "production market requires bounded independent work and an adaptive town book".into(),
         );
     }
+    crate::cooperation::validate(w)?;
     if let Policy::Fixed(choices) = &c.policy {
         for (agent, choice) in choices {
             if !w.participants.iter().any(|p| p.agent == *agent)
@@ -304,7 +308,8 @@ pub(crate) fn work(sim: &Simulation) -> Result<Batch, String> {
         .iter()
         .find(|r| r.month == sim.state.month)
         .and_then(|r| r.planning.as_ref());
-    let policies = choices(&sim.world, decision);
+    let policies = crate::cooperation::choices(&sim.world, &sim.state)
+        .unwrap_or_else(|| choices(&sim.world, decision));
     let mut b = Batch::empty(&sim.state);
     let ordinary = sim.productive_requests(&mut b, false, None)?;
     b.receipts.clear();
@@ -572,7 +577,7 @@ pub fn choose(w: &World, s: &State) -> Result<Option<Decision>, String> {
     let Some(c) = &w.production_market else {
         return Ok(None);
     };
-    if matches!(c.policy, Policy::Fixed(_)) {
+    if !matches!(c.policy, Policy::Plan) {
         return Ok(None);
     }
     validate(w)?;

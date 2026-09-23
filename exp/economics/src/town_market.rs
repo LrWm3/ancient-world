@@ -118,6 +118,7 @@ pub struct Attempt {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Round {
+    pub cooperation: Option<Box<crate::cooperation::Boundary>>,
     pub planning: Option<crate::production_market::Decision>,
     pub month: u32,
     pub orders: Vec<Order>,
@@ -281,6 +282,7 @@ pub fn validate(world: &World) -> Result<(), String> {
     Ok(())
 }
 pub(crate) fn validate_state(world: &World, state: &State) -> Result<(), String> {
+    crate::cooperation::validate_state(world, state)?;
     let book = &state.town_market;
     let Some(c) = &world.town_market else {
         return if book == &Book::default() {
@@ -360,6 +362,9 @@ pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
     if state.phase != Phase::Acquire {
         return Err("town matching requires Acquire".into());
     }
+    if let Some(round) = crate::cooperation::evaluate(world, state)? {
+        return Ok(round);
+    }
     let c = world.town_market.as_ref().ok_or("missing town market")?;
     let planning = crate::production_market::choose(world, state)?;
     let choices = crate::production_market::choices(world, planning.as_ref());
@@ -367,6 +372,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
     let mut resources = opening.clone();
     let mut pricing_state = state.clone();
     let mut result = Round {
+        cooperation: None,
         month: state.month,
         planning,
         orders: vec![],

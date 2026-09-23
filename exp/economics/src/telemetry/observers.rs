@@ -132,6 +132,34 @@ pub(super) fn batch(
         }
     }
     if let Some(town_market::Boundary::Market(round)) = &batch.town_market {
+        if let Some(c) = &round.cooperation
+            && (config.settlement || config.planning != PlanningDetail::Off)
+        {
+            let delivery = |d: &crate::cooperation::Delivery| {
+                json!({"month":d.month,
+                "market":d.market,"seller":d.goods.from,"buyer":d.goods.to,
+                "resource":d.goods.amount.resource,"quantity":d.goods.amount.quantity,
+                "payment_resource":d.payment.amount.resource,"price":d.payment.amount.quantity})
+            };
+            let score = |s: &crate::cooperation::Score| {
+                json!({"terminal":s.terminal,
+                "deficits":s.deficits,"failures":s.failures,"buffer_gap":s.buffer_gap.to_string(),
+                "productive_labor":s.productive_labor})
+            };
+            let relevant = world.participants.iter().any(|p| selected(config, p.agent));
+            if relevant {
+                records.push(json!({"kind":"cooperation","event":c.event,"failure":c.failure,
+                    "agreement":c.agreement,
+                    "projections":c.projections,"through":c.active.as_ref().map(|a|a.through),
+                    "deliveries":c.active.as_ref().map(|a|a.deliveries.iter().map(&delivery).collect::<Vec<_>>()),
+                    "choices":c.active.as_ref().map(|a|a.choices.iter().map(|(id,c)|json!({"agent":id,"work":format!("{:?}",c.work)})).collect::<Vec<_>>()),
+                    "offers":c.offers.iter().map(|o|json!({"proposer":o.proposer,"expires":o.expires,
+                        "deliveries":o.deliveries.iter().map(&delivery).collect::<Vec<_>>()})).collect::<Vec<_>>(),
+                    "assessments":c.assessments.iter().filter(|a|selected(config,a.agent)).map(|a|json!({"agent":a.agent,"acceptable":a.acceptable,
+                        "baseline":score(&a.baseline),"proposed":score(&a.proposed),"closing_coins":a.closing_coins})).collect::<Vec<_>>(),
+                    "completed":c.completed.iter().map(delivery).collect::<Vec<_>>()}));
+            }
+        }
         if config.planning != PlanningDetail::Off
             && let Some(decision) = &round.planning
         {

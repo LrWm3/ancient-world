@@ -129,3 +129,5 @@ pub mod telemetry;
 pub mod calibration;
 
 pub mod credit_stress;
+
+pub mod cooperation;
