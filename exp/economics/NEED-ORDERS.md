@@ -105,3 +105,8 @@ Existing credit/household and joint-plan/negotiation exclusions still apply.
 The remaining review areas are deprivation consequences in credit fixtures,
 controlled planner ablations, uncertain forecasts and competing offers. Household
 integration is deferred for reworking rather than extending its current assumptions.
+
+The separate [town-market extension](TOWN-MARKET.md) now matches multiple registered
+buyers and sellers under month-start locality, while reusing this need/protection
+policy. The bilateral credit-compatible pilot described above retains its supplied
+counterparty pair; the new town book is not yet credit- or household-compatible.

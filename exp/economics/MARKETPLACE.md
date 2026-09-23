@@ -108,3 +108,7 @@ restrictions still apply except for the supported credit/state-bid combination
 through the [shared acquisition resolver](INTEGRATION-STATUS.md). The public discovery
 function exposes supported trades. The [need-order pilot](NEED-ORDERS.md) creates
 buy/sell orders for one configured listing; general multi-market search remains absent.
+
+A separate [town-market book](TOWN-MARKET.md) now adds local admission, multiple
+buyers/sellers and monthly price/volume observations using this venue and pricing
+memory. Its explicit combination limits differ from the bilateral pilot above.

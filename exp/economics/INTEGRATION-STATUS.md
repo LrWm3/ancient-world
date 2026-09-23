@@ -59,6 +59,7 @@ collateral resale remains rejected pending explicit buyer/seller rules.
 | Credit/negotiation + households | Still rejected; pooled purchase resources and loan support need explicit receipts |
 | Legacy equipment/forward exchange, competing-access or pool-market drivers + credit/negotiation | Still rejected |
 | Need-generated marketplace orders | [Bounded consumption/surplus policy](NEED-ORDERS.md) implemented; bilateral parties, lot and reservation prices remain supplied |
+| Four-person monthly town book | [Implemented separately](TOWN-MARKET.md): locality, generated orders, multiple counterparties, fixed/ZIP quotes; credit and households remain excluded |
 | State posted bids learning ZIP prices | Not implemented; co-settlement does not change the price-setting policy |
 
 These exclusions are intentional validation boundaries, not claims that every
