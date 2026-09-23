@@ -188,3 +188,6 @@ omitted. The initial forecast predicted no trade and one unit of warmth deficit;
 the realized six-month path bought two grain units, sold two grain units and had
 zero food/warmth deficits. This demonstrates dated forecast/outcome inspection,
 not evidence that autonomous reciprocal wood trading has been solved.
+
+The [twelve-month observer review](OBSERVER-REVIEW.md) applies these observers to
+the missing autonomous wood trades, with a directed control and remaining gaps.
