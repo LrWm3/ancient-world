@@ -63,9 +63,7 @@ pub fn validate(w: &World, seller: AgentId, p: &Policy) -> Result<(), String> {
         || p.horizon_months < duration.saturating_mul(2)
         || p.horizon_months > MAX_HORIZON
         || p.need_limits.is_empty()
-        || p.need_limits
-            .iter()
-            .any(|(r, n)| *n < 0 || !needs.iter().any(|x| x.resource == *r && x.quantity > 0))
+        || !crate::forecast::needs::valid_limits(needs, &p.need_limits)
         || p.future_reserves.is_empty()
         || p.future_reserves.len() > 2
         || p.future_reserves.iter().any(|n| *n > MAX_HORIZON)
@@ -189,10 +187,10 @@ pub(crate) fn choose(
                 }
                 let mut deficits = BTreeMap::new();
                 for r in sim.reports.iter().filter(|r| r.agent == sale.seller) {
-                    for need in &w.participants[0].needs {
-                        *deficits.entry(need.resource).or_insert(0_i64) +=
-                            i64::from(r.deficit(need.resource));
-                    }
+                    crate::forecast::needs::accumulate(
+                        &mut deficits,
+                        r.needs.iter().map(|(r, n)| (*r, n.deficit)),
+                    );
                 }
                 let terminal = sim.state.terminal.contains_key(&sale.seller);
                 let missed_payment = sim
@@ -224,9 +222,7 @@ pub(crate) fn choose(
                 let admissible = !terminal
                     && !missed_payment
                     && failures == 0
-                    && p.need_limits
-                        .iter()
-                        .all(|(r, max)| deficits.get(r).copied().unwrap_or(0) <= *max);
+                    && crate::forecast::needs::within_limits(&deficits, &p.need_limits);
                 let starts = sim
                     .state
                     .processes
@@ -270,8 +266,7 @@ pub(crate) fn choose(
         }
     }
     let feasible = alternatives.iter().any(|a| a.admissible);
-    let mut needs = w.participants[0].needs.clone();
-    needs.sort_by_key(|n| (n.priority, n.resource));
+    let needs = &w.participants[0].needs;
     let selected = alternatives
         .iter()
         .enumerate()
@@ -279,10 +274,7 @@ pub(crate) fn choose(
         .min_by_key(|(i, a)| {
             (
                 a.terminal,
-                needs
-                    .iter()
-                    .map(|n| a.deficits.get(&n.resource).copied().unwrap_or(0))
-                    .collect::<Vec<_>>(),
+                crate::forecast::needs::score(needs, &a.deficits),
                 a.missed_payment,
                 a.failures,
                 a.buffer_gap,

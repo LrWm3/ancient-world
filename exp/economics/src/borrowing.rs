@@ -105,13 +105,7 @@ pub fn validate(world: &World) -> Result<(), String> {
         .iter()
         .find(|p| p.agent == c.application.buyer)
         .unwrap();
-    if config.need_limits.iter().any(|(resource, maximum)| {
-        *maximum < 0
-            || !participant
-                .needs
-                .iter()
-                .any(|n| n.resource == *resource && n.quantity > 0)
-    }) {
+    if !crate::forecast::needs::valid_limits(&participant.needs, &config.need_limits) {
         return Err(
             "borrowing need limits require nonnegative bounds on the borrower's positive needs"
                 .into(),
@@ -222,9 +216,10 @@ fn project(context: &ForecastContext, accept: bool, horizon: u32) -> Result<Proj
                 .ok_or("missing borrowing month report")?;
             let deficits: BTreeMap<_, _> =
                 report.needs.iter().map(|(r, n)| (*r, n.deficit)).collect();
-            for (r, n) in &deficits {
-                *result.deficits.entry(*r).or_default() += i64::from(*n);
-            }
+            crate::forecast::needs::accumulate(
+                &mut result.deficits,
+                deficits.iter().map(|(r, n)| (*r, *n)),
+            );
             result.months.push(Month {
                 sold_stock,
                 sale_coins,
@@ -279,35 +274,28 @@ pub fn evaluate(world: &World, state: &State) -> Result<Decision, String> {
     let context = ForecastContext::new(world, state);
     let decline = project(&context, false, config.horizon_months)?;
     let purchase = project(&context, true, config.horizon_months);
-    let mut needs = world
+    let needs = &world
         .participants
         .iter()
         .find(|p| p.agent == c.application.buyer)
         .ok_or("missing borrower")?
-        .needs
-        .clone();
-    needs.sort_by_key(|n| (n.priority, n.resource));
+        .needs;
     let score = |p: &Projection| {
         (
             p.terminal,
-            needs
-                .iter()
-                .map(|n| p.deficits.get(&n.resource).copied().unwrap_or(0))
-                .collect::<Vec<_>>(),
+            crate::forecast::needs::score(needs, &p.deficits),
             p.failed_processes,
             i64::from(p.closing_debt) - i64::from(p.closing_coins),
         )
     };
     let violation = purchase.as_ref().ok().and_then(|p| {
-        needs.iter().find_map(|n| {
-            let maximum = *config.need_limits.get(&n.resource)?;
-            let projected = p.deficits.get(&n.resource).copied().unwrap_or(0);
-            (projected > maximum).then_some(Reason::NeedLimitExceeded {
-                resource: n.resource,
+        crate::forecast::needs::first_violation(needs, &p.deficits, &config.need_limits).map(
+            |(resource, projected, maximum)| Reason::NeedLimitExceeded {
+                resource,
                 projected,
                 maximum,
-            })
-        })
+            },
+        )
     });
     let reason = match &purchase {
         Err(e) => Reason::Infeasible(e.clone()),

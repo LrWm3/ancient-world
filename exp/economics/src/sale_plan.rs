@@ -40,13 +40,7 @@ pub fn validate(world: &World, seller: AgentId, policy: &Policy) -> Result<(), S
     if policy.horizon_months < duration
         || policy.horizon_months > MAX_HORIZON_MONTHS
         || policy.need_limits.is_empty()
-        || policy.need_limits.iter().any(|(r, n)| {
-            *n < 0
-                || !participant
-                    .needs
-                    .iter()
-                    .any(|need| need.resource == *r && need.quantity > 0)
-        })
+        || !crate::forecast::needs::valid_limits(&participant.needs, &policy.need_limits)
     {
         return Err("sale forecast requires a bounded production-length horizon and limits on positive needs".into());
     }
@@ -116,23 +110,14 @@ pub(crate) fn choose(
         }
         let mut deficits = BTreeMap::new();
         for report in sim.reports.iter().filter(|r| r.agent == sale.seller) {
-            for need in &world
-                .participants
-                .iter()
-                .find(|p| p.agent == sale.seller)
-                .unwrap()
-                .needs
-            {
-                *deficits.entry(need.resource).or_insert(0_i64) +=
-                    i64::from(report.deficit(need.resource));
-            }
+            crate::forecast::needs::accumulate(
+                &mut deficits,
+                report.needs.iter().map(|(r, n)| (*r, n.deficit)),
+            );
         }
         let terminal = sim.state.terminal.contains_key(&sale.seller);
-        let admissible = !terminal
-            && policy
-                .need_limits
-                .iter()
-                .all(|(r, max)| deficits.get(r).copied().unwrap_or(0) <= *max);
+        let admissible =
+            !terminal && crate::forecast::needs::within_limits(&deficits, &policy.need_limits);
         alternatives.push(Alternative {
             lots,
             deficits,

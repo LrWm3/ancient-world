@@ -46,3 +46,59 @@ impl ForecastContext {
         (self.world, self.state)
     }
 }
+
+/// Shared accounting for planning constraints. Horizons, candidate generation,
+/// fallback rules and economic objectives remain the caller's policy.
+pub mod needs {
+    use crate::model::{Requirement, ResourceId};
+    use std::collections::BTreeMap;
+
+    pub type Deficits = BTreeMap<ResourceId, i64>;
+
+    pub fn valid_limits(requirements: &[Requirement], limits: &Deficits) -> bool {
+        limits.iter().all(|(resource, maximum)| {
+            *maximum >= 0
+                && requirements
+                    .iter()
+                    .any(|n| n.resource == *resource && n.quantity > 0)
+        })
+    }
+
+    pub fn accumulate(total: &mut Deficits, deficits: impl IntoIterator<Item = (ResourceId, i32)>) {
+        for (resource, quantity) in deficits {
+            *total.entry(resource).or_default() += i64::from(quantity);
+        }
+    }
+
+    pub fn within_limits(deficits: &Deficits, limits: &Deficits) -> bool {
+        limits
+            .iter()
+            .all(|(r, maximum)| deficits.get(r).copied().unwrap_or(0) <= *maximum)
+    }
+
+    /// Lower priority numbers come first; resource ID breaks equal priorities.
+    pub fn ordered(requirements: &[Requirement]) -> Vec<&Requirement> {
+        let mut rows: Vec<_> = requirements.iter().collect();
+        rows.sort_by_key(|n| (n.priority, n.resource));
+        rows
+    }
+
+    pub fn score(requirements: &[Requirement], deficits: &Deficits) -> Vec<i64> {
+        ordered(requirements)
+            .iter()
+            .map(|n| deficits.get(&n.resource).copied().unwrap_or(0))
+            .collect()
+    }
+
+    pub fn first_violation(
+        requirements: &[Requirement],
+        deficits: &Deficits,
+        limits: &Deficits,
+    ) -> Option<(ResourceId, i64, i64)> {
+        ordered(requirements).into_iter().find_map(|n| {
+            let maximum = *limits.get(&n.resource)?;
+            let projected = deficits.get(&n.resource).copied().unwrap_or(0);
+            (projected > maximum).then_some((n.resource, projected, maximum))
+        })
+    }
+}
