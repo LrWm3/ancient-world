@@ -875,17 +875,21 @@ impl Simulation {
             for need in Self::sorted_needs(participant) {
                 let remaining =
                     (need.quantity - self.state.balance(participant.agent, need.resource)).max(0);
-                let (mut lots, unmet) = crate::substitution::allocate(
+                let recipes = crate::substitution::recipes_for(
                     &self.world,
+                    &self.state,
+                    participant.agent,
                     need.resource,
+                );
+                let (mut lots, unmet) = crate::substitution::allocate_recipes(
+                    &recipes,
                     i128::from(remaining),
                     &mut stocks,
                     &earmarks,
                 );
                 // Retain unmet requests and their missing-stock receipts.
                 if unmet > 0
-                    && let Some(d) =
-                        crate::substitution::recipes(&self.world, need.resource).first()
+                    && let Some(d) = recipes.first()
                 {
                     let output = i128::from(d.outputs[0].quantity);
                     lots.push((d.id, (unmet + output - 1) / output));

@@ -163,6 +163,7 @@ pub fn baseline() -> (World, State) {
         credit: None,
         marketplaces: vec![],
         negotiation: None,
+        need_orders: None,
         pool_market: None,
         competition: None,
         open_access_offers: Default::default(),

@@ -182,6 +182,7 @@ pub struct World {
     pub credit: Option<crate::credit::Config>,
     pub marketplaces: Vec<crate::marketplace::Marketplace>,
     pub negotiation: Option<crate::negotiation::Session>,
+    pub need_orders: Option<crate::need_orders::Policy>,
     pub pool_market: Option<crate::pool_market::Config>,
     pub competition: Option<crate::competition::Config>,
     /// Open access templates bind their debtor and right holder only on acceptance.

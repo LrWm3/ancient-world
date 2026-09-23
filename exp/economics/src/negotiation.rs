@@ -71,6 +71,8 @@ pub struct Quotes {
 pub enum Outcome {
     Traded { price: i32 },
     NoAgreement,
+    NoDemand,
+    NoSurplus,
     UnsupportedMarket,
     Ineligible,
     InsufficientGoods,
@@ -79,6 +81,7 @@ pub enum Outcome {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Round {
+    pub orders: Option<crate::need_orders::Decision>,
     pub marketplace: AgentId,
     pub market: marketplace::MarketId,
     pub buyer: AgentId,
@@ -92,6 +95,7 @@ pub struct Round {
 }
 
 pub fn validate(world: &World) -> Result<(), String> {
+    crate::need_orders::validate(world)?;
     let Some(s) = &world.negotiation else {
         return Ok(());
     };
@@ -174,14 +178,14 @@ pub(crate) fn evaluate_with(
 ) -> Result<Option<Round>, String> {
     validate(world)?;
     marketplace::validate(world, state)?;
-    let Some(s) = world
-        .negotiation
-        .as_ref()
-        .filter(|s| s.month == state.month && state.phase == Phase::Acquire)
-    else {
+    let Some(s) = world.negotiation.as_ref().filter(|s| {
+        (s.month == state.month || (world.need_orders.is_some() && state.month >= s.month))
+            && state.phase == Phase::Acquire
+    }) else {
         return Ok(None);
     };
     let mut result = Round {
+        orders: None,
         marketplace: s.marketplace,
         market: s.market,
         buyer: s.buyer.agent,
@@ -204,6 +208,27 @@ pub(crate) fn evaluate_with(
         result.outcome = Outcome::UnsupportedMarket;
         return Ok(Some(result));
     };
+    let mut resources = resources.clone();
+    result.orders = crate::need_orders::generate(world, state, &resources)?;
+    if let Some(orders) = &result.orders {
+        if orders.buy.is_none() {
+            result.outcome = Outcome::NoDemand;
+            return Ok(Some(result));
+        }
+        if orders.sell.is_none() {
+            result.outcome = Outcome::NoSurplus;
+            return Ok(Some(result));
+        }
+        for account in [
+            (s.seller.agent, s.goods.resource),
+            (s.buyer.agent, s.payment),
+        ] {
+            let available = resources.available.entry(account).or_default();
+            *available = (i128::from(*available)
+                - orders.protected.get(&account).copied().unwrap_or(0))
+            .max(0) as i32;
+        }
+    }
     let mut buyer_learning = marketplace::learning(state, s, Side::Buy);
     let mut seller_learning = marketplace::learning(state, s, Side::Sell);
     let mut bid = buyer_learning.as_ref().map_or_else(

@@ -21,6 +21,26 @@ pub fn recipes(world: &World, need: ResourceId) -> Vec<&ProcessDefinition> {
     definitions
 }
 
+/// Ordered recipes this participant may actually execute at the observed boundary.
+pub fn recipes_for<'a>(
+    world: &'a World,
+    state: &State,
+    agent: AgentId,
+    need: ResourceId,
+) -> Vec<&'a ProcessDefinition> {
+    recipes(world, need)
+        .into_iter()
+        .filter(|d| {
+            crate::opportunities::permits(
+                world,
+                state,
+                agent,
+                crate::opportunities::Action::Process(d.id),
+            )
+        })
+        .collect()
+}
+
 pub fn stocks(state: &State, agent: AgentId) -> BTreeMap<ResourceId, i128> {
     state
         .balances
@@ -62,11 +82,19 @@ pub fn allocate(
     stocks: &mut BTreeMap<ResourceId, i128>,
     earmarks: &BTreeMap<ResourceId, i128>,
 ) -> (Vec<(DefinitionId, i128)>, i128) {
-    let recipes = recipes(world, need);
+    allocate_recipes(&recipes(world, need), desired, stocks, earmarks)
+}
+
+pub(crate) fn allocate_recipes(
+    recipes: &[&ProcessDefinition],
+    desired: i128,
+    stocks: &mut BTreeMap<ResourceId, i128>,
+    earmarks: &BTreeMap<ResourceId, i128>,
+) -> (Vec<(DefinitionId, i128)>, i128) {
     let mut remaining = desired.max(0);
     let mut allocations = Vec::new();
     for release in [false, true] {
-        for d in &recipes {
+        for d in recipes {
             let input = &d.stages[0].entry_inputs[0];
             let stock = stocks.entry(input.resource).or_default();
             let protected = if release {
