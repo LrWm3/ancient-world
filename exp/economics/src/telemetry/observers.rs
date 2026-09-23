@@ -40,6 +40,97 @@ pub(super) fn batch(
     pending: &mut Vec<Pending>,
 ) -> Vec<Value> {
     let mut records = vec![];
+    if config.settlement
+        && let Some(credit) = &batch.credit
+    {
+        let visible = |loan: &crate::credit::Loan| {
+            selected(config, loan.debtor) || selected(config, loan.creditor)
+        };
+        for loan in credit.after.loans.values().filter(|l| visible(l)) {
+            records.push(json!({"kind":"loan_state","loan":loan.id,
+                "debtor":loan.debtor,"creditor":loan.creditor,"denomination":loan.denomination,
+                "principal":loan.principal,"interest":loan.interest,
+                "principal_due":loan.principal_due(batch.month),"first_unpaid":loan.first_unpaid,
+                "last_accrued":loan.last_accrued,"status":format!("{:?}",loan.status),
+                "asset":loan.collateral.asset,"pledged":loan.collateral.pledged,
+                "owner":credit.after.owners.get(&loan.collateral.asset)}));
+        }
+        for event in &credit.events {
+            use crate::credit::Event;
+            let (loan, detail) = match event {
+                Event::Accrued {
+                    loan,
+                    opening_principal,
+                    interest,
+                } => (
+                    *loan,
+                    json!({"event":"Accrued","opening_principal":opening_principal,"interest":interest}),
+                ),
+                Event::Paid {
+                    loan,
+                    interest,
+                    principal,
+                } => (
+                    *loan,
+                    json!({"event":"Paid","interest":interest,"principal":principal}),
+                ),
+                Event::Arrears {
+                    loan,
+                    amount,
+                    since,
+                } => (
+                    *loan,
+                    json!({"event":"Arrears","amount":amount,"since":since}),
+                ),
+                Event::Enforced {
+                    loan,
+                    value,
+                    debt_credit,
+                    surplus,
+                    remaining_debt,
+                } => (
+                    *loan,
+                    json!({"event":"Enforced","value":value,"debt_credit":debt_credit,
+                        "surplus":surplus,"remaining_debt":remaining_debt}),
+                ),
+                _ => continue,
+            };
+            if credit.after.loans.get(&loan).is_some_and(visible) {
+                records.push(json!({"kind":"loan_event","loan":loan,"detail":detail}));
+            }
+        }
+        if let Some(sale) = &credit.stock_sale
+            && (selected(config, sale.seller)
+                || world
+                    .bids
+                    .iter()
+                    .find(|b| b.id == sale.bid)
+                    .is_some_and(|b| selected(config, b.buyer)))
+        {
+            records.push(
+                json!({"kind":"credit_stock_sale","seller":sale.seller,"bid":sale.bid,
+                "reserve":sale.reserve,"opening_stock":sale.opening_stock,
+                "desired_lots":sale.desired_lots,"monthly_limit":sale.monthly_limit,
+                "funding_limit":sale.funding_limit,"storage_limit":sale.storage_limit,
+                "sold_lots":sale.sold_lots,"goods":sale.goods,"coins":sale.coins}),
+            );
+        }
+        for change in &credit.attachments {
+            if selected(config, change.after.operator)
+                || change
+                    .before
+                    .as_ref()
+                    .is_some_and(|p| selected(config, p.operator))
+            {
+                records.push(
+                    json!({"kind":"collateral_process_transfer","process":change.after.id,
+                    "from":change.before.as_ref().map(|p|p.operator),"to":change.after.operator,
+                    "beneficiary":change.after.beneficiary,"stage":change.after.stage,
+                    "elapsed":change.after.elapsed,"status":format!("{:?}",change.after.status)}),
+                );
+            }
+        }
+    }
     if let Some(town_market::Boundary::Market(round)) = &batch.town_market {
         if config.planning != PlanningDetail::Off
             && let Some(decision) = &round.planning

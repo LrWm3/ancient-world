@@ -226,3 +226,10 @@ without changing the six-month production planner.
 dated assumed counterparty choices to `plan` records. A retained candidate may
 not be the current wealth-maximizing alternative: the explicit persistence policy
 allows safety improvements to override a hold, but not wealth-only improvements.
+
+Credit boundaries also export `loan_state`, `loan_event` (accrual, payment, arrears,
+fixed-value enforcement), `credit_stock_sale` limits and `collateral_process_transfer`
+when settlement observation is enabled. These distinguish cash repayment from debt
+cleared through repossession even when both end with status `Repaid`. They are
+filtered by either counterparty and read committed receipts; broader credit/resale
+coverage remains future work. See [credit stress controls](CREDIT-STRESS.md).

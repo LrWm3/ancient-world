@@ -304,3 +304,7 @@ The [two-person calibration](CALIBRATION.md) compares autarky, directed exchange
 and optional counterparty-expectation / plan-persistence variants under the same
 6/6 rules. Run `cargo +1.92.0 run --locked --example calibration` with
 `TELEMETRY_DIR` set to a fresh directory under ignored `output/`.
+
+[Harvest-funded loan stress controls](CREDIT-STRESS.md) compare normal repayment,
+a lost harvest followed by recovery, and repeated harvest failure with crop-preserving
+repossession. The CPU runner exposes monthly balance sheets and settlement receipts.

@@ -127,3 +127,5 @@ pub mod production_market;
 pub mod telemetry;
 
 pub mod calibration;
+
+pub mod credit_stress;
