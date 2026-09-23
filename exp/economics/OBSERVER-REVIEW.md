@@ -212,3 +212,6 @@ Raw runs and test output remain ignored under `output/`.
 The next [shared-horizon experiment](ORDER-HORIZONS.md) tests alignment before
 changing side selection: it removes the mixed-window stock signal but does not
 improve overall need satisfaction in the two variants tested.
+
+Historical runs above used 6/2 windows. Production scenarios now default to 6/6;
+set `ORDER_HORIZON=legacy` to reproduce the original review.

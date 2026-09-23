@@ -11,6 +11,8 @@ use economics_compute_smoke::{
 };
 fn fixture() -> (World, State) {
     let (mut w, mut s) = pm::reciprocal_scenario(true);
+    // This fixture isolates budgets with the historical reserve window.
+    w.town_market.as_mut().unwrap().order_horizon = town_market::OrderHorizon::Legacy;
     // Equal-price two-unit test lots isolate competition for one opening budget.
     w.marketplaces[0]
         .markets
@@ -321,6 +323,8 @@ fn unfilled_bids_signal_interest_but_cannot_create_funding_or_a_price() {
 #[test]
 fn directed_complementary_work_recurs_without_exhausting_buyer_money() {
     let (mut w, s) = pm::reciprocal_scenario(true);
+    // Retain the historical directed comparison explicitly.
+    w.town_market.as_mut().unwrap().order_horizon = town_market::OrderHorizon::Legacy;
     w.production_market.as_mut().unwrap().policy = Policy::Fixed(
         w.participants
             .iter()

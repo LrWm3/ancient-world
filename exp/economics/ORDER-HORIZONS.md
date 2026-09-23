@@ -1,9 +1,10 @@
 # Shared buying and selling horizons
 
-Implemented an opt-in shared order horizon and compared twelve-month CPU runs.
+Implemented a configurable shared order horizon and compared twelve-month CPU runs.
 Matching buy-demand and sell-protection windows eliminates the observed contradictory
-stock signals, but neither tested alignment improves the overall outcome. The
-existing default remains unchanged pending further experiments.
+stock signals, but neither tested alignment improves the overall outcome.
+The production-market scenarios now default to **Aligned(6)** (6/6), selected
+for consistent interpretation rather than better outcomes in this fixture.
 
 ## Configuration and boundaries
 
@@ -39,7 +40,9 @@ MONTHS=12 CASE=both ORDER_HORIZON=6 TELEMETRY_PLANNING=selected \
   cargo +1.92.0 run --locked --example reciprocal_market
 ```
 
-Omitting `ORDER_HORIZON` preserves legacy behavior. Same four persons, initial
+Omitting `ORDER_HORIZON` now uses 6/6 in the production/reciprocal scenarios.
+Use `ORDER_HORIZON=legacy` to reproduce the historical 6/2 control. Older standalone
+fixed-side town-market fixtures retain their existing configuration. Same four persons, initial
 stocks/coins/skills, fixed prices, demand signal, policies and backend in all three
 runs; no seed or randomness controls differ.
 
@@ -98,8 +101,9 @@ seller population; all four persons have a warmth shortfall in month three.
 
 A common horizon is a useful explicit modeling option, and the observers confirm
 that it removes this specific inconsistency. It is not sufficient to make the
-market coordinate complementary work. Changing the default solely because one
-variant generates a wood trade would obscure its much worse need satisfaction.
+market coordinate complementary work. The 6/6 default is a modeling-consistency choice; it is not a claim of improved
+need satisfaction. The isolated 2/2 wood trades do not justify that variant on
+need-satisfaction grounds.
 
 Keep the three configurations available. The remaining problem is whether agents
 can form mutually supportable production and purchasing plans, using realistic
@@ -117,3 +121,8 @@ signals, invalid durations, unchanged planner horizon, and CPU/reference equival
 under reordered participants and checkpoint continuation. All 36 need-order, town-market and production-planning tests passed, along with
 formatting and strict all-target Clippy checks. Raw logs and outputs
 remain under ignored `output/`; the full crate suite was not rerun.
+
+After making 6/6 the default, all 45 production-market, reciprocal-market, town-market
+and telemetry tests passed, including the new default-window assertion and
+CPU/checkpoint/reordering checks. Historical 6/2 reserve and directed-control
+fixtures now select Legacy explicitly. Strict all-target Clippy passed.

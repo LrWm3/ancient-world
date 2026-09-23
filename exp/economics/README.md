@@ -295,3 +295,7 @@ follows the [repository artifact policy](../../AGENTS.md).
 Dated payments now inform production candidates; see [the CPU comparison](DATED-CANDIDATES.md).
 
 Shared settlement primitives and migration scope: [FINANCE.md](FINANCE.md).
+
+Production and reciprocal-market scenarios now use a shared six-month buying and
+selling horizon by default. See the [horizon comparison](ORDER-HORIZONS.md);
+`ORDER_HORIZON=legacy` retains the old 6/2 diagnostic control.

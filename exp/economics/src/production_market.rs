@@ -665,6 +665,7 @@ pub fn scenario(trading: bool) -> (World, State) {
     }
     let m = w.town_market.as_mut().unwrap();
     m.adaptive = true;
+    m.order_horizon = crate::town_market::OrderHorizon::Aligned(EXAMPLE_HORIZON);
     for t in &mut m.traders {
         t.trader.limit = EXAMPLE_PRICE;
         t.trader.opening_quote = EXAMPLE_PRICE;

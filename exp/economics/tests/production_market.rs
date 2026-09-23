@@ -18,6 +18,8 @@ fn opening(w: World, s: State) -> Simulation {
 }
 fn fixed() -> (World, State) {
     let (mut w, s) = pm::scenario(true);
+    // Historical two-month reserve control; production defaults are aligned.
+    w.town_market.as_mut().unwrap().order_horizon = town_market::OrderHorizon::Legacy;
     w.production_market.as_mut().unwrap().policy = Policy::Fixed(BTreeMap::new());
     (w, s)
 }
@@ -211,7 +213,9 @@ fn cpu_monthly_checkpoint_and_reordering_match_reference_batch() {
 fn trade_comparison_keeps_finite_money_and_repeated_crops() {
     let mut outcomes = vec![];
     for trading in [false, true] {
-        let (w, s) = pm::scenario(trading);
+        let (mut w, s) = pm::scenario(trading);
+        // Preserve the original measured comparison as an explicit control.
+        w.town_market.as_mut().unwrap().order_horizon = town_market::OrderHorizon::Legacy;
         let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
         sim.run_months(12).unwrap();
         assert_eq!(

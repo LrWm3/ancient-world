@@ -457,6 +457,7 @@ fn adaptive_receipts_distinguish_policy_protection_and_buy_first() {
     use economics_compute_smoke::production_market::{self, Choice, Policy, Purchases, Work};
     use town_market::OrderReason;
     let (mut w, s) = production_market::reciprocal_scenario(true);
+    w.town_market.as_mut().unwrap().order_horizon = town_market::OrderHorizon::Legacy;
     w.production_market.as_mut().unwrap().policy = Policy::Fixed(
         w.participants
             .iter()
@@ -586,5 +587,29 @@ fn aligned_horizons_match_cpu_checkpoint_and_reordered_fixed_policy_runs() {
         assert_eq!(reference.state, cpu.state);
         assert_eq!(reference.ledger, cpu.ledger);
         assert_eq!(reference.reports, cpu.reports);
+    }
+}
+
+#[test]
+fn production_scenarios_default_to_six_months_on_both_sides() {
+    use economics_compute_smoke::production_market;
+    for (w, s) in [
+        production_market::scenario(true),
+        production_market::reciprocal_scenario(true),
+    ] {
+        assert_eq!(
+            w.town_market.as_ref().unwrap().order_horizon,
+            town_market::OrderHorizon::Aligned(6)
+        );
+        assert_eq!(w.production_market.as_ref().unwrap().horizon, 6);
+        let sim = opening(w, s, Backend::Reference);
+        let round = town_market::evaluate(&sim.world, &sim.state).unwrap();
+        assert!(!round.order_receipts.is_empty());
+        assert!(
+            round
+                .order_receipts
+                .iter()
+                .all(|r| r.buy_months == 6 && r.reserve_months == 6)
+        );
     }
 }
