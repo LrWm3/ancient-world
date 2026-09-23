@@ -48,7 +48,7 @@ pub(super) fn batch(
                 && selected(config, c.issuer)
             {
                 records.push(json!({"kind":"physical_minting_orders","issuer":c.issuer,
-                    "required_funding":plan.required_funding,"reason":plan.reason,
+                    "target_month":plan.target_month,"required_funding":plan.required_funding,"reason":plan.reason,
                     "orders":plan.orders.iter().map(|o|json!({"agent":o.agent,"market":o.market,
                         "side":format!("{:?}",o.side),"limit":o.limit,"lots":o.lots})).collect::<Vec<_>>()}));
             }

@@ -5,13 +5,22 @@ use economics_compute_smoke::{
     telemetry::{Config, Observer},
 };
 const RUN_MONTHS: u32 = 3;
+const REPEATED_MONTHS: u32 = 6;
 fn main() -> Result<(), String> {
     let directory =
         std::env::var("TELEMETRY_DIR").map_err(|_| "set TELEMETRY_DIR under ignored output/")?;
     std::fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
     let generated = std::env::var("MINT_ORDERS").as_deref() == Ok("true");
-    for case in ["normal", "treasury", "metal", "labor"] {
-        let (w, s) = if generated {
+    let repeated = std::env::var("MINT_CYCLES").as_deref() == Ok("true");
+    let cases = if repeated {
+        ["normal", "ore", "labor", "low_yield"]
+    } else {
+        ["normal", "treasury", "metal", "labor"]
+    };
+    for case in cases {
+        let (w, s) = if repeated {
+            minting::repeated_scenario(case)?
+        } else if generated {
             minting::order_scenario(case)?
         } else {
             minting::scenario(case)?
@@ -30,7 +39,14 @@ fn main() -> Result<(), String> {
                 ..Config::default()
             },
         )?;
-        observer.run_months(&mut sim, RUN_MONTHS)?;
+        observer.run_months(
+            &mut sim,
+            if repeated {
+                REPEATED_MONTHS
+            } else {
+                RUN_MONTHS
+            },
+        )?;
         observer.finish()?;
         let supply: i32 = sim
             .state

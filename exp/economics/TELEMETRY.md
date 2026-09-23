@@ -260,3 +260,7 @@ plan outcome. Package records now resolve trades from the committed boundary,
 so generated counterparties are visible even with no scripted deals. Failure
 reasons identify unfunded targets or unfilled input markets; they do not enumerate
 every suppressed quote or attempted counterparty.
+
+For repeated mint targets, `physical_minting_orders.target_month` identifies the
+next configured attempt, including a target that cannot be funded or matched. It
+is null after the final date. Missed dates do not accumulate a retry backlog.

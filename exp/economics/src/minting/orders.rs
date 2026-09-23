@@ -1,4 +1,4 @@
-//! Opening-state orders for one dated production target; whole lots and fixed limits.
+//! Opening-state orders for dated production targets; whole lots and fixed limits.
 use super::*;
 use crate::marketplace::{MarketId, Side};
 
@@ -8,6 +8,8 @@ const MAX_QUOTES: usize = 32;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Policy {
     pub month: u32,
+    /// Later independent attempts; missed targets are not automatically retried.
+    pub additional_months: BTreeSet<u32>,
     pub sale_market: MarketId,
     pub sale_limit: i32,
     pub input_limits: BTreeMap<MarketId, i32>,
@@ -32,6 +34,7 @@ pub struct Order {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Plan {
+    pub target_month: Option<u32>,
     pub required_funding: i32,
     pub orders: Vec<Order>,
     pub deals: Vec<Deal>,
@@ -59,18 +62,26 @@ pub fn validate(w: &World, c: &Config, p: &Policy) -> Result<(), String> {
         }
         Ok(())
     };
+    let targets: BTreeSet<_> = std::iter::once(p.month)
+        .chain(p.additional_months.iter().copied())
+        .collect();
+    let mut starts: Vec<_> = w
+        .scheduled_starts
+        .iter()
+        .filter(|s| s.agent == c.issuer && s.definition == c.definition)
+        .map(|s| s.month)
+        .collect();
+    starts.sort_unstable();
+    if p.additional_months.iter().any(|m| *m <= p.month) {
+        return Err("additional mint targets must follow the first target".into());
+    }
     if !c.deals.is_empty()
         || p.month == 0
         || p.quotes.len() > MAX_QUOTES
-        || w.scheduled_starts
-            .iter()
-            .filter(|s| s.agent == c.issuer && s.definition == c.definition)
-            .map(|s| s.month)
-            .collect::<Vec<_>>()
-            != vec![p.month]
+        || starts != targets.into_iter().collect::<Vec<_>>()
     {
         return Err(
-            "generated orders require one matching mint start and no scripted deals".into(),
+            "generated orders require matching dated mint starts and no scripted deals".into(),
         );
     }
     valid_price(p.sale_market, p.sale_limit)?;
@@ -145,16 +156,20 @@ pub fn generate(w: &World, s: &State, c: &Config, p: &Policy) -> Result<Plan, St
             .find(|m| m.id == id)
             .ok_or("unlisted market")
     };
+    let target = std::iter::once(p.month)
+        .chain(p.additional_months.iter().copied())
+        .find(|m| *m >= s.month);
     let mut plan = Plan {
+        target_month: target,
         required_funding: 0,
         orders: vec![],
         deals: vec![],
         reason: String::new(),
     };
-    if s.month > p.month {
-        plan.reason = "target date passed".into();
+    let Some(target_month) = target else {
+        plan.reason = "target dates passed".into();
         return Ok(plan);
-    }
+    };
     if !marketplace::eligible(w, s, c.venue, c.issuer)
         || !opportunities::permits(w, s, c.issuer, Action::Process(c.definition))
     {
@@ -181,7 +196,7 @@ pub fn generate(w: &World, s: &State, c: &Config, p: &Policy) -> Result<Plan, St
             .resources
             .iter()
             .any(|r| r.id == m.goods.resource && r.kind == ResourceKind::Capacity);
-        let owned = if capacity && s.month < p.month {
+        let owned = if capacity && s.month < target_month {
             0
         } else {
             s.balance(c.issuer, m.goods.resource)
@@ -226,7 +241,7 @@ pub fn generate(w: &World, s: &State, c: &Config, p: &Policy) -> Result<Plan, St
         }
     }
     let gap = (plan.required_funding - s.balance(c.issuer, c.coin)).max(0);
-    if gap > 0 && s.month < p.month {
+    if gap > 0 && s.month < target_month {
         let m = market(p.sale_market)?;
         let lots = ((i64::from(gap) + i64::from(p.sale_limit) - 1) / i64::from(p.sale_limit))
             .min(i64::from(
@@ -245,7 +260,7 @@ pub fn generate(w: &World, s: &State, c: &Config, p: &Policy) -> Result<Plan, St
         plan.reason = "raising opening funds before target month".into();
     } else if gap > 0 {
         plan.reason = "insufficient opening funds at target date".into();
-    } else if s.month < p.month {
+    } else if s.month < target_month {
         plan.reason = "funded; waiting for dated inputs".into();
     } else {
         plan.orders.extend(bids);
@@ -295,7 +310,7 @@ pub fn generate(w: &World, s: &State, c: &Config, p: &Policy) -> Result<Plan, St
                 let deal = Deal {
                     id: next_id,
                     month: s.month,
-                    package: if s.month == p.month { 1 } else { next_id },
+                    package: if s.month == target_month { 1 } else { next_id },
                     market: order.market,
                     buyer,
                     seller,
@@ -325,7 +340,7 @@ pub fn generate(w: &World, s: &State, c: &Config, p: &Policy) -> Result<Plan, St
             ));
         }
     }
-    if s.month == p.month
+    if s.month == target_month
         && plan
             .orders
             .iter()

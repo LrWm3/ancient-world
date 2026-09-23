@@ -31,6 +31,13 @@ const LABOR_LOT: i32 = 2;
 const WAGE: i32 = 4;
 const COINS_PER_BATCH: i32 = 10;
 const STORAGE_CAPACITY: i32 = 32;
+pub const ORE: ResourceId = 106;
+pub const REFINE: DefinitionId = 103;
+const SECOND_MINT_MONTH: u32 = 4;
+const THIRD_MINT_MONTH: u32 = 6;
+const REPEATED_ORE: i32 = 6;
+const REPEATED_FIREWOOD_TARGET: i32 = 6;
+const LOW_MINT_YIELD: i32 = 4;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Deal {
@@ -541,6 +548,7 @@ pub fn order_scenario(case: &str) -> Result<(World, State), String> {
     c.deals.clear();
     c.order_policy = Some(orders::Policy {
         month: MINT_MONTH,
+        additional_months: BTreeSet::new(),
         sale_market: WHEAT,
         sale_limit: WHEAT_LOT,
         input_limits: BTreeMap::from([(METAL, METAL_LOT), (HOURS, WAGE)]),
@@ -575,5 +583,93 @@ pub fn order_scenario(case: &str) -> Result<(World, State), String> {
             },
         ],
     });
+    Ok((w, s))
+}
+
+/// Repeated targets with finite ore, ordinary mining, and competing worker activity.
+pub fn repeated_scenario(case: &str) -> Result<(World, State), String> {
+    use crate::activities::{Target, WorkOrder};
+    let (mut w, mut s) = order_scenario("normal")?;
+    w.minting
+        .as_mut()
+        .unwrap()
+        .order_policy
+        .as_mut()
+        .unwrap()
+        .additional_months = BTreeSet::from([SECOND_MINT_MONTH, THIRD_MINT_MONTH]);
+    w.scheduled_starts = [MINT_MONTH, SECOND_MINT_MONTH, THIRD_MINT_MONTH]
+        .into_iter()
+        .map(|month| ScheduledStart {
+            month,
+            agent: ISSUER,
+            definition: MINT,
+        })
+        .collect();
+    w.resources.push(Resource {
+        id: ORE,
+        name: "finite ore stock".into(),
+        kind: ResourceKind::Stock,
+    });
+    w.storage.weights.insert(ORE, 1);
+    s.balances.remove(&(SUPPLIER, METAL));
+    s.balances.insert((SUPPLIER, ORE), REPEATED_ORE);
+    w.participants
+        .iter_mut()
+        .find(|p| p.agent == SUPPLIER)
+        .unwrap()
+        .capacity
+        .quantity = LABOR_LOT;
+    w.definitions.push(ProcessDefinition {
+        id: REFINE,
+        name: "work ore into mint metal".into(),
+        execution: Execution::Productive,
+        enabled: true,
+        asset_kind: None,
+        stages: vec![Stage {
+            name: "refine".into(),
+            months: 1,
+            entry_inputs: vec![Amount::new(ORE, METAL_LOT)],
+            monthly_services: vec![Amount::new(HOURS, LABOR_LOT)],
+        }],
+        outputs: vec![Amount::new(METAL, METAL_LOT)],
+    });
+    w.transaction_policy
+        .as_mut()
+        .unwrap()
+        .permissions
+        .insert((opportunities::PERSON_TYPE, Action::Process(REFINE)));
+    w.activities.orders = vec![
+        WorkOrder {
+            agent: SUPPLIER,
+            definition: REFINE,
+            priority: 0,
+            target: Target::Stock(Amount::new(METAL, METAL_LOT)),
+        },
+        WorkOrder {
+            agent: WORKER,
+            definition: GATHER,
+            priority: 0,
+            target: Target::Stock(Amount::new(FIREWOOD, REPEATED_FIREWOOD_TARGET)),
+        },
+    ];
+    match case {
+        "normal" => {}
+        "ore" => {
+            s.balances.insert((SUPPLIER, ORE), METAL_LOT);
+        }
+        "labor" => {
+            w.capacity_overrides
+                .insert((SECOND_MINT_MONTH, WORKER), LABOR_LOT - 1);
+        }
+        "low_yield" => {
+            w.definitions
+                .iter_mut()
+                .find(|d| d.id == MINT)
+                .unwrap()
+                .outputs[0]
+                .quantity = LOW_MINT_YIELD;
+        }
+        _ => return Err("unknown repeated minting case".into()),
+    }
     Ok((w, s))
 }

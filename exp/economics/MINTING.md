@@ -96,7 +96,8 @@ settlement-observer JSONL under ignored output. No generated artifacts belong in
 
 ## Generated order variant
 
-`minting::orders::Policy` replaces scripted deals for one dated mint target. It
+`minting::orders::Policy` replaces scripted deals for dated mint targets.
+The original variant supplies one target; the repeated variant adds later dates. It
 reads the same immutable Acquire snapshot, with no extra execution phase:
 
 - Sum the recipe's material and service requirements, subtract owned stocks, and
@@ -117,11 +118,13 @@ reads the same immutable Acquire snapshot, with no extra execution phase:
   resource budget. Try another eligible counterparty if a candidate cannot settle.
 - Commit procurement only if every missing input lot matches. Otherwise discard
   all tentative input trades and retain a reason identifying unfilled markets.
-  Earlier wheat sales are not undone. After the target date, stop issuing orders.
+  Earlier wheat sales are not undone. After a target date, select the next
+  configured date, or stop issuing orders if none remain. A missed target is not
+  automatically retried or added to the next target.
 
 The mint still starts through its existing dated production request. Acquiring
 inputs is not completion; production validation and supply accounting are unchanged.
-Configuration requires exactly one matching scheduled start, no scripted deals,
+Configuration requires exactly one matching scheduled start per target, no scripted deals,
 and one distinct listing for each recipe input. It bounds quote count and lots;
 this is a small conditional procurement book, not an arbitrary order-book engine.
 
@@ -159,6 +162,60 @@ Package telemetry uses resolved dated deals, including generated counterparties.
 The matcher does not record every suppressed counterparty order or every candidate
 it tried; its failure reason is a bounded diagnostic, not a complete causal trace.
 
+## Repeated issuance with finite replenishment
+
+The six-month variant configures targets in months 2, 4 and 6. The same order
+policy always considers the earliest remaining target. Its committed receipt
+contains `target_month`; restarting from state at any phase selects the same
+next target without a hidden cursor. Configuration rejects duplicate starts,
+missing starts and additional dates at or before the first target.
+
+The metal supplier now begins with finite ore instead of finished metal. An
+ordinary stock-target activity consumes two ore and two supplier labor hours to
+produce two metal whenever finished stock falls below two. Supplier labor
+regenerates monthly. This is a supplied ore inventory and a processing recipe,
+not geological extraction or an inexhaustible resource faucet. Metal produced
+in Productive cannot be sold in that month's earlier Acquire boundary. Metal
+sold at Acquire can trigger replenishment in the following Productive phase,
+for availability in later months.
+
+The worker similarly targets six firewood through the existing activity system.
+On mint dates, sold labor leaves no hours for firewood. On other dates, or when
+procurement fails, remaining hours may collect firewood. No scheduler or resource
+allocation priority was changed to obtain these results.
+
+| Six-month CPU case | Completed mint months | Final total coins | State coins | Worker firewood |
+| --- | --- | ---: | ---: | ---: |
+| Six opening ore, normal output | 2, 4, 6 | 42 | 18 | 3 |
+| Only two opening ore | 2 | 22 | 10 | 5 |
+| Worker has only one hour in month 4 | 2, 6 | 32 | 14 | 3 |
+| Mint output four coins instead of ten | 2 | 16 | 4 | 5 |
+
+The normal case ends with no ore or metal. Its 42 coins are held by the state
+(18), supplier (9) and worker (15). Wheat sells only in month one; completed
+issuance finances later input purchases. In the low-output case, the four coins
+left after the first batch cannot meet the next six-coin input budget, and no
+wheat remains to sell. In the labor-shortfall case, the full input package is
+refused in month four; metal stays with the supplier for the next target.
+
+Six new tests check finite resources, cycle outcomes, no same-month use of newly
+produced metal, monthly versus batched execution, CPU/reference agreement,
+restart after every phase, reversed actor/activity/start ordering, target
+validation, telemetry transparency and no extra issuance after the last target.
+All 24 tests across the repeated, generated-order and original minting suites
+passed, together with all-target Clippy with warnings denied.
+
+```sh
+cargo +1.92.0 test --locked --test mint_cycles --test mint_orders --test minting
+MINT_CYCLES=true TELEMETRY_DIR=../../output/economics/mint-cycles-new \
+  cargo +1.92.0 run --locked --example minting
+```
+
+The example retains its previous modes; `MINT_CYCLES=true` selects the six-month
+controls and takes precedence over `MINT_ORDERS`. JSONL remains under ignored
+output. The order observer includes the selected target date, or null after
+all targets expire.
+
 ## Scope and next extension
 
 The driver explicitly excludes credit, household pooling, negotiated/town/production
@@ -168,12 +225,16 @@ it does not establish that these excluded pilots compose with physical minting.
 Both variants have package receipts but neither updates ZIP pricing memory or
 the town market's price/volume history.
 
-There is no mining process, mint equipment, tax collection, consumption planning,
+There is no geological mining model, mint equipment, tax collection, consumption planning,
 state objective search or legal delegation of mint authority to another agent in
 this scenario. State-generated orders now provide the next control alongside supplied deals.
 Reservation prices, private stock targets and the mint date are still supplied.
 The state may sell wheat even when future input supply will prove insufficient;
 it has no guaranteed counterparty commitments. Conservative ceiling budgets may
-also defer a purchase that cheaper realized prices could fund. Repeated issuance,
-changing quote policies and future supply expectations should be tested separately
-against these controls before attempting to combine all marketplace drivers.
+also defer a purchase that cheaper realized prices could fund. Repeated configured issuance is now tested with finite ore processing. Changing
+quote policies and future supply expectations remain separate extensions. The
+normal case can finance later production because minted coin is accepted at fixed
+quotes; that is not evidence of stable purchasing power or a sustainable monetary
+policy. There is no inflation response, issuance demand target, worker subsistence
+cost, renewed wheat demand or endogenous valuation of ore-processing labor. Those
+limits matter before interpreting this as a self-sustaining economy.
