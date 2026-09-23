@@ -102,3 +102,10 @@ and CPU/reference, monthly/batched and checkpoint continuation equality. The rep
 suites: 24 tests passed, along with all-target Clippy. The earlier integration
 also checked resale, forecast-context and storage-currency suites.
 Generated run output stays under ignored `output/economics/`.
+
+## Optional forecast-based sales
+
+[Bounded sale planning](SALE-PLANNING.md) adds an opt-in quantity comparison through
+ordinary production and consumption. The fixed-reserve fixtures above remain
+controls. The new policy can sell safely before an imminent harvest, but its
+short horizon can worsen later scarcity; it is not the default.

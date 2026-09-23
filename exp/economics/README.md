@@ -29,6 +29,7 @@ role?** A farmer, craft worker or trader should emerge from needs, resources,
 rights, capabilities and selected processes, rather than require a different agent
 class. Processes describe possible transformations; transactions record outcomes.
 
+- [Bounded sale planning](SALE-PLANNING.md): forecast sale quantities against dated production and needs, with explicit horizon limitations.
 - [Repeated-credit audit](REPEATED-CREDIT.md): cultivation-right expiry explains missed meals; six harvests over 60 months after correcting the fixture.
 - [Production-funded credit](PRODUCTION-FUNDED-CREDIT.md): finite grain bids, protected food reserves and harvest-funded mortgage installments.
 - [Borrowing decisions](BORROWING-DECISIONS.md): accept/decline forecasts over needs, labor and actual coin payments.
