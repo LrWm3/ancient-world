@@ -88,3 +88,9 @@ near-harvest sales versus fixed reserves, no safe option, forecast horizon/cap
 validation, hidden future shocks, forged receipts and CPU/reference equality with
 monthly, batched, checkpoint-resumed and reordered-catalog execution. Raw example
 output stays under ignored `output/economics/`.
+
+## Joint-planning successor
+
+The opt-in [joint planner](JOINT-PLANNING.md) now compares work policies and future
+sales across multiple cycles and commits the selected current work plan. The
+sale-only policy above remains a comparison control; it is not silently replaced.
