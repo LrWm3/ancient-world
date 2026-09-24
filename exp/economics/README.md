@@ -389,3 +389,10 @@ over existing type/membership grants, plus recognition of new land-use leases an
 financed asset purchases. CPU controls cover denial reasons and continued servicing
 of agreements accepted before recognition is withdrawn. Optional ceilings constrain
 new lease duration and monthly loan interest without changing accepted terms.
+
+
+Financial journals now support versioned JSON save/load with validated balance
+reconstruction and completed-period locks. The Audit only finalizes completed
+simulation months; provisional reports remain available. This does not yet save
+or restore the full simulation and accounting subledgers. See
+[journal persistence](FINANCIAL-STATEMENTS.md#journal-persistence-and-completed-periods).

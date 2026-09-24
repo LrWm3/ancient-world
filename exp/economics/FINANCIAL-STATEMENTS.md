@@ -57,7 +57,9 @@ ledger for individual events and receipts behind each aggregated boundary entry.
 caller should complete Close for `through` before labelling it a completed monthly
 report. A cloned Audit and Simulation preserve continuation history. Opening a new
 Audit at a later month recognizes a new opening snapshot, not reconstructed history.
-These are in-memory checkpoints; durable accounting serialization is not implemented.
+These remain in-memory checkpoints. The standalone journal now has validated JSON
+persistence and finalization (below); restoring the complete Audit and Simulation
+from disk remains outstanding.
 
 ## Recognition rules and supported arrangements
 
@@ -308,7 +310,7 @@ fixture outcomes, not evidence of sustainable autonomous income.
 
 Extend adapters next, preserving these reconciliation gates:
 
-1. Extend material costing to capitalized paid labor, equipment repair/manufacture and cross-agent work; supply
+1. Extend material costing to capitalized paid labor, joint durable/stock outputs and cross-agent work; supply
    historical work costs on reporting restart. Add validated stored-goods loss events,
    then town-market and barter accounting adapters.
 2. Extend the explicit non-redeemable issuance convention to redeemable issuer liabilities,
@@ -321,7 +323,8 @@ Extend adapters next, preserving these reconciliation gates:
    statements is not a consolidated economy statement: custody and intra-economy
    claims need elimination.
 5. Add valuation/FX policies, impairment allowances, contingent-claim and noncash
-   financing disclosure schedules, statement-period finalization and persistence.
+   financing disclosure schedules and full Audit/Simulation persistence. Journal-only
+   persistence and completed-period finalization are implemented below.
 
 The adapter deliberately replays validation and clones small scenarios. It has not
 been optimized or benchmarked for a large population. Balanced books establish
@@ -588,3 +591,42 @@ accounting (2), forward accounting (5), issuance accounting (5), manufacture
 accounting (4), and process accounting (5). Strict all-target Clippy, formatting,
 diff checks and the repository artifact policy passed. Generated test logs remain
 under ignored `output/economics/`.
+
+
+## Journal persistence and completed periods
+
+The version-1 JSON journal archive stores denomination, opening month, entries and
+an optional finalized-through month. Use `book.to_json()` and
+`Book::from_json(&text)`; callers own file I/O and should place generated archives
+under ignored `output/`. Loading validates the schema version and opening entry,
+then replays ordinary posting checks to reconstruct balances and duplicate-entry
+protection. Cached balances are not persisted or trusted. Integer amounts retain
+full i128 precision in Rust; consumers must not parse them as floating-point values.
+Archives validate accounting consistency, not authenticity or agreement with a
+simulation ledger. They are not an alternative way to attach an arbitrary book to
+an Audit.
+
+`Audit::finalize_through(month)` rejects the current/incomplete simulation month.
+It locks postings through a completed month without creating synthetic closing
+entries or resetting income accounts. `book.finalized_statements(agent, from,
+through)` requires the requested period to be locked. The existing `statements`
+method remains available for provisional inspection. Later valid entries do not
+change earlier finalized reports. Locks may advance or repeat but cannot retreat;
+there is no reopening API. Corrections must be explicit later-period entries.
+Standalone `Book::finalize_through` can verify journal bounds only: its caller is
+responsible for knowing that all events for the month have been posted.
+
+This is journal persistence, **not a durable simulation restart**. Full restart must
+also preserve authoritative World/State, pending work, ledger provenance, reporting
+inventory and equipment basis, WIP, and configured dues/issuance policies. In-memory
+Audit/Simulation clones retain these today. Historical WIP import remains separate.
+
+Validation: all 14 accounting tests pass, including amounts above u64, round-trip
+balance and lock equality, malformed/unbalanced/duplicate/version rejection,
+atomic failed finalization, frozen report stability and CPU continuation after
+finalization. The archive is human-readable but is generated output, not a source
+artifact to commit.
+
+The broader focused run passed **34 tests**: accounting 14, manufacture accounting
+4, forward accounting 5, dues accounting 7 and estate dues accounting 4. Strict
+all-target Clippy, formatting, diff and repository artifact checks passed.

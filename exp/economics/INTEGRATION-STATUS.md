@@ -251,3 +251,10 @@ costs through WIP into the completed asset. Repairs expense their inputs without
 revaluing restored capacity; idle monthly decay is depreciation. Joint durable/stock
 outputs require a future allocation policy.
 See [equipment manufacture accounting](FINANCIAL-STATEMENTS.md#equipment-manufacture-repair-and-decay).
+
+
+Financial journals now support versioned JSON save/load with validated balance
+reconstruction and completed-period locks. The Audit only finalizes completed
+simulation months; provisional reports remain available. This does not yet save
+or restore the full simulation and accounting subledgers. See
+[journal persistence](FINANCIAL-STATEMENTS.md#journal-persistence-and-completed-periods).
