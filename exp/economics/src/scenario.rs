@@ -159,6 +159,7 @@ pub fn with_warmth(warmth_first: bool) -> (World, State) {
 
 pub fn baseline() -> (World, State) {
     let world = World {
+        employment: Default::default(),
         minting: None,
         production_market: None,
         work_choice: None,
@@ -316,6 +317,7 @@ pub fn baseline() -> (World, State) {
         scheduled_starts: Vec::new(),
     };
     let state = State {
+        employment: Default::default(),
         credit: Default::default(),
         marketplaces: Default::default(),
         town_market: Default::default(),

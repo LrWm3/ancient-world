@@ -41,6 +41,23 @@ pub(super) fn batch(
 ) -> Vec<Value> {
     let mut records = vec![];
     if config.settlement
+        && let Some(b) = &batch.employment
+    {
+        for r in &b.receipts {
+            if let Some(t) = world.employment.iter().find(|t| t.id == r.agreement)
+                && (selected(config, t.employer) || selected(config, t.worker))
+            {
+                records.push(json!({"kind":"employment", "agreement":t.id,
+                    "employer":t.employer,"worker":t.worker,"earned_month":r.earned_month,
+                    "requested":r.requested,"delivered":r.delivered,"earned":r.earned,"paid":r.paid,
+                    "outstanding":b.after.earned.get(&(t.id,r.earned_month)).map_or(0,|e|e.claim.outstanding()),
+                    "agreement_outstanding":b.after.earned.iter().filter(|((id,_),_)|*id==t.id).map(|(_,e)|i64::from(e.claim.outstanding())).sum::<i64>(),
+                    "reason":format!("{:?}",r.reason)}));
+            }
+        }
+    }
+
+    if config.settlement
         && let Some(h) = &batch.household
     {
         for d in &h.labor {

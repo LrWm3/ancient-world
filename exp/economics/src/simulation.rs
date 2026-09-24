@@ -50,6 +50,7 @@ impl Simulation {
 
     pub(crate) fn step_core(&mut self) -> Result<(), String> {
         let mut batch = Batch {
+            employment: Default::default(),
             minting: None,
             work_choice: None,
             credit: None,
@@ -137,6 +138,7 @@ impl Simulation {
                 }
             }
         }
+        batch.employment = crate::employment::evaluate(&self.world, &self.state, &batch)?;
         let mut reports = if self.state.phase == Phase::Close {
             self.month_reports()
         } else {
@@ -155,6 +157,15 @@ impl Simulation {
             self.effect_limit,
         )?;
         for report in &mut reports {
+            if batch.employment.is_some() {
+                report.balances = self
+                    .state
+                    .balances
+                    .iter()
+                    .filter(|((agent, _), _)| *agent == report.agent)
+                    .map(|((_, r), q)| (*r, *q))
+                    .collect();
+            }
             report.conditions = self
                 .state
                 .conditions

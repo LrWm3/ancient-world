@@ -13,6 +13,7 @@ const MAX_PROCESS_DURATION_MONTHS: u32 = 120;
 pub fn validate_world(world: &World, state: &State) -> Result<(), String> {
     crate::opportunities::validate(world)?;
     crate::minting::validate(world)?;
+    crate::employment::validate(world, state)?;
     crate::negotiation::validate(world)?;
     crate::town_market::validate(world)?;
     crate::production_market::validate(world)?;
@@ -127,6 +128,7 @@ pub fn validate_world(world: &World, state: &State) -> Result<(), String> {
 }
 
 fn validate_state(world: &World, state: &State) -> Result<(), String> {
+    crate::employment::validate(world, state)?;
     crate::marketplace::validate(world, state)?;
     crate::town_market::validate_state(world, state)?;
     crate::production_market::validate_state(world, state)?;
@@ -241,6 +243,9 @@ pub(crate) fn commit_core(
     if (batch.id, batch.month, batch.phase) != (state.next_batch, state.month, state.phase) {
         return Err("duplicate, stale or out-of-order batch".into());
     }
+    if batch.employment != crate::employment::evaluate(world, state, batch)? {
+        return Err("missing or altered employment settlement".into());
+    }
     crate::minting::validate_batch(world, state, batch)?;
     crate::pool_market::validate_batch(world, state, batch, effect_limit)?;
     crate::acquisition::validate_batch(world, state, batch)?;
@@ -248,8 +253,7 @@ pub(crate) fn commit_core(
     crate::production_market::validate_work(world, state, batch)?;
     crate::work_choice::validate_batch(world, state, batch, effect_limit)?;
     let count = batch
-        .transactions
-        .iter()
+        .all_transactions()
         .try_fold(0usize, |n, t| n.checked_add(t.effects.len()))
         .ok_or("effect count overflow")?;
     if count > effect_limit {
@@ -342,6 +346,9 @@ pub(crate) fn commit_core(
         return Err("applicant without access acceptance".into());
     }
     let mut staged = state.clone();
+    if let Some(e) = &batch.employment {
+        staged.employment = e.after.clone();
+    }
     crate::town_market::record(&mut staged, &batch.town_market);
     for (offer, agent) in batch
         .accept_membership
@@ -434,7 +441,7 @@ pub(crate) fn commit_core(
     }
     let mut groups: BTreeMap<Account, Vec<i32>> = BTreeMap::new();
     let mut changed = BTreeSet::new();
-    for t in &batch.transactions {
+    for t in batch.all_transactions() {
         if let Some(trade) = &t.stock_trade {
             let expected = crate::currency::transaction(world, state, trade.clone())?;
             if t.effects != expected.effects
@@ -558,6 +565,7 @@ pub(crate) fn commit_core(
             || !world.bids.is_empty()
             || world.market.is_some()
             || world.negotiation.is_some()
+            || !world.employment.is_empty()
             || world.minting.is_some()
             || world.town_market.is_some()
             || crate::credit::enabled(world))

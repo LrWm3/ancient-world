@@ -172,7 +172,7 @@ impl<W: Write> Observer<W> {
             }
             observers::outcomes(batch, &mut self.pending);
             if self.metric(batch.month) {
-                for effect in batch.transactions.iter().flat_map(|t| &t.effects) {
+                for effect in batch.all_transactions().flat_map(|t| &t.effects) {
                     if self.agent(effect.account.0) {
                         let flow = self
                             .flows
@@ -189,9 +189,9 @@ impl<W: Write> Observer<W> {
             if self.config.logs && self.month(batch.month) {
                 self.log(
                     json!({"kind":"batch", "month":batch.month, "phase":format!("{:?}",batch.phase),
-                    "batch":batch.id, "transactions":batch.transactions.len()}),
+                    "batch":batch.id, "transactions":batch.all_transactions().count()}),
                 )?;
-                for (index, transaction) in batch.transactions.iter().enumerate() {
+                for (index, transaction) in batch.all_transactions().enumerate() {
                     let relevant = self.config.agents.is_empty()
                         || transaction.effects.iter().any(|e| self.agent(e.account.0))
                         || transaction

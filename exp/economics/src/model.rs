@@ -134,6 +134,7 @@ impl Phase {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct State {
+    pub employment: crate::employment::Book,
     pub town_market: crate::town_market::Book,
     pub credit: crate::credit::Book,
     pub marketplaces: BTreeMap<AgentId, crate::marketplace::Memory>,
@@ -179,6 +180,7 @@ pub struct ScheduledStart {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct World {
+    pub employment: Vec<crate::employment::Terms>,
     pub minting: Option<crate::minting::Config>,
     pub production_market: Option<crate::production_market::Config>,
     pub town_market: Option<crate::town_market::Config>,
@@ -290,6 +292,7 @@ pub struct Receipt {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Batch {
+    pub employment: Option<crate::employment::Boundary>,
     pub minting: Option<crate::minting::Boundary>,
     pub town_market: Option<crate::town_market::Boundary>,
     pub work_choice: Option<crate::work_choice::Decision>,
@@ -343,8 +346,16 @@ impl MonthReport {
 }
 
 impl Batch {
+    /// All committed transfers, including the separately verified employment adapter.
+    pub fn all_transactions(&self) -> impl Iterator<Item = &Transaction> {
+        self.transactions
+            .iter()
+            .chain(self.employment.iter().flat_map(|e| &e.transactions))
+    }
+
     pub fn empty(state: &State) -> Self {
         Self {
+            employment: Default::default(),
             minting: None,
             work_choice: None,
             credit: None,

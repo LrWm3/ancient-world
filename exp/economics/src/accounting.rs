@@ -7,6 +7,8 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Account {
     Cash,
+    WagesReceivable(u32, u32),
+    WagesPayable(u32, u32),
     RestrictedCash(u32),
     CustodyCash(u32),
     CustodyPayable(u32),
@@ -58,7 +60,8 @@ pub enum Class {
 impl Account {
     pub fn class(&self) -> Class {
         match self {
-            Self::Cash
+            Self::WagesReceivable(_, _)
+            | Self::Cash
             | Self::RestrictedCash(_)
             | Self::CustodyCash(_)
             | Self::Inventory(_)
@@ -69,7 +72,8 @@ impl Account {
             | Self::ForwardPrepayment(_)
             | Self::LoanReceivable(_)
             | Self::InterestReceivable(_) => Class::Asset,
-            Self::DeferredRevenue(_)
+            Self::WagesPayable(_, _)
+            | Self::DeferredRevenue(_)
             | Self::DuesPayable(_, _)
             | Self::CustodyPayable(_)
             | Self::LoanPayable(_)

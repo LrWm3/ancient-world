@@ -60,6 +60,14 @@ fn positions(
         );
     }
     inventory.validate(world, state, coin)?;
+    crate::employment::validate(world, state)?;
+    if world
+        .employment
+        .iter()
+        .any(|t| t.wage_per_unit.resource != coin)
+    {
+        return Err("employment reporting requires wages in book denomination".into());
+    }
     let mut p = services
         .map(|c| c.positions(world, state))
         .transpose()?
@@ -170,6 +178,22 @@ fn positions(
     }
     for (key, value) in crate::forward_accounting::positions(state, coin)? {
         accounting::add(&mut p, key, value)?;
+    }
+    for (&(id, month), earned) in &state.employment.earned {
+        let q = i128::from(earned.claim.outstanding());
+        accounting::add(
+            &mut p,
+            (
+                earned.claim.transfer.to,
+                Account::WagesReceivable(id, month),
+            ),
+            q,
+        )?;
+        accounting::add(
+            &mut p,
+            (earned.claim.transfer.from, Account::WagesPayable(id, month)),
+            -q,
+        )?;
     }
     p.retain(|_, v| *v != 0);
     Ok(p)
@@ -770,7 +794,7 @@ impl Audit {
                 })
             })
             .collect();
-        let (services, service_lines) = if let Some(costs) = &self.services {
+        let (mut services, mut service_lines) = if let Some(costs) = &self.services {
             let (costs, lines, work) =
                 costs.settle(world, before, batch, &service_transactions, coin)?;
             for (id, cost) in work {
@@ -784,6 +808,48 @@ impl Audit {
             }
             (None, lines)
         };
+        if let Some(b) = &batch.employment {
+            for r in &b.receipts {
+                let t = world
+                    .employment
+                    .iter()
+                    .find(|t| t.id == r.agreement)
+                    .ok_or("missing employment terms")?;
+                if r.earned > 0 {
+                    let value = i128::from(r.earned);
+                    service_lines.push(Line {
+                        agent: t.worker,
+                        account: Account::ServiceIncome,
+                        debit: -value,
+                        flow: None,
+                    });
+                    if let Some(costs) = &mut services {
+                        accounting::add(
+                            &mut costs.balances,
+                            (t.employer, t.capacity.resource),
+                            value,
+                        )?;
+                    } else {
+                        service_lines.push(Line {
+                            agent: t.employer,
+                            account: Account::ServiceExpense,
+                            debit: value,
+                            flow: None,
+                        });
+                    }
+                }
+                if r.paid > 0 {
+                    for (agent, sign) in [(t.employer, -1), (t.worker, 1)] {
+                        service_lines.push(Line {
+                            agent,
+                            account: Account::Cash,
+                            debit: sign * i128::from(r.paid),
+                            flow: Some(Flow::Operating),
+                        });
+                    }
+                }
+            }
+        }
         let negotiated = crate::negotiation::transactions(world, before, &batch.negotiation)?;
         let town_trades = match &batch.town_market {
             Some(crate::town_market::Boundary::Market(round)) => round.transactions.as_slice(),

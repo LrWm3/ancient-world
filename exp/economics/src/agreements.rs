@@ -4,6 +4,7 @@ use crate::{finance, membership::Role, model::*};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Identity {
+    Employment(u32),
     Membership {
         member: AgentId,
         organization: AgentId,
@@ -18,6 +19,7 @@ pub enum Identity {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Grant {
+    Employment(u32),
     Membership { organization: AgentId, role: Role },
     LandUse(u32),
     ProcessOutput(u64),
@@ -25,6 +27,7 @@ pub enum Grant {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Consequence {
+    CarryArrears,
     /// Preserve the grant for existing work; unpaid amounts remain collectible.
     SuspendNewUse(Grant),
     /// Abort the process, forfeit its outputs and retain already consumed inputs.
@@ -201,7 +204,9 @@ impl ProductionTerms {
     pub fn fail(&self, instance: &mut ProcessInstance) {
         match self.on_unfulfilled {
             Consequence::AbortWithoutRefund => instance.status = crate::model::Status::Aborted,
-            Consequence::SuspendNewUse(_) | Consequence::RepossessCollateral { .. } => {
+            Consequence::CarryArrears
+            | Consequence::SuspendNewUse(_)
+            | Consequence::RepossessCollateral { .. } => {
                 unreachable!("production terms use a production consequence")
             }
         }
@@ -378,6 +383,12 @@ pub fn for_agent<'a>(
         .values()
         .map(|a| View::Agreement(Box::new(a.contract())))
         .collect();
+    views.extend(
+        world
+            .employment
+            .iter()
+            .map(|t| View::Agreement(Box::new(crate::employment::contract(t, &state.employment)))),
+    );
     let mut land: Vec<_> = crate::commitments::active(world, state).collect();
     land.sort_by_key(|a| a.id);
     for a in land {

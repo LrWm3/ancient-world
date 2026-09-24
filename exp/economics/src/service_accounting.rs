@@ -66,7 +66,7 @@ impl Costs {
         }
         let mut used = BTreeMap::new();
         let mut released = BTreeMap::new();
-        let mut transactions: Vec<_> = batch.transactions.iter().collect();
+        let mut transactions: Vec<_> = batch.all_transactions().collect();
         transactions.sort_by_key(|t| t.process.as_ref().map(|p| p.after.id));
         for t in transactions {
             for e in t.effects.iter().filter(|e| {
@@ -99,7 +99,13 @@ impl Costs {
                         return Err("third-party paid capacity use needs a transfer policy".into());
                     }
                     accounting::add(&mut work, p.after.id, cost)?;
-                } else if services.contains(&t) {
+                } else if services.contains(&t)
+                    || (batch.phase == Phase::Acquire
+                        && batch
+                            .employment
+                            .as_ref()
+                            .is_some_and(|b| b.transactions.contains(t)))
+                {
                     if cost != 0 {
                         lines.push(Line {
                             agent: e.account.0,
