@@ -85,7 +85,7 @@ servicing use the same trigger calculation; the view does not reserve funds,
 promise a full payment or add another borrower liability. Actual payment creates
 recourse in the authoritative loan book.
 
-The latest [recovery checks](CONTRACT-RECOVERY.md#completed-validation) include
+The latest [recovery checks](CONTRACT-RECOVERY.md#earlier-loan-estate-validation) include
 all-party filtering, contingent exposure without debt mutation, stays, discharge,
 custody and CPU/checkpoint continuation. Configured consent and authority remain
 distinct from autonomous offer discovery and general legal proceedings.

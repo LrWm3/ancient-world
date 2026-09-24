@@ -67,8 +67,10 @@ A scoped [negotiated-pricing pilot](NEGOTIATED-PRICING.md) now reuses its exchan
 legs, including an opt-in [ZIP quoting policy](ZIP.md). The secured-credit pilot
 adds scoped interest, collateral and symmetric loan balance-sheet views.
 Capped original-loan guarantees, scoped proportional collection and authorized
-single-denomination loan estates are implemented. Arbitrary event triggers,
-non-loan estate claims, multicurrency recovery, competing liens, general
+single-denomination cash estates are implemented.
+[Land/forward admission](LAND-FORWARD-ADMISSION.md) now includes native performance
+claims without inventing conversion or discharge. Arbitrary event triggers,
+general non-loan discharge, multicurrency recovery, competing liens, general
 death/dissolution administration and complete double-entry financial statements
 remain future work. Future contract types should supply their terms and receipts
 through this shared view before introducing a second settlement mechanism.
@@ -76,7 +78,7 @@ through this shared view before introducing a second settlement mechanism.
 ## Validation
 
 The counts and snapshot comparisons below describe the earlier primitive migration.
-See [contract recovery](CONTRACT-RECOVERY.md#completed-validation) for the latest
+See [contract recovery](CONTRACT-RECOVERY.md#earlier-loan-estate-validation) for the earlier
 451-test full run and 61-test final focused run (overlapping), and
 [contract consolidation](CONTRACT-CONSOLIDATION.md) for integration gates; they are not evidence that all arrangements now compose.
 

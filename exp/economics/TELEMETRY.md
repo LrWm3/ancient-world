@@ -237,7 +237,9 @@ coverage remains incremental. See [credit stress controls](CREDIT-STRESS.md).
 The [recovery extension](CONTRACT-RECOVERY.md) adds settlement records
 `guarantee_payment` (requested/paid amounts and recourse identity) and
 `estate_recovery` (opening/rejection, funded/rejected sales, distributions,
-write-offs and closure). Distribution details preserve requested, allocated and
+write-offs and closure). Land/forward admission adds `Admitted`,
+`LandDistributed` and `ClosureDeferred` details, preserving original claim units,
+actual tender quantities and the non-loan creditors in observer filtering. Distribution details preserve requested, allocated and
 paid quantities, including zero grants. These read committed receipts under the
 existing filters and log budget; they do not run recovery or infer a payment from
 a balance change. The recovery observer control verifies unchanged simulation

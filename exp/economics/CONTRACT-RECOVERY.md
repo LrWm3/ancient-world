@@ -14,13 +14,15 @@ and authorization, not autonomous underwriting, court adjudication, negotiation,
 or discovery. When a state transaction policy exists, the proceeding authority
 must match its authority. Asset buyers must have `Action::AssetTrade` permission.
 
-A proceeding currently admits one debtor's loan portfolio in one storage-free
-stock denomination, cash, and an explicit inventory of titled physical assets.
-All still-pledged collateral must be included. It does not silently ignore other
-creditors: land-dues and forward debtors are rejected until their claim-admission
-adapters exist. Mortgages using the older scenario configuration also remain
-excluded from proceedings. Their ordinary enforcement continues through the
-existing paths. This is a loan-estate lifecycle, not yet universal insolvency.
+A proceeding admits one debtor's loan portfolio in one storage-free cash
+denomination, materialized land dues, accepted forward deliveries, cash, and an
+explicit inventory of titled physical assets. All still-pledged collateral must
+be included. [Land/forward admission](LAND-FORWARD-ADMISSION.md) preserves native
+performance and maturity: eligible land cash payments share the estate pool;
+native goods still collect at their existing boundaries. Unfulfilled non-loan
+claims prevent closure rather than being converted or discharged. Mortgages using
+the older scenario configuration remain excluded. This is bounded contractual
+recovery, not yet universal insolvency.
 
 Each proceeding has a dedicated non-operating estate agent for custody. It cannot
 borrow, guarantee, work, or trade through unrelated configured markets. Its cash
@@ -33,14 +35,14 @@ a funded sale; authorization controls disposal, not a fictitious title transfer.
 
 | Boundary | Work and visibility |
 | --- | --- |
-| Due: opening | A dated authorized proceeding opens only if previously recorded loan arrears exist. Otherwise it records rejection. Admitted claims accelerate; interest freezes and ordinary loan collection/enforcement is stayed. |
-| Due: ordinary servicing | Existing loan and land adapters collect with the configured allocation policy and apply their existing consequences. |
+| Due: opening | A dated authorized proceeding opens only if previous loan/land arrears or an overdue accepted forward exists. Otherwise it records rejection. Loans accelerate, interest freezes and ordinary loan collection/enforcement is stayed; non-loan dates remain unchanged. |
+| Due: ordinary servicing | Non-stayed loans and native land performance collect with existing policies. Estate-eligible land cash claims wait for estate allocation. |
 | Due: guarantees | Eligible guarantees pay residual due claims from remaining opening guarantor resources, after ordinary servicing/collateral enforcement. Recourse is recorded but cannot be collected in this same boundary. |
 | Due: estate collection/distribution | Non-protected debtor coins enter custody. Only opening estate funds can be distributed. Newly received deposits and current-month sale proceeds wait for a later boundary. |
-| Acquire | Funded bids purchase listed assets. Price-descending order within each case/asset, then stable bid ID, is explicit. An unfunded bid leaves the asset available for the next eligible bid. |
+| Acquire | Existing admitted forwards deliver at maturity from finite goods/storage. Funded bids purchase listed assets. Price-descending order within each case/asset, then stable bid ID, is explicit. An unfunded bid leaves the asset available for the next eligible bid. |
 | Productive and later phases | Existing work and essential-need behavior continue. The purchaser receives future attached work/output rights; completed work and sunk inputs are preserved. |
 
-An active proceeding blocks new direct borrowing and lending by its debtor.
+An active proceeding blocks new direct borrowing, lending and land acceptance by its debtor.
 It does not terminate the agent or cancel production, and an unsold asset does
 not disappear. A failed bid is recorded without partial money or title changes.
 
@@ -81,7 +83,7 @@ sales pay custody. Their agreed timing differs; their physical exchange primitiv
 is the same. Neither creates coins from an appraisal.
 
 At a later Due boundary, actual proceeds reserved for an asset's existing lien
-pay that claim first. Any remaining estate cash funds the general loan waterfall:
+pay that claim first. Any remaining estate cash funds the loan and eligible land-cash waterfall:
 lower collection ranks first, with proportional sharing among equal ranks. The
 current loan book permits one active pledge per asset, not multiple competing
 liens. Collateral priority is separate from ordinary collection priority.
@@ -92,10 +94,14 @@ undistributed cash remains. Closure either preserves accelerated deficiencies or
 if explicitly authorized, records per-loan principal/interest write-offs and marks
 those loans `Discharged`, distinct from `Repaid`. Surplus goes back to the debtor.
 New same-month recourse must get a later collection boundary before closure.
+Unpaid land bills or undelivered accepted forwards also prevent closure, including
+future forwards. The discharge flag does not forgive these performance claims.
+Closed receipts retain their date so subsequent annual bills remain distinguishable
+from claims that should have blocked closing.
 
 Remaining general claims, durable equipment inventories, multicurrency estates,
 shared operating custodians, multiple liens, automatic asset discovery, auctions,
-contested authorization, negotiated restructuring and non-loan claim admission
+contested authorization, negotiated restructuring and general non-loan discharge
 are not implemented. Constitution/charter and state-law machinery will eventually
 supply these terms; configured authorization is the current integration point.
 
@@ -131,7 +137,7 @@ Raw output belongs in ignored `output/economics/`.
 These are accounting/continuation controls, not evidence of calibrated credit
 supply, a viable economy, or a complete legal system.
 
-### Completed validation
+### Earlier loan-estate validation
 
 The crate-wide `cargo +1.92.0 test --locked` run passed 451 tests with no
 failures. After the final checkpoint guard, guarantee inspection and distribution
@@ -141,3 +147,6 @@ tests. These counts overlap; the final focused run covers the last edits.
 Formatting, all-target Clippy with warnings denied, and the repository artifact
 check passed. CPU/reference and continuation checks are part of these suites;
 no CUDA validation or economic calibration is claimed.
+
+Subsequent land/forward admission and its validation are recorded in
+[Land/forward admission](LAND-FORWARD-ADMISSION.md).

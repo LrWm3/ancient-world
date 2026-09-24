@@ -98,15 +98,16 @@ not established by financial settlement tests.
 
 ## Current verification and next integration target
 
-The latest full crate run passed 451 tests; the final affected suites passed
-61 overlapping tests after inspection, checkpoint and receipt refinements.
-See [contract recovery](CONTRACT-RECOVERY.md#completed-validation) for the evidence
+The preceding loan-estate full crate run passed 451 tests; the final affected
+suites passed 61 overlapping tests after inspection, checkpoint and receipt refinements.
+See [contract recovery](CONTRACT-RECOVERY.md#earlier-loan-estate-validation) for the evidence
 and boundaries. Older totals below describe earlier consolidation snapshots.
 
-The next useful integration target is non-loan claim admission: carry land dues
-and forward deliveries into an authorized proceeding without losing their
-denominations, native-collection receipts, existing timing or consequences.
-This is outstanding work, not supported estate configuration today. Broader
+[Land/forward admission](LAND-FORWARD-ADMISSION.md) is now implemented: native
+performance retains its denomination, timing and receipts; eligible land cash
+shares estate allocation; incomplete non-loan claims block closure. The next
+recovery gap is explicit disposition of unfulfillable performance claims:
+accepted conversion, restructuring or termination/write-off terms. Broader
 acquisition adapters remain necessary before the mixed continuing scenario below
 can establish that all these arrangements compose.
 
@@ -127,9 +128,9 @@ can establish that all these arrangements compose.
    their denomination unless an actual conversion transaction occurs. Compare
    policies against identical opening requests and budgets.
 3. **Broaden insolvency admission.** The authorized single-denomination loan-estate
-   lifecycle now distinguishes arrears from a proceeding. Admit other contractual
-   claims, additional custodial arrangements and market compositions before
-   describing it as general insolvency. Record who initiates it,
+   lifecycle now distinguishes arrears from a proceeding and admits land/forward
+   performance claims. Add explicit non-loan disposition, additional custodial
+   arrangements and market compositions before describing it as general insolvency. Record who initiates it,
    the accepted/legal trigger, acceleration, any collection stay, control of
    assets and work, and permitted ongoing essential activity. Being short of
    cash must not silently delete debts or declare every agent insolvent.

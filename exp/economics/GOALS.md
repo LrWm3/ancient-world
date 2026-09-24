@@ -10,7 +10,8 @@ the [design](DESIGN.md) describes the transaction and process architecture.
 The [README progress summary](README.md#current-progress--2026-09-23) separates
 implemented pilots from these longer-term goals. Recent consolidation shares loan,
 land and forward claim execution and adds alternative-tender allocation, capped
-guarantees, configured loan-estate recovery and funded liquidation. Those are
+guarantees, configured recovery with land/forward admission, and funded liquidation.
+Those are
 bounded mechanisms, not completed organizational governance or a universal legal
 and financial system. Remaining work is ordered in
 [contract consolidation](CONTRACT-CONSOLIDATION.md).

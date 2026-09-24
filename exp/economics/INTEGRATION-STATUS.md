@@ -8,8 +8,9 @@ Optional proportional Due allocation includes accepted coin alternatives.
 
 [Contract recovery](CONTRACT-RECOVERY.md) now adds original-loan guarantees and
 recourse, authorized single-denomination loan estates, custody and funded asset
-liquidation. This is implemented within the existing book and scheduler. General
-claim admission and town/minting/household/search acquisition adapters remain
+liquidation. This is implemented within the existing book and scheduler.
+Land/forward admission now preserves native performance and blocks premature
+closure. General discharge and town/minting/household/search acquisition adapters remain
 unfinished; supporting one combination does not remove another driver's limits.
 
 
@@ -78,7 +79,9 @@ collateral resale remains rejected pending explicit buyer/seller rules.
 | Direct loans + native/alternative-tender land dues | Shared Due collection; opt-in proportional policy with whole claim units and protected opening funds |
 | Original-loan guarantees + servicing | Capped calls from remaining opening resources; same-book unsecured recourse, collectible at a later boundary; chains and pending-resale guarantees rejected |
 | Authorized direct-loan estate + configured asset buyers | Single storage-free denomination, dedicated custody, funded sales and loan waterfall; collateral resale shares the asset-transfer helper |
-| Estate + land/forward claims, legacy mortgage driver or active market/negotiation | Rejected; claim admission and acquisition adapters remain outstanding |
+| Estate + land/forward claims | [Admitted](LAND-FORWARD-ADMISSION.md): eligible land cash shares the waterfall; native performance retains its boundary; unresolved claims block closure |
+| Estate + existing prepaid-delivery market | Servicing-only composition; retained accepted contracts, no new tool purchase, stock sellers or plot expansion |
+| Estate + legacy mortgage driver or active market/negotiation | Rejected; broader acquisition adapters remain outstanding |
 | Death/household dissolution + estate | Not integrated; configured arrears proceedings are not automatic lifecycle administration |
 
 These exclusions are intentional validation boundaries, not claims that every
@@ -113,9 +116,13 @@ to fixtures that have no condition rules.
 
 ## Verification
 
-Latest recovery/consolidation evidence: 451 full-suite tests passed, followed by
-61 overlapping final focused tests; formatting, strict Clippy and artifact checks
-passed. [The recovery record](CONTRACT-RECOVERY.md#completed-validation) identifies
+Land/forward admission passed 99 tests across 11 affected suites, including all
+20 recovery tests. See [the admission record](LAND-FORWARD-ADMISSION.md#completed-validation)
+for tested behavior and the limits of this scoped rerun.
+
+Earlier loan-estate recovery/consolidation evidence: 451 full-suite tests passed,
+followed by 61 overlapping final focused tests; formatting, strict Clippy and artifact checks
+passed. [The recovery record](CONTRACT-RECOVERY.md#earlier-loan-estate-validation) identifies
 the final-edit coverage. These counts supersede the overview's earlier totals,
 without claiming that every combination in the matrix is supported.
 
