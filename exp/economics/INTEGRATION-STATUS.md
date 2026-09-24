@@ -30,7 +30,7 @@ cost shares, consumption expense and aborted-work loss. Work ownership transfers
 capitalized paid labor/equipment manufacture and repair costs, town-market and household
 accounting remain unsupported. Dated land dues now compose with lending and
 material production on existing boundaries, including native goods and accepted
-coin alternatives. Estate-paid dues remain unsupported; collection-linked issuance now has an explicit opt-in convention. Storage blockage uses existing process failure;
+coin alternatives. Estate-paid native/accepted-coin dues now reconcile to restricted debtor cash and neutral custody positions; collection-linked issuance has an explicit opt-in convention. Storage blockage uses existing process failure;
 there is no stored-goods spoilage event to recognize. The complete report set is not universal
 transaction coverage. Execution and existing acquisition priority are unchanged.
 
@@ -238,3 +238,9 @@ convention adds issuer equity separately from income and separates self-created
 money from external cash flows. Monthly paid capacity is expensed upon delivery;
 future labor capitalization and redeemable currency need distinct policies.
 See [recognition and verification](FINANCIAL-STATEMENTS.md#physical-minting-and-collection-linked-issuance).
+
+
+The estate-dues reporting increment passed 58 focused tests and strict all-target
+Clippy, including CPU/reference and checkpoint comparisons. Ranked and proportional
+payments preserve their existing physical results; no change was made to estate
+eligibility, allocation or closure. See [the recognition record](FINANCIAL-STATEMENTS.md#estate-paid-land-dues).

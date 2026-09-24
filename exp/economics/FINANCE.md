@@ -78,7 +78,7 @@ bilateral/ZIP spot trades. Opt-in owner-operated material costing now capitalize
 work in progress and recognizes consumption and failed-work expense. Capitalized paid labor,
 equipment manufacture/repair and cross-agent production costs, town-market and household
 accounting remain open. Ordinary dated dues now recognize income/expense, symmetric
-arrears and native or accepted coin settlement; estate-paid dues still need an adapter. Future contract types should supply their terms and receipts
+arrears and native or accepted coin settlement, including verified estate-cash payments. Future contract types should supply their terms and receipts
 through this shared view before introducing a second settlement mechanism.
 
 ## Validation
@@ -123,3 +123,9 @@ now covers physical minting and native-dues-linked token creation. New face valu
 is separate issuer equity/cash creation; actual materials and delivered monthly
 services are expenses. Redeemable currency liabilities and general paid-labor
 capitalization remain open.
+
+
+[Estate-paid dues accounting](FINANCIAL-STATEMENTS.md#estate-paid-land-dues) now
+separates debtor restricted cash, creditor claim reduction and custodian positions.
+Existing arrears are not charged again; accepted-tender valuation differences stay
+separate from loan write-off and no native grain receipt is invented.

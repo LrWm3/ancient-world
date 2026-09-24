@@ -75,7 +75,7 @@ These are in-memory checkpoints; durable accounting serialization is not impleme
 | Called guarantee | Creditor receives actual principal/interest cash; guarantor exchanges cash for the recourse receivable. Borrower substitutes creditor, rather than receiving debt-relief income. |
 | Estate sweep | Debtor cash becomes restricted cash. Estate recognizes equal custody cash and custody payable; custody is not estate wealth or income. |
 | Estate asset sale | Buyer records acquired asset; debtor derecognizes it, recognizes gain/loss and restricted sale proceeds; estate records matching custody positions. |
-| Estate distribution | Restricted cash settles loan principal/interest. Custodian equity stays unchanged. |
+| Estate distribution | Restricted cash settles loan principal/interest or eligible native-coin/accepted-coin dues. Custodian equity stays unchanged. |
 | Explicit loan discharge | Creditor records credit loss; debtor records debt-relief income. No cash movement. |
 
 Tangible assets require an explicit opening valuation for **every** asset through
@@ -249,8 +249,8 @@ boundary. Loan and dues receipts can share a report without counting loan princi
 as income. `with_process_policy(world, shares)` composes production costing with a
 newly opened dues book; it must be selected before recording the first batch.
 
-Limits remain explicit: estate distributions
-for dues, arbitrary relief, and combined same-boundary trade/production/dues cost
+Limits remain explicit: arbitrary dues relief and combined same-boundary
+trade/production/dues cost
 allocation require further adapters. Ordinary Due and Productive/Consumption work
 compose on their existing separate boundaries. Prepaid-forward tool purchases,
 physical delivery and accepted relief now have the recognition adapter below.
@@ -313,7 +313,7 @@ Extend adapters next, preserving these reconciliation gates:
    then town-market and barter accounting adapters.
 2. Extend the explicit non-redeemable issuance convention to redeemable issuer liabilities,
    retirement/burning and broader monetary instruments; do not infer promises from tokens.
-3. Extend ordinary dues/alternative tender to estate payments and explicit relief.
+3. Extend ordinary and estate-paid dues to explicit relief.
    Prepaid-forward origination, delivery, extensions and write-offs now have an
    adapter; broader repricing/refunding and impairment policies remain open.
 4. Add household/institution contributions and
@@ -495,8 +495,8 @@ retirement, FX or consolidation treatment. The physical minting driver remains
 isolated from collection-linked issuance and other acquisition drivers in the
 simulation. Reporting each separately does not remove those composition limits.
 The provisioning/leisure variants and their perishable service-ticket inventory
-are not yet covered by this reporting adapter. Estate-paid dues also remain
-unsupported.
+are not yet covered by this reporting adapter. Estate-paid native/accepted-coin
+dues now have the adapter below; arbitrary non-loan discharge remains unsupported.
 
 The issuance-accounting regression run passed **72 tests across 11 suites**:
 accounting 11, dues accounting 7, equipment accounting 2, forward accounting 5,
@@ -504,3 +504,51 @@ inventory accounting 6, issuance accounting 5, mint cycles 6, mint orders 10,
 minting 8, process accounting 5, and storage/currency 7. Strict all-target Clippy,
 formatting and the CPU statement export passed. Legacy simulation regressions
 do not establish accounting support for every scenario they cover.
+
+
+## Estate-paid land dues
+
+Verified `LandDistributed` receipts now compose with the existing dues and estate
+accounting. The receipt's actual tender, not requested or allocated amounts,
+determines the payment. The adapter cross-checks those receipts against physical
+estate-to-creditor transfers, projects the debtor as the economic payer for dues
+recognition, and classifies its payment against `RestrictedCash(proceeding)`.
+The authoritative transaction still names the actual custodian.
+
+The debtor reduces the existing dated payable; the creditor reduces the matching
+receivable. Native-coin dues extinguish at face value. Accepted alternative coin
+payments retain the configured native-unit reporting value and recognize any
+settlement gain/loss against actual tender. Paying an opening arrear creates no
+new dues expense or income.
+
+The estate's custody cash and matching custody payable decline together. Neither
+custody nor payout produces custodian revenue, equity or owned-cash flows. Earlier
+cash sweeps retain their internal classification; dues payouts are operating,
+while loan-principal payouts retain their financing/investing classifications.
+Partial payments leave the unpaid dues on both parties' books and keep the
+existing closure restrictions. Goods dues without accepted coin tender are not
+converted into a cash claim or fictional goods delivery.
+
+A controlled proportional case opens with 12 coins against two loans of 10 each
+and 2 grain of dues. The estate pays 5 to each loan creditor and 2 coins for 1 grain
+of dues. At a reporting value of 3 per grain, debtor/creditor recognize settlement
+gain/loss 1; the remaining dues balance is 3. Custodian equity remains zero and
+the unresolved claim keeps the estate active.
+
+With land dues ranked first against the same 12 coins, 4 coins settle both grain
+units and 8 repay loans. The configured discharge writes off the remaining 12
+loan principal and the estate closes. Dues settlement gain 2 is separate from
+loan debt relief 12. Paying in coins does not count as native grain collection and
+does not trigger collection-linked issuance.
+
+Verification covers CPU/reference equality, continuation from an open-estate
+checkpoint, partial and ranked full payment, native coin dues, no-alternative
+controls, closure plus loan discharge, and forged-receipt rejection without
+publication. The focused run passed **58 tests** across accounting (11), dues
+accounting (7), estate dues accounting (4), forward accounting (5), issuance
+accounting (5), and recovery (26), plus strict all-target Clippy and formatting.
+
+This changes reporting only: no scheduler, admission, priority, whole-unit
+allocation, storage, issuance or legal-discharge rule changed. Direct goods
+liquidation into land claims, new non-loan relief terms, mixed denominations and
+general death/dissolution estates still need explicit domain rules and adapters.
