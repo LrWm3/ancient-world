@@ -328,3 +328,11 @@ statements. Paid-capacity costing accepts earned wages as well as cash purchases
 Settlement metrics/logs include the verified transfers and contract receipts.
 Terms are preaccepted; negotiation, household delegation and wage estate priority
 are still outstanding.
+
+## Explicit financial reporting scope
+
+Statements now carry an explicit separate-agent scope and exports label that scope.
+Membership and ownership do not implicitly consolidate books. Household/member
+claims remain visible. Explicit consolidated requests currently reject until an
+elimination adapter exists; any future eliminations will affect only the report,
+not obligations or per-agent books. See [reporting scope](FINANCIAL-STATEMENTS.md#explicit-reporting-scope).

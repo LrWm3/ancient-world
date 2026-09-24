@@ -24,10 +24,7 @@ fn main() -> Result<(), String> {
         audit.step(&mut sim)?;
     }
     for agent in [seller, buyer] {
-        println!(
-            "{}",
-            audit.book().statements(agent, 1, 1)?.markdown(agent, TOKEN)
-        );
+        println!("{}", audit.book().statements(agent, 1, 1)?.markdown(TOKEN));
     }
     Ok(())
 }

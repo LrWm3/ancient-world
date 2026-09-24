@@ -38,6 +38,38 @@ adapter as described below. Manual postings require their own domain
 validation; the journal cannot determine whether an economically plausible entry
 really occurred.
 
+## Explicit reporting scope
+
+Every `Statements` result carries a `ReportingScope`. The existing
+`Book::statements(agent, ...)` and `finalized_statements(agent, ...)` explicitly
+request `Separate { agent }`; callers can also use `statements_for_scope` and
+`finalized_statements_for_scope`. Markdown exports label the stored scope instead
+of taking a separate agent label that could misidentify the report.
+
+A separate report includes only that agent's books. Ownership, membership,
+governance, pooled resources and permission to direct labor never expand it
+implicitly. A parent company can therefore report its own finances without
+including its subsidiaries. A household's payable to a member and the member's
+receivable remain material positions on their respective separate statements.
+
+`Consolidated { entities }` is an explicit request with an exact entity set,
+including the parent if desired. **Consolidated reports are not implemented:**
+these requests fail with an elimination-adapter error, including singleton or
+empty sets. Summing balances is not a substitute for consolidation.
+
+A future consolidation adapter must define the reporting perimeter and eliminate
+supported internal balances, transactions and any applicable unrealized results
+only in the requested group view. It must retain the original per-agent books,
+agreement obligations and settlement rights. A combined household planning view
+would likewise be a separate, explicitly selected view; it would not imply that
+members' property belongs to the household or that member debts are cancelled.
+
+Reporting scope is a report request, not an organization-formation rule or a
+journal posting. Journal archives remain unchanged. Focused accounting tests
+cover separate household/member debt, exclusion of other entities, finalized
+reports, export labels, scope serialization and rejection of consolidation without
+mutating individual books.
+
 ## Simulation adapter and boundaries
 
 `financial_reporting::Audit` is the strict adapter. Open it at a month's Open

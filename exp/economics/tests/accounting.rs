@@ -653,3 +653,93 @@ fn audit_only_finalizes_completed_months_and_continues_on_cpu() {
         Book::from_json(&a.book().to_json().unwrap()).unwrap()
     );
 }
+
+#[test]
+fn explicit_separate_scope_preserves_related_agent_debts_and_labels_exports() {
+    use economics_compute_smoke::accounting::ReportingScope;
+    // The household owes a member ten coins. Other related agents stay outside
+    // both separate statements, regardless of how a caller groups them.
+    let household = 900;
+    let member = 901;
+    let subsidiary = 902;
+    let mut book = Book::open(
+        TOKEN,
+        BTreeMap::from([
+            ((household, A::Cash), 10),
+            ((household, A::LoanPayable(1)), -10),
+            ((member, A::LoanReceivable(1)), 10),
+            ((subsidiary, A::Cash), 70),
+        ]),
+    )
+    .unwrap();
+    let scope = ReportingScope::Separate { agent: household };
+    let report = book.statements_for_scope(&scope, 1, 1).unwrap();
+    assert_eq!(report.scope, scope);
+    assert_eq!(report.assets, 10);
+    assert_eq!(report.liabilities, 10);
+    assert_eq!(report, book.statements(household, 1, 1).unwrap());
+    let member_report = book.statements(member, 1, 1).unwrap();
+    assert_eq!(member_report.assets, 10);
+    assert_eq!(member_report.trial_balance[&A::LoanReceivable(1)], 10);
+    let text = report.markdown(TOKEN);
+    assert!(text.contains("Reporting scope: Separate agent 900"));
+    assert!(text.contains("LoanPayable(1)"));
+    assert!(book.finalized_statements_for_scope(&scope, 1, 1).is_err());
+    book.post(Entry {
+        id: "close:1".into(),
+        month: 1,
+        batch: None,
+        description: "Completed unchanged reporting period".into(),
+        lines: vec![],
+    })
+    .unwrap();
+    book.finalize_through(1).unwrap();
+    assert_eq!(
+        book.finalized_statements_for_scope(&scope, 1, 1).unwrap(),
+        report
+    );
+    assert_eq!(book.finalized_statements(household, 1, 1).unwrap(), report);
+}
+
+#[test]
+fn consolidated_scope_requires_eliminations_and_never_changes_individual_books() {
+    use economics_compute_smoke::accounting::ReportingScope;
+    use std::collections::BTreeSet;
+    let mut book = Book::open(
+        TOKEN,
+        BTreeMap::from([
+            ((1, A::LoanReceivable(7)), 10),
+            ((2, A::LoanPayable(7)), -10),
+            ((2, A::Cash), 10),
+        ]),
+    )
+    .unwrap();
+    book.post(Entry {
+        id: "close:1".into(),
+        month: 1,
+        batch: None,
+        description: "Completed unchanged reporting period".into(),
+        lines: vec![],
+    })
+    .unwrap();
+    book.finalize_through(1).unwrap();
+    let before = book.clone();
+    for entities in [BTreeSet::new(), BTreeSet::from([1]), BTreeSet::from([1, 2])] {
+        let scope = ReportingScope::Consolidated { entities };
+        let encoded = serde_json::to_string(&scope).unwrap();
+        assert_eq!(
+            serde_json::from_str::<ReportingScope>(&encoded).unwrap(),
+            scope
+        );
+        assert!(
+            book.statements_for_scope(&scope, 1, 1)
+                .unwrap_err()
+                .contains("elimination adapter")
+        );
+        assert!(book.finalized_statements_for_scope(&scope, 1, 1).is_err());
+        assert_eq!(book, before);
+    }
+    let restored = Book::from_json(&book.to_json().unwrap()).unwrap();
+    assert_eq!(restored.statements(1, 1, 1).unwrap().assets, 10);
+    assert_eq!(restored.statements(2, 1, 1).unwrap().liabilities, 10);
+}

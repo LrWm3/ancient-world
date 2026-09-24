@@ -61,7 +61,7 @@ fn main() -> Result<(), String> {
             audit
                 .book()
                 .statements(agent, month, month)?
-                .markdown(agent, TOKEN)
+                .markdown(TOKEN)
         );
     }
     Ok(())

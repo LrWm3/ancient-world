@@ -25,10 +25,7 @@ fn main() -> Result<(), String> {
     for agent in [PERSON, STATE_AGENT] {
         println!(
             "{}",
-            audit
-                .book()
-                .statements(agent, 1, MONTHS)?
-                .markdown(agent, TOKEN)
+            audit.book().statements(agent, 1, MONTHS)?.markdown(TOKEN)
         );
     }
     println!(

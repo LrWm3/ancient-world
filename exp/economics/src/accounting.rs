@@ -140,8 +140,23 @@ struct JournalArchive {
     entries: Vec<Entry>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// A report request, independent of organizational membership, ownership and
+/// governance. Consolidation is explicit but requires an elimination adapter.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub enum ReportingScope {
+    Separate {
+        agent: AgentId,
+    },
+    /// Exact requested perimeter, including the parent when applicable.
+    /// Currently rejected: summing books is not consolidation.
+    Consolidated {
+        entities: BTreeSet<AgentId>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Statements {
+    pub scope: ReportingScope,
     pub from: u32,
     pub through: u32,
     pub trial_balance: BTreeMap<Account, i128>,
@@ -253,10 +268,18 @@ impl Book {
         from: u32,
         through: u32,
     ) -> Result<Statements, String> {
+        self.finalized_statements_for_scope(&ReportingScope::Separate { agent }, from, through)
+    }
+    pub fn finalized_statements_for_scope(
+        &self,
+        scope: &ReportingScope,
+        from: u32,
+        through: u32,
+    ) -> Result<Statements, String> {
         if self.finalized_through.is_none_or(|month| through > month) {
             return Err("reporting period is not finalized".into());
         }
-        self.statements(agent, from, through)
+        self.statements_for_scope(scope, from, through)
     }
     /// Versioned journal only; not a simulation or Audit checkpoint.
     pub fn to_json(&self) -> Result<String, String> {
@@ -364,13 +387,41 @@ impl Book {
         from: u32,
         through: u32,
     ) -> Result<Statements, String> {
+        self.statements_for_scope(&ReportingScope::Separate { agent }, from, through)
+    }
+    /// Request an explicit reporting perimeter. This never changes any ledger.
+    pub fn statements_for_scope(
+        &self,
+        scope: &ReportingScope,
+        from: u32,
+        through: u32,
+    ) -> Result<Statements, String> {
+        let agent = match scope {
+            ReportingScope::Separate { agent } => *agent,
+            ReportingScope::Consolidated { .. } => {
+                return Err("consolidated reporting requires an elimination adapter; use separate statements".into());
+            }
+        };
         if from <= self.opening_month || through < from {
             return Err("invalid financial reporting period".into());
         }
         let mut s = Statements {
+            scope: scope.clone(),
             from,
             through,
-            ..Default::default()
+            trial_balance: BTreeMap::new(),
+            assets: 0,
+            liabilities: 0,
+            equity: 0,
+            income: BTreeMap::new(),
+            expenses: BTreeMap::new(),
+            net_income: 0,
+            opening_equity: 0,
+            capital_change: 0,
+            issuance_change: 0,
+            opening_cash: 0,
+            closing_cash: 0,
+            cash_flows: BTreeMap::new(),
         };
         let mut opening = BTreeMap::new();
         for e in self.entries.iter().filter(|e| e.month <= through) {
@@ -460,9 +511,15 @@ impl Book {
 
 impl Statements {
     /// Human-readable export; all values use the book's reporting ticks.
-    pub fn markdown(&self, agent: AgentId, denomination: ResourceId) -> String {
+    pub fn markdown(&self, denomination: ResourceId) -> String {
+        let scope = match &self.scope {
+            ReportingScope::Separate { agent } => format!("Separate agent {agent}"),
+            ReportingScope::Consolidated { entities } => {
+                format!("Consolidated entities {entities:?}")
+            }
+        };
         let mut out = format!(
-            "# Financial statements: agent {agent}\n\nMonths {}–{}, resource {denomination} reporting ticks.\n\n",
+            "# Financial statements\n\nReporting scope: {scope}.\n\nMonths {}–{}, resource {denomination} reporting ticks.\n\n",
             self.from, self.through
         );
         out.push_str("## Balance sheet\n\n| Account | Amount |\n| --- | ---: |\n");

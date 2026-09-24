@@ -64,11 +64,7 @@ fn physical_coin_creation_is_equity_not_sales_and_real_costs_remain_visible() {
     let worker = a.book().statements(WORKER, 1, 2).unwrap();
     assert_eq!(worker.income[&A::ServiceIncome], 4);
     assert_eq!(worker.net_income, 4);
-    assert!(
-        issuer
-            .markdown(ISSUER, COIN)
-            .contains("| Monetary issuance | 10 |")
-    );
+    assert!(issuer.markdown(COIN).contains("| Monetary issuance | 10 |"));
     through(&mut a, &mut sim, 4);
     let later = a.book().statements(ISSUER, 3, 4).unwrap();
     assert_eq!(later.issuance_change, 0);

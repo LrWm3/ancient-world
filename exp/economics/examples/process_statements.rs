@@ -44,10 +44,7 @@ fn main() -> Result<(), String> {
     }
     println!(
         "{}",
-        audit
-            .book()
-            .statements(PERSON, 1, MONTHS)?
-            .markdown(PERSON, TOKEN)
+        audit.book().statements(PERSON, 1, MONTHS)?.markdown(TOKEN)
     );
     Ok(())
 }

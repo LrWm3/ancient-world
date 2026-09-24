@@ -42,10 +42,7 @@ fn main() -> Result<(), String> {
         "# Physical minting: {case}\n\nNon-redeemable issuance adds equity; delivered monthly services are expensed. Opening stock cost: one coin tick per unit.\n"
     );
     for agent in [ISSUER, SUPPLIER, WORKER] {
-        println!(
-            "{}",
-            audit.book().statements(agent, 1, 2)?.markdown(agent, COIN)
-        );
+        println!("{}", audit.book().statements(agent, 1, 2)?.markdown(COIN));
     }
     Ok(())
 }
