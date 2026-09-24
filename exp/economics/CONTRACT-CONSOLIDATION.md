@@ -48,8 +48,11 @@ misrepresented as conserved transfers between fictional counterparties.
   accepted priority or rank zero for land/forwards. Loan/land type and stable ID
   break equal-rank collection ties. Within each land agreement, older bills come
   first. Existing essential-stock protection applies to both loan and land
-  collection. Receipts retain rank, requested claim units and actual payment.
-  This is a deterministic priority policy, **not proportional sharing**.
+  collection. `World.collection_policy` defaults to `Stable`, preserving that
+  ordering. Opt-in `Proportional` inventories native loan and land dues before
+  collection and shares scarce opening resources among equal-rank claims.
+  Receipts retain rank, requested units, optional allocated units and actual
+  payment. See [creditor allocation](CREDITOR-ALLOCATION.md) for scope and tests.
 - Forward collections retain their Acquire boundary and use rank, due date and
   stable ID there. Ranking does not backdate a later claim into Due or change
   monthly scheduling.
@@ -91,9 +94,11 @@ not established by financial settlement tests.
    labor and settlement. Include a person holding land, owing a loan/forward and
    trading to meet needs in one continuing scenario. Do this before declaring
    the model unified.
-2. **Complete creditor allocation.** Extend the current explicit ranks with
-   equal-rank proportional allocation and minimum-useful/indivisible rules.
-   Distinguish claim priority from collateral lien priority. Inventory all
+2. **Extend creditor allocation coverage.** Equal-rank proportional allocation
+   now covers divisible native loan and land claims at Due. Extend it to the
+   other collection adapters, alternative-denomination payments and explicit
+   minimum-useful/indivisible rules. Distinguish claim priority from collateral
+   lien priority. Inventory all
    claims, protect only explicitly exempt resources, and preserve claims in
    their denomination unless an actual conversion transaction occurs. Compare
    policies against identical opening requests and budgets.

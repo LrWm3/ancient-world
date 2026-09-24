@@ -2,7 +2,9 @@
 
 Current financial direction: [consolidate contracts and lending](CONTRACT-CONSOLIDATION.md)
 in the existing model before adding more isolated scenarios, then extend creditor
-allocation, insolvency, guarantees and liquidation.
+allocation, insolvency, guarantees and liquidation. The current
+[creditor allocation policy](CREDITOR-ALLOCATION.md) adds optional proportional
+sharing for native loan and land dues at the existing Due boundary.
 
 
 The goal is a consistent economy built from generic agents, explicit agreements
