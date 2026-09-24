@@ -293,3 +293,34 @@ fn failed_work_books_sunk_cost_without_royalty_income() {
     assert_eq!(provider.expenses[&A::CostOfSales], 24);
     assert!(!provider.income.contains_key(&A::ServiceIncome));
 }
+
+#[test]
+fn royalty_with_distinct_output_owner_requires_a_separate_consideration_policy() {
+    use economics_compute_smoke::process_accounting::BeneficiaryPolicy;
+    let mut sim = work_fixture(25);
+    sim.world
+        .rights
+        .iter_mut()
+        .find(|r| r.holder == PERSON + 3)
+        .unwrap()
+        .output_owner = STATE_AGENT;
+    sim.world.scheduled_starts.push(ScheduledStart {
+        month: 2,
+        agent: PERSON + 3,
+        definition: HUSBANDRY,
+    });
+    let mut o = opening(&sim, true, 3);
+    o.processes.as_mut().unwrap().beneficiary_policy = Some(BeneficiaryPolicy::TransferAtCost);
+    let mut a = Audit::with_opening(&sim.world, &sim.state, TOKEN, o).unwrap();
+    loop {
+        assert!(sim.state.month <= 2);
+        let old = a.clone();
+        let state = sim.state.clone();
+        if let Err(e) = a.step(&mut sim) {
+            assert!(e.contains("consideration policy"), "{e}");
+            assert_eq!(a, old);
+            assert_eq!(sim.state, state);
+            break;
+        }
+    }
+}

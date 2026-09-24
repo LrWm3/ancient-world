@@ -471,6 +471,7 @@ impl Audit {
         self.processes = Some(crate::process_accounting::Costs {
             output_weights,
             work,
+            beneficiary_policy: self.processes.as_ref().and_then(|c| c.beneficiary_policy),
             earned_royalty_values: self
                 .processes
                 .as_ref()

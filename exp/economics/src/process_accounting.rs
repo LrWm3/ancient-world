@@ -1,4 +1,4 @@
-//! Material-cost recognition for owner-operated processes; no imputed labor income.
+//! Material-cost recognition for processes; explicit output transfers, no imputed labor income.
 use crate::{
     accounting::{self, Account, Line},
     inventory_accounting::{Holding, Inventory},
@@ -14,8 +14,17 @@ pub enum Output {
     Durable(u32),
 }
 
+/// Recognition of output rights held by an agent other than the operator.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BeneficiaryPolicy {
+    /// Operator carries unfinished costs and transfers completed output at cost.
+    /// No service price, wage, debt or ownership claim is inferred.
+    TransferAtCost,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Costs {
+    pub beneficiary_policy: Option<BeneficiaryPolicy>,
     /// Opt-in earned-only royalties: reporting ticks per delivered stock unit.
     /// Tool cost is expensed at delivery; no projected consideration is booked.
     pub earned_royalty_values: Option<BTreeMap<ResourceId, i128>>,
@@ -110,7 +119,7 @@ impl Costs {
             if *cost < 0
                 || p.status != Status::Active
                 || p.operator != *owner
-                || p.beneficiary != *owner
+                || (p.beneficiary != *owner && self.beneficiary_policy.is_none())
             {
                 return Err("work-in-progress transfer/status needs an accounting adapter".into());
             }
@@ -130,8 +139,8 @@ impl Costs {
                 .as_ref()
                 .ok_or("attachment transfer needs opening process")?;
             let after = &change.after;
-            if before.operator != before.beneficiary
-                || after.operator != after.beneficiary
+            if ((before.operator != before.beneficiary || after.operator != after.beneficiary)
+                && self.beneficiary_policy.is_none())
                 || before.status != Status::Active
                 || after.status != Status::Active
                 || before.id != after.id
@@ -237,7 +246,15 @@ impl Costs {
         for t in &ordered {
             let p = &t.process.as_ref().ok_or("missing process receipt")?.after;
             if p.operator != p.beneficiary {
-                return Err("cross-agent production costs need a transfer adapter".into());
+                if self.beneficiary_policy.is_none() {
+                    return Err("cross-agent output requires an explicit beneficiary policy".into());
+                }
+                if t.royalty.is_some() {
+                    return Err(
+                        "third-party output combined with royalties needs a consideration policy"
+                            .into(),
+                    );
+                }
             }
             for e in &t.effects {
                 let kind = world
@@ -263,8 +280,12 @@ impl Costs {
                                 .iter()
                                 .any(|a| a.resource == e.account.1 && a.quantity == e.delta)
                     });
+                let beneficiary_output = e.delta > 0 && e.account.0 == p.beneficiary;
                 if e.account.1 == coin
-                    || (e.account.0 != p.operator && !shared_input && !royalty_output)
+                    || (e.account.0 != p.operator
+                        && !shared_input
+                        && !royalty_output
+                        && !beneficiary_output)
                 {
                     return Err(
                         "coin or unauthorized third-party process input/output unsupported".into(),
@@ -408,6 +429,7 @@ impl Costs {
                                             &mut stocks,
                                             &mut lines,
                                         )?;
+                                    transfer_output_cost(p, retained_cost, &mut lines);
                                     let h = stocks.0.entry((p.beneficiary, resource)).or_insert(
                                         Holding {
                                             quantity: 0,
@@ -426,6 +448,7 @@ impl Costs {
                                         .ok_or("output cost overflow")?;
                                 }
                                 Output::Durable(_) => {
+                                    transfer_output_cost(p, value, &mut lines);
                                     let id = crate::activities::produced_asset_id(p.id)?;
                                     if asset_values.insert(id, value).is_some() {
                                         return Err("produced asset already valued".into());
@@ -451,5 +474,26 @@ impl Costs {
         }
         stocks.0.retain(|_, h| h.quantity != 0);
         Ok((next, stocks, lines))
+    }
+}
+
+/// Only completed financial outputs transfer value. Aborted work, consumed inputs
+/// and ongoing WIP remain the operator's responsibility.
+fn transfer_output_cost(p: &ProcessInstance, cost: i128, lines: &mut Vec<Line>) {
+    if p.operator != p.beneficiary && cost != 0 {
+        lines.extend([
+            Line {
+                agent: p.operator,
+                account: Account::TransferExpense,
+                debit: cost,
+                flow: None,
+            },
+            Line {
+                agent: p.beneficiary,
+                account: Account::TransferIncome,
+                debit: -cost,
+                flow: None,
+            },
+        ]);
     }
 }
