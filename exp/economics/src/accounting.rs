@@ -11,6 +11,7 @@ pub enum Account {
     CustodyCash(u32),
     CustodyPayable(u32),
     Inventory(ResourceId),
+    PurchasedCapacity(ResourceId),
     Tangible(u32),
     WorkInProgress(u64),
     LoanReceivable(u32),
@@ -61,6 +62,7 @@ impl Account {
             | Self::RestrictedCash(_)
             | Self::CustodyCash(_)
             | Self::Inventory(_)
+            | Self::PurchasedCapacity(_)
             | Self::Tangible(_)
             | Self::WorkInProgress(_)
             | Self::DuesReceivable(_, _)

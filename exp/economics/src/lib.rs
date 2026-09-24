@@ -161,3 +161,5 @@ pub mod issuance_accounting;
 
 #[cfg(test)]
 mod accounting_allocation_tests;
+
+pub mod service_accounting;

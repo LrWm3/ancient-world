@@ -21,6 +21,8 @@ pub struct Opening {
     pub processes: Option<crate::process_accounting::Costs>,
     pub dues: Option<crate::dues_accounting::Valuation>,
     pub issuance: Option<crate::issuance_accounting::Policy>,
+    /// Opt into actual-use capitalization of paid current-period capacity.
+    pub services: Option<crate::service_accounting::Costs>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -33,7 +35,9 @@ pub struct Audit {
     processes: Option<crate::process_accounting::Costs>,
     dues: Option<crate::dues_accounting::Valuation>,
     issuance: Option<crate::issuance_accounting::Policy>,
+    services: Option<crate::service_accounting::Costs>,
 }
+#[allow(clippy::too_many_arguments)]
 fn positions(
     world: &World,
     state: &State,
@@ -42,6 +46,7 @@ fn positions(
     inventory: &crate::inventory_accounting::Inventory,
     processes: Option<&crate::process_accounting::Costs>,
     dues: Option<&crate::dues_accounting::Valuation>,
+    services: Option<&crate::service_accounting::Costs>,
 ) -> Result<Positions, String> {
     if !world
         .resources
@@ -55,7 +60,10 @@ fn positions(
         );
     }
     inventory.validate(world, state, coin)?;
-    let mut p = BTreeMap::new();
+    let mut p = services
+        .map(|c| c.positions(world, state))
+        .transpose()?
+        .unwrap_or_default();
     for (&(agent, r), &q) in &state.balances {
         if q == 0 {
             continue;
@@ -295,6 +303,7 @@ impl Audit {
             processes,
             dues,
             issuance,
+            services,
         } = opening;
         if dues.as_ref().is_some_and(|d| d.0.values().any(|v| *v <= 0)) {
             return Err("dues unit values must be positive".into());
@@ -368,11 +377,13 @@ impl Audit {
                     &inventory,
                     processes.as_ref(),
                     dues.as_ref(),
+                    services.as_ref(),
                 )?,
             )?,
             asset_values,
             inventory,
             processes,
+            services,
             issuance,
             dues,
             boundary: state.clone(),
@@ -571,7 +582,7 @@ impl Audit {
         let mut asset_values = self.asset_values.clone();
         let mut equipment_lines = Vec::new();
         let mut barter_deliveries = vec![];
-        let mut wear_costs = BTreeMap::new();
+        let mut production_costs = BTreeMap::new();
         let mut equipment_state = before.clone();
         if batch.phase == Phase::Open {
             crate::activities::age(world, &mut equipment_state);
@@ -735,7 +746,7 @@ impl Audit {
                         .ok_or("equipment wear overflow")?
                         .checked_div(i128::from(old))
                         .ok_or("cannot depreciate exhausted equipment")?;
-                    accounting::add(&mut wear_costs, change.after.id, cost)?;
+                    accounting::add(&mut production_costs, change.after.id, cost)?;
                     asset_values.insert(id, basis - cost);
                 }
             }
@@ -747,18 +758,32 @@ impl Audit {
             .as_ref()
             .map(|b| b.transactions.as_slice())
             .unwrap_or(&[]);
-        let mut service_lines = vec![];
-        for t in mint_transactions {
-            if t.effects.iter().any(|e| {
-                e.delta < 0
-                    && world
-                        .resources
-                        .iter()
-                        .any(|r| r.id == e.account.1 && r.kind == ResourceKind::Capacity)
-            }) {
-                service_lines.extend(crate::issuance_accounting::services(t, coin)?);
+        let service_transactions: Vec<_> = mint_transactions
+            .iter()
+            .filter(|t| {
+                t.effects.iter().any(|e| {
+                    e.delta < 0
+                        && world
+                            .resources
+                            .iter()
+                            .any(|r| r.id == e.account.1 && r.kind == ResourceKind::Capacity)
+                })
+            })
+            .collect();
+        let (services, service_lines) = if let Some(costs) = &self.services {
+            let (costs, lines, work) =
+                costs.settle(world, before, batch, &service_transactions, coin)?;
+            for (id, cost) in work {
+                accounting::add(&mut production_costs, id, cost)?;
             }
-        }
+            (Some(costs), lines)
+        } else {
+            let mut lines = vec![];
+            for t in &service_transactions {
+                lines.extend(crate::issuance_accounting::services(t, coin)?);
+            }
+            (None, lines)
+        };
         let negotiated = crate::negotiation::transactions(world, before, &batch.negotiation)?;
         let town_trades = match &batch.town_market {
             Some(crate::town_market::Boundary::Market(round)) => round.transactions.as_slice(),
@@ -870,7 +895,7 @@ impl Audit {
                 &inventory,
                 &process_transactions,
                 coin,
-                &wear_costs,
+                &production_costs,
                 &mut asset_values,
                 &mut allocation,
             )?;
@@ -971,6 +996,7 @@ impl Audit {
             &self.inventory,
             self.processes.as_ref(),
             self.dues.as_ref(),
+            self.services.as_ref(),
         )?;
         let closing = positions(
             world,
@@ -980,6 +1006,7 @@ impl Audit {
             &inventory,
             processes.as_ref(),
             self.dues.as_ref(),
+            services.as_ref(),
         )?;
         let mut delta = closing.clone();
         for (key, value) in &opening {
@@ -1476,6 +1503,7 @@ impl Audit {
         self.asset_values = asset_values;
         self.processes = processes;
         self.inventory = inventory;
+        self.services = services;
         self.book = candidate;
         self.boundary = outer_after.clone();
         Ok(())
