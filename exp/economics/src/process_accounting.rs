@@ -6,10 +6,18 @@ use crate::{
 };
 use std::collections::BTreeMap;
 
+/// Financial output identity: resource IDs and durable kind IDs are distinct namespaces.
+/// Stable order assigns rounding ticks to stocks by ID, then durable kinds by ID.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Output {
+    Stock(ResourceId),
+    Durable(u32),
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Costs {
-    /// Relative total cost shares by output resource, required for joint products.
-    pub output_weights: BTreeMap<DefinitionId, BTreeMap<ResourceId, u32>>,
+    /// Relative total cost shares by output identity, required for joint products.
+    pub output_weights: BTreeMap<DefinitionId, BTreeMap<Output, u32>>,
     pub work: BTreeMap<u64, (AgentId, i128)>,
 }
 impl Costs {
@@ -133,8 +141,27 @@ impl Costs {
                         .iter()
                         .any(|r| r.id == e.account.1 && r.kind == ResourceKind::Stock)
                 {
-                    accounting::add(&mut outputs, e.account.1, i128::from(e.delta))?;
+                    accounting::add(
+                        &mut outputs,
+                        Output::Stock(e.account.1),
+                        i128::from(e.delta),
+                    )?;
                 }
+            }
+            if p.status == Status::Completed
+                && let Some(crate::activities::Outcome::Create(kind)) =
+                    world.activities.outcomes.get(&p.definition)
+            {
+                outputs.insert(Output::Durable(*kind), 1);
+            }
+            if p.status == Status::Completed
+                && let Some(weights) = self.output_weights.get(&d.id)
+                && (weights.len() != outputs.len()
+                    || weights
+                        .iter()
+                        .any(|(output, weight)| *weight == 0 || !outputs.contains_key(output)))
+            {
+                return Err("output cost shares must cover actual joint products".into());
             }
             let expense = if d.execution == Execution::Consumption {
                 if !outputs.is_empty() || p.status != Status::Completed {
@@ -158,33 +185,14 @@ impl Costs {
                         }
                         Some(Account::ProductionLoss)
                     }
-                    Status::Completed
-                        if matches!(
-                            world.activities.outcomes.get(&p.definition),
-                            Some(crate::activities::Outcome::Create(_))
-                        ) =>
-                    {
-                        if !outputs.is_empty() {
-                            return Err(
-                                "joint durable/stock outputs require a cost allocation policy"
-                                    .into(),
-                            );
-                        }
-                        let id = crate::activities::produced_asset_id(p.id)?;
-                        if asset_values.insert(id, cost).is_some() {
-                            return Err("produced asset already valued".into());
-                        }
-                        None
-                    }
                     Status::Completed if outputs.is_empty() => Some(Account::ProductionExpense),
                     Status::Completed => {
-                        let weights = if outputs.len() == 1 {
+                        let weights = if let Some(weights) = self.output_weights.get(&d.id) {
+                            weights.clone()
+                        } else if outputs.len() == 1 {
                             BTreeMap::from([(*outputs.keys().next().ok_or("missing output")?, 1)])
                         } else {
-                            self.output_weights
-                                .get(&d.id)
-                                .cloned()
-                                .ok_or("joint outputs require explicit cost shares")?
+                            return Err("joint outputs, including joint durable/stock, require explicit cost shares".into());
                         };
                         if weights.len() != outputs.len()
                             || weights
@@ -207,23 +215,31 @@ impl Costs {
                                 .checked_mul(cumulative)
                                 .ok_or("output costing overflow")?
                                 / total;
-                            let h = stocks
-                                .0
-                                .entry((p.beneficiary, resource))
-                                .or_insert(Holding {
-                                    quantity: 0,
-                                    cost: 0,
-                                });
-                            h.quantity = i32::try_from(
-                                i128::from(h.quantity)
-                                    .checked_add(quantity)
-                                    .ok_or("output quantity overflow")?,
-                            )
-                            .map_err(|_| "output quantity overflow")?;
-                            h.cost = h
-                                .cost
-                                .checked_add(share - allocated)
-                                .ok_or("output cost overflow")?;
+                            let value = share - allocated;
+                            match resource {
+                                Output::Stock(resource) => {
+                                    let h = stocks.0.entry((p.beneficiary, resource)).or_insert(
+                                        Holding {
+                                            quantity: 0,
+                                            cost: 0,
+                                        },
+                                    );
+                                    h.quantity = i32::try_from(
+                                        i128::from(h.quantity)
+                                            .checked_add(quantity)
+                                            .ok_or("output quantity overflow")?,
+                                    )
+                                    .map_err(|_| "output quantity overflow")?;
+                                    h.cost =
+                                        h.cost.checked_add(value).ok_or("output cost overflow")?;
+                                }
+                                Output::Durable(_) => {
+                                    let id = crate::activities::produced_asset_id(p.id)?;
+                                    if asset_values.insert(id, value).is_some() {
+                                        return Err("produced asset already valued".into());
+                                    }
+                                }
+                            }
                             allocated = share;
                         }
                         None

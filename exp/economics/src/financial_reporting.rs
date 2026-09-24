@@ -304,12 +304,37 @@ impl Audit {
         Self::with_inventory(world, state, denomination, asset_values, inventory_costs)?
             .with_process_policy(world, output_weights)
     }
-    /// Compose process costing with a newly opened financial book, before recording.
+    /// Compatibility entry point for stock-only cost shares.
     pub fn with_process_policy(
-        mut self,
+        self,
         world: &World,
         output_weights: BTreeMap<DefinitionId, BTreeMap<ResourceId, u32>>,
     ) -> Result<Self, String> {
+        use crate::process_accounting::Output;
+        self.with_output_cost_policy(
+            world,
+            output_weights
+                .into_iter()
+                .map(|(id, weights)| {
+                    (
+                        id,
+                        weights
+                            .into_iter()
+                            .map(|(r, w)| (Output::Stock(r), w))
+                            .collect(),
+                    )
+                })
+                .collect(),
+        )
+    }
+    /// Choose total cost shares for stock and durable products at reporting opening.
+    /// A single output receives all cost; joint outputs require explicit positive shares.
+    pub fn with_output_cost_policy(
+        mut self,
+        world: &World,
+        output_weights: BTreeMap<DefinitionId, BTreeMap<crate::process_accounting::Output, u32>>,
+    ) -> Result<Self, String> {
+        use crate::process_accounting::Output;
         if self.book.entries().len() != 1 {
             return Err("process policy must be chosen at reporting opening".into());
         }
@@ -319,7 +344,7 @@ impl Audit {
                 .iter()
                 .find(|d| d.id == *id)
                 .ok_or("unknown cost-allocation definition")?;
-            let resources: std::collections::BTreeSet<_> = d
+            let mut outputs: std::collections::BTreeSet<_> = d
                 .outputs
                 .iter()
                 .filter(|a| {
@@ -328,8 +353,13 @@ impl Audit {
                         .iter()
                         .any(|r| r.id == a.resource && r.kind == ResourceKind::Stock)
                 })
-                .map(|a| a.resource)
+                .map(|a| Output::Stock(a.resource))
                 .collect();
+            if let Some(crate::activities::Outcome::Create(kind)) =
+                world.activities.outcomes.get(id)
+            {
+                outputs.insert(Output::Durable(*kind));
+            }
             if d.execution != Execution::Productive
                 || weights.is_empty()
                 || weights.values().any(|w| *w == 0)
@@ -337,7 +367,7 @@ impl Audit {
                     .keys()
                     .copied()
                     .collect::<std::collections::BTreeSet<_>>()
-                    != resources
+                    != outputs
             {
                 return Err("invalid output cost shares".into());
             }

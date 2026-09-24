@@ -170,7 +170,7 @@ fn required_equipment_cost_flows_into_output_and_missing_material_creates_no_ass
 }
 
 #[test]
-fn joint_stock_and_durable_output_is_rejected_atomically() {
+fn joint_stock_and_durable_output_without_policy_is_rejected_atomically() {
     let (mut w, s) = fixture();
     w.definitions
         .iter_mut()
@@ -191,5 +191,157 @@ fn joint_stock_and_durable_output_is_rejected_atomically() {
             break;
         }
         assert!(sim.state.month <= 1);
+    }
+}
+
+#[test]
+fn joint_outputs_split_wip_cost_with_exact_rounding_on_cpu_and_resume() {
+    use economics_compute_smoke::process_accounting::Output;
+    let (mut w, s) = fixture();
+    let d = w
+        .definitions
+        .iter_mut()
+        .find(|d| d.id == BUILD_HOME)
+        .unwrap();
+    d.outputs = vec![Amount::new(GRAIN, 2), Amount::new(FUEL, 1)];
+    schedule(&mut w, 1, &[BUILD_HOME]);
+    let weights = BTreeMap::from([(
+        BUILD_HOME,
+        BTreeMap::from([
+            (Output::Stock(GRAIN), 1),
+            (Output::Stock(FUEL), 1),
+            (Output::Durable(HOUSE), 1),
+        ]),
+    )]);
+    let mut a = audit(&w, &s).with_output_cost_policy(&w, weights).unwrap();
+    let mut b = a.clone();
+    let opening = a.book().balances().clone();
+    let mut cpu = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+    let mut reference = Simulation::new(w, s, Backend::Reference).unwrap();
+    through(&mut a, &mut cpu, 1);
+    through(&mut b, &mut reference, 1);
+    assert_eq!(a, b);
+    assert!(
+        a.book()
+            .balances()
+            .iter()
+            .any(|((_, k), v)| matches!(k, A::WorkInProgress(_)) && *v == 8)
+    );
+    let mut resumed = a.clone();
+    let mut checkpoint = cpu.clone();
+    through(&mut a, &mut cpu, 2);
+    through(&mut b, &mut reference, 2);
+    through(&mut resumed, &mut checkpoint, 2);
+    assert_eq!(a, b);
+    assert_eq!(a, resumed);
+    assert_eq!(cpu.state, reference.state);
+    let home = cpu
+        .state
+        .equipment
+        .values()
+        .find(|v| v.kind == HOUSE)
+        .unwrap()
+        .id;
+    assert_eq!(basis(&a, home), 3);
+    // Shares apply to each complete output lot, not each physical unit.
+    assert_eq!(
+        a.book().balances()[&(PERSON, A::Inventory(GRAIN))]
+            - opening[&(PERSON, A::Inventory(GRAIN))],
+        2
+    );
+    assert_eq!(
+        a.book().balances()[&(PERSON, A::Inventory(FUEL))] - opening[&(PERSON, A::Inventory(FUEL))],
+        3
+    );
+    assert_eq!(a.book().statements(PERSON, 1, 2).unwrap().net_income, 0);
+    assert!(
+        !a.book()
+            .balances()
+            .iter()
+            .any(|((_, k), v)| matches!(k, A::WorkInProgress(_)) && *v != 0)
+    );
+    assert!(
+        a.clone()
+            .with_output_cost_policy(&cpu.world, BTreeMap::new())
+            .is_err()
+    );
+}
+
+#[test]
+fn joint_cost_policy_rejects_missing_extra_zero_and_wrong_kind_shares() {
+    use economics_compute_smoke::process_accounting::Output;
+    let (mut w, s) = fixture();
+    w.definitions
+        .iter_mut()
+        .find(|d| d.id == BUILD_HOME)
+        .unwrap()
+        .outputs = vec![Amount::new(GRAIN, 1)];
+    for shares in [
+        vec![(Output::Stock(GRAIN), 1)],
+        vec![(Output::Durable(HOUSE), 1)],
+        vec![(Output::Stock(GRAIN), 0), (Output::Durable(HOUSE), 1)],
+        vec![(Output::Stock(GRAIN), 1), (Output::Durable(PICK), 1)],
+        vec![
+            (Output::Stock(GRAIN), 1),
+            (Output::Durable(HOUSE), 1),
+            (Output::Stock(SEED), 1),
+        ],
+    ] {
+        assert!(
+            audit(&w, &s)
+                .with_output_cost_policy(
+                    &w,
+                    BTreeMap::from([(BUILD_HOME, shares.into_iter().collect())])
+                )
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn actual_outputs_must_still_match_the_opening_cost_policy() {
+    use economics_compute_smoke::process_accounting::Output;
+    for (changed_outputs, remove_durable) in [
+        (vec![Amount::new(SEED, 1)], false),
+        (vec![], false),
+        (vec![Amount::new(GRAIN, 1)], true),
+    ] {
+        let (mut w, s) = fixture();
+        w.definitions
+            .iter_mut()
+            .find(|d| d.id == BUILD_HOME)
+            .unwrap()
+            .outputs = vec![Amount::new(GRAIN, 1)];
+        schedule(&mut w, 1, &[BUILD_HOME]);
+        let mut a = audit(&w, &s)
+            .with_output_cost_policy(
+                &w,
+                BTreeMap::from([(
+                    BUILD_HOME,
+                    BTreeMap::from([(Output::Stock(GRAIN), 1), (Output::Durable(HOUSE), 1)]),
+                )]),
+            )
+            .unwrap();
+        // Catalog change after opening cannot silently move all cost into a different stock.
+        w.definitions
+            .iter_mut()
+            .find(|d| d.id == BUILD_HOME)
+            .unwrap()
+            .outputs = changed_outputs;
+        if remove_durable {
+            w.activities.outcomes.remove(&BUILD_HOME);
+        }
+        let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+        loop {
+            let old = a.clone();
+            let state = sim.state.clone();
+            if let Err(e) = a.step(&mut sim) {
+                assert!(e.contains("output cost shares"), "{e}");
+                assert_eq!(a, old);
+                assert_eq!(sim.state, state);
+                break;
+            }
+            assert!(sim.state.month <= 2);
+        }
     }
 }
