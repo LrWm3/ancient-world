@@ -356,7 +356,7 @@ retain opening equity at every boundary. Missing opening costs and unsupported
 barter are rejected; failed accounting publishes neither simulation nor book.
 
 This covers posted coin purchases and owner-operated wear. Barter, royalty tool
-delivery, tool manufacture/repair, and transferred
+delivery, joint durable/stock output costing, and transferred
 production costs still require adapters. A financial statement is not yet available
 for every tool scenario.
 
@@ -413,7 +413,7 @@ rejection without publication. Opening accepted forwards reconstruct their remai
 historical advance cost from validated terms and performance history.
 
 Limits: no fair-value marks, discount accretion, expected-loss allowance, cash
-refund/repricing adapter, or recognition of royalty deals. Tool manufacture/repair
+refund/repricing adapter, or recognition of royalty deals. Joint durable/stock outputs
 and transferred work costs still prevent reporting an entire unrestricted
 specialist scenario. Supporting forward reports does not remove simulation-driver
 composition restrictions or establish recoverability of unpaid goods.
@@ -552,3 +552,39 @@ This changes reporting only: no scheduler, admission, priority, whole-unit
 allocation, storage, issuance or legal-discharge rule changed. Direct goods
 liquidation into land claims, new non-loan relief terms, mixed denominations and
 general death/dissolution estates still need explicit domain rules and adapters.
+
+## Equipment manufacture, repair and decay
+
+The opt-in process adapter now capitalizes owner-operated durable manufacture.
+Consumed material cost and productive equipment wear remain in WIP while work
+is active, then transfer into the completed durable's historical basis. Aborted
+work remains production loss. No imputed labor income or market-price uplift is
+recognized. Execution and reporting share the produced asset identity function.
+
+Repair restores physical service capacity but leaves existing carrying cost
+unchanged. Repair materials and helper-tool wear are `ProductionExpense`; later
+wear allocates the remaining basis over the restored remaining uses. This is an
+expense policy, not capitalized improvements or replacement-component accounting.
+
+Required equipment bindings now release carrying cost into the process alongside
+optional techniques. Reporting reconstructs the actual sequential binding boundary.
+Configured monthly idle decay releases basis to `Depreciation` at Open; productive
+wear goes into output/WIP rather than also being expensed as depreciation. Integer
+rounding retains fractional costs until later uses and releases all cost on
+exhaustion. The house catalog still has zero idle decay; the decay test explicitly
+configures one use per month. No simulation timing or catalog balance was changed.
+
+`manufacture_accounting` checks CPU/reference two-month construction and checkpoint
+continuation (eight material-cost ticks become house basis eight), full configured
+decay, helper wear expensed on repair without revaluation, required-tool wear in
+manufacture, missing-material nonproduction, and atomic rejection of mixed stock
+and durable outputs. Such joint output needs an explicit allocation policy; it is
+not silently assigned zero stock cost. Cross-agent WIP, capitalized paid labor,
+barter, royalties, household reporting and unrestricted specialist reports remain
+outside this increment.
+
+Validation: **42 tests passed** across accounting (11), activities (10), equipment
+accounting (2), forward accounting (5), issuance accounting (5), manufacture
+accounting (4), and process accounting (5). Strict all-target Clippy, formatting,
+diff checks and the repository artifact policy passed. Generated test logs remain
+under ignored `output/economics/`.
