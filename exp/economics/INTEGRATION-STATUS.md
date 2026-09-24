@@ -27,8 +27,8 @@ It supports cash lending, valued mortgages, fixed enforcement/resale, guarantees
 and loan estates, plus costed posted stock bids and bilateral negotiated/ZIP trades.
 Opt-in owner-operated production adds material work-in-progress, joint-product
 cost shares, consumption expense and aborted-work loss. Work ownership transfers,
-capitalized paid labor and household
-accounting remain unsupported. Dated land dues now compose with lending and
+household pooling and opt-in completed-output transfers are supported; capitalized
+paid labor and priced third-party contract production remain unsupported. Dated land dues now compose with lending and
 material production on existing boundaries, including native goods and accepted
 coin alternatives. Estate-paid native/accepted-coin dues now reconcile to restricted debtor cash and neutral custody positions; collection-linked issuance has an explicit opt-in convention. Storage blockage uses existing process failure;
 there is no stored-goods spoilage event to recognize. The complete report set is not universal
@@ -295,3 +295,11 @@ noncash consideration when earned, with no forecast royalty debt or receivable.
 Production cost is split between retained and delivered output, and both parties'
 statements reconcile. This does not implement capitalization or valuation of
 estimated contingent consideration, or establish full specialist-scenario coverage.
+
+
+Completed output can now transfer to a distinct beneficiary under an explicit
+[carrying-cost policy](FINANCIAL-STATEMENTS.md#completed-output-for-a-distinct-beneficiary).
+This follows existing production rights and stock/durable settlement. Unfinished
+costs and failed-work losses stay with the operator; recipient depreciation begins
+only after ownership transfers. No planner, allocation rule or physical execution
+phase changed. Priced production and three-party royalty consideration remain open.

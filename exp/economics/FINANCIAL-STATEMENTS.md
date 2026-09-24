@@ -175,10 +175,12 @@ resources. New output is not available to other work in the same batch; inventor
 cost becomes visible with the existing committed Productive boundary and is then
 available to the later Consumption boundary.
 
-This adapter supports owner-operated work: input owner, operator and beneficiary
-must agree during execution. Validated title-following attachment transfers now
-move WIP carrying cost between operators; third-party inputs, royalties and combined
-trade/production batches still require adapters. Cloning the audit preserves work
+The default process policy requires the operator and output beneficiary to agree.
+Explicit policies below support shared-pool inputs, earned-only royalties, and
+completed output transfers to a distinct beneficiary at cost. Validated
+title-following attachment transfers move WIP carrying cost between operators.
+Non-pool third-party inputs and priced contract production still need adapters;
+combined trade/production batches remain subject to the existing scheduler. Cloning the audit preserves work
 costs for continuation. A new book over active work requires explicit complete
 historical carrying costs through Opening; ordinary constructors still reject it.
 
@@ -729,7 +731,7 @@ still need accounting adapters or policy definitions:
 
 - Household dissolution/estate distributions and consolidated reporting beyond the supported pooling agreement.
 - Estimated/capitalized contingent consideration beyond the earned-only royalty policy below; non-posted barter without explicit payment terms.
-- Paid labor capitalization and production with distinct operators/beneficiaries or non-pool resource ownership.
+- Paid labor capitalization, priced contract production, non-pool resource ownership, and combining distinct beneficiaries with royalties.
 - Multiple loan/estate denominations and FX valuation; redeemable currency and retirement.
 - Explicit dues discharge, forward refund/repricing and impairment policies.
 - Full durable Audit/Simulation restart, consolidation and contingent/noncash disclosures.
@@ -769,7 +771,8 @@ with cumulative rounding that preserves every reporting tick.
 Authorized shared-pool inputs also carry their cost into the operator's production.
 The pool owner recognizes a transfer expense and the operator a transfer income.
 Only declared process/pool input permissions qualify; unrelated third-party
-inputs and distinct operator/beneficiary arrangements still fail. Verified Open
+inputs still fail. Distinct operator/beneficiary arrangements now have the separate
+carrying-cost policy below. Verified Open
 regeneration adds quantity at zero new acquisition cost and preserves the pool's
 existing total basis. This is a historical-cost convention, not fair-value
 biological growth revenue. A coin-generating pool is not monetary issuance.
@@ -910,3 +913,69 @@ manufacture (7), process accounting (6), reporting coverage (6), and royalties (
 The existing slow full-household stress test remains ignored in this run. Strict
 all-target Clippy, formatting, diff checks and repository artifact checks passed.
 Generated logs are under ignored `output/economics/royalty-*.log`.
+
+
+## Completed output for a distinct beneficiary
+
+Set `Opening.processes.beneficiary_policy` to
+`Some(BeneficiaryPolicy::TransferAtCost)` when an existing production right grants
+output to someone other than the operator. The simulation already determines this
+recipient through `ProcessInstance.beneficiary`; reporting does not choose a new
+recipient or change allocation, planning, rights or monthly execution. Absence of
+the policy still rejects distinct-beneficiary work before publication.
+
+The accounting boundaries are:
+
+- Inputs and productive equipment wear enter the operator's WIP when committed work
+  uses them. Unfinished costs belong to the operator even when another agent is
+  entitled to future output. A historical opening must identify that operator and
+  the exact WIP cost; an expected harvest is not an asset of the beneficiary.
+- At successful completion, existing cost shares allocate the WIP basis across
+  stock and durable outputs. Each completed financial output goes to its actual
+  beneficiary at carrying cost. The operator recognizes `TransferExpense`, the
+  beneficiary `TransferIncome` and inventory or a tangible asset. No cash, sale
+  price, wage, debt, profit margin or ownership stake is inferred.
+- Missed work or blocked completion leaves `ProductionLoss` with the operator.
+  Nothing transfers to the beneficiary when the process produces no output.
+  Consumption and repair costs remain expenses of the agent carrying those costs;
+  nonfinancial fulfillment does not itself create a financial asset or transfer.
+- Later inventory consumption, sale or expiration, and durable depreciation, use
+  the recipient's ordinary accounting. Transfers occur once at completion, not
+  when the output right is granted or at each monthly progress update.
+
+For a person supplying seed costing 12 to grow grain for another agent, the person
+initially holds WIP of 12. A completed harvest transfers that cost to the recipient's
+inventory and recognizes a transfer expense/income of 12. With grain/seed output
+weights of 3:1, those inventories carry 9 and 3. A failed harvest instead recognizes
+12 of production loss for the person and no recipient income.
+
+This composes with authorized shared-pool inputs: donor-to-operator input cost and
+operator-to-beneficiary completed output are separate transfers at their actual
+boundaries. When the beneficiary also supplies the seed, the two transfers conserve
+its original cost through the operator's WIP. They do not invent production profit.
+A constructed asset likewise belongs to the beneficiary and depreciates there.
+
+This is a carrying-cost contribution convention, **not paid contract production**.
+It does not choose who should bear contract risk, bill a customer, recognize wages,
+or capitalize purchased labor. Distinct-beneficiary output combined with supplier
+royalties still rejects atomically: a further policy must specify which party owes
+the royalty and how that consideration relates to the output transfer. The existing
+owner-operated royalty policy remains unchanged. Arbitrary third-party inputs,
+intermediate output allocation and organizational consolidation remain outside this
+increment.
+
+`tests/beneficiary_accounting.rs` checks CPU/reference equality, continuation from
+unfinished work, historical WIP opening, exact joint-stock cost allocation, a joint
+house/material output followed by beneficiary depreciation, missed work,
+recipient-storage failure and beneficiary-supplied pool inputs. Missing policy and
+wrong historical WIP owner are rejected. `tests/royalty_accounting.rs` also checks
+that unsupported three-party royalty/output arrangements do not publish either
+state or journal. These are controlled accounting fixtures; they do not establish
+that an autonomous operator would choose an unpaid production obligation.
+
+Validation: **74 checks passed** across library (10), accounting (14), posted barter
+(3), beneficiary accounting (5), equipment (3), forwards (5), household accounting
+(4), inventory (6), manufacture (7), process accounting (6), reporting coverage (6),
+and royalties (5). The existing slow full-household stress test remains ignored.
+Strict all-target Clippy, formatting, diff checks and repository artifact checks
+passed. Generated logs remain under ignored `output/economics/beneficiary-*.log`.

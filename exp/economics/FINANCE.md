@@ -76,9 +76,9 @@ death/dissolution administration remain future work.
 [Double-entry financial statements](FINANCIAL-STATEMENTS.md) now cover the full
 report set for cash loans, valued mortgages, loan recovery and costed posted or
 bilateral/ZIP spot trades. Opt-in owner-operated material costing now capitalizes
-work in progress and recognizes consumption and failed-work expense. Capitalized paid labor,
-third-party production costs and household
-accounting remain open. Ordinary dated dues now recognize income/expense, symmetric
+work in progress and recognizes consumption and failed-work expense. Household pooling,
+shared inputs and opt-in completed output transfers are also supported. Capitalized
+paid labor and priced third-party contract production remain open. Ordinary dated dues now recognize income/expense, symmetric
 arrears and native or accepted coin settlement, including verified estate-cash payments. Future contract types should supply their terms and receipts
 through this shared view before introducing a second settlement mechanism.
 
@@ -162,3 +162,10 @@ noncash consideration when earned, with no forecast royalty debt or receivable.
 Production cost is split between retained and delivered output, and both parties'
 statements reconcile. This does not implement capitalization or valuation of
 estimated contingent consideration, or establish full specialist-scenario coverage.
+
+
+[Distinct-beneficiary output accounting](FINANCIAL-STATEMENTS.md#completed-output-for-a-distinct-beneficiary)
+now has an explicit carrying-cost transfer policy. Operators retain unfinished work
+and failed-work losses; successful stock and durable output transfers to its actual
+beneficiary. This includes shared-pool inputs but does not infer wages or priced
+contract production, or combine third-party beneficiaries with supplier royalties.
