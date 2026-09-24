@@ -143,8 +143,15 @@ impl Costs {
                 if kind != ResourceKind::Stock {
                     continue;
                 }
-                if e.account.1 == coin || e.account.0 != p.operator {
-                    return Err("coin or third-party process input/output unsupported".into());
+                let shared_input = e.delta < 0
+                    && world
+                        .pool_inputs
+                        .iter()
+                        .any(|i| i.definition == p.definition && i.account == e.account);
+                if e.account.1 == coin || (e.account.0 != p.operator && !shared_input) {
+                    return Err(
+                        "coin or unauthorized third-party process input/output unsupported".into(),
+                    );
                 }
                 if e.delta < 0 {
                     let h = inventory
@@ -164,7 +171,24 @@ impl Costs {
                         / i128::from(h.quantity);
                     let after = h.cost.checked_mul(total).ok_or("input costing overflow")?
                         / i128::from(h.quantity);
-                    accounting::add(&mut inputs, p.id, after - before)?;
+                    let cost = after - before;
+                    accounting::add(&mut inputs, p.id, cost)?;
+                    if e.account.0 != p.operator && cost != 0 {
+                        lines.extend([
+                            Line {
+                                agent: e.account.0,
+                                account: Account::TransferExpense,
+                                debit: cost,
+                                flow: None,
+                            },
+                            Line {
+                                agent: p.operator,
+                                account: Account::TransferIncome,
+                                debit: -cost,
+                                flow: None,
+                            },
+                        ]);
+                    }
                 }
             }
         }

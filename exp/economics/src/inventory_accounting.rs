@@ -72,6 +72,129 @@ impl Inventory {
         }
         Ok(())
     }
+    /// Carrying-cost transfers for validated household allocations/contributions.
+    /// Every donor draws only on this sub-boundary's opening holding. Cumulative
+    /// proportional allocation keeps integer remainders with the last recipient.
+    pub(crate) fn pool(
+        &self,
+        world: &World,
+        effects: &[Effect],
+        coin: ResourceId,
+    ) -> Result<(Self, Vec<Line>), String> {
+        let stock: Vec<_> = effects
+            .iter()
+            .filter(|e| {
+                world
+                    .resources
+                    .iter()
+                    .any(|r| r.id == e.account.1 && r.kind == ResourceKind::Stock)
+            })
+            .collect();
+        if stock.len() % 2 != 0 {
+            return Err("household stock must be paired transfers".into());
+        }
+        let mut next = self.clone();
+        let mut spent = BTreeMap::<crate::model::Account, i32>::new();
+        let mut lines = vec![];
+        for pair in stock.chunks_exact(2) {
+            let (from, to) = (pair[0], pair[1]);
+            if from.delta >= 0
+                || to.delta <= 0
+                || i64::from(from.delta) != -i64::from(to.delta)
+                || from.account.1 != to.account.1
+                || from.account.0 == to.account.0
+            {
+                return Err("invalid household stock transfer".into());
+            }
+            let quantity = to.delta;
+            let cost = if from.account.1 == coin {
+                for effect in [from, to] {
+                    lines.push(Line {
+                        agent: effect.account.0,
+                        account: Account::Cash,
+                        debit: i128::from(effect.delta),
+                        flow: Some(Flow::Operating),
+                    });
+                }
+                i128::from(quantity)
+            } else {
+                let opening = self
+                    .0
+                    .get(&from.account)
+                    .ok_or("unpriced household contribution")?;
+                let used = spent.entry(from.account).or_default();
+                let prior = *used;
+                *used = used
+                    .checked_add(quantity)
+                    .ok_or("household quantity overflow")?;
+                if *used > opening.quantity || opening.quantity <= 0 {
+                    return Err("household contribution exceeds opening inventory".into());
+                }
+                let allocated = |q: i32| {
+                    opening
+                        .cost
+                        .checked_mul(i128::from(q))
+                        .ok_or_else(|| "household cost overflow".to_string())
+                        .map(|v| v / i128::from(opening.quantity))
+                };
+                let cost = allocated(*used)? - allocated(prior)?;
+                let donor = next.0.get_mut(&from.account).unwrap();
+                donor.quantity -= quantity;
+                donor.cost -= cost;
+                let recipient = next.0.entry(to.account).or_insert(Holding {
+                    quantity: 0,
+                    cost: 0,
+                });
+                recipient.quantity = recipient
+                    .quantity
+                    .checked_add(quantity)
+                    .ok_or("household quantity overflow")?;
+                recipient.cost = recipient
+                    .cost
+                    .checked_add(cost)
+                    .ok_or("household cost overflow")?;
+                cost
+            };
+            for (agent, account, debit) in [
+                (from.account.0, Account::TransferExpense, cost),
+                (to.account.0, Account::TransferIncome, -cost),
+            ] {
+                if debit != 0 {
+                    lines.push(Line {
+                        agent,
+                        account,
+                        debit,
+                        flow: None,
+                    });
+                }
+            }
+        }
+        next.0.retain(|_, h| h.quantity != 0);
+        Ok((next, lines))
+    }
+    /// Verified replenishment or nonrival service entitlements add quantity at
+    /// zero incremental cost. Existing acquisition/production costs are preserved.
+    pub(crate) fn add_uncosted(
+        &self,
+        effects: &[Effect],
+        coin: ResourceId,
+    ) -> Result<Self, String> {
+        let mut next = self.clone();
+        for effect in effects {
+            if effect.delta <= 0 || effect.account.1 == coin {
+                return Err("invalid nonmonetary pool replenishment".into());
+            }
+            let h = next.0.entry(effect.account).or_insert(Holding {
+                quantity: 0,
+                cost: 0,
+            });
+            h.quantity = h
+                .quantity
+                .checked_add(effect.delta)
+                .ok_or("pool quantity overflow")?;
+        }
+        Ok(next)
+    }
     /// Release basis only for the domain's explicit, validated expiration effects.
     pub(crate) fn expire(&self, effects: &[Effect]) -> Result<(Self, Vec<Line>), String> {
         let mut next = self.clone();
@@ -246,5 +369,88 @@ impl Inventory {
         }
         next.0.retain(|_, h| h.quantity != 0);
         Ok((next, lines))
+    }
+}
+
+#[cfg(test)]
+mod pooling_tests {
+    use super::*;
+    use crate::scenario::{GRAIN, PERSON};
+    fn transfers(items: &[(AgentId, AgentId, i32)]) -> Vec<Effect> {
+        items
+            .iter()
+            .flat_map(|&(from, to, q)| {
+                [
+                    Effect {
+                        account: (from, GRAIN),
+                        delta: -q,
+                    },
+                    Effect {
+                        account: (to, GRAIN),
+                        delta: q,
+                    },
+                ]
+            })
+            .collect()
+    }
+    #[test]
+    fn pooled_cost_rounding_retains_every_tick_without_spending_receipts() {
+        let (world, _) = crate::scenario::baseline();
+        let inventory = Inventory(BTreeMap::from([
+            (
+                (PERSON, GRAIN),
+                Holding {
+                    quantity: 3,
+                    cost: 2,
+                },
+            ),
+            (
+                (1, GRAIN),
+                Holding {
+                    quantity: 1,
+                    cost: 5,
+                },
+            ),
+        ]));
+        let (next, _) = inventory
+            .pool(
+                &world,
+                &transfers(&[(PERSON, 1, 1), (PERSON, 2, 1), (PERSON, 3, 1), (1, 2, 1)]),
+                crate::scenario::TOKEN,
+            )
+            .unwrap();
+        assert!(!next.0.contains_key(&(PERSON, GRAIN)));
+        assert_eq!(
+            next.0[&(1, GRAIN)],
+            Holding {
+                quantity: 1,
+                cost: 0
+            }
+        );
+        assert_eq!(
+            next.0[&(2, GRAIN)],
+            Holding {
+                quantity: 2,
+                cost: 6
+            }
+        );
+        assert_eq!(
+            next.0[&(3, GRAIN)],
+            Holding {
+                quantity: 1,
+                cost: 1
+            }
+        );
+        assert_eq!(next.0.values().map(|h| h.cost).sum::<i128>(), 7);
+        assert!(
+            inventory
+                .pool(
+                    &world,
+                    &transfers(&[(PERSON, 1, 1), (1, 2, 2)]),
+                    crate::scenario::TOKEN
+                )
+                .is_err()
+        );
+        assert_eq!(inventory.0[&(1, GRAIN)].cost, 5);
     }
 }

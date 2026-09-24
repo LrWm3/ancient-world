@@ -48,9 +48,11 @@ fn positions(
         .iter()
         .any(|r| r.id == coin && r.kind == ResourceKind::Stock)
         || (!state.obligations.is_empty() && dues.is_none())
-        || !world.households.is_empty()
     {
-        return Err("financial adapter requires supported positions; unconfigured land dues and households remain unsupported".into());
+        return Err(
+            "financial adapter requires supported positions; land dues require explicit valuation"
+                .into(),
+        );
     }
     inventory.validate(world, state, coin)?;
     let mut p = BTreeMap::new();
@@ -498,17 +500,40 @@ impl Audit {
         if *before != self.boundary {
             return Err("accounting checkpoint/boundary mismatch".into());
         }
-        let mut verified = before.clone();
-        crate::settlement::commit(
-            world,
-            &mut verified,
-            batch,
-            crate::compute::Backend::Reference,
-            crate::settlement::DEFAULT_EFFECT_LIMIT,
-        )?;
+        let outer_before = before;
+        let outer_after = after;
+        let (prepared, core_settled, verified) = if world.households.is_empty() {
+            let mut verified = before.clone();
+            crate::settlement::commit(
+                world,
+                &mut verified,
+                batch,
+                crate::compute::Backend::Reference,
+                crate::settlement::DEFAULT_EFFECT_LIMIT,
+            )?;
+            (before.clone(), verified.clone(), verified)
+        } else {
+            crate::households::settled_boundaries(
+                world,
+                before,
+                batch,
+                crate::compute::Backend::Reference,
+                crate::settlement::DEFAULT_EFFECT_LIMIT,
+            )?
+        };
         if verified != *after {
             return Err("accounting requires the exact committed state".into());
         }
+        let before = &prepared;
+        let after = &core_settled;
+        let (allocated_inventory, allocation_lines) = self.inventory.pool(
+            world,
+            batch
+                .household
+                .as_ref()
+                .map_or(&[][..], |h| h.before.as_slice()),
+            self.book.denomination(),
+        )?;
         if batch
             .transactions
             .iter()
@@ -698,7 +723,13 @@ impl Audit {
         } else {
             vec![]
         };
-        let (opening_inventory, expiration_lines) = self.inventory.expire(&expired)?;
+        let (opening_inventory, expiration_lines) = allocated_inventory.expire(&expired)?;
+        let regenerated = if batch.phase == Phase::Open {
+            crate::pools::regeneration(world, before)
+        } else {
+            vec![]
+        };
+        let opening_inventory = opening_inventory.add_uncosted(&regenerated, coin)?;
 
         let trades: Vec<_> = batch
             .transactions
@@ -795,7 +826,11 @@ impl Audit {
             {
                 continue;
             }
-            let unrecognized: Vec<_> = t.effects.iter().filter(|e| !expired.contains(e)).collect();
+            let unrecognized: Vec<_> = t
+                .effects
+                .iter()
+                .filter(|e| !expired.contains(e) && !regenerated.contains(e))
+                .collect();
             let has_stock = unrecognized.iter().any(|e| {
                 e.delta != 0
                     && world
@@ -823,9 +858,21 @@ impl Audit {
                 }
             }
         }
+        // Collection excludes perishable goods from contributions. Its verified
+        // positive perishable effects are extra nonrival dwelling entitlements;
+        // the actual dwelling use has already borne its wear/production cost.
+        let (shared_services, contributions): (Vec<_>, Vec<_>) = batch
+            .household
+            .as_ref()
+            .map_or(&[][..], |h| h.after.as_slice())
+            .iter()
+            .cloned()
+            .partition(|e| world.activities.perishable.contains(&e.account.1));
+        let (inventory, pooling_lines) = inventory.pool(world, &contributions, coin)?;
+        let inventory = inventory.add_uncosted(&shared_services, coin)?;
         let opening = positions(
             world,
-            before,
+            outer_before,
             coin,
             &self.asset_values,
             &self.inventory,
@@ -834,7 +881,7 @@ impl Audit {
         )?;
         let closing = positions(
             world,
-            after,
+            outer_after,
             coin,
             &asset_values,
             &inventory,
@@ -858,6 +905,8 @@ impl Audit {
             .chain(service_lines)
             .chain(attachment_lines)
             .chain(expiration_lines)
+            .chain(allocation_lines)
+            .chain(pooling_lines)
         {
             if let Some(kind) = l.flow {
                 flow(&mut flows, l.agent, l.account, kind, l.debit)?;
@@ -1335,7 +1384,7 @@ impl Audit {
         self.processes = processes;
         self.inventory = inventory;
         self.book = candidate;
-        self.boundary = after.clone();
+        self.boundary = outer_after.clone();
         Ok(())
     }
 }

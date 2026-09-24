@@ -1051,6 +1051,20 @@ pub fn commit(
     backend: Backend,
     limit: usize,
 ) -> Result<(), String> {
+    let (_, _, closed) = settled_boundaries(world, state, batch, backend, limit)?;
+    *state = closed;
+    Ok(())
+}
+
+/// Verified ordered views for settlement and accounting: allocated, core-settled,
+/// and collected. All remain candidates until the caller publishes the result.
+pub(crate) fn settled_boundaries(
+    world: &World,
+    state: &State,
+    batch: &Batch,
+    backend: Backend,
+    limit: usize,
+) -> Result<(State, State, State), String> {
     let (prepared, mut expected) = prepare(world, state)?;
     let receipt = batch
         .household
@@ -1083,11 +1097,11 @@ pub fn commit(
     if receipt.after != expected.after || receipt.remainders != expected.remainders {
         return Err("altered household contributions".into());
     }
+    let core_settled = staged.clone();
     apply(world, &mut staged, &expected.after, backend)?;
     staged.household_remainders = expected.remainders;
     crate::settlement::validate_world(world, &staged)?;
-    *state = staged;
-    Ok(())
+    Ok((prepared, core_settled, staged))
 }
 
 pub fn scenario() -> Result<(World, State), String> {

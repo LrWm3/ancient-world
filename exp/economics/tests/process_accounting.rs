@@ -186,3 +186,59 @@ fn repeated_harvests_preserve_material_cost_and_open_work_cannot_be_rebased_for_
             >= 2
     );
 }
+
+#[test]
+fn shared_input_cost_passes_to_operator_and_regrowth_adds_no_income() {
+    use economics_compute_smoke::pools::{Pool, PoolInput};
+    let (mut w, mut s) = fixture();
+    s.balances.insert((PERSON, SEED), 0);
+    s.balances.insert((scenario::STATE_AGENT, SEED), 1);
+    w.pools.push(Pool {
+        account: (scenario::STATE_AGENT, SEED),
+        capacity: 2,
+        monthly_regeneration: 1,
+    });
+    w.pool_inputs.push(PoolInput {
+        definition: GROW,
+        account: (scenario::STATE_AGENT, SEED),
+    });
+    let mut a = Audit::with_processes(
+        &w,
+        &s,
+        TOKEN,
+        BTreeMap::from([(PLOT, 0)]),
+        BTreeMap::from([((PERSON, GRAIN), 10), ((scenario::STATE_AGENT, SEED), 12)]),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let mut b = a.clone();
+    let mut cpu = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+    let mut reference = Simulation::new(w, s, Backend::Reference).unwrap();
+    through(&mut a, &mut reference, 1);
+    through(&mut b, &mut cpu, 1);
+    assert_eq!(a, b);
+    assert_eq!(reference.state, cpu.state);
+    let owner = a.book().statements(scenario::STATE_AGENT, 1, 1).unwrap();
+    let operator = a.book().statements(PERSON, 1, 1).unwrap();
+    // Open replenishes 1 -> 2 units without additional cost; planting takes half.
+    assert_eq!(owner.trial_balance[&A::Inventory(SEED)], 6);
+    assert_eq!(owner.expenses[&A::TransferExpense], 6);
+    assert_eq!(operator.income[&A::TransferIncome], 6);
+    assert_eq!(
+        operator
+            .trial_balance
+            .iter()
+            .filter(|(a, _)| matches!(a, A::WorkInProgress(_)))
+            .map(|(_, v)| *v)
+            .sum::<i128>(),
+        6
+    );
+    through(&mut a, &mut reference, 6);
+    through(&mut b, &mut cpu, 6);
+    assert_eq!(a, b);
+    assert_eq!(reference.state, cpu.state);
+    let owner = a.book().statements(scenario::STATE_AGENT, 2, 6).unwrap();
+    assert_eq!(owner.net_income, 0);
+    assert_eq!(owner.trial_balance[&A::Inventory(SEED)], 6);
+    assert_eq!(reference.state.balance(scenario::STATE_AGENT, SEED), 2);
+}
