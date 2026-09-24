@@ -310,7 +310,7 @@ fixture outcomes, not evidence of sustainable autonomous income.
 
 Extend adapters next, preserving these reconciliation gates:
 
-1. Extend material costing to capitalized paid labor, joint durable/stock outputs and cross-agent work; supply
+1. Extend material costing to capitalized paid labor and cross-agent work; supply
    historical work costs on reporting restart. Add validated stored-goods loss events,
    then town-market and barter accounting adapters.
 2. Extend the explicit non-redeemable issuance convention to redeemable issuer liabilities,
@@ -359,7 +359,7 @@ retain opening equity at every boundary. Missing opening costs and unsupported
 barter are rejected; failed accounting publishes neither simulation nor book.
 
 This covers posted coin purchases and owner-operated wear. Barter, royalty tool
-delivery, joint durable/stock output costing, and transferred
+delivery and transferred
 production costs still require adapters. A financial statement is not yet available
 for every tool scenario.
 
@@ -416,8 +416,7 @@ rejection without publication. Opening accepted forwards reconstruct their remai
 historical advance cost from validated terms and performance history.
 
 Limits: no fair-value marks, discount accretion, expected-loss allowance, cash
-refund/repricing adapter, or recognition of royalty deals. Joint durable/stock outputs
-and transferred work costs still prevent reporting an entire unrestricted
+refund/repricing adapter, or recognition of royalty deals. Transferred work costs still prevent reporting an entire unrestricted
 specialist scenario. Supporting forward reports does not remove simulation-driver
 composition restrictions or establish recoverability of unpaid goods.
 
@@ -581,8 +580,8 @@ configures one use per month. No simulation timing or catalog balance was change
 continuation (eight material-cost ticks become house basis eight), full configured
 decay, helper wear expensed on repair without revaluation, required-tool wear in
 manufacture, missing-material nonproduction, and atomic rejection of mixed stock
-and durable outputs. Such joint output needs an explicit allocation policy; it is
-not silently assigned zero stock cost. Cross-agent WIP, capitalized paid labor,
+and durable outputs without an allocation policy. The typed policy described below
+now supports such outputs; stock cost is never silently assumed to be zero. Cross-agent WIP, capitalized paid labor,
 barter, royalties, household reporting and unrestricted specialist reports remain
 outside this increment.
 
@@ -630,3 +629,41 @@ artifact to commit.
 The broader focused run passed **34 tests**: accounting 14, manufacture accounting
 4, forward accounting 5, dues accounting 7 and estate dues accounting 4. Strict
 all-target Clippy, formatting, diff and repository artifact checks passed.
+
+## Joint stock and durable output shares
+
+`Audit::with_output_cost_policy(world, weights)` selects a complete process-cost
+policy at reporting opening. Keys are typed `process_accounting::Output::Stock`
+(resource ID) or `Output::Durable` (durable kind ID), so equal numeric IDs do not
+conflate a resource with equipment. The existing stock-only constructor remains
+available and translates its resource shares into the same allocation engine.
+Calling the new builder replaces the complete output-share map, not just one
+process's shares; include all joint processes that require a policy.
+
+Every joint product must have a positive share, with no extra outputs or missing
+kinds. Shares divide the total historical material and productive-wear cost of the
+completed process, including accumulated WIP. They apply to each output lot, not
+each unit of stock, and are not sale prices. A single output receives all cost
+without configuration. Configured shares must still match actual outputs at
+completion; a changed catalog cannot silently redirect costs to a surviving output.
+
+Allocation uses cumulative integer rounding in a fixed order: stock resource IDs,
+then durable kind IDs. Thus all carrying cost is assigned exactly once, including
+small amounts that give an individual product zero carrying cost. An eight-tick
+construction with equal grain, fuel and house shares assigns 2/3/3. Stock portions
+join inventory cost and the house portion becomes tangible asset basis. There is
+no production profit or duplicated expense at completion. Active work still keeps
+its cost in WIP; aborted work still expenses that cost as production loss.
+
+The new tests compare CPU/reference and checkpoint continuation through joint
+construction, verify exact WIP release and no income creation, reject missing,
+extra, zero and wrong-kind shares, reject policy changes after opening, and verify
+atomic failure if actual outputs differ (including removal of the stock output).
+Existing unconfigured joint-output rejection remains covered. This only covers the
+current one-durable-per-process execution model, with owner-operated costs;
+cross-agent production and capitalized paid labor remain outstanding.
+
+Validation: **33 tests passed** across accounting (14), equipment accounting (2),
+issuance accounting (5), manufacture accounting (7) and process accounting (5).
+Strict all-target Clippy, formatting, diff and repository artifact checks passed.
+Logs remain under ignored `output/economics/`.

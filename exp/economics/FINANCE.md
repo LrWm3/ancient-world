@@ -76,7 +76,7 @@ death/dissolution administration remain future work.
 report set for cash loans, valued mortgages, loan recovery and costed posted or
 bilateral/ZIP spot trades. Opt-in owner-operated material costing now capitalizes
 work in progress and recognizes consumption and failed-work expense. Capitalized paid labor,
-joint durable/stock outputs and cross-agent production costs, town-market and household
+cross-agent production costs, town-market and household
 accounting remain open. Ordinary dated dues now recognize income/expense, symmetric
 arrears and native or accepted coin settlement, including verified estate-cash payments. Future contract types should supply their terms and receipts
 through this shared view before introducing a second settlement mechanism.
@@ -114,7 +114,7 @@ See [financial statements](FINANCIAL-STATEMENTS.md#coin-equipment-acquisition-an
 Prepaid-forward/tool bundles now recognize creditor prepayments and producer
 deferred revenue, releasing those balances on actual delivery or accepted write-off.
 Extensions preserve carrying value; spot and forward deliveries share opening
-inventory costing. Barter, royalties and joint durable/stock outputs remain outside the
+inventory costing. Barter and royalties remain outside the
 reporting adapter. See [forward recognition](FINANCIAL-STATEMENTS.md#prepaid-forwards-delivery-and-accepted-relief).
 
 
@@ -134,7 +134,7 @@ separate from loan write-off and no native grain receipt is invented.
 Owner-operated equipment manufacture now capitalizes material and productive wear
 costs through WIP into the completed asset. Repairs expense their inputs without
 revaluing restored capacity; idle monthly decay is depreciation. Joint durable/stock
-outputs require a future allocation policy.
+outputs now use explicit typed cost shares.
 See [equipment manufacture accounting](FINANCIAL-STATEMENTS.md#equipment-manufacture-repair-and-decay).
 
 
