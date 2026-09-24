@@ -89,8 +89,7 @@ with a real-world accounting standard.
 
 The adapter recognizes the selected coin at one reporting tick per stored tick.
 It rejects nonzero stocks without explicit opening cost, unsupported stock movements,
-mixed loan or estate denominations, unvalued equipment barter, royalties, unconfigured land dues
-and households. Town-market trades use the costed stock adapter. Minting/issuance requires its explicit policy below. Process transactions
+mixed loan or estate denominations, unvalued equipment barter, royalties and unconfigured land dues. Town-market trades use the costed stock adapter. Minting/issuance requires its explicit policy below. Process transactions
 require the explicit material-cost opt-in described below. Unsupported activity is an error,
 not zero value or an unexplained income/equity adjustment. Unused capacities and
 need satisfaction are not financial assets. Uncalled guarantees remain contingent
@@ -417,7 +416,7 @@ rejection without publication. Opening accepted forwards reconstruct their remai
 historical advance cost from validated terms and performance history.
 
 Limits: no fair-value marks, discount accretion, expected-loss allowance, cash
-refund/repricing adapter, or recognition of royalty deals. Royalty and household flows still prevent reporting an entire unrestricted
+refund/repricing adapter, or recognition of royalty deals. Royalty flows still prevent reporting an entire unrestricted
 specialist scenario. Supporting forward reports does not remove simulation-driver
 composition restrictions or establish recoverability of unpaid goods.
 
@@ -583,7 +582,7 @@ decay, helper wear expensed on repair without revaluation, required-tool wear in
 manufacture, missing-material nonproduction, and atomic rejection of mixed stock
 and durable outputs without an allocation policy. The typed policy described below
 now supports such outputs; stock cost is never silently assumed to be zero. General third-party work, capitalized paid labor,
-royalties, household reporting and unrestricted specialist reports remain
+royalties and unrestricted specialist reports remain
 outside this increment.
 
 Validation: **42 tests passed** across accounting (11), activities (10), equipment
@@ -727,9 +726,9 @@ zero cash flows and continuation.
 The expansion is **not universal coverage yet**. These valid economic situations
 still need accounting adapters or policy definitions:
 
-- Household contributions, distributions, delegated resource use and dissolution.
+- Household dissolution/estate distributions and consolidated reporting beyond the supported pooling agreement.
 - Royalty-paid equipment and contingent consideration; general goods barter.
-- Paid labor capitalization and production with distinct resource owners/operators/beneficiaries.
+- Paid labor capitalization and production with distinct operators/beneficiaries or non-pool resource ownership.
 - Trading, dues and production sharing one opening inventory allocation boundary.
 - Multiple loan/estate denominations and FX valuation; redeemable currency and retirement.
 - Explicit dues discharge, forward refund/repricing and impairment policies.
@@ -745,3 +744,61 @@ Validation: the final accounting regression run passed **57 tests** across accou
 stress (5), telemetry (10) and town-market (17) suites. Strict all-target Clippy and
 the CPU credit-stress example passed. Test logs, reports and telemetry remain under
 ignored `output/economics/`; no generated artifacts are committed.
+
+
+## Household pooling and shared resource inputs
+
+Households now have individual financial statements alongside their members.
+Accounting reuses the authoritative household settlement's three ordered views:
+allocation to members, core execution, and collection of contributions. These
+views are candidates until the complete batch and journal both validate. There
+is still one journal entry per batch and no monthly scheduler change.
+
+Stock grants and contributions transfer carrying cost, recognizing TransferExpense
+for the sender and TransferIncome for the recipient. These ownerless households
+do not issue equity claims to members. Cash support is an operating transfer;
+member dues and forwards retain their original debtors and separate settlement
+entries. Unpaid delegated labor and nonfinancial fulfillment receive no
+invented monetary value. Extra nonrival dwelling-service tickets enter at zero
+incremental cost: the actual occupancy process already bears the dwelling wear.
+This avoids depreciating one shared house once per member. Household collection after production uses the output's
+actual assigned cost; allocation before execution makes that cost available to
+consumption or work in progress. Each transfer sub-boundary uses opening holdings,
+with cumulative rounding that preserves every reporting tick.
+
+Authorized shared-pool inputs also carry their cost into the operator's production.
+The pool owner recognizes a transfer expense and the operator a transfer income.
+Only declared process/pool input permissions qualify; unrelated third-party
+inputs and distinct operator/beneficiary arrangements still fail. Verified Open
+regeneration adds quantity at zero new acquisition cost and preserves the pool's
+existing total basis. This is a historical-cost convention, not fair-value
+biological growth revenue. A coin-generating pool is not monetary issuance.
+
+Focused tests exercise repeated farming and household consumption across 12 months,
+CPU/reference and checkpoint parity, household-funded native/coin dues, forged
+receipt rejection, shared dwelling consumption without duplicated wear, shared-pool
+cost transfer, zero-cost regeneration, and rounding
+without spending same-boundary incoming stock. These checks establish journal
+recognition and conservation, not household welfare or economic balance.
+
+The larger specialist-household integration test is deliberately opt-in because
+its repeated planner verification is substantially slower than the focused tests.
+It uses 32 people, eight households, the default contributed-labor governance,
+explicit unit opening costs and equal total joint-output cost shares. Its target
+is 13 months, including the first annual-dues boundary. Run it from `exp/economics`:
+
+```sh
+cargo +1.92.0 test --locked --test household_accounting specialist_households -- --ignored --nocapture
+```
+
+The fixture keeps the real specialist catalog, finite shared inputs, house/tool
+manufacture, household sharing, forwards and collection-linked currency rules.
+Equal accounting cost shares are a test convention, not calibrated market values.
+
+Validation result: **92 focused/regression checks passed**, plus the explicit
+32-person CPU run completed all 13 months and finalized balanced statements for
+every agent. The slow run took about nine minutes on this machine. Strict
+all-target Clippy, formatting and repository artifact checks passed. The result
+establishes supported accounting through this scenario; it does not validate all
+royalty, insolvency, FX or dissolution arrangements. Logs remain under ignored
+`output/economics/`.

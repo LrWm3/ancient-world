@@ -273,3 +273,15 @@ and equipment barter with supplied exchange values. Credit-stress scenarios now
 produce journal reports through audited telemetry. See
 [coverage expansion](FINANCIAL-STATEMENTS.md#coverage-expansion-and-remaining-adapters)
 for the verified cases and remaining gaps.
+
+
+### Household financial reporting
+
+The double-entry adapter now observes household allocation, core execution and
+collection in their actual order. Pooled stock retains carrying cost, cash support
+has classified operating flows, and member dues retain the member's liability.
+Unpaid shared labor remains nonfinancial. Authorized environmental pool inputs
+carry their historical cost into production; regeneration adds zero-cost quantity.
+See [financial statements](FINANCIAL-STATEMENTS.md#household-pooling-and-shared-resource-inputs)
+for conventions and checks. This does not add dissolution, ownership consolidation,
+paid-labor capitalization or unrestricted third-party production accounting.
