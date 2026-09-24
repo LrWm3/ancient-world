@@ -408,6 +408,22 @@ impl Audit {
         let mut asset_values = self.asset_values.clone();
         let mut equipment_lines = Vec::new();
         let mut wear_costs = BTreeMap::new();
+        let mut equipment_state = before.clone();
+        if batch.phase == Phase::Open {
+            crate::activities::age(world, &mut equipment_state);
+            for (id, old) in &before.equipment {
+                let spent = old.remaining_uses - equipment_state.equipment[id].remaining_uses;
+                if spent != 0 {
+                    let basis = *asset_values.get(id).ok_or("missing equipment basis")?;
+                    let cost = basis
+                        .checked_mul(i128::from(spent))
+                        .ok_or("equipment decay overflow")?
+                        / i128::from(old.remaining_uses);
+                    asset_values.insert(*id, basis - cost);
+                    result(&mut equipment_lines, old.owner, Account::Depreciation, cost);
+                }
+            }
+        }
         for t in &batch.transactions {
             let purchase = if let Some(trade) = &t.trade {
                 let offer = world
@@ -470,30 +486,52 @@ impl Audit {
                 }
                 asset_values.insert(asset, price);
             }
+            // Reconstruct the same equipment binding boundary used by settlement.
+            if t.trade.is_some() {
+                crate::equipment::apply_trade(world, &mut equipment_state, t)?;
+            }
+            let mut uses = BTreeMap::new();
             if let Some(id) = t.technique_use.as_ref().and_then(|u| u.asset) {
-                let old = before
-                    .equipment
-                    .get(&id)
-                    .ok_or("missing opening equipment")?;
-                let new = after
-                    .equipment
-                    .get(&id)
-                    .ok_or("missing closing equipment")?;
-                let spent = old
-                    .remaining_uses
-                    .checked_sub(new.remaining_uses)
-                    .ok_or("equipment repair needs a cost adapter")?;
-                let basis = *asset_values.get(&id).ok_or("missing equipment basis")?;
-                let cost = basis
-                    .checked_mul(i128::from(spent))
-                    .ok_or("equipment wear overflow")?
-                    .checked_div(i128::from(old.remaining_uses))
-                    .ok_or("cannot depreciate exhausted equipment")?;
-                let process = t.process.as_ref().ok_or("wear without process")?;
-                accounting::add(&mut wear_costs, process.after.id, cost)?;
-                asset_values.insert(id, basis - cost);
+                let old = equipment_state.equipment[&id].remaining_uses;
+                crate::equipment::apply_use(world, before, &mut equipment_state, t)?;
+                uses.insert(
+                    id,
+                    (old, old - equipment_state.equipment[&id].remaining_uses),
+                );
+            }
+            if let Some(change) = &t.process {
+                if change.after.status != Status::Aborted
+                    && world
+                        .activities
+                        .required
+                        .contains_key(&change.after.definition)
+                {
+                    let ids = crate::activities::bindings(
+                        world,
+                        &equipment_state,
+                        &change.after,
+                        &BTreeMap::new(),
+                    )?;
+                    let id = ids[0];
+                    uses.insert(id, (equipment_state.equipment[&id].remaining_uses, 1));
+                }
+                crate::activities::apply(world, &mut equipment_state, change)?;
+                for (id, (old, spent)) in uses {
+                    if spent == 0 {
+                        continue;
+                    }
+                    let basis = *asset_values.get(&id).ok_or("missing equipment basis")?;
+                    let cost = basis
+                        .checked_mul(i128::from(spent))
+                        .ok_or("equipment wear overflow")?
+                        .checked_div(i128::from(old))
+                        .ok_or("cannot depreciate exhausted equipment")?;
+                    accounting::add(&mut wear_costs, change.after.id, cost)?;
+                    asset_values.insert(id, basis - cost);
+                }
             }
         }
+
         let coin = self.book.denomination();
         let mint_transactions = batch
             .minting
@@ -551,6 +589,7 @@ impl Audit {
                 &process_transactions,
                 coin,
                 &wear_costs,
+                &mut asset_values,
             )?;
             (Some(costs), inventory, lines)
         } else {

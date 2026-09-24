@@ -156,6 +156,13 @@ pub fn wants(world: &World, state: &State, order: &WorkOrder) -> bool {
 }
 
 /// Applied only after process effects and its dated transition have been validated.
+/// Stable identity shared by execution and financial recognition.
+pub(crate) fn produced_asset_id(process: u64) -> Result<AssetId, String> {
+    PRODUCED_ASSET_ID_BASE
+        .checked_add(u32::try_from(process).map_err(|_| "produced asset ID overflow")?)
+        .ok_or_else(|| "produced asset ID overflow".into())
+}
+
 pub fn apply(world: &World, state: &mut State, change: &ProcessChange) -> Result<(), String> {
     let p = &change.after;
     if p.status == Status::Aborted {
@@ -181,9 +188,7 @@ pub fn apply(world: &World, state: &mut State, change: &ProcessChange) -> Result
         && let Some(Outcome::Create(kind)) = world.activities.outcomes.get(&p.definition)
     {
         let spec = &world.activities.kinds[kind];
-        let id = PRODUCED_ASSET_ID_BASE
-            .checked_add(u32::try_from(p.id).map_err(|_| "produced asset ID overflow")?)
-            .ok_or("produced asset ID overflow")?;
+        let id = produced_asset_id(p.id)?;
         if state.equipment.contains_key(&id) || world.assets.iter().any(|a| a.id == id) {
             return Err("produced asset ID collision".into());
         }

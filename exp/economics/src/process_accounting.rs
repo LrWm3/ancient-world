@@ -33,7 +33,24 @@ impl Costs {
         transactions: &[&Transaction],
         coin: ResourceId,
     ) -> Result<(Self, Inventory, Vec<Line>), String> {
-        self.settle_with_equipment(world, inventory, transactions, coin, &BTreeMap::new())
+        if transactions.iter().any(|t| {
+            t.process.as_ref().is_some_and(|p| {
+                matches!(
+                    world.activities.outcomes.get(&p.after.definition),
+                    Some(crate::activities::Outcome::Create(_))
+                )
+            })
+        }) {
+            return Err("durable output requires the equipment cost adapter".into());
+        }
+        self.settle_with_equipment(
+            world,
+            inventory,
+            transactions,
+            coin,
+            &BTreeMap::new(),
+            &mut BTreeMap::new(),
+        )
     }
     pub(crate) fn settle_with_equipment(
         &self,
@@ -42,6 +59,7 @@ impl Costs {
         transactions: &[&Transaction],
         coin: ResourceId,
         wear: &BTreeMap<u64, i128>,
+        asset_values: &mut BTreeMap<AssetId, i128>,
     ) -> Result<(Self, Inventory, Vec<Line>), String> {
         let mut next = self.clone();
         let mut stocks = inventory.clone();
@@ -139,6 +157,24 @@ impl Costs {
                             return Err("aborted output unsupported".into());
                         }
                         Some(Account::ProductionLoss)
+                    }
+                    Status::Completed
+                        if matches!(
+                            world.activities.outcomes.get(&p.definition),
+                            Some(crate::activities::Outcome::Create(_))
+                        ) =>
+                    {
+                        if !outputs.is_empty() {
+                            return Err(
+                                "joint durable/stock outputs require a cost allocation policy"
+                                    .into(),
+                            );
+                        }
+                        let id = crate::activities::produced_asset_id(p.id)?;
+                        if asset_values.insert(id, cost).is_some() {
+                            return Err("produced asset already valued".into());
+                        }
+                        None
                     }
                     Status::Completed if outputs.is_empty() => Some(Account::ProductionExpense),
                     Status::Completed => {
