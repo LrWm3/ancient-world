@@ -18,7 +18,7 @@ remaining financial work.
 | Contracts and lending | Direct consented advances and mortgages share a loan book; loan, land and forward claims share execution; guarantees share inspection | Common acceptance/performance adapters for all arrangements; autonomous general loan discovery/underwriting |
 | [Creditor allocation](CREDITOR-ALLOCATION.md) | Ranked collection and opt-in proportional loan/land allocation, including accepted coin tender and whole-unit conversion | Standalone land and forward allocation; additional denominations/routes and indivisible obligations |
 | Recovery | Capped guarantees with recourse; authorized stays, frozen interest, dedicated estate custody, funded sales, secured/general distributions, surplus and loan write-offs; land/forward admission and explicit forward relief | General non-loan discharge, multiple currencies/liens, guarantee lien subrogation, autonomous liquidation and death/dissolution estates |
-| [Financial statements](FINANCIAL-STATEMENTS.md) | Per-agent double-entry journal, trial balance, balance sheet, income, cash flows and equity changes; strict loan/mortgage/recovery adapters | Inventory/production, markets/minting, forwards/dues, households, FX and consolidation adapters |
+| [Financial statements](FINANCIAL-STATEMENTS.md) | Per-agent double-entry journal, trial balance, balance sheet, income, cash flows and equity changes; strict loan/mortgage/recovery and costed spot-trade adapters | Production/consumption, town markets/minting, forwards/dues, households, FX and consolidation adapters |
 | Observability | External metrics and logs; planning/settlement observers; requested, allocated and paid recovery receipts | Broader subsystem coverage as integrations are added |
 
 [Contract recovery](CONTRACT-RECOVERY.md) is explicitly limited to configured,
@@ -47,8 +47,10 @@ rerun remains outstanding.
 Current [financial statement work](FINANCIAL-STATEMENTS.md) adds reconciled reporting
 without changing execution. Supported financial scenarios reject missing valuations
 and unsupported adapters rather than silently reporting incomplete totals. The
-focused run passed **79 tests across seven suites**, plus both CPU report examples,
-formatting and strict all-target Clippy; full-crate rerun remains outstanding.
+initial focused run passed **79 tests across seven suites**, plus both CPU mortgage
+report examples. The costed inventory/spot-trade extension passed **41 distinct tests
+across six suites** and its CPU export, with formatting and strict all-target Clippy.
+Full-crate rerun remains outstanding.
 
 ## Purpose and existing scenarios
 

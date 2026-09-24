@@ -33,7 +33,8 @@ transactions. Negative net worth is allowed.
 `open_at` dates a snapshot and rejects reports reaching behind that opening. Opening
 equity is not income and cannot subsequently be posted as a balancing adjustment.
 The generic chart also supports explicitly costed inventory, cost of sales,
-depreciation and capital movements. Manual postings require their own domain
+depreciation and capital movements. Spot inventory exchanges now have a validated
+adapter as described below. Manual postings require their own domain
 validation; the journal cannot determine whether an economically plausible entry
 really occurred.
 
@@ -70,6 +71,7 @@ These are in-memory checkpoints; durable accounting serialization is not impleme
 | Financed asset purchase | Buyer records the full purchase basis and loan payable. Seller derecognizes carrying cost and records disposal gain/loss. Only actual cash enters cash flows; funds paid directly to the seller are not fictional borrower cash receipts. Seller and lender may differ. |
 | Fixed-value repossession | Asset transfers at the contractual value, reducing principal/interest; debtor recognizes disposal gain/loss against carrying cost. Debt extinguishment is noncash. Actual funded surplus alone moves cash. Remaining deficiency remains payable. |
 | Repossession awaiting resale | Borrower retains the economic asset while the creditor holds title for realization. No second lender asset or premature profit. Actual sale updates the buyer's basis, pays creditor/surplus and recognizes the debtor's disposal result. |
+| Spot stock exchange | Seller records actual proceeds as revenue and releases opening carrying cost as cost of sales. Buyer capitalizes actual payment into inventory. Both cash legs are operating. Posted stock bids and bilateral negotiation/ZIP use the same cost subledger. |
 | Called guarantee | Creditor receives actual principal/interest cash; guarantor exchanges cash for the recourse receivable. Borrower substitutes creditor, rather than receiving debt-relief income. |
 | Estate sweep | Debtor cash becomes restricted cash. Estate recognizes equal custody cash and custody payable; custody is not estate wealth or income. |
 | Estate asset sale | Buyer records acquired asset; debtor derecognizes it, recognizes gain/loss and restricted sale proceeds; estate records matching custody positions. |
@@ -84,13 +86,61 @@ This is a model-specific cost/contract-value convention, not a claim of complian
 with a real-world accounting standard.
 
 The adapter recognizes the selected coin at one reporting tick per stored tick.
-It rejects other nonzero stocks or stock movements without valuation, mixed loan
-or estate denominations, equipment, forwards, land-dues obligations, households,
-production and market/minting transactions. Unsupported activity is an error,
+It rejects nonzero stocks without explicit opening cost, unsupported stock movements,
+mixed loan or estate denominations, equipment, forwards, land-dues obligations,
+households, production, town-market clearing and minting transactions. Unsupported activity is an error,
 not zero value or an unexplained income/equity adjustment. Unused capacities and
 need satisfaction are not financial assets. Uncalled guarantees remain contingent
 agreements in the contract inspection view; they are not recognized liabilities
 or a complete accounting disclosure schedule here.
+
+## Costed inventory and spot exchange
+
+`Audit::with_inventory` accepts **total opening carrying cost** per `(agent, resource)`
+plus the existing tangible-asset valuations. Explicit zero cost is valid; absent
+cost for a nonzero stock is an error. An `inventory_accounting::Inventory` subledger
+tracks quantities and reporting-tick costs separately from simulation resource
+quantities. Every committed reporting boundary reconciles both quantities and
+monetary positions. Its candidate changes publish atomically with the journal.
+
+The costing policy is **opening-boundary weighted average**, not current market
+price or agent willingness to pay. For opening quantity Q and cost C, total sales
+of q release `floor(C * q / Q)` ticks. All sales from the same holding in the same
+boundary are pooled before rounding; remaining rounding ticks stay in inventory
+until it is depleted. Purchases add their actual paid cost after opening-stock
+sales have been costed. Incoming stock cannot fund a same-boundary sale, matching
+the settlement reservation rule. Transaction order and splitting identical total
+sales into smaller lots therefore do not change total cost of sales.
+
+Only verified one-good/one-coin spot transactions are admitted: existing posted
+stock bids and bilateral negotiated trades, including ZIP quotes. A quote or a
+failed/unfunded match creates no revenue. The adapter does not alter prices,
+allocation, permissions, storage checks or the monthly schedule. It does not infer
+an exchange merely from coincident stock/cash changes.
+
+The controlled CPU example sells two grain units carried at 14 ticks for 40 ticks:
+the seller recognizes 40 revenue, 14 cost of sales and 26 profit; the buyer records
+40 inventory and zero profit. A six-month ZIP control checks realized revenue
+against actual proceeds while preserving cost independently of quote changes.
+Split-lot and reversed-order controls cover rounding, full depletion and simultaneous
+sales/purchases; checkpoint, forged-batch and missing-cost controls preserve atomicity.
+
+Run the one-month CPU report:
+
+```sh
+cargo +1.92.0 run --locked --example inventory_statements > ../../output/economics/inventory-statements.md
+```
+
+Inventory extension validation: **41 distinct tests passed** across `accounting`
+(11), `inventory_accounting` (6), `finance` (3), `negotiation` (7), `storage_currency`
+(7) and `zip` (7). The first focused run contained five inventory tests; the final
+six-test inventory run added the ZIP accounting control. CPU export, formatting,
+strict all-target Clippy and repository artifact checks passed. No full-crate
+rerun was performed.
+
+This is exchange accounting, not yet production costing, consumption expense,
+spoilage, commodity obligations, barter, or town-market accounting. Those stock
+movements still reject even when their resource already has an inventory cost.
 
 ## Run and inspect
 
@@ -117,7 +167,7 @@ costed inventory sale, capital distributions, period reporting and cloned checkp
 continuation. Invalid entity cross-netting, missing valuation, unjournaled changes,
 unclassified cash, duplicate entries, overflow and invalid opening periods reject.
 
-Completed validation: **79 tests passed** across `accounting` (11), `credit` (9),
+Initial financial adapter validation: **79 tests passed** across `accounting` (11), `credit` (9),
 `finance` (3), `lending` (18), `loan_views` (5), `recovery` (26) and `resale` (7).
 Formatting, strict all-target Clippy, diff whitespace and repository artifact checks
 passed. This is a focused regression run, not a full-crate rerun.
@@ -131,8 +181,8 @@ fixture outcomes, not evidence of sustainable autonomous income.
 
 Extend adapters next, preserving these reconciliation gates:
 
-1. Choose inventory costing and recognition rules for production, consumption,
-   storage losses and market trades; distinguish price from carrying cost.
+1. Extend the costed stock subledger to production, consumption and storage losses,
+   defining input capitalization versus expense. Add town-market and barter adapters.
 2. Define minting input cost, issuance and issuer equity/liabilities explicitly.
 3. Recognize forward advances and delivery obligations, land dues, alternative
    tender, restructuring and delivery write-off in monetary statements without

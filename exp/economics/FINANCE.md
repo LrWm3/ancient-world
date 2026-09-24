@@ -73,8 +73,9 @@ claims without inventing conversion or discharge. Arbitrary event triggers,
 general non-loan discharge, multicurrency recovery, competing liens, general
 death/dissolution administration remain future work.
 [Double-entry financial statements](FINANCIAL-STATEMENTS.md) now cover the full
-report set for cash loans, valued mortgages and loan recovery. Integration with
-production/inventory, minting/markets, forwards/dues and households remains open. Future contract types should supply their terms and receipts
+report set for cash loans, valued mortgages, loan recovery and costed posted or
+bilateral/ZIP spot trades. Production/consumption, town-market/minting, forwards/dues
+and household accounting remain open. Future contract types should supply their terms and receipts
 through this shared view before introducing a second settlement mechanism.
 
 ## Validation
