@@ -186,6 +186,7 @@ pub struct World {
     pub credit: Option<crate::credit::Config>,
     /// Consented direct advances; use the same book and servicing as financed purchases.
     pub lending: Vec<crate::credit::Advance>,
+    pub recovery: crate::recovery::Config,
     /// Rights whose operator/output beneficiary follows the physical asset owner.
     pub ownership_rights: std::collections::BTreeSet<u32>,
     pub collection_policy: crate::finance::CollectionPolicy,

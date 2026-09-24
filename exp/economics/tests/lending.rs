@@ -577,24 +577,46 @@ fn collateral_surplus_cannot_spend_another_claims_reserved_payment() {
 }
 
 #[test]
-fn proportional_collection_rejects_unintegrated_alternative_denominations() {
-    use economics_compute_smoke::finance::CollectionPolicy;
-    let (mut w, s) = scenario::baseline();
+fn alternative_tender_competes_with_coin_loans_without_double_settlement() {
+    use economics_compute_smoke::{activities::CoinPayment, finance::CollectionPolicy};
+    let (mut w, mut s) = scenario::named("annual-access").unwrap();
+    w.participants.clear();
+    w.condition_rules.clear();
+    w.definitions.clear();
+    w.priority = Priority::ContinuingFirst;
     w.collection_policy = CollectionPolicy::Proportional;
-    assert!(Simulation::new(w, s, Backend::Reference).is_err());
-    let (mut w, s) = fixture();
-    w.collection_policy = CollectionPolicy::Proportional;
-    // Alternative terms cannot silently bypass the native collection grant.
+    w.resources.push(Resource {
+        id: TOKEN,
+        name: "coins".into(),
+        kind: ResourceKind::Stock,
+    });
+    w.agreements[0].payment.quantity = 4;
     w.activities.coin_payments.insert(
         1,
-        economics_compute_smoke::activities::CoinPayment {
+        CoinPayment {
             resource: TOKEN,
             coins_per_unit: 2,
         },
     );
-    assert!(
-        credit::validate(&w, &s)
-            .unwrap_err()
-            .contains("native-denomination")
-    );
+    w.lending = vec![advance(10, STATE_AGENT, PERSON, TOKEN, 4)];
+    w.lending[0].month = 12;
+    w.lending[0].terms.term_months = 1;
+    s.month = 12;
+    s.balances.clear();
+    s.balances.insert((STATE_AGENT, TOKEN), 4);
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    sim.run_months(1).unwrap();
+    sim.state.balances.insert((PERSON, TOKEN), 5);
+    sim.state.balances.insert((PERSON, GRAIN), 2);
+    sim.step().unwrap();
+    let boundary = credit::evaluate(&sim.world, &sim.state).unwrap().unwrap();
+    assert_eq!(boundary.collections[0].paid, 3);
+    assert_eq!(boundary.collections[1].paid, 3); // 2 native + 1 via two coins
+    assert_eq!(boundary.collections[1].allocated, Some(3));
+    sim.step().unwrap();
+    assert_eq!(sim.state.obligations[&(1, 13)].in_kind_paid, 2);
+    assert_eq!(sim.state.obligations[&(1, 13)].paid, 3);
+    assert_eq!(sim.state.credit.loans[&10].principal, 1);
+    assert_eq!(sim.state.balance(PERSON, TOKEN), 0);
+    assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 5);
 }

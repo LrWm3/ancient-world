@@ -13,6 +13,7 @@ pub enum Action {
     LandAccess,
     Membership,
     EquipmentTrade,
+    AssetTrade,
     StockTrade,
     CapacityTrade,
     FinancedPurchase,

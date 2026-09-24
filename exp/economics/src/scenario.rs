@@ -164,6 +164,7 @@ pub fn baseline() -> (World, State) {
         work_choice: None,
         credit: None,
         lending: vec![],
+        recovery: crate::recovery::Config::default(),
         collection_policy: crate::finance::CollectionPolicy::Stable,
         claim_priorities: BTreeMap::new(),
         ownership_rights: Default::default(),

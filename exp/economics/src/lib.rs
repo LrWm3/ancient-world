@@ -135,3 +135,7 @@ pub mod cooperation;
 pub mod laws;
 
 pub mod minting;
+
+pub mod recovery;
+
+mod asset_exchange;

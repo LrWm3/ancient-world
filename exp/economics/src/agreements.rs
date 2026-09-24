@@ -13,6 +13,7 @@ pub enum Identity {
     Process(u64),
     Loan(u32),
     Forward(AssetId),
+    Guarantee(u32),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -214,6 +215,7 @@ pub enum View<'a> {
     Agreement(Box<Agreement>),
     Loan(LoanView<'a>),
     Forward(&'a crate::forward::Contract),
+    Guarantee(GuaranteeView),
 }
 
 impl View<'_> {
@@ -224,6 +226,7 @@ impl View<'_> {
             Self::Agreement(a) => Ok(a.obligations.iter().map(|o| o.claim.clone()).collect()),
             Self::Loan(a) => Ok(a.claim()?.into_iter().collect()),
             Self::Forward(a) => Ok(vec![a.claim()]),
+            Self::Guarantee(a) => Ok(a.call.clone().into_iter().collect()),
         }
     }
     pub fn identity(&self) -> Identity {
@@ -231,6 +234,7 @@ impl View<'_> {
             Self::Agreement(a) => a.identity.clone(),
             Self::Loan(a) => Identity::Loan(a.record.id),
             Self::Forward(a) => Identity::Forward(a.id),
+            Self::Guarantee(a) => Identity::Guarantee(a.terms.id),
         }
     }
 
@@ -239,6 +243,7 @@ impl View<'_> {
             Self::Agreement(a) => a.grantor,
             Self::Loan(a) => Counterparty::Agent(a.record.creditor),
             Self::Forward(a) => Counterparty::Agent(a.creditor),
+            Self::Guarantee(a) => Counterparty::Agent(a.terms.guarantor),
         }
     }
 
@@ -247,6 +252,7 @@ impl View<'_> {
             Self::Agreement(a) => a.holder,
             Self::Loan(a) => a.record.debtor,
             Self::Forward(a) => a.debtor,
+            Self::Guarantee(a) => a.creditor,
         }
     }
 
@@ -255,12 +261,26 @@ impl View<'_> {
             Self::Agreement(a) => a.accepted_month,
             Self::Loan(a) => a.record.opened,
             Self::Forward(a) => a.issued,
+            Self::Guarantee(a) => a.terms.from,
         }
     }
 }
 
+/// Read-only contingent exposure. A callable guarantee is not extra principal
+/// owed by the borrower; payment substitutes a recourse creditor in the loan book.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GuaranteeView {
+    pub terms: crate::recovery::Guarantee,
+    pub debtor: AgentId,
+    pub creditor: AgentId,
+    pub paid: i32,
+    pub call: Option<finance::Obligation>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoanState {
+    Stayed,
+    Discharged,
     Current,
     /// Observed arrears from a committed collection attempt, not a forecast.
     Overdue {
@@ -309,6 +329,8 @@ impl<'a> LoanView<'a> {
             Status::PendingSale => LoanState::PendingSale {
                 listed: self.listing.expect("validated pending sale view").listed,
             },
+            Status::Stayed => LoanState::Stayed,
+            Status::Discharged => LoanState::Discharged,
             Status::Enforced => LoanState::Deficiency,
             Status::Repaid => LoanState::Repaid,
         }
@@ -391,9 +413,30 @@ pub fn for_agent<'a>(
         }));
     }
     views.extend(state.exchange.forwards.values().map(View::Forward));
+    let mut guarantees: Vec<_> = world.recovery.guarantees.iter().collect();
+    guarantees.sort_by_key(|g| g.id);
+    for g in guarantees {
+        if let Some(loan) = state.credit.loans.get(&g.loan) {
+            views.push(View::Guarantee(GuaranteeView {
+                terms: g.clone(),
+                debtor: loan.debtor,
+                creditor: loan.creditor,
+                paid: state
+                    .credit
+                    .recovery
+                    .paid_guarantees
+                    .get(&g.id)
+                    .copied()
+                    .unwrap_or(0),
+                call: crate::recovery::guarantee_claim(world, &state.credit, state.month, g)?,
+            }));
+        }
+    }
     views.retain(|a| {
         a.accepted_month() <= state.month
-            && (a.holder() == agent || a.grantor() == Counterparty::Agent(agent))
+            && (a.holder() == agent
+                || a.grantor() == Counterparty::Agent(agent)
+                || matches!(a, View::Guarantee(g) if g.debtor == agent))
     });
     Ok(views)
 }

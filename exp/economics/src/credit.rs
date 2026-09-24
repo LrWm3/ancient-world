@@ -110,6 +110,8 @@ pub enum Status {
     Repaid,
     Enforced,
     PendingSale,
+    Stayed,
+    Discharged,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Loan {
@@ -160,7 +162,7 @@ impl Loan {
             .ok_or("debt overflow".into())
     }
     pub fn principal_due(&self, month: u32) -> i32 {
-        if self.status == Status::Enforced {
+        if matches!(self.status, Status::Enforced | Status::Stayed) {
             return self.principal;
         }
         let elapsed = month.saturating_sub(self.opened).min(self.term_months);
@@ -202,6 +204,7 @@ impl Loan {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Book {
+    pub recovery: crate::recovery::Book,
     /// Actual spending against the scoped posted-stock purchase budget.
     pub stock_spent: i32,
     pub pending_sales: BTreeMap<u32, crate::resale::PendingSale>,
@@ -300,6 +303,7 @@ pub enum Event {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Boundary {
+    pub recovery: Vec<crate::recovery::Receipt>,
     pub collections: Vec<finance::CollectionReceipt>,
     pub commitments: Option<crate::commitments::Settlement>,
     pub production_plan: Option<Box<Batch>>,
@@ -317,6 +321,8 @@ pub struct BalanceSheet {
     /// Subset of assets: borrower interest awaiting actual realization.
     pub assets_awaiting_sale: i64,
     pub coins: i64,
+    pub cash_in_custody: i64,
+    pub estate_cash: i64,
     pub assets: i64,
     pub principal_receivable: i64,
     pub interest_receivable: i64,
@@ -325,7 +331,11 @@ pub struct BalanceSheet {
 }
 impl BalanceSheet {
     pub fn equity(&self) -> i64 {
-        self.coins + self.assets + self.principal_receivable + self.interest_receivable
+        self.coins
+            + self.estate_cash
+            + self.assets
+            + self.principal_receivable
+            + self.interest_receivable
             - self.principal_payable
             - self.interest_payable
     }
@@ -348,6 +358,26 @@ pub fn balance_sheet(
         coins: i64::from(state.balance(agent, coin)),
         ..Default::default()
     };
+    for p in &world.recovery.proceedings {
+        if p.denomination != coin {
+            continue;
+        }
+        let cash = i64::from(
+            state
+                .credit
+                .recovery
+                .proceedings
+                .get(&p.id)
+                .map_or(0, |c| c.cash),
+        );
+        if p.estate == agent {
+            b.cash_in_custody += cash;
+            b.coins -= cash;
+        }
+        if p.debtor == agent {
+            b.estate_cash += cash;
+        }
+    }
     if let Some(c) = &world.credit {
         let mut seen = BTreeSet::new();
         for o in &c.offers {
@@ -572,12 +602,29 @@ fn validate_purchase(world: &World, state: &State) -> Result<(), String> {
     Ok(())
 }
 pub fn validate(world: &World, state: &State) -> Result<(), String> {
-    if world.collection_policy == finance::CollectionPolicy::Proportional
-        && (!enabled(world) || !world.activities.coin_payments.is_empty())
-    {
-        return Err("proportional collection currently requires credit servicing and native-denomination land dues".into());
+    if world.collection_policy == finance::CollectionPolicy::Proportional && !enabled(world) {
+        return Err("proportional collection currently requires credit servicing".into());
     }
 
+    if world.collection_policy == finance::CollectionPolicy::Proportional {
+        let currencies: BTreeSet<_> = world
+            .activities
+            .coin_payments
+            .values()
+            .map(|a| a.resource)
+            .collect();
+        if world
+            .agreements
+            .iter()
+            .chain(&world.access_offers)
+            .any(|a| {
+                world.activities.coin_payments.contains_key(&a.id)
+                    && currencies.contains(&a.payment.resource)
+            })
+        {
+            return Err("alternative payment routes cannot form currency chains".into());
+        }
+    }
     if !enabled(world) && state.credit != Book::default() {
         return Err("credit book without accepted lending configuration".into());
     }
@@ -644,6 +691,8 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             return Err("invalid general lending agreement".into());
         }
     }
+    crate::recovery::validate(world, state)?;
+    ids.extend(world.recovery.guarantees.iter().map(|g| g.recourse));
     let assets: BTreeSet<_> = world.assets.iter().map(|a| a.id).collect();
     for (&asset, &who) in &state.credit.owners {
         if !assets.contains(&asset) || !agent(who) {
@@ -682,10 +731,11 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                     || (c.pledged
                         && (!pledged.insert(c.asset)
                             || owner(world, state, c.asset) != Some(l.debtor)))
-                    || (l.status == Status::Active) != c.pledged
+                    || (c.pledged && !matches!(l.status, Status::Active | Status::Stayed))
+                    || (l.status == Status::Active && !c.pledged)
             })
             || (l.status == Status::PendingSale && l.collateral.is_none())
-            || (l.status == Status::Repaid) != (l.debt()? == 0)
+            || matches!(l.status, Status::Repaid | Status::Discharged) != (l.debt()? == 0)
         {
             return Err("invalid loan book".into());
         }
@@ -743,9 +793,11 @@ fn advances(
             continue;
         }
         let creditor = a.terms.creditor;
-        let reason = if [a.debtor, creditor]
-            .iter()
-            .any(|id| state.terminal.contains_key(id))
+        let reason = if crate::recovery::active(world, &out.after, a.debtor).is_some()
+            || crate::recovery::active(world, &out.after, creditor).is_some()
+            || [a.debtor, creditor]
+                .iter()
+                .any(|id| state.terminal.contains_key(id))
             || !crate::laws::evaluate_terms(
                 world,
                 state,
@@ -958,19 +1010,42 @@ fn accrue(loan: &mut Loan, month: u32) -> Result<i32, String> {
     Ok(interest)
 }
 
+#[derive(Default)]
+struct CollectionGrants {
+    native: BTreeMap<finance::ContractId, i32>,
+    alternative: BTreeMap<finance::ContractId, (ResourceId, i32, i32)>,
+}
+impl CollectionGrants {
+    fn get(&self, id: &finance::ContractId) -> Option<&i32> {
+        self.native.get(id)
+    }
+    fn claim_units(&self, id: &finance::ContractId) -> i32 {
+        self.native.get(id).copied().unwrap_or(0)
+            + self
+                .alternative
+                .get(id)
+                .map_or(0, |(_, paid, rate)| paid / rate)
+    }
+}
+
 fn collection_grants(
     world: &World,
     state: &State,
     out: &Boundary,
     execution: &finance::Execution,
     protected: &BTreeMap<Account, i32>,
-) -> Result<Option<BTreeMap<finance::ContractId, i32>>, String> {
+) -> Result<Option<CollectionGrants>, String> {
     if world.collection_policy == finance::CollectionPolicy::Stable {
         return Ok(None);
     }
     let mut requests = vec![];
     for loan in out.after.loans.values() {
-        if matches!(loan.status, Status::Repaid | Status::PendingSale) || state.month <= loan.opened
+        if crate::recovery::active(world, &out.after, loan.debtor).is_some()
+            || matches!(
+                loan.status,
+                Status::Repaid | Status::Discharged | Status::PendingSale | Status::Stayed
+            )
+            || state.month <= loan.opened
         {
             continue;
         }
@@ -1021,7 +1096,83 @@ fn collection_grants(
             },
         });
     }
-    finance::proportional_grants(world, state.month, execution, protected, &requests).map(Some)
+    let currencies: BTreeSet<_> = world
+        .activities
+        .coin_payments
+        .values()
+        .map(|a| a.resource)
+        .collect();
+    if crate::commitments::active(world, state).any(|a| {
+        world.activities.coin_payments.contains_key(&a.id)
+            && currencies.contains(&a.payment.resource)
+    }) {
+        return Err("alternative payment routes cannot form currency chains".into());
+    }
+    let mut window = execution.clone();
+    for (account, amount) in protected {
+        window.protect(*account, *amount);
+    }
+    let mut result = CollectionGrants::default();
+    let ranks: BTreeSet<_> = requests.iter().map(|r| r.rank).collect();
+    for rank in ranks {
+        for currency_pass in [false, true] {
+            let mut pass = vec![];
+            let mut lots = BTreeMap::new();
+            let mut alternatives = BTreeSet::new();
+            for r in requests.iter().filter(|r| r.rank == rank) {
+                if currencies.contains(&r.claim.transfer.amount.resource) == currency_pass {
+                    pass.push(r.clone());
+                }
+                if currency_pass
+                    && let finance::ContractId::Land(id) = r.contract
+                    && let Some(tender) = world.activities.coin_payments.get(&id)
+                {
+                    let mut alt = r.clone();
+                    let remaining = r.claim.outstanding()
+                        - result.native.get(&r.contract).copied().unwrap_or(0);
+                    alt.claim.transfer.amount = Amount::new(
+                        tender.resource,
+                        remaining
+                            .checked_mul(tender.coins_per_unit)
+                            .ok_or("alternative claim overflow")?,
+                    );
+                    alt.claim.settled = 0;
+                    lots.insert(r.contract, tender.coins_per_unit);
+                    alternatives.insert(r.contract);
+                    pass.push(alt);
+                }
+            }
+            let grants = finance::proportional_lots(
+                world,
+                state.month,
+                &window,
+                &BTreeMap::new(),
+                &pass,
+                &lots,
+            )?;
+            for r in pass {
+                let amount = grants[&r.contract];
+                if amount > 0 {
+                    window.exchange(
+                        world,
+                        &[finance::Transfer {
+                            amount: Amount::new(r.claim.transfer.amount.resource, amount),
+                            ..r.claim.transfer.clone()
+                        }],
+                    )?;
+                }
+                if alternatives.contains(&r.contract) {
+                    result.alternative.insert(
+                        r.contract,
+                        (r.claim.transfer.amount.resource, amount, lots[&r.contract]),
+                    );
+                } else {
+                    result.native.insert(r.contract, amount);
+                }
+            }
+        }
+    }
+    Ok(Some(result))
 }
 
 fn due(
@@ -1032,6 +1183,7 @@ fn due(
 ) -> Result<(), String> {
     let mut execution = finance::Execution::opening(world, state);
     execution.available = budgets.clone();
+    crate::recovery::open(world, state, out)?;
     let protected = crate::commitments::protected_stock(world, state)?;
     let mut collection_state = state.clone();
     let grants = collection_grants(world, state, out, &execution, &protected)?;
@@ -1082,17 +1234,33 @@ fn due(
         .collect();
     let mut reserved = BTreeMap::<Account, i32>::new();
     if let Some(grants) = &grants {
-        for (contract, quantity) in grants {
+        for (contract, quantity) in &grants.native {
             let value = reserved.entry(accounts[contract]).or_default();
             *value = value
                 .checked_add(*quantity)
                 .ok_or("collection reservation overflow")?;
         }
     }
+    if let Some(grants) = &grants {
+        for (contract, (resource, amount, _)) in &grants.alternative {
+            let account = (accounts[contract].0, *resource);
+            let value = reserved.entry(account).or_default();
+            *value = value
+                .checked_add(*amount)
+                .ok_or("alternative reservation overflow")?;
+        }
+    }
     for (rank, contract) in order {
         if let Some(grants) = &grants {
             *reserved.entry(accounts[&contract]).or_default() -=
                 grants.get(&contract).copied().unwrap_or(0);
+        }
+        if let Some((resource, amount, _)) =
+            grants.as_ref().and_then(|g| g.alternative.get(&contract))
+        {
+            *reserved
+                .entry((accounts[&contract].0, *resource))
+                .or_default() -= amount;
         }
         let id = match contract {
             finance::ContractId::Loan(id) => id,
@@ -1114,6 +1282,18 @@ fn due(
                         ),
                     );
                 }
+                let alternative = grants
+                    .as_ref()
+                    .and_then(|g| g.alternative.get(&contract))
+                    .map(|(resource, amount, _)| {
+                        let account = (agreement.debtor, *resource);
+                        let opening = execution.available.get(&account).copied().unwrap_or(0);
+                        let limited = opening.min(
+                            amount.saturating_add(protected.get(&account).copied().unwrap_or(0)),
+                        );
+                        execution.available.insert(account, limited);
+                        (account, opening, limited)
+                    });
                 let limited = execution.available.get(&account).copied().unwrap_or(0);
                 let settlement = crate::commitments::evaluate_selected(
                     world,
@@ -1121,11 +1301,13 @@ fn due(
                     &mut execution,
                     Some(id),
                 )?;
+                if let Some((account, opening, limited)) = alternative {
+                    let spent = limited - execution.available.get(&account).copied().unwrap_or(0);
+                    execution.available.insert(account, opening - spent);
+                }
                 let spent = limited - execution.available.get(&account).copied().unwrap_or(0);
                 execution.available.insert(account, opening - spent);
-                let mut remaining_grant = grants
-                    .as_ref()
-                    .map(|g| g.get(&contract).copied().unwrap_or(0));
+                let mut remaining_grant = grants.as_ref().map(|g| g.claim_units(&contract));
                 for (key, obligation) in
                     settlement.obligations.iter().filter(|(key, _)| key.0 == id)
                 {
@@ -1165,7 +1347,13 @@ fn due(
             finance::ContractId::Forward(_) => unreachable!("forwards collect at Acquire"),
         };
         let mut l = out.after.loans[&id].clone();
-        if matches!(l.status, Status::Repaid | Status::PendingSale) || state.month <= l.opened {
+        if crate::recovery::active(world, &out.after, l.debtor).is_some()
+            || matches!(
+                l.status,
+                Status::Repaid | Status::Discharged | Status::PendingSale | Status::Stayed
+            )
+            || state.month <= l.opened
+        {
             continue;
         }
         if l.status == Status::Active {
@@ -1300,6 +1488,8 @@ fn due(
         execution.available = budgets.clone();
         out.after.loans.insert(id, l);
     }
+    crate::recovery::guarantees(world, state, out, &mut execution)?;
+    crate::recovery::distribute(world, state, out, &mut execution)?;
     *budgets = execution.available;
     Ok(())
 }
@@ -1312,6 +1502,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
         return Ok(None);
     }
     let mut out = Boundary {
+        recovery: vec![],
         collections: vec![],
         commitments: None,
         production_plan: None,
@@ -1366,6 +1557,10 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
         }
         Phase::Due => due(world, state, &mut out, &mut budgets)?,
         Phase::Acquire => {
+            let mut execution = finance::Execution::opening(world, state);
+            execution.available = budgets.clone();
+            crate::recovery::sales(world, state, &mut out, &mut execution)?;
+            budgets = execution.available;
             advances(world, state, &mut out, &mut budgets)?;
             if let Some(c) = &world.credit {
                 let should_purchase = match &c.purchase_policy {

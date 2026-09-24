@@ -107,6 +107,112 @@ pub(super) fn batch(
                 records.push(json!({"kind":"claim_collection","contract":format!("{:?}",collection.contract),"rank":collection.rank,"debtor":collection.debtor,"creditor":collection.creditor,"resource":collection.requested.resource,"requested":collection.requested.quantity,"allocated":collection.allocated,"paid":collection.paid}));
             }
         }
+        for receipt in &credit.recovery {
+            use crate::recovery::Receipt;
+            let (case_id, detail) = match receipt {
+                Receipt::Opened {
+                    proceeding,
+                    authority,
+                    debtor,
+                } => (
+                    Some(*proceeding),
+                    json!({"event":"Opened","authority":authority,"debtor":debtor}),
+                ),
+                Receipt::OpeningRejected { proceeding } => {
+                    (Some(*proceeding), json!({"event":"OpeningRejected"}))
+                }
+                Receipt::Guaranteed {
+                    guarantee,
+                    loan,
+                    requested,
+                    paid,
+                    recourse,
+                } => {
+                    let g = world
+                        .recovery
+                        .guarantees
+                        .iter()
+                        .find(|g| g.id == *guarantee)
+                        .expect("validated guarantee");
+                    let l = &credit.after.loans[loan];
+                    if selected(config, g.guarantor) || visible(l) {
+                        records.push(json!({"kind":"guarantee_payment","guarantee":guarantee,"loan":loan,"guarantor":g.guarantor,"requested":requested,"paid":paid,"recourse":recourse}));
+                    }
+                    continue;
+                }
+                Receipt::Sold {
+                    proceeding,
+                    asset,
+                    buyer,
+                    proceeds,
+                } => (
+                    Some(*proceeding),
+                    json!({"event":"Sold","asset":asset,"buyer":buyer,"proceeds":proceeds}),
+                ),
+                Receipt::SaleRejected { bid } => {
+                    let b = world
+                        .recovery
+                        .bids
+                        .iter()
+                        .find(|b| b.id == *bid)
+                        .expect("validated bid");
+                    (
+                        Some(b.proceeding),
+                        json!({"event":"SaleRejected","bid":bid,"buyer":b.buyer}),
+                    )
+                }
+                Receipt::Distributed {
+                    proceeding,
+                    loan,
+                    requested,
+                    allocated,
+                    paid,
+                    secured,
+                } => (
+                    Some(*proceeding),
+                    json!({"event":"Distributed","loan":loan,"requested":requested,"allocated":allocated,"paid":paid,"secured":secured}),
+                ),
+                Receipt::WrittenOff {
+                    proceeding,
+                    loan,
+                    principal,
+                    interest,
+                } => (
+                    Some(*proceeding),
+                    json!({"event":"WrittenOff","loan":loan,"principal":principal,"interest":interest}),
+                ),
+                Receipt::Closed {
+                    proceeding,
+                    surplus,
+                    deficiency,
+                    discharged,
+                } => (
+                    Some(*proceeding),
+                    json!({"event":"Closed","surplus":surplus,"deficiency":deficiency,"discharged":discharged}),
+                ),
+            };
+            let p = world
+                .recovery
+                .proceedings
+                .iter()
+                .find(|p| Some(p.id) == case_id)
+                .expect("validated proceeding");
+            let involved = [p.debtor, p.authority, p.estate]
+                .into_iter()
+                .any(|a| selected(config, a))
+                || credit
+                    .after
+                    .loans
+                    .values()
+                    .any(|l| l.debtor == p.debtor && visible(l))
+                || detail
+                    .get("buyer")
+                    .and_then(|b| b.as_u64())
+                    .is_some_and(|a| selected(config, a as AgentId));
+            if involved {
+                records.push(json!({"kind":"estate_recovery","proceeding":p.id,"debtor":p.debtor,"estate":p.estate,"detail":detail}));
+            }
+        }
         for event in &credit.events {
             use crate::credit::Event;
             let (loan, detail) = match event {

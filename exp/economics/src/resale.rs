@@ -223,46 +223,28 @@ pub(crate) fn settle(
         let surplus = price - debt_credit;
         // Split the buyer's payment directly, so surplus never depends on the
         // lender spending funds it has only just received in the same boundary.
-        credit::transfer(
-            out,
-            budgets,
-            buyer.preferences.agent,
-            loan.creditor,
-            loan.denomination,
-            debt_credit,
-        )?;
-        credit::transfer(
-            out,
-            budgets,
-            buyer.preferences.agent,
-            loan.debtor,
-            loan.denomination,
-            surplus,
-        )?;
-        credit::transfer_attachments(
+        let mut execution = crate::finance::Execution::opening(world, state);
+        execution.available = budgets.clone();
+        crate::asset_exchange::settle(
             world,
             state,
             out,
-            loan.collateral
-                .as_ref()
-                .ok_or("sale requires collateral")?
-                .asset,
-            buyer.preferences.agent,
-        );
-        out.after.owners.insert(
-            loan.collateral
-                .as_ref()
-                .ok_or("sale requires collateral")?
-                .asset,
-            buyer.preferences.agent,
-        );
-        out.after.values.insert(
-            loan.collateral
-                .as_ref()
-                .ok_or("sale requires collateral")?
-                .asset,
-            price,
-        );
+            &mut execution,
+            &crate::asset_exchange::AcceptedSale {
+                sale: credit::Sale {
+                    asset: loan
+                        .collateral
+                        .as_ref()
+                        .ok_or("sale requires collateral")?
+                        .asset,
+                    seller: loan.creditor,
+                    price: Amount::new(loan.denomination, price),
+                },
+                buyer: buyer.preferences.agent,
+                payees: vec![(loan.creditor, debt_credit), (loan.debtor, surplus)],
+            },
+        )?;
+        *budgets = execution.available;
         out.after.pending_sales.remove(&id);
         loan.status = credit::Status::Enforced;
         loan.apply_payment(debt_credit);
