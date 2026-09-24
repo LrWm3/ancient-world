@@ -6,7 +6,11 @@ compose. Generic agents, rights, staged processes, need consequences, bounded
 planning and validated transaction batches are implemented. Separate fixtures
 cover repeated harvests, warmth, tools, storage, token issuance, specialization,
 households, citizenship, contested offers, bilateral ZIP pricing and secured credit.
-The [project goals](GOALS.md) define the intended institutional and market direction.
+[Contract consolidation](CONTRACT-CONSOLIDATION.md) now shares direct lending,
+loan/land/forward claim execution and alternative-tender allocation. Bounded
+[contract recovery](CONTRACT-RECOVERY.md) adds guarantees, authorized loan estates
+and funded liquidation; it does not implement the full distress architecture
+proposed below. The [project goals](GOALS.md) define the intended institutional and market direction.
 The larger architecture below remains a proposal; goals are not implementation claims.
 
 The experiment's existing barriers are Open, optional Due, optional Acquire,

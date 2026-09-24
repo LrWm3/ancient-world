@@ -102,6 +102,26 @@ requires both. Insurance can start after stages 3–4, while cleared derivatives
 stage 5. Keep the existing scheduler and explicit allocation boundaries; each new
 case must name its observation, reservation, execution and visibility boundaries.
 
+## Evidence so far — partial coverage, not stage completion
+
+| Stage | Existing evidence | Missing evidence needed for the broader gate |
+| --- | --- | --- |
+| 0: audit | Shared claim executor, conserved transfers, CPU/reference and continuation controls, planning/settlement observers | All drivers composing under one reservation model; organizational authority and budgets |
+| 1: minting | Grain-linked issuance and a separate physical minting/provision pilot with finite inputs and shortfalls | General redemption/backing arrangements and integration with credit and institutions |
+| 2: markets | Bilateral fixed/concession/ZIP pricing, local town books and recurring need orders | General labor/right/asset markets and shared financial/institutional budgets |
+| 3: forwards/loans | Prepaid deliveries, general consented advances, mortgages, alternative-tender allocation, crop-preserving enforcement and actual resale | Autonomous common financing choice; non-loan claim admission and broader liquidation |
+| 4: institutions | Existing household pooling pilot; static law permissions/recognition | Constitution/charter governance, explicit contributed labor, lawful formation and death/dissolution estates |
+| 5: custody/finality | Dedicated loan-estate custody, actual proceeds, secured/general distributions and explicit write-offs | General custody, netting, clearing, custodian failure and legal finality |
+| 8: contingent claims | Capped original-loan guarantees, finite calls and matching recourse | Insurance, margin, options, broader contingent claims and lien subrogation |
+
+The recovery checks include unfunded buyers, finite guarantee budgets, retained
+deficiencies, optional discharge and unchanged attached production.
+[Contract recovery](CONTRACT-RECOVERY.md) records the 451-test full run and 61-test
+final focused run; those overlap and do not certify the stages above. Later
+banking, securities, infrastructure and alternative-civilization gates remain
+verification targets, not implemented systems. The
+[integration matrix](INTEGRATION-STATUS.md) still governs permitted combinations.
+
 ## Stage 0 — Establish the audit baseline
 
 **Needs:** existing agent, resource, process, transaction and condition components.

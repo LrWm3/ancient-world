@@ -65,7 +65,7 @@ misrepresented as conserved transfers between fictional counterparties.
   through `World.ownership_rights`. Repossession changes control and future
   output, not crop progress, elapsed labor or already consumed inputs.
 - `agreements::for_agent` includes membership, land, process, loan and forward
-  views. `View::claims` exposes their recorded collection claims without
+  and guarantee views. `View::claims` exposes their recorded or callable claims without
   creating a second ledger. A collection claim is not a total balance sheet or
   a forecast of all future obligations.
 
@@ -91,10 +91,24 @@ and planning assumptions are migrated.
 
 The shared claim executor is a substantive consolidation, but **not yet a
 universal contract interpreter**. Domain code still materializes dates, chooses
-terms, translates alternative payments and applies its own consequence. The
+terms, supplies accepted alternative-tender rates and applies its own consequence. The
 annual arrears retry, forward collection and loan servicing retain their existing
 visibility boundaries. Autonomous formation/negotiation of every arrangement is
 not established by financial settlement tests.
+
+## Current verification and next integration target
+
+The latest full crate run passed 451 tests; the final affected suites passed
+61 overlapping tests after inspection, checkpoint and receipt refinements.
+See [contract recovery](CONTRACT-RECOVERY.md#completed-validation) for the evidence
+and boundaries. Older totals below describe earlier consolidation snapshots.
+
+The next useful integration target is non-loan claim admission: carry land dues
+and forward deliveries into an authorized proceeding without losing their
+denominations, native-collection receipts, existing timing or consequences.
+This is outstanding work, not supported estate configuration today. Broader
+acquisition adapters remain necessary before the mixed continuing scenario below
+can establish that all these arrangements compose.
 
 ## Ordered remaining work
 

@@ -13,9 +13,9 @@ planning and settlement. Land billing reads the shared recurring payment terms.
 Offer eligibility and atomic acceptance remain in their domain resolvers.
 
 `agreements::for_agent(world, state, agent)` now provides a shared inspection entry
-point for accepted membership, land, process and secured-loan agreements involving
-that holder or grantor. It excludes unaccepted catalog offers and retains terminal
-agreements. It groups domains and orders by stable IDs, independent of catalog row
+point for accepted membership, land, process, loan, forward and guarantee agreements.
+The participant filter includes holders/grantors and all three guarantee parties.
+It excludes unaccepted catalog offers and retains terminal agreements. It groups domains and orders by stable IDs, independent of catalog row
 order. It is a read-only query over validated state, not an acceptance or payment
 interface. A separate output beneficiary who is neither holder nor grantor is not
 included by this participant filter.
@@ -24,13 +24,15 @@ included by this participant filter.
 | --- | --- | --- | --- |
 | Citizenship | Membership in the issuing state with a role; state policy maps the role to actions | None after acceptance | None: there is no upkeep obligation to breach |
 | Land access | Use of a particular right, within its dated duration | Payment annually, first due 12 months after acceptance | Unpaid due amounts suspend **new use of that grant** until fully settled |
-| Secured loan | Accepted coin financing, identified by `Identity::Loan` | Scheduled principal and accrued interest; collectible deficiency after enforcement | `RepossessCollateral` identifies asset, creditor, grace period and accepted fixed-value/resale settlement terms |
+| Loan | Accepted financing in its denomination, identified by `Identity::Loan` | Scheduled principal and accrued interest; collectible deficiency after enforcement | Optional collateral terms identify asset, creditor, grace and settlement; unsecured debt retains arrears |
+| Prepaid forward | Funding already advanced | Recorded undelivered commodity claim | Outstanding delivery restricts new advances under the existing policy |
+| Guarantee | Capped protection of an original loan | Callable guarantor-to-creditor payment | Payment reduces the original claim and creates matching debtor-to-guarantor recourse |
 
 ## Read-only loan adapter
 
 The inspection result is a typed `View`: existing domains expose `Agreement`,
-while loans expose `LoanView`. Both provide identity, grantor, holder and acceptance
-month. A loan's grantor is its creditor, not necessarily the asset seller.
+while loans expose `LoanView` and guarantees expose `GuaranteeView`. The shared
+view provides identity, grantor, holder and acceptance month. A loan's grantor is its creditor, not necessarily the asset seller.
 
 `LoanView::record()` borrows the authoritative `credit::Loan`. Original principal,
 denomination, rate, duration, grace, collateral priority and settlement terms come
@@ -48,6 +50,8 @@ rewrite the inspected accepted terms.
 | PendingSale | Repossessed collateral awaiting realization, with listing month |
 | Deficiency | Enforced loan with remaining collectible debt |
 | Repaid | Principal and interest cleared, including repayment through collateral proceeds |
+| Stayed | Authorized proceeding pauses ordinary collection/enforcement and freezes interest; estate recovery handles the claim |
+| Discharged | Explicitly written-off deficiency, distinct from repayment |
 
 `outstanding()` returns total debt in its denomination. `claim()` returns the
 current shared financial claim, or none when no amount is due, the debt is repaid,
@@ -55,7 +59,9 @@ or pending resale pauses collection. **No claim does not necessarily mean no
 debt.** In pending sale, full debt remains on both balance sheets, the creditor
 holds title/custody and the borrower retains the restricted financial asset.
 `title_holder()` reports current title; it must not be interpreted as the owner
-of every financial interest or historical crop output.
+of every financial interest or historical crop output. A stayed loan can expose
+its accelerated claim through inspection; that is not authorization for ordinary
+collection. The proceeding controls actual recovery.
 
 The view's `boundary()` records the current month and next phase to execute.
 Inspection does not accrue interest or run collection. Before Due, a scheduled
@@ -69,6 +75,20 @@ evaluator. Their enforcement and custody states retain their own typed meaning.
 Credit offer acceptance, repayment scheduling, resale and balance-sheet calculation
 are unchanged. Borrower redemption remains a
 [possible extension](COLLATERAL-RESALE.md#possible-extension-borrower-repayment-before-resale).
+
+## Guarantee inspection and current recovery coverage
+
+`GuaranteeView` exposes configured accepted terms, original debtor/creditor,
+paid-to-date and any currently callable claim. The borrower, original creditor
+and guarantor can inspect it once the underlying loan exists. Inspection and
+servicing use the same trigger calculation; the view does not reserve funds,
+promise a full payment or add another borrower liability. Actual payment creates
+recourse in the authoritative loan book.
+
+The latest [recovery checks](CONTRACT-RECOVERY.md#completed-validation) include
+all-party filtering, contingent exposure without debt mutation, stays, discharge,
+custody and CPU/checkpoint continuation. Configured consent and authority remain
+distinct from autonomous offer discovery and general legal proceedings.
 
 ## Consequences are agreement terms
 
@@ -126,8 +146,8 @@ debt, and restoration after CPU harvest settlement. Existing commitment and
 membership tests check atomic acceptance, replay, monthly/batched and checkpoint
 continuation, and CPU/reference agreement.
 
-Results: 35 focused and integration tests passed. Four 18-month reference
-regression controls retained identical state, reports and committed batches
+Historical initial-adapter results: 35 focused and integration tests passed.
+Four 18-month reference regression controls retained identical state, reports and committed batches
 (excluding planner diagnostics). Formatting, Clippy with warnings denied and
 repository artifact checks passed. Local test outputs are under ignored `output/`.
 

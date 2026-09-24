@@ -3,11 +3,17 @@
 Implemented in `src/finance.rs`. These primitives serve the existing economics
 experiment. General advances and [secured purchases](SECURED-CREDIT.md) now
 share the loan book and servicing. The active [contract consolidation](CONTRACT-CONSOLIDATION.md)
-record describes implemented integration and the remaining migration before
-creditor allocation, insolvency, guarantees and liquidation.
+record describes implemented integration and remaining adapters.
+[Creditor allocation](CREDITOR-ALLOCATION.md) covers ranked/proportional loan and
+land collection with accepted coin alternatives. [Contract recovery](CONTRACT-RECOVERY.md)
+adds configured guarantees, loan-estate proceedings and funded liquidation.
 
 - `Execution`: shared opening-resource and storage reservations for partial
   claims and atomic exchange packages. Used by loan, land and forward collection.
+- `Execution::pay_tender`: accepted alternative payments transfer actual tender
+  units while extinguishing whole claim units at the agreed rate.
+- `proportional_grants` / internal `proportional_lots`: demand-capped allocation
+  from opening budgets, with explicit ranks, storage limits and whole tender lots.
 - `Transfer`: a positive commodity amount between distinct agents, producing
   equal debit and credit effects. World validation and batch settlement still
   check account eligibility, balances, storage and atomic publication.
@@ -27,11 +33,14 @@ alternative coin payments from creating fictitious grain collections or issuance
 | Path | Shared behavior | Domain responsibility retained |
 | --- | --- | --- |
 | Loans and financed purchases | Optional collateral, conserved advances, dated claims, shared collection budgets and authoritative borrower/creditor positions | Accepted rates, amortization, interest carry, collateral consequence |
-| Land payments | Dated claim, outstanding amount, bounded payment, transfer legs, new-use restriction | Annual bill creation, rights duration, oldest-due ordering, essential reserves, coin conversion and collection-linked issuance |
+| Land payments | Dated claim, outstanding amount, bounded payment, transfer legs, new-use restriction | Annual bill creation, rights duration, oldest-due ordering, essential reserves, accepted conversion terms and collection-linked issuance |
 | Prepaid harvest delivery | Dated claim, outstanding amount, bounded payment, transfer legs, new-advance restriction | Forecast underwriting, prices, treasury funding, protected stock and delivery receipts |
 | Stock exchange | Full payment legs on acceptance | Posted prices, both parties' opening stock, joint storage check |
 | Bilateral negotiation pilot | Both full transfer legs on acceptance | Reservation limits, quote policies, dated price receipt, permissions, joint storage check |
 | Equipment purchase | Full payment leg on acceptance | Ownership, remaining life, single-fill validation and atomic asset transfer |
+| Guarantee calls | Partial claim execution, original-debt reduction and same-book recourse | Configured consent, cap, expiry, trigger and priority; no lien subrogation |
+| Collateral resale and estate asset sale | Shared atomic funded asset-transfer helper, title and attached-process transfer | Buyer selection, accepted price, sale timing and recipient/waterfall rules |
+| Loan-estate distributions | Same executor and ranked/proportional allocation, actual payments and balance-sheet custody treatment | Authorization, stay, frozen interest, lien proceeds, closure and explicit write-off terms |
 
 Cash financing of specialist tools remains a multi-party transaction: the buyer
 and state jointly pay the provider. Its underwriting and combined accounting legs
@@ -57,16 +66,19 @@ This is a small settlement foundation, not a universal contract interpreter.
 A scoped [negotiated-pricing pilot](NEGOTIATED-PRICING.md) now reuses its exchange
 legs, including an opt-in [ZIP quoting policy](ZIP.md). The secured-credit pilot
 adds scoped interest, collateral and symmetric loan balance-sheet views.
-Arbitrary event triggers, guarantees,
-proportional creditor sharing, general insolvency and complete double-entry financial statements
+Capped original-loan guarantees, scoped proportional collection and authorized
+single-denomination loan estates are implemented. Arbitrary event triggers,
+non-loan estate claims, multicurrency recovery, competing liens, general
+death/dissolution administration and complete double-entry financial statements
 remain future work. Future contract types should supply their terms and receipts
 through this shared view before introducing a second settlement mechanism.
 
 ## Validation
 
 The counts and snapshot comparisons below describe the earlier primitive migration.
-See [contract consolidation](CONTRACT-CONSOLIDATION.md) for current integration
-and verification gates; they are not evidence that all arrangements now compose.
+See [contract recovery](CONTRACT-RECOVERY.md#completed-validation) for the latest
+451-test full run and 61-test final focused run (overlapping), and
+[contract consolidation](CONTRACT-CONSOLIDATION.md) for integration gates; they are not evidence that all arrangements now compose.
 
 
 - Shared primitive tests cover acceptance, maturity, partial settlement, protected

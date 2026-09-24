@@ -243,10 +243,14 @@ debt/surplus settlement from actual payment. Missing buyers and insufficient bid
 leave the asset pending. Fixed-value settlement remains available; both variants
 use the same crop-transfer machinery.
 
-Negotiated loan terms, refinancing, unsecured lending, multiple competing claims,
-guarantors, competitive liquidation markets, write-offs and general insolvency remain future
-work. This establishes a secured financing component, not a universal contract
-interpreter or a sustainable farming-and-mortgage economy.
+Subsequent [contract consolidation](CONTRACT-CONSOLIDATION.md) adds unsecured
+direct advances and shared competing-claim allocation. [Contract recovery](CONTRACT-RECOVERY.md)
+adds capped guarantees, configured funded liquidation, explicit write-offs and
+single-denomination direct-loan estates. Pending-resale guarantees and admission
+of this older mortgage driver to estate proceedings remain rejected.
+Negotiated loan terms, refinancing, autonomous competitive liquidation and general
+insolvency remain outstanding. These components do not establish a universal
+contract interpreter or a sustainable farming-and-mortgage economy.
 
 ## Scoped stock-sale extension
 

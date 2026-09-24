@@ -1,14 +1,38 @@
 # Stand-alone agent-based economics experiment
 
-Current financial direction: [consolidate contracts and lending](CONTRACT-CONSOLIDATION.md)
-in the existing model before adding more isolated scenarios, then extend creditor
-allocation, insolvency, guarantees and liquidation. The current
-[creditor allocation policy](CREDITOR-ALLOCATION.md) adds optional proportional
-sharing for loan and land dues, including accepted coin alternatives, at the
-existing Due boundary. [Contract recovery](CONTRACT-RECOVERY.md) adds capped
-guarantees, authorized loan-estate proceedings, and funded asset liquidation
-using the same credit book and settlement primitives.
+## Current progress — 2026-09-23
 
+The CPU experiment now shares loan records, claim execution and funded asset
+transfer across direct lending, secured purchases and bounded recovery. It remains
+a set of partially integrated pilots, not a complete economy or universal contract
+interpreter. The [integration matrix](INTEGRATION-STATUS.md) records supported
+combinations; [contract consolidation](CONTRACT-CONSOLIDATION.md) orders the
+remaining financial work.
+
+| Area | Implemented and exercised | Still outstanding |
+| --- | --- | --- |
+| Persons and planning | Needs, deprivation consequences, repeated processes, bounded forecasts, opportunity search and dated commitments | General discovery across all drivers; reliably sustainable autonomous cooperation |
+| State and law | Citizenship, action permissions, named prohibitions, selected agreement recognition/term limits; issuance and physical minting pilots | Autonomous state objectives, general jurisdiction/founding law, constitutional governance |
+| Households | Agreement formation, pooled resources/storage, shared shelter and spare-labor allocation | Constitution/charter redesign, explicit contributed labor, governance and integrated market/credit budgets |
+| Marketplaces | Bilateral negotiation/ZIP, local town books, need-generated orders and reciprocal commodity markets | Shared acquisition with every driver; general markets for labor, assets, rights and memberships |
+| Contracts and lending | Direct consented advances and mortgages share a loan book; loan, land and forward claims share execution; guarantees share inspection | Common acceptance/performance adapters for all arrangements; autonomous general loan discovery/underwriting |
+| [Creditor allocation](CREDITOR-ALLOCATION.md) | Ranked collection and opt-in proportional loan/land allocation, including accepted coin tender and whole-unit conversion | Standalone land and forward allocation; additional denominations/routes and indivisible obligations |
+| Recovery | Capped guarantees with recourse; authorized stays, frozen interest, dedicated estate custody, funded sales, secured/general distributions, surplus and explicit write-offs | Non-loan claim admission, multiple currencies/liens, guarantee lien subrogation, autonomous liquidation and death/dissolution estates |
+| Observability | External metrics and logs; planning/settlement observers; requested, allocated and paid recovery receipts | Broader subsystem coverage as integrations are added |
+
+[Contract recovery](CONTRACT-RECOVERY.md) is explicitly limited to configured,
+single-denomination loan estates. Land-dues and forward debtors are rejected by
+estate admission until their adapters exist; their obligations are not silently
+discarded. Guarantee consent, proceeding authorization, asset inventories and
+buyers are supplied configuration, not agent-discovered outcomes.
+
+Latest implementation verification: **451 full-suite tests passed**, followed by
+**61 overlapping focused tests** covering the final recovery/inspection changes.
+Formatting, strict all-target Clippy and artifact checks passed. These establish
+the tested accounting and continuation boundaries, not economic calibration or
+arbitrary composition. See the [verification record](CONTRACT-RECOVERY.md#completed-validation).
+
+## Purpose and existing scenarios
 
 The goal is a consistent economy built from generic agents, explicit agreements
 and planning from needs and available opportunities. Persons remain individuals;
@@ -20,8 +44,9 @@ The [project goals](GOALS.md) set the direction: lawful formation, immutable
 constitution templates, initially static charter parameters, governance by persons,
 swappable decision policies,
 contributed labor, local bid/ask marketplaces and explicit estates. They distinguish
-ownership, membership, governance and valuation. These are goals, not implemented
-features; the [integration matrix](INTEGRATION-STATUS.md) records current support.
+ownership, membership, governance and valuation. These describe the target scope,
+not a claim that every feature is implemented; the
+[integration matrix](INTEGRATION-STATUS.md) records current support.
 Physical-world expansion and autonomous state planning remain later priorities.
 
 Optional [external telemetry](TELEMETRY.md) exports metrics and committed-event
@@ -105,8 +130,9 @@ class. Processes describe possible transformations; transactions record outcomes
 
 This is an independent Rust crate with its own manifest, lockfile and toolchain.
 It does not depend on the main world generator, GPU, terrain, history or catalogs.
-The only direct library dependency is [CubeCL 0.10.0](https://docs.rs/cubecl/0.10.0/),
-with its CPU backend enabled. The test kernel and launch helper are generic over
+Compute uses [CubeCL 0.10.0](https://docs.rs/cubecl/0.10.0/) with its CPU backend
+enabled; JSON telemetry uses `serde_json`. The test kernel and launch helper are
+generic over
 CubeCL's runtime; CUDA and other backends can be selected in later work. They are
 not enabled or verified by this CPU smoke test.
 
@@ -152,8 +178,8 @@ cargo +1.92.0 run --locked -- payment-trap-protected
 These commands execute 60 modeled months using **CubeCL's CPU runtime** and
 print a Markdown balance table plus need-specific decision/transaction trace.
 The original `baseline` and its controls still run nine months. Use `--help` for
-all 68 scenarios. Redirect traces to `../../output/economics/` when keeping
-local runs.
+the CLI scenario list; additional financial controls live in tests and examples.
+Redirect traces to `../../output/economics/` when keeping local runs.
 
 Foraging controls run nine months:
 
@@ -201,7 +227,8 @@ The separate `offer-` fixtures compare accepting posted terms with declining.
 Acceptance activates access and dates the first bill twelve months later.
 The horizon comparison holds the configured buffer at six months and extends
 decision forecasts from six to eighteen months. Contract-linked candidates also
-look ahead through production lead time. Negotiation remains unimplemented.
+look ahead through production lead time. Negotiation of these land-offer terms
+remains unimplemented; commodity quote negotiation is a separate implemented pilot.
 
 Payment fixtures compare default DebtFirst with opt-in ProtectEssentials under
 identical opening resources and terms. Protection preserves current essential
@@ -249,13 +276,15 @@ Negative, fractional and zero inputs exercise arithmetic; the excess units exerc
 the tail guard. This checks macro compilation, CPU kernel compilation/execution,
 buffer transfer and readback rather than only importing the dependency.
 
-Verified on Linux x86_64 with Rust 1.92.0: the full regression run passed 102
+Historical specialization/trading validation on Linux x86_64 with Rust 1.92.0:
+the then-current full regression run passed 102
 tests, followed by all six final exchange tests (including one additional
 provider-selection test). Formatting and strict all-target Clippy passed.
 The new 72-month trading scenario matches CPU/reference state, ledger and reports
 exactly; see [the provider-count comparison](TRADING.md#observed-72-month-comparison).
 Earlier controls remain covered by their regression tests. CUDA and other backends
-remain unverified.
+remain unverified. The current suite result is recorded in the progress summary
+above; these historical counts are not additional distinct tests.
 
 ## Design and artifact boundaries
 
@@ -265,7 +294,10 @@ effects are validated and committed at explicit monthly boundaries. The implemen
 boundaries are Open, productive process execution (including planning/reservation),
 consumption and Close. Worlds with equipment offers or stock bids add Acquire after Open: barter
 settles before the dated productive plan executes. Agreement worlds add Due after
-Open and ClearArrears after Productive. General market stages remain empty.
+Open and ClearArrears after Productive. Supported market and credit drivers settle
+through Acquire; there is no universal market stage. Recovery reuses Due for
+proceedings/collection and Acquire for funded sales, with proceeds available to
+creditors at a later Due boundary.
 
 The two-link planner connects each need to consumption and a producing process,
 scores dated shortfall reduction and requests at most one new productive instance

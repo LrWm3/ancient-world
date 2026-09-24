@@ -1,12 +1,16 @@
 # Economics integration and planning interfaces
 
-The next financial work is [contract consolidation](CONTRACT-CONSOLIDATION.md).
-Direct consented loans now reuse the mortgage book with optional collateral,
-share Due reservations/ranks with land claims, and compose with legacy exchange
-or bilateral negotiation at Acquire. Land, forward and loan collections use one
-claim executor. Town/minting/household/search acquisition adapters and general
-insolvency/guarantees/liquidation remain unfinished; the matrix below retains the
-limits of the older scenario drivers.
+Current financial work extends [contract consolidation](CONTRACT-CONSOLIDATION.md).
+Direct consented loans reuse the mortgage book with optional collateral, share Due
+reservations/ranks with land claims, and compose with legacy exchange or bilateral
+negotiation at Acquire. Land, forward and loan collections use one claim executor.
+Optional proportional Due allocation includes accepted coin alternatives.
+
+[Contract recovery](CONTRACT-RECOVERY.md) now adds original-loan guarantees and
+recourse, authorized single-denomination loan estates, custody and funded asset
+liquidation. This is implemented within the existing book and scheduler. General
+claim admission and town/minting/household/search acquisition adapters remain
+unfinished; supporting one combination does not remove another driver's limits.
 
 
 Implemented: a shared acquisition boundary for secured credit, its finite state
@@ -71,6 +75,11 @@ collateral resale remains rejected pending explicit buyer/seller rules.
 | Four-person monthly town book | [Implemented separately](TOWN-MARKET.md): locality, generated orders, multiple counterparties, fixed/ZIP quotes; credit and households remain excluded |
 | Physical minting + scripted or generated dated stock/capacity orders | [Isolated CPU pilot](MINTING.md); excludes other acquisition drivers and collection-linked issuance |
 | State posted bids learning ZIP prices | Not implemented; co-settlement does not change the price-setting policy |
+| Direct loans + native/alternative-tender land dues | Shared Due collection; opt-in proportional policy with whole claim units and protected opening funds |
+| Original-loan guarantees + servicing | Capped calls from remaining opening resources; same-book unsecured recourse, collectible at a later boundary; chains and pending-resale guarantees rejected |
+| Authorized direct-loan estate + configured asset buyers | Single storage-free denomination, dedicated custody, funded sales and loan waterfall; collateral resale shares the asset-transfer helper |
+| Estate + land/forward claims, legacy mortgage driver or active market/negotiation | Rejected; claim admission and acquisition adapters remain outstanding |
+| Death/household dissolution + estate | Not integrated; configured arrears proceedings are not automatic lifecycle administration |
 
 These exclusions are intentional validation boundaries, not claims that every
 agent system can now be combined. Extend one boundary at a time with the same
@@ -104,6 +113,12 @@ to fixtures that have no condition rules.
 
 ## Verification
 
+Latest recovery/consolidation evidence: 451 full-suite tests passed, followed by
+61 overlapping final focused tests; formatting, strict Clippy and artifact checks
+passed. [The recovery record](CONTRACT-RECOVERY.md#completed-validation) identifies
+the final-edit coverage. These counts supersede the overview's earlier totals,
+without claiming that every combination in the matrix is supported.
+
 Run from `exp/economics` with Rust 1.92.0:
 
 ```sh
@@ -113,8 +128,8 @@ cargo +1.92.0 test --locked --test credit --test credit_offers --test stock_sale
 cargo +1.92.0 clippy --locked --all-targets -- -D warnings
 ```
 
-Validation: the full crate run passed 290 tests. After the final common-offer
-dispatch refinement, all 35 focused acquisition, offer, need-accounting, venue,
+Historical acquisition-interface validation: the then-current full crate run
+passed 290 tests. After the final common-offer dispatch refinement, all 35 focused acquisition, offer, need-accounting, venue,
 membership and permission tests passed (including the additional eighth
 acquisition test). All-target Clippy passed with warnings denied. Generated logs
 remain under ignored `output/economics/`.

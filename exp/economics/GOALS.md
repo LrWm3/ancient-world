@@ -5,6 +5,16 @@ not claims of implemented behavior or a commitment to implement everything at on
 The [integration matrix](INTEGRATION-STATUS.md) records supported combinations;
 the [design](DESIGN.md) describes the transaction and process architecture.
 
+## Current position
+
+The [README progress summary](README.md#current-progress--2026-09-23) separates
+implemented pilots from these longer-term goals. Recent consolidation shares loan,
+land and forward claim execution and adds alternative-tender allocation, capped
+guarantees, configured loan-estate recovery and funded liquidation. Those are
+bounded mechanisms, not completed organizational governance or a universal legal
+and financial system. Remaining work is ordered in
+[contract consolidation](CONTRACT-CONSOLIDATION.md).
+
 ## Purpose and consistency
 
 Rebuild economic and institutional behavior from generic agents, explicit
@@ -196,7 +206,10 @@ process obligations while legal and contractual rules determine administration,
 transfer, sale and distribution. Death must not silently delete debt or create
 spendable inheritance before settlement. Estate handling is still a goal for
 persons and households; existing terminal-state or household closure behavior is
-not a complete implementation of this flow.
+not a complete implementation of this flow. The implemented
+[loan-estate recovery](CONTRACT-RECOVERY.md) starts from configured authorization
+and observed arrears. It does not yet connect death/dissolution to estate creation,
+inheritance, household administration or admission of every contractual claim.
 
 ## Incremental development and evidence
 

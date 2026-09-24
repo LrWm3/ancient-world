@@ -232,7 +232,16 @@ fixed-value enforcement), `credit_stock_sale` limits and `collateral_process_tra
 when settlement observation is enabled. These distinguish cash repayment from debt
 cleared through repossession even when both end with status `Repaid`. They are
 filtered by either counterparty and read committed receipts; broader credit/resale
-coverage remains future work. See [credit stress controls](CREDIT-STRESS.md).
+coverage remains incremental. See [credit stress controls](CREDIT-STRESS.md).
+
+The [recovery extension](CONTRACT-RECOVERY.md) adds settlement records
+`guarantee_payment` (requested/paid amounts and recourse identity) and
+`estate_recovery` (opening/rejection, funded/rejected sales, distributions,
+write-offs and closure). Distribution details preserve requested, allocated and
+paid quantities, including zero grants. These read committed receipts under the
+existing filters and log budget; they do not run recovery or infer a payment from
+a balance change. The recovery observer control verifies unchanged simulation
+state/ledger and reconciles distributions and losses.
 
 The opt-in cooperative planner emits `cooperation` records with agreement identity,
 public offers, dated terms, selected work preferences, acceptance scores, logical
