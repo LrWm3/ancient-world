@@ -11,7 +11,7 @@ pub struct Holding {
     pub quantity: i32,
     pub cost: i128,
 }
-/// Verified physical delivery paid for at an earlier boundary.
+/// Verified physical delivery with noncash consideration (prepayment release or barter).
 #[derive(Clone, Debug)]
 pub(crate) struct PrepaidSale {
     pub seller: AgentId,
@@ -71,6 +71,29 @@ impl Inventory {
             }
         }
         Ok(())
+    }
+    /// Release basis only for the domain's explicit, validated expiration effects.
+    pub(crate) fn expire(&self, effects: &[Effect]) -> Result<(Self, Vec<Line>), String> {
+        let mut next = self.clone();
+        let mut lines = vec![];
+        for effect in effects {
+            let old = next
+                .0
+                .remove(&effect.account)
+                .ok_or("unpriced expired inventory")?;
+            if effect.delta != -old.quantity {
+                return Err("expiration must remove the complete holding".into());
+            }
+            if old.cost != 0 {
+                lines.push(Line {
+                    agent: effect.account.0,
+                    account: Account::InventoryLoss,
+                    debit: old.cost,
+                    flow: None,
+                });
+            }
+        }
+        Ok((next, lines))
     }
     /// Return candidate costs and revenue/expense/cash legs. Audit separately emits
     /// the inventory balance-sheet movements and validates the complete entry.

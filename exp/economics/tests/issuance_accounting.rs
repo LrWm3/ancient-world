@@ -183,3 +183,15 @@ fn repeated_input_production_and_low_yield_keep_issuance_separate_from_profit() 
         );
     }
 }
+
+#[test]
+fn provisioning_and_leisure_variants_reconcile_expiring_stock_costs() {
+    for case in ["adequate", "scarce", "empty", "endowed"] {
+        let (w, s) = minting::provision_scenario(case).unwrap();
+        let mut a = audit(&w, &s)
+            .with_issuance_policy(Policy::NonRedeemableEquity)
+            .unwrap();
+        let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+        through(&mut a, &mut sim, 12);
+    }
+}

@@ -11,9 +11,22 @@ use std::collections::BTreeMap;
 type Positions = BTreeMap<(AgentId, Account), i128>;
 type Flows = BTreeMap<(AgentId, Account, Flow), i128>;
 
+/// Explicit historical reporting basis for opening a new book, not reconstructed income.
+#[derive(Clone, Debug, Default)]
+pub struct Opening {
+    pub assets: BTreeMap<AssetId, i128>,
+    /// Fixed reporting ticks per stock unit used as noncash equipment consideration.
+    pub exchange_values: BTreeMap<ResourceId, i128>,
+    pub inventory: BTreeMap<crate::model::Account, i128>,
+    pub processes: Option<crate::process_accounting::Costs>,
+    pub dues: Option<crate::dues_accounting::Valuation>,
+    pub issuance: Option<crate::issuance_accounting::Policy>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Audit {
     book: Book,
+    exchange_values: BTreeMap<ResourceId, i128>,
     boundary: State,
     asset_values: BTreeMap<AssetId, i128>,
     inventory: crate::inventory_accounting::Inventory,
@@ -254,6 +267,48 @@ impl Audit {
         inventory_costs: BTreeMap<crate::model::Account, i128>,
         dues: Option<crate::dues_accounting::Valuation>,
     ) -> Result<Self, String> {
+        Self::with_opening(
+            world,
+            state,
+            denomination,
+            Opening {
+                assets: asset_values,
+                inventory: inventory_costs,
+                dues,
+                ..Opening::default()
+            },
+        )
+    }
+    /// Open with explicit carrying costs for every active process, including zero cost.
+    pub fn with_opening(
+        world: &World,
+        state: &State,
+        denomination: ResourceId,
+        opening: Opening,
+    ) -> Result<Self, String> {
+        let Opening {
+            assets: asset_values,
+            exchange_values,
+            inventory: inventory_costs,
+            processes,
+            dues,
+            issuance,
+        } = opening;
+        if dues.as_ref().is_some_and(|d| d.0.values().any(|v| *v <= 0)) {
+            return Err("dues unit values must be positive".into());
+        }
+        if exchange_values.iter().any(|(resource, value)| {
+            *value <= 0
+                || *resource == denomination
+                || !world
+                    .resources
+                    .iter()
+                    .any(|r| r.id == *resource && r.kind == ResourceKind::Stock)
+        }) {
+            return Err(
+                "exchange values must price noncash stocks in positive reporting ticks".into(),
+            );
+        }
         crate::settlement::validate_world(world, state)?;
         let inventory = crate::inventory_accounting::Inventory::open(
             world,
@@ -261,16 +316,27 @@ impl Audit {
             denomination,
             inventory_costs,
         )?;
-        if state.processes.values().any(|p| p.status == Status::Active) {
+        let active: std::collections::BTreeSet<_> = state
+            .processes
+            .values()
+            .filter(|p| p.status == Status::Active)
+            .map(|p| p.id)
+            .collect();
+        let costed: std::collections::BTreeSet<_> = processes
+            .as_ref()
+            .map(|c| c.work.keys().copied().collect())
+            .unwrap_or_default();
+        if active != costed {
             return Err(
-                "opening active work needs historical carrying costs; resume the existing audit"
+                "opening active work needs historical carrying costs for every active process"
                     .into(),
             );
         }
         if state.phase != Phase::Open {
             return Err("open a reporting book at a month opening".into());
         }
-        Ok(Self {
+        let mut audit = Self {
+            exchange_values,
             book: Book::open_at(
                 denomination,
                 state.month.checked_sub(1).ok_or("invalid opening month")?,
@@ -280,17 +346,22 @@ impl Audit {
                     denomination,
                     &asset_values,
                     &inventory,
-                    None,
+                    processes.as_ref(),
                     dues.as_ref(),
                 )?,
             )?,
             asset_values,
             inventory,
-            processes: None,
-            issuance: None,
+            processes,
+            issuance,
             dues,
             boundary: state.clone(),
-        })
+        };
+        if let Some(costs) = &audit.processes {
+            let weights = costs.output_weights.clone();
+            audit = audit.with_output_cost_policy(world, weights)?;
+        }
+        Ok(audit)
     }
     /// Opt into material-cost production; shares apply to total joint-output cost.
     pub fn with_processes(
@@ -372,9 +443,14 @@ impl Audit {
                 return Err("invalid output cost shares".into());
             }
         }
+        let work = self
+            .processes
+            .as_ref()
+            .map(|c| c.work.clone())
+            .unwrap_or_default();
         self.processes = Some(crate::process_accounting::Costs {
             output_weights,
-            work: BTreeMap::new(),
+            work,
         });
         Ok(self)
     }
@@ -438,12 +514,12 @@ impl Audit {
             .iter()
             .any(|t| (t.process.is_some() && self.processes.is_none()) || t.royalty.is_some())
             || (batch.minting.is_some() && self.issuance.is_none())
-            || batch.town_market.is_some()
         {
             return Err("transaction needs an explicit accounting adapter".into());
         }
         let mut asset_values = self.asset_values.clone();
         let mut equipment_lines = Vec::new();
+        let mut barter_deliveries = vec![];
         let mut wear_costs = BTreeMap::new();
         let mut equipment_state = before.clone();
         if batch.phase == Phase::Open {
@@ -485,11 +561,33 @@ impl Audit {
                 None
             };
             if let Some((asset, seller, buyer, amount, advance)) = purchase {
-                if amount.resource != self.book.denomination() {
-                    return Err("equipment barter needs an explicit valuation adapter".into());
-                }
+                let barter = amount.resource != self.book.denomination();
+                let unit_value = if barter {
+                    *self
+                        .exchange_values
+                        .get(&amount.resource)
+                        .ok_or("equipment barter needs an explicit exchange value")?
+                } else {
+                    1
+                };
                 let basis = *asset_values.get(&asset).ok_or("missing equipment basis")?;
-                let price = i128::from(amount.quantity);
+                let price = i128::from(amount.quantity)
+                    .checked_mul(unit_value)
+                    .ok_or("equipment consideration overflow")?;
+                if barter {
+                    if advance.is_some() {
+                        return Err(
+                            "noncash financed equipment requires matching forward valuation".into(),
+                        );
+                    }
+                    barter_deliveries.push(crate::inventory_accounting::PrepaidSale {
+                        seller: buyer,
+                        buyer: seller,
+                        resource: amount.resource,
+                        quantity: amount.quantity,
+                        value: price,
+                    });
+                }
                 let financed = advance.map_or(0, |c| i128::from(c.advance.quantity));
                 let gain = price
                     .checked_sub(basis)
@@ -504,7 +602,10 @@ impl Audit {
                     },
                     -gain,
                 );
-                for (agent, debit) in [(buyer, -(price - financed)), (seller, price)] {
+                for (agent, debit) in [(buyer, -(price - financed)), (seller, price)]
+                    .into_iter()
+                    .filter(|_| !barter)
+                {
                     equipment_lines.push(Line {
                         agent,
                         account: Account::Cash,
@@ -588,11 +689,23 @@ impl Audit {
             }
         }
         let negotiated = crate::negotiation::transactions(world, before, &batch.negotiation)?;
+        let town_trades = match &batch.town_market {
+            Some(crate::town_market::Boundary::Market(round)) => round.transactions.as_slice(),
+            _ => &[],
+        };
+        let expired = if batch.phase == Phase::Open {
+            crate::activities::expiration(world, before)
+        } else {
+            vec![]
+        };
+        let (opening_inventory, expiration_lines) = self.inventory.expire(&expired)?;
+
         let trades: Vec<_> = batch
             .transactions
             .iter()
             .filter(|t| {
                 t.stock_trade.is_some()
+                    || town_trades.contains(t)
                     || negotiated.contains(t)
                     || (mint_transactions.contains(t)
                         && !t.effects.iter().any(|e| {
@@ -603,10 +716,10 @@ impl Audit {
                         }))
             })
             .collect();
-        let (prepaid, forward_lines) = crate::forward_accounting::settle(before, after)?;
-        let (inventory, trade_lines) = self
-            .inventory
-            .settle_with_prepaid(&trades, coin, &prepaid)?;
+        let (mut prepaid, forward_lines) = crate::forward_accounting::settle(before, after)?;
+        prepaid.extend(barter_deliveries);
+        let (inventory, trade_lines) =
+            opening_inventory.settle_with_prepaid(&trades, coin, &prepaid)?;
         let (cost_transactions, issuance_lines) = if self.issuance.is_some() {
             crate::issuance_accounting::processes(world, &batch.transactions, coin)?
         } else {
@@ -619,7 +732,17 @@ impl Audit {
         if (!trades.is_empty() || !prepaid.is_empty()) && !process_transactions.is_empty() {
             return Err("mixed trading/production boundary needs a shared cost allocator".into());
         }
-        let (processes, inventory, process_lines) = if let Some(costs) = &self.processes {
+        let attachments = batch
+            .credit
+            .as_ref()
+            .map_or(&[][..], |c| c.attachments.as_slice());
+        let (transferred_costs, attachment_lines) = if let Some(costs) = &self.processes {
+            let (costs, lines) = costs.transfer_attachments(attachments)?;
+            (Some(costs), lines)
+        } else {
+            (None, vec![])
+        };
+        let (processes, inventory, process_lines) = if let Some(costs) = &transferred_costs {
             let (costs, inventory, lines) = costs.settle_with_equipment(
                 world,
                 &inventory,
@@ -672,7 +795,8 @@ impl Audit {
             {
                 continue;
             }
-            let has_stock = t.effects.iter().any(|e| {
+            let unrecognized: Vec<_> = t.effects.iter().filter(|e| !expired.contains(e)).collect();
+            let has_stock = unrecognized.iter().any(|e| {
                 e.delta != 0
                     && world
                         .resources
@@ -687,7 +811,7 @@ impl Audit {
             {
                 return Err("stock transaction has no recognized financial source".into());
             }
-            for e in &t.effects {
+            for e in unrecognized {
                 if e.delta != 0
                     && e.account.1 != coin
                     && world
@@ -732,6 +856,8 @@ impl Audit {
             .chain(collection_lines)
             .chain(estate_dues_lines)
             .chain(service_lines)
+            .chain(attachment_lines)
+            .chain(expiration_lines)
         {
             if let Some(kind) = l.flow {
                 flow(&mut flows, l.agent, l.account, kind, l.debit)?;

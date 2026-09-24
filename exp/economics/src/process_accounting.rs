@@ -34,6 +34,56 @@ impl Costs {
         }
         Ok(())
     }
+    /// Validated title-following attachments transfer sunk cost, never debt value.
+    pub(crate) fn transfer_attachments(
+        &self,
+        changes: &[ProcessChange],
+    ) -> Result<(Self, Vec<Line>), String> {
+        let mut next = self.clone();
+        let mut lines = vec![];
+        for change in changes {
+            let before = change
+                .before
+                .as_ref()
+                .ok_or("attachment transfer needs opening process")?;
+            let after = &change.after;
+            if before.operator != before.beneficiary
+                || after.operator != after.beneficiary
+                || before.status != Status::Active
+                || after.status != Status::Active
+                || before.id != after.id
+            {
+                return Err("unsupported attachment cost transfer".into());
+            }
+            if before.operator == after.operator {
+                continue;
+            }
+            let (owner, cost) = next
+                .work
+                .get(&before.id)
+                .copied()
+                .unwrap_or((before.operator, 0));
+            if owner != before.operator {
+                return Err("attachment cost owner mismatch".into());
+            }
+            next.work.insert(after.id, (after.operator, cost));
+            if cost != 0 {
+                lines.push(Line {
+                    agent: before.operator,
+                    account: Account::TransferExpense,
+                    debit: cost,
+                    flow: None,
+                });
+                lines.push(Line {
+                    agent: after.operator,
+                    account: Account::TransferIncome,
+                    debit: -cost,
+                    flow: None,
+                });
+            }
+        }
+        Ok((next, lines))
+    }
     pub fn settle(
         &self,
         world: &World,

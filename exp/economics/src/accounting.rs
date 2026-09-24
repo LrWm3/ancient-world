@@ -41,6 +41,7 @@ pub enum Account {
     ConsumptionExpense,
     ProductionExpense,
     ProductionLoss,
+    InventoryLoss,
     Depreciation,
     DisposalGain,
     DisposalLoss,

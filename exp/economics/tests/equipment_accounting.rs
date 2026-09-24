@@ -26,6 +26,13 @@ fn fixture() -> (World, State) {
     (w, s)
 }
 fn audit(w: &World, s: &State) -> Audit {
+    audit_with_exchange_values(w, s, BTreeMap::new())
+}
+fn audit_with_exchange_values(
+    w: &World,
+    s: &State,
+    exchange_values: BTreeMap<ResourceId, i128>,
+) -> Audit {
     let costs = s
         .balances
         .iter()
@@ -55,14 +62,19 @@ fn audit(w: &World, s: &State) -> Audit {
             (outputs.len() > 1).then_some((d.id, outputs))
         })
         .collect();
-    Audit::with_processes(
+    Audit::with_opening(
         w,
         s,
         TOKEN,
-        BTreeMap::from([(PLOT, 0), (TOOL, 2)]),
-        costs,
-        weights,
+        economics_compute_smoke::financial_reporting::Opening {
+            assets: BTreeMap::from([(PLOT, 0), (TOOL, 2)]),
+            inventory: costs,
+            exchange_values,
+            ..Default::default()
+        },
     )
+    .unwrap()
+    .with_process_policy(w, weights)
     .unwrap()
 }
 #[test]
@@ -137,4 +149,38 @@ fn missing_basis_and_barter_fail_without_publishing() {
             break;
         }
     }
+}
+
+#[test]
+fn equipment_barter_uses_explicit_reporting_value_without_cash_flows() {
+    let (mut w, s) = fixture();
+    w.offers[0].price = Amount::new(GRAIN, 3);
+    let mut a = audit_with_exchange_values(&w, &s, BTreeMap::from([(GRAIN, 2)]));
+    let mut b = a.clone();
+    let mut cpu = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+    let mut reference = Simulation::new(w, s, Backend::Reference).unwrap();
+    while cpu.state.equipment[&TOOL].owner != PERSON {
+        assert!(cpu.state.month <= 20);
+        a.step(&mut cpu).unwrap();
+        b.step(&mut reference).unwrap();
+    }
+    assert_eq!(a, b);
+    assert_eq!(cpu.state, reference.state);
+    let month = cpu.state.month;
+    let buyer = a.book().statements(PERSON, 1, month).unwrap();
+    let seller = a.book().statements(STATE_AGENT, 1, month).unwrap();
+    assert_eq!(buyer.trial_balance[&A::Tangible(TOOL)], 6);
+    assert_eq!(buyer.income[&A::Sales], 6);
+    assert_eq!(buyer.expenses[&A::CostOfSales], 3);
+    assert_eq!(seller.trial_balance[&A::Inventory(GRAIN)], 6);
+    assert_eq!(seller.income[&A::DisposalGain], 4);
+    assert!(buyer.cash_flows.values().all(|v| *v == 0));
+    assert!(seller.cash_flows.values().all(|v| *v == 0));
+    let mut resumed = a.clone();
+    let mut checkpoint = cpu.clone();
+    while cpu.state.month <= 12 {
+        a.step(&mut cpu).unwrap();
+        resumed.step(&mut checkpoint).unwrap();
+    }
+    assert_eq!(a, resumed);
 }
