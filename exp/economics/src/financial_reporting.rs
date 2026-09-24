@@ -18,6 +18,7 @@ pub struct Audit {
     asset_values: BTreeMap<AssetId, i128>,
     inventory: crate::inventory_accounting::Inventory,
     processes: Option<crate::process_accounting::Costs>,
+    dues: Option<crate::dues_accounting::Valuation>,
 }
 fn positions(
     world: &World,
@@ -26,6 +27,7 @@ fn positions(
     values: &BTreeMap<AssetId, i128>,
     inventory: &crate::inventory_accounting::Inventory,
     processes: Option<&crate::process_accounting::Costs>,
+    dues: Option<&crate::dues_accounting::Valuation>,
 ) -> Result<Positions, String> {
     if !world
         .resources
@@ -33,7 +35,7 @@ fn positions(
         .any(|r| r.id == coin && r.kind == ResourceKind::Stock)
         || !state.equipment.is_empty()
         || !state.exchange.forwards.is_empty()
-        || !state.obligations.is_empty()
+        || (!state.obligations.is_empty() && dues.is_none())
         || !world.households.is_empty()
     {
         return Err("financial adapter requires cash/loan positions; equipment, forward, land-dues and household adapters remain unsupported".into());
@@ -130,6 +132,11 @@ fn positions(
             accounting::add(&mut p, (*owner, Account::WorkInProgress(*id)), *cost)?;
         }
     }
+    if let Some(dues) = dues {
+        for (key, value) in dues.positions(world, state, coin)? {
+            accounting::add(&mut p, key, value)?;
+        }
+    }
     p.retain(|_, v| *v != 0);
     Ok(p)
 }
@@ -198,6 +205,44 @@ impl Audit {
         asset_values: BTreeMap<AssetId, i128>,
         inventory_costs: BTreeMap<crate::model::Account, i128>,
     ) -> Result<Self, String> {
+        Self::open_valued(
+            world,
+            state,
+            denomination,
+            asset_values,
+            inventory_costs,
+            None,
+        )
+    }
+    /// Recognize dated dues at fixed reporting ticks per native unit (coins use 1).
+    pub fn with_dues(
+        world: &World,
+        state: &State,
+        denomination: ResourceId,
+        asset_values: BTreeMap<AssetId, i128>,
+        inventory_costs: BTreeMap<crate::model::Account, i128>,
+        unit_values: BTreeMap<u32, i128>,
+    ) -> Result<Self, String> {
+        if unit_values.values().any(|v| *v <= 0) {
+            return Err("dues unit values must be positive".into());
+        }
+        Self::open_valued(
+            world,
+            state,
+            denomination,
+            asset_values,
+            inventory_costs,
+            Some(crate::dues_accounting::Valuation(unit_values)),
+        )
+    }
+    fn open_valued(
+        world: &World,
+        state: &State,
+        denomination: ResourceId,
+        asset_values: BTreeMap<AssetId, i128>,
+        inventory_costs: BTreeMap<crate::model::Account, i128>,
+        dues: Option<crate::dues_accounting::Valuation>,
+    ) -> Result<Self, String> {
         crate::settlement::validate_world(world, state)?;
         let inventory = crate::inventory_accounting::Inventory::open(
             world,
@@ -218,11 +263,20 @@ impl Audit {
             book: Book::open_at(
                 denomination,
                 state.month.checked_sub(1).ok_or("invalid opening month")?,
-                positions(world, state, denomination, &asset_values, &inventory, None)?,
+                positions(
+                    world,
+                    state,
+                    denomination,
+                    &asset_values,
+                    &inventory,
+                    None,
+                    dues.as_ref(),
+                )?,
             )?,
             asset_values,
             inventory,
             processes: None,
+            dues,
             boundary: state.clone(),
         })
     }
@@ -235,6 +289,18 @@ impl Audit {
         inventory_costs: BTreeMap<crate::model::Account, i128>,
         output_weights: BTreeMap<DefinitionId, BTreeMap<ResourceId, u32>>,
     ) -> Result<Self, String> {
+        Self::with_inventory(world, state, denomination, asset_values, inventory_costs)?
+            .with_process_policy(world, output_weights)
+    }
+    /// Compose process costing with a newly opened financial book, before recording.
+    pub fn with_process_policy(
+        mut self,
+        world: &World,
+        output_weights: BTreeMap<DefinitionId, BTreeMap<ResourceId, u32>>,
+    ) -> Result<Self, String> {
+        if self.book.entries().len() != 1 {
+            return Err("process policy must be chosen at reporting opening".into());
+        }
         for (id, weights) in &output_weights {
             let d = world
                 .definitions
@@ -264,13 +330,11 @@ impl Audit {
                 return Err("invalid output cost shares".into());
             }
         }
-        let mut audit =
-            Self::with_inventory(world, state, denomination, asset_values, inventory_costs)?;
-        audit.processes = Some(crate::process_accounting::Costs {
+        self.processes = Some(crate::process_accounting::Costs {
             output_weights,
             work: BTreeMap::new(),
         });
-        Ok(audit)
+        Ok(self)
     }
     pub fn book(&self) -> &Book {
         &self.book
@@ -343,8 +407,28 @@ impl Audit {
         } else {
             (None, inventory, vec![])
         };
+        let dues_transactions = batch
+            .commitments
+            .as_ref()
+            .or_else(|| batch.credit.as_ref().and_then(|c| c.commitments.as_ref()))
+            .map(|c| c.transactions.as_slice())
+            .unwrap_or(&[]);
+        if !dues_transactions.is_empty() && (!trades.is_empty() || !process_transactions.is_empty())
+        {
+            return Err(
+                "mixed dues/production/trade boundary requires shared cost allocation".into(),
+            );
+        }
+        let (inventory, dues_lines) = if let Some(dues) = &self.dues {
+            dues.settle(world, before, after, &inventory, coin, dues_transactions)?
+        } else {
+            (inventory, vec![])
+        };
         for t in &batch.transactions {
-            if t.process.is_some() || trades.contains(&t) {
+            if (self.dues.is_some() && dues_transactions.contains(t))
+                || t.process.is_some()
+                || trades.contains(&t)
+            {
                 continue;
             }
             let has_stock = t.effects.iter().any(|e| {
@@ -381,6 +465,7 @@ impl Audit {
             &self.asset_values,
             &self.inventory,
             self.processes.as_ref(),
+            self.dues.as_ref(),
         )?;
         let closing = positions(
             world,
@@ -389,6 +474,7 @@ impl Audit {
             &self.asset_values,
             &inventory,
             processes.as_ref(),
+            self.dues.as_ref(),
         )?;
         let mut delta = closing.clone();
         for (key, value) in &opening {
@@ -396,7 +482,7 @@ impl Audit {
         }
         let mut lines = process_lines;
         let mut flows = Flows::new();
-        for l in trade_lines {
+        for l in trade_lines.into_iter().chain(dues_lines) {
             if let Some(kind) = l.flow {
                 flow(&mut flows, l.agent, l.account, kind, l.debit)?;
             } else {

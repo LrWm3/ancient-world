@@ -13,6 +13,12 @@ pub enum Account {
     Tangible(u32),
     WorkInProgress(u64),
     LoanReceivable(u32),
+    DuesReceivable(u32, u32),
+    DuesPayable(u32, u32),
+    DuesIncome,
+    DuesExpense,
+    SettlementGain,
+    SettlementLoss,
     InterestReceivable(u32),
     LoanPayable(u32),
     InterestPayable(u32),
@@ -50,13 +56,17 @@ impl Account {
             | Self::Inventory(_)
             | Self::Tangible(_)
             | Self::WorkInProgress(_)
+            | Self::DuesReceivable(_, _)
             | Self::LoanReceivable(_)
             | Self::InterestReceivable(_) => Class::Asset,
-            Self::CustodyPayable(_) | Self::LoanPayable(_) | Self::InterestPayable(_) => {
-                Class::Liability
-            }
+            Self::DuesPayable(_, _)
+            | Self::CustodyPayable(_)
+            | Self::LoanPayable(_)
+            | Self::InterestPayable(_) => Class::Liability,
             Self::OpeningEquity | Self::Capital => Class::Equity,
-            Self::InterestIncome
+            Self::DuesIncome
+            | Self::SettlementGain
+            | Self::InterestIncome
             | Self::TransferIncome
             | Self::DebtRelief
             | Self::Sales
