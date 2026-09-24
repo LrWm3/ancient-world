@@ -188,6 +188,7 @@ pub struct World {
     pub lending: Vec<crate::credit::Advance>,
     /// Rights whose operator/output beneficiary follows the physical asset owner.
     pub ownership_rights: std::collections::BTreeSet<u32>,
+    pub collection_policy: crate::finance::CollectionPolicy,
     pub claim_priorities: BTreeMap<crate::finance::ContractId, u32>,
     pub marketplaces: Vec<crate::marketplace::Marketplace>,
     pub negotiation: Option<crate::negotiation::Session>,

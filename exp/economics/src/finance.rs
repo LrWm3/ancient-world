@@ -253,5 +253,131 @@ pub struct CollectionReceipt {
     pub debtor: AgentId,
     pub creditor: AgentId,
     pub requested: Amount,
+    /// Planned native-unit ceiling; None for legacy sequential collection.
+    pub allocated: Option<i32>,
     pub paid: i32,
+}
+
+/// Sharing within an existing collection boundary; this never changes phase timing.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CollectionPolicy {
+    #[default]
+    Stable,
+    Proportional,
+}
+
+/// A native-denomination collection request. Domain adapters aggregate dated dues
+/// for one contract; those dues still settle oldest first within its grant.
+#[derive(Clone, Debug)]
+pub struct CollectionRequest {
+    pub contract: ContractId,
+    pub rank: u32,
+    pub claim: Obligation,
+}
+
+/// Reserve proportional grants against a cloned opening window. Rank precedes
+/// sharing; integer remainders use stable contract identity. Storage-constrained
+/// grants are redistributed while any eligible claim can still receive payment.
+/// Different debtor/resource pools and shared receiving storage resolve in stable
+/// order, not through an implicit exchange rate or a global optimization.
+pub fn proportional_grants(
+    world: &World,
+    month: u32,
+    execution: &Execution,
+    protected: &std::collections::BTreeMap<Account, i32>,
+    requests: &[CollectionRequest],
+) -> Result<std::collections::BTreeMap<ContractId, i32>, String> {
+    use std::collections::BTreeMap;
+    let mut window = execution.clone();
+    for (account, quantity) in protected {
+        window.protect(*account, *quantity);
+    }
+    let mut groups = BTreeMap::<_, Vec<_>>::new();
+    let mut grants = BTreeMap::new();
+    for request in requests {
+        let claim = &request.claim;
+        if claim.settled < 0
+            || claim.settled > claim.transfer.amount.quantity
+            || claim.transfer.amount.quantity < 0
+            || claim.transfer.from == claim.transfer.to
+        {
+            return Err("invalid collection request".into());
+        }
+        if grants.insert(request.contract, 0).is_some() {
+            return Err("duplicate collection request".into());
+        }
+        if request.claim.failure == FailureRule::RejectExchange {
+            return Err("proportional collection requires divisible claims".into());
+        }
+        groups
+            .entry((
+                request.rank,
+                (
+                    request.claim.transfer.from,
+                    request.claim.transfer.amount.resource,
+                ),
+            ))
+            .or_default()
+            .push(request);
+    }
+    for ((_, account), mut group) in groups {
+        group.sort_by_key(|r| r.contract);
+        loop {
+            let budget = window.available.get(&account).copied().unwrap_or(0).max(0);
+            let demands: Vec<_> = group
+                .iter()
+                .map(|r| {
+                    let mut claim = r.claim.clone();
+                    claim.settled += grants[&r.contract];
+                    if crate::storage::room(
+                        world,
+                        &window.stored,
+                        claim.transfer.to,
+                        claim.transfer.amount.resource,
+                    ) == 0
+                    {
+                        0
+                    } else {
+                        claim.payable(month, true, i32::MAX, i32::MAX)
+                    }
+                })
+                .collect();
+            let total: i64 = demands.iter().map(|d| i64::from(*d)).sum();
+            if budget == 0 || total == 0 {
+                break;
+            }
+            let spend = i64::from(budget).min(total);
+            let mut shares: Vec<i32> = demands
+                .iter()
+                .map(|d| (i64::from(*d) * spend / total) as i32)
+                .collect();
+            let mut remainder = spend - shares.iter().map(|s| i64::from(*s)).sum::<i64>();
+            let mut order: Vec<_> = (0..group.len()).collect();
+            order.sort_by_key(|i| {
+                (
+                    std::cmp::Reverse(i64::from(demands[*i]) * spend % total),
+                    group[*i].contract,
+                )
+            });
+            for i in order {
+                if remainder > 0 && shares[i] < demands[i] {
+                    shares[i] += 1;
+                    remainder -= 1;
+                }
+            }
+            let mut paid = 0;
+            for (request, share) in group.iter().zip(shares) {
+                let mut claim = request.claim.clone();
+                claim.settled += grants[&request.contract];
+                let opening = window.available[&account];
+                let payment = window.pay_protected(world, month, &claim, opening - share)?;
+                *grants.get_mut(&request.contract).unwrap() += payment.paid;
+                paid += payment.paid;
+            }
+            if paid == 0 {
+                break;
+            }
+        }
+    }
+    Ok(grants)
 }

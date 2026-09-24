@@ -104,7 +104,7 @@ pub(super) fn batch(
         }
         for collection in &credit.collections {
             if selected(config, collection.debtor) || selected(config, collection.creditor) {
-                records.push(json!({"kind":"claim_collection","contract":format!("{:?}",collection.contract),"rank":collection.rank,"debtor":collection.debtor,"creditor":collection.creditor,"resource":collection.requested.resource,"requested":collection.requested.quantity,"paid":collection.paid}));
+                records.push(json!({"kind":"claim_collection","contract":format!("{:?}",collection.contract),"rank":collection.rank,"debtor":collection.debtor,"creditor":collection.creditor,"resource":collection.requested.resource,"requested":collection.requested.quantity,"allocated":collection.allocated,"paid":collection.paid}));
             }
         }
         for event in &credit.events {

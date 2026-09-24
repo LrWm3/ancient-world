@@ -572,6 +572,12 @@ fn validate_purchase(world: &World, state: &State) -> Result<(), String> {
     Ok(())
 }
 pub fn validate(world: &World, state: &State) -> Result<(), String> {
+    if world.collection_policy == finance::CollectionPolicy::Proportional
+        && (!enabled(world) || !world.activities.coin_payments.is_empty())
+    {
+        return Err("proportional collection currently requires credit servicing and native-denomination land dues".into());
+    }
+
     if !enabled(world) && state.credit != Book::default() {
         return Err("credit book without accepted lending configuration".into());
     }
@@ -936,6 +942,88 @@ pub fn follows_owner(world: &World, right: u32) -> bool {
             .is_some_and(|c| c.attached_rights.contains(&right))
 }
 
+fn accrue(loan: &mut Loan, month: u32) -> Result<i32, String> {
+    if loan.last_accrued.checked_add(1) != Some(month) {
+        return Err("stale monthly accrual boundary".into());
+    }
+    let accrued =
+        i64::from(loan.principal) * i64::from(loan.monthly_rate_bps) + loan.interest_remainder;
+    let interest = i32::try_from(accrued / RATE_SCALE).map_err(|_| "interest overflow")?;
+    loan.interest = loan
+        .interest
+        .checked_add(interest)
+        .ok_or("interest balance overflow")?;
+    loan.interest_remainder = accrued % RATE_SCALE;
+    loan.last_accrued = month;
+    Ok(interest)
+}
+
+fn collection_grants(
+    world: &World,
+    state: &State,
+    out: &Boundary,
+    execution: &finance::Execution,
+    protected: &BTreeMap<Account, i32>,
+) -> Result<Option<BTreeMap<finance::ContractId, i32>>, String> {
+    if world.collection_policy == finance::CollectionPolicy::Stable {
+        return Ok(None);
+    }
+    let mut requests = vec![];
+    for loan in out.after.loans.values() {
+        if matches!(loan.status, Status::Repaid | Status::PendingSale) || state.month <= loan.opened
+        {
+            continue;
+        }
+        let mut loan = loan.clone();
+        if loan.status == Status::Active {
+            accrue(&mut loan, state.month)?;
+        }
+        let contract = finance::ContractId::Loan(loan.id);
+        requests.push(finance::CollectionRequest {
+            contract,
+            rank: world
+                .claim_priorities
+                .get(&contract)
+                .copied()
+                .unwrap_or(loan.priority),
+            claim: loan.claim(state.month)?,
+        });
+    }
+    let obligations = crate::commitments::due_obligations(world, state)?;
+    for agreement in crate::commitments::active(world, state) {
+        if state.terminal.contains_key(&agreement.debtor) {
+            continue;
+        }
+        let amount = obligations
+            .values()
+            .filter(|o| o.agreement == agreement.id && o.due <= state.month)
+            .try_fold(0_i32, |sum, o| {
+                sum.checked_add(o.owed - o.paid)
+                    .ok_or("collection demand overflow")
+            })?;
+        let contract = finance::ContractId::Land(agreement.id);
+        requests.push(finance::CollectionRequest {
+            contract,
+            rank: world
+                .claim_priorities
+                .get(&contract)
+                .copied()
+                .unwrap_or(finance::DEFAULT_CLAIM_RANK),
+            claim: finance::Obligation {
+                transfer: finance::Transfer {
+                    from: agreement.debtor,
+                    to: agreement.creditor,
+                    amount: Amount::new(agreement.payment.resource, amount),
+                },
+                settled: 0,
+                condition: finance::Condition::OnOrAfterMonth(state.month),
+                failure: finance::FailureRule::BlockNewUse,
+            },
+        });
+    }
+    finance::proportional_grants(world, state.month, execution, protected, &requests).map(Some)
+}
+
 fn due(
     world: &World,
     state: &State,
@@ -946,6 +1034,7 @@ fn due(
     execution.available = budgets.clone();
     let protected = crate::commitments::protected_stock(world, state)?;
     let mut collection_state = state.clone();
+    let grants = collection_grants(world, state, out, &execution, &protected)?;
     let mut order: Vec<_> = out
         .after
         .loans
@@ -972,19 +1061,71 @@ fn due(
         )
     }));
     order.sort();
+    let account_for = |contract: finance::ContractId| -> Account {
+        match contract {
+            finance::ContractId::Loan(id) => {
+                let loan = &out.after.loans[&id];
+                (loan.debtor, loan.denomination)
+            }
+            finance::ContractId::Land(id) => {
+                let agreement = crate::commitments::active(world, state)
+                    .find(|a| a.id == id)
+                    .unwrap();
+                (agreement.debtor, agreement.payment.resource)
+            }
+            finance::ContractId::Forward(_) => unreachable!(),
+        }
+    };
+    let accounts: BTreeMap<_, _> = order
+        .iter()
+        .map(|(_, contract)| (*contract, account_for(*contract)))
+        .collect();
+    let mut reserved = BTreeMap::<Account, i32>::new();
+    if let Some(grants) = &grants {
+        for (contract, quantity) in grants {
+            let value = reserved.entry(accounts[contract]).or_default();
+            *value = value
+                .checked_add(*quantity)
+                .ok_or("collection reservation overflow")?;
+        }
+    }
     for (rank, contract) in order {
+        if let Some(grants) = &grants {
+            *reserved.entry(accounts[&contract]).or_default() -=
+                grants.get(&contract).copied().unwrap_or(0);
+        }
         let id = match contract {
             finance::ContractId::Loan(id) => id,
             finance::ContractId::Land(id) => {
+                let agreement = crate::commitments::active(world, state)
+                    .find(|a| a.id == id)
+                    .ok_or("missing collection agreement")?;
+                let account = (agreement.debtor, agreement.payment.resource);
+                let opening = execution.available.get(&account).copied().unwrap_or(0);
+                if let Some(grants) = &grants {
+                    execution.available.insert(
+                        account,
+                        opening.min(
+                            grants
+                                .get(&contract)
+                                .copied()
+                                .unwrap_or(0)
+                                .saturating_add(protected.get(&account).copied().unwrap_or(0)),
+                        ),
+                    );
+                }
+                let limited = execution.available.get(&account).copied().unwrap_or(0);
                 let settlement = crate::commitments::evaluate_selected(
                     world,
                     &collection_state,
                     &mut execution,
                     Some(id),
                 )?;
-                let agreement = crate::commitments::active(world, state)
-                    .find(|a| a.id == id)
-                    .ok_or("missing collection agreement")?;
+                let spent = limited - execution.available.get(&account).copied().unwrap_or(0);
+                execution.available.insert(account, opening - spent);
+                let mut remaining_grant = grants
+                    .as_ref()
+                    .map(|g| g.get(&contract).copied().unwrap_or(0));
                 for (key, obligation) in
                     settlement.obligations.iter().filter(|(key, _)| key.0 == id)
                 {
@@ -998,6 +1139,11 @@ fn due(
                             agreement.payment.resource,
                             obligation.owed - previous,
                         ),
+                        allocated: remaining_grant.as_mut().map(|remaining| {
+                            let amount = (*remaining).min(obligation.owed - previous);
+                            *remaining -= amount;
+                            amount
+                        }),
                         paid: obligation.paid - previous,
                     });
                 }
@@ -1023,18 +1169,7 @@ fn due(
             continue;
         }
         if l.status == Status::Active {
-            if l.last_accrued.checked_add(1) != Some(state.month) {
-                return Err("stale monthly accrual boundary".into());
-            }
-            let accrued =
-                i64::from(l.principal) * i64::from(l.monthly_rate_bps) + l.interest_remainder;
-            let interest = i32::try_from(accrued / RATE_SCALE).map_err(|_| "interest overflow")?;
-            l.interest = l
-                .interest
-                .checked_add(interest)
-                .ok_or("interest balance overflow")?;
-            l.interest_remainder = accrued % RATE_SCALE;
-            l.last_accrued = state.month;
+            let interest = accrue(&mut l, state.month)?;
             out.events.push(Event::Accrued {
                 loan: id,
                 opening_principal: l.principal,
@@ -1048,7 +1183,15 @@ fn due(
             protected
                 .get(&(l.debtor, l.denomination))
                 .copied()
-                .unwrap_or(0),
+                .unwrap_or(0)
+                .max(grants.as_ref().map_or(0, |grants| {
+                    execution
+                        .available
+                        .get(&(l.debtor, l.denomination))
+                        .copied()
+                        .unwrap_or(0)
+                        - grants.get(&contract).copied().unwrap_or(0)
+                })),
         )?;
         let paid = payment.paid;
         out.collections.push(finance::CollectionReceipt {
@@ -1057,6 +1200,9 @@ fn due(
             debtor: l.debtor,
             creditor: l.creditor,
             requested: Amount::new(l.denomination, payment.requested),
+            allocated: grants
+                .as_ref()
+                .map(|g| g.get(&contract).copied().unwrap_or(0)),
             paid,
         });
         if paid > 0 {
@@ -1115,6 +1261,20 @@ fn due(
                     .get(&(l.creditor, l.denomination))
                     .copied()
                     .unwrap_or(0)
+                    .saturating_sub(
+                        reserved
+                            .get(&(l.creditor, l.denomination))
+                            .copied()
+                            .unwrap_or(0),
+                    )
+                    .saturating_sub(if grants.is_some() {
+                        protected
+                            .get(&(l.creditor, l.denomination))
+                            .copied()
+                            .unwrap_or(0)
+                    } else {
+                        0
+                    })
                     < surplus
                 {
                     out.events

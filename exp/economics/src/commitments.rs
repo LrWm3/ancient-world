@@ -120,23 +120,10 @@ pub fn can_start(world: &World, state: &State, right: u32) -> bool {
     })
 }
 
-pub fn evaluate(world: &World, state: &State) -> Result<Settlement, String> {
-    let mut execution = finance::Execution::opening(world, state);
-    evaluate_with(world, state, &mut execution)
-}
-pub(crate) fn evaluate_with(
+pub(crate) fn due_obligations(
     world: &World,
     state: &State,
-    execution: &mut finance::Execution,
-) -> Result<Settlement, String> {
-    evaluate_selected(world, state, execution, None)
-}
-pub(crate) fn evaluate_selected(
-    world: &World,
-    state: &State,
-    execution: &mut finance::Execution,
-    only: Option<u32>,
-) -> Result<Settlement, String> {
+) -> Result<BTreeMap<(u32, u32), Obligation>, String> {
     let mut obligations = state.obligations.clone();
     if state.phase == Phase::Due {
         for a in active(world, state) {
@@ -157,6 +144,27 @@ pub(crate) fn evaluate_selected(
             }
         }
     }
+    Ok(obligations)
+}
+
+pub fn evaluate(world: &World, state: &State) -> Result<Settlement, String> {
+    let mut execution = finance::Execution::opening(world, state);
+    evaluate_with(world, state, &mut execution)
+}
+pub(crate) fn evaluate_with(
+    world: &World,
+    state: &State,
+    execution: &mut finance::Execution,
+) -> Result<Settlement, String> {
+    evaluate_selected(world, state, execution, None)
+}
+pub(crate) fn evaluate_selected(
+    world: &World,
+    state: &State,
+    execution: &mut finance::Execution,
+    only: Option<u32>,
+) -> Result<Settlement, String> {
+    let mut obligations = due_obligations(world, state)?;
     // Explicit rank, then oldest due and stable agreement ID. Receipts cannot fund another
     // payment in this boundary: each debtor draws only its opening stock.
     let mut order: Vec<_> = obligations.keys().copied().collect();

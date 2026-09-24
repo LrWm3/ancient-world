@@ -385,3 +385,216 @@ fn essential_stock_protection_applies_to_loan_collection_too() {
     let collection = credit::evaluate(&unprotected, &before).unwrap().unwrap();
     assert_eq!(collection.after.loans[&10].principal, 1);
 }
+
+#[test]
+fn proportional_creditors_share_shortage_and_preserve_continuation() {
+    use economics_compute_smoke::finance::CollectionPolicy;
+    let (mut w, mut s) = fixture();
+    w.collection_policy = CollectionPolicy::Proportional;
+    w.agents.push(Agent {
+        id: 99,
+        name: "second creditor".into(),
+    });
+    s.balances.insert((99, TOKEN), 10);
+    w.lending.push(advance(11, 99, PERSON, TOKEN, 10));
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    sim.run_months(1).unwrap();
+    sim.state.balances.insert((PERSON, TOKEN), 5);
+    sim.step().unwrap();
+    let boundary = credit::evaluate(&sim.world, &sim.state).unwrap().unwrap();
+    assert_eq!(
+        boundary
+            .collections
+            .iter()
+            .map(|r| (r.allocated, r.paid))
+            .collect::<Vec<_>>(),
+        vec![(Some(3), 3), (Some(2), 2)]
+    );
+    let mut resumed = sim.clone();
+    resumed.world.lending.reverse();
+    sim.run_months(2).unwrap();
+    resumed.run_months(1).unwrap();
+    resumed.run_months(1).unwrap();
+    assert_eq!(sim.state, resumed.state);
+    assert_eq!(sim.ledger, resumed.ledger);
+    assert_eq!(sim.state.credit.loans[&10].principal, 7);
+    assert_eq!(sim.state.credit.loans[&11].principal, 8);
+}
+
+#[test]
+fn proportional_land_and_loan_dues_share_the_same_native_pool() {
+    use economics_compute_smoke::{commitments::PaymentPolicy, finance::CollectionPolicy};
+    let (mut w, mut s) = scenario::named("annual-access").unwrap();
+    w.participants.clear();
+    w.condition_rules.clear();
+    w.definitions.clear();
+    w.priority = Priority::ContinuingFirst;
+    w.collection_policy = CollectionPolicy::Proportional;
+    w.payment_policy = PaymentPolicy::DebtFirst;
+    w.agreements[0].payment.quantity = 10;
+    w.lending = vec![advance(10, STATE_AGENT, PERSON, GRAIN, 10)];
+    w.lending[0].month = 12;
+    w.lending[0].terms.term_months = 1;
+    s.month = 12;
+    s.balances.clear();
+    s.balances.insert((STATE_AGENT, GRAIN), 10);
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    sim.run_months(1).unwrap();
+    sim.state.balances.insert((PERSON, GRAIN), 6);
+    sim.step().unwrap();
+    let boundary = credit::evaluate(&sim.world, &sim.state).unwrap().unwrap();
+    assert_eq!(
+        boundary
+            .collections
+            .iter()
+            .map(|r| (r.requested.quantity, r.allocated, r.paid))
+            .collect::<Vec<_>>(),
+        vec![(10, Some(3), 3), (10, Some(3), 3)]
+    );
+    sim.step().unwrap();
+    assert_eq!(sim.state.obligations[&(1, 13)].paid, 3);
+    assert_eq!(sim.state.credit.loans[&10].principal, 7);
+    assert_eq!(sim.state.balance(PERSON, GRAIN), 0);
+}
+
+#[test]
+fn proportional_allocator_redistributes_storage_limits_and_respects_rank() {
+    use economics_compute_smoke::finance::{
+        self, CollectionRequest, Condition, FailureRule, Obligation,
+    };
+    let (mut w, mut s) = fixture();
+    s.balances.clear();
+    s.balances.insert((PERSON, GRAIN), 12);
+    w.storage.capacities.insert(STATE_AGENT, 2);
+    let request = |id, rank, creditor, quantity| CollectionRequest {
+        contract: ContractId::Loan(id),
+        rank,
+        claim: Obligation {
+            transfer: Transfer {
+                from: PERSON,
+                to: creditor,
+                amount: Amount::new(GRAIN, quantity),
+            },
+            settled: 0,
+            condition: Condition::OnOrAfterMonth(1),
+            failure: FailureRule::CarryArrears,
+        },
+    };
+    let requests = vec![
+        request(10, 0, STATE_AGENT, 10),
+        request(11, 0, STATE_AGENT, 10),
+        request(12, 0, 99, 10),
+        request(13, 1, 98, 10),
+    ];
+    let mut protected = std::collections::BTreeMap::new();
+    protected.insert((PERSON, GRAIN), 3);
+    let execution = Execution::opening(&w, &s);
+    let grants = finance::proportional_grants(&w, 1, &execution, &protected, &requests).unwrap();
+    assert_eq!(
+        grants[&ContractId::Loan(10)] + grants[&ContractId::Loan(11)],
+        2
+    );
+    assert_eq!(grants[&ContractId::Loan(12)], 7);
+    assert_eq!(grants[&ContractId::Loan(13)], 0);
+    assert_eq!(execution.available[&(PERSON, GRAIN)], 12);
+    let mut reversed = requests.clone();
+    reversed.reverse();
+    assert_eq!(
+        grants,
+        finance::proportional_grants(&w, 1, &execution, &protected, &reversed).unwrap()
+    );
+}
+
+#[test]
+fn proportional_allocator_leaves_future_and_indivisible_claims_out() {
+    use economics_compute_smoke::finance::{
+        self, CollectionRequest, Condition, FailureRule, Obligation,
+    };
+    let (w, s) = fixture();
+    let mut request = CollectionRequest {
+        contract: ContractId::Loan(1),
+        rank: 0,
+        claim: Obligation {
+            transfer: Transfer {
+                from: STATE_AGENT,
+                to: PERSON,
+                amount: Amount::new(TOKEN, 20),
+            },
+            settled: 0,
+            condition: Condition::OnOrAfterMonth(2),
+            failure: FailureRule::CarryArrears,
+        },
+    };
+    let execution = Execution::opening(&w, &s);
+    let grants =
+        finance::proportional_grants(&w, 1, &execution, &Default::default(), &[request.clone()])
+            .unwrap();
+    assert_eq!(grants[&request.contract], 0);
+    request.claim.failure = FailureRule::RejectExchange;
+    assert!(
+        finance::proportional_grants(&w, 2, &execution, &Default::default(), &[request]).is_err()
+    );
+}
+
+#[test]
+fn collateral_surplus_cannot_spend_another_claims_reserved_payment() {
+    use economics_compute_smoke::{finance::CollectionPolicy, scenario::PLOT};
+    let (mut w, mut s) = fixture();
+    w.collection_policy = CollectionPolicy::Proportional;
+    w.assets.iter_mut().find(|a| a.id == PLOT).unwrap().owner = PERSON;
+    w.lending[0].terms.grace_months = 0;
+    w.lending[0].collateral = Some(credit::Collateral {
+        asset: PLOT,
+        priority: 0,
+        pledged: true,
+        settlement: credit::CollateralSettlement::FixedValue { value: 15 },
+    });
+    w.agents.push(Agent {
+        id: 99,
+        name: "treasury lender".into(),
+    });
+    s.balances.insert((99, TOKEN), 10);
+    w.lending.push(advance(11, 99, STATE_AGENT, TOKEN, 10));
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    sim.run_months(1).unwrap();
+    sim.state.balances.insert((PERSON, TOKEN), 0);
+    sim.state.balances.insert((STATE_AGENT, TOKEN), 5);
+    sim.step().unwrap();
+    let boundary = credit::evaluate(&sim.world, &sim.state).unwrap().unwrap();
+    assert!(
+        boundary
+            .events
+            .contains(&credit::Event::EnforcementDeferred {
+                loan: 10,
+                surplus: 5
+            })
+    );
+    assert_eq!(boundary.collections[1].paid, 5);
+    sim.step().unwrap();
+    assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(PERSON));
+    assert_eq!(sim.state.credit.loans[&11].principal, 5);
+    assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 0);
+}
+
+#[test]
+fn proportional_collection_rejects_unintegrated_alternative_denominations() {
+    use economics_compute_smoke::finance::CollectionPolicy;
+    let (mut w, s) = scenario::baseline();
+    w.collection_policy = CollectionPolicy::Proportional;
+    assert!(Simulation::new(w, s, Backend::Reference).is_err());
+    let (mut w, s) = fixture();
+    w.collection_policy = CollectionPolicy::Proportional;
+    // Alternative terms cannot silently bypass the native collection grant.
+    w.activities.coin_payments.insert(
+        1,
+        economics_compute_smoke::activities::CoinPayment {
+            resource: TOKEN,
+            coins_per_unit: 2,
+        },
+    );
+    assert!(
+        credit::validate(&w, &s)
+            .unwrap_err()
+            .contains("native-denomination")
+    );
+}
