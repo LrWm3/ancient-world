@@ -228,8 +228,9 @@ See [financial statements](FINANCIAL-STATEMENTS.md#coin-equipment-acquisition-an
 Prepaid-forward/tool bundles now recognize creditor prepayments and producer
 deferred revenue, releasing those balances on actual delivery or accepted write-off.
 Extensions preserve carrying value; spot and forward deliveries share opening
-inventory costing. Equipment barter now accepts explicit reporting values; royalties and general
-barter remain outside the reporting adapter. See [forward recognition](FINANCIAL-STATEMENTS.md#prepaid-forwards-delivery-and-accepted-relief).
+inventory costing. Equipment and posted commodity barter accept explicit reporting
+values. Royalties and non-posted barter without payment valuation remain outside
+the reporting adapter. See [forward recognition](FINANCIAL-STATEMENTS.md#prepaid-forwards-delivery-and-accepted-relief).
 
 
 Physical minting reporting now reconciles funded stock/service purchases, actual

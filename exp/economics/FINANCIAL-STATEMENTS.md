@@ -140,10 +140,10 @@ six-test inventory run added the ZIP accounting control. CPU export, formatting,
 strict all-target Clippy and repository artifact checks passed. No full-crate
 rerun was performed.
 
-This spot-trade adapter does not recognize spoilage, commodity obligations, barter
-or general barter accounting. Town-market trades share this stock-cost adapter.
-Production/consumption use the separate opt-in adapter
-below. An inventory cost alone does not authorize an unknown stock movement.
+Town-market trades share this stock-cost adapter. Posted commodity-for-commodity
+bids now use explicitly valued payment goods, as described below. Expiration,
+dues and production/consumption have their own recognition rules while sharing
+opening-stock cost allocation. An inventory cost alone does not authorize an unknown stock movement.
 
 ## Production and consumption costs
 
@@ -312,7 +312,8 @@ Extend adapters next, preserving these reconciliation gates:
 1. Extend material costing to capitalized paid labor and third-party production.
    Historical WIP opening, title-following WIP transfers, configured expiration,
    town-market trades and explicitly valued equipment barter are implemented.
-   General barter, royalty consideration and mixed-boundary allocation remain.
+   Posted barter and shared opening-stock cost allocation are also implemented.
+   Royalty consideration and other exchange forms still need explicit adapters.
 2. Extend the explicit non-redeemable issuance convention to redeemable issuer liabilities,
    retirement/burning and broader monetary instruments; do not infer promises from tokens.
 3. Extend ordinary and estate-paid dues to explicit relief.
@@ -355,12 +356,12 @@ Verification: `equipment_accounting` compares CPU/reference purchase and harvest
 then follows six uses through month 60 with checkpoint continuation. A price of
 3 against seller basis 2 records gain 1 and buyer cost 3; full exhaustion releases
 all three ticks. Combined entity assets less liabilities and cumulative income
-retain opening equity at every boundary. Missing opening costs and unsupported
-barter are rejected; failed accounting publishes neither simulation nor book.
+retain opening equity at every boundary. Missing opening costs and missing barter
+valuations are rejected; failed accounting publishes neither simulation nor book.
 
-This covers posted coin purchases and owner-operated wear. Barter, royalty tool
-delivery and transferred
-production costs still require adapters. A financial statement is not yet available
+This covers posted coin purchases and owner-operated wear; subsequent extensions
+add explicitly valued equipment barter and title-following WIP transfers. Royalty
+tool delivery still requires an adapter. A financial statement is not yet available
 for every tool scenario.
 
 The focused equipment-accounting regression run passed **38 tests**: accounting
@@ -727,9 +728,8 @@ The expansion is **not universal coverage yet**. These valid economic situations
 still need accounting adapters or policy definitions:
 
 - Household dissolution/estate distributions and consolidated reporting beyond the supported pooling agreement.
-- Royalty-paid equipment and contingent consideration; general goods barter.
+- Royalty-paid equipment and contingent consideration; non-posted barter without explicit payment terms.
 - Paid labor capitalization and production with distinct operators/beneficiaries or non-pool resource ownership.
-- Trading, dues and production sharing one opening inventory allocation boundary.
 - Multiple loan/estate denominations and FX valuation; redeemable currency and retirement.
 - Explicit dues discharge, forward refund/repricing and impairment policies.
 - Full durable Audit/Simulation restart, consolidation and contingent/noncash disclosures.
@@ -802,3 +802,49 @@ all-target Clippy, formatting and repository artifact checks passed. The result
 establishes supported accounting through this scenario; it does not validate all
 royalty, insolvency, FX or dissolution arrangements. Logs remain under ignored
 `output/economics/`.
+
+
+## Shared opening-cost allocation and posted barter
+
+Trade, forward, equipment-barter, process and dues adapters now use a single
+`CostAllocation` for each core accounting boundary. It retains opening quantities
+and basis while the working inventory accumulates receipts and outputs. All
+outgoing claims share the original quantity limit: a receipt can neither fund
+another same-boundary disposal nor change its unit cost.
+
+Cost recognition visits aggregated sales first, processes by stable process ID,
+and dues by dated agreement key. Cumulative proportional rounding allocates each
+reporting tick once and releases the final remainder on full depletion. This is
+an accounting rounding convention, not a physical allocation priority. Exact
+quotient/remainder arithmetic also avoids rejecting representable costs merely
+because an intermediate multiplication would overflow.
+
+**The scheduler and settlement admission rules are unchanged.** Trades and
+production still run at their existing phases. The three-adapter composition is
+tested directly as costing machinery; it does not authorize an otherwise invalid
+mixed simulation batch. Existing CPU scenario regressions verify integration at
+the current phase boundaries.
+
+For an accepted posted bid with two noncash commodities, `Opening.exchange_values`
+now prices the bid's **payment** commodity in reporting ticks. Actual payment
+quantity times that explicit unit value establishes both deliveries' consideration.
+Each party recognizes sales, releases its surrendered stock's historical cost,
+and receives inventory at that consideration value. Neither records a cash flow.
+This valuation does not mark existing holdings to market or alter physical prices.
+
+Example: two grain units with carrying cost 14 exchange for four wood units with
+carrying cost 8. With wood valued at three reporting ticks per unit, each party
+records sales of 12. The grain seller records cost of sales 14 and wood inventory
+12; the wood seller records cost of sales 8 and grain inventory 12. Missing quotes
+or an unrepresentable consideration value reject accounting without publishing it.
+Equipment barter retains its existing convention; negotiated noncash exchanges
+without a posted payment definition remain unsupported.
+
+Validation: **74 checks passed**: 71 accounting integration/regression tests and
+three cost-allocation unit tests. Posted barter checks compare CPU/reference,
+checkpoint continuation, finalized periods, combined coin/barter sales, reversed
+transaction order, and missing/overflowing valuation rejection. The cost-only
+composition balances a journal across trades, WIP and dues, retains newly received
+stock, and checks exhausted/failed allocations and large representable costs.
+The slow 32-person integration was not rerun for this change; the four focused
+household accounting tests passed. Logs are under ignored `output/economics/`.
