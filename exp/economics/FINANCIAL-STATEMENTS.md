@@ -88,7 +88,8 @@ with a real-world accounting standard.
 The adapter recognizes the selected coin at one reporting tick per stored tick.
 It rejects nonzero stocks without explicit opening cost, unsupported stock movements,
 mixed loan or estate denominations, equipment, forwards, land-dues obligations,
-households, production, town-market clearing and minting transactions. Unsupported activity is an error,
+households, town-market clearing and minting transactions. Process transactions
+require the explicit material-cost opt-in described below. Unsupported activity is an error,
 not zero value or an unexplained income/equity adjustment. Unused capacities and
 need satisfaction are not financial assets. Uncalled guarantees remain contingent
 agreements in the contract inspection view; they are not recognized liabilities
@@ -138,9 +139,77 @@ six-test inventory run added the ZIP accounting control. CPU export, formatting,
 strict all-target Clippy and repository artifact checks passed. No full-crate
 rerun was performed.
 
-This is exchange accounting, not yet production costing, consumption expense,
-spoilage, commodity obligations, barter, or town-market accounting. Those stock
-movements still reject even when their resource already has an inventory cost.
+This spot-trade adapter does not recognize spoilage, commodity obligations, barter
+or town-market accounting. Production/consumption use the separate opt-in adapter
+below. An inventory cost alone does not authorize an unknown stock movement.
+
+## Production and consumption costs
+
+`Audit::with_processes` opts into material-cost accounting with the same opening
+inventory costs and tangible valuations. It additionally accepts explicit relative
+cost shares per output resource for definitions producing joint products. Provided
+shares must be positive and cover the definition's stock outputs. A joint-output
+completion without shares rejects atomically; no grain/seed values are guessed.
+
+| Event | Monetary recognition |
+| --- | --- |
+| Input committed to productive work | Reduce input inventory at opening carrying cost; capitalize into `WorkInProgress(process_id)`. |
+| Work continues | Retain accumulated input cost across months; add any further consumed stock cost. No automatic income or depreciation. |
+| Process completes | Move accumulated work cost into actual stock outputs. Single output receives all cost; joint products receive configured shares. |
+| Consumption completes | Reduce consumed inventory and recognize `ConsumptionExpense`. Nutrition/warmth satisfaction is nonfinancial, not inventory or revenue. |
+| Process aborts | Derecognize its work-in-progress cost into `ProductionLoss`. Do not expense the seed again or pretend the lost harvest was produced. |
+| Productive work with no financial output | Recognize material cost as `ProductionExpense` instead of inventing an asset. |
+
+Unpaid labor, regenerated capacities and environmental services have no monetary
+cost in this policy. Consequently labor-only output has a known zero material
+basis, not a guessed market price. Paid labor, equipment depreciation and overhead
+capitalization are not covered. These are recognition rules, not planner valuations.
+
+All input releases use the opening-boundary average cost. When several processes
+consume the same stock, cumulative rounding allocates released cost by stable
+process ID. Output shares use cumulative rounding in resource-ID order. These
+conventions allocate every tick and do not change which process receives physical
+resources. New output is not available to other work in the same batch; inventory
+cost becomes visible with the existing committed Productive boundary and is then
+available to the later Consumption boundary.
+
+This adapter supports owner-operated work: input owner, operator and beneficiary
+must agree. Work-in-progress title/beneficiary transfers, third-party inputs,
+royalties and combined trade/production batches reject pending explicit adapters.
+Cloning the audit preserves work costs for continuation. Opening a new audit over
+already active work rejects, including when no seed remains in physical inventory;
+otherwise a restart could silently discard capitalized cost. Supplying historical
+work costs to a new book remains outstanding.
+
+Storage currently constrains acceptance/completion; it does not emit spoilage or
+stored-goods discard transactions. A blocked harvest aborts under existing process
+rules, so only capitalized work is lost. No new spoilage rate, storage-loss event
+or monthly execution stage was introduced. A real stored-goods loss adapter needs
+an explicit validated event before it can release inventory cost into an expense.
+
+CPU examples (from `exp/economics`):
+
+```sh
+cargo +1.92.0 run --locked --example process_statements -- harvest > ../../output/economics/process-harvest.md
+cargo +1.92.0 run --locked --example process_statements -- missed-work > ../../output/economics/process-missed-work.md
+cargo +1.92.0 run --locked --example process_statements -- storage-blocked > ../../output/economics/process-storage-blocked.md
+```
+
+These controls start with grain cost 10 and seed cost 12, explicitly value land
+at zero, and run six months. Successful harvest leaves 11 inventory and 11
+consumption expense. Both failure controls finish with 12 production loss and 10
+consumption expense. Cash and revenue remain zero. An additional grain/seed
+control allocates 12 material-cost ticks as 9 grain / 3 seed; the 18-month repeated
+harvest test reconciles remaining assets plus cumulative expenses to the original
+22 ticks.
+
+Validation: **38 tests passed** across `accounting` (11), `inventory_accounting`
+(6), `process_accounting` (5), `process_offers` (6) and `repeated_and_warmth` (10).
+Controls include CPU/reference agreement, in-progress checkpoint continuation,
+missing joint-product shares with atomic rejection, missed work, storage blockage,
+and preventing a fresh book from forgetting active work costs. All three CPU
+exports, formatting, strict all-target Clippy and artifact checks passed. This was
+a focused run, not a full-crate rerun.
 
 ## Run and inspect
 
@@ -181,8 +250,9 @@ fixture outcomes, not evidence of sustainable autonomous income.
 
 Extend adapters next, preserving these reconciliation gates:
 
-1. Extend the costed stock subledger to production, consumption and storage losses,
-   defining input capitalization versus expense. Add town-market and barter adapters.
+1. Extend material costing to paid labor, equipment and cross-agent work; supply
+   historical work costs on reporting restart. Add validated stored-goods loss events,
+   then town-market and barter accounting adapters.
 2. Define minting input cost, issuance and issuer equity/liabilities explicitly.
 3. Recognize forward advances and delivery obligations, land dues, alternative
    tender, restructuring and delivery write-off in monetary statements without

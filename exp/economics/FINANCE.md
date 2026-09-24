@@ -74,8 +74,10 @@ general non-loan discharge, multicurrency recovery, competing liens, general
 death/dissolution administration remain future work.
 [Double-entry financial statements](FINANCIAL-STATEMENTS.md) now cover the full
 report set for cash loans, valued mortgages, loan recovery and costed posted or
-bilateral/ZIP spot trades. Production/consumption, town-market/minting, forwards/dues
-and household accounting remain open. Future contract types should supply their terms and receipts
+bilateral/ZIP spot trades. Opt-in owner-operated material costing now capitalizes
+work in progress and recognizes consumption and failed-work expense. Paid labor,
+equipment/cross-agent production costs, town-market/minting, forwards/dues and
+household accounting remain open. Future contract types should supply their terms and receipts
 through this shared view before introducing a second settlement mechanism.
 
 ## Validation

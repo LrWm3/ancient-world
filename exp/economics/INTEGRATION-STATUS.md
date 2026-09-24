@@ -25,8 +25,11 @@ The opt-in [double-entry adapter](FINANCIAL-STATEMENTS.md) observes validated ba
 and reconciles its journal to authoritative cash, asset, loan and estate positions.
 It supports cash lending, valued mortgages, fixed enforcement/resale, guarantees
 and loan estates, plus costed posted stock bids and bilateral negotiated/ZIP trades.
-Production/consumption, minting/town-market, forward/land-dues and household
-accounting are explicitly unsupported. The complete report set is not universal
+Opt-in owner-operated production adds material work-in-progress, joint-product
+cost shares, consumption expense and aborted-work loss. Work ownership transfers,
+paid labor/equipment costs, minting/town-market, forward/land-dues and household
+accounting remain unsupported. Storage blockage uses existing process failure;
+there is no stored-goods spoilage event to recognize. The complete report set is not universal
 transaction coverage. Execution and existing acquisition priority are unchanged.
 
 ## Shared acquisition boundary
