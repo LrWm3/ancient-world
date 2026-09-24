@@ -84,7 +84,10 @@ interest are liabilities of the borrower and matching receivables of the lender.
 The borrower owns the purchased asset while it is pledged; the lender does not
 also count the collateral as an owned asset. Equity is owned assets plus coins
 and receivables, less payables. These are scoped views of listed assets and loans,
-not complete financial statements for every existing subsystem.
+not complete financial statements for every existing subsystem. The optional
+[journal-backed reporting adapter](FINANCIAL-STATEMENTS.md) now adds full statements
+for valued mortgage and recovery scenarios, including disposal results and actual
+cash flows; production attachments still require their own accounting adapter.
 
 `World.assets` describes opening ownership. `credit::owner` applies the book's
 subsequent title changes. Rights explicitly listed in `Config.attached_rights`

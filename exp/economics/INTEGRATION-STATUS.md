@@ -19,6 +19,15 @@ stock bid, and one bilateral negotiated exchange. Borrowing, sale-only and joint
 production/sale forecasts also share need-constraint accounting. The experiment
 still contains several separately tested pilots; this is not a universal economy.
 
+## Financial reporting coverage
+
+The opt-in [double-entry adapter](FINANCIAL-STATEMENTS.md) observes validated batches
+and reconciles its journal to authoritative cash, asset, loan and estate positions.
+It supports cash lending, valued mortgages, fixed enforcement/resale, guarantees
+and loan estates. Production, minting/market, forward/land-dues and household
+accounting are explicitly unsupported. The complete report set is not universal
+transaction coverage. Execution and existing acquisition priority are unchanged.
+
 ## Shared acquisition boundary
 
 `acquisition::evaluate` reads one immutable Acquire boundary and returns a dated

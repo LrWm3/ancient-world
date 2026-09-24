@@ -71,8 +71,10 @@ single-denomination cash estates are implemented.
 [Land/forward admission](LAND-FORWARD-ADMISSION.md) now includes native performance
 claims without inventing conversion or discharge. Arbitrary event triggers,
 general non-loan discharge, multicurrency recovery, competing liens, general
-death/dissolution administration and complete double-entry financial statements
-remain future work. Future contract types should supply their terms and receipts
+death/dissolution administration remain future work.
+[Double-entry financial statements](FINANCIAL-STATEMENTS.md) now cover the full
+report set for cash loans, valued mortgages and loan recovery. Integration with
+production/inventory, minting/markets, forwards/dues and households remains open. Future contract types should supply their terms and receipts
 through this shared view before introducing a second settlement mechanism.
 
 ## Validation
