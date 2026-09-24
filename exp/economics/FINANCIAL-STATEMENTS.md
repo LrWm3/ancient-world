@@ -165,7 +165,7 @@ completion without shares rejects atomically; no grain/seed values are guessed.
 Unpaid labor, regenerated capacities and environmental services have no monetary
 cost in this policy. Consequently labor-only output has a known zero material
 basis, not a guessed market price. Equipment wear is included as described below;
-paid labor and overhead capitalization are not covered. These are recognition rules, not planner valuations.
+paid capacity now has the opt-in actual-use policy below; general overhead allocation remains open. These are recognition rules, not planner valuations.
 
 All input releases use the opening-boundary average cost. When several processes
 consume the same stock, cumulative rounding allocates released cost by stable
@@ -311,7 +311,7 @@ fixture outcomes, not evidence of sustainable autonomous income.
 
 Extend adapters next, preserving these reconciliation gates:
 
-1. Extend material costing to capitalized paid labor and third-party production.
+1. Extend the supported paid-capacity costing to additional labor admission paths and priced third-party production.
    Historical WIP opening, title-following WIP transfers, configured expiration,
    town-market trades and explicitly valued equipment barter are implemented.
    Posted barter and shared opening-stock cost allocation are also implemented.
@@ -468,8 +468,9 @@ Purchased monthly capacity is a delivered period service and is expensed when
 made available. This initial policy does **not** capitalize wages into work in
 progress or promise that purchased hours result in completed output. Unused paid
 hours therefore remain an expense; unspent materials remain inventory. Unpaid
-own labor remains unpriced. General paid labor capitalization, future service
-contracts and refunds require additional policies.
+own labor remains unpriced. This remains the default service policy; the optional
+actual-use capitalization policy below now supports purchased capacity in work in
+progress and output costs. Future service contracts and refunds still need policies.
 
 In the normal two-month CPU fixture, the issuer sells wheat for 6 (opening cost
 6), pays 2 for metal and 4 for labor, and creates 10 coins. Its net income is
@@ -731,7 +732,7 @@ still need accounting adapters or policy definitions:
 
 - Household dissolution/estate distributions and consolidated reporting beyond the supported pooling agreement.
 - Estimated/capitalized contingent consideration beyond the earned-only royalty policy below; noncash exchanges outside supported posted, negotiated and town-market payment terms.
-- Paid labor capitalization, priced contract production, non-pool resource ownership, and combining distinct beneficiaries with royalties.
+- Broader paid-labor admission and contract terms beyond current-period capacity purchases, priced contract production, non-pool resource ownership, and combining distinct beneficiaries with royalties.
 - Multiple loan/estate denominations and FX valuation; redeemable currency and retirement.
 - Explicit dues discharge, forward refund/repricing and impairment policies.
 - Full durable Audit/Simulation restart, consolidation and contingent/noncash disclosures.
@@ -1025,3 +1026,79 @@ inventory (6), manufacture (7), process accounting (6), reporting coverage (6), 
 royalties (5). The existing slow full-household stress test remains ignored. Strict
 all-target Clippy, formatting, diff checks and repository artifact checks passed.
 Generated logs remain under ignored `output/economics/venue-barter-*.log`.
+
+
+## Paid capacity and actual-use capitalization
+
+`Opening.services = Some(service_accounting::Costs::default())` enables a purchased
+capacity cost subledger. `None` retains the existing immediate service-expense
+policy. Paid labor is treated generically as a purchased `Capacity` resource;
+resource IDs and agent types do not determine recognition. The supported purchase
+source is currently the verified physical-minting acquisition driver, which can
+also fund ordinary productive work in controlled scenarios. This change does not
+add another labor market or bypass the existing admission and funding checks.
+
+An accepted purchase records operating cash payment and a `PurchasedCapacity`
+asset for the buyer. The supplier recognizes operating cash and service income.
+This asset represents the cost of **available current-period capacity**, not a
+person, unpaid future labor, or an inferred wage. Own and regenerated capacities
+have no acquisition cost. Historical opening service costs must refer to an
+existing agent's positive available capacity and cannot be negative.
+
+Actual use draws proportionally on each account's opening available capacity and
+remaining purchase cost. If two paid hours cost four ticks and two own hours are
+also available, using two of the four hours carries two cost ticks into work.
+Within a boundary, cumulative allocation in stable process-ID order preserves
+rounding; two of three hours with total cost five release three ticks and retain
+two. Incoming purchases cannot fund that same boundary's opening uses. These rules
+assign reporting cost, not scarce physical hours or work priority.
+
+The ordinary process-cost pipeline then carries actual used labor cost alongside
+materials and equipment wear:
+
+- Active work holds the cost in the operator's WIP.
+- Completed stock and durable outputs receive allocated production cost.
+- Aborted work releases its accumulated cost to production loss.
+- Work without a financial output, including coin minting, expenses the used cost.
+  Authorized coin creation remains separate monetary issuance.
+- Unused paid capacity expires at the existing following Open reset and becomes
+  `ServiceExpense`, even when regenerated capacity has the same quantity. It does
+  not roll its cost into new free hours. At the preceding Close it is still an
+  asset under this explicit timing convention.
+
+For example, two material units costing two plus two purchased hours costing four
+produce WIP of six. Completion transfers six to inventory or a constructed asset;
+failure writes off six. If only half the capacity cost was used, WIP contains four
+and the remaining two expire separately. Wages are not paid or recognized again
+when WIP finishes. Recognized service resales release the seller's allocated
+remaining capacity cost as service expense; arbitrary paid-capacity transfers
+without a supported receipt still reject.
+
+The adapter observes accepted service transactions at Acquire, actual capacity
+consumption at existing execution boundaries, and expiration at Open. It preserves
+requested versus granted versus actually used work and changes no scheduler or
+allocation policy. Audit clones retain the subledger for continuation, and the
+new asset account round-trips through the journal archive. Full simulation/Audit
+persistence remains separate work.
+
+`tests/service_accounting.rs` covers purchased capacity before use, CPU/reference
+agreement, continuation, multi-month WIP, completed inventory, durable creation
+and depreciation, failed work, paid/free mixing, two competing processes with
+rounding, unchanged-quantity period resets, unused labor, actual minting and
+unfunded packages. Invalid historical costs and forged service payments reject;
+unpaid labor is never assigned an imputed wage. The existing default-expense
+issuance tests also continue to pass.
+
+Limits: this does not add employment contracts, future-period labor prepayments,
+wage arrears, refunds, overhead allocation, new household paid-capacity delegation,
+or customer billing for produced output. Other acquisition mechanisms need verified
+service receipts before they can supply this same cost pipeline. A paid-capacity
+transfer without such an adapter remains an explicit failure.
+
+Validation: **91 distinct checks passed**: the accounting regression run passed 89,
+then the expanded service suite passed all eight (two additional cases). Coverage
+includes library allocation, journal reporting, inventories, processes, equipment,
+manufacture, issuance, forwards, beneficiaries, royalties, barter and household
+accounting. The existing slow full-household stress test remains ignored. Strict
+all-target Clippy, formatting, diff checks and artifact checks passed. Logs remain
+under ignored `output/economics/service-*.log`.

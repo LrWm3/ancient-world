@@ -27,8 +27,9 @@ It supports cash lending, valued mortgages, fixed enforcement/resale, guarantees
 and loan estates, plus costed posted stock bids and bilateral negotiated/ZIP trades.
 Opt-in owner-operated production adds material work-in-progress, joint-product
 cost shares, consumption expense and aborted-work loss. Work ownership transfers,
-household pooling and opt-in completed-output transfers are supported; capitalized
-paid labor and priced third-party contract production remain unsupported. Dated land dues now compose with lending and
+household pooling, opt-in completed-output transfers and opt-in paid-capacity
+capitalization are supported. Broader employment contracts and priced third-party
+contract production remain unsupported. Dated land dues now compose with lending and
 material production on existing boundaries, including native goods and accepted
 coin alternatives. Estate-paid native/accepted-coin dues now reconcile to restricted debtor cash and neutral custody positions; collection-linked issuance has an explicit opt-in convention. Storage blockage uses existing process failure;
 there is no stored-goods spoilage event to recognize. The complete report set is not universal
@@ -310,3 +311,11 @@ now uses accepted payment-resource terms and actual settled quantities for finan
 recognition, including ZIP-priced matches. Both sides receive costed inventory and
 recognize noncash sales against their own opening basis. Quotes and unsuccessful
 orders create no revenue; payment-stock valuation remains explicit.
+
+
+[Actual-use paid-capacity accounting](FINANCIAL-STATEMENTS.md#paid-capacity-and-actual-use-capitalization)
+now supports accepted period-service purchases in the minting acquisition driver,
+including their use in ordinary stock or durable production. Used cost enters WIP,
+output, or process expense/loss; unused cost expires at the existing monthly reset.
+The default immediate-expense policy remains available. This is financial cost
+recognition, not a new labor market or employment-contract implementation.

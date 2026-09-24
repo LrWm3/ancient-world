@@ -77,8 +77,9 @@ death/dissolution administration remain future work.
 report set for cash loans, valued mortgages, loan recovery and costed posted or
 bilateral/ZIP spot trades. Opt-in owner-operated material costing now capitalizes
 work in progress and recognizes consumption and failed-work expense. Household pooling,
-shared inputs and opt-in completed output transfers are also supported. Capitalized
-paid labor and priced third-party contract production remain open. Ordinary dated dues now recognize income/expense, symmetric
+shared inputs and opt-in completed output transfers are also supported. Paid-capacity
+capitalization is now supported for verified period-service purchases;
+broader employment terms and priced third-party contract production remain open. Ordinary dated dues now recognize income/expense, symmetric
 arrears and native or accepted coin settlement, including verified estate-cash payments. Future contract types should supply their terms and receipts
 through this shared view before introducing a second settlement mechanism.
 
@@ -123,8 +124,8 @@ the reporting adapter. See [forward recognition](FINANCIAL-STATEMENTS.md#prepaid
 An explicit [non-redeemable issuance convention](FINANCIAL-STATEMENTS.md#physical-minting-and-collection-linked-issuance)
 now covers physical minting and native-dues-linked token creation. New face value
 is separate issuer equity/cash creation; actual materials and delivered monthly
-services are expenses. Redeemable currency liabilities and general paid-labor
-capitalization remain open.
+services are expenses by default. An opt-in actual-use service policy now carries
+paid capacity into WIP/output; redeemable currency liabilities remain open.
 
 
 [Estate-paid dues accounting](FINANCIAL-STATEMENTS.md#estate-paid-land-dues) now
@@ -176,3 +177,11 @@ now uses accepted payment-resource terms and actual settled quantities for finan
 recognition, including ZIP-priced matches. Both sides receive costed inventory and
 recognize noncash sales against their own opening basis. Quotes and unsuccessful
 orders create no revenue; payment-stock valuation remains explicit.
+
+
+[Paid-capacity capitalization](FINANCIAL-STATEMENTS.md#paid-capacity-and-actual-use-capitalization)
+is now opt-in through `Opening.services`. Accepted purchases create a short-lived
+capacity cost asset; actual use feeds the existing process cost pipeline. Unused
+cost expires at the next Open. Paid/free capacity mixing uses proportional cost,
+while admission and physical allocation remain unchanged. Employment terms,
+wage arrears and future service prepayments remain outstanding.
