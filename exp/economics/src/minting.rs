@@ -51,6 +51,11 @@ const ADEQUATE_GRANARY: i32 = 18;
 const SCARCE_GRANARY: i32 = 6;
 const PROVISION_TREASURY: i32 = 12;
 const INPUT_BID_CEILING: i32 = 6;
+const TIGHT_GRANARY: i32 = 4;
+const RELEASE_MONTH: u32 = 3;
+const RELEASE_QUANTITY: i32 = 4;
+const STORED_WHEAT: ResourceId = 109;
+const RELEASE_WHEAT: DefinitionId = 106;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Deal {
@@ -762,6 +767,7 @@ pub fn provision_scenario(case: &str) -> Result<(World, State), String> {
     p.sale_limit = FOOD_PRICE;
     p.input_limits = BTreeMap::from([(METAL, INPUT_BID_CEILING), (HOURS, INPUT_BID_CEILING)]);
     p.provisioning = Some(provisioning::Policy {
+        goal: provisioning::ProvisionGoal::FullBuffer,
         consumption: EAT,
         horizon_months: PROVISION_HORIZON,
         leisure: REST,
@@ -818,6 +824,67 @@ pub fn provision_scenario(case: &str) -> Result<(World, State), String> {
             }
         }
         _ => return Err("unknown provision case".into()),
+    }
+    Ok((w, s))
+}
+
+/// Identical opening resources for the full-buffer/incremental policy comparison.
+pub fn provision_policy_scenario(
+    case: &str,
+    goal: provisioning::ProvisionGoal,
+) -> Result<(World, State), String> {
+    let (mut w, mut s) = provision_scenario(if matches!(case, "tight" | "recovery") {
+        "scarce"
+    } else {
+        case
+    })?;
+    w.minting
+        .as_mut()
+        .unwrap()
+        .order_policy
+        .as_mut()
+        .unwrap()
+        .provisioning
+        .as_mut()
+        .unwrap()
+        .goal = goal;
+    if matches!(case, "tight" | "recovery") {
+        s.balances.insert((ISSUER, WHEAT), TIGHT_GRANARY);
+    }
+    if case == "recovery" {
+        // Reserve stock is real and finite, but absent from participants' market
+        // observations until its scheduled release has actually completed.
+        w.resources.push(Resource {
+            id: STORED_WHEAT,
+            name: "sealed grain reserve".into(),
+            kind: ResourceKind::Stock,
+        });
+        w.storage.weights.insert(STORED_WHEAT, 1);
+        s.balances.insert((ISSUER, STORED_WHEAT), RELEASE_QUANTITY);
+        w.definitions.push(ProcessDefinition {
+            id: RELEASE_WHEAT,
+            name: "release stored grain".into(),
+            execution: Execution::Productive,
+            enabled: true,
+            asset_kind: None,
+            stages: vec![Stage {
+                name: "release".into(),
+                months: 1,
+                entry_inputs: vec![Amount::new(STORED_WHEAT, RELEASE_QUANTITY)],
+                monthly_services: vec![],
+            }],
+            outputs: vec![Amount::new(WHEAT, RELEASE_QUANTITY)],
+        });
+        w.transaction_policy
+            .as_mut()
+            .unwrap()
+            .permissions
+            .insert((opportunities::STATE_TYPE, Action::Process(RELEASE_WHEAT)));
+        w.scheduled_starts.push(ScheduledStart {
+            month: RELEASE_MONTH,
+            agent: ISSUER,
+            definition: RELEASE_WHEAT,
+        });
     }
     Ok((w, s))
 }

@@ -51,6 +51,7 @@ pub(super) fn batch(
                     "target_month":plan.target_month,"required_funding":plan.required_funding,"reason":plan.reason,
                     "provision":plan.provision.iter().map(|d|json!({"agent":d.agent,"food_required":d.food_required,
                         "food_held":d.food_held,"expected_food_access":d.expected_food_access,"cash_gap":d.cash_gap,
+                        "purchase_target":d.purchase_target,"goal":format!("{:?}",d.goal),
                         "choice":format!("{:?}",d.choice)})).collect::<Vec<_>>(),
                     "orders":plan.orders.iter().map(|o|json!({"agent":o.agent,"market":o.market,
                         "side":format!("{:?}",o.side),"limit":o.limit,"lots":o.lots})).collect::<Vec<_>>()}));

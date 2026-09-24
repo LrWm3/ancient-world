@@ -15,14 +15,15 @@ The policy looks ahead three months, including the current month, when deciding
 whether more income is useful. The consumption recipe and participant requirements
 supply the quantities; the policy does not identify people by occupation.
 
-The policy distinguishes:
+The default `FullBuffer` policy distinguishes:
 
 | Choice | Interpretation | Work response |
 | --- | --- | --- |
 | `Covered` | Food is held for this month, and the horizon is covered by held food plus affordable, accessible wheat | Withhold input offers; permit leisure |
 | `SeekIncome` | Expected wheat access is sufficient, but coins do not cover the horizon's food gap | Offer an input or permit the configured earning activity |
 | `NoFoodAccess` | Available wheat, market access or consumption permission cannot support the projection | Do not accept coins as a solution; no leisure credit for blocked work |
-| `AwaitFood` | Cash could cover the projection, but this month's food was not acquired before the market boundary closed | Wait for the next purchase opportunity; do not count it as covered leisure |
+| `AwaitFood` | Cash could cover a useful purchase, but this month's food was not acquired before the market boundary closed | Wait for the next purchase opportunity; do not count it as covered leisure |
+| `AwaitOpportunity` | Incremental mode has funded the currently reachable portion, but the full buffer is not covered | Wait and reassess; do not credit leisure or earn coins for nonexistent food |
 
 Expected future access is deliberately conservative: each admitted configured
 participant estimates an equal whole-lot share of the state's remaining wheat
@@ -136,11 +137,83 @@ suites remain the regression controls for prior behavior. All 66 tests across
 these four minting suites, activities, economics and telemetry passed, along with
 all-target Clippy, formatting and the repository artifact check.
 
+## Incremental provision and changing circumstances
+
+`Policy.goal` now selects `FullBuffer` (the existing controls) or `Incremental`.
+Both retain the same full horizon and the same definition of `Covered`. The new
+variant changes the size of the next income target when the full buffer is not
+yet covered:
+
+1. Current food purchases still clear first from opening money.
+2. Count the whole food lots existing coins could buy.
+3. Seek funds for at most one additional month's portion, capped by the remaining
+   horizon deficit and expected accessible wheat. If less than a month's portion
+   is available, that smaller improvement can still justify earning.
+4. Set the input ask from this incremental cash gap and the existing price floor.
+5. Recompute after committed income and at subsequent boundaries. There is no
+   sticky refusal, promise of future replenishment, or saved plan to execute after
+   it becomes stale.
+
+A funded partial target produces `AwaitOpportunity` if current food is held, or
+`AwaitFood` if the agent must wait for another purchase boundary. Neither counts
+as full coverage or leisure. With no expected accessible wheat, additional coins
+still have no modeled provisioning benefit. The policy does not invent food or
+permit spending today's wage in today's earlier purchase window.
+
+The comparison changes only the policy between paired runs. The tight-granary
+case begins with four wheat rather than the six-wheat scarcity control above.
+The recovery case adds four units of sealed, finite state grain reserve to those
+same four market wheat. A normal process converts that reserve into market wheat
+in month 3 Productive. It consumes the reserve; it does not generate free grain.
+Agents do not count it before release, and month 3 Acquire cannot spend its
+later output. Updated availability is observable at month 4 Acquire.
+
+| Six-month case | Unmet food: FullBuffer | Unmet food: Incremental | Mint batches: full / incremental |
+| --- | ---: | ---: | --- |
+| Adequate wheat | 0 | 1 | 3 / 4 |
+| Tight granary (four wheat) | 10 | 8 | 0 / 1 |
+| Empty granary | 12 | 12 | 0 / 0 |
+| Endowed people | 0 | 0 | 1 / 1 |
+| Tight granary + delayed reserve release | 10 | 6 | 0 / 3 |
+
+The tight case shows the intended improvement: earning for one more meal is
+useful even without a full buffer. In recovery, incremental agents record no
+food access in month 3 Acquire, seek income again in month 4, and complete later
+mint exchanges in months 5 and 6. Production and purchase delays still cause
+shortfalls; recognizing improved circumstances does not instantly deliver food.
+
+The adequate case is a regression in welfare, retained explicitly as evidence.
+Incremental suppliers accept smaller payments, work more and build less financial
+protection. Minting completes in months 1–4, consuming all available metal/ore;
+the supplier subsequently lacks income for one meal despite wheat being present.
+The original full-buffer variant completes in months 1, 3 and 5 and avoids that
+shortfall. Incremental mode takes no leisure in this case, versus six hours in
+full-buffer mode. It is therefore an opt-in strategy, not a replacement default
+or proof of generally improved behavior. A later policy could consider production
+cadence and fallback options when choosing how aggressively to build reserves.
+
+Run the paired CPU comparisons from `exp/economics`:
+
+```sh
+cargo +1.92.0 test --locked --test provision_policy
+TELEMETRY_DIR=../../output/economics/provision-policy-new \
+  cargo +1.92.0 run --locked --example provision_policy
+```
+
+Five new tests preserve both the gains and the adequate-supply regression. They
+also check finite reserve release, no anticipation of same-month output, waiting
+versus leisure, CPU/reference equality, reordered inputs, restart after each
+phase and observer transparency. All 39 tests across this comparison and the
+four previous minting suites passed, along with all-target Clippy. Observer
+provision records now include `goal` and `purchase_target` (additional food units,
+not the full horizon requirement); `cash_gap` refers to the selected target.
+
 ## Limits
 
 This policy covers one recurring need, one food market and a short fixed horizon.
-Food scarcity causes refusal when the full projected buffer is unavailable; the
-policy does not rank partial improvements, forage, migrate, bargain or borrow.
+The default policy refuses when the full projected buffer is unavailable; the
+incremental variant allows partial improvements but does not optimize a complete
+future plan. Neither policy forages, migrates, bargains or borrows.
 Leisure is an optional alternative once provision is covered, without a modeled
 utility curve, fatigue recovery or personality. Nutrition deficits are reported;
 this scenario does not attach mortality or health-condition rules to them.

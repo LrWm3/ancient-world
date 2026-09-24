@@ -65,7 +65,7 @@ class. Processes describe possible transformations; transactions record outcomes
 - [Secured credit](SECURED-CREDIT.md): financed plots, monthly interest, balance sheets and fixed-value repossession with attached crops on CPU.
 - [ZIP pricing](ZIP.md): persistent margin learning and repeated CPU comparisons with fixed/concession policies.
 - [Marketplace agent](MARKETPLACE.md): configurable admitted agent types, explicit catalogs and persistent participant pricing records.
-- [Food provision and leisure](MINT-PROVISION.md): recurring food needs, purchasing-power-sensitive input offers, independent wheat sales and explicit leisure when provision is covered.
+- [Food provision and leisure](MINT-PROVISION.md): recurring food needs, full-buffer versus incremental income goals, purchasing-power-sensitive offers and explicit leisure; paired scarcity/recovery controls.
 - [Physical minting](MINTING.md): generated wheat asks and recipe-input bids fund physical coin production, including repeated targets with finite ore replenishment and shortfall controls.
 - [Negotiated pricing](NEGOTIATED-PRICING.md): bilateral reservation prices, bounded quote concessions and atomic CPU exchange.
 - [Consequence-based allocation](CONSEQUENCE-PRIORITY.md): urgent warmth versus tool investment, with controlled CPU outcomes.

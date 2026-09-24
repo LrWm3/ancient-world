@@ -5,8 +5,15 @@ use crate::marketplace::Side;
 const MAX_HORIZON_MONTHS: u32 = 12;
 const MAX_MONTHLY_LOTS: i32 = 64;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProvisionGoal {
+    FullBuffer,
+    /// Fund the next useful monthly portion, then reassess at the next boundary.
+    Incremental,
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Policy {
+    pub goal: ProvisionGoal,
     pub consumption: DefinitionId,
     pub horizon_months: u32,
     pub leisure: DefinitionId,
@@ -19,11 +26,14 @@ pub enum Choice {
     SeekIncome,
     NoFoodAccess,
     AwaitFood,
+    AwaitOpportunity,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Decision {
     pub agent: AgentId,
     pub food_required: i32,
+    pub purchase_target: i32,
+    pub goal: ProvisionGoal,
     pub food_held: i32,
     pub expected_food_access: i32,
     pub cash_gap: i32,
@@ -163,23 +173,47 @@ pub fn decision(
     let cost = (lots * i64::from(p.sale_limit)) as i32;
     let gap = (cost - s.balance(agent, c.coin)).max(0);
     let usable = d.enabled && opportunities::permits(w, s, agent, Action::Process(v.consumption));
+    let mut purchase_target = shortage;
+    let mut cash_gap = gap;
     let choice = if !usable {
         Choice::NoFoodAccess
     } else if held < monthly(w, v, agent) && access >= shortage && gap == 0 {
         Choice::AwaitFood
     } else if shortage == 0 || (access >= shortage && gap == 0) {
         Choice::Covered
-    } else if access < shortage {
-        Choice::NoFoodAccess
+    } else if v.goal == ProvisionGoal::FullBuffer {
+        if access < shortage {
+            Choice::NoFoodAccess
+        } else {
+            Choice::SeekIncome
+        }
     } else {
-        Choice::SeekIncome
+        // Existing coins cover whole purchasable lots. Seek only the next useful
+        // monthly portion, bounded by the horizon and observable food access.
+        let affordable = i64::from(s.balance(agent, c.coin) / p.sale_limit) * i64::from(lot);
+        let next = affordable + i64::from(monthly(w, v, agent));
+        purchase_target = i64::from(shortage.min(access)).min(next) as i32;
+        let target_lots = (i64::from(purchase_target) + i64::from(lot) - 1) / i64::from(lot);
+        cash_gap = (target_lots * i64::from(p.sale_limit) - i64::from(s.balance(agent, c.coin)))
+            .max(0) as i32;
+        if access == 0 {
+            Choice::NoFoodAccess
+        } else if cash_gap > 0 {
+            Choice::SeekIncome
+        } else if held < monthly(w, v, agent) {
+            Choice::AwaitFood
+        } else {
+            Choice::AwaitOpportunity
+        }
     };
     Decision {
         agent,
         food_required: required,
+        purchase_target,
+        goal: v.goal,
         food_held: held,
         expected_food_access: access,
-        cash_gap: gap,
+        cash_gap,
         choice,
     }
 }

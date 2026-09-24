@@ -270,3 +270,9 @@ With the [food provision policy](MINT-PROVISION.md), mint-order records also inc
 gap and `Covered`, `SeekIncome`, `NoFoodAccess` or `AwaitFood` choice. These precede
 input settlement; actual leisure and earning work remain ordinary process records.
 Unused labor alone is not recorded as leisure.
+
+Provision records include `goal` (`FullBuffer` or `Incremental`) and
+`purchase_target` in additional food units. `food_required` remains the complete
+horizon target, while `cash_gap` belongs to the selected purchase target.
+`AwaitOpportunity` means a reachable partial target is funded but the full buffer
+is not covered; it must not be aggregated with completed leisure.
