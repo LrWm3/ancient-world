@@ -574,6 +574,12 @@ impl Audit {
         } else {
             (dues_transactions.to_vec(), vec![])
         };
+        let (dues_transfers, estate_dues_lines) = crate::dues_accounting::estate_payments(
+            world,
+            batch.credit.as_ref(),
+            &dues_transfers,
+            coin,
+        )?;
         let (inventory, dues_lines) = if let Some(dues) = &self.dues {
             dues.settle(world, before, after, &inventory, coin, &dues_transfers)?
         } else {
@@ -648,6 +654,7 @@ impl Audit {
             .chain(forward_lines)
             .chain(issuance_lines)
             .chain(collection_lines)
+            .chain(estate_dues_lines)
             .chain(service_lines)
         {
             if let Some(kind) = l.flow {
@@ -1029,14 +1036,14 @@ impl Audit {
                             i128::from(*proceeds),
                         )?;
                     }
-                    recovery::Receipt::DeliveryRelief { .. }
+                    recovery::Receipt::LandDistributed { .. }
+                    | recovery::Receipt::DeliveryRelief { .. }
                     | recovery::Receipt::SaleRejected { .. }
                     | recovery::Receipt::Opened { .. }
                     | recovery::Receipt::OpeningRejected { .. }
                     | recovery::Receipt::Admitted { .. }
                     | recovery::Receipt::ClosureDeferred { .. }
                     | recovery::Receipt::Closed { .. } => {}
-                    _ => return Err("recovery event needs an explicit accounting adapter".into()),
                 }
             }
         }

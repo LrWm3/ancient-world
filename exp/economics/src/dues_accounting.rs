@@ -209,7 +209,7 @@ impl Valuation {
         actual.retain(|_, v| *v != 0);
         effects.retain(|_, v| *v != 0);
         if actual != effects {
-            return Err("dues receipts do not reconcile to actual transfers (issuance/estate adapters unsupported)".into());
+            return Err("dues receipts do not reconcile to actual transfers".into());
         }
         for (key, q) in used {
             let old = &inventory.0[&key];
@@ -233,4 +233,94 @@ impl Valuation {
         stocks.0.retain(|_, h| h.quantity != 0);
         Ok((stocks, lines))
     }
+}
+
+/// Estate money is owned restricted cash of the debtor, held by a custodian.
+/// Project the verified physical payer into the dues adapter's debtor view, then
+/// reclassify that adapter's cash debit to restricted cash. No income is added.
+pub(crate) fn estate_payments(
+    world: &World,
+    boundary: Option<&crate::credit::Boundary>,
+    transactions: &[Transaction],
+    coin: ResourceId,
+) -> Result<(Vec<Transaction>, Vec<Line>), String> {
+    let mut expected = BTreeMap::new();
+    let mut lines = vec![];
+    if let Some(boundary) = boundary {
+        for receipt in &boundary.recovery {
+            let crate::recovery::Receipt::LandDistributed {
+                proceeding,
+                creditor,
+                tender,
+                ..
+            } = receipt
+            else {
+                continue;
+            };
+            if tender.resource != coin || tender.quantity < 0 {
+                return Err("unsupported estate dues tender".into());
+            }
+            if tender.quantity == 0 {
+                continue;
+            }
+            let p = world
+                .recovery
+                .proceedings
+                .iter()
+                .find(|p| p.id == *proceeding)
+                .ok_or("missing estate dues proceeding")?;
+            if p.denomination != coin {
+                return Err("mixed estate dues denomination".into());
+            }
+            let cash = i128::from(tender.quantity);
+            accounting::add(&mut expected, (p.estate, *creditor), cash)?;
+            lines.extend([
+                Line {
+                    agent: p.debtor,
+                    account: Account::Cash,
+                    debit: cash,
+                    flow: Some(Flow::Operating),
+                },
+                Line {
+                    agent: p.debtor,
+                    account: Account::RestrictedCash(p.id),
+                    debit: -cash,
+                    flow: Some(Flow::Operating),
+                },
+            ]);
+        }
+    }
+    let mut actual = BTreeMap::new();
+    let mut transfers = transactions.to_vec();
+    for t in &mut transfers {
+        let Some((index, p)) = t.effects.iter().enumerate().find_map(|(i, e)| {
+            (e.delta < 0)
+                .then(|| {
+                    world
+                        .recovery
+                        .proceedings
+                        .iter()
+                        .find(|p| e.account == (p.estate, coin))
+                        .map(|p| (i, p))
+                })
+                .flatten()
+        }) else {
+            continue;
+        };
+        let paid = -i128::from(t.effects[index].delta);
+        let received = t
+            .effects
+            .iter()
+            .find(|e| e.account.1 == coin && i128::from(e.delta) == paid)
+            .ok_or("missing estate dues recipient")?;
+        if t.effects.len() != 2 || received.account.0 == p.estate {
+            return Err("unsupported estate dues transfer".into());
+        }
+        accounting::add(&mut actual, (p.estate, received.account.0), paid)?;
+        t.effects[index].account.0 = p.debtor;
+    }
+    if actual != expected {
+        return Err("estate dues receipts do not reconcile to transfers".into());
+    }
+    Ok((transfers, lines))
 }
