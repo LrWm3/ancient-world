@@ -65,7 +65,8 @@ becomes payable at maturity. Neither consequence forgives unpaid amounts.
 This is a small settlement foundation, not a universal contract interpreter.
 A scoped [negotiated-pricing pilot](NEGOTIATED-PRICING.md) now reuses its exchange
 legs, including an opt-in [ZIP quoting policy](ZIP.md). The secured-credit pilot
-adds scoped interest, collateral and symmetric loan balance-sheet views.
+adds scoped interest and collateral. Symmetric loan financial positions are
+reported exclusively through the double-entry journal.
 Capped original-loan guarantees, scoped proportional collection and authorized
 single-denomination cash estates are implemented.
 [Land/forward admission](LAND-FORWARD-ADMISSION.md) now includes native performance

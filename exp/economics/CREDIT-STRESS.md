@@ -95,7 +95,7 @@ TELEMETRY_DIR=../../output/economics/credit-stress-demo \
 cargo +1.92.0 test --locked --test credit_stress
 ```
 
-The example runs all three cases, prints monthly scoped balance sheets and credit
+The example runs all three cases, prints monthly operational cash, debt and title diagnostics and credit
 events, and writes JSONL through the ordinary observer. `settlement: true` now
 exports `loan_state`, `loan_event` (accrual, payment, arrears and fixed enforcement),
 `credit_stock_sale` with limiting quantities, and `collateral_process_transfer`.
@@ -119,3 +119,9 @@ The state still combines lender, land seller and grain buyer. This is one secure
 claim, not general insolvency, multi-creditor priority, negotiated refinancing or
 an independent bank model. A useful follow-up would compare grace durations or
 separate the grain buyer from the lender while keeping these controls unchanged.
+
+
+The former state-derived balance-sheet fallback has been removed. This example
+explicitly labels its output as operational diagnostics. Active crop transfers are
+not yet supported by the financial reporting adapter; use the supported
+journal-backed credit and financial-statements examples for financial reports.

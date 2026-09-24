@@ -376,7 +376,8 @@ and optional counterparty-expectation / plan-persistence variants under the same
 
 [Harvest-funded loan stress controls](CREDIT-STRESS.md) compare normal repayment,
 a lost harvest followed by recovery, and repeated harvest failure with crop-preserving
-repossession. The CPU runner exposes monthly balance sheets and settlement receipts.
+repossession. The CPU runner exposes monthly cash/debt/title diagnostics and settlement receipts;
+it does not fabricate financial statements for unsupported crop transfers.
 
 [Cooperative discovery](COOPERATION.md) compares mutual candidate-plan search with
 market-posted bilateral agreements. Both use dated exchanges and cancellation on
@@ -396,3 +397,10 @@ reconstruction and completed-period locks. The Audit only finalizes completed
 simulation months; provisional reports remain available. This does not yet save
 or restore the full simulation and accounting subledgers. See
 [journal persistence](FINANCIAL-STATEMENTS.md#journal-persistence-and-completed-periods).
+
+
+The double-entry journal is the only financial reporting system. The legacy
+state-derived credit balance-sheet API is removed; the credit example now uses
+finalized journal reports. Contract records and operational telemetry remain
+execution/inspection data, not alternative accounting. Unsupported reporting
+scenarios have no snapshot-equity fallback.

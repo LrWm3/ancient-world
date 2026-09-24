@@ -79,16 +79,14 @@ application is supported in this pilot. Offer discovery checks eligibility and
 ownership; acceptance also checks funding. No cash, title or debt changes if
 acceptance fails. The sale, advance, title transfer and pledge commit together.
 
-The authoritative loan book supplies both parties' balance sheets. Principal and
-interest are liabilities of the borrower and matching receivables of the lender.
-The borrower owns the purchased asset while it is pledged; the lender does not
-also count the collateral as an owned asset. Equity is owned assets plus coins
-and receivables, less payables. These are scoped views of listed assets and loans,
-not complete financial statements for every existing subsystem. The optional
-[journal-backed reporting adapter](FINANCIAL-STATEMENTS.md) now adds full statements
-for valued mortgage and recovery scenarios, including disposal results and actual
-cash flows. Owner-operated attachments can opt into material costing; transfer
-of active crop costs still requires an accounting adapter.
+Financial statements come exclusively from the [double-entry journal and reporting
+adapter](FINANCIAL-STATEMENTS.md). Committed loan events recognize matching
+borrower liabilities and lender receivables. Explicit asset carrying costs determine
+collateral recognition and disposal results; posted offer prices are not a fallback
+valuation. The credit example records every boundary through Audit and prints
+finalized journal statements. The former state-derived scoped balance-sheet API
+has been removed. Owner-operated attachments can opt into material costing;
+transfer of active crop costs still requires an accounting adapter.
 
 `World.assets` describes opening ownership. `credit::owner` applies the book's
 subsequent title changes. Rights explicitly listed in `Config.attached_rights`

@@ -667,3 +667,33 @@ Validation: **33 tests passed** across accounting (14), equipment accounting (2)
 issuance accounting (5), manufacture accounting (7) and process accounting (5).
 Strict all-target Clippy, formatting, diff and repository artifact checks passed.
 Logs remain under ignored `output/economics/`.
+
+
+## Single accounting implementation
+
+The legacy `credit::BalanceSheet` and `credit::balance_sheet` snapshot calculation
+have been removed. Financial statements now come only from `accounting::Book`
+and the validated `financial_reporting::Audit` adapters. The credit example opens
+explicit plot cost, records all boundaries and finalizes its reporting period;
+it no longer values assets using a live offer-price fallback.
+
+The credit contract book, physical account balances, transaction effects, forecasts
+and operational telemetry remain: these drive or inspect execution and are not
+alternative financial statements. Credit-stress output now explicitly reports cash,
+debt and title diagnostics because its active crop-transfer path still lacks a full
+accounting adapter. Removing the legacy report does not make unsupported events
+reportable, and no silent snapshot fallback is retained.
+
+Simulation tests retain contract, cash, collateral-title and custody assertions.
+Financial regression tests use journal balances and independently specified
+expected equity, including repaid, default, surplus and rejected-downpayment
+mortgages. Existing journal tests cover restricted borrower assets pending resale
+and neutral estate custody. The old calculation is no longer a financial test oracle.
+
+Removal validation: **84 focused tests passed** across accounting (14), credit (9),
+credit stress (5), lending (18), loan views (5), recovery (26) and resale (7).
+The final accounting assertions also passed after adding explicit journal checks
+that pending-sale collateral is excluded from lender assets while both sides retain
+their principal/interest positions. Strict all-target Clippy and the CPU credit
+example passed. Source search finds no remaining legacy balance-sheet API or calls.
+Generated summaries and logs stay under ignored `output/economics/`.

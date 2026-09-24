@@ -258,3 +258,10 @@ reconstruction and completed-period locks. The Audit only finalizes completed
 simulation months; provisional reports remain available. This does not yet save
 or restore the full simulation and accounting subledgers. See
 [journal persistence](FINANCIAL-STATEMENTS.md#journal-persistence-and-completed-periods).
+
+
+The state-derived credit balance-sheet implementation has been removed. Financial
+reports now use only the double-entry Book/Audit pipeline, with explicit opening
+valuations and validated events. Operational contract state, treasury balances and
+settlement receipts remain available for simulation diagnostics. Scenarios awaiting
+accounting adapters report those diagnostics without substituting snapshot equity.

@@ -72,8 +72,8 @@ automatic seizure nor bypasses grace, funding or settlement checks.
 
 This adapter deliberately does not run loans through the land/process status
 evaluator. Their enforcement and custody states retain their own typed meaning.
-Credit offer acceptance, repayment scheduling, resale and balance-sheet calculation
-are unchanged. Borrower redemption remains a
+Credit offer acceptance, repayment scheduling and resale are unchanged.
+Financial reporting now uses the double-entry journal exclusively. Borrower redemption remains a
 [possible extension](COLLATERAL-RESALE.md#possible-extension-borrower-repayment-before-resale).
 
 ## Guarantee inspection and current recovery coverage
@@ -154,7 +154,7 @@ repository artifact checks passed. Local test outputs are under ignored `output/
 Loan inspection adds five tests covering accepted terms versus edited offers,
 namespaced identities and participant filtering, pre/post-Due observations,
 fixed-value enforcement, pending-sale custody, realized deficiency and repayment.
-They compare inspected claims with both balance sheets and verify unchanged
+They compare inspected claims with authoritative loan records and verify unchanged
 state, ledger and reports across reference/CPU execution. The new query does not
 change monthly scheduling or checkpoint data.
 
