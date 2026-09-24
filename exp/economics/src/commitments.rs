@@ -189,7 +189,12 @@ pub(crate) fn evaluate_selected(
         let a = active(world, state)
             .find(|a| a.id == o.agreement)
             .ok_or("unknown obligation agreement")?;
-        if state.terminal.contains_key(&a.debtor) {
+        // Native performance continues on its existing boundary. Cash claims
+        // and accepted coin alternatives belong to the estate distribution pool.
+        let estate = crate::recovery::active(world, &state.credit, a.debtor);
+        if state.terminal.contains_key(&a.debtor)
+            || estate.is_some_and(|p| p.denomination == a.payment.resource)
+        {
             continue;
         }
         let claim = o.claim(a);
@@ -203,43 +208,10 @@ pub(crate) fn evaluate_selected(
                 .unwrap_or(0),
         )?;
         let paid = payment.paid;
-        let previously_paid = o.in_kind_paid;
-        if paid > 0 {
-            o.paid += paid;
-            o.in_kind_paid += paid;
-            transactions.push(Transaction {
-                cause: format!("agreement {} due {}: pay {}", a.id, o.due, paid),
-                effects: payment.effects,
-                process: None,
-                technique_use: None,
-                trade: None,
-                stock_trade: None,
-                forward: None,
-                delivery: None,
-                royalty: None,
-            });
-            if let Some(rule) = world.issuance.iter().find(|r| r.agreement == a.id) {
-                let issued = o.in_kind_paid / rule.collected_per_token
-                    - previously_paid / rule.collected_per_token;
-                if issued > 0 {
-                    transactions.push(Transaction {
-                        cause: format!("issue currency: agreement {} due {}", a.id, o.due),
-                        effects: vec![Effect {
-                            account: (a.creditor, rule.token),
-                            delta: issued,
-                        }],
-                        process: None,
-                        technique_use: None,
-                        trade: None,
-                        stock_trade: None,
-                        forward: None,
-                        delivery: None,
-                        royalty: None,
-                    });
-                }
-            }
-        }
-        if let Some(alternative) = world.activities.coin_payments.get(&a.id) {
+        transactions.extend(record_payment(world, a, o, paid, true, payment.effects));
+        if estate.is_none()
+            && let Some(alternative) = world.activities.coin_payments.get(&a.id)
+        {
             let payment = execution.pay_tender(
                 world,
                 state.month,
@@ -250,28 +222,14 @@ pub(crate) fn evaluate_selected(
                     .copied()
                     .unwrap_or(0),
             )?;
-            let units = payment.paid;
-            if units > 0 {
-                let coins = units
-                    .checked_mul(alternative.coins_per_unit)
-                    .ok_or("coin payment overflow")?;
-                let effects = payment.effects;
-                o.paid += units;
-                transactions.push(Transaction {
-                    cause: format!(
-                        "agreement {} due {}: pay {} units with {} coins",
-                        a.id, o.due, units, coins
-                    ),
-                    effects,
-                    process: None,
-                    technique_use: None,
-                    trade: None,
-                    stock_trade: None,
-                    forward: None,
-                    delivery: None,
-                    royalty: None,
-                });
-            }
+            transactions.extend(record_payment(
+                world,
+                a,
+                o,
+                payment.paid,
+                false,
+                payment.effects,
+            ));
         }
     }
     Ok(Settlement {
@@ -280,6 +238,60 @@ pub(crate) fn evaluate_selected(
         obligations,
         transactions,
     })
+}
+
+/// Update the one authoritative receipt. Only real native receipts may issue tokens.
+pub(crate) fn record_payment(
+    world: &World,
+    agreement: &Agreement,
+    obligation: &mut Obligation,
+    paid: i32,
+    native: bool,
+    effects: Vec<Effect>,
+) -> Vec<Transaction> {
+    if paid == 0 {
+        return vec![];
+    }
+    let previously_paid = obligation.in_kind_paid;
+    obligation.paid += paid;
+    if native {
+        obligation.in_kind_paid += paid;
+    }
+    let mut transactions = vec![crate::credit::tx(
+        if native {
+            format!(
+                "agreement {} due {}: pay {}",
+                agreement.id, obligation.due, paid
+            )
+        } else {
+            format!(
+                "agreement {} due {}: pay {} units with {} coins",
+                agreement.id,
+                obligation.due,
+                paid,
+                i64::from(paid)
+                    * i64::from(world.activities.coin_payments[&agreement.id].coins_per_unit)
+            )
+        },
+        effects,
+    )];
+    if native && let Some(rule) = world.issuance.iter().find(|r| r.agreement == agreement.id) {
+        let issued = obligation.in_kind_paid / rule.collected_per_token
+            - previously_paid / rule.collected_per_token;
+        if issued > 0 {
+            transactions.push(crate::credit::tx(
+                format!(
+                    "issue currency: agreement {} due {}",
+                    agreement.id, obligation.due
+                ),
+                vec![Effect {
+                    account: (agreement.creditor, rule.token),
+                    delta: issued,
+                }],
+            ));
+        }
+    }
+    transactions
 }
 
 pub fn validate(world: &World, state: &State) -> Result<(), String> {
@@ -407,6 +419,9 @@ pub fn acceptance_for(
         .iter()
         .find(|o| o.id == id)
         .ok_or("unknown access offer")?;
+    if crate::recovery::active(world, &state.credit, applicant).is_some() {
+        return Err("new land agreement during active proceeding".into());
+    }
     if !world.agents.iter().any(|a| a.id == applicant)
         || applicant == template.creditor
         || (!world.open_access_offers.contains(&id) && applicant != template.debtor)

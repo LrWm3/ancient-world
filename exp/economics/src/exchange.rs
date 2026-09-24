@@ -227,7 +227,12 @@ pub(crate) fn resolve_with(
     let mut requests = market.tools.clone();
     requests.sort_by_key(|r| (r.buyer, r.kind, r.provider));
     for r in requests {
-        if !missing(state, &r) || state.terminal.contains_key(&r.provider) {
+        if !missing(state, &r)
+            || state.terminal.contains_key(&r.provider)
+            // Proceeding configurations admit this driver for existing delivery
+            // servicing only; replacement purchases need another acquisition adapter.
+            || !world.recovery.proceedings.is_empty()
+        {
             continue;
         }
         if let Some(a) = state.equipment.values().find(|a| {

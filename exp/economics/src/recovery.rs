@@ -1,4 +1,4 @@
-//! Consented guarantees and authorized loan-estate proceedings use the credit book.
+//! Consented guarantees and authorized recovery proceedings use the credit book.
 //! Asset sales produce real escrow cash; distribution occurs at the next Due boundary.
 use crate::{
     credit::{self, Loan, Status},
@@ -40,6 +40,7 @@ pub struct ProceedingTerms {
     pub opening_month: u32,
     pub earliest_close: u32,
     pub assets: Vec<Listing>,
+    /// Applies to loan deficiencies only. Non-loan performance claims block closure.
     pub discharge_deficiency: bool,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -65,6 +66,7 @@ pub enum Stage {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Proceeding {
     pub opened: u32,
+    pub closed: Option<u32>,
     pub stage: Stage,
     pub cash: i32,
     pub sold: BTreeSet<AssetId>,
@@ -78,6 +80,23 @@ pub struct Book {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Receipt {
+    Admitted {
+        proceeding: u32,
+        claims: Vec<crate::recovery_claims::Claim>,
+    },
+    ClosureDeferred {
+        proceeding: u32,
+        claims: Vec<crate::recovery_claims::Claim>,
+    },
+    LandDistributed {
+        proceeding: u32,
+        agreement: u32,
+        creditor: AgentId,
+        requested: Amount,
+        allocated: i32,
+        paid: i32,
+        tender: Amount,
+    },
     Opened {
         proceeding: u32,
         authority: AgentId,
@@ -240,16 +259,16 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             .agreements
             .iter()
             .chain(&world.access_offers)
-            .any(|a| a.debtor == p.debtor)
-            || state
-                .exchange
-                .forwards
-                .values()
-                .any(|f| f.debtor == p.debtor)
+            .any(|a| {
+                a.debtor == p.debtor
+                    && world
+                        .activities
+                        .coin_payments
+                        .get(&a.id)
+                        .is_some_and(|t| t.resource != p.denomination)
+            })
         {
-            return Err(
-                "loan-estate proceedings do not yet admit land dues or forward claims".into(),
-            );
+            return Err("estate land tender must match its cash denomination".into());
         }
         // Custody agents cannot participate in other configured economic arrangements.
         if world.participants.iter().any(|p0| p0.agent == p.estate)
@@ -264,7 +283,27 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                 .iter()
                 .chain(&world.access_offers)
                 .any(|a| a.debtor == p.estate || a.creditor == p.estate)
-            || world.market.is_some()
+            || world.market.as_ref().is_some_and(|m| {
+                m.tools.iter().any(|r| {
+                    r.buyer == p.estate
+                        || r.provider == p.estate
+                        || !state.exchange.contracts.values().any(|d| {
+                            d.buyer == r.buyer
+                                && d.provider == r.provider
+                                && state
+                                    .equipment
+                                    .get(&d.asset)
+                                    .is_some_and(|a| a.kind == r.kind)
+                        })
+                }) || !m.reserves.is_empty()
+                    || m.plots.is_some()
+                    || m.cash.as_ref().is_some_and(|c| c.lender == p.estate)
+            })
+            || state
+                .exchange
+                .forwards
+                .values()
+                .any(|c| c.debtor == p.estate || c.creditor == p.estate)
             || world.negotiation.is_some()
             || world.credit.is_some()
         {
@@ -351,6 +390,21 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         if case.opened != p.opening_month
             || case.opened > state.month
             || case.cash < 0
+            || (case.stage == Stage::Closed) != case.closed.is_some()
+            || case.closed.is_some_and(|closed| {
+                closed < p.earliest_close
+                    || closed < case.opened
+                    || closed > state.month
+                    || crate::recovery_claims::outstanding(world, state, p.debtor)
+                        .iter()
+                        .any(|claim| match claim.contract {
+                            finance::ContractId::Land(_) => claim.due <= closed,
+                            finance::ContractId::Forward(id) => {
+                                state.exchange.forwards[&id].issued <= closed
+                            }
+                            finance::ContractId::Loan(_) => false,
+                        })
+            })
             || case.secured.values().any(|v| *v < 0)
             || case.secured.keys().any(|id| {
                 state.credit.loans.get(id).is_none_or(|loan| {
@@ -396,9 +450,11 @@ pub(crate) fn open(world: &World, state: &State, out: &mut credit::Boundary) -> 
             .values()
             .filter(|l| l.debtor == p.debtor && l.debt().unwrap_or(0) > 0)
             .collect();
-        let valid = loans
+        let nonloans = crate::recovery_claims::outstanding(world, state, p.debtor);
+        let valid = (loans
             .iter()
             .any(|l| l.first_unpaid.is_some_and(|m| m < state.month))
+            || nonloans.iter().any(|c| c.due < state.month))
             && loans.iter().all(|l| {
                 l.denomination == p.denomination
                     && l.status != Status::PendingSale
@@ -418,6 +474,7 @@ pub(crate) fn open(world: &World, state: &State, out: &mut credit::Boundary) -> 
             p.id,
             Proceeding {
                 opened: state.month,
+                closed: None,
                 stage: Stage::Active,
                 cash: 0,
                 sold: BTreeSet::new(),
@@ -428,6 +485,10 @@ pub(crate) fn open(world: &World, state: &State, out: &mut credit::Boundary) -> 
             proceeding: p.id,
             authority: p.authority,
             debtor: p.debtor,
+        });
+        out.recovery.push(Receipt::Admitted {
+            proceeding: p.id,
+            claims: nonloans,
         });
     }
     // Interest freezes and the full claim is eligible for estate distribution.
@@ -689,12 +750,17 @@ pub(crate) fn distribute(
         let mut case = out.after.recovery.proceedings[&p.id].clone();
         // Collect only unprotected opening coins. Newly deposited funds become
         // distributable next month, like sale proceeds received at Acquire.
+        let (land_requests, _) = crate::recovery_claims::cash_requests(world, state, out, p)?;
+        let land_cash = land_requests.iter().try_fold(0_i32, |sum, r| {
+            sum.checked_add(r.claim.outstanding())
+                .ok_or("estate cash demand overflow")
+        })?;
         let debt = out
             .after
             .loans
             .values()
             .filter(|l| l.debtor == p.debtor)
-            .try_fold(0_i32, |sum, l| {
+            .try_fold(land_cash, |sum, l| {
                 sum.checked_add(l.debt()?)
                     .ok_or("estate debt overflow".to_string())
             })?;
@@ -769,7 +835,7 @@ pub(crate) fn distribute(
             });
             case.secured.insert(id, (requested - payment.paid).max(0));
         }
-        let requests: Vec<_> = out
+        let mut requests: Vec<_> = out
             .after
             .loans
             .values()
@@ -784,11 +850,28 @@ pub(crate) fn distribute(
             .collect::<Result<_, String>>()?;
         let remaining_lien: i32 = case.secured.values().sum();
         let protected = BTreeMap::from([((p.estate, p.denomination), remaining_lien)]);
-        let grants =
-            finance::proportional_grants(world, state.month, execution, &protected, &requests)?;
+        let (land_requests, lots) = crate::recovery_claims::cash_requests(world, state, out, p)?;
+        requests.extend(land_requests);
+        let grants = finance::proportional_lots(
+            world,
+            state.month,
+            execution,
+            &protected,
+            &requests,
+            &lots,
+        )?;
         for request in requests {
             let finance::ContractId::Loan(id) = request.contract else {
-                unreachable!()
+                case.cash -= crate::recovery_claims::pay_land(
+                    world,
+                    state,
+                    out,
+                    p,
+                    &request,
+                    (grants[&request.contract], lots[&request.contract]),
+                    execution,
+                )?;
+                continue;
             };
             let opening = execution
                 .available
@@ -829,6 +912,19 @@ pub(crate) fn distribute(
             && p.assets.iter().all(|a| case.sold.contains(&a.asset))
             && case.secured.values().all(|v| *v == 0)
         {
+            let nonloans = crate::recovery_claims::outstanding(
+                world,
+                &crate::recovery_claims::current(state, out),
+                p.debtor,
+            );
+            if !nonloans.is_empty() {
+                out.recovery.push(Receipt::ClosureDeferred {
+                    proceeding: p.id,
+                    claims: nonloans,
+                });
+                out.after.recovery.proceedings.insert(p.id, case);
+                continue;
+            }
             let deficiency = out
                 .after
                 .loans
@@ -877,6 +973,7 @@ pub(crate) fn distribute(
                     }
                 }
                 case.stage = Stage::Closed;
+                case.closed = Some(state.month);
                 out.recovery.push(Receipt::Closed {
                     proceeding: p.id,
                     surplus,

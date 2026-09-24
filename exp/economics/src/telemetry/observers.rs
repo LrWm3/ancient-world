@@ -110,6 +110,31 @@ pub(super) fn batch(
         for receipt in &credit.recovery {
             use crate::recovery::Receipt;
             let (case_id, detail) = match receipt {
+                Receipt::Admitted { proceeding, claims }
+                | Receipt::ClosureDeferred { proceeding, claims } => (
+                    Some(*proceeding),
+                    json!({"event":if matches!(receipt, Receipt::Admitted {..}) { "Admitted" } else { "ClosureDeferred" },
+                        "claims":claims.iter().map(|c| json!({
+                            "contract":format!("{:?}",c.contract), "creditor":c.creditor,
+                            "due":c.due, "resource":c.remaining.resource,
+                            "outstanding":c.remaining.quantity
+                        })).collect::<Vec<_>>()}),
+                ),
+                Receipt::LandDistributed {
+                    proceeding,
+                    agreement,
+                    creditor,
+                    requested,
+                    allocated,
+                    paid,
+                    tender,
+                } => (
+                    Some(*proceeding),
+                    json!({"event":"LandDistributed","agreement":agreement,"creditor":creditor,
+                        "resource":requested.resource,"requested":requested.quantity,
+                        "allocated":allocated,"paid":paid,"tender_resource":tender.resource,
+                        "tender_paid":tender.quantity}),
+                ),
                 Receipt::Opened {
                     proceeding,
                     authority,
@@ -205,6 +230,20 @@ pub(super) fn batch(
                     .loans
                     .values()
                     .any(|l| l.debtor == p.debtor && visible(l))
+                || detail
+                    .get("creditor")
+                    .and_then(|c| c.as_u64())
+                    .is_some_and(|a| selected(config, a as AgentId))
+                || detail
+                    .get("claims")
+                    .and_then(|c| c.as_array())
+                    .is_some_and(|claims| {
+                        claims.iter().any(|c| {
+                            c["creditor"]
+                                .as_u64()
+                                .is_some_and(|a| selected(config, a as AgentId))
+                        })
+                    })
                 || detail
                     .get("buyer")
                     .and_then(|b| b.as_u64())

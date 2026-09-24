@@ -44,7 +44,7 @@ pub struct Advance {
     pub priority: u32,
 }
 pub fn enabled(world: &World) -> bool {
-    world.credit.is_some() || !world.lending.is_empty()
+    world.credit.is_some() || !world.lending.is_empty() || !world.recovery.proceedings.is_empty()
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Collateral {
@@ -636,7 +636,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     {
         return Err("unknown ownership-following right".into());
     }
-    if !world.lending.is_empty()
+    if (!world.lending.is_empty() || !world.recovery.proceedings.is_empty())
         && (world.minting.is_some()
             || world.town_market.is_some()
             || world.competition.is_some()
@@ -1066,7 +1066,10 @@ fn collection_grants(
     }
     let obligations = crate::commitments::due_obligations(world, state)?;
     for agreement in crate::commitments::active(world, state) {
-        if state.terminal.contains_key(&agreement.debtor) {
+        if state.terminal.contains_key(&agreement.debtor)
+            || crate::recovery::active(world, &out.after, agreement.debtor)
+                .is_some_and(|p| p.denomination == agreement.payment.resource)
+        {
             continue;
         }
         let amount = obligations
@@ -1126,6 +1129,7 @@ fn collection_grants(
                 if currency_pass
                     && let finance::ContractId::Land(id) = r.contract
                     && let Some(tender) = world.activities.coin_payments.get(&id)
+                    && crate::recovery::active(world, &out.after, r.claim.transfer.from).is_none()
                 {
                     let mut alt = r.clone();
                     let remaining = r.claim.outstanding()
@@ -1186,7 +1190,8 @@ fn due(
     crate::recovery::open(world, state, out)?;
     let protected = crate::commitments::protected_stock(world, state)?;
     let mut collection_state = state.clone();
-    let grants = collection_grants(world, state, out, &execution, &protected)?;
+    collection_state.credit = out.after.clone();
+    let grants = collection_grants(world, &collection_state, out, &execution, &protected)?;
     let mut order: Vec<_> = out
         .after
         .loans
