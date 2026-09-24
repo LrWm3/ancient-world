@@ -1,4 +1,4 @@
-//! Strict first adapter: same-denomination lending, valued land, guarantees and estates.
+//! Strict adapter: same-denomination finance, valued land and costed spot trades.
 //! Unsupported positions/events fail before either simulation or reporting publishes.
 use crate::{
     accounting::{self, Account, Book, Entry, Flow, Line},
@@ -16,12 +16,14 @@ pub struct Audit {
     book: Book,
     boundary: State,
     asset_values: BTreeMap<AssetId, i128>,
+    inventory: crate::inventory_accounting::Inventory,
 }
 fn positions(
     world: &World,
     state: &State,
     coin: ResourceId,
     values: &BTreeMap<AssetId, i128>,
+    inventory: &crate::inventory_accounting::Inventory,
 ) -> Result<Positions, String> {
     if !world
         .resources
@@ -34,6 +36,7 @@ fn positions(
     {
         return Err("financial adapter requires cash/loan positions; equipment, forward, land-dues and household adapters remain unsupported".into());
     }
+    inventory.validate(world, state, coin)?;
     let mut p = BTreeMap::new();
     for (&(agent, r), &q) in &state.balances {
         if q == 0 {
@@ -46,7 +49,11 @@ fn positions(
             .iter()
             .any(|x| x.id == r && x.kind == ResourceKind::Stock)
         {
-            return Err("unpriced stock: no implicit zero valuation".into());
+            let h = inventory
+                .0
+                .get(&(agent, r))
+                .ok_or("missing inventory basis")?;
+            accounting::add(&mut p, (agent, Account::Inventory(r)), h.cost)?;
         }
     }
     if world.credit.as_ref().is_some_and(|c| {
@@ -173,7 +180,23 @@ impl Audit {
         denomination: ResourceId,
         asset_values: BTreeMap<AssetId, i128>,
     ) -> Result<Self, String> {
+        Self::with_inventory(world, state, denomination, asset_values, BTreeMap::new())
+    }
+    /// Opening total carrying costs, not unit quotes, for each noncash stock holding.
+    pub fn with_inventory(
+        world: &World,
+        state: &State,
+        denomination: ResourceId,
+        asset_values: BTreeMap<AssetId, i128>,
+        inventory_costs: BTreeMap<crate::model::Account, i128>,
+    ) -> Result<Self, String> {
         crate::settlement::validate_world(world, state)?;
+        let inventory = crate::inventory_accounting::Inventory::open(
+            world,
+            state,
+            denomination,
+            inventory_costs,
+        )?;
         if state.phase != Phase::Open {
             return Err("open a reporting book at a month opening".into());
         }
@@ -181,9 +204,10 @@ impl Audit {
             book: Book::open_at(
                 denomination,
                 state.month.checked_sub(1).ok_or("invalid opening month")?,
-                positions(world, state, denomination, &asset_values)?,
+                positions(world, state, denomination, &asset_values, &inventory)?,
             )?,
             asset_values,
+            inventory,
             boundary: state.clone(),
         })
     }
@@ -227,18 +251,26 @@ impl Audit {
         if batch.transactions.iter().any(|t| {
             t.process.is_some()
                 || t.trade.is_some()
-                || t.stock_trade.is_some()
                 || t.delivery.is_some()
                 || t.forward.is_some()
                 || t.royalty.is_some()
         }) || batch.minting.is_some()
             || batch.town_market.is_some()
-            || batch.negotiation.is_some()
         {
             return Err("transaction needs an explicit accounting adapter".into());
         }
         let coin = self.book.denomination();
+        let negotiated = crate::negotiation::transactions(world, before, &batch.negotiation)?;
+        let trades: Vec<_> = batch
+            .transactions
+            .iter()
+            .filter(|t| t.stock_trade.is_some() || negotiated.contains(t))
+            .collect();
+        let (inventory, trade_lines) = self.inventory.settle(&trades, coin)?;
         for t in &batch.transactions {
+            if trades.contains(&t) {
+                continue;
+            }
             let has_stock = t.effects.iter().any(|e| {
                 e.delta != 0
                     && world
@@ -266,14 +298,21 @@ impl Audit {
                 }
             }
         }
-        let opening = positions(world, before, coin, &self.asset_values)?;
-        let closing = positions(world, after, coin, &self.asset_values)?;
+        let opening = positions(world, before, coin, &self.asset_values, &self.inventory)?;
+        let closing = positions(world, after, coin, &self.asset_values, &inventory)?;
         let mut delta = closing.clone();
         for (key, value) in &opening {
             accounting::add(&mut delta, key.clone(), -*value)?;
         }
         let mut lines = vec![];
         let mut flows = Flows::new();
+        for l in trade_lines {
+            if let Some(kind) = l.flow {
+                flow(&mut flows, l.agent, l.account, kind, l.debit)?;
+            } else {
+                lines.push(l);
+            }
+        }
         let mut interest: BTreeMap<_, _> = before
             .credit
             .loans
@@ -739,6 +778,7 @@ impl Audit {
         if reported != closing {
             return Err("journal does not reconcile to authoritative positions".into());
         }
+        self.inventory = inventory;
         self.book = candidate;
         self.boundary = after.clone();
         Ok(())

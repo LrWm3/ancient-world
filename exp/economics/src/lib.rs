@@ -148,3 +148,5 @@ pub mod household_governance;
 
 pub mod accounting;
 pub mod financial_reporting;
+
+pub mod inventory_accounting;
