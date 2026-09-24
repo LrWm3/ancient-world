@@ -87,7 +87,7 @@ with a real-world accounting standard.
 
 The adapter recognizes the selected coin at one reporting tick per stored tick.
 It rejects nonzero stocks without explicit opening cost, unsupported stock movements,
-mixed loan or estate denominations, equipment, forwards, unconfigured land dues,
+mixed loan or estate denominations, equipment barter/royalties, forwards, unconfigured land dues,
 households, town-market clearing and minting transactions. Process transactions
 require the explicit material-cost opt-in described below. Unsupported activity is an error,
 not zero value or an unexplained income/equity adjustment. Unused capacities and
@@ -162,8 +162,8 @@ completion without shares rejects atomically; no grain/seed values are guessed.
 
 Unpaid labor, regenerated capacities and environmental services have no monetary
 cost in this policy. Consequently labor-only output has a known zero material
-basis, not a guessed market price. Paid labor, equipment depreciation and overhead
-capitalization are not covered. These are recognition rules, not planner valuations.
+basis, not a guessed market price. Equipment wear is included as described below;
+paid labor and overhead capitalization are not covered. These are recognition rules, not planner valuations.
 
 All input releases use the opening-boundary average cost. When several processes
 consume the same stock, cumulative rounding allocates released cost by stable
@@ -254,7 +254,8 @@ for dues, arbitrary relief, and combined same-boundary trade/production/dues cos
 allocation require further adapters. Ordinary Due and Productive/Consumption work
 compose on their existing separate boundaries. Forwards remain unsupported:
 their current origination bundles a prepaid delivery agreement with tool purchase,
-so equipment acquisition/cost accounting is a prerequisite to that integration.
+coin equipment acquisition and wear now have accounting, but the bundled prepaid
+agreement still needs its own recognition adapter.
 
 ```sh
 cargo +1.92.0 run --locked --example dues_statements > ../../output/economics/dues-statements.md
@@ -309,14 +310,14 @@ fixture outcomes, not evidence of sustainable autonomous income.
 
 Extend adapters next, preserving these reconciliation gates:
 
-1. Extend material costing to paid labor, equipment and cross-agent work; supply
+1. Extend material costing to paid labor, equipment repair/manufacture and cross-agent work; supply
    historical work costs on reporting restart. Add validated stored-goods loss events,
    then town-market and barter accounting adapters.
 2. Define minting input cost, issuance and issuer equity/liabilities explicitly.
 3. Recognize forward advances and delivery obligations, restructuring and delivery
    write-off without erasing native performance. Ordinary dues/alternative tender
    now have an adapter; extend it to estate payments and explicit relief.
-4. Add durable equipment depreciation, household/institution contributions and
+4. Add household/institution contributions and
    distributions, then ownership and consolidation eliminations. Summing entity
    statements is not a consolidated economy statement: custody and intra-economy
    claims need elimination.
@@ -326,3 +327,42 @@ Extend adapters next, preserving these reconciliation gates:
 The adapter deliberately replays validation and clones small scenarios. It has not
 been optimized or benchmarked for a large population. Balanced books establish
 accounting consistency, not economic calibration, solvency or recoverability.
+
+## Coin equipment acquisition and use-based cost
+
+Every opening durable asset now requires an explicit carrying cost in the same
+asset-value map as land. Zero cost is allowed explicitly; an exhausted tool must
+have zero carrying cost. An accepted posted equipment offer denominated in the
+reporting coin transfers the asset at its actual purchase price. The seller removes
+its previous basis and recognizes disposal gain/loss; both sides classify actual
+cash as investing. Asking prices alone do not revalue unsold equipment.
+
+At the existing Productive boundary, validated technique use releases
+`floor(opening carrying cost × uses spent / opening remaining uses)`.
+Rounding stays in the tool; its final use releases all remaining cost. Idle tools
+do not depreciate under this policy. This is a remaining-use cost convention, not
+a calendar-life estimate.
+
+Wear is a production input cost: it joins seed/material cost in work in progress,
+passes into actual outputs at completion, or becomes production loss if work
+subsequently fails. It is not also charged as a separate depreciation expense.
+The process-cost opt-in remains required. No planner, reservation or monthly
+execution timing changes were made.
+
+Verification: `equipment_accounting` compares CPU/reference purchase and harvest,
+then follows six uses through month 60 with checkpoint continuation. A price of
+3 against seller basis 2 records gain 1 and buyer cost 3; full exhaustion releases
+all three ticks. Combined entity assets less liabilities and cumulative income
+retain opening equity at every boundary. Missing opening costs and unsupported
+barter are rejected; failed accounting publishes neither simulation nor book.
+
+This covers posted coin purchases and owner-operated wear. Barter, royalty tool
+delivery, prepaid-forward bundles, tool manufacture/repair, and transferred
+production costs still require adapters. A financial statement is not yet available
+for every tool scenario.
+
+The focused equipment-accounting regression run passed **38 tests**: accounting
+11, dues 6, equipment simulation 8, equipment accounting 2, inventory 6 and process
+accounting 5. Strict all-target Clippy and formatting passed. The legacy equipment
+tests validate simulation behavior; they do not imply financial-report support
+for barter or every legacy arrangement.
