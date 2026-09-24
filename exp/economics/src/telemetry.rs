@@ -129,6 +129,21 @@ impl<W: Write> Observer<W> {
     /// Inspect all newly appended committed records, including when a public
     /// step commits more than one batch. Never inspect pending production plans.
     pub fn step(&mut self, sim: &mut Simulation) -> Result<(), String> {
+        self.step_with(sim, Simulation::step)
+    }
+    /// Observe the same atomic simulation/accounting advancement used by Audit.
+    pub fn step_audited(
+        &mut self,
+        sim: &mut Simulation,
+        audit: &mut crate::financial_reporting::Audit,
+    ) -> Result<(), String> {
+        self.step_with(sim, |sim| audit.step(sim))
+    }
+    fn step_with(
+        &mut self,
+        sim: &mut Simulation,
+        advance: impl FnOnce(&mut Simulation) -> Result<(), String>,
+    ) -> Result<(), String> {
         if self.failed {
             return Err(
                 "telemetry output previously failed; replace observer before advancing".into(),
@@ -148,7 +163,7 @@ impl<W: Write> Observer<W> {
         let reports = sim.reports.len();
         let month = sim.state.month;
         let phase = format!("{:?}", sim.state.phase);
-        let result = sim.step();
+        let result = advance(sim);
         for batch in &sim.ledger[batches..] {
             if self.month(batch.month) {
                 for record in observers::batch(&self.config, &sim.world, batch, &mut self.pending) {

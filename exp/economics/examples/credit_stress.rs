@@ -2,14 +2,20 @@ use economics_compute_smoke::{
     compute::Backend,
     credit,
     credit_stress::{self, Case, OBSERVATION_MONTHS},
-    scenario::{GRAIN, NUTRITION, PERSON, PLOT, STATE_AGENT, TOKEN},
+    financial_reporting::Audit,
+    model::ResourceKind,
+    scenario::{GRAIN, GROW, NUTRITION, PERSON, PLOT, SEED, STATE_AGENT, TOKEN},
     simulation::Simulation,
     telemetry::{Config, Observer},
 };
 
+use std::collections::BTreeMap;
+const OPENING_LAND_COST: i128 = 10_000;
+const OPENING_STOCK_UNIT_COST: i128 = 1;
+
 fn main() -> Result<(), String> {
     println!(
-        "Operational diagnostics only; this crop-transfer scenario has no complete financial report adapter yet."
+        "Journal reports use explicit opening land cost 10000 and stock unit cost 1, with equal grain/seed cost shares."
     );
     let directory =
         std::env::var("TELEMETRY_DIR").map_err(|_| "set TELEMETRY_DIR under ignored output/")?;
@@ -17,6 +23,26 @@ fn main() -> Result<(), String> {
     for case in [Case::Normal, Case::Temporary, Case::Persistent] {
         let name = format!("{case:?}");
         let (w, s) = credit_stress::scenario(case)?;
+        let costs = s
+            .balances
+            .iter()
+            .filter(|((_, r), q)| {
+                *r != TOKEN
+                    && **q > 0
+                    && w.resources
+                        .iter()
+                        .any(|v| v.id == *r && v.kind == ResourceKind::Stock)
+            })
+            .map(|(k, q)| (*k, i128::from(*q) * OPENING_STOCK_UNIT_COST))
+            .collect();
+        let mut audit = Audit::with_processes(
+            &w,
+            &s,
+            TOKEN,
+            BTreeMap::from([(PLOT, OPENING_LAND_COST)]),
+            costs,
+            BTreeMap::from([(GROW, BTreeMap::from([(GRAIN, 1), (SEED, 1)]))]),
+        )?;
         let mut sim = Simulation::new(w, s, Backend::CubeCpu)?;
         let file = std::fs::OpenOptions::new()
             .write(true)
@@ -32,18 +58,27 @@ fn main() -> Result<(), String> {
             },
         )?;
         for month in 1..=OBSERVATION_MONTHS {
-            observer.run_months(&mut sim, 1)?;
+            while sim.state.month <= month {
+                observer.step_audited(&mut sim, &mut audit)?;
+            }
+            audit.finalize_through(month)?;
+            let borrower = audit.book().finalized_statements(PERSON, month, month)?;
+            let lender = audit
+                .book()
+                .finalized_statements(STATE_AGENT, month, month)?;
             let loan = &sim.state.credit.loans[&1];
             let borrower_cash = sim.state.balance(PERSON, TOKEN);
             let lender_cash = sim.state.balance(STATE_AGENT, TOKEN);
             println!(
-                "{name} month={month} owner={:?} status={:?} pledged={} debt={} arrears={:?} grain={} borrower_cash={borrower_cash} lender_cash={lender_cash}",
+                "{name} month={month} owner={:?} status={:?} pledged={} debt={} arrears={:?} grain={} borrower_cash={borrower_cash} lender_cash={lender_cash} borrower_equity={} lender_equity={}",
                 credit::owner(&sim.world, &sim.state, PLOT),
                 loan.status,
                 loan.collateral.as_ref().is_some_and(|c| c.pledged),
                 loan.debt()?,
                 loan.first_unpaid,
-                sim.state.balance(PERSON, GRAIN)
+                sim.state.balance(PERSON, GRAIN),
+                borrower.equity,
+                lender.equity
             );
             for b in sim.ledger.iter().filter(|b| b.month == month) {
                 if let Some(c) = &b.credit {
