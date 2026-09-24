@@ -532,3 +532,94 @@ fn third_party_mortgage_lender_and_seller_have_distinct_books() {
         2_000
     );
 }
+
+#[test]
+fn journal_archive_rebuilds_large_integer_balances_and_finalization_guards() {
+    let large = i128::from(u64::MAX) + 123;
+    let mut book = Book::open(TOKEN, BTreeMap::from([((PERSON, A::Cash), large)])).unwrap();
+    let entry = |id: &str, month| Entry {
+        id: id.into(),
+        month,
+        batch: None,
+        description: "expense".into(),
+        lines: vec![
+            Line {
+                agent: PERSON,
+                account: A::Cash,
+                debit: -1,
+                flow: Some(Flow::Operating),
+            },
+            Line {
+                agent: PERSON,
+                account: A::ProductionExpense,
+                debit: 1,
+                flow: None,
+            },
+        ],
+    };
+    book.post(entry("one", 1)).unwrap();
+    assert!(book.finalized_statements(PERSON, 1, 1).is_err());
+    book.finalize_through(1).unwrap();
+    let frozen = book.finalized_statements(PERSON, 1, 1).unwrap();
+    let mut loaded = Book::from_json(&book.to_json().unwrap()).unwrap();
+    assert_eq!(book, loaded);
+    assert_eq!(loaded.balances()[&(PERSON, A::Cash)], large - 1);
+    let old = loaded.clone();
+    assert!(loaded.post(entry("late", 1)).is_err());
+    assert!(loaded.finalize_through(2).is_err());
+    assert!(loaded.finalize_through(0).is_err());
+    assert_eq!(old, loaded);
+    loaded.post(entry("two", 2)).unwrap();
+    assert_eq!(frozen, loaded.finalized_statements(PERSON, 1, 1).unwrap());
+    assert!(loaded.finalized_statements(PERSON, 1, 2).is_err());
+    loaded.finalize_through(2).unwrap();
+    assert_eq!(loaded, Book::from_json(&loaded.to_json().unwrap()).unwrap());
+}
+
+#[test]
+fn malformed_journals_cannot_bypass_posting_validation() {
+    let mut book = Book::open(TOKEN, BTreeMap::from([((PERSON, A::Cash), 10)])).unwrap();
+    book.post(Entry {
+        id: "one".into(),
+        month: 1,
+        batch: Some(1),
+        description: "empty boundary".into(),
+        lines: vec![],
+    })
+    .unwrap();
+    let json = book.to_json().unwrap();
+    for bad in [
+        json.replace("\"version\": 1", "\"version\": 999"),
+        json.replace("\"debit\": 10", "\"debit\": 11"),
+        json.replace("\"id\": \"one\"", "\"id\": \"opening\""),
+        json.replace("\"finalized_through\": null", "\"finalized_through\": 2"),
+        json.replace("\"Cash\"", "\"Sales\""),
+        "{}".into(),
+    ] {
+        assert!(Book::from_json(&bad).is_err(), "{bad}");
+    }
+}
+
+#[test]
+fn audit_only_finalizes_completed_months_and_continues_on_cpu() {
+    let (w, s) = fixture();
+    let mut a = Audit::new(&w, &s, TOKEN).unwrap();
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    a.step(&mut sim).unwrap();
+    let old = a.clone();
+    assert!(a.finalize_through(1).is_err());
+    assert_eq!(old, a);
+    through(&mut a, &mut sim, 1);
+    a.finalize_through(1).unwrap();
+    let report = a.book().finalized_statements(PERSON, 1, 1).unwrap();
+    let mut resumed = a.clone();
+    let mut checkpoint = sim.clone();
+    through(&mut a, &mut sim, 3);
+    through(&mut resumed, &mut checkpoint, 3);
+    assert_eq!(a, resumed);
+    assert_eq!(report, a.book().finalized_statements(PERSON, 1, 1).unwrap());
+    assert_eq!(
+        *a.book(),
+        Book::from_json(&a.book().to_json().unwrap()).unwrap()
+    );
+}

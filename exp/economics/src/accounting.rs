@@ -1,9 +1,10 @@
 //! Double-entry reporting book. Signed amounts are debit-positive; money is in
 //! integer reporting ticks. Domain adapters must reconcile, never invent a plug.
 use crate::model::{AgentId, ResourceId};
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Account {
     Cash,
     RestrictedCash(u32),
@@ -86,7 +87,7 @@ impl Account {
         matches!(self, Self::Cash | Self::RestrictedCash(_))
     }
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Flow {
     Operating,
     Investing,
@@ -95,7 +96,7 @@ pub enum Flow {
     /// Self-created money, shown separately from external cash flows.
     Issuance,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Line {
     pub agent: AgentId,
     pub account: Account,
@@ -103,7 +104,7 @@ pub struct Line {
     pub debit: i128,
     pub flow: Option<Flow>,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Entry {
     pub id: String,
     pub month: u32,
@@ -115,10 +116,23 @@ pub struct Entry {
 pub struct Book {
     denomination: ResourceId,
     opening_month: u32,
+    finalized_through: Option<u32>,
     entries: Vec<Entry>,
     ids: BTreeSet<String>,
     balances: BTreeMap<(AgentId, Account), i128>,
 }
+const JOURNAL_VERSION: u32 = 1;
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct JournalArchive {
+    version: u32,
+    denomination: ResourceId,
+    opening_month: u32,
+    finalized_through: Option<u32>,
+    entries: Vec<Entry>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Statements {
     pub from: u32,
@@ -186,6 +200,7 @@ impl Book {
         let mut book = Self {
             denomination,
             opening_month: month,
+            finalized_through: None,
             entries: vec![],
             ids: BTreeSet::new(),
             balances: BTreeMap::new(),
@@ -211,10 +226,86 @@ impl Book {
     pub fn balances(&self) -> &BTreeMap<(AgentId, Account), i128> {
         &self.balances
     }
+    /// Lock completed periods. Standalone callers attest that all entries are posted.
+    pub fn finalize_through(&mut self, month: u32) -> Result<(), String> {
+        if month <= self.opening_month
+            || self.finalized_through.is_some_and(|old| month < old)
+            || self.entries.last().is_none_or(|e| month > e.month)
+        {
+            return Err("invalid finalization boundary".into());
+        }
+        self.finalized_through = Some(month);
+        Ok(())
+    }
+    pub fn finalized_through(&self) -> Option<u32> {
+        self.finalized_through
+    }
+    pub fn finalized_statements(
+        &self,
+        agent: AgentId,
+        from: u32,
+        through: u32,
+    ) -> Result<Statements, String> {
+        if self.finalized_through.is_none_or(|month| through > month) {
+            return Err("reporting period is not finalized".into());
+        }
+        self.statements(agent, from, through)
+    }
+    /// Versioned journal only; not a simulation or Audit checkpoint.
+    pub fn to_json(&self) -> Result<String, String> {
+        serde_json::to_string_pretty(&JournalArchive {
+            version: JOURNAL_VERSION,
+            denomination: self.denomination,
+            opening_month: self.opening_month,
+            finalized_through: self.finalized_through,
+            entries: self.entries.clone(),
+        })
+        .map_err(|e| e.to_string())
+    }
+    /// Rebuild balances and duplicate guards by validating every journal entry.
+    pub fn from_json(json: &str) -> Result<Self, String> {
+        let archive: JournalArchive = serde_json::from_str(json).map_err(|e| e.to_string())?;
+        if archive.version != JOURNAL_VERSION {
+            return Err("unsupported journal version".into());
+        }
+        let opening = archive.entries.first().ok_or("missing opening entry")?;
+        if opening.id != "opening"
+            || opening.month != archive.opening_month
+            || opening.batch.is_some()
+            || opening.lines.iter().any(|l| {
+                !matches!(l.account.class(), Class::Asset | Class::Liability)
+                    && l.account != Account::OpeningEquity
+            })
+        {
+            return Err("invalid opening entry".into());
+        }
+        let mut book = Self {
+            denomination: archive.denomination,
+            opening_month: archive.opening_month,
+            finalized_through: None,
+            entries: vec![],
+            ids: BTreeSet::new(),
+            balances: BTreeMap::new(),
+        };
+        for (index, entry) in archive.entries.into_iter().enumerate() {
+            book.publish(entry, index == 0)?;
+        }
+        if let Some(month) = archive.finalized_through {
+            book.finalize_through(month)?;
+        }
+        Ok(book)
+    }
     pub fn post(&mut self, entry: Entry) -> Result<(), String> {
         self.publish(entry, false)
     }
     fn publish(&mut self, entry: Entry, opening: bool) -> Result<(), String> {
+        if !opening
+            && self
+                .finalized_through
+                .is_some_and(|month| entry.month <= month)
+        {
+            return Err("accounting period is finalized".into());
+        }
         if self.ids.contains(&entry.id)
             || entry.id.is_empty()
             || (!opening && entry.month <= self.opening_month)

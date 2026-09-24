@@ -362,6 +362,13 @@ impl Audit {
     pub fn book(&self) -> &Book {
         &self.book
     }
+    /// Finalize only months whose Close boundary has already committed.
+    pub fn finalize_through(&mut self, month: u32) -> Result<(), String> {
+        if month >= self.boundary.month {
+            return Err("cannot finalize an incomplete simulation month".into());
+        }
+        self.book.finalize_through(month)
+    }
     /// Atomic composed execution: accounting failure publishes neither side.
     pub fn step(&mut self, sim: &mut Simulation) -> Result<(), String> {
         let mut next = sim.clone();
