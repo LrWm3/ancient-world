@@ -303,3 +303,10 @@ This follows existing production rights and stock/durable settlement. Unfinished
 costs and failed-work losses stay with the operator; recipient depreciation begins
 only after ownership transfers. No planner, allocation rule or physical execution
 phase changed. Priced production and three-party royalty consideration remain open.
+
+
+[Negotiated and town-market barter](FINANCIAL-STATEMENTS.md#negotiated-and-town-market-barter)
+now uses accepted payment-resource terms and actual settled quantities for financial
+recognition, including ZIP-priced matches. Both sides receive costed inventory and
+recognize noncash sales against their own opening basis. Quotes and unsuccessful
+orders create no revenue; payment-stock valuation remains explicit.

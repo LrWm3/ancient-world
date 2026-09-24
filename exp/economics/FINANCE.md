@@ -169,3 +169,10 @@ now has an explicit carrying-cost transfer policy. Operators retain unfinished w
 and failed-work losses; successful stock and durable output transfers to its actual
 beneficiary. This includes shared-pool inputs but does not infer wages or priced
 contract production, or combine third-party beneficiaries with supplier royalties.
+
+
+[Negotiated and town-market barter](FINANCIAL-STATEMENTS.md#negotiated-and-town-market-barter)
+now uses accepted payment-resource terms and actual settled quantities for financial
+recognition, including ZIP-priced matches. Both sides receive costed inventory and
+recognize noncash sales against their own opening basis. Quotes and unsuccessful
+orders create no revenue; payment-stock valuation remains explicit.

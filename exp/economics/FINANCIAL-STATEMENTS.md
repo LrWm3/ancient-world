@@ -730,7 +730,7 @@ The expansion is **not universal coverage yet**. These valid economic situations
 still need accounting adapters or policy definitions:
 
 - Household dissolution/estate distributions and consolidated reporting beyond the supported pooling agreement.
-- Estimated/capitalized contingent consideration beyond the earned-only royalty policy below; non-posted barter without explicit payment terms.
+- Estimated/capitalized contingent consideration beyond the earned-only royalty policy below; noncash exchanges outside supported posted, negotiated and town-market payment terms.
 - Paid labor capitalization, priced contract production, non-pool resource ownership, and combining distinct beneficiaries with royalties.
 - Multiple loan/estate denominations and FX valuation; redeemable currency and retirement.
 - Explicit dues discharge, forward refund/repricing and impairment policies.
@@ -840,8 +840,9 @@ carrying cost 8. With wood valued at three reporting ticks per unit, each party
 records sales of 12. The grain seller records cost of sales 14 and wood inventory
 12; the wood seller records cost of sales 8 and grain inventory 12. Missing quotes
 or an unrepresentable consideration value reject accounting without publishing it.
-Equipment barter retains its existing convention; negotiated noncash exchanges
-without a posted payment definition remain unsupported.
+Equipment barter retains its existing convention. Negotiated and town-market
+stock barter now use their own accepted payment terms, as described below;
+unsupported noncash exchanges still fail rather than guessing a payment resource.
 
 Validation: **74 checks passed**: 71 accounting integration/regression tests and
 three cost-allocation unit tests. Posted barter checks compare CPU/reference,
@@ -979,3 +980,48 @@ Validation: **74 checks passed** across library (10), accounting (14), posted ba
 and royalties (5). The existing slow full-household stress test remains ignored.
 Strict all-target Clippy, formatting, diff checks and repository artifact checks
 passed. Generated logs remain under ignored `output/economics/beneficiary-*.log`.
+
+
+## Negotiated and town-market barter
+
+The stock adapter now handles bilateral negotiated barter and town-market matches,
+including ZIP-priced exchanges, using the same opening-inventory costing as posted
+barter. `Opening.exchange_values` supplies a positive reporting value per unit of
+the actual payment commodity. The negotiation session identifies that commodity;
+a town market uses its catalog's common payment resource across listings.
+
+Only a replay-verified, settled exchange creates revenue. The actual four transfer
+legs determine both parties, goods quantity and payment quantity. The adapter checks
+two matching stock transfers, applies the payment commodity's reporting value, and
+recognizes two reciprocal noncash sales. Each party releases its own opening cost
+and receives inventory at the agreed consideration. Cash flow remains zero. Quotes,
+unsuccessful negotiations, unmet orders and the town's last posted price are not
+used as evidence of delivery or as inventory revaluation.
+
+For example, if a completed match exchanges two grain for ten wood and wood is
+valued at three reporting ticks per unit, both transfers carry consideration 30.
+The grain supplier receives wood costing 30 and releases its own grain basis; the
+wood supplier receives grain costing 30 and releases its own wood basis. Different
+historical costs create different disposal margins, while physical quantities and
+the canonical journal continue to reconcile.
+
+The shared adapter also reads actual effects for posted barter, retaining support
+for seller-specific payment terms. It requires two noncash stock resources and an
+explicit supported source of payment terms. Missing values, overflow, mismatched
+legs or unauthenticated transactions still reject without publishing simulation or
+journal changes. This does not add capacity barter, FX remeasurement, multilateral
+netting, or new negotiation/clearing behavior.
+
+`tests/barter_accounting.rs` checks negotiated and town exchanges with ordinary and
+ZIP quote policies on CPU and reference backends, exact revenue and released costs,
+continuation, completed-period finalization, and zero cash flows. Missing prices and
+overflow reject atomically for both venues. A no-agreement control needs no barter
+valuation and recognizes no revenue. Existing posted barter, concurrent coin sales,
+and opening-cost allocation tests remain in the regression suite.
+
+Validation: **77 checks passed** across library (10), accounting (14), barter (6),
+beneficiary accounting (5), equipment (3), forwards (5), household accounting (4),
+inventory (6), manufacture (7), process accounting (6), reporting coverage (6), and
+royalties (5). The existing slow full-household stress test remains ignored. Strict
+all-target Clippy, formatting, diff checks and repository artifact checks passed.
+Generated logs remain under ignored `output/economics/venue-barter-*.log`.
