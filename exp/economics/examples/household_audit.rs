@@ -38,6 +38,28 @@ fn main() -> Result<(), String> {
         })
         .map(|e| i64::from(e.delta))
         .sum();
+    let contributions: Vec<_> = reference
+        .ledger
+        .iter()
+        .filter_map(|b| b.household.as_ref())
+        .flat_map(|h| &h.labor)
+        .flat_map(|d| &d.contributions)
+        .collect();
+    println!(
+        "labor reservation ticks: reserved {}, directed {}, returned {}",
+        contributions
+            .iter()
+            .map(|c| i64::from(c.reserved))
+            .sum::<i64>(),
+        contributions
+            .iter()
+            .map(|c| i64::from(c.directed))
+            .sum::<i64>(),
+        contributions
+            .iter()
+            .map(|c| i64::from(c.returned))
+            .sum::<i64>()
+    );
     let deficits: i64 = reference
         .reports
         .iter()

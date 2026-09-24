@@ -41,6 +41,24 @@ pub(super) fn batch(
 ) -> Vec<Value> {
     let mut records = vec![];
     if config.settlement
+        && let Some(h) = &batch.household
+    {
+        for d in &h.labor {
+            if selected(config, d.household)
+                || selected(config, d.leader)
+                || d.contributions.iter().any(|c| selected(config, c.member))
+                || d.recipient.is_some_and(|m| selected(config, m))
+            {
+                records.push(json!({"kind":"household_labor", "household":d.household,
+                    "leader":d.leader,"policy":format!("{:?}",d.policy),"tie_break":format!("{:?}",d.tie_break),
+                    "recipient":d.recipient,"granted":d.granted,"baseline_value":d.baseline_value,
+                    "projected_value":d.projected_value,"contributions":d.contributions.iter().map(|c|
+                        json!({"member":c.member,"resource":c.resource,"available":c.available,
+                            "reserved":c.reserved,"directed":c.directed,"returned":c.returned})).collect::<Vec<_>>() }));
+            }
+        }
+    }
+    if config.settlement
         && let Some(c) = &world.minting
     {
         if let Some(boundary) = &batch.minting {

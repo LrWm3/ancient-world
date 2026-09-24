@@ -19,7 +19,8 @@ const HOUSEHOLD_ID_BASE: u32 = 10_000;
 pub struct Agreement {
     pub id: u32,
     pub agent: AgentId,
-    /// Signature order is also the stable reservation order. All are adults.
+    pub governance: crate::household_governance::Governance,
+    /// All signatories are adults; labor ordering is selected by charter.
     pub adults: Vec<AgentId>,
     pub formed: u32,
     /// A non-rival occupancy service, produced by one member's actual dwelling.
@@ -57,6 +58,19 @@ pub struct LaborDecision {
     pub baseline_value: i64,
     pub projected_value: i64,
     pub granted: i32,
+    pub policy: crate::household_governance::Policy,
+    pub leader: AgentId,
+    pub tie_break: crate::household_governance::TieBreak,
+    pub contributions: Vec<LaborContribution>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LaborContribution {
+    pub member: AgentId,
+    pub resource: ResourceId,
+    pub available: i32,
+    pub reserved: i32,
+    pub directed: i32,
+    pub returned: i32,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Boundary {
@@ -132,6 +146,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     let mut agents = BTreeSet::new();
     let mut adults = BTreeSet::new();
     for a in &world.households {
+        crate::household_governance::validate(world, a)?;
         if !ids.insert(a.id)
             || !agents.insert(a.agent)
             || a.adults.is_empty()
@@ -685,6 +700,15 @@ fn labor(world: &World, state: &State) -> Result<(Vec<Effect>, Vec<LaborDecision
     let mut staged = state.clone();
     let mut effects = vec![];
     for a in &world.households {
+        if let crate::household_governance::Contribution::Percent(percent) =
+            a.governance.charter.contribution
+        {
+            let (chosen, decision) = contributed_labor(world, &staged, a, percent)?;
+            apply(world, &mut staged, &chosen, Backend::Reference)?;
+            effects.extend(chosen);
+            decisions.push(decision);
+            continue;
+        }
         let people: BTreeSet<_> = members(a, state).collect();
         if people.len() < 2 {
             continue;
@@ -701,7 +725,7 @@ fn labor(world: &World, state: &State) -> Result<(Vec<Effect>, Vec<LaborDecision
             *spent.entry(e.account).or_default() -= e.delta;
         }
         let mut best: Option<(i64, AgentId, Vec<Effect>)> = None;
-        for member in members(a, state) {
+        for member in crate::household_governance::ordered(a, state) {
             let p = world
                 .participants
                 .iter()
@@ -787,6 +811,10 @@ fn labor(world: &World, state: &State) -> Result<(Vec<Effect>, Vec<LaborDecision
             baseline_value: base_value,
             projected_value: base_value,
             granted: 0,
+            policy: a.governance.policy(state.month),
+            leader: a.governance.charter.leader,
+            tie_break: a.governance.charter.tie_break,
+            contributions: vec![],
         };
         if let Some((gain, member, chosen)) = best {
             apply(world, &mut staged, &chosen, Backend::Reference)?;
@@ -798,6 +826,196 @@ fn labor(world: &World, state: &State) -> Result<(Vec<Effect>, Vec<LaborDecision
         decisions.push(decision);
     }
     Ok((effects, decisions))
+}
+
+/// Fixed contributions are reserved before private productive planning. Only
+/// demand-capped directed hours leave a donor; all other reservations are released.
+fn contributed_labor(
+    world: &World,
+    state: &State,
+    a: &Agreement,
+    percent: u32,
+) -> Result<(Vec<Effect>, LaborDecision), String> {
+    use crate::household_governance::{self as governance, Policy};
+    let people: BTreeSet<_> = members(a, state).collect();
+    let order = governance::ordered(a, state);
+    let baseline = probe(world, state)?;
+    let base_value = work_value(world, &baseline, &people);
+    let policy = a.governance.policy(state.month);
+    let contributions: Vec<_> = order
+        .iter()
+        .map(|&member| {
+            let resource = world
+                .participants
+                .iter()
+                .find(|p| p.agent == member)
+                .unwrap()
+                .capacity
+                .resource;
+            let available = state.balance(member, resource);
+            let reserved =
+                (i64::from(available) * i64::from(percent) / i64::from(governance::PERCENT)) as i32;
+            LaborContribution {
+                member,
+                resource,
+                available,
+                reserved,
+                directed: 0,
+                returned: reserved,
+            }
+        })
+        .collect();
+    let mut decision = LaborDecision {
+        household: a.agent,
+        recipient: None,
+        baseline_value: base_value,
+        projected_value: base_value,
+        granted: 0,
+        policy,
+        leader: a.governance.charter.leader,
+        tie_break: a.governance.charter.tie_break,
+        contributions: contributions.clone(),
+    };
+    let mut reserved_state = state.clone();
+    for c in &contributions {
+        reserved_state
+            .balances
+            .insert((c.member, c.resource), c.available - c.reserved);
+    }
+    let mut best_effects = vec![];
+    for &member in &order {
+        let resource = world
+            .participants
+            .iter()
+            .find(|p| p.agent == member)
+            .unwrap()
+            .capacity
+            .resource;
+        let pool = contributions
+            .iter()
+            .filter(|c| c.resource == resource)
+            .try_fold(0_i32, |q, c| {
+                q.checked_add(c.reserved)
+                    .ok_or("household labor pool overflow")
+            })?;
+        if pool == 0 {
+            continue;
+        }
+        let mut trial = reserved_state.clone();
+        let available = trial
+            .balance(member, resource)
+            .checked_add(pool)
+            .ok_or("household labor grant overflow")?;
+        trial.balances.insert((member, resource), available);
+        let plan = probe(world, &trial)?;
+        // A limited mandate conservatively covers the recipient's whole funded
+        // plan; verify again after returning unused reservations.
+        let in_scope = |batch: &Batch| {
+            !a.governance
+                .constitution
+                .activities
+                .as_ref()
+                .is_some_and(|allowed| {
+                    batch
+                        .transactions
+                        .iter()
+                        .filter_map(|t| t.process.as_ref())
+                        .any(|p| {
+                            p.after.operator == member
+                                && p.after.status != Status::Aborted
+                                && !allowed.contains(&p.after.definition)
+                        })
+                })
+        };
+        if !in_scope(&plan) {
+            continue;
+        }
+        let spent: i64 = plan
+            .transactions
+            .iter()
+            .flat_map(|t| &t.effects)
+            .filter(|e| e.account == (member, resource) && e.delta < 0)
+            .map(|e| -i64::from(e.delta))
+            .sum();
+        let mut required =
+            i32::try_from((spent - i64::from(reserved_state.balance(member, resource))).max(0))
+                .map_err(|_| "household labor demand overflow")?
+                .min(pool);
+        if required == 0 {
+            continue;
+        }
+        let grant = required;
+        let mut receipts = contributions.clone();
+        // The recipient's own contribution returns first; donor ties follow the
+        // same explicit ordering used for recipient selection.
+        let mut donors: Vec<_> = (0..receipts.len()).collect();
+        donors.sort_by_key(|&i| receipts[i].member != member);
+        let mut proposed = vec![];
+        for i in donors {
+            let c = &mut receipts[i];
+            if c.resource != resource {
+                continue;
+            }
+            c.directed = c.reserved.min(required);
+            c.returned = c.reserved - c.directed;
+            required -= c.directed;
+            if c.member != member && c.directed > 0 {
+                proposed.extend(transfer(c.member, member, resource, c.directed));
+            }
+        }
+        let mut final_state = state.clone();
+        apply(world, &mut final_state, &proposed, Backend::Reference)?;
+        let final_plan = probe(world, &final_state)?;
+        if !in_scope(&final_plan) {
+            continue;
+        }
+        let same_work = |p: &ProcessChange, q: &ProcessChange| {
+            q.after.operator == p.after.operator
+                && q.after.definition == p.after.definition
+                && q.before.as_ref().map(|p| p.id) == p.before.as_ref().map(|p| p.id)
+                && q.after.asset == p.after.asset
+                && q.after.status == p.after.status
+                && q.after.stage == p.after.stage
+                && q.after.elapsed == p.after.elapsed
+        };
+        let retains = |source: &Batch, committed_only: bool| {
+            source
+                .transactions
+                .iter()
+                .filter_map(|t| t.process.as_ref())
+                .filter(|p| {
+                    people.contains(&p.after.operator)
+                        && p.after.status != Status::Aborted
+                        && if committed_only {
+                            p.before.is_some()
+                        } else {
+                            p.after.operator == member
+                        }
+                })
+                .all(|p| {
+                    final_plan
+                        .transactions
+                        .iter()
+                        .filter_map(|t| t.process.as_ref())
+                        .any(|q| same_work(p, q))
+                })
+        };
+        if !retains(&plan, false)
+            || (policy == Policy::PreserveCommittedWork && !retains(&baseline, true))
+        {
+            continue;
+        }
+        let value = work_value(world, &final_plan, &people);
+        if value <= decision.projected_value {
+            continue;
+        }
+        decision.recipient = Some(member);
+        decision.projected_value = value;
+        decision.granted = grant;
+        decision.contributions = receipts;
+        best_effects = proposed;
+    }
+    Ok((best_effects, decision))
 }
 
 pub(crate) fn step(sim: &mut Simulation) -> Result<(), String> {
@@ -884,6 +1102,7 @@ pub fn scenario() -> Result<(World, State), String> {
                 id: i as u32,
                 agent: HOUSEHOLD_ID_BASE + i as u32,
                 adults: chunk.to_vec(),
+                governance: crate::household_governance::Governance::contributed(chunk[0]),
                 formed: s.month,
                 dwelling_process: Some(crate::crafts::OCCUPY_HOME),
             },
