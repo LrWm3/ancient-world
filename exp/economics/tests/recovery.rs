@@ -127,11 +127,23 @@ fn guarantees_share_finite_funds_and_create_one_collectible_recourse_claim() {
     assert_eq!(sim.state.credit.loans[&102].principal, 2);
     assert_eq!(sim.state.balance(BUYER, TOKEN), 0);
     assert_eq!(
-        credit::balance_sheet(&sim.world, &sim.state, PERSON, TOKEN).principal_payable,
+        sim.state
+            .credit
+            .loans
+            .values()
+            .filter(|l| l.debtor == PERSON && l.denomination == TOKEN)
+            .map(|l| l.principal)
+            .sum::<i32>(),
         20
     );
     assert_eq!(
-        credit::balance_sheet(&sim.world, &sim.state, BUYER, TOKEN).principal_receivable,
+        sim.state
+            .credit
+            .loans
+            .values()
+            .filter(|l| l.creditor == BUYER && l.denomination == TOKEN)
+            .map(|l| l.principal)
+            .sum::<i32>(),
         8
     );
     // Partial guarantee does not create cash for the debtor. Recourse becomes due later.
@@ -165,14 +177,9 @@ fn liquidation_uses_real_proceeds_and_preserves_deficiency_or_explicitly_dischar
             sim.state.credit.recovery.proceedings[&1].stage,
             Stage::Active
         );
-        assert_eq!(
-            credit::balance_sheet(&sim.world, &sim.state, ESTATE, TOKEN).equity(),
-            0
-        );
-        assert_eq!(
-            credit::balance_sheet(&sim.world, &sim.state, PERSON, TOKEN).estate_cash,
-            8
-        );
+        assert_eq!(sim.state.credit.recovery.proceedings[&1].cash, 8);
+        assert_eq!(sim.world.recovery.proceedings[0].debtor, PERSON);
+        assert_eq!(sim.world.recovery.proceedings[0].estate, ESTATE);
         let mut resumed = sim.clone();
         let mut reference =
             Simulation::new(sim.world.clone(), sim.state.clone(), Backend::Reference).unwrap();
@@ -523,7 +530,13 @@ fn common_contract_inspection_exposes_contingent_guarantees_without_mutating_deb
     }
     assert_eq!(sim.state, before);
     assert_eq!(
-        credit::balance_sheet(&sim.world, &sim.state, PERSON, TOKEN).principal_payable,
+        sim.state
+            .credit
+            .loans
+            .values()
+            .filter(|l| l.debtor == PERSON && l.denomination == TOKEN)
+            .map(|l| l.principal)
+            .sum::<i32>(),
         20
     );
     assert!(

@@ -335,6 +335,12 @@ fn financed_purchase_and_fixed_repossession_recognize_noncash_assets_and_losses(
             assert_eq!(buyer.assets, 10_000);
             assert_eq!(buyer.liabilities, 8_000);
             assert_eq!(buyer.net_income, 0);
+            assert_eq!(buyer.trial_balance[&A::LoanPayable(1)], -8_000);
+            let lender = audit.book().statements(STATE_AGENT, 1, 1).unwrap();
+            assert_eq!(lender.trial_balance[&A::LoanReceivable(1)], 8_000);
+            assert_eq!(lender.closing_cash, 102_000);
+            assert_eq!(lender.equity, 110_000);
+            assert_eq!(buyer.equity, 2_000);
             assert_eq!(buyer.cash_flows[&Flow::Financing], 2_000);
             assert_eq!(buyer.cash_flows[&Flow::Investing], -2_000);
         }
@@ -342,8 +348,18 @@ fn financed_purchase_and_fixed_repossession_recognize_noncash_assets_and_losses(
         for agent in [PERSON, STATE_AGENT] {
             let report = audit.book().statements(agent, 1, 5).unwrap();
             assert_eq!(report.assets - report.liabilities, report.equity);
-            let old = credit::balance_sheet(&w, &sim.state, agent, TOKEN);
-            assert_eq!(report.equity, i128::from(old.equity()));
+            let expected = match (case, agent) {
+                ("default", PERSON) => -2160,
+                ("default", STATE_AGENT) => 110160,
+                ("surplus", PERSON) => 1840,
+                ("surplus", STATE_AGENT) => 110160,
+                ("downpayment", PERSON) => 1999,
+                ("downpayment", STATE_AGENT) => 110000,
+                ("repaid", PERSON) => 10200,
+                ("repaid", STATE_AGENT) => 101800,
+                _ => unreachable!(),
+            };
+            assert_eq!(report.equity, expected, "{case} agent={agent}");
         }
         if case == "default" {
             let buyer = audit.book().statements(PERSON, 1, 5).unwrap();
@@ -424,6 +440,20 @@ fn actual_resale_retains_borrower_asset_until_sale_and_records_only_received_cas
             sim.state.credit.loans[&1].status,
             credit::Status::PendingSale
         );
+        let lender = audit.book().statements(STATE_AGENT, 1, 3).unwrap();
+        let debtor = audit.book().statements(PERSON, 1, 3).unwrap();
+        assert_eq!(
+            lender
+                .trial_balance
+                .get(&A::Tangible(PLOT))
+                .copied()
+                .unwrap_or(0),
+            0
+        );
+        assert_eq!(lender.trial_balance[&A::LoanReceivable(1)], 8_000);
+        assert_eq!(lender.trial_balance[&A::InterestReceivable(1)], 160);
+        assert_eq!(debtor.trial_balance[&A::LoanPayable(1)], -8_000);
+        assert_eq!(debtor.trial_balance[&A::InterestPayable(1)], -160);
         through(&mut audit, &mut sim, 4);
         let debtor = audit.book().statements(PERSON, 4, 4).unwrap();
         if sell {

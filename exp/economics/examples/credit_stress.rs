@@ -8,6 +8,9 @@ use economics_compute_smoke::{
 };
 
 fn main() -> Result<(), String> {
+    println!(
+        "Operational diagnostics only; this crop-transfer scenario has no complete financial report adapter yet."
+    );
     let directory =
         std::env::var("TELEMETRY_DIR").map_err(|_| "set TELEMETRY_DIR under ignored output/")?;
     std::fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
@@ -31,10 +34,10 @@ fn main() -> Result<(), String> {
         for month in 1..=OBSERVATION_MONTHS {
             observer.run_months(&mut sim, 1)?;
             let loan = &sim.state.credit.loans[&1];
-            let borrower = credit::balance_sheet(&sim.world, &sim.state, PERSON, TOKEN);
-            let lender = credit::balance_sheet(&sim.world, &sim.state, STATE_AGENT, TOKEN);
+            let borrower_cash = sim.state.balance(PERSON, TOKEN);
+            let lender_cash = sim.state.balance(STATE_AGENT, TOKEN);
             println!(
-                "{name} month={month} owner={:?} status={:?} pledged={} debt={} arrears={:?} grain={} borrower={borrower:?} lender={lender:?}",
+                "{name} month={month} owner={:?} status={:?} pledged={} debt={} arrears={:?} grain={} borrower_cash={borrower_cash} lender_cash={lender_cash}",
                 credit::owner(&sim.world, &sim.state, PLOT),
                 loan.status,
                 loan.collateral.as_ref().is_some_and(|c| c.pledged),

@@ -24,13 +24,14 @@ fn harvest_losses_separate_cash_repayment_from_collateral_settlement() {
         let mut closed = None;
         for month in 1..=OBSERVATION_MONTHS {
             sim.run_months(1).unwrap();
-            let borrower = credit::balance_sheet(&sim.world, &sim.state, PERSON, TOKEN);
-            let lender = credit::balance_sheet(&sim.world, &sim.state, STATE_AGENT, TOKEN);
-            assert_eq!(borrower.principal_payable, lender.principal_receivable);
-            assert_eq!(borrower.interest_payable, lender.interest_receivable);
-            assert_eq!(borrower.coins + lender.coins, 106_500);
-            assert!(borrower.coins >= 0 && lender.coins >= 0);
-            assert_eq!(borrower.assets > 0, lender.assets == 0);
+            let borrower_cash = sim.state.balance(PERSON, TOKEN);
+            let lender_cash = sim.state.balance(STATE_AGENT, TOKEN);
+            assert_eq!(borrower_cash + lender_cash, 106_500);
+            assert!(borrower_cash >= 0 && lender_cash >= 0);
+            assert!(matches!(
+                credit::owner(&sim.world, &sim.state, PLOT),
+                Some(PERSON | STATE_AGENT)
+            ));
             let loan = &sim.state.credit.loans[&1];
             if loan.debt().unwrap() == 0 {
                 closed.get_or_insert(month);

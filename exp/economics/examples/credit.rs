@@ -1,10 +1,12 @@
 use economics_compute_smoke::{
     compute::Backend,
     credit::{self, Event},
+    financial_reporting::Audit,
     scenario::{PERSON, PLOT, STATE_AGENT, TOKEN},
     simulation::Simulation,
 };
 const MONTHS: u32 = 6;
+const OPENING_LAND_COST: i128 = 10_000;
 fn main() -> Result<(), String> {
     println!("All monetary amounts below are coin ticks (100 per coin).");
     println!(
@@ -13,8 +15,17 @@ fn main() -> Result<(), String> {
     println!("| --- | --- | --- | --- | --- | --- | --- | --- | --- |");
     for case in ["repaid", "downpayment", "recovered", "default", "surplus"] {
         let (w, s) = credit::scenario(case)?;
+        let mut audit = Audit::with_assets(
+            &w,
+            &s,
+            TOKEN,
+            std::collections::BTreeMap::from([(PLOT, OPENING_LAND_COST)]),
+        )?;
         let mut sim = Simulation::new(w, s, Backend::CubeCpu)?;
-        sim.run_months(MONTHS)?;
+        while sim.state.month <= MONTHS {
+            audit.step(&mut sim)?;
+        }
+        audit.finalize_through(MONTHS)?;
         let loan = sim.state.credit.loans.get(&1);
         let interest_paid: i32 = sim
             .ledger
@@ -29,17 +40,17 @@ fn main() -> Result<(), String> {
                 }
             })
             .sum();
-        let borrower = credit::balance_sheet(&sim.world, &sim.state, PERSON, TOKEN);
-        let lender = credit::balance_sheet(&sim.world, &sim.state, STATE_AGENT, TOKEN);
+        let borrower = audit.book().finalized_statements(PERSON, 1, MONTHS)?;
+        let lender = audit.book().finalized_statements(STATE_AGENT, 1, MONTHS)?;
         println!(
             "| {case} | {:?} | {} | {} | {interest_paid} | {} | {} | {} | {} |",
             loan.map(|l| l.status),
             loan.map_or(0, |l| l.principal),
             loan.map_or(0, |l| l.interest),
             credit::owner(&sim.world, &sim.state, PLOT).unwrap(),
-            borrower.coins,
-            borrower.equity(),
-            lender.equity()
+            borrower.closing_cash,
+            borrower.equity,
+            lender.equity
         );
         for event in sim
             .ledger

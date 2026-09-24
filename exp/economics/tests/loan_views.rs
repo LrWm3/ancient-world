@@ -5,7 +5,7 @@ use economics_compute_smoke::{
     credit, membership,
     model::Phase,
     resale,
-    scenario::{PERSON, PLOT, STATE_AGENT, TOKEN},
+    scenario::{PERSON, PLOT, STATE_AGENT},
     simulation::Simulation,
 };
 
@@ -117,11 +117,7 @@ fn resale_custody_pauses_claim_but_preserves_debt_then_reports_realized_outcome(
         assert!(v.claim().unwrap().is_none());
         assert_eq!(v.title_holder(), Some(STATE_AGENT));
         assert_eq!(v, loan(&s, STATE_AGENT));
-        let lender = credit::balance_sheet(&s.world, &s.state, STATE_AGENT, TOKEN);
-        let debtor = credit::balance_sheet(&s.world, &s.state, PERSON, TOKEN);
-        assert_eq!(lender.collateral_in_custody, debtor.assets_awaiting_sale);
-        assert_eq!(lender.principal_receivable, i64::from(v.record().principal));
-        assert_eq!(debtor.interest_payable, i64::from(v.record().interest));
+        assert_eq!(v.record(), &s.state.credit.loans[&1]);
         s.run_months(2).unwrap();
         let v = loan(&s, PERSON);
         assert_eq!(v.state(), expected);
@@ -134,7 +130,7 @@ fn resale_custody_pauses_claim_but_preserves_debt_then_reports_realized_outcome(
 }
 
 #[test]
-fn inspection_preserves_every_boundary_and_matches_both_balance_sheets() {
+fn inspection_preserves_every_boundary_and_matches_the_authoritative_contract() {
     for case in ["repaid", "recovered", "default", "surplus"] {
         let mut inspected = credit_sim(case);
         let mut control = inspected.clone();
@@ -143,14 +139,9 @@ fn inspection_preserves_every_boundary_and_matches_both_balance_sheets() {
             if !inspected.state.credit.loans.is_empty() {
                 let v = loan(&inspected, PERSON);
                 assert_eq!(v, loan(&inspected, STATE_AGENT));
-                let d = credit::balance_sheet(&inspected.world, &inspected.state, PERSON, TOKEN);
-                let c =
-                    credit::balance_sheet(&inspected.world, &inspected.state, STATE_AGENT, TOKEN);
-                assert_eq!(d.principal_payable, c.principal_receivable);
-                assert_eq!(d.interest_payable, c.interest_receivable);
                 assert_eq!(
-                    d.principal_payable + d.interest_payable,
-                    i64::from(v.outstanding().unwrap().quantity)
+                    v.outstanding().unwrap().quantity,
+                    inspected.state.credit.loans[&1].debt().unwrap()
                 );
             }
             inspected.step().unwrap();

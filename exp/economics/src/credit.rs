@@ -203,6 +203,8 @@ impl Loan {
     }
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// Authoritative contract execution state, not a financial reporting book.
+/// Financial statements are produced exclusively by accounting/financial_reporting.
 pub struct Book {
     pub recovery: crate::recovery::Book,
     /// Actual spending against the scoped posted-stock purchase budget.
@@ -315,32 +317,6 @@ pub struct Boundary {
     pub events: Vec<Event>,
     pub transactions: Vec<Transaction>,
 }
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct BalanceSheet {
-    /// Memo only: controlled for realization, excluded from lender equity.
-    pub collateral_in_custody: i64,
-    /// Subset of assets: borrower interest awaiting actual realization.
-    pub assets_awaiting_sale: i64,
-    pub coins: i64,
-    pub cash_in_custody: i64,
-    pub estate_cash: i64,
-    pub assets: i64,
-    pub principal_receivable: i64,
-    pub interest_receivable: i64,
-    pub principal_payable: i64,
-    pub interest_payable: i64,
-}
-impl BalanceSheet {
-    pub fn equity(&self) -> i64 {
-        self.coins
-            + self.estate_cash
-            + self.assets
-            + self.principal_receivable
-            + self.interest_receivable
-            - self.principal_payable
-            - self.interest_payable
-    }
-}
 pub fn owner(world: &World, state: &State, asset: AssetId) -> Option<AgentId> {
     state
         .credit
@@ -348,118 +324,6 @@ pub fn owner(world: &World, state: &State, asset: AssetId) -> Option<AgentId> {
         .get(&asset)
         .copied()
         .or_else(|| world.assets.iter().find(|a| a.id == asset).map(|a| a.owner))
-}
-pub fn balance_sheet(
-    world: &World,
-    state: &State,
-    agent: AgentId,
-    coin: ResourceId,
-) -> BalanceSheet {
-    let mut b = BalanceSheet {
-        coins: i64::from(state.balance(agent, coin)),
-        ..Default::default()
-    };
-    for p in &world.recovery.proceedings {
-        if p.denomination != coin {
-            continue;
-        }
-        let cash = i64::from(
-            state
-                .credit
-                .recovery
-                .proceedings
-                .get(&p.id)
-                .map_or(0, |c| c.cash),
-        );
-        if p.estate == agent {
-            b.cash_in_custody += cash;
-            b.coins -= cash;
-        }
-        if p.debtor == agent {
-            b.estate_cash += cash;
-        }
-    }
-    if let Some(c) = &world.credit {
-        let mut seen = BTreeSet::new();
-        for o in &c.offers {
-            let pending = state.credit.loans.values().find(|l| {
-                l.status == Status::PendingSale
-                    && l.collateral
-                        .as_ref()
-                        .is_some_and(|c| c.asset == o.sale.asset)
-            });
-            let economic_owner = pending
-                .map(|l| l.debtor)
-                .or_else(|| owner(world, state, o.sale.asset));
-            if o.sale.price.resource == coin && pending.is_some_and(|l| l.creditor == agent) {
-                b.collateral_in_custody += i64::from(
-                    *state
-                        .credit
-                        .values
-                        .get(&o.sale.asset)
-                        .unwrap_or(&o.sale.price.quantity),
-                );
-            }
-            if o.sale.price.resource == coin && pending.is_some_and(|l| l.debtor == agent) {
-                b.assets_awaiting_sale += i64::from(
-                    *state
-                        .credit
-                        .values
-                        .get(&o.sale.asset)
-                        .unwrap_or(&o.sale.price.quantity),
-                );
-            }
-            if o.sale.price.resource == coin
-                && seen.insert(o.sale.asset)
-                && economic_owner == Some(agent)
-            {
-                b.assets += i64::from(
-                    *state
-                        .credit
-                        .values
-                        .get(&o.sale.asset)
-                        .unwrap_or(&o.sale.price.quantity),
-                );
-            }
-        }
-    }
-    let offered_assets: BTreeSet<_> = world
-        .credit
-        .iter()
-        .flat_map(|c| c.offers.iter().map(|o| o.sale.asset))
-        .collect();
-    let mut valued = BTreeSet::new();
-    for l in state
-        .credit
-        .loans
-        .values()
-        .filter(|l| l.denomination == coin)
-    {
-        if let Some(c) = &l.collateral
-            && !offered_assets.contains(&c.asset)
-            && valued.insert(c.asset)
-            && owner(world, state, c.asset) == Some(agent)
-            && let CollateralSettlement::FixedValue { value } = c.settlement
-        {
-            b.assets += i64::from(*state.credit.values.get(&c.asset).unwrap_or(&value));
-        }
-    }
-    for l in state
-        .credit
-        .loans
-        .values()
-        .filter(|l| l.denomination == coin)
-    {
-        if l.debtor == agent {
-            b.principal_payable += i64::from(l.principal);
-            b.interest_payable += i64::from(l.interest);
-        }
-        if l.creditor == agent {
-            b.principal_receivable += i64::from(l.principal);
-            b.interest_receivable += i64::from(l.interest);
-        }
-    }
-    b
 }
 /// Visible financed offers; application feasibility and settlement remain separate.
 pub fn discover<'a>(world: &'a World, state: &State, buyer: AgentId) -> Vec<&'a Offer> {

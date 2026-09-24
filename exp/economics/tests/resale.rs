@@ -42,7 +42,7 @@ fn cash(s: &Simulation) -> i32 {
         .sum()
 }
 #[test]
-fn repossession_defers_credit_freezes_interest_and_keeps_custody_out_of_lender_equity() {
+fn repossession_defers_credit_and_freezes_interest_until_sale() {
     let mut s = sim("funded", Backend::CubeCpu);
     pending(&mut s);
     let loan = &s.state.credit.loans[&1];
@@ -51,21 +51,8 @@ fn repossession_defers_credit_freezes_interest_and_keeps_custody_out_of_lender_e
         (8000, 160, 3)
     );
     assert_eq!(credit::owner(&s.world, &s.state, PLOT), Some(STATE_AGENT));
-    let lender = credit::balance_sheet(&s.world, &s.state, STATE_AGENT, TOKEN);
-    let borrower = credit::balance_sheet(&s.world, &s.state, PERSON, TOKEN);
-    assert_eq!((lender.assets, lender.collateral_in_custody), (0, 10000));
-    assert_eq!(
-        (lender.principal_receivable, lender.interest_receivable),
-        (8000, 160)
-    );
-    assert_eq!(
-        (
-            borrower.assets,
-            borrower.principal_payable,
-            borrower.interest_payable
-        ),
-        (10000, 8000, 160)
-    );
+    assert_eq!((loan.debtor, loan.creditor), (PERSON, STATE_AGENT));
+    assert!(!s.state.credit.pending_sales.is_empty());
     s.step().unwrap(); // listing cannot sell immediately
     assert_eq!(s.state.credit.loans[&1].status, credit::Status::PendingSale);
     assert_eq!(s.state.credit.loans[&1].debt().unwrap(), 8160);
@@ -127,14 +114,7 @@ fn actual_sale_pays_surplus_or_retains_deficiency_and_transfers_crop_atomically(
         expected.beneficiary = resale::BUYER;
         expected.goal = None;
         assert_eq!(s.state.processes[&before.id], expected);
-        assert_eq!(
-            credit::balance_sheet(&s.world, &s.state, resale::BUYER, TOKEN).assets,
-            i64::from(price)
-        );
-        assert_eq!(
-            credit::balance_sheet(&s.world, &s.state, STATE_AGENT, TOKEN).collateral_in_custody,
-            0
-        );
+        assert_eq!(s.state.credit.values[&PLOT], price);
         s.run_months(3).unwrap();
         assert_eq!(s.state.balance(resale::BUYER, GRAIN), 8);
         assert_eq!(s.state.balance(resale::BUYER, SEED), 1);

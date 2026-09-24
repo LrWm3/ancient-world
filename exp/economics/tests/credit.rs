@@ -30,7 +30,7 @@ fn events(sim: &Simulation) -> Vec<&Event> {
         .collect()
 }
 #[test]
-fn purchase_is_atomic_and_both_balance_sheets_share_the_same_coin_debt() {
+fn purchase_is_atomic_and_records_the_same_coin_contract_for_both_parties() {
     let mut s = sim("repaid", Backend::CubeCpu);
     assert_eq!(credit::discover(&s.world, &s.state, PERSON).len(), 1);
     to_acquire(&mut s);
@@ -44,18 +44,12 @@ fn purchase_is_atomic_and_both_balance_sheets_share_the_same_coin_debt() {
     assert_eq!(l.interest, 0);
     assert_eq!(credit::owner(&s.world, &s.state, PLOT), Some(PERSON));
     assert!(l.collateral.as_ref().unwrap().pledged);
-    let buyer = credit::balance_sheet(&s.world, &s.state, PERSON, TOKEN);
-    let lender = credit::balance_sheet(&s.world, &s.state, STATE_AGENT, TOKEN);
+    assert_eq!(s.state.balance(PERSON, TOKEN), 0);
+    assert_eq!(s.state.balance(STATE_AGENT, TOKEN), 102000);
     assert_eq!(
-        (buyer.coins, buyer.assets, buyer.principal_payable),
-        (0, 10000, 8000)
+        (l.debtor, l.creditor, l.denomination),
+        (PERSON, STATE_AGENT, TOKEN)
     );
-    assert_eq!(
-        (lender.coins, lender.assets, lender.principal_receivable),
-        (102000, 0, 8000)
-    );
-    assert_eq!(buyer.equity(), 2000);
-    assert_eq!(lender.equity(), 110000);
     assert!(
         b.credit
             .unwrap()
@@ -84,10 +78,7 @@ fn lender_can_differ_from_seller_and_neither_downpayment_nor_advance_is_created(
     assert_eq!(s.state.balance(7, TOKEN), 0);
     assert_eq!(s.state.balance(STATE_AGENT, TOKEN), 110000);
     assert_eq!(s.state.balances.values().sum::<i32>(), total_before);
-    assert_eq!(
-        credit::balance_sheet(&s.world, &s.state, 7, TOKEN).principal_receivable,
-        8000
-    );
+    assert_eq!(s.state.credit.loans[&1].principal, 8000);
     assert_eq!(s.state.credit.loans[&1].creditor, 7);
 }
 #[test]
@@ -171,15 +162,9 @@ fn default_transfers_collateral_credits_value_and_retains_deficiency_or_pays_sur
             .collect();
         assert_eq!(enforcements.len(), 1);
         assert_eq!(l.last_accrued, 3); // no interest on the enforced deficiency in this pilot
-        let b = credit::balance_sheet(&s.world, &s.state, PERSON, TOKEN);
-        let c = credit::balance_sheet(&s.world, &s.state, STATE_AGENT, TOKEN);
-        assert_eq!(b.assets, 0);
-        assert_eq!(b.principal_payable, c.principal_receivable);
-        assert_eq!(b.interest_payable, c.interest_receivable);
-        assert_eq!(c.assets, if case == "default" { 6000 } else { 10000 });
         assert_eq!(
-            b.equity() + c.equity(),
-            if case == "default" { 108000 } else { 112000 }
+            s.state.credit.values[&PLOT],
+            if case == "default" { 6000 } else { 10000 }
         );
     }
 }

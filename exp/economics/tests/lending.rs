@@ -58,14 +58,8 @@ fn unsecured_loans_use_the_existing_book_balances_and_cpu_settlement() {
     assert_eq!(sim.state.balance(PERSON, TOKEN), 10);
     let loan = &sim.state.credit.loans[&10];
     assert!(loan.collateral.is_none());
-    assert_eq!(
-        credit::balance_sheet(&sim.world, &sim.state, PERSON, TOKEN).principal_payable,
-        10
-    );
-    assert_eq!(
-        credit::balance_sheet(&sim.world, &sim.state, STATE_AGENT, TOKEN).principal_receivable,
-        10
-    );
+    assert_eq!(loan.principal, 10);
+    assert_eq!((loan.debtor, loan.creditor), (PERSON, STATE_AGENT));
     let views = agreements::for_agent(&sim.world, &sim.state, PERSON).unwrap();
     let agreements::View::Loan(view) = &views[0] else {
         panic!("missing loan view")
@@ -314,10 +308,7 @@ fn direct_secured_advance_reuses_mortgage_enforcement_and_keeps_deficiency() {
     );
     assert_eq!(sim.state.credit.loans[&10].principal, 4);
     assert_eq!(sim.state.credit.loans[&10].status, credit::Status::Enforced);
-    assert_eq!(
-        credit::balance_sheet(&sim.world, &sim.state, STATE_AGENT, TOKEN).assets,
-        6
-    );
+    assert_eq!(sim.state.credit.values[&PLOT], 6);
 }
 
 #[test]
