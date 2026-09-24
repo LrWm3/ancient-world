@@ -1,9 +1,13 @@
 # Shared financial primitives
 
 Implemented in `src/finance.rs`. These primitives serve the existing economics
-experiment. A separate [secured-credit pilot](SECURED-CREDIT.md) now builds on
-them for financed asset purchases, monthly interest and collateral consequences.
+experiment. General advances and [secured purchases](SECURED-CREDIT.md) now
+share the loan book and servicing. The active [contract consolidation](CONTRACT-CONSOLIDATION.md)
+record describes implemented integration and the remaining migration before
+creditor allocation, insolvency, guarantees and liquidation.
 
+- `Execution`: shared opening-resource and storage reservations for partial
+  claims and atomic exchange packages. Used by loan, land and forward collection.
 - `Transfer`: a positive commodity amount between distinct agents, producing
   equal debit and credit effects. World validation and batch settlement still
   check account eligibility, balances, storage and atomic publication.
@@ -22,6 +26,7 @@ alternative coin payments from creating fictitious grain collections or issuance
 
 | Path | Shared behavior | Domain responsibility retained |
 | --- | --- | --- |
+| Loans and financed purchases | Optional collateral, conserved advances, dated claims, shared collection budgets and authoritative borrower/creditor positions | Accepted rates, amortization, interest carry, collateral consequence |
 | Land payments | Dated claim, outstanding amount, bounded payment, transfer legs, new-use restriction | Annual bill creation, rights duration, oldest-due ordering, essential reserves, coin conversion and collection-linked issuance |
 | Prepaid harvest delivery | Dated claim, outstanding amount, bounded payment, transfer legs, new-advance restriction | Forecast underwriting, prices, treasury funding, protected stock and delivery receipts |
 | Stock exchange | Full payment legs on acceptance | Posted prices, both parties' opening stock, joint storage check |
@@ -37,8 +42,9 @@ are not all migrated by this change.
 
 No scheduler changes. Annual claims are created in Due and evaluated again at the
 existing arrears boundary. Due forwards settle in Acquire before new purchases,
-after taxes. Each resolver supplies opening spendable stock and current creditor
-storage room to the shared payment calculation. Incoming payments do not become
+after taxes. The shared executor retains opening spendable stock and current creditor
+storage room. Loans and land claims share an explicitly ranked Due window;
+forward claims retain their separate Acquire collection window. Incoming payments do not become
 spendable again within that boundary. Existing commit validation publishes the
 whole batch or nothing, including receipts and ownership changes.
 
@@ -52,11 +58,16 @@ A scoped [negotiated-pricing pilot](NEGOTIATED-PRICING.md) now reuses its exchan
 legs, including an opt-in [ZIP quoting policy](ZIP.md). The secured-credit pilot
 adds scoped interest, collateral and symmetric loan balance-sheet views.
 Arbitrary event triggers, guarantees,
-priority across all claims, insolvency and double-entry financial statements
+proportional creditor sharing, general insolvency and complete double-entry financial statements
 remain future work. Future contract types should supply their terms and receipts
 through this shared view before introducing a second settlement mechanism.
 
 ## Validation
+
+The counts and snapshot comparisons below describe the earlier primitive migration.
+See [contract consolidation](CONTRACT-CONSOLIDATION.md) for current integration
+and verification gates; they are not evidence that all arrangements now compose.
+
 
 - Shared primitive tests cover acceptance, maturity, partial settlement, protected
   budgets represented as spendable amounts, receiving limits, scoped restrictions,

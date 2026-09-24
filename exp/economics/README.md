@@ -1,5 +1,10 @@
 # Stand-alone agent-based economics experiment
 
+Current financial direction: [consolidate contracts and lending](CONTRACT-CONSOLIDATION.md)
+in the existing model before adding more isolated scenarios, then extend creditor
+allocation, insolvency, guarantees and liquidation.
+
+
 The goal is a consistent economy built from generic agents, explicit agreements
 and planning from needs and available opportunities. Persons remain individuals;
 organizations coordinate real members and delegated resources without duplicating

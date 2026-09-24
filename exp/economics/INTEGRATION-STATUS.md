@@ -1,5 +1,14 @@
 # Economics integration and planning interfaces
 
+The next financial work is [contract consolidation](CONTRACT-CONSOLIDATION.md).
+Direct consented loans now reuse the mortgage book with optional collateral,
+share Due reservations/ranks with land claims, and compose with legacy exchange
+or bilateral negotiation at Acquire. Land, forward and loan collections use one
+claim executor. Town/minting/household/search acquisition adapters and general
+insolvency/guarantees/liquidation remain unfinished; the matrix below retains the
+limits of the older scenario drivers.
+
+
 Implemented: a shared acquisition boundary for secured credit, its finite state
 stock bid, and one bilateral negotiated exchange. Borrowing, sale-only and joint
 production/sale forecasts also share need-constraint accounting. The experiment
