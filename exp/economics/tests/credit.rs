@@ -43,7 +43,7 @@ fn purchase_is_atomic_and_both_balance_sheets_share_the_same_coin_debt() {
     assert_eq!(l.principal, 8000);
     assert_eq!(l.interest, 0);
     assert_eq!(credit::owner(&s.world, &s.state, PLOT), Some(PERSON));
-    assert!(l.collateral.pledged);
+    assert!(l.collateral.as_ref().unwrap().pledged);
     let buyer = credit::balance_sheet(&s.world, &s.state, PERSON, TOKEN);
     let lender = credit::balance_sheet(&s.world, &s.state, STATE_AGENT, TOKEN);
     assert_eq!(
@@ -130,7 +130,7 @@ fn repayment_and_recovery_charge_opening_principal_once_and_release_collateral()
         let l = &s.state.credit.loans[&1];
         assert_eq!(l.status, Status::Repaid);
         assert_eq!(l.debt().unwrap(), 0);
-        assert!(!l.collateral.pledged);
+        assert!(!l.collateral.as_ref().unwrap().pledged);
         assert_eq!(credit::owner(&s.world, &s.state, PLOT), Some(PERSON));
         let accrued: Vec<_> = events(&s)
             .into_iter()
@@ -162,7 +162,7 @@ fn default_transfers_collateral_credits_value_and_retains_deficiency_or_pays_sur
         s.run_months(6).unwrap();
         let l = &s.state.credit.loans[&1];
         assert_eq!(l.debt().unwrap(), remaining);
-        assert!(!l.collateral.pledged);
+        assert!(!l.collateral.as_ref().unwrap().pledged);
         assert_eq!(credit::owner(&s.world, &s.state, PLOT), Some(STATE_AGENT));
         assert_eq!(s.state.balance(PERSON, TOKEN), surplus);
         let enforcements: Vec<_> = events(&s)
@@ -202,7 +202,13 @@ fn surplus_must_be_funded_before_seizure_and_deficiency_can_be_repaid_later() {
     });
     s.run_months(3).unwrap();
     assert_eq!(credit::owner(&s.world, &s.state, PLOT), Some(PERSON));
-    assert!(s.state.credit.loans[&1].collateral.pledged);
+    assert!(
+        s.state.credit.loans[&1]
+            .collateral
+            .as_ref()
+            .unwrap()
+            .pledged
+    );
     assert!(events(&s).contains(&&Event::EnforcementDeferred {
         loan: 1,
         surplus: 1840

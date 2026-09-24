@@ -37,7 +37,7 @@ fn main() -> Result<(), String> {
                 "{name} month={month} owner={:?} status={:?} pledged={} debt={} arrears={:?} grain={} borrower={borrower:?} lender={lender:?}",
                 credit::owner(&sim.world, &sim.state, PLOT),
                 loan.status,
-                loan.collateral.pledged,
+                loan.collateral.as_ref().is_some_and(|c| c.pledged),
                 loan.debt()?,
                 loan.first_unpaid,
                 sim.state.balance(PERSON, GRAIN)

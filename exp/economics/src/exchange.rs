@@ -198,11 +198,22 @@ pub fn record(state: &mut State, t: &Transaction) {
 /// Reserve all transfers against opening stocks. Receipts within this batch
 /// cannot finance another bid, and each durable can be delivered only once.
 pub fn resolve(world: &World, state: &State) -> Result<Vec<Transaction>, String> {
+    resolve_with(
+        world,
+        state,
+        state.balances.clone(),
+        crate::storage::usage(world, &state.balances),
+    )
+}
+pub(crate) fn resolve_with(
+    world: &World,
+    state: &State,
+    mut available: BTreeMap<Account, i32>,
+    mut stored: BTreeMap<AgentId, i128>,
+) -> Result<Vec<Transaction>, String> {
     let Some(market) = &world.market else {
-        return Ok(Vec::new());
+        return Ok(vec![]);
     };
-    let mut available = state.balances.clone();
-    let mut stored = crate::storage::usage(world, &state.balances);
     let mut result = crate::forward::settle(world, state, &mut available, &mut stored)?;
     let mut purchased = BTreeSet::new();
     let mut quoted_state = state.clone();

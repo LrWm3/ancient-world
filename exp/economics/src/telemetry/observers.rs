@@ -99,12 +99,26 @@ pub(super) fn batch(
                 "principal":loan.principal,"interest":loan.interest,
                 "principal_due":loan.principal_due(batch.month),"first_unpaid":loan.first_unpaid,
                 "last_accrued":loan.last_accrued,"status":format!("{:?}",loan.status),
-                "asset":loan.collateral.asset,"pledged":loan.collateral.pledged,
-                "owner":credit.after.owners.get(&loan.collateral.asset)}));
+                "asset":loan.collateral.as_ref().map(|c| c.asset),"pledged":loan.collateral.as_ref().is_some_and(|c| c.pledged),
+                "owner":loan.collateral.as_ref().and_then(|c| credit.after.owners.get(&c.asset))}));
+        }
+        for collection in &credit.collections {
+            if selected(config, collection.debtor) || selected(config, collection.creditor) {
+                records.push(json!({"kind":"claim_collection","contract":format!("{:?}",collection.contract),"rank":collection.rank,"debtor":collection.debtor,"creditor":collection.creditor,"resource":collection.requested.resource,"requested":collection.requested.quantity,"paid":collection.paid}));
+            }
         }
         for event in &credit.events {
             use crate::credit::Event;
             let (loan, detail) = match event {
+                Event::Advanced {
+                    loan,
+                    creditor,
+                    debtor,
+                    amount,
+                } => (
+                    *loan,
+                    json!({"event":"Advanced","creditor":creditor,"debtor":debtor,"resource":amount.resource,"principal":amount.quantity}),
+                ),
                 Event::Accrued {
                     loan,
                     opening_principal,

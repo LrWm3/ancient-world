@@ -271,12 +271,13 @@ pub(crate) fn commit_core(
     if batch.production_plan.is_some() && batch.phase != Phase::Acquire {
         return Err("production plan outside acquisition boundary".into());
     }
-    let expected_commitments =
-        if world.credit.is_none() && matches!(batch.phase, Phase::Due | Phase::ClearArrears) {
-            Some(crate::commitments::evaluate(world, state)?)
-        } else {
-            None
-        };
+    let expected_commitments = if batch.phase == Phase::ClearArrears
+        || (!crate::credit::enabled(world) && batch.phase == Phase::Due)
+    {
+        Some(crate::commitments::evaluate(world, state)?)
+    } else {
+        None
+    };
     if batch.commitments != expected_commitments
         || expected_commitments
             .as_ref()
@@ -305,6 +306,7 @@ pub(crate) fn commit_core(
     }
     if batch.phase == Phase::Acquire
         && world.market.is_some()
+        && !crate::credit::enabled(world)
         && batch.transactions != crate::exchange::resolve(world, state)?
     {
         return Err("exchange differs from reserved opening offers".into());
@@ -379,6 +381,9 @@ pub(crate) fn commit_core(
     }
     if let Some(boundary) = &batch.credit {
         staged.credit = boundary.after.clone();
+        if let Some(commitments) = &boundary.commitments {
+            staged.obligations = commitments.obligations.clone();
+        }
         // Exact transfers were checked by credit::validate_batch above. This is
         // a change of control at acquisition/collection, not process execution.
         for change in &boundary.attachments {
@@ -551,14 +556,14 @@ pub(crate) fn commit_core(
             || world.negotiation.is_some()
             || world.minting.is_some()
             || world.town_market.is_some()
-            || world.credit.is_some())
+            || crate::credit::enabled(world))
     {
         staged.phase = Phase::Acquire;
     }
     if state.phase == Phase::Open
         && (!world.agreements.is_empty()
             || !world.access_offers.is_empty()
-            || world.credit.is_some())
+            || crate::credit::enabled(world))
     {
         staged.phase = Phase::Due;
     }

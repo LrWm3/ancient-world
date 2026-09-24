@@ -58,15 +58,38 @@ pub fn evaluate(world: &World, state: &State) -> Result<Batch, String> {
     }
     let mut resources = Resources::opening(world, state);
     resources.reserve(world, &batch.transactions)?;
-    batch.negotiation = negotiation::evaluate_with(world, state, &resources)?;
+    // Later underwriting sees the accepted liabilities/control changes, but
+    // receives the separately reserved opening budget for actual settlement.
+    let mut quoted = state.clone();
+    quoted.balances = resources.holdings.clone();
+    if let Some(c) = &batch.credit {
+        quoted.credit = c.after.clone();
+        for change in &c.attachments {
+            quoted
+                .processes
+                .insert(change.after.id, change.after.clone());
+        }
+    }
+    batch.negotiation = negotiation::evaluate_with(world, &quoted, &resources)?;
     let trades = negotiation::transactions(world, state, &batch.negotiation)?;
+    resources.reserve(world, &trades)?;
+    batch.transactions.extend(trades);
+    let trades = crate::exchange::resolve_with(
+        world,
+        &quoted,
+        resources.available.clone(),
+        resources.storage.clone(),
+    )?;
     resources.reserve(world, &trades)?;
     batch.transactions.extend(trades);
     Ok(batch)
 }
 
 pub(crate) fn validate_batch(world: &World, state: &State, batch: &Batch) -> Result<(), String> {
-    if state.phase == Phase::Acquire && world.credit.is_some() && world.negotiation.is_some() {
+    if state.phase == Phase::Acquire
+        && crate::credit::enabled(world)
+        && (world.negotiation.is_some() || world.market.is_some())
+    {
         let expected = evaluate(world, state)?;
         if batch.credit != expected.credit
             || batch.negotiation != expected.negotiation

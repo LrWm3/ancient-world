@@ -74,13 +74,15 @@ impl Simulation {
             pool_market: None,
             plot_request: None,
         };
-        if self.world.credit.is_some()
+        if crate::credit::enabled(&self.world)
             && matches!(self.state.phase, Phase::Open | Phase::Due | Phase::Acquire)
         {
             if let Some(request) = crate::offers::scripted_credit_request(&self.world, &self.state)
             {
                 crate::offers::resolve(self, &[request], &mut batch)?;
-            } else if self.state.phase == Phase::Acquire && self.world.negotiation.is_some() {
+            } else if self.state.phase == Phase::Acquire
+                && (self.world.negotiation.is_some() || self.world.market.is_some())
+            {
                 batch = crate::acquisition::evaluate(&self.world, &self.state)?;
             } else {
                 batch.credit = crate::credit::evaluate(&self.world, &self.state)?;

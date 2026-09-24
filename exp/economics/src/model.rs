@@ -184,6 +184,11 @@ pub struct World {
     pub town_market: Option<crate::town_market::Config>,
     pub work_choice: Option<crate::work_choice::Config>,
     pub credit: Option<crate::credit::Config>,
+    /// Consented direct advances; use the same book and servicing as financed purchases.
+    pub lending: Vec<crate::credit::Advance>,
+    /// Rights whose operator/output beneficiary follows the physical asset owner.
+    pub ownership_rights: std::collections::BTreeSet<u32>,
+    pub claim_priorities: BTreeMap<crate::finance::ContractId, u32>,
     pub marketplaces: Vec<crate::marketplace::Marketplace>,
     pub negotiation: Option<crate::negotiation::Session>,
     pub need_orders: Option<crate::need_orders::Policy>,

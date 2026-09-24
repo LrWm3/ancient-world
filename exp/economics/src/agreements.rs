@@ -12,6 +12,7 @@ pub enum Identity {
     Land(u32),
     Process(u64),
     Loan(u32),
+    Forward(AssetId),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -212,13 +213,24 @@ impl ProductionTerms {
 pub enum View<'a> {
     Agreement(Box<Agreement>),
     Loan(LoanView<'a>),
+    Forward(&'a crate::forward::Contract),
 }
 
 impl View<'_> {
+    /// Dated collection claims, including not-yet-due claims. These are derived
+    /// from the authoritative records; inspecting them never accrues or settles.
+    pub fn claims(&self) -> Result<Vec<finance::Obligation>, String> {
+        match self {
+            Self::Agreement(a) => Ok(a.obligations.iter().map(|o| o.claim.clone()).collect()),
+            Self::Loan(a) => Ok(a.claim()?.into_iter().collect()),
+            Self::Forward(a) => Ok(vec![a.claim()]),
+        }
+    }
     pub fn identity(&self) -> Identity {
         match self {
             Self::Agreement(a) => a.identity.clone(),
             Self::Loan(a) => Identity::Loan(a.record.id),
+            Self::Forward(a) => Identity::Forward(a.id),
         }
     }
 
@@ -226,6 +238,7 @@ impl View<'_> {
         match self {
             Self::Agreement(a) => a.grantor,
             Self::Loan(a) => Counterparty::Agent(a.record.creditor),
+            Self::Forward(a) => Counterparty::Agent(a.creditor),
         }
     }
 
@@ -233,6 +246,7 @@ impl View<'_> {
         match self {
             Self::Agreement(a) => a.holder,
             Self::Loan(a) => a.record.debtor,
+            Self::Forward(a) => a.debtor,
         }
     }
 
@@ -240,6 +254,7 @@ impl View<'_> {
         match self {
             Self::Agreement(a) => a.accepted_month,
             Self::Loan(a) => a.record.opened,
+            Self::Forward(a) => a.issued,
         }
     }
 }
@@ -265,7 +280,7 @@ pub struct LoanView<'a> {
     record: &'a crate::credit::Loan,
     month: u32,
     phase: Phase,
-    title_holder: AgentId,
+    title_holder: Option<AgentId>,
     listing: Option<&'a crate::resale::PendingSale>,
 }
 
@@ -280,7 +295,7 @@ impl<'a> LoanView<'a> {
         (self.month, self.phase)
     }
 
-    pub fn title_holder(&self) -> AgentId {
+    pub fn title_holder(&self) -> Option<AgentId> {
         self.title_holder
     }
 
@@ -317,13 +332,14 @@ impl<'a> LoanView<'a> {
         Ok((claim.outstanding() > 0).then_some(claim))
     }
 
-    pub fn on_default(&self) -> Consequence {
-        Consequence::RepossessCollateral {
-            asset: self.record.collateral.asset,
+    pub fn on_default(&self) -> Option<Consequence> {
+        let collateral = self.record.collateral.as_ref()?;
+        Some(Consequence::RepossessCollateral {
+            asset: collateral.asset,
             creditor: self.record.creditor,
             grace_months: self.record.grace_months,
-            settlement: self.record.collateral.settlement.clone(),
-        }
+            settlement: collateral.settlement.clone(),
+        })
     }
 }
 
@@ -363,11 +379,18 @@ pub fn for_agent<'a>(
             record,
             month: state.month,
             phase: state.phase,
-            title_holder: crate::credit::owner(world, state, record.collateral.asset)
-                .ok_or("loan view has missing collateral owner")?,
+            title_holder: record
+                .collateral
+                .as_ref()
+                .map(|c| {
+                    crate::credit::owner(world, state, c.asset)
+                        .ok_or("loan view has missing collateral owner")
+                })
+                .transpose()?,
             listing,
         }));
     }
+    views.extend(state.exchange.forwards.values().map(View::Forward));
     views.retain(|a| {
         a.accepted_month() <= state.month
             && (a.holder() == agent || a.grantor() == Counterparty::Agent(agent))

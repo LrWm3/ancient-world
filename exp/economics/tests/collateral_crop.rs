@@ -47,7 +47,11 @@ fn seizure_changes_control_but_not_crop_progress_or_fixed_debt_credit() {
     );
     assert_eq!(sim.state.credit.loans[&1].principal, 2160);
     assert_eq!(
-        sim.state.credit.loans[&1].collateral.settlement,
+        sim.state.credit.loans[&1]
+            .collateral
+            .as_ref()
+            .unwrap()
+            .settlement,
         CollateralSettlement::FixedValue { value: 6000 }
     );
     sim.run_months(4).unwrap();

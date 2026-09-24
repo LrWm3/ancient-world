@@ -71,6 +71,19 @@ fn upfront_cash_or_exact_forward_transfers_coins_and_never_charges_royalties() {
             price
         );
         if cash == 0 {
+            let views =
+                economics_compute_smoke::agreements::for_agent(&sim.world, &sim.state, PERSON)
+                    .unwrap();
+            let view = views
+                .iter()
+                .find(|v| {
+                    v.identity() == economics_compute_smoke::agreements::Identity::Forward(9000)
+                })
+                .unwrap();
+            assert_eq!(
+                view.claims().unwrap(),
+                vec![sim.state.exchange.forwards[&9000].claim()]
+            );
             let c = &sim.state.exchange.forwards[&9000];
             assert_eq!(c.advance.quantity, price);
             assert_eq!(c.goods.quantity, 2 * c.advance.quantity);

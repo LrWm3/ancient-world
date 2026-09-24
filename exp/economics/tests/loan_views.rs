@@ -43,12 +43,12 @@ fn accepted_terms_are_borrowed_from_book_and_namespaced_not_live_offers() {
     assert!(std::ptr::eq(v.record(), &s.state.credit.loans[&1]));
     assert_eq!(v.record(), &record);
     assert_eq!(
-        v.on_default(),
+        v.on_default().unwrap(),
         Consequence::RepossessCollateral {
             asset: PLOT,
             creditor: STATE_AGENT,
             grace_months: record.grace_months,
-            settlement: record.collateral.settlement.clone(),
+            settlement: record.collateral.as_ref().unwrap().settlement.clone(),
         }
     );
     let views = agreements::for_agent(&s.world, &s.state, PERSON).unwrap();
@@ -86,7 +86,7 @@ fn current_due_and_observed_arrears_are_distinct_then_fixed_enforcement_is_defic
     assert_eq!(v.state(), LoanState::Overdue { since: 2 });
     assert_eq!(v.claim().unwrap().unwrap().outstanding(), 2080);
     assert_eq!(v.outstanding().unwrap().quantity, 8080);
-    assert_eq!(v.title_holder(), PERSON);
+    assert_eq!(v.title_holder(), Some(PERSON));
     while s.state.month < 3 {
         s.step().unwrap();
     }
@@ -94,8 +94,8 @@ fn current_due_and_observed_arrears_are_distinct_then_fixed_enforcement_is_defic
     s.step().unwrap();
     let v = loan(&s, PERSON);
     assert_eq!(v.state(), LoanState::Deficiency);
-    assert_eq!(v.title_holder(), STATE_AGENT);
-    assert!(!v.record().collateral.pledged);
+    assert_eq!(v.title_holder(), Some(STATE_AGENT));
+    assert!(!v.record().collateral.as_ref().unwrap().pledged);
     assert_eq!(v.claim().unwrap().unwrap().outstanding(), 2160);
 }
 
@@ -115,7 +115,7 @@ fn resale_custody_pauses_claim_but_preserves_debt_then_reports_realized_outcome(
         assert_eq!(v.state(), LoanState::PendingSale { listed: 3 });
         assert_eq!(v.outstanding().unwrap().quantity, 8160);
         assert!(v.claim().unwrap().is_none());
-        assert_eq!(v.title_holder(), STATE_AGENT);
+        assert_eq!(v.title_holder(), Some(STATE_AGENT));
         assert_eq!(v, loan(&s, STATE_AGENT));
         let lender = credit::balance_sheet(&s.world, &s.state, STATE_AGENT, TOKEN);
         let debtor = credit::balance_sheet(&s.world, &s.state, PERSON, TOKEN);

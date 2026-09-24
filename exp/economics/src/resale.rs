@@ -55,10 +55,20 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             || listing.listed > state.month
             || listing.listed != loan.last_accrued
             || !matches!(
-                loan.collateral.settlement,
+                loan.collateral
+                    .as_ref()
+                    .ok_or("sale requires collateral")?
+                    .settlement,
                 CollateralSettlement::ResaleProceeds { .. }
             )
-            || credit::owner(world, state, loan.collateral.asset) != Some(loan.creditor)
+            || credit::owner(
+                world,
+                state,
+                loan.collateral
+                    .as_ref()
+                    .ok_or("sale requires collateral")?
+                    .asset,
+            ) != Some(loan.creditor)
         {
             return Err("invalid pending collateral sale".into());
         }
@@ -111,12 +121,16 @@ pub fn bid(
                 .get_mut(&loan.id)
                 .ok_or("missing valuation loan")?
                 .status = credit::Status::Enforced;
-            s.credit
-                .owners
-                .insert(loan.collateral.asset, buyer.preferences.agent);
+            s.credit.owners.insert(
+                loan.collateral
+                    .as_ref()
+                    .ok_or("sale requires collateral")?
+                    .asset,
+                buyer.preferences.agent,
+            );
             for p in s.processes.values_mut().filter(|p| {
                 p.status == Status::Active
-                    && p.asset == Some(loan.collateral.asset)
+                    && p.asset == loan.collateral.as_ref().map(|c| c.asset)
                     && p.right.is_some_and(|r| credit::follows_owner(&w, r))
             }) {
                 p.operator = buyer.preferences.agent;
@@ -164,7 +178,11 @@ pub(crate) fn settle(
             continue;
         }
         let mut loan = out.after.loans[&id].clone();
-        let CollateralSettlement::ResaleProceeds { minimum_price } = loan.collateral.settlement
+        let CollateralSettlement::ResaleProceeds { minimum_price } = loan
+            .collateral
+            .as_ref()
+            .ok_or("sale requires collateral")?
+            .settlement
         else {
             return Err("wrong sale settlement rule".into());
         };
@@ -225,13 +243,26 @@ pub(crate) fn settle(
             world,
             state,
             out,
-            loan.collateral.asset,
+            loan.collateral
+                .as_ref()
+                .ok_or("sale requires collateral")?
+                .asset,
             buyer.preferences.agent,
         );
-        out.after
-            .owners
-            .insert(loan.collateral.asset, buyer.preferences.agent);
-        out.after.values.insert(loan.collateral.asset, price);
+        out.after.owners.insert(
+            loan.collateral
+                .as_ref()
+                .ok_or("sale requires collateral")?
+                .asset,
+            buyer.preferences.agent,
+        );
+        out.after.values.insert(
+            loan.collateral
+                .as_ref()
+                .ok_or("sale requires collateral")?
+                .asset,
+            price,
+        );
         out.after.pending_sales.remove(&id);
         loan.status = credit::Status::Enforced;
         loan.apply_payment(debt_credit);

@@ -400,8 +400,19 @@ pub fn settle(
         .values()
         .filter(|c| c.due <= state.month)
         .collect();
-    contracts.sort_by_key(|c| (c.due, c.id));
+    contracts.sort_by_key(|c| {
+        (
+            world
+                .claim_priorities
+                .get(&finance::ContractId::Forward(c.id))
+                .copied()
+                .unwrap_or(finance::DEFAULT_CLAIM_RANK),
+            c.due,
+            c.id,
+        )
+    });
     let mut result = Vec::new();
+    let mut execution = finance::Execution::from_parts(available.clone(), stored.clone());
     for c in contracts {
         let account = (c.debtor, c.goods.resource);
         let protected = config
@@ -411,12 +422,8 @@ pub fn settle(
             .unwrap_or(0)
             .max(household_protected.get(&account).copied().unwrap_or(0));
         let claim = c.claim();
-        let quantity = claim.payable(
-            state.month,
-            true,
-            available.get(&account).copied().unwrap_or(0) - protected,
-            crate::storage::room(world, stored, c.creditor, c.goods.resource),
-        );
+        let payment = execution.pay_protected(world, state.month, &claim, protected)?;
+        let quantity = payment.paid;
         if quantity == 0 {
             continue;
         }
@@ -425,11 +432,11 @@ pub fn settle(
             contract: c.id,
             quantity,
         });
-        t.effects = claim.payment(quantity)?;
-        *available.entry(account).or_default() -= quantity;
-        crate::storage::apply(world, stored, &t.effects);
+        t.effects = payment.effects;
         result.push(t);
     }
+    *available = execution.available;
+    *stored = execution.stored;
     Ok(result)
 }
 

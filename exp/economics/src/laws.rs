@@ -10,12 +10,14 @@ use crate::{
 pub enum AgreementForm {
     LandUseLease,
     FinancedAssetPurchase,
+    Loan,
 }
 impl AgreementForm {
     fn action(self) -> Action {
         match self {
             Self::LandUseLease => Action::LandAccess,
             Self::FinancedAssetPurchase => Action::FinancedPurchase,
+            Self::Loan => Action::Borrow,
         }
     }
 }
@@ -58,12 +60,14 @@ pub enum Term {
 pub enum Terms {
     Lease { months: u32 },
     FinancedPurchase { monthly_rate_bps: u32 },
+    Loan { monthly_rate_bps: u32 },
 }
 impl Terms {
     fn form(self) -> AgreementForm {
         match self {
             Self::Lease { .. } => AgreementForm::LandUseLease,
             Self::FinancedPurchase { .. } => AgreementForm::FinancedAssetPurchase,
+            Self::Loan { .. } => AgreementForm::Loan,
         }
     }
 }
@@ -79,7 +83,7 @@ pub fn term_reasons(w: &World, terms: Terms) -> Vec<Reason> {
             months,
             p.agreement_limits.max_lease_months,
         ),
-        Terms::FinancedPurchase { monthly_rate_bps } => (
+        Terms::FinancedPurchase { monthly_rate_bps } | Terms::Loan { monthly_rate_bps } => (
             Term::MonthlyInterestBps,
             monthly_rate_bps,
             p.agreement_limits.max_monthly_interest_bps,

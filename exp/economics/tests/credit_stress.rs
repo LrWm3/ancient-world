@@ -34,9 +34,9 @@ fn harvest_losses_separate_cash_repayment_from_collateral_settlement() {
             let loan = &sim.state.credit.loans[&1];
             if loan.debt().unwrap() == 0 {
                 closed.get_or_insert(month);
-                assert!(!loan.collateral.pledged);
+                assert!(!loan.collateral.as_ref().unwrap().pledged);
             } else {
-                assert!(loan.collateral.pledged);
+                assert!(loan.collateral.as_ref().unwrap().pledged);
             }
         }
         assert_eq!(closed, Some(payoff));

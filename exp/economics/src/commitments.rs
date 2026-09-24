@@ -121,6 +121,22 @@ pub fn can_start(world: &World, state: &State, right: u32) -> bool {
 }
 
 pub fn evaluate(world: &World, state: &State) -> Result<Settlement, String> {
+    let mut execution = finance::Execution::opening(world, state);
+    evaluate_with(world, state, &mut execution)
+}
+pub(crate) fn evaluate_with(
+    world: &World,
+    state: &State,
+    execution: &mut finance::Execution,
+) -> Result<Settlement, String> {
+    evaluate_selected(world, state, execution, None)
+}
+pub(crate) fn evaluate_selected(
+    world: &World,
+    state: &State,
+    execution: &mut finance::Execution,
+    only: Option<u32>,
+) -> Result<Settlement, String> {
     let mut obligations = state.obligations.clone();
     if state.phase == Phase::Due {
         for a in active(world, state) {
@@ -141,18 +157,26 @@ pub fn evaluate(world: &World, state: &State) -> Result<Settlement, String> {
             }
         }
     }
-    // Oldest due first, stable agreement ID ties. Receipts cannot fund another
+    // Explicit rank, then oldest due and stable agreement ID. Receipts cannot fund another
     // payment in this boundary: each debtor draws only its opening stock.
     let mut order: Vec<_> = obligations.keys().copied().collect();
-    order.sort_by_key(|(agreement, due)| (*due, *agreement));
-    let mut budget = state.balances.clone();
+    order.sort_by_key(|(agreement, due)| {
+        (
+            world
+                .claim_priorities
+                .get(&finance::ContractId::Land(*agreement))
+                .copied()
+                .unwrap_or(finance::DEFAULT_CLAIM_RANK),
+            *due,
+            *agreement,
+        )
+    });
     let protected = protected_stock(world, state)?;
-    for (account, quantity) in &protected {
-        *budget.entry(*account).or_default() -= quantity;
-    }
     let mut transactions = Vec::new();
-    let mut stored = crate::storage::usage(world, &state.balances);
     for key in order {
+        if only.is_some_and(|id| id != key.0) {
+            continue;
+        }
         let o = obligations.get_mut(&key).unwrap();
         let a = active(world, state)
             .find(|a| a.id == o.agreement)
@@ -160,22 +184,24 @@ pub fn evaluate(world: &World, state: &State) -> Result<Settlement, String> {
         if state.terminal.contains_key(&a.debtor) {
             continue;
         }
-        let available = budget.entry((a.debtor, a.payment.resource)).or_default();
         let claim = o.claim(a);
-        let paid = claim.payable(
+        let payment = execution.pay_protected(
+            world,
             state.month,
-            true,
-            *available,
-            crate::storage::room(world, &stored, a.creditor, a.payment.resource),
-        );
+            &claim,
+            protected
+                .get(&(a.debtor, a.payment.resource))
+                .copied()
+                .unwrap_or(0),
+        )?;
+        let paid = payment.paid;
         let previously_paid = o.in_kind_paid;
         if paid > 0 {
-            *available -= paid;
             o.paid += paid;
             o.in_kind_paid += paid;
             transactions.push(Transaction {
                 cause: format!("agreement {} due {}: pay {}", a.id, o.due, paid),
-                effects: claim.payment(paid)?,
+                effects: payment.effects,
                 process: None,
                 technique_use: None,
                 trade: None,
@@ -184,7 +210,6 @@ pub fn evaluate(world: &World, state: &State) -> Result<Settlement, String> {
                 delivery: None,
                 royalty: None,
             });
-            crate::storage::apply(world, &mut stored, &transactions.last().unwrap().effects);
             if let Some(rule) = world.issuance.iter().find(|r| r.agreement == a.id) {
                 let issued = o.in_kind_paid / rule.collected_per_token
                     - previously_paid / rule.collected_per_token;
@@ -207,25 +232,31 @@ pub fn evaluate(world: &World, state: &State) -> Result<Settlement, String> {
             }
         }
         if let Some(alternative) = world.activities.coin_payments.get(&a.id) {
-            let available = budget.entry((a.debtor, alternative.resource)).or_default();
-            let units = (o.owed - o.paid).min(*available / alternative.coins_per_unit);
+            let available = execution
+                .available
+                .get(&(a.debtor, alternative.resource))
+                .copied()
+                .unwrap_or(0);
+            let units = (o.owed - o.paid).min(available / alternative.coins_per_unit);
             if units > 0 {
                 let coins = units
                     .checked_mul(alternative.coins_per_unit)
                     .ok_or("coin payment overflow")?;
-                *available -= coins;
+                let effects = execution.exchange(
+                    world,
+                    &[Transfer {
+                        from: a.debtor,
+                        to: a.creditor,
+                        amount: Amount::new(alternative.resource, coins),
+                    }],
+                )?;
                 o.paid += units;
                 transactions.push(Transaction {
                     cause: format!(
                         "agreement {} due {}: pay {} units with {} coins",
                         a.id, o.due, units, coins
                     ),
-                    effects: Transfer {
-                        from: a.debtor,
-                        to: a.creditor,
-                        amount: Amount::new(alternative.resource, coins),
-                    }
-                    .effects()?,
+                    effects,
                     process: None,
                     technique_use: None,
                     trade: None,

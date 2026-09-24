@@ -16,6 +16,8 @@ pub enum Action {
     StockTrade,
     CapacityTrade,
     FinancedPurchase,
+    Borrow,
+    Lend,
 }
 
 /// A state's explicit allow-list. Unclassified types and unlisted actions are denied.

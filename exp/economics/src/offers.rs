@@ -126,7 +126,7 @@ pub(crate) fn resolve(
         if scripted_credit_request(&sim.world, &sim.state).as_ref() != Some(request) {
             return Err("financed purchase differs from configured application or is stale".into());
         }
-        if sim.world.negotiation.is_some() {
+        if sim.world.negotiation.is_some() || sim.world.market.is_some() {
             *batch = crate::acquisition::evaluate(&sim.world, &sim.state)?;
             return Ok(());
         }

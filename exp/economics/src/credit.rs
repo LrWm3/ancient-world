@@ -1,5 +1,5 @@
-//! Financed asset purchases, monthly noncompounding debt and collateral settlement.
-//! Scoped financial experiment; ownership and debt share one authoritative book.
+//! General advances and financed purchases share monthly debt and claim settlement.
+//! Ownership and debt have one authoritative book; collateral terms are optional.
 use crate::{finance, model::*};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -30,6 +30,21 @@ pub struct LoanOffer {
     pub monthly_rate_bps: u32,
     pub term_months: u32,
     pub grace_months: u32,
+}
+/// A dated, mutually accepted advance. Discovery/underwriting supply these terms;
+/// execution neither invents consent nor promises that the lender has funds.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Advance {
+    pub id: u32,
+    pub debtor: AgentId,
+    pub terms: LoanOffer,
+    pub principal: i32,
+    pub month: u32,
+    pub collateral: Option<Collateral>,
+    pub priority: u32,
+}
+pub fn enabled(world: &World) -> bool {
+    world.credit.is_some() || !world.lending.is_empty()
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Collateral {
@@ -113,9 +128,32 @@ pub struct Loan {
     pub grace_months: u32,
     pub first_unpaid: Option<u32>,
     pub status: Status,
-    pub collateral: Collateral,
+    pub collateral: Option<Collateral>,
+    /// Lower ranks collect first; equal ranks use the configured sharing policy.
+    pub priority: u32,
 }
 impl Loan {
+    fn accepted(a: &Advance) -> Self {
+        Self {
+            id: a.id,
+            creditor: a.terms.creditor,
+            debtor: a.debtor,
+            denomination: a.terms.denomination,
+            original_principal: a.principal,
+            principal: a.principal,
+            interest: 0,
+            interest_remainder: 0,
+            monthly_rate_bps: a.terms.monthly_rate_bps,
+            opened: a.month,
+            last_accrued: a.month,
+            term_months: a.terms.term_months,
+            grace_months: a.terms.grace_months,
+            first_unpaid: None,
+            status: Status::Active,
+            collateral: a.collateral.clone(),
+            priority: a.priority,
+        }
+    }
     pub fn debt(&self) -> Result<i32, String> {
         self.principal
             .checked_add(self.interest)
@@ -154,7 +192,9 @@ impl Loan {
         self.principal -= amount - interest;
         if self.principal == 0 && self.interest == 0 {
             self.status = Status::Repaid;
-            self.collateral.pledged = false;
+            if let Some(collateral) = &mut self.collateral {
+                collateral.pledged = false;
+            }
             self.first_unpaid = None;
             self.interest_remainder = 0;
         }
@@ -179,6 +219,12 @@ pub enum Rejection {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
+    Advanced {
+        loan: u32,
+        creditor: AgentId,
+        debtor: AgentId,
+        amount: Amount,
+    },
     RepossessedForSale {
         loan: u32,
         asset: AssetId,
@@ -254,6 +300,8 @@ pub enum Event {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Boundary {
+    pub collections: Vec<finance::CollectionReceipt>,
+    pub commitments: Option<crate::commitments::Settlement>,
     pub production_plan: Option<Box<Batch>>,
     pub stock_sale: Option<crate::stock_sale::Receipt>,
     pub decision: Option<crate::borrowing::Decision>,
@@ -303,10 +351,12 @@ pub fn balance_sheet(
     if let Some(c) = &world.credit {
         let mut seen = BTreeSet::new();
         for o in &c.offers {
-            let pending =
-                state.credit.loans.values().find(|l| {
-                    l.status == Status::PendingSale && l.collateral.asset == o.sale.asset
-                });
+            let pending = state.credit.loans.values().find(|l| {
+                l.status == Status::PendingSale
+                    && l.collateral
+                        .as_ref()
+                        .is_some_and(|c| c.asset == o.sale.asset)
+            });
             let economic_owner = pending
                 .map(|l| l.debtor)
                 .or_else(|| owner(world, state, o.sale.asset));
@@ -340,6 +390,27 @@ pub fn balance_sheet(
                         .unwrap_or(&o.sale.price.quantity),
                 );
             }
+        }
+    }
+    let offered_assets: BTreeSet<_> = world
+        .credit
+        .iter()
+        .flat_map(|c| c.offers.iter().map(|o| o.sale.asset))
+        .collect();
+    let mut valued = BTreeSet::new();
+    for l in state
+        .credit
+        .loans
+        .values()
+        .filter(|l| l.denomination == coin)
+    {
+        if let Some(c) = &l.collateral
+            && !offered_assets.contains(&c.asset)
+            && valued.insert(c.asset)
+            && owner(world, state, c.asset) == Some(agent)
+            && let CollateralSettlement::FixedValue { value } = c.settlement
+        {
+            b.assets += i64::from(*state.credit.values.get(&c.asset).unwrap_or(&value));
         }
     }
     for l in state
@@ -381,23 +452,19 @@ pub fn discover<'a>(world: &'a World, state: &State, buyer: AgentId) -> Vec<&'a 
                     && !state.terminal.contains_key(&o.sale.seller)
                     && !state.terminal.contains_key(&o.loan.creditor)
                     && !state.credit.loans.contains_key(&o.id)
-                    && !state
-                        .credit
-                        .loans
-                        .values()
-                        .any(|l| l.collateral.pledged && l.collateral.asset == o.sale.asset)
+                    && !state.credit.loans.values().any(|l| {
+                        l.collateral
+                            .as_ref()
+                            .is_some_and(|c| c.pledged && c.asset == o.sale.asset)
+                    })
                     && owner(world, state, o.sale.asset) == Some(o.sale.seller)
             })
             .collect()
     })
 }
-pub fn validate(world: &World, state: &State) -> Result<(), String> {
+fn validate_purchase(world: &World, state: &State) -> Result<(), String> {
     let Some(c) = &world.credit else {
-        return if state.credit == Book::default() {
-            Ok(())
-        } else {
-            Err("credit book without configuration".into())
-        };
+        return Ok(());
     };
     if world.negotiation.is_some() && c.stock_sales.as_ref().is_some_and(|p| p.joint.is_some()) {
         return Err("joint production reservations do not yet compose with negotiation".into());
@@ -502,6 +569,76 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         }
         t.transfer.effects()?;
     }
+    Ok(())
+}
+pub fn validate(world: &World, state: &State) -> Result<(), String> {
+    if !enabled(world) && state.credit != Book::default() {
+        return Err("credit book without accepted lending configuration".into());
+    }
+    validate_purchase(world, state)?;
+    if world
+        .ownership_rights
+        .iter()
+        .any(|id| !world.rights.iter().any(|r| r.id == *id))
+    {
+        return Err("unknown ownership-following right".into());
+    }
+    if !world.lending.is_empty()
+        && (world.minting.is_some()
+            || world.town_market.is_some()
+            || world.competition.is_some()
+            || world.pool_market.is_some()
+            || !world.households.is_empty()
+            || world.market.as_ref().is_some_and(|m| m.plots.is_some())
+            || world.priority == Priority::ConsequenceAware
+            || (world.market.is_none()
+                && (!world.offers.is_empty() || !world.access_offers.is_empty())))
+    {
+        return Err("general loans require a composed acquisition driver; household delegation, town/minting, plot expansion and search acquisition are not yet composed".into());
+    }
+    let agent = |id| world.agents.iter().any(|a| a.id == id);
+    let stock = |id| {
+        world
+            .resources
+            .iter()
+            .any(|r| r.id == id && r.kind == ResourceKind::Stock)
+    };
+    let mut ids: BTreeSet<_> = world
+        .credit
+        .iter()
+        .flat_map(|c| c.offers.iter().map(|o| o.id))
+        .collect();
+    for a in &world.lending {
+        if !ids.insert(a.id)
+            || !agent(a.debtor)
+            || !agent(a.terms.creditor)
+            || a.debtor == a.terms.creditor
+            || !stock(a.terms.denomination)
+            || a.principal <= 0
+            || a.principal > a.terms.max_principal
+            || a.terms.monthly_rate_bps > RATE_SCALE as u32
+            || a.terms.term_months == 0
+            || a.terms.term_months > MAX_TERM_MONTHS
+            || a.terms.grace_months > MAX_TERM_MONTHS
+            || a.month == 0
+            || a.month > u32::MAX - MAX_TERM_MONTHS - 1
+            || a.collateral.as_ref().is_some_and(|c| {
+                *world
+                    .storage
+                    .weights
+                    .get(&a.terms.denomination)
+                    .unwrap_or(&0)
+                    != 0
+                    || !c.pledged
+                    || !c.settlement.is_valid()
+                    || !world.assets.iter().any(|x| x.id == c.asset)
+                    || matches!(c.settlement, CollateralSettlement::ResaleProceeds { .. })
+            })
+        {
+            return Err("invalid general lending agreement".into());
+        }
+    }
+    let assets: BTreeSet<_> = world.assets.iter().map(|a| a.id).collect();
     for (&asset, &who) in &state.credit.owners {
         if !assets.contains(&asset) || !agent(who) {
             return Err("invalid asset owner override".into());
@@ -520,7 +657,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             || !agent(l.creditor)
             || !agent(l.debtor)
             || l.creditor == l.debtor
-            || !coin(l.denomination)
+            || !stock(l.denomination)
             || l.original_principal <= 0
             || l.principal < 0
             || l.principal > l.original_principal
@@ -533,12 +670,15 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             || l.opened > state.month
             || l.last_accrued < l.opened
             || l.last_accrued > state.month
-            || !assets.contains(&l.collateral.asset)
-            || !l.collateral.settlement.is_valid()
-            || (l.collateral.pledged
-                && (!pledged.insert(l.collateral.asset)
-                    || owner(world, state, l.collateral.asset) != Some(l.debtor)))
-            || (l.status == Status::Active) != l.collateral.pledged
+            || l.collateral.as_ref().is_some_and(|c| {
+                !assets.contains(&c.asset)
+                    || !c.settlement.is_valid()
+                    || (c.pledged
+                        && (!pledged.insert(c.asset)
+                            || owner(world, state, c.asset) != Some(l.debtor)))
+                    || (l.status == Status::Active) != c.pledged
+            })
+            || (l.status == Status::PendingSale && l.collateral.is_none())
             || (l.status == Status::Repaid) != (l.debt()? == 0)
         {
             return Err("invalid loan book".into());
@@ -546,7 +686,8 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     }
     Ok(())
 }
-fn tx(cause: String, effects: Vec<Effect>) -> Transaction {
+
+pub(crate) fn tx(cause: String, effects: Vec<Effect>) -> Transaction {
     Transaction {
         cause,
         effects,
@@ -575,6 +716,91 @@ pub(crate) fn transfer(
     budgets.insert((from, coin), available - quantity);
     out.transactions
         .push(tx("credit cash transfer".into(), effects));
+    Ok(())
+}
+fn advances(
+    world: &World,
+    state: &State,
+    out: &mut Boundary,
+    budgets: &mut BTreeMap<Account, i32>,
+) -> Result<(), String> {
+    let mut execution = finance::Execution::opening(world, state);
+    execution.available = budgets.clone();
+    let mut requests: Vec<_> = world
+        .lending
+        .iter()
+        .filter(|a| a.month == state.month)
+        .collect();
+    requests.sort_by_key(|a| a.id);
+    for a in requests {
+        if out.after.loans.contains_key(&a.id) {
+            continue;
+        }
+        let creditor = a.terms.creditor;
+        let reason = if [a.debtor, creditor]
+            .iter()
+            .any(|id| state.terminal.contains_key(id))
+            || !crate::laws::evaluate_terms(
+                world,
+                state,
+                a.debtor,
+                crate::laws::Terms::Loan {
+                    monthly_rate_bps: a.terms.monthly_rate_bps,
+                },
+            )
+            .allowed
+            || !crate::opportunities::permits(
+                world,
+                state,
+                creditor,
+                crate::opportunities::Action::Lend,
+            ) {
+            Some(Rejection::Ineligible)
+        } else if a.collateral.as_ref().is_some_and(|c| {
+            owner(world, state, c.asset) != Some(a.debtor)
+                || out.after.loans.values().any(|l| {
+                    l.collateral
+                        .as_ref()
+                        .is_some_and(|p| p.pledged && p.asset == c.asset)
+                })
+        }) {
+            Some(Rejection::UnavailableAsset)
+        } else {
+            None
+        };
+        if let Some(reason) = reason {
+            out.events.push(Event::Rejected {
+                offer: a.id,
+                reason,
+            });
+            continue;
+        }
+        let amount = Amount::new(a.terms.denomination, a.principal);
+        let Ok(effects) = execution.exchange(
+            world,
+            &[finance::Transfer {
+                from: creditor,
+                to: a.debtor,
+                amount: amount.clone(),
+            }],
+        ) else {
+            out.events.push(Event::Rejected {
+                offer: a.id,
+                reason: Rejection::Funding,
+            });
+            continue;
+        };
+        out.transactions
+            .push(tx("contract loan advance".into(), effects));
+        out.after.loans.insert(a.id, Loan::accepted(a));
+        out.events.push(Event::Advanced {
+            loan: a.id,
+            creditor,
+            debtor: a.debtor,
+            amount,
+        });
+    }
+    *budgets = execution.available;
     Ok(())
 }
 fn purchase(
@@ -617,20 +843,20 @@ fn purchase(
     {
         Some(Rejection::Ineligible)
     } else if owner(world, state, o.sale.asset) != Some(o.sale.seller)
-        || out
-            .after
-            .loans
-            .values()
-            .any(|l| l.collateral.pledged && l.collateral.asset == o.sale.asset)
+        || out.after.loans.values().any(|l| {
+            l.collateral
+                .as_ref()
+                .is_some_and(|c| c.pledged && c.asset == o.sale.asset)
+        })
     {
         Some(Rejection::UnavailableAsset)
     } else if a.downpayment < o.minimum_downpayment
         || principal <= 0
         || principal > o.loan.max_principal
-        || state.balance(a.buyer, coin) < a.downpayment
+        || budgets.get(&(a.buyer, coin)).copied().unwrap_or(0) < a.downpayment
     {
         Some(Rejection::Downpayment)
-    } else if state.balance(o.loan.creditor, coin) < principal {
+    } else if budgets.get(&(o.loan.creditor, coin)).copied().unwrap_or(0) < principal {
         Some(Rejection::Funding)
     } else {
         None
@@ -658,24 +884,15 @@ fn purchase(
     out.after.values.insert(o.sale.asset, o.sale.price.quantity);
     out.after.loans.insert(
         o.id,
-        Loan {
+        Loan::accepted(&Advance {
             id: o.id,
-            creditor: o.loan.creditor,
             debtor: a.buyer,
-            denomination: coin,
-            original_principal: principal,
+            terms: o.loan.clone(),
             principal,
-            interest: 0,
-            interest_remainder: 0,
-            monthly_rate_bps: o.loan.monthly_rate_bps,
-            opened: state.month,
-            last_accrued: state.month,
-            term_months: o.loan.term_months,
-            grace_months: o.loan.grace_months,
-            first_unpaid: None,
-            status: Status::Active,
-            collateral: o.collateral.clone(),
-        },
+            month: state.month,
+            collateral: Some(o.collateral.clone()),
+            priority: o.collateral.priority,
+        }),
     );
     out.events.push(Event::Purchased {
         offer: o.id,
@@ -712,10 +929,11 @@ pub(crate) fn transfer_attachments(
     }
 }
 pub fn follows_owner(world: &World, right: u32) -> bool {
-    world
-        .credit
-        .as_ref()
-        .is_some_and(|c| c.attached_rights.contains(&right))
+    world.ownership_rights.contains(&right)
+        || world
+            .credit
+            .as_ref()
+            .is_some_and(|c| c.attached_rights.contains(&right))
 }
 
 fn due(
@@ -724,8 +942,82 @@ fn due(
     out: &mut Boundary,
     budgets: &mut BTreeMap<Account, i32>,
 ) -> Result<(), String> {
-    let ids: Vec<_> = out.after.loans.keys().copied().collect();
-    for id in ids {
+    let mut execution = finance::Execution::opening(world, state);
+    execution.available = budgets.clone();
+    let protected = crate::commitments::protected_stock(world, state)?;
+    let mut collection_state = state.clone();
+    let mut order: Vec<_> = out
+        .after
+        .loans
+        .values()
+        .map(|l| {
+            (
+                world
+                    .claim_priorities
+                    .get(&finance::ContractId::Loan(l.id))
+                    .copied()
+                    .unwrap_or(l.priority),
+                finance::ContractId::Loan(l.id),
+            )
+        })
+        .collect();
+    order.extend(crate::commitments::active(world, state).map(|a| {
+        (
+            world
+                .claim_priorities
+                .get(&finance::ContractId::Land(a.id))
+                .copied()
+                .unwrap_or(finance::DEFAULT_CLAIM_RANK),
+            finance::ContractId::Land(a.id),
+        )
+    }));
+    order.sort();
+    for (rank, contract) in order {
+        let id = match contract {
+            finance::ContractId::Loan(id) => id,
+            finance::ContractId::Land(id) => {
+                let settlement = crate::commitments::evaluate_selected(
+                    world,
+                    &collection_state,
+                    &mut execution,
+                    Some(id),
+                )?;
+                let agreement = crate::commitments::active(world, state)
+                    .find(|a| a.id == id)
+                    .ok_or("missing collection agreement")?;
+                for (key, obligation) in
+                    settlement.obligations.iter().filter(|(key, _)| key.0 == id)
+                {
+                    let previous = collection_state.obligations.get(key).map_or(0, |o| o.paid);
+                    out.collections.push(finance::CollectionReceipt {
+                        contract,
+                        rank,
+                        debtor: agreement.debtor,
+                        creditor: agreement.creditor,
+                        requested: Amount::new(
+                            agreement.payment.resource,
+                            obligation.owed - previous,
+                        ),
+                        paid: obligation.paid - previous,
+                    });
+                }
+                collection_state.obligations = settlement.obligations.clone();
+                out.transactions.extend(settlement.transactions.clone());
+                let all = out
+                    .commitments
+                    .get_or_insert_with(|| crate::commitments::Settlement {
+                        policy: settlement.policy,
+                        protected: settlement.protected.clone(),
+                        obligations: settlement.obligations.clone(),
+                        transactions: vec![],
+                    });
+                all.obligations = settlement.obligations;
+                all.transactions.extend(settlement.transactions);
+                *budgets = execution.available.clone();
+                continue;
+            }
+            finance::ContractId::Forward(_) => unreachable!("forwards collect at Acquire"),
+        };
         let mut l = out.after.loans[&id].clone();
         if matches!(l.status, Status::Repaid | Status::PendingSale) || state.month <= l.opened {
             continue;
@@ -749,15 +1041,27 @@ fn due(
                 interest,
             });
         }
-        let available = budgets
-            .get(&(l.debtor, l.denomination))
-            .copied()
-            .unwrap_or(0);
-        let paid = l
-            .claim(state.month)?
-            .payable(state.month, true, available, i32::MAX);
+        let payment = execution.pay_protected(
+            world,
+            state.month,
+            &l.claim(state.month)?,
+            protected
+                .get(&(l.debtor, l.denomination))
+                .copied()
+                .unwrap_or(0),
+        )?;
+        let paid = payment.paid;
+        out.collections.push(finance::CollectionReceipt {
+            contract,
+            rank,
+            debtor: l.debtor,
+            creditor: l.creditor,
+            requested: Amount::new(l.denomination, payment.requested),
+            paid,
+        });
         if paid > 0 {
-            transfer(out, budgets, l.debtor, l.creditor, l.denomination, paid)?;
+            out.transactions
+                .push(tx("credit cash transfer".into(), payment.effects));
             out.events.push(Event::Paid {
                 loan: id,
                 interest: paid.min(l.interest),
@@ -765,6 +1069,7 @@ fn due(
             });
             l.apply_payment(paid);
         }
+        *budgets = execution.available.clone();
         let unpaid = l.due(state.month)?;
         if unpaid == 0 {
             l.first_unpaid = None;
@@ -775,13 +1080,16 @@ fn due(
                 amount: unpaid,
                 since,
             });
-            if l.status == Status::Active && state.month - since >= l.grace_months {
+            if l.status == Status::Active
+                && state.month - since >= l.grace_months
+                && let Some(collateral) = &mut l.collateral
+            {
                 if let CollateralSettlement::ResaleProceeds { minimum_price } =
-                    l.collateral.settlement
+                    collateral.settlement
                 {
-                    transfer_attachments(world, state, out, l.collateral.asset, l.creditor);
-                    out.after.owners.insert(l.collateral.asset, l.creditor);
-                    l.collateral.pledged = false;
+                    transfer_attachments(world, state, out, collateral.asset, l.creditor);
+                    out.after.owners.insert(collateral.asset, l.creditor);
+                    collateral.pledged = false;
                     l.status = Status::PendingSale;
                     out.after.pending_sales.insert(
                         id,
@@ -791,16 +1099,16 @@ fn due(
                     );
                     out.events.push(Event::RepossessedForSale {
                         loan: id,
-                        asset: l.collateral.asset,
+                        asset: collateral.asset,
                         minimum_price,
                     });
                     out.after.loans.insert(id, l);
                     continue;
                 }
-                let CollateralSettlement::FixedValue { value } = l.collateral.settlement else {
+                let CollateralSettlement::FixedValue { value } = collateral.settlement else {
                     unreachable!()
                 };
-                let debt = l.debt()?;
+                let debt = l.principal.checked_add(l.interest).ok_or("debt overflow")?;
                 let credit = value.min(debt);
                 let surplus = (value - debt).max(0);
                 if budgets
@@ -813,10 +1121,10 @@ fn due(
                         .push(Event::EnforcementDeferred { loan: id, surplus });
                 } else {
                     transfer(out, budgets, l.creditor, l.debtor, l.denomination, surplus)?;
-                    transfer_attachments(world, state, out, l.collateral.asset, l.creditor);
-                    out.after.owners.insert(l.collateral.asset, l.creditor);
-                    out.after.values.insert(l.collateral.asset, value);
-                    l.collateral.pledged = false;
+                    transfer_attachments(world, state, out, collateral.asset, l.creditor);
+                    out.after.owners.insert(collateral.asset, l.creditor);
+                    out.after.values.insert(collateral.asset, value);
+                    collateral.pledged = false;
                     l.status = Status::Enforced;
                     l.apply_payment(credit);
                     out.events.push(Event::Enforced {
@@ -829,19 +1137,23 @@ fn due(
                 }
             }
         }
+        execution.available = budgets.clone();
         out.after.loans.insert(id, l);
     }
+    *budgets = execution.available;
     Ok(())
 }
 pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String> {
     validate(world, state)?;
-    let Some(c) = &world.credit else {
+    if !enabled(world) {
         return Ok(None);
-    };
+    }
     if !matches!(state.phase, Phase::Open | Phase::Due | Phase::Acquire) {
         return Ok(None);
     }
     let mut out = Boundary {
+        collections: vec![],
+        commitments: None,
         production_plan: None,
         stock_sale: None,
         decision: None,
@@ -857,7 +1169,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
             crate::simulation::Simulation::open(world, state, &mut opening);
             out.transactions.extend(opening.transactions);
             if state.month == 1 {
-                for e in &c.endowments {
+                for e in world.credit.iter().flat_map(|c| &c.endowments) {
                     out.transactions.push(tx(
                         "initial coin endowment".into(),
                         vec![Effect {
@@ -871,7 +1183,12 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
                     });
                 }
             }
-            for t in c.transfers.iter().filter(|t| t.month == state.month) {
+            for t in world
+                .credit
+                .iter()
+                .flat_map(|c| &c.transfers)
+                .filter(|t| t.month == state.month)
+            {
                 transfer(
                     &mut out,
                     &mut budgets,
@@ -889,25 +1206,28 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
         }
         Phase::Due => due(world, state, &mut out, &mut budgets)?,
         Phase::Acquire => {
-            let should_purchase = match &c.purchase_policy {
-                crate::borrowing::Policy::Scripted => true,
-                crate::borrowing::Policy::Decline => false,
-                crate::borrowing::Policy::Compare(_)
-                    if c.application.month == state.month
-                        && !state.credit.loans.contains_key(&c.application.offer) =>
-                {
-                    let decision = crate::borrowing::evaluate(world, state)?;
-                    let accept = decision.accept;
-                    out.decision = Some(decision);
-                    accept
+            advances(world, state, &mut out, &mut budgets)?;
+            if let Some(c) = &world.credit {
+                let should_purchase = match &c.purchase_policy {
+                    crate::borrowing::Policy::Scripted => true,
+                    crate::borrowing::Policy::Decline => false,
+                    crate::borrowing::Policy::Compare(_)
+                        if c.application.month == state.month
+                            && !state.credit.loans.contains_key(&c.application.offer) =>
+                    {
+                        let decision = crate::borrowing::evaluate(world, state)?;
+                        let accept = decision.accept;
+                        out.decision = Some(decision);
+                        accept
+                    }
+                    crate::borrowing::Policy::Compare(_) => false,
+                };
+                if should_purchase {
+                    purchase(world, state, c, &mut out, &mut budgets)?;
                 }
-                crate::borrowing::Policy::Compare(_) => false,
-            };
-            if should_purchase {
-                purchase(world, state, c, &mut out, &mut budgets)?;
+                crate::resale::settle(world, state, &mut out, &mut budgets)?;
+                crate::stock_sale::settle(world, state, &mut out, &mut budgets)?;
             }
-            crate::resale::settle(world, state, &mut out, &mut budgets)?;
-            crate::stock_sale::settle(world, state, &mut out, &mut budgets)?;
         }
         _ => {}
     }

@@ -1,6 +1,8 @@
 //! Shared settlement primitives. Domain agreements own terms and authoritative receipts.
 use crate::model::*;
 
+pub const DEFAULT_CLAIM_RANK: u32 = 0;
+
 /// Conserved account transfer, not issuance or destruction. Domain resolvers
 /// restrict resource kinds and dates (including same-month capacity delegation).
 /// Atomicity is provided by batch commit.
@@ -117,4 +119,139 @@ pub fn exchange_payment(
     };
     let quantity = obligation.payable(0, true, available, i32::MAX);
     obligation.payment(quantity)
+}
+
+/// One reservation window for contract legs. Incoming receipts never increase
+/// spendable opening balances. Storage tracks actual net holdings separately.
+#[derive(Clone, Debug)]
+pub struct Execution {
+    pub available: std::collections::BTreeMap<Account, i32>,
+    pub(crate) stored: std::collections::BTreeMap<AgentId, i128>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Payment {
+    pub requested: i32,
+    pub paid: i32,
+    pub remaining: i32,
+    pub effects: Vec<Effect>,
+}
+impl Execution {
+    pub fn opening(world: &World, state: &State) -> Self {
+        Self {
+            available: state.balances.clone(),
+            stored: crate::storage::usage(world, &state.balances),
+        }
+    }
+    pub(crate) fn from_parts(
+        available: std::collections::BTreeMap<Account, i32>,
+        stored: std::collections::BTreeMap<AgentId, i128>,
+    ) -> Self {
+        Self { available, stored }
+    }
+    pub fn pay_protected(
+        &mut self,
+        world: &World,
+        month: u32,
+        claim: &Obligation,
+        protected: i32,
+    ) -> Result<Payment, String> {
+        let account = (claim.transfer.from, claim.transfer.amount.resource);
+        let opening = self.available.get(&account).copied().unwrap_or(0);
+        self.protect(account, protected);
+        let result = self.pay(world, month, true, claim);
+        self.available
+            .insert(account, opening - result.as_ref().map_or(0, |p| p.paid));
+        result
+    }
+    pub fn protect(&mut self, account: Account, quantity: i32) {
+        let value = self.available.entry(account).or_default();
+        *value = value.saturating_sub(quantity.max(0)).max(0);
+    }
+    pub fn pay(
+        &mut self,
+        world: &World,
+        month: u32,
+        accepted: bool,
+        claim: &Obligation,
+    ) -> Result<Payment, String> {
+        if claim.settled < 0
+            || claim.settled > claim.transfer.amount.quantity
+            || claim.transfer.amount.quantity < 0
+            || claim.transfer.from == claim.transfer.to
+        {
+            return Err("invalid contract claim".into());
+        }
+        let account = (claim.transfer.from, claim.transfer.amount.resource);
+        let requested = if claim.condition.is_met(month, accepted) {
+            claim.outstanding()
+        } else {
+            0
+        };
+        let paid = claim.payable(
+            month,
+            accepted,
+            self.available.get(&account).copied().unwrap_or(0),
+            crate::storage::room(
+                world,
+                &self.stored,
+                claim.transfer.to,
+                claim.transfer.amount.resource,
+            ),
+        );
+        let effects = if paid > 0 {
+            claim.payment(paid)?
+        } else {
+            vec![]
+        };
+        if paid > 0 {
+            *self.available.entry(account).or_default() -= paid;
+            crate::storage::apply(world, &mut self.stored, &effects);
+        }
+        Ok(Payment {
+            requested,
+            paid,
+            remaining: claim.outstanding() - paid,
+            effects,
+        })
+    }
+    /// All-or-nothing exchange of any number of legs, including advance packages.
+    /// Validate joint outgoing resources and final storage before changing reservations.
+    pub fn exchange(&mut self, world: &World, legs: &[Transfer]) -> Result<Vec<Effect>, String> {
+        let mut next = self.clone();
+        let mut effects = vec![];
+        for leg in legs {
+            let account = (leg.from, leg.amount.resource);
+            let available = next.available.entry(account).or_default();
+            let leg_effects = exchange_payment(leg.from, leg.to, leg.amount.clone(), *available)?;
+            *available -= leg.amount.quantity;
+            effects.extend(leg_effects);
+        }
+        if !crate::storage::fits(world, &next.stored, &effects) {
+            return Err("contract exchange exceeds storage".into());
+        }
+        crate::storage::apply(world, &mut next.stored, &effects);
+        *self = next;
+        Ok(effects)
+    }
+}
+
+/// Stable identities across claim adapters; lower configured rank collects first.
+/// Ordering is scoped to claims sharing a boundary, never a phase reordering.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ContractId {
+    Loan(u32),
+    Land(u32),
+    Forward(u32),
+}
+
+/// Allocation evidence in claim units; actual denomination-conversion legs remain
+/// in the committed transactions. This is a receipt, not another balance.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CollectionReceipt {
+    pub contract: ContractId,
+    pub rank: u32,
+    pub debtor: AgentId,
+    pub creditor: AgentId,
+    pub requested: Amount,
+    pub paid: i32,
 }
