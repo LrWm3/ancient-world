@@ -16,11 +16,94 @@ pub enum Output {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Costs {
+    /// Opt-in earned-only royalties: reporting ticks per delivered stock unit.
+    /// Tool cost is expensed at delivery; no projected consideration is booked.
+    pub earned_royalty_values: Option<BTreeMap<ResourceId, i128>>,
     /// Relative total cost shares by output identity, required for joint products.
     pub output_weights: BTreeMap<DefinitionId, BTreeMap<Output, u32>>,
     pub work: BTreeMap<u64, (AgentId, i128)>,
 }
 impl Costs {
+    /// Cost all production first, then settle the verified output share as noncash
+    /// consideration. Draw only on this process's new output, never opening stock.
+    fn cost_royalty_output(
+        &self,
+        transaction: &Transaction,
+        resource: ResourceId,
+        produced: (i128, i128),
+        stocks: &mut Inventory,
+        lines: &mut Vec<Line>,
+    ) -> Result<(i128, i128), String> {
+        let Some(r) = &transaction.royalty else {
+            return Ok(produced);
+        };
+        let p = &transaction
+            .process
+            .as_ref()
+            .ok_or("missing royalty process")?
+            .after;
+        let (quantity, value) = produced;
+        let q = r
+            .amounts
+            .iter()
+            .filter(|a| a.resource == resource)
+            .try_fold(0_i128, |sum, a| sum.checked_add(i128::from(a.quantity)))
+            .ok_or("royalty quantity overflow")?;
+        if q < 0
+            || q > quantity
+            || r.operator != p.operator
+            || r.process != p.id
+            || r.provider == p.operator
+        {
+            return Err("invalid royalty allocation".into());
+        }
+        if q == 0 {
+            return Ok(produced);
+        }
+        let unit = *self
+            .earned_royalty_values
+            .as_ref()
+            .and_then(|v| v.get(&resource))
+            .ok_or("royalty needs explicit output valuation")?;
+        if unit <= 0 {
+            return Err("royalty valuation must be positive".into());
+        }
+        let price = unit.checked_mul(q).ok_or("royalty value overflow")?;
+        let remainder = (value % quantity)
+            .checked_mul(q)
+            .ok_or("royalty basis overflow")?
+            / quantity;
+        let basis = (value / quantity)
+            .checked_mul(q)
+            .and_then(|v| v.checked_add(remainder))
+            .ok_or("royalty basis overflow")?;
+        let h = stocks.0.entry((r.provider, resource)).or_insert(Holding {
+            quantity: 0,
+            cost: 0,
+        });
+        h.quantity =
+            i32::try_from(i128::from(h.quantity) + q).map_err(|_| "royalty quantity overflow")?;
+        h.cost = h
+            .cost
+            .checked_add(price)
+            .ok_or("royalty inventory overflow")?;
+        for (agent, account, debit) in [
+            (p.operator, Account::Sales, -price),
+            (p.operator, Account::CostOfSales, basis),
+            (p.operator, Account::ServiceExpense, price),
+            (r.provider, Account::ServiceIncome, -price),
+        ] {
+            if debit != 0 {
+                lines.push(Line {
+                    agent,
+                    account,
+                    debit,
+                    flow: None,
+                });
+            }
+        }
+        Ok((quantity - q, value - basis))
+    }
     pub fn validate(&self, state: &State) -> Result<(), String> {
         for (id, (owner, cost)) in &self.work {
             let p = state.processes.get(id).ok_or("missing work in progress")?;
@@ -171,7 +254,18 @@ impl Costs {
                         .pool_inputs
                         .iter()
                         .any(|i| i.definition == p.definition && i.account == e.account);
-                if e.account.1 == coin || (e.account.0 != p.operator && !shared_input) {
+                let royalty_output = e.delta > 0
+                    && t.royalty.as_ref().is_some_and(|r| {
+                        r.operator == p.operator
+                            && r.process == p.id
+                            && r.provider == e.account.0
+                            && r.amounts
+                                .iter()
+                                .any(|a| a.resource == e.account.1 && a.quantity == e.delta)
+                    });
+                if e.account.1 == coin
+                    || (e.account.0 != p.operator && !shared_input && !royalty_output)
+                {
                     return Err(
                         "coin or unauthorized third-party process input/output unsupported".into(),
                     );
@@ -210,6 +304,13 @@ impl Costs {
         for t in ordered {
             let p = &t.process.as_ref().ok_or("missing process receipt")?.after;
             let d = world.definition(p.definition);
+            if t.royalty.is_some()
+                && (self.earned_royalty_values.is_none() || p.status != Status::Completed)
+            {
+                return Err(
+                    "royalty output requires earned-only policy and completed production".into(),
+                );
+            }
             let old = next.work.remove(&p.id).map_or(0, |(_, c)| c);
             let cost = old
                 .checked_add(inputs.get(&p.id).copied().unwrap_or(0))
@@ -299,6 +400,14 @@ impl Costs {
                             let value = share - allocated;
                             match resource {
                                 Output::Stock(resource) => {
+                                    let (retained_quantity, retained_cost) = self
+                                        .cost_royalty_output(
+                                            t,
+                                            resource,
+                                            (quantity, value),
+                                            &mut stocks,
+                                            &mut lines,
+                                        )?;
                                     let h = stocks.0.entry((p.beneficiary, resource)).or_insert(
                                         Holding {
                                             quantity: 0,
@@ -307,12 +416,14 @@ impl Costs {
                                     );
                                     h.quantity = i32::try_from(
                                         i128::from(h.quantity)
-                                            .checked_add(quantity)
+                                            .checked_add(retained_quantity)
                                             .ok_or("output quantity overflow")?,
                                     )
                                     .map_err(|_| "output quantity overflow")?;
-                                    h.cost =
-                                        h.cost.checked_add(value).ok_or("output cost overflow")?;
+                                    h.cost = h
+                                        .cost
+                                        .checked_add(retained_cost)
+                                        .ok_or("output cost overflow")?;
                                 }
                                 Output::Durable(_) => {
                                     let id = crate::activities::produced_asset_id(p.id)?;

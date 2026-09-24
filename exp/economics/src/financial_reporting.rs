@@ -311,6 +311,24 @@ impl Audit {
                 "exchange values must price noncash stocks in positive reporting ticks".into(),
             );
         }
+        if processes
+            .as_ref()
+            .and_then(|c| c.earned_royalty_values.as_ref())
+            .is_some_and(|prices| {
+                prices.iter().any(|(resource, value)| {
+                    *value <= 0
+                        || *resource == denomination
+                        || !world
+                            .resources
+                            .iter()
+                            .any(|r| r.id == *resource && r.kind == ResourceKind::Stock)
+                })
+            })
+        {
+            return Err(
+                "royalty values must price noncash stocks in positive reporting ticks".into(),
+            );
+        }
         crate::settlement::validate_world(world, state)?;
         let inventory = crate::inventory_accounting::Inventory::open(
             world,
@@ -453,6 +471,10 @@ impl Audit {
         self.processes = Some(crate::process_accounting::Costs {
             output_weights,
             work,
+            earned_royalty_values: self
+                .processes
+                .as_ref()
+                .and_then(|c| c.earned_royalty_values.clone()),
         });
         Ok(self)
     }
@@ -534,11 +556,14 @@ impl Audit {
                 .map_or(&[][..], |h| h.before.as_slice()),
             self.book.denomination(),
         )?;
-        if batch
-            .transactions
-            .iter()
-            .any(|t| (t.process.is_some() && self.processes.is_none()) || t.royalty.is_some())
-            || (batch.minting.is_some() && self.issuance.is_none())
+        if batch.transactions.iter().any(|t| {
+            (t.process.is_some() && self.processes.is_none())
+                || (t.royalty.is_some()
+                    && self
+                        .processes
+                        .as_ref()
+                        .is_none_or(|c| c.earned_royalty_values.is_none()))
+        }) || (batch.minting.is_some() && self.issuance.is_none())
         {
             return Err("transaction needs an explicit accounting adapter".into());
         }
@@ -571,17 +596,37 @@ impl Audit {
                     .ok_or("missing equipment offer")?;
                 Some((offer.asset, offer.seller, trade.buyer, &offer.price, None))
             } else if let Some(delivery) = &t.delivery {
-                let purchase = delivery
-                    .purchase
-                    .as_ref()
-                    .ok_or("royalty equipment delivery needs an accounting adapter")?;
-                Some((
-                    delivery.asset,
-                    delivery.provider,
-                    delivery.buyer,
-                    &purchase.price,
-                    purchase.advance.as_ref(),
-                ))
+                if delivery.purchase.is_none() {
+                    if self
+                        .processes
+                        .as_ref()
+                        .is_none_or(|c| c.earned_royalty_values.is_none())
+                    {
+                        return Err(
+                            "royalty equipment delivery needs an explicit earned-only policy"
+                                .into(),
+                        );
+                    }
+                    let basis = *asset_values
+                        .get(&delivery.asset)
+                        .ok_or("missing equipment basis")?;
+                    result(
+                        &mut equipment_lines,
+                        delivery.provider,
+                        Account::CostOfSales,
+                        basis,
+                    );
+                    asset_values.insert(delivery.asset, 0);
+                }
+                delivery.purchase.as_ref().map(|purchase| {
+                    (
+                        delivery.asset,
+                        delivery.provider,
+                        delivery.buyer,
+                        &purchase.price,
+                        purchase.advance.as_ref(),
+                    )
+                })
             } else {
                 None
             };

@@ -193,6 +193,7 @@ fn historical_work_import_requires_complete_basis_and_preserves_it_when_policy_i
         processes: Some(Costs {
             work,
             output_weights: BTreeMap::new(),
+            ..Default::default()
         }),
         ..Opening::default()
     };
