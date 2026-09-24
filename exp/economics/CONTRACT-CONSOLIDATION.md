@@ -49,8 +49,9 @@ misrepresented as conserved transfers between fictional counterparties.
   break equal-rank collection ties. Within each land agreement, older bills come
   first. Existing essential-stock protection applies to both loan and land
   collection. `World.collection_policy` defaults to `Stable`, preserving that
-  ordering. Opt-in `Proportional` inventories native loan and land dues before
-  collection and shares scarce opening resources among equal-rank claims.
+  ordering. Opt-in `Proportional` inventories loan and land dues before collection,
+  including accepted coin alternatives, and shares scarce opening resources among
+  equal-rank claims. Native-first tender allocation preserves whole claim units.
   Receipts retain rank, requested units, optional allocated units and actual
   payment. See [creditor allocation](CREDITOR-ALLOCATION.md) for scope and tests.
 - Forward collections retain their Acquire boundary and use rank, due date and
@@ -67,6 +68,16 @@ misrepresented as conserved transfers between fictional counterparties.
   views. `View::claims` exposes their recorded collection claims without
   creating a second ledger. A collection claim is not a total balance sheet or
   a forecast of all future obligations.
+
+- Shared alternative-tender execution records real coin legs while keeping dues
+  and native-linked issuance in their proper claim units.
+- Existing collateral resale and estate liquidation now share funded asset-sale
+  settlement, including atomic title and attached-process transfer.
+- Configured capped guarantees pay residual loan claims and create zero-interest
+  recourse in the same loan book. Authorized loan-estate proceedings add stays,
+  interest freezing, custody, actual asset sales, ranked/proportional distributions,
+  retained deficiencies or explicit per-loan discharge. See
+  [contract recovery](CONTRACT-RECOVERY.md) for exact scope and verification.
 
 ## What is deliberately not claimed yet
 
@@ -95,30 +106,34 @@ not established by financial settlement tests.
    trading to meet needs in one continuing scenario. Do this before declaring
    the model unified.
 2. **Extend creditor allocation coverage.** Equal-rank proportional allocation
-   now covers divisible native loan and land claims at Due. Extend it to the
-   other collection adapters, alternative-denomination payments and explicit
-   minimum-useful/indivisible rules. Distinguish claim priority from collateral
-   lien priority. Inventory all
-   claims, protect only explicitly exempt resources, and preserve claims in
+   now covers native and accepted coin-tender loan/land claims at Due, including
+   whole conversion lots. Extend it to standalone land/forward adapters, additional
+   tender routes and general minimum-useful/indivisible rules. Distinguish claim
+   priority from collateral lien priority. Inventory all claims, protect only explicitly exempt resources, and preserve claims in
    their denomination unless an actual conversion transaction occurs. Compare
    policies against identical opening requests and budgets.
-3. **Insolvency as a lifecycle.** Distinguish an overdue installment, temporary
-   illiquidity and an authorized insolvency proceeding. Record who initiates it,
+3. **Broaden insolvency admission.** The authorized single-denomination loan-estate
+   lifecycle now distinguishes arrears from a proceeding. Admit other contractual
+   claims, additional custodial arrangements and market compositions before
+   describing it as general insolvency. Record who initiates it,
    the accepted/legal trigger, acceleration, any collection stay, control of
    assets and work, and permitted ongoing essential activity. Being short of
    cash must not silently delete debts or declare every agent insolvent.
-4. **Guarantees as contingent claims.** Record guarantor consent, covered claim,
-   cap, trigger, term and recourse. A successful guarantee payment reduces the
-   original creditor's claim and creates the guarantor's corresponding recourse
+4. **Extend contingent guarantees.** Configured original-loan guarantees now record
+   consent, cap, trigger, term and recourse. Extend acceptance/discovery, claim
+   coverage, lien subrogation and guarantee allocation policy. A successful
+   guarantee payment reduces the original creditor's claim and creates the guarantor's corresponding recourse
    claim; it must not pay the creditor twice. Reserve guarantor resources across
    multiple calls using the same allocation window. Cycles and chains need
    bounded execution and dated visibility, not recursive unbounded collection.
-5. **Liquidation through actual exchanges.** Discover/list realizable assets,
-   accept funded buyers, transfer permitted title/attached responsibilities,
-   and distribute actual proceeds by the accepted/legal waterfall. Unsold assets
+5. **Broaden actual liquidation.** Configured asset lists and funded bids now
+   transfer permitted title/attached responsibilities and distribute actual
+   proceeds through the loan waterfall. Add autonomous listing/discovery,
+   additional asset kinds, competing liens and general claims. Unsold assets
    remain unsold; appraisals do not create coins. Retain surplus, deficiencies,
    explicit discharge/write-offs and final receipts. The existing fixed-value
-   repossession and realized-proceeds sale become adapters to this lifecycle.
+   repossession and realized-proceeds sale should finish migrating into this
+   lifecycle; funded asset transfer is already shared.
 
 Every step above extends the same book, claim executor and committed ledger.
 There should not be separate guarantees/insolvency/liquidation scenario engines.
@@ -143,7 +158,7 @@ credit, forward, commitments, agreement-view and acquisition regressions. Raw ru
 output belongs under ignored `output/economics/`; repository summaries should
 report only checks actually completed.
 
-### Verification result, 2026-09-23
+### Earlier consolidation verification, 2026-09-23
 
 The crate-wide `cargo +1.92.0 test --locked` run completed with 432 passing tests
 and no failures. Final focused reruns covered the changed acquisition, loan,
@@ -162,4 +177,5 @@ and the repository artifact-policy check passed.
 
 This verifies the supported composition and accounting boundaries. It does not
 establish economic calibration, general loan demand/underwriting, equal-rank
-fairness, or the unimplemented insolvency/guarantee/liquidation lifecycle.
+fairness, or a universal insolvency/guarantee/liquidation lifecycle. Subsequent bounded
+recovery work and its additional checks are documented in [Contract recovery](CONTRACT-RECOVERY.md).

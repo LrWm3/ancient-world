@@ -11,7 +11,7 @@ still precede higher ranks. Collateral lien priority remains a separate concept;
 this policy does not define a liquidation waterfall.
 
 At Due, the proportional adapter inventories outstanding loan installments after
-this month's accrual and native annual land dues. Accrual is previewed on copies;
+this month's accrual and annual land dues. Accrual is previewed on copies;
 only the committed loan book advances its accrual date. Land dues aggregate by
 agreement for allocation and settle oldest first within that agreement.
 
@@ -30,11 +30,27 @@ needed. Collateral title and attached crop obligations keep their existing rules
 Settlement observers expose `requested`, `allocated`, and `paid`; stable-policy
 receipts have a null allocation because they use sequential reservation.
 
+## Alternative tender
+
+Within each rank, collection plans native non-currency obligations first. It then
+allocates the currency pool jointly between native coin loans and the remaining
+land dues that permit that tender. Higher ranks finish both passes before lower
+ranks. This is an explicit native-first rule, not a best-exchange-rate search.
+
+`finance::Execution::pay_tender` is the shared conversion adapter. The accepted
+`coins_per_unit` rate determines payment lots: a two-coin tender can extinguish
+one claim unit, never half of one. Unusable fractional allocations are released.
+Actual transfers contain coin quantities; obligations and collection receipts
+remain in original claim units. Alternative payments do not increment native
+collection totals or trigger grain-linked issuance. Protected coin balances are
+excluded from planning and execution. Currency chains are rejected; the adapter
+does not solve cyclic conversions.
+
 ## Limits
 
-- This adapter currently requires credit servicing and native-denomination land
-  dues. Opting in without credit configuration or with alternative coin payment
-  terms fails validation. Default stable-policy scenarios retain their support.
+- The proportional Due adapter currently requires credit servicing. Standalone
+  land collection retains its existing sequential policy. Alternative tender
+  must be an explicitly accepted storage-free stock resource.
 - Forward collection remains at Acquire; land arrears retries remain after
   production. Neither participates retroactively in the Due pool.
 - Shared receiving storage across different debtor/resource pools resolves in
@@ -43,9 +59,10 @@ receipts have a null allocation because they use sequential reservation.
   a planned ceiling if intervening storage changes constrain receipt. Inspect
   paid amounts, not only grants. There is no cross-resource netting or implied
   exchange rate.
-- No new minimum-useful threshold, indivisible allocation, automatic debt
-  discharge, guarantee, or general insolvency/liquidation lifecycle is introduced.
-  Existing arrears and agreed collateral consequences still apply.
+- Payment lots support integer conversion. General indivisible multi-resource
+  exchanges still require atomic acceptance, not partial collection.
+- Collection alone never starts insolvency or discharges debt. The separately
+  authorized [recovery lifecycle](CONTRACT-RECOVERY.md) reuses these primitives.
 
 ## Verification
 
@@ -66,16 +83,20 @@ cover existing loan servicing, annual agreements, collateral/crop handling,
 acquisition composition, payment protection and observer output. A separate
 regression verifies that a five-coin surplus cannot consume five coins reserved
 for another loan: repossession defers and the reserved installment is paid.
-Unsupported alternative-denomination configuration is explicitly rejected.
+The mixed CPU case owes four grain plus four coins, has two grain and five coins,
+and accepts two coins per grain unit. It pays two grain in kind, two coins toward
+one remaining land unit, and three coins toward the loan. One grain and one coin
+remain owed; only the two actual grain units count as native collection.
 
-Validation: nine focused suites passed (66 tests), followed by the final lending
+Earlier native-allocation validation: nine focused suites passed (66 tests), followed by the final lending
 suite with 18 passing tests, including two added controls. These counts overlap.
 `cargo +1.92.0 fmt --check`, all-target Clippy with warnings denied, and the
 repository artifact check passed. Results and limitations here are source
 documentation; raw local test output remains under ignored `output/economics/`.
 
-Next: finish the remaining acceptance/execution adapters, then use the shared
-claims and explicit allocation boundary for authorized insolvency, capped
-contingent guarantees with recourse, and funded liquidation sales. Those require
-separate legal triggers and lifecycle states; a collection shortage alone does
-not imply any of them.
+Current alternative-tender and recovery validation is recorded in
+[Contract recovery](CONTRACT-RECOVERY.md).
+
+Further coverage: standalone and forward allocation adapters, additional tender
+routes, and broader claim admission to recovery. A collection shortage alone
+does not imply a legal proceeding.

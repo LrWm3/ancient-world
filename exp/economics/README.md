@@ -4,7 +4,10 @@ Current financial direction: [consolidate contracts and lending](CONTRACT-CONSOL
 in the existing model before adding more isolated scenarios, then extend creditor
 allocation, insolvency, guarantees and liquidation. The current
 [creditor allocation policy](CREDITOR-ALLOCATION.md) adds optional proportional
-sharing for native loan and land dues at the existing Due boundary.
+sharing for loan and land dues, including accepted coin alternatives, at the
+existing Due boundary. [Contract recovery](CONTRACT-RECOVERY.md) adds capped
+guarantees, authorized loan-estate proceedings, and funded asset liquidation
+using the same credit book and settlement primitives.
 
 
 The goal is a consistent economy built from generic agents, explicit agreements
