@@ -13,6 +13,8 @@ pub enum Account {
     Tangible(u32),
     WorkInProgress(u64),
     LoanReceivable(u32),
+    ForwardPrepayment(u32),
+    DeferredRevenue(u32),
     DuesReceivable(u32, u32),
     DuesPayable(u32, u32),
     DuesIncome,
@@ -57,9 +59,11 @@ impl Account {
             | Self::Tangible(_)
             | Self::WorkInProgress(_)
             | Self::DuesReceivable(_, _)
+            | Self::ForwardPrepayment(_)
             | Self::LoanReceivable(_)
             | Self::InterestReceivable(_) => Class::Asset,
-            Self::DuesPayable(_, _)
+            Self::DeferredRevenue(_)
+            | Self::DuesPayable(_, _)
             | Self::CustodyPayable(_)
             | Self::LoanPayable(_)
             | Self::InterestPayable(_) => Class::Liability,

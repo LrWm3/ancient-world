@@ -11,6 +11,15 @@ pub struct Holding {
     pub quantity: i32,
     pub cost: i128,
 }
+/// Verified physical delivery paid for at an earlier boundary.
+#[derive(Clone, Debug)]
+pub(crate) struct PrepaidSale {
+    pub seller: AgentId,
+    pub buyer: AgentId,
+    pub resource: ResourceId,
+    pub quantity: i32,
+    pub value: i128,
+}
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Inventory(pub BTreeMap<crate::model::Account, Holding>);
 impl Inventory {
@@ -69,6 +78,14 @@ impl Inventory {
         &self,
         trades: &[&Transaction],
         coin: ResourceId,
+    ) -> Result<(Self, Vec<Line>), String> {
+        self.settle_with_prepaid(trades, coin, &[])
+    }
+    pub(crate) fn settle_with_prepaid(
+        &self,
+        trades: &[&Transaction],
+        coin: ResourceId,
+        prepaid: &[PrepaidSale],
     ) -> Result<(Self, Vec<Line>), String> {
         let mut next = self.clone();
         if self
@@ -130,6 +147,34 @@ impl Inventory {
                     account,
                     debit,
                     flow,
+                });
+            }
+        }
+        for sale in prepaid {
+            if sale.quantity <= 0
+                || sale.value < 0
+                || sale.resource == coin
+                || sale.seller == sale.buyer
+            {
+                return Err("invalid prepaid inventory delivery".into());
+            }
+            crate::accounting::add(
+                &mut outgoing,
+                (sale.seller, sale.resource),
+                i128::from(sale.quantity),
+            )?;
+            crate::accounting::add(
+                &mut incoming,
+                (sale.buyer, sale.resource),
+                i128::from(sale.quantity),
+            )?;
+            crate::accounting::add(&mut purchase_costs, (sale.buyer, sale.resource), sale.value)?;
+            if sale.value != 0 {
+                lines.push(Line {
+                    agent: sale.seller,
+                    account: Account::Sales,
+                    debit: -sale.value,
+                    flow: None,
                 });
             }
         }

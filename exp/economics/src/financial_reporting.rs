@@ -33,11 +33,10 @@ fn positions(
         .resources
         .iter()
         .any(|r| r.id == coin && r.kind == ResourceKind::Stock)
-        || !state.exchange.forwards.is_empty()
         || (!state.obligations.is_empty() && dues.is_none())
         || !world.households.is_empty()
     {
-        return Err("financial adapter requires supported positions; forwards, unconfigured land dues and households remain unsupported".into());
+        return Err("financial adapter requires supported positions; unconfigured land dues and households remain unsupported".into());
     }
     inventory.validate(world, state, coin)?;
     let mut p = BTreeMap::new();
@@ -144,6 +143,9 @@ fn positions(
         for (key, value) in dues.positions(world, state, coin)? {
             accounting::add(&mut p, key, value)?;
         }
+    }
+    for (key, value) in crate::forward_accounting::positions(state, coin)? {
+        accounting::add(&mut p, key, value)?;
     }
     p.retain(|_, v| *v != 0);
     Ok(p)
@@ -381,12 +383,11 @@ impl Audit {
         if verified != *after {
             return Err("accounting requires the exact committed state".into());
         }
-        if batch.transactions.iter().any(|t| {
-            (t.process.is_some() && self.processes.is_none())
-                || t.delivery.is_some()
-                || t.forward.is_some()
-                || t.royalty.is_some()
-        }) || batch.minting.is_some()
+        if batch
+            .transactions
+            .iter()
+            .any(|t| (t.process.is_some() && self.processes.is_none()) || t.royalty.is_some())
+            || batch.minting.is_some()
             || batch.town_market.is_some()
         {
             return Err("transaction needs an explicit accounting adapter".into());
@@ -395,25 +396,41 @@ impl Audit {
         let mut equipment_lines = Vec::new();
         let mut wear_costs = BTreeMap::new();
         for t in &batch.transactions {
-            if let Some(trade) = &t.trade {
+            let purchase = if let Some(trade) = &t.trade {
                 let offer = world
                     .offers
                     .iter()
                     .find(|o| o.id == trade.offer)
                     .ok_or("missing equipment offer")?;
-                if offer.price.resource != self.book.denomination() {
+                Some((offer.asset, offer.seller, trade.buyer, &offer.price, None))
+            } else if let Some(delivery) = &t.delivery {
+                let purchase = delivery
+                    .purchase
+                    .as_ref()
+                    .ok_or("royalty equipment delivery needs an accounting adapter")?;
+                Some((
+                    delivery.asset,
+                    delivery.provider,
+                    delivery.buyer,
+                    &purchase.price,
+                    purchase.advance.as_ref(),
+                ))
+            } else {
+                None
+            };
+            if let Some((asset, seller, buyer, amount, advance)) = purchase {
+                if amount.resource != self.book.denomination() {
                     return Err("equipment barter needs an explicit valuation adapter".into());
                 }
-                let basis = *asset_values
-                    .get(&offer.asset)
-                    .ok_or("missing equipment basis")?;
-                let price = i128::from(offer.price.quantity);
+                let basis = *asset_values.get(&asset).ok_or("missing equipment basis")?;
+                let price = i128::from(amount.quantity);
+                let financed = advance.map_or(0, |c| i128::from(c.advance.quantity));
                 let gain = price
                     .checked_sub(basis)
                     .ok_or("equipment disposal overflow")?;
                 result(
                     &mut equipment_lines,
-                    offer.seller,
+                    seller,
                     if gain >= 0 {
                         Account::DisposalGain
                     } else {
@@ -421,7 +438,7 @@ impl Audit {
                     },
                     -gain,
                 );
-                for (agent, debit) in [(trade.buyer, -price), (offer.seller, price)] {
+                for (agent, debit) in [(buyer, -(price - financed)), (seller, price)] {
                     equipment_lines.push(Line {
                         agent,
                         account: Account::Cash,
@@ -429,7 +446,16 @@ impl Audit {
                         flow: Some(Flow::Investing),
                     });
                 }
-                asset_values.insert(offer.asset, price);
+                if let Some(c) = advance {
+                    // Supplier is paid directly: no fictitious cash receipt by buyer.
+                    equipment_lines.push(Line {
+                        agent: c.creditor,
+                        account: Account::Cash,
+                        debit: -financed,
+                        flow: Some(Flow::Operating),
+                    });
+                }
+                asset_values.insert(asset, price);
             }
             if let Some(id) = t.technique_use.as_ref().and_then(|u| u.asset) {
                 let old = before
@@ -462,13 +488,16 @@ impl Audit {
             .iter()
             .filter(|t| t.stock_trade.is_some() || negotiated.contains(t))
             .collect();
-        let (inventory, trade_lines) = self.inventory.settle(&trades, coin)?;
+        let (prepaid, forward_lines) = crate::forward_accounting::settle(before, after)?;
+        let (inventory, trade_lines) = self
+            .inventory
+            .settle_with_prepaid(&trades, coin, &prepaid)?;
         let process_transactions: Vec<_> = batch
             .transactions
             .iter()
             .filter(|t| t.process.is_some())
             .collect();
-        if !trades.is_empty() && !process_transactions.is_empty() {
+        if (!trades.is_empty() || !prepaid.is_empty()) && !process_transactions.is_empty() {
             return Err("mixed trading/production boundary needs a shared cost allocator".into());
         }
         let (processes, inventory, process_lines) = if let Some(costs) = &self.processes {
@@ -489,7 +518,8 @@ impl Audit {
             .or_else(|| batch.credit.as_ref().and_then(|c| c.commitments.as_ref()))
             .map(|c| c.transactions.as_slice())
             .unwrap_or(&[]);
-        if !dues_transactions.is_empty() && (!trades.is_empty() || !process_transactions.is_empty())
+        if !dues_transactions.is_empty()
+            && (!trades.is_empty() || !prepaid.is_empty() || !process_transactions.is_empty())
         {
             return Err(
                 "mixed dues/production/trade boundary requires shared cost allocation".into(),
@@ -504,6 +534,8 @@ impl Audit {
             if (self.dues.is_some() && dues_transactions.contains(t))
                 || t.process.is_some()
                 || t.trade.is_some()
+                || t.delivery.is_some()
+                || t.forward.is_some()
                 || trades.contains(&t)
             {
                 continue;
@@ -563,6 +595,7 @@ impl Audit {
             .into_iter()
             .chain(dues_lines)
             .chain(equipment_lines)
+            .chain(forward_lines)
         {
             if let Some(kind) = l.flow {
                 flow(&mut flows, l.agent, l.account, kind, l.debit)?;
@@ -943,7 +976,8 @@ impl Audit {
                             i128::from(*proceeds),
                         )?;
                     }
-                    recovery::Receipt::SaleRejected { .. }
+                    recovery::Receipt::DeliveryRelief { .. }
+                    | recovery::Receipt::SaleRejected { .. }
                     | recovery::Receipt::Opened { .. }
                     | recovery::Receipt::OpeningRejected { .. }
                     | recovery::Receipt::Admitted { .. }
