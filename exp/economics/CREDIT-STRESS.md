@@ -95,7 +95,7 @@ TELEMETRY_DIR=../../output/economics/credit-stress-demo \
 cargo +1.92.0 test --locked --test credit_stress
 ```
 
-The example runs all three cases, prints monthly operational cash, debt and title diagnostics and credit
+The example runs all three cases, prints monthly finalized journal equity, operational cash, debt and title diagnostics and credit
 events, and writes JSONL through the ordinary observer. `settlement: true` now
 exports `loan_state`, `loan_event` (accrual, payment, arrears and fixed enforcement),
 `credit_stock_sale` with limiting quantities, and `collateral_process_transfer`.
@@ -121,7 +121,10 @@ an independent bank model. A useful follow-up would compare grace durations or
 separate the grain buyer from the lender while keeping these controls unchanged.
 
 
-The former state-derived balance-sheet fallback has been removed. This example
-explicitly labels its output as operational diagnostics. Active crop transfers are
-not yet supported by the financial reporting adapter; use the supported
-journal-backed credit and financial-statements examples for financial reports.
+The former state-derived balance-sheet fallback has been removed. All three cases
+now use the double-entry adapter through audited telemetry. Opening land cost is
+explicitly 10,000 reporting ticks and opening stock cost is one tick per unit;
+grain and seed outputs share production cost equally. These are reporting
+conventions, not planner prices. Crop WIP follows validated attachment transfers
+at historical cost without changing collateral credit or remaining debt. Monthly
+reports are finalized only after completion; no snapshot-equity fallback exists.

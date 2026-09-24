@@ -27,7 +27,7 @@ It supports cash lending, valued mortgages, fixed enforcement/resale, guarantees
 and loan estates, plus costed posted stock bids and bilateral negotiated/ZIP trades.
 Opt-in owner-operated production adds material work-in-progress, joint-product
 cost shares, consumption expense and aborted-work loss. Work ownership transfers,
-capitalized paid labor, town-market and household
+capitalized paid labor and household
 accounting remain unsupported. Dated land dues now compose with lending and
 material production on existing boundaries, including native goods and accepted
 coin alternatives. Estate-paid native/accepted-coin dues now reconcile to restricted debtor cash and neutral custody positions; collection-linked issuance has an explicit opt-in convention. Storage blockage uses existing process failure;
@@ -228,8 +228,8 @@ See [financial statements](FINANCIAL-STATEMENTS.md#coin-equipment-acquisition-an
 Prepaid-forward/tool bundles now recognize creditor prepayments and producer
 deferred revenue, releasing those balances on actual delivery or accepted write-off.
 Extensions preserve carrying value; spot and forward deliveries share opening
-inventory costing. Barter and royalties remain outside the
-reporting adapter. See [forward recognition](FINANCIAL-STATEMENTS.md#prepaid-forwards-delivery-and-accepted-relief).
+inventory costing. Equipment barter now accepts explicit reporting values; royalties and general
+barter remain outside the reporting adapter. See [forward recognition](FINANCIAL-STATEMENTS.md#prepaid-forwards-delivery-and-accepted-relief).
 
 
 Physical minting reporting now reconciles funded stock/service purchases, actual
@@ -265,3 +265,11 @@ reports now use only the double-entry Book/Audit pipeline, with explicit opening
 valuations and validated events. Operational contract state, treasury balances and
 settlement receipts remain available for simulation diagnostics. Scenarios awaiting
 accounting adapters report those diagnostics without substituting snapshot equity.
+
+
+Reporting coverage now includes town-market stock trades, title-following crop WIP
+transfers, configured inventory expiration, explicit historical WIP at opening,
+and equipment barter with supplied exchange values. Credit-stress scenarios now
+produce journal reports through audited telemetry. See
+[coverage expansion](FINANCIAL-STATEMENTS.md#coverage-expansion-and-remaining-adapters)
+for the verified cases and remaining gaps.

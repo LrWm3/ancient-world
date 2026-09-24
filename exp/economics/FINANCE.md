@@ -77,7 +77,7 @@ death/dissolution administration remain future work.
 report set for cash loans, valued mortgages, loan recovery and costed posted or
 bilateral/ZIP spot trades. Opt-in owner-operated material costing now capitalizes
 work in progress and recognizes consumption and failed-work expense. Capitalized paid labor,
-cross-agent production costs, town-market and household
+third-party production costs and household
 accounting remain open. Ordinary dated dues now recognize income/expense, symmetric
 arrears and native or accepted coin settlement, including verified estate-cash payments. Future contract types should supply their terms and receipts
 through this shared view before introducing a second settlement mechanism.
@@ -115,8 +115,8 @@ See [financial statements](FINANCIAL-STATEMENTS.md#coin-equipment-acquisition-an
 Prepaid-forward/tool bundles now recognize creditor prepayments and producer
 deferred revenue, releasing those balances on actual delivery or accepted write-off.
 Extensions preserve carrying value; spot and forward deliveries share opening
-inventory costing. Barter and royalties remain outside the
-reporting adapter. See [forward recognition](FINANCIAL-STATEMENTS.md#prepaid-forwards-delivery-and-accepted-relief).
+inventory costing. Equipment barter now accepts explicit reporting values; royalties and general
+barter remain outside the reporting adapter. See [forward recognition](FINANCIAL-STATEMENTS.md#prepaid-forwards-delivery-and-accepted-relief).
 
 
 An explicit [non-redeemable issuance convention](FINANCIAL-STATEMENTS.md#physical-minting-and-collection-linked-issuance)
@@ -144,3 +144,11 @@ reconstruction and completed-period locks. The Audit only finalizes completed
 simulation months; provisional reports remain available. This does not yet save
 or restore the full simulation and accounting subledgers. See
 [journal persistence](FINANCIAL-STATEMENTS.md#journal-persistence-and-completed-periods).
+
+
+Reporting coverage now includes town-market stock trades, title-following crop WIP
+transfers, configured inventory expiration, explicit historical WIP at opening,
+and equipment barter with supplied exchange values. Credit-stress scenarios now
+produce journal reports through audited telemetry. See
+[coverage expansion](FINANCIAL-STATEMENTS.md#coverage-expansion-and-remaining-adapters)
+for the verified cases and remaining gaps.

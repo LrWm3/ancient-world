@@ -89,8 +89,8 @@ with a real-world accounting standard.
 
 The adapter recognizes the selected coin at one reporting tick per stored tick.
 It rejects nonzero stocks without explicit opening cost, unsupported stock movements,
-mixed loan or estate denominations, equipment barter/royalties, unconfigured land dues,
-households and town-market clearing. Minting/issuance requires its explicit policy below. Process transactions
+mixed loan or estate denominations, unvalued equipment barter, royalties, unconfigured land dues
+and households. Town-market trades use the costed stock adapter. Minting/issuance requires its explicit policy below. Process transactions
 require the explicit material-cost opt-in described below. Unsupported activity is an error,
 not zero value or an unexplained income/equity adjustment. Unused capacities and
 need satisfaction are not financial assets. Uncalled guarantees remain contingent
@@ -142,7 +142,8 @@ strict all-target Clippy and repository artifact checks passed. No full-crate
 rerun was performed.
 
 This spot-trade adapter does not recognize spoilage, commodity obligations, barter
-or town-market accounting. Production/consumption use the separate opt-in adapter
+or general barter accounting. Town-market trades share this stock-cost adapter.
+Production/consumption use the separate opt-in adapter
 below. An inventory cost alone does not authorize an unknown stock movement.
 
 ## Production and consumption costs
@@ -176,12 +177,11 @@ cost becomes visible with the existing committed Productive boundary and is then
 available to the later Consumption boundary.
 
 This adapter supports owner-operated work: input owner, operator and beneficiary
-must agree. Work-in-progress title/beneficiary transfers, third-party inputs,
-royalties and combined trade/production batches reject pending explicit adapters.
-Cloning the audit preserves work costs for continuation. Opening a new audit over
-already active work rejects, including when no seed remains in physical inventory;
-otherwise a restart could silently discard capitalized cost. Supplying historical
-work costs to a new book remains outstanding.
+must agree during execution. Validated title-following attachment transfers now
+move WIP carrying cost between operators; third-party inputs, royalties and combined
+trade/production batches still require adapters. Cloning the audit preserves work
+costs for continuation. A new book over active work requires explicit complete
+historical carrying costs through Opening; ordinary constructors still reject it.
 
 Storage currently constrains acceptance/completion; it does not emit spoilage or
 stored-goods discard transactions. A blocked harvest aborts under existing process
@@ -310,9 +310,10 @@ fixture outcomes, not evidence of sustainable autonomous income.
 
 Extend adapters next, preserving these reconciliation gates:
 
-1. Extend material costing to capitalized paid labor and cross-agent work; supply
-   historical work costs on reporting restart. Add validated stored-goods loss events,
-   then town-market and barter accounting adapters.
+1. Extend material costing to capitalized paid labor and third-party production.
+   Historical WIP opening, title-following WIP transfers, configured expiration,
+   town-market trades and explicitly valued equipment barter are implemented.
+   General barter, royalty consideration and mixed-boundary allocation remain.
 2. Extend the explicit non-redeemable issuance convention to redeemable issuer liabilities,
    retirement/burning and broader monetary instruments; do not infer promises from tokens.
 3. Extend ordinary and estate-paid dues to explicit relief.
@@ -416,7 +417,7 @@ rejection without publication. Opening accepted forwards reconstruct their remai
 historical advance cost from validated terms and performance history.
 
 Limits: no fair-value marks, discount accretion, expected-loss allowance, cash
-refund/repricing adapter, or recognition of royalty deals. Transferred work costs still prevent reporting an entire unrestricted
+refund/repricing adapter, or recognition of royalty deals. Royalty and household flows still prevent reporting an entire unrestricted
 specialist scenario. Supporting forward reports does not remove simulation-driver
 composition restrictions or establish recoverability of unpaid goods.
 
@@ -496,8 +497,8 @@ Limits: no redeemable currency liability, issuer reserve requirement, coin
 retirement, FX or consolidation treatment. The physical minting driver remains
 isolated from collection-linked issuance and other acquisition drivers in the
 simulation. Reporting each separately does not remove those composition limits.
-The provisioning/leisure variants and their perishable service-ticket inventory
-are not yet covered by this reporting adapter. Estate-paid native/accepted-coin
+The provisioning/leisure variants now reconcile configured service-ticket expiration
+through InventoryLoss. Estate-paid native/accepted-coin
 dues now have the adapter below; arbitrary non-loan discharge remains unsupported.
 
 The issuance-accounting regression run passed **72 tests across 11 suites**:
@@ -581,8 +582,8 @@ continuation (eight material-cost ticks become house basis eight), full configur
 decay, helper wear expensed on repair without revaluation, required-tool wear in
 manufacture, missing-material nonproduction, and atomic rejection of mixed stock
 and durable outputs without an allocation policy. The typed policy described below
-now supports such outputs; stock cost is never silently assumed to be zero. Cross-agent WIP, capitalized paid labor,
-barter, royalties, household reporting and unrestricted specialist reports remain
+now supports such outputs; stock cost is never silently assumed to be zero. General third-party work, capitalized paid labor,
+royalties, household reporting and unrestricted specialist reports remain
 outside this increment.
 
 Validation: **42 tests passed** across accounting (11), activities (10), equipment
@@ -618,7 +619,7 @@ responsible for knowing that all events for the month have been posted.
 This is journal persistence, **not a durable simulation restart**. Full restart must
 also preserve authoritative World/State, pending work, ledger provenance, reporting
 inventory and equipment basis, WIP, and configured dues/issuance policies. In-memory
-Audit/Simulation clones retain these today. Historical WIP import remains separate.
+Audit/Simulation clones retain these today. Historical WIP import is now supported through explicit Opening costs; it does not restore historical income.
 
 Validation: all 14 accounting tests pass, including amounts above u64, round-trip
 balance and lock equality, malformed/unbalanced/duplicate/version rejection,
@@ -679,10 +680,9 @@ it no longer values assets using a live offer-price fallback.
 
 The credit contract book, physical account balances, transaction effects, forecasts
 and operational telemetry remain: these drive or inspect execution and are not
-alternative financial statements. Credit-stress output now explicitly reports cash,
-debt and title diagnostics because its active crop-transfer path still lacks a full
-accounting adapter. Removing the legacy report does not make unsupported events
-reportable, and no silent snapshot fallback is retained.
+alternative financial statements. Credit-stress output now includes finalized journal
+reports alongside cash, debt and title diagnostics. Unsupported events still reject;
+no silent snapshot fallback is retained.
 
 Simulation tests retain contract, cash, collateral-title and custody assertions.
 Financial regression tests use journal balances and independently specified
@@ -697,3 +697,51 @@ that pending-sale collateral is excluded from lender assets while both sides ret
 their principal/interest positions. Strict all-target Clippy and the CPU credit
 example passed. Source search finds no remaining legacy balance-sheet API or calls.
 Generated summaries and logs stay under ignored `output/economics/`.
+
+## Coverage expansion and remaining adapters
+
+The next coverage pass closes these concrete gaps:
+
+| Situation | Accounting treatment and evidence |
+| --- | --- |
+| Town-market clearing | Validated market transactions join the existing stock cost pool with spot and forward deliveries. CPU/reference and three-month continuation agree. |
+| Repossession/resale of an attached crop | Validated attachment receipts move historical WIP basis to the new operator. Noncash TransferExpense/TransferIncome balance the owners; collateral valuation and loan recovery do not change. Maintained crops release cost into harvest, neglected crops recognize ProductionLoss. |
+| Historical active work at reporting opening | `Audit::with_opening` accepts an `Opening` containing a Costs subledger with every active process, including zero-cost work. Missing, extra, negative or mismatched ownership fails. This creates an opening snapshot, not reconstructed prior income. Setting output policies preserves imported WIP. |
+| Configured expiring stock | At Open, domain-authorized expiration removes the complete holding and expenses its remaining basis once as InventoryLoss. This adds no new physical spoilage rule. Four provisioning variants reconcile over 12 months. |
+| Equipment paid for in goods | `Opening.exchange_values` gives positive reporting ticks per noncash stock unit. The tool receives consideration value, the provider recognizes disposal results and received inventory, and the buyer recognizes goods sales/cost of sales. No cash legs are invented. Missing values remain errors. |
+| Observed financial execution | `Observer::step_audited` uses Audit's atomic execution before observing committed results. Accounting failure publishes neither simulation nor journal; telemetry I/O failure retains its existing post-commit semantics. |
+
+WIP transfers use carrying cost as a noncash transfer convention. They do not
+appraise the crop, capitalize anticipated profits, settle a loan twice, or price a
+separate crop sale. Economic changes from maintaining/neglecting the crop remain
+in the simulation. The configured barter values are recognition values, not marks
+to all existing stock or changes to market negotiation.
+
+The credit-stress example now runs normal, temporary and persistent harvest-loss
+cases with finalized financial reports and JSONL telemetry. Coverage tests check
+CPU/reference agreement, checkpoint continuation, unchanged deficiency, WIP
+transfer gains/losses, expiration once, historical-opening parity, and failed
+accounting through the observer. Equipment barter tests check full recognition,
+zero cash flows and continuation.
+
+The expansion is **not universal coverage yet**. These valid economic situations
+still need accounting adapters or policy definitions:
+
+- Household contributions, distributions, delegated resource use and dissolution.
+- Royalty-paid equipment and contingent consideration; general goods barter.
+- Paid labor capitalization and production with distinct resource owners/operators/beneficiaries.
+- Trading, dues and production sharing one opening inventory allocation boundary.
+- Multiple loan/estate denominations and FX valuation; redeemable currency and retirement.
+- Explicit dues discharge, forward refund/repricing and impairment policies.
+- Full durable Audit/Simulation restart, consolidation and contingent/noncash disclosures.
+
+Ordinary validation failures (forged batches, insufficient physical stock,
+missing historical values, overflow or postings into finalized periods) must stay
+errors. Removing them would not expand legitimate economic coverage.
+
+Validation: the final accounting regression run passed **57 tests** across accounting
+(14), dues (7), equipment (3), estate dues (4), forwards (5), issuance (6), manufacture
+(7), processes (5) and coverage (6). The earlier broader run also passed credit
+stress (5), telemetry (10) and town-market (17) suites. Strict all-target Clippy and
+the CPU credit-stress example passed. Test logs, reports and telemetry remain under
+ignored `output/economics/`; no generated artifacts are committed.

@@ -18,7 +18,7 @@ remaining financial work.
 | Contracts and lending | Direct consented advances and mortgages share a loan book; loan, land and forward claims share execution; guarantees share inspection | Common acceptance/performance adapters for all arrangements; autonomous general loan discovery/underwriting |
 | [Creditor allocation](CREDITOR-ALLOCATION.md) | Ranked collection and opt-in proportional loan/land allocation, including accepted coin tender and whole-unit conversion | Standalone land and forward allocation; additional denominations/routes and indivisible obligations |
 | Recovery | Capped guarantees with recourse; authorized stays, frozen interest, dedicated estate custody, funded sales, secured/general distributions, surplus and loan write-offs; land/forward admission and explicit forward relief | General non-loan discharge, multiple currencies/liens, guarantee lien subrogation, autonomous liquidation and death/dissolution estates |
-| [Financial statements](FINANCIAL-STATEMENTS.md) | Per-agent double-entry journal, trial balance, balance sheet, income, cash flows and equity changes; strict loan/mortgage/recovery and costed spot-trade adapters; opt-in material WIP, consumption and production losses; dated dues with native/coin payment and estate-cash settlement; coin equipment purchases, manufacture, repair, decay and joint-output costs; prepaid forwards, delivery and relief; opt-in physical and collection-linked issuance | Capitalized paid labor and cross-agent production costs, town markets, redeemable currency, households, FX and consolidation adapters |
+| [Financial statements](FINANCIAL-STATEMENTS.md) | Per-agent double-entry journal, trial balance, balance sheet, income, cash flows and equity changes; strict loan/mortgage/recovery and costed spot-trade adapters; opt-in material WIP, consumption and production losses; dated dues with native/coin payment and estate-cash settlement; coin equipment purchases, manufacture, repair, decay and joint-output costs; prepaid forwards, delivery and relief; opt-in physical and collection-linked issuance | Capitalized paid labor and third-party production costs, redeemable currency, households, FX and consolidation adapters |
 | Observability | External metrics and logs; planning/settlement observers; requested, allocated and paid recovery receipts | Broader subsystem coverage as integrations are added |
 
 [Contract recovery](CONTRACT-RECOVERY.md) is explicitly limited to configured,
@@ -376,8 +376,8 @@ and optional counterparty-expectation / plan-persistence variants under the same
 
 [Harvest-funded loan stress controls](CREDIT-STRESS.md) compare normal repayment,
 a lost harvest followed by recovery, and repeated harvest failure with crop-preserving
-repossession. The CPU runner exposes monthly cash/debt/title diagnostics and settlement receipts;
-it does not fabricate financial statements for unsupported crop transfers.
+repossession. The CPU runner exposes finalized journal statements, monthly
+cash/debt/title diagnostics and settlement receipts.
 
 [Cooperative discovery](COOPERATION.md) compares mutual candidate-plan search with
 market-posted bilateral agreements. Both use dated exchanges and cancellation on
@@ -404,3 +404,11 @@ state-derived credit balance-sheet API is removed; the credit example now uses
 finalized journal reports. Contract records and operational telemetry remain
 execution/inspection data, not alternative accounting. Unsupported reporting
 scenarios have no snapshot-equity fallback.
+
+
+Reporting coverage now includes town-market stock trades, title-following crop WIP
+transfers, configured inventory expiration, explicit historical WIP at opening,
+and equipment barter with supplied exchange values. Credit-stress scenarios now
+produce journal reports through audited telemetry. See
+[coverage expansion](FINANCIAL-STATEMENTS.md#coverage-expansion-and-remaining-adapters)
+for the verified cases and remaining gaps.

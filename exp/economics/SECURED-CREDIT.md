@@ -86,7 +86,8 @@ collateral recognition and disposal results; posted offer prices are not a fallb
 valuation. The credit example records every boundary through Audit and prints
 finalized journal statements. The former state-derived scoped balance-sheet API
 has been removed. Owner-operated attachments can opt into material costing;
-transfer of active crop costs still requires an accounting adapter.
+validated title-following crop transfers now move historical WIP cost separately
+from collateral value and debt settlement.
 
 `World.assets` describes opening ownership. `credit::owner` applies the book's
 subsequent title changes. Rights explicitly listed in `Config.attached_rights`
