@@ -75,8 +75,8 @@ death/dissolution administration remain future work.
 [Double-entry financial statements](FINANCIAL-STATEMENTS.md) now cover the full
 report set for cash loans, valued mortgages, loan recovery and costed posted or
 bilateral/ZIP spot trades. Opt-in owner-operated material costing now capitalizes
-work in progress and recognizes consumption and failed-work expense. Paid labor,
-equipment manufacture/repair and cross-agent production costs, town-market/minting and household
+work in progress and recognizes consumption and failed-work expense. Capitalized paid labor,
+equipment manufacture/repair and cross-agent production costs, town-market and household
 accounting remain open. Ordinary dated dues now recognize income/expense, symmetric
 arrears and native or accepted coin settlement; estate-paid dues still need an adapter. Future contract types should supply their terms and receipts
 through this shared view before introducing a second settlement mechanism.
@@ -116,3 +116,10 @@ deferred revenue, releasing those balances on actual delivery or accepted write-
 Extensions preserve carrying value; spot and forward deliveries share opening
 inventory costing. Barter, royalties and manufacture/repair remain outside the
 reporting adapter. See [forward recognition](FINANCIAL-STATEMENTS.md#prepaid-forwards-delivery-and-accepted-relief).
+
+
+An explicit [non-redeemable issuance convention](FINANCIAL-STATEMENTS.md#physical-minting-and-collection-linked-issuance)
+now covers physical minting and native-dues-linked token creation. New face value
+is separate issuer equity/cash creation; actual materials and delivered monthly
+services are expenses. Redeemable currency liabilities and general paid-labor
+capitalization remain open.

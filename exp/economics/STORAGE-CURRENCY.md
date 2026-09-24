@@ -97,3 +97,13 @@ receipts are not pooled across taxpayers or years. This is exact for the current
 single two-grain bill; a broader fiscal model would need an explicit aggregation
 and rounding policy. Historical annual-access fixtures retain their one-grain rent
 as controls; the new fiscal fixtures carry the requested two-grain setting.
+
+
+## Financial reporting
+
+The opt-in [issuance accounting adapter](FINANCIAL-STATEMENTS.md#physical-minting-and-collection-linked-issuance)
+now recognizes authorized currency creation under an explicit non-redeemable
+equity convention. Issuance is separated from income and external cash flows.
+Physical minting retains actual material and purchased monthly-service expenses;
+collection-linked tokens count only native-goods receipts. This reporting support
+does not change settlement, admission, or acquisition-driver compatibility.

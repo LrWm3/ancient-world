@@ -19,7 +19,7 @@ The book produces:
 - A debit/credit trial balance through the reporting boundary.
 - A balance sheet: recognized assets, liabilities and equity.
 - An income statement using movements within the selected period.
-- Changes in equity: opening equity + contributions − distributions + net income.
+- Changes in equity: opening equity + contributions − distributions + monetary issuance + net income.
 - Direct cash flows: operating, investing and financing movements, reconciled to
   opening and closing owned cash. Internal restricted-cash transfers net to zero.
 
@@ -88,7 +88,7 @@ with a real-world accounting standard.
 The adapter recognizes the selected coin at one reporting tick per stored tick.
 It rejects nonzero stocks without explicit opening cost, unsupported stock movements,
 mixed loan or estate denominations, equipment barter/royalties, unconfigured land dues,
-households, town-market clearing and minting transactions. Process transactions
+households and town-market clearing. Minting/issuance requires its explicit policy below. Process transactions
 require the explicit material-cost opt-in described below. Unsupported activity is an error,
 not zero value or an unexplained income/equity adjustment. Unused capacities and
 need satisfaction are not financial assets. Uncalled guarantees remain contingent
@@ -249,7 +249,7 @@ boundary. Loan and dues receipts can share a report without counting loan princi
 as income. `with_process_policy(world, shares)` composes production costing with a
 newly opened dues book; it must be selected before recording the first batch.
 
-Limits remain explicit: collection-linked currency issuance, estate distributions
+Limits remain explicit: estate distributions
 for dues, arbitrary relief, and combined same-boundary trade/production/dues cost
 allocation require further adapters. Ordinary Due and Productive/Consumption work
 compose on their existing separate boundaries. Prepaid-forward tool purchases,
@@ -308,10 +308,11 @@ fixture outcomes, not evidence of sustainable autonomous income.
 
 Extend adapters next, preserving these reconciliation gates:
 
-1. Extend material costing to paid labor, equipment repair/manufacture and cross-agent work; supply
+1. Extend material costing to capitalized paid labor, equipment repair/manufacture and cross-agent work; supply
    historical work costs on reporting restart. Add validated stored-goods loss events,
    then town-market and barter accounting adapters.
-2. Define minting input cost, issuance and issuer equity/liabilities explicitly.
+2. Extend the explicit non-redeemable issuance convention to redeemable issuer liabilities,
+   retirement/burning and broader monetary instruments; do not infer promises from tokens.
 3. Extend ordinary dues/alternative tender to estate payments and explicit relief.
    Prepaid-forward origination, delivery, extensions and write-offs now have an
    adapter; broader repricing/refunding and impairment policies remain open.
@@ -422,3 +423,84 @@ dues accounting (6), equipment accounting (2), forward simulation (7), forward
 accounting (5), inventory accounting (6), process accounting (5) and recovery (26).
 Strict all-target Clippy and formatting passed. Simulation regression coverage
 does not imply financial-adapter support for every configuration in those suites.
+
+
+## Physical minting and collection-linked issuance
+
+Reporting now offers an explicit initial currency convention:
+
+```rust
+audit.with_issuance_policy(
+    issuance_accounting::Policy::NonRedeemableEquity,
+)?
+```
+
+Select it at book opening. Without it, minting and collection-linked issuance
+remain rejected. This is a model convention for coins with no redemption promise:
+authorized newly created face value credits `MonetaryIssuance` equity and debits
+issuer cash. It is neither sales income nor a loan from an invented counterparty.
+It does not claim compliance with sovereign or central-bank accounting standards.
+
+Statements expose `issuance_change` separately from `capital_change`. The cash
+reconciliation shows `Flow::Issuance` separately from operating, investing and
+financing flows: self-created currency is not an external cash receipt. Existing
+coin holdings at reporting opening stay in opening equity; past issuance is not
+recognized again.
+
+Physical minting preserves the existing timing:
+
+1. Open regenerates period capacities without creating a financial asset.
+2. Acquire validates funded market packages. Stock purchases/sales use the common
+   inventory-cost adapter. A paid capacity transfer recognizes seller
+   `ServiceIncome`, buyer `ServiceExpense` and operating cash transfers.
+3. Productive consumes actual mint materials. With the policy enabled, the
+   reporting projection treats authorized coin output as issuance instead of
+   inventory; material cost becomes `ProductionExpense`. The original committed
+   process and ledger remain unchanged.
+4. Close statements reconcile owned cash, inventories, results and issuer equity.
+
+Purchased monthly capacity is a delivered period service and is expensed when
+made available. This initial policy does **not** capitalize wages into work in
+progress or promise that purchased hours result in completed output. Unused paid
+hours therefore remain an expense; unspent materials remain inventory. Unpaid
+own labor remains unpriced. General paid labor capitalization, future service
+contracts and refunds require additional policies.
+
+In the normal two-month CPU fixture, the issuer sells wheat for 6 (opening cost
+6), pays 2 for metal and 4 for labor, and creates 10 coins. Its net income is
+**−6**, monetary issuance is **+10**, and closing cash/equity is **10** against
+opening equity 6. The worker earns service income 4. Coin creation is visible
+without disguising the cost of issuing it as profit.
+
+Collection-linked issuance uses the same equity convention. Authorization comes
+from the increase in `floor(in_kind_paid / collected_per_token)` for each dated
+obligation. The reporting adapter verifies and separates the actual one-sided
+coin-creation effects from ordinary dues transfers, without parsing cause text.
+Native goods and dues income retain their existing accounting; token creation
+does not add a second dues income entry. Accepted coin payment of dues never
+counts as native-goods collection. Unchanged receipts cannot issue again.
+
+Verification covers CPU/reference and checkpoint consistency; normal minting;
+treasury, metal and labor shortfall packages; paid but unused hours; repeated
+minting with finite ore, missed labor and low yields; rejection without an explicit
+convention; forged output rejection; and native versus alternate-tender dues
+issuance. The CPU export is reproducible with:
+
+```sh
+cargo +1.92.0 run --locked --example minting_statements > ../../output/economics/minting-statements.md
+```
+
+Limits: no redeemable currency liability, issuer reserve requirement, coin
+retirement, FX or consolidation treatment. The physical minting driver remains
+isolated from collection-linked issuance and other acquisition drivers in the
+simulation. Reporting each separately does not remove those composition limits.
+The provisioning/leisure variants and their perishable service-ticket inventory
+are not yet covered by this reporting adapter. Estate-paid dues also remain
+unsupported.
+
+The issuance-accounting regression run passed **72 tests across 11 suites**:
+accounting 11, dues accounting 7, equipment accounting 2, forward accounting 5,
+inventory accounting 6, issuance accounting 5, mint cycles 6, mint orders 10,
+minting 8, process accounting 5, and storage/currency 7. Strict all-target Clippy,
+formatting and the CPU statement export passed. Legacy simulation regressions
+do not establish accounting support for every scenario they cover.

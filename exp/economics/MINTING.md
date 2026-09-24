@@ -249,3 +249,13 @@ worker
 subsistence cost, renewed wheat demand or endogenous valuation of ore-processing
 labor. The separate food-provision variant begins addressing subsistence and
 willingness to accept coins; it still has finite endowments and fixed state prices.
+
+
+## Financial reporting
+
+The opt-in [issuance accounting adapter](FINANCIAL-STATEMENTS.md#physical-minting-and-collection-linked-issuance)
+now recognizes authorized currency creation under an explicit non-redeemable
+equity convention. Issuance is separated from income and external cash flows.
+Physical minting retains actual material and purchased monthly-service expenses;
+collection-linked tokens count only native-goods receipts. This reporting support
+does not change settlement, admission, or acquisition-driver compatibility.
