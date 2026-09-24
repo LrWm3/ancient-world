@@ -64,6 +64,16 @@ pub struct Obligation {
     pub failure: FailureRule,
 }
 impl Obligation {
+    fn validate(&self) -> Result<(), String> {
+        if self.settled < 0
+            || self.settled > self.transfer.amount.quantity
+            || self.transfer.amount.quantity < 0
+            || self.transfer.from == self.transfer.to
+        {
+            return Err("invalid contract claim".into());
+        }
+        Ok(())
+    }
     pub fn outstanding(&self) -> i32 {
         self.transfer.amount.quantity.saturating_sub(self.settled)
     }
@@ -163,6 +173,57 @@ impl Execution {
             .insert(account, opening - result.as_ref().map_or(0, |p| p.paid));
         result
     }
+    /// Settle whole claim units using an explicitly accepted alternative tender.
+    /// The transfer records tender units; the receipt remains in claim units.
+    pub fn pay_tender(
+        &mut self,
+        world: &World,
+        month: u32,
+        claim: &Obligation,
+        tender: &crate::activities::CoinPayment,
+        protected: i32,
+    ) -> Result<Payment, String> {
+        claim.validate()?;
+        if tender.coins_per_unit <= 0 {
+            return Err("invalid tender rate".into());
+        }
+        let rate = tender.coins_per_unit;
+        let account = (claim.transfer.from, tender.resource);
+        let available = self
+            .available
+            .get(&account)
+            .copied()
+            .unwrap_or(0)
+            .saturating_sub(protected.max(0))
+            .max(0);
+        let room = crate::storage::room(world, &self.stored, claim.transfer.to, tender.resource);
+        let paid = claim.payable(month, true, available / rate, room / rate);
+        let effects = if paid > 0 {
+            self.exchange(
+                world,
+                &[Transfer {
+                    amount: Amount::new(
+                        tender.resource,
+                        paid.checked_mul(rate).ok_or("tender overflow")?,
+                    ),
+                    ..claim.transfer.clone()
+                }],
+            )?
+        } else {
+            vec![]
+        };
+        Ok(Payment {
+            requested: if claim.condition.is_met(month, true) {
+                claim.outstanding()
+            } else {
+                0
+            },
+            paid,
+            remaining: claim.outstanding() - paid,
+            effects,
+        })
+    }
+
     pub fn protect(&mut self, account: Account, quantity: i32) {
         let value = self.available.entry(account).or_default();
         *value = value.saturating_sub(quantity.max(0)).max(0);
@@ -174,13 +235,7 @@ impl Execution {
         accepted: bool,
         claim: &Obligation,
     ) -> Result<Payment, String> {
-        if claim.settled < 0
-            || claim.settled > claim.transfer.amount.quantity
-            || claim.transfer.amount.quantity < 0
-            || claim.transfer.from == claim.transfer.to
-        {
-            return Err("invalid contract claim".into());
-        }
+        claim.validate()?;
         let account = (claim.transfer.from, claim.transfer.amount.resource);
         let requested = if claim.condition.is_met(month, accepted) {
             claim.outstanding()
@@ -287,6 +342,26 @@ pub fn proportional_grants(
     protected: &std::collections::BTreeMap<Account, i32>,
     requests: &[CollectionRequest],
 ) -> Result<std::collections::BTreeMap<ContractId, i32>, String> {
+    proportional_lots(
+        world,
+        month,
+        execution,
+        protected,
+        requests,
+        &Default::default(),
+    )
+}
+
+/// Payment lots prevent an alternative tender from consuming coins without
+/// extinguishing a whole claim unit. Native claims use a lot of one.
+pub(crate) fn proportional_lots(
+    world: &World,
+    month: u32,
+    execution: &Execution,
+    protected: &std::collections::BTreeMap<Account, i32>,
+    requests: &[CollectionRequest],
+    lots: &std::collections::BTreeMap<ContractId, i32>,
+) -> Result<std::collections::BTreeMap<ContractId, i32>, String> {
     use std::collections::BTreeMap;
     let mut window = execution.clone();
     for (account, quantity) in protected {
@@ -296,13 +371,11 @@ pub fn proportional_grants(
     let mut grants = BTreeMap::new();
     for request in requests {
         let claim = &request.claim;
-        if claim.settled < 0
-            || claim.settled > claim.transfer.amount.quantity
-            || claim.transfer.amount.quantity < 0
-            || claim.transfer.from == claim.transfer.to
-        {
-            return Err("invalid collection request".into());
+        let lot = lots.get(&request.contract).copied().unwrap_or(1);
+        if lot <= 0 || claim.outstanding() % lot != 0 {
+            return Err("invalid collection lot".into());
         }
+        claim.validate()?;
         if grants.insert(request.contract, 0).is_some() {
             return Err("duplicate collection request".into());
         }
@@ -329,12 +402,14 @@ pub fn proportional_grants(
                 .map(|r| {
                     let mut claim = r.claim.clone();
                     claim.settled += grants[&r.contract];
-                    if crate::storage::room(
-                        world,
-                        &window.stored,
-                        claim.transfer.to,
-                        claim.transfer.amount.resource,
-                    ) == 0
+                    let lot = lots.get(&r.contract).copied().unwrap_or(1);
+                    if budget < lot
+                        || crate::storage::room(
+                            world,
+                            &window.stored,
+                            claim.transfer.to,
+                            claim.transfer.amount.resource,
+                        ) < lot
                     {
                         0
                     } else {
@@ -349,7 +424,11 @@ pub fn proportional_grants(
             let spend = i64::from(budget).min(total);
             let mut shares: Vec<i32> = demands
                 .iter()
-                .map(|d| (i64::from(*d) * spend / total) as i32)
+                .zip(&group)
+                .map(|(d, r)| {
+                    let lot = lots.get(&r.contract).copied().unwrap_or(1);
+                    ((i64::from(*d) * spend / total) as i32 / lot) * lot
+                })
                 .collect();
             let mut remainder = spend - shares.iter().map(|s| i64::from(*s)).sum::<i64>();
             let mut order: Vec<_> = (0..group.len()).collect();
@@ -360,15 +439,26 @@ pub fn proportional_grants(
                 )
             });
             for i in order {
-                if remainder > 0 && shares[i] < demands[i] {
-                    shares[i] += 1;
-                    remainder -= 1;
+                let lot = lots.get(&group[i].contract).copied().unwrap_or(1);
+                if remainder >= i64::from(lot) && shares[i] < demands[i] {
+                    shares[i] += lot;
+                    remainder -= i64::from(lot);
                 }
             }
             let mut paid = 0;
             for (request, share) in group.iter().zip(shares) {
                 let mut claim = request.claim.clone();
                 claim.settled += grants[&request.contract];
+                let lot = lots.get(&request.contract).copied().unwrap_or(1);
+                let share = share.min(
+                    crate::storage::room(
+                        world,
+                        &window.stored,
+                        claim.transfer.to,
+                        claim.transfer.amount.resource,
+                    ) / lot
+                        * lot,
+                );
                 let opening = window.available[&account];
                 let payment = window.pay_protected(world, month, &claim, opening - share)?;
                 *grants.get_mut(&request.contract).unwrap() += payment.paid;

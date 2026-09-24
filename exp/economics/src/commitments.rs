@@ -240,24 +240,22 @@ pub(crate) fn evaluate_selected(
             }
         }
         if let Some(alternative) = world.activities.coin_payments.get(&a.id) {
-            let available = execution
-                .available
-                .get(&(a.debtor, alternative.resource))
-                .copied()
-                .unwrap_or(0);
-            let units = (o.owed - o.paid).min(available / alternative.coins_per_unit);
+            let payment = execution.pay_tender(
+                world,
+                state.month,
+                &o.claim(a),
+                alternative,
+                protected
+                    .get(&(a.debtor, alternative.resource))
+                    .copied()
+                    .unwrap_or(0),
+            )?;
+            let units = payment.paid;
             if units > 0 {
                 let coins = units
                     .checked_mul(alternative.coins_per_unit)
                     .ok_or("coin payment overflow")?;
-                let effects = execution.exchange(
-                    world,
-                    &[Transfer {
-                        from: a.debtor,
-                        to: a.creditor,
-                        amount: Amount::new(alternative.resource, coins),
-                    }],
-                )?;
+                let effects = payment.effects;
                 o.paid += units;
                 transactions.push(Transaction {
                     cause: format!(
