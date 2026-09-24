@@ -27,8 +27,10 @@ It supports cash lending, valued mortgages, fixed enforcement/resale, guarantees
 and loan estates, plus costed posted stock bids and bilateral negotiated/ZIP trades.
 Opt-in owner-operated production adds material work-in-progress, joint-product
 cost shares, consumption expense and aborted-work loss. Work ownership transfers,
-paid labor/equipment costs, minting/town-market, forward/land-dues and household
-accounting remain unsupported. Storage blockage uses existing process failure;
+paid labor/equipment costs, minting/town-market, forward and household
+accounting remain unsupported. Dated land dues now compose with lending and
+material production on existing boundaries, including native goods and accepted
+coin alternatives. Estate-paid dues and collection-linked issuance remain unsupported. Storage blockage uses existing process failure;
 there is no stored-goods spoilage event to recognize. The complete report set is not universal
 transaction coverage. Execution and existing acquisition priority are unchanged.
 

@@ -87,7 +87,7 @@ with a real-world accounting standard.
 
 The adapter recognizes the selected coin at one reporting tick per stored tick.
 It rejects nonzero stocks without explicit opening cost, unsupported stock movements,
-mixed loan or estate denominations, equipment, forwards, land-dues obligations,
+mixed loan or estate denominations, equipment, forwards, unconfigured land dues,
 households, town-market clearing and minting transactions. Process transactions
 require the explicit material-cost opt-in described below. Unsupported activity is an error,
 not zero value or an unexplained income/equity adjustment. Unused capacities and
@@ -211,6 +211,65 @@ and preventing a fresh book from forgetting active work costs. All three CPU
 exports, formatting, strict all-target Clippy and artifact checks passed. This was
 a focused run, not a full-crate rerun.
 
+## Dated land dues and alternative tender
+
+`Audit::with_dues` adds the ordinary land-agreement adapter. Supply fixed reporting
+ticks per **native payment unit**, keyed by agreement ID; native reporting-coin
+dues always use one tick. Non-coin dues require an explicit positive valuation.
+The claim valuation remains fixed across periods: price quotes and the debtor's
+inventory cost do not silently revalue arrears.
+
+When the existing Due resolver first creates a bill, the debtor recognizes
+`DuesExpense` and `DuesPayable(agreement, due_month)`; the creditor recognizes
+`DuesIncome` and the matching receivable. This policy recognizes the bill at its
+due boundary, **not monthly accrual of the preceding year's use**. Earlier future
+commitments remain contract information. Existing arrears in an opening snapshot
+become opening claims/equity, not fresh period expense. Partial payment leaves
+symmetric residual claims; subsequent months do not charge them again.
+
+Native payment in goods releases the debtor's opening inventory cost, settles the
+claim at its fixed value, and records the difference as disposal gain/loss. The
+creditor receives inventory at the extinguished claim value. Accepted coin tender
+records only actual operating cash; a difference from claim value becomes opposite
+`SettlementGain`/`SettlementLoss` entries for the parties. No extra revenue is
+recognized merely for receiving payment on a previously recognized claim.
+
+For example, two grain units owed at three reporting ticks each create a six-tick
+bill. Paying one grain carried at two ticks produces a one-tick disposal gain.
+Paying the other unit with the accepted two-coin tender produces a one-tick debtor
+settlement gain and creditor settlement loss. The debtor's result is −4; the
+creditor's is +5, with three-tick grain inventory and two actual coins received.
+These figures depend on the supplied valuation convention, not inferred fair value.
+
+The adapter reconciles authoritative changes in owed/paid/native-paid quantities
+against the exact validated commitment transactions, without parsing cause strings.
+Native input costs use the opening average, with stable agreement/due ordering
+for rounding across bills. Incoming grain cannot finance another bill in that
+boundary. Loan and dues receipts can share a report without counting loan principal
+as income. `with_process_policy(world, shares)` composes production costing with a
+newly opened dues book; it must be selected before recording the first batch.
+
+Limits remain explicit: collection-linked currency issuance, estate distributions
+for dues, arbitrary relief, and combined same-boundary trade/production/dues cost
+allocation require further adapters. Ordinary Due and Productive/Consumption work
+compose on their existing separate boundaries. Forwards remain unsupported:
+their current origination bundles a prepaid delivery agreement with tool purchase,
+so equipment acquisition/cost accounting is a prerequisite to that integration.
+
+```sh
+cargo +1.92.0 run --locked --example dues_statements > ../../output/economics/dues-statements.md
+```
+
+Validation: **57 distinct tests passed** across `accounting` (11), `agreements` (3),
+`dues_accounting` (6), `inventory_accounting` (6), `process_accounting` (5) and
+`recovery` (26). The initial focused run had five dues tests; the final six-test
+run added combined loan/dues reporting. Controls cover CPU/reference equality,
+partial arrears, the next annual bill, checkpoint continuation, opening arrears,
+native cash, grain plus alternative coins, and atomic rejection of missing
+valuation or unaccounted issuance. A 13-month CPU farming/consumption/dues control
+also passes. The CPU export, formatting, strict all-target Clippy and artifact
+checks pass; no full-crate rerun was performed.
+
 ## Run and inspect
 
 From `exp/economics`:
@@ -254,9 +313,9 @@ Extend adapters next, preserving these reconciliation gates:
    historical work costs on reporting restart. Add validated stored-goods loss events,
    then town-market and barter accounting adapters.
 2. Define minting input cost, issuance and issuer equity/liabilities explicitly.
-3. Recognize forward advances and delivery obligations, land dues, alternative
-   tender, restructuring and delivery write-off in monetary statements without
-   erasing their native performance requirements.
+3. Recognize forward advances and delivery obligations, restructuring and delivery
+   write-off without erasing native performance. Ordinary dues/alternative tender
+   now have an adapter; extend it to estate payments and explicit relief.
 4. Add durable equipment depreciation, household/institution contributions and
    distributions, then ownership and consolidation eliminations. Summing entity
    statements is not a consolidated economy statement: custody and intra-economy

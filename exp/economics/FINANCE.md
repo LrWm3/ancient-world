@@ -76,8 +76,9 @@ death/dissolution administration remain future work.
 report set for cash loans, valued mortgages, loan recovery and costed posted or
 bilateral/ZIP spot trades. Opt-in owner-operated material costing now capitalizes
 work in progress and recognizes consumption and failed-work expense. Paid labor,
-equipment/cross-agent production costs, town-market/minting, forwards/dues and
-household accounting remain open. Future contract types should supply their terms and receipts
+equipment/cross-agent production costs, town-market/minting, forwards and household
+accounting remain open. Ordinary dated dues now recognize income/expense, symmetric
+arrears and native or accepted coin settlement; estate-paid dues still need an adapter. Future contract types should supply their terms and receipts
 through this shared view before introducing a second settlement mechanism.
 
 ## Validation
