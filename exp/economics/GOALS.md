@@ -140,6 +140,12 @@ be possible when admission, resources, timing and transaction costs permit it.
 
 ## Household and organizational labor agreements
 
+The [first household governance slice](HOUSEHOLDS.md) now implements founding
+constitution/static charter records, a named member governor, dated authorized
+policy instructions, 20% labor reservations and explicit labor ties. General
+leadership selection, legal recognition and need-aware collective planning remain
+targets below.
+
 Rework the representative household policy from directing only spare labor to an
 explicit founding-agreement contribution: **20% of each member's available monthly
 labor is directed by the household**. Determine the contribution at a dated

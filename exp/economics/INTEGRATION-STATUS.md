@@ -196,3 +196,12 @@ now permits or refuses new land-use leases and financed asset purchases; existin
 agreements retain servicing and use-right semantics. Separate optional ceilings
 now bound remaining lease duration and monthly loan interest at new entry.
 These controls do not integrate lease-versus-purchase planning or negotiated terms.
+
+## Household governance: first slice
+
+The household fixture now uses static 20% contribution charters and a named member
+governor. Authorized future policy instructions select net-output or
+committed-work-preserving allocation within the founding constitution. Contribution
+receipts, explicit ties, unused-hour return and settlement logs are implemented.
+The legacy spare-labor option remains available. This does not remove existing
+household/credit/town-market driver exclusions. See [Households](HOUSEHOLDS.md).

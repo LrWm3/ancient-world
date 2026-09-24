@@ -13,7 +13,7 @@ remaining financial work.
 | --- | --- | --- |
 | Persons and planning | Needs, deprivation consequences, repeated processes, bounded forecasts, opportunity search and dated commitments | General discovery across all drivers; reliably sustainable autonomous cooperation |
 | State and law | Citizenship, action permissions, named prohibitions, selected agreement recognition/term limits; issuance and physical minting pilots | Autonomous state objectives, general jurisdiction/founding law, constitutional governance |
-| Households | Agreement formation, pooled resources/storage, shared shelter and spare-labor allocation | Constitution/charter redesign, explicit contributed labor, governance and integrated market/credit budgets |
+| Households | Founding constitution/static charter, named governor, dated policy instructions, 20% contributed labor, explicit ties, pooled resources/storage and shelter | Elections/succession, need-aware collective planning, lawful formation and integrated market/credit budgets |
 | Marketplaces | Bilateral negotiation/ZIP, local town books, need-generated orders and reciprocal commodity markets | Shared acquisition with every driver; general markets for labor, assets, rights and memberships |
 | Contracts and lending | Direct consented advances and mortgages share a loan book; loan, land and forward claims share execution; guarantees share inspection | Common acceptance/performance adapters for all arrangements; autonomous general loan discovery/underwriting |
 | [Creditor allocation](CREDITOR-ALLOCATION.md) | Ranked collection and opt-in proportional loan/land allocation, including accepted coin tender and whole-unit conversion | Standalone land and forward allocation; additional denominations/routes and indivisible obligations |
@@ -70,8 +70,10 @@ transaction permissions per agent type and [citizenship membership](CITIZENSHIP.
 The state posts citizenship; accepting it enables land agreements and cultivation. Run `cargo +1.92.0 run --locked -- opportunity-farming`
 from this directory.
 An opt-in household scenario adds agreement-formed collective agents, pooled
-income/storage, shared shelter, member tax/forward support, and spare-labor decisions. This is the existing pilot; the target redesign uses
-explicit labor contributions and constitutional governance, as described in the goals.
+income/storage, shared shelter and member tax/forward support. Its first governance
+redesign adds a static 20% labor charter, a named governor, permitted policy changes
+and explicit allocation ties; legacy spare-labor behavior remains selectable.
+See [Households](HOUSEHOLDS.md) for the implemented slice and remaining limits.
 A controlled specialization fixture adds mining/refining, tool creation and repair,
 fishing, livestock, plot-attached housing and annual commodity-or-coin taxes.
 One-person and four-person scenarios plan repeated harvests and meet nutrition/warmth needs using generic

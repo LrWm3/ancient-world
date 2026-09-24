@@ -110,7 +110,7 @@ case must name its observation, reservation, execution and visibility boundaries
 | 1: minting | Grain-linked issuance and a separate physical minting/provision pilot with finite inputs and shortfalls | General redemption/backing arrangements and integration with credit and institutions |
 | 2: markets | Bilateral fixed/concession/ZIP pricing, local town books and recurring need orders | General labor/right/asset markets and shared financial/institutional budgets |
 | 3: forwards/loans | Prepaid deliveries, general consented advances, mortgages, alternative-tender allocation, crop-preserving enforcement, actual resale, land/forward recovery admission and accepted forward relief | Autonomous common financing choice; land-bill/general discharge and broader liquidation |
-| 4: institutions | Existing household pooling pilot; static law permissions/recognition | Constitution/charter governance, explicit contributed labor, lawful formation and death/dissolution estates |
+| 4: institutions | Household pooling, static constitution/charter, named governor, permitted policy instructions, contributed labor and explicit ties; static law permissions/recognition | Elections/succession, lawful organizational formation, general institutional budgets and death/dissolution estates |
 | 5: custody/finality | Dedicated loan-estate custody, actual proceeds, secured/general distributions and explicit write-offs | General custody, netting, clearing, custodian failure and legal finality |
 | 8: contingent claims | Capped original-loan guarantees, finite calls and matching recourse | Insurance, margin, options, broader contingent claims and lien subrogation |
 

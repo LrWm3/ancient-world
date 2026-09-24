@@ -6,15 +6,33 @@ opt-in; the existing independent-person scenarios retain their previous rules.
 Formation is explicitly configured, rather than simulated marriage or household
 search. No children have been added.
 
-## Target redesign
+## Governance redesign: first implemented slice
 
-This page documents the existing pilot. The [project goals](GOALS.md) replace its
-representative spare-labor policy with a founding agreement directing 20% of each
-member's available monthly labor to the household. Constitution templates with
-static charter parameters, governance by persons and swappable allocation policies should
-control that work. Leadership selection, membership and ownership are separate.
-These changes, market integration and complete estate handling are not implemented
-by the current household fixture.
+The representative `households-32` scenario now uses the
+[project goals](GOALS.md)'s 20% contributed-labor charter. The older spare-labor
+behavior remains available through `Governance::legacy`. Founding templates,
+static charter parameters, a named person holding policy-setting authority, and
+swappable labor policies are implemented. Elections, succession, household law
+recognition and general institutional markets remain future work.
+
+`Agreement.governance` separates:
+
+| Component | Current role |
+| --- | --- |
+| Constitution | Permitted operational policies and an optional productive-activity subset. The initial governance mechanism is a fixed founding-member governor. |
+| Static charter | Named governor, labor contribution percentage or legacy spare-labor mode, labor tie-break and initial policy. |
+| Policy instructions | Governor-authorized changes to an allowed policy, effective in a specified future month. |
+| Operational allocation | The household evaluates feasible member work; the governor does not name individual jobs or recipients. |
+
+Constitution and charter are founding configuration. There is no amendment API.
+`household_governance::schedule` atomically accepts a future policy instruction
+from the living named governor, verifies the constitution, and rejects duplicate
+instructions for a month. The effective policy is derived from dated accepted
+instructions, so checkpoint continuation and record ordering do not invent new
+authority. Already accepted instructions survive the governor's death; remaining
+members continue under those policies, with no replacement governor yet. As with
+other consented fixtures, callers supply accepted instructions; no personality
+model autonomously chooses policy changes.
 
 ## Agreement and continued existence
 
@@ -129,7 +147,62 @@ stocks, partial payment, and overdue balances. Paying in coins does not mint new
 currency. A household transfer itself does not discharge debt; only actual
 settlement does. There is no automatic joint liability or debt reassignment.
 
-## Household decisions about spare labor
+## Contributed labor and operational policy
+
+At the existing **Productive reservation boundary**, after pooled input allocation
+and before ordinary productive work, each living member reserves
+`floor(current available capacity * charter percent / 100)`. The representative
+percentage is 20. This is the actual remaining capacity at that dated boundary,
+not nominal healthy capacity or future regenerated hours. Earlier phases retain
+their existing priority. Fractional labor ticks are not carried into another month.
+Each person still has at most one household, preventing overlapping pledges here.
+
+Reservations remove those hours from private budgets in candidate evaluation.
+Only compatible capacity resources can be combined. The household tests directing
+the pool to each member's already-requested or active work using the existing
+feasibility resolver. Rights, equipment, inputs and permissions still belong to
+the executing member. A constitutional activity subset limits the recipient's
+whole funded plan conservatively; it does not grant extra permissions.
+
+The recipient receives only the useful amount. Its own reserved hours are applied
+first, then other contributions in the charter's order. All unused reservations
+return to their contributors **before** execution. The final plan is probed again
+after these returns, and the funded work must remain feasible. Atomic effects
+publish only net transfers between members; the reservation receipts represent
+the household's authority over hours, without creating a second spendable labor
+account. Ordinary process receipts record actual completion and consumption.
+
+Two operational choices currently share a bounded, current-month net-output
+progress score (quoted spot values, otherwise par; duration-adjusted):
+
+- `PreserveCommittedWork` additionally rejects reallocations that displace a
+  member's already-active process progress achievable without delegation. This
+  is the representative default.
+- `NetOutput` permits that displacement if the aggregate score improves. Normal
+  missed-work consequences still execute; the household does not suppress them.
+
+Neither policy yet optimizes all needs or six-month wealth. Both require a strict
+improvement over the ordinary unreserved baseline and otherwise return all hours.
+At most one recipient is chosen per household per month. This is a bounded search,
+not a complete household process planner or a guarantee of economic sustainability.
+Donated hours remain fungible capacity in the existing executor: the recipient
+performs the work and gains practice. Contributor-specific skills and multi-worker
+execution are not modeled.
+
+Equal-score recipient and donor ties use an explicit static charter choice:
+`MemberId`, `Rotating` (sorted living IDs, rotated monthly from founding), or
+`SignatoryOrder`. Rotating allocation is **not** rotation of the governor.
+Pooled-goods allocation still uses its existing benefit/reservation-order rule;
+these new policies currently govern labor only.
+
+Dated labor receipts retain governor, policy, tie-break, baseline/projected score,
+recipient and granted hours, plus each contributor's available, reserved, directed
+and returned quantities. Directed includes a recipient's own contribution, while
+net reassigned labor counts only transfers from other members. Neither measure
+should be substituted for actual work completion. Settlement telemetry exports
+`household_labor` records, including when filtered by a contributing member.
+
+## Legacy spare-labor option
 
 At Productive, the household first previews the members' ordinary work requests.
 Labor those requests would use remains protected. It tests lending the remaining
@@ -156,7 +229,7 @@ contributing labor does not transfer expertise.
 No scheduler phase was added. Each existing batch has an optional household
 boundary record:
 
-1. Reserve pooled goods and any spare labor against the observed boundary.
+1. Reserve pooled goods and charter-selected labor against the observed boundary.
 2. Run the existing Due, Acquire, Productive, ClearArrears, or Consumption work
    against those granted resources.
 3. Collect half of realized receipts and publish any shared dwelling service.
@@ -202,7 +275,35 @@ last-adult death, atomic failed replay, CPU parity, monthly stepping, and in-mem
 checkpoint continuation. Generated audit logs are kept under ignored
 `output/economics/`.
 
-### Observed results
+### Governance validation (2026-09-24)
+
+All **23 household tests and 10 telemetry tests passed**. New controls cover a
+bounded 20% contribution, rotating ties after reversing signature order,
+unused/out-of-mandate returns, future governor-authorized policy changes,
+forbidden policies, indivisible-hour rounding and current-capacity shortfalls,
+CPU/reference equality, continuation, tampered reservation rejection and
+member-filtered observational equivalence. A controlled comparison uses identical
+opening requests and resources: `NetOutput` completes a higher-value job while a
+donor's active process aborts; `PreserveCommittedWork` declines the reallocation
+and preserves that process. Allocation preference does not change execution order.
+
+The representative eight-household/32-person scenario was run for **three months**
+with `cargo +1.92.0 run --locked --example household_audit -- 3 cpu`. State, every
+ledger batch and reports matched exactly between CPU and reference. It recorded
+320 reserved labor ticks, 176 directed (including recipients' own shares), 144
+returned and 96 net reassigned between members. There were no terminal people,
+tax arrears, nutrition or warmth deficits; 64 startup shelter deficit units
+remained. Three tools were purchased and no forwards issued. This short run does
+not validate annual taxes, long-term finance, sustainable specialization or a
+need-first collective objective. The longer legacy results below are not evidence
+for the new default. Raw logs remain under ignored `output/economics/`.
+
+Formatting, strict all-target Clippy and repository artifact checks passed. The
+full economics crate suite was not rerun.
+
+### Earlier spare-labor results
+
+These results describe the legacy policy, not the new contributed-labor default.
 
 The matched 24-month comparison uses identical opening resources, state prices,
 three tool providers, and 32 adults. The treatment accepts eight household
