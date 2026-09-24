@@ -20,6 +20,62 @@ pub(crate) struct PrepaidSale {
     pub quantity: i32,
     pub value: i128,
 }
+/// Interpret only a replay-verified bilateral stock exchange. The payment
+/// resource comes from its accepted venue terms, never effect order or a label.
+pub(crate) fn barter(
+    world: &World,
+    transaction: &Transaction,
+    payment: ResourceId,
+    unit_value: i128,
+) -> Result<[PrepaidSale; 2], String> {
+    let effects = &transaction.effects;
+    let paid = effects
+        .iter()
+        .find(|e| e.account.1 == payment && e.delta < 0)
+        .ok_or("missing barter payment")?;
+    let sold = effects
+        .iter()
+        .find(|e| e.account.1 != payment && e.delta < 0)
+        .ok_or("missing barter goods")?;
+    if effects.len() != 4
+        || unit_value <= 0
+        || paid.account.0 == sold.account.0
+        || effects.iter().any(|e| {
+            !world
+                .resources
+                .iter()
+                .any(|r| r.id == e.account.1 && r.kind == ResourceKind::Stock)
+        })
+        || !effects.iter().any(|e| {
+            e.account == (sold.account.0, payment) && i64::from(e.delta) == -i64::from(paid.delta)
+        })
+        || !effects.iter().any(|e| {
+            e.account == (paid.account.0, sold.account.1)
+                && i64::from(e.delta) == -i64::from(sold.delta)
+        })
+    {
+        return Err("invalid bilateral stock barter".into());
+    }
+    let value = unit_value
+        .checked_mul(-i128::from(paid.delta))
+        .ok_or("barter consideration overflow")?;
+    Ok([
+        PrepaidSale {
+            seller: sold.account.0,
+            buyer: paid.account.0,
+            resource: sold.account.1,
+            quantity: sold.delta.checked_neg().ok_or("barter quantity overflow")?,
+            value,
+        },
+        PrepaidSale {
+            seller: paid.account.0,
+            buyer: sold.account.0,
+            resource: payment,
+            quantity: paid.delta.checked_neg().ok_or("barter quantity overflow")?,
+            value,
+        },
+    ])
+}
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Inventory(pub BTreeMap<crate::model::Account, Holding>);
 /// One opening-stock cost pool shared by every adapter in a committed boundary.

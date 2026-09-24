@@ -802,37 +802,43 @@ impl Audit {
                 cash_trades.push(*t);
                 continue;
             }
-            // A posted bid identifies its payment commodity. Value that actual
-            // consideration, not the existing holdings or a hypothetical coin leg.
-            let trade = t
-                .stock_trade
-                .as_ref()
-                .ok_or("noncash exchange needs posted payment terms")?;
-            let bid = world
-                .bids
-                .iter()
-                .find(|b| b.id == trade.bid)
-                .ok_or("missing barter bid")?;
-            let bid = crate::currency::terms(world, bid, trade.seller)?;
-            let unit = self
+            // Venue terms identify the payment stock; actual committed effects
+            // determine consideration. Quote attempts and posted prices are not sales.
+            let payment = if let Some(trade) = &t.stock_trade {
+                let bid = world
+                    .bids
+                    .iter()
+                    .find(|b| b.id == trade.bid)
+                    .ok_or("missing barter bid")?;
+                crate::currency::terms(world, bid, trade.seller)?
+                    .payment
+                    .resource
+            } else if negotiated.contains(t) {
+                world
+                    .negotiation
+                    .as_ref()
+                    .ok_or("missing barter negotiation")?
+                    .payment
+            } else if town_trades.contains(t) {
+                let config = world
+                    .town_market
+                    .as_ref()
+                    .ok_or("missing barter town market")?;
+                // Town validation requires every listing to use this common payment.
+                crate::marketplace::venue(world, config.venue)
+                    .and_then(|v| v.markets.iter().find(|m| m.id == config.market))
+                    .ok_or("missing barter town listing")?
+                    .payment
+            } else {
+                return Err("noncash exchange needs supported payment terms".into());
+            };
+            let unit = *self
                 .exchange_values
-                .get(&bid.payment.resource)
+                .get(&payment)
                 .ok_or("barter payment needs an explicit exchange value")?;
-            let value = unit
-                .checked_mul(i128::from(bid.payment.quantity))
-                .ok_or("barter consideration overflow")?;
-            for (seller, buyer, amount) in [
-                (trade.seller, bid.buyer, bid.goods),
-                (bid.buyer, trade.seller, bid.payment),
-            ] {
-                barter_deliveries.push(crate::inventory_accounting::PrepaidSale {
-                    seller,
-                    buyer,
-                    resource: amount.resource,
-                    quantity: amount.quantity,
-                    value,
-                });
-            }
+            barter_deliveries.extend(crate::inventory_accounting::barter(
+                world, t, payment, unit,
+            )?);
         }
         let (mut prepaid, forward_lines) = crate::forward_accounting::settle(before, after)?;
         prepaid.extend(barter_deliveries);
