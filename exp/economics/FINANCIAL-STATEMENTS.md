@@ -89,7 +89,7 @@ with a real-world accounting standard.
 
 The adapter recognizes the selected coin at one reporting tick per stored tick.
 It rejects nonzero stocks without explicit opening cost, unsupported stock movements,
-mixed loan or estate denominations, unvalued equipment barter, royalties and unconfigured land dues. Town-market trades use the costed stock adapter. Minting/issuance requires its explicit policy below. Process transactions
+mixed loan or estate denominations, unvalued equipment barter, unconfigured royalties and unconfigured land dues. Town-market trades use the costed stock adapter. Minting/issuance requires its explicit policy below. Process transactions
 require the explicit material-cost opt-in described below. Unsupported activity is an error,
 not zero value or an unexplained income/equity adjustment. Unused capacities and
 need satisfaction are not financial assets. Uncalled guarantees remain contingent
@@ -417,8 +417,8 @@ rejection without publication. Opening accepted forwards reconstruct their remai
 historical advance cost from validated terms and performance history.
 
 Limits: no fair-value marks, discount accretion, expected-loss allowance, cash
-refund/repricing adapter, or recognition of royalty deals. Royalty flows still prevent reporting an entire unrestricted
-specialist scenario. Supporting forward reports does not remove simulation-driver
+refund/repricing adapter. Royalty deals now have the separate earned-only policy below;
+this does not establish reporting coverage for every unrestricted specialist scenario. Supporting forward reports does not remove simulation-driver
 composition restrictions or establish recoverability of unpaid goods.
 
 The forward-accounting regression run passed **68 tests** across accounting (11),
@@ -728,7 +728,7 @@ The expansion is **not universal coverage yet**. These valid economic situations
 still need accounting adapters or policy definitions:
 
 - Household dissolution/estate distributions and consolidated reporting beyond the supported pooling agreement.
-- Royalty-paid equipment and contingent consideration; non-posted barter without explicit payment terms.
+- Estimated/capitalized contingent consideration beyond the earned-only royalty policy below; non-posted barter without explicit payment terms.
 - Paid labor capitalization and production with distinct operators/beneficiaries or non-pool resource ownership.
 - Multiple loan/estate denominations and FX valuation; redeemable currency and retirement.
 - Explicit dues discharge, forward refund/repricing and impairment policies.
@@ -848,3 +848,65 @@ composition balances a journal across trades, WIP and dues, retains newly receiv
 stock, and checks exhausted/failed allocations and large representable costs.
 The slow 32-person integration was not rerun for this change; the four focused
 household accounting tests passed. Logs are under ignored `output/economics/`.
+
+
+## Earned-only tool royalties
+
+`Opening.processes.earned_royalty_values = Some(prices)` opts into a specific
+contingent-payment convention. Prices are positive reporting ticks per unit of
+noncash stock delivered as royalty. `None` preserves strict rejection. Missing
+prices at delivery of output, arithmetic overflow and forged receipts fail without
+publishing either the simulation or its financial report. Changing joint-output
+cost weights at opening preserves the royalty policy.
+
+This convention recognizes no estimated future royalties, guaranteed principal,
+loan, receivable or payable at tool delivery. The supplier releases the tool's
+remaining historical basis to `CostOfSales`; the recipient acquires a zero-basis
+tool. Physical ownership, useful life, wear, production benefits and the existing
+output-share agreement still operate normally. Future consideration is contingent
+on completed production, so unsuccessful or idle work earns no royalty.
+
+For completed work, first allocate material and productive wear costs over **all**
+actual joint output using the existing output weights. Then allocate each product's
+cost proportionally between the operator's retained units and the supplier's share.
+Rounding remains in the retained output. Only this process's new output pays the
+royalty; it cannot draw on the operator's opening inventory or another process.
+Recycled seed remains exempt according to the authoritative production receipt.
+
+The operator records the delivered share as a noncash sale at the configured
+reporting value, releases its allocated `CostOfSales`, and recognizes the same
+value as `ServiceExpense`. The supplier recognizes `ServiceIncome` and inventory
+at that value. These postings do not create cash, finance or minting entries.
+The operator's retained inventory keeps its allocated production basis; the
+royalty expense is not capitalized into it. The supplier's received goods can
+subsequently be sold, pooled, consumed or expire using ordinary inventory adapters.
+
+For example, production consuming 100 ticks of hay and one tick of herd wear has
+101 total cost. Equal milk/wool cost weights assign 50 and 51 ticks. A 25% share
+of 200 milk and 100 wool sends 50 milk and 25 wool to the tool supplier. At three
+reporting ticks per unit, this is 225 of supplier service income and inventory.
+The operator recognizes 225 noncash sales, 225 service expense and 24 cost of sales;
+its retained products carry 38 and 39 ticks. A tool previously costing 24 is
+expensed once by the supplier at delivery, not again as the recipient uses it.
+
+This is an explicit experimental reporting convention, not estimated fair-value
+accounting or a claim of accounting-standards compliance. Capitalized contingent
+purchase prices, royalty contract assets, minimum guarantees, changing valuation
+quotes, royalty impairment and general third-party production still need policies
+and adapters. No matching, physical allocation, royalty rate or monthly phase was
+changed. A zero-percent agreement is also treated as delivery for zero consideration.
+
+Verification in `tests/royalty_accounting.rs` covers 0%, 25% and 100% output shares,
+exact cost allocation, tool delivery, idle periods, CPU/reference equality,
+checkpoint continuation, finalized periods, failed work and exhaustion followed by
+successful manual production. Missing policy, missing product price and overflow
+are checked for atomic rejection. The fixture uses the existing specialist catalog
+with other work and needs disabled to isolate accounting; it does not establish
+economic sustainability of the full specialist economy.
+
+Validation: **68 checks passed** across library (10), accounting (14), posted barter
+(3), equipment (3), forwards (5), household accounting (4), inventory (6),
+manufacture (7), process accounting (6), reporting coverage (6), and royalties (4).
+The existing slow full-household stress test remains ignored in this run. Strict
+all-target Clippy, formatting, diff checks and repository artifact checks passed.
+Generated logs are under ignored `output/economics/royalty-*.log`.

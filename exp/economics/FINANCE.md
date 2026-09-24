@@ -153,3 +153,12 @@ and equipment barter with supplied exchange values. Credit-stress scenarios now
 produce journal reports through audited telemetry. See
 [coverage expansion](FINANCIAL-STATEMENTS.md#coverage-expansion-and-remaining-adapters)
 for the verified cases and remaining gaps.
+
+
+The financial adapter now supports an explicit
+[earned-only tool royalty policy](FINANCIAL-STATEMENTS.md#earned-only-tool-royalties).
+It expenses supplier tool basis at delivery and values actual output shares as
+noncash consideration when earned, with no forecast royalty debt or receivable.
+Production cost is split between retained and delivered output, and both parties'
+statements reconcile. This does not implement capitalization or valuation of
+estimated contingent consideration, or establish full specialist-scenario coverage.
