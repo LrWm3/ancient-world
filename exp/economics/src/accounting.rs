@@ -11,6 +11,7 @@ pub enum Account {
     CustodyPayable(u32),
     Inventory(ResourceId),
     Tangible(u32),
+    WorkInProgress(u64),
     LoanReceivable(u32),
     InterestReceivable(u32),
     LoanPayable(u32),
@@ -25,6 +26,9 @@ pub enum Account {
     DebtRelief,
     Sales,
     CostOfSales,
+    ConsumptionExpense,
+    ProductionExpense,
+    ProductionLoss,
     Depreciation,
     DisposalGain,
     DisposalLoss,
@@ -45,6 +49,7 @@ impl Account {
             | Self::CustodyCash(_)
             | Self::Inventory(_)
             | Self::Tangible(_)
+            | Self::WorkInProgress(_)
             | Self::LoanReceivable(_)
             | Self::InterestReceivable(_) => Class::Asset,
             Self::CustodyPayable(_) | Self::LoanPayable(_) | Self::InterestPayable(_) => {

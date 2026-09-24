@@ -150,3 +150,5 @@ pub mod accounting;
 pub mod financial_reporting;
 
 pub mod inventory_accounting;
+
+pub mod process_accounting;

@@ -17,6 +17,7 @@ pub struct Audit {
     boundary: State,
     asset_values: BTreeMap<AssetId, i128>,
     inventory: crate::inventory_accounting::Inventory,
+    processes: Option<crate::process_accounting::Costs>,
 }
 fn positions(
     world: &World,
@@ -24,6 +25,7 @@ fn positions(
     coin: ResourceId,
     values: &BTreeMap<AssetId, i128>,
     inventory: &crate::inventory_accounting::Inventory,
+    processes: Option<&crate::process_accounting::Costs>,
 ) -> Result<Positions, String> {
     if !world
         .resources
@@ -122,6 +124,12 @@ fn positions(
         )?;
         accounting::add(&mut p, (terms.debtor, Account::RestrictedCash(terms.id)), q)?;
     }
+    if let Some(costs) = processes {
+        costs.validate(state)?;
+        for (id, (owner, cost)) in &costs.work {
+            accounting::add(&mut p, (*owner, Account::WorkInProgress(*id)), *cost)?;
+        }
+    }
     p.retain(|_, v| *v != 0);
     Ok(p)
 }
@@ -197,6 +205,12 @@ impl Audit {
             denomination,
             inventory_costs,
         )?;
+        if state.processes.values().any(|p| p.status == Status::Active) {
+            return Err(
+                "opening active work needs historical carrying costs; resume the existing audit"
+                    .into(),
+            );
+        }
         if state.phase != Phase::Open {
             return Err("open a reporting book at a month opening".into());
         }
@@ -204,12 +218,59 @@ impl Audit {
             book: Book::open_at(
                 denomination,
                 state.month.checked_sub(1).ok_or("invalid opening month")?,
-                positions(world, state, denomination, &asset_values, &inventory)?,
+                positions(world, state, denomination, &asset_values, &inventory, None)?,
             )?,
             asset_values,
             inventory,
+            processes: None,
             boundary: state.clone(),
         })
+    }
+    /// Opt into material-cost production; shares apply to total joint-output cost.
+    pub fn with_processes(
+        world: &World,
+        state: &State,
+        denomination: ResourceId,
+        asset_values: BTreeMap<AssetId, i128>,
+        inventory_costs: BTreeMap<crate::model::Account, i128>,
+        output_weights: BTreeMap<DefinitionId, BTreeMap<ResourceId, u32>>,
+    ) -> Result<Self, String> {
+        for (id, weights) in &output_weights {
+            let d = world
+                .definitions
+                .iter()
+                .find(|d| d.id == *id)
+                .ok_or("unknown cost-allocation definition")?;
+            let resources: std::collections::BTreeSet<_> = d
+                .outputs
+                .iter()
+                .filter(|a| {
+                    world
+                        .resources
+                        .iter()
+                        .any(|r| r.id == a.resource && r.kind == ResourceKind::Stock)
+                })
+                .map(|a| a.resource)
+                .collect();
+            if d.execution != Execution::Productive
+                || weights.is_empty()
+                || weights.values().any(|w| *w == 0)
+                || weights
+                    .keys()
+                    .copied()
+                    .collect::<std::collections::BTreeSet<_>>()
+                    != resources
+            {
+                return Err("invalid output cost shares".into());
+            }
+        }
+        let mut audit =
+            Self::with_inventory(world, state, denomination, asset_values, inventory_costs)?;
+        audit.processes = Some(crate::process_accounting::Costs {
+            output_weights,
+            work: BTreeMap::new(),
+        });
+        Ok(audit)
     }
     pub fn book(&self) -> &Book {
         &self.book
@@ -249,7 +310,7 @@ impl Audit {
             return Err("accounting requires the exact committed state".into());
         }
         if batch.transactions.iter().any(|t| {
-            t.process.is_some()
+            (t.process.is_some() && self.processes.is_none())
                 || t.trade.is_some()
                 || t.delivery.is_some()
                 || t.forward.is_some()
@@ -267,8 +328,23 @@ impl Audit {
             .filter(|t| t.stock_trade.is_some() || negotiated.contains(t))
             .collect();
         let (inventory, trade_lines) = self.inventory.settle(&trades, coin)?;
+        let process_transactions: Vec<_> = batch
+            .transactions
+            .iter()
+            .filter(|t| t.process.is_some())
+            .collect();
+        if !trades.is_empty() && !process_transactions.is_empty() {
+            return Err("mixed trading/production boundary needs a shared cost allocator".into());
+        }
+        let (processes, inventory, process_lines) = if let Some(costs) = &self.processes {
+            let (costs, inventory, lines) =
+                costs.settle(world, &inventory, &process_transactions, coin)?;
+            (Some(costs), inventory, lines)
+        } else {
+            (None, inventory, vec![])
+        };
         for t in &batch.transactions {
-            if trades.contains(&t) {
+            if t.process.is_some() || trades.contains(&t) {
                 continue;
             }
             let has_stock = t.effects.iter().any(|e| {
@@ -298,13 +374,27 @@ impl Audit {
                 }
             }
         }
-        let opening = positions(world, before, coin, &self.asset_values, &self.inventory)?;
-        let closing = positions(world, after, coin, &self.asset_values, &inventory)?;
+        let opening = positions(
+            world,
+            before,
+            coin,
+            &self.asset_values,
+            &self.inventory,
+            self.processes.as_ref(),
+        )?;
+        let closing = positions(
+            world,
+            after,
+            coin,
+            &self.asset_values,
+            &inventory,
+            processes.as_ref(),
+        )?;
         let mut delta = closing.clone();
         for (key, value) in &opening {
             accounting::add(&mut delta, key.clone(), -*value)?;
         }
-        let mut lines = vec![];
+        let mut lines = process_lines;
         let mut flows = Flows::new();
         for l in trade_lines {
             if let Some(kind) = l.flow {
@@ -778,6 +868,7 @@ impl Audit {
         if reported != closing {
             return Err("journal does not reconcile to authoritative positions".into());
         }
+        self.processes = processes;
         self.inventory = inventory;
         self.book = candidate;
         self.boundary = after.clone();
