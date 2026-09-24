@@ -33,11 +33,21 @@ impl Costs {
         transactions: &[&Transaction],
         coin: ResourceId,
     ) -> Result<(Self, Inventory, Vec<Line>), String> {
+        self.settle_with_equipment(world, inventory, transactions, coin, &BTreeMap::new())
+    }
+    pub(crate) fn settle_with_equipment(
+        &self,
+        world: &World,
+        inventory: &Inventory,
+        transactions: &[&Transaction],
+        coin: ResourceId,
+        wear: &BTreeMap<u64, i128>,
+    ) -> Result<(Self, Inventory, Vec<Line>), String> {
         let mut next = self.clone();
         let mut stocks = inventory.clone();
         let mut lines = vec![];
         let mut used = BTreeMap::new();
-        let mut inputs = BTreeMap::<u64, i128>::new();
+        let mut inputs = wear.clone();
         let mut ordered = transactions.to_vec();
         ordered.sort_by_key(|t| t.process.as_ref().map(|p| p.after.id));
         // Cumulative rounding assigns the boundary's released carrying cost by

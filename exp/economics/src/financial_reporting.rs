@@ -33,12 +33,11 @@ fn positions(
         .resources
         .iter()
         .any(|r| r.id == coin && r.kind == ResourceKind::Stock)
-        || !state.equipment.is_empty()
         || !state.exchange.forwards.is_empty()
         || (!state.obligations.is_empty() && dues.is_none())
         || !world.households.is_empty()
     {
-        return Err("financial adapter requires cash/loan positions; equipment, forward, land-dues and household adapters remain unsupported".into());
+        return Err("financial adapter requires supported positions; forwards, unconfigured land dues and households remain unsupported".into());
     }
     inventory.validate(world, state, coin)?;
     let mut p = BTreeMap::new();
@@ -91,6 +90,15 @@ fn positions(
             .or_else(|| credit::owner(world, state, asset.id))
             .ok_or("missing asset owner")?;
         accounting::add(&mut p, (owner, Account::Tangible(asset.id)), value)?;
+    }
+    for asset in state.equipment.values() {
+        let value = *values
+            .get(&asset.id)
+            .ok_or("missing equipment carrying cost")?;
+        if value < 0 || (asset.remaining_uses == 0 && value != 0) {
+            return Err("invalid equipment carrying cost".into());
+        }
+        accounting::add(&mut p, (asset.owner, Account::Tangible(asset.id)), value)?;
     }
     for l in state.credit.loans.values() {
         if l.denomination != coin {
@@ -375,7 +383,6 @@ impl Audit {
         }
         if batch.transactions.iter().any(|t| {
             (t.process.is_some() && self.processes.is_none())
-                || t.trade.is_some()
                 || t.delivery.is_some()
                 || t.forward.is_some()
                 || t.royalty.is_some()
@@ -383,6 +390,70 @@ impl Audit {
             || batch.town_market.is_some()
         {
             return Err("transaction needs an explicit accounting adapter".into());
+        }
+        let mut asset_values = self.asset_values.clone();
+        let mut equipment_lines = Vec::new();
+        let mut wear_costs = BTreeMap::new();
+        for t in &batch.transactions {
+            if let Some(trade) = &t.trade {
+                let offer = world
+                    .offers
+                    .iter()
+                    .find(|o| o.id == trade.offer)
+                    .ok_or("missing equipment offer")?;
+                if offer.price.resource != self.book.denomination() {
+                    return Err("equipment barter needs an explicit valuation adapter".into());
+                }
+                let basis = *asset_values
+                    .get(&offer.asset)
+                    .ok_or("missing equipment basis")?;
+                let price = i128::from(offer.price.quantity);
+                let gain = price
+                    .checked_sub(basis)
+                    .ok_or("equipment disposal overflow")?;
+                result(
+                    &mut equipment_lines,
+                    offer.seller,
+                    if gain >= 0 {
+                        Account::DisposalGain
+                    } else {
+                        Account::DisposalLoss
+                    },
+                    -gain,
+                );
+                for (agent, debit) in [(trade.buyer, -price), (offer.seller, price)] {
+                    equipment_lines.push(Line {
+                        agent,
+                        account: Account::Cash,
+                        debit,
+                        flow: Some(Flow::Investing),
+                    });
+                }
+                asset_values.insert(offer.asset, price);
+            }
+            if let Some(id) = t.technique_use.as_ref().and_then(|u| u.asset) {
+                let old = before
+                    .equipment
+                    .get(&id)
+                    .ok_or("missing opening equipment")?;
+                let new = after
+                    .equipment
+                    .get(&id)
+                    .ok_or("missing closing equipment")?;
+                let spent = old
+                    .remaining_uses
+                    .checked_sub(new.remaining_uses)
+                    .ok_or("equipment repair needs a cost adapter")?;
+                let basis = *asset_values.get(&id).ok_or("missing equipment basis")?;
+                let cost = basis
+                    .checked_mul(i128::from(spent))
+                    .ok_or("equipment wear overflow")?
+                    .checked_div(i128::from(old.remaining_uses))
+                    .ok_or("cannot depreciate exhausted equipment")?;
+                let process = t.process.as_ref().ok_or("wear without process")?;
+                accounting::add(&mut wear_costs, process.after.id, cost)?;
+                asset_values.insert(id, basis - cost);
+            }
         }
         let coin = self.book.denomination();
         let negotiated = crate::negotiation::transactions(world, before, &batch.negotiation)?;
@@ -401,8 +472,13 @@ impl Audit {
             return Err("mixed trading/production boundary needs a shared cost allocator".into());
         }
         let (processes, inventory, process_lines) = if let Some(costs) = &self.processes {
-            let (costs, inventory, lines) =
-                costs.settle(world, &inventory, &process_transactions, coin)?;
+            let (costs, inventory, lines) = costs.settle_with_equipment(
+                world,
+                &inventory,
+                &process_transactions,
+                coin,
+                &wear_costs,
+            )?;
             (Some(costs), inventory, lines)
         } else {
             (None, inventory, vec![])
@@ -427,6 +503,7 @@ impl Audit {
         for t in &batch.transactions {
             if (self.dues.is_some() && dues_transactions.contains(t))
                 || t.process.is_some()
+                || t.trade.is_some()
                 || trades.contains(&t)
             {
                 continue;
@@ -471,7 +548,7 @@ impl Audit {
             world,
             after,
             coin,
-            &self.asset_values,
+            &asset_values,
             &inventory,
             processes.as_ref(),
             self.dues.as_ref(),
@@ -482,7 +559,11 @@ impl Audit {
         }
         let mut lines = process_lines;
         let mut flows = Flows::new();
-        for l in trade_lines.into_iter().chain(dues_lines) {
+        for l in trade_lines
+            .into_iter()
+            .chain(dues_lines)
+            .chain(equipment_lines)
+        {
             if let Some(kind) = l.flow {
                 flow(&mut flows, l.agent, l.account, kind, l.debit)?;
             } else {
@@ -954,6 +1035,7 @@ impl Audit {
         if reported != closing {
             return Err("journal does not reconcile to authoritative positions".into());
         }
+        self.asset_values = asset_values;
         self.processes = processes;
         self.inventory = inventory;
         self.book = candidate;
