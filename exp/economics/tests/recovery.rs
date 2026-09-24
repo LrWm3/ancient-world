@@ -728,6 +728,7 @@ fn with_accepted_forward(mut sim: Simulation, due: u32) -> Simulation {
         advance: Amount::new(TOKEN, 2),
         price: Price { goods: 2, coins: 1 },
         delivered: 0,
+        relief: vec![],
     };
     sim.world.bids.push(Bid {
         id: 1,
@@ -961,4 +962,301 @@ fn admission_receipts_filter_nonloan_creditors_and_reject_forged_closure() {
             .unwrap_err()
             .contains("invalid proceeding")
     );
+}
+
+fn delivery_terms(
+    month: u32,
+    action: economics_compute_smoke::delivery_relief::Action,
+) -> economics_compute_smoke::delivery_relief::Terms {
+    economics_compute_smoke::delivery_relief::Terms {
+        id: 1,
+        proceeding: 1,
+        contract: 9000,
+        debtor: PERSON,
+        creditor: OTHER,
+        month,
+        expected_due: 13,
+        expected_remaining: 4,
+        action,
+    }
+}
+
+#[test]
+fn explicit_delivery_writeoff_closes_estate_without_fictitious_delivery_or_issuance() {
+    use economics_compute_smoke::delivery_relief::Action;
+    let mut sim = with_accepted_forward(land_estate(true), 13);
+    sim.state.balances.insert((PERSON, scenario::GRAIN), 2); // Only real land dues.
+    sim.world
+        .recovery
+        .delivery_relief
+        .push(delivery_terms(15, Action::WriteOff { quantity: 4 }));
+    sim.run_months(1).unwrap();
+    let before = sim.state.balances.clone();
+    let mut cpu = Simulation::new(sim.world.clone(), sim.state.clone(), Backend::CubeCpu).unwrap();
+    sim.run_months(1).unwrap();
+    cpu.run_months(1).unwrap();
+    assert_eq!(sim.state, cpu.state);
+    assert_eq!(sim.state.balances, before);
+    let c = &sim.state.exchange.forwards[&9000];
+    assert_eq!(
+        (
+            c.goods.quantity,
+            c.delivered,
+            c.written_off(),
+            c.claim().outstanding()
+        ),
+        (4, 0, 4, 0)
+    );
+    assert_eq!(
+        sim.state.credit.recovery.proceedings[&1].stage,
+        Stage::Closed
+    );
+    assert_eq!(sim.state.balance(OTHER, scenario::GRAIN), 0);
+    assert!(
+        sim.ledger
+            .iter()
+            .flat_map(|b| &b.credit)
+            .flat_map(|c| &c.recovery)
+            .any(|r| matches!(
+                r,
+                Receipt::DeliveryRelief {
+                    applied: true,
+                    written_off: 4,
+                    remaining: 0,
+                    ..
+                }
+            ))
+    );
+    let mut resumed =
+        Simulation::new(sim.world.clone(), sim.state.clone(), Backend::Reference).unwrap();
+    sim.run_months(2).unwrap();
+    resumed.run_months(1).unwrap();
+    resumed.run_months(1).unwrap();
+    assert_eq!(sim.state, resumed.state);
+    assert_eq!(sim.state.exchange.forwards[&9000].relief.len(), 1);
+}
+
+#[test]
+fn extension_defers_delivery_and_partial_writeoff_leaves_real_residual() {
+    use economics_compute_smoke::delivery_relief::Action;
+    let mut sim = with_accepted_forward(land_estate(true), 13);
+    sim.state.balances.insert((PERSON, scenario::GRAIN), 4);
+    sim.world
+        .recovery
+        .delivery_relief
+        .push(delivery_terms(14, Action::Extend { due: 17 }));
+    let mut partial = delivery_terms(18, Action::WriteOff { quantity: 1 });
+    partial.id = 2;
+    partial.expected_due = 17;
+    partial.expected_remaining = 2;
+    sim.world.recovery.delivery_relief.push(partial);
+    sim.run_months(3).unwrap(); // Through month 16, grain exists but is not due.
+    let c = &sim.state.exchange.forwards[&9000];
+    assert_eq!((c.due, c.effective_due(), c.delivered), (13, 17, 0));
+    assert_eq!(
+        economics_compute_smoke::forward::pledged(&sim.state, PERSON, scenario::GRAIN),
+        4
+    );
+    sim.run_months(2).unwrap(); // Actual delivery 2 at 17, then forgive only 1 at 18.
+    let c = &sim.state.exchange.forwards[&9000];
+    assert_eq!(
+        (c.delivered, c.written_off(), c.claim().outstanding()),
+        (2, 1, 1)
+    );
+    assert_eq!(sim.state.balance(OTHER, scenario::GRAIN), 2);
+    assert_eq!(
+        sim.state.credit.recovery.proceedings[&1].stage,
+        Stage::Active
+    );
+    assert_eq!(
+        economics_compute_smoke::forward::pledged(&sim.state, PERSON, scenario::GRAIN),
+        1
+    );
+    sim.state.balances.insert((PERSON, scenario::GRAIN), 1);
+    sim.run_months(2).unwrap();
+    assert_eq!(sim.state.exchange.forwards[&9000].delivered, 3);
+    assert_eq!(sim.state.balance(OTHER, scenario::GRAIN), 3);
+    assert_eq!(
+        sim.state.credit.recovery.proceedings[&1].stage,
+        Stage::Closed
+    );
+}
+
+#[test]
+fn stale_or_wrong_party_delivery_relief_is_not_applied() {
+    use economics_compute_smoke::delivery_relief::Action;
+    for wrong_party in [false, true] {
+        let mut sim = with_accepted_forward(land_estate(true), 13);
+        sim.state
+            .balances
+            .insert((PERSON, scenario::GRAIN), if wrong_party { 2 } else { 3 });
+        let mut terms = delivery_terms(15, Action::WriteOff { quantity: 4 });
+        if wrong_party {
+            terms.creditor = STATE_AGENT;
+        }
+        sim.world.recovery.delivery_relief.push(terms);
+        sim.run_months(2).unwrap();
+        let c = &sim.state.exchange.forwards[&9000];
+        assert!(c.relief.is_empty());
+        assert_eq!(c.claim().outstanding(), if wrong_party { 4 } else { 3 });
+        assert_eq!(
+            sim.state.credit.recovery.proceedings[&1].stage,
+            Stage::Active
+        );
+        assert!(
+            sim.ledger
+                .iter()
+                .flat_map(|b| &b.credit)
+                .flat_map(|c| &c.recovery)
+                .any(|r| matches!(
+                    r,
+                    Receipt::DeliveryRelief {
+                        applied: false,
+                        written_off: 0,
+                        ..
+                    }
+                ))
+        );
+    }
+}
+
+#[test]
+fn invalid_or_forged_delivery_relief_cannot_publish_partial_state() {
+    use economics_compute_smoke::delivery_relief::Action;
+    let mut sim = with_accepted_forward(land_estate(true), 13);
+    sim.state.balances.insert((PERSON, scenario::GRAIN), 2);
+    for action in [
+        Action::WriteOff { quantity: 5 },
+        Action::WriteOff { quantity: 0 },
+        Action::Extend { due: 14 },
+    ] {
+        let mut bad = sim.world.clone();
+        bad.recovery
+            .delivery_relief
+            .push(delivery_terms(14, action));
+        assert!(Simulation::new(bad, sim.state.clone(), Backend::Reference).is_err());
+    }
+    sim.world
+        .recovery
+        .delivery_relief
+        .push(delivery_terms(14, Action::WriteOff { quantity: 4 }));
+    while sim.state.phase != Phase::Due {
+        sim.step().unwrap();
+    }
+    let opening = sim.state.clone();
+    let mut preview = sim.clone();
+    preview.step().unwrap();
+    let mut forged = preview.ledger.last().unwrap().clone();
+    forged
+        .credit
+        .as_mut()
+        .unwrap()
+        .forward_changes
+        .get_mut(&9000)
+        .unwrap()
+        .delivered = 4;
+    assert!(
+        settlement::commit(
+            &sim.world,
+            &mut sim.state,
+            &forged,
+            Backend::Reference,
+            settlement::DEFAULT_EFFECT_LIMIT
+        )
+        .is_err()
+    );
+    assert_eq!(sim.state, opening);
+    sim.step().unwrap();
+    let mut forged_state = sim.state.clone();
+    forged_state
+        .exchange
+        .forwards
+        .get_mut(&9000)
+        .unwrap()
+        .relief[0]
+        .terms
+        .creditor = STATE_AGENT;
+    assert!(Simulation::new(sim.world.clone(), forged_state, Backend::Reference).is_err());
+    let mut forged_state = sim.state.clone();
+    forged_state
+        .exchange
+        .forwards
+        .get_mut(&9000)
+        .unwrap()
+        .delivered = 1;
+    assert!(Simulation::new(sim.world.clone(), forged_state, Backend::Reference).is_err());
+}
+
+#[test]
+fn delivery_relief_logs_creditor_outcome_without_changing_execution() {
+    use economics_compute_smoke::{
+        delivery_relief::Action,
+        telemetry::{Config, Observer},
+    };
+    let mut sim = with_accepted_forward(land_estate(true), 13);
+    sim.state.credit.loans.remove(&11);
+    sim.world.lending.retain(|a| a.id != 11);
+    sim.state.balances.insert((PERSON, scenario::GRAIN), 2);
+    sim.world
+        .recovery
+        .delivery_relief
+        .push(delivery_terms(15, Action::WriteOff { quantity: 4 }));
+    let mut plain = sim.clone();
+    let mut observer = Observer::new(
+        vec![],
+        "delivery-relief",
+        Config {
+            settlement: true,
+            agents: [OTHER].into_iter().collect(),
+            ..Config::default()
+        },
+    )
+    .unwrap();
+    observer.run_months(&mut sim, 2).unwrap();
+    plain.run_months(2).unwrap();
+    assert_eq!(sim.state, plain.state);
+    assert_eq!(sim.ledger, plain.ledger);
+    let log = String::from_utf8(observer.finish().unwrap()).unwrap();
+    assert!(log.lines().any(|line| line.contains("DeliveryRelief")
+        && line.contains("\"written_off\":4")
+        && line.contains("\"applied\":true")));
+}
+
+#[test]
+fn fulfilled_deliveries_or_inactive_cases_cannot_generate_writeoffs() {
+    use economics_compute_smoke::delivery_relief::{Action, Rejection};
+    for inactive in [false, true] {
+        let mut sim = with_accepted_forward(land_estate(true), 13);
+        if inactive {
+            // No admissible arrears at the authorized opening month.
+            sim.world.lending.clear();
+            sim.state.credit = Default::default();
+            sim.world.agreements.clear();
+            sim.world.issuance.clear();
+            sim.world.activities.coin_payments.clear();
+            sim.state.obligations.clear();
+            sim.state
+                .exchange
+                .forwards
+                .get_mut(&9000)
+                .unwrap()
+                .delivered = 4;
+        } else {
+            sim.state.balances.insert((PERSON, scenario::GRAIN), 6);
+        }
+        sim.world
+            .recovery
+            .delivery_relief
+            .push(delivery_terms(15, Action::WriteOff { quantity: 4 }));
+        sim.run_months(2).unwrap();
+        assert!(sim.state.exchange.forwards[&9000].relief.is_empty());
+        assert_eq!(sim.state.exchange.forwards[&9000].delivered, 4);
+        let expected = if inactive {
+            Rejection::InactiveProceeding
+        } else {
+            Rejection::TermsMismatch
+        };
+        assert!(sim.ledger.iter().flat_map(|b| &b.credit).flat_map(|c| &c.recovery)
+            .any(|r| matches!(r, Receipt::DeliveryRelief { applied: false, rejection: Some(reason), .. } if *reason == expected)));
+    }
 }

@@ -49,6 +49,8 @@ pub struct Contract {
     pub price: Price,
     pub advance: Amount,
     pub delivered: i32,
+    /// Accepted relief applied at Due; never recorded as physical delivery.
+    pub relief: Vec<crate::delivery_relief::Applied>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Purchase {
@@ -81,6 +83,23 @@ pub enum Event {
 }
 
 impl Contract {
+    pub fn effective_due(&self) -> u32 {
+        self.relief
+            .iter()
+            .fold(self.due, |due, r| match r.terms.action {
+                crate::delivery_relief::Action::Extend { due } => due,
+                crate::delivery_relief::Action::WriteOff { .. } => due,
+            })
+    }
+    pub fn written_off(&self) -> i32 {
+        self.relief
+            .iter()
+            .map(|r| match r.terms.action {
+                crate::delivery_relief::Action::WriteOff { quantity } => quantity,
+                _ => 0,
+            })
+            .sum()
+    }
     pub fn claim(&self) -> finance::Obligation {
         finance::Obligation {
             transfer: Transfer {
@@ -88,8 +107,8 @@ impl Contract {
                 to: self.creditor,
                 amount: self.goods.clone(),
             },
-            settled: self.delivered,
-            condition: Condition::OnOrAfterMonth(self.due),
+            settled: self.delivered + self.written_off(),
+            condition: Condition::OnOrAfterMonth(self.effective_due()),
             failure: FailureRule::BlockNewAdvance,
         }
     }
@@ -301,7 +320,7 @@ pub fn purchase(
                 .values()
                 .filter(|c| c.creditor == config.lender)
                 .map(|c| {
-                    i64::from(c.goods.quantity - c.delivered)
+                    i64::from(c.claim().outstanding())
                         * i64::from(*world.storage.weights.get(&c.goods.resource).unwrap_or(&0))
                 })
                 .sum();
@@ -332,6 +351,7 @@ pub fn purchase(
                 price: rate.clone(),
                 advance: Amount::new(config.coin, gap),
                 delivered: 0,
+                relief: vec![],
             });
             break;
         }
@@ -398,7 +418,7 @@ pub fn settle(
         .exchange
         .forwards
         .values()
-        .filter(|c| c.due <= state.month)
+        .filter(|c| c.effective_due() <= state.month)
         .collect();
     contracts.sort_by_key(|c| {
         (
@@ -407,7 +427,7 @@ pub fn settle(
                 .get(&finance::ContractId::Forward(c.id))
                 .copied()
                 .unwrap_or(finance::DEFAULT_CLAIM_RANK),
-            c.due,
+            c.effective_due(),
             c.id,
         )
     });
@@ -496,6 +516,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         return Err("invalid forward advance prices".into());
     }
     for (&id, c) in &state.exchange.forwards {
+        crate::delivery_relief::validate_history(world, state, c)?;
         if id != c.id
             || c.creditor != config.lender
             || c.goods.quantity <= 0
@@ -517,6 +538,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                     p.advance.as_ref().is_some_and(|a| {
                         let mut expected = a.clone();
                         expected.delivered = c.delivered;
+                        expected.relief = c.relief.clone();
                         expected == *c
                     })
                 })
@@ -534,6 +556,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                 || a.debtor != d.buyer
                 || a.issued != p.projection.from
                 || a.delivered != 0
+                || !a.relief.is_empty()
                 || a.advance.quantity > p.price.quantity
                 || p.projection
                     .surplus

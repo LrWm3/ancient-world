@@ -37,13 +37,13 @@ pub fn outstanding(world: &World, state: &State, debtor: AgentId) -> Vec<Claim> 
         .exchange
         .forwards
         .values()
-        .filter(|c| c.debtor == debtor && c.delivered < c.goods.quantity)
+        .filter(|c| c.debtor == debtor && c.claim().outstanding() > 0)
     {
         claims.push(Claim {
             contract: ContractId::Forward(c.id),
             creditor: c.creditor,
-            due: c.due,
-            remaining: Amount::new(c.goods.resource, c.goods.quantity - c.delivered),
+            due: c.effective_due(),
+            remaining: Amount::new(c.goods.resource, c.claim().outstanding()),
         });
     }
     claims.sort_by_key(|c| (c.contract, c.due));
@@ -53,6 +53,10 @@ pub fn outstanding(world: &World, state: &State, debtor: AgentId) -> Vec<Claim> 
 pub(crate) fn current(state: &State, out: &credit::Boundary) -> State {
     let mut current = state.clone();
     current.credit = out.after.clone();
+    current
+        .exchange
+        .forwards
+        .extend(out.forward_changes.clone());
     if let Some(s) = &out.commitments {
         current.obligations = s.obligations.clone();
     }

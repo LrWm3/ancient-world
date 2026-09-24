@@ -381,6 +381,10 @@ pub(crate) fn commit_core(
     }
     if let Some(boundary) = &batch.credit {
         staged.credit = boundary.after.clone();
+        staged
+            .exchange
+            .forwards
+            .extend(boundary.forward_changes.clone());
         if let Some(commitments) = &boundary.commitments {
             staged.obligations = commitments.obligations.clone();
         }

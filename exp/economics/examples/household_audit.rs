@@ -79,7 +79,7 @@ fn main() -> Result<(), String> {
             .forwards
             .values()
             .filter(|c| c.due < reference.state.month)
-            .map(|c| i64::from(c.goods.quantity - c.delivered))
+            .map(|c| i64::from(c.claim().outstanding()))
             .sum::<i64>()
     );
     for a in &w.households {

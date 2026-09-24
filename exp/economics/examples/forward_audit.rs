@@ -44,7 +44,7 @@ fn main() -> Result<(), String> {
     let overdue: i64 = forwards
         .values()
         .filter(|c| c.due < sim.state.month)
-        .map(|c| i64::from(c.goods.quantity - c.delivered))
+        .map(|c| i64::from(c.claim().outstanding()))
         .sum();
     let mut reasons = BTreeMap::new();
     let mut deliveries = BTreeMap::new();

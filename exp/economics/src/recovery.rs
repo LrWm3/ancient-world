@@ -57,6 +57,7 @@ pub struct Config {
     pub guarantees: Vec<Guarantee>,
     pub proceedings: Vec<ProceedingTerms>,
     pub bids: Vec<Bid>,
+    pub delivery_relief: Vec<crate::delivery_relief::Terms>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stage {
@@ -80,6 +81,17 @@ pub struct Book {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Receipt {
+    DeliveryRelief {
+        proceeding: u32,
+        terms: u32,
+        contract: AssetId,
+        creditor: AgentId,
+        applied: bool,
+        rejection: Option<crate::delivery_relief::Rejection>,
+        due: u32,
+        written_off: i32,
+        remaining: i32,
+    },
     Admitted {
         proceeding: u32,
         claims: Vec<crate::recovery_claims::Claim>,
@@ -166,6 +178,10 @@ fn rank(world: &World, loan: &Loan) -> u32 {
 }
 
 pub fn validate(world: &World, state: &State) -> Result<(), String> {
+    crate::delivery_relief::validate_terms(world)?;
+    for c in state.exchange.forwards.values() {
+        crate::delivery_relief::validate_history(world, state, c)?;
+    }
     let config = &world.recovery;
     let agent = |id| world.agents.iter().any(|a| a.id == id);
     let mut ids = BTreeSet::new();

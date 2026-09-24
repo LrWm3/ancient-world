@@ -110,6 +110,21 @@ pub(super) fn batch(
         for receipt in &credit.recovery {
             use crate::recovery::Receipt;
             let (case_id, detail) = match receipt {
+                Receipt::DeliveryRelief {
+                    proceeding,
+                    terms,
+                    contract,
+                    creditor,
+                    applied,
+                    rejection,
+                    due,
+                    written_off,
+                    remaining,
+                } => (
+                    Some(*proceeding),
+                    json!({"event":"DeliveryRelief", "terms":terms, "contract":contract, "creditor":creditor,
+                        "applied":applied, "rejection":rejection.as_ref().map(|r| format!("{r:?}")), "due":due, "written_off":written_off, "remaining":remaining}),
+                ),
                 Receipt::Admitted { proceeding, claims }
                 | Receipt::ClosureDeferred { proceeding, claims } => (
                     Some(*proceeding),

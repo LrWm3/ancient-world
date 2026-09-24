@@ -303,6 +303,7 @@ pub enum Event {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Boundary {
+    pub forward_changes: BTreeMap<AssetId, crate::forward::Contract>,
     pub recovery: Vec<crate::recovery::Receipt>,
     pub collections: Vec<finance::CollectionReceipt>,
     pub commitments: Option<crate::commitments::Settlement>,
@@ -1494,6 +1495,7 @@ fn due(
         out.after.loans.insert(id, l);
     }
     crate::recovery::guarantees(world, state, out, &mut execution)?;
+    crate::delivery_relief::apply(world, state, out);
     crate::recovery::distribute(world, state, out, &mut execution)?;
     *budgets = execution.available;
     Ok(())
@@ -1507,6 +1509,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
         return Ok(None);
     }
     let mut out = Boundary {
+        forward_changes: BTreeMap::new(),
         recovery: vec![],
         collections: vec![],
         commitments: None,

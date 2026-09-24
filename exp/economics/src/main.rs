@@ -98,8 +98,8 @@ fn run() -> Result<(), String> {
                 .exchange
                 .forwards
                 .values()
-                .filter(|c| c.due < simulation.state.month)
-                .map(|c| i64::from(c.goods.quantity - c.delivered))
+                .filter(|c| c.effective_due() < simulation.state.month)
+                .map(|c| i64::from(c.claim().outstanding()))
                 .sum();
             println!(
                 "- Upfront coin pricing over {} projected months; state forwards enabled: {}. No ongoing tool royalties.",

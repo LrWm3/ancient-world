@@ -126,7 +126,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Request>, String>
             .exchange
             .forwards
             .values()
-            .any(|c| c.debtor == agent && c.delivered < c.goods.quantity)
+            .any(|c| c.debtor == agent && c.claim().outstanding() > 0)
     {
         r.reason = Reason::ExistingDebt;
         return Ok(Some(r));

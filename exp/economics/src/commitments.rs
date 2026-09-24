@@ -558,10 +558,9 @@ pub(crate) fn projected_claims(
         .values()
         .filter(|c| c.debtor == debtor && c.goods.resource == resource)
     {
-        let due = u64::from(contract.due).max(start);
+        let due = u64::from(contract.effective_due()).max(start);
         if due < end {
-            *claims.entry(due).or_default() +=
-                i128::from(contract.goods.quantity - contract.delivered);
+            *claims.entry(due).or_default() += i128::from(contract.claim().outstanding());
         }
     }
     for a in active(world, state).filter(|a| a.debtor == debtor && a.payment.resource == resource) {
