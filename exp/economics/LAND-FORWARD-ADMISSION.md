@@ -39,16 +39,18 @@ universal cross-commodity waterfall.
 ## Closure and retained limits
 
 Before closing or discharging loan deficiencies, the proceeding checks its
-current non-loan claims. Every unpaid materialized land bill and every undelivered
+current non-loan claims. Every unpaid materialized land bill and every outstanding
 accepted forward blocks closure, even if the latter is not due yet. The
 `ClosureDeferred` receipt lists the actual blocking claims in their denominations.
 The existing discharge flag still governs **loan deficiencies only**; it cannot
 silently forgive rent or pretend goods were delivered.
 
-This is conservative: an impossible delivery can leave a proceeding open
-indefinitely. Negotiated termination, damages, commodity conversion and non-loan
-write-offs need explicit accepted/legal terms and remain outstanding. Once claims
-are fulfilled, a later Due can close. Later annual rent is still billable after
+Without accepted relief, an impossible delivery can leave a proceeding open
+indefinitely. [Explicit forward relief](DELIVERY-RELIEF.md) now permits dated,
+mutually accepted extensions or quantity write-offs at Due. Relief is recorded
+separately from actual delivery; remaining claims still block closure. Land-bill
+relief, damages and commodity conversion remain outstanding. Once claims
+are fulfilled, a later Due can close; a full explicit release can permit same-Due closure. Later annual rent is still billable after
 closure; a dated closure marker distinguishes that new debt from an improperly
 discarded old claim when validating checkpoints.
 

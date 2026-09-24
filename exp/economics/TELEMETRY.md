@@ -287,3 +287,8 @@ Provision records include `goal` (`FullBuffer` or `Incremental`) and
 horizon target, while `cash_gap` belongs to the selected purchase target.
 `AwaitOpportunity` means a reachable partial target is funded but the full buffer
 is not covered; it must not be aggregated with completed leisure.
+
+Forward relief emits `DeliveryRelief` with accepted term ID, forward, creditor,
+application/rejection result, effective due date, newly written-off quantity and
+remaining claim. These are legal claim changes, not physical delivery metrics;
+creditor filtering includes them. See [explicit delivery relief](DELIVERY-RELIEF.md).

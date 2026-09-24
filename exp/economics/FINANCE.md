@@ -95,3 +95,8 @@ See [contract recovery](CONTRACT-RECOVERY.md#earlier-loan-estate-validation) for
   These are regression controls, not evidence of economic balance at scale.
 - Full crate suite: 156 tests passed. Formatting, Clippy with warnings denied,
   and repository artifact checks passed. Raw outputs remain under ignored `output/`.
+
+Accepted [forward relief](DELIVERY-RELIEF.md) now stages dated extensions and
+quantity write-offs through the credit boundary. It retains original acceptance
+and actual deliveries, with separate release history; it does not add cash damages
+or land-bill discharge.

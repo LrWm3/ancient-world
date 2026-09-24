@@ -20,7 +20,8 @@ explicit inventory of titled physical assets. All still-pledged collateral must
 be included. [Land/forward admission](LAND-FORWARD-ADMISSION.md) preserves native
 performance and maturity: eligible land cash payments share the estate pool;
 native goods still collect at their existing boundaries. Unfulfilled non-loan
-claims prevent closure rather than being converted or discharged. Mortgages using
+claims prevent closure unless explicitly released under
+[accepted forward relief](DELIVERY-RELIEF.md); no implicit conversion occurs. Mortgages using
 the older scenario configuration remain excluded. This is bounded contractual
 recovery, not yet universal insolvency.
 
@@ -96,12 +97,14 @@ those loans `Discharged`, distinct from `Repaid`. Surplus goes back to the debto
 New same-month recourse must get a later collection boundary before closure.
 Unpaid land bills or undelivered accepted forwards also prevent closure, including
 future forwards. The discharge flag does not forgive these performance claims.
+A separate accepted forward amendment can extend an overdue delivery or release
+a quantity at Due before closure; actual delivery counters remain unchanged.
 Closed receipts retain their date so subsequent annual bills remain distinguishable
 from claims that should have blocked closing.
 
 Remaining general claims, durable equipment inventories, multicurrency estates,
 shared operating custodians, multiple liens, automatic asset discovery, auctions,
-contested authorization, negotiated restructuring and general non-loan discharge
+contested authorization, autonomous restructuring and general non-loan discharge
 are not implemented. Constitution/charter and state-law machinery will eventually
 supply these terms; configured authorization is the current integration point.
 

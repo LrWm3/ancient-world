@@ -116,7 +116,15 @@ to fixtures that have no condition rules.
 
 ## Verification
 
-Land/forward admission passed 99 tests across 11 affected suites, including all
+[Explicit forward relief](DELIVERY-RELIEF.md) adds accepted overdue-date extensions
+and quantity write-offs, separate from actual performance. Land-bill disposition
+and autonomous renegotiation remain outstanding.
+
+Latest forward-relief validation passed 105 distinct tests across 11 affected
+suites in scoped runs; the final recovery/telemetry run passed all 36 tests.
+See [completed validation](DELIVERY-RELIEF.md#completed-validation).
+
+Earlier land/forward admission passed 99 tests across 11 affected suites, including all
 20 recovery tests. See [the admission record](LAND-FORWARD-ADMISSION.md#completed-validation)
 for tested behavior and the limits of this scoped rerun.
 

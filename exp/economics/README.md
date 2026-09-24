@@ -17,13 +17,14 @@ remaining financial work.
 | Marketplaces | Bilateral negotiation/ZIP, local town books, need-generated orders and reciprocal commodity markets | Shared acquisition with every driver; general markets for labor, assets, rights and memberships |
 | Contracts and lending | Direct consented advances and mortgages share a loan book; loan, land and forward claims share execution; guarantees share inspection | Common acceptance/performance adapters for all arrangements; autonomous general loan discovery/underwriting |
 | [Creditor allocation](CREDITOR-ALLOCATION.md) | Ranked collection and opt-in proportional loan/land allocation, including accepted coin tender and whole-unit conversion | Standalone land and forward allocation; additional denominations/routes and indivisible obligations |
-| Recovery | Capped guarantees with recourse; authorized stays, frozen interest, dedicated estate custody, funded sales, secured/general distributions, surplus and loan write-offs; land/forward admission | General non-loan discharge, multiple currencies/liens, guarantee lien subrogation, autonomous liquidation and death/dissolution estates |
+| Recovery | Capped guarantees with recourse; authorized stays, frozen interest, dedicated estate custody, funded sales, secured/general distributions, surplus and loan write-offs; land/forward admission and explicit forward relief | General non-loan discharge, multiple currencies/liens, guarantee lien subrogation, autonomous liquidation and death/dissolution estates |
 | Observability | External metrics and logs; planning/settlement observers; requested, allocated and paid recovery receipts | Broader subsystem coverage as integrations are added |
 
 [Contract recovery](CONTRACT-RECOVERY.md) is explicitly limited to configured,
 single-denomination cash estates with [land/forward admission](LAND-FORWARD-ADMISSION.md).
-Native obligations keep their due dates and performance requirements. Unpaid land
-bills and undelivered forwards prevent closure; they are not silently discharged.
+Native obligations keep their performance requirements. Unpaid land bills and
+outstanding forwards prevent closure; [accepted forward relief](DELIVERY-RELIEF.md)
+can explicitly extend a date or write off quantities without pretending delivery.
 Guarantee consent, proceeding authorization, asset inventories and
 buyers are supplied configuration, not agent-discovered outcomes.
 
@@ -33,9 +34,14 @@ Formatting, strict all-target Clippy and artifact checks passed. These establish
 the tested accounting and continuation boundaries, not economic calibration or
 arbitrary composition. See the [verification record](CONTRACT-RECOVERY.md#earlier-loan-estate-validation).
 
-Latest land/forward admission validation: **99 tests passed across 11 affected
+Earlier land/forward admission validation: **99 tests passed across 11 affected
 suites**, including 20 recovery tests. See [Land/forward admission](LAND-FORWARD-ADMISSION.md)
 for the controls and remaining composition limits.
+
+Latest [explicit forward relief](DELIVERY-RELIEF.md#completed-validation) validation:
+**105 distinct tests passed across 11 affected suites in scoped runs**, including
+26 recovery tests; final recovery/telemetry rerun passed all 36 tests. Full-crate
+rerun remains outstanding.
 
 ## Purpose and existing scenarios
 

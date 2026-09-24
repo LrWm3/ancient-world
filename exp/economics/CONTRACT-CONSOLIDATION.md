@@ -105,9 +105,9 @@ and boundaries. Older totals below describe earlier consolidation snapshots.
 
 [Land/forward admission](LAND-FORWARD-ADMISSION.md) is now implemented: native
 performance retains its denomination, timing and receipts; eligible land cash
-shares estate allocation; incomplete non-loan claims block closure. The next
-recovery gap is explicit disposition of unfulfillable performance claims:
-accepted conversion, restructuring or termination/write-off terms. Broader
+shares estate allocation; incomplete non-loan claims block closure. [Explicit forward relief](DELIVERY-RELIEF.md) now supports accepted date extensions
+and quantity write-offs. Land-bill relief, conversion, damages and autonomous
+renegotiation remain outstanding. Broader
 acquisition adapters remain necessary before the mixed continuing scenario below
 can establish that all these arrangements compose.
 
