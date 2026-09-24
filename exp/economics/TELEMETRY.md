@@ -264,3 +264,9 @@ every suppressed quote or attempted counterparty.
 For repeated mint targets, `physical_minting_orders.target_month` identifies the
 next configured attempt, including a target that cannot be funded or matched. It
 is null after the final date. Missed dates do not accumulate a retry backlog.
+
+With the [food provision policy](MINT-PROVISION.md), mint-order records also include
+`provision`: per-participant required and held food, expected future access, cash
+gap and `Covered`, `SeekIncome`, `NoFoodAccess` or `AwaitFood` choice. These precede
+input settlement; actual leisure and earning work remain ordinary process records.
+Unused labor alone is not recorded as leisure.

@@ -10,6 +10,7 @@ use crate::{
 use std::collections::{BTreeMap, BTreeSet};
 
 pub mod orders;
+pub mod provisioning;
 
 pub const ISSUER: AgentId = 0;
 pub const SUPPLIER: AgentId = 88;
@@ -38,6 +39,18 @@ const THIRD_MINT_MONTH: u32 = 6;
 const REPEATED_ORE: i32 = 6;
 const REPEATED_FIREWOOD_TARGET: i32 = 6;
 const LOW_MINT_YIELD: i32 = 4;
+pub const NUTRITION: ResourceId = 107;
+pub const LEISURE_TIME: ResourceId = 108;
+pub const EAT: DefinitionId = 104;
+pub const REST: DefinitionId = 105;
+const PROVISION_MONTHS: u32 = 6;
+const PROVISION_HORIZON: u32 = 3;
+const FOOD_PRICE: i32 = 3;
+const FOOD_PER_MONTH: i32 = 1;
+const ADEQUATE_GRANARY: i32 = 18;
+const SCARCE_GRANARY: i32 = 6;
+const PROVISION_TREASURY: i32 = 12;
+const INPUT_BID_CEILING: i32 = 6;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Deal {
@@ -549,6 +562,7 @@ pub fn order_scenario(case: &str) -> Result<(World, State), String> {
     c.order_policy = Some(orders::Policy {
         month: MINT_MONTH,
         additional_months: BTreeSet::new(),
+        provisioning: None,
         sale_market: WHEAT,
         sale_limit: WHEAT_LOT,
         input_limits: BTreeMap::from([(METAL, METAL_LOT), (HOURS, WAGE)]),
@@ -670,6 +684,140 @@ pub fn repeated_scenario(case: &str) -> Result<(World, State), String> {
                 .quantity = LOW_MINT_YIELD;
         }
         _ => return Err("unknown repeated minting case".into()),
+    }
+    Ok((w, s))
+}
+
+/// Food provision and purchasing-power-sensitive work in the same isolated market.
+pub fn provision_scenario(case: &str) -> Result<(World, State), String> {
+    use crate::activities::{Target, WorkOrder};
+    let (mut w, mut s) = repeated_scenario("normal")?;
+    w.resources.extend([
+        Resource {
+            id: NUTRITION,
+            name: "nutrition".into(),
+            kind: ResourceKind::Fulfillment,
+        },
+        Resource {
+            id: LEISURE_TIME,
+            name: "leisure hours this month".into(),
+            kind: ResourceKind::Stock,
+        },
+    ]);
+    w.activities.perishable.insert(LEISURE_TIME);
+    w.definitions.extend([
+        ProcessDefinition {
+            id: EAT,
+            name: "eat wheat".into(),
+            execution: Execution::Consumption,
+            enabled: true,
+            asset_kind: None,
+            stages: vec![Stage {
+                name: "eat".into(),
+                months: 1,
+                entry_inputs: vec![Amount::new(WHEAT, FOOD_PER_MONTH)],
+                monthly_services: vec![],
+            }],
+            outputs: vec![Amount::new(NUTRITION, FOOD_PER_MONTH)],
+        },
+        ProcessDefinition {
+            id: REST,
+            name: "take leisure".into(),
+            execution: Execution::Productive,
+            enabled: true,
+            asset_kind: None,
+            stages: vec![Stage {
+                name: "leisure".into(),
+                months: 1,
+                entry_inputs: vec![],
+                monthly_services: vec![Amount::new(HOURS, LABOR_LOT)],
+            }],
+            outputs: vec![Amount::new(LEISURE_TIME, LABOR_LOT)],
+        },
+    ]);
+    for a in w.participants.iter_mut().filter(|a| a.agent != ISSUER) {
+        a.needs = vec![Requirement {
+            resource: NUTRITION,
+            quantity: FOOD_PER_MONTH,
+            priority: 0,
+        }];
+    }
+    let policy = w.transaction_policy.as_mut().unwrap();
+    policy
+        .permissions
+        .insert((opportunities::PERSON_TYPE, Action::Process(EAT)));
+    policy
+        .permissions
+        .insert((opportunities::PERSON_TYPE, Action::Process(REST)));
+    w.marketplaces[0]
+        .markets
+        .iter_mut()
+        .find(|m| m.id == WHEAT)
+        .unwrap()
+        .goods
+        .quantity = FOOD_PER_MONTH;
+    let p = w.minting.as_mut().unwrap().order_policy.as_mut().unwrap();
+    p.month = 1;
+    p.additional_months = (2..=PROVISION_MONTHS).collect();
+    p.sale_limit = FOOD_PRICE;
+    p.input_limits = BTreeMap::from([(METAL, INPUT_BID_CEILING), (HOURS, INPUT_BID_CEILING)]);
+    p.provisioning = Some(provisioning::Policy {
+        consumption: EAT,
+        horizon_months: PROVISION_HORIZON,
+        leisure: REST,
+        earning: BTreeMap::from([(SUPPLIER, Some(REFINE)), (WORKER, None)]),
+    });
+    for q in p.quotes.iter_mut().filter(|q| q.market == WHEAT) {
+        q.limit = FOOD_PRICE;
+    }
+    w.scheduled_starts = (1..=PROVISION_MONTHS)
+        .map(|month| ScheduledStart {
+            month,
+            agent: ISSUER,
+            definition: MINT,
+        })
+        .collect();
+    w.activities.orders = vec![
+        WorkOrder {
+            agent: SUPPLIER,
+            definition: REFINE,
+            priority: 0,
+            target: Target::Stock(Amount::new(METAL, METAL_LOT)),
+        },
+        WorkOrder {
+            agent: SUPPLIER,
+            definition: REST,
+            priority: 0,
+            target: Target::Stock(Amount::new(LEISURE_TIME, LABOR_LOT)),
+        },
+        WorkOrder {
+            agent: WORKER,
+            definition: REST,
+            priority: 0,
+            target: Target::Stock(Amount::new(LEISURE_TIME, LABOR_LOT)),
+        },
+    ];
+    s.balances.insert((SUPPLIER, METAL), METAL_LOT);
+    s.balances.insert((ISSUER, COIN), PROVISION_TREASURY);
+    s.balances.insert((ISSUER, WHEAT), ADEQUATE_GRANARY);
+    for a in [SUPPLIER, WORKER] {
+        s.balances.insert((a, COIN), FOOD_PRICE);
+    }
+    match case {
+        "adequate" => {}
+        "scarce" => {
+            s.balances.insert((ISSUER, WHEAT), SCARCE_GRANARY);
+        }
+        "empty" => {
+            s.balances.insert((ISSUER, WHEAT), 0);
+        }
+        "endowed" => {
+            for a in [SUPPLIER, WORKER] {
+                s.balances
+                    .insert((a, WHEAT), PROVISION_MONTHS as i32 * FOOD_PER_MONTH);
+            }
+        }
+        _ => return Err("unknown provision case".into()),
     }
     Ok((w, s))
 }

@@ -14,6 +14,7 @@ pub struct Policy {
     pub sale_limit: i32,
     pub input_limits: BTreeMap<MarketId, i32>,
     pub quotes: Vec<Quote>,
+    pub provisioning: Option<super::provisioning::Policy>,
 }
 /// A buyer fills a stock target; a seller protects a reserve. Quotes are per lot.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -39,6 +40,7 @@ pub struct Plan {
     pub orders: Vec<Order>,
     pub deals: Vec<Deal>,
     pub reason: String,
+    pub provision: Vec<super::provisioning::Decision>,
 }
 
 pub fn validate(w: &World, c: &Config, p: &Policy) -> Result<(), String> {
@@ -144,10 +146,19 @@ pub fn validate(w: &World, c: &Config, p: &Policy) -> Result<(), String> {
             return Err("invalid mint counterparty quote policy".into());
         }
     }
+    if let Some(policy) = &p.provisioning {
+        super::provisioning::validate(w, c, p, policy)?;
+    }
     Ok(())
 }
 
 pub fn generate(w: &World, s: &State, c: &Config, p: &Policy) -> Result<Plan, String> {
+    if let Some(policy) = &p.provisioning {
+        return super::provisioning::generate(w, s, c, p, policy);
+    }
+    generate_fixed(w, s, c, p)
+}
+pub(super) fn generate_fixed(w: &World, s: &State, c: &Config, p: &Policy) -> Result<Plan, String> {
     let venue = marketplace::venue(w, c.venue).ok_or("missing venue")?;
     let market = |id| {
         venue
@@ -161,6 +172,7 @@ pub fn generate(w: &World, s: &State, c: &Config, p: &Policy) -> Result<Plan, St
         .find(|m| *m >= s.month);
     let mut plan = Plan {
         target_month: target,
+        provision: vec![],
         required_funding: 0,
         orders: vec![],
         deals: vec![],
@@ -266,7 +278,16 @@ pub fn generate(w: &World, s: &State, c: &Config, p: &Policy) -> Result<Plan, St
         plan.orders.extend(bids);
         plan.reason = "matching complete input package".into();
     }
-    plan.orders.sort_by_key(|o| (o.market, o.side, o.agent));
+    clear(w, s, c, &mut plan)?;
+    Ok(plan)
+}
+
+/// Food/stock sales precede the conditional input package, but their proceeds
+/// are never added to opening spendable funds. Failed inputs preserve sales.
+pub(super) fn clear(w: &World, s: &State, c: &Config, plan: &mut Plan) -> Result<(), String> {
+    plan.deals.clear();
+    plan.orders
+        .sort_by_key(|o| (o.side != Side::Sell, o.market, o.agent));
     let mut remaining: Vec<i32> = plan.orders.iter().map(|o| o.lots).collect();
     let mut resources = Resources::opening(w, s);
     let mut next_id = 1;
@@ -310,7 +331,11 @@ pub fn generate(w: &World, s: &State, c: &Config, p: &Policy) -> Result<Plan, St
                 let deal = Deal {
                     id: next_id,
                     month: s.month,
-                    package: if s.month == target_month { 1 } else { next_id },
+                    package: if order.side == Side::Buy {
+                        u32::MAX
+                    } else {
+                        next_id
+                    },
                     market: order.market,
                     buyer,
                     seller,
@@ -329,7 +354,7 @@ pub fn generate(w: &World, s: &State, c: &Config, p: &Policy) -> Result<Plan, St
                 remaining[j] -= 1;
             }
         }
-        if remaining[i] > 0 {
+        if order.side == Side::Buy && remaining[i] > 0 {
             shortages.push(format!(
                 "market {} lacks {} lots: {}",
                 order.market,
@@ -340,15 +365,9 @@ pub fn generate(w: &World, s: &State, c: &Config, p: &Policy) -> Result<Plan, St
             ));
         }
     }
-    if s.month == target_month
-        && plan
-            .orders
-            .iter()
-            .enumerate()
-            .any(|(i, o)| o.agent == c.issuer && remaining[i] > 0)
-    {
-        plan.deals.clear();
+    if !shortages.is_empty() {
+        plan.deals.retain(|d| d.seller == c.issuer);
         plan.reason = format!("input package unmatched: {}", shortages.join("; "));
     }
-    Ok(plan)
+    Ok(())
 }

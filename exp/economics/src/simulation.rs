@@ -357,6 +357,12 @@ impl Simulation {
         if !defer_new {
             for order in &self.world.activities.orders {
                 if crate::activities::wants(&self.world, &self.state, order)
+                    && crate::minting::provisioning::activity_allowed(
+                        &self.world,
+                        &self.state,
+                        order.agent,
+                        order.definition,
+                    )
                     && !requests.iter().any(|r| {
                         r.agent == order.agent
                             && r.definition == order.definition

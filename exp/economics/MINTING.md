@@ -216,25 +216,36 @@ controls and takes precedence over `MINT_ORDERS`. JSONL remains under ignored
 output. The order observer includes the selected target date, or null after
 all targets expire.
 
+## Purchasing power and leisure
+
+The opt-in [food provision scenario](MINT-PROVISION.md) adds recurring nutrition,
+independent state wheat sales, input asks tied to expected purchasing power and
+an explicit leisure process. Its adequate/scarce/empty/endowed controls preserve
+the previous scenarios as fixed-policy comparisons.
+
 ## Scope and next extension
 
 The driver explicitly excludes credit, household pooling, negotiated/town/production
 market drivers and collection-linked issuance. It uses existing agents, venue
 catalogs, permissions, transfers, resource reservations, processes and CPU gather;
 it does not establish that these excluded pilots compose with physical minting.
-Both variants have package receipts but neither updates ZIP pricing memory or
+These variants have package receipts but do not update ZIP pricing memory or
 the town market's price/volume history.
 
-There is no geological mining model, mint equipment, tax collection, consumption planning,
-state objective search or legal delegation of mint authority to another agent in
-this scenario. State-generated orders now provide the next control alongside supplied deals.
+There is no geological mining model, mint equipment or tax collection. The
+original controls omit consumption planning, state objective search and legal
+delegation of mint authority. Generated orders provide a control alongside
+supplied deals.
 Reservation prices, private stock targets and the mint date are still supplied.
 The state may sell wheat even when future input supply will prove insufficient;
 it has no guaranteed counterparty commitments. Conservative ceiling budgets may
-also defer a purchase that cheaper realized prices could fund. Repeated configured issuance is now tested with finite ore processing. Changing
+also defer a purchase that cheaper realized prices could fund. Repeated configured
+issuance is now tested with finite ore processing. Changing
 quote policies and future supply expectations remain separate extensions. The
 normal case can finance later production because minted coin is accepted at fixed
 quotes; that is not evidence of stable purchasing power or a sustainable monetary
-policy. There is no inflation response, issuance demand target, worker subsistence
-cost, renewed wheat demand or endogenous valuation of ore-processing labor. Those
-limits matter before interpreting this as a self-sustaining economy.
+policy. The original controls have no inflation response, issuance demand target,
+worker
+subsistence cost, renewed wheat demand or endogenous valuation of ore-processing
+labor. The separate food-provision variant begins addressing subsistence and
+willingness to accept coins; it still has finite endowments and fixed state prices.
