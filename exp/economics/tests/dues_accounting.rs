@@ -271,3 +271,37 @@ fn lending_and_land_dues_share_reports_without_counting_principal_as_income() {
     assert_eq!(c.net_income, 5);
     assert_eq!(c.trial_balance[&A::LoanReceivable(10)], 5);
 }
+
+#[test]
+fn explicit_issuance_policy_counts_only_native_collection_without_duplicate_dues_income() {
+    use economics_compute_smoke::{currency::Issuance, issuance_accounting::Policy};
+    for native in [1, 2] {
+        let (mut w, mut s) = fixture(4, true);
+        s.balances.insert((PERSON, GRAIN), native);
+        w.issuance.push(Issuance {
+            agreement: 1,
+            token: TOKEN,
+            collected_per_token: 2,
+        });
+        let mut a = audit(&w, &s)
+            .with_issuance_policy(Policy::NonRedeemableEquity)
+            .unwrap();
+        let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+        through(&mut a, &mut sim, 13);
+        let r = a.book().statements(STATE_AGENT, 13, 13).unwrap();
+        assert_eq!(r.issuance_change, i128::from(native / 2));
+        assert_eq!(r.income[&A::DuesIncome], 6);
+        let mut saved = a.clone();
+        let mut checkpoint = sim.clone();
+        through(&mut a, &mut sim, 14);
+        through(&mut saved, &mut checkpoint, 14);
+        assert_eq!(a, saved);
+        assert_eq!(
+            a.book()
+                .statements(STATE_AGENT, 14, 14)
+                .unwrap()
+                .issuance_change,
+            0
+        );
+    }
+}

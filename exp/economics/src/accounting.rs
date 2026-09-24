@@ -26,6 +26,9 @@ pub enum Account {
     InterestPayable(u32),
     OpeningEquity,
     Capital,
+    MonetaryIssuance,
+    ServiceIncome,
+    ServiceExpense,
     InterestIncome,
     InterestExpense,
     TransferIncome,
@@ -67,8 +70,9 @@ impl Account {
             | Self::CustodyPayable(_)
             | Self::LoanPayable(_)
             | Self::InterestPayable(_) => Class::Liability,
-            Self::OpeningEquity | Self::Capital => Class::Equity,
-            Self::DuesIncome
+            Self::OpeningEquity | Self::Capital | Self::MonetaryIssuance => Class::Equity,
+            Self::ServiceIncome
+            | Self::DuesIncome
             | Self::SettlementGain
             | Self::InterestIncome
             | Self::TransferIncome
@@ -88,6 +92,8 @@ pub enum Flow {
     Investing,
     Financing,
     Internal,
+    /// Self-created money, shown separately from external cash flows.
+    Issuance,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Line {
@@ -126,6 +132,7 @@ pub struct Statements {
     pub net_income: i128,
     pub opening_equity: i128,
     pub capital_change: i128,
+    pub issuance_change: i128,
     pub opening_cash: i128,
     pub closing_cash: i128,
     pub cash_flows: BTreeMap<Flow, i128>,
@@ -279,10 +286,12 @@ impl Book {
                     Class::Income => add(&mut s.income, l.account.clone(), -l.debit)?,
                     Class::Expense => add(&mut s.expenses, l.account.clone(), l.debit)?,
                     Class::Equity => {
-                        s.capital_change = s
-                            .capital_change
-                            .checked_sub(l.debit)
-                            .ok_or("equity overflow")?
+                        let movement = if l.account == Account::MonetaryIssuance {
+                            &mut s.issuance_change
+                        } else {
+                            &mut s.capital_change
+                        };
+                        *movement = movement.checked_sub(l.debit).ok_or("equity overflow")?;
                     }
                     _ => {}
                 }
@@ -334,6 +343,7 @@ impl Book {
         let equity = s
             .opening_equity
             .checked_add(s.capital_change)
+            .and_then(|v| v.checked_add(s.issuance_change))
             .and_then(|v| v.checked_add(s.net_income))
             .ok_or("equity rollforward overflow")?;
         let cash = s
@@ -376,14 +386,15 @@ impl Statements {
         }
         out.push_str(&format!("| Net income | {} |\n\n", self.net_income));
         out.push_str("## Changes in equity\n\n| Movement | Amount |\n| --- | ---: |\n");
-        out.push_str(&format!("| Opening equity | {} |\n| Capital contributions less distributions | {} |\n| Net income | {} |\n| Closing equity | {} |\n\n", self.opening_equity, self.capital_change, self.net_income, self.equity));
-        out.push_str("## Cash flows\n\nOwned cash includes restricted estate cash; custodian cash is excluded.\n\n| Movement | Amount |\n| --- | ---: |\n");
+        out.push_str(&format!("| Opening equity | {} |\n| Capital contributions less distributions | {} |\n| Monetary issuance | {} |\n| Net income | {} |\n| Closing equity | {} |\n\n", self.opening_equity, self.capital_change, self.issuance_change, self.net_income, self.equity));
+        out.push_str("## Cash flows\n\nOwned cash includes restricted estate cash; custodian cash is excluded. Issuance is self-created money, shown separately from external cash flows.\n\n| Movement | Amount |\n| --- | ---: |\n");
         out.push_str(&format!("| Opening cash | {} |\n", self.opening_cash));
         for kind in [
             Flow::Operating,
             Flow::Investing,
             Flow::Financing,
             Flow::Internal,
+            Flow::Issuance,
         ] {
             out.push_str(&format!(
                 "| {kind:?} | {} |\n",

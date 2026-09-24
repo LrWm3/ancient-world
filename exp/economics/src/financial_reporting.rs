@@ -19,6 +19,7 @@ pub struct Audit {
     inventory: crate::inventory_accounting::Inventory,
     processes: Option<crate::process_accounting::Costs>,
     dues: Option<crate::dues_accounting::Valuation>,
+    issuance: Option<crate::issuance_accounting::Policy>,
 }
 fn positions(
     world: &World,
@@ -286,6 +287,7 @@ impl Audit {
             asset_values,
             inventory,
             processes: None,
+            issuance: None,
             dues,
             boundary: state.clone(),
         })
@@ -346,6 +348,17 @@ impl Audit {
         });
         Ok(self)
     }
+    /// Choose the issuer convention at opening; absence remains a strict rejection.
+    pub fn with_issuance_policy(
+        mut self,
+        policy: crate::issuance_accounting::Policy,
+    ) -> Result<Self, String> {
+        if self.book.entries().len() != 1 {
+            return Err("issuance policy must be chosen at reporting opening".into());
+        }
+        self.issuance = Some(policy);
+        Ok(self)
+    }
     pub fn book(&self) -> &Book {
         &self.book
     }
@@ -387,7 +400,7 @@ impl Audit {
             .transactions
             .iter()
             .any(|t| (t.process.is_some() && self.processes.is_none()) || t.royalty.is_some())
-            || batch.minting.is_some()
+            || (batch.minting.is_some() && self.issuance.is_none())
             || batch.town_market.is_some()
         {
             return Err("transaction needs an explicit accounting adapter".into());
@@ -482,18 +495,49 @@ impl Audit {
             }
         }
         let coin = self.book.denomination();
+        let mint_transactions = batch
+            .minting
+            .as_ref()
+            .map(|b| b.transactions.as_slice())
+            .unwrap_or(&[]);
+        let mut service_lines = vec![];
+        for t in mint_transactions {
+            if t.effects.iter().any(|e| {
+                e.delta < 0
+                    && world
+                        .resources
+                        .iter()
+                        .any(|r| r.id == e.account.1 && r.kind == ResourceKind::Capacity)
+            }) {
+                service_lines.extend(crate::issuance_accounting::services(t, coin)?);
+            }
+        }
         let negotiated = crate::negotiation::transactions(world, before, &batch.negotiation)?;
         let trades: Vec<_> = batch
             .transactions
             .iter()
-            .filter(|t| t.stock_trade.is_some() || negotiated.contains(t))
+            .filter(|t| {
+                t.stock_trade.is_some()
+                    || negotiated.contains(t)
+                    || (mint_transactions.contains(t)
+                        && !t.effects.iter().any(|e| {
+                            world
+                                .resources
+                                .iter()
+                                .any(|r| r.id == e.account.1 && r.kind == ResourceKind::Capacity)
+                        }))
+            })
             .collect();
         let (prepaid, forward_lines) = crate::forward_accounting::settle(before, after)?;
         let (inventory, trade_lines) = self
             .inventory
             .settle_with_prepaid(&trades, coin, &prepaid)?;
-        let process_transactions: Vec<_> = batch
-            .transactions
+        let (cost_transactions, issuance_lines) = if self.issuance.is_some() {
+            crate::issuance_accounting::processes(world, &batch.transactions, coin)?
+        } else {
+            (batch.transactions.clone(), vec![])
+        };
+        let process_transactions: Vec<_> = cost_transactions
             .iter()
             .filter(|t| t.process.is_some())
             .collect();
@@ -525,8 +569,13 @@ impl Audit {
                 "mixed dues/production/trade boundary requires shared cost allocation".into(),
             );
         }
+        let (dues_transfers, collection_lines) = if self.issuance.is_some() {
+            crate::issuance_accounting::collection(world, before, after, coin, dues_transactions)?
+        } else {
+            (dues_transactions.to_vec(), vec![])
+        };
         let (inventory, dues_lines) = if let Some(dues) = &self.dues {
-            dues.settle(world, before, after, &inventory, coin, dues_transactions)?
+            dues.settle(world, before, after, &inventory, coin, &dues_transfers)?
         } else {
             (inventory, vec![])
         };
@@ -537,6 +586,7 @@ impl Audit {
                 || t.delivery.is_some()
                 || t.forward.is_some()
                 || trades.contains(&t)
+                || mint_transactions.contains(t)
             {
                 continue;
             }
@@ -596,6 +646,9 @@ impl Audit {
             .chain(dues_lines)
             .chain(equipment_lines)
             .chain(forward_lines)
+            .chain(issuance_lines)
+            .chain(collection_lines)
+            .chain(service_lines)
         {
             if let Some(kind) = l.flow {
                 flow(&mut flows, l.agent, l.account, kind, l.debit)?;
