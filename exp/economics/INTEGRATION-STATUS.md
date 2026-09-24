@@ -28,8 +28,7 @@ and loan estates, plus costed posted stock bids and bilateral negotiated/ZIP tra
 Opt-in owner-operated production adds material work-in-progress, joint-product
 cost shares, consumption expense and aborted-work loss. Work ownership transfers,
 household pooling, opt-in completed-output transfers and opt-in paid-capacity
-capitalization are supported. Broader employment contracts and priced third-party
-contract production remain unsupported. Dated land dues now compose with lending and
+capitalization are supported. [Preaccepted employment agreements](EMPLOYMENT.md) add capacity delivery, earned wage claims, partial payment and optional suspension. Negotiated hiring, household employment, wage insolvency and priced third-party contract production remain unsupported. Dated land dues now compose with lending and
 material production on existing boundaries, including native goods and accepted
 coin alternatives. Estate-paid native/accepted-coin dues now reconcile to restricted debtor cash and neutral custody positions; collection-linked issuance has an explicit opt-in convention. Storage blockage uses existing process failure;
 there is no stored-goods spoilage event to recognize. The complete report set is not universal
@@ -319,3 +318,13 @@ including their use in ordinary stock or durable production. Used cost enters WI
 output, or process expense/loss; unused cost expires at the existing monthly reset.
 The default immediate-expense policy remains available. This is financial cost
 recognition, not a new labor market or employment-contract implementation.
+
+## Employment and wage arrears
+
+[Employment agreements](EMPLOYMENT.md) now deliver available hours at Acquire and
+collect earned wages at Close through shared financial primitives. Dated claims
+persist after suspension or expiry and reconcile to both parties’ financial
+statements. Paid-capacity costing accepts earned wages as well as cash purchases.
+Settlement metrics/logs include the verified transfers and contract receipts.
+Terms are preaccepted; negotiation, household delegation and wage estate priority
+are still outstanding.

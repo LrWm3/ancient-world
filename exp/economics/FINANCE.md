@@ -79,7 +79,7 @@ bilateral/ZIP spot trades. Opt-in owner-operated material costing now capitalize
 work in progress and recognizes consumption and failed-work expense. Household pooling,
 shared inputs and opt-in completed output transfers are also supported. Paid-capacity
 capitalization is now supported for verified period-service purchases;
-broader employment terms and priced third-party contract production remain open. Ordinary dated dues now recognize income/expense, symmetric
+[Employment agreements and wage arrears](EMPLOYMENT.md) now use shared obligations and settlement, including partial payment and optional suspension. Negotiated hiring and priced third-party contract production remain open. Ordinary dated dues now recognize income/expense, symmetric
 arrears and native or accepted coin settlement, including verified estate-cash payments. Future contract types should supply their terms and receipts
 through this shared view before introducing a second settlement mechanism.
 
@@ -183,5 +183,4 @@ orders create no revenue; payment-stock valuation remains explicit.
 is now opt-in through `Opening.services`. Accepted purchases create a short-lived
 capacity cost asset; actual use feeds the existing process cost pipeline. Unused
 cost expires at the next Open. Paid/free capacity mixing uses proportional cost,
-while admission and physical allocation remain unchanged. Employment terms,
-wage arrears and future service prepayments remain outstanding.
+while admission and physical allocation remain unchanged. [Employment delivery and wage arrears](EMPLOYMENT.md) now also feed this cost pipeline. Negotiated hiring, wage insolvency treatment and future service prepayments remain outstanding.

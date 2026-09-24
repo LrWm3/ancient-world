@@ -1089,8 +1089,9 @@ unfunded packages. Invalid historical costs and forged service payments reject;
 unpaid labor is never assigned an imputed wage. The existing default-expense
 issuance tests also continue to pass.
 
-Limits: this does not add employment contracts, future-period labor prepayments,
-wage arrears, refunds, overhead allocation, new household paid-capacity delegation,
+The subsequent [employment adapter](EMPLOYMENT.md) adds earned wages and arrears
+to this same cost pipeline. Remaining limits include future-period labor prepayments,
+refunds, overhead allocation, new household paid-capacity delegation,
 or customer billing for produced output. Other acquisition mechanisms need verified
 service receipts before they can supply this same cost pipeline. A paid-capacity
 transfer without such an adapter remains an explicit failure.
@@ -1102,3 +1103,18 @@ manufacture, issuance, forwards, beneficiaries, royalties, barter and household
 accounting. The existing slow full-household stress test remains ignored. Strict
 all-target Clippy, formatting, diff checks and artifact checks passed. Logs remain
 under ignored `output/economics/service-*.log`.
+
+## Employment and wage arrears
+
+[Employment agreements](EMPLOYMENT.md) now create dated wage receivables/payables
+from actual capacity delivery. Collection uses shared obligations and finite
+opening resources; partial payment leaves symmetric arrears. The default recognizes
+service expense at delivery. With `Opening.services`, earned labor cost follows
+actual use into WIP/output or expiration expense, even before wages are paid.
+Subsequent payment is operating cash flow and settlement of the claim, never a
+second wage expense. Reporting requires wages in the book’s coin denomination.
+
+Agreements can continue deliveries on credit or suspend future deliveries while
+prior wages remain unpaid. No wage claim is discharged merely because the contract
+expires, the employer wastes the hours, or production fails. Negotiated hiring,
+household paid-labor delegation and wage insolvency/estate treatment remain open.
