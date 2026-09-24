@@ -22,6 +22,46 @@ pub(crate) struct PrepaidSale {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Inventory(pub BTreeMap<crate::model::Account, Holding>);
+/// One opening-stock cost pool shared by every adapter in a committed boundary.
+/// Accounting visits sales, process IDs, then dated dues in a stable order. That
+/// order assigns rounding ticks only; it does not grant physical resources.
+pub(crate) struct CostAllocation {
+    opening: Inventory,
+    used: BTreeMap<crate::model::Account, i128>,
+}
+impl CostAllocation {
+    pub(crate) fn new(opening: &Inventory) -> Self {
+        Self {
+            opening: opening.clone(),
+            used: BTreeMap::new(),
+        }
+    }
+    pub(crate) fn take(
+        &mut self,
+        key: crate::model::Account,
+        quantity: i128,
+    ) -> Result<i128, String> {
+        let h = self
+            .opening
+            .0
+            .get(&key)
+            .ok_or("disposal without opening inventory cost")?;
+        let prior = self.used.get(&key).copied().unwrap_or(0);
+        let total = prior
+            .checked_add(quantity)
+            .ok_or("inventory allocation overflow")?;
+        if quantity <= 0 || h.quantity <= 0 || total > i128::from(h.quantity) || h.cost < 0 {
+            return Err("disposal exceeds opening inventory".into());
+        }
+        let denominator = i128::from(h.quantity);
+        // Exact floor(cost * q / quantity), without overflowing cost * q.
+        // q <= quantity; the remainder product is bounded by i32::MAX squared.
+        let basis = |q| (h.cost / denominator) * q + (h.cost % denominator) * q / denominator;
+        let cost = basis(total) - basis(prior);
+        self.used.insert(key, total);
+        Ok(cost)
+    }
+}
 impl Inventory {
     pub fn open(
         world: &World,
@@ -233,6 +273,15 @@ impl Inventory {
         coin: ResourceId,
         prepaid: &[PrepaidSale],
     ) -> Result<(Self, Vec<Line>), String> {
+        self.settle_allocated(trades, coin, prepaid, &mut CostAllocation::new(self))
+    }
+    pub(crate) fn settle_allocated(
+        &self,
+        trades: &[&Transaction],
+        coin: ResourceId,
+        prepaid: &[PrepaidSale],
+        allocation: &mut CostAllocation,
+    ) -> Result<(Self, Vec<Line>), String> {
         let mut next = self.clone();
         if self
             .0
@@ -325,20 +374,9 @@ impl Inventory {
             }
         }
         for (key, quantity) in outgoing {
-            let opening = self
-                .0
-                .get(&key)
-                .ok_or("sale without opening inventory cost")?;
-            if quantity > i128::from(opening.quantity) || opening.quantity <= 0 {
-                return Err("sale exceeds opening inventory".into());
-            }
-            // Pool all same-boundary sales before rounding, making split lots and
-            // transaction ordering irrelevant. Full depletion releases every tick.
-            let cost = opening
-                .cost
-                .checked_mul(quantity)
-                .ok_or("inventory costing overflow")?
-                / i128::from(opening.quantity);
+            // Aggregate sales before releasing basis; other adapters share this
+            // cursor, so receipts cannot fund a second disposal in this boundary.
+            let cost = allocation.take(key, quantity)?;
             let h = next.0.get_mut(&key).ok_or("missing cost holding")?;
             h.quantity -= i32::try_from(quantity).map_err(|_| "inventory quantity overflow")?;
             h.cost -= cost;

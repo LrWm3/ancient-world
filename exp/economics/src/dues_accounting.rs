@@ -56,10 +56,32 @@ impl Valuation {
         coin: ResourceId,
         transactions: &[Transaction],
     ) -> Result<(Inventory, Vec<Line>), String> {
+        self.settle_allocated(
+            world,
+            before,
+            after,
+            inventory,
+            coin,
+            transactions,
+            &mut crate::inventory_accounting::CostAllocation::new(inventory),
+        )
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn settle_allocated(
+        &self,
+        world: &World,
+        before: &State,
+        after: &State,
+        inventory: &Inventory,
+        coin: ResourceId,
+        transactions: &[Transaction],
+        allocation: &mut crate::inventory_accounting::CostAllocation,
+    ) -> Result<(Inventory, Vec<Line>), String> {
         let mut stocks = inventory.clone();
         let mut lines = vec![];
         let mut effects = BTreeMap::new();
         let mut used = BTreeMap::new();
+        let mut released = BTreeMap::new();
         let mut received = BTreeMap::new();
         let mut received_cost = BTreeMap::new();
         let mut push = |agent, account, debit, flow| {
@@ -125,17 +147,9 @@ impl Valuation {
                     );
                 } else {
                     let key = (a.debtor, a.payment.resource);
-                    let h = inventory.0.get(&key).ok_or("unpriced dues payment")?;
-                    let previous = used.get(&key).copied().unwrap_or(0);
+                    let cost = allocation.take(key, i128::from(native))?;
                     accounting::add(&mut used, key, i128::from(native))?;
-                    if used[&key] > i128::from(h.quantity) || h.quantity <= 0 {
-                        return Err("dues exceed opening inventory".into());
-                    }
-                    let old_cost = h.cost.checked_mul(previous).ok_or("dues cost overflow")?
-                        / i128::from(h.quantity);
-                    let cost = h.cost.checked_mul(used[&key]).ok_or("dues cost overflow")?
-                        / i128::from(h.quantity)
-                        - old_cost;
+                    accounting::add(&mut released, key, cost)?;
                     let gain = native_value.checked_sub(cost).ok_or("dues gain overflow")?;
                     push(
                         a.debtor,
@@ -212,11 +226,9 @@ impl Valuation {
             return Err("dues receipts do not reconcile to actual transfers".into());
         }
         for (key, q) in used {
-            let old = &inventory.0[&key];
             let h = stocks.0.get_mut(&key).ok_or("missing inventory")?;
             h.quantity -= i32::try_from(q).map_err(|_| "dues quantity overflow")?;
-            h.cost -=
-                old.cost.checked_mul(q).ok_or("dues cost overflow")? / i128::from(old.quantity);
+            h.cost -= released[&key];
         }
         for (key, q) in received {
             let h = stocks.0.entry(key).or_insert(Holding {

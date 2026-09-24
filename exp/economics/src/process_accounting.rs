@@ -119,10 +119,33 @@ impl Costs {
         wear: &BTreeMap<u64, i128>,
         asset_values: &mut BTreeMap<AssetId, i128>,
     ) -> Result<(Self, Inventory, Vec<Line>), String> {
+        self.settle_allocated(
+            world,
+            inventory,
+            transactions,
+            coin,
+            wear,
+            asset_values,
+            &mut crate::inventory_accounting::CostAllocation::new(inventory),
+        )
+    }
+    // The extra argument is the shared boundary cursor, not a second cost policy.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn settle_allocated(
+        &self,
+        world: &World,
+        inventory: &Inventory,
+        transactions: &[&Transaction],
+        coin: ResourceId,
+        wear: &BTreeMap<u64, i128>,
+        asset_values: &mut BTreeMap<AssetId, i128>,
+        allocation: &mut crate::inventory_accounting::CostAllocation,
+    ) -> Result<(Self, Inventory, Vec<Line>), String> {
         let mut next = self.clone();
         let mut stocks = inventory.clone();
         let mut lines = vec![];
         let mut used = BTreeMap::new();
+        let mut released = BTreeMap::new();
         let mut inputs = wear.clone();
         let mut ordered = transactions.to_vec();
         ordered.sort_by_key(|t| t.process.as_ref().map(|p| p.after.id));
@@ -154,24 +177,10 @@ impl Costs {
                     );
                 }
                 if e.delta < 0 {
-                    let h = inventory
-                        .0
-                        .get(&e.account)
-                        .ok_or("unpriced process input")?;
-                    let previous = used.get(&e.account).copied().unwrap_or(0);
-                    accounting::add(&mut used, e.account, -i128::from(e.delta))?;
-                    let total = used[&e.account];
-                    if total > i128::from(h.quantity) || h.quantity <= 0 {
-                        return Err("process exceeds opening inventory".into());
-                    }
-                    let before = h
-                        .cost
-                        .checked_mul(previous)
-                        .ok_or("input costing overflow")?
-                        / i128::from(h.quantity);
-                    let after = h.cost.checked_mul(total).ok_or("input costing overflow")?
-                        / i128::from(h.quantity);
-                    let cost = after - before;
+                    let quantity = -i128::from(e.delta);
+                    let cost = allocation.take(e.account, quantity)?;
+                    accounting::add(&mut used, e.account, quantity)?;
+                    accounting::add(&mut released, e.account, cost)?;
                     accounting::add(&mut inputs, p.id, cost)?;
                     if e.account.0 != p.operator && cost != 0 {
                         lines.extend([
@@ -193,9 +202,7 @@ impl Costs {
             }
         }
         for (key, q) in used {
-            let old = &inventory.0[&key];
-            let cost =
-                old.cost.checked_mul(q).ok_or("input costing overflow")? / i128::from(old.quantity);
+            let cost = released[&key];
             let h = stocks.0.get_mut(&key).ok_or("missing input holding")?;
             h.quantity -= i32::try_from(q).map_err(|_| "quantity overflow")?;
             h.cost -= cost;

@@ -158,3 +158,6 @@ pub mod dues_accounting;
 mod forward_accounting;
 
 pub mod issuance_accounting;
+
+#[cfg(test)]
+mod accounting_allocation_tests;

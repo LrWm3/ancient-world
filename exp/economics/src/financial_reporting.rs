@@ -15,7 +15,7 @@ type Flows = BTreeMap<(AgentId, Account, Flow), i128>;
 #[derive(Clone, Debug, Default)]
 pub struct Opening {
     pub assets: BTreeMap<AssetId, i128>,
-    /// Fixed reporting ticks per stock unit used as noncash equipment consideration.
+    /// Fixed reporting ticks per payment-stock unit for equipment and posted barter.
     pub exchange_values: BTreeMap<ResourceId, i128>,
     pub inventory: BTreeMap<crate::model::Account, i128>,
     pub processes: Option<crate::process_accounting::Costs>,
@@ -747,10 +747,52 @@ impl Audit {
                         }))
             })
             .collect();
+        let mut cash_trades = vec![];
+        for t in &trades {
+            if t.effects
+                .iter()
+                .any(|e| e.account.1 == coin && e.delta != 0)
+            {
+                cash_trades.push(*t);
+                continue;
+            }
+            // A posted bid identifies its payment commodity. Value that actual
+            // consideration, not the existing holdings or a hypothetical coin leg.
+            let trade = t
+                .stock_trade
+                .as_ref()
+                .ok_or("noncash exchange needs posted payment terms")?;
+            let bid = world
+                .bids
+                .iter()
+                .find(|b| b.id == trade.bid)
+                .ok_or("missing barter bid")?;
+            let bid = crate::currency::terms(world, bid, trade.seller)?;
+            let unit = self
+                .exchange_values
+                .get(&bid.payment.resource)
+                .ok_or("barter payment needs an explicit exchange value")?;
+            let value = unit
+                .checked_mul(i128::from(bid.payment.quantity))
+                .ok_or("barter consideration overflow")?;
+            for (seller, buyer, amount) in [
+                (trade.seller, bid.buyer, bid.goods),
+                (bid.buyer, trade.seller, bid.payment),
+            ] {
+                barter_deliveries.push(crate::inventory_accounting::PrepaidSale {
+                    seller,
+                    buyer,
+                    resource: amount.resource,
+                    quantity: amount.quantity,
+                    value,
+                });
+            }
+        }
         let (mut prepaid, forward_lines) = crate::forward_accounting::settle(before, after)?;
         prepaid.extend(barter_deliveries);
+        let mut allocation = crate::inventory_accounting::CostAllocation::new(&opening_inventory);
         let (inventory, trade_lines) =
-            opening_inventory.settle_with_prepaid(&trades, coin, &prepaid)?;
+            opening_inventory.settle_allocated(&cash_trades, coin, &prepaid, &mut allocation)?;
         let (cost_transactions, issuance_lines) = if self.issuance.is_some() {
             crate::issuance_accounting::processes(world, &batch.transactions, coin)?
         } else {
@@ -760,9 +802,6 @@ impl Audit {
             .iter()
             .filter(|t| t.process.is_some())
             .collect();
-        if (!trades.is_empty() || !prepaid.is_empty()) && !process_transactions.is_empty() {
-            return Err("mixed trading/production boundary needs a shared cost allocator".into());
-        }
         let attachments = batch
             .credit
             .as_ref()
@@ -774,13 +813,14 @@ impl Audit {
             (None, vec![])
         };
         let (processes, inventory, process_lines) = if let Some(costs) = &transferred_costs {
-            let (costs, inventory, lines) = costs.settle_with_equipment(
+            let (costs, inventory, lines) = costs.settle_allocated(
                 world,
                 &inventory,
                 &process_transactions,
                 coin,
                 &wear_costs,
                 &mut asset_values,
+                &mut allocation,
             )?;
             (Some(costs), inventory, lines)
         } else {
@@ -792,13 +832,6 @@ impl Audit {
             .or_else(|| batch.credit.as_ref().and_then(|c| c.commitments.as_ref()))
             .map(|c| c.transactions.as_slice())
             .unwrap_or(&[]);
-        if !dues_transactions.is_empty()
-            && (!trades.is_empty() || !prepaid.is_empty() || !process_transactions.is_empty())
-        {
-            return Err(
-                "mixed dues/production/trade boundary requires shared cost allocation".into(),
-            );
-        }
         let (dues_transfers, collection_lines) = if self.issuance.is_some() {
             crate::issuance_accounting::collection(world, before, after, coin, dues_transactions)?
         } else {
@@ -811,7 +844,15 @@ impl Audit {
             coin,
         )?;
         let (inventory, dues_lines) = if let Some(dues) = &self.dues {
-            dues.settle(world, before, after, &inventory, coin, &dues_transfers)?
+            dues.settle_allocated(
+                world,
+                before,
+                after,
+                &inventory,
+                coin,
+                &dues_transfers,
+                &mut allocation,
+            )?
         } else {
             (inventory, vec![])
         };
