@@ -27,7 +27,7 @@ It supports cash lending, valued mortgages, fixed enforcement/resale, guarantees
 and loan estates, plus costed posted stock bids and bilateral negotiated/ZIP trades.
 Opt-in owner-operated production adds material work-in-progress, joint-product
 cost shares, consumption expense and aborted-work loss. Work ownership transfers,
-paid labor/equipment manufacture and repair costs, minting/town-market, forward and household
+paid labor/equipment manufacture and repair costs, minting/town-market and household
 accounting remain unsupported. Dated land dues now compose with lending and
 material production on existing boundaries, including native goods and accepted
 coin alternatives. Estate-paid dues and collection-linked issuance remain unsupported. Storage blockage uses existing process failure;
@@ -225,5 +225,8 @@ household/credit/town-market driver exclusions. See [Households](HOUSEHOLDS.md).
 Equipment reporting now recognizes posted coin purchases at actual cost,
 seller disposal gain/loss, and validated use-based wear as production cost.
 See [financial statements](FINANCIAL-STATEMENTS.md#coin-equipment-acquisition-and-use-based-cost).
-Prepaid-forward/tool bundles, barter, royalties and manufacture/repair remain
-outside the reporting adapter.
+Prepaid-forward/tool bundles now recognize creditor prepayments and producer
+deferred revenue, releasing those balances on actual delivery or accepted write-off.
+Extensions preserve carrying value; spot and forward deliveries share opening
+inventory costing. Barter, royalties and manufacture/repair remain outside the
+reporting adapter. See [forward recognition](FINANCIAL-STATEMENTS.md#prepaid-forwards-delivery-and-accepted-relief).

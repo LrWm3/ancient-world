@@ -76,7 +76,7 @@ death/dissolution administration remain future work.
 report set for cash loans, valued mortgages, loan recovery and costed posted or
 bilateral/ZIP spot trades. Opt-in owner-operated material costing now capitalizes
 work in progress and recognizes consumption and failed-work expense. Paid labor,
-equipment manufacture/repair and cross-agent production costs, town-market/minting, forwards and household
+equipment manufacture/repair and cross-agent production costs, town-market/minting and household
 accounting remain open. Ordinary dated dues now recognize income/expense, symmetric
 arrears and native or accepted coin settlement; estate-paid dues still need an adapter. Future contract types should supply their terms and receipts
 through this shared view before introducing a second settlement mechanism.
@@ -111,5 +111,8 @@ or land-bill discharge.
 Equipment reporting now recognizes posted coin purchases at actual cost,
 seller disposal gain/loss, and validated use-based wear as production cost.
 See [financial statements](FINANCIAL-STATEMENTS.md#coin-equipment-acquisition-and-use-based-cost).
-Prepaid-forward/tool bundles, barter, royalties and manufacture/repair remain
-outside the reporting adapter.
+Prepaid-forward/tool bundles now recognize creditor prepayments and producer
+deferred revenue, releasing those balances on actual delivery or accepted write-off.
+Extensions preserve carrying value; spot and forward deliveries share opening
+inventory costing. Barter, royalties and manufacture/repair remain outside the
+reporting adapter. See [forward recognition](FINANCIAL-STATEMENTS.md#prepaid-forwards-delivery-and-accepted-relief).

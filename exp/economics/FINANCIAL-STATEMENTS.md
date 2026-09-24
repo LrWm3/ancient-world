@@ -87,7 +87,7 @@ with a real-world accounting standard.
 
 The adapter recognizes the selected coin at one reporting tick per stored tick.
 It rejects nonzero stocks without explicit opening cost, unsupported stock movements,
-mixed loan or estate denominations, equipment barter/royalties, forwards, unconfigured land dues,
+mixed loan or estate denominations, equipment barter/royalties, unconfigured land dues,
 households, town-market clearing and minting transactions. Process transactions
 require the explicit material-cost opt-in described below. Unsupported activity is an error,
 not zero value or an unexplained income/equity adjustment. Unused capacities and
@@ -252,10 +252,8 @@ newly opened dues book; it must be selected before recording the first batch.
 Limits remain explicit: collection-linked currency issuance, estate distributions
 for dues, arbitrary relief, and combined same-boundary trade/production/dues cost
 allocation require further adapters. Ordinary Due and Productive/Consumption work
-compose on their existing separate boundaries. Forwards remain unsupported:
-their current origination bundles a prepaid delivery agreement with tool purchase,
-coin equipment acquisition and wear now have accounting, but the bundled prepaid
-agreement still needs its own recognition adapter.
+compose on their existing separate boundaries. Prepaid-forward tool purchases,
+physical delivery and accepted relief now have the recognition adapter below.
 
 ```sh
 cargo +1.92.0 run --locked --example dues_statements > ../../output/economics/dues-statements.md
@@ -314,9 +312,9 @@ Extend adapters next, preserving these reconciliation gates:
    historical work costs on reporting restart. Add validated stored-goods loss events,
    then town-market and barter accounting adapters.
 2. Define minting input cost, issuance and issuer equity/liabilities explicitly.
-3. Recognize forward advances and delivery obligations, restructuring and delivery
-   write-off without erasing native performance. Ordinary dues/alternative tender
-   now have an adapter; extend it to estate payments and explicit relief.
+3. Extend ordinary dues/alternative tender to estate payments and explicit relief.
+   Prepaid-forward origination, delivery, extensions and write-offs now have an
+   adapter; broader repricing/refunding and impairment policies remain open.
 4. Add household/institution contributions and
    distributions, then ownership and consolidation eliminations. Summing entity
    statements is not a consolidated economy statement: custody and intra-economy
@@ -357,7 +355,7 @@ retain opening equity at every boundary. Missing opening costs and unsupported
 barter are rejected; failed accounting publishes neither simulation nor book.
 
 This covers posted coin purchases and owner-operated wear. Barter, royalty tool
-delivery, prepaid-forward bundles, tool manufacture/repair, and transferred
+delivery, tool manufacture/repair, and transferred
 production costs still require adapters. A financial statement is not yet available
 for every tool scenario.
 
@@ -366,3 +364,61 @@ The focused equipment-accounting regression run passed **38 tests**: accounting
 accounting 5. Strict all-target Clippy and formatting passed. The legacy equipment
 tests validate simulation behavior; they do not imply financial-report support
 for barter or every legacy arrangement.
+
+## Prepaid forwards, delivery and accepted relief
+
+The existing bundled tool-purchase flow now joins the same reporting book.
+Recognition uses the original coin advance, not the projected harvest's market
+value. This is a prepaid goods contract, not an interest-bearing cash loan.
+
+| Committed event | Recognition |
+| --- | --- |
+| Advance pays tool provider directly | Creditor debits `ForwardPrepayment(contract)` and credits actual cash; producer credits `DeferredRevenue(contract)` and capitalizes the full purchased tool. Any producer contribution alone reduces its cash. Provider removes equipment basis and recognizes disposal gain/loss. |
+| Physical commodity delivery | Producer releases deferred revenue into sales and expenses inventory carrying cost. Creditor moves the released prepayment into received inventory. No new cash movement. |
+| Missed/partial delivery | Keep the remaining prepaid asset and delivery liability; neither a missed deadline nor a revised forecast invents income, loss or delivered goods. |
+| Accepted maturity extension | Preserve carrying amounts. Only the contractual date changes. |
+| Accepted quantity write-off | Creditor recognizes `CreditLoss`; producer recognizes `DebtRelief`. Reduce both carrying amounts without changing actual-delivery or inventory counters. |
+
+Creditor prepayment cash is operating (a future goods purchase); provider equipment
+sale proceeds and the producer's own equipment payment are investing. The financed
+equipment portion is noncash for the producer. No fictitious producer cash inflow
+or financing cash outflow is inserted to balance the statements. A comprehensive
+noncash-disclosure schedule remains future work.
+
+Released value is cumulative:
+`floor(original advance × (delivered + written-off units) / contracted units)`.
+Each action receives the increase from its prior settled quantity; rounding stays
+with the residual claim, and final settlement releases every reporting tick.
+Physical deliveries and relief retain separate native counters. Spot quotes and
+unaccepted projections never revalue the prepayment.
+
+For example, an advance of 2 coins against 4 grain retains value 1 after delivery
+of 3 grain. The producer recognizes sales 1, plus cost of those 3 grain; the creditor
+holds received inventory 1 and residual prepayment 1. Forgiving the final grain
+then produces loss 1 and debt relief 1, with actual delivery still 3. Delivery of
+only the first grain can release zero reporting ticks because of integer precision;
+its physical quantity and inventory cost are still accounted for.
+
+Forward deliveries and spot sales in the same Acquire batch share opening
+inventory-cost allocation. All outgoing quantities are pooled before rounding,
+and incoming goods cannot finance another same-boundary sale. Process production
+and dues still require their separate existing boundaries for cost allocation.
+
+Verification in `tests/forward_accounting.rs` covers actual CPU tool purchases
+with full prepayment, part own cash and entirely own cash; CPU/reference partial
+and complete delivery; checkpoint continuation; combined spot and forward delivery;
+accepted extension then residual write-off through an estate; and forged delivery
+rejection without publication. Opening accepted forwards reconstruct their remaining
+historical advance cost from validated terms and performance history.
+
+Limits: no fair-value marks, discount accretion, expected-loss allowance, cash
+refund/repricing adapter, or recognition of royalty deals. Tool manufacture/repair
+and transferred work costs still prevent reporting an entire unrestricted
+specialist scenario. Supporting forward reports does not remove simulation-driver
+composition restrictions or establish recoverability of unpaid goods.
+
+The forward-accounting regression run passed **68 tests** across accounting (11),
+dues accounting (6), equipment accounting (2), forward simulation (7), forward
+accounting (5), inventory accounting (6), process accounting (5) and recovery (26).
+Strict all-target Clippy and formatting passed. Simulation regression coverage
+does not imply financial-adapter support for every configuration in those suites.
