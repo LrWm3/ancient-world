@@ -75,7 +75,7 @@ No new monthly phase or governance resource budget was introduced.
 Rotation is a deterministic succession pilot. Hereditary succession, contested
 authority and resignation remain unimplemented. Membership is still the fixed
 adult founding roster. General lawful founding rules, household employment and
-credit integration, and need-aware collective planning remain outstanding.
+credit integration, and longer-horizon collective planning remain outstanding.
 
 ## Elected governance
 
@@ -114,6 +114,46 @@ reconstructs these fields and rejects altered tallies. Settlement observer recor
 include the election evidence and honor household/member filters. There is no
 new scheduler phase. Leadership changes do not transfer ownership, consolidate
 books or choose individual work assignments.
+
+## Needs-first contributed labor
+
+`Policy::NeedsFirst` is an opt-in operational policy permitted by the contributed
+labor constitution. The default remains `PreserveCommittedWork`. A founding
+charter may select it, or the current governor may schedule it through the existing
+dated policy interface. Electing someone does not select this policy implicitly.
+
+At the existing Productive reservation boundary, the household compares its
+unmodified plan with each feasible recipient of the bounded contribution pool.
+It keeps the existing mandate and committed-work checks: a proposal cannot abandon
+a process that the baseline would continue successfully. It then ranks candidates
+by projected **current-month unmet needs**, followed by the existing net-output
+value proxy. A reduction in need deficit can justify producing less valuable output.
+When the needs comparison is equal, additional net output wins; otherwise the
+charter's labor tie-break retains its existing role.
+
+Each forecast settles the candidate production on a private reference-backend copy,
+collects actual household shares, clears arrears where scheduled, allocates common
+stocks and executes consumption through the existing mechanisms. It stops before
+Close. Missing inputs, whole consumption lots, storage, earmarked goods and available
+consumption recipes therefore constrain the forecast. A future crop output is not
+food available this month. The forecast creates no published transactions or logs;
+actual execution still uses the dated reservation and normal settlement path.
+
+Deficits combine members only within a common `(need priority, fulfillment resource)`
+key. Smaller priority numbers compare first, with resource ID breaking equal ranks.
+The comparison is lexicographic: food and warmth units are never summed into money
+or a single utility score. This is an explicit bounded objective, not an assertion
+that those rankings are universally appropriate. Protection of existing committed
+work remains a hard constraint even if overriding it could improve immediate needs.
+
+`LaborDecision.baseline_needs` and `projected_needs` record these forecasts, and the
+settlement observer exports both. Other policies leave them absent. Replay checks
+the entire decision receipt, including the forecast. These are conditional plans,
+not guaranteed outcomes: later changes to shared opportunities can invalidate a
+forecast. The policy still considers one recipient per household boundary and uses
+members' existing candidate plans; it does not search arbitrary new collective work
+combinations, forecast long-term deprivation, or automatically choose voting or
+policy preferences. It also does not change household financial reporting scope.
 
 ## Agreement and continued existence
 
@@ -253,17 +293,19 @@ publish only net transfers between members; the reservation receipts represent
 the household's authority over hours, without creating a second spendable labor
 account. Ordinary process receipts record actual completion and consumption.
 
-Two operational choices currently share a bounded, current-month net-output
-progress score (quoted spot values, otherwise par; duration-adjusted):
+Three operational choices use a bounded, current-month net-output progress
+score (quoted spot values, otherwise par; duration-adjusted):
 
 - `PreserveCommittedWork` additionally rejects reallocations that displace a
   member's already-active process progress achievable without delegation. This
   is the representative default.
 - `NetOutput` permits that displacement if the aggregate score improves. Normal
   missed-work consequences still execute; the household does not suppress them.
+- `NeedsFirst` retains committed-work protection and compares projected current
+  need deficits before the output score, using settlement previews described above.
 
-Neither policy yet optimizes all needs or six-month wealth. Both require a strict
-improvement over the ordinary unreserved baseline and otherwise return all hours.
+None optimizes six-month wealth. Each requires a strict improvement under its
+configured ordering over the ordinary unreserved baseline, or returns all hours.
 At most one recipient is chosen per household per month. This is a bounded search,
 not a complete household process planner or a guarantee of economic sustainability.
 Donated hours remain fungible capacity in the existing executor: the recipient
@@ -463,3 +505,28 @@ does not affect execution.
 These checks establish election mechanics and accounting regression safety. They
 do not show that elected leadership improves welfare: voting and policy choices
 are supplied, and no new long 32-person calibration was run.
+
+### Needs-first validation
+
+The controlled two-adult fixture gives each member five labor units and reserves
+20%. Either a repair-material job or a food job needs six units; only the food
+producer holds the required seed. Both members need one nutrition unit and begin
+without grain. With identical requests and budgets, `NetOutput` funds repair
+material and leaves two nutrition units unmet. `NeedsFirst` funds two grain units;
+one is pooled, both members eat, and unmet nutrition is zero. The selected food
+plan has a lower output-value proxy. These are abstract fixture units, not a
+calibrated welfare estimate.
+
+Controls cover sufficient opening food, unavailable seed, continuing-work
+protection, and food-versus-warmth priority reversal. Receipt forecasts match actual
+consumption. CPU/reference state and ledgers match through three months with
+batched, monthly and cloned continuation; forged deficit receipts reject atomically.
+The observer exposes only committed choices and does not alter results.
+
+Validation: **52 checks passed** (38 household, four household accounting and ten
+telemetry). The existing slow household accounting calibration remains ignored.
+Strict all-target Clippy, formatting and repository artifact checks pass. The full
+crate suite and a new long-run 32-person calibration were not run. The opt-in policy
+adds private reference settlements per candidate; larger-scale performance has not
+been established, and current-month need satisfaction does not establish sustainable
+future production or debt repayment.

@@ -349,7 +349,7 @@ settlement logs expose current authority, term and policy, and replay validates
 them. See [rotating governance](HOUSEHOLDS.md#rotating-governance-and-succession).
 
 This changes no ownership, financial reporting scope or settlement obligations.
-Autonomous voting, lawful institutional formation, need-aware collective planning and
+Autonomous voting, lawful institutional formation, longer-horizon collective planning and
 household market/credit/employment integration remain outstanding.
 
 
@@ -367,3 +367,16 @@ This first slice uses supplied ballots and the fixed adult founding roster. It
 does not implement endogenous voting, election work costs, by-elections, hereditary
 succession, legal formation or household employment/credit integration. See
 [household election semantics and validation](HOUSEHOLDS.md#elected-governance).
+
+
+### Household needs-first allocation
+
+An opt-in operational policy now compares actual same-month settlement previews
+through consumption before comparing output value. It uses the existing contribution
+pool, respects mandates and continuing commitments, and records baseline/projected
+need deficits in replay-validated receipts and settlement observer logs. Default
+policy and phase ordering are unchanged. Preview transactions remain private.
+
+This covers current-month needs across existing member plans. Autonomous governance
+choices, longer-horizon collective planning, multiple simultaneous recipient search,
+and household employment/credit integration remain outstanding.

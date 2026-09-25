@@ -146,7 +146,7 @@ policy instructions, 20% labor reservations and explicit labor ties. Opt-in rota
 governors now add charter-defined terms, succession and historical instruction
 authority. Explicit-ballot plurality elections now add turnout and tie rules with
 replayable results. Autonomous voting, broader leadership selection, legal
-recognition and need-aware collective planning remain
+recognition and longer-horizon collective planning remain
 targets below.
 
 Rework the representative household policy from directing only spare labor to an
@@ -251,3 +251,10 @@ tests of the primitives, not promised Ancient World content. Alternative species
 and civilizations should vary needs, knowledge, settlement and organizational
 norms through definitions and policies. Each stage requires mechanical, agentic
 and composition evidence rather than merely a catalog entry.
+
+
+The household contributed-labor pilot now includes opt-in `NeedsFirst`: compare
+settled current-month needs after pooling and consumption, then net output, within
+the existing mandate and committed-work protection. This is a bounded allocation
+objective; endogenous policy selection and longer-horizon collective planning
+remain goals. See [household allocation semantics](HOUSEHOLDS.md#needs-first-contributed-labor).
