@@ -144,7 +144,9 @@ The [first household governance slice](HOUSEHOLDS.md) now implements founding
 constitution/static charter records, a named member governor, dated authorized
 policy instructions, 20% labor reservations and explicit labor ties. Opt-in rotating
 governors now add charter-defined terms, succession and historical instruction
-authority. Elections, broader leadership selection, legal recognition and need-aware collective planning remain
+authority. Explicit-ballot plurality elections now add turnout and tie rules with
+replayable results. Autonomous voting, broader leadership selection, legal
+recognition and need-aware collective planning remain
 targets below.
 
 Rework the representative household policy from directing only spare labor to an

@@ -13,15 +13,16 @@ The representative `households-32` scenario now uses the
 behavior remains available through `Governance::legacy`. Founding templates,
 static charter parameters, a named person holding policy-setting authority, and
 swappable labor policies are implemented. Opt-in rotating terms and deterministic
-succession now extend this foundation. Elections, household law recognition and
-general institutional markets remain future work.
+succession and explicit-ballot elections now extend this foundation. Autonomous
+voting preferences, household law recognition and general institutional markets
+remain future work.
 
 `Agreement.governance` separates:
 
 | Component | Current role |
 | --- | --- |
-| Constitution | Permitted operational policies and an optional productive-activity subset. Selects fixed-founder or rotating leadership independently of operational policies. |
-| Static charter | Founding governor, term length for rotation, labor contribution percentage or legacy spare-labor mode, labor tie-break and initial policy. |
+| Constitution | Permitted operational policies and an optional productive-activity subset. Selects fixed-founder, rotating or elected leadership independently of operational policies. |
+| Static charter | Founding governor, term length, election turnout/tie rules, labor contribution percentage or legacy spare-labor mode, labor tie-break and initial policy. |
 | Policy instructions | Governor-authorized changes to an allowed policy, effective in a specified future month. |
 | Operational allocation | The household evaluates feasible member work; the governor does not name individual jobs or recipients. |
 
@@ -71,10 +72,48 @@ Replay reconstructs this evidence before publication, and the settlement observe
 exports `household_governance` records, including when filtered by a member.
 No new monthly phase or governance resource budget was introduced.
 
-This is a deterministic rotation/succession pilot, not elections, hereditary
-succession, contested authority or resignation. Membership is still the fixed
+Rotation is a deterministic succession pilot. Hereditary succession, contested
+authority and resignation remain unimplemented. Membership is still the fixed
 adult founding roster. General lawful founding rules, household employment and
 credit integration, and need-aware collective planning remain outstanding.
+
+## Elected governance
+
+`Governance::elected(founder, term_months)` opts into scheduled plurality elections.
+The founder serves the first term; later terms start on the same Open calendar
+as rotation. The default election charter requires 50% turnout (rounded up) and
+breaks equal vote totals by stable member ID. `ElectionTieBreak::Vacant` instead
+leaves tied elections unresolved. These are static founding parameters, separate
+from the labor allocation tie-break.
+
+`household_governance::elections::cast` accepts one immutable ballot per member
+per future regular term. The caller supplies a consenting member's candidate or
+explicit abstention. Voters and candidates must be living founding adults when
+accepted. Unknown members, duplicate ballots, off-calendar elections, late ballots
+and non-elected constitutions reject atomically. This is a supplied-ballot pilot:
+there is no autonomous voting preference, campaigning, secret ballot protocol,
+ballot revision or election labor charge.
+
+At a term's Open, only adults alive at that boundary comprise the electorate.
+Ballots from people who died in an earlier month do not count. A living voter's
+abstention, or vote for a candidate who has since died, counts toward turnout but
+not toward a candidate. No quorum, no candidate votes or an unresolved tie leaves
+the office vacant; the incumbent does not automatically continue. Previously
+accepted operational policy still applies.
+
+An elected governor's later death leaves the office vacant until the next regular
+election. There is no by-election or immediate runner-up succession. Historical
+election results use eligibility at the original term boundary, so a later death
+does not rewrite the winner or invalidate instructions issued while alive.
+As with other governance authority, a Close-month death affects eligibility at the
+following Open; dead agents cannot submit new instructions or ballots.
+
+Open receipts retain eligible voters, turnout, required turnout, candidate totals
+and the elected winner, separately from the current living governor. Replay
+reconstructs these fields and rejects altered tallies. Settlement observer records
+include the election evidence and honor household/member filters. There is no
+new scheduler phase. Leadership changes do not transfer ownership, consolidate
+books or choose individual work assignments.
 
 ## Agreement and continued existence
 
@@ -405,3 +444,22 @@ remain, consistent with the production-buffer limitation above.
 
 Validation passes all 133 tests, including 16 household tests, plus formatting,
 strict Clippy, and the repository artifact check.
+
+### Election validation
+
+The election slice passes 46 focused checks: 32 household tests, four household
+accounting tests and ten telemetry tests. The existing slow household accounting
+calibration remains ignored. Strict all-target Clippy and formatting pass.
+
+New controls cover plurality, rounded turnout thresholds, explicit abstention,
+two tie rules on identical ballots, roster/ballot ordering, atomic rejection of
+invalid votes, and deaths before and after election. Historical policy authority
+survives the elected governor's subsequent death. A four-month, two-person case
+matches CPU/reference execution, monthly/batched stepping and cloned continuation;
+changing only the leadership rule leaves economic state unchanged. Forged tallies
+reject without publication. Member-filtered observer output reports the tally and
+does not affect execution.
+
+These checks establish election mechanics and accounting regression safety. They
+do not show that elected leadership improves welfare: voting and policy choices
+are supplied, and no new long 32-person calibration was run.

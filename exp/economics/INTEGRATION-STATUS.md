@@ -349,5 +349,21 @@ settlement logs expose current authority, term and policy, and replay validates
 them. See [rotating governance](HOUSEHOLDS.md#rotating-governance-and-succession).
 
 This changes no ownership, financial reporting scope or settlement obligations.
-Elections, lawful institutional formation, need-aware collective planning and
+Autonomous voting, lawful institutional formation, need-aware collective planning and
 household market/credit/employment integration remain outstanding.
+
+
+### Household election governance
+
+Added opt-in elected terms alongside fixed-founder and rotating governance.
+Static charter parameters define turnout and tie resolution; accepted ballots
+carry their issue month and target term. Existing Open household receipts expose
+the electorate, tally and winner, and the settlement observer exports that evidence.
+Historical results survive subsequent deaths; vacancies do not erase operating
+policy. Election selection remains separate from labor allocation and separate
+agent financial reporting.
+
+This first slice uses supplied ballots and the fixed adult founding roster. It
+does not implement endogenous voting, election work costs, by-elections, hereditary
+succession, legal formation or household employment/credit integration. See
+[household election semantics and validation](HOUSEHOLDS.md#elected-governance).
