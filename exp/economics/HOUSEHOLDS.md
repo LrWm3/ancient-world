@@ -12,27 +12,69 @@ The representative `households-32` scenario now uses the
 [project goals](GOALS.md)'s 20% contributed-labor charter. The older spare-labor
 behavior remains available through `Governance::legacy`. Founding templates,
 static charter parameters, a named person holding policy-setting authority, and
-swappable labor policies are implemented. Elections, succession, household law
-recognition and general institutional markets remain future work.
+swappable labor policies are implemented. Opt-in rotating terms and deterministic
+succession now extend this foundation. Elections, household law recognition and
+general institutional markets remain future work.
 
 `Agreement.governance` separates:
 
 | Component | Current role |
 | --- | --- |
-| Constitution | Permitted operational policies and an optional productive-activity subset. The initial governance mechanism is a fixed founding-member governor. |
-| Static charter | Named governor, labor contribution percentage or legacy spare-labor mode, labor tie-break and initial policy. |
+| Constitution | Permitted operational policies and an optional productive-activity subset. Selects fixed-founder or rotating leadership independently of operational policies. |
+| Static charter | Founding governor, term length for rotation, labor contribution percentage or legacy spare-labor mode, labor tie-break and initial policy. |
 | Policy instructions | Governor-authorized changes to an allowed policy, effective in a specified future month. |
 | Operational allocation | The household evaluates feasible member work; the governor does not name individual jobs or recipients. |
 
 Constitution and charter are founding configuration. There is no amendment API.
 `household_governance::schedule` atomically accepts a future policy instruction
-from the living named governor, verifies the constitution, and rejects duplicate
-instructions for a month. The effective policy is derived from dated accepted
-instructions, so checkpoint continuation and record ordering do not invent new
-authority. Already accepted instructions survive the governor's death; remaining
-members continue under those policies, with no replacement governor yet. As with
-other consented fixtures, callers supply accepted instructions; no personality
-model autonomously chooses policy changes.
+from the living current governor and verifies the constitution. Accepted instructions
+retain their issue month as well as their effective month and author. Authority
+is validated at issue time, not against whoever governs when the policy becomes
+effective. Two instructions issued in the same month for the same effective month
+are rejected. A later-month authorized instruction can supersede that effective
+month while preserving the earlier record. The effective policy uses the latest
+effective date, then the latest issue date; row ordering cannot choose policy.
+Already accepted instructions survive leadership changes and deaths. As with other
+consented fixtures, callers supply instructions; no personality model autonomously
+chooses policy changes.
+
+## Rotating governance and succession
+
+`Governance::contributed` retains a fixed founding governor by default.
+`Governance::rotating(founder, term_months)` selects the rotating constitution;
+for annual terms use `DEFAULT_TERM_MONTHS` (12). The charter's named founder is
+the starting point, not a mutable record of the current office holder.
+
+Terms start at founding and advance at Open after each configured interval.
+Eligible adults follow sorted stable IDs, starting with the founder. Signature
+order and the labor tie-break do not determine governance. A two-adult household
+founded in month 1 with twelve-month terms changes governor at months 13 and 25.
+The constitution and charter remain unchanged throughout.
+
+The rotation uses the original adult roster. At each Open it skips members whose
+terminal transition occurred in an earlier month, choosing the next surviving
+member in that ring. A death does not reset the term calendar: a replacement can
+therefore also hold the next scheduled term. There is no same-month retroactive
+replacement authority. The fixed-founder variant instead leaves the office vacant
+after the founder dies. With no survivors, neither variant selects a governor and
+the household ceases operating under the existing rule.
+
+A vacant office does not cancel previously accepted policy. Living members can
+continue operating under it; nobody gains new instruction authority merely from
+receiving household labor. The governor sets permitted policy, not individual jobs,
+asset ownership or debt responsibility. Leadership rotation does not consolidate
+member financial statements or transfer their property to the household.
+
+`Boundary.governance` records the current governor (or vacancy), mechanism, term
+start and effective policy at Open. Labor receipts also name the actual governor.
+Replay reconstructs this evidence before publication, and the settlement observer
+exports `household_governance` records, including when filtered by a member.
+No new monthly phase or governance resource budget was introduced.
+
+This is a deterministic rotation/succession pilot, not elections, hereditary
+succession, contested authority or resignation. Membership is still the fixed
+adult founding roster. General lawful founding rules, household employment and
+credit integration, and need-aware collective planning remain outstanding.
 
 ## Agreement and continued existence
 
@@ -191,7 +233,8 @@ execution are not modeled.
 
 Equal-score recipient and donor ties use an explicit static charter choice:
 `MemberId`, `Rotating` (sorted living IDs, rotated monthly from founding), or
-`SignatoryOrder`. Rotating allocation is **not** rotation of the governor.
+`SignatoryOrder`. Rotating allocation is independent of the constitution’s
+governor rotation; either can be selected without the other.
 Pooled-goods allocation still uses its existing benefit/reservation-order rule;
 these new policies currently govern labor only.
 
@@ -274,6 +317,23 @@ actual shared shelter and wear, native/coin taxes, household-funded forwards,
 last-adult death, atomic failed replay, CPU parity, monthly stepping, and in-memory
 checkpoint continuation. Generated audit logs are kept under ignored
 `output/economics/`.
+
+### Rotating-governance validation
+
+The focused run passes **41 checks**: 27 household, four household-accounting and
+ten telemetry checks. The existing long household accounting stress test remains
+ignored. Strict all-target Clippy passes. New controls cover annual term boundaries,
+signature-order independence, historical authorization, future-policy supersession,
+post-death succession, vacant offices, and forged Open authority receipts. A
+four-month two-adult comparison using two-month terms matches CPU/reference,
+monthly versus batched stepping and cloned continuation. Holding policy constant,
+fixed and rotating governors produce identical economic state; changing the office
+holder alone does not choose a different job or transfer property. Member-filtered
+logs identify both governors across a handoff without changing execution.
+
+This verifies bounded governance mechanics, not elections, autonomous policy
+selection or better household economic outcomes. No new long 32-person calibration
+was performed. Generated logs remain under ignored `output/economics/`.
 
 ### Governance validation (2026-09-24)
 

@@ -336,3 +336,18 @@ Membership and ownership do not implicitly consolidate books. Household/member
 claims remain visible. Explicit consolidated requests currently reject until an
 elimination adapter exists; any future eliminations will affect only the report,
 not obligations or per-agent books. See [reporting scope](FINANCIAL-STATEMENTS.md#explicit-reporting-scope).
+
+## Household rotating governance
+
+An opt-in rotating constitution now uses static charter terms and a founding
+member as its starting governor. Deterministic stable-ID rotation and next-Open
+succession are separate from labor tie-breaks and operational policy. Fixed-founder
+governance remains the default and has no automatic succession. Accepted policy
+instructions retain their issue month and historical authority; later governors
+can supersede pending policies without deleting those records. Open receipts and
+settlement logs expose current authority, term and policy, and replay validates
+them. See [rotating governance](HOUSEHOLDS.md#rotating-governance-and-succession).
+
+This changes no ownership, financial reporting scope or settlement obligations.
+Elections, lawful institutional formation, need-aware collective planning and
+household market/credit/employment integration remain outstanding.
