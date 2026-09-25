@@ -1172,3 +1172,289 @@ fn rotating_authority_receipts_replay_on_cpu_and_reject_forgery() {
     assert!(households::commit(&cpu.world, &mut state, &forged, Backend::Reference, 4096).is_err());
     assert_eq!(state, before);
 }
+
+#[test]
+fn elected_governors_respect_turnout_ties_and_atomic_ballot_admission() {
+    use economics_compute_smoke::household_governance::{self as g, elections::*};
+    let (mut w, mut s) = governed_fixture();
+    s.phase = Phase::Open;
+    w.households[0].governance = g::Governance::elected(PERSON, 2);
+    let ballot = |voter, candidate, term_start| Ballot {
+        voter,
+        candidate,
+        term_start,
+    };
+    for b in [
+        ballot(PERSON + 99, Some(PERSON), 3),
+        ballot(PERSON, Some(PERSON + 99), 3),
+        ballot(PERSON, Some(PERSON), 2),
+        ballot(PERSON, Some(PERSON), 1),
+    ] {
+        let before = w.households.clone();
+        assert!(cast(&mut w, &s, HOME, b).is_err());
+        assert_eq!(w.households, before);
+    }
+    cast(&mut w, &s, HOME, ballot(PERSON, Some(PERSON + 1), 3)).unwrap();
+    let before = w.households.clone();
+    assert!(cast(&mut w, &s, HOME, ballot(PERSON, Some(PERSON), 3)).is_err());
+    assert_eq!(w.households, before);
+    assert_eq!(g::leader(&w.households[0], &s), Some(PERSON));
+    let mut tied = w.clone();
+    cast(&mut tied, &s, HOME, ballot(PERSON + 1, Some(PERSON), 3)).unwrap();
+    s.month = 3;
+    assert!(cast(&mut w, &s, HOME, ballot(PERSON + 1, Some(PERSON), 3)).is_err());
+    let a = g::authority(&w.households[0], &s);
+    assert_eq!(a.leader, Some(PERSON + 1));
+    assert_eq!(a.election.as_ref().unwrap().turnout, 1);
+    w.households[0]
+        .governance
+        .charter
+        .election
+        .minimum_turnout_percent = 100;
+    assert_eq!(g::leader(&w.households[0], &s), None);
+    assert_eq!(g::leader(&tied.households[0], &s), Some(PERSON));
+    let expected = g::authority(&tied.households[0], &s);
+    tied.households[0].adults.reverse();
+    tied.households[0].governance.ballots.reverse();
+    assert_eq!(g::authority(&tied.households[0], &s), expected);
+    tied.households[0].governance.charter.election.tie_break = ElectionTieBreak::Vacant;
+    assert_eq!(g::leader(&tied.households[0], &s), None);
+    s.month = 5;
+    assert_eq!(g::leader(&tied.households[0], &s), None); // no incumbent rollover
+}
+
+#[test]
+fn election_abstention_and_death_preserve_historical_authority() {
+    use economics_compute_smoke::{
+        household_governance::{self as g, elections::*},
+        maintenance::TerminalTransition,
+    };
+    let (mut w, mut s) = governed_fixture();
+    w.households[0].governance = g::Governance::elected(PERSON, 2);
+    cast(
+        &mut w,
+        &s,
+        HOME,
+        Ballot {
+            voter: PERSON,
+            candidate: None,
+            term_start: 3,
+        },
+    )
+    .unwrap();
+    cast(
+        &mut w,
+        &s,
+        HOME,
+        Ballot {
+            voter: PERSON + 1,
+            candidate: Some(PERSON + 1),
+            term_start: 3,
+        },
+    )
+    .unwrap();
+    s.month = 3;
+    let result = g::authority(&w.households[0], &s).election.unwrap();
+    assert_eq!(result.turnout, 2);
+    assert_eq!(result.votes.values().sum::<usize>(), 1);
+    g::schedule(
+        &mut w,
+        &s,
+        HOME,
+        g::PolicyChange {
+            month: 4,
+            authorized_by: PERSON + 1,
+            policy: g::Policy::NetOutput,
+        },
+    )
+    .unwrap();
+    s.terminal.insert(
+        PERSON + 1,
+        TerminalTransition {
+            month: 3,
+            subject: PERSON + 1,
+            reason: NUTRITION,
+            state: "dead".into(),
+        },
+    );
+    s.month = 4;
+    assert_eq!(g::leader(&w.households[0], &s), None);
+    assert_eq!(g::authority(&w.households[0], &s).election.unwrap(), result);
+    households::validate(&w, &s).unwrap();
+    assert_eq!(w.households[0].governance.policy(4), g::Policy::NetOutput);
+    // A candidate/voter dying before the election is excluded at its opening.
+    w.households[0].governance.changes.clear();
+    s.terminal.get_mut(&(PERSON + 1)).unwrap().month = 2;
+    let result = g::authority(&w.households[0], &s).election.unwrap();
+    assert_eq!(result.eligible, vec![PERSON]);
+    assert_eq!(result.turnout, 1); // explicit abstention, no candidate votes
+    assert_eq!(result.winner, None);
+    assert!(
+        cast(
+            &mut w,
+            &s,
+            HOME,
+            Ballot {
+                voter: PERSON + 1,
+                candidate: None,
+                term_start: 5
+            }
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn elected_authority_replays_on_cpu_and_rejects_forged_tallies() {
+    use economics_compute_smoke::household_governance::{self as g, elections::*};
+    let (mut w, mut s) = governed_fixture();
+    s.phase = Phase::Open;
+    let mut fixed = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    fixed.run_months(4).unwrap();
+    w.households[0].governance = g::Governance::elected(PERSON, 2);
+    cast(
+        &mut w,
+        &s,
+        HOME,
+        Ballot {
+            voter: PERSON,
+            candidate: Some(PERSON + 1),
+            term_start: 3,
+        },
+    )
+    .unwrap();
+    let mut cpu = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+    let mut reference = Simulation::new(w, s, Backend::Reference).unwrap();
+    cpu.run_months(2).unwrap();
+    let before = cpu.state.clone();
+    let mut resumed = cpu.clone();
+    cpu.run_months(2).unwrap();
+    reference.run_months(4).unwrap();
+    resumed.run_months(1).unwrap();
+    resumed.run_months(1).unwrap();
+    assert_eq!(cpu.state, reference.state);
+    assert_eq!(cpu.ledger, reference.ledger);
+    assert_eq!(cpu.state, resumed.state);
+    assert_eq!(cpu.ledger, resumed.ledger);
+    assert_eq!(cpu.state, fixed.state);
+    let mut forged = cpu
+        .ledger
+        .iter()
+        .find(|b| b.month == 3 && b.phase == Phase::Open)
+        .unwrap()
+        .clone();
+    let a = &mut forged.household.as_mut().unwrap().governance[0];
+    assert_eq!(a.leader, Some(PERSON + 1));
+    a.election.as_mut().unwrap().turnout += 1;
+    let mut state = before.clone();
+    assert!(households::commit(&cpu.world, &mut state, &forged, Backend::Reference, 4096).is_err());
+    assert_eq!(state, before);
+}
+
+#[test]
+fn election_observer_exposes_tally_to_members_without_changing_execution() {
+    use economics_compute_smoke::{
+        household_governance::{
+            Governance,
+            elections::{Ballot, cast},
+        },
+        telemetry::{Config, Observer},
+    };
+    let (mut w, mut s) = governed_fixture();
+    s.phase = Phase::Open;
+    w.households[0].governance = Governance::elected(PERSON, 1);
+    cast(
+        &mut w,
+        &s,
+        HOME,
+        Ballot {
+            voter: PERSON,
+            candidate: Some(PERSON + 1),
+            term_start: 2,
+        },
+    )
+    .unwrap();
+    let mut observed = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    let mut plain = Simulation::new(w, s, Backend::Reference).unwrap();
+    let mut observer = Observer::new(
+        vec![],
+        "elections",
+        Config {
+            settlement: true,
+            agents: [PERSON].into_iter().collect(),
+            ..Config::default()
+        },
+    )
+    .unwrap();
+    observer.run_months(&mut observed, 2).unwrap();
+    plain.run_months(2).unwrap();
+    assert_eq!(observed.state, plain.state);
+    assert_eq!(observed.ledger, plain.ledger);
+    let log = String::from_utf8(observer.finish().unwrap()).unwrap();
+    let elections: Vec<serde_json::Value> = log
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .filter(|r: &serde_json::Value| {
+            r["kind"] == "household_governance" && !r["election"].is_null()
+        })
+        .collect();
+    assert_eq!(elections.len(), 1);
+    assert_eq!(elections[0]["election"]["turnout"], 1);
+    assert_eq!(elections[0]["election"]["required_turnout"], 1);
+    assert_eq!(elections[0]["election"]["winner"], PERSON + 1);
+}
+
+#[test]
+fn election_plurality_and_rounded_quorum_use_the_living_electorate() {
+    use economics_compute_smoke::household_governance::{self as g, elections::*};
+    let (mut w, mut s) = fixture(3);
+    let mut a = agreement(3);
+    a.governance = g::Governance::elected(PERSON, 2);
+    households::form(&mut w, &s, a).unwrap();
+    for (voter, candidate) in [
+        (PERSON, PERSON + 1),
+        (PERSON + 1, PERSON + 1),
+        (PERSON + 2, PERSON),
+    ] {
+        cast(
+            &mut w,
+            &s,
+            HOME,
+            Ballot {
+                voter,
+                candidate: Some(candidate),
+                term_start: 3,
+            },
+        )
+        .unwrap();
+    }
+    s.month = 3;
+    let r = g::authority(&w.households[0], &s).election.unwrap();
+    assert_eq!(r.required_turnout, 2);
+    assert_eq!(r.winner, Some(PERSON + 1));
+    assert_eq!(r.votes[&(PERSON + 1)], 2);
+    for invalid in [0, 101] {
+        w.households[0]
+            .governance
+            .charter
+            .election
+            .minimum_turnout_percent = invalid;
+        assert!(households::validate(&w, &s).is_err());
+    }
+    w.households[0].governance = g::Governance::contributed(PERSON);
+    let before = w.households.clone();
+    assert!(
+        cast(
+            &mut w,
+            &s,
+            HOME,
+            Ballot {
+                voter: PERSON,
+                candidate: Some(PERSON),
+                term_start: 13
+            }
+        )
+        .is_err()
+    );
+    assert_eq!(w.households, before);
+}

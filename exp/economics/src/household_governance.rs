@@ -1,6 +1,7 @@
 //! Founding templates, static charter parameters and bounded household policy.
 use crate::{households::Agreement, model::*};
 use std::collections::BTreeSet;
+pub mod elections;
 
 pub const PERCENT: i32 = 100;
 pub const DEFAULT_LABOR_PERCENT: u32 = 20;
@@ -26,6 +27,7 @@ pub enum Contribution {
 pub enum Leadership {
     FixedFounder,
     Rotating,
+    Elected,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Constitution {
@@ -40,6 +42,7 @@ pub struct Charter {
     /// Founding governor; rotating terms start here in the stable adult-ID ring.
     pub leader: AgentId,
     pub term_months: u32,
+    pub election: elections::Rules,
     pub contribution: Contribution,
     pub tie_break: TieBreak,
     pub initial_policy: Policy,
@@ -61,6 +64,7 @@ pub struct Authority {
     pub leader: Option<AgentId>,
     pub leadership: Leadership,
     pub term_start: u32,
+    pub election: Option<elections::ElectionResult>,
     pub policy: Policy,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -69,6 +73,7 @@ pub struct Governance {
     pub charter: Charter,
     /// Accepted dated instructions; leader chooses policy, not individual jobs.
     pub changes: Vec<AcceptedPolicy>,
+    pub ballots: Vec<elections::AcceptedBallot>,
 }
 impl Governance {
     pub fn contributed(leader: AgentId) -> Self {
@@ -83,17 +88,24 @@ impl Governance {
             charter: Charter {
                 leader,
                 term_months: DEFAULT_TERM_MONTHS,
+                election: elections::Rules::default(),
                 contribution: Contribution::Percent(DEFAULT_LABOR_PERCENT),
                 tie_break: TieBreak::Rotating,
                 initial_policy: Policy::PreserveCommittedWork,
             },
             changes: vec![],
+            ballots: vec![],
         }
     }
     pub fn rotating(leader: AgentId, term_months: u32) -> Self {
         let mut g = Self::contributed(leader);
         g.constitution.leadership = Leadership::Rotating;
         g.charter.term_months = term_months;
+        g
+    }
+    pub fn elected(leader: AgentId, term_months: u32) -> Self {
+        let mut g = Self::rotating(leader, term_months);
+        g.constitution.leadership = Leadership::Elected;
         g
     }
     pub fn legacy(leader: AgentId) -> Self {
@@ -114,6 +126,7 @@ impl Governance {
 
 pub fn validate(world: &World, state: &State, a: &Agreement) -> Result<(), String> {
     let g = &a.governance;
+    elections::validate(a, state)?;
     let mut dates = BTreeSet::new();
     if g.charter.term_months == 0
         || !a.adults.contains(&g.charter.leader)
@@ -163,6 +176,16 @@ fn leader_at_open(a: &Agreement, state: &State, month: u32) -> Option<AgentId> {
     if g.constitution.leadership == Leadership::FixedFounder {
         return alive(&g.charter.leader).then_some(g.charter.leader);
     }
+    if g.constitution.leadership == Leadership::Elected {
+        let term_start =
+            a.formed + ((month - a.formed) / g.charter.term_months) * g.charter.term_months;
+        let winner = if term_start == a.formed {
+            Some(g.charter.leader)
+        } else {
+            elections::resolve(a, state, term_start).winner
+        };
+        return winner.filter(alive);
+    }
     let mut ring = a.adults.clone();
     ring.sort_unstable();
     let initial = ring.iter().position(|id| *id == g.charter.leader)?;
@@ -178,7 +201,7 @@ pub fn leader(a: &Agreement, state: &State) -> Option<AgentId> {
 }
 pub fn authority(a: &Agreement, state: &State) -> Authority {
     let g = &a.governance;
-    let term_start = if g.constitution.leadership == Leadership::Rotating
+    let term_start = if g.constitution.leadership != Leadership::FixedFounder
         && g.charter.term_months > 0
     {
         a.formed
@@ -191,6 +214,8 @@ pub fn authority(a: &Agreement, state: &State) -> Authority {
         leader: leader(a, state),
         leadership: g.constitution.leadership,
         term_start,
+        election: (g.constitution.leadership == Leadership::Elected && term_start > a.formed)
+            .then(|| elections::resolve(a, state, term_start)),
         policy: g.policy(state.month),
     }
 }

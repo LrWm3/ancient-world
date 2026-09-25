@@ -72,7 +72,7 @@ pub(super) fn batch(
                 records.push(
                     json!({"kind":"household_governance", "household":a.household,
                     "leader":a.leader,"leadership":format!("{:?}",a.leadership),
-                    "term_start":a.term_start,"policy":format!("{:?}",a.policy)}),
+                    "term_start":a.term_start,"election":a.election,"policy":format!("{:?}",a.policy)}),
                 );
             }
         }
