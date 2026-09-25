@@ -85,7 +85,8 @@ pub(super) fn batch(
                 records.push(json!({"kind":"household_labor", "household":d.household,
                     "leader":d.leader,"policy":format!("{:?}",d.policy),"tie_break":format!("{:?}",d.tie_break),
                     "recipient":d.recipient,"granted":d.granted,"baseline_value":d.baseline_value,
-                    "projected_value":d.projected_value,"contributions":d.contributions.iter().map(|c|
+                    "projected_value":d.projected_value,"baseline_needs":d.baseline_needs,
+                    "projected_needs":d.projected_needs,"contributions":d.contributions.iter().map(|c|
                         json!({"member":c.member,"resource":c.resource,"available":c.available,
                             "reserved":c.reserved,"directed":c.directed,"returned":c.returned})).collect::<Vec<_>>() }));
             }

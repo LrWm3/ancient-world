@@ -1458,3 +1458,219 @@ fn election_plurality_and_rounded_quorum_use_the_living_electorate() {
     );
     assert_eq!(w.households, before);
 }
+
+fn need_governance_fixture() -> (World, State) {
+    use economics_compute_smoke::household_governance::Policy;
+    let (mut w, mut s) = governed_fixture();
+    let mut food = w.definitions[0].clone();
+    food.id = 99;
+    food.name = "prepare food".into();
+    food.stages[0].entry_inputs = vec![Amount::new(SEED, 1)];
+    food.outputs = vec![Amount::new(GRAIN, 2)];
+    w.definitions.push(food);
+    w.definitions.push(baseline().0.definition(CONSUME).clone());
+    for p in &mut w.participants {
+        p.needs = vec![Requirement {
+            resource: NUTRITION,
+            quantity: 1,
+            priority: 0,
+        }];
+        s.balances.insert((p.agent, GRAIN), 0);
+        s.balances
+            .insert((p.agent, SEED), i32::from(p.agent == PERSON + 1));
+    }
+    w.activities.orders.retain(|o| o.agent == PERSON);
+    w.households[0].governance.charter.initial_policy = Policy::NeedsFirst;
+    (w, s)
+}
+
+#[test]
+fn needs_first_prefers_feeding_members_over_higher_valued_output() {
+    use economics_compute_smoke::household_governance::Policy;
+    let (w, s) = need_governance_fixture();
+    let mut needs = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    let mut output_world = w;
+    output_world.households[0].governance.charter.initial_policy = Policy::NetOutput;
+    let mut output = Simulation::new(output_world, s, Backend::Reference).unwrap();
+    needs.step().unwrap();
+    output.step().unwrap();
+    let n = &needs.ledger[0].household.as_ref().unwrap().labor[0];
+    let o = &output.ledger[0].household.as_ref().unwrap().labor[0];
+    assert_eq!(n.recipient, Some(PERSON + 1));
+    assert_eq!(o.recipient, Some(PERSON));
+    assert!(n.projected_value < o.projected_value);
+    assert_eq!(n.baseline_needs.as_ref().unwrap()[0].unmet, 2);
+    assert_eq!(n.projected_needs.as_ref().unwrap()[0].unmet, 0);
+    needs.step().unwrap();
+    output.step().unwrap();
+    for person in [PERSON, PERSON + 1] {
+        assert_eq!(needs.state.balance(person, NUTRITION), 1);
+        assert_eq!(output.state.balance(person, NUTRITION), 0);
+    }
+}
+
+#[test]
+fn need_forecasts_match_cpu_replay_and_reject_forgery() {
+    let (w, s) = need_governance_fixture();
+    let mut cpu = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+    let mut reference = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    cpu.step().unwrap();
+    reference.step().unwrap();
+    assert_eq!(cpu.state, reference.state);
+    assert_eq!(cpu.ledger, reference.ledger);
+    let mut forged = cpu.ledger[0].clone();
+    forged.household.as_mut().unwrap().labor[0]
+        .projected_needs
+        .as_mut()
+        .unwrap()[0]
+        .unmet += 1;
+    let mut untouched = s.clone();
+    assert!(
+        commit(
+            &w,
+            &mut untouched,
+            &forged,
+            Backend::Reference,
+            DEFAULT_EFFECT_LIMIT
+        )
+        .is_err()
+    );
+    assert_eq!(untouched, s);
+    let mut resumed = cpu.clone();
+    cpu.run_months(3).unwrap();
+    reference.run_months(1).unwrap();
+    reference.run_months(1).unwrap();
+    reference.run_months(1).unwrap();
+    resumed.run_months(3).unwrap();
+    assert_eq!(cpu.state, reference.state);
+    assert_eq!(cpu.ledger, reference.ledger);
+    assert_eq!(cpu.state, resumed.state);
+    assert_eq!(cpu.ledger, resumed.ledger);
+}
+
+#[test]
+fn needs_first_returns_to_output_when_fed_and_cannot_create_missing_inputs() {
+    for fed in [false, true] {
+        let (mut w, mut s) = need_governance_fixture();
+        if fed {
+            for person in [PERSON, PERSON + 1] {
+                s.balances.insert((person, GRAIN), 10);
+            }
+        } else {
+            s.balances.insert((PERSON + 1, SEED), 0);
+        }
+        // No multi-month claim about needing more food; this control isolates
+        // fulfilled current needs from a wish that lacks an actual input.
+        w.horizon = 1;
+        let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+        sim.step().unwrap();
+        let d = &sim.ledger[0].household.as_ref().unwrap().labor[0];
+        assert_eq!(d.recipient, Some(PERSON));
+        assert_eq!(d.baseline_needs, d.projected_needs);
+        assert_eq!(
+            d.projected_needs.as_ref().unwrap()[0].unmet,
+            if fed { 0 } else { 2 }
+        );
+    }
+}
+
+#[test]
+fn needs_first_keeps_existing_commitment_protection() {
+    let (mut w, mut s) = need_governance_fixture();
+    let mut committed = w.definition(REPAIR).clone();
+    committed.id = 100;
+    committed.stages[0].monthly_services = vec![Amount::new(LABOR, 5)];
+    committed.outputs[0].quantity = 1;
+    w.definitions.push(committed);
+    s.processes.insert(
+        900,
+        ProcessInstance {
+            id: 900,
+            definition: 100,
+            operator: PERSON + 1,
+            beneficiary: PERSON + 1,
+            goal: None,
+            asset: None,
+            right: None,
+            start: 1,
+            reserved_through: 1,
+            stage: 0,
+            elapsed: 0,
+            status: Status::Active,
+        },
+    );
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    sim.step().unwrap();
+    assert_eq!(sim.state.processes[&900].status, Status::Completed);
+    let d = &sim.ledger[0].household.as_ref().unwrap().labor[0];
+    assert_eq!(d.recipient, None);
+    assert_eq!(d.baseline_needs, d.projected_needs);
+    assert_eq!(d.projected_needs.as_ref().unwrap()[0].unmet, 2);
+}
+
+#[test]
+fn need_observer_reports_forecasts_without_exporting_private_projections() {
+    use economics_compute_smoke::telemetry::{Config, Observer};
+    let (w, s) = need_governance_fixture();
+    let mut observed = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    let mut plain = Simulation::new(w, s, Backend::Reference).unwrap();
+    let mut observer = Observer::new(
+        vec![],
+        "household-needs",
+        Config {
+            settlement: true,
+            agents: [PERSON + 1].into_iter().collect(),
+            ..Config::default()
+        },
+    )
+    .unwrap();
+    observer.run_months(&mut observed, 1).unwrap();
+    plain.run_months(1).unwrap();
+    assert_eq!(observed.state, plain.state);
+    assert_eq!(observed.ledger, plain.ledger);
+    let log = String::from_utf8(observer.finish().unwrap()).unwrap();
+    let choices: Vec<serde_json::Value> = log
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .filter(|r: &serde_json::Value| r["kind"] == "household_labor")
+        .collect();
+    assert_eq!(choices.len(), 1);
+    assert_eq!(choices[0]["baseline_needs"][0]["unmet"], 2);
+    assert_eq!(choices[0]["projected_needs"][0]["unmet"], 0);
+}
+
+#[test]
+fn needs_first_compares_ranked_resources_without_adding_unlike_units() {
+    for warmth_first in [false, true] {
+        let (mut w, s) = need_governance_fixture();
+        w.resources.push(Resource {
+            id: WARMTH,
+            name: "warmth".into(),
+            kind: ResourceKind::Fulfillment,
+        });
+        let mut consume = w.definition(CONSUME).clone();
+        consume.id = 101;
+        consume.stages[0].entry_inputs = vec![Amount::new(REPAIR_OUTPUT, 1)];
+        consume.outputs = vec![Amount::new(WARMTH, 1)];
+        w.definitions.push(consume);
+        for p in &mut w.participants {
+            p.needs[0].priority = u32::from(warmth_first);
+            p.needs.push(Requirement {
+                resource: WARMTH,
+                quantity: 1,
+                priority: u32::from(!warmth_first),
+            });
+        }
+        let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+        sim.step().unwrap();
+        let d = &sim.ledger[0].household.as_ref().unwrap().labor[0];
+        let first = if warmth_first { WARMTH } else { NUTRITION };
+        assert_eq!(d.projected_needs.as_ref().unwrap()[0].resource, first);
+        assert_eq!(d.projected_needs.as_ref().unwrap()[0].unmet, 0);
+        assert_eq!(d.projected_needs.as_ref().unwrap()[1].unmet, 2);
+        sim.step().unwrap();
+        for person in [PERSON, PERSON + 1] {
+            assert_eq!(sim.state.balance(person, first), 1);
+        }
+    }
+}

@@ -10,6 +10,7 @@ pub const DEFAULT_TERM_MONTHS: u32 = 12;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Policy {
     NetOutput,
+    NeedsFirst,
     PreserveCommittedWork,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -80,9 +81,13 @@ impl Governance {
         Self {
             constitution: Constitution {
                 leadership: Leadership::FixedFounder,
-                permitted_policies: [Policy::NetOutput, Policy::PreserveCommittedWork]
-                    .into_iter()
-                    .collect(),
+                permitted_policies: [
+                    Policy::NetOutput,
+                    Policy::PreserveCommittedWork,
+                    Policy::NeedsFirst,
+                ]
+                .into_iter()
+                .collect(),
                 activities: None,
             },
             charter: Charter {

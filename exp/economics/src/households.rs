@@ -7,6 +7,8 @@ use crate::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+pub mod needs;
+
 pub const FOUNDING_ADULT_LIMIT: usize = 4;
 pub const GROWN_CHILD_ADULT_SLOTS: usize = 4;
 pub const POOL_DIVISOR: i32 = 2;
@@ -57,6 +59,8 @@ pub struct LaborDecision {
     pub recipient: Option<AgentId>,
     pub baseline_value: i64,
     pub projected_value: i64,
+    pub baseline_needs: Option<Vec<needs::Deficit>>,
+    pub projected_needs: Option<Vec<needs::Deficit>>,
     pub granted: i32,
     pub policy: crate::household_governance::Policy,
     pub leader: Option<AgentId>,
@@ -819,6 +823,8 @@ fn labor(world: &World, state: &State) -> Result<(Vec<Effect>, Vec<LaborDecision
             recipient: None,
             baseline_value: base_value,
             projected_value: base_value,
+            baseline_needs: None,
+            projected_needs: None,
             granted: 0,
             policy: a.governance.policy(state.month),
             leader: crate::household_governance::leader(a, state),
@@ -851,6 +857,9 @@ fn contributed_labor(
     let baseline = probe(world, state)?;
     let base_value = work_value(world, &baseline, &people);
     let policy = a.governance.policy(state.month);
+    let baseline_needs = (policy == Policy::NeedsFirst)
+        .then(|| needs::project(world, state, &baseline, &people))
+        .transpose()?;
     let contributions: Vec<_> = order
         .iter()
         .map(|&member| {
@@ -879,6 +888,8 @@ fn contributed_labor(
         recipient: None,
         baseline_value: base_value,
         projected_value: base_value,
+        baseline_needs: baseline_needs.clone(),
+        projected_needs: baseline_needs,
         granted: 0,
         policy,
         leader: crate::household_governance::leader(a, state),
@@ -1009,15 +1020,21 @@ fn contributed_labor(
                         .any(|q| same_work(p, q))
                 })
         };
-        if !retains(&plan, false)
-            || (policy == Policy::PreserveCommittedWork && !retains(&baseline, true))
-        {
+        if !retains(&plan, false) || (policy != Policy::NetOutput && !retains(&baseline, true)) {
             continue;
         }
         let value = work_value(world, &final_plan, &people);
-        if value <= decision.projected_value {
+        let projected_needs = (policy == Policy::NeedsFirst)
+            .then(|| needs::project(world, &final_state, &final_plan, &people))
+            .transpose()?;
+        // Lexicographic need deficits precede net output. No conversion of food,
+        // warmth or other fulfillment units into a single monetary score.
+        let better = projected_needs < decision.projected_needs
+            || (projected_needs == decision.projected_needs && value > decision.projected_value);
+        if !better {
             continue;
         }
+        decision.projected_needs = projected_needs;
         decision.recipient = Some(member);
         decision.projected_value = value;
         decision.granted = grant;
