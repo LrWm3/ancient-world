@@ -60,9 +60,25 @@ pub(super) fn batch(
     if config.settlement
         && let Some(h) = &batch.household
     {
+        for a in &h.governance {
+            if selected(config, a.household)
+                || a.leader.is_some_and(|leader| selected(config, leader))
+                || world
+                    .households
+                    .iter()
+                    .find(|h| h.agent == a.household)
+                    .is_some_and(|h| h.adults.iter().any(|id| selected(config, *id)))
+            {
+                records.push(
+                    json!({"kind":"household_governance", "household":a.household,
+                    "leader":a.leader,"leadership":format!("{:?}",a.leadership),
+                    "term_start":a.term_start,"policy":format!("{:?}",a.policy)}),
+                );
+            }
+        }
         for d in &h.labor {
             if selected(config, d.household)
-                || selected(config, d.leader)
+                || d.leader.is_some_and(|leader| selected(config, leader))
                 || d.contributions.iter().any(|c| selected(config, c.member))
                 || d.recipient.is_some_and(|m| selected(config, m))
             {

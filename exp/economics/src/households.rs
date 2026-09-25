@@ -59,7 +59,7 @@ pub struct LaborDecision {
     pub projected_value: i64,
     pub granted: i32,
     pub policy: crate::household_governance::Policy,
-    pub leader: AgentId,
+    pub leader: Option<AgentId>,
     pub tie_break: crate::household_governance::TieBreak,
     pub contributions: Vec<LaborContribution>,
 }
@@ -74,6 +74,7 @@ pub struct LaborContribution {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Boundary {
+    pub governance: Vec<crate::household_governance::Authority>,
     pub remainders: BTreeMap<Account, i32>,
     pub labor: Vec<LaborDecision>,
     pub reservations: Vec<Reservation>,
@@ -146,7 +147,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     let mut agents = BTreeSet::new();
     let mut adults = BTreeSet::new();
     for a in &world.households {
-        crate::household_governance::validate(world, a)?;
+        crate::household_governance::validate(world, state, a)?;
         if !ids.insert(a.id)
             || !agents.insert(a.agent)
             || a.adults.is_empty()
@@ -523,6 +524,14 @@ fn prepare(world: &World, state: &State) -> Result<(State, Boundary), String> {
             .collect(),
         ..Default::default()
     };
+    if state.phase == Phase::Open {
+        b.governance = world
+            .households
+            .iter()
+            .map(|a| crate::household_governance::authority(a, state))
+            .collect();
+        b.governance.sort_by_key(|a| a.household);
+    }
     if !matches!(state.phase, Phase::Open | Phase::Close) {
         (b.reservations, b.before) = allocate(world, state, requests(world, state)?)?;
         apply(world, &mut staged, &b.before, Backend::Reference)?;
@@ -812,7 +821,7 @@ fn labor(world: &World, state: &State) -> Result<(Vec<Effect>, Vec<LaborDecision
             projected_value: base_value,
             granted: 0,
             policy: a.governance.policy(state.month),
-            leader: a.governance.charter.leader,
+            leader: crate::household_governance::leader(a, state),
             tie_break: a.governance.charter.tie_break,
             contributions: vec![],
         };
@@ -872,7 +881,7 @@ fn contributed_labor(
         projected_value: base_value,
         granted: 0,
         policy,
-        leader: a.governance.charter.leader,
+        leader: crate::household_governance::leader(a, state),
         tie_break: a.governance.charter.tie_break,
         contributions: contributions.clone(),
     };
@@ -1085,6 +1094,7 @@ pub(crate) fn settled_boundaries(
         || receipt.reservations != expected.reservations
         || receipt.inactive != expected.inactive
         || receipt.labor != expected.labor
+        || receipt.governance != expected.governance
     {
         return Err("altered household reservations".into());
     }

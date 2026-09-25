@@ -926,7 +926,10 @@ fn contribution_rounding_uses_current_capacity_and_does_not_bank_unused_hours() 
 #[test]
 fn household_observer_reports_member_contributions_without_affecting_execution() {
     use economics_compute_smoke::telemetry::{Config, Observer};
-    let (w, s) = governed_fixture();
+    let (mut w, mut s) = governed_fixture();
+    w.households[0].governance =
+        economics_compute_smoke::household_governance::Governance::rotating(PERSON, 1);
+    s.phase = Phase::Open;
     let mut observed = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
     let mut plain = Simulation::new(w, s, Backend::Reference).unwrap();
     let mut observer = Observer::new(
@@ -939,12 +942,233 @@ fn household_observer_reports_member_contributions_without_affecting_execution()
         },
     )
     .unwrap();
-    observer.run_months(&mut observed, 1).unwrap();
-    plain.run_months(1).unwrap();
+    observer.run_months(&mut observed, 2).unwrap();
+    plain.run_months(2).unwrap();
     assert_eq!(observed.state, plain.state);
     assert_eq!(observed.ledger, plain.ledger);
     let log = String::from_utf8(observer.finish().unwrap()).unwrap();
+    let governors: Vec<_> = log
+        .lines()
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).unwrap())
+        .filter(|record| record["kind"] == "household_governance")
+        .map(|record| record["leader"].as_u64().unwrap())
+        .collect();
+    assert_eq!(governors, vec![u64::from(PERSON), u64::from(PERSON + 1)]);
     assert!(log.lines().any(|l| l.contains("household_labor")
         && l.contains("\"reserved\":1")
         && l.contains("PreserveCommittedWork")));
+}
+
+#[test]
+fn governor_rotation_uses_charter_terms_and_stable_ids_not_labor_ties() {
+    use economics_compute_smoke::household_governance::{self as g, Governance, TieBreak};
+    let (mut w, mut s) = governed_fixture();
+    let a = &mut w.households[0];
+    a.governance = Governance::rotating(PERSON + 1, 12);
+    a.governance.charter.tie_break = TieBreak::SignatoryOrder;
+    for (month, expected, start) in [
+        (1, PERSON + 1, 1),
+        (12, PERSON + 1, 1),
+        (13, PERSON, 13),
+        (24, PERSON, 13),
+        (25, PERSON + 1, 25),
+    ] {
+        s.month = month;
+        assert_eq!(g::leader(a, &s), Some(expected));
+        assert_eq!(g::authority(a, &s).term_start, start);
+        let before = g::authority(a, &s);
+        a.adults.reverse();
+        assert_eq!(g::authority(a, &s), before);
+    }
+    a.governance.charter.term_months = 0;
+    assert!(households::validate(&w, &s).is_err());
+}
+
+#[test]
+fn incoming_governor_can_supersede_future_policy_without_rewriting_acceptance() {
+    use economics_compute_smoke::household_governance::{
+        self as g, Governance, Policy, PolicyChange,
+    };
+    let (mut w, mut s) = governed_fixture();
+    w.households[0].governance = Governance::rotating(PERSON, 2);
+    let charter = w.households[0].governance.charter.clone();
+    let constitution = w.households[0].governance.constitution.clone();
+    g::schedule(
+        &mut w,
+        &s,
+        HOME,
+        PolicyChange {
+            month: 4,
+            authorized_by: PERSON,
+            policy: Policy::NetOutput,
+        },
+    )
+    .unwrap();
+    let accepted = w.households[0].governance.changes[0].clone();
+    assert_eq!(accepted.issued_month, 1);
+    s.month = 3;
+    let unchanged = w.clone();
+    assert!(
+        g::schedule(
+            &mut w,
+            &s,
+            HOME,
+            PolicyChange {
+                month: 4,
+                authorized_by: PERSON,
+                policy: Policy::NetOutput
+            }
+        )
+        .is_err()
+    );
+    assert_eq!(w, unchanged);
+    g::schedule(
+        &mut w,
+        &s,
+        HOME,
+        PolicyChange {
+            month: 4,
+            authorized_by: PERSON + 1,
+            policy: Policy::PreserveCommittedWork,
+        },
+    )
+    .unwrap();
+    let a = &mut w.households[0];
+    assert_eq!(a.governance.changes[0], accepted);
+    assert_eq!(a.governance.policy(4), Policy::PreserveCommittedWork);
+    a.governance.changes.reverse();
+    assert_eq!(a.governance.policy(4), Policy::PreserveCommittedWork);
+    assert_eq!(a.governance.charter, charter);
+    assert_eq!(a.governance.constitution, constitution);
+    households::validate(&w, &s).unwrap();
+    // Editing the historic issuer cannot create authority retroactively.
+    w.households[0].governance.changes[0].change.authorized_by = PERSON;
+    assert!(households::validate(&w, &s).is_err());
+}
+
+#[test]
+fn death_preserves_accepted_policy_and_rotating_successor_takes_over_next_open() {
+    use economics_compute_smoke::household_governance::{
+        self as g, Governance, Leadership, Policy, PolicyChange,
+    };
+    use economics_compute_smoke::maintenance::TerminalTransition;
+    let (mut w, mut s) = governed_fixture();
+    w.households[0].governance = Governance::rotating(PERSON, 12);
+    g::schedule(
+        &mut w,
+        &s,
+        HOME,
+        PolicyChange {
+            month: 2,
+            authorized_by: PERSON,
+            policy: Policy::NetOutput,
+        },
+    )
+    .unwrap();
+    s.terminal.insert(
+        PERSON,
+        TerminalTransition {
+            month: 1,
+            subject: PERSON,
+            reason: NUTRITION,
+            state: "dead".into(),
+        },
+    );
+    assert_eq!(g::leader(&w.households[0], &s), None);
+    assert!(
+        g::schedule(
+            &mut w,
+            &s,
+            HOME,
+            PolicyChange {
+                month: 3,
+                authorized_by: PERSON + 1,
+                policy: Policy::NetOutput
+            }
+        )
+        .is_err()
+    );
+    s.month = 2;
+    s.phase = Phase::Open;
+    assert_eq!(g::leader(&w.households[0], &s), Some(PERSON + 1));
+    assert_eq!(w.households[0].governance.policy(2), Policy::NetOutput);
+    households::validate(&w, &s).unwrap();
+    g::schedule(
+        &mut w,
+        &s,
+        HOME,
+        PolicyChange {
+            month: 3,
+            authorized_by: PERSON + 1,
+            policy: Policy::PreserveCommittedWork,
+        },
+    )
+    .unwrap();
+    // A fixed-founder template explicitly has no succession, rather than silently
+    // granting another member policy-setting authority.
+    let mut fixed = w.clone();
+    fixed.households[0].governance.constitution.leadership = Leadership::FixedFounder;
+    assert_eq!(g::leader(&fixed.households[0], &s), None);
+    s.terminal.insert(
+        PERSON + 1,
+        TerminalTransition {
+            month: 2,
+            subject: PERSON + 1,
+            reason: NUTRITION,
+            state: "dead".into(),
+        },
+    );
+    s.month = 3;
+    assert_eq!(g::leader(&w.households[0], &s), None);
+    households::validate(&w, &s).unwrap();
+}
+
+#[test]
+fn rotating_authority_receipts_replay_on_cpu_and_reject_forgery() {
+    use economics_compute_smoke::household_governance::Governance;
+    let (mut w, mut s) = governed_fixture();
+    w.households[0].governance = Governance::rotating(PERSON, 2);
+    s.phase = Phase::Open;
+    let mut fixed_world = w.clone();
+    fixed_world.households[0].governance.constitution.leadership =
+        economics_compute_smoke::household_governance::Leadership::FixedFounder;
+    let mut fixed = Simulation::new(fixed_world, s.clone(), Backend::Reference).unwrap();
+    fixed.run_months(4).unwrap();
+    let mut cpu = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+    let mut reference = Simulation::new(w, s, Backend::Reference).unwrap();
+    cpu.run_months(2).unwrap();
+    reference.run_months(2).unwrap();
+    assert_eq!(cpu.state, reference.state);
+    assert_eq!(cpu.ledger, reference.ledger);
+    let before = cpu.state.clone();
+    let mut resumed = cpu.clone();
+    cpu.run_months(2).unwrap();
+    reference.run_months(1).unwrap();
+    reference.run_months(1).unwrap();
+    resumed.run_months(2).unwrap();
+    assert_eq!(cpu.state, reference.state);
+    assert_eq!(cpu.ledger, reference.ledger);
+    assert_eq!(cpu.state, resumed.state);
+    assert_eq!(cpu.ledger, resumed.ledger);
+    // Changing the governor alone does not choose jobs or reassign property.
+    assert_eq!(cpu.state, fixed.state);
+    let opening = cpu
+        .ledger
+        .iter()
+        .find(|b| b.month == 3 && b.phase == Phase::Open)
+        .unwrap();
+    assert_eq!(
+        opening.household.as_ref().unwrap().governance[0].leader,
+        Some(PERSON + 1)
+    );
+    for b in cpu.ledger.iter().filter(|b| b.month >= 3) {
+        for d in &b.household.as_ref().unwrap().labor {
+            assert_eq!(d.leader, Some(PERSON + 1));
+        }
+    }
+    let mut forged = opening.clone();
+    forged.household.as_mut().unwrap().governance[0].leader = Some(PERSON);
+    let mut state = before.clone();
+    assert!(households::commit(&cpu.world, &mut state, &forged, Backend::Reference, 4096).is_err());
+    assert_eq!(state, before);
 }
