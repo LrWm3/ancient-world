@@ -60,6 +60,7 @@ pub(super) fn validate(a: &Agreement, state: &State) -> std::result::Result<(), 
                 || b.ballot.term_start <= b.issued_month
                 || !(b.ballot.term_start - a.formed).is_multiple_of(g.charter.term_months)
                 || !seen.insert((b.ballot.term_start, b.ballot.voter))
+                || crate::households::dissolution::winding_at(a, b.issued_month).is_some()
                 || !alive(b.ballot.voter, b.issued_month)
                 || b.ballot
                     .candidate

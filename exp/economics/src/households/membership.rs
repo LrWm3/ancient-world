@@ -4,6 +4,13 @@ use super::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Action {
+    WindDown {
+        person: AgentId,
+        recipient: AgentId,
+    },
+    Dissolve {
+        person: AgentId,
+    },
     Join {
         person: AgentId,
         /// Existing living members and the entrant explicitly consent.
@@ -11,7 +18,9 @@ pub enum Action {
         admission: crate::laws::households::Admission,
     },
     /// The named member requests exit; no household veto or property payout.
-    Leave { person: AgentId },
+    Leave {
+        person: AgentId,
+    },
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Change {
@@ -28,6 +37,8 @@ pub fn roster_at(a: &Agreement, month: u32) -> Vec<AgentId> {
         match change.action {
             Action::Join { person, .. } => people.push(person),
             Action::Leave { person } => people.retain(|id| *id != person),
+            Action::WindDown { .. } => {}
+            Action::Dissolve { .. } => people.clear(),
         }
     }
     people
@@ -44,7 +55,7 @@ pub fn ever_member(a: &Agreement, person: AgentId) -> bool {
             .any(|c| matches!(c.action, Action::Join { person: id, .. } if id == person))
 }
 
-fn boundary(a: &Agreement, s: &State) -> Result<(), String> {
+pub(super) fn boundary(a: &Agreement, s: &State) -> Result<(), String> {
     if s.phase != Phase::Open
         || s.pending_production.is_some()
         || s.month <= a.formed
@@ -79,6 +90,9 @@ pub fn join(
         .find(|a| a.agent == household)
         .ok_or("unknown household")?;
     boundary(a, state)?;
+    if super::dissolution::winding_at(a, state.month).is_some() {
+        return Err("household is winding down".into());
+    }
     if parent(world, state, person).is_some() || state.terminal.contains_key(&person) {
         return Err("entrant must be a living unaffiliated adult".into());
     }
@@ -114,13 +128,16 @@ pub fn leave(
         .find(|a| a.agent == household)
         .ok_or("unknown household")?;
     boundary(a, state)?;
+    if super::dissolution::winding_at(a, state.month).is_some() {
+        return Err("household is winding down".into());
+    }
     if !members(a, state).any(|id| id == person) {
         return Err("exit requires a living member's instruction".into());
     }
     accept(world, state, household, Action::Leave { person })
 }
 
-fn accept(
+pub(super) fn accept(
     world: &mut World,
     state: &State,
     household: AgentId,
@@ -148,6 +165,8 @@ pub(super) fn validate(world: &World, state: &State) -> Result<(), String> {
         dates.insert(a.formed);
         let mut previous = a.formed;
         let mut roster = a.adults.clone();
+        let mut winding = None;
+        let mut closed = false;
         for c in &a.membership {
             if c.month <= previous || c.month > state.month {
                 return Err("invalid household membership date".into());
@@ -155,6 +174,9 @@ pub(super) fn validate(world: &World, state: &State) -> Result<(), String> {
             previous = c.month;
             dates.insert(c.month);
             let living = |id: &AgentId| state.terminal.get(id).is_none_or(|t| t.month >= c.month);
+            if closed {
+                return Err("membership change after dissolution".into());
+            }
             match &c.action {
                 Action::Join {
                     person,
@@ -162,7 +184,8 @@ pub(super) fn validate(world: &World, state: &State) -> Result<(), String> {
                     admission,
                 } => {
                     let mut expected: BTreeSet<_> = roster.iter().copied().filter(living).collect();
-                    if expected.is_empty()
+                    if winding.is_some()
+                        || expected.is_empty()
                         || roster.contains(person)
                         || !living(person)
                         || !world.participants.iter().any(|p| p.agent == *person)
@@ -183,17 +206,37 @@ pub(super) fn validate(world: &World, state: &State) -> Result<(), String> {
                     roster.push(*person);
                 }
                 Action::Leave { person } => {
-                    if !roster.contains(person) || !living(person) {
+                    if winding.is_some() || !roster.contains(person) || !living(person) {
                         return Err("invalid household exit".into());
                     }
                     roster.retain(|id| id != person);
+                }
+                Action::WindDown { person, recipient } => {
+                    if winding.is_some()
+                        || !a.governance.constitution.allow_dissolution
+                        || roster.iter().copied().filter(living).collect::<Vec<_>>()
+                            != vec![*person]
+                        || a.governance.charter.residual_recipient.unwrap_or(*person) != *recipient
+                    {
+                        return Err("invalid household wind-down authority or terms".into());
+                    }
+                    winding = Some(*person);
+                }
+                Action::Dissolve { person } => {
+                    if winding != Some(*person) || !living(person) {
+                        return Err(
+                            "dissolution requires the last member's wind-down instruction".into(),
+                        );
+                    }
+                    roster.clear();
+                    closed = true;
                 }
             }
             let count = roster.iter().filter(|id| living(id)).count();
             let rules = a.admission.as_ref().and_then(|r| r.rules.as_ref());
             let min = rules.map_or(1, |r| r.min_adults);
             let max = rules.map_or(FOUNDING_ADULT_LIMIT, |r| r.max_adults);
-            if count < min || count > max {
+            if winding.is_none() && (count < min || count > max) {
                 return Err("membership change exceeds household adult bounds; last-member exit requires dissolution".into());
             }
         }

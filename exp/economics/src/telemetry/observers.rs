@@ -60,11 +60,19 @@ pub(super) fn batch(
     if config.settlement
         && let Some(h) = &batch.household
     {
+        for receipt in &h.dissolution {
+            if selected(config, receipt.household) || selected(config, receipt.recipient) {
+                records.push(json!({"kind":"household_dissolution", "household":receipt.household,
+                    "recipient":receipt.recipient,"blockers":receipt.blockers,"distributed":receipt.distributed}));
+            }
+        }
         for (household, change) in &h.membership {
             use crate::households::membership::Action;
             let (action, person) = match change.action {
                 Action::Join { person, .. } => ("join", person),
                 Action::Leave { person } => ("leave", person),
+                Action::WindDown { person, .. } => ("wind_down", person),
+                Action::Dissolve { person } => ("dissolve", person),
             };
             if selected(config, *household) || selected(config, person) {
                 records.push(json!({"kind":"household_membership", "household":household,

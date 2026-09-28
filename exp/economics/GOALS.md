@@ -149,7 +149,9 @@ replayable results. State law now gates household founding and bounds constituti
 choices and charter values; governors may issue dated objective/tie instructions
 within those limits. The [governance basics checklist](HOUSEHOLD-BASICS.md) describes
 this integrated slice. [Adult admission and exit](HOUSEHOLD-MEMBERSHIP.md) now add
-dated membership without rewriting founding rules, property or debts. Market
+dated membership without rewriting founding rules, property or debts. Opt-in
+[solvent dissolution](HOUSEHOLD-DISSOLUTION.md) now closes the last-member lifecycle
+for stock-only residual distributions after claims clear. Market
 recruitment and exit settlements remain targets. Autonomous voting, broader institutional formation and
 longer-horizon collective planning remain targets below.
 

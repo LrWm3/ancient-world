@@ -135,6 +135,7 @@ default policy. It does not validate new-law/legacy-market interoperability or
 [Household membership](HOUSEHOLD-MEMBERSHIP.md) adds explicit unanimous accession
 and member-requested exit at Open, dated rosters, retained governance history,
 updated storage sharing and household-specific fractional collection. Property and
-debts stay separate. Last-member dissolution and market recruitment remain outside
-this slice. The original validation counts above describe the earlier governance
+debts stay separate. Market recruitment remains outside this slice. A subsequent
+[solvent dissolution extension](HOUSEHOLD-DISSOLUTION.md) handles last-member
+wind-down and residual stock; asset and insolvency estates remain outstanding. The original validation counts above describe the earlier governance
 completion; membership verification is recorded in the extension document.

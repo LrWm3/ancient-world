@@ -184,7 +184,8 @@ and a child-only household cannot remain active without an adult.
 
 [Adult accession and voluntary exit](HOUSEHOLD-MEMBERSHIP.md) now operate at Open.
 They retain the founding record, property and debts, and recheck shared storage.
-Recruitment offers and last-member dissolution are still separate extensions.
+Recruitment offers remain an extension. [Solvent last-member dissolution](HOUSEHOLD-DISSOLUTION.md)
+now provides opt-in wind-down and stock distribution under static founding terms.
 
 ## Half of receipts, with separate ownership
 
@@ -546,3 +547,12 @@ authorized objective/tie changes, the executable six-month election scenario and
 current verification. Founding laws now coexist with the household driver;
 recognized households do not acquire their members' process rights automatically.
 Historical calibration sections above retain their original scope and dates.
+
+## Solvent dissolution extension
+
+[Household dissolution](HOUSEHOLD-DISSOLUTION.md) adds an opt-in constitutional
+permission and static charter recipient. The last member can stop collective
+operations, settle residual stock through Open receipts after obligations clear,
+and then release membership/storage. Separate books and historical authority survive.
+General household lending/recovery, asset dispositions and death estates remain
+uncomposed; this path does not silently write off or transfer their claims.

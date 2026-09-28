@@ -762,7 +762,7 @@ zero cash flows and continuation.
 The expansion is **not universal coverage yet**. These valid economic situations
 still need accounting adapters or policy definitions:
 
-- Household dissolution/estate distributions and consolidated reporting beyond the supported pooling agreement.
+- Household asset/insolvency estate distributions and consolidated reporting beyond the supported pooling agreement. Solvent residual-stock dissolution now uses the existing transfer adapter; see HOUSEHOLD-DISSOLUTION.md.
 - Estimated/capitalized contingent consideration beyond the earned-only royalty policy below; noncash exchanges outside supported posted, negotiated and town-market payment terms.
 - Broader paid-labor admission and contract terms beyond current-period capacity purchases, priced contract production, non-pool resource ownership, and combining distinct beneficiaries with royalties.
 - Multiple loan/estate denominations and FX valuation; redeemable currency and retirement.
@@ -1150,3 +1150,13 @@ Agreements can continue deliveries on credit or suspend future deliveries while
 prior wages remain unpaid. No wage claim is discharged merely because the contract
 expires, the employer wastes the hours, or production fails. Negotiated hiring,
 household paid-labor delegation and wage insolvency/estate treatment remain open.
+
+
+## Solvent household dissolution
+
+[Solvent dissolution](HOUSEHOLD-DISSOLUTION.md) emits residual stock/coin transfers
+inside verified Open household boundaries. The existing transfer adapter preserves
+stock basis and records TransferExpense/TransferIncome in separate books. An annual
+dues case verifies payment before surplus, zero final household assets/liabilities,
+and CPU/reference/resumed audit equality. No household loan/recovery or physical
+asset liquidation adapter is implied by this extension.

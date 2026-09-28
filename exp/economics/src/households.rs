@@ -7,6 +7,7 @@ use crate::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+pub mod dissolution;
 pub mod membership;
 pub mod needs;
 
@@ -84,6 +85,7 @@ pub struct LaborContribution {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Boundary {
+    pub dissolution: Vec<dissolution::Receipt>,
     pub membership: Vec<(AgentId, membership::Change)>,
     pub governance: Vec<crate::household_governance::Authority>,
     pub remainders: Remainders,
@@ -99,7 +101,9 @@ pub struct Boundary {
 pub fn members<'a>(a: &'a Agreement, state: &'a State) -> impl Iterator<Item = AgentId> + 'a {
     membership::roster_at(a, state.month)
         .into_iter()
-        .filter(|id| !state.terminal.contains_key(id))
+        .filter(|id| {
+            !state.terminal.contains_key(id) && dissolution::winding_at(a, state.month).is_none()
+        })
 }
 pub fn parent(world: &World, state: &State, person: AgentId) -> Option<AgentId> {
     world
@@ -167,6 +171,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     let mut ids = BTreeSet::new();
     let mut agents = BTreeSet::new();
     membership::validate(world, state)?;
+    dissolution::validate(world, state)?;
     for a in &world.households {
         crate::household_governance::validate(world, state, a)?;
         crate::laws::households::validate_admission(world, a)?;
@@ -565,6 +570,8 @@ fn prepare(world: &World, state: &State) -> Result<(State, Boundary), String> {
             })
             .collect();
         b.membership.sort_by_key(|(id, _)| *id);
+        (b.before, b.dissolution) = dissolution::prepare(world, state)?;
+        apply(world, &mut staged, &b.before, Backend::Reference)?;
     }
     if !matches!(state.phase, Phase::Open | Phase::Close) {
         (b.reservations, b.before) = allocate(world, state, requests(world, state)?)?;
@@ -1145,6 +1152,7 @@ pub(crate) fn settled_boundaries(
         || receipt.labor != expected.labor
         || receipt.governance != expected.governance
         || receipt.membership != expected.membership
+        || receipt.dissolution != expected.dissolution
     {
         return Err("altered household reservations".into());
     }

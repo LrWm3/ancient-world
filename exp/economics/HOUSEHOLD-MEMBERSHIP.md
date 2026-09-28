@@ -29,8 +29,9 @@ admission receipt. A separate legal accession action remains an extension. Exist
 memberships do not vanish when recognition changes. Exit does not require renewed
 founding permission. Changes must also satisfy the accepted founding law's adult
 bounds, with at least one living adult and at most four in this adult-only pilot.
-The last adult cannot leave through this API: dissolution and asset disposition
-need their own agreement/estate settlement.
+The last adult cannot leave through the ordinary exit API. An opt-in
+[solvent dissolution path](HOUSEHOLD-DISSOLUTION.md) now settles residual stock
+before releasing the final membership. Other asset/estate dispositions remain separate.
 
 ## History, authority and operations
 

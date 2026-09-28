@@ -33,6 +33,8 @@ pub enum Leadership {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Constitution {
+    /// Opt-in solvent wind-down under the static residual-recipient charter.
+    pub allow_dissolution: bool,
     pub leadership: Leadership,
     pub permitted_policies: BTreeSet<Policy>,
     pub permitted_ties: BTreeSet<TieBreak>,
@@ -42,6 +44,8 @@ pub struct Constitution {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Charter {
+    /// None selects the last living member; otherwise a named residual recipient.
+    pub residual_recipient: Option<AgentId>,
     /// Founding governor; rotating terms start here in the stable adult-ID ring.
     pub leader: AgentId,
     pub term_months: u32,
@@ -85,6 +89,7 @@ impl Governance {
     pub fn contributed(leader: AgentId) -> Self {
         Self {
             constitution: Constitution {
+                allow_dissolution: false,
                 leadership: Leadership::FixedFounder,
                 permitted_policies: [
                     Policy::NetOutput,
@@ -102,6 +107,7 @@ impl Governance {
                 activities: None,
             },
             charter: Charter {
+                residual_recipient: None,
                 leader,
                 term_months: DEFAULT_TERM_MONTHS,
                 election: elections::Rules::default(),
@@ -152,7 +158,10 @@ pub fn validate(world: &World, state: &State, a: &Agreement) -> Result<(), Strin
     let g = &a.governance;
     elections::validate(a, state)?;
     let mut dates = BTreeSet::new();
-    if !g.constitution.permitted_ties.contains(&g.charter.tie_break)
+    if g.charter
+        .residual_recipient
+        .is_some_and(|id| id == a.agent || !world.agents.iter().any(|a| a.id == id))
+        || !g.constitution.permitted_ties.contains(&g.charter.tie_break)
         || g.charter.term_months == 0
         || !a.adults.contains(&g.charter.leader)
         || !g
@@ -196,7 +205,10 @@ pub fn validate(world: &World, state: &State, a: &Agreement) -> Result<(), Strin
 /// affects selection from Open m+1, preserving earlier authority evidence.
 fn leader_at_open(a: &Agreement, state: &State, month: u32) -> Option<AgentId> {
     let g = &a.governance;
-    if month < a.formed || g.charter.term_months == 0 {
+    if month < a.formed
+        || g.charter.term_months == 0
+        || crate::households::dissolution::winding_at(a, month).is_some()
+    {
         return None;
     }
     let roster = crate::households::membership::roster_at(a, month);

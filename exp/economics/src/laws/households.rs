@@ -9,6 +9,7 @@ use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Rules {
+    pub allow_dissolution: bool,
     pub leadership: BTreeSet<Leadership>,
     pub policies: BTreeSet<Policy>,
     pub ties: BTreeSet<TieBreak>,
@@ -23,6 +24,7 @@ pub struct Rules {
 impl Default for Rules {
     fn default() -> Self {
         Self {
+            allow_dissolution: true,
             leadership: [
                 Leadership::FixedFounder,
                 Leadership::Rotating,
@@ -79,7 +81,8 @@ pub(super) fn validate_rules(w: &World, rules: &Rules) -> Result<(), String> {
 }
 fn check_terms(a: &Agreement, rules: &Rules) -> Result<(), String> {
     let g = &a.governance;
-    if !(rules.min_term_months..=rules.max_term_months).contains(&g.charter.term_months)
+    if (g.constitution.allow_dissolution && !rules.allow_dissolution)
+        || !(rules.min_term_months..=rules.max_term_months).contains(&g.charter.term_months)
         || !rules.leadership.contains(&g.constitution.leadership)
         || !g.constitution.permitted_policies.is_subset(&rules.policies)
         || !g.constitution.permitted_ties.is_subset(&rules.ties)

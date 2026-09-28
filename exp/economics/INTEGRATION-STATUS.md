@@ -413,8 +413,18 @@ broader institutional or finance roadmap.
 [Membership changes](HOUSEHOLD-MEMBERSHIP.md) now apply before Open work using
 explicit consent, current legal admission and preserved founding limits. Dated
 rosters drive labor, pooling, storage, elections and observer selection. Exit leaves
-property and debts unchanged and rejects unsupported storage or last-member
-dissolution. Household-specific fractional carry cannot leak across moves. Open
+property and debts unchanged and rejects unsupported storage. Ordinary last-member
+exit remains separate from the solvent dissolution path described below. Household-specific fractional carry cannot leak across moves. Open
 receipts validate membership evidence; CPU/reference and audited separate-book
 checks cover actual join/exit execution. Recruitment markets, negotiated exits,
 estates and general institutional membership remain outstanding.
+
+
+### Solvent household dissolution
+
+The opt-in [dissolution path](HOUSEHOLD-DISSOLUTION.md) now separates wind-down,
+verified residual-stock distribution and final membership release. Constitution
+and static charter select permission and recipient; admitted legal limits persist.
+The integrated CPU/reference case pays annual household land dues before releasing
+surplus and closes with balanced separate statements. Assets, insolvency, general
+household loan/recovery composition and automatic death estates remain outstanding.
