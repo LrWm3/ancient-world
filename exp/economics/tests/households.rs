@@ -31,6 +31,7 @@ fn agreement(count: u32) -> Agreement {
         formed: 1,
         dwelling_process: None,
         admission: None,
+        membership: vec![],
     }
 }
 fn request(member: u32, quantity: i32, benefit: i64, sequence: u64) -> Request {
@@ -605,11 +606,17 @@ fn fractional_contributions_carry_across_months_instead_of_vanishing() {
     let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
     sim.run_months(1).unwrap();
     assert_eq!(sim.state.balance(HOME, REPAIR_OUTPUT), 0);
-    assert_eq!(sim.state.household_remainders[&(PERSON, REPAIR_OUTPUT)], 1);
+    assert_eq!(
+        sim.state.household_remainders[&(HOME, PERSON, REPAIR_OUTPUT)],
+        1
+    );
     sim.run_months(1).unwrap();
     assert_eq!(sim.state.balance(HOME, REPAIR_OUTPUT), 1);
     assert_eq!(sim.state.balance(PERSON, REPAIR_OUTPUT), 1);
-    assert_eq!(sim.state.household_remainders[&(PERSON, REPAIR_OUTPUT)], 0);
+    assert_eq!(
+        sim.state.household_remainders[&(HOME, PERSON, REPAIR_OUTPUT)],
+        0
+    );
 }
 
 #[test]
@@ -1963,4 +1970,484 @@ fn constitutional_allocation_ties_are_checked_atomically() {
     );
     w.households[0].governance.charter.tie_break = TieBreak::MemberId;
     assert!(households::validate(&w, &s).is_err());
+}
+
+#[test]
+fn adult_accession_requires_consent_eligibility_bounds_and_an_unopened_boundary() {
+    use households::membership as m;
+    let (mut w, mut s) = fixture(5);
+    households::form(&mut w, &s, agreement(3)).unwrap();
+    s.month = 2;
+    for signatories in [
+        vec![],
+        vec![PERSON, PERSON + 3],
+        vec![PERSON, PERSON + 1, PERSON + 2, PERSON + 3, PERSON + 3],
+    ] {
+        let before = w.clone();
+        assert!(m::join(&mut w, &s, HOME, PERSON + 3, signatories).is_err());
+        assert_eq!(w, before);
+    }
+    s.phase = Phase::Productive;
+    assert!(m::join(&mut w, &s, HOME, PERSON + 3, (PERSON..PERSON + 4).collect()).is_err());
+    s.phase = Phase::Open;
+    let founding = w.households[0].clone();
+    m::join(
+        &mut w,
+        &s,
+        HOME,
+        PERSON + 3,
+        (PERSON..PERSON + 4).rev().collect(),
+    )
+    .unwrap();
+    assert_eq!(w.households[0].adults, founding.adults);
+    assert_eq!(w.households[0].admission, founding.admission);
+    assert_eq!(w.households[0].governance, founding.governance);
+    assert_eq!(m::roster_at(&w.households[0], 1), founding.adults);
+    assert_eq!(households::members(&w.households[0], &s).count(), 4);
+    let before = w.clone();
+    assert!(m::leave(&mut w, &s, HOME, PERSON).is_err()); // one change per opening
+    s.month = 3;
+    assert!(m::join(&mut w, &s, HOME, PERSON + 4, (PERSON..PERSON + 5).collect()).is_err());
+    assert!(m::join(&mut w, &s, HOME, PERSON, (PERSON..PERSON + 4).collect()).is_err());
+    assert_eq!(w, before);
+}
+
+#[test]
+fn accession_rechecks_current_law_without_rewriting_accepted_memberships() {
+    use households::membership as m;
+    let (mut w, mut s) = lawful_household_fixture();
+    households::form(&mut w, &s, agreement(1)).unwrap();
+    s.month = 2;
+    w.transaction_policy.as_mut().unwrap().agreement_forms = Some(Default::default());
+    let before = w.clone();
+    assert!(m::join(&mut w, &s, HOME, PERSON + 1, vec![PERSON, PERSON + 1]).is_err());
+    assert_eq!(w, before);
+    w.transaction_policy.as_mut().unwrap().agreement_forms =
+        Some([economics_compute_smoke::laws::AgreementForm::Household].into());
+    m::join(&mut w, &s, HOME, PERSON + 1, vec![PERSON, PERSON + 1]).unwrap();
+    w.transaction_policy.as_mut().unwrap().agreement_forms = Some(Default::default());
+    households::validate(&w, &s).unwrap();
+    s.month = 3;
+    m::leave(&mut w, &s, HOME, PERSON + 1).unwrap(); // no new founding permission to exit
+}
+
+#[test]
+fn voluntary_exit_retains_property_debts_and_fractional_claims_with_the_original_household() {
+    use households::membership as m;
+    let (mut w, mut s) = fixture(3);
+    households::form(&mut w, &s, agreement(2)).unwrap();
+    let mut other = agreement(1);
+    other.agent = HOME + 1;
+    other.id = 2;
+    other.adults = vec![PERSON + 2];
+    other.governance =
+        economics_compute_smoke::household_governance::Governance::legacy(PERSON + 2);
+    households::form(&mut w, &s, other).unwrap();
+    s.month = 2;
+    s.balances.insert((HOME, GRAIN), 8);
+    s.household_remainders
+        .insert((HOME, PERSON, REPAIR_OUTPUT), 1);
+    let state_before = s.clone();
+    let assets = w.assets.clone();
+    let contracts = w.agreements.clone();
+    m::leave(&mut w, &s, HOME, PERSON).unwrap();
+    assert_eq!(households::parent(&w, &s, PERSON), None);
+    assert_eq!(
+        economics_compute_smoke::household_governance::leader(&w.households[0], &s),
+        None
+    );
+    m::join(&mut w, &s, HOME + 1, PERSON, vec![PERSON, PERSON + 2]).unwrap();
+    assert_eq!(households::parent(&w, &s, PERSON), Some(HOME + 1));
+    assert_eq!(s, state_before);
+    assert_eq!(w.assets, assets);
+    assert_eq!(w.agreements, contracts);
+    assert_eq!(
+        households::membership::roster_at(&w.households[0], 1),
+        vec![PERSON, PERSON + 1]
+    );
+    assert!(households::allocate(&w, &s, vec![request(PERSON, 1, 1, 0)]).is_err());
+    s.month = 3;
+    let before = w.clone();
+    assert!(m::leave(&mut w, &s, HOME, PERSON + 1).is_err());
+    assert_eq!(w, before); // last member requires a separate estate/dissolution flow
+}
+
+#[test]
+fn storage_exit_rejection_is_atomic_and_admission_does_not_duplicate_space() {
+    use households::membership as m;
+    let (mut w, mut s) = fixture(3);
+    s.balances.clear();
+    w.storage.weights.insert(GRAIN, 1);
+    for p in PERSON..PERSON + 3 {
+        w.storage.capacities.insert(p, 10);
+    }
+    households::form(&mut w, &s, agreement(2)).unwrap();
+    s.month = 2;
+    s.balances.insert((HOME, GRAIN), 8);
+    let before = w.clone();
+    assert!(
+        m::leave(&mut w, &s, HOME, PERSON + 1)
+            .unwrap_err()
+            .contains("storage")
+    );
+    assert_eq!(w, before);
+    // An explicit prior disposal/transfer must make space; membership never disposes stock.
+    s.balances.insert((HOME, GRAIN), 5);
+    m::leave(&mut w, &s, HOME, PERSON + 1).unwrap();
+    let used = storage::usage(&w, &s.balances);
+    assert_eq!(storage::room(&w, &used, HOME, GRAIN), 0);
+    assert_eq!(storage::room(&w, &used, PERSON + 1, GRAIN), 10);
+    s.month = 3;
+    s.balances.insert((PERSON + 2, GRAIN), 10);
+    m::join(&mut w, &s, HOME, PERSON + 2, vec![PERSON, PERSON + 2]).unwrap();
+    let used = storage::usage(&w, &s.balances);
+    assert_eq!(storage::room(&w, &used, HOME, GRAIN), 0); // entrant already occupies their half
+    assert_eq!(storage::room(&w, &used, PERSON + 2, GRAIN), 0);
+}
+
+#[test]
+fn exit_preserves_election_and_policy_history_and_vacates_the_office() {
+    use economics_compute_smoke::household_governance::{self as g, elections::*};
+    use households::membership as m;
+    let (mut w, mut s) = fixture(2);
+    let mut a = agreement(2);
+    a.governance = g::Governance::elected(PERSON, 2);
+    households::form(&mut w, &s, a).unwrap();
+    for voter in [PERSON, PERSON + 1] {
+        cast(
+            &mut w,
+            &s,
+            HOME,
+            Ballot {
+                term_start: 3,
+                voter,
+                candidate: Some(PERSON + 1),
+            },
+        )
+        .unwrap();
+    }
+    s.month = 3;
+    let result = g::authority(&w.households[0], &s).election.unwrap();
+    g::schedule(
+        &mut w,
+        &s,
+        HOME,
+        g::PolicyChange {
+            month: 5,
+            authorized_by: PERSON + 1,
+            policy: g::Policy::NeedsFirst,
+        },
+    )
+    .unwrap();
+    assert!(m::leave(&mut w, &s, HOME, PERSON + 1).is_err()); // authority already used this month
+    s.month = 4;
+    m::leave(&mut w, &s, HOME, PERSON + 1).unwrap();
+    assert_eq!(g::leader(&w.households[0], &s), None);
+    assert_eq!(g::authority(&w.households[0], &s).election.unwrap(), result);
+    assert_eq!(w.households[0].governance.policy(5), g::Policy::NeedsFirst);
+    assert!(
+        cast(
+            &mut w,
+            &s,
+            HOME,
+            Ballot {
+                term_start: 5,
+                voter: PERSON + 1,
+                candidate: Some(PERSON)
+            }
+        )
+        .is_err()
+    );
+    cast(
+        &mut w,
+        &s,
+        HOME,
+        Ballot {
+            term_start: 5,
+            voter: PERSON,
+            candidate: Some(PERSON),
+        },
+    )
+    .unwrap();
+    s.month = 5;
+    assert_eq!(g::leader(&w.households[0], &s), Some(PERSON));
+    assert_eq!(
+        g::authority(&w.households[0], &s)
+            .election
+            .unwrap()
+            .eligible,
+        vec![PERSON]
+    );
+    households::validate(&w, &s).unwrap();
+}
+
+#[test]
+fn membership_changes_drive_actual_cpu_pooling_and_checkpoint_continuation() {
+    use households::membership as m;
+    let (mut w, mut s) = governed_fixture();
+    let mut p = w.participants[0].clone();
+    p.agent = PERSON + 2;
+    w.participants.push(p);
+    w.agents.push(Agent {
+        id: PERSON + 2,
+        name: "entrant".into(),
+    });
+    s.phase = Phase::Open;
+    let mut cpu = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+    let mut reference = Simulation::new(w, s, Backend::Reference).unwrap();
+    cpu.run_months(1).unwrap();
+    reference.run_months(1).unwrap();
+    for sim in [&mut cpu, &mut reference] {
+        m::join(
+            &mut sim.world,
+            &sim.state,
+            HOME,
+            PERSON + 2,
+            (PERSON..PERSON + 3).collect(),
+        )
+        .unwrap();
+    }
+    let mut resumed = cpu.clone();
+    for sim in [&mut cpu, &mut reference, &mut resumed] {
+        sim.run_months(1).unwrap();
+        assert!(
+            sim.ledger
+                .iter()
+                .filter(|b| b.month == 2)
+                .filter_map(|b| b.household.as_ref())
+                .flat_map(|h| &h.labor)
+                .flat_map(|d| &d.contributions)
+                .any(|c| c.member == PERSON + 2)
+        );
+        m::leave(&mut sim.world, &sim.state, HOME, PERSON + 1).unwrap();
+        sim.run_months(2).unwrap();
+        assert!(
+            !sim.ledger
+                .iter()
+                .filter(|b| b.month >= 3)
+                .filter_map(|b| b.household.as_ref())
+                .flat_map(|h| &h.labor)
+                .flat_map(|d| &d.contributions)
+                .any(|c| c.member == PERSON + 1)
+        );
+    }
+    assert_eq!(cpu.world, reference.world);
+    assert_eq!(cpu.state, reference.state);
+    assert_eq!(cpu.ledger, reference.ledger);
+    assert_eq!(cpu.state, resumed.state);
+    assert_eq!(cpu.ledger, resumed.ledger);
+}
+
+#[test]
+fn membership_open_receipts_replay_and_reject_altered_history() {
+    use households::membership as m;
+    let (mut w, mut s) = fixture(2);
+    households::form(&mut w, &s, agreement(1)).unwrap();
+    s.month = 2;
+    m::join(&mut w, &s, HOME, PERSON + 1, vec![PERSON, PERSON + 1]).unwrap();
+    let mut sim = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    sim.step().unwrap();
+    let mut batch = sim.ledger[0].clone();
+    assert_eq!(batch.household.as_ref().unwrap().membership.len(), 1);
+    let mut replay = s.clone();
+    commit(
+        &w,
+        &mut replay,
+        &batch,
+        Backend::CubeCpu,
+        DEFAULT_EFFECT_LIMIT,
+    )
+    .unwrap();
+    assert_eq!(replay, sim.state);
+    batch.household.as_mut().unwrap().membership.clear();
+    assert!(commit(&w, &mut s, &batch, Backend::Reference, DEFAULT_EFFECT_LIMIT).is_err());
+    assert_eq!(s.phase, Phase::Open);
+}
+
+#[test]
+fn fractional_income_after_a_move_does_not_settle_the_previous_households_carry() {
+    use households::membership as m;
+    let (mut w, mut s) = fixture(3);
+    for p in &mut w.participants {
+        p.needs.clear();
+    }
+    w.activities.orders.push(WorkOrder {
+        agent: PERSON,
+        definition: REPAIR,
+        priority: 0,
+        target: Target::Stock(Amount::new(REPAIR_OUTPUT, 20)),
+    });
+    households::form(&mut w, &s, agreement(2)).unwrap();
+    let mut other = agreement(1);
+    other.id = 2;
+    other.agent = HOME + 1;
+    other.adults = vec![PERSON + 2];
+    other.governance =
+        economics_compute_smoke::household_governance::Governance::legacy(PERSON + 2);
+    households::form(&mut w, &s, other).unwrap();
+    s.month = 2;
+    s.household_remainders
+        .insert((HOME, PERSON, REPAIR_OUTPUT), 1);
+    m::leave(&mut w, &s, HOME, PERSON).unwrap();
+    m::join(&mut w, &s, HOME + 1, PERSON, vec![PERSON, PERSON + 2]).unwrap();
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    sim.run_months(1).unwrap();
+    assert_eq!(sim.state.balance(HOME + 1, REPAIR_OUTPUT), 0);
+    assert_eq!(
+        sim.state.household_remainders[&(HOME + 1, PERSON, REPAIR_OUTPUT)],
+        1
+    );
+    assert_eq!(
+        sim.state.household_remainders[&(HOME, PERSON, REPAIR_OUTPUT)],
+        1
+    );
+    sim.run_months(1).unwrap();
+    assert_eq!(sim.state.balance(HOME + 1, REPAIR_OUTPUT), 1);
+    assert_eq!(sim.state.balance(HOME, REPAIR_OUTPUT), 0);
+}
+
+#[test]
+fn entrants_join_future_electorates_without_rewriting_an_existing_term() {
+    use economics_compute_smoke::household_governance::{self as g, elections::*};
+    use households::membership as m;
+    let (mut w, mut s) = fixture(3);
+    let mut a = agreement(2);
+    a.governance = g::Governance::elected(PERSON, 2);
+    households::form(&mut w, &s, a).unwrap();
+    cast(
+        &mut w,
+        &s,
+        HOME,
+        Ballot {
+            term_start: 3,
+            voter: PERSON,
+            candidate: Some(PERSON + 1),
+        },
+    )
+    .unwrap();
+    s.month = 3;
+    let result = g::authority(&w.households[0], &s).election.unwrap();
+    s.month = 4;
+    m::join(&mut w, &s, HOME, PERSON + 2, (PERSON..PERSON + 3).collect()).unwrap();
+    assert_eq!(g::authority(&w.households[0], &s).election.unwrap(), result);
+    for voter in [PERSON, PERSON + 2] {
+        cast(
+            &mut w,
+            &s,
+            HOME,
+            Ballot {
+                term_start: 5,
+                voter,
+                candidate: Some(PERSON + 2),
+            },
+        )
+        .unwrap();
+    }
+    s.month = 5;
+    assert_eq!(g::leader(&w.households[0], &s), Some(PERSON + 2));
+    assert_eq!(
+        g::authority(&w.households[0], &s)
+            .election
+            .unwrap()
+            .eligible
+            .len(),
+        3
+    );
+    households::validate(&w, &s).unwrap();
+}
+
+#[test]
+fn rotating_entrants_wait_for_a_term_boundary_and_exits_preserve_prior_authority() {
+    use economics_compute_smoke::household_governance as g;
+    use households::membership as m;
+    let (mut w, mut s) = fixture(3);
+    let mut a = agreement(2);
+    a.governance = g::Governance::rotating(PERSON, 2);
+    households::form(&mut w, &s, a).unwrap();
+    s.month = 2;
+    m::join(&mut w, &s, HOME, PERSON + 2, (PERSON..PERSON + 3).collect()).unwrap();
+    assert_eq!(g::leader(&w.households[0], &s), Some(PERSON));
+    g::schedule(
+        &mut w,
+        &s,
+        HOME,
+        g::PolicyChange {
+            month: 3,
+            authorized_by: PERSON,
+            policy: g::Policy::NetOutput,
+        },
+    )
+    .unwrap();
+    s.month = 3;
+    m::leave(&mut w, &s, HOME, PERSON).unwrap();
+    assert_eq!(g::leader(&w.households[0], &s), Some(PERSON + 1));
+    s.month = 5;
+    assert_eq!(g::leader(&w.households[0], &s), Some(PERSON + 2));
+    households::validate(&w, &s).unwrap();
+}
+
+#[test]
+fn observer_reports_membership_change_to_the_departing_person_once() {
+    use economics_compute_smoke::telemetry::{Config, Observer};
+    let (mut w, mut s) = fixture(2);
+    households::form(&mut w, &s, agreement(2)).unwrap();
+    s.month = 2;
+    households::membership::leave(&mut w, &s, HOME, PERSON + 1).unwrap();
+    let mut observed = Simulation::new(w, s, Backend::Reference).unwrap();
+    let mut plain = observed.clone();
+    let mut observer = Observer::new(
+        vec![],
+        "membership",
+        Config {
+            settlement: true,
+            agents: [PERSON + 1].into(),
+            ..Config::default()
+        },
+    )
+    .unwrap();
+    observer.run_months(&mut observed, 2).unwrap();
+    plain.run_months(2).unwrap();
+    assert_eq!(observed.state, plain.state);
+    assert_eq!(observed.ledger, plain.ledger);
+    let log = String::from_utf8(observer.finish().unwrap()).unwrap();
+    let rows: Vec<serde_json::Value> = log
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .filter(|r: &serde_json::Value| r["kind"] == "household_membership")
+        .collect();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["action"], "leave");
+    assert_eq!(rows[0]["person"], PERSON + 1);
+    assert_eq!(rows[0]["month"], 2);
+}
+
+#[test]
+fn leaving_ends_household_dues_support_without_cancelling_the_personal_claim() {
+    let (mut w, mut s) = named("annual-access").unwrap();
+    w.priority = Priority::NeedFirst;
+    w.participants[0].needs.clear();
+    w.condition_rules.clear();
+    s.conditions.clear();
+    w.definitions.clear();
+    let mut p = w.participants[0].clone();
+    p.agent = PERSON + 1;
+    w.participants.push(p);
+    w.agents.push(Agent {
+        id: PERSON + 1,
+        name: "remaining adult".into(),
+    });
+    households::form(&mut w, &s, agreement(2)).unwrap();
+    s.month = 13;
+    s.balances.clear();
+    s.balances.insert((HOME, GRAIN), 1);
+    let mut supported = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    households::membership::leave(&mut w, &s, HOME, PERSON).unwrap();
+    let mut departed = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    supported.run_months(1).unwrap();
+    departed.run_months(1).unwrap();
+    assert_eq!(supported.state.obligations[&(1, 13)].paid, 1);
+    assert_eq!(departed.state.obligations[&(1, 13)].owed, 1);
+    assert_eq!(departed.state.obligations[&(1, 13)].paid, 0);
+    assert_eq!(departed.world.agreements[0].debtor, PERSON);
+    assert_eq!(departed.state.balance(HOME, GRAIN), 1);
 }

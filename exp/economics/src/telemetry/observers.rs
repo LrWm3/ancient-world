@@ -60,6 +60,17 @@ pub(super) fn batch(
     if config.settlement
         && let Some(h) = &batch.household
     {
+        for (household, change) in &h.membership {
+            use crate::households::membership::Action;
+            let (action, person) = match change.action {
+                Action::Join { person, .. } => ("join", person),
+                Action::Leave { person } => ("leave", person),
+            };
+            if selected(config, *household) || selected(config, person) {
+                records.push(json!({"kind":"household_membership", "household":household,
+                    "month":change.month,"action":action,"person":person}));
+            }
+        }
         for a in &h.governance {
             if selected(config, a.household)
                 || a.leader.is_some_and(|leader| selected(config, leader))
@@ -67,7 +78,11 @@ pub(super) fn batch(
                     .households
                     .iter()
                     .find(|h| h.agent == a.household)
-                    .is_some_and(|h| h.adults.iter().any(|id| selected(config, *id)))
+                    .is_some_and(|h| {
+                        crate::households::membership::roster_at(h, batch.month)
+                            .iter()
+                            .any(|id| selected(config, *id))
+                    })
             {
                 records.push(
                     json!({"kind":"household_governance", "household":a.household,

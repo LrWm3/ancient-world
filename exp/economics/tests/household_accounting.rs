@@ -23,6 +23,7 @@ fn form(w: &mut World, s: &State, adults: Vec<AgentId>) {
             formed: s.month,
             dwelling_process: None,
             admission: None,
+            membership: vec![],
         },
     )
     .unwrap();
@@ -449,4 +450,55 @@ fn lawful_elections_policy_changes_allocation_and_separate_books_compose() {
         assert_eq!(statement.scope, ReportingScope::Separate { agent });
         assert_eq!(statement.assets, statement.liabilities + statement.equity);
     }
+}
+
+#[test]
+fn adult_join_and_exit_preserve_separate_books_through_actual_settlement() {
+    use economics_compute_smoke::{accounting::ReportingScope, households::membership as m};
+    let (mut w, s) = repeated();
+    coin(&mut w);
+    for offset in 1..3 {
+        w.agents.push(Agent {
+            id: PERSON + offset,
+            name: format!("member {offset}"),
+        });
+        let mut p = w.participants[0].clone();
+        p.agent += offset;
+        w.participants.push(p);
+    }
+    form(&mut w, &s, vec![PERSON, PERSON + 1]);
+    let mut cpu_audit = audit(&w, &s);
+    let mut reference_audit = cpu_audit.clone();
+    let mut cpu = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+    let mut reference = Simulation::new(w, s, Backend::Reference).unwrap();
+    for (sim, audit) in [
+        (&mut cpu, &mut cpu_audit),
+        (&mut reference, &mut reference_audit),
+    ] {
+        through(audit, sim, 1);
+        let books_before = audit.clone();
+        let state_before = sim.state.clone();
+        m::join(
+            &mut sim.world,
+            &sim.state,
+            HOME,
+            PERSON + 2,
+            (PERSON..PERSON + 3).collect(),
+        )
+        .unwrap();
+        assert_eq!(*audit, books_before);
+        assert_eq!(sim.state, state_before);
+        through(audit, sim, 2);
+        m::leave(&mut sim.world, &sim.state, HOME, PERSON + 1).unwrap();
+        through(audit, sim, 6);
+        audit.finalize_through(6).unwrap();
+        for agent in [PERSON, PERSON + 1, PERSON + 2, HOME] {
+            let report = audit.book().finalized_statements(agent, 1, 6).unwrap();
+            assert_eq!(report.scope, ReportingScope::Separate { agent });
+            assert_eq!(report.assets, report.liabilities + report.equity);
+        }
+    }
+    assert_eq!(cpu.state, reference.state);
+    assert_eq!(cpu.ledger, reference.ledger);
+    assert_eq!(cpu_audit, reference_audit);
 }

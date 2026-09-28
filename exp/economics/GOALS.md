@@ -148,7 +148,9 @@ authority. Explicit-ballot plurality elections now add turnout and tie rules wit
 replayable results. State law now gates household founding and bounds constitutional
 choices and charter values; governors may issue dated objective/tie instructions
 within those limits. The [governance basics checklist](HOUSEHOLD-BASICS.md) describes
-this integrated slice. Autonomous voting, broader institutional formation and
+this integrated slice. [Adult admission and exit](HOUSEHOLD-MEMBERSHIP.md) now add
+dated membership without rewriting founding rules, property or debts. Market
+recruitment and exit settlements remain targets. Autonomous voting, broader institutional formation and
 longer-horizon collective planning remain targets below.
 
 Rework the representative household policy from directing only spare labor to an

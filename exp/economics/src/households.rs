@@ -7,7 +7,11 @@ use crate::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+pub mod membership;
 pub mod needs;
+
+/// Fractional collection carry belongs to a particular household relationship.
+pub type Remainders = BTreeMap<(AgentId, AgentId, ResourceId), i32>;
 
 pub const FOUNDING_ADULT_LIMIT: usize = 4;
 pub const GROWN_CHILD_ADULT_SLOTS: usize = 4;
@@ -22,8 +26,9 @@ pub struct Agreement {
     pub id: u32,
     pub agent: AgentId,
     pub governance: crate::household_governance::Governance,
-    /// All signatories are adults; labor ordering is selected by charter.
+    /// Immutable founding signatories; current members follow dated changes.
     pub adults: Vec<AgentId>,
+    pub membership: Vec<membership::Change>,
     pub formed: u32,
     /// A non-rival occupancy service, produced by one member's actual dwelling.
     pub dwelling_process: Option<DefinitionId>,
@@ -79,8 +84,9 @@ pub struct LaborContribution {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Boundary {
+    pub membership: Vec<(AgentId, membership::Change)>,
     pub governance: Vec<crate::household_governance::Authority>,
-    pub remainders: BTreeMap<Account, i32>,
+    pub remainders: Remainders,
     pub labor: Vec<LaborDecision>,
     pub reservations: Vec<Reservation>,
     pub before: Vec<Effect>,
@@ -91,9 +97,8 @@ pub struct Boundary {
 }
 
 pub fn members<'a>(a: &'a Agreement, state: &'a State) -> impl Iterator<Item = AgentId> + 'a {
-    a.adults
-        .iter()
-        .copied()
+    membership::roster_at(a, state.month)
+        .into_iter()
         .filter(|id| !state.terminal.contains_key(id))
 }
 pub fn parent(world: &World, state: &State, person: AgentId) -> Option<AgentId> {
@@ -113,6 +118,9 @@ pub fn form(world: &mut World, state: &State, mut agreement: Agreement) -> Resul
         .any(|id| state.terminal.contains_key(id))
     {
         return Err("only living adults can sign formation".into());
+    }
+    if !agreement.membership.is_empty() {
+        return Err("formation cannot include membership history".into());
     }
     if agreement.formed != state.month {
         return Err("formation must be dated at the current boundary".into());
@@ -142,9 +150,12 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     {
         return Err("households currently require fixed individual priorities without a pending forecast plan".into());
     }
-    for (&(member, resource), &remainder) in &state.household_remainders {
+    for (&(household, member, resource), &remainder) in &state.household_remainders {
         if !(0..POOL_DIVISOR).contains(&remainder)
-            || !world.households.iter().any(|a| a.adults.contains(&member))
+            || !world
+                .households
+                .iter()
+                .any(|a| a.agent == household && membership::ever_member(a, member))
             || !world
                 .resources
                 .iter()
@@ -155,7 +166,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     }
     let mut ids = BTreeSet::new();
     let mut agents = BTreeSet::new();
-    let mut adults = BTreeSet::new();
+    membership::validate(world, state)?;
     for a in &world.households {
         crate::household_governance::validate(world, state, a)?;
         crate::laws::households::validate_admission(world, a)?;
@@ -167,9 +178,10 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             || a.formed > state.month
             || !world.agents.iter().any(|x| x.id == a.agent)
             || world.participants.iter().any(|p| p.agent == a.agent)
+            || a.adults.iter().copied().collect::<BTreeSet<_>>().len() != a.adults.len()
             || a.adults
                 .iter()
-                .any(|id| !adults.insert(*id) || !world.participants.iter().any(|p| p.agent == *id))
+                .any(|id| !world.participants.iter().any(|p| p.agent == *id))
         {
             return Err("invalid household formation agreement".into());
         }
@@ -542,6 +554,17 @@ fn prepare(world: &World, state: &State) -> Result<(State, Boundary), String> {
             .map(|a| crate::household_governance::authority(a, state))
             .collect();
         b.governance.sort_by_key(|a| a.household);
+        b.membership = world
+            .households
+            .iter()
+            .flat_map(|a| {
+                a.membership
+                    .iter()
+                    .filter(|c| c.month == state.month)
+                    .map(|c| (a.agent, c.clone()))
+            })
+            .collect();
+        b.membership.sort_by_key(|(id, _)| *id);
     }
     if !matches!(state.phase, Phase::Open | Phase::Close) {
         (b.reservations, b.before) = allocate(world, state, requests(world, state)?)?;
@@ -608,7 +631,7 @@ fn collect(
     opening: &State,
     closed: &State,
     batch: &Batch,
-) -> Result<(Vec<Effect>, BTreeMap<Account, i32>), String> {
+) -> Result<(Vec<Effect>, Remainders), String> {
     let mut effects = vec![];
     let mut gained = BTreeMap::<Account, i32>::new();
     let mut remainders = opening.household_remainders.clone();
@@ -625,9 +648,11 @@ fn collect(
         }
     }
     for (key, quantity) in gained {
-        let numerator = i64::from(quantity) + i64::from(*remainders.get(&key).unwrap_or(&0));
+        let household = parent(world, opening, key.0).unwrap();
+        let carry_key = (household, key.0, key.1);
+        let numerator = i64::from(quantity) + i64::from(*remainders.get(&carry_key).unwrap_or(&0));
         let share = (numerator / i64::from(POOL_DIVISOR)) as i32;
-        remainders.insert(key, (numerator % i64::from(POOL_DIVISOR)) as i32);
+        remainders.insert(carry_key, (numerator % i64::from(POOL_DIVISOR)) as i32);
         if share > 0 {
             effects.extend(transfer(
                 key.0,
@@ -1119,6 +1144,7 @@ pub(crate) fn settled_boundaries(
         || receipt.inactive != expected.inactive
         || receipt.labor != expected.labor
         || receipt.governance != expected.governance
+        || receipt.membership != expected.membership
     {
         return Err("altered household reservations".into());
     }
@@ -1154,6 +1180,7 @@ pub fn scenario() -> Result<(World, State), String> {
                 formed: s.month,
                 dwelling_process: Some(crate::crafts::OCCUPY_HOME),
                 admission: None,
+                membership: vec![],
             },
         )?;
     }

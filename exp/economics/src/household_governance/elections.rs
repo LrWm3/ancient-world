@@ -48,7 +48,8 @@ pub(super) fn validate(a: &Agreement, state: &State) -> std::result::Result<(), 
     let g = &a.governance;
     let mut seen = BTreeSet::new();
     let alive = |id: AgentId, month| {
-        a.adults.contains(&id) && state.terminal.get(&id).is_none_or(|t| t.month >= month)
+        crate::households::membership::roster_at(a, month).contains(&id)
+            && state.terminal.get(&id).is_none_or(|t| t.month >= month)
     };
     if !(1..=PERCENT as u32).contains(&g.charter.election.minimum_turnout_percent)
         || g.ballots.iter().any(|b| {
@@ -72,10 +73,8 @@ pub(super) fn validate(a: &Agreement, state: &State) -> std::result::Result<(), 
 
 /// Resolve against the term's opening electorate so later deaths cannot rewrite history.
 pub(super) fn resolve(a: &Agreement, state: &State, term_start: u32) -> ElectionResult {
-    let mut eligible: Vec<_> = a
-        .adults
-        .iter()
-        .copied()
+    let mut eligible: Vec<_> = crate::households::membership::roster_at(a, term_start)
+        .into_iter()
         .filter(|id| state.terminal.get(id).is_none_or(|t| t.month >= term_start))
         .collect();
     eligible.sort_unstable();

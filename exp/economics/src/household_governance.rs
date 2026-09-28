@@ -199,7 +199,10 @@ fn leader_at_open(a: &Agreement, state: &State, month: u32) -> Option<AgentId> {
     if month < a.formed || g.charter.term_months == 0 {
         return None;
     }
-    let alive = |id: &AgentId| state.terminal.get(id).is_none_or(|t| t.month >= month);
+    let roster = crate::households::membership::roster_at(a, month);
+    let alive = |id: &AgentId| {
+        roster.contains(id) && state.terminal.get(id).is_none_or(|t| t.month >= month)
+    };
     if g.constitution.leadership == Leadership::FixedFounder {
         return alive(&g.charter.leader).then_some(g.charter.leader);
     }
@@ -213,7 +216,13 @@ fn leader_at_open(a: &Agreement, state: &State, month: u32) -> Option<AgentId> {
         };
         return winner.filter(alive);
     }
-    let mut ring = a.adults.clone();
+    let term_start =
+        a.formed + ((month - a.formed) / g.charter.term_months) * g.charter.term_months;
+    // Retain founder as the calendar anchor; entrants wait until the next term.
+    let mut ring = crate::households::membership::roster_at(a, term_start);
+    if !ring.contains(&g.charter.leader) {
+        ring.push(g.charter.leader);
+    }
     ring.sort_unstable();
     let initial = ring.iter().position(|id| *id == g.charter.leader)?;
     let term = (month - a.formed) / g.charter.term_months;

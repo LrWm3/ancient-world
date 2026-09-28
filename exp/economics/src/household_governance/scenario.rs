@@ -102,6 +102,7 @@ pub fn pair() -> Result<(World, State), String> {
             governance,
             dwelling_process: None,
             admission: None,
+            membership: vec![],
         },
     )?;
     for term_start in [1 + TERM_MONTHS, 1 + TERM_MONTHS * 2] {

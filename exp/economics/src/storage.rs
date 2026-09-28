@@ -30,7 +30,10 @@ pub fn fits(world: &World, used: &BTreeMap<AgentId, i128>, effects: &[Effect]) -
     let mut after = used.clone();
     apply(world, &mut after, effects);
     world.storage.capacities.iter().all(|(owner, cap)| {
-        world.households.iter().any(|h| h.adults.contains(owner))
+        world
+            .households
+            .iter()
+            .any(|h| crate::households::membership::current(h).contains(owner))
             || after.get(owner).copied().unwrap_or(0) <= i128::from(*cap)
     }) && world
         .households
@@ -51,7 +54,7 @@ pub fn room(
     if let Some(h) = world
         .households
         .iter()
-        .find(|h| h.agent == owner || h.adults.contains(&owner))
+        .find(|h| h.agent == owner || crate::households::membership::current(h).contains(&owner))
     {
         let private = if owner == h.agent {
             0
@@ -101,7 +104,7 @@ fn shared_room(
     h: &crate::households::Agreement,
 ) -> i128 {
     let mut remaining = -used.get(&h.agent).copied().unwrap_or(0);
-    for m in &h.adults {
+    for m in &crate::households::membership::current(h) {
         let Some(cap) = world.storage.capacities.get(m) else {
             return i128::from(i32::MAX) * i128::from(i32::MAX);
         };

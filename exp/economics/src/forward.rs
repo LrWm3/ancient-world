@@ -608,7 +608,7 @@ pub(crate) fn local(world: &World, state: &State, buyer: AgentId) -> (World, Sta
     // household must not make the starting snapshot spuriously over capacity.
     let used = crate::storage::usage(world, &state.balances);
     for home in &world.households {
-        for member in &home.adults {
+        for member in &crate::households::membership::current(home) {
             if let Some(cap) = w.storage.capacities.get_mut(member) {
                 let occupied = used.get(member).copied().unwrap_or(0);
                 *cap = (*cap).max(i32::try_from(occupied).unwrap_or(i32::MAX));

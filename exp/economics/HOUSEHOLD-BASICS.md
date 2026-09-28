@@ -23,7 +23,7 @@ needs and commitment-aware allocation, outcomes, and separate financial reportin
 
 Ballots and policy instructions may be supplied by the scenario. Autonomous political
 preferences, personality-driven policy revisions, six-month collective optimization,
-children/adulthood, recruitment/voluntary exit, nested institutions, household hiring
+children/adulthood, market recruitment, exit settlements, nested institutions, household hiring
 and borrowing, and full household estates are extensions beyond this governance
 checklist. Unsupported finance combinations must continue to reject explicitly.
 
@@ -128,3 +128,13 @@ executable CPU/reference example and strict Clippy. The annual run does not comp
 fixture, and this larger run checks accounting consistency under the existing
 default policy. It does not validate new-law/legacy-market interoperability or
 32-person NeedsFirst performance. Those limits remain explicit above.
+
+
+## Subsequent extension: adult membership
+
+[Household membership](HOUSEHOLD-MEMBERSHIP.md) adds explicit unanimous accession
+and member-requested exit at Open, dated rosters, retained governance history,
+updated storage sharing and household-specific fractional collection. Property and
+debts stay separate. Last-member dissolution and market recruitment remain outside
+this slice. The original validation counts above describe the earlier governance
+completion; membership verification is recorded in the extension document.

@@ -396,7 +396,7 @@ The six-month lawful election fixture runs through policy activation, pooled
 production/consumption and finalized separate financial statements, with identical
 CPU/reference and resumed results. The executable example and completion evidence
 are in [Household governance basics](HOUSEHOLD-BASICS.md). Autonomous politics,
-longer-horizon optimization, recruitment/exit and household employment/borrowing
+longer-horizon optimization, market recruitment/exit settlements and household employment/borrowing
 remain separate extensions.
 
 
@@ -406,3 +406,15 @@ and final separate statements. Strict all-target Clippy and the executable small
 CPU/reference scenario passed. The core governance checklist is complete within
 its adult-only, supplied-political-choice scope; this is not completion of the
 broader institutional or finance roadmap.
+
+
+### Adult household accession and exit
+
+[Membership changes](HOUSEHOLD-MEMBERSHIP.md) now apply before Open work using
+explicit consent, current legal admission and preserved founding limits. Dated
+rosters drive labor, pooling, storage, elections and observer selection. Exit leaves
+property and debts unchanged and rejects unsupported storage or last-member
+dissolution. Household-specific fractional carry cannot leak across moves. Open
+receipts validate membership evidence; CPU/reference and audited separate-book
+checks cover actual join/exit execution. Recruitment markets, negotiated exits,
+estates and general institutional membership remain outstanding.

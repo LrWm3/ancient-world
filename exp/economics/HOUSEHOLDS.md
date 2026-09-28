@@ -76,8 +76,8 @@ exports `household_governance` records, including when filtered by a member.
 No new monthly phase or governance resource budget was introduced.
 
 Rotation is a deterministic succession pilot. Hereditary succession, contested
-authority and resignation remain unimplemented. Membership is still the fixed
-adult founding roster. General institutional founding, household employment and
+authority and office resignation remain unimplemented. [Dated adult admission and
+exit](HOUSEHOLD-MEMBERSHIP.md) now extend the fixed founding record. General institutional founding, household employment and
 credit integration, and longer-horizon collective planning remain outstanding.
 
 ## Elected governance
@@ -91,7 +91,7 @@ from the labor allocation tie-break.
 
 `household_governance::elections::cast` accepts one immutable ballot per member
 per future regular term. The caller supplies a consenting member's candidate or
-explicit abstention. Voters and candidates must be living founding adults when
+explicit abstention. Voters and candidates must be living current members when
 accepted. Unknown members, duplicate ballots, off-calendar elections, late ballots
 and non-elected constitutions reject atomically. This is a supplied-ballot pilot:
 there is no autonomous voting preference, campaigning, secret ballot protocol,
@@ -181,6 +181,10 @@ founding/admitted adult places. `GROWN_CHILD_ADULT_SLOTS` records that policy;
 there is no child or maturation implementation yet. Future children have no
 numeric household limit. Their actual material requirements must be supported,
 and a child-only household cannot remain active without an adult.
+
+[Adult accession and voluntary exit](HOUSEHOLD-MEMBERSHIP.md) now operate at Open.
+They retain the founding record, property and debts, and recheck shared storage.
+Recruitment offers and last-member dissolution are still separate extensions.
 
 ## Half of receipts, with separate ownership
 
@@ -380,7 +384,7 @@ validation at formation.
 Individual tool/plot underwriting remains a local individual rollout; it excludes
 future household support and is not a joint household credit assessment. Shared
 production targets, pooled external sales, general bilateral barter, migration,
-voluntary exit, inheritance, children, and optimal multi-period household plans
+exit property settlements, inheritance, children, and optimal multi-period household plans
 remain outside this first version.
 
 ## Running and verification

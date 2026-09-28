@@ -140,7 +140,7 @@ pub struct State {
     pub marketplaces: BTreeMap<AgentId, crate::marketplace::Memory>,
     pub memberships:
         BTreeMap<(AgentId, AgentId, crate::membership::Role), crate::membership::Agreement>,
-    pub household_remainders: BTreeMap<Account, i32>,
+    pub household_remainders: crate::households::Remainders,
     pub exchange: crate::exchange::ExchangeState,
     pub month: u32,
     pub phase: Phase,
