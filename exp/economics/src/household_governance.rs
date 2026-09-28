@@ -24,7 +24,7 @@ pub enum Contribution {
     Percent(u32),
     SpareLabor,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Leadership {
     FixedFounder,
     Rotating,

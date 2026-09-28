@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub type AgentType = u32;
 pub const PERSON_TYPE: AgentType = 1;
 pub const STATE_TYPE: AgentType = 2;
+pub const HOUSEHOLD_TYPE: AgentType = 3;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Action {
@@ -19,6 +20,7 @@ pub enum Action {
     FinancedPurchase,
     Borrow,
     Lend,
+    FoundHousehold,
 }
 
 /// A state's explicit allow-list. Unclassified types and unlisted actions are denied.
@@ -209,11 +211,8 @@ pub fn validate(world: &World) -> Result<(), String> {
                     .credit
                     .as_ref()
                     .is_none_or(|c| c.stock_sales.is_none()))
-            || !world.households.is_empty()
         {
-            return Err(
-                "governance does not support this legacy exchange or household driver".into(),
-            );
+            return Err("governance does not support this legacy exchange driver".into());
         }
     }
     Ok(())

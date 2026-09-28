@@ -5,12 +5,15 @@ use crate::{
     opportunities::{Action, AgentType, Policy},
 };
 
+pub mod households;
+
 /// Recognized shapes of newly entered agreements, not permissions to act.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AgreementForm {
     LandUseLease,
     FinancedAssetPurchase,
     Loan,
+    Household,
 }
 impl AgreementForm {
     fn action(self) -> Action {
@@ -18,6 +21,7 @@ impl AgreementForm {
             Self::LandUseLease => Action::LandAccess,
             Self::FinancedAssetPurchase => Action::FinancedPurchase,
             Self::Loan => Action::Borrow,
+            Self::Household => Action::FoundHousehold,
         }
     }
 }
@@ -48,6 +52,7 @@ pub fn evaluate_agreement(w: &World, s: &State, agent: AgentId, form: AgreementF
 /// Inclusive ceilings for new agreements. None is unbounded; zero is a real cap.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AgreementLimits {
+    pub household: Option<households::Rules>,
     pub max_lease_months: Option<u32>,
     pub max_monthly_interest_bps: Option<u32>,
 }
@@ -229,6 +234,9 @@ pub fn evaluate(w: &World, s: &State, agent: AgentId, action: Action) -> Decisio
     }
 }
 pub(crate) fn validate(w: &World, p: &Policy) -> Result<(), String> {
+    if let Some(rules) = &p.agreement_limits.household {
+        households::validate_rules(w, rules)?;
+    }
     let mut ids = std::collections::BTreeSet::new();
     for r in &p.laws {
         if !ids.insert(r.id)

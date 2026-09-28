@@ -30,6 +30,7 @@ fn agreement(count: u32) -> Agreement {
         governance: economics_compute_smoke::household_governance::Governance::legacy(PERSON),
         formed: 1,
         dwelling_process: None,
+        admission: None,
     }
 }
 fn request(member: u32, quantity: i32, benefit: i64, sequence: u64) -> Request {
@@ -1673,4 +1674,193 @@ fn needs_first_compares_ranked_resources_without_adding_unlike_units() {
             assert_eq!(sim.state.balance(person, first), 1);
         }
     }
+}
+
+fn lawful_household_fixture() -> (World, State) {
+    use economics_compute_smoke::{
+        laws,
+        opportunities::{self as o, Action, Policy},
+    };
+    let (mut w, s) = fixture(2);
+    w.transaction_policy = Some(Policy {
+        authority: STATE_AGENT,
+        laws: vec![],
+        agreement_forms: Some([laws::AgreementForm::Household].into()),
+        agreement_limits: laws::AgreementLimits {
+            household: Some(laws::households::Rules::default()),
+            ..Default::default()
+        },
+        membership_offers: vec![],
+        membership_permissions: Default::default(),
+        agent_types: [
+            (STATE_AGENT, o::STATE_TYPE),
+            (PERSON, o::PERSON_TYPE),
+            (PERSON + 1, o::PERSON_TYPE),
+        ]
+        .into(),
+        permissions: [
+            Action::FoundHousehold,
+            Action::Process(GROW),
+            Action::Process(CONSUME),
+            Action::Process(REPAIR),
+        ]
+        .into_iter()
+        .map(|action| (o::PERSON_TYPE, action))
+        .collect(),
+    });
+    (w, s)
+}
+
+#[test]
+fn household_founding_requires_recognition_and_each_founders_permission() {
+    use economics_compute_smoke::{
+        laws,
+        opportunities::{self as o, Action},
+    };
+    for restriction in 0..3 {
+        let (mut w, s) = lawful_household_fixture();
+        let p = w.transaction_policy.as_mut().unwrap();
+        match restriction {
+            0 => {
+                p.agreement_forms = Some(Default::default());
+            }
+            1 => {
+                p.agent_types.remove(&(PERSON + 1));
+            }
+            _ => p.laws.push(laws::Rule {
+                id: 1,
+                name: "founding prohibited".into(),
+                agent_type: Some(o::PERSON_TYPE),
+                action: Action::FoundHousehold,
+                requirement: laws::Requirement::Prohibited,
+            }),
+        }
+        let before = w.clone();
+        assert!(households::form(&mut w, &s, agreement(2)).is_err());
+        assert_eq!(w, before);
+    }
+    let (mut w, s) = lawful_household_fixture();
+    households::form(&mut w, &s, agreement(2)).unwrap();
+    let admission = w.households[0].admission.as_ref().unwrap();
+    assert_eq!(admission.authority, Some(STATE_AGENT));
+    assert_eq!(admission.founders.len(), 2);
+    assert!(admission.founders.iter().all(|(_, d)| d.allowed));
+    assert_eq!(
+        w.transaction_policy.as_ref().unwrap().agent_types[&HOME],
+        o::HOUSEHOLD_TYPE
+    );
+    assert!(!o::permits(&w, &s, HOME, Action::Process(GROW)));
+    // Recognition withdrawal blocks new admission, not servicing of accepted households.
+    w.transaction_policy.as_mut().unwrap().agreement_forms = Some(Default::default());
+    households::validate(&w, &s).unwrap();
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    sim.run_months(1).unwrap();
+}
+
+#[test]
+fn household_law_bounds_constitution_charter_and_preserves_admission_terms() {
+    use economics_compute_smoke::household_governance::{Governance, Leadership, Policy};
+    let (mut w, s) = lawful_household_fixture();
+    let rules = w
+        .transaction_policy
+        .as_mut()
+        .unwrap()
+        .agreement_limits
+        .household
+        .as_mut()
+        .unwrap();
+    rules.leadership = [Leadership::Rotating].into();
+    rules.policies = [Policy::NeedsFirst].into();
+    rules.min_adults = 2;
+    rules.max_labor_percent = 20;
+    rules.min_term_months = 12;
+    rules.max_term_months = 12;
+    rules.activities = Some([REPAIR].into());
+    let mut a = agreement(2);
+    a.governance = Governance::rotating(PERSON, 12);
+    a.governance.constitution.permitted_policies = [Policy::NeedsFirst].into();
+    a.governance.constitution.activities = Some([REPAIR].into());
+    a.governance.charter.initial_policy = Policy::NeedsFirst;
+    for violation in 0..6 {
+        let mut invalid = a.clone();
+        match violation {
+            0 => invalid.governance.constitution.leadership = Leadership::FixedFounder,
+            1 => {
+                invalid
+                    .governance
+                    .constitution
+                    .permitted_policies
+                    .insert(Policy::NetOutput);
+            }
+            2 => {
+                invalid.governance.charter.contribution =
+                    economics_compute_smoke::household_governance::Contribution::Percent(21)
+            }
+            3 => invalid.governance.constitution.activities = None,
+            4 => invalid.governance.charter.term_months = 6,
+            _ => {
+                invalid.adults.pop();
+            }
+        }
+        let before = w.clone();
+        assert!(households::form(&mut w, &s, invalid).is_err());
+        assert_eq!(w, before);
+    }
+    households::form(&mut w, &s, a).unwrap();
+    w.transaction_policy
+        .as_mut()
+        .unwrap()
+        .agreement_limits
+        .household
+        .as_mut()
+        .unwrap()
+        .max_labor_percent = 0;
+    households::validate(&w, &s).unwrap();
+    w.households[0].governance.charter.contribution =
+        economics_compute_smoke::household_governance::Contribution::Percent(21);
+    assert!(households::validate(&w, &s).is_err());
+}
+
+#[test]
+fn lawful_household_delegation_cannot_bypass_a_workers_process_prohibition() {
+    use economics_compute_smoke::{
+        laws,
+        opportunities::{self as o, Action},
+    };
+    let (mut w, s) = need_governance_fixture();
+    let a = w.households.pop().unwrap();
+    w.agents.retain(|a| a.id != HOME);
+    let mut p = lawful_household_fixture().0.transaction_policy.unwrap();
+    p.permissions = w
+        .definitions
+        .iter()
+        .map(|d| (o::PERSON_TYPE, Action::Process(d.id)))
+        .collect();
+    p.permissions
+        .insert((o::PERSON_TYPE, Action::FoundHousehold));
+    p.laws.push(laws::Rule {
+        id: 1,
+        name: "food production prohibited".into(),
+        agent_type: Some(o::PERSON_TYPE),
+        action: Action::Process(99),
+        requirement: laws::Requirement::Prohibited,
+    });
+    w.transaction_policy = Some(p);
+    households::form(&mut w, &s, a).unwrap();
+    let mut cpu = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+    let mut reference = Simulation::new(w, s, Backend::Reference).unwrap();
+    cpu.run_months(2).unwrap();
+    reference.run_months(1).unwrap();
+    reference.run_months(1).unwrap();
+    assert_eq!(cpu.state, reference.state);
+    assert_eq!(cpu.ledger, reference.ledger);
+    assert!(cpu.state.processes.values().all(|p| p.definition != 99));
+    assert_eq!(
+        cpu.ledger[0].household.as_ref().unwrap().labor[0]
+            .projected_needs
+            .as_ref()
+            .unwrap()[0]
+            .unmet,
+        2
+    );
 }

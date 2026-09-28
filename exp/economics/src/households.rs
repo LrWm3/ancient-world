@@ -27,6 +27,7 @@ pub struct Agreement {
     pub formed: u32,
     /// A non-rival occupancy service, produced by one member's actual dwelling.
     pub dwelling_process: Option<DefinitionId>,
+    pub admission: Option<crate::laws::households::Admission>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -105,7 +106,7 @@ pub fn parent(world: &World, state: &State, person: AgentId) -> Option<AgentId> 
 
 /// Formation is an explicit, unanimously signed initial agreement. No goods or
 /// capacity are minted and no child/adulthood transition is implemented yet.
-pub fn form(world: &mut World, state: &State, agreement: Agreement) -> Result<(), String> {
+pub fn form(world: &mut World, state: &State, mut agreement: Agreement) -> Result<(), String> {
     if agreement
         .adults
         .iter()
@@ -116,6 +117,7 @@ pub fn form(world: &mut World, state: &State, agreement: Agreement) -> Result<()
     if agreement.formed != state.month {
         return Err("formation must be dated at the current boundary".into());
     }
+    agreement.admission = Some(crate::laws::households::admit(world, state, &agreement)?);
     let mut candidate = world.clone();
     if candidate.agents.iter().any(|a| a.id == agreement.agent) {
         return Err("household agent already exists".into());
@@ -124,6 +126,10 @@ pub fn form(world: &mut World, state: &State, agreement: Agreement) -> Result<()
         id: agreement.agent,
         name: format!("household {}", agreement.id),
     });
+    if let Some(p) = &mut candidate.transaction_policy {
+        p.agent_types
+            .insert(agreement.agent, crate::opportunities::HOUSEHOLD_TYPE);
+    }
     candidate.households.push(agreement);
     crate::settlement::validate_world(&candidate, state)?;
     *world = candidate;
@@ -152,6 +158,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     let mut adults = BTreeSet::new();
     for a in &world.households {
         crate::household_governance::validate(world, state, a)?;
+        crate::laws::households::validate_admission(world, a)?;
         if !ids.insert(a.id)
             || !agents.insert(a.agent)
             || a.adults.is_empty()
@@ -1146,6 +1153,7 @@ pub fn scenario() -> Result<(World, State), String> {
                 governance: crate::household_governance::Governance::contributed(chunk[0]),
                 formed: s.month,
                 dwelling_process: Some(crate::crafts::OCCUPY_HOME),
+                admission: None,
             },
         )?;
     }

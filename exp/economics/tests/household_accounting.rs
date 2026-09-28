@@ -22,6 +22,7 @@ fn form(w: &mut World, s: &State, adults: Vec<AgentId>) {
             adults,
             formed: s.month,
             dwelling_process: None,
+            admission: None,
         },
     )
     .unwrap();

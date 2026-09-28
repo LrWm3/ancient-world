@@ -468,6 +468,7 @@ fn tightened_caps_preserve_existing_rates_and_rent_across_cpu_checkpoints() {
         original.run_months(1).unwrap();
         let mut w = original.world.clone();
         w.transaction_policy.as_mut().unwrap().agreement_limits = laws::AgreementLimits {
+            household: None,
             max_lease_months: Some(0),
             max_monthly_interest_bps: Some(0),
         };
