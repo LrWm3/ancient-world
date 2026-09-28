@@ -13,7 +13,7 @@ remaining financial work.
 | --- | --- | --- |
 | Persons and planning | Needs, deprivation consequences, repeated processes, bounded forecasts, opportunity search and dated commitments | General discovery across all drivers; reliably sustainable autonomous cooperation |
 | State and law | Citizenship, action permissions, named prohibitions, selected agreement recognition/term limits; issuance and physical minting pilots | Autonomous state objectives, general jurisdiction/founding law, constitutional governance |
-| Households | Founding constitution/static charter, fixed, rotating or elected governors with terms and election receipts, dated policy authority, 20% contributed labor, opt-in current-needs-first allocation, explicit ties, pooled resources/storage and shelter | Autonomous voting and broader succession rules, longer-horizon collective planning, lawful formation and integrated market/credit budgets |
+| Households | Lawful founding, static constitution/charter, fixed, rotating or elected governors with terms and election receipts, dated objective/tie authority, 20% contributed labor, opt-in current-needs-first allocation, explicit ties, pooled resources/storage and shelter | Autonomous voting and broader succession rules, longer-horizon collective planning, recruitment/exit and integrated market/credit/employment budgets |
 | Marketplaces | Bilateral negotiation/ZIP, local town books, need-generated orders and reciprocal commodity markets | Shared acquisition with every driver; general markets for labor, assets, rights and memberships |
 | Contracts and lending | Direct consented advances and mortgages share a loan book; loan, land and forward claims share execution; guarantees share inspection | Common acceptance/performance adapters for all arrangements; autonomous general loan discovery/underwriting |
 | [Creditor allocation](CREDITOR-ALLOCATION.md) | Ranked collection and opt-in proportional loan/land allocation, including accepted coin tender and whole-unit conversion | Standalone land and forward allocation; additional denominations/routes and indivisible obligations |
@@ -412,3 +412,9 @@ and equipment barter with supplied exchange values. Credit-stress scenarios now
 produce journal reports through audited telemetry. See
 [coverage expansion](FINANCIAL-STATEMENTS.md#coverage-expansion-and-remaining-adapters)
 for the verified cases and remaining gaps.
+
+
+The [household governance basics checklist](HOUSEHOLD-BASICS.md) records completion
+and verification for lawful founding, governor authority, operating policy and
+bounded member labor. Run `cargo +1.92.0 run --locked --example household_governance`
+from this directory for the six-month CPU/reference election and policy example.

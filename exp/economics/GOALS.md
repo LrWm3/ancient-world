@@ -145,9 +145,11 @@ constitution/static charter records, a named member governor, dated authorized
 policy instructions, 20% labor reservations and explicit labor ties. Opt-in rotating
 governors now add charter-defined terms, succession and historical instruction
 authority. Explicit-ballot plurality elections now add turnout and tie rules with
-replayable results. Autonomous voting, broader leadership selection, legal
-recognition and longer-horizon collective planning remain
-targets below.
+replayable results. State law now gates household founding and bounds constitutional
+choices and charter values; governors may issue dated objective/tie instructions
+within those limits. The [governance basics checklist](HOUSEHOLD-BASICS.md) describes
+this integrated slice. Autonomous voting, broader institutional formation and
+longer-horizon collective planning remain targets below.
 
 Rework the representative household policy from directing only spare labor to an
 explicit founding-agreement contribution: **20% of each member's available monthly

@@ -4,7 +4,8 @@ Status: implemented first adult-only pilot in `exp/economics`. Run
 `households-32` for 32 people organized into eight households of four. This is
 opt-in; the existing independent-person scenarios retain their previous rules.
 Formation is explicitly configured, rather than simulated marriage or household
-search. No children have been added.
+search. No children have been added. The [governance basics checklist](HOUSEHOLD-BASICS.md)
+tracks integrated completion, reproducible examples and remaining extensions.
 
 ## Governance redesign: first implemented slice
 
@@ -14,21 +15,23 @@ behavior remains available through `Governance::legacy`. Founding templates,
 static charter parameters, a named person holding policy-setting authority, and
 swappable labor policies are implemented. Opt-in rotating terms and deterministic
 succession and explicit-ballot elections now extend this foundation. Autonomous
-voting preferences, household law recognition and general institutional markets
-remain future work.
+voting preferences and general institutional markets remain future work. State law
+now gates founding and bounds the accepted constitution and charter.
 
 `Agreement.governance` separates:
 
 | Component | Current role |
 | --- | --- |
-| Constitution | Permitted operational policies and an optional productive-activity subset. Selects fixed-founder, rotating or elected leadership independently of operational policies. |
-| Static charter | Founding governor, term length, election turnout/tie rules, labor contribution percentage or legacy spare-labor mode, labor tie-break and initial policy. |
-| Policy instructions | Governor-authorized changes to an allowed policy, effective in a specified future month. |
+| Constitution | Permitted operational policies and an optional productive-activity subset. Selects fixed-founder, rotating or elected leadership and permitted allocation tie-breaks independently of operating objectives. |
+| Static charter | Founding governor, term length, election turnout/tie rules, labor contribution percentage or legacy spare-labor mode, initial labor tie-break and initial policy. |
+| Policy instructions | Governor-authorized objective and optional labor tie-break changes, effective in a specified future month. |
 | Operational allocation | The household evaluates feasible member work; the governor does not name individual jobs or recipients. |
 
 Constitution and charter are founding configuration. There is no amendment API.
-`household_governance::schedule` atomically accepts a future policy instruction
-from the living current governor and verifies the constitution. Accepted instructions
+`household_governance::schedule` atomically accepts a future objective instruction
+from the living current governor and verifies the constitution. `schedule_allocation`
+can bundle an allowed labor tie-break into that same instruction. Omitting a tie
+retains the last effective choice. Both APIs preserve the founding documents. Accepted instructions
 retain their issue month as well as their effective month and author. Authority
 is validated at issue time, not against whoever governs when the policy becomes
 effective. Two instructions issued in the same month for the same effective month
@@ -74,7 +77,7 @@ No new monthly phase or governance resource budget was introduced.
 
 Rotation is a deterministic succession pilot. Hereditary succession, contested
 authority and resignation remain unimplemented. Membership is still the fixed
-adult founding roster. General lawful founding rules, household employment and
+adult founding roster. General institutional founding, household employment and
 credit integration, and longer-horizon collective planning remain outstanding.
 
 ## Elected governance
@@ -530,3 +533,12 @@ crate suite and a new long-run 32-person calibration were not run. The opt-in po
 adds private reference settlements per candidate; larger-scale performance has not
 been established, and current-month need satisfaction does not establish sustainable
 future production or debt repayment.
+
+
+### Integrated governance completion
+
+See [Household governance basics](HOUSEHOLD-BASICS.md) for lawful admission,
+authorized objective/tie changes, the executable six-month election scenario and
+current verification. Founding laws now coexist with the household driver;
+recognized households do not acquire their members' process rights automatically.
+Historical calibration sections above retain their original scope and dates.

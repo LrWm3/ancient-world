@@ -349,7 +349,7 @@ settlement logs expose current authority, term and policy, and replay validates
 them. See [rotating governance](HOUSEHOLDS.md#rotating-governance-and-succession).
 
 This changes no ownership, financial reporting scope or settlement obligations.
-Autonomous voting, lawful institutional formation, longer-horizon collective planning and
+Autonomous voting, broader institutional formation, longer-horizon collective planning and
 household market/credit/employment integration remain outstanding.
 
 
@@ -365,7 +365,8 @@ agent financial reporting.
 
 This first slice uses supplied ballots and the fixed adult founding roster. It
 does not implement endogenous voting, election work costs, by-elections, hereditary
-succession, legal formation or household employment/credit integration. See
+succession or household employment/credit integration. Household legal founding
+has since been added; see
 [household election semantics and validation](HOUSEHOLDS.md#elected-governance).
 
 
@@ -380,3 +381,28 @@ policy and phase ordering are unchanged. Preview transactions remain private.
 This covers current-month needs across existing member plans. Autonomous governance
 choices, longer-horizon collective planning, multiple simultaneous recipient search,
 and household employment/credit integration remain outstanding.
+
+
+### Integrated household governance basics
+
+Household founding now checks agreement recognition, each founder's action grants
+and legal requirements, plus ceilings on constitutional choices and charter terms.
+Historical admission receipts preserve the founding law without retroactively
+voiding existing households. Current process law still governs delegated work.
+Governors can atomically schedule an operating objective and labor tie-break;
+constitution and charter remain static.
+
+The six-month lawful election fixture runs through policy activation, pooled
+production/consumption and finalized separate financial statements, with identical
+CPU/reference and resumed results. The executable example and completion evidence
+are in [Household governance basics](HOUSEHOLD-BASICS.md). Autonomous politics,
+longer-horizon optimization, recruitment/exit and household employment/borrowing
+remain separate extensions.
+
+
+Verification on 2026-09-28: 75 focused checks plus the explicitly run 13-month,
+32-person/eight-household CPU accounting test passed. The latter covers annual dues
+and final separate statements. Strict all-target Clippy and the executable small
+CPU/reference scenario passed. The core governance checklist is complete within
+its adult-only, supplied-political-choice scope; this is not completion of the
+broader institutional or finance roadmap.
