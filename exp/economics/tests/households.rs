@@ -32,6 +32,7 @@ fn agreement(count: u32) -> Agreement {
         dwelling_process: None,
         admission: None,
         membership: vec![],
+        asset_sales: vec![],
     }
 }
 fn request(member: u32, quantity: i32, benefit: i64, sequence: u64) -> Request {

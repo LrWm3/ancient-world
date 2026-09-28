@@ -1100,6 +1100,37 @@ impl Audit {
                 lines.push(l);
             }
         }
+        // Verified wind-down sales are investments, not pooled gifts. Their
+        // payment and ownership were committed together before core execution.
+        for r in batch
+            .household
+            .iter()
+            .flat_map(|h| &h.disposals)
+            .filter(|r| r.rejection.is_none())
+        {
+            if r.sale.price.resource != coin {
+                return Err("asset disposal needs reporting-denomination payment".into());
+            }
+            disposal(
+                &mut lines,
+                &opening,
+                r.household,
+                r.sale.asset,
+                r.sale.price.quantity,
+            )?;
+            for (who, amount) in [
+                (r.household, r.sale.price.quantity),
+                (r.sale.buyer, -r.sale.price.quantity),
+            ] {
+                flow(
+                    &mut flows,
+                    who,
+                    Account::Cash,
+                    Flow::Investing,
+                    i128::from(amount),
+                )?;
+            }
+        }
         let mut interest: BTreeMap<_, _> = before
             .credit
             .loans

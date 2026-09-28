@@ -13,6 +13,387 @@ use economics_compute_smoke::{
 };
 const HOME: AgentId = 10000;
 
+fn disposal_fixture(price: i32) -> (World, State) {
+    let (mut w, s) = fixture();
+    w.assets.push(Asset {
+        id: PLOT,
+        owner: HOME,
+        kind: 1,
+    });
+    d::request(&mut w, &s, HOME, PERSON).unwrap();
+    households::disposal::accept(
+        &mut w,
+        &s,
+        HOME,
+        PERSON,
+        households::disposal::Sale {
+            month: 2,
+            asset: PLOT,
+            buyer: STATE_AGENT,
+            price: Amount::new(TOKEN, price),
+        },
+    )
+    .unwrap();
+    (w, s)
+}
+
+#[test]
+fn funded_disposal_precedes_residual_release_and_reconciles_gain_and_loss() {
+    for price in [3, 8] {
+        let (w, s) = disposal_fixture(price);
+        let audit = Audit::with_inventory(
+            &w,
+            &s,
+            TOKEN,
+            [(PLOT, 6)].into(),
+            [((HOME, GRAIN), 4)].into(),
+        )
+        .unwrap();
+        let run = |backend| {
+            let mut a = audit.clone();
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            a.step(&mut sim).unwrap();
+            assert_eq!(
+                economics_compute_smoke::credit::owner(&sim.world, &sim.state, PLOT),
+                Some(STATE_AGENT)
+            );
+            assert_eq!(sim.state.balance(HOME, TOKEN), 5 + price);
+            assert_eq!(sim.state.balance(PERSON, TOKEN), 0);
+            let h = sim.ledger[0].household.as_ref().unwrap();
+            assert_eq!(h.disposals[0].rejection, None);
+            assert!(h.dissolution[0].distributed.is_empty());
+            let checkpoint = (sim.clone(), a.clone());
+            run_through(&mut a, &mut sim, 3);
+            assert_eq!(sim.state.balance(PERSON, TOKEN), 5 + price);
+            d::finish(&mut sim.world, &sim.state, HOME, PERSON).unwrap();
+            run_through(&mut a, &mut sim, 4);
+            a.finalize_through(4).unwrap();
+            let (mut resumed, mut resumed_a) = checkpoint;
+            run_through(&mut resumed_a, &mut resumed, 3);
+            d::finish(&mut resumed.world, &resumed.state, HOME, PERSON).unwrap();
+            run_through(&mut resumed_a, &mut resumed, 4);
+            resumed_a.finalize_through(4).unwrap();
+            assert_eq!(sim.state, resumed.state);
+            assert_eq!(sim.ledger, resumed.ledger);
+            assert_eq!(a, resumed_a);
+            for who in [HOME, PERSON, STATE_AGENT] {
+                let report = a.book().finalized_statements(who, 2, 4).unwrap();
+                assert_eq!(report.assets, report.liabilities + report.equity);
+                if who == HOME {
+                    assert_eq!(report.assets, 0);
+                    assert_eq!(
+                        report.expenses[&FinancialAccount::TransferExpense],
+                        i128::from(9 + price)
+                    );
+                    if price > 6 {
+                        assert_eq!(
+                            report.income[&FinancialAccount::DisposalGain],
+                            i128::from(price - 6)
+                        );
+                    } else {
+                        assert_eq!(
+                            report.expenses[&FinancialAccount::DisposalLoss],
+                            i128::from(6 - price)
+                        );
+                    }
+                }
+            }
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
+
+#[test]
+fn disposal_receipt_and_ownership_replay_are_verified_atomically() {
+    let (w, s) = disposal_fixture(8);
+    let mut sim = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    sim.step().unwrap();
+    let mut replay = s.clone();
+    commit(
+        &w,
+        &mut replay,
+        &sim.ledger[0],
+        Backend::Reference,
+        DEFAULT_EFFECT_LIMIT,
+    )
+    .unwrap();
+    assert_eq!(replay, sim.state);
+    for alter_receipt in [true, false] {
+        let mut forged = sim.ledger[0].clone();
+        if alter_receipt {
+            forged.household.as_mut().unwrap().disposals[0].sale.buyer = PERSON;
+        } else {
+            forged.household.as_mut().unwrap().disposal_effects.clear();
+        }
+        let mut unchanged = s.clone();
+        assert!(
+            commit(
+                &w,
+                &mut unchanged,
+                &forged,
+                Backend::Reference,
+                DEFAULT_EFFECT_LIMIT
+            )
+            .is_err()
+        );
+        assert_eq!(unchanged, s);
+    }
+    let mut unchanged = s.clone();
+    assert!(commit(&w, &mut unchanged, &sim.ledger[0], Backend::Reference, 1).is_err());
+    assert_eq!(unchanged, s);
+    let mut unsupported = sim.state.clone();
+    unsupported.credit.stock_spent = 1;
+    assert!(Simulation::new(w.clone(), unsupported, Backend::Reference).is_err());
+    let mut unknown_owner = sim.state.clone();
+    unknown_owner.credit.owners.insert(PLOT, u32::MAX);
+    assert!(Simulation::new(w, unknown_owner, Backend::Reference).is_err());
+}
+
+#[test]
+fn pledged_sales_and_unvalued_denominations_do_not_bypass_admission_or_accounting() {
+    use economics_compute_smoke::credit::{Collateral, CollateralSettlement};
+    let (mut w, s) = disposal_fixture(8);
+    w.households[0].asset_sales.clear();
+    w.lending.push(Advance {
+        id: 77,
+        debtor: HOME,
+        terms: LoanOffer {
+            creditor: STATE_AGENT,
+            denomination: TOKEN,
+            max_principal: 2,
+            monthly_rate_bps: 0,
+            term_months: 1,
+            grace_months: 1,
+        },
+        principal: 2,
+        month: 3,
+        priority: 0,
+        collateral: Some(Collateral {
+            asset: PLOT,
+            priority: 0,
+            pledged: true,
+            settlement: CollateralSettlement::FixedValue { value: 2 },
+        }),
+    });
+    let before = w.clone();
+    let err = households::disposal::accept(
+        &mut w,
+        &s,
+        HOME,
+        PERSON,
+        households::disposal::Sale {
+            month: 2,
+            asset: PLOT,
+            buyer: STATE_AGENT,
+            price: Amount::new(TOKEN, 8),
+        },
+    )
+    .unwrap_err();
+    assert!(err.contains("transferable property"));
+    assert_eq!(w, before);
+
+    let (mut w, mut s) = disposal_fixture(8);
+    w.households[0].asset_sales[0].price = Amount::new(GRAIN, 1);
+    s.balances.insert((STATE_AGENT, GRAIN), 1);
+    let mut audit = Audit::with_inventory(
+        &w,
+        &s,
+        TOKEN,
+        [(PLOT, 6)].into(),
+        [((HOME, GRAIN), 4), ((STATE_AGENT, GRAIN), 2)].into(),
+    )
+    .unwrap();
+    let before = audit.clone();
+    let mut sim = Simulation::new(w, s.clone(), Backend::Reference).unwrap();
+    assert!(audit.step(&mut sim).is_err());
+    assert_eq!(sim.state, s);
+    assert!(sim.ledger.is_empty());
+    assert_eq!(audit, before);
+}
+
+#[test]
+fn unfunded_sales_expire_without_transferring_property_and_need_fresh_consent() {
+    let (w, s) = disposal_fixture(11);
+    let mut sim = Simulation::new(w, s.clone(), Backend::Reference).unwrap();
+    sim.step().unwrap();
+    assert_eq!(
+        sim.ledger[0].household.as_ref().unwrap().disposals[0].rejection,
+        Some(households::disposal::Rejection::FundingOrStorage)
+    );
+    assert_eq!(sim.state.balance(HOME, TOKEN), s.balance(HOME, TOKEN));
+    assert_eq!(
+        sim.state.balance(STATE_AGENT, TOKEN),
+        s.balance(STATE_AGENT, TOKEN)
+    );
+    assert_eq!(sim.state.credit, s.credit);
+    sim.run_months(1).unwrap();
+    assert!(d::finish(&mut sim.world, &sim.state, HOME, PERSON).is_err());
+    households::disposal::accept(
+        &mut sim.world,
+        &sim.state,
+        HOME,
+        PERSON,
+        households::disposal::Sale {
+            month: 3,
+            asset: PLOT,
+            buyer: STATE_AGENT,
+            price: Amount::new(TOKEN, 8),
+        },
+    )
+    .unwrap();
+    sim.step().unwrap();
+    assert_eq!(sim.state.balance(HOME, TOKEN), 13);
+    assert_eq!(sim.state.credit.owners[&PLOT], STATE_AGENT);
+}
+
+#[test]
+fn competing_disposals_share_one_opening_budget_with_stable_priority() {
+    let (mut w, s) = disposal_fixture(8);
+    w.assets.push(Asset {
+        id: PLOT + 1,
+        owner: HOME,
+        kind: 1,
+    });
+    households::disposal::accept(
+        &mut w,
+        &s,
+        HOME,
+        PERSON,
+        households::disposal::Sale {
+            month: 2,
+            asset: PLOT + 1,
+            buyer: STATE_AGENT,
+            price: Amount::new(TOKEN, 8),
+        },
+    )
+    .unwrap();
+    let run = |mut w: World, reverse: bool| {
+        if reverse {
+            w.households[0].asset_sales.reverse();
+        }
+        let mut sim = Simulation::new(w, s.clone(), Backend::Reference).unwrap();
+        sim.step().unwrap();
+        assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 2);
+        assert_eq!(sim.state.credit.owners.len(), 1);
+        assert_eq!(sim.state.credit.owners[&PLOT], STATE_AGENT);
+        assert!(
+            sim.ledger[0].household.as_ref().unwrap().disposals[1]
+                .rejection
+                .is_some()
+        );
+        (sim.state, sim.ledger)
+    };
+    assert_eq!(run(w.clone(), false), run(w, true));
+}
+
+#[test]
+fn active_right_and_changed_owner_rechecks_preserve_the_unsold_asset() {
+    for attached in [true, false] {
+        let (mut w, mut s) = disposal_fixture(8);
+        if attached {
+            w.rights.push(UseRight {
+                id: 1,
+                holder: PERSON,
+                asset: PLOT,
+                from: 1,
+                through: 12,
+                output_owner: PERSON,
+            });
+        } else {
+            // A different owner at execution also invalidates earlier consent.
+            s.credit.owners.insert(PLOT, PERSON);
+        }
+        let before = s.credit.clone();
+        let mut sim = Simulation::new(w, s.clone(), Backend::Reference).unwrap();
+        sim.step().unwrap();
+        assert_eq!(sim.state.credit, before);
+        assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 10);
+        assert_eq!(
+            sim.ledger[0].household.as_ref().unwrap().disposals[0].rejection,
+            Some(if attached {
+                households::disposal::Rejection::Attached
+            } else {
+                households::disposal::Rejection::Unavailable
+            })
+        );
+    }
+}
+
+#[test]
+fn disposal_admission_and_execution_enforce_authority_and_live_law() {
+    use economics_compute_smoke::opportunities::{Action, HOUSEHOLD_TYPE, PERSON_TYPE, STATE_TYPE};
+    let (mut w, mut s) = disposal_fixture(8);
+    let sale = w.households[0].asset_sales[0].clone();
+    let unchanged = w.clone();
+    // A second contract for the same dated asset, wrong authority, or phase
+    // cannot silently overwrite the accepted terms.
+    assert!(households::disposal::accept(&mut w, &s, HOME, PERSON, sale.clone()).is_err());
+    assert!(households::disposal::accept(&mut w, &s, HOME, STATE_AGENT, sale.clone()).is_err());
+    s.phase = Phase::Acquire;
+    assert!(households::disposal::accept(&mut w, &s, HOME, PERSON, sale).is_err());
+    assert_eq!(w, unchanged);
+    s.phase = Phase::Open;
+    let (policy_world, _) = economics_compute_smoke::membership::scenario().unwrap();
+    let mut policy = policy_world.transaction_policy.unwrap();
+    policy.laws.clear();
+    policy.membership_offers.clear();
+    policy.membership_permissions.clear();
+    policy.agent_types = [
+        (HOME, HOUSEHOLD_TYPE),
+        (PERSON, PERSON_TYPE),
+        (STATE_AGENT, STATE_TYPE),
+    ]
+    .into();
+    policy.permissions = [(STATE_TYPE, Action::AssetTrade)].into();
+    w.transaction_policy = Some(policy);
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    sim.step().unwrap();
+    assert_eq!(
+        sim.ledger[0].household.as_ref().unwrap().disposals[0].rejection,
+        Some(households::disposal::Rejection::Permission)
+    );
+    assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 10);
+    assert_eq!(
+        economics_compute_smoke::credit::owner(&sim.world, &sim.state, PLOT),
+        Some(HOME)
+    );
+}
+
+#[test]
+fn disposal_storage_failure_and_observation_do_not_create_payment_or_ownership() {
+    let (mut w, s) = disposal_fixture(8);
+    w.storage.weights.insert(TOKEN, 1);
+    w.storage.capacities.insert(PERSON, 20); // household gets ten; five already occupied
+    let mut observed = Simulation::new(w, s, Backend::Reference).unwrap();
+    let mut plain = observed.clone();
+    let mut observer = Observer::new(
+        vec![],
+        "disposal",
+        Config {
+            settlement: true,
+            agents: [STATE_AGENT].into(),
+            ..Config::default()
+        },
+    )
+    .unwrap();
+    observer.run_months(&mut observed, 1).unwrap();
+    plain.run_months(1).unwrap();
+    assert_eq!(observed.state, plain.state);
+    assert_eq!(observed.ledger, plain.ledger);
+    assert_eq!(observed.state.balance(HOME, TOKEN), 5);
+    assert!(observed.state.credit.owners.is_empty());
+    let log = String::from_utf8(observer.finish().unwrap()).unwrap();
+    let rows: Vec<serde_json::Value> = log
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .filter(|r: &serde_json::Value| r["kind"] == "household_asset_disposal")
+        .collect();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["settled"], false);
+    assert_eq!(rows[0]["rejection"], "FundingOrStorage");
+}
+
 fn fixture() -> (World, State) {
     let (mut w, mut s) = baseline();
     w.assets.clear();
@@ -39,6 +420,7 @@ fn fixture() -> (World, State) {
             dwelling_process: None,
             admission: None,
             membership: vec![],
+            asset_sales: vec![],
         },
     )
     .unwrap();

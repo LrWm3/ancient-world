@@ -3,8 +3,9 @@
 Implemented extension to [adult membership](HOUSEHOLD-MEMBERSHIP.md). A last adult
 can now wind down a household under its founding terms, settle residual stock, and
 release the final membership. The household's identity, accounts and history remain.
-This is a solvent stock-distribution path, not a general inheritance or bankruptcy
-system.
+This is a solvent wind-down path with explicit sales of unencumbered catalog
+assets and residual stock distribution. General inheritance and bankruptcy remain
+separate extensions.
 
 ## Founding rules and authority
 
@@ -81,8 +82,8 @@ claim buyout or write-off. Fractional sharing carry remains historical bookkeepi
 Their existing validation rejection remains. Defensive clearance recognizes those
 positions, but this change does not claim to service household loans or perform
 household insolvency. The working debt-composition test uses supported land dues.
-Owned physical assets require an explicit sale/transfer path before this stock-only
-closure can complete. Configured standing roles may require retirement rather than
+Unencumbered catalog assets now have the explicit disposal path below. Durable
+equipment, live rights and attached processes still block closure. Configured standing roles may require retirement rather than
 being inferred finished from a zero balance.
 
 If the last member or recipient dies before payout, wind-down defers. Automatic
@@ -90,6 +91,52 @@ last-member death estates, guardian/executor appointment, contested distribution
 insolvent dissolution, multi-member partition and general organizational dissolution
 remain extensions. Existing households retain their default behavior unless their
 founding template explicitly enables this path.
+
+## Explicit physical-asset disposal
+
+`households::disposal::accept` records a dated, mutually accepted sale while the
+household is winding down. The last living member supplies the household's
+instruction; buyer consent and price are supplied scenario terms, like the existing
+accepted lending inputs. There is no autonomous solicitation, auction, negotiation
+or forced sale. This adapter does not give a governor authority to amend the charter.
+
+The sale names an asset, buyer, payment resource/quantity and current month. Admission
+requires Open, the correct last member, household ownership and permission for both
+parties to perform `AssetTrade`. Unknown parties/assets, nonpositive payments,
+perishable payment resources and duplicate same-asset/month instructions fail
+atomically. The accepted terms remain in the household agreement's dated sale history.
+
+At Open, clearance observes opening property **before** disposals. The sale resolver
+then rechecks ownership, parties, rights, commitments and current law. Pledged assets,
+assets reserved for configured lending/recovery, live use rights and active attached
+processes are excluded. It never strips a tenant's right or transfers unfinished crop
+work implicitly. Winding or closed households cannot buy. An unavailable last member
+or buyer prevents execution.
+
+Funded sales use the existing asset-exchange payment primitive and authoritative
+ownership/value registry. A single opening spending allowance covers every accepted
+sale; stable `(household ID, asset ID)` priority resolves insufficient shared buyer
+funding, independent of instruction insertion order. This is an explicit bounded
+priority, not a fairness claim or price-discovery policy. Incoming proceeds do not
+increase the same boundary's allowance. Payment must fit storage and ownership moves
+only with the complete payment. There is no need to activate the lending scheduler
+to hold property; debt/recovery state still requires its existing supported driver.
+
+Rejection retains the asset and money and emits a reason. A dated failed sale expires;
+a later attempt needs fresh accepted terms. Successful proceeds remain in household
+custody until the **next Open** clearance check, after this month's ordinary supported
+obligations can settle. Final membership release still requires a later explicit
+`finish`. Sales neither discharge creditors nor bypass any dissolution blocker.
+
+Receipts and payment effects are separate from pooled gifts, replay-checked and
+included in the effect-buffer limit. The read-only settlement observer emits
+`household_asset_disposal`, including buyer, asset, proposed price, settled status
+and rejection reason. A rejected proposed price is not revenue or a market trade.
+
+The financial adapter currently requires payment in its reporting denomination.
+It records buyer cost, seller derecognition, actual disposal gain/loss and investing
+cash flows. Residual transfers remain TransferExpense/TransferIncome. An unsupported
+payment valuation rejects the combined simulation/audit step atomically.
 
 ## Accounting and verification
 
@@ -127,3 +174,21 @@ diff whitespace and repository artifact checks passed.
 The normally ignored 32-person annual accounting test and the full crate suite are
 not part of this validation run. These tests establish settlement consistency,
 not economic desirability of dissolution or complete coverage of institutional estates.
+
+## Asset-disposal verification (2026-09-28)
+
+The additional case starts with an asset carried at 6, two grain carried at 4 and
+five coins. The state buys the asset for either 8 (gain 2) or 3 (loss 3). Open 2
+retains the proceeds; Open 3 distributes remaining grain and money; Open 4 permits
+closure. Household, person and state statements reconcile separately. CPU/reference
+states, complete ledgers and journals match, including continuation from immediately
+after the sale.
+
+Controls cover insufficient funds, shared buyer budgets, reversed instruction order,
+recipient storage, live-law denial, changed ownership, active rights, future pledges,
+authority/date/duplicate admission, forged receipts/effects, buffer exhaustion,
+unsupported payment valuation and observer noninterference. The legacy lending-driver
+restriction remains tested: asset ownership alone does not authorize loan state.
+
+Validation results for this increment are recorded in INTEGRATION-STATUS.md. The
+slow 32-person accounting test and full crate suite remain outside this run.

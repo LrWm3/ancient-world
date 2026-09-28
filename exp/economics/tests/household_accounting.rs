@@ -24,6 +24,7 @@ fn form(w: &mut World, s: &State, adults: Vec<AgentId>) {
             dwelling_process: None,
             admission: None,
             membership: vec![],
+            asset_sales: vec![],
         },
     )
     .unwrap();

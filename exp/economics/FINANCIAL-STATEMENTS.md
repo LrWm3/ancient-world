@@ -1158,5 +1158,11 @@ household paid-labor delegation and wage insolvency/estate treatment remain open
 inside verified Open household boundaries. The existing transfer adapter preserves
 stock basis and records TransferExpense/TransferIncome in separate books. An annual
 dues case verifies payment before surplus, zero final household assets/liabilities,
-and CPU/reference/resumed audit equality. No household loan/recovery or physical
-asset liquidation adapter is implied by this extension.
+and CPU/reference/resumed audit equality. Explicit unencumbered catalog-asset sales
+now use the shared funded exchange primitive with verified household disposal
+receipts. Seller carrying value is derecognized, gains/losses recognized, buyer cost
+established and actual cash classified as investing. Payment must use the reporting
+denomination; unsupported valuation rejects the combined step without publishing
+state or journal. Sale proceeds remain household property until the next Open's
+clearance check. This does not integrate household loans, insolvent estates,
+equipment disposal or sales with live rights/attached crop obligations.

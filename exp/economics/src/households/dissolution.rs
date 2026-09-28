@@ -184,7 +184,11 @@ pub fn blockers(w: &World, s: &State, household: AgentId) -> Vec<Blocker> {
     }
     // These configured exchange roles require an explicit cancellation/novation
     // adapter before this stock-only wind-down can declare them finished.
-    if w.marketplaces.iter().any(|m| m.agent == household)
+    if w.households.iter().any(|h| {
+        h.asset_sales
+            .iter()
+            .any(|sale| sale.month >= s.month && involved(h.agent, sale.buyer))
+    }) || w.marketplaces.iter().any(|m| m.agent == household)
         || w.transaction_policy
             .as_ref()
             .is_some_and(|p| p.authority == household)

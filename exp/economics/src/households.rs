@@ -7,6 +7,7 @@ use crate::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+pub mod disposal;
 pub mod dissolution;
 pub mod membership;
 pub mod needs;
@@ -30,6 +31,7 @@ pub struct Agreement {
     /// Immutable founding signatories; current members follow dated changes.
     pub adults: Vec<AgentId>,
     pub membership: Vec<membership::Change>,
+    pub asset_sales: Vec<disposal::Sale>,
     pub formed: u32,
     /// A non-rival occupancy service, produced by one member's actual dwelling.
     pub dwelling_process: Option<DefinitionId>,
@@ -86,6 +88,8 @@ pub struct LaborContribution {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Boundary {
     pub dissolution: Vec<dissolution::Receipt>,
+    pub disposals: Vec<disposal::Receipt>,
+    pub disposal_effects: Vec<Effect>,
     pub membership: Vec<(AgentId, membership::Change)>,
     pub governance: Vec<crate::household_governance::Authority>,
     pub remainders: Remainders,
@@ -123,8 +127,8 @@ pub fn form(world: &mut World, state: &State, mut agreement: Agreement) -> Resul
     {
         return Err("only living adults can sign formation".into());
     }
-    if !agreement.membership.is_empty() {
-        return Err("formation cannot include membership history".into());
+    if !agreement.membership.is_empty() || !agreement.asset_sales.is_empty() {
+        return Err("formation cannot include membership or disposal history".into());
     }
     if agreement.formed != state.month {
         return Err("formation must be dated at the current boundary".into());
@@ -172,6 +176,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     let mut agents = BTreeSet::new();
     membership::validate(world, state)?;
     dissolution::validate(world, state)?;
+    disposal::validate(world)?;
     for a in &world.households {
         crate::household_governance::validate(world, state, a)?;
         crate::laws::households::validate_admission(world, a)?;
@@ -572,6 +577,9 @@ fn prepare(world: &World, state: &State) -> Result<(State, Boundary), String> {
         b.membership.sort_by_key(|(id, _)| *id);
         (b.before, b.dissolution) = dissolution::prepare(world, state)?;
         apply(world, &mut staged, &b.before, Backend::Reference)?;
+        (b.disposals, b.disposal_effects) = disposal::prepare(world, state)?;
+        apply(world, &mut staged, &b.disposal_effects, Backend::Reference)?;
+        disposal::publish(&mut staged, &b.disposals);
     }
     if !matches!(state.phase, Phase::Open | Phase::Close) {
         (b.reservations, b.before) = allocate(world, state, requests(world, state)?)?;
@@ -1141,6 +1149,7 @@ pub(crate) fn settled_boundaries(
         .map(|t| t.effects.len())
         .sum::<usize>()
         .checked_add(receipt.before.len())
+        .and_then(|n| n.checked_add(receipt.disposal_effects.len()))
         .and_then(|n| n.checked_add(receipt.after.len()))
         .ok_or("household buffer overflow")?;
     if count > limit {
@@ -1153,11 +1162,15 @@ pub(crate) fn settled_boundaries(
         || receipt.governance != expected.governance
         || receipt.membership != expected.membership
         || receipt.dissolution != expected.dissolution
+        || receipt.disposals != expected.disposals
+        || receipt.disposal_effects != expected.disposal_effects
     {
         return Err("altered household reservations".into());
     }
     let mut staged = state.clone();
     apply(world, &mut staged, &expected.before, backend)?;
+    apply(world, &mut staged, &expected.disposal_effects, backend)?;
+    disposal::publish(&mut staged, &expected.disposals);
     let mut core = batch.clone();
     core.household = None;
     crate::settlement::commit_core(world, &mut staged, &core, backend, limit)?;
@@ -1189,6 +1202,7 @@ pub fn scenario() -> Result<(World, State), String> {
                 dwelling_process: Some(crate::crafts::OCCUPY_HOME),
                 admission: None,
                 membership: vec![],
+                asset_sales: vec![],
             },
         )?;
     }

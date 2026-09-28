@@ -426,5 +426,20 @@ The opt-in [dissolution path](HOUSEHOLD-DISSOLUTION.md) now separates wind-down,
 verified residual-stock distribution and final membership release. Constitution
 and static charter select permission and recipient; admitted legal limits persist.
 The integrated CPU/reference case pays annual household land dues before releasing
-surplus and closes with balanced separate statements. Assets, insolvency, general
+surplus and closes with balanced separate statements. Explicit funded sales now
+clear unencumbered catalog assets at Open, retain proceeds until the next clearance
+check, and recognize disposal gains/losses in separate statements. CPU/reference
+and checkpoint cases agree. Attached crops/rights, equipment, insolvency, general
 household loan/recovery composition and automatic death estates remain outstanding.
+
+
+Asset-disposal verification (2026-09-28): **137 focused tests passed**: household
+dissolution 18, households 55, household accounting 6, credit 9, resale 7, recovery
+26 and accounting 16. Strict all-target Clippy passed. The slow 32-person accounting
+test remains ignored; the full crate suite was not run. Generated logs are under
+ignored `output/economics/household-disposal-*.log`. Run from `exp/economics`:
+
+```sh
+cargo +1.92.0 test --locked --test household_dissolution --test households --test household_accounting --test credit --test resale --test recovery --test accounting
+cargo +1.92.0 clippy --locked --all-targets -- -D warnings
+```

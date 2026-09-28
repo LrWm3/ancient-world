@@ -490,7 +490,14 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             return Err("alternative payment routes cannot form currency chains".into());
         }
     }
-    if !enabled(world) && state.credit != Book::default() {
+    // Cash asset transfers use the same ownership/value registry without
+    // activating a lending driver. All other financial state still needs one.
+    let ownership_only = Book {
+        owners: state.credit.owners.clone(),
+        values: state.credit.values.clone(),
+        ..Book::default()
+    };
+    if !enabled(world) && state.credit != ownership_only {
         return Err("credit book without accepted lending configuration".into());
     }
     validate_purchase(world, state)?;

@@ -15,8 +15,29 @@ pub(crate) fn settle(
     execution: &mut finance::Execution,
     accepted: &AcceptedSale,
 ) -> Result<(), String> {
+    let effects = fund(world, state, &out.after, execution, accepted)?;
     let sale = &accepted.sale;
-    let owner = out.after.owners.get(&sale.asset).copied().or_else(|| {
+    out.transactions.push(credit::tx(
+        format!("asset {} funded sale", sale.asset),
+        effects,
+    ));
+    credit::transfer_attachments(world, state, out, sale.asset, accepted.buyer);
+    out.after.owners.insert(sale.asset, accepted.buyer);
+    out.after.values.insert(sale.asset, sale.price.quantity);
+    Ok(())
+}
+
+/// Reserve payment against one shared opening budget. Callers retain their own
+/// consent, encumbrance and attachment rules and publish ownership with payment.
+pub(crate) fn fund(
+    world: &World,
+    state: &State,
+    book: &credit::Book,
+    execution: &mut finance::Execution,
+    accepted: &AcceptedSale,
+) -> Result<Vec<Effect>, String> {
+    let sale = &accepted.sale;
+    let owner = book.owners.get(&sale.asset).copied().or_else(|| {
         world
             .assets
             .iter()
@@ -56,13 +77,5 @@ pub(crate) fn settle(
             amount: Amount::new(sale.price.resource, *quantity),
         })
         .collect();
-    let effects = execution.exchange(world, &legs)?;
-    out.transactions.push(credit::tx(
-        format!("asset {} funded sale", sale.asset),
-        effects,
-    ));
-    credit::transfer_attachments(world, state, out, sale.asset, accepted.buyer);
-    out.after.owners.insert(sale.asset, accepted.buyer);
-    out.after.values.insert(sale.asset, sale.price.quantity);
-    Ok(())
+    execution.exchange(world, &legs)
 }

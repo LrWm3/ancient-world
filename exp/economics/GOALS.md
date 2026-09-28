@@ -151,7 +151,9 @@ within those limits. The [governance basics checklist](HOUSEHOLD-BASICS.md) desc
 this integrated slice. [Adult admission and exit](HOUSEHOLD-MEMBERSHIP.md) now add
 dated membership without rewriting founding rules, property or debts. Opt-in
 [solvent dissolution](HOUSEHOLD-DISSOLUTION.md) now closes the last-member lifecycle
-for stock-only residual distributions after claims clear. Market
+for residual distributions after claims clear, with explicit funded disposal of
+unencumbered catalog assets. Attached assets, equipment and insolvent estates remain
+extensions. Market
 recruitment and exit settlements remain targets. Autonomous voting, broader institutional formation and
 longer-horizon collective planning remain targets below.
 
