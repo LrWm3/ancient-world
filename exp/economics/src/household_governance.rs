@@ -2,6 +2,7 @@
 use crate::{households::Agreement, model::*};
 use std::collections::BTreeSet;
 pub mod elections;
+pub mod scenario;
 
 pub const PERCENT: i32 = 100;
 pub const DEFAULT_LABOR_PERCENT: u32 = 20;
@@ -13,7 +14,7 @@ pub enum Policy {
     NeedsFirst,
     PreserveCommittedWork,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TieBreak {
     MemberId,
     Rotating,
@@ -34,6 +35,7 @@ pub enum Leadership {
 pub struct Constitution {
     pub leadership: Leadership,
     pub permitted_policies: BTreeSet<Policy>,
+    pub permitted_ties: BTreeSet<TieBreak>,
     /// None permits member-executable productive activities. A subset can narrow
     /// the mandate, but never grants a worker another member's personal rights.
     pub activities: Option<BTreeSet<DefinitionId>>,
@@ -58,6 +60,8 @@ pub struct PolicyChange {
 pub struct AcceptedPolicy {
     pub issued_month: u32,
     pub change: PolicyChange,
+    /// None preserves the previously effective allocation tie-break.
+    pub tie_break: Option<TieBreak>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Authority {
@@ -66,6 +70,7 @@ pub struct Authority {
     pub leadership: Leadership,
     pub term_start: u32,
     pub election: Option<elections::ElectionResult>,
+    pub tie_break: TieBreak,
     pub policy: Policy,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -88,6 +93,12 @@ impl Governance {
                 ]
                 .into_iter()
                 .collect(),
+                permitted_ties: [
+                    TieBreak::MemberId,
+                    TieBreak::Rotating,
+                    TieBreak::SignatoryOrder,
+                ]
+                .into(),
                 activities: None,
             },
             charter: Charter {
@@ -120,6 +131,14 @@ impl Governance {
         g.charter.initial_policy = Policy::NetOutput;
         g
     }
+    pub fn tie_break(&self, month: u32) -> TieBreak {
+        self.changes
+            .iter()
+            .filter(|c| c.issued_month <= month && c.change.month <= month && c.tie_break.is_some())
+            .max_by_key(|c| (c.change.month, c.issued_month))
+            .and_then(|c| c.tie_break)
+            .unwrap_or(self.charter.tie_break)
+    }
     pub fn policy(&self, month: u32) -> Policy {
         self.changes
             .iter()
@@ -133,7 +152,8 @@ pub fn validate(world: &World, state: &State, a: &Agreement) -> Result<(), Strin
     let g = &a.governance;
     elections::validate(a, state)?;
     let mut dates = BTreeSet::new();
-    if g.charter.term_months == 0
+    if !g.constitution.permitted_ties.contains(&g.charter.tie_break)
+        || g.charter.term_months == 0
         || !a.adults.contains(&g.charter.leader)
         || !g
             .constitution
@@ -155,6 +175,8 @@ pub fn validate(world: &World, state: &State, a: &Agreement) -> Result<(), Strin
                 || !dates.insert((c.issued_month, c.change.month))
                 || leader_at_open(a, state, c.issued_month) != Some(c.change.authorized_by)
                 || !g.constitution.permitted_policies.contains(&c.change.policy)
+                || c.tie_break
+                    .is_some_and(|tie| !g.constitution.permitted_ties.contains(&tie))
         })
     {
         return Err("invalid household constitution, charter or policy authority".into());
@@ -222,12 +244,13 @@ pub fn authority(a: &Agreement, state: &State) -> Authority {
         election: (g.constitution.leadership == Leadership::Elected && term_start > a.formed)
             .then(|| elections::resolve(a, state, term_start)),
         policy: g.policy(state.month),
+        tie_break: g.tie_break(state.month),
     }
 }
 
 pub fn ordered(a: &Agreement, state: &State) -> Vec<AgentId> {
     let mut people: Vec<_> = crate::households::members(a, state).collect();
-    match a.governance.charter.tie_break {
+    match a.governance.tie_break(state.month) {
         TieBreak::SignatoryOrder => {}
         TieBreak::MemberId => people.sort_unstable(),
         TieBreak::Rotating => {
@@ -248,6 +271,17 @@ pub fn schedule(
     household: AgentId,
     change: PolicyChange,
 ) -> Result<(), String> {
+    schedule_allocation(world, state, household, change, None)
+}
+
+/// An atomic objective/tie instruction; charter defaults and constitutional choices stay fixed.
+pub fn schedule_allocation(
+    world: &mut World,
+    state: &State,
+    household: AgentId,
+    change: PolicyChange,
+    tie_break: Option<TieBreak>,
+) -> Result<(), String> {
     let mut candidate = world.clone();
     let a = candidate
         .households
@@ -260,6 +294,7 @@ pub fn schedule(
     a.governance.changes.push(AcceptedPolicy {
         issued_month: state.month,
         change,
+        tie_break,
     });
     crate::households::validate(&candidate, state)?;
     *world = candidate;

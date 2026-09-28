@@ -835,7 +835,7 @@ fn labor(world: &World, state: &State) -> Result<(Vec<Effect>, Vec<LaborDecision
             granted: 0,
             policy: a.governance.policy(state.month),
             leader: crate::household_governance::leader(a, state),
-            tie_break: a.governance.charter.tie_break,
+            tie_break: a.governance.tie_break(state.month),
             contributions: vec![],
         };
         if let Some((gain, member, chosen)) = best {
@@ -900,7 +900,7 @@ fn contributed_labor(
         granted: 0,
         policy,
         leader: crate::household_governance::leader(a, state),
-        tie_break: a.governance.charter.tie_break,
+        tie_break: a.governance.tie_break(state.month),
         contributions: contributions.clone(),
     };
     let mut reserved_state = state.clone();

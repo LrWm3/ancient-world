@@ -373,3 +373,80 @@ fn shared_dwelling_entitlements_do_not_duplicate_asset_wear() {
     assert_eq!(user.trial_balance[&A::Tangible(home)], 4);
     assert_eq!(a.book().statements(PERSON + 1, 1, 2).unwrap().net_income, 0);
 }
+
+#[test]
+fn lawful_elections_policy_changes_allocation_and_separate_books_compose() {
+    use economics_compute_smoke::{
+        accounting::ReportingScope,
+        household_governance::{self as g, scenario as fixture},
+    };
+    let (w, s) = fixture::pair().unwrap();
+    let make_audit = || {
+        Audit::with_inventory(
+            &w,
+            &s,
+            TOKEN,
+            BTreeMap::new(),
+            [((PERSON + 1, SEED), 3)].into(),
+        )
+        .unwrap()
+        .with_process_policy(
+            &w,
+            [(fixture::FOOD_PROCESS, [(GRAIN, 1), (SEED, 1)].into())].into(),
+        )
+        .unwrap()
+    };
+    let mut cpu_audit = make_audit();
+    let mut reference_audit = make_audit();
+    let mut cpu = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+    let mut reference = Simulation::new(w, s, Backend::Reference).unwrap();
+    through(&mut cpu_audit, &mut cpu, fixture::TERM_MONTHS);
+    through(&mut reference_audit, &mut reference, fixture::TERM_MONTHS);
+    let mut resumed = cpu.clone();
+    let mut resumed_audit = cpu_audit.clone();
+    let charter = cpu.world.households[0].governance.charter.clone();
+    for sim in [&mut cpu, &mut reference, &mut resumed] {
+        fixture::incoming_policy(&mut sim.world, &sim.state).unwrap();
+        assert_eq!(
+            sim.world.households[0].governance.policy(3),
+            g::Policy::NetOutput
+        );
+        assert_eq!(
+            sim.world.households[0].governance.policy(4),
+            g::Policy::NeedsFirst
+        );
+    }
+    through(&mut cpu_audit, &mut cpu, fixture::RUN_MONTHS);
+    for month in 3..=fixture::RUN_MONTHS {
+        through(&mut reference_audit, &mut reference, month);
+    }
+    through(&mut resumed_audit, &mut resumed, fixture::RUN_MONTHS);
+    assert_eq!(cpu.state, reference.state);
+    assert_eq!(cpu.ledger, reference.ledger);
+    assert_eq!(cpu.reports, reference.reports);
+    assert_eq!(cpu_audit, reference_audit);
+    assert_eq!(cpu.state, resumed.state);
+    assert_eq!(cpu.ledger, resumed.ledger);
+    assert_eq!(cpu_audit, resumed_audit);
+    assert_eq!(cpu.world.households[0].governance.charter, charter);
+    for report in &cpu.reports {
+        assert_eq!(report.deficit(NUTRITION), i32::from(report.month < 4));
+    }
+    let opening = cpu
+        .ledger
+        .iter()
+        .find(|b| b.month == 3 && b.phase == Phase::Open)
+        .unwrap();
+    let authority = &opening.household.as_ref().unwrap().governance[0];
+    assert_eq!(authority.leader, Some(PERSON + 1));
+    assert_eq!(authority.election.as_ref().unwrap().turnout, 2);
+    cpu_audit.finalize_through(fixture::RUN_MONTHS).unwrap();
+    for agent in [PERSON, PERSON + 1, fixture::HOUSEHOLD] {
+        let statement = cpu_audit
+            .book()
+            .finalized_statements(agent, 1, fixture::RUN_MONTHS)
+            .unwrap();
+        assert_eq!(statement.scope, ReportingScope::Separate { agent });
+        assert_eq!(statement.assets, statement.liabilities + statement.equity);
+    }
+}

@@ -1,7 +1,7 @@
 //! Recognition of founding household agreements. Admission is historical;
 //! subsequent law changes do not silently annul existing organizations.
 use crate::{
-    household_governance::{Contribution, Leadership, Policy},
+    household_governance::{Contribution, Leadership, Policy, TieBreak},
     households::Agreement,
     model::*,
 };
@@ -11,6 +11,7 @@ use std::collections::BTreeSet;
 pub struct Rules {
     pub leadership: BTreeSet<Leadership>,
     pub policies: BTreeSet<Policy>,
+    pub ties: BTreeSet<TieBreak>,
     pub min_adults: usize,
     pub max_adults: usize,
     pub max_labor_percent: u32,
@@ -32,6 +33,12 @@ impl Default for Rules {
                 Policy::NetOutput,
                 Policy::PreserveCommittedWork,
                 Policy::NeedsFirst,
+            ]
+            .into(),
+            ties: [
+                TieBreak::MemberId,
+                TieBreak::Rotating,
+                TieBreak::SignatoryOrder,
             ]
             .into(),
             min_adults: 1,
@@ -75,6 +82,7 @@ fn check_terms(a: &Agreement, rules: &Rules) -> Result<(), String> {
     if !(rules.min_term_months..=rules.max_term_months).contains(&g.charter.term_months)
         || !rules.leadership.contains(&g.constitution.leadership)
         || !g.constitution.permitted_policies.is_subset(&rules.policies)
+        || !g.constitution.permitted_ties.is_subset(&rules.ties)
         || !(rules.min_adults..=rules.max_adults).contains(&a.adults.len())
         || match g.charter.contribution {
             Contribution::Percent(p) => p > rules.max_labor_percent,

@@ -1864,3 +1864,103 @@ fn lawful_household_delegation_cannot_bypass_a_workers_process_prohibition() {
         2
     );
 }
+
+#[test]
+fn governor_can_change_allocation_ties_without_changing_founding_documents() {
+    use economics_compute_smoke::household_governance::{
+        self as g, Policy, PolicyChange, TieBreak,
+    };
+    let (mut w, mut s) = governed_fixture();
+    s.phase = Phase::Open;
+    let charter = w.households[0].governance.charter.clone();
+    let constitution = w.households[0].governance.constitution.clone();
+    let control_world = w.clone();
+    let change = |actor, month| PolicyChange {
+        month,
+        authorized_by: actor,
+        policy: Policy::PreserveCommittedWork,
+    };
+    let before = w.clone();
+    assert!(
+        g::schedule_allocation(
+            &mut w,
+            &s,
+            HOME,
+            change(PERSON + 1, 2),
+            Some(TieBreak::MemberId)
+        )
+        .is_err()
+    );
+    assert_eq!(w, before);
+    g::schedule_allocation(
+        &mut w,
+        &s,
+        HOME,
+        change(PERSON, 2),
+        Some(TieBreak::MemberId),
+    )
+    .unwrap();
+    assert_eq!(w.households[0].governance.tie_break(1), TieBreak::Rotating);
+    assert_eq!(w.households[0].governance.tie_break(2), TieBreak::MemberId);
+    assert_eq!(w.households[0].governance.charter, charter);
+    assert_eq!(w.households[0].governance.constitution, constitution);
+    let mut sim = Simulation::new(w, s.clone(), Backend::CubeCpu).unwrap();
+    let mut control = Simulation::new(control_world, s, Backend::Reference).unwrap();
+    sim.run_months(2).unwrap();
+    control.run_months(2).unwrap();
+    let chosen = |sim: &Simulation| {
+        sim.ledger
+            .iter()
+            .find(|b| b.month == 2 && b.phase == Phase::Productive)
+            .unwrap()
+            .household
+            .as_ref()
+            .unwrap()
+            .labor[0]
+            .clone()
+    };
+    let a = chosen(&sim);
+    let b = chosen(&control);
+    assert_eq!(a.recipient, Some(PERSON));
+    assert_eq!(b.recipient, Some(PERSON + 1));
+    assert_eq!(a.projected_value, b.projected_value);
+    assert_eq!(a.granted, b.granted);
+    assert_eq!(a.tie_break, TieBreak::MemberId);
+    // Objective-only instructions do not reset the last accepted tie policy.
+    g::schedule(&mut sim.world, &sim.state, HOME, change(PERSON, 4)).unwrap();
+    assert_eq!(
+        sim.world.households[0].governance.tie_break(4),
+        TieBreak::MemberId
+    );
+}
+
+#[test]
+fn constitutional_allocation_ties_are_checked_atomically() {
+    use economics_compute_smoke::household_governance::{
+        self as g, Policy, PolicyChange, TieBreak,
+    };
+    let (mut w, s) = governed_fixture();
+    w.households[0].governance.constitution.permitted_ties = [TieBreak::Rotating].into();
+    let before = w.clone();
+    assert!(
+        g::schedule_allocation(
+            &mut w,
+            &s,
+            HOME,
+            PolicyChange {
+                month: 2,
+                authorized_by: PERSON,
+                policy: Policy::NeedsFirst
+            },
+            Some(TieBreak::MemberId)
+        )
+        .is_err()
+    );
+    assert_eq!(w, before);
+    assert_eq!(
+        w.households[0].governance.policy(2),
+        Policy::PreserveCommittedWork
+    );
+    w.households[0].governance.charter.tie_break = TieBreak::MemberId;
+    assert!(households::validate(&w, &s).is_err());
+}
