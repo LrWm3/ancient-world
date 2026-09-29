@@ -168,3 +168,120 @@ fn missing_or_overflowing_wage_values_cannot_publish_financial_or_simulation_sta
     assert!(a.step(&mut sim).unwrap_err().contains("overflow"));
     assert_eq!(before, (sim.state, a));
 }
+
+fn loans(support: bool, collective_due: bool) -> (World, State) {
+    use economics_compute_smoke::credit::{Advance, Loan, LoanOffer, Status};
+    let (mut w, mut s) = households::market::scenario().unwrap();
+    w.town_market = None;
+    s.town_market = Default::default();
+    for p in &mut w.participants {
+        p.needs.clear();
+        p.capacity.quantity = 0;
+    }
+    s.balances.clear();
+    s.month = 2;
+    s.balances.insert((HOME, TOKEN), 5);
+    w.households[0].governance.charter.support_member_loans = support;
+    for (id, debtor) in [(1, PERSON), (2, HOME)] {
+        if id == 2 && !collective_due {
+            continue;
+        }
+        w.lending.push(Advance {
+            id,
+            debtor,
+            principal: 4,
+            month: 1,
+            priority: id,
+            collateral: None,
+            terms: LoanOffer {
+                creditor: 89,
+                denomination: TOKEN,
+                max_principal: 4,
+                monthly_rate_bps: 2500,
+                term_months: 1,
+                grace_months: 10,
+            },
+        });
+        s.credit.loans.insert(
+            id,
+            Loan {
+                id,
+                creditor: 89,
+                debtor,
+                denomination: TOKEN,
+                original_principal: 4,
+                principal: 4,
+                interest: 0,
+                interest_remainder: 0,
+                monthly_rate_bps: 2500,
+                opened: 1,
+                last_accrued: 1,
+                term_months: 1,
+                grace_months: 10,
+                first_unpaid: None,
+                status: Status::Active,
+                collateral: None,
+                priority: id,
+            },
+        );
+    }
+    (w, s)
+}
+#[test]
+fn opted_household_support_pays_current_interest_without_assuming_member_debt() {
+    use economics_compute_smoke::financial_reporting::Audit;
+    for support in [false, true] {
+        for collective_due in [false, true] {
+            let (w, s) = loans(support, collective_due);
+            let run = |backend| {
+                let mut audit =
+                    Audit::with_inventory(&w, &s, TOKEN, Default::default(), Default::default())
+                        .unwrap();
+                let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+                while sim.state.month == 2 {
+                    audit.step(&mut sim).unwrap();
+                }
+                let member_paid = support && !collective_due;
+                assert_eq!(
+                    sim.state.credit.loans[&1].principal,
+                    if member_paid { 0 } else { 4 }
+                );
+                assert_eq!(
+                    sim.state.credit.loans[&1].interest,
+                    if member_paid { 0 } else { 1 }
+                );
+                assert_eq!(
+                    sim.state.balance(89, TOKEN),
+                    if member_paid || collective_due { 5 } else { 0 }
+                );
+                if collective_due {
+                    assert_eq!(sim.state.credit.loans[&2].principal, 0);
+                }
+                for id in [HOME, PERSON, 89] {
+                    let report = audit.book().statements(id, 2, 2).unwrap();
+                    assert_eq!(report.assets, report.liabilities + report.equity);
+                }
+                let mut replay = s.clone();
+                for b in &sim.ledger {
+                    commit(&w, &mut replay, b, backend, DEFAULT_EFFECT_LIMIT).unwrap();
+                }
+                assert_eq!(replay, sim.state);
+                (sim.state, sim.ledger, audit)
+            };
+            assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+        }
+    }
+}
+#[test]
+fn exited_member_receives_no_collective_loan_support() {
+    let (mut w, s) = loans(true, false);
+    households::membership::leave(&mut w, &s, HOME, 91).unwrap();
+    // The continuing governor keeps authority, but this debtor has left.
+    w.lending[0].debtor = 91;
+    let mut s = s;
+    s.credit.loans.get_mut(&1).unwrap().debtor = 91;
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    sim.run_months(1).unwrap();
+    assert_eq!(sim.state.balance(HOME, TOKEN), 5);
+    assert_eq!(sim.state.credit.loans[&1].principal, 4);
+}

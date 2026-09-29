@@ -263,7 +263,22 @@ pub fn allocate(
         }
         let already = *totals.get(&(r.member, r.resource)).unwrap_or(&0);
         let demand = (r.quantity - already).max(0);
-        let mut q = demand.min(*budget.get(&(r.household, r.resource)).unwrap_or(&0));
+        let mut available = i128::from(*budget.get(&(r.household, r.resource)).unwrap_or(&0));
+        // Supporting a member never assumes their debt or pledges collective cash
+        // already needed for the household's own current loan payments.
+        if state.phase == Phase::Due
+            && matches!(r.purpose, Purpose::Obligation)
+            && world
+                .households
+                .iter()
+                .any(|h| h.agent == r.household && h.governance.charter.support_member_loans)
+        {
+            available -= crate::credit::current_dues(world, state, r.household)?
+                .get(&r.resource)
+                .copied()
+                .unwrap_or(0);
+        }
+        let mut q = i128::from(demand).min(available.max(0)) as i32;
         if r.individual_benefit <= 0 || r.collective_benefit <= 0 || q < r.minimum {
             q = 0;
         }
@@ -418,10 +433,19 @@ fn requests(world: &World, state: &State) -> Result<Vec<Request>, String> {
                     .iter()
                     .filter(|r| r.kind == ResourceKind::Stock)
                 {
-                    let owed: i128 =
+                    let mut owed: i128 =
                         crate::commitments::projected_claims(world, state, member, r.id, 1)
                             .values()
                             .sum();
+                    if state.phase == Phase::Due
+                        && a.governance.charter.support_member_loans
+                        && market::active(world, state, a.agent)
+                    {
+                        owed += crate::credit::current_dues(world, state, member)?
+                            .get(&r.id)
+                            .copied()
+                            .unwrap_or(0);
+                    }
                     let reserve = if state.phase == Phase::Acquire {
                         crate::forward::policy(world)
                             .and_then(|p| p.protected.get(&r.id))

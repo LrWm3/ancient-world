@@ -55,6 +55,8 @@ pub struct Charter {
     pub purchasing: Purchasing,
     /// Collective buying may cover missing entry inputs of active member processes.
     pub fund_committed_inputs: bool,
+    /// Pay current member loan dues from collective stock at Due; no debt assumption.
+    pub support_member_loans: bool,
     /// Optional static target for projected cash after the next town book.
     /// Above this buffer NeedsThenIncome does not request extra income work.
     pub cash_target: Option<Amount>,
@@ -123,6 +125,7 @@ impl Governance {
             charter: Charter {
                 purchasing: Purchasing::Collective,
                 fund_committed_inputs: false,
+                support_member_loans: false,
                 cash_target: None,
                 residual_recipient: None,
                 leader,

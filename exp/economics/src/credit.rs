@@ -901,6 +901,54 @@ fn accrue(loan: &mut Loan, month: u32) -> Result<i32, String> {
     Ok(interest)
 }
 
+/// Preview the current collectible claim without mutating the loan book. At Open
+/// or before Due collection this includes this month's accrual; after Due it does
+/// not accrue twice. Future installments and stayed claims are not spendable dues.
+pub(crate) fn current_claim(
+    world: &World,
+    state: &State,
+    loan: &Loan,
+) -> Result<Option<finance::CollectionRequest>, String> {
+    if crate::recovery::active(world, &state.credit, loan.debtor).is_some()
+        || matches!(
+            loan.status,
+            Status::Repaid | Status::Discharged | Status::PendingSale | Status::Stayed
+        )
+        || state.month <= loan.opened
+    {
+        return Ok(None);
+    }
+    let mut loan = loan.clone();
+    if loan.status == Status::Active && loan.last_accrued < state.month {
+        accrue(&mut loan, state.month)?;
+    }
+    let contract = finance::ContractId::Loan(loan.id);
+    Ok(Some(finance::CollectionRequest {
+        contract,
+        rank: world
+            .claim_priorities
+            .get(&contract)
+            .copied()
+            .unwrap_or(loan.priority),
+        claim: loan.claim(state.month)?,
+    }))
+}
+
+pub(crate) fn current_dues(
+    world: &World,
+    state: &State,
+    agent: AgentId,
+) -> Result<BTreeMap<ResourceId, i128>, String> {
+    let mut result = BTreeMap::new();
+    for loan in state.credit.loans.values().filter(|l| l.debtor == agent) {
+        if let Some(request) = current_claim(world, state, loan)? {
+            *result.entry(loan.denomination).or_default() +=
+                i128::from(request.claim.outstanding());
+        }
+    }
+    Ok(result)
+}
+
 #[derive(Default)]
 struct CollectionGrants {
     native: BTreeMap<finance::ContractId, i32>,
@@ -931,29 +979,9 @@ fn collection_grants(
     }
     let mut requests = vec![];
     for loan in out.after.loans.values() {
-        if crate::recovery::active(world, &out.after, loan.debtor).is_some()
-            || matches!(
-                loan.status,
-                Status::Repaid | Status::Discharged | Status::PendingSale | Status::Stayed
-            )
-            || state.month <= loan.opened
-        {
-            continue;
+        if let Some(request) = current_claim(world, state, loan)? {
+            requests.push(request);
         }
-        let mut loan = loan.clone();
-        if loan.status == Status::Active {
-            accrue(&mut loan, state.month)?;
-        }
-        let contract = finance::ContractId::Loan(loan.id);
-        requests.push(finance::CollectionRequest {
-            contract,
-            rank: world
-                .claim_priorities
-                .get(&contract)
-                .copied()
-                .unwrap_or(loan.priority),
-            claim: loan.claim(state.month)?,
-        });
     }
     let obligations = crate::commitments::due_obligations(world, state)?;
     for agreement in crate::commitments::active(world, state) {

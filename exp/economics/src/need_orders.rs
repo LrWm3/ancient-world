@@ -89,16 +89,9 @@ pub(crate) fn claims(
             .entry(earned.claim.transfer.amount.resource)
             .or_default() += i128::from(earned.claim.outstanding());
     }
-    // Only already accrued, currently collectible loan claims. Forecasting future
-    // interest/installments remains the borrowing planner's responsibility.
-    for l in state.credit.loans.values().filter(|l| {
-        l.debtor == agent
-            && !matches!(
-                l.status,
-                crate::credit::Status::Repaid | crate::credit::Status::PendingSale
-            )
-    }) {
-        *result.entry(l.denomination).or_default() += i128::from(l.due(state.month)?);
+    // Same current collectible claim as collection and household support.
+    for (resource, quantity) in crate::credit::current_dues(world, state, agent)? {
+        *result.entry(resource).or_default() += quantity;
     }
     Ok(result)
 }
