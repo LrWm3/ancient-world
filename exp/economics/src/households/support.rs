@@ -210,16 +210,20 @@ pub(super) fn prepare(
                     receipts.push(r);
                     continue;
                 }
-                let proposed = transfer(member, h.agent, m.resource, r.offered);
-                if !crate::storage::fits(
+                let feasible = crate::storage::transferable(
                     world,
                     &crate::storage::usage(world, &staged.balances),
-                    &proposed,
-                ) {
+                    member,
+                    h.agent,
+                    m.resource,
+                    r.offered,
+                )?;
+                if feasible == 0 {
                     r.reason = "collective storage unavailable".into();
                     receipts.push(r);
                     continue;
                 }
+                let proposed = transfer(member, h.agent, m.resource, feasible);
                 let baseline = probe(world, &staged)?;
                 let people: BTreeSet<_> = members(h, &staged).collect();
                 let base_needs = needs::project(world, &staged, &baseline, &people)?;
@@ -248,7 +252,7 @@ pub(super) fn prepare(
                             .zip(base_income.as_ref())
                             .is_some_and(|(next, base)| income::improves(h, base, next)));
                 r.reason = if no_private_harm && improves {
-                    r.accepted = r.offered;
+                    r.accepted = feasible;
                     staged = trial;
                     effects.extend(proposed);
                     "accepted useful voluntary surplus"

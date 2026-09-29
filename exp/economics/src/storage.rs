@@ -41,6 +41,39 @@ pub fn fits(world: &World, used: &BTreeMap<AgentId, i128>, effects: &[Effect]) -
         .all(|h| shared_room(world, &after, h) >= 0)
 }
 
+/// Largest whole-unit conserved transfer fitting both parties' storage. The
+/// caller supplies an opening-inventory cap; this does not reserve or mint stock.
+/// From a valid opening, feasible quantities form a prefix, including when donor
+/// and recipient share household capacity. Bisection avoids quantity-sized work.
+pub(crate) fn transferable(
+    world: &World,
+    used: &BTreeMap<AgentId, i128>,
+    from: AgentId,
+    to: AgentId,
+    resource: ResourceId,
+    maximum: i32,
+) -> Result<i32, String> {
+    if maximum < 0 || from == to || !fits(world, used, &[]) {
+        return Err("invalid bounded storage transfer".into());
+    }
+    let (mut low, mut high) = (0, maximum);
+    while low < high {
+        let middle = low + ((i64::from(high) - i64::from(low) + 1) / 2) as i32;
+        let effects = crate::finance::Transfer {
+            from,
+            to,
+            amount: Amount::new(resource, middle),
+        }
+        .effects()?;
+        if fits(world, used, &effects) {
+            low = middle;
+        } else {
+            high = middle - 1;
+        }
+    }
+    Ok(low)
+}
+
 pub fn room(
     world: &World,
     used: &BTreeMap<AgentId, i128>,
