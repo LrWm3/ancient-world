@@ -93,6 +93,19 @@ pub(crate) fn claims(
             }
         }
     }
+    // Earned wages are accepted claims, including carried arrears. Protect the
+    // employer's cash from discretionary sales/purchases before Close collection.
+    // Future undelivered work does not yet create a liability or a reservation.
+    for earned in state
+        .employment
+        .earned
+        .values()
+        .filter(|e| e.claim.transfer.from == agent)
+    {
+        *result
+            .entry(earned.claim.transfer.amount.resource)
+            .or_default() += i128::from(earned.claim.outstanding());
+    }
     // Only already accrued, currently collectible loan claims. Forecasting future
     // interest/installments remains the borrowing planner's responsibility.
     for l in state.credit.loans.values().filter(|l| {

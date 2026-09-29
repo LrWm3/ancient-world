@@ -409,3 +409,282 @@ fn lender_cannot_spend_the_same_coins_on_a_town_purchase() {
     assert_eq!(sim.state.balance(HOME, GRAIN), 0);
     assert_eq!(sim.state.credit.loans[&1].principal, 40);
 }
+
+fn combined_fixture() -> (World, State) {
+    use economics_compute_smoke::{
+        employment::{ArrearsPolicy, Terms},
+        marketplace::Side,
+        opportunities::{Action, PERSON_TYPE},
+        scenario::{FUEL, LABOR},
+    };
+    let (mut w, mut s) = households::income::scenario::coordinated().unwrap();
+    w.households[0].governance.charter.cash_target = Some(Amount::new(TOKEN, 60));
+    let c = w.town_market.as_mut().unwrap();
+    let add = |entries: &mut Vec<economics_compute_smoke::town_market::Entry>| {
+        let mut entry = entries
+            .iter()
+            .find(|e| e.side == Side::Sell)
+            .unwrap()
+            .clone();
+        entry.trader.agent = PERSON;
+        entries.push(entry);
+    };
+    add(&mut c.traders);
+    for l in &mut c.additional {
+        add(&mut l.traders);
+        // This member's private fuel ask does not cross current demand; the
+        // collective can still accept voluntary stock under its own price policy.
+        let private = l
+            .traders
+            .iter_mut()
+            .find(|e| e.trader.agent == PERSON)
+            .unwrap();
+        private.trader.limit = 80;
+        private.trader.opening_quote = 80;
+    }
+    s.balances.insert((PERSON, GRAIN), 4);
+    s.balances.insert((PERSON, FUEL), 4);
+    s.balances.insert((92, TOKEN), 50);
+    lend(&mut w, HOME, 92, 20);
+    w.transaction_policy
+        .as_mut()
+        .unwrap()
+        .permissions
+        .insert((PERSON_TYPE, Action::CapacityTrade));
+    w.employment.push(Terms {
+        id: 1,
+        employer: 89,
+        worker: 91,
+        from: 1,
+        through: 12,
+        capacity: Amount::new(LABOR, 5),
+        wage_per_unit: Amount::new(TOKEN, 2),
+        on_arrears: ArrearsPolicy::SuspendDelivery,
+        rank: 0,
+    });
+    w.capacity_overrides.insert((3, 91), 0);
+    (w, s)
+}
+
+fn advance_combined(
+    sim: &mut Simulation,
+    audit: &mut economics_compute_smoke::financial_reporting::Audit,
+    through: u32,
+) {
+    while sim.state.month <= through {
+        if sim.state.phase == Phase::Open {
+            if sim.state.month == 5 {
+                households::membership::leave(&mut sim.world, &sim.state, HOME, 91).unwrap();
+            }
+            if sim.state.month == 7 {
+                households::membership::join(
+                    &mut sim.world,
+                    &sim.state,
+                    HOME,
+                    91,
+                    vec![PERSON, 91],
+                )
+                .unwrap();
+            }
+        }
+        audit
+            .step(sim)
+            .unwrap_or_else(|e| panic!("month {} {:?}: {e}", sim.state.month, sim.state.phase));
+    }
+}
+
+#[test]
+fn household_loop_combines_wages_private_trade_loans_support_and_changing_membership() {
+    use economics_compute_smoke::financial_reporting::{Audit, Opening};
+    let (w, s) = combined_fixture();
+    let coins = |state: &State| {
+        state
+            .balances
+            .iter()
+            .filter(|((_, r), _)| *r == TOKEN)
+            .map(|(_, q)| i64::from(*q))
+            .sum::<i64>()
+    };
+    let opening_coins = coins(&s);
+    let initial = Audit::with_opening(
+        &w,
+        &s,
+        TOKEN,
+        Opening {
+            inventory: s
+                .balances
+                .iter()
+                .filter(|((_, r), q)| *r != TOKEN && **q > 0)
+                .map(|(key, q)| (*key, i128::from(*q)))
+                .collect(),
+            processes: Some(households::income::scenario::costs()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let mut reference = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    let mut audit = initial.clone();
+    advance_combined(&mut reference, &mut audit, 4);
+    let mut resumed = reference.clone();
+    let mut batched = reference.clone();
+    households::membership::leave(&mut batched.world, &batched.state, HOME, 91).unwrap();
+    batched.run_months(2).unwrap();
+    households::membership::join(
+        &mut batched.world,
+        &batched.state,
+        HOME,
+        91,
+        vec![PERSON, 91],
+    )
+    .unwrap();
+    batched.run_months(2).unwrap();
+    let mut resumed_audit = audit.clone();
+    advance_combined(&mut reference, &mut audit, 8);
+    advance_combined(&mut resumed, &mut resumed_audit, 8);
+    assert_eq!(reference.state, resumed.state);
+    assert_eq!(reference.state, batched.state);
+    assert_eq!(reference.ledger, batched.ledger);
+    assert_eq!(reference.ledger, resumed.ledger);
+    assert_eq!(audit, resumed_audit);
+    let mut cpu = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    let mut cpu_audit = initial;
+    advance_combined(&mut cpu, &mut cpu_audit, 8);
+    assert_eq!(reference.state, cpu.state);
+    assert_eq!(reference.ledger, cpu.ledger);
+    assert_eq!(audit, cpu_audit);
+    assert_eq!(coins(&cpu.state), opening_coins);
+    assert_eq!(
+        cpu.state.credit.loans[&1].status,
+        economics_compute_smoke::credit::Status::Repaid
+    );
+    assert!(!cpu.state.employment.earned.contains_key(&(1, 3))); // actual capacity shock
+    assert!(cpu.state.employment.earned.contains_key(&(1, 4))); // capacity recovers
+    assert_eq!(cpu.state.employment.earned[&(1, 5)].delivered, 5); // no household commitment after exit
+    assert_eq!(cpu.state.employment.earned[&(1, 7)].delivered, 4); // entitlement resumes on accession
+    assert!(
+        cpu.state
+            .town_market
+            .history
+            .iter()
+            .flat_map(|r| &r.attempts)
+            .any(|a| a.session.seller.agent == PERSON
+                && matches!(
+                    a.round.outcome,
+                    economics_compute_smoke::negotiation::Outcome::Traded { .. }
+                ))
+    );
+    let decisions: Vec<_> = cpu
+        .ledger
+        .iter()
+        .filter_map(|b| b.household.as_ref())
+        .flat_map(|h| &h.labor)
+        .collect();
+    assert!(decisions.iter().any(|d| d.granted > 0));
+    assert!(decisions.iter().all(|d| {
+        d.contributions
+            .iter()
+            .all(|c| c.directed + c.returned == c.reserved)
+    }));
+    assert!(
+        cpu.ledger
+            .iter()
+            .filter_map(|b| b.household.as_ref())
+            .flat_map(|h| &h.support)
+            .any(|r| r.accepted > 0)
+    );
+    for batch in cpu
+        .ledger
+        .iter()
+        .filter(|b| b.phase == Phase::Close && [5, 6, 7].contains(&b.month))
+    {
+        let pooled = batch
+            .household
+            .as_ref()
+            .unwrap()
+            .after
+            .iter()
+            .any(|e| e.account == (91, TOKEN) && e.delta < 0);
+        assert_eq!(
+            pooled,
+            batch.month == 7,
+            "income pooling follows current membership"
+        );
+    }
+    for a in &cpu.world.agents {
+        let f = audit.book().statements(a.id, 1, 8).unwrap();
+        assert_eq!(f.assets, f.liabilities + f.equity);
+    }
+}
+
+#[test]
+fn employment_and_household_collection_share_one_effect_limit() {
+    let (w, s) = wage_fixture(160);
+    let mut sim = Simulation::new(w.clone(), s, Backend::Reference).unwrap();
+    while sim.state.phase != Phase::Close {
+        sim.step().unwrap();
+    }
+    let before = sim.state.clone();
+    sim.step().unwrap();
+    let batch = sim.ledger.last().unwrap();
+    let core = batch
+        .all_transactions()
+        .map(|t| t.effects.len())
+        .sum::<usize>();
+    assert!(!batch.household.as_ref().unwrap().after.is_empty());
+    let mut unchanged = before.clone();
+    assert!(
+        commit(&w, &mut unchanged, batch, Backend::Reference, core)
+            .unwrap_err()
+            .contains("effect buffer")
+    );
+    assert_eq!(unchanged, before);
+}
+
+#[test]
+fn earned_wage_arrears_are_protected_before_discretionary_town_purchases() {
+    use economics_compute_smoke::marketplace::Side;
+    let (w, s) = wage_fixture(3);
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    sim.run_months(1).unwrap();
+    assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 77);
+    // A new opening-state control: the employer has received 40 coins, but
+    // still owes 77. Give it food demand competing with the earned wage claim.
+    sim.state.balances.insert((89, TOKEN), 40);
+    sim.state.balances.insert((89, GRAIN), 0);
+    let needs = sim
+        .world
+        .participants
+        .iter()
+        .find(|p| p.agent == PERSON)
+        .unwrap()
+        .needs
+        .clone();
+    sim.world
+        .participants
+        .iter_mut()
+        .find(|p| p.agent == 89)
+        .unwrap()
+        .needs = needs;
+    let e = sim
+        .world
+        .town_market
+        .as_mut()
+        .unwrap()
+        .traders
+        .iter_mut()
+        .find(|e| e.trader.agent == 89)
+        .unwrap();
+    e.side = Side::Buy;
+    e.trader.limit = 40;
+    e.trader.opening_quote = 40;
+    let mut audit = inventory_audit(&sim.world, &sim.state);
+    while sim.state.phase != Phase::Productive {
+        audit.step(&mut sim).unwrap();
+    }
+    assert_eq!(sim.state.balance(89, TOKEN), 40);
+    assert_eq!(sim.state.balance(89, GRAIN), 0);
+    while sim.state.month == 2 {
+        audit.step(&mut sim).unwrap();
+    }
+    assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 37);
+}

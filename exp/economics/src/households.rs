@@ -745,15 +745,15 @@ fn collect(
         }
     }
     // Only settled cash is shared: an earned wage claim is not spendable income.
-    if batch.phase == Phase::Close {
-        if let Some(employment) = &batch.employment {
-            for t in &employment.transactions {
-                for (key, quantity) in incomes(world, opening, &t.effects)? {
-                    let q = gained.entry(key).or_default();
-                    *q = q
-                        .checked_add(quantity)
-                        .ok_or("household wage income overflow")?;
-                }
+    if batch.phase == Phase::Close
+        && let Some(employment) = &batch.employment
+    {
+        for t in &employment.transactions {
+            for (key, quantity) in incomes(world, opening, &t.effects)? {
+                let q = gained.entry(key).or_default();
+                *q = q
+                    .checked_add(quantity)
+                    .ok_or("household wage income overflow")?;
             }
         }
     }
@@ -855,10 +855,10 @@ fn labor(world: &World, state: &State) -> Result<(Vec<Effect>, Vec<LaborDecision
     let mut staged = state.clone();
     let mut effects = vec![];
     for a in &world.households {
-        if let crate::household_governance::Contribution::Percent(percent) =
+        if let crate::household_governance::Contribution::Percent(_) =
             a.governance.charter.contribution
         {
-            let (chosen, decision) = contributed_labor(world, &staged, a, percent)?;
+            let (chosen, decision) = contributed_labor(world, &staged, a)?;
             apply(world, &mut staged, &chosen, Backend::Reference)?;
             effects.extend(chosen);
             decisions.push(decision);
@@ -993,7 +993,6 @@ fn contributed_labor(
     world: &World,
     state: &State,
     a: &Agreement,
-    _percent: u32,
 ) -> Result<(Vec<Effect>, LaborDecision), String> {
     use crate::household_governance::{self as governance, Policy};
     let people: BTreeSet<_> = members(a, state).collect();
@@ -1255,8 +1254,7 @@ pub(crate) fn settled_boundaries(
         .as_ref()
         .ok_or("missing household boundary")?;
     let count = batch
-        .transactions
-        .iter()
+        .all_transactions()
         .map(|t| t.effects.len())
         .sum::<usize>()
         .checked_add(receipt.before.len())
