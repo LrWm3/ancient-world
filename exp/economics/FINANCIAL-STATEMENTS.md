@@ -762,7 +762,7 @@ zero cash flows and continuation.
 The expansion is **not universal coverage yet**. These valid economic situations
 still need accounting adapters or policy definitions:
 
-- Household asset/insolvency estate distributions and consolidated reporting beyond the supported pooling agreement. Solvent residual-stock dissolution now uses the existing transfer adapter; see HOUSEHOLD-DISSOLUTION.md.
+- Automatic death estates and consolidated reporting beyond separate-agent scope. Explicit household wind-down, asset disposal and general loan/recovery distributions are now verified; see HOUSEHOLD-WIND-DOWN.md.
 - Estimated/capitalized contingent consideration beyond the earned-only royalty policy below; noncash exchanges outside supported posted, negotiated and town-market payment terms.
 - Broader paid-labor admission and contract terms beyond current-period capacity purchases, priced contract production, non-pool resource ownership, and combining distinct beneficiaries with royalties.
 - Multiple loan/estate denominations and FX valuation; redeemable currency and retirement.
@@ -1165,8 +1165,8 @@ receipts. Seller carrying value is derecognized, gains/losses recognized, buyer 
 established and actual cash classified as investing. Payment must use the reporting
 denomination; unsupported valuation rejects the combined step without publishing
 state or journal. Sale proceeds remain household property until the next Open's
-clearance check. This does not integrate household loans, insolvent estates or
-sales with live rights/crop obligations. Equipment disposal preserves condition and
+clearance check. The subsequent [wind-down completion](HOUSEHOLD-WIND-DOWN.md)
+integrates general household loans/recovery and explicit title-following crop transfers. Equipment disposal preserves condition and
 sets the buyer's purchase basis before ordinary Open aging. The seller recognizes gain/loss against its
 opening basis; the buyer bears subsequent depreciation and productive wear.
 Calendar decay can consume all remaining life in the sale month, with the full
@@ -1175,7 +1175,8 @@ buyer cost recognized as depreciation; ownership transfer never refreshes life.
 Explicit exhausted-equipment retirement now removes a zero-basis holding into a
 permanent provenance archive during household wind-down. It creates no cash flow,
 disposal result or duplicate wear expense. The audit rejects any nonzero archived
-basis; this adapter cannot retire usable equipment or invent a scrap valuation.
+basis. The default exhausted mode invents no scrap valuation; explicit discard
+and material-recovery modes are described below.
 The integrated CPU/reference case verifies depreciation, retirement, later residual
 transfers and closure with zero final household assets/liabilities and identical
 checkpoint continuation.
@@ -1188,5 +1189,33 @@ The payment is investing cash flow once, regardless of component count. Zero
 equipment allocations are supported; negative or overallocated prices reject. The
 current catalog registry requires positive plot consideration, checked at admission.
 The CPU/reference integration closes the household after later residual transfers
-with balanced separate books and matching checkpoint continuation. Live crop/right
-novation and household loan/recovery composition remain unsupported.
+with balanced separate books and matching checkpoint continuation. Explicit ownership-following rights and work can now be
+named in the sale terms; unrelated tenant agreements are not silently transferred.
+
+
+### Household crop transfer, salvage and insolvency
+
+The [completed wind-down cases](HOUSEHOLD-WIND-DOWN.md) use the same verified
+boundaries and separate books. Accepted title-following crop work moves WIP at
+carrying cost with TransferExpense/TransferIncome. Neither sunk crop cost nor its
+forecast harvest increases the recorded plot price or collateral value. Failure
+after transfer charges the new operator's production-loss account.
+
+Explicit `Discard` expenses the retired equipment's entire remaining basis as
+DisposalLoss. `Recover` moves that basis into the specified material outputs,
+allocated in resource-ID order by output quantity with the final share taking
+rounding residue. This simple allocation is a cost convention, not an appraisal
+of different materials. Zero-basis equipment yields zero-cost recovered stock.
+The archive always has zero carrying value, and retirement causes no cash flow
+or further wear. Recovery of the book's monetary denomination is rejected by the
+audit: this adapter does not account for issuance. Ordinary subsequent stock sales
+recognize actual consideration through the existing inventory adapter.
+
+General household loans recognize both counterparties' claims, including a member
+creditor. No household/member balance is automatically eliminated. Independent
+estate custody, priority payments and explicitly authorized deficiency write-offs
+use the existing lending/recovery journal adapters. Residual distribution waits
+for claims to clear; without authorized discharge the unpaid balance persists and
+prevents closure. Current household recovery requires an explicit last-member
+wind-down; compulsory proceedings for operating multi-member households are not
+introduced.

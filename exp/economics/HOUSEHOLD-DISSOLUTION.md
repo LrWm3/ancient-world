@@ -217,11 +217,12 @@ component's disposal gain/loss and buyer cost are recognized separately, with bu
 depreciation charged after the Open transfer. Unsupported payment valuation rejects
 the combined simulation/audit step without publishing any ownership or journal.
 
-This is a physical ownership package, **not** agreement novation. It does not
-transfer a tenant's rights, unfinished crop work, loans or guarantees, nor create
-new productive-use rights for the buyer. Mixed ownership, exhausted attached
-equipment, partial packages and detach/rebuild actions remain unsupported. Existing
-mortgage/recovery attachment rules are unchanged. The representative test uses
+By default this is a physical ownership package. Optional `Sale.control` now
+explicitly names title-following rights and unfinished crop work accepted by the
+buyer. It does not transfer a tenant's independent rights, loans or guarantees,
+nor create new productive-use rights. Mixed ownership, exhausted attachments and
+partial packages still reject; explicit attached decommissioning can precede a
+later sale. The transfer uses the shared mortgage/recovery attachment primitive. The representative test uses
 accelerated building wear to exercise accounting, not to calibrate dwelling life.
 
 ### Explicit retirement of exhausted equipment
@@ -254,10 +255,12 @@ cost. Retirement therefore has no proceeds, disposal gain/loss or second depreci
 charge. Nonzero supplied archive value is rejected, not hidden. Settlement observers
 report the asset, exhaustion and acceptance/rejection without affecting execution.
 
-Remaining: physical scrap/recycling and salvage value, premature retirement with
-write-off terms, live right/crop novation, autonomous disposal
-selection/prices and household insolvency. The archive is reusable state machinery;
-the current authorization adapter specifically covers household wind-down.
+The [wind-down completion](HOUSEHOLD-WIND-DOWN.md) adds immediate material recovery,
+premature write-off, title-following crop/right transfers and general household
+loan recovery. Labor-intensive recycling, autonomous disposal selection/prices,
+automatic death estates and third-party tenancy novation are separate extensions.
+The archive is reusable state machinery; this authorization adapter specifically
+covers household wind-down.
 
 ## Accounting and verification
 
@@ -380,7 +383,8 @@ The 42 package/disposal/retirement checks were rerun after tightening admission 
 reject zero plot consideration. Strict all-target Clippy, formatting and repository
 artifact checks passed. One slow 32-person accounting test remains ignored; this
 was not the full crate suite. The future-pledge admission control does not enable
-the unsupported household lending driver. Building wear is deliberately accelerated
+advancing the configured loan. Household lending composition is covered separately
+in HOUSEHOLD-WIND-DOWN.md. Building wear is deliberately accelerated
 for accounting verification, not an economic calibration.
 
 Run from `exp/economics`:

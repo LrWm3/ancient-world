@@ -85,7 +85,8 @@ collateral resale remains rejected pending explicit buyer/seller rules.
 | Credit origination + existing citizenship/type permissions | Supported; due enforcement remains independent of permission |
 | Borrowing/sale-only forecast + configured negotiation | Uses the same resolver in hypothetical branches; optional bounded consumption orders |
 | Joint dated production plan + negotiation | Explicitly rejected; future work reservations need their own shared budget contract |
-| Credit/negotiation + households | Still rejected; pooled purchase resources and loan support need explicit receipts |
+| General loans/recovery + households | Shared servicing and separate statements; explicit last-member wind-down before household recovery; member loans are not eliminated |
+| Mortgage purchase/negotiation + households | Dedicated purchase driver remains excluded; negotiated collective purchase budgets need explicit receipts |
 | Legacy equipment/forward exchange, competing-access or pool-market drivers + credit/negotiation | Still rejected |
 | Need-generated marketplace orders | [Bounded consumption/surplus policy](NEED-ORDERS.md) implemented; bilateral parties, lot and reservation prices remain supplied |
 | Four-person monthly town book | [Implemented separately](TOWN-MARKET.md): locality, generated orders, multiple counterparties, fixed/ZIP quotes; credit and households remain excluded |
@@ -432,9 +433,10 @@ proceeds until the next clearance
 check, and recognize disposal gains/losses in separate statements. CPU/reference
 and checkpoint cases agree. Explicit retirement now clears exhausted portable
 equipment while retaining its permanent provenance. Explicit plot/equipment package
-sales retain attachments and account for each component separately. Live crop/right
-transfers, insolvency, general household loan/recovery composition and automatic death estates
-remain outstanding.
+sales retain attachments and account for each component separately. The subsequent
+[wind-down completion](HOUSEHOLD-WIND-DOWN.md) adds explicit title-following crop/right
+transfers, salvage/write-off and general household loan/recovery composition.
+Automatic death estates remain outside this slice.
 
 
 Asset-disposal verification (2026-09-28): **137 focused tests passed**: household
@@ -465,8 +467,8 @@ Exhausted portable equipment now has an explicit, permission-checked retirement
 instruction at Open. Verified receipts move the zero-use, zero-basis asset into a
 permanent provenance archive; it cannot be repaired, sold or manufactured again
 under the same ID. Clearance and residual payout still wait for the next Open.
-Physical scrap, salvage value, premature write-offs and live right/crop transfers
-remain extensions. Retirement verification (2026-09-28): **188 distinct tests passed**,
+The subsequent wind-down extension adds immediate material recovery, write-offs
+and explicit title-following crop transfers. Original retirement verification (2026-09-28): **188 distinct tests passed**,
 including seven new retirement tests and law controls; strict all-target Clippy
 passed. One slow accounting test remains ignored; the full crate suite was not run.
 See [verification details](HOUSEHOLD-DISSOLUTION.md#exhausted-equipment-retirement-verification-2026-09-28).
@@ -476,8 +478,10 @@ boundary. All usable attachments must be named and owned by the seller; one fund
 payment transfers the complete package. Supplied component allocations determine
 buyer cost and seller gain/loss; ordinary buyer depreciation follows at Open.
 The plot retains a positive allocated price under the current catalog registry.
-Live rights/crops, mixed ownership, exhausted attachments and pledged property
-remain blocked. No new use right or loan-driver composition is inferred.
+With no explicit control-transfer terms, live rights/crops remain blocked. Mixed
+ownership, exhausted attachments and pledged property still prevent package sale;
+exhausted attachments can instead be explicitly decommissioned at a separate
+boundary. No new use right is inferred.
 
 Property-package verification (2026-09-28): **207 distinct tests passed** across 15
 suites, including nine new package checks. After the zero-plot-value admission
@@ -485,3 +489,10 @@ check, all 42 package/disposal/retirement tests were rerun successfully. Strict
 all-target Clippy passed. One slow accounting test remains ignored and the full
 crate suite was not run. See [package rules](HOUSEHOLD-DISSOLUTION.md#explicit-plot-and-equipment-package-sales)
 and the verification record in that document for settings and limitations.
+
+
+Wind-down completion verification (2026-09-29): **252 distinct tests passed** across
+20 household, property, lending/recovery, accounting, law and telemetry suites.
+Strict all-target Clippy, formatting and artifact checks passed. One slow annual
+32-person accounting check remained ignored; the full crate suite was not run.
+See [completed behaviors, controls and limits](HOUSEHOLD-WIND-DOWN.md).

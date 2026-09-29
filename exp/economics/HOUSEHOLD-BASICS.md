@@ -139,6 +139,6 @@ debts stay separate. Market recruitment remains outside this slice. A subsequent
 [solvent dissolution extension](HOUSEHOLD-DISSOLUTION.md) handles last-member
 wind-down, explicit sales of unencumbered catalog assets/portable equipment and
 residual stock, plus explicit retirement of exhausted portable equipment. Catalog
-plots and usable attached equipment can now sell as explicit packages. Transfers
-of live rights/crops and insolvent estates remain outstanding. The original
+plots and usable attached equipment can now sell as explicit packages. Explicit title-following crop/right transfers, salvage/write-off and household
+loan recovery now extend that boundary; see [wind-down completion](HOUSEHOLD-WIND-DOWN.md). The original
 validation counts above describe the earlier governance completion; membership verification is recorded in the extension document.

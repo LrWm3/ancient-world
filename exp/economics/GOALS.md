@@ -268,3 +268,10 @@ settled current-month needs after pooling and consumption, then net output, with
 the existing mandate and committed-work protection. This is a bounded allocation
 objective; endogenous policy selection and longer-horizon collective planning
 remain goals. See [household allocation semantics](HOUSEHOLDS.md#needs-first-contributed-labor).
+
+
+The household wind-down completion now composes explicit property/crop transfers,
+material salvage or write-off, and general lending/recovery with priority creditors
+and authorized deficiencies. These are verified small scenarios, not automatic
+death estates or autonomous liquidation-price discovery. See
+[completed scope and limits](HOUSEHOLD-WIND-DOWN.md).
