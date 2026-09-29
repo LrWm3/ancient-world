@@ -20,8 +20,10 @@ impl Reservations {
             remainders: state.household_remainders.clone(),
         }
     }
-    /// Greatest fitting divisible payment. Payroll employers cannot be members,
-    /// so both raw and pooled usage grow monotonically at the recipient.
+    /// Greatest fitting divisible payment. Internal household employment is
+    /// excluded: payment frees space at the employer's household while raw and
+    /// pooled usage grow at the worker's distinct household. Fractional carry is
+    /// included in every preview; a fitting raw transfer alone is insufficient.
     pub fn payment_limit(
         &self,
         world: &World,

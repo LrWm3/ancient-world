@@ -7,7 +7,7 @@ preaccepted. Person self-directed policy changes remain deferred.
 | Pass | Household work | Shared consolidation | Status |
 | --- | --- | --- | --- |
 | 21 | Members hire outside labor | Own-capacity contribution and paid-hour accounting | Complete |
-| 22 | Physical payroll from member inventory | Storage, wage pooling and carrying costs | Pending |
+| 22 | Physical payroll from member inventory | Storage, wage pooling and carrying costs | Complete |
 | 23 | Optional assistance for member wage debts | Claim-driven Close allocations with explicit priority | Pending |
 | 24 | Buy denomination stock for supported member wages | Shared funded requirements and finite market budgets | Pending |
 | 25 | Combine member employment, collective support and changing membership | Continuation, replay and separate books | Pending |
@@ -30,3 +30,18 @@ contribution into another member's production, and retain/expense all ten paid
 cost units exactly once. Buying hours with zero own capacity contributes zero.
 Internal employment rejects. Ledger replay and checkpoint accounting agree; all
 ten previous household hiring tests also pass.
+
+## Pass 22
+
+Physical member-employer payroll now has cross-household composition coverage.
+The same bounded wage settlement reserves raw receipt space and the worker's
+mandatory pooled share, including fractional carry. No negative payment becomes
+income for the employer's household; the worker's household receives only its
+share of actual settlement. Storage comments now describe this wider valid scope.
+
+Six opening space/carry controls produce zero, partial or full affordable payments
+without discarding arrears. A supplied storage increase permits later collection
+from the expired contract. CPU/reference runs reconcile native wage claims,
+carrying costs and separate employer/member/household books; the employer's
+household never acquires the personal payable. First-month replay and resumed
+collection agree. All ten existing household finance-loop tests also pass.
