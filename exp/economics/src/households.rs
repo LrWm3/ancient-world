@@ -9,6 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub mod disposal;
 pub mod dissolution;
+pub mod income;
 pub mod market;
 pub mod membership;
 pub mod needs;
@@ -73,6 +74,8 @@ pub struct LaborDecision {
     pub projected_value: i64,
     pub baseline_needs: Option<Vec<needs::Deficit>>,
     pub projected_needs: Option<Vec<needs::Deficit>>,
+    pub baseline_income: Option<income::Forecast>,
+    pub projected_income: Option<income::Forecast>,
     pub granted: i32,
     pub policy: crate::household_governance::Policy,
     pub leader: Option<AgentId>,
@@ -889,6 +892,8 @@ fn labor(world: &World, state: &State) -> Result<(Vec<Effect>, Vec<LaborDecision
             projected_value: base_value,
             baseline_needs: None,
             projected_needs: None,
+            baseline_income: None,
+            projected_income: None,
             granted: 0,
             policy: a.governance.policy(state.month),
             leader: crate::household_governance::leader(a, state),
@@ -921,8 +926,12 @@ fn contributed_labor(
     let baseline = probe(world, state)?;
     let base_value = work_value(world, &baseline, &people);
     let policy = a.governance.policy(state.month);
-    let baseline_needs = (policy == Policy::NeedsFirst)
+    let needs_first = matches!(policy, Policy::NeedsFirst | Policy::NeedsThenIncome);
+    let baseline_needs = needs_first
         .then(|| needs::project(world, state, &baseline, &people))
+        .transpose()?;
+    let baseline_income = (policy == Policy::NeedsThenIncome)
+        .then(|| income::project(world, state, &baseline, a.agent))
         .transpose()?;
     let contributions: Vec<_> = order
         .iter()
@@ -954,6 +963,8 @@ fn contributed_labor(
         projected_value: base_value,
         baseline_needs: baseline_needs.clone(),
         projected_needs: baseline_needs,
+        baseline_income: baseline_income.clone(),
+        projected_income: baseline_income,
         granted: 0,
         policy,
         leader: crate::household_governance::leader(a, state),
@@ -1088,17 +1099,26 @@ fn contributed_labor(
             continue;
         }
         let value = work_value(world, &final_plan, &people);
-        let projected_needs = (policy == Policy::NeedsFirst)
+        let projected_needs = needs_first
             .then(|| needs::project(world, &final_state, &final_plan, &people))
             .transpose()?;
-        // Lexicographic need deficits precede net output. No conversion of food,
-        // warmth or other fulfillment units into a single monetary score.
+        let projected_income = (policy == Policy::NeedsThenIncome)
+            .then(|| income::project(world, &final_state, &final_plan, a.agent))
+            .transpose()?;
+        // Lexicographic need deficits precede the selected output/income objective.
+        // No conversion of fulfillment units into a single monetary score.
+        let improves_secondary = if let Some(f) = &projected_income {
+            f.net_coins > decision.projected_income.as_ref().unwrap().net_coins
+        } else {
+            value > decision.projected_value
+        };
         let better = projected_needs < decision.projected_needs
-            || (projected_needs == decision.projected_needs && value > decision.projected_value);
+            || (projected_needs == decision.projected_needs && improves_secondary);
         if !better {
             continue;
         }
         decision.projected_needs = projected_needs;
+        decision.projected_income = projected_income;
         decision.recipient = Some(member);
         decision.projected_value = value;
         decision.granted = grant;

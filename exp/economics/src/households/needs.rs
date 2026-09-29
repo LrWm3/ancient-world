@@ -16,6 +16,33 @@ pub(super) fn project(
     productive: &Batch,
     people: &BTreeSet<AgentId>,
 ) -> Result<Vec<Deficit>, String> {
+    let sim = after_consumption(world, opening, productive)?;
+    let mut deficits = BTreeMap::<(u32, ResourceId), i64>::new();
+    for p in world
+        .participants
+        .iter()
+        .filter(|p| people.contains(&p.agent))
+    {
+        for need in &p.needs {
+            *deficits.entry((need.priority, need.resource)).or_default() +=
+                i64::from((need.quantity - sim.state.balance(p.agent, need.resource)).max(0));
+        }
+    }
+    Ok(deficits
+        .into_iter()
+        .map(|((priority, resource), unmet)| Deficit {
+            priority,
+            resource,
+            unmet,
+        })
+        .collect())
+}
+
+pub(super) fn after_consumption(
+    world: &World,
+    opening: &State,
+    productive: &Batch,
+) -> Result<Simulation, String> {
     let mut state = opening.clone();
     crate::settlement::commit_core(
         world,
@@ -43,23 +70,5 @@ pub(super) fn project(
     if sim.state.phase != Phase::Close {
         return Err("household need preview did not reach the consumption boundary".into());
     }
-    let mut deficits = BTreeMap::<(u32, ResourceId), i64>::new();
-    for p in world
-        .participants
-        .iter()
-        .filter(|p| people.contains(&p.agent))
-    {
-        for need in &p.needs {
-            *deficits.entry((need.priority, need.resource)).or_default() +=
-                i64::from((need.quantity - sim.state.balance(p.agent, need.resource)).max(0));
-        }
-    }
-    Ok(deficits
-        .into_iter()
-        .map(|((priority, resource), unmet)| Deficit {
-            priority,
-            resource,
-            unmet,
-        })
-        .collect())
+    Ok(sim)
 }

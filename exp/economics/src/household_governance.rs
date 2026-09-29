@@ -12,6 +12,8 @@ pub const DEFAULT_TERM_MONTHS: u32 = 12;
 pub enum Policy {
     NetOutput,
     NeedsFirst,
+    /// Current needs, then expected collective cash at the next town book.
+    NeedsThenIncome,
     PreserveCommittedWork,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -156,6 +158,15 @@ impl Governance {
 
 pub fn validate(world: &World, state: &State, a: &Agreement) -> Result<(), String> {
     let g = &a.governance;
+    if (g.charter.initial_policy == Policy::NeedsThenIncome
+        || g.changes
+            .iter()
+            .any(|c| c.change.policy == Policy::NeedsThenIncome))
+        && (world.town_market.is_none()
+            || !matches!(g.charter.contribution, Contribution::Percent(_)))
+    {
+        return Err("household income policy requires contributed labor and a town book".into());
+    }
     elections::validate(a, state)?;
     let mut dates = BTreeSet::new();
     if g.charter

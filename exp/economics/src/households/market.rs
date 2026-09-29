@@ -30,14 +30,19 @@ pub(crate) fn active(world: &World, state: &State, agent: AgentId) -> bool {
         })
 }
 
-/// NeedsFirst authorizes collective consumption purchases. Other objectives only
-/// offer protected surplus in this bounded adapter; no speculative value is inferred.
+/// Both needs-first objectives authorize collective consumption purchases. Other
+/// objectives only offer protected surplus; no speculative buy value is inferred.
 pub(crate) fn buys(world: &World, state: &State, agent: AgentId) -> bool {
     world
         .households
         .iter()
         .find(|h| h.agent == agent)
-        .is_none_or(|h| h.governance.policy(state.month) == Policy::NeedsFirst)
+        .is_none_or(|h| {
+            matches!(
+                h.governance.policy(state.month),
+                Policy::NeedsFirst | Policy::NeedsThenIncome
+            )
+        })
 }
 
 /// Freeze current membership, permissions and private holdings over the order
