@@ -79,15 +79,8 @@ pub(crate) fn claims(
     // Earned wages are accepted claims, including carried arrears. Protect the
     // employer's cash from discretionary sales/purchases before Close collection.
     // Future undelivered work does not yet create a liability or a reservation.
-    for earned in state
-        .employment
-        .earned
-        .values()
-        .filter(|e| e.claim.transfer.from == agent)
-    {
-        *result
-            .entry(earned.claim.transfer.amount.resource)
-            .or_default() += i128::from(earned.claim.outstanding());
+    for (resource, quantity) in crate::employment::claims(state, agent)? {
+        *result.entry(resource).or_default() += quantity;
     }
     // Same current collectible claim as collection and household support.
     for (resource, quantity) in crate::credit::current_dues(world, state, agent)? {

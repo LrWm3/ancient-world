@@ -251,3 +251,92 @@ fn paid_hours_do_not_override_constitution_or_member_permissions() {
         assert_eq!(sim.state.balance(WORKER, TOKEN), 6);
     }
 }
+
+#[test]
+fn earned_physical_payroll_is_protected_from_member_input_allocations() {
+    use economics_compute_smoke::scenario::GRAIN;
+    let (mut w, mut s) = production(0);
+    w.households[0].governance.charter.hiring_budget = Some(Amount::new(GRAIN, 6));
+    w.employment[0].wage_per_unit.resource = GRAIN;
+    w.definitions
+        .iter_mut()
+        .find(|d| d.id == MAKE)
+        .unwrap()
+        .stages[0]
+        .entry_inputs = vec![Amount::new(GRAIN, 2)];
+    s.balances.insert((HOME, GRAIN), 6);
+    let run = |backend| {
+        let mut a = Audit::with_opening(
+            &w,
+            &s,
+            TOKEN,
+            Opening {
+                services: Some(Default::default()),
+                processes: Some(Default::default()),
+                inventory: [((HOME, GRAIN), 6)].into(),
+                exchange_values: [(GRAIN, 1)].into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        through(&mut a, &mut sim, 1);
+        assert_eq!(sim.state.balance(WORKER, GRAIN), 6);
+        assert_eq!(sim.state.balance(HOME, GRAIN), 0);
+        assert_eq!(sim.state.balance(PERSON, GRAIN), 0);
+        assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 0);
+        assert!(
+            sim.ledger
+                .iter()
+                .filter_map(|b| b.household.as_ref())
+                .flat_map(|h| &h.reservations)
+                .any(|r| r.request.purpose == households::Purpose::Input(MAKE)
+                    && r.request.quantity == 2
+                    && r.allocated == 0)
+        );
+        through(&mut a, &mut sim, 2);
+        assert_eq!(value(&a, HOME, A::ServiceExpense), 6);
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}
+
+fn arrears(cash: i32) -> (World, State) {
+    use economics_compute_smoke::{
+        employment::Earned,
+        finance::{Condition, FailureRule, Obligation, Transfer},
+    };
+    let (mut w, mut s) = fixture(cash, 6);
+    s.month = 2;
+    w.employment[0].through = 2;
+    w.employment[0].on_arrears = ArrearsPolicy::Continue;
+    s.employment.earned.insert(
+        (1, 1),
+        Earned {
+            delivered: 3,
+            claim: Obligation {
+                transfer: Transfer {
+                    from: HOME,
+                    to: WORKER,
+                    amount: Amount::new(TOKEN, 6),
+                },
+                settled: 0,
+                condition: Condition::OnOrAfterMonth(2),
+                failure: FailureRule::CarryArrears,
+            },
+        },
+    );
+    (w, s)
+}
+#[test]
+fn old_earned_claims_reduce_new_household_hiring_even_when_work_on_credit_is_allowed() {
+    let (w, s) = arrears(8);
+    let mut sim = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+    let mut a = audit(&w, &s);
+    through(&mut a, &mut sim, 2);
+    assert_eq!(sim.state.employment.earned[&(1, 2)].delivered, 1);
+    assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 0);
+    assert_eq!(sim.state.employment.earned[&(1, 2)].claim.outstanding(), 0);
+    assert_eq!(sim.state.balance(WORKER, TOKEN), 8);
+    assert_eq!(sim.state.balance(HOME, TOKEN), 0);
+}

@@ -306,6 +306,12 @@ pub fn allocate(
         let already = *totals.get(&(r.member, r.resource)).unwrap_or(&0);
         let demand = (r.quantity - already).max(0);
         let mut available = i128::from(*budget.get(&(r.household, r.resource)).unwrap_or(&0));
+        // Earned payroll is retained before discretionary collective transfers.
+        // This is a household allocation reserve, not a universal creditor rank.
+        available -= crate::employment::claims(state, r.household)?
+            .get(&r.resource)
+            .copied()
+            .unwrap_or(0);
         // Supporting a member never assumes their debt or pledges collective cash
         // already needed for the household's own current loan payments.
         if state.phase == Phase::Due

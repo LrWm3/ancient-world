@@ -154,22 +154,24 @@ pub fn validate(w: &World, s: &State) -> Result<(), String> {
     }
     Ok(())
 }
-pub(crate) fn outstanding(
+/// Earned native-stock claims only: neither future work nor hypothetical income.
+pub(crate) fn claims(
     state: &State,
     employer: AgentId,
-    resource: ResourceId,
-) -> Result<i128, String> {
-    state
+) -> Result<BTreeMap<ResourceId, i128>, String> {
+    let mut result = BTreeMap::new();
+    for e in state
         .employment
         .earned
         .values()
-        .filter(|e| {
-            e.claim.transfer.from == employer && e.claim.transfer.amount.resource == resource
-        })
-        .try_fold(0_i128, |sum, e| {
-            sum.checked_add(i128::from(e.claim.outstanding()))
-                .ok_or_else(|| "wage claim overflow".into())
-        })
+        .filter(|e| e.claim.transfer.from == employer)
+    {
+        let total: &mut i128 = result.entry(e.claim.transfer.amount.resource).or_default();
+        *total = total
+            .checked_add(i128::from(e.claim.outstanding()))
+            .ok_or("wage claim overflow")?;
+    }
+    Ok(result)
 }
 
 /// Existing boundary commitments reserve first; incoming goods/cash/hours are
@@ -256,7 +258,10 @@ pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boun
             if let Some(h) = w.households.iter().find(|h| h.agent == t.employer) {
                 let budget = h.governance.charter.hiring_budget.as_ref().unwrap();
                 let spent = hiring.entry(t.employer).or_default();
-                let arrears = outstanding(s, t.employer, budget.resource)?;
+                let arrears = claims(s, t.employer)?
+                    .get(&budget.resource)
+                    .copied()
+                    .unwrap_or(0);
                 let liquid = execution
                     .available
                     .get(&(t.employer, budget.resource))
