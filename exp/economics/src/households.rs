@@ -9,6 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub mod disposal;
 pub mod dissolution;
+pub mod market;
 pub mod membership;
 pub mod needs;
 pub mod retirement;

@@ -551,6 +551,7 @@ pub(super) fn batch(
                 records.push(json!({"kind":"order_generation","index":index,"agent":r.agent,
                     "market":r.market,"side":format!("{:?}",r.side),"reason":format!("{:?}",r.reason),
                     "resource":r.resource,"lot":r.lot,"buy_months":r.buy_months,"reserve_months":r.reserve_months,"available":r.available,
+                    "household":r.household.as_ref().map(|a|json!({"agent":a.household,"governor":a.leader,"policy":format!("{:?}",a.policy),"term_start":a.term_start})),
                     "protected":r.protected.map(|q|q.to_string()),
                     "deficits_before":r.deficits_before,"deficits_after":r.deficits_after}));
             }

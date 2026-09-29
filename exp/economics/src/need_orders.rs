@@ -42,9 +42,10 @@ pub fn validate(world: &World) -> Result<(), String> {
         .as_ref()
         .ok_or("need orders require a bilateral market template")?;
     if !(1..=MAX_RESERVE_MONTHS).contains(&p.reserve_months)
-        || [&s.buyer, &s.seller]
-            .iter()
-            .any(|t| !world.participants.iter().any(|p| p.agent == t.agent))
+        || [&s.buyer, &s.seller].iter().any(|t| {
+            !world.participants.iter().any(|p| p.agent == t.agent)
+                && !world.households.iter().any(|h| h.agent == t.agent)
+        })
     {
         return Err("need orders require two participants and a bounded reserve horizon".into());
     }
@@ -53,7 +54,7 @@ pub fn validate(world: &World) -> Result<(), String> {
 
 /// Existing accepted stock claims and unpaid process entry inputs. No expected
 /// harvest is treated as stock; already-consumed stage inputs are not reserved twice.
-fn claims(
+pub(crate) fn claims(
     world: &World,
     state: &State,
     agent: AgentId,
@@ -116,7 +117,7 @@ fn stock_map(balances: &BTreeMap<Account, i32>, agent: AgentId) -> BTreeMap<Reso
 
 /// Deterministic consumption uses the same recipe/substitution rules as live work.
 /// No input can satisfy two needs or two months in this projection.
-fn consume(
+pub(crate) fn consume_person(
     world: &World,
     state: &State,
     agent: AgentId,
@@ -155,6 +156,44 @@ fn consume(
         }
     }
     deficits
+}
+
+fn consume(
+    world: &World,
+    state: &State,
+    agent: AgentId,
+    months: u32,
+    stocks: &mut BTreeMap<ResourceId, i128>,
+    protect_partial: bool,
+) -> Result<BTreeMap<ResourceId, i64>, String> {
+    if let Some(h) = world.households.iter().find(|h| h.agent == agent) {
+        crate::households::market::consume(world, state, h, months, stocks, protect_partial)
+    } else {
+        Ok(consume_person(
+            world,
+            state,
+            agent,
+            months,
+            stocks,
+            protect_partial,
+        ))
+    }
+}
+fn protected_claims(
+    world: &World,
+    state: &State,
+    agent: AgentId,
+    months: u32,
+) -> Result<BTreeMap<ResourceId, i128>, String> {
+    let mut result = claims(world, state, agent, months)?;
+    if let Some(h) = world.households.iter().find(|h| h.agent == agent) {
+        for member in crate::households::members(h, state) {
+            for (r, q) in claims(world, state, member, months)? {
+                *result.entry(r).or_default() += (q - i128::from(state.balance(member, r))).max(0);
+            }
+        }
+    }
+    Ok(result)
 }
 
 fn unclaimed(
@@ -202,7 +241,7 @@ pub(crate) fn generate_for_horizon(
     observed.balances = resources.holdings.clone();
     let mut protected = BTreeMap::new();
     for t in [&session.buyer, &session.seller] {
-        let commitments = claims(world, &observed, t.agent, policy.reserve_months)?;
+        let commitments = protected_claims(world, &observed, t.agent, policy.reserve_months)?;
         let stocks = stock_map(&resources.holdings, t.agent);
         let opening = unclaimed(&stocks, &commitments);
         let mut remaining = opening.clone();
@@ -213,7 +252,7 @@ pub(crate) fn generate_for_horizon(
             policy.reserve_months,
             &mut remaining,
             true,
-        );
+        )?;
         for r in world
             .resources
             .iter()
@@ -228,13 +267,13 @@ pub(crate) fn generate_for_horizon(
         }
     }
     let agent = session.buyer.agent;
-    let commitments = claims(world, &observed, agent, policy.reserve_months)?;
+    let commitments = protected_claims(world, &observed, agent, policy.reserve_months)?;
     let mut before = unclaimed(&stock_map(&resources.holdings, agent), &commitments);
     let mut with_goods = stock_map(&resources.holdings, agent);
     *with_goods.entry(session.goods.resource).or_default() += i128::from(session.goods.quantity);
     let mut after = unclaimed(&with_goods, &commitments);
-    let buyer_deficits = consume(world, &observed, agent, months, &mut before, false);
-    let buyer_after_purchase = consume(world, &observed, agent, months, &mut after, false);
+    let buyer_deficits = consume(world, &observed, agent, months, &mut before, false)?;
+    let buyer_after_purchase = consume(world, &observed, agent, months, &mut after, false)?;
     let useful = buyer_after_purchase
         .iter()
         .any(|(r, q)| *q < buyer_deficits[r])

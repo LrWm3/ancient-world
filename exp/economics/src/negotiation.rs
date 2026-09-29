@@ -94,7 +94,7 @@ pub struct Round {
     pub outcome: Outcome,
 }
 
-pub fn validate(world: &World) -> Result<(), String> {
+pub(crate) fn validate_terms(world: &World) -> Result<(), String> {
     crate::need_orders::validate(world)?;
     let Some(s) = &world.negotiation else {
         return Ok(());
@@ -130,6 +130,14 @@ pub fn validate(world: &World) -> Result<(), String> {
         || s.goods.resource == s.payment
     {
         return Err("invalid negotiation terms".into());
+    }
+    Ok(())
+}
+
+pub fn validate(world: &World) -> Result<(), String> {
+    validate_terms(world)?;
+    if world.negotiation.is_none() {
+        return Ok(());
     }
     // Credit shares explicit reservations; other acquisition drivers remain isolated.
     if world.market.is_some()
@@ -177,6 +185,16 @@ pub(crate) fn evaluate_with(
     resources: &crate::acquisition::Resources,
 ) -> Result<Option<Round>, String> {
     validate(world)?;
+    evaluate_matching(world, state, resources)
+}
+
+/// Shared matcher; the calling acquisition driver validates composition.
+pub(crate) fn evaluate_matching(
+    world: &World,
+    state: &State,
+    resources: &crate::acquisition::Resources,
+) -> Result<Option<Round>, String> {
+    validate_terms(world)?;
     marketplace::validate(world, state)?;
     let Some(s) = world.negotiation.as_ref().filter(|s| {
         (s.month == state.month || (world.need_orders.is_some() && state.month >= s.month))

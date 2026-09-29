@@ -97,6 +97,7 @@ pub enum OrderReason {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OrderReceipt {
+    pub household: Option<crate::household_governance::Authority>,
     pub market: marketplace::MarketId,
     pub agent: AgentId,
     pub side: Side,
@@ -214,7 +215,6 @@ pub fn validate(world: &World) -> Result<(), String> {
         || world.market.is_some()
         || world.pool_market.is_some()
         || world.competition.is_some()
-        || !world.households.is_empty()
         || !world.offers.is_empty()
         || !world.bids.is_empty()
         || !world.access_offers.is_empty()
@@ -238,6 +238,7 @@ pub fn validate(world: &World) -> Result<(), String> {
     let mut goods = BTreeSet::new();
     let payment = catalog(world, c)?.payment;
     let participants: BTreeSet<_> = c.traders.iter().map(|t| t.trader.agent).collect();
+    crate::households::market::validate(world, &participants)?;
     for row in listings(c) {
         let c = &row;
         let m = catalog(world, c)?;
@@ -273,7 +274,7 @@ pub fn validate(world: &World) -> Result<(), String> {
             let s = pair(world, c, t, 1)?;
             let mut w = template(world, s.clone());
             w.need_orders = Some(c.reserve.clone());
-            negotiation::validate(&w)?;
+            negotiation::validate_terms(&w)?;
             if marketplace::supported(&w, &s).is_none() {
                 return Err("unsupported town market terms".into());
             }
@@ -341,6 +342,7 @@ pub fn admission(world: &World, state: &State) -> Result<Admission, String> {
         .filter(|t| {
             let a = t.trader.agent;
             !state.terminal.contains_key(&a)
+                && crate::households::market::active(world, state, a)
                 && marketplace::eligible(world, state, c.venue, a)
                 && state
                     .town_market
@@ -431,7 +433,9 @@ fn orders(
         let agent = t.trader.agent;
         let gate = if !admitted.eligible.contains(&agent) {
             Some(OrderReason::NotAdmitted)
-        } else if state.terminal.contains_key(&agent) {
+        } else if state.terminal.contains_key(&agent)
+            || !crate::households::market::active(world, state, agent)
+        {
             Some(OrderReason::Inactive)
         } else if !marketplace::eligible(world, state, c.venue, agent) {
             Some(OrderReason::Ineligible)
@@ -446,6 +450,11 @@ fn orders(
         let mut submitted = false;
         for side in sides {
             let mut receipt = OrderReceipt {
+                household: world
+                    .households
+                    .iter()
+                    .find(|h| h.agent == agent)
+                    .map(|h| crate::household_governance::authority(h, state)),
                 market: c.market,
                 agent,
                 side,
@@ -463,7 +472,8 @@ fn orders(
                 if submitted {
                     Some(OrderReason::OtherSideSelected)
                 } else if side == Side::Buy
-                    && choices.get(&agent).is_some_and(|p| !p.buy.allows(c.market))
+                    && (choices.get(&agent).is_some_and(|p| !p.buy.allows(c.market))
+                        || !crate::households::market::buys(world, state, agent))
                 {
                     Some(OrderReason::PurchasePolicy)
                 } else {
@@ -586,8 +596,8 @@ fn clear(
                 *balance = (i128::from(*balance) - o.protected.get(&account).copied().unwrap_or(0))
                     .max(0) as i32;
             }
-            let mut round =
-                negotiation::evaluate_with(&w, state, &spendable)?.ok_or("missing town match")?;
+            let mut round = negotiation::evaluate_matching(&w, state, &spendable)?
+                .ok_or("missing town match")?;
             // Orders keep their opening quotes for this book. Learning accumulates
             // public events in match order and affects only subsequent books.
             round.buyer_learning = marketplace::learning(pricing_state, &s, Side::Buy);
