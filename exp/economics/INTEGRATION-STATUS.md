@@ -3,14 +3,14 @@
 Current financial work extends [contract consolidation](CONTRACT-CONSOLIDATION.md).
 Direct consented loans reuse the mortgage book with optional collateral, share Due
 reservations/ranks with land claims, and compose with legacy exchange or bilateral
-negotiation at Acquire. Land, forward and loan collections use one claim executor.
+negotiation or a local town book at Acquire. Land, forward and loan collections use one claim executor.
 Optional proportional Due allocation includes accepted coin alternatives.
 
 [Contract recovery](CONTRACT-RECOVERY.md) now adds original-loan guarantees and
 recourse, authorized single-denomination loan estates, custody and funded asset
 liquidation. This is implemented within the existing book and scheduler.
 Land/forward admission now preserves native performance and blocks premature
-closure. General discharge and town/minting/household/search acquisition adapters remain
+closure. General discharge and recovery with town/minting/search acquisition remain
 unfinished; supporting one combination does not remove another driver's limits.
 
 
@@ -18,6 +18,24 @@ Implemented: a shared acquisition boundary for secured credit, its finite state
 stock bid, and one bilateral negotiated exchange. Borrowing, sale-only and joint
 production/sale forecasts also share need-constraint accounting. The experiment
 still contains several separately tested pilots; this is not a universal economy.
+
+## Latest household consolidation — 2026-09-29
+
+The [five alternating passes](INTEGRATION-PASSES.md) supersede earlier blanket
+employment/town-lending exclusions in the historical progress entries below.
+Members can earn external wages and sell protected private surplus while their
+household buys for their needs. Earned wage arrears join stock protection;
+actual wage and town sale receipts pool once, with fractional carry. Direct loans
+and town settlement share outgoing opening budgets. Static cash targets bound
+income work and support. Need-first support also works without a market.
+
+Private member orders are fixed-side sells with storage-free payment; private
+buy/adaptive registrations remain rejected to avoid duplicated member demand.
+Household/member employers and physical wages remain excluded. Direct town lending
+does not enable mortgage purchase configuration, recovery proceedings or joint
+production planners. Adult accession/exit changes contribution and consumption
+scope without rewriting accepted wages or personal debt. Personal self-directed
+policy changes are explicitly deferred.
 
 ## Financial reporting coverage
 
@@ -28,7 +46,7 @@ and loan estates, plus costed posted stock bids and bilateral negotiated/ZIP tra
 Opt-in owner-operated production adds material work-in-progress, joint-product
 cost shares, consumption expense and aborted-work loss. Work ownership transfers,
 household pooling, opt-in completed-output transfers and opt-in paid-capacity
-capitalization are supported. [Preaccepted employment agreements](EMPLOYMENT.md) add capacity delivery, earned wage claims, partial payment and optional suspension. Negotiated hiring, household employment, wage insolvency and priced third-party contract production remain unsupported. Dated land dues now compose with lending and
+capitalization are supported. [Preaccepted employment agreements](EMPLOYMENT.md) add capacity delivery, earned wage claims, partial payment and optional suspension. Outside member employment now composes with household labor contributions and paid-wage pooling. Household/member employers, physical wage pooling, negotiated hiring, wage insolvency and priced third-party contract production remain unsupported. Dated land dues now compose with lending and
 material production on existing boundaries, including native goods and accepted
 coin alternatives. Estate-paid native/accepted-coin dues now reconcile to restricted debtor cash and neutral custody positions; collection-linked issuance has an explicit opt-in convention. Storage blockage uses existing process failure;
 there is no stored-goods spoilage event to recognize. The complete report set is not universal
@@ -38,7 +56,7 @@ transaction coverage. Execution and existing acquisition priority are unchanged.
 
 `acquisition::evaluate` reads one immutable Acquire boundary and returns a dated
 batch. The explicit allocation rule is **credit first, negotiated exchange
-second**. Within credit, the existing purchase/resale/state-bid order is preserved.
+or town exchange second**. Within credit, the existing purchase/resale/state-bid order is preserved.
 This changes neither monthly phase order nor when installments fall due.
 
 1. Credit emits its transactions and receipts from opening balances.
@@ -89,7 +107,7 @@ collateral resale remains rejected pending explicit buyer/seller rules.
 | Mortgage purchase/negotiation + households | Dedicated purchase driver remains excluded; negotiated collective purchase budgets need explicit receipts |
 | Legacy equipment/forward exchange, competing-access or pool-market drivers + credit/negotiation | Still rejected |
 | Need-generated marketplace orders | [Bounded consumption/surplus policy](NEED-ORDERS.md) implemented; bilateral parties, lot and reservation prices remain supplied |
-| Monthly town book + household accounts | [Bounded collective adapter](HOUSEHOLD-MARKET.md): locality, governor policy, real member demand, shared money/stock/storage and fixed/ZIP quotes; household member traders, joint production-market planning and credit remain excluded |
+| Monthly town book + household accounts | [Bounded collective adapter](HOUSEHOLD-MARKET.md): locality, governor policy, real member demand, shared money/stock/storage and fixed/ZIP quotes; private fixed-side member sales, paid outside wages and direct loans now compose; private buying, household hiring, joint production-market planning and mortgage/recovery drivers remain excluded |
 | Physical minting + scripted or generated dated stock/capacity orders | [Isolated CPU pilot](MINTING.md); excludes other acquisition drivers and collection-linked issuance |
 | State posted bids learning ZIP prices | Not implemented; co-settlement does not change the price-setting policy |
 | Direct loans + native/alternative-tender land dues | Shared Due collection; opt-in proportional policy with whole claim units and protected opening funds |

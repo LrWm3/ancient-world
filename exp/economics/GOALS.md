@@ -290,3 +290,13 @@ stock-target failure without increasing targets or appropriating holdings. The
 120-month CPU/reference check feeds both members, conserves coins and reconciles
 separate accounts. Household employment/credit budgets, endogenous work and
 consent-term discovery, and longer-horizon collective planning remain extensions.
+
+### Household/shared-gap consolidation — 2026-09-29
+
+[Five alternating passes](INTEGRATION-PASSES.md) connect needs-first support,
+protected stocks, external member wages, private sales, collective purchases,
+static cash buffers and direct lending. Combined scenario controls cover changing
+availability and membership, CPU/reference continuation and separate books.
+Self-directed person policy changes are explicitly deferred while the general
+policy-setting mechanism is designed. This does not remove the broader goals for
+organizational formation, recruitment, governance or household hiring.

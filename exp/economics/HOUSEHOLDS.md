@@ -77,8 +77,9 @@ No new monthly phase or governance resource budget was introduced.
 
 Rotation is a deterministic succession pilot. Hereditary succession, contested
 authority and office resignation remain unimplemented. [Dated adult admission and
-exit](HOUSEHOLD-MEMBERSHIP.md) now extend the fixed founding record. General institutional founding, household employment and
-credit integration, and longer-horizon collective planning remain outstanding.
+exit](HOUSEHOLD-MEMBERSHIP.md) now extend the fixed founding record. Outside member employment, private town sales and direct town lending now compose
+in [bounded integration tests](INTEGRATION-PASSES.md). General institutional
+founding, household hiring and longer-horizon collective planning remain outstanding.
 
 ## Elected governance
 

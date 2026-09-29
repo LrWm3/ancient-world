@@ -1219,3 +1219,18 @@ for claims to clear; without authorized discharge the unpaid balance persists an
 prevents closure. Current household recovery requires an explicit last-member
 wind-down; compulsory proceedings for operating multi-member households are not
 introduced.
+
+## Household integration passes — 2026-09-29
+
+[Combined scenario verification](INTEGRATION-PASSES.md) now exercises external
+member wages, private town sales, collective orders, support, contributed work and
+direct loans together. Payroll still recognizes receivables/payables on delivery;
+only actual payments enter household pooling. Town sale proceeds pool once from
+the committed trade receipts; loan principal is excluded. Fractional contributions
+carry forward. Membership exit/entry changes subsequent pooling without cancelling
+personal wage claims, and household/member books remain separate.
+
+No new reporting system or automatic consolidation was introduced. The eight-month
+CPU/reference and checkpoint comparison reconciles every boundary and each agent's
+balance sheet. Household hiring and onward delegation of purchased capacity,
+physical wage pooling and wage insolvency remain outside this composition.

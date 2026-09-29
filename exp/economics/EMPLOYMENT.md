@@ -64,8 +64,16 @@ as operating cash flow. One remains owed on both balance sheets. Payment never
 creates a second expense or income entry. Own labor has no imputed wage.
 
 The operational contract accepts a stock denomination; financial reporting currently
-requires the reporting coin. Unsupported in-kind wages fail explicitly. Household
-pooling/delegated paid capacity is also explicitly unsupported in this pilot.
+requires the reporting coin. Outside employers may hire household members for a
+storage-free wage denomination. Acquire protects the household's percentage of own
+labor, and Close pools half the actual payment, with fractional carry. Receivables
+are not pooled cash. Contribution entitlement includes hours already delivered to
+external employment, preventing the percentage from shrinking after that delivery.
+Earned outstanding wages are protected by need-generated market budgets.
+
+Household/member employers and onward delegation of paid capacity remain rejected;
+these need a purchased-labor cost-basis adapter. Physical wage pooling also needs
+storage reservations. See the [combined verification](INTEGRATION-PASSES.md).
 Future-period labor prepayments, refunds, wage guarantees, write-offs and estate
 collection need separate accepted terms and adapters.
 

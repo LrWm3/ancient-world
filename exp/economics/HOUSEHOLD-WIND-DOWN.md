@@ -14,8 +14,9 @@ Open boundary, shared lending/recovery engine and double-entry audit.
 | Household insolvency | General lending and recovery compose with household boundaries | Separate member claims, independent custody, priority payments, authorized deficiency discharge or continued debt, no premature residual distribution |
 
 These criteria are covered. This does not make every experimental driver
-composable: mortgage-purchase and paid-employment household drivers still require
-separate integration. General loans can already carry supported collateral terms.
+composable: mortgage-purchase and household-employer drivers still require
+separate integration. Outside member wage pooling is now exercised in the
+[integration passes](INTEGRATION-PASSES.md); wage insolvency remains separate. General loans can already carry supported collateral terms.
 
 ## Timing and control
 

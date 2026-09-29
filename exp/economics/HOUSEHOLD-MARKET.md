@@ -95,17 +95,21 @@ repository artifact check passed. One slow annual household accounting test rema
 ignored; the full crate suite was not run. Raw logs remain in ignored
 `output/economics/household-market-*.log`.
 
-For this pilot, a person appearing in a household's membership history cannot also
-register as a town trader. This deliberately conservative rule prevents collective
-and private orders from covering the same needs; autonomous registration after exit
-needs a dated adapter. Independent people and multiple household accounts can use
-the book, but the exercised household scenario has one collective and two sellers.
+Members (including people in membership history) can now register fixed-side
+private surplus sales. Their household remains the consumption buyer; private buy
+and adaptive orders are rejected to avoid duplicate demand. Sale payment must be
+storage-free until pooling-aware physical settlement reservations are added.
+Actual proceeds are shared only after matching, so the household cannot spend its
+new contribution in that same Acquire batch. Current membership controls pooling.
 
-The joint production-market forecast planner, credit/mortgage purchase drivers,
-legacy exchange, pool markets and competing-access drivers remain excluded. Ordinary
-productive work with contributed labor is exercised separately from that planner.
-The [income-aware work policy](HOUSEHOLD-INCOME.md) now compares the existing
-labor alternatives using next-book cash forecasts. Outstanding work includes
-coordinating private work targets with collective income, producer-input purchases,
-employment and credit budgets, simultaneous member/collective participation,
-market recruitment and market registration derived from membership or travel.
+Direct accepted loans now share credit-first Acquire reservations with the town
+book. Mortgage-purchase configuration, recovery proceedings, joint production
+planning, legacy exchange, pool markets and competing-access drivers remain
+excluded. Outside member wages compose with collective budgets; household hiring
+and onward delegation of purchased labor remain unsupported.
+
+The [income-aware work policy](HOUSEHOLD-INCOME.md) includes optional static cash
+buffers. [Five integration passes](INTEGRATION-PASSES.md) exercise these combinations.
+Outstanding work includes endogenous private work targets, producer-input
+purchases, negotiated hiring, market recruitment and registration derived from
+membership or travel.

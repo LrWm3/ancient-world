@@ -124,8 +124,15 @@ under ignored `output/economics/household-income-*.log`.
 The original verification record above predates the coordinated variant; see the
 [loop verification](PERSON-HOUSEHOLD-LOOP.md#reproduce-and-verification-scope) for that extension.
 
-Remaining limits include endogenous activity targets, producer-input purchases,
-multi-period investment, coordinated private/collective market accounts, household
-employment, credit integration and negotiated price calibration. Ordinary work and
+The static charter can now set `cash_target: Some(Amount)` in town-payment units.
+Equal-needs alternatives compare projected closing cash capped at that target;
+omitting it retains net-cash maximization. Both labor and voluntary support use
+the same objective. This is a supplied founding parameter, not self-directed
+personal policy revision. NeedsFirst support also operates without market income.
+
+[Integration passes](INTEGRATION-PASSES.md) now cover outside member wages,
+private member surplus sales and direct loans in the town budget. Remaining limits
+include endogenous activity targets, producer-input purchases, multi-period
+investment, household hiring and negotiated price calibration. Ordinary work and
 the existing town account are reused; the separate joint production-market planner
 remains excluded.
