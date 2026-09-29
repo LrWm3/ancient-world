@@ -53,6 +53,8 @@ pub struct Constitution {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Charter {
     pub purchasing: Purchasing,
+    /// Collective buying may cover missing entry inputs of active member processes.
+    pub fund_committed_inputs: bool,
     /// Optional static target for projected cash after the next town book.
     /// Above this buffer NeedsThenIncome does not request extra income work.
     pub cash_target: Option<Amount>,
@@ -120,6 +122,7 @@ impl Governance {
             },
             charter: Charter {
                 purchasing: Purchasing::Collective,
+                fund_committed_inputs: false,
                 cash_target: None,
                 residual_recipient: None,
                 leader,

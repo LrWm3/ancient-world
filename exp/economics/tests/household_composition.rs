@@ -32,7 +32,15 @@ fn audit(w: &World, s: &State) -> Audit {
                 })
                 .map(|(key, q)| (*key, i128::from(*q)))
                 .collect(),
-            processes: Some(Default::default()),
+            processes: Some(economics_compute_smoke::process_accounting::Costs {
+                work: s
+                    .processes
+                    .values()
+                    .filter(|p| p.status == Status::Active)
+                    .map(|p| (p.id, (p.beneficiary, 0)))
+                    .collect(),
+                ..Default::default()
+            }),
             ..Default::default()
         },
     )
@@ -341,4 +349,227 @@ fn current_membership_routes_registered_bids_through_exit_and_accession() {
         (sim.state, sim.ledger, a)
     };
     assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}
+
+fn input_fixture(fund: bool, active: bool, held: i32) -> (World, State) {
+    use economics_compute_smoke::{
+        activities::{Target, WorkOrder},
+        opportunities::{Action, PERSON_TYPE},
+        scenario::{LABOR, SEED},
+    };
+    let (mut w, mut s) = households::market::scenario().unwrap();
+    w.households[0].governance.charter.fund_committed_inputs = fund;
+    stock(&mut w, SEED);
+    for cap in w.storage.capacities.values_mut() {
+        *cap = 30;
+    }
+    for id in [PERSON, 91] {
+        s.balances.insert((id, GRAIN), 4);
+    }
+    s.balances.insert((PERSON, SEED), held);
+    s.balances.insert((89, SEED), 10);
+    for venue in &mut w.marketplaces {
+        for market in &mut venue.markets {
+            market.goods = Amount::new(SEED, 2);
+        }
+    }
+    w.participants
+        .iter_mut()
+        .find(|p| p.agent == PERSON)
+        .unwrap()
+        .capacity
+        .quantity = 5;
+    w.definitions.push(ProcessDefinition {
+        id: 99,
+        name: "accepted seed work".into(),
+        execution: Execution::Productive,
+        enabled: true,
+        asset_kind: None,
+        stages: vec![Stage {
+            name: "work".into(),
+            months: 2,
+            entry_inputs: vec![Amount::new(SEED, 2)],
+            monthly_services: vec![Amount::new(LABOR, 1)],
+        }],
+        outputs: vec![Amount::new(GRAIN, 4)],
+    });
+    w.transaction_policy
+        .as_mut()
+        .unwrap()
+        .permissions
+        .insert((PERSON_TYPE, Action::Process(99)));
+    if active {
+        s.processes.insert(
+            900,
+            ProcessInstance {
+                id: 900,
+                definition: 99,
+                operator: PERSON,
+                beneficiary: PERSON,
+                goal: None,
+                asset: None,
+                right: None,
+                start: 1,
+                reserved_through: 2,
+                stage: 0,
+                elapsed: 0,
+                status: Status::Active,
+            },
+        );
+    } else {
+        w.activities.orders.push(WorkOrder {
+            agent: PERSON,
+            definition: 99,
+            priority: 0,
+            target: Target::Stock(Amount::new(GRAIN, 20)),
+        });
+    }
+    (w, s)
+}
+#[test]
+fn collective_market_inputs_complete_member_work_and_reconcile_costs() {
+    use economics_compute_smoke::{accounting::Account as A, scenario::SEED};
+    let (w, s) = input_fixture(true, true, 0);
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut a = audit(&w, &s);
+        while sim.state.phase != Phase::Acquire {
+            a.step(&mut sim).unwrap();
+        }
+        a.step(&mut sim).unwrap();
+        let receipt = sim.state.town_market.history[0]
+            .order_receipts
+            .iter()
+            .find(|r| r.agent == HOME)
+            .unwrap();
+        assert_eq!(receipt.deficits_before.as_ref().unwrap()[&SEED], 2);
+        assert_eq!(receipt.deficits_after.as_ref().unwrap()[&SEED], 0);
+        assert_eq!(sim.state.balance(HOME, SEED), 2);
+        while sim.state.month == 1 {
+            a.step(&mut sim).unwrap();
+        }
+        assert_eq!(sim.state.balance(HOME, SEED), 0);
+        assert_eq!(sim.state.processes[&900].status, Status::Active);
+        let (mut resumed, mut saved) = (sim.clone(), a.clone());
+        while sim.state.month == 2 {
+            a.step(&mut sim).unwrap();
+            saved.step(&mut resumed).unwrap();
+        }
+        assert_eq!((&sim.state, &a), (&resumed.state, &saved));
+        assert_eq!(sim.state.processes[&900].status, Status::Completed);
+        assert_eq!(sim.state.balance(HOME, TOKEN), 60);
+        assert_eq!(sim.state.balance(HOME, GRAIN), 2);
+        let f = a.book().statements(HOME, 1, 2).unwrap();
+        // Existing three grain (basis 3) and four output (basis 40)
+        // share the average-cost pool: two transferred units carry floor(86/7).
+        assert_eq!(f.trial_balance[&A::Inventory(GRAIN)], 12);
+        for id in [HOME, PERSON, 91, 89] {
+            let f = a.book().statements(id, 1, 2).unwrap();
+            assert_eq!(f.assets, f.liabilities + f.equity);
+        }
+        let mut replay = s.clone();
+        for b in &sim.ledger {
+            commit(&w, &mut replay, b, backend, DEFAULT_EFFECT_LIMIT).unwrap();
+        }
+        assert_eq!(replay, sim.state);
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}
+#[test]
+fn input_funding_requires_charter_authority_accepted_work_and_a_real_shortfall() {
+    for (fund, active, held) in [(false, true, 0), (true, false, 0), (true, true, 2)] {
+        let (w, s) = input_fixture(fund, active, held);
+        let mut sim = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+        let mut a = audit(&w, &s);
+        while sim.state.month <= 2 {
+            a.step(&mut sim).unwrap();
+        }
+        assert!(
+            sim.state
+                .town_market
+                .history
+                .iter()
+                .all(|r| r.orders.iter().all(|o| o.agent != HOME))
+        );
+        assert_eq!(sim.state.balance(HOME, TOKEN), 100);
+        if active {
+            assert_eq!(
+                sim.state.processes[&900].status,
+                if held > 0 {
+                    Status::Completed
+                } else {
+                    Status::Aborted
+                }
+            );
+        }
+    }
+}
+
+#[test]
+fn two_barter_listings_share_one_pooling_budget_and_accumulate_odd_proceeds() {
+    use economics_compute_smoke::{
+        opportunities::{Action, PERSON_TYPE},
+        scenario::SEED,
+        town_market::Listing,
+    };
+    for (room, trades) in [(2, 1), (3, 2)] {
+        let (mut w, mut s) = barter_fixture(room, 0);
+        stock(&mut w, SEED);
+        let mut recipe = w
+            .definitions
+            .iter()
+            .find(|d| d.execution == Execution::Consumption)
+            .unwrap()
+            .clone();
+        recipe.id = 300;
+        recipe.stages[0].entry_inputs = vec![Amount::new(SEED, 1)];
+        w.definitions.push(recipe);
+        w.transaction_policy
+            .as_mut()
+            .unwrap()
+            .permissions
+            .insert((PERSON_TYPE, Action::Process(300)));
+        w.participants
+            .iter_mut()
+            .find(|p| p.agent == 89)
+            .unwrap()
+            .needs[0]
+            .quantity = 3;
+        let config = w.town_market.as_mut().unwrap();
+        config.additional.push(Listing {
+            market: 200,
+            traders: config.traders.clone(),
+            match_limit: None,
+        });
+        let venue = w
+            .marketplaces
+            .iter_mut()
+            .find(|m| m.agent == config.venue)
+            .unwrap();
+        let mut market = venue.markets[0].clone();
+        market.id = 200;
+        market.goods = Amount::new(SEED, 2);
+        venue.markets.push(market);
+        s.balances.insert((PERSON, SEED), 10);
+        let run = |backend| {
+            let mut a = audit(&w, &s);
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            while sim.state.phase != Phase::Acquire {
+                a.step(&mut sim).unwrap();
+            }
+            a.step(&mut sim).unwrap();
+            assert_eq!(sim.state.town_market.history[0].transactions.len(), trades);
+            assert_eq!(
+                sim.state.balance(HOME, STORED),
+                if trades == 1 { 1 } else { 3 }
+            );
+            assert_eq!(
+                sim.state.household_remainders[&(HOME, PERSON, STORED)],
+                if trades == 1 { 1 } else { 0 }
+            );
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
 }

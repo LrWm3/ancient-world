@@ -73,25 +73,8 @@ pub(crate) fn claims(
             )
         })
         .collect();
-    for p in state
-        .processes
-        .values()
-        .filter(|p| p.operator == agent && p.status == Status::Active)
-    {
-        for (index, stage) in world
-            .definition(p.definition)
-            .stages
-            .iter()
-            .enumerate()
-            .skip(p.stage)
-        {
-            if index == p.stage && p.elapsed > 0 {
-                continue;
-            }
-            for input in &stage.entry_inputs {
-                *result.entry(input.resource).or_default() += i128::from(input.quantity);
-            }
-        }
+    for (resource, quantity) in process_claims(world, state, agent) {
+        *result.entry(resource).or_default() += quantity;
     }
     // Earned wages are accepted claims, including carried arrears. Protect the
     // employer's cash from discretionary sales/purchases before Close collection.
@@ -118,6 +101,53 @@ pub(crate) fn claims(
         *result.entry(l.denomination).or_default() += i128::from(l.due(state.month)?);
     }
     Ok(result)
+}
+
+/// Unpaid inputs of accepted active processes, shared by protection and demand.
+fn process_claims(world: &World, state: &State, agent: AgentId) -> BTreeMap<ResourceId, i128> {
+    let mut result = BTreeMap::new();
+    for p in state
+        .processes
+        .values()
+        .filter(|p| p.operator == agent && p.status == Status::Active)
+    {
+        for (index, stage) in world
+            .definition(p.definition)
+            .stages
+            .iter()
+            .enumerate()
+            .skip(p.stage)
+        {
+            if index == p.stage && p.elapsed > 0 {
+                continue;
+            }
+            for input in &stage.entry_inputs {
+                *result.entry(input.resource).or_default() += i128::from(input.quantity);
+            }
+        }
+    }
+    result
+}
+
+/// Only active processes qualify, not speculative work orders or expected yields.
+/// Existing private inputs offset the household's commitment-support demand.
+fn funded_inputs(world: &World, state: &State, agent: AgentId) -> BTreeMap<ResourceId, i128> {
+    let Some(h) = world.households.iter().find(|h| {
+        h.agent == agent
+            && h.governance.charter.fund_committed_inputs
+            && h.governance.charter.purchasing
+                == crate::household_governance::Purchasing::Collective
+    }) else {
+        return BTreeMap::new();
+    };
+    let mut result = process_claims(world, state, agent);
+    for member in crate::households::members(h, state) {
+        for (resource, quantity) in process_claims(world, state, member) {
+            *result.entry(resource).or_default() +=
+                (quantity - i128::from(state.balance(member, resource))).max(0);
+        }
+    }
+    result
 }
 
 fn stock_map(balances: &BTreeMap<Account, i32>, agent: AgentId) -> BTreeMap<ResourceId, i128> {
@@ -311,8 +341,25 @@ pub(crate) fn generate_for_horizon(
     }
     *with_goods.entry(session.goods.resource).or_default() += i128::from(retained);
     let mut after = unclaimed(&with_goods, &commitments);
-    let buyer_deficits = consume(world, &observed, agent, months, &mut before, false)?;
-    let buyer_after_purchase = consume(world, &observed, agent, months, &mut after, false)?;
+    let mut buyer_deficits = consume(world, &observed, agent, months, &mut before, false)?;
+    let mut buyer_after_purchase = consume(world, &observed, agent, months, &mut after, false)?;
+    for (resource, quantity) in funded_inputs(world, &observed, agent) {
+        let required = commitments.get(&resource).copied().unwrap_or(0);
+        let held = i128::from(observed.balance(agent, resource));
+        let supplied = with_goods.get(&resource).copied().unwrap_or(0);
+        // Stock-resource keys describe input shortfalls; fulfillment-resource
+        // keys above describe consumption. Keep both visible in order receipts.
+        buyer_deficits.insert(
+            resource,
+            i64::try_from(quantity.min((required - held).max(0)))
+                .map_err(|_| "input deficit overflow")?,
+        );
+        buyer_after_purchase.insert(
+            resource,
+            i64::try_from(quantity.min((required - supplied).max(0)))
+                .map_err(|_| "input deficit overflow")?,
+        );
+    }
     let useful = buyer_after_purchase
         .iter()
         .any(|(r, q)| *q < buyer_deficits[r])

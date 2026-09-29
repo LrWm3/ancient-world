@@ -10,7 +10,7 @@ remain excluded. Monthly boundaries are unchanged.
 | 7 | Physical barter proceeds | Pooling-aware town storage reservations | Complete |
 | 8 | Charter delegates consumption buying | Exclusive collective/member purchase routing | Complete |
 | 9 | Purchase eligibility follows membership | Runtime admission rather than historical exclusion | Complete |
-| 10 | Collective purchases for accepted process inputs | Shared commitment demand and integrated tests | Pending |
+| 10 | Collective purchases for accepted process inputs | Shared commitment demand and integrated tests | Complete |
 
 ## Pass 6
 
@@ -21,8 +21,7 @@ quantities remain distinct. A full store rejects the donation without aborting
 execution. CPU/reference audited tests compare partial food support with this
 blocked control and replay the resulting ledger.
 
-Further passes and final validation are recorded here as completed. Physical wage
-pooling and household hiring remain separate follow-ups.
+Physical wage pooling and household hiring remain separate follow-ups.
 
 ## Passes 7–8
 
@@ -54,3 +53,40 @@ buying, explicit member exit with private purchases and no pooling, then accessi
 with private buying blocked again. Continuation from each monthly boundary agrees.
 Registration, legal permissions and locality remain explicit prerequisites; this
 is not autonomous registration or recruitment.
+
+## Pass 10
+
+The opt-in `fund_committed_inputs` charter parameter adds missing stock inputs of
+active member processes to collective order deficits. Input protection and demand
+share one calculation of unpaid stage entry requirements. Private holdings offset
+demand; paid stage inputs are not requested again. Collective routing and an
+eligible needs-first objective still gate buying. Speculative work orders do not
+qualify, and whole-lot matching does not promise an entire future production plan.
+
+Evidence: a two-month audited CPU/reference scenario buys two seed units for 40
+coins, transfers them to the committed worker through Productive allocation,
+completes the process and pools two of four output grain. The transferred grain
+carries 12 reporting ticks from the worker's average stock basis (three existing
+units at basis 3 plus four produced at basis 40), rather than an invented sale
+value. Replay and checkpoint continuation agree. Disabled funding, an unstarted
+work opportunity and already-held private inputs all suppress unnecessary orders.
+
+A cross-listing barter control also reserves one common storage budget: two
+three-unit physical payments pool one unit on the first fill and two on the second,
+using the accumulated odd-unit carry. Two free storage units permit only the first
+fill; three permit both. CPU/reference books agree.
+
+## Scope and remaining work
+
+All five pairs are implemented. The fixtures supply static charter parameters,
+registration, prices, membership decisions and accepted processes. They establish
+composition and conservation under controlled conditions, not calibrated economic
+sustainability for arbitrary terms. Private purchase projections conservatively
+ignore future redistribution of the pooled portion; separate member bids may
+therefore retain extra collective stock. Input funding does not forecast new
+businesses, output demand, investment returns, or all future labor availability.
+
+Next distinct gaps include household hiring and purchased-labor cost allocation,
+physical wage pooling, autonomous recruitment/registration, speculative input and
+investment planning, town recovery and broader institutional formation. Personal
+self-directed policy changes remain explicitly excluded.
