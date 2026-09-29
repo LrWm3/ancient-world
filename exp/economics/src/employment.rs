@@ -86,18 +86,6 @@ pub fn validate(w: &World, s: &State) -> Result<(), String> {
         }) {
             return Err("households and their members cannot yet employ paid capacity".into());
         }
-        if w.households
-            .iter()
-            .any(|h| crate::households::membership::ever_member(h, t.worker))
-            && w.storage
-                .weights
-                .get(&t.wage_per_unit.resource)
-                .copied()
-                .unwrap_or(0)
-                > 0
-        {
-            return Err("household wages currently require a storage-free denomination".into());
-        }
         if !ids.insert(t.id)
             || t.worker == t.employer
             || t.from == 0
@@ -186,6 +174,8 @@ pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boun
             *available = available.saturating_sub(reserved).max(0);
         }
     }
+    let mut pooling =
+        crate::households::income_reservations::Reservations::new(w, s, resources.storage.clone());
     let mut execution = finance::Execution::from_parts(resources.available, resources.storage);
     let mut b = Boundary {
         after: s.employment.clone(),
@@ -292,12 +282,17 @@ pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boun
             if e.claim.outstanding() == 0 {
                 continue;
             }
-            let p = execution.pay(
+            let maximum = pooling.payment_limit(w, &execution, &e.claim)?;
+            let p = execution.pay_bounded(
                 w,
                 s.month.checked_add(1).ok_or("wage due date overflow")?,
                 true,
                 &e.claim,
+                maximum,
             )?;
+            pooling = pooling
+                .preview(w, &p.effects)?
+                .ok_or("wage pooling reservation changed")?;
             e.claim.settled = e
                 .claim
                 .settled

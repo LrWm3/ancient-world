@@ -235,6 +235,22 @@ impl Execution {
         accepted: bool,
         claim: &Obligation,
     ) -> Result<Payment, String> {
+        self.pay_bounded(world, month, accepted, claim, i32::MAX)
+    }
+    /// Cap a payment after an additional scoped reservation check (for example,
+    /// mandatory household pooling). Requested and remaining still describe the
+    /// original claim, never a synthetic smaller obligation.
+    pub(crate) fn pay_bounded(
+        &mut self,
+        world: &World,
+        month: u32,
+        accepted: bool,
+        claim: &Obligation,
+        maximum: i32,
+    ) -> Result<Payment, String> {
+        if maximum < 0 {
+            return Err("negative payment bound".into());
+        }
         claim.validate()?;
         let account = (claim.transfer.from, claim.transfer.amount.resource);
         let requested = if claim.condition.is_met(month, accepted) {
@@ -242,17 +258,19 @@ impl Execution {
         } else {
             0
         };
-        let paid = claim.payable(
-            month,
-            accepted,
-            self.available.get(&account).copied().unwrap_or(0),
-            crate::storage::room(
-                world,
-                &self.stored,
-                claim.transfer.to,
-                claim.transfer.amount.resource,
-            ),
-        );
+        let paid = claim
+            .payable(
+                month,
+                accepted,
+                self.available.get(&account).copied().unwrap_or(0),
+                crate::storage::room(
+                    world,
+                    &self.stored,
+                    claim.transfer.to,
+                    claim.transfer.amount.resource,
+                ),
+            )
+            .min(maximum);
         let effects = if paid > 0 {
             claim.payment(paid)?
         } else {
