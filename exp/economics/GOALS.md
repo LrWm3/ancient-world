@@ -300,3 +300,9 @@ availability and membership, CPU/reference continuation and separate books.
 Self-directed person policy changes are explicitly deferred while the general
 policy-setting mechanism is designed. This does not remove the broader goals for
 organizational formation, recruitment, governance or household hiring.
+
+[The second batch](INTEGRATION-PASSES-2.md) extends that loop with storage-bounded
+support, pooled physical barter, static charter purchase delegation, current
+membership routing and funding of accepted process inputs. Autonomous recruitment,
+new-business/input planning, household hiring and physical wage pooling remain
+follow-ups. Person self-directed policy changes remain excluded.

@@ -132,7 +132,12 @@ personal policy revision. NeedsFirst support also operates without market income
 
 [Integration passes](INTEGRATION-PASSES.md) now cover outside member wages,
 private member surplus sales and direct loans in the town budget. Remaining limits
-include endogenous activity targets, producer-input purchases, multi-period
+include endogenous activity targets, speculative input purchases, multi-period
 investment, household hiring and negotiated price calibration. Ordinary work and
 the existing town account are reused; the separate joint production-market planner
 remains excluded.
+
+The [second integration batch](INTEGRATION-PASSES-2.md) adds partial support under
+storage limits, physical barter proceeds and charter-directed purchase routing.
+Collective input funding covers existing active processes; it does not infer new
+investment plans from the income objective.

@@ -1234,3 +1234,10 @@ No new reporting system or automatic consolidation was introduced. The eight-mon
 CPU/reference and checkpoint comparison reconciles every boundary and each agent's
 balance sheet. Household hiring and onward delegation of purchased capacity,
 physical wage pooling and wage insolvency remain outside this composition.
+
+The [second integration batch](INTEGRATION-PASSES-2.md) also checks private physical
+barter, delegated purchases, and household-funded member inputs through the same
+journal. Barter uses explicit reporting valuations; collected stock transfers its
+existing average carrying basis. Inputs pass from the household to the member,
+into WIP, and into output; pooled output retains average inventory cost rather than
+receiving a new market valuation. No internal balance is automatically eliminated.

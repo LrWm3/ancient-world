@@ -578,3 +578,13 @@ labor at Productive. Members may withdraw future support; the ordinary half-outp
 rule remains unchanged. The new receipts are replayed and observed alongside labor
 receipts. See the linked document for the original failure control, recovery test,
 composition limits and subsequent work.
+
+## Further household/shared consolidation
+
+The [second five-pass batch](INTEGRATION-PASSES-2.md) adds useful partial support,
+physical barter pooling and two static charter parameters: `purchasing` selects
+collective or member consumption bids, and `fund_committed_inputs` permits a
+collective needs-first buyer to cover active member-process inputs. Current
+membership controls bid eligibility. These options reuse existing governance,
+allocation, settlement and separate accounting; they do not let leaders rewrite
+personal policy or claim private money.

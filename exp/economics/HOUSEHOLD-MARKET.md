@@ -13,8 +13,12 @@ or used to create transport. Open records local admission. Acquire rechecks curr
 permission, operational membership and the presence of a governor. Wind-down and
 governance vacancies prevent new collective orders.
 
-The effective `NeedsFirst` or `NeedsThenIncome` policy authorizes purchases that improve members'
-projected consumption. `NetOutput` and `PreserveCommittedWork` currently authorize
+With the default `Purchasing::Collective` charter, the effective `NeedsFirst` or
+`NeedsThenIncome` policy authorizes purchases that improve members' projected
+consumption. `Purchasing::Members` instead delegates buying to registered members
+using private funds, and disables collective bids. This is a static founding
+parameter. Personal policy revision remains deferred. `NetOutput` and
+`PreserveCommittedWork` currently authorize collective
 protected-surplus sales only in this adapter. They do not invent speculative demand
 or a valuation policy. Existing dated governor instructions can switch the objective.
 Order receipts retain the governor, term and policy; the settlement observer exports
@@ -25,7 +29,8 @@ recipes. Private member food reduces collective demand but never becomes househo
 sale inventory. Protection includes household claims and the uncovered portion of
 supported member claims, plus consumption reserves. Claims are protected only where
 the enclosing acquisition driver supports their composition; this does not enable
-town-market credit or legacy land/forward drivers. Membership, rights and private
+mortgage-purchase configuration or legacy land/forward drivers. Direct loans now
+share the town acquisition budget. Membership, rights and private
 holdings are frozen over the bounded consumption horizon, without assumed harvests,
 future purchases or earnings. Recipe protection is conservative, not optimal.
 
@@ -95,12 +100,29 @@ repository artifact check passed. One slow annual household accounting test rema
 ignored; the full crate suite was not run. Raw logs remain in ignored
 `output/economics/household-market-*.log`.
 
-Members (including people in membership history) can now register fixed-side
-private surplus sales. Their household remains the consumption buyer; private buy
-and adaptive orders are rejected to avoid duplicate demand. Sale payment must be
-storage-free until pooling-aware physical settlement reservations are added.
-Actual proceeds are shared only after matching, so the household cannot spend its
-new contribution in that same Acquire batch. Current membership controls pooling.
+Current membership and the static charter determine who may submit consumption
+bids. Registration alone grants no buy authority. Explicit exit permits registered
+former members to buy privately; accession restores the household route. Adaptive
+members with a blocked buy side may still sell protected surplus. Legal permission,
+locality and own opening funding continue to apply.
+
+Private purchases and sale proceeds share half their eligible stock receipts with
+the household. Need projections count only the retained purchase portion as
+assured personal fulfillment. Town matching reserves raw storage and the resulting
+collective contribution separately, with exact relationship-specific fractional
+carry across the whole book. Physical barter payment is supported; a trade that
+fits privately but overflows the collective is rejected with a storage outcome.
+Incoming proceeds cannot finance another outgoing leg in the same Acquire batch.
+
+The opt-in static `fund_committed_inputs` charter parameter extends collective
+demand to missing entry inputs of active member processes. Stock-resource keys in
+order deficit maps identify these shortfalls; fulfillment keys still identify
+consumption. Private inputs and collective opening holdings reduce demand. Existing
+Productive allocation supplies purchased inputs, and production follows its
+existing timing and accounting. This does not plan new businesses, buy speculative
+work-order inputs, or promise future output. The flag applies with collective
+purchasing and a needs-first objective; delegated member buying remains consumption
+only. Fixed whole-lot terms and supplied reservation prices still apply.
 
 Direct accepted loans now share credit-first Acquire reservations with the town
 book. Mortgage-purchase configuration, recovery proceedings, joint production
@@ -109,7 +131,7 @@ excluded. Outside member wages compose with collective budgets; household hiring
 and onward delegation of purchased labor remain unsupported.
 
 The [income-aware work policy](HOUSEHOLD-INCOME.md) includes optional static cash
-buffers. [Five integration passes](INTEGRATION-PASSES.md) exercise these combinations.
-Outstanding work includes endogenous private work targets, producer-input
-purchases, negotiated hiring, market recruitment and registration derived from
-membership or travel.
+buffers. The [first](INTEGRATION-PASSES.md) and [second](INTEGRATION-PASSES-2.md)
+integration batches exercise these combinations. Outstanding work includes
+endogenous private work targets, speculative investment/input planning, negotiated
+hiring, market recruitment and registration derived from membership or travel.

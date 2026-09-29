@@ -13,14 +13,17 @@ remaining financial work.
 need support, outside member wages, private surplus sales, collective town orders
 and direct loans. An optional static charter cash target limits extra income work.
 The combined CPU/reference scenario exercises income disruption and adult exit and
-rejoining with separate reconciled books. Person self-directed policy changes are
-deferred. These are bounded combinations; the remaining exclusions are explicit.
+rejoining with separate reconciled books. [Five further passes](INTEGRATION-PASSES-2.md)
+add storage-bounded support, physical barter pooling, static charter purchase
+routing, membership-aware order eligibility, and collective purchases of active
+member-process inputs. Person self-directed policy changes remain deferred.
+These are bounded combinations; the remaining exclusions are explicit.
 
 | Area | Implemented and exercised | Still outstanding |
 | --- | --- | --- |
 | Persons and planning | Needs, deprivation consequences, repeated processes, bounded forecasts, opportunity search and dated commitments | General discovery across all drivers; reliably sustainable autonomous cooperation |
 | State and law | Citizenship, action permissions, named prohibitions, selected agreement recognition/term limits; issuance and physical minting pilots | Autonomous state objectives, general jurisdiction/founding law, constitutional governance |
-| Households | Lawful founding, static constitution/charter, fixed, rotating or elected governors with terms and election receipts, dated objective/tie authority, 20% contributed labor, opt-in current-needs-first allocation, explicit ties, pooled resources/storage and shelter, dated adult joining/exit, opt-in wind-down with explicit asset/crop transfers and lending/recovery, and [policy-driven town trading](HOUSEHOLD-MARKET.md) with shared budgets, member wage pooling/private sales and direct town lending | Autonomous voting and broader succession rules, longer-horizon collective planning, market recruitment, automatic death estates, joint work/trade planning and household hiring budgets |
+| Households | Lawful founding, static constitution/charter, fixed, rotating or elected governors with terms and election receipts, dated objective/tie authority, 20% contributed labor, opt-in current-needs-first allocation, explicit ties, pooled resources/storage and shelter, dated adult joining/exit, opt-in wind-down with explicit asset/crop transfers and lending/recovery, and [policy-driven town trading](HOUSEHOLD-MARKET.md) with shared budgets, member wage pooling, physical barter, charter-delegated purchases, active-process input funding and direct town lending | Autonomous voting and broader succession rules, longer-horizon collective planning, market recruitment, automatic death estates, joint work/trade planning and household hiring budgets |
 | Marketplaces | Bilateral negotiation/ZIP, local town books, need-generated orders, reciprocal commodity markets and household accounts | Shared acquisition with every driver; general markets for labor, assets, rights and memberships |
 | Contracts and lending | Direct consented advances and mortgages share a loan book; loan, land and forward claims share execution; guarantees share inspection | Common acceptance/performance adapters for all arrangements; autonomous general loan discovery/underwriting |
 | [Creditor allocation](CREDITOR-ALLOCATION.md) | Ranked collection and opt-in proportional loan/land allocation, including accepted coin tender and whole-unit conversion | Standalone land and forward allocation; additional denominations/routes and indivisible obligations |

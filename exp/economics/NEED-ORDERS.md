@@ -4,6 +4,8 @@ Implemented as an opt-in, bounded consumption policy. The original bilateral pil
 connects individual needs to a person-only marketplace. The separate
 [household town adapter](HOUSEHOLD-MARKET.md) now projects real members' consumption
 through collective accounts, retaining the shared pricing and settlement rules.
+The static charter can delegate consumption buying to members or opt collective
+buyers into funding accepted process inputs; see the extension below.
 
 ## Decision and execution boundary
 
@@ -39,8 +41,8 @@ previous pricing memory survives these skipped sessions.
 
 The reserve covers consumption over the configured horizon without assuming future
 production. It also includes dated commodity obligations within that horizon,
-unpaid entry inputs of every remaining active-process stage, and currently
-collectible, already-accrued loan payments. Already-consumed stage inputs are not
+unpaid entry inputs of every remaining active-process stage, earned wage arrears,
+and currently collectible, already-accrued loan payments. Already-consumed stage inputs are not
 reserved again. Future mortgage installments and future interest require the
 separate borrowing forecast; this policy does not forecast them.
 
@@ -112,3 +114,20 @@ buyers and sellers under month-start locality, while reusing this need/protectio
 policy. The bilateral credit-compatible pilot described above retains its supplied
 counterparty pair; the town book supports bounded household orders but remains
 separate from the credit acquisition driver.
+
+## Household purchase routing and accepted input demand
+
+The [second household batch](INTEGRATION-PASSES-2.md) checks current membership
+when deciding who may buy. Under collective routing, household buyers project
+member consumption and private bids are blocked. Delegated members count only the
+purchased portion retained after mandatory pooling as assured personal fulfillment.
+Newly pooled stocks remain available for subsequent household allocation.
+
+With `fund_committed_inputs` enabled, a collective needs-first buyer also observes
+missing stock inputs of active member processes. This reuses the unpaid-input
+calculation used for protection, including future unconsumed stages. Private stock
+reduces the uncovered demand. Order deficit maps distinguish input shortfalls by
+stock resource IDs and consumption shortfalls by fulfillment resource IDs. Useful
+input orders still need permission, counterparties, opening funds and storage.
+Unstarted work-order targets do not create this demand; new investment planning
+and proof of future labor feasibility remain separate work.

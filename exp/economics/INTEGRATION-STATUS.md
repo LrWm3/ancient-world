@@ -29,9 +29,14 @@ actual wage and town sale receipts pool once, with fractional carry. Direct loan
 and town settlement share outgoing opening budgets. Static cash targets bound
 income work and support. Need-first support also works without a market.
 
-Private member orders are fixed-side sells with storage-free payment; private
-buy/adaptive registrations remain rejected to avoid duplicated member demand.
-Household/member employers and physical wages remain excluded. Direct town lending
+[Five further passes](INTEGRATION-PASSES-2.md) add useful partial support,
+physical barter with exact pooled-storage reservations, and static charter routing
+between collective and private consumption buyers. Current membership controls
+buy eligibility, including adaptive orders; pre-registered former members can buy
+privately and accession restores their charter's route. Opt-in collective buying
+also covers missing inputs of active member processes. Speculative work targets
+do not qualify. Household/member employers and physical wages remain excluded.
+Direct town lending
 does not enable mortgage purchase configuration, recovery proceedings or joint
 production planners. Adult accession/exit changes contribution and consumption
 scope without rewriting accepted wages or personal debt. Personal self-directed
@@ -107,7 +112,7 @@ collateral resale remains rejected pending explicit buyer/seller rules.
 | Mortgage purchase/negotiation + households | Dedicated purchase driver remains excluded; negotiated collective purchase budgets need explicit receipts |
 | Legacy equipment/forward exchange, competing-access or pool-market drivers + credit/negotiation | Still rejected |
 | Need-generated marketplace orders | [Bounded consumption/surplus policy](NEED-ORDERS.md) implemented; bilateral parties, lot and reservation prices remain supplied |
-| Monthly town book + household accounts | [Bounded collective adapter](HOUSEHOLD-MARKET.md): locality, governor policy, real member demand, shared money/stock/storage and fixed/ZIP quotes; private fixed-side member sales, paid outside wages and direct loans now compose; private buying, household hiring, joint production-market planning and mortgage/recovery drivers remain excluded |
+| Monthly town book + household accounts | [Bounded collective adapter](HOUSEHOLD-MARKET.md): locality, governor policy, real member demand, shared money/stock/storage and fixed/ZIP quotes; private sales/barter, charter-delegated buying, active-process input funding, paid outside wages and direct loans now compose; household hiring, joint production-market planning and mortgage/recovery drivers remain excluded |
 | Physical minting + scripted or generated dated stock/capacity orders | [Isolated CPU pilot](MINTING.md); excludes other acquisition drivers and collection-linked issuance |
 | State posted bids learning ZIP prices | Not implemented; co-settlement does not change the price-setting policy |
 | Direct loans + native/alternative-tender land dues | Shared Due collection; opt-in proportional policy with whole claim units and protected opening funds |
@@ -527,8 +532,9 @@ replayed with order decisions. Existing resource pooling, productive labor and
 separate double-entry statements compose with this adapter.
 
 This supersedes earlier blanket household/town exclusions above. It does not remove
-the joint production-market forecast planner, credit, legacy exchange or member
-trader exclusions. Longer-horizon income planning, producer-input purchasing and employment budgets still
+the joint production-market forecast planner or legacy exchange exclusions.
+Later passes above add direct credit, member trader routing and active-process
+input funding. Longer-horizon investment planning and household hiring still
 need adapters. The CPU example runs short of money in month three after feeding
 two adults for two months. See [settings, controls and limits](HOUSEHOLD-MARKET.md).
 
@@ -552,8 +558,9 @@ begin in month 27. That behavior remains a control; voluntary surplus support no
 closes the coordination gap in the [completed initial loop](PERSON-HOUSEHOLD-LOOP.md).
 The coordinated 120-month CPU/reference run meets household food needs, conserves
 coins and reconciles separate statements.
-This does not enable the joint production-market planner or household hiring/credit
-budgets. The linked document records assumptions, controls and full results.
+This does not enable the joint production-market planner or household hiring;
+later passes above add direct town credit and bounded input funding. The linked
+document records assumptions, controls and full results.
 
 Verification (2026-09-29): **162 distinct tests passed** across 11 selected suites,
 including all 13 final income-policy tests. The 12- and 36-month CPU examples,

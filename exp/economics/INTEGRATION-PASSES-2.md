@@ -90,3 +90,30 @@ Next distinct gaps include household hiring and purchased-labor cost allocation,
 physical wage pooling, autonomous recruitment/registration, speculative input and
 investment planning, town recovery and broader institutional formation. Personal
 self-directed policy changes remain explicitly excluded.
+
+## Verification
+
+Final run: **301 tests passed across 25 suites**, including all seven new
+`household_composition` tests, the prior combined integration controls and the
+120-month household income CPU/reference test. One existing slow annual 32-person
+accounting test remained ignored. The full crate suite was not run. Strict
+all-target Clippy, formatting, whitespace and repository artifact checks passed.
+
+From `exp/economics`:
+
+```sh
+cargo +1.92.0 test --locked --test household_composition \
+  --test household_integration --test household_income --test households \
+  --test household_accounting --test household_credit --test household_dissolution \
+  --test household_equipment_disposal --test household_property_package \
+  --test household_market --test town_market --test need_orders \
+  --test agreement_laws --test laws --test telemetry --test inventory_accounting \
+  --test process_accounting --test employment --test acquisition --test lending \
+  --test credit --test finance --test service_accounting --test reporting_coverage \
+  --test barter_accounting
+cargo +1.92.0 clippy --locked --all-targets -- -D warnings
+cargo +1.92.0 fmt -- --check
+```
+
+Generated logs remain under ignored `output/economics/household-batch2-*.log`.
+Only source, tests and Markdown documentation are committed.

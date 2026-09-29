@@ -1,5 +1,8 @@
 # Five household and consolidation passes
 
+This records the first batch. The [second batch](INTEGRATION-PASSES-2.md) extends
+the physical barter, member buying and accepted-process input limits below.
+
 Work requested 2026-09-29: alternate household/organizational behavior with shared
 gap consolidation, demonstrating formerly isolated combinations. Person
 self-directed policy changes are explicitly excluded. No scheduler rewrite.
