@@ -322,3 +322,10 @@ exercises an individual's switch to own production when employment stops. This i
 execution and integration evidence; negotiated hiring, self-selected employer
 contracts and long-horizon business viability remain future work. Person
 self-directed policy changes are still deferred.
+
+[Passes 21–25](INTEGRATION-PASSES-5.md) extend this to individual member employers,
+own-hour contribution rules, cross-household physical payroll and optional earned-wage
+assistance funded by collective orders. Integration tests retain personal liabilities
+through exit and demonstrate funding delays rather than assuming sustainable hiring.
+Internal employment, autonomous contract discovery and wage estates remain future
+work. Person self-directed policy changes remain explicitly deferred.

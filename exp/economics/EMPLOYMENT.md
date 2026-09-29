@@ -11,7 +11,8 @@ balance-sheet system or a worker-specific production engine.
 employer, worker, inclusive start/end months, capacity resource and monthly quantity,
 wage denomination and integer rate per delivered unit, priority rank and arrears
 policy. Household employers require the explicit charter described below; household
-workers and member employers remain excluded. Actual delivery requires both parties
+workers and internal household employment remain excluded. Individual members may
+hire outside workers under their own contracts. Actual delivery requires both parties
 to be active and permitted to perform `CapacityTrade` under the current laws.
 
 The fixture supplies consent. Agents do not yet discover, negotiate or sign these
@@ -74,12 +75,13 @@ cash flow and does not recognize service income twice. Outside employers may hir
 household members for cash or physical wages. Acquire protects the household's percentage of own
 labor, and Close pools half the actual payment, with fractional carry. Receivables
 are not pooled cash. Contribution entitlement includes hours already delivered to
-external employment, preventing the percentage from shrinking after that delivery.
+external employment and excludes purchased hours, preserving the percentage of
+own capacity without taxing acquired capacity again.
 Earned outstanding wages are protected by need-generated market budgets.
 
 Household employers can opt into budgeted external hiring and costed delegation
-to members. Member employers, household workers and internal household hires remain
-rejected; terms involving future/past members retain the conservative exclusion. Physical payroll now reserves
+to members. Members may also employ outside workers privately. Household workers
+and internal household hires remain rejected, including common past/future membership. Physical payroll now reserves
 both private receipt space and exact collective contribution space, including
 fractional carry. Unstorable payment remains arrears. See the
 [physical-wage verification](INTEGRATION-PASSES-3.md).
@@ -146,7 +148,33 @@ member accounts are not consolidated.
 
 Earned payroll stock is protected from discretionary household member transfers.
 Static `fund_earned_wages` additionally permits collective needs-first orders to buy
-missing payment stock for already earned claims, not future employment. Tests cover
+missing payment stock for already earned claims, not future employment. Member
+claims qualify only when `support_member_wages` also authorizes assistance. Tests cover
 coin and physical wages, scarce budgets, prohibited work, real arrears purchases,
 forged allocation receipts, replay and checkpoint continuation on CPU/reference.
 Autonomous recruitment, price discovery for labor and wage insolvency remain open.
+
+## Member employers and household assistance
+
+[Passes 21–25](INTEGRATION-PASSES-5.md) allow a member to hire an outsider,
+including a person in another household. Ordinary preaccepted terms can earn a wage
+without opening affordability; the household's hiring ceiling does not apply to
+private contracts. `SuspendDelivery` still pauses work until arrears clear.
+
+The household contribution remains a percentage of own hours. Bought hours do not
+increase it. Capacity is homogeneous in the cost ledger: allocation transfers its
+average paid basis, and remaining basis expires or enters production. No own wage
+is imputed and no payable moves to the household.
+
+Static `support_member_wages` (false by default) authorizes transfers for earned
+member wage shortfalls at the existing before-Close household boundary. Ordinary
+Close payroll then pays from the prepared private stock. The collective retains
+its own earned wages and current loan dues. `debt_support` selects reservation or
+claim-rank order within these assistance requests; this is not statutory wage
+priority. Unpaid claims remain on the member's and worker's books.
+
+Collective `fund_earned_wages` orders include supported member claims, offsetting
+private holdings once. There is no demand for future unearned wages. Consequently,
+work can pause while old payroll is funded; the six-month test records that lag.
+Exit ends new assistance without cancelling old personal debt. Physical payment
+still fits both receipt and pooled storage, and pools only actual payment.

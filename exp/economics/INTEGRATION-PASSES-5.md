@@ -10,7 +10,7 @@ preaccepted. Person self-directed policy changes remain deferred.
 | 22 | Physical payroll from member inventory | Storage, wage pooling and carrying costs | Complete |
 | 23 | Optional assistance for member wage debts | Claim-driven Close allocations with explicit priority | Complete |
 | 24 | Buy denomination stock for supported member wages | Shared funded requirements and finite market budgets | Complete |
-| 25 | Combine member employment, collective support and changing membership | Continuation, replay and separate books | Pending |
+| 25 | Combine member employment, collective support and changing membership | Continuation, replay and separate books | Complete |
 
 ## Pass 21
 
@@ -81,3 +81,60 @@ four, leaving no household liability. Disabled support, disabled funding and no
 barter stock controls leave four coins owed after the private two are paid. No
 new work is performed before arrears clear. CPU/reference, checkpoint and replay
 agree; existing need-order and household market tests pass.
+
+## Pass 25
+
+The six-month live scenario starts with four collective coins and twelve external
+counterparty coins. A member hires two hours for four coins, produces four grain
+and pools half the output. The household can buy four coins with two pooled grain,
+and optionally assist actual wage debts. Contracts, work target and market quotes
+are supplied; there is no new autonomous employment discovery.
+
+The household pays month-one wages from its initial coins. Month two creates an
+unfunded wage claim; month-three market purchases clear it, but delivery had already
+suspended at Acquire. Work resumes in month four, followed by another arrears/funding
+cycle. This deliberately records the consequence of buying for earned claims only.
+Four coins remain owed after month six; sixteen total coins are conserved. It is
+not a demonstration of financially sustainable or optimal hiring.
+
+In the exit control, the employer leaves at Open three. The rotating governor
+changes to the remaining adult, so the household is still operational. It stops
+funding the departed member's wages; the old four-coin personal claim survives and
+employment stays suspended. No private property or debt is appropriated on exit.
+
+CPU/reference runs with reversed participant/resource/employment tables agree.
+The same dated exit reproduces full ledger replay, and a checkpoint before exit
+reproduces state, ledger and Audit. Separate financial statements balance. The
+settlement observer now exposes all household allocations, including requested,
+minimum and allocated wage support plus rank/policy and original submission order.
+
+A native assistance control transfers six grain to the member but settles only two
+when worker storage is limited. Four remain in private inventory at carrying cost,
+and eight remain owed. With adequate worker space all six settle. Funding and
+payment stay separate, and neither case duplicates grain, cost or wage income.
+
+## Remaining limits
+
+Employment is still preaccepted. Internal household hires (including common
+past/future members), household-as-worker delivery, wage insolvency, wage guarantees,
+autonomous recruitment and general long-horizon financing remain unsupported.
+Wage assistance supplies stock; it is not creditor-specific escrow, co-borrowing or
+a promise that the member can successfully pay a storage-constrained worker.
+Household support priority does not establish statutory ranking across wage and
+loan creditors. Person self-directed policy changes remain deferred.
+
+## Verification — 2026-09-29
+
+**360 tests passed across 30 selected suites**, including all eight new member
+employment checks and the existing ten-year CPU/reference household income loop.
+Coverage includes household formation, governance, allocation, membership, disposal,
+employment, wage arrears, need orders, town markets, laws, loans/recovery, inventory,
+process/service costing and telemetry. The existing slow annual 32-person accounting
+test remained ignored; the full crate suite was not run.
+
+Formatting, strict all-target Clippy, whitespace checks and the repository artifact
+policy passed. Focused runs overlap this final selection and are not counted twice.
+Generated logs remain under ignored `output/economics/household-batch5-*.log`;
+commits contain source, tests and Markdown only. These checks establish the listed
+execution/accounting combinations, not autonomous hiring viability or universal
+contract composition.

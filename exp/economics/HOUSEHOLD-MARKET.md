@@ -155,9 +155,11 @@ See [combined verification and limitations](INTEGRATION-PASSES-3.md).
 
 ## Earned payroll demand
 
-Static `fund_earned_wages` adds the household's own earned wage obligations to
-collective needs-first buying requirements, alongside separately enabled process
-inputs and current loan dues. Existing holdings offset requirements; future
+Static `fund_earned_wages` adds the household's own earned wage obligations, plus
+member wage obligations when `support_member_wages` is enabled, to collective
+needs-first buying requirements, alongside separately enabled process
+inputs and current loan dues. Each member's private holdings offset combined enabled
+requirements once; collective holdings reduce the remaining demand. Future
 undelivered work creates no demand. Member purchasing delegation does not acquire
 this responsibility. Orders still require legal access, payment stock, space and a
 matching counterparty. Incoming market receipts cannot fund hiring in the same
@@ -167,3 +169,10 @@ The [fourth integration batch](INTEGRATION-PASSES-4.md) connects hired hours,
 member production, pooled output, sales and payroll. A temporary market closure
 releases worker hours for self-production and changes subsequent demand; fixed
 contract terms and conserved cash do not guarantee sustained household employment.
+
+The [fifth integration batch](INTEGRATION-PASSES-5.md) runs private member hiring,
+production, output pooling, collective coin purchases and payroll assistance through
+this book. Current earned claims generate bids; future payroll does not. With finite
+initial funds, work alternates with months clearing arrears. Explicit member exit
+removes collective demand for that member without erasing their wage debt. Quotes,
+work targets and counterparties remain supplied configuration.

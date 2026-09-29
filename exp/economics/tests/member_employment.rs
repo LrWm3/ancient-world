@@ -481,3 +481,193 @@ fn collective_market_funds_only_enabled_member_wages_and_offsets_private_cash_on
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+fn live_loop() -> (World, State) {
+    use economics_compute_smoke::household_governance::{Governance, Policy};
+    let (mut w, mut s) = arrears_market(true, true, true);
+    s.month = 1;
+    s.employment = Default::default();
+    s.balances.clear();
+    s.balances.insert((HOME, TOKEN), 4);
+    s.balances.insert((92, TOKEN), 12);
+    for p in &mut w.participants {
+        p.capacity.quantity = if p.agent == WORKER { 2 } else { 0 };
+        w.storage.capacities.insert(p.agent, 100);
+    }
+    w.households[0].governance = Governance::rotating(PERSON, 12);
+    let c = &mut w.households[0].governance.charter;
+    c.initial_policy = Policy::NeedsFirst;
+    c.support_member_wages = true;
+    c.fund_earned_wages = true;
+    w.employment[0].capacity.quantity = 2;
+    w.employment[0].through = 6;
+    w.activities.orders.push(WorkOrder {
+        agent: PERSON,
+        definition: MAKE,
+        priority: 0,
+        target: Target::Stock(Amount::new(GRAIN, 100)),
+    });
+    (w, s)
+}
+fn leave_at_three(w: &mut World, s: &State, leave: bool) {
+    if leave && s.month == 3 && s.phase == Phase::Open && w.households[0].membership.is_empty() {
+        households::membership::leave(w, s, HOME, PERSON).unwrap();
+    }
+}
+#[test]
+fn live_production_pooling_market_payroll_and_member_exit_preserve_claims_and_expose_funding_lag() {
+    use economics_compute_smoke::telemetry::{Config, Observer};
+    for leave in [false, true] {
+        let (w, s) = live_loop();
+        let run = |w: World, backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            let mut observer = Observer::new(
+                Vec::new(),
+                "member-employment",
+                Config {
+                    settlement: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let mut checkpoint = None;
+            while sim.state.month <= 6 {
+                leave_at_three(&mut sim.world, &sim.state, leave);
+                observer.step_audited(&mut sim, &mut a).unwrap();
+                if sim.state.month == 3 && sim.state.phase == Phase::Open {
+                    checkpoint = Some((sim.clone(), a.clone()));
+                }
+            }
+            for month in 1..=6 {
+                let expected = if [1, 2].contains(&month) || (!leave && [4, 6].contains(&month)) {
+                    2
+                } else {
+                    0
+                };
+                assert_eq!(
+                    sim.state
+                        .employment
+                        .earned
+                        .get(&(1, month))
+                        .map_or(0, |e| e.delivered),
+                    expected,
+                    "month {month}, exit {leave}"
+                );
+            }
+            assert_eq!(
+                sim.state
+                    .employment
+                    .earned
+                    .values()
+                    .map(|e| e.claim.outstanding())
+                    .sum::<i32>(),
+                4
+            );
+            assert_eq!(sim.state.balance(WORKER, TOKEN), if leave { 4 } else { 12 });
+            assert_eq!(sim.state.balance(HOME, GRAIN), 4);
+            assert_eq!(sim.state.balance(PERSON, GRAIN), if leave { 4 } else { 8 });
+            assert_eq!(
+                [HOME, PERSON, WORKER, 92]
+                    .iter()
+                    .map(|id| sim.state.balance(*id, TOKEN))
+                    .sum::<i32>(),
+                16
+            );
+            assert_eq!(value(&a, HOME, A::WagesPayable(1, 2)), 0);
+            if leave {
+                assert_eq!(sim.state.employment.earned[&(1, 2)].claim.outstanding(), 4);
+                assert_eq!(
+                    economics_compute_smoke::household_governance::authority(
+                        &sim.world.households[0],
+                        &sim.state
+                    )
+                    .leader,
+                    Some(MEMBER)
+                );
+                assert!(sim.ledger.iter().filter(|b| b.month >= 3).all(|b| {
+                    b.household
+                        .as_ref()
+                        .unwrap()
+                        .reservations
+                        .iter()
+                        .all(|r| r.request.member != PERSON)
+                }));
+            }
+            for id in [PERSON, HOME, WORKER, 92] {
+                let r = a.book().statements(id, 1, 6).unwrap();
+                assert_eq!(r.assets, r.liabilities + r.equity);
+            }
+            let (mut resumed, mut ra) = checkpoint.unwrap();
+            while resumed.state.month <= 6 {
+                leave_at_three(&mut resumed.world, &resumed.state, leave);
+                ra.step(&mut resumed).unwrap();
+            }
+            assert_eq!(sim.state, resumed.state);
+            assert_eq!(sim.ledger, resumed.ledger);
+            assert_eq!(a, ra);
+            let mut replay = s.clone();
+            let mut replay_world = w;
+            for b in &sim.ledger {
+                leave_at_three(&mut replay_world, &replay, leave);
+                commit(&replay_world, &mut replay, b, backend, DEFAULT_EFFECT_LIMIT).unwrap();
+            }
+            assert_eq!(replay, sim.state);
+            let logs = String::from_utf8(observer.finish().unwrap()).unwrap();
+            assert!(
+                logs.lines()
+                    .map(|l| serde_json::from_str::<serde_json::Value>(l).unwrap())
+                    .any(|r| r["kind"] == "household_allocation"
+                        && r["allocated"] == 4
+                        && r["purpose"].as_str().unwrap().contains("WageSupport"))
+            );
+            (sim.state, sim.ledger, a)
+        };
+        let reference = run(w.clone(), Backend::Reference);
+        let mut reordered = w;
+        reordered.participants.reverse();
+        reordered.resources.reverse();
+        reordered.employment.reverse();
+        assert_eq!(reference, run(reordered, Backend::CubeCpu));
+    }
+}
+
+#[test]
+fn native_wage_assistance_preserves_unspent_member_stock_when_worker_storage_blocks_payment() {
+    for (space, paid) in [(2, 2), (10, 6)] {
+        let (mut w, mut s) = fixture();
+        w.activities.orders.clear();
+        w.employment[0].wage_per_unit.resource = GRAIN;
+        w.households[0].governance.charter.support_member_wages = true;
+        w.storage.capacities.insert(WORKER, space);
+        s.balances.clear();
+        s.balances.insert((HOME, GRAIN), 6);
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            while sim.state.phase != Phase::Close {
+                a.step(&mut sim).unwrap();
+            }
+            let (mut resumed, mut ra) = (sim.clone(), a.clone());
+            a.step(&mut sim).unwrap();
+            ra.step(&mut resumed).unwrap();
+            let r = sim.ledger.last().unwrap().household.as_ref().unwrap();
+            assert_eq!(r.reservations[0].allocated, 6);
+            assert_eq!(sim.state.balance(HOME, GRAIN), 0);
+            assert_eq!(sim.state.balance(PERSON, GRAIN), 6 - paid);
+            assert_eq!(sim.state.balance(WORKER, GRAIN), paid);
+            assert_eq!(
+                sim.state.employment.earned[&(1, 1)].claim.outstanding(),
+                10 - paid
+            );
+            assert_eq!(value(&a, HOME, A::TransferExpense), 6);
+            assert_eq!(value(&a, PERSON, A::Inventory(GRAIN)), i128::from(6 - paid));
+            assert_eq!(value(&a, WORKER, A::Inventory(GRAIN)), i128::from(paid));
+            assert_eq!(sim.state, resumed.state);
+            assert_eq!(a, ra);
+            replay(&w, &s, &sim);
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

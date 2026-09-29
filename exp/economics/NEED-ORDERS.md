@@ -152,8 +152,10 @@ See [combined verification and limitations](INTEGRATION-PASSES-3.md).
 
 With collective buying, a needs-first objective and static charter
 `fund_earned_wages`, current household wage claims contribute to funded stock
-requirements. `employment::claims` supplies the same earned native-stock totals
+requirements. Member wage claims also qualify with `support_member_wages`; private
+holdings offset combined enabled member requirements once. `employment::claims` supplies the same earned native-stock totals
 used by market retention, household resource allocation and hiring affordability.
 This neither pre-funds future labor nor sets general creditor priority. A real fill
 can settle old wages at Close; it is not available to hire at the same Acquire.
-See [combined controls](INTEGRATION-PASSES-4.md).
+See [household-employer controls](INTEGRATION-PASSES-4.md) and
+[member-employer controls](INTEGRATION-PASSES-5.md).

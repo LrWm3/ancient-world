@@ -2,6 +2,8 @@
 
 Another five household/shared passes, preserving the monthly scheduler and
 excluding person self-directed policy changes. Hiring terms are preaccepted.
+[Passes 21–25](INTEGRATION-PASSES-5.md) subsequently extend member-employer and
+member wage-support composition beyond this batch's limits.
 
 | Pass | Household work | Shared consolidation | Status |
 | --- | --- | --- | --- |

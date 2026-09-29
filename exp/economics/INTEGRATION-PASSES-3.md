@@ -90,8 +90,8 @@ These passes connect existing payroll, household pooling, town barter, allocatio
 loan collection and accounting. No scheduler was added and no person self-directed
 policy change was introduced. Charter flags are static, false by default.
 
-Household/member employers and onward paid-capacity delegation still need cost
-allocation and hiring budgets. Current due loans qualify for funding, not future
+At this batch's boundary, household/member employers and onward paid-capacity
+delegation still needed cost allocation and hiring budgets. Current due loans qualify for funding, not future
 installments, arbitrary estate claims, refinancing or speculative work. Fixed
 native-wage values do not establish FX or changing valuations. Town recovery and
 mortgage configuration retain their driver exclusions. Wage insolvency, autonomous

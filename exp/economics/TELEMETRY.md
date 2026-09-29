@@ -304,3 +304,9 @@ capacity-resource ID and available/directed/unused quantities, separate from mem
 contributions. Employment receipts retain requested/delivered/earned/paid quantities
 and the `HiringBudget` reason when household affordability limits delivery. These
 are projections of verified domain receipts, not added planning probes.
+
+`household_allocation` settlement records project verified household reservations:
+household/member, resource, requested amount, minimum grant, allocated amount,
+submission sequence and purpose. They include `WageSupport` rank/policy receipts as
+well as existing need/input/loan requests. Filtering includes either party, and the
+normal settlement log budget applies. No allocation is recomputed by the observer.

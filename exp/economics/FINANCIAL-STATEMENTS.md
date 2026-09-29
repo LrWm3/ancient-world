@@ -1275,3 +1275,19 @@ Tests reconcile cost through hiring, directed work, pooled output and expiration
 then combine repeated production, market revenue and payroll under an interruption.
 Charter payroll funding also buys denomination stock for real earned arrears. The
 hiring budget is not universal cash escrow or a wage-insolvency adapter.
+
+## Member-employer integration
+
+[Passes 21–25](INTEGRATION-PASSES-5.md) carry paid-capacity basis from an individual
+employer through household allocation and another member's output. Own contribution
+quantities exclude purchased hours, while homogeneous hours retain average carrying
+cost. No additional wage is imputed; used, transferred and expired paid basis
+reconcile to original earnings exactly once.
+
+Member wage assistance is a household `TransferExpense` and member `TransferIncome`
+at the existing allocation boundary. Actual payroll settles the member payable and
+worker receivable through ordinary accounting. Native payments preserve inventory
+basis and require reporting values. The worker's household pools only actual wages.
+Leaving a household neither transfers nor writes off the employer's debt. Combined
+coin and physical scenarios keep household/member books separate, including partial
+payment, storage blockage, market funding and later contract suspension.

@@ -60,6 +60,17 @@ pub(super) fn batch(
     if config.settlement
         && let Some(h) = &batch.household
     {
+        for r in &h.reservations {
+            let q = &r.request;
+            if selected(config, q.household) || selected(config, q.member) {
+                records.push(
+                    json!({"kind":"household_allocation", "household":q.household,
+                    "member":q.member,"resource":q.resource,"requested":q.quantity,
+                    "minimum":q.minimum,"allocated":r.allocated,"sequence":q.sequence,
+                    "purpose":format!("{:?}",q.purpose)}),
+                );
+            }
+        }
         for r in &h.retirements {
             if selected(config, r.household) {
                 records.push(

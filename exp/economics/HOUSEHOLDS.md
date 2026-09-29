@@ -634,3 +634,25 @@ of payment stock for these claims. It is independent of current-loan funding and
 member-loan-support settings. No future wages, hypothetical market fills or projected
 outputs count as current funding. See [employment](EMPLOYMENT.md) and the
 [fourth combined verification batch](INTEGRATION-PASSES-4.md).
+
+## Private member employers
+
+Members may hire outside labor through preaccepted employment. Buying hours does
+not enlarge their percentage contribution: own availability adds back this month's
+outgoing employment delivery and subtracts acquired hours. The shared paid-capacity
+adapter retains historical basis through member allocation, production and pooling.
+Internal household employment remains excluded, including common past/future
+membership; a household cannot itself deliver worker services.
+
+Static `support_member_wages` defaults false. When enabled and governance is active,
+current members request their earned native wage shortfall before Close payroll.
+`debt_support` orders these wage slots independently of its Due loan slots, with
+reservation-order or lowest covered claim rank then member ID. Collective own
+payroll and current loan dues retain their stock before member wage assistance.
+Transfers support payment; they never assume or discharge the personal liability.
+
+`fund_earned_wages` can also buy missing stock for these supported claims under
+collective needs-first purchasing. Individual holdings offset combined requirements
+once. New future wages are not forecast demand. A member leaving loses subsequent
+support while keeping their private contracts, assets and debts. See
+[the fifth integration batch](INTEGRATION-PASSES-5.md) for controls and funding lag.

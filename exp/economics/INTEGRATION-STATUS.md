@@ -39,7 +39,9 @@ do not qualify. [The third batch](INTEGRATION-PASSES-3.md) adds physical wage
 storage and native-claim accounting, opt-in member loan assistance, collective
 market demand for current loan payments and explicit assistance priority.
 Budgeted household employers and costed direction to member work now compose in
-[the fourth batch](INTEGRATION-PASSES-4.md). Member employers remain excluded.
+[the fourth batch](INTEGRATION-PASSES-4.md). [The fifth batch](INTEGRATION-PASSES-5.md)
+also admits outside member employment, earned-wage assistance and claim-funded
+collective purchases. Internal household employment remains excluded.
 Direct town lending
 does not enable mortgage purchase configuration, recovery proceedings or joint
 production planners. Adult accession/exit changes contribution and consumption
@@ -55,7 +57,7 @@ and loan estates, plus costed posted stock bids and bilateral negotiated/ZIP tra
 Opt-in owner-operated production adds material work-in-progress, joint-product
 cost shares, consumption expense and aborted-work loss. Work ownership transfers,
 household pooling, opt-in completed-output transfers and opt-in paid-capacity
-capitalization are supported. [Preaccepted employment agreements](EMPLOYMENT.md) add capacity delivery, earned wage claims, partial payment and optional suspension. Outside member employment now composes with household labor contributions and paid-wage pooling. Member employers, negotiated hiring, wage insolvency and priced third-party contract production remain unsupported. Dated land dues now compose with lending and
+capitalization are supported. [Preaccepted employment agreements](EMPLOYMENT.md) add capacity delivery, earned wage claims, partial payment and optional suspension. Outside member employment now composes with household labor contributions and paid-wage pooling. Internal household employment, negotiated hiring, wage insolvency and priced third-party contract production remain unsupported. Dated land dues now compose with lending and
 material production on existing boundaries, including native goods and accepted
 coin alternatives. Estate-paid native/accepted-coin dues now reconcile to restricted debtor cash and neutral custody positions; collection-linked issuance has an explicit opt-in convention. Storage blockage uses existing process failure;
 there is no stored-goods spoilage event to recognize. The complete report set is not universal
@@ -592,8 +594,8 @@ strict all-target Clippy, formatting and artifact checks passed. One slow annual
 [Passes 16–20](INTEGRATION-PASSES-4.md) support preaccepted outside household
 hiring behind a static affordability budget, productive member allocation with
 paid-cost transfer, shared earned-payroll reserves and collective purchases for
-wage arrears. Member-employer/internal-hire semantics and wage estate treatment
-remain excluded. Timing is unchanged: Acquire delivers, Productive directs and
+wage arrears. The fifth batch below adds member employers; internal hires and
+wage estate treatment remain excluded. Timing is unchanged: Acquire delivers, Productive directs and
 executes, Close pays, next Open expires unused hours.
 
 The combined scenario runs an eight-month hiring/output/sale/payroll loop on
@@ -602,3 +604,19 @@ continuation. A supplied month-three market interruption changes the worker's
 self-production and later purchases; it does not establish automatic business
 recovery or sustainable autonomous hiring. Person self-directed policy changes
 remain deferred.
+
+## Fifth household/shared batch
+
+[Passes 21–25](INTEGRATION-PASSES-5.md) remove the blanket member-employer
+exclusion. Own-hour contributions exclude bought hours; historical cost survives
+onward allocation. Physical payroll can connect two distinct households with exact
+pooled storage reservations and separate claims. Static optional wage assistance
+and claim-funded market orders support a member's payment without assuming debt.
+
+Combined live employment/production/pooling/market/payroll tests expose the cost of
+funding only earned wages: delivery pauses until arrears clear. A dated exit stops
+assistance while the claim remains personal; rotating governance keeps the remaining
+household operational. CPU/reference, replay and checkpoint accounting agree.
+Preaccepted terms, supplied market limits and finite counterparties remain scenario
+configuration. This adds no wage insolvency, internal household employment,
+autonomous recruitment or person self-directed policy changes.
