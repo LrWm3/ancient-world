@@ -78,12 +78,16 @@ pub fn validate(w: &World, s: &State) -> Result<(), String> {
     let mut ids = BTreeSet::new();
     let kind = |id| w.resources.iter().find(|r| r.id == id).map(|r| r.kind);
     for t in &w.employment {
+        if w.households.iter().any(|h| h.agent == t.worker) {
+            return Err("household workers need explicit service-delivery terms".into());
+        }
+        // Internal employment needs explicit terms for its interaction with
+        // membership contributions. Keep past/future common memberships excluded.
         if w.households.iter().any(|h| {
-            h.agent == t.worker || crate::households::membership::ever_member(h, t.employer)
+            crate::households::membership::ever_member(h, t.employer)
+                && crate::households::membership::ever_member(h, t.worker)
         }) {
-            return Err(
-                "household workers and member employers need a paid-capacity adapter".into(),
-            );
+            return Err("internal household employment requires explicit terms".into());
         }
         if let Some(h) = w.households.iter().find(|h| h.agent == t.employer)
             && (h

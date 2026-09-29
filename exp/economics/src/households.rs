@@ -772,7 +772,8 @@ fn incomes_for(
 
 /// Household entitlement is based on own capacity before this month's external
 /// employment deliveries. It is reserved at Acquire and remains the same when
-/// Productive allocates the remaining hours. Unused hours return at Productive.
+/// Productive allocates the remaining hours. Purchased hours do not increase the
+/// member's own-labor contribution. Unused hours return at Productive.
 pub(crate) fn labor_reserve(
     world: &World,
     state: &State,
@@ -792,23 +793,29 @@ pub(crate) fn labor_reserve(
     else {
         return 0;
     };
-    let delivered: i64 = state
-        .employment
-        .earned
-        .iter()
-        .filter_map(|((id, month), e)| {
-            (*month == state.month
-                && world
-                    .employment
-                    .iter()
-                    .any(|t| t.id == *id && t.worker == member && t.capacity.resource == resource))
-            .then_some(i64::from(e.delivered))
-        })
-        .sum();
+    let mut delivered = 0_i64;
+    let mut purchased = 0_i64;
+    for ((id, month), e) in &state.employment.earned {
+        if *month != state.month {
+            continue;
+        }
+        if let Some(t) = world
+            .employment
+            .iter()
+            .find(|t| t.id == *id && t.capacity.resource == resource)
+        {
+            if t.worker == member {
+                delivered += i64::from(e.delivered);
+            }
+            if t.employer == member {
+                purchased += i64::from(e.delivered);
+            }
+        }
+    }
     let available = state.balance(member, resource);
-    ((i64::from(available) + delivered) * i64::from(percent)
-        / i64::from(crate::household_governance::PERCENT))
-    .min(i64::from(available)) as i32
+    let own = (i64::from(available) + delivered - purchased).max(0);
+    (own * i64::from(percent) / i64::from(crate::household_governance::PERCENT))
+        .min(i64::from(available)) as i32
 }
 
 fn collect(
