@@ -170,10 +170,14 @@ pub fn blockers(w: &World, s: &State, household: AgentId) -> Vec<Blocker> {
     {
         result.push(Blocker::Asset);
     }
-    if w.rights
-        .iter()
-        .any(|r| involved(r.holder, r.output_owner) && r.through >= s.month)
-    {
+    if w.rights.iter().any(|r| {
+        r.through >= s.month
+            && [
+                crate::commitments::holder(w, s, r),
+                crate::commitments::output_owner(w, s, r),
+            ]
+            .contains(&Some(household))
+    }) {
         result.push(Blocker::Right);
     }
     if s.processes

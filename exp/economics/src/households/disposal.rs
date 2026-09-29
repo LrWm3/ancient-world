@@ -11,6 +11,14 @@ pub struct Sale {
     /// Explicitly included equipment attached to the catalog asset. The total
     /// price includes these amounts; the remainder is the catalog asset's cost.
     pub attachments: Vec<Attachment>,
+    /// Explicit acceptance of title-following use rights and unfinished work.
+    pub control: Option<Control>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Control {
+    pub rights: Vec<u32>,
+    pub processes: Vec<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -69,6 +77,7 @@ pub struct Receipt {
     pub equipment: Option<crate::equipment::DurableAsset>,
     /// Complete opening attachment set, including on rejected package sales.
     pub attachments: Vec<crate::equipment::DurableAsset>,
+    pub processes: Vec<ProcessChange>,
 }
 
 /// Supply mutually accepted sale terms at Open. The last member authorizes the
@@ -83,6 +92,10 @@ pub fn accept(
 ) -> Result<(), String> {
     sale.values()?;
     sale.attachments.sort_by_key(|a| a.asset);
+    if let Some(c) = &mut sale.control {
+        c.rights.sort();
+        c.processes.sort();
+    }
     let a = world
         .households
         .iter()
@@ -113,6 +126,20 @@ pub(super) fn validate(world: &World, state: &State) -> Result<(), String> {
         let mut dated = BTreeSet::new();
         for s in &a.asset_sales {
             s.values()?;
+            if let Some(c) = &s.control
+                && (!world.assets.iter().any(|a| a.id == s.asset)
+                    || c.rights.iter().copied().collect::<BTreeSet<_>>().len() != c.rights.len()
+                    || c.processes.iter().copied().collect::<BTreeSet<_>>().len()
+                        != c.processes.len()
+                    || c.rights
+                        .iter()
+                        .any(|id| !world.rights.iter().any(|r| r.id == *id))
+                    || c.processes
+                        .iter()
+                        .any(|id| !state.processes.contains_key(id)))
+            {
+                return Err("invalid asset control transfer terms".into());
+            }
             if s.assets().any(|asset| !dated.insert((s.month, asset)))
                 || dissolution::winding_at(a, s.month).is_none()
                 || dissolution::closed_at(a, s.month)
@@ -216,9 +243,14 @@ pub(super) fn prepare(world: &World, state: &State) -> Result<(Vec<Receipt>, Vec
         receipts.push(Receipt {
             household: a.agent,
             sale: sale.clone(),
-            rejection: reason,
+            rejection: reason.clone(),
             equipment: state.equipment.get(&sale.asset).cloned(),
             attachments: attached(state, sale.asset).cloned().collect(),
+            processes: if reason.is_none() && sale.control.is_some() {
+                crate::credit::attachment_changes(world, state, sale.asset, sale.buyer)
+            } else {
+                vec![]
+            },
         });
     }
     Ok((receipts, effects))
@@ -245,6 +277,9 @@ pub(super) fn publish(state: &mut State, receipts: &[Receipt]) {
                 .get_mut(&tool.id)
                 .expect("verified attachment")
                 .owner = r.sale.buyer;
+        }
+        for p in &r.processes {
+            state.processes.insert(p.after.id, p.after.clone());
         }
     }
 }
@@ -273,7 +308,10 @@ fn package_rejection(
     sale: &Sale,
 ) -> Option<Rejection> {
     if sale.attachments.is_empty() {
-        return restrictions(world, state, sale.asset);
+        if attached(state, sale.asset).next().is_some() {
+            return Some(Rejection::Attached);
+        }
+        return control_rejection(world, state, seller, sale);
     }
     if !world.assets.iter().any(|a| a.id == sale.asset)
         || sale
@@ -285,7 +323,7 @@ fn package_rejection(
     {
         return Some(Rejection::Attached);
     }
-    if let Some(reason) = restrictions_except_equipment(world, state, sale.asset) {
+    if let Some(reason) = control_rejection(world, state, seller, sale) {
         return Some(reason);
     }
     for tool in attached(state, sale.asset) {
@@ -302,11 +340,83 @@ fn package_rejection(
     None
 }
 
-fn restrictions_except_equipment(
+fn control_rejection(
+    world: &World,
+    state: &State,
+    seller: AgentId,
+    sale: &Sale,
+) -> Option<Rejection> {
+    let Some(c) = &sale.control else {
+        return restrictions_except_equipment(world, state, sale.asset);
+    };
+    if let Some(reason) = encumbrances(world, state, sale.asset) {
+        return Some(reason);
+    }
+    let rights: Vec<_> = world
+        .rights
+        .iter()
+        .filter(|r| r.asset == sale.asset && r.through >= state.month)
+        .collect();
+    let processes: Vec<_> = state
+        .processes
+        .values()
+        .filter(|p| p.asset == Some(sale.asset) && p.status == Status::Active)
+        .collect();
+    if rights.iter().map(|r| r.id).collect::<BTreeSet<_>>() != c.rights.iter().copied().collect()
+        || processes.iter().map(|p| p.id).collect::<BTreeSet<_>>()
+            != c.processes.iter().copied().collect()
+        || rights.iter().any(|r| {
+            !crate::credit::follows_owner(world, r.id)
+                || crate::commitments::holder(world, state, r) != Some(seller)
+                || crate::commitments::output_owner(world, state, r) != Some(seller)
+                || crate::commitments::active(world, state).any(|a| a.right == r.id)
+        })
+        || processes.iter().any(|p| {
+            p.operator != seller
+                || p.beneficiary != seller
+                || p.right.is_none_or(|id| !c.rights.contains(&id))
+        })
+    {
+        return Some(Rejection::Attached);
+    }
+    if !opportunities::permits(world, state, sale.buyer, opportunities::Action::LandAccess)
+        || processes.iter().any(|p| {
+            !opportunities::permits(
+                world,
+                state,
+                sale.buyer,
+                opportunities::Action::Process(p.definition),
+            )
+        })
+    {
+        return Some(Rejection::Permission);
+    }
+    None
+}
+
+pub(super) fn restrictions_except_equipment(
     world: &World,
     state: &State,
     asset: AssetId,
 ) -> Option<Rejection> {
+    if let Some(reason) = encumbrances(world, state, asset) {
+        return Some(reason);
+    }
+    if world
+        .rights
+        .iter()
+        .any(|r| r.asset == asset && r.through >= state.month)
+        || state
+            .processes
+            .values()
+            .any(|p| p.asset == Some(asset) && p.status == Status::Active)
+    {
+        return Some(Rejection::Attached);
+    }
+    None
+}
+
+fn encumbrances(world: &World, state: &State, asset: AssetId) -> Option<Rejection> {
     if state.exchange.contracts.contains_key(&asset)
         || world
             .offers
@@ -334,17 +444,6 @@ fn restrictions_except_equipment(
             .any(|p| p.assets.iter().any(|l| l.asset == asset))
     {
         return Some(Rejection::Encumbered);
-    }
-    if world
-        .rights
-        .iter()
-        .any(|r| r.asset == asset && r.through >= state.month)
-        || state
-            .processes
-            .values()
-            .any(|p| p.asset == Some(asset) && p.status == Status::Active)
-    {
-        return Some(Rejection::Attached);
     }
     None
 }

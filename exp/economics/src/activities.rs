@@ -37,6 +37,8 @@ pub struct CoinPayment {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Activities {
+    /// Immediately recoverable material per retired asset; not a labor recycling recipe.
+    pub salvage: BTreeMap<u32, Vec<Amount>>,
     pub kinds: BTreeMap<u32, DurableKind>,
     pub outcomes: BTreeMap<DefinitionId, Outcome>,
     /// Mandatory productive asset, independent of an optional labor-saving tool.
@@ -242,6 +244,20 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             .iter()
             .any(|r| r.id == id && r.kind == ResourceKind::Stock)
     };
+    for (kind, outputs) in &world.activities.salvage {
+        let mut ids = BTreeSet::new();
+        if !world.activities.kinds.contains_key(kind)
+            || outputs.is_empty()
+            || outputs.iter().any(|a| {
+                a.quantity <= 0
+                    || !stock(a.resource)
+                    || !ids.insert(a.resource)
+                    || world.activities.perishable.contains(&a.resource)
+            })
+        {
+            return Err("invalid durable salvage material recipe".into());
+        }
+    }
     for kind in world.activities.kinds.values() {
         if kind.lifetime == 0 || kind.monthly_decay > kind.lifetime {
             return Err("zero durable lifetime".into());

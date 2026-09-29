@@ -288,6 +288,9 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         }
         // Custody agents cannot participate in other configured economic arrangements.
         if world.participants.iter().any(|p0| p0.agent == p.estate)
+            || world.households.iter().any(|h| {
+                h.agent == p.estate || crate::households::membership::ever_member(h, p.estate)
+            })
             || world.assets.iter().any(|a| a.owner == p.estate)
             || world
                 .lending
@@ -324,6 +327,14 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             || world.credit.is_some()
         {
             return Err("estate custody requires direct-loan composition without active custody-agent trading".into());
+        }
+        if state.month >= p.opening_month
+            && world.households.iter().any(|h| {
+                h.agent == p.debtor
+                    && crate::households::dissolution::winding_at(h, state.month).is_none()
+            })
+        {
+            return Err("household recovery requires explicit wind-down before opening".into());
         }
         let cash = state
             .credit

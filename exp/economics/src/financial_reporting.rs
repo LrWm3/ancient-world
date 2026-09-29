@@ -131,8 +131,8 @@ fn positions(
         }
         accounting::add(&mut p, (asset.owner, Account::Tangible(asset.id)), value)?;
     }
-    // Exhausted equipment must already have zero basis before retirement. Keep
-    // any supplied historical valuation honest; do not hide value in an archive.
+    // Retirement either expenses basis or transfers it into recovered stock.
+    // Never retain a second carrying value in the provenance archive.
     if state
         .retired_equipment
         .keys()
@@ -593,7 +593,7 @@ impl Audit {
         }
         let before = &prepared;
         let after = &core_settled;
-        let (allocated_inventory, allocation_lines) = self.inventory.pool(
+        let (mut allocated_inventory, allocation_lines) = self.inventory.pool(
             world,
             batch
                 .household
@@ -631,6 +631,54 @@ impl Audit {
             }
         }
         let mut equipment_lines = Vec::new();
+        for r in batch
+            .household
+            .iter()
+            .flat_map(|h| &h.retirements)
+            .filter(|r| r.rejection.is_none())
+        {
+            let basis = *asset_values
+                .get(&r.request.asset)
+                .ok_or("missing retired equipment basis")?;
+            asset_values.insert(r.request.asset, 0);
+            if r.request.mode == crate::households::retirement::Mode::Recover {
+                let mut outputs =
+                    world.activities.salvage[&r.equipment.as_ref().unwrap().kind].clone();
+                outputs.sort_by_key(|a| a.resource);
+                let mut units: i128 = outputs.iter().map(|a| i128::from(a.quantity)).sum();
+                let mut remaining = basis;
+                for a in outputs {
+                    if a.resource == self.book.denomination() {
+                        return Err("salvage cannot issue reporting currency".into());
+                    }
+                    let cost = remaining
+                        .checked_mul(i128::from(a.quantity))
+                        .ok_or("salvage valuation overflow")?
+                        / units;
+                    units -= i128::from(a.quantity);
+                    remaining -= cost;
+                    let h = allocated_inventory
+                        .0
+                        .entry((r.household, a.resource))
+                        .or_insert(crate::inventory_accounting::Holding {
+                            quantity: 0,
+                            cost: 0,
+                        });
+                    h.quantity = h
+                        .quantity
+                        .checked_add(a.quantity)
+                        .ok_or("salvage quantity overflow")?;
+                    h.cost = h.cost.checked_add(cost).ok_or("salvage basis overflow")?;
+                }
+            } else {
+                result(
+                    &mut equipment_lines,
+                    r.household,
+                    Account::DisposalLoss,
+                    basis,
+                );
+            }
+        }
         let mut barter_deliveries = vec![];
         let mut production_costs = BTreeMap::new();
         let mut equipment_state = before.clone();
@@ -971,12 +1019,20 @@ impl Audit {
             .iter()
             .filter(|t| t.process.is_some())
             .collect();
-        let attachments = batch
-            .credit
-            .as_ref()
-            .map_or(&[][..], |c| c.attachments.as_slice());
+        let attachments: Vec<_> = batch
+            .household
+            .iter()
+            .flat_map(|h| &h.disposals)
+            .flat_map(|r| r.processes.iter().cloned())
+            .chain(
+                batch
+                    .credit
+                    .iter()
+                    .flat_map(|c| c.attachments.iter().cloned()),
+            )
+            .collect();
         let (transferred_costs, attachment_lines) = if let Some(costs) = &self.processes {
-            let (costs, lines) = costs.transfer_attachments(attachments)?;
+            let (costs, lines) = costs.transfer_attachments(&attachments)?;
             (Some(costs), lines)
         } else {
             (None, vec![])

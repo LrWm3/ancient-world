@@ -93,6 +93,7 @@ pub struct Boundary {
     pub disposals: Vec<disposal::Receipt>,
     pub retirements: Vec<retirement::Receipt>,
     pub disposal_effects: Vec<Effect>,
+    pub retirement_effects: Vec<Effect>,
     pub membership: Vec<(AgentId, membership::Change)>,
     pub governance: Vec<crate::household_governance::Authority>,
     pub remainders: Remainders,
@@ -587,7 +588,13 @@ fn prepare(world: &World, state: &State) -> Result<(State, Boundary), String> {
         (b.disposals, b.disposal_effects) = disposal::prepare(world, state)?;
         apply(world, &mut staged, &b.disposal_effects, Backend::Reference)?;
         disposal::publish(&mut staged, &b.disposals);
-        b.retirements = retirement::prepare(world, state);
+        (b.retirements, b.retirement_effects) = retirement::prepare(world, &staged)?;
+        apply(
+            world,
+            &mut staged,
+            &b.retirement_effects,
+            Backend::Reference,
+        )?;
         retirement::publish(&mut staged, &b.retirements);
     }
     if !matches!(state.phase, Phase::Open | Phase::Close) {
@@ -1159,6 +1166,7 @@ pub(crate) fn settled_boundaries(
         .sum::<usize>()
         .checked_add(receipt.before.len())
         .and_then(|n| n.checked_add(receipt.disposal_effects.len()))
+        .and_then(|n| n.checked_add(receipt.retirement_effects.len()))
         .and_then(|n| n.checked_add(receipt.after.len()))
         .ok_or("household buffer overflow")?;
     if count > limit {
@@ -1172,6 +1180,7 @@ pub(crate) fn settled_boundaries(
         || receipt.membership != expected.membership
         || receipt.dissolution != expected.dissolution
         || receipt.retirements != expected.retirements
+        || receipt.retirement_effects != expected.retirement_effects
         || receipt.disposals != expected.disposals
         || receipt.disposal_effects != expected.disposal_effects
     {
@@ -1181,6 +1190,7 @@ pub(crate) fn settled_boundaries(
     apply(world, &mut staged, &expected.before, backend)?;
     apply(world, &mut staged, &expected.disposal_effects, backend)?;
     disposal::publish(&mut staged, &expected.disposals);
+    apply(world, &mut staged, &expected.retirement_effects, backend)?;
     retirement::publish(&mut staged, &expected.retirements);
     let mut core = batch.clone();
     core.household = None;

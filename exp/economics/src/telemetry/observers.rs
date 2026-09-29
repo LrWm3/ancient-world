@@ -65,6 +65,8 @@ pub(super) fn batch(
                 records.push(
                     json!({"kind":"household_equipment_retirement", "household":r.household,
                     "asset":r.request.asset,"retired":r.rejection.is_none(),
+                    "mode":format!("{:?}",r.request.mode),
+                    "recovered": if r.rejection.is_none() && r.request.mode == crate::households::retirement::Mode::Recover {r.equipment.as_ref().and_then(|e|world.activities.salvage.get(&e.kind)).map(|v|v.iter().map(|a|(a.resource,a.quantity)).collect::<Vec<_>>())} else {None},
                     "remaining_uses":r.equipment.as_ref().map(|e| e.remaining_uses),
                     "rejection":r.rejection.as_ref().map(|reason| format!("{reason:?}"))}),
                 );
@@ -77,6 +79,8 @@ pub(super) fn batch(
                     "asset":r.sale.asset,"buyer":r.sale.buyer,"resource":r.sale.price.resource,
                     "price":r.sale.price.quantity,"settled":r.rejection.is_none(),
                     "allocations":r.sale.values().ok(),
+                    "rights":r.sale.control.as_ref().map(|c|&c.rights),
+                    "processes":r.processes.iter().map(|c|json!({"id":c.after.id,"from":c.before.as_ref().map(|p|p.operator),"to":c.after.operator})).collect::<Vec<_>>(),
                     "attachments":r.attachments.iter().map(|e| json!({"asset":e.id,
                         "owner":e.owner,"attached_to":e.attached_to,"kind":e.kind,
                         "remaining_uses":e.remaining_uses,"last_used_month":e.last_used_month})).collect::<Vec<_>>(),

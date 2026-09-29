@@ -240,8 +240,14 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         if id != asset.id
             || state.equipment.contains_key(&id)
             || world.assets.iter().any(|a| a.id == id)
-            || asset.remaining_uses != 0
-            || asset.attached_to.is_some()
+            || world
+                .activities
+                .kinds
+                .get(&asset.kind)
+                .is_none_or(|k| asset.remaining_uses > k.lifetime)
+            || asset
+                .attached_to
+                .is_some_and(|id| !world.assets.iter().any(|a| a.id == id))
             || !world.agents.iter().any(|a| a.id == asset.owner)
             || retired.month == 0
             || retired.month > state.month

@@ -513,13 +513,12 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             || world.town_market.is_some()
             || world.competition.is_some()
             || world.pool_market.is_some()
-            || !world.households.is_empty()
             || world.market.as_ref().is_some_and(|m| m.plots.is_some())
             || world.priority == Priority::ConsequenceAware
             || (world.market.is_none()
                 && (!world.offers.is_empty() || !world.access_offers.is_empty())))
     {
-        return Err("general loans require a composed acquisition driver; household delegation, town/minting, plot expansion and search acquisition are not yet composed".into());
+        return Err("general loans require a composed acquisition driver; town/minting, plot expansion and search acquisition are not yet composed".into());
     }
     let agent = |id| world.agents.iter().any(|a| a.id == id);
     let stock = |id| {
@@ -843,20 +842,35 @@ pub(crate) fn transfer_attachments(
     asset: AssetId,
     to: AgentId,
 ) {
-    for p in state.processes.values().filter(|p| {
-        p.status == crate::model::Status::Active
-            && p.asset == Some(asset)
-            && p.right.is_some_and(|id| follows_owner(world, id))
-    }) {
-        let mut after = p.clone();
-        after.operator = to;
-        after.beneficiary = to;
-        after.goal = None;
-        out.attachments.push(ProcessChange {
-            before: Some(p.clone()),
-            after,
-        });
-    }
+    out.attachments
+        .extend(attachment_changes(world, state, asset, to));
+}
+
+pub(crate) fn attachment_changes(
+    world: &World,
+    state: &State,
+    asset: AssetId,
+    to: AgentId,
+) -> Vec<ProcessChange> {
+    state
+        .processes
+        .values()
+        .filter(|p| {
+            p.status == crate::model::Status::Active
+                && p.asset == Some(asset)
+                && p.right.is_some_and(|id| follows_owner(world, id))
+        })
+        .map(|p| {
+            let mut after = p.clone();
+            after.operator = to;
+            after.beneficiary = to;
+            after.goal = None;
+            ProcessChange {
+                before: Some(p.clone()),
+                after,
+            }
+        })
+        .collect()
 }
 pub fn follows_owner(world: &World, right: u32) -> bool {
     world.ownership_rights.contains(&right)

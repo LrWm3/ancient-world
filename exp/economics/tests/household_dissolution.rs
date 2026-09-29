@@ -27,6 +27,7 @@ fn disposal_fixture(price: i32) -> (World, State) {
         HOME,
         PERSON,
         households::disposal::Sale {
+            control: None,
             attachments: vec![],
             month: 2,
             asset: PLOT,
@@ -184,6 +185,7 @@ fn pledged_sales_and_unvalued_denominations_do_not_bypass_admission_or_accountin
         HOME,
         PERSON,
         households::disposal::Sale {
+            control: None,
             attachments: vec![],
             month: 2,
             asset: PLOT,
@@ -237,6 +239,7 @@ fn unfunded_sales_expire_without_transferring_property_and_need_fresh_consent() 
         HOME,
         PERSON,
         households::disposal::Sale {
+            control: None,
             attachments: vec![],
             month: 3,
             asset: PLOT,
@@ -264,6 +267,7 @@ fn competing_disposals_share_one_opening_budget_with_stable_priority() {
         HOME,
         PERSON,
         households::disposal::Sale {
+            control: None,
             attachments: vec![],
             month: 2,
             asset: PLOT + 1,
@@ -568,13 +572,6 @@ fn owned_assets_and_future_contracts_block_distribution() {
                 collateral: None,
                 priority: 0,
             });
-        }
-        if !owned {
-            assert!(d::blockers(&w, &s, HOME).contains(&d::Blocker::Loan));
-            let before = w.clone();
-            assert!(d::request(&mut w, &s, HOME, PERSON).is_err()); // existing unsupported driver remains rejected
-            assert_eq!(w, before);
-            continue;
         }
         d::request(&mut w, &s, HOME, PERSON).unwrap();
         let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();

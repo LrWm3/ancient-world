@@ -77,6 +77,7 @@ fn fixture() -> (World, State) {
 }
 fn terms(price: i32) -> disposal::Sale {
     disposal::Sale {
+        control: None,
         attachments: vec![],
         month: 2,
         asset: TOOL,
@@ -801,4 +802,181 @@ fn retirement_rechecks_its_own_permission_and_observer_records_outcome() {
     let (mut w, s) = retirement_fixture();
     w.households[0].asset_sales.push(terms(1));
     assert!(Simulation::new(w, s, Backend::Reference).is_err());
+}
+
+#[test]
+fn explicit_salvage_and_discard_recognize_cost_and_allow_closure_on_cpu() {
+    use households::retirement::{self, Mode};
+    for mode in [Mode::Discard, Mode::Recover] {
+        let (mut w, s) = fixture();
+        w.activities
+            .salvage
+            .insert(KIND, vec![Amount::new(SEED, 1), Amount::new(GRAIN, 2)]);
+        retirement::request_with_mode(&mut w, &s, HOME, PERSON, TOOL, mode.clone()).unwrap();
+        let run = |backend| {
+            let mut a = audit(&w, &s);
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            a.step(&mut sim).unwrap();
+            assert!(!sim.state.equipment.contains_key(&TOOL));
+            assert_eq!(
+                sim.state.retired_equipment[&TOOL].equipment.remaining_uses,
+                6
+            );
+            let report = a.book().statements(HOME, 2, 2).unwrap();
+            if mode == Mode::Recover {
+                assert_eq!(sim.state.balance(HOME, GRAIN), 4);
+                assert_eq!(sim.state.balance(HOME, SEED), 1);
+                assert_eq!(report.expenses.get(&A::DisposalLoss), None);
+                assert_eq!(report.assets, 21); // 5 cash + 4 old grain cost + 12 recovered basis
+            } else {
+                assert_eq!(report.expenses[&A::DisposalLoss], 12);
+            }
+            let (mut resumed, mut ra) = (sim.clone(), a.clone());
+            through(&mut a, &mut sim, 3);
+            dissolution::finish(&mut sim.world, &sim.state, HOME, PERSON).unwrap();
+            through(&mut a, &mut sim, 4);
+            through(&mut ra, &mut resumed, 3);
+            dissolution::finish(&mut resumed.world, &resumed.state, HOME, PERSON).unwrap();
+            through(&mut ra, &mut resumed, 4);
+            assert_eq!(
+                (sim.state.clone(), sim.ledger.clone(), a.clone()),
+                (resumed.state, resumed.ledger, ra)
+            );
+            assert_eq!(a.book().statements(HOME, 2, 4).unwrap().assets, 0);
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
+
+#[test]
+fn salvage_shares_storage_rejects_forgery_and_does_not_recover_twice() {
+    use households::retirement::{self, Mode};
+    let (mut w, mut s) = fixture();
+    w.activities
+        .salvage
+        .insert(KIND, vec![Amount::new(GRAIN, 2)]);
+    let mut second = s.equipment[&TOOL].clone();
+    second.id += 1;
+    s.equipment.insert(second.id, second);
+    w.storage.weights.insert(GRAIN, 1);
+    w.storage.capacities.insert(PERSON, 8);
+    for id in [TOOL, TOOL + 1] {
+        retirement::request_with_mode(&mut w, &s, HOME, PERSON, id, Mode::Recover).unwrap();
+    }
+    let mut sim = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    sim.step().unwrap();
+    let batch = &sim.ledger[0];
+    let r = &batch.household.as_ref().unwrap().retirements;
+    assert_eq!(r[0].rejection, None);
+    assert_eq!(r[1].rejection, Some(disposal::Rejection::FundingOrStorage));
+    assert_eq!(sim.state.balance(HOME, GRAIN), 4);
+    for backend in [Backend::Reference, Backend::CubeCpu] {
+        let mut forged = batch.clone();
+        forged.household.as_mut().unwrap().retirement_effects[0].delta += 1;
+        let mut state = s.clone();
+        assert!(commit(&w, &mut state, &forged, backend, DEFAULT_EFFECT_LIMIT).is_err());
+        assert_eq!(state, s);
+        assert!(commit(&w, &mut state, batch, backend, 0).is_err());
+        assert_eq!(state, s);
+    }
+    assert!(
+        retirement::request_with_mode(
+            &mut sim.world,
+            &sim.state,
+            HOME,
+            PERSON,
+            TOOL,
+            Mode::Recover
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn attached_decommission_requires_free_owned_site_and_explicit_mode() {
+    use households::retirement::{self, Mode};
+    let (mut w, mut s) = fixture();
+    w.assets.push(Asset {
+        id: PLOT,
+        owner: HOME,
+        kind: 1,
+    });
+    w.activities.kinds.get_mut(&KIND).unwrap().attached = true;
+    s.equipment.get_mut(&TOOL).unwrap().attached_to = Some(PLOT);
+    w.activities
+        .salvage
+        .insert(KIND, vec![Amount::new(GRAIN, 1)]);
+    assert!(retirement::request(&mut w, &s, HOME, PERSON, TOOL).is_err());
+    let original = w.clone();
+    w.rights = baseline().0.rights;
+    assert!(retirement::request_with_mode(&mut w, &s, HOME, PERSON, TOOL, Mode::Recover).is_err());
+    w = original;
+    retirement::request_with_mode(&mut w, &s, HOME, PERSON, TOOL, Mode::Recover).unwrap();
+    let mut a = Audit::with_inventory(
+        &w,
+        &s,
+        TOKEN,
+        [(PLOT, 6), (TOOL, 12)].into(),
+        [((HOME, GRAIN), 4)].into(),
+    )
+    .unwrap();
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    through(&mut a, &mut sim, 2);
+    disposal::accept(
+        &mut sim.world,
+        &sim.state,
+        HOME,
+        PERSON,
+        disposal::Sale {
+            month: 3,
+            asset: PLOT,
+            buyer: STATE_AGENT,
+            price: Amount::new(TOKEN, 8),
+            attachments: vec![],
+            control: None,
+        },
+    )
+    .unwrap();
+    through(&mut a, &mut sim, 3);
+    assert_eq!(sim.state.credit.owners[&PLOT], STATE_AGENT);
+    assert_eq!(
+        sim.state.retired_equipment[&TOOL].equipment.attached_to,
+        Some(PLOT)
+    );
+}
+
+#[test]
+fn exhausted_salvage_is_zero_cost_and_currency_valuation_cannot_partially_publish() {
+    use households::retirement::{self, Mode};
+    for resource in [GRAIN, TOKEN] {
+        let (mut w, mut s) = fixture();
+        s.equipment.get_mut(&TOOL).unwrap().remaining_uses = 0;
+        w.activities
+            .salvage
+            .insert(KIND, vec![Amount::new(resource, 2)]);
+        retirement::request_with_mode(&mut w, &s, HOME, PERSON, TOOL, Mode::Recover).unwrap();
+        let mut a = Audit::with_inventory(
+            &w,
+            &s,
+            TOKEN,
+            [(TOOL, 0)].into(),
+            [((HOME, GRAIN), 4)].into(),
+        )
+        .unwrap();
+        let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+        let before = (sim.state.clone(), sim.ledger.clone(), a.clone());
+        if resource == TOKEN {
+            assert!(
+                a.step(&mut sim)
+                    .unwrap_err()
+                    .contains("salvage cannot issue")
+            );
+            assert_eq!((sim.state, sim.ledger, a), before);
+        } else {
+            a.step(&mut sim).unwrap();
+            assert_eq!(sim.state.balance(HOME, GRAIN), 4);
+            assert_eq!(a.book().statements(HOME, 2, 2).unwrap().assets, 9);
+        }
+    }
 }

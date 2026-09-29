@@ -93,6 +93,7 @@ fn sale(total: i32, dwelling: i32, workshop: i32) -> Sale {
         asset: PLOT,
         buyer: STATE_AGENT,
         price: Amount::new(TOKEN, total),
+        control: None,
         attachments: vec![
             Attachment {
                 asset: TOOL,
@@ -251,6 +252,7 @@ fn package_requires_explicit_complete_unique_components_and_valid_price_allocati
         asset: TOOL,
         buyer: STATE_AGENT,
         price: Amount::new(TOKEN, 1),
+        control: None,
         attachments: vec![],
     });
     assert!(validate_world(&w, &s).is_err());
@@ -258,6 +260,7 @@ fn package_requires_explicit_complete_unique_components_and_valid_price_allocati
     w.households[0]
         .equipment_retirements
         .push(households::retirement::Request {
+            mode: households::retirement::Mode::Exhausted,
             month: 2,
             asset: TOOL,
         });
@@ -405,6 +408,7 @@ fn package_funding_is_indivisible_and_shares_opening_budget_with_bare_sales() {
                 asset: PLOT + 1,
                 buyer: STATE_AGENT,
                 price: Amount::new(TOKEN, 1),
+                control: None,
                 attachments: vec![],
             },
         );
@@ -507,8 +511,8 @@ fn package_does_not_novate_crop_work_or_pledged_components() {
     let err = disposal::accept(&mut w, &s, HOME, PERSON, sale(30, 12, 10)).unwrap_err();
     assert!(err.contains("transferable property"));
     assert_eq!((w, s), before);
-    // Future collateral reservations are refused at admission even though the
-    // household loan scheduler itself remains an unsupported combination.
+    // Future collateral reservations block admission: assets cannot be sold
+    // out from under their promised pledge.
     for asset in [PLOT, TOOL, WORKSHOP] {
         let (mut w, s) = fixture();
         w.lending.push(Advance {
@@ -620,4 +624,160 @@ fn unsupported_package_payment_valuation_rolls_back_state_and_every_statement() 
     assert_eq!(a, before);
     assert_eq!(sim.state, s);
     assert!(sim.ledger.is_empty());
+}
+
+#[test]
+fn explicit_title_and_crop_transfer_preserves_work_cost_and_requires_future_labor() {
+    use economics_compute_smoke::{financial_reporting::Opening, process_accounting::Costs};
+    for works in [false, true] {
+        let (mut w, mut s) = fixture();
+        let (base, _) = baseline();
+        let d = base.definition(GROW).clone();
+        let duration = d.duration();
+        w.definitions.push(d);
+        w.rights = base.rights;
+        w.rights[0].holder = HOME;
+        w.rights[0].output_owner = HOME;
+        w.ownership_rights.insert(w.rights[0].id);
+        s.processes.insert(
+            1,
+            ProcessInstance {
+                id: 1,
+                definition: GROW,
+                operator: HOME,
+                beneficiary: HOME,
+                goal: None,
+                asset: Some(PLOT),
+                right: Some(w.rights[0].id),
+                start: 1,
+                reserved_through: duration,
+                stage: 1,
+                elapsed: 0,
+                status: Status::Active,
+            },
+        );
+        let mut terms = sale(30, 12, 10);
+        terms.buyer = PERSON;
+        terms.control = Some(disposal::Control {
+            rights: vec![w.rights[0].id],
+            processes: vec![1],
+        });
+        s.balances.insert((PERSON, TOKEN), 40);
+        if !works {
+            w.participants[0].capacity.quantity = 0;
+        }
+        accept(&mut w, &s, terms);
+        let run = |backend| {
+            let mut a = Audit::with_opening(
+                &w,
+                &s,
+                TOKEN,
+                Opening {
+                    assets: [(PLOT, 6), (TOOL, 12), (WORKSHOP, 6)].into(),
+                    inventory: [((HOME, GRAIN), 4)].into(),
+                    processes: Some(Costs {
+                        work: [(1, (HOME, 3))].into(),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            a.step(&mut sim).unwrap();
+            let p = &sim.state.processes[&1];
+            assert_eq!(
+                (p.operator, p.beneficiary, p.elapsed, p.start),
+                (PERSON, PERSON, 0, 1)
+            );
+            assert_eq!(
+                sim.ledger[0].household.as_ref().unwrap().disposals[0]
+                    .processes
+                    .len(),
+                1
+            );
+            assert_eq!(
+                a.book().statements(HOME, 2, 2).unwrap().expenses[&A::TransferExpense],
+                3
+            );
+            assert_eq!(sim.state.credit.values[&PLOT], 8); // Crop cost does not inflate collateral.
+            let (mut resumed, mut ra) = (sim.clone(), a.clone());
+            through(&mut a, &mut sim, duration + 1);
+            through(&mut ra, &mut resumed, duration + 1);
+            assert_eq!(
+                (sim.state.clone(), sim.ledger.clone(), a.clone()),
+                (resumed.state, resumed.ledger, ra)
+            );
+            assert_eq!(
+                sim.state.processes[&1].status,
+                if works {
+                    Status::Completed
+                } else {
+                    Status::Aborted
+                }
+            );
+            assert_eq!(sim.state.balance(PERSON, GRAIN), if works { 10 } else { 2 });
+            dissolution::finish(&mut sim.world, &sim.state, HOME, PERSON).unwrap();
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
+
+#[test]
+fn live_right_transfer_requires_exact_consent_rechecks_it_and_replays_atomically() {
+    let setup = || {
+        let (mut w, s) = fixture();
+        w.rights = baseline().0.rights;
+        w.rights[0].holder = HOME;
+        w.rights[0].output_owner = HOME;
+        w.ownership_rights.insert(w.rights[0].id);
+        let mut terms = sale(30, 12, 10);
+        terms.control = Some(disposal::Control {
+            rights: vec![w.rights[0].id],
+            processes: vec![],
+        });
+        (w, s, terms)
+    };
+    for mode in 0..3 {
+        let (mut w, s, mut terms) = setup();
+        match mode {
+            0 => terms.control.as_mut().unwrap().rights.clear(),
+            1 => w.ownership_rights.clear(),
+            _ => {
+                let mut r = w.rights[0].clone();
+                r.id += 1;
+                w.rights.push(r);
+            }
+        }
+        let before = w.clone();
+        assert!(disposal::accept(&mut w, &s, HOME, PERSON, terms).is_err());
+        assert_eq!(w, before);
+    }
+    let (mut w, s, terms) = setup();
+    accept(&mut w, &s, terms);
+    let mut changed = w.clone();
+    changed.ownership_rights.clear();
+    let mut sim = Simulation::new(changed, s.clone(), Backend::Reference).unwrap();
+    sim.step().unwrap();
+    assert_eq!(
+        sim.ledger[0].household.as_ref().unwrap().disposals[0].rejection,
+        Some(Rejection::Attached)
+    );
+    assert_eq!(sim.state.balance(HOME, TOKEN), 5);
+    let mut sim = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    sim.step().unwrap();
+    for backend in [Backend::Reference, Backend::CubeCpu] {
+        let mut forged = sim.ledger[0].clone();
+        forged.household.as_mut().unwrap().disposals[0]
+            .sale
+            .control
+            .as_mut()
+            .unwrap()
+            .rights
+            .clear();
+        let mut unchanged = s.clone();
+        assert!(commit(&w, &mut unchanged, &forged, backend, DEFAULT_EFFECT_LIMIT).is_err());
+        assert_eq!(unchanged, s);
+    }
 }
