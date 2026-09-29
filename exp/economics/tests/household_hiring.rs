@@ -422,3 +422,204 @@ fn collective_bids_clear_real_wage_arrears_without_funding_same_boundary_hires()
         }
     }
 }
+
+fn trading() -> (World, State) {
+    use economics_compute_smoke::{
+        marketplace::Side,
+        negotiation::QuotePolicy,
+        scenario::{GRAIN, NUTRITION},
+    };
+    let (mut w, s) = production(4);
+    let (mw, ms) = households::market::scenario().unwrap();
+    w.town_market = mw.town_market;
+    let mut s = s;
+    s.town_market = ms.town_market;
+    let p = w
+        .participants
+        .iter_mut()
+        .find(|p| p.agent == WORKER)
+        .unwrap();
+    p.capacity.quantity = 2;
+    p.needs.push(Requirement {
+        resource: NUTRITION,
+        quantity: 2,
+        priority: 0,
+    });
+    for p in &w.participants {
+        w.storage.capacities.insert(p.agent, 100);
+    }
+    w.households[0].governance.charter.hiring_budget = Some(Amount::new(TOKEN, 2));
+    w.employment[0].capacity.quantity = 2;
+    w.employment[0].wage_per_unit.quantity = 1;
+    w.employment[0].through = 8;
+    let c = w.town_market.as_mut().unwrap();
+    c.traders
+        .retain(|t| [HOME, WORKER].contains(&t.trader.agent));
+    for t in &mut c.traders {
+        t.side = if t.trader.agent == HOME {
+            Side::Sell
+        } else {
+            Side::Buy
+        };
+        t.trader.limit = 2;
+        t.trader.opening_quote = 2;
+        t.trader.policy = QuotePolicy::Fixed;
+    }
+    let m = &mut w
+        .marketplaces
+        .iter_mut()
+        .find(|m| m.agent == c.venue)
+        .unwrap()
+        .markets[0];
+    m.goods = Amount::new(GRAIN, 2);
+    m.price_tick = 1;
+    (w, s)
+}
+fn market_window(w: &mut World, month: u32, shock: bool) {
+    w.town_market.as_mut().unwrap().match_limit = if shock && month == 3 { Some(0) } else { None };
+}
+#[test]
+fn repeated_household_hiring_output_sales_and_payroll_respond_to_a_revenue_interruption() {
+    use economics_compute_smoke::{
+        scenario::NUTRITION,
+        telemetry::{Config, Observer},
+    };
+    for shock in [false, true] {
+        let (w, s) = trading();
+        let run = |mut w: World, backend| {
+            let initial = w.clone();
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            let mut observer = Observer::new(
+                Vec::new(),
+                "household-hiring",
+                Config {
+                    settlement: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let mut checkpoint = None;
+            while sim.state.month <= 8 {
+                let month = sim.state.month;
+                market_window(&mut sim.world, month, shock);
+                observer.step_audited(&mut sim, &mut a).unwrap();
+                if sim.state.month == 4 && sim.state.phase == Phase::Open {
+                    checkpoint = Some((sim.clone(), a.clone()));
+                }
+            }
+            for month in 1..=8 {
+                let expected = if shock && [4, 6, 7, 8].contains(&month) {
+                    0
+                } else {
+                    2
+                };
+                assert_eq!(
+                    sim.state
+                        .employment
+                        .earned
+                        .get(&(1, month))
+                        .map_or(0, |e| e.delivered),
+                    expected,
+                    "month {month}, interruption {shock}"
+                );
+            }
+            assert!(
+                sim.state
+                    .employment
+                    .earned
+                    .values()
+                    .all(|e| e.claim.outstanding() == 0)
+            );
+            assert_eq!(
+                sim.state.balance(HOME, TOKEN) + sim.state.balance(WORKER, TOKEN),
+                4
+            );
+            assert!(
+                sim.reports
+                    .iter()
+                    .filter(|r| r.agent == WORKER && r.month >= 5)
+                    .all(|r| r.deficit(NUTRITION) == 0)
+            );
+            // Released worker hours can supply their own food. The interruption
+            // changes later demand; reopening does not guarantee the old cash loop.
+            assert_eq!(
+                sim.ledger.iter().any(|b| b.phase == Phase::Productive
+                    && b.receipts.iter().any(|r| r.agent == WORKER
+                        && r.definition == Some(MAKE)
+                        && r.completed > 0)),
+                shock
+            );
+            assert_eq!(sim.state.balance(HOME, TOKEN), if shock { 0 } else { 2 });
+            for agent in [HOME, PERSON, WORKER] {
+                let r = a.book().statements(agent, 1, 8).unwrap();
+                assert_eq!(r.assets, r.liabilities + r.equity);
+            }
+            let (mut resumed, mut ra) = checkpoint.unwrap();
+            while resumed.state.month <= 8 {
+                let month = resumed.state.month;
+                market_window(&mut resumed.world, month, shock);
+                ra.step(&mut resumed).unwrap();
+            }
+            assert_eq!(sim.state, resumed.state);
+            assert_eq!(sim.ledger, resumed.ledger);
+            assert_eq!(a, ra);
+            let mut replay = s.clone();
+            w = initial;
+            for b in &sim.ledger {
+                market_window(&mut w, b.month, shock);
+                commit(&w, &mut replay, b, backend, DEFAULT_EFFECT_LIMIT).unwrap();
+            }
+            assert_eq!(replay, sim.state);
+            let logs = String::from_utf8(observer.finish().unwrap()).unwrap();
+            assert!(
+                logs.lines()
+                    .map(|l| serde_json::from_str::<serde_json::Value>(l).unwrap())
+                    .any(|r| r["kind"] == "household_labor" && r["purchased"][0]["directed"] == 2)
+            );
+            (sim.state, sim.ledger, a)
+        };
+        let reference = run(w.clone(), Backend::Reference);
+        let mut reversed = w;
+        reversed.participants.reverse();
+        reversed.resources.reverse();
+        reversed.employment.reverse();
+        assert_eq!(reference, run(reversed, Backend::CubeCpu));
+    }
+}
+
+#[test]
+fn purchased_labor_receipts_and_transfers_are_verified_before_publication() {
+    let (w, s) = production(6);
+    for backend in [Backend::Reference, Backend::CubeCpu] {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        while sim.state.phase != Phase::Productive {
+            sim.step().unwrap();
+        }
+        let before = sim.state.clone();
+        sim.step().unwrap();
+        let good = sim.ledger.last().unwrap();
+        for case in 0..2 {
+            let mut bad = good.clone();
+            let h = bad.household.as_mut().unwrap();
+            if case == 0 {
+                h.labor[0].purchased[0].directed += 1;
+            } else {
+                h.before
+                    .iter_mut()
+                    .find(|e| e.account == (HOME, LABOR))
+                    .unwrap()
+                    .delta += 1;
+            }
+            let mut state = before.clone();
+            assert!(commit(&w, &mut state, &bad, backend, DEFAULT_EFFECT_LIMIT).is_err());
+            assert_eq!(state, before);
+        }
+        let mut replay = before;
+        commit(&w, &mut replay, good, backend, DEFAULT_EFFECT_LIMIT).unwrap();
+        assert_eq!(replay, sim.state);
+        let completed = replay.clone();
+        assert!(commit(&w, &mut replay, good, backend, DEFAULT_EFFECT_LIMIT).is_err());
+        assert_eq!(replay, completed);
+    }
+}

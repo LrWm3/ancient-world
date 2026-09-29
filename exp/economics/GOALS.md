@@ -288,7 +288,7 @@ market scenario](PERSON-HOUSEHOLD-LOOP.md). `NeedsThenIncome` links contributed 
 to expected next-book cash. Explicit member surplus mandates close the private
 stock-target failure without increasing targets or appropriating holdings. The
 120-month CPU/reference check feeds both members, conserves coins and reconciles
-separate accounts. Household employment/credit budgets, endogenous work and
+separate accounts. Broader employment/credit planning, endogenous work and
 consent-term discovery, and longer-horizon collective planning remain extensions.
 
 ### Household/shared-gap consolidation — 2026-09-29
@@ -299,12 +299,12 @@ static cash buffers and direct lending. Combined scenario controls cover changin
 availability and membership, CPU/reference continuation and separate books.
 Self-directed person policy changes are explicitly deferred while the general
 policy-setting mechanism is designed. This does not remove the broader goals for
-organizational formation, recruitment, governance or household hiring.
+organizational formation, recruitment, governance or autonomous household hiring.
 
 [The second batch](INTEGRATION-PASSES-2.md) extends that loop with storage-bounded
 support, pooled physical barter, static charter purchase delegation, current
 membership routing and funding of accepted process inputs. Autonomous recruitment,
-new-business/input planning, household hiring remain
+new-business/input planning and autonomous hiring remain
 follow-ups. Person self-directed policy changes remain excluded.
 
 
@@ -314,3 +314,11 @@ stock and explicit scarce-support policy. CPU/reference checks combine wages or
 market exchange with later collection and separate financial statements. These
 are current accepted obligations, not autonomous borrowing or long-horizon
 financing plans. Person self-directed policy changes remain excluded.
+
+[Passes 16–20](INTEGRATION-PASSES-4.md) now connect explicitly budgeted household
+hiring to member production, historical-cost allocation, sales and earned payroll.
+Collective demand can fund existing wage claims. The interruption control also
+exercises an individual's switch to own production when employment stops. This is
+execution and integration evidence; negotiated hiring, self-selected employer
+contracts and long-horizon business viability remain future work. Person
+self-directed policy changes are still deferred.

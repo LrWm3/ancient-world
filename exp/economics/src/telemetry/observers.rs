@@ -145,7 +145,7 @@ pub(super) fn batch(
                     "recipient":d.recipient,"granted":d.granted,"baseline_value":d.baseline_value,
                     "projected_value":d.projected_value,"baseline_needs":d.baseline_needs,
                     "projected_needs":d.projected_needs,"baseline_income":d.baseline_income,
-                    "projected_income":d.projected_income,"contributions":d.contributions.iter().map(|c|
+                    "projected_income":d.projected_income,"purchased":d.purchased,"contributions":d.contributions.iter().map(|c|
                         json!({"member":c.member,"resource":c.resource,"available":c.available,
                             "reserved":c.reserved,"directed":c.directed,"returned":c.returned})).collect::<Vec<_>>() }));
             }

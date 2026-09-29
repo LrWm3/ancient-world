@@ -85,18 +85,18 @@ pub fn validate(w: &World, s: &State) -> Result<(), String> {
                 "household workers and member employers need a paid-capacity adapter".into(),
             );
         }
-        if let Some(h) = w.households.iter().find(|h| h.agent == t.employer) {
-            if h.governance
+        if let Some(h) = w.households.iter().find(|h| h.agent == t.employer)
+            && (h
+                .governance
                 .charter
                 .hiring_budget
                 .as_ref()
                 .is_none_or(|b| b.resource != t.wage_per_unit.resource)
-                || crate::households::membership::ever_member(h, t.worker)
-            {
-                return Err(
-                    "household employment requires a matching budget and outside worker".into(),
-                );
-            }
+                || crate::households::membership::ever_member(h, t.worker))
+        {
+            return Err(
+                "household employment requires a matching budget and outside worker".into(),
+            );
         }
         if !ids.insert(t.id)
             || t.worker == t.employer

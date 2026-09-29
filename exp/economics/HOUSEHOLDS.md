@@ -79,7 +79,8 @@ Rotation is a deterministic succession pilot. Hereditary succession, contested
 authority and office resignation remain unimplemented. [Dated adult admission and
 exit](HOUSEHOLD-MEMBERSHIP.md) now extend the fixed founding record. Outside member employment, private town sales and direct town lending now compose
 in [bounded integration tests](INTEGRATION-PASSES.md). General institutional
-founding, household hiring and longer-horizon collective planning remain outstanding.
+founding, autonomous hiring discovery and longer-horizon collective planning remain
+outstanding. Explicit budgeted hiring is now supported as described below.
 
 ## Elected governance
 
@@ -612,3 +613,24 @@ support and add other policies without moving monthly phases.
 `fund_due_loans` separately permits collective market purchases for these claims
 under a needs-first objective. Current loans alone qualify; estate claims and
 future installments require different adapters. See [passes 11–15](INTEGRATION-PASSES-3.md).
+
+## Purchased labor and payroll
+
+Static charter `hiring_budget: Option<Amount>` opts a percentage-contribution
+household into preaccepted outside employment in one wage denomination. The budget
+is a monthly maximum, constrained further by opening funds less earned arrears;
+it does not change the 20% contribution or imply autonomous contract acceptance.
+
+At Productive, paid household capacity can supplement member contributions under
+the same objective, mandate, feasibility and personal-right checks. The household
+pays; the selected member operates the process. Normal output pooling still applies,
+so the household does not automatically own all output. `LaborDecision.purchased`
+records available, directed and unused quantities by capacity resource. Paid basis
+follows the hours into the member's production; idle hours and basis expire.
+
+Existing earned wages reserve their stock before discretionary member allocations.
+`fund_earned_wages: bool` (default false) enables collective needs-first acquisition
+of payment stock for these claims. It is independent of current-loan funding and
+member-loan-support settings. No future wages, hypothetical market fills or projected
+outputs count as current funding. See [employment](EMPLOYMENT.md) and the
+[fourth combined verification batch](INTEGRATION-PASSES-4.md).

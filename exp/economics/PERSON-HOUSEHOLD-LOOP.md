@@ -130,7 +130,9 @@ Generated logs stay under ignored `output/economics/household-loop-*.log`.
 The initial loop is complete within this scope. Available jobs, private stock
 targets, support terms, governance instructions and reservation prices can still be
 supplied. Autonomous business discovery, personal policy/consent selection,
-long-horizon joint planning, speculative input purchases, household hiring remain subsequent work.
+long-horizon joint planning, speculative input purchases and autonomous hiring
+remain subsequent work. [Budgeted preaccepted hiring](INTEGRATION-PASSES-4.md) now
+composes with costed member allocation, output pooling, sales and payroll.
 [Five consolidation passes](INTEGRATION-PASSES.md) now connect outside wages,
 private surplus sales, static cash buffers and direct loans with town purchases.
 Remaining town-market composition exclusions stay enforced. Person self-directed

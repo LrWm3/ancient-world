@@ -38,7 +38,8 @@ also covers missing inputs of active member processes. Speculative work targets
 do not qualify. [The third batch](INTEGRATION-PASSES-3.md) adds physical wage
 storage and native-claim accounting, opt-in member loan assistance, collective
 market demand for current loan payments and explicit assistance priority.
-Household/member employers remain excluded.
+Budgeted household employers and costed direction to member work now compose in
+[the fourth batch](INTEGRATION-PASSES-4.md). Member employers remain excluded.
 Direct town lending
 does not enable mortgage purchase configuration, recovery proceedings or joint
 production planners. Adult accession/exit changes contribution and consumption
@@ -54,7 +55,7 @@ and loan estates, plus costed posted stock bids and bilateral negotiated/ZIP tra
 Opt-in owner-operated production adds material work-in-progress, joint-product
 cost shares, consumption expense and aborted-work loss. Work ownership transfers,
 household pooling, opt-in completed-output transfers and opt-in paid-capacity
-capitalization are supported. [Preaccepted employment agreements](EMPLOYMENT.md) add capacity delivery, earned wage claims, partial payment and optional suspension. Outside member employment now composes with household labor contributions and paid-wage pooling. Household/member employers, negotiated hiring, wage insolvency and priced third-party contract production remain unsupported. Dated land dues now compose with lending and
+capitalization are supported. [Preaccepted employment agreements](EMPLOYMENT.md) add capacity delivery, earned wage claims, partial payment and optional suspension. Outside member employment now composes with household labor contributions and paid-wage pooling. Member employers, negotiated hiring, wage insolvency and priced third-party contract production remain unsupported. Dated land dues now compose with lending and
 material production on existing boundaries, including native goods and accepted
 coin alternatives. Estate-paid native/accepted-coin dues now reconcile to restricted debtor cash and neutral custody positions; collection-linked issuance has an explicit opt-in convention. Storage blockage uses existing process failure;
 there is no stored-goods spoilage event to recognize. The complete report set is not universal
@@ -115,7 +116,7 @@ collateral resale remains rejected pending explicit buyer/seller rules.
 | Mortgage purchase/negotiation + households | Dedicated purchase driver remains excluded; negotiated collective purchase budgets need explicit receipts |
 | Legacy equipment/forward exchange, competing-access or pool-market drivers + credit/negotiation | Still rejected |
 | Need-generated marketplace orders | [Bounded consumption/surplus policy](NEED-ORDERS.md) implemented; bilateral parties, lot and reservation prices remain supplied |
-| Monthly town book + household accounts | [Bounded collective adapter](HOUSEHOLD-MARKET.md): locality, governor policy, real member demand, shared money/stock/storage and fixed/ZIP quotes; private sales/barter, charter-delegated buying, active-process input funding, paid outside wages and direct loans now compose; household hiring, joint production-market planning and mortgage/recovery drivers remain excluded |
+| Monthly town book + household accounts | [Bounded collective adapter](HOUSEHOLD-MARKET.md): locality, governor policy, real member demand, shared money/stock/storage and fixed/ZIP quotes; private sales/barter, charter-delegated buying, active-process input funding, paid outside wages and direct loans now compose; budgeted external hiring and costed member allocation now compose; joint production-market planning and mortgage/recovery drivers remain excluded |
 | Physical minting + scripted or generated dated stock/capacity orders | [Isolated CPU pilot](MINTING.md); excludes other acquisition drivers and collection-linked issuance |
 | State posted bids learning ZIP prices | Not implemented; co-settlement does not change the price-setting policy |
 | Direct loans + native/alternative-tender land dues | Shared Due collection; opt-in proportional policy with whole claim units and protected opening funds |
@@ -353,8 +354,8 @@ collect earned wages at Close through shared financial primitives. Dated claims
 persist after suspension or expiry and reconcile to both parties’ financial
 statements. Paid-capacity costing accepts earned wages as well as cash purchases.
 Settlement metrics/logs include the verified transfers and contract receipts.
-Terms are preaccepted; negotiation, household delegation and wage estate priority
-are still outstanding.
+Terms are preaccepted; negotiation and wage estate priority remain outstanding.
+Budgeted household hiring and costed member delegation are now supported.
 
 ## Explicit financial reporting scope
 
@@ -537,7 +538,7 @@ separate double-entry statements compose with this adapter.
 This supersedes earlier blanket household/town exclusions above. It does not remove
 the joint production-market forecast planner or legacy exchange exclusions.
 Later passes above add direct credit, member trader routing and active-process
-input funding. Longer-horizon investment planning and household hiring still
+input funding. Longer-horizon investment planning and autonomous hiring discovery still
 need adapters. The CPU example runs short of money in month three after feeding
 two adults for two months. See [settings, controls and limits](HOUSEHOLD-MARKET.md).
 
@@ -561,7 +562,7 @@ begin in month 27. That behavior remains a control; voluntary surplus support no
 closes the coordination gap in the [completed initial loop](PERSON-HOUSEHOLD-LOOP.md).
 The coordinated 120-month CPU/reference run meets household food needs, conserves
 coins and reconciles separate statements.
-This does not enable the joint production-market planner or household hiring;
+This does not enable the joint production-market planner or autonomous hiring;
 later passes above add direct town credit and bounded input funding. The linked
 document records assumptions, controls and full results.
 
@@ -585,3 +586,19 @@ Verification (2026-09-29): **215 distinct tests passed** across 15 selected suit
 including the long audit and final support controls. The 36-month CPU example,
 strict all-target Clippy, formatting and artifact checks passed. One slow annual
 32-person test remained ignored; the full crate suite was not run.
+
+## Fourth household/shared batch
+
+[Passes 16–20](INTEGRATION-PASSES-4.md) support preaccepted outside household
+hiring behind a static affordability budget, productive member allocation with
+paid-cost transfer, shared earned-payroll reserves and collective purchases for
+wage arrears. Member-employer/internal-hire semantics and wage estate treatment
+remain excluded. Timing is unchanged: Acquire delivers, Productive directs and
+executes, Close pays, next Open expires unused hours.
+
+The combined scenario runs an eight-month hiring/output/sale/payroll loop on
+CPU/reference with separate books, reversed tables, ledger replay and checkpoint
+continuation. A supplied month-three market interruption changes the worker's
+self-production and later purchases; it does not establish automatic business
+recovery or sustainable autonomous hiring. Person self-directed policy changes
+remain deferred.

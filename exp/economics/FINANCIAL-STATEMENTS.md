@@ -1234,8 +1234,8 @@ personal wage claims, and household/member books remain separate.
 
 No new reporting system or automatic consolidation was introduced. The eight-month
 CPU/reference and checkpoint comparison reconciles every boundary and each agent's
-balance sheet. Household hiring and onward delegation of purchased capacity, and wage
-insolvency remain outside this composition.
+balance sheet. The fourth batch below extends this to household hiring and onward
+delegation of paid capacity; wage insolvency remains outside the composition.
 
 The [second integration batch](INTEGRATION-PASSES-2.md) also checks private physical
 barter, delegated purchases, and household-funded member inputs through the same
@@ -1254,3 +1254,24 @@ the member settles their own loan. No liability is assumed or eliminated. Audite
 town barter can acquire coin for the following Due, and paid wages can support
 another member's debt at the next boundary. Scarce support allocation and creditor
 collection remain separate policies.
+
+## Household purchased-capacity allocation
+
+[Passes 16–20](INTEGRATION-PASSES-4.md) add the shared historical-cost adapter
+for household allocation of purchased hours. When services are capitalized,
+verified paired capacity transfers move proportional opening basis from household
+to member. Cumulative rounding retains all cost; incoming hours cannot be forwarded
+again within that allocation boundary. The household records `TransferExpense`,
+the member `TransferIncome`; the next production adapter uses the transferred basis.
+
+Output enters member inventory/WIP through existing rules, and normal pooling moves
+its carrying cost back to collective inventory. Unused capacity expires through
+`ServiceExpense`. Cash payroll only settles the earned payable/receivable. There
+is no automatic consolidation, duplicate wage, invented own-labor cost or new
+valuation at pooling. Expensing-on-receipt remains available when service
+capitalization is disabled. Physical wages still require explicit exchange values.
+
+Tests reconcile cost through hiring, directed work, pooled output and expiration,
+then combine repeated production, market revenue and payroll under an interruption.
+Charter payroll funding also buys denomination stock for real earned arrears. The
+hiring budget is not universal cash escrow or a wage-insolvency adapter.

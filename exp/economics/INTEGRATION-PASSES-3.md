@@ -1,7 +1,8 @@
 # Third household and consolidation batch
 
 Five further household/shared passes. Personal self-directed policy changes and
-household hiring remain out of scope; existing monthly boundaries are preserved.
+household hiring were outside this batch; existing monthly boundaries are preserved.
+[Passes 16–20](INTEGRATION-PASSES-4.md) subsequently add bounded household hiring.
 
 | Pass | Household work | Shared consolidation | Status |
 | --- | --- | --- | --- |

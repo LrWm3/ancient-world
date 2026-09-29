@@ -9,7 +9,7 @@ excluding person self-directed policy changes. Hiring terms are preaccepted.
 | 17 | Direct purchased hours to member work | Transfer paid-capacity basis into production | Complete |
 | 18 | Preserve payroll funding | Shared earned-wage protection across allocations | Complete |
 | 19 | Buy resources for wage arrears | Collective claim-driven market demand | Complete |
-| 20 | Repeated hiring, work, sales and payroll | Combined shortage/recovery and continuation controls | Pending |
+| 20 | Repeated hiring, work, sales and payroll | Combined interruption response and continuation controls | Complete |
 
 ## Pass 16
 
@@ -73,3 +73,52 @@ fill but does not reuse its incoming coins for new hiring at that boundary. Clos
 then clears the old wage claim. Disabled funding and missing-payment-stock controls
 leave arrears outstanding. Audited CPU/reference, checkpoint and full replay agree;
 existing household loan funding and market controls also pass.
+
+## Pass 20
+
+An eight-month scenario connects two hired hours, four grain of member output,
+half pooled output, a two-grain/two-coin town sale and two-coin payroll. The household
+starts with four coins. The worker needs two nutrition units per month; the first
+month has no grain or wage cash available at Acquire, and records an unmet need.
+From month two the uninterrupted case meets that need and hires every month.
+Member-retained output stays private, with its carrying cost.
+
+A supplied month-three market closure changes the outcome. The household cannot
+fund hiring in month four. Freed worker hours allow self-production, reducing later
+purchase demand. It hires again in month five but not months six through eight;
+all earned wages are paid and four total coins are conserved. Worker needs recover,
+but reopening the market does not restore sustained household employment. This is
+an observed response, not a forced recovery or evidence of optimal planning. Prices,
+wage terms, work target, initial funds and the interruption are test configuration.
+
+CPU/reference execution agrees with reversed participant/resource/contract tables.
+Full ledger replay and a checkpoint before the funding shortfall reproduce the
+same state, receipts and separate reconciled books. Forged purchased-hour receipts
+or transfers reject without publication; valid transfers replay once. Settlement
+logs expose purchased availability, direction and unused capacity alongside wages.
+
+## Limits
+
+Hiring remains preaccepted; the charter budget is static and supplies no recruitment,
+wage discovery or forecast of business viability. No speculative wage bids or
+same-boundary incoming-fund reuse were introduced. Payroll retention only protects
+specified discretionary allocations; it does not escrow cash against other claims
+or establish insolvency priority. Member employers, internal hires, households as
+workers, wage estate claims and longer-horizon joint planning remain future work.
+Person self-directed policy changes were not added.
+
+## Verification — 2026-09-29
+
+**352 tests passed across 29 selected suites**, including ten new household-hiring
+checks and the existing 120-month household income comparison. Coverage includes
+household formation/allocation/membership/dissolution, physical and coin payroll,
+markets and need orders, loans/recovery, laws, inventory/process/service accounting,
+and telemetry. The existing slow annual 32-person accounting test remained ignored;
+the full crate suite was not run.
+
+A final focused rerun of hiring and employment passed all 19 checks after Clippy's
+style fixes; these overlap the 352 above. Formatting, strict all-target Clippy,
+`git diff --check` and the repository artifact policy passed. Raw runs are under
+ignored `output/economics/household-batch4-*.log`; only this summary is committed.
+CPU/reference agreement, conservation and balanced statements verify the tested
+execution boundaries, not economic optimality or arbitrary composition.

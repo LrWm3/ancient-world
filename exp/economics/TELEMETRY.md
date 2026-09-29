@@ -298,3 +298,9 @@ policy, tie-break, recipient, score comparison and per-member available/reserved
 directed/returned labor. Member filters retain their household decision. Directed
 hours include a recipient's own contribution; process receipts remain the source
 for actual completed work. See [household governance](HOUSEHOLDS.md).
+
+Household settlement records now include `household_labor.purchased`, with
+capacity-resource ID and available/directed/unused quantities, separate from member
+contributions. Employment receipts retain requested/delivered/earned/paid quantities
+and the `HiringBudget` reason when household affordability limits delivery. These
+are projections of verified domain receipts, not added planning probes.

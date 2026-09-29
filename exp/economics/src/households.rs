@@ -92,7 +92,7 @@ pub struct LaborDecision {
     pub contributions: Vec<LaborContribution>,
     pub purchased: Vec<PurchasedLabor>,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct PurchasedLabor {
     pub resource: ResourceId,
     pub available: i32,
@@ -1159,6 +1159,7 @@ fn contributed_labor(
             })
             .collect(),
     };
+    decision.purchased.sort_by_key(|p| p.resource);
     let mut reserved_state = state.clone();
     for c in &contributions {
         reserved_state

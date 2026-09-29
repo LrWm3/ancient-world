@@ -147,3 +147,13 @@ Due collection precedes Acquire. Purchased stock can therefore support the next
 Due, with no backdated payment. The support charter remains distinct from purchase
 permission: acquiring stock does not itself assume or discharge a member's debt.
 See [combined verification and limitations](INTEGRATION-PASSES-3.md).
+
+## Household earned-wage funding
+
+With collective buying, a needs-first objective and static charter
+`fund_earned_wages`, current household wage claims contribute to funded stock
+requirements. `employment::claims` supplies the same earned native-stock totals
+used by market retention, household resource allocation and hiring affordability.
+This neither pre-funds future labor nor sets general creditor priority. A real fill
+can settle old wages at Close; it is not available to hire at the same Acquire.
+See [combined controls](INTEGRATION-PASSES-4.md).

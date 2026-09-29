@@ -10,8 +10,9 @@ balance-sheet system or a worker-specific production engine.
 `World.employment` contains explicitly preaccepted `employment::Terms`: stable ID,
 employer, worker, inclusive start/end months, capacity resource and monthly quantity,
 wage denomination and integer rate per delivered unit, priority rank and arrears
-policy. Either party can be any agent; actual delivery requires both parties to be
-active and permitted to perform `CapacityTrade` under the current laws.
+policy. Household employers require the explicit charter described below; household
+workers and member employers remain excluded. Actual delivery requires both parties
+to be active and permitted to perform `CapacityTrade` under the current laws.
 
 The fixture supplies consent. Agents do not yet discover, negotiate or sign these
 terms through market orders. Salaries, piece rates, dismissal damages, minimum
@@ -28,7 +29,8 @@ Use finer resource/coin units when fractional economic quantities are needed.
    at the next execution barrier. Incoming hours cannot be resold in this boundary.
 3. **Earning:** only delivered hours earn wages. The receipt records requested and
    delivered hours and the earned amount. A dated wage obligation is created even
-   when the employer has no money. Buying available hours earns the wage regardless
+   when an ordinary employer has no money. Household hiring additionally requires
+   opening affordability. Buying available hours earns the wage regardless
    of whether the employer subsequently uses those hours successfully.
 4. **Productive/Consumption:** existing processes use the employer's actual
    capacity; production does not pay wages a second time.
@@ -75,11 +77,12 @@ are not pooled cash. Contribution entitlement includes hours already delivered t
 external employment, preventing the percentage from shrinking after that delivery.
 Earned outstanding wages are protected by need-generated market budgets.
 
-Household/member employers and onward delegation of paid capacity remain rejected;
-these need a purchased-labor cost-basis adapter. Physical payroll now reserves
+Household employers can opt into budgeted external hiring and costed delegation
+to members. Member employers, household workers and internal household hires remain
+rejected; terms involving future/past members retain the conservative exclusion. Physical payroll now reserves
 both private receipt space and exact collective contribution space, including
 fractional carry. Unstorable payment remains arrears. See the
-[combined verification](INTEGRATION-PASSES-3.md).
+[physical-wage verification](INTEGRATION-PASSES-3.md).
 Future-period labor prepayments, refunds, wage guarantees, write-offs and estate
 collection need separate accepted terms and adapters.
 
@@ -119,3 +122,31 @@ service accounting (8) and telemetry (10). Strict all-target Clippy passed.
 Generated logs remain under ignored `output/economics/`. This is focused execution
 and accounting verification, not evidence of labor-market calibration or employer
 solvency under autonomous hiring.
+
+## Budgeted household hiring
+
+[Passes 16–20](INTEGRATION-PASSES-4.md) add static charter `hiring_budget`, an
+optional monthly stock-denominated ceiling shared across preaccepted contracts.
+It requires percentage-contribution governance and the same wage denomination.
+Acquire caps delivered whole hours by that ceiling and remaining opening funds,
+less earlier earned wages. Rank/ID resolves competing hires. Inactive households,
+vacant governance and missing capacity-trade permission block new delivery.
+
+This is an affordability gate, not escrow: later enforced claims may still consume
+funds before payroll. Neither future output nor incoming same-boundary market
+proceeds fund new hours. `Continue` does not bypass household affordability.
+
+Purchased hours join Productive's household labor pool after member contributions.
+Only useful, permitted, constitution-allowed member work receives them. Receipts
+separate purchased availability, direction and unused hours; idle hours expire next
+Open. With service capitalization enabled, allocation moves historical basis and
+records household transfer expense/member transfer income. Production, pooling and
+expiration then use the existing accounting adapters. No second wage is earned and
+member accounts are not consolidated.
+
+Earned payroll stock is protected from discretionary household member transfers.
+Static `fund_earned_wages` additionally permits collective needs-first orders to buy
+missing payment stock for already earned claims, not future employment. Tests cover
+coin and physical wages, scarce budgets, prohibited work, real arrears purchases,
+forged allocation receipts, replay and checkpoint continuation on CPU/reference.
+Autonomous recruitment, price discovery for labor and wage insolvency remain open.

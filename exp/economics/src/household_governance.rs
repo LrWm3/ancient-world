@@ -215,18 +215,15 @@ pub fn validate(world: &World, state: &State, a: &Agreement) -> Result<(), Strin
             return Err("household cash target requires nonnegative town-payment units".into());
         }
     }
-    if let Some(budget) = &g.charter.hiring_budget {
-        if budget.quantity < 0
+    if let Some(budget) = &g.charter.hiring_budget
+        && (budget.quantity < 0
             || !world
                 .resources
                 .iter()
                 .any(|r| r.id == budget.resource && r.kind == ResourceKind::Stock)
-            || !matches!(g.charter.contribution, Contribution::Percent(_))
-        {
-            return Err(
-                "household hiring requires a stock budget and percentage labor charter".into(),
-            );
-        }
+            || !matches!(g.charter.contribution, Contribution::Percent(_)))
+    {
+        return Err("household hiring requires a stock budget and percentage labor charter".into());
     }
     elections::validate(a, state)?;
     let mut dates = BTreeSet::new();

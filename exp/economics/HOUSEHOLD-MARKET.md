@@ -127,8 +127,9 @@ only. Fixed whole-lot terms and supplied reservation prices still apply.
 Direct accepted loans now share credit-first Acquire reservations with the town
 book. Mortgage-purchase configuration, recovery proceedings, joint production
 planning, legacy exchange, pool markets and competing-access drivers remain
-excluded. Outside member wages compose with collective budgets; household hiring
-and onward delegation of purchased labor remain unsupported.
+excluded. Outside member wages compose with collective budgets. Explicitly budgeted
+household hiring and costed delegation to member work now compose with this book;
+autonomous hiring discovery remains unsupported.
 
 The [income-aware work policy](HOUSEHOLD-INCOME.md) includes optional static cash
 buffers. The [first](INTEGRATION-PASSES.md) and [second](INTEGRATION-PASSES-2.md)
@@ -151,3 +152,18 @@ Due collection precedes Acquire. Purchased stock can therefore support the next
 Due, with no backdated payment. The support charter remains distinct from purchase
 permission: acquiring stock does not itself assume or discharge a member's debt.
 See [combined verification and limitations](INTEGRATION-PASSES-3.md).
+
+## Earned payroll demand
+
+Static `fund_earned_wages` adds the household's own earned wage obligations to
+collective needs-first buying requirements, alongside separately enabled process
+inputs and current loan dues. Existing holdings offset requirements; future
+undelivered work creates no demand. Member purchasing delegation does not acquire
+this responsibility. Orders still require legal access, payment stock, space and a
+matching counterparty. Incoming market receipts cannot fund hiring in the same
+Acquire boundary, but actual holdings can settle arrears at Close.
+
+The [fourth integration batch](INTEGRATION-PASSES-4.md) connects hired hours,
+member production, pooled output, sales and payroll. A temporary market closure
+releases worker hours for self-production and changes subsequent demand; fixed
+contract terms and conserved cash do not guarantee sustained household employment.
