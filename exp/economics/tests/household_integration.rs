@@ -259,9 +259,14 @@ fn private_sales_and_collective_orders_share_a_book_without_reusing_pooled_recei
         }
         audit.step(&mut sim).unwrap();
         assert!(sim.state.balance(PERSON, TOKEN) > 0);
+        let proceeds = sim.state.balance(PERSON, TOKEN) + sim.state.balance(HOME, TOKEN);
         assert_eq!(
-            sim.state.balance(PERSON, TOKEN),
-            sim.state.balance(HOME, TOKEN)
+            sim.state.balance(HOME, TOKEN),
+            proceeds / households::POOL_DIVISOR
+        );
+        assert_eq!(
+            sim.state.household_remainders[&(HOME, PERSON, TOKEN)],
+            proceeds % households::POOL_DIVISOR
         );
         assert_eq!(sim.state.balance(HOME, GRAIN), 0); // incoming sale receipts wait for a later book
         assert!(sim.state.balance(PERSON, GRAIN) >= 2);
