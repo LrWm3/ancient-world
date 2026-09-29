@@ -1,8 +1,9 @@
 # Need-generated marketplace orders
 
-Implemented as an opt-in, bounded consumption policy. Household integration remains
-excluded pending its own redesign. This connects individual needs to the existing
-person-only marketplace without changing its pricing or settlement rules.
+Implemented as an opt-in, bounded consumption policy. The original bilateral pilot
+connects individual needs to a person-only marketplace. The separate
+[household town adapter](HOUSEHOLD-MARKET.md) now projects real members' consumption
+through collective accounts, retaining the shared pricing and settlement rules.
 
 ## Decision and execution boundary
 
@@ -104,9 +105,10 @@ Existing credit/household and joint-plan/negotiation exclusions still apply.
 
 The remaining review areas are deprivation consequences in credit fixtures,
 controlled planner ablations, uncertain forecasts and competing offers. Household
-integration is deferred for reworking rather than extending its current assumptions.
+integration uses the local town book rather than this bilateral acquisition driver.
 
 The separate [town-market extension](TOWN-MARKET.md) now matches multiple registered
 buyers and sellers under month-start locality, while reusing this need/protection
 policy. The bilateral credit-compatible pilot described above retains its supplied
-counterparty pair; the new town book is not yet credit- or household-compatible.
+counterparty pair; the town book supports bounded household orders but remains
+separate from the credit acquisition driver.

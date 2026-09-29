@@ -1,6 +1,6 @@
 # Stand-alone agent-based economics experiment
 
-## Current progress — 2026-09-24
+## Current progress — 2026-09-29
 
 The CPU experiment now shares loan records, claim execution and funded asset
 transfer across direct lending, secured purchases and bounded recovery. It remains
@@ -13,8 +13,8 @@ remaining financial work.
 | --- | --- | --- |
 | Persons and planning | Needs, deprivation consequences, repeated processes, bounded forecasts, opportunity search and dated commitments | General discovery across all drivers; reliably sustainable autonomous cooperation |
 | State and law | Citizenship, action permissions, named prohibitions, selected agreement recognition/term limits; issuance and physical minting pilots | Autonomous state objectives, general jurisdiction/founding law, constitutional governance |
-| Households | Lawful founding, static constitution/charter, fixed, rotating or elected governors with terms and election receipts, dated objective/tie authority, 20% contributed labor, opt-in current-needs-first allocation, explicit ties, pooled resources/storage and shelter, dated adult joining/exit, opt-in solvent dissolution with explicit unencumbered asset and portable-equipment sales | Autonomous voting and broader succession rules, longer-horizon collective planning, market recruitment, automatic death estates and integrated market/employment budgets |
-| Marketplaces | Bilateral negotiation/ZIP, local town books, need-generated orders and reciprocal commodity markets | Shared acquisition with every driver; general markets for labor, assets, rights and memberships |
+| Households | Lawful founding, static constitution/charter, fixed, rotating or elected governors with terms and election receipts, dated objective/tie authority, 20% contributed labor, opt-in current-needs-first allocation, explicit ties, pooled resources/storage and shelter, dated adult joining/exit, opt-in wind-down with explicit asset/crop transfers and lending/recovery, and [policy-driven town trading](HOUSEHOLD-MARKET.md) with shared budgets | Autonomous voting and broader succession rules, longer-horizon collective planning, market recruitment, automatic death estates, joint work/trade planning and employment budgets |
+| Marketplaces | Bilateral negotiation/ZIP, local town books, need-generated orders, reciprocal commodity markets and household accounts | Shared acquisition with every driver; general markets for labor, assets, rights and memberships |
 | Contracts and lending | Direct consented advances and mortgages share a loan book; loan, land and forward claims share execution; guarantees share inspection | Common acceptance/performance adapters for all arrangements; autonomous general loan discovery/underwriting |
 | [Creditor allocation](CREDITOR-ALLOCATION.md) | Ranked collection and opt-in proportional loan/land allocation, including accepted coin tender and whole-unit conversion | Standalone land and forward allocation; additional denominations/routes and indivisible obligations |
 | Recovery | Capped guarantees with recourse; authorized stays, frozen interest, dedicated estate custody, funded sales, secured/general distributions, surplus and loan write-offs; land/forward admission and explicit forward relief | General non-loan discharge, multiple currencies/liens, guarantee lien subrogation, autonomous liquidation and death/dissolution estates |
@@ -434,3 +434,13 @@ and all its usable attached equipment together, with component price allocations
 and separate accounting. Explicit title-following crop/right transfers, material
 salvage, premature write-off and general household lending/recovery now complete
 this wind-down slice. See [completion and verification](HOUSEHOLD-WIND-DOWN.md).
+
+
+[Household town trading](HOUSEHOLD-MARKET.md) now connects governor policy and real
+member needs to collective purchases and protected-surplus sales. The account
+shares finite cash, stock and storage across listings; member holdings stay separate.
+The three-month CPU example feeds two adults for two months, then records unmet
+needs when its initial funding cannot afford another lot. Run
+`cargo +1.92.0 run --locked --example household_market` from this directory.
+Income planning, household employment and town-market credit integration remain
+outstanding.

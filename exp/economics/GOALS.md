@@ -154,8 +154,10 @@ dated membership without rewriting founding rules, property or debts. Opt-in
 for residual distributions after claims clear, with explicit funded disposal of
 unencumbered catalog assets and usable portable equipment, plus explicit retirement
 of exhausted portable equipment. Explicit plot/equipment package sales preserve
-attachments and allocate the purchase price. Live rights/crop transfers and insolvent
-estates remain extensions. Market recruitment and exit settlements remain targets.
+attachments and allocate the purchase price. Explicit live rights/crop transfers,
+salvage/write-off and general household loan recovery are now exercised by the
+[wind-down extension](HOUSEHOLD-WIND-DOWN.md). Automatic death estates, market
+recruitment and negotiated exit settlements remain targets.
 Autonomous voting, broader institutional formation and longer-horizon collective
 planning remain targets below.
 
@@ -275,3 +277,11 @@ material salvage or write-off, and general lending/recovery with priority credit
 and authorized deficiencies. These are verified small scenarios, not automatic
 death estates or autonomous liquidation-price discovery. See
 [completed scope and limits](HOUSEHOLD-WIND-DOWN.md).
+
+
+[Household town-market participation](HOUSEHOLD-MARKET.md) now exercises the next
+formation/governance/allocation/market connection: current governor policy generates
+collective orders for real members, protected surplus can be sold, and multiple
+listings share finite household resources. Member accounts remain separate. The
+next integration targets are sustainable income plans and household employment/credit
+budgets; the small consumption fixture currently exhausts affordable funding.

@@ -2,8 +2,9 @@
 
 Implemented: an opt-in monthly book with two buyers, two sellers and one food
 listing. Participants generate orders from needs and protected surplus; the market
-chooses counterparties. This extends the [need-order pilot](NEED-ORDERS.md) without
-combining its previously excluded household, credit or legacy exchange drivers.
+chooses counterparties. This extends the [need-order pilot](NEED-ORDERS.md).
+[Household orders](HOUSEHOLD-MARKET.md) now add bounded collective accounts;
+credit and legacy exchange drivers remain separate.
 
 ## Boundary and matching rules
 
@@ -117,10 +118,11 @@ an explicit monthly book and Open admission receipt, not a scheduler rewrite.
 The main civilization scheduler is unchanged. World/state copies favor small-case
 correctness over performance; this is not a device-resident matching benchmark.
 
-Households, secured credit, legacy forwards/equipment exchange, competing-access
-and pool-market drivers remain excluded from this book. The next integration should
-supply household or other institutional orders through explicit budgets and mandates,
-or add a production/credit case with resource reservations. Other open choices are
+Secured credit, legacy forwards/equipment exchange, competing-access and pool-market
+drivers remain excluded from this book. Households now trade under explicit
+governance and shared budgets through the [collective adapter](HOUSEHOLD-MARKET.md),
+with member traders and the joint production-market planner excluded in that mode.
+Other open choices are
 endogenous valuation, selectable matching/tiebreak policies, multiple lots, movement
 and delivery costs, and the use of market observations in future projections.
 

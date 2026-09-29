@@ -23,8 +23,8 @@ needs and commitment-aware allocation, outcomes, and separate financial reportin
 
 Ballots and policy instructions may be supplied by the scenario. Autonomous political
 preferences, personality-driven policy revisions, six-month collective optimization,
-children/adulthood, market recruitment, exit settlements, nested institutions, household hiring
-and borrowing, and full household estates are extensions beyond this governance
+children/adulthood, market recruitment, negotiated exit settlements, nested institutions,
+household hiring and automatic death estates are extensions beyond this governance
 checklist. Unsupported finance combinations must continue to reject explicitly.
 
 ## Legal founding slice
@@ -142,3 +142,10 @@ residual stock, plus explicit retirement of exhausted portable equipment. Catalo
 plots and usable attached equipment can now sell as explicit packages. Explicit title-following crop/right transfers, salvage/write-off and household
 loan recovery now extend that boundary; see [wind-down completion](HOUSEHOLD-WIND-DOWN.md). The original
 validation counts above describe the earlier governance completion; membership verification is recorded in the extension document.
+
+
+[Household town-market participation](HOUSEHOLD-MARKET.md) now adds policy-driven
+collective consumption orders and protected sales, with private member accounts
+and finite shared market budgets. General borrowing/recovery is separately covered
+in [wind-down completion](HOUSEHOLD-WIND-DOWN.md); these are not yet a combined
+town-market credit planner.

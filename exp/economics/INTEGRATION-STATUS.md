@@ -89,7 +89,7 @@ collateral resale remains rejected pending explicit buyer/seller rules.
 | Mortgage purchase/negotiation + households | Dedicated purchase driver remains excluded; negotiated collective purchase budgets need explicit receipts |
 | Legacy equipment/forward exchange, competing-access or pool-market drivers + credit/negotiation | Still rejected |
 | Need-generated marketplace orders | [Bounded consumption/surplus policy](NEED-ORDERS.md) implemented; bilateral parties, lot and reservation prices remain supplied |
-| Four-person monthly town book | [Implemented separately](TOWN-MARKET.md): locality, generated orders, multiple counterparties, fixed/ZIP quotes; credit and households remain excluded |
+| Monthly town book + household accounts | [Bounded collective adapter](HOUSEHOLD-MARKET.md): locality, governor policy, real member demand, shared money/stock/storage and fixed/ZIP quotes; household member traders, joint production-market planning and credit remain excluded |
 | Physical minting + scripted or generated dated stock/capacity orders | [Isolated CPU pilot](MINTING.md); excludes other acquisition drivers and collection-linked issuance |
 | State posted bids learning ZIP prices | Not implemented; co-settlement does not change the price-setting policy |
 | Direct loans + native/alternative-tender land dues | Shared Due collection; opt-in proportional policy with whole claim units and protected opening funds |
@@ -496,3 +496,25 @@ Wind-down completion verification (2026-09-29): **252 distinct tests passed** ac
 Strict all-target Clippy, formatting and artifact checks passed. One slow annual
 32-person accounting check remained ignored; the full crate suite was not run.
 See [completed behaviors, controls and limits](HOUSEHOLD-WIND-DOWN.md).
+
+
+### Household town-market integration
+
+Households can now register as collective town traders under explicit venue and
+legal permission. `NeedsFirst` uses member consumption projections for purchases;
+other current objectives offer only protected surplus. Current private member stock
+reduces collective demand without becoming collective funding. Each listing shares
+real opening money, stock and storage; current governor authority is recorded and
+replayed with order decisions. Existing resource pooling, productive labor and
+separate double-entry statements compose with this adapter.
+
+This supersedes earlier blanket household/town exclusions above. It does not remove
+the joint production-market forecast planner, credit, legacy exchange or member
+trader exclusions. Income, producer-input purchasing and employment budgets still
+need adapters. The CPU example runs short of money in month three after feeding
+two adults for two months. See [settings, controls and limits](HOUSEHOLD-MARKET.md).
+
+Verification (2026-09-29): **195 distinct tests passed** across 16 selected suites,
+including the final 12-test household-market run, plus the CPU example and strict
+all-target Clippy. One slow annual accounting check remained ignored; the full crate
+suite was not run. Formatting and artifact checks passed.
