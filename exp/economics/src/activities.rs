@@ -189,7 +189,10 @@ pub fn apply(world: &World, state: &mut State, change: &ProcessChange) -> Result
     {
         let spec = &world.activities.kinds[kind];
         let id = produced_asset_id(p.id)?;
-        if state.equipment.contains_key(&id) || world.assets.iter().any(|a| a.id == id) {
+        if state.equipment.contains_key(&id)
+            || state.retired_equipment.contains_key(&id)
+            || world.assets.iter().any(|a| a.id == id)
+        {
             return Err("produced asset ID collision".into());
         }
         let attached_to = if spec.attached {

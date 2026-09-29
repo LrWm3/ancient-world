@@ -131,6 +131,15 @@ fn positions(
         }
         accounting::add(&mut p, (asset.owner, Account::Tangible(asset.id)), value)?;
     }
+    // Exhausted equipment must already have zero basis before retirement. Keep
+    // any supplied historical valuation honest; do not hide value in an archive.
+    if state
+        .retired_equipment
+        .keys()
+        .any(|id| values.get(id).is_some_and(|v| *v != 0))
+    {
+        return Err("retired equipment has nonzero carrying cost".into());
+    }
     for l in state.credit.loans.values() {
         if l.denomination != coin {
             return Err("mixed loan denominations require an explicit valuation adapter".into());

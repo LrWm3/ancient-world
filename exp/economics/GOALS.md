@@ -152,8 +152,8 @@ this integrated slice. [Adult admission and exit](HOUSEHOLD-MEMBERSHIP.md) now a
 dated membership without rewriting founding rules, property or debts. Opt-in
 [solvent dissolution](HOUSEHOLD-DISSOLUTION.md) now closes the last-member lifecycle
 for residual distributions after claims clear, with explicit funded disposal of
-unencumbered catalog assets and usable portable equipment. Attached assets,
-exhausted-equipment retirement and insolvent estates remain extensions. Market
+unencumbered catalog assets and usable portable equipment, plus explicit retirement
+of exhausted portable equipment. Attached assets and insolvent estates remain extensions. Market
 recruitment and exit settlements remain targets. Autonomous voting, broader institutional formation and
 longer-horizon collective planning remain targets below.
 

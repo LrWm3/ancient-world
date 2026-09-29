@@ -150,6 +150,7 @@ pub struct State {
     pub conditions: BTreeMap<Account, Condition>,
     pub terminal: BTreeMap<AgentId, TerminalTransition>,
     pub equipment: BTreeMap<AssetId, crate::equipment::DurableAsset>,
+    pub retired_equipment: BTreeMap<AssetId, crate::equipment::RetiredAsset>,
     pub practice: BTreeMap<(AgentId, u32), u32>,
     pub filled_offers: std::collections::BTreeSet<u32>,
     pub pending_production: Option<Box<Batch>>,

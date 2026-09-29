@@ -41,6 +41,7 @@ fn fixture() -> (World, State) {
             adults: vec![PERSON],
             membership: vec![],
             asset_sales: vec![],
+            equipment_retirements: vec![],
             formed: 1,
             dwelling_process: None,
             admission: None,
@@ -393,4 +394,410 @@ fn observer_reports_opening_equipment_condition_without_affecting_wear() {
     assert_eq!(rows[0]["equipment"]["remaining_uses"], 6);
     assert_eq!(rows[0]["equipment"]["last_used_month"], 1);
     assert_eq!(observed.state.equipment[&TOOL].remaining_uses, 5);
+}
+
+#[test]
+fn exhausted_equipment_retires_after_depreciation_then_household_closes_on_cpu() {
+    use households::retirement;
+    let (w, mut s) = fixture();
+    s.equipment.get_mut(&TOOL).unwrap().remaining_uses = 1;
+    let run = |backend| {
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        assert!(retirement::request(&mut sim.world, &sim.state, HOME, PERSON, TOOL).is_err());
+        through(&mut a, &mut sim, 2);
+        assert_eq!(sim.state.equipment[&TOOL].remaining_uses, 0);
+        assert_eq!(sim.state.balance(HOME, TOKEN), 5);
+        assert!(dissolution::finish(&mut sim.world, &sim.state, HOME, PERSON).is_err());
+        retirement::request(&mut sim.world, &sim.state, HOME, PERSON, TOOL).unwrap();
+        let opening_tool = sim.state.equipment[&TOOL].clone();
+        let batch = sim.state.next_batch;
+        a.step(&mut sim).unwrap();
+        assert!(!sim.state.equipment.contains_key(&TOOL));
+        let retired = &sim.state.retired_equipment[&TOOL];
+        assert_eq!(retired.equipment, opening_tool);
+        assert_eq!(retired.month, 3);
+        assert_eq!(retired.batch, batch);
+        assert_eq!(sim.state.balance(HOME, TOKEN), 5);
+        assert_eq!(sim.state.balance(PERSON, TOKEN), 0);
+        let checkpoint = (sim.clone(), a.clone());
+        through(&mut a, &mut sim, 4);
+        assert_eq!(sim.state.balance(PERSON, TOKEN), 5);
+        dissolution::finish(&mut sim.world, &sim.state, HOME, PERSON).unwrap();
+        through(&mut a, &mut sim, 5);
+        a.finalize_through(5).unwrap();
+        let (mut resumed, mut resumed_audit) = checkpoint;
+        through(&mut resumed_audit, &mut resumed, 4);
+        dissolution::finish(&mut resumed.world, &resumed.state, HOME, PERSON).unwrap();
+        through(&mut resumed_audit, &mut resumed, 5);
+        resumed_audit.finalize_through(5).unwrap();
+        assert_eq!(sim.state, resumed.state);
+        assert_eq!(sim.ledger, resumed.ledger);
+        assert_eq!(a, resumed_audit);
+        let report = a.book().finalized_statements(HOME, 2, 5).unwrap();
+        assert_eq!(report.assets, 0);
+        assert_eq!(report.liabilities, 0);
+        assert_eq!(report.expenses[&A::Depreciation], 12);
+        assert_eq!(report.expenses[&A::TransferExpense], 9);
+        assert_eq!(
+            report.expenses.get(&A::DisposalLoss).copied().unwrap_or(0),
+            0
+        );
+        assert_eq!(
+            report
+                .cash_flows
+                .get(&Flow::Investing)
+                .copied()
+                .unwrap_or(0),
+            0
+        );
+        assert_eq!(sim.state.retired_equipment[&TOOL].equipment, opening_tool);
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}
+
+fn retirement_fixture() -> (World, State) {
+    let (mut w, mut s) = fixture();
+    s.equipment.get_mut(&TOOL).unwrap().remaining_uses = 0;
+    households::retirement::request(&mut w, &s, HOME, PERSON, TOOL).unwrap();
+    (w, s)
+}
+
+#[test]
+fn retirement_requires_authority_open_and_exhausted_uncommitted_property() {
+    use households::retirement;
+    let (mut w, mut s) = retirement_fixture();
+    let before = w.clone();
+    assert!(retirement::request(&mut w, &s, HOME, PERSON, TOOL).is_err()); // duplicate
+    assert!(retirement::request(&mut w, &s, HOME, STATE_AGENT, TOOL).is_err());
+    assert!(retirement::request(&mut w, &s, HOME, PERSON, u32::MAX).is_err());
+    s.phase = Phase::Productive;
+    assert!(retirement::request(&mut w, &s, HOME, PERSON, TOOL).is_err());
+    assert_eq!(w, before);
+    for attached in [true, false] {
+        let (mut w, mut s) = fixture();
+        s.equipment.get_mut(&TOOL).unwrap().remaining_uses = 0;
+        if attached {
+            w.assets.push(Asset {
+                id: PLOT,
+                owner: HOME,
+                kind: 1,
+            });
+            s.equipment.get_mut(&TOOL).unwrap().attached_to = Some(PLOT);
+            w.activities.kinds.get_mut(&KIND).unwrap().attached = true;
+        } else {
+            w.offers.push(Offer {
+                id: 1,
+                seller: HOME,
+                asset: TOOL,
+                price: Amount::new(TOKEN, 9),
+            });
+        }
+        let before = w.clone();
+        assert!(retirement::request(&mut w, &s, HOME, PERSON, TOOL).is_err());
+        assert_eq!(w, before);
+    }
+}
+
+#[test]
+fn repaired_reassigned_or_committed_equipment_is_not_retired_by_stale_instructions() {
+    for case in 0..4 {
+        let (mut w, mut s) = retirement_fixture();
+        let reason = match case {
+            0 => {
+                s.equipment.get_mut(&TOOL).unwrap().remaining_uses = 2;
+                disposal::Rejection::NotExhausted
+            }
+            1 => {
+                s.equipment.get_mut(&TOOL).unwrap().owner = PERSON;
+                disposal::Rejection::Unavailable
+            }
+            2 => {
+                s.equipment.get_mut(&TOOL).unwrap().last_used_month = Some(s.month);
+                disposal::Rejection::Unavailable
+            }
+            _ => {
+                w.offers.push(Offer {
+                    id: 1,
+                    seller: HOME,
+                    asset: TOOL,
+                    price: Amount::new(TOKEN, 9),
+                });
+                disposal::Rejection::Encumbered
+            }
+        };
+        let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+        sim.step().unwrap();
+        assert!(sim.state.retired_equipment.is_empty());
+        assert!(sim.state.equipment.contains_key(&TOOL));
+        assert_eq!(
+            sim.ledger[0].household.as_ref().unwrap().retirements[0].rejection,
+            Some(reason)
+        );
+        // Reassignment independently clears the household holding and permits payout.
+        assert_eq!(
+            sim.state.balance(HOME, TOKEN),
+            if case == 1 { 0 } else { 5 }
+        );
+        assert_eq!(
+            sim.state.balance(HOME, TOKEN) + sim.state.balance(PERSON, TOKEN),
+            5
+        );
+    }
+}
+
+#[test]
+fn retirement_replay_rejects_forgery_repetition_and_revival() {
+    let (w, s) = retirement_fixture();
+    let mut sim = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    sim.step().unwrap();
+    let batch = sim.ledger[0].clone();
+    let mut replay = s.clone();
+    commit(
+        &w,
+        &mut replay,
+        &batch,
+        Backend::CubeCpu,
+        DEFAULT_EFFECT_LIMIT,
+    )
+    .unwrap();
+    assert_eq!(replay, sim.state);
+    let unchanged = replay.clone();
+    assert!(
+        commit(
+            &w,
+            &mut replay,
+            &batch,
+            Backend::Reference,
+            DEFAULT_EFFECT_LIMIT
+        )
+        .is_err()
+    );
+    assert_eq!(replay, unchanged);
+    for omit in [true, false] {
+        let mut forged = batch.clone();
+        if omit {
+            forged.household.as_mut().unwrap().retirements.clear();
+        } else {
+            forged.household.as_mut().unwrap().retirements[0]
+                .equipment
+                .as_mut()
+                .unwrap()
+                .owner = PERSON;
+        }
+        let mut untouched = s.clone();
+        assert!(
+            commit(
+                &w,
+                &mut untouched,
+                &forged,
+                Backend::Reference,
+                DEFAULT_EFFECT_LIMIT
+            )
+            .is_err()
+        );
+        assert_eq!(untouched, s);
+    }
+    let mut revived = sim.state.clone();
+    revived.equipment.insert(TOOL, s.equipment[&TOOL].clone());
+    assert!(Simulation::new(w.clone(), revived, Backend::Reference).is_err());
+    let mut claimed = w.clone();
+    claimed.offers.push(Offer {
+        id: 1,
+        seller: HOME,
+        asset: TOOL,
+        price: Amount::new(TOKEN, 1),
+    });
+    assert!(Simulation::new(claimed, sim.state.clone(), Backend::Reference).is_err());
+    let mut missing_authority = w;
+    missing_authority.households[0]
+        .equipment_retirements
+        .clear();
+    assert!(Simulation::new(missing_authority, sim.state, Backend::Reference).is_err());
+}
+
+#[test]
+fn retired_equipment_preserves_filled_offer_history_without_counting_as_a_holding() {
+    let (mut w, mut s) = fixture();
+    s.equipment.get_mut(&TOOL).unwrap().remaining_uses = 0;
+    w.offers.push(Offer {
+        id: 1,
+        seller: HOME,
+        asset: TOOL,
+        price: Amount::new(TOKEN, 1),
+    });
+    s.filled_offers.insert(1); // completed historical offer, not a current commitment
+    households::retirement::request(&mut w, &s, HOME, PERSON, TOOL).unwrap();
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    sim.run_months(2).unwrap();
+    dissolution::finish(&mut sim.world, &sim.state, HOME, PERSON).unwrap();
+    sim.run_months(1).unwrap();
+    assert!(sim.state.filled_offers.contains(&1));
+    assert_eq!(sim.world.offers.len(), 1);
+    assert!(sim.state.equipment.is_empty());
+    assert_eq!(sim.state.retired_equipment.len(), 1);
+}
+
+#[test]
+fn retired_equipment_has_no_hidden_value_or_repair_target_and_ids_cannot_be_reused() {
+    use economics_compute_smoke::activities::{self, Outcome};
+    let (mut w, mut s) = retirement_fixture();
+    let retired_id = 1_000_001;
+    let mut tool = s.equipment.remove(&TOOL).unwrap();
+    tool.id = retired_id;
+    s.equipment.insert(retired_id, tool);
+    w.households[0].equipment_retirements[0].asset = retired_id;
+    assert!(
+        Audit::with_inventory(
+            &w,
+            &s,
+            TOKEN,
+            [(retired_id, 1)].into(),
+            [((HOME, GRAIN), 4)].into()
+        )
+        .is_err()
+    );
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    sim.step().unwrap();
+    assert!(
+        Audit::with_inventory(
+            &sim.world,
+            &sim.state,
+            TOKEN,
+            [(retired_id, 1)].into(),
+            [((HOME, GRAIN), 4)].into()
+        )
+        .is_err()
+    );
+    let mut w = sim.world.clone();
+    w.definitions.push(ProcessDefinition {
+        id: 999,
+        name: "repair or replace".into(),
+        enabled: true,
+        execution: Execution::Productive,
+        asset_kind: None,
+        stages: vec![Stage {
+            name: "work".into(),
+            months: 1,
+            entry_inputs: vec![],
+            monthly_services: vec![Amount::new(LABOR, 1)],
+        }],
+        outputs: vec![],
+    });
+    w.activities.outcomes.insert(
+        999,
+        Outcome::Repair {
+            kind: KIND,
+            restore: 2,
+        },
+    );
+    economics_compute_smoke::settlement::validate_world(&w, &sim.state).unwrap();
+    let process = ProcessInstance {
+        id: 1,
+        definition: 999,
+        operator: HOME,
+        beneficiary: HOME,
+        goal: None,
+        asset: None,
+        right: None,
+        start: 2,
+        reserved_through: 2,
+        stage: 0,
+        elapsed: 1,
+        status: Status::Completed,
+    };
+    let mut unchanged = sim.state.clone();
+    assert!(
+        activities::apply(
+            &w,
+            &mut unchanged,
+            &ProcessChange {
+                before: None,
+                after: process.clone()
+            }
+        )
+        .is_err()
+    );
+    assert_eq!(unchanged, sim.state);
+    w.activities.outcomes.insert(999, Outcome::Create(KIND));
+    economics_compute_smoke::settlement::validate_world(&w, &sim.state).unwrap();
+    assert!(
+        activities::apply(
+            &w,
+            &mut unchanged,
+            &ProcessChange {
+                before: None,
+                after: process
+            }
+        )
+        .is_err()
+    );
+    assert_eq!(unchanged, sim.state);
+}
+
+#[test]
+fn retirement_rechecks_its_own_permission_and_observer_records_outcome() {
+    use economics_compute_smoke::opportunities::{Action, HOUSEHOLD_TYPE, PERSON_TYPE, STATE_TYPE};
+    for allowed in [false, true] {
+        let (mut w, s) = retirement_fixture();
+        let (policy_world, _) = economics_compute_smoke::membership::scenario().unwrap();
+        let mut policy = policy_world.transaction_policy.unwrap();
+        policy.laws.clear();
+        policy.membership_offers.clear();
+        policy.membership_permissions.clear();
+        policy.agent_types = [
+            (HOME, HOUSEHOLD_TYPE),
+            (PERSON, PERSON_TYPE),
+            (STATE_AGENT, STATE_TYPE),
+        ]
+        .into();
+        policy.permissions = [(HOUSEHOLD_TYPE, Action::AssetTrade)].into();
+        if allowed {
+            policy
+                .permissions
+                .insert((HOUSEHOLD_TYPE, Action::RetireEquipment));
+        }
+        w.transaction_policy = Some(policy);
+        let mut observed = Simulation::new(w, s, Backend::Reference).unwrap();
+        let mut plain = observed.clone();
+        let mut observer = Observer::new(
+            vec![],
+            "equipment-retirement",
+            Config {
+                settlement: true,
+                agents: [HOME].into(),
+                ..Config::default()
+            },
+        )
+        .unwrap();
+        observer.run_months(&mut observed, 1).unwrap();
+        plain.run_months(1).unwrap();
+        assert_eq!(observed.state, plain.state);
+        assert_eq!(observed.ledger, plain.ledger);
+        assert_eq!(
+            observed.state.retired_equipment.contains_key(&TOOL),
+            allowed
+        );
+        let log = String::from_utf8(observer.finish().unwrap()).unwrap();
+        let rows: Vec<serde_json::Value> = log
+            .lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .filter(|r: &serde_json::Value| r["kind"] == "household_equipment_retirement")
+            .collect();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["retired"], allowed);
+        assert_eq!(rows[0]["remaining_uses"], 0);
+        assert_eq!(
+            rows[0]["rejection"],
+            if allowed {
+                serde_json::Value::Null
+            } else {
+                "Permission".into()
+            }
+        );
+    }
+    let (mut w, s) = retirement_fixture();
+    w.households[0].asset_sales.push(terms(1));
+    assert!(Simulation::new(w, s, Backend::Reference).is_err());
 }

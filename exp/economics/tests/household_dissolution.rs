@@ -421,6 +421,7 @@ fn fixture() -> (World, State) {
             admission: None,
             membership: vec![],
             asset_sales: vec![],
+            equipment_retirements: vec![],
         },
     )
     .unwrap();

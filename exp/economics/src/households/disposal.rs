@@ -13,6 +13,7 @@ pub struct Sale {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Rejection {
     Unavailable,
+    NotExhausted,
     Encumbered,
     Attached,
     Permission,
@@ -75,7 +76,8 @@ pub(super) fn validate(world: &World, state: &State) -> Result<(), String> {
                 || s.price.quantity <= 0
                 || !world.agents.iter().any(|b| b.id == s.buyer)
                 || (!world.assets.iter().any(|b| b.id == s.asset)
-                    && !state.equipment.contains_key(&s.asset))
+                    && !state.equipment.contains_key(&s.asset)
+                    && !state.retired_equipment.contains_key(&s.asset))
                 || !world
                     .resources
                     .iter()
@@ -110,46 +112,8 @@ fn rejection(world: &World, state: &State, a: &Agreement, sale: &Sale) -> Option
             return Some(Rejection::Unavailable);
         }
     }
-    if state.exchange.contracts.contains_key(&sale.asset)
-        || world
-            .offers
-            .iter()
-            .any(|o| o.asset == sale.asset && !state.filled_offers.contains(&o.id))
-    {
-        return Some(Rejection::Encumbered);
-    }
-    if state.credit.loans.values().any(|l| {
-        l.collateral
-            .as_ref()
-            .is_some_and(|c| c.asset == sale.asset && c.pledged)
-    }) || world.lending.iter().any(|l| {
-        l.month >= state.month && l.collateral.as_ref().is_some_and(|c| c.asset == sale.asset)
-    }) || world
-        .credit
-        .as_ref()
-        .is_some_and(|c| c.offers.iter().any(|o| o.sale.asset == sale.asset))
-        || world
-            .recovery
-            .proceedings
-            .iter()
-            .any(|p| p.assets.iter().any(|l| l.asset == sale.asset))
-    {
-        return Some(Rejection::Encumbered);
-    }
-    if state
-        .equipment
-        .values()
-        .any(|tool| tool.attached_to == Some(sale.asset))
-        || world
-            .rights
-            .iter()
-            .any(|r| r.asset == sale.asset && r.through >= state.month)
-        || state
-            .processes
-            .values()
-            .any(|p| p.asset == Some(sale.asset) && p.status == Status::Active)
-    {
-        return Some(Rejection::Attached);
+    if let Some(reason) = restrictions(world, state, sale.asset) {
+        return Some(reason);
     }
     if [a.agent, sale.buyer]
         .into_iter()
@@ -225,4 +189,53 @@ pub(super) fn publish(state: &mut State, receipts: &[Receipt]) {
                 .insert(r.sale.asset, r.sale.price.quantity);
         }
     }
+}
+
+/// Shared restrictions for disposal and permanent retirement. Neither path may
+/// discard another party's claim, a standing offer or an attached obligation.
+pub(super) fn restrictions(world: &World, state: &State, asset: AssetId) -> Option<Rejection> {
+    if state.exchange.contracts.contains_key(&asset)
+        || world
+            .offers
+            .iter()
+            .any(|o| o.asset == asset && !state.filled_offers.contains(&o.id))
+    {
+        return Some(Rejection::Encumbered);
+    }
+    if state.credit.loans.values().any(|l| {
+        l.collateral
+            .as_ref()
+            .is_some_and(|c| c.asset == asset && c.pledged)
+    }) || world
+        .lending
+        .iter()
+        .any(|l| l.month >= state.month && l.collateral.as_ref().is_some_and(|c| c.asset == asset))
+        || world
+            .credit
+            .as_ref()
+            .is_some_and(|c| c.offers.iter().any(|o| o.sale.asset == asset))
+        || world
+            .recovery
+            .proceedings
+            .iter()
+            .any(|p| p.assets.iter().any(|l| l.asset == asset))
+    {
+        return Some(Rejection::Encumbered);
+    }
+    if state
+        .equipment
+        .values()
+        .any(|tool| tool.attached_to == Some(asset))
+        || world
+            .rights
+            .iter()
+            .any(|r| r.asset == asset && r.through >= state.month)
+        || state
+            .processes
+            .values()
+            .any(|p| p.asset == Some(asset) && p.status == Status::Active)
+    {
+        return Some(Rejection::Attached);
+    }
+    None
 }

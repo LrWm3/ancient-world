@@ -1165,10 +1165,17 @@ receipts. Seller carrying value is derecognized, gains/losses recognized, buyer 
 established and actual cash classified as investing. Payment must use the reporting
 denomination; unsupported valuation rejects the combined step without publishing
 state or journal. Sale proceeds remain household property until the next Open's
-clearance check. This does not integrate household loans, insolvent estates,
-exhausted-equipment retirement or sales with attached equipment/live rights/crop
-obligations. Equipment disposal preserves condition and sets the buyer's purchase
+clearance check. This does not integrate household loans, insolvent estates or
+sales with attached equipment/live rights/crop obligations. Equipment disposal preserves condition and sets the buyer's purchase
 basis before ordinary Open aging. The seller recognizes gain/loss against its
 opening basis; the buyer bears subsequent depreciation and productive wear.
 Calendar decay can consume all remaining life in the sale month, with the full
 buyer cost recognized as depreciation; ownership transfer never refreshes life.
+
+Explicit exhausted-equipment retirement now removes a zero-basis holding into a
+permanent provenance archive during household wind-down. It creates no cash flow,
+disposal result or duplicate wear expense. The audit rejects any nonzero archived
+basis; this adapter cannot retire usable equipment or invent a scrap valuation.
+The integrated CPU/reference case verifies depreciation, retirement, later residual
+transfers and closure with zero final household assets/liabilities and identical
+checkpoint continuation.

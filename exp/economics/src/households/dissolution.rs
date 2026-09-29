@@ -196,7 +196,9 @@ pub fn blockers(w: &World, s: &State, household: AgentId) -> Vec<Blocker> {
         || w.access_offers
             .iter()
             .any(|a| involved(a.debtor, a.creditor))
-        || w.offers.iter().any(|o| o.seller == household)
+        || w.offers
+            .iter()
+            .any(|o| o.seller == household && !s.filled_offers.contains(&o.id))
         || s.exchange
             .contracts
             .values()

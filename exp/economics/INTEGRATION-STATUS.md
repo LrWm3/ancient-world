@@ -430,9 +430,10 @@ surplus and closes with balanced separate statements. Explicit funded sales now
 clear unencumbered catalog assets and usable portable equipment at Open, retain
 proceeds until the next clearance
 check, and recognize disposal gains/losses in separate statements. CPU/reference
-and checkpoint cases agree. Attached crops/rights/equipment, exhausted-equipment
-retirement, insolvency, general
-household loan/recovery composition and automatic death estates remain outstanding.
+and checkpoint cases agree. Explicit retirement now clears exhausted portable
+equipment while retaining its permanent provenance. Attached crops/rights/equipment,
+insolvency, general household loan/recovery composition and automatic death estates
+remain outstanding.
 
 
 Asset-disposal verification (2026-09-28): **137 focused tests passed**: household
@@ -458,3 +459,13 @@ Equipment-disposal verification (2026-09-28): **164 tests passed** across househ
 equipment, manufacture, activities, recovery/resale and accounting suites, including
 eight new focused checks. Strict all-target Clippy passed. The slow 32-person test
 remains ignored and the full crate suite was not run.
+
+Exhausted portable equipment now has an explicit, permission-checked retirement
+instruction at Open. Verified receipts move the zero-use, zero-basis asset into a
+permanent provenance archive; it cannot be repaired, sold or manufactured again
+under the same ID. Clearance and residual payout still wait for the next Open.
+Physical scrap, salvage value, premature write-offs and attached-property packages
+remain extensions. Retirement verification (2026-09-28): **188 distinct tests passed**,
+including seven new retirement tests and law controls; strict all-target Clippy
+passed. One slow accounting test remains ignored; the full crate suite was not run.
+See [verification details](HOUSEHOLD-DISSOLUTION.md#exhausted-equipment-retirement-verification-2026-09-28).

@@ -15,6 +15,7 @@ pub enum Action {
     Membership,
     EquipmentTrade,
     AssetTrade,
+    RetireEquipment,
     StockTrade,
     CapacityTrade,
     FinancedPurchase,

@@ -60,6 +60,16 @@ pub(super) fn batch(
     if config.settlement
         && let Some(h) = &batch.household
     {
+        for r in &h.retirements {
+            if selected(config, r.household) {
+                records.push(
+                    json!({"kind":"household_equipment_retirement", "household":r.household,
+                    "asset":r.request.asset,"retired":r.rejection.is_none(),
+                    "remaining_uses":r.equipment.as_ref().map(|e| e.remaining_uses),
+                    "rejection":r.rejection.as_ref().map(|reason| format!("{reason:?}"))}),
+                );
+            }
+        }
         for r in &h.disposals {
             if selected(config, r.household) || selected(config, r.sale.buyer) {
                 records.push(

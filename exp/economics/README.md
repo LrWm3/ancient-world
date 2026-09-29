@@ -428,5 +428,6 @@ founding rule for winding down, paying supported claims before residual stock
 distribution, and releasing the last member without deleting financial history.
 Explicit funded sales now clear unencumbered catalog assets and usable portable
 equipment during wind-down, preserving wear and recording buyer depreciation.
-Attached crops/rights/equipment, exhausted-equipment retirement and insolvency
+Explicit retirement now archives exhausted, unencumbered portable equipment with
+its identity and history intact. Attached crops/rights/equipment and insolvency
 remain outside this adapter.

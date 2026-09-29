@@ -83,9 +83,10 @@ Their existing validation rejection remains. Defensive clearance recognizes thos
 positions, but this change does not claim to service household loans or perform
 household insolvency. The working debt-composition test uses supported land dues.
 Unencumbered catalog assets and usable portable equipment have the explicit
-disposal path below. Attached/exhausted equipment, live rights and attached
-processes still block closure. Configured standing roles may require retirement rather than
-being inferred finished from a zero balance.
+disposal path below. Exhausted portable equipment can be explicitly retired as
+described below; attached equipment, live rights and attached processes still block
+closure. Configured standing roles may require explicit closure rather than being
+inferred finished from a zero balance.
 
 If the last member or recipient dies before payout, wind-down defers. Automatic
 last-member death estates, guardian/executor appointment, contested distributions,
@@ -171,9 +172,40 @@ ordinary monthly aging still occurs for the owner. Proceeds stay in the househol
 until the next Open clearance. Equipment purchases and residual transfers use the
 same separate-agent double-entry audit, including rejected unsupported valuations.
 
-Remaining: scrap/retirement of exhausted equipment, attached-property packages,
-contract novation, autonomous buyers/prices and household insolvency. Retained
-zero-use equipment is still property; it is not silently deleted to permit closure.
+### Explicit retirement of exhausted equipment
+
+During wind-down, the living last member may call `retirement::request` at Open
+for unencumbered portable equipment with zero remaining uses. Retirement is an
+explicit choice to relinquish its repair/salvage options, not automatic deletion
+when useful life reaches zero. `Action::RetireEquipment` is a distinct permission;
+where a transaction policy applies, permission to trade does not confer it.
+
+The instruction is dated and rechecked against opening ownership, exhaustion,
+last-use history, live law, attachments and outstanding offers/agreements/claims.
+A conflicting same-month sale is invalid. A rejected instruction expires and
+needs fresh consent to retry. Acceptance archives the complete equipment snapshot,
+retirement month and batch, removes it from active holdings, and emits a verified
+household boundary receipt. Replay checks the receipt before publishing any state.
+The archive permanently reserves the ID, prevents repair/resale and retains filled
+offer history. Its owner is historical, not a current holding. Unfilled offers
+still block retirement and closure.
+
+This runs at the existing Open disposal boundary before normal aging, without
+changing allocation or scheduler order. A tool exhausted by this month's aging
+can only be retired at a subsequent Open. Residual clearance uses opening holdings,
+so successful retirement permits payout at the next Open; final membership release
+still requires a later explicit finish. Reassignment before execution rejects the
+stale retirement instruction, but can independently permit residual distribution.
+
+The financial audit already requires exhausted equipment to have zero carrying
+cost. Retirement therefore has no proceeds, disposal gain/loss or second depreciation
+charge. Nonzero supplied archive value is rejected, not hidden. Settlement observers
+report the asset, exhaustion and acceptance/rejection without affecting execution.
+
+Remaining: physical scrap/recycling and salvage value, premature retirement with
+write-off terms, attached-property packages, contract novation, autonomous disposal
+selection/prices and household insolvency. The archive is reusable state machinery;
+the current authorization adapter specifically covers household wind-down.
 
 ## Accounting and verification
 
@@ -258,3 +290,24 @@ Run from `exp/economics`:
 cargo +1.92.0 test --locked --test household_equipment_disposal --test household_dissolution --test households --test household_accounting --test equipment --test equipment_accounting --test manufacture_accounting --test activities --test recovery --test resale --test accounting
 cargo +1.92.0 clippy --locked --all-targets -- -D warnings
 ```
+
+### Exhausted-equipment retirement verification (2026-09-28)
+
+**188 distinct tests passed**: the 171-test household/equipment/accounting regression
+set plus 17 law/agreement-law tests. Seven added retirement tests exercise CPU and
+reference execution, checkpoint continuation, depreciation through closure, stale
+ownership/condition/offer checks, permission removal, replay tampering, permanent
+ID exclusion, repair rejection, nonzero archive basis rejection, historical filled
+offers and observational equivalence. Strict all-target Clippy, formatting and
+repository artifact checks passed. The slow 32-person accounting test remains
+ignored; the full crate suite was not run.
+
+Run from `exp/economics`:
+
+```sh
+cargo +1.92.0 test --locked --test household_equipment_disposal --test household_dissolution --test households --test household_accounting --test equipment --test equipment_accounting --test manufacture_accounting --test activities --test recovery --test resale --test accounting
+cargo +1.92.0 test --locked --test laws --test agreement_laws
+cargo +1.92.0 clippy --locked --all-targets -- -D warnings
+```
+
+Generated logs remain in ignored `output/economics/household-retirement-*.log`.

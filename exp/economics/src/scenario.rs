@@ -332,6 +332,7 @@ pub fn baseline() -> (World, State) {
         conditions: BTreeMap::new(),
         terminal: BTreeMap::new(),
         equipment: BTreeMap::new(),
+        retired_equipment: BTreeMap::new(),
         practice: BTreeMap::new(),
         filled_offers: Default::default(),
         pending_production: None,

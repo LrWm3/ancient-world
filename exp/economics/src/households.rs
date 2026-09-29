@@ -11,6 +11,7 @@ pub mod disposal;
 pub mod dissolution;
 pub mod membership;
 pub mod needs;
+pub mod retirement;
 
 /// Fractional collection carry belongs to a particular household relationship.
 pub type Remainders = BTreeMap<(AgentId, AgentId, ResourceId), i32>;
@@ -32,6 +33,7 @@ pub struct Agreement {
     pub adults: Vec<AgentId>,
     pub membership: Vec<membership::Change>,
     pub asset_sales: Vec<disposal::Sale>,
+    pub equipment_retirements: Vec<retirement::Request>,
     pub formed: u32,
     /// A non-rival occupancy service, produced by one member's actual dwelling.
     pub dwelling_process: Option<DefinitionId>,
@@ -89,6 +91,7 @@ pub struct LaborContribution {
 pub struct Boundary {
     pub dissolution: Vec<dissolution::Receipt>,
     pub disposals: Vec<disposal::Receipt>,
+    pub retirements: Vec<retirement::Receipt>,
     pub disposal_effects: Vec<Effect>,
     pub membership: Vec<(AgentId, membership::Change)>,
     pub governance: Vec<crate::household_governance::Authority>,
@@ -127,7 +130,10 @@ pub fn form(world: &mut World, state: &State, mut agreement: Agreement) -> Resul
     {
         return Err("only living adults can sign formation".into());
     }
-    if !agreement.membership.is_empty() || !agreement.asset_sales.is_empty() {
+    if !agreement.membership.is_empty()
+        || !agreement.asset_sales.is_empty()
+        || !agreement.equipment_retirements.is_empty()
+    {
         return Err("formation cannot include membership or disposal history".into());
     }
     if agreement.formed != state.month {
@@ -177,6 +183,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     membership::validate(world, state)?;
     dissolution::validate(world, state)?;
     disposal::validate(world, state)?;
+    retirement::validate(world, state)?;
     for a in &world.households {
         crate::household_governance::validate(world, state, a)?;
         crate::laws::households::validate_admission(world, a)?;
@@ -580,6 +587,8 @@ fn prepare(world: &World, state: &State) -> Result<(State, Boundary), String> {
         (b.disposals, b.disposal_effects) = disposal::prepare(world, state)?;
         apply(world, &mut staged, &b.disposal_effects, Backend::Reference)?;
         disposal::publish(&mut staged, &b.disposals);
+        b.retirements = retirement::prepare(world, state);
+        retirement::publish(&mut staged, &b.retirements);
     }
     if !matches!(state.phase, Phase::Open | Phase::Close) {
         (b.reservations, b.before) = allocate(world, state, requests(world, state)?)?;
@@ -1162,6 +1171,7 @@ pub(crate) fn settled_boundaries(
         || receipt.governance != expected.governance
         || receipt.membership != expected.membership
         || receipt.dissolution != expected.dissolution
+        || receipt.retirements != expected.retirements
         || receipt.disposals != expected.disposals
         || receipt.disposal_effects != expected.disposal_effects
     {
@@ -1171,6 +1181,7 @@ pub(crate) fn settled_boundaries(
     apply(world, &mut staged, &expected.before, backend)?;
     apply(world, &mut staged, &expected.disposal_effects, backend)?;
     disposal::publish(&mut staged, &expected.disposals);
+    retirement::publish(&mut staged, &expected.retirements);
     let mut core = batch.clone();
     core.household = None;
     crate::settlement::commit_core(world, &mut staged, &core, backend, limit)?;
@@ -1203,6 +1214,7 @@ pub fn scenario() -> Result<(World, State), String> {
                 admission: None,
                 membership: vec![],
                 asset_sales: vec![],
+                equipment_retirements: vec![],
             },
         )?;
     }

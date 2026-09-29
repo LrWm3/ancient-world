@@ -13,6 +13,14 @@ pub struct DurableAsset {
     pub remaining_uses: u32,
     pub last_used_month: Option<u32>,
 }
+/// Permanent provenance for equipment explicitly withdrawn from use. The owner
+/// is historical; this is no longer a holding, saleable asset or repair target.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RetiredAsset {
+    pub equipment: DurableAsset,
+    pub month: u32,
+    pub batch: u64,
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Offer {
     pub id: u32,
@@ -212,7 +220,9 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     for offer in &world.offers {
         if !ids.insert(offer.id)
             || !world.agents.iter().any(|a| a.id == offer.seller)
-            || !state.equipment.contains_key(&offer.asset)
+            || !(state.equipment.contains_key(&offer.asset)
+                || state.filled_offers.contains(&offer.id)
+                    && state.retired_equipment.contains_key(&offer.asset))
             || offer.price.quantity <= 0
             || !world
                 .resources
@@ -224,6 +234,24 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     }
     if state.filled_offers.iter().any(|id| !ids.contains(id)) {
         return Err("unknown filled offer".into());
+    }
+    for (&id, retired) in &state.retired_equipment {
+        let asset = &retired.equipment;
+        if id != asset.id
+            || state.equipment.contains_key(&id)
+            || world.assets.iter().any(|a| a.id == id)
+            || asset.remaining_uses != 0
+            || asset.attached_to.is_some()
+            || !world.agents.iter().any(|a| a.id == asset.owner)
+            || retired.month == 0
+            || retired.month > state.month
+            || retired.batch > state.next_batch
+            || asset
+                .last_used_month
+                .is_some_and(|m| m == 0 || m >= retired.month)
+        {
+            return Err("invalid retired equipment provenance".into());
+        }
     }
     for (&id, asset) in &state.equipment {
         if id != asset.id
