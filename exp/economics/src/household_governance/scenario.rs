@@ -105,6 +105,7 @@ pub fn pair() -> Result<(World, State), String> {
             membership: vec![],
             asset_sales: vec![],
             equipment_retirements: vec![],
+            support: vec![],
         },
     )?;
     for term_start in [1 + TERM_MONTHS, 1 + TERM_MONTHS * 2] {

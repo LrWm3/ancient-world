@@ -26,6 +26,7 @@ fn form(w: &mut World, s: &State, adults: Vec<AgentId>) {
             membership: vec![],
             asset_sales: vec![],
             equipment_retirements: vec![],
+            support: vec![],
         },
     )
     .unwrap();

@@ -2,7 +2,7 @@ use economics_compute_smoke::{
     compute::Backend,
     financial_reporting::{Audit, Opening},
     households::{
-        income::scenario::{FUEL_MARKET, RUN_MONTHS, costs, scenario},
+        income::scenario::{FUEL_MARKET, RUN_MONTHS, coordinated, costs},
         market::EXAMPLE_HOUSEHOLD,
     },
     negotiation::GRAIN_MARKET,
@@ -19,7 +19,7 @@ fn main() -> Result<(), String> {
     if months == 0 {
         return Err("run length must be positive".into());
     }
-    let (w, s) = scenario()?;
+    let (w, s) = coordinated()?;
     let mut audit = Audit::with_opening(
         &w,
         &s,

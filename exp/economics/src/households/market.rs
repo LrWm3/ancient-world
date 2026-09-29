@@ -190,6 +190,7 @@ pub fn scenario() -> Result<(World, State), String> {
             membership: vec![],
             asset_sales: vec![],
             equipment_retirements: vec![],
+            support: vec![],
             formed: s.month,
             dwelling_process: None,
             admission: None,

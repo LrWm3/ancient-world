@@ -34,6 +34,7 @@ fn agreement(count: u32) -> Agreement {
         membership: vec![],
         asset_sales: vec![],
         equipment_retirements: vec![],
+        support: vec![],
     }
 }
 fn request(member: u32, quantity: i32, benefit: i64, sequence: u64) -> Request {

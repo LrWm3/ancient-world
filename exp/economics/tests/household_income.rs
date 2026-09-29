@@ -440,3 +440,414 @@ fn finite_private_work_target_eventually_stops_collective_income() {
         2
     );
 }
+
+#[test]
+fn voluntary_surplus_closes_the_loop_for_ten_years_on_cpu_with_separate_books() {
+    let (w, s) = scenario::coordinated().unwrap();
+    let run = |backend| {
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        while sim.state.month <= 120 {
+            a.step(&mut sim).unwrap();
+            assert!(sim.state.balance(PERSON, FUEL) <= 3);
+        }
+        assert_eq!(sim.state.balance(HOME, TOKEN), 60);
+        assert!(
+            sim.reports
+                .iter()
+                .filter(|r| [PERSON, 91].contains(&r.agent))
+                .all(|r| r.deficit(NUTRITION) == 0)
+        );
+        assert_eq!(
+            sim.state
+                .town_market
+                .history
+                .iter()
+                .map(|r| r.markets[&FUEL_MARKET].volume)
+                .sum::<i32>(),
+            119
+        );
+        assert_eq!(
+            s.balances
+                .iter()
+                .filter(|((_, r), _)| *r == TOKEN)
+                .map(|(_, q)| q)
+                .sum::<i32>(),
+            sim.state
+                .balances
+                .iter()
+                .filter(|((_, r), _)| *r == TOKEN)
+                .map(|(_, q)| q)
+                .sum::<i32>()
+        );
+        let support: Vec<_> = sim
+            .ledger
+            .iter()
+            .filter_map(|b| b.household.as_ref())
+            .flat_map(|h| &h.support)
+            .filter(|r| r.accepted > 0)
+            .collect();
+        assert!(!support.is_empty());
+        assert!(support.iter().all(|r| r.accepted == 1 && r.protected >= 2));
+        let decisions: Vec<_> = sim
+            .ledger
+            .iter()
+            .filter_map(|b| b.household.as_ref())
+            .flat_map(|h| &h.labor)
+            .collect();
+        assert!(decisions.iter().any(|d| d.granted == 0));
+        assert!(decisions.iter().any(|d| d.granted == 2));
+        for agent in &w.agents {
+            let r = a.book().statements(agent.id, 1, 120).unwrap();
+            assert_eq!(r.assets, r.liabilities + r.equity);
+        }
+        (sim.state, sim.ledger, sim.reports, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}
+
+#[test]
+fn support_is_voluntary_prospective_bounded_and_atomic() {
+    use economics_compute_smoke::households::support::authorize;
+    let (mut w, s) = scenario::coordinated().unwrap();
+    let mandate = w.households[0].support.pop().unwrap();
+    let original = w.clone();
+    assert!(authorize(&mut w, &s, HOME, 91, mandate.clone()).is_err());
+    assert_eq!(w, original);
+    authorize(&mut w, &s, HOME, PERSON, mandate.clone()).unwrap();
+    let original = w.clone();
+    assert!(authorize(&mut w, &s, HOME, PERSON, mandate).is_err());
+    assert_eq!(w, original);
+    let mut sim = productive(w, s);
+    sim.state.balances.insert((PERSON, FUEL), 24);
+    let opening = sim.state.clone();
+    sim.step().unwrap();
+    let b = sim.ledger.last().unwrap();
+    let r = &b.household.as_ref().unwrap().support[0];
+    assert_eq!((r.protected, r.offered, r.accepted), (2, 1, 1));
+    assert_eq!(sim.state.balance(PERSON, FUEL), 23);
+    assert_eq!(sim.state.balance(HOME, FUEL), 1);
+    for backend in [Backend::Reference, Backend::CubeCpu] {
+        let mut replay = opening.clone();
+        commit(&sim.world, &mut replay, b, backend, DEFAULT_EFFECT_LIMIT).unwrap();
+        assert_eq!(replay, sim.state);
+        let mut bad = b.clone();
+        bad.household.as_mut().unwrap().support[0].accepted += 1;
+        let mut rejected = opening.clone();
+        assert!(
+            commit(
+                &sim.world,
+                &mut rejected,
+                &bad,
+                backend,
+                DEFAULT_EFFECT_LIMIT
+            )
+            .is_err()
+        );
+        assert_eq!(rejected, opening);
+    }
+}
+
+#[test]
+fn unavailable_demand_private_needs_and_expired_consent_prevent_surplus_capture() {
+    for mode in 0..5 {
+        let (mut w, mut s) = scenario::coordinated().unwrap();
+        s.balances.insert((PERSON, FUEL), 3);
+        match mode {
+            0 => w.households[0].support[0].from = 2,
+            1 => w
+                .participants
+                .iter_mut()
+                .find(|p| p.agent == 89)
+                .unwrap()
+                .needs
+                .retain(|n| n.resource != WARMTH),
+            2 => w
+                .participants
+                .iter_mut()
+                .find(|p| p.agent == PERSON)
+                .unwrap()
+                .needs
+                .push(Requirement {
+                    resource: WARMTH,
+                    quantity: 3,
+                    priority: 1,
+                }),
+            3 => w.households[0].governance.charter.initial_policy = Policy::NeedsFirst,
+            _ => w.households[0].support[0].private_reserve = 3,
+        }
+        let mut sim = productive(w, s);
+        sim.step().unwrap();
+        assert!(
+            sim.ledger
+                .last()
+                .unwrap()
+                .household
+                .as_ref()
+                .unwrap()
+                .support
+                .iter()
+                .all(|r| r.accepted == 0),
+            "mode {mode}"
+        );
+    }
+    let (mut w, s) = scenario::coordinated().unwrap();
+    w.households[0].support[0].through = 1;
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    sim.run_months(30).unwrap();
+    assert!(
+        sim.ledger
+            .iter()
+            .filter(|b| b.month > 1)
+            .filter_map(|b| b.household.as_ref())
+            .all(|h| h.support.is_empty())
+    );
+    assert!(
+        sim.reports
+            .iter()
+            .any(|r| r.month == 30 && r.agent == PERSON && r.deficit(NUTRITION) > 0)
+    );
+}
+
+#[test]
+fn coordinated_income_recovers_after_a_temporary_market_demand_loss() {
+    let (w, s) = scenario::coordinated().unwrap();
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    sim.run_months(10).unwrap();
+    sim.world.town_market.as_mut().unwrap().additional[0].match_limit = Some(0);
+    sim.run_months(3).unwrap();
+    assert!(
+        sim.ledger
+            .iter()
+            .filter(|b| (11..=13).contains(&b.month))
+            .filter_map(|b| b.household.as_ref())
+            .all(|h| h.support.iter().all(|r| r.accepted == 0)
+                && h.labor.iter().all(|d| d.granted == 0))
+    );
+    sim.world.town_market.as_mut().unwrap().additional[0].match_limit = None;
+    sim.run_months(12).unwrap();
+    assert!(
+        sim.reports
+            .iter()
+            .filter(|r| r.month >= 15 && [PERSON, 91].contains(&r.agent))
+            .all(|r| r.deficit(NUTRITION) == 0)
+    );
+    assert!(sim.state.balance(HOME, TOKEN) >= 40);
+}
+
+#[test]
+fn coordinated_checkpoint_and_reordered_inputs_preserve_support_and_work() {
+    let (mut w, s) = scenario::coordinated().unwrap();
+    let mut plain = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    plain.run_months(36).unwrap();
+    w.participants.reverse();
+    w.definitions.reverse();
+    w.town_market.as_mut().unwrap().traders.reverse();
+    let mut cpu = Simulation::new(w.clone(), s, Backend::CubeCpu).unwrap();
+    cpu.run_months(24).unwrap();
+    let mut resumed = Simulation::new(w, cpu.state.clone(), Backend::CubeCpu).unwrap();
+    resumed.run_months(12).unwrap();
+    cpu.run_months(12).unwrap();
+    assert_eq!(resumed.state, cpu.state);
+    assert_eq!(
+        resumed.ledger,
+        cpu.ledger
+            .iter()
+            .filter(|b| b.month > 24)
+            .cloned()
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(cpu.state, plain.state);
+    assert_eq!(cpu.ledger, plain.ledger);
+}
+
+#[test]
+fn member_withdrawal_preserves_history_and_stops_new_transfers_next_month() {
+    use economics_compute_smoke::households::support::revoke;
+    let (w, mut s) = scenario::coordinated().unwrap();
+    s.balances.insert((PERSON, FUEL), 3);
+    let mut sim = productive(w, s);
+    let before = sim.state.clone();
+    sim.step().unwrap();
+    let batch = sim.ledger.last().unwrap().clone();
+    let after = sim.state.clone();
+    let original = sim.world.clone();
+    assert!(revoke(&mut sim.world, &sim.state, HOME, 91, FUEL, 1).is_err());
+    assert_eq!(sim.world, original);
+    revoke(&mut sim.world, &sim.state, HOME, PERSON, FUEL, 1).unwrap();
+    let mut replay = before;
+    commit(
+        &sim.world,
+        &mut replay,
+        &batch,
+        Backend::Reference,
+        DEFAULT_EFFECT_LIMIT,
+    )
+    .unwrap();
+    assert_eq!(replay, after);
+    while sim.state.month <= 4 {
+        sim.step().unwrap();
+    }
+    assert!(
+        sim.ledger
+            .iter()
+            .filter(|b| b.month >= 2)
+            .filter_map(|b| b.household.as_ref())
+            .all(|h| h.support.is_empty())
+    );
+}
+
+#[test]
+fn committed_inputs_are_not_voluntary_surplus() {
+    let (mut w, mut s) = scenario::coordinated().unwrap();
+    w.definitions.push(ProcessDefinition {
+        id: 101,
+        name: "committed fuel use".into(),
+        execution: Execution::Productive,
+        enabled: true,
+        asset_kind: None,
+        stages: vec![Stage {
+            name: "work".into(),
+            months: 2,
+            entry_inputs: vec![Amount::new(FUEL, 3)],
+            monthly_services: vec![],
+        }],
+        outputs: vec![Amount::new(FUEL, 1)],
+    });
+    w.transaction_policy
+        .as_mut()
+        .unwrap()
+        .permissions
+        .insert((PERSON_TYPE, Action::Process(101)));
+    s.balances.insert((PERSON, FUEL), 3);
+    s.processes.insert(
+        1,
+        ProcessInstance {
+            id: 1,
+            definition: 101,
+            operator: PERSON,
+            beneficiary: PERSON,
+            goal: None,
+            asset: None,
+            right: None,
+            start: 1,
+            reserved_through: 2,
+            stage: 0,
+            elapsed: 0,
+            status: Status::Active,
+        },
+    );
+    let mut sim = productive(w, s);
+    sim.step().unwrap();
+    let r = &sim
+        .ledger
+        .last()
+        .unwrap()
+        .household
+        .as_ref()
+        .unwrap()
+        .support[0];
+    assert_eq!((r.protected, r.offered, r.accepted), (3, 0, 0));
+    assert_eq!(sim.state.processes[&1].status, Status::Active);
+    assert_eq!(sim.state.processes[&1].elapsed, 1);
+}
+
+#[test]
+fn support_observer_explains_transfers_without_changing_execution() {
+    use economics_compute_smoke::telemetry::{Config, Observer};
+    let (w, mut s) = scenario::coordinated().unwrap();
+    s.balances.insert((PERSON, FUEL), 3);
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    let mut plain = sim.clone();
+    let mut observer = Observer::new(
+        vec![],
+        "support",
+        Config {
+            settlement: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    observer.run_months(&mut sim, 1).unwrap();
+    plain.run_months(1).unwrap();
+    assert_eq!(sim.state, plain.state);
+    assert_eq!(sim.ledger, plain.ledger);
+    let rows = String::from_utf8(observer.finish().unwrap()).unwrap();
+    let r: serde_json::Value = rows
+        .lines()
+        .map(|s| serde_json::from_str::<serde_json::Value>(s).unwrap())
+        .find(|r| r["kind"] == "household_support")
+        .unwrap();
+    assert_eq!(r["receipt"]["accepted"], 1);
+    assert_eq!(r["receipt"]["protected"], 2);
+}
+
+#[test]
+fn withdrawn_mandates_allow_new_prospective_terms_including_cancelled_future_offers() {
+    use economics_compute_smoke::households::support::{authorize, revoke};
+    for start in [1, 10] {
+        let (mut w, s) = scenario::coordinated().unwrap();
+        w.households[0].support[0].from = start;
+        let mut replacement = w.households[0].support[0].clone();
+        revoke(&mut w, &s, HOME, PERSON, FUEL, start).unwrap();
+        replacement.from = 2;
+        replacement.private_reserve = 4;
+        authorize(&mut w, &s, HOME, PERSON, replacement).unwrap();
+        assert_eq!(w.households[0].support.len(), 2);
+    }
+}
+
+#[test]
+fn collective_target_caps_competing_member_offers_in_policy_order() {
+    use economics_compute_smoke::{household_governance::TieBreak, households::support::authorize};
+    let (mut w, mut s) = scenario::coordinated().unwrap();
+    w.households[0].governance.charter.tie_break = TieBreak::MemberId;
+    let mut other = w.households[0].support[0].clone();
+    other.member = 91;
+    authorize(&mut w, &s, HOME, 91, other).unwrap();
+    w.households[0].support.reverse();
+    s.balances.insert((PERSON, FUEL), 3);
+    s.balances.insert((91, FUEL), 3);
+    let mut sim = productive(w, s);
+    sim.step().unwrap();
+    let r = &sim
+        .ledger
+        .last()
+        .unwrap()
+        .household
+        .as_ref()
+        .unwrap()
+        .support;
+    assert_eq!(r.iter().map(|r| r.accepted).sum::<i32>(), 1);
+    assert_eq!(r[0].mandate.member, PERSON);
+    assert_eq!(r[0].accepted, 1);
+    assert_eq!(r[1].accepted, 0);
+    assert_eq!(sim.state.balance(91, FUEL), 3);
+}
+
+#[test]
+fn support_cannot_exceed_collective_storage() {
+    let (mut w, mut s) = scenario::coordinated().unwrap();
+    w.resources.push(Resource {
+        id: 100,
+        name: "stored material".into(),
+        kind: ResourceKind::Stock,
+    });
+    w.storage.weights.insert(100, 1);
+    s.balances.insert((PERSON, FUEL), 3);
+    s.balances.insert((HOME, 100), 64);
+    let mut sim = productive(w, s);
+    sim.step().unwrap();
+    let r = &sim
+        .ledger
+        .last()
+        .unwrap()
+        .household
+        .as_ref()
+        .unwrap()
+        .support[0];
+    assert_eq!(r.offered, 1);
+    assert_eq!(r.accepted, 0);
+    assert_eq!(r.reason, "collective storage unavailable");
+    assert_eq!(sim.state.balance(PERSON, FUEL), 3);
+}

@@ -129,6 +129,11 @@ pub(super) fn batch(
                 );
             }
         }
+        for r in &h.support {
+            if selected(config, r.household) || selected(config, r.mandate.member) {
+                records.push(json!({"kind":"household_support", "receipt":r}));
+            }
+        }
         for d in &h.labor {
             if selected(config, d.household)
                 || d.leader.is_some_and(|leader| selected(config, leader))

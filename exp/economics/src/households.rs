@@ -14,6 +14,7 @@ pub mod market;
 pub mod membership;
 pub mod needs;
 pub mod retirement;
+pub mod support;
 
 /// Fractional collection carry belongs to a particular household relationship.
 pub type Remainders = BTreeMap<(AgentId, AgentId, ResourceId), i32>;
@@ -36,6 +37,8 @@ pub struct Agreement {
     pub membership: Vec<membership::Change>,
     pub asset_sales: Vec<disposal::Sale>,
     pub equipment_retirements: Vec<retirement::Request>,
+    /// Voluntary, dated member instructions; household governors cannot grant them.
+    pub support: Vec<support::Mandate>,
     pub formed: u32,
     /// A non-rival occupancy service, produced by one member's actual dwelling.
     pub dwelling_process: Option<DefinitionId>,
@@ -102,6 +105,7 @@ pub struct Boundary {
     pub governance: Vec<crate::household_governance::Authority>,
     pub remainders: Remainders,
     pub labor: Vec<LaborDecision>,
+    pub support: Vec<support::Receipt>,
     pub reservations: Vec<Reservation>,
     pub before: Vec<Effect>,
     pub after: Vec<Effect>,
@@ -189,6 +193,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     dissolution::validate(world, state)?;
     disposal::validate(world, state)?;
     retirement::validate(world, state)?;
+    support::validate(world)?;
     for a in &world.households {
         crate::household_governance::validate(world, state, a)?;
         crate::laws::households::validate_admission(world, a)?;
@@ -606,6 +611,10 @@ fn prepare(world: &World, state: &State) -> Result<(State, Boundary), String> {
         apply(world, &mut staged, &b.before, Backend::Reference)?;
     }
     if state.phase == Phase::Productive && staged.pending_production.is_none() {
+        let (effects, receipts) = support::prepare(world, state, &staged)?;
+        apply(world, &mut staged, &effects, Backend::Reference)?;
+        b.before.extend(effects);
+        b.support = receipts;
         let (labor, decisions) = labor(world, &staged)?;
         b.labor = decisions;
         apply(world, &mut staged, &labor, Backend::Reference)?;
@@ -1197,6 +1206,7 @@ pub(crate) fn settled_boundaries(
         || receipt.reservations != expected.reservations
         || receipt.inactive != expected.inactive
         || receipt.labor != expected.labor
+        || receipt.support != expected.support
         || receipt.governance != expected.governance
         || receipt.membership != expected.membership
         || receipt.dissolution != expected.dissolution
@@ -1246,6 +1256,7 @@ pub fn scenario() -> Result<(World, State), String> {
                 membership: vec![],
                 asset_sales: vec![],
                 equipment_retirements: vec![],
+                support: vec![],
             },
         )?;
     }

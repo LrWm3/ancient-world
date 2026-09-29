@@ -13,7 +13,10 @@ use crate::{
 pub const FUEL_MARKET: u32 = 2;
 pub const COLLECT_FUEL: DefinitionId = 98;
 pub const PRODUCE_GRAIN: DefinitionId = 99;
-pub const RUN_MONTHS: u32 = 12;
+pub const RUN_MONTHS: u32 = 36;
+const PRIVATE_FUEL_RESERVE: i32 = 2;
+const COLLECTIVE_FUEL_TARGET: i32 = 1;
+const SUPPORT_LIMIT: i32 = 1;
 const BUYER: AgentId = 89;
 const SECOND_PRODUCER: AgentId = 92;
 const MEMBER_LABOR: i32 = 5;
@@ -160,5 +163,29 @@ pub fn scenario() -> Result<(World, State), String> {
             price_tick: 1,
         });
     crate::settlement::validate_world(&w, &s)?;
+    Ok((w, s))
+}
+
+/// The same opening stocks, work targets, quotes and productive technology, with
+/// an explicit member offer of surplus to support collective food purchases.
+pub fn coordinated() -> Result<(World, State), String> {
+    let (mut w, s) = scenario()?;
+    super::super::support::authorize(
+        &mut w,
+        &s,
+        EXAMPLE_HOUSEHOLD,
+        PERSON,
+        super::super::support::Mandate {
+            member: PERSON,
+            resource: FUEL,
+            from: s.month,
+            through: u32::MAX,
+            revoked_from: None,
+            reserve_months: 1,
+            private_reserve: PRIVATE_FUEL_RESERVE,
+            household_target: COLLECTIVE_FUEL_TARGET,
+            monthly_limit: SUPPORT_LIMIT,
+        },
+    )?;
     Ok((w, s))
 }

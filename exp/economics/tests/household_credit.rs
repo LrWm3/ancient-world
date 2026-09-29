@@ -44,6 +44,7 @@ fn fixture() -> (World, State) {
             membership: vec![],
             asset_sales: vec![],
             equipment_retirements: vec![],
+            support: vec![],
             formed: 1,
             dwelling_process: None,
             admission: None,
