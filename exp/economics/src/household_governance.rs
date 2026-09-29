@@ -69,7 +69,7 @@ pub struct Charter {
     pub support_member_wages: bool,
     /// Collective bids may acquire denomination stock for current collectible loans.
     pub fund_due_loans: bool,
-    /// Collective buying may acquire stock for the household's earned wage claims.
+    /// Collective buying may fund own wages and explicitly supported member wage claims.
     pub fund_earned_wages: bool,
     pub debt_support: DebtSupportPolicy,
     /// Maximum earned wages for new hired hours per month; None disables hiring.

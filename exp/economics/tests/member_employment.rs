@@ -388,3 +388,96 @@ fn scarce_member_payroll_uses_explicit_support_priority() {
         }
     }
 }
+
+fn arrears_market(support: bool, funding: bool, stocked: bool) -> (World, State) {
+    use economics_compute_smoke::{
+        employment::Earned, finance, marketplace::Side, negotiation::QuotePolicy,
+    };
+    let (mut w, mut s) = fixture();
+    w.activities.orders.clear();
+    let (market, opening) = households::market::scenario().unwrap();
+    w.town_market = market.town_market;
+    s.town_market = opening.town_market;
+    s.month = 2;
+    s.balances.clear();
+    s.balances.insert((PERSON, TOKEN), 2);
+    s.balances
+        .insert((HOME, GRAIN), if stocked { 2 } else { 0 });
+    s.balances.insert((92, TOKEN), 4);
+    s.employment.earned.insert(
+        (1, 1),
+        Earned {
+            delivered: 3,
+            claim: finance::Obligation {
+                transfer: finance::Transfer {
+                    from: PERSON,
+                    to: WORKER,
+                    amount: Amount::new(TOKEN, 6),
+                },
+                settled: 0,
+                condition: finance::Condition::OnOrAfterMonth(2),
+                failure: finance::FailureRule::CarryArrears,
+            },
+        },
+    );
+    w.households[0].governance.charter.support_member_wages = support;
+    w.households[0].governance.charter.fund_earned_wages = funding;
+    let c = w.town_market.as_mut().unwrap();
+    c.traders.retain(|t| [HOME, 92].contains(&t.trader.agent));
+    for t in &mut c.traders {
+        t.side = if t.trader.agent == HOME {
+            Side::Buy
+        } else {
+            Side::Sell
+        };
+        t.trader.limit = 2;
+        t.trader.opening_quote = 2;
+        t.trader.policy = QuotePolicy::Fixed;
+    }
+    let m = &mut w
+        .marketplaces
+        .iter_mut()
+        .find(|m| m.agent == c.venue)
+        .unwrap()
+        .markets[0];
+    m.goods = Amount::new(TOKEN, 4);
+    m.payment = GRAIN;
+    m.price_tick = 1;
+    (w, s)
+}
+#[test]
+fn collective_market_funds_only_enabled_member_wages_and_offsets_private_cash_once() {
+    for (support, funding, stocked) in [
+        (true, true, true),
+        (false, true, true),
+        (true, false, true),
+        (true, true, false),
+    ] {
+        let (w, s) = arrears_market(support, funding, stocked);
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            while sim.state.phase != Phase::Productive {
+                a.step(&mut sim).unwrap();
+            }
+            let bought = support && funding && stocked;
+            assert_eq!(sim.state.balance(HOME, TOKEN), if bought { 4 } else { 0 });
+            assert!(!sim.state.employment.earned.contains_key(&(1, 2)));
+            assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 6);
+            let (mut resumed, mut ra) = (sim.clone(), a.clone());
+            through(&mut a, &mut sim, 2);
+            through(&mut ra, &mut resumed, 2);
+            assert_eq!(
+                sim.state.employment.earned[&(1, 1)].claim.outstanding(),
+                if bought { 0 } else { 4 }
+            );
+            assert_eq!(sim.state.balance(WORKER, TOKEN), if bought { 6 } else { 2 });
+            assert_eq!(sim.state.balance(HOME, TOKEN), 0);
+            assert_eq!(sim.state, resumed.state);
+            assert_eq!(a, ra);
+            replay(&w, &s, &sim);
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

@@ -142,8 +142,10 @@ fn funded_requirements(
                 *result.entry(r).or_default() += q;
             }
         }
-        if who == agent && h.governance.charter.fund_earned_wages {
-            for (r, q) in crate::employment::claims(state, agent)? {
+        if h.governance.charter.fund_earned_wages
+            && (who == agent || h.governance.charter.support_member_wages)
+        {
+            for (r, q) in crate::employment::claims(state, who)? {
                 *result.entry(r).or_default() += q;
             }
         }

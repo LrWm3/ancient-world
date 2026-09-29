@@ -9,7 +9,7 @@ preaccepted. Person self-directed policy changes remain deferred.
 | 21 | Members hire outside labor | Own-capacity contribution and paid-hour accounting | Complete |
 | 22 | Physical payroll from member inventory | Storage, wage pooling and carrying costs | Complete |
 | 23 | Optional assistance for member wage debts | Claim-driven Close allocations with explicit priority | Complete |
-| 24 | Buy denomination stock for supported member wages | Shared funded requirements and finite market budgets | Pending |
+| 24 | Buy denomination stock for supported member wages | Shared funded requirements and finite market budgets | Complete |
 | 25 | Combine member employment, collective support and changing membership | Continuation, replay and separate books | Pending |
 
 ## Pass 21
@@ -65,3 +65,19 @@ signatories under claim priority preserves recipients and financial outcomes;
 receipts still retain actual submission sequences. Forged allocations reject,
 replay and checkpoint continuation agree, and household books contain transfer
 expense rather than a member wage payable. Existing loan/hiring tests pass.
+
+## Pass 24
+
+`fund_earned_wages` now covers member wage shortfalls only when
+`support_member_wages` also authorizes assistance. The shared requirement builder
+adds enabled obligations, offsets each member's private stock once, and passes
+missing quantities through the existing collective needs-first order generator.
+Future delivery is still absent from demand; admission, quotes and actual payment
+stock constrain fills.
+
+An imported six-coin wage claim with two private coins generates a four-coin
+collective purchase paid with two grain. Close transfers and settles the missing
+four, leaving no household liability. Disabled support, disabled funding and no
+barter stock controls leave four coins owed after the private two are paid. No
+new work is performed before arrears clear. CPU/reference, checkpoint and replay
+agree; existing need-order and household market tests pass.
