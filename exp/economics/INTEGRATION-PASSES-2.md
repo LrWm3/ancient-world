@@ -117,3 +117,8 @@ cargo +1.92.0 fmt -- --check
 
 Generated logs remain under ignored `output/economics/household-batch2-*.log`.
 Only source, tests and Markdown documentation are committed.
+
+
+Later update: [passes 11–15](INTEGRATION-PASSES-3.md) close the physical-wage
+storage/reporting gap and add opt-in current-loan funding and assistance. Limits
+and counts above describe this earlier batch.

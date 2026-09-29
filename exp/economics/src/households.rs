@@ -51,6 +51,11 @@ pub enum Purpose {
     Need(ResourceId),
     Input(DefinitionId),
     Obligation,
+    /// Combined native obligation demand that includes current loan assistance.
+    LoanSupport {
+        rank: u32,
+        policy: crate::household_governance::DebtSupportPolicy,
+    },
     Labor,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -245,6 +250,35 @@ pub fn allocate(
     mut requests: Vec<Request>,
 ) -> Result<(Vec<Reservation>, Vec<Effect>), String> {
     requests.sort_by_key(|r| (std::cmp::Reverse(r.collective_benefit), r.sequence));
+    // Reorder only the eligible debt-support slots within each household stock
+    // pool. Need/input/legacy-dues precedence and scheduler timing stay intact.
+    let mut pools = BTreeMap::<Account, Vec<usize>>::new();
+    for (index, r) in requests.iter().enumerate() {
+        if matches!(
+            r.purpose,
+            Purpose::LoanSupport {
+                policy: crate::household_governance::DebtSupportPolicy::ClaimPriority,
+                ..
+            }
+        ) {
+            pools
+                .entry((r.household, r.resource))
+                .or_default()
+                .push(index);
+        }
+    }
+    for slots in pools.values() {
+        let mut ordered: Vec<_> = slots.iter().map(|i| requests[*i].clone()).collect();
+        ordered.sort_by_key(|r| {
+            let Purpose::LoanSupport { rank, .. } = r.purpose else {
+                unreachable!()
+            };
+            (rank, r.member, r.sequence)
+        });
+        for (slot, r) in slots.iter().zip(ordered) {
+            requests[*slot] = r;
+        }
+    }
     let mut budget = state.balances.clone();
     let mut totals = BTreeMap::<Account, i32>::new();
     let mut used = crate::storage::usage(world, &state.balances);
@@ -267,7 +301,7 @@ pub fn allocate(
         // Supporting a member never assumes their debt or pledges collective cash
         // already needed for the household's own current loan payments.
         if state.phase == Phase::Due
-            && matches!(r.purpose, Purpose::Obligation)
+            && matches!(r.purpose, Purpose::Obligation | Purpose::LoanSupport { .. })
             && world
                 .households
                 .iter()
@@ -437,14 +471,27 @@ fn requests(world: &World, state: &State) -> Result<Vec<Request>, String> {
                         crate::commitments::projected_claims(world, state, member, r.id, 1)
                             .values()
                             .sum();
+                    let mut loan_rank = None;
                     if state.phase == Phase::Due
                         && a.governance.charter.support_member_loans
                         && market::active(world, state, a.agent)
                     {
-                        owed += crate::credit::current_dues(world, state, member)?
-                            .get(&r.id)
-                            .copied()
-                            .unwrap_or(0);
+                        for loan in state
+                            .credit
+                            .loans
+                            .values()
+                            .filter(|l| l.debtor == member && l.denomination == r.id)
+                        {
+                            if let Some(request) = crate::credit::current_claim(world, state, loan)?
+                                && request.claim.outstanding() > 0
+                            {
+                                owed += i128::from(request.claim.outstanding());
+                                loan_rank = Some(
+                                    loan_rank
+                                        .map_or(request.rank, |rank: u32| rank.min(request.rank)),
+                                );
+                            }
+                        }
                     }
                     let reserve = if state.phase == Phase::Acquire {
                         crate::forward::policy(world)
@@ -486,7 +533,12 @@ fn requests(world: &World, state: &State) -> Result<Vec<Request>, String> {
                             individual_benefit: PAYMENT_BENEFIT,
                             collective_benefit: PAYMENT_BENEFIT,
                             sequence: result.len() as u64,
-                            purpose: Purpose::Obligation,
+                            purpose: loan_rank.map_or(Purpose::Obligation, |rank| {
+                                Purpose::LoanSupport {
+                                    rank,
+                                    policy: a.governance.charter.debt_support,
+                                }
+                            }),
                         });
                     }
                 }

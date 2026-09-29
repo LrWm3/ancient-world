@@ -35,7 +35,10 @@ between collective and private consumption buyers. Current membership controls
 buy eligibility, including adaptive orders; pre-registered former members can buy
 privately and accession restores their charter's route. Opt-in collective buying
 also covers missing inputs of active member processes. Speculative work targets
-do not qualify. Household/member employers and physical wages remain excluded.
+do not qualify. [The third batch](INTEGRATION-PASSES-3.md) adds physical wage
+storage and native-claim accounting, opt-in member loan assistance, collective
+market demand for current loan payments and explicit assistance priority.
+Household/member employers remain excluded.
 Direct town lending
 does not enable mortgage purchase configuration, recovery proceedings or joint
 production planners. Adult accession/exit changes contribution and consumption
@@ -51,7 +54,7 @@ and loan estates, plus costed posted stock bids and bilateral negotiated/ZIP tra
 Opt-in owner-operated production adds material work-in-progress, joint-product
 cost shares, consumption expense and aborted-work loss. Work ownership transfers,
 household pooling, opt-in completed-output transfers and opt-in paid-capacity
-capitalization are supported. [Preaccepted employment agreements](EMPLOYMENT.md) add capacity delivery, earned wage claims, partial payment and optional suspension. Outside member employment now composes with household labor contributions and paid-wage pooling. Household/member employers, physical wage pooling, negotiated hiring, wage insolvency and priced third-party contract production remain unsupported. Dated land dues now compose with lending and
+capitalization are supported. [Preaccepted employment agreements](EMPLOYMENT.md) add capacity delivery, earned wage claims, partial payment and optional suspension. Outside member employment now composes with household labor contributions and paid-wage pooling. Household/member employers, negotiated hiring, wage insolvency and priced third-party contract production remain unsupported. Dated land dues now compose with lending and
 material production on existing boundaries, including native goods and accepted
 coin alternatives. Estate-paid native/accepted-coin dues now reconcile to restricted debtor cash and neutral custody positions; collection-linked issuance has an explicit opt-in convention. Storage blockage uses existing process failure;
 there is no stored-goods spoilage event to recognize. The complete report set is not universal

@@ -135,3 +135,19 @@ buffers. The [first](INTEGRATION-PASSES.md) and [second](INTEGRATION-PASSES-2.md
 integration batches exercise these combinations. Outstanding work includes
 endogenous private work targets, speculative investment/input planning, negotiated
 hiring, market recruitment and registration derived from membership or travel.
+
+
+## Current loan-payment demand
+
+Static charter `fund_due_loans` allows collective needs-first orders to acquire
+missing denomination stock for currently collectible loans. It covers the
+household's own dues; member dues also require `support_member_loans`. Current
+private holdings offset combined enabled requirements once. Future installments,
+expected wages and hypothetical financing do not become purchasing resources.
+Accepted arrears remain demand, subject to current eligibility/stays. Existing
+admission, quote, opening payment budget and storage checks still gate settlement.
+
+Due collection precedes Acquire. Purchased stock can therefore support the next
+Due, with no backdated payment. The support charter remains distinct from purchase
+permission: acquiring stock does not itself assume or discharge a member's debt.
+See [combined verification and limitations](INTEGRATION-PASSES-3.md).

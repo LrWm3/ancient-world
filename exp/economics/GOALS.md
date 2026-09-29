@@ -304,5 +304,13 @@ organizational formation, recruitment, governance or household hiring.
 [The second batch](INTEGRATION-PASSES-2.md) extends that loop with storage-bounded
 support, pooled physical barter, static charter purchase delegation, current
 membership routing and funding of accepted process inputs. Autonomous recruitment,
-new-business/input planning, household hiring and physical wage pooling remain
+new-business/input planning, household hiring remain
 follow-ups. Person self-directed policy changes remain excluded.
+
+
+[Passes 11–15](INTEGRATION-PASSES-3.md) connect physical payroll, pooled inventory
+costs, opt-in current member loan assistance, collective acquisition of loan-payment
+stock and explicit scarce-support policy. CPU/reference checks combine wages or
+market exchange with later collection and separate financial statements. These
+are current accepted obligations, not autonomous borrowing or long-horizon
+financing plans. Person self-directed policy changes remain excluded.

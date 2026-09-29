@@ -1144,7 +1144,9 @@ opening resources; partial payment leaves symmetric arrears. The default recogni
 service expense at delivery. With `Opening.services`, earned labor cost follows
 actual use into WIP/output or expiration expense, even before wages are paid.
 Subsequent payment is operating cash flow and settlement of the claim, never a
-second wage expense. Reporting requires wages in the book’s coin denomination.
+second wage expense. Reporting accepts the book’s coin or native wage stock with a positive fixed
+opening exchange value. Physical payment releases historical inventory cost and
+settles the valued wage claim through the shared noncash exchange adapter.
 
 Agreements can continue deliveries on credit or suspend future deliveries while
 prior wages remain unpaid. No wage claim is discharged merely because the contract
@@ -1232,8 +1234,8 @@ personal wage claims, and household/member books remain separate.
 
 No new reporting system or automatic consolidation was introduced. The eight-month
 CPU/reference and checkpoint comparison reconciles every boundary and each agent's
-balance sheet. Household hiring and onward delegation of purchased capacity,
-physical wage pooling and wage insolvency remain outside this composition.
+balance sheet. Household hiring and onward delegation of purchased capacity, and wage
+insolvency remain outside this composition.
 
 The [second integration batch](INTEGRATION-PASSES-2.md) also checks private physical
 barter, delegated purchases, and household-funded member inputs through the same
@@ -1241,3 +1243,14 @@ journal. Barter uses explicit reporting valuations; collected stock transfers it
 existing average carrying basis. Inputs pass from the household to the member,
 into WIP, and into output; pooled output retains average inventory cost rather than
 receiving a new market valuation. No internal balance is automatically eliminated.
+
+
+The [third integration batch](INTEGRATION-PASSES-3.md) values physical wages and
+arrears, reserves contribution storage, and pools paid inventory at its carrying
+cost. Partial payment and later clearance preserve separate balanced books without
+inventing cash. Static opening values do not provide FX or mark-to-market support.
+Opt-in household assistance transfers existing stock to the member before Due;
+the member settles their own loan. No liability is assumed or eliminated. Audited
+town barter can acquire coin for the following Due, and paid wages can support
+another member's debt at the next boundary. Scarce support allocation and creditor
+collection remain separate policies.

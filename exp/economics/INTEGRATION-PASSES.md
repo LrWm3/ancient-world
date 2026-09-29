@@ -150,3 +150,8 @@ cargo +1.92.0 clippy --locked --all-targets -- -D warnings
 
 Generated logs stay under ignored `output/household-*.log`; no generated outputs
 are committed. This document and the tests record the reproducible evidence.
+
+
+Later update: [passes 11–15](INTEGRATION-PASSES-3.md) close the physical-wage
+storage/reporting gap and add opt-in current-loan funding and assistance. Limits
+and counts above describe this earlier batch.

@@ -588,3 +588,27 @@ collective needs-first buyer to cover active member-process inputs. Current
 membership controls bid eligibility. These options reuse existing governance,
 allocation, settlement and separate accounting; they do not let leaders rewrite
 personal policy or claim private money.
+
+
+## Opt-in member loan assistance
+
+Static charter `support_member_loans` allows current, active household members to
+request collective stock for current collectible loan principal and interest at
+Due. Existing native dues and loan amounts share one account requirement; the
+member's stock offsets it. Assistance retains the household's own current loan
+payment, and existing needs/input precedence is unchanged. It transfers resources,
+not the debt, and does not pledge future income. Exit stops assistance.
+
+`debt_support` defaults to `ReservationOrder`. `ClaimPriority` reorders only loan
+support slots within each household/resource pool by the lowest covered creditor
+rank, then stable member ID. Receipts retain the selected policy and rank. A
+combined native request containing several loans or other dues gets that minimum
+loan rank; this is coarse household assistance, not direct creditor-specific
+escrow or a replacement for the collection waterfall. Separate creditor collection
+still resolves actual payments. A request that cannot fit storage retains a zero
+grant under the existing allocator. Future refinements can split claim-specific
+support and add other policies without moving monthly phases.
+
+`fund_due_loans` separately permits collective market purchases for these claims
+under a needs-first objective. Current loans alone qualify; estate claims and
+future installments require different adapters. See [passes 11–15](INTEGRATION-PASSES-3.md).

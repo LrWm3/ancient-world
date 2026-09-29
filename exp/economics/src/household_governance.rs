@@ -50,6 +50,14 @@ pub struct Constitution {
     /// the mandate, but never grants a worker another member's personal rights.
     pub activities: Option<BTreeSet<DefinitionId>>,
 }
+/// Allocation among member support requests, distinct from creditor collection.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum DebtSupportPolicy {
+    #[default]
+    ReservationOrder,
+    /// Lowest covered claim rank first, then stable member ID.
+    ClaimPriority,
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Charter {
     pub purchasing: Purchasing,
@@ -59,6 +67,7 @@ pub struct Charter {
     pub support_member_loans: bool,
     /// Collective bids may acquire denomination stock for current collectible loans.
     pub fund_due_loans: bool,
+    pub debt_support: DebtSupportPolicy,
     /// Optional static target for projected cash after the next town book.
     /// Above this buffer NeedsThenIncome does not request extra income work.
     pub cash_target: Option<Amount>,
@@ -129,6 +138,7 @@ impl Governance {
                 fund_committed_inputs: false,
                 support_member_loans: false,
                 fund_due_loans: false,
+                debt_support: DebtSupportPolicy::default(),
                 cash_target: None,
                 residual_recipient: None,
                 leader,

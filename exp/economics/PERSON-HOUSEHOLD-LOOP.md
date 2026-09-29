@@ -130,7 +130,7 @@ Generated logs stay under ignored `output/economics/household-loop-*.log`.
 The initial loop is complete within this scope. Available jobs, private stock
 targets, support terms, governance instructions and reservation prices can still be
 supplied. Autonomous business discovery, personal policy/consent selection,
-long-horizon joint planning, speculative input purchases, household hiring and physical wage pooling remain subsequent work.
+long-horizon joint planning, speculative input purchases, household hiring remain subsequent work.
 [Five consolidation passes](INTEGRATION-PASSES.md) now connect outside wages,
 private surplus sales, static cash buffers and direct loans with town purchases.
 Remaining town-market composition exclusions stay enforced. Person self-directed
@@ -141,3 +141,11 @@ estates, nested institutions and autonomous state governance also remain extensi
 support, charter-delegated consumption buying, membership-aware order gates and
 collective funding of active member-process inputs. These preserve separate
 identities, opening budgets and financial books.
+
+
+[Passes 11–15](INTEGRATION-PASSES-3.md) connect physical payroll, pooled inventory
+costs, opt-in current member loan assistance, collective acquisition of loan-payment
+stock and explicit scarce-support policy. CPU/reference checks combine wages or
+market exchange with later collection and separate financial statements. These
+are current accepted obligations, not autonomous borrowing or long-horizon
+financing plans. Person self-directed policy changes remain excluded.

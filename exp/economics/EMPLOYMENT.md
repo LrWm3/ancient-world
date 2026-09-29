@@ -32,7 +32,7 @@ Use finer resource/coin units when fractional economic quantities are needed.
    of whether the employer subsequently uses those hours successfully.
 4. **Productive/Consumption:** existing processes use the employer's actual
    capacity; production does not pay wages a second time.
-5. **Close:** collect outstanding wages from opening cash, ordered by
+5. **Close:** collect outstanding wages from opening denomination stock, ordered by
    `(rank, earning month, agreement ID)`. Partial payment is allowed. Incoming
    payment cannot fund another payment in the same Close. The due date is the
    following month boundary: Close evaluates that boundary before publishing the
@@ -63,17 +63,23 @@ Paying three reduces the payable and receivable by three and transfers three coi
 as operating cash flow. One remains owed on both balance sheets. Payment never
 creates a second expense or income entry. Own labor has no imputed wage.
 
-The operational contract accepts a stock denomination; financial reporting currently
-requires the reporting coin. Outside employers may hire household members for a
-storage-free wage denomination. Acquire protects the household's percentage of own
+The operational contract accepts a stock denomination. Reporting uses the book's
+coin or an explicit positive fixed `Opening.exchange_values` value for the wage
+stock. Physical payment settles the claim through the existing costed inventory
+exchange adapter: the employer recognizes goods sales and released historical
+cost, and the worker receives inventory at the settled claim value. It creates no
+cash flow and does not recognize service income twice. Outside employers may hire
+household members for cash or physical wages. Acquire protects the household's percentage of own
 labor, and Close pools half the actual payment, with fractional carry. Receivables
 are not pooled cash. Contribution entitlement includes hours already delivered to
 external employment, preventing the percentage from shrinking after that delivery.
 Earned outstanding wages are protected by need-generated market budgets.
 
 Household/member employers and onward delegation of paid capacity remain rejected;
-these need a purchased-labor cost-basis adapter. Physical wage pooling also needs
-storage reservations. See the [combined verification](INTEGRATION-PASSES.md).
+these need a purchased-labor cost-basis adapter. Physical payroll now reserves
+both private receipt space and exact collective contribution space, including
+fractional carry. Unstorable payment remains arrears. See the
+[combined verification](INTEGRATION-PASSES-3.md).
 Future-period labor prepayments, refunds, wage guarantees, write-offs and estate
 collection need separate accepted terms and adapters.
 

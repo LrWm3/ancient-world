@@ -398,3 +398,157 @@ fn collective_own_dues_generate_orders_but_unfunded_bids_do_not_create_payment_s
         );
     }
 }
+
+#[test]
+fn scarce_member_debt_support_has_an_explicit_policy_and_stable_claim_priority() {
+    use economics_compute_smoke::household_governance::DebtSupportPolicy;
+    for policy in [
+        DebtSupportPolicy::ReservationOrder,
+        DebtSupportPolicy::ClaimPriority,
+    ] {
+        let (mut w, mut s) = loans(true, false);
+        w.households[0].governance.charter.debt_support = policy;
+        let mut advance = w.lending[0].clone();
+        advance.id = 2;
+        advance.debtor = 91;
+        advance.priority = 0;
+        w.lending.push(advance);
+        let mut loan = s.credit.loans[&1].clone();
+        loan.id = 2;
+        loan.debtor = 91;
+        loan.priority = 0;
+        s.credit.loans.insert(2, loan);
+        let run = |w: World, backend| {
+            let mut sim = Simulation::new(w, s.clone(), backend).unwrap();
+            sim.run_months(1).unwrap();
+            assert_eq!(sim.state.balance(89, TOKEN), 5);
+            let paid = if policy == DebtSupportPolicy::ReservationOrder {
+                1
+            } else {
+                2
+            };
+            assert_eq!(sim.state.credit.loans[&paid].principal, 0);
+            assert_eq!(sim.state.credit.loans[&(3 - paid)].principal, 4);
+            let reservations: Vec<_> = sim
+                .ledger
+                .iter()
+                .filter_map(|b| b.household.as_ref())
+                .flat_map(|b| &b.reservations)
+                .filter(|r| matches!(r.request.purpose, households::Purpose::LoanSupport { .. }))
+                .collect();
+            assert_eq!(reservations.iter().map(|r| r.allocated).sum::<i32>(), 5);
+            assert!(reservations.iter().all(|r| matches!(r.request.purpose, households::Purpose::LoanSupport { policy: p, .. } if p == policy)));
+            (sim.state, sim.ledger)
+        };
+        let reference = run(w.clone(), Backend::Reference);
+        assert_eq!(reference, run(w.clone(), Backend::CubeCpu));
+        if policy == DebtSupportPolicy::ClaimPriority {
+            w.households[0].adults.reverse();
+            w.participants.reverse();
+            w.lending.reverse();
+            assert_eq!(reference.0, run(w, Backend::CubeCpu).0);
+        }
+    }
+}
+
+#[test]
+fn earned_wages_pool_then_pay_another_members_loan_on_the_next_boundary() {
+    use economics_compute_smoke::financial_reporting::{Audit, Opening};
+    let (mut w, mut s) = loans(true, false);
+    s.balances.clear();
+    s.balances.insert((89, TOKEN), 4);
+    w.participants
+        .iter_mut()
+        .find(|p| p.agent == PERSON)
+        .unwrap()
+        .capacity
+        .quantity = 5;
+    w.transaction_policy
+        .as_mut()
+        .unwrap()
+        .permissions
+        .insert((PERSON_TYPE, Action::CapacityTrade));
+    let (payroll, _) = wages(2);
+    let mut terms = payroll.employment[0].clone();
+    terms.wage_per_unit.resource = TOKEN;
+    terms.from = 2;
+    terms.through = 2;
+    w.employment.push(terms);
+    w.lending[0].debtor = 91;
+    w.lending[0].terms.monthly_rate_bps = 0;
+    let loan = s.credit.loans.get_mut(&1).unwrap();
+    loan.debtor = 91;
+    loan.monthly_rate_bps = 0;
+    let run = |backend| {
+        let mut audit = Audit::with_opening(
+            &w,
+            &s,
+            TOKEN,
+            Opening {
+                services: Some(Default::default()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        while sim.state.month == 2 {
+            audit.step(&mut sim).unwrap();
+        }
+        assert_eq!(sim.state.balance(HOME, TOKEN), 2);
+        assert_eq!(sim.state.credit.loans[&1].principal, 4);
+        let checkpoint = (sim.clone(), audit.clone());
+        while sim.state.month == 3 {
+            audit.step(&mut sim).unwrap();
+        }
+        assert_eq!(sim.state.credit.loans[&1].principal, 2);
+        assert_eq!(sim.state.balance(HOME, TOKEN), 0);
+        assert_eq!(sim.state.balance(PERSON, TOKEN), 2);
+        assert_eq!(sim.state.balance(89, TOKEN), 2);
+        let (mut resumed, mut saved) = checkpoint;
+        while resumed.state.month == 3 {
+            saved.step(&mut resumed).unwrap();
+        }
+        assert_eq!(sim.state, resumed.state);
+        assert_eq!(audit, saved);
+        let mut replay = s.clone();
+        for b in &sim.ledger {
+            commit(&w, &mut replay, b, backend, DEFAULT_EFFECT_LIMIT).unwrap();
+        }
+        assert_eq!(replay, sim.state);
+        (sim.state, sim.ledger, audit)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}
+
+#[test]
+fn debt_support_receipts_cannot_be_relabelled_after_reservation() {
+    let (w, s) = loans(true, false);
+    let mut sim = Simulation::new(w.clone(), s, Backend::Reference).unwrap();
+    sim.step().unwrap();
+    let before = sim.state.clone();
+    assert_eq!(before.phase, Phase::Due);
+    sim.step().unwrap();
+    let mut forged = sim.ledger.last().unwrap().clone();
+    let request = &mut forged
+        .household
+        .as_mut()
+        .unwrap()
+        .reservations
+        .iter_mut()
+        .find(|r| matches!(r.request.purpose, households::Purpose::LoanSupport { .. }))
+        .unwrap()
+        .request;
+    request.purpose = households::Purpose::Obligation;
+    let mut unchanged = before.clone();
+    assert!(
+        commit(
+            &w,
+            &mut unchanged,
+            &forged,
+            Backend::CubeCpu,
+            DEFAULT_EFFECT_LIMIT
+        )
+        .is_err()
+    );
+    assert_eq!(unchanged, before);
+}
