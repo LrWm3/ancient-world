@@ -379,6 +379,11 @@ pub(crate) fn evaluate_with(
     let planning = crate::production_market::choose(world, state)?;
     let choices = crate::production_market::choices(world, planning.as_ref());
     let mut resources = opening.clone();
+    resources.pooling = Some(crate::households::income_reservations::Reservations::new(
+        world,
+        state,
+        resources.storage.clone(),
+    ));
     let mut pricing_state = state.clone();
     let mut result = Round {
         cooperation: None,

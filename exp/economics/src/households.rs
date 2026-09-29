@@ -10,6 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub mod disposal;
 pub mod dissolution;
 pub mod income;
+pub(crate) mod income_reservations;
 pub mod market;
 pub mod membership;
 pub mod needs;
@@ -647,6 +648,15 @@ fn incomes(
     state: &State,
     effects: &[Effect],
 ) -> Result<BTreeMap<Account, i32>, String> {
+    incomes_for(world, effects, |member| {
+        parent(world, state, member).is_some()
+    })
+}
+fn incomes_for(
+    world: &World,
+    effects: &[Effect],
+    member_is_present: impl Fn(AgentId) -> bool,
+) -> Result<BTreeMap<Account, i32>, String> {
     let mut net = BTreeMap::<Account, i32>::new();
     for e in effects {
         let q = net.entry(e.account).or_default();
@@ -656,7 +666,7 @@ fn incomes(
     }
     let mut result = BTreeMap::new();
     for ((member, r), quantity) in net {
-        if parent(world, state, member).is_some()
+        if member_is_present(member)
             && quantity > 0
             && world
                 .resources

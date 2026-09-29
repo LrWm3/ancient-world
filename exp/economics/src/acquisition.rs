@@ -8,18 +8,35 @@ pub(crate) struct Resources {
     pub available: BTreeMap<Account, i32>,
     pub holdings: BTreeMap<Account, i32>,
     pub storage: BTreeMap<AgentId, i128>,
+    pub pooling: Option<crate::households::income_reservations::Reservations>,
 }
 impl Resources {
     pub fn opening(world: &World, state: &State) -> Self {
         Self {
+            pooling: None,
             available: state.balances.clone(),
             holdings: state.balances.clone(),
             storage: storage::usage(world, &state.balances),
         }
     }
+    pub fn fits(&self, world: &World, effects: &[Effect]) -> Result<bool, String> {
+        if !storage::fits(world, &self.storage, effects) {
+            return Ok(false);
+        }
+        match &self.pooling {
+            Some(p) => Ok(p.preview(world, effects)?.is_some()),
+            None => Ok(true),
+        }
+    }
     pub fn reserve(&mut self, world: &World, transactions: &[Transaction]) -> Result<(), String> {
         let mut net = BTreeMap::<Account, i128>::new();
         for t in transactions {
+            if let Some(p) = &self.pooling {
+                self.pooling = Some(
+                    p.preview(world, &t.effects)?
+                        .ok_or("acquisition exceeds pooled storage capacity")?,
+                );
+            }
             for e in &t.effects {
                 *net.entry(e.account).or_default() += i128::from(e.delta);
                 if e.delta < 0 {

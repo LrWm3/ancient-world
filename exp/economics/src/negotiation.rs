@@ -3,7 +3,7 @@ use crate::{
     finance,
     marketplace::{self, Side},
     model::*,
-    opportunities, storage, zip,
+    opportunities, zip,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -278,7 +278,7 @@ pub(crate) fn evaluate_matching(
                 < price
             {
                 Outcome::InsufficientPayment
-            } else if !storage::fits(world, &resources.storage, &effects(state, s, price)?) {
+            } else if !resources.fits(world, &effects(state, s, price)?)? {
                 Outcome::InsufficientStorage
             } else {
                 Outcome::Traded { price }

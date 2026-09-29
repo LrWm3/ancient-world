@@ -1,7 +1,7 @@
 //! Collective consumption orders using existing member allocation and private stocks.
 use super::*;
 use crate::{
-    household_governance::{self, Policy},
+    household_governance::{self, Policy, Purchasing},
     need_orders,
 };
 
@@ -20,21 +20,10 @@ pub(crate) fn validate(world: &World, traders: &BTreeSet<AgentId>) -> Result<(),
                     .iter()
                     .find(|e| e.trader.agent == *member)
                     .ok_or("missing member listing")?;
-                let market = crate::marketplace::venue(world, listing.venue)
-                    .and_then(|v| v.markets.iter().find(|m| m.id == listing.market))
-                    .ok_or("missing member market")?;
-                if listing.adaptive || entry.side != crate::marketplace::Side::Sell {
-                    return Err("members buy through their collective town account; private surplus sales are permitted".into());
-                }
-                if world
-                    .storage
-                    .weights
-                    .get(&market.payment)
-                    .copied()
-                    .unwrap_or(0)
-                    > 0
+                if h.governance.charter.purchasing == Purchasing::Collective
+                    && (listing.adaptive || entry.side != crate::marketplace::Side::Sell)
                 {
-                    return Err("private member town sales require storage-free payment".into());
+                    return Err("members buy through their collective town account; private surplus sales are permitted".into());
                 }
             }
         }
@@ -56,15 +45,21 @@ pub(crate) fn active(world: &World, state: &State, agent: AgentId) -> bool {
 /// Both needs-first objectives authorize collective consumption purchases. Other
 /// objectives only offer protected surplus; no speculative buy value is inferred.
 pub(crate) fn buys(world: &World, state: &State, agent: AgentId) -> bool {
+    if let Some(h) =
+        parent(world, state, agent).and_then(|id| world.households.iter().find(|h| h.agent == id))
+    {
+        return h.governance.charter.purchasing == Purchasing::Members;
+    }
     world
         .households
         .iter()
         .find(|h| h.agent == agent)
         .is_none_or(|h| {
-            matches!(
-                h.governance.policy(state.month),
-                Policy::NeedsFirst | Policy::NeedsThenIncome
-            )
+            h.governance.charter.purchasing == Purchasing::Collective
+                && matches!(
+                    h.governance.policy(state.month),
+                    Policy::NeedsFirst | Policy::NeedsThenIncome
+                )
         })
 }
 

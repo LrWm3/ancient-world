@@ -27,6 +27,12 @@ pub enum Contribution {
     Percent(u32),
     SpareLabor,
 }
+/// Static founding choice: one authority generates consumption bids per member.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Purchasing {
+    Collective,
+    Members,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Leadership {
     FixedFounder,
@@ -46,6 +52,7 @@ pub struct Constitution {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Charter {
+    pub purchasing: Purchasing,
     /// Optional static target for projected cash after the next town book.
     /// Above this buffer NeedsThenIncome does not request extra income work.
     pub cash_target: Option<Amount>,
@@ -112,6 +119,7 @@ impl Governance {
                 activities: None,
             },
             charter: Charter {
+                purchasing: Purchasing::Collective,
                 cash_target: None,
                 residual_recipient: None,
                 leader,

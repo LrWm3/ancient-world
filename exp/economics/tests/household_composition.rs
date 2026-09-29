@@ -14,6 +14,12 @@ fn audit(w: &World, s: &State) -> Audit {
         s,
         TOKEN,
         Opening {
+            exchange_values: w
+                .resources
+                .iter()
+                .filter(|r| r.id == STORED)
+                .map(|r| (r.id, 3))
+                .collect(),
             inventory: s
                 .balances
                 .iter()
@@ -106,4 +112,166 @@ fn partial_support_uses_shared_storage_and_retains_private_needs() {
         };
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
+}
+
+fn barter_fixture(room: i32, carry: i32) -> (World, State) {
+    use economics_compute_smoke::marketplace::Side;
+    let (mut w, mut s) = households::market::scenario().unwrap();
+    w.activities.orders.clear();
+    stock(&mut w, STORED);
+    stock(&mut w, STORED + 1);
+    for cap in w.storage.capacities.values_mut() {
+        *cap = 100;
+    }
+    w.storage.capacities.insert(91, 2);
+    for v in &mut w.marketplaces {
+        for m in &mut v.markets {
+            m.payment = STORED;
+        }
+    }
+    let c = w.town_market.as_mut().unwrap();
+    let mut seller = c
+        .traders
+        .iter()
+        .find(|e| e.side == Side::Sell)
+        .unwrap()
+        .clone();
+    seller.trader.agent = PERSON;
+    c.traders.push(seller);
+    for e in &mut c.traders {
+        e.trader.limit = 3;
+        e.trader.opening_quote = 3;
+        if e.trader.agent == 89 {
+            e.side = Side::Buy;
+        }
+    }
+    let needs = w
+        .participants
+        .iter()
+        .find(|p| p.agent == PERSON)
+        .unwrap()
+        .needs
+        .clone();
+    w.participants
+        .iter_mut()
+        .find(|p| p.agent == 89)
+        .unwrap()
+        .needs = needs;
+    s.balances.insert((PERSON, GRAIN), 10);
+    s.balances.insert((89, GRAIN), 0);
+    s.balances.insert((92, GRAIN), 0);
+    s.balances.insert((89, STORED), 6);
+    s.balances.insert((HOME, TOKEN), 0);
+    s.balances.insert((HOME, STORED + 1), 51 - room);
+    s.household_remainders.insert((HOME, PERSON, STORED), carry);
+    (w, s)
+}
+#[test]
+fn barter_reserves_collective_storage_and_fractional_carry_before_matching() {
+    for (room, carry, filled) in [(0, 0, false), (1, 0, true), (1, 1, false), (2, 1, true)] {
+        let (w, s) = barter_fixture(room, carry);
+        let run = |backend| {
+            let mut a = audit(&w, &s);
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            while sim.state.phase != Phase::Acquire {
+                a.step(&mut sim).unwrap();
+            }
+            a.step(&mut sim).unwrap();
+            assert_eq!(sim.state.balance(89, GRAIN), if filled { 2 } else { 0 });
+            assert_eq!(
+                sim.state.balance(HOME, STORED),
+                if filled { (3 + carry) / 2 } else { 0 }
+            );
+            assert_eq!(
+                sim.state.household_remainders[&(HOME, PERSON, STORED)],
+                if filled { (3 + carry) % 2 } else { carry }
+            );
+            assert_eq!(
+                sim.state.balance(89, STORED)
+                    + sim.state.balance(PERSON, STORED)
+                    + sim.state.balance(HOME, STORED),
+                6
+            );
+            if !filled {
+                assert!(
+                    format!("{:?}", sim.state.town_market.history[0].attempts)
+                        .contains("InsufficientStorage")
+                );
+            }
+            let mut replay = s.clone();
+            for b in &sim.ledger {
+                commit(&w, &mut replay, b, backend, DEFAULT_EFFECT_LIMIT).unwrap();
+            }
+            assert_eq!(replay, sim.state);
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
+
+fn delegated_fixture() -> (World, State) {
+    use economics_compute_smoke::{household_governance::Purchasing, marketplace::Side};
+    let (mut w, mut s) = households::market::scenario().unwrap();
+    w.households[0].governance.charter.purchasing = Purchasing::Members;
+    let c = w.town_market.as_mut().unwrap();
+    let mut buyer = c
+        .traders
+        .iter()
+        .find(|e| e.side == Side::Buy)
+        .unwrap()
+        .clone();
+    buyer.trader.agent = PERSON;
+    c.traders.push(buyer);
+    s.balances.insert((PERSON, TOKEN), 100);
+    (w, s)
+}
+#[test]
+fn charter_delegates_buys_while_preserving_pooling_and_separate_books() {
+    use economics_compute_smoke::town_market::OrderReason;
+    let (w, s) = delegated_fixture();
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut a = audit(&w, &s);
+        while sim.state.phase != Phase::Acquire {
+            a.step(&mut sim).unwrap();
+        }
+        a.step(&mut sim).unwrap();
+        let round = &sim.state.town_market.history[0];
+        assert!(!round.orders.iter().any(|o| o.agent == HOME));
+        assert!(round.orders.iter().any(|o| o.agent == PERSON));
+        assert_eq!(
+            round
+                .order_receipts
+                .iter()
+                .find(|r| r.agent == HOME)
+                .unwrap()
+                .reason,
+            OrderReason::PurchasePolicy
+        );
+        assert_eq!(sim.state.balance(HOME, TOKEN), 100);
+        assert_eq!(sim.state.balance(PERSON, TOKEN), 60);
+        assert_eq!(sim.state.balance(HOME, GRAIN), 1);
+        assert_eq!(sim.state.balance(PERSON, GRAIN), 1);
+        let receipt = round
+            .order_receipts
+            .iter()
+            .find(|r| r.agent == PERSON)
+            .unwrap();
+        assert_eq!(receipt.deficits_after.as_ref().unwrap()[&NUTRITION], 0);
+        while sim.state.month == 1 {
+            a.step(&mut sim).unwrap();
+        }
+        for person in [PERSON, 91] {
+            assert_eq!(
+                sim.reports
+                    .iter()
+                    .find(|r| r.agent == person)
+                    .unwrap()
+                    .deficit(NUTRITION),
+                0
+            );
+        }
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
 }

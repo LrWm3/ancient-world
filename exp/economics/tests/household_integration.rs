@@ -284,18 +284,10 @@ fn private_sales_and_collective_orders_share_a_book_without_reusing_pooled_recei
 }
 
 #[test]
-fn private_sales_do_not_enable_duplicate_buying_or_unreserved_physical_payment() {
+fn private_sales_do_not_enable_duplicate_buying() {
     let (mut w, s) = private_sales_fixture();
     w.town_market.as_mut().unwrap().adaptive = true;
     assert!(Simulation::new(w, s, Backend::Reference).is_err());
-    let (mut w, s) = private_sales_fixture();
-    w.storage.weights.insert(TOKEN, 1);
-    assert!(
-        Simulation::new(w, s, Backend::Reference)
-            .err()
-            .unwrap()
-            .contains("storage-free payment")
-    );
 }
 
 #[test]

@@ -291,7 +291,25 @@ pub(crate) fn generate_for_horizon(
     let commitments = protected_claims(world, &observed, agent, policy.reserve_months)?;
     let mut before = unclaimed(&stock_map(&resources.holdings, agent), &commitments);
     let mut with_goods = stock_map(&resources.holdings, agent);
-    *with_goods.entry(session.goods.resource).or_default() += i128::from(session.goods.quantity);
+    // Private purchases participate in the same mandatory income pooling as
+    // sales. Count only the retained portion as guaranteed personal fulfillment;
+    // later household allocations may help, but are not promised by this bid.
+    let mut retained = session.goods.quantity;
+    if let Some(household) = crate::households::parent(world, &observed, agent)
+        && !world
+            .activities
+            .perishable
+            .contains(&session.goods.resource)
+    {
+        let carry = observed
+            .household_remainders
+            .get(&(household, agent, session.goods.resource))
+            .copied()
+            .unwrap_or(0);
+        retained -= ((i64::from(retained) + i64::from(carry))
+            / i64::from(crate::households::POOL_DIVISOR)) as i32;
+    }
+    *with_goods.entry(session.goods.resource).or_default() += i128::from(retained);
     let mut after = unclaimed(&with_goods, &commitments);
     let buyer_deficits = consume(world, &observed, agent, months, &mut before, false)?;
     let buyer_after_purchase = consume(world, &observed, agent, months, &mut after, false)?;
