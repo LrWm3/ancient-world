@@ -176,7 +176,10 @@ pub(super) fn prepare(
                     projected_income: None,
                 };
                 if parent(world, &staged, member) != Some(h.agent)
-                    || h.governance.policy(staged.month) != Policy::NeedsThenIncome
+                    || !matches!(
+                        h.governance.policy(staged.month),
+                        Policy::NeedsFirst | Policy::NeedsThenIncome
+                    )
                     || !market::active(world, &staged, h.agent)
                 {
                     receipts.push(r);
@@ -184,24 +187,17 @@ pub(super) fn prepare(
                 }
                 // Protect accepted obligations/entry inputs and personal needs
                 // before considering the member's additional private stock floor.
-                let claims = crate::need_orders::claims(world, &staged, member, m.reserve_months)?;
-                let mut stocks = crate::substitution::stocks(&staged, member);
-                for (resource, q) in claims {
-                    let held = stocks.entry(resource).or_default();
-                    *held = (*held - q).max(0);
-                }
-                crate::need_orders::consume_person(
-                    world,
-                    &staged,
-                    member,
-                    m.reserve_months,
-                    &mut stocks,
-                    true,
-                );
+                let protected =
+                    crate::need_orders::protected_stock(world, &staged, member, m.reserve_months)?;
                 let held = staged.balance(member, m.resource);
-                let surplus = i32::try_from(stocks.get(&m.resource).copied().unwrap_or(0))
-                    .map_err(|_| "household support surplus overflow")?
-                    .min((held - m.private_reserve).max(0));
+                let floor = protected
+                    .get(&m.resource)
+                    .copied()
+                    .unwrap_or(0)
+                    .max(i128::from(m.private_reserve))
+                    .min(i128::from(held));
+                let surplus = held
+                    - i32::try_from(floor).map_err(|_| "household support protection overflow")?;
                 r.protected = held - surplus;
                 // Goods received during this reservation boundary cannot be
                 // donated back or finance another outgoing reservation.
@@ -228,20 +224,29 @@ pub(super) fn prepare(
                 let people: BTreeSet<_> = members(h, &staged).collect();
                 let base_needs = needs::project(world, &staged, &baseline, &people)?;
                 let base_private = needs::project(world, &staged, &baseline, &[member].into())?;
-                let base_income = income::project(world, &staged, &baseline, h.agent)?;
+                let monetary = h.governance.policy(staged.month) == Policy::NeedsThenIncome;
+                let base_income = monetary
+                    .then(|| income::project(world, &staged, &baseline, h.agent))
+                    .transpose()?;
                 let mut trial = staged.clone();
                 apply(world, &mut trial, &proposed, Backend::Reference)?;
                 let plan = probe(world, &trial)?;
                 let next_needs = needs::project(world, &trial, &plan, &people)?;
                 let next_private = needs::project(world, &trial, &plan, &[member].into())?;
-                let next_income = income::project(world, &trial, &plan, h.agent)?;
+                let next_income = monetary
+                    .then(|| income::project(world, &trial, &plan, h.agent))
+                    .transpose()?;
                 // Personal fulfillment cannot be sacrificed to aggregate income.
                 let no_private_harm = next_private
                     .iter()
                     .zip(&base_private)
                     .all(|(after, before)| after.unmet <= before.unmet);
                 let improves = next_needs < base_needs
-                    || (next_needs == base_needs && next_income.net_coins > base_income.net_coins);
+                    || (next_needs == base_needs
+                        && next_income
+                            .as_ref()
+                            .zip(base_income.as_ref())
+                            .is_some_and(|(next, base)| next.net_coins > base.net_coins));
                 r.reason = if no_private_harm && improves {
                     r.accepted = r.offered;
                     staged = trial;
@@ -251,8 +256,8 @@ pub(super) fn prepare(
                     "no protected need or market-income improvement"
                 }
                 .into();
-                r.baseline_income = Some(base_income);
-                r.projected_income = Some(next_income);
+                r.baseline_income = base_income;
+                r.projected_income = next_income;
                 receipts.push(r);
             }
         }

@@ -196,6 +196,33 @@ fn protected_claims(
     Ok(result)
 }
 
+/// Stocks protected by accepted commitments and consumption over the same
+/// horizon, shared by market orders and voluntary household support. Claims may
+/// exceed current holdings; callers must not interpret the deficit as inventory.
+pub(crate) fn protected_stock(
+    world: &World,
+    state: &State,
+    agent: AgentId,
+    months: u32,
+) -> Result<BTreeMap<ResourceId, i128>, String> {
+    let commitments = protected_claims(world, state, agent, months)?;
+    let stocks = stock_map(&state.balances, agent);
+    let opening = unclaimed(&stocks, &commitments);
+    let mut remaining = opening.clone();
+    consume(world, state, agent, months, &mut remaining, true)?;
+    Ok(world
+        .resources
+        .iter()
+        .filter(|r| r.kind == ResourceKind::Stock)
+        .filter_map(|r| {
+            let quantity = commitments.get(&r.id).copied().unwrap_or(0)
+                + opening.get(&r.id).copied().unwrap_or(0)
+                - remaining.get(&r.id).copied().unwrap_or(0);
+            (quantity > 0).then_some((r.id, quantity))
+        })
+        .collect())
+}
+
 fn unclaimed(
     stocks: &BTreeMap<ResourceId, i128>,
     claims: &BTreeMap<ResourceId, i128>,
@@ -241,29 +268,10 @@ pub(crate) fn generate_for_horizon(
     observed.balances = resources.holdings.clone();
     let mut protected = BTreeMap::new();
     for t in [&session.buyer, &session.seller] {
-        let commitments = protected_claims(world, &observed, t.agent, policy.reserve_months)?;
-        let stocks = stock_map(&resources.holdings, t.agent);
-        let opening = unclaimed(&stocks, &commitments);
-        let mut remaining = opening.clone();
-        consume(
-            world,
-            &observed,
-            t.agent,
-            policy.reserve_months,
-            &mut remaining,
-            true,
-        )?;
-        for r in world
-            .resources
-            .iter()
-            .filter(|r| r.kind == ResourceKind::Stock)
+        for (resource, quantity) in
+            protected_stock(world, &observed, t.agent, policy.reserve_months)?
         {
-            let quantity = commitments.get(&r.id).copied().unwrap_or(0)
-                + opening.get(&r.id).copied().unwrap_or(0)
-                - remaining.get(&r.id).copied().unwrap_or(0);
-            if quantity > 0 {
-                protected.insert((t.agent, r.id), quantity);
-            }
+            protected.insert((t.agent, resource), quantity);
         }
     }
     let agent = session.buyer.agent;
