@@ -153,9 +153,11 @@ dated membership without rewriting founding rules, property or debts. Opt-in
 [solvent dissolution](HOUSEHOLD-DISSOLUTION.md) now closes the last-member lifecycle
 for residual distributions after claims clear, with explicit funded disposal of
 unencumbered catalog assets and usable portable equipment, plus explicit retirement
-of exhausted portable equipment. Attached assets and insolvent estates remain extensions. Market
-recruitment and exit settlements remain targets. Autonomous voting, broader institutional formation and
-longer-horizon collective planning remain targets below.
+of exhausted portable equipment. Explicit plot/equipment package sales preserve
+attachments and allocate the purchase price. Live rights/crop transfers and insolvent
+estates remain extensions. Market recruitment and exit settlements remain targets.
+Autonomous voting, broader institutional formation and longer-horizon collective
+planning remain targets below.
 
 Rework the representative household policy from directing only spare labor to an
 explicit founding-agreement contribution: **20% of each member's available monthly

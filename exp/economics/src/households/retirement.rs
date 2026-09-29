@@ -102,7 +102,7 @@ pub(super) fn validate(world: &World, state: &State) -> Result<(), String> {
                     && !state.retired_equipment.contains_key(&r.asset))
                 || a.asset_sales
                     .iter()
-                    .any(|s| s.month == r.month && s.asset == r.asset)
+                    .any(|s| s.month == r.month && s.assets().any(|asset| asset == r.asset))
             {
                 return Err("invalid or conflicting equipment retirement instruction".into());
             }

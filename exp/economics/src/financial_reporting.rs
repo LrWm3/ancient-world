@@ -619,12 +619,16 @@ impl Audit {
             .household
             .iter()
             .flat_map(|h| &h.disposals)
-            .filter(|r| r.rejection.is_none() && r.equipment.is_some())
+            .filter(|r| r.rejection.is_none())
         {
             if r.sale.price.resource != self.book.denomination() {
                 return Err("asset disposal needs reporting-denomination payment".into());
             }
-            asset_values.insert(r.sale.asset, i128::from(r.sale.price.quantity));
+            for (asset, value) in r.sale.values()? {
+                if before.equipment.contains_key(&asset) {
+                    asset_values.insert(asset, i128::from(value));
+                }
+            }
         }
         let mut equipment_lines = Vec::new();
         let mut barter_deliveries = vec![];
@@ -1133,13 +1137,9 @@ impl Audit {
             if r.sale.price.resource != coin {
                 return Err("asset disposal needs reporting-denomination payment".into());
             }
-            disposal(
-                &mut lines,
-                &opening,
-                r.household,
-                r.sale.asset,
-                r.sale.price.quantity,
-            )?;
+            for (asset, value) in r.sale.values()? {
+                disposal(&mut lines, &opening, r.household, asset, value)?;
+            }
             for (who, amount) in [
                 (r.household, r.sale.price.quantity),
                 (r.sale.buyer, -r.sale.price.quantity),

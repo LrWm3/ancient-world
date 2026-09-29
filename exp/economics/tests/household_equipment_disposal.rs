@@ -77,6 +77,7 @@ fn fixture() -> (World, State) {
 }
 fn terms(price: i32) -> disposal::Sale {
     disposal::Sale {
+        attachments: vec![],
         month: 2,
         asset: TOOL,
         buyer: STATE_AGENT,

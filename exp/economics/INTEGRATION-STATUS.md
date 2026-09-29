@@ -431,8 +431,9 @@ clear unencumbered catalog assets and usable portable equipment at Open, retain
 proceeds until the next clearance
 check, and recognize disposal gains/losses in separate statements. CPU/reference
 and checkpoint cases agree. Explicit retirement now clears exhausted portable
-equipment while retaining its permanent provenance. Attached crops/rights/equipment,
-insolvency, general household loan/recovery composition and automatic death estates
+equipment while retaining its permanent provenance. Explicit plot/equipment package
+sales retain attachments and account for each component separately. Live crop/right
+transfers, insolvency, general household loan/recovery composition and automatic death estates
 remain outstanding.
 
 
@@ -464,8 +465,23 @@ Exhausted portable equipment now has an explicit, permission-checked retirement
 instruction at Open. Verified receipts move the zero-use, zero-basis asset into a
 permanent provenance archive; it cannot be repaired, sold or manufactured again
 under the same ID. Clearance and residual payout still wait for the next Open.
-Physical scrap, salvage value, premature write-offs and attached-property packages
+Physical scrap, salvage value, premature write-offs and live right/crop transfers
 remain extensions. Retirement verification (2026-09-28): **188 distinct tests passed**,
 including seven new retirement tests and law controls; strict all-target Clippy
 passed. One slow accounting test remains ignored; the full crate suite was not run.
 See [verification details](HOUSEHOLD-DISSOLUTION.md#exhausted-equipment-retirement-verification-2026-09-28).
+
+Explicit plot/equipment package sales now extend the same household disposal
+boundary. All usable attachments must be named and owned by the seller; one funded
+payment transfers the complete package. Supplied component allocations determine
+buyer cost and seller gain/loss; ordinary buyer depreciation follows at Open.
+The plot retains a positive allocated price under the current catalog registry.
+Live rights/crops, mixed ownership, exhausted attachments and pledged property
+remain blocked. No new use right or loan-driver composition is inferred.
+
+Property-package verification (2026-09-28): **207 distinct tests passed** across 15
+suites, including nine new package checks. After the zero-plot-value admission
+check, all 42 package/disposal/retirement tests were rerun successfully. Strict
+all-target Clippy passed. One slow accounting test remains ignored and the full
+crate suite was not run. See [package rules](HOUSEHOLD-DISSOLUTION.md#explicit-plot-and-equipment-package-sales)
+and the verification record in that document for settings and limitations.

@@ -8,6 +8,45 @@ pub struct Sale {
     pub asset: AssetId,
     pub buyer: AgentId,
     pub price: Amount,
+    /// Explicitly included equipment attached to the catalog asset. The total
+    /// price includes these amounts; the remainder is the catalog asset's cost.
+    pub attachments: Vec<Attachment>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Attachment {
+    pub asset: AssetId,
+    /// Allocated consideration in the sale's denomination (not seller basis).
+    pub consideration: i32,
+}
+
+impl Sale {
+    pub(crate) fn assets(&self) -> impl Iterator<Item = AssetId> + '_ {
+        std::iter::once(self.asset).chain(self.attachments.iter().map(|a| a.asset))
+    }
+
+    /// Supplied allocations must exactly exhaust one positive package price.
+    /// Equipment may have zero cost. The catalog registry still requires a
+    /// positive root value; no appraisal is inferred from condition.
+    pub(crate) fn values(&self) -> Result<Vec<(AssetId, i32)>, String> {
+        let mut remaining = self.price.quantity;
+        let mut ids = BTreeSet::from([self.asset]);
+        if remaining <= 0 {
+            return Err("asset sale requires a positive total price".into());
+        }
+        for a in &self.attachments {
+            if !ids.insert(a.asset) || a.consideration < 0 || a.consideration > remaining {
+                return Err("invalid asset package price allocation".into());
+            }
+            remaining -= a.consideration;
+        }
+        if remaining == 0 {
+            return Err("asset package requires positive root consideration".into());
+        }
+        Ok(std::iter::once((self.asset, remaining))
+            .chain(self.attachments.iter().map(|a| (a.asset, a.consideration)))
+            .collect())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -28,6 +67,8 @@ pub struct Receipt {
     /// Opening condition, present for durable equipment. Replay checks it; the
     /// transfer preserves wear and attachment state rather than creating a tool.
     pub equipment: Option<crate::equipment::DurableAsset>,
+    /// Complete opening attachment set, including on rejected package sales.
+    pub attachments: Vec<crate::equipment::DurableAsset>,
 }
 
 /// Supply mutually accepted sale terms at Open. The last member authorizes the
@@ -38,8 +79,10 @@ pub fn accept(
     state: &State,
     household: AgentId,
     person: AgentId,
-    sale: Sale,
+    mut sale: Sale,
 ) -> Result<(), String> {
+    sale.values()?;
+    sale.attachments.sort_by_key(|a| a.asset);
     let a = world
         .households
         .iter()
@@ -69,7 +112,8 @@ pub(super) fn validate(world: &World, state: &State) -> Result<(), String> {
     for a in &world.households {
         let mut dated = BTreeSet::new();
         for s in &a.asset_sales {
-            if !dated.insert((s.month, s.asset))
+            s.values()?;
+            if s.assets().any(|asset| !dated.insert((s.month, asset)))
                 || dissolution::winding_at(a, s.month).is_none()
                 || dissolution::closed_at(a, s.month)
                 || s.buyer == a.agent
@@ -83,6 +127,12 @@ pub(super) fn validate(world: &World, state: &State) -> Result<(), String> {
                     .iter()
                     .any(|r| r.id == s.price.resource && r.kind == ResourceKind::Stock)
                 || world.activities.perishable.contains(&s.price.resource)
+                || (!s.attachments.is_empty()
+                    && (!world.assets.iter().any(|b| b.id == s.asset)
+                        || s.attachments.iter().any(|b| {
+                            !state.equipment.contains_key(&b.asset)
+                                && !state.retired_equipment.contains_key(&b.asset)
+                        })))
             {
                 return Err("invalid dated household asset sale".into());
             }
@@ -112,7 +162,7 @@ fn rejection(world: &World, state: &State, a: &Agreement, sale: &Sale) -> Option
             return Some(Rejection::Unavailable);
         }
     }
-    if let Some(reason) = restrictions(world, state, sale.asset) {
+    if let Some(reason) = package_rejection(world, state, a.agent, sale) {
         return Some(reason);
     }
     if [a.agent, sale.buyer]
@@ -168,6 +218,7 @@ pub(super) fn prepare(world: &World, state: &State) -> Result<(Vec<Receipt>, Vec
             sale: sale.clone(),
             rejection: reason,
             equipment: state.equipment.get(&sale.asset).cloned(),
+            attachments: attached(state, sale.asset).cloned().collect(),
         });
     }
     Ok((receipts, effects))
@@ -183,10 +234,17 @@ pub(super) fn publish(state: &mut State, receipts: &[Receipt]) {
                 .owner = r.sale.buyer;
         } else {
             state.credit.owners.insert(r.sale.asset, r.sale.buyer);
+            state.credit.values.insert(
+                r.sale.asset,
+                r.sale.values().expect("verified sale values")[0].1,
+            );
+        }
+        for tool in &r.attachments {
             state
-                .credit
-                .values
-                .insert(r.sale.asset, r.sale.price.quantity);
+                .equipment
+                .get_mut(&tool.id)
+                .expect("verified attachment")
+                .owner = r.sale.buyer;
         }
     }
 }
@@ -194,6 +252,61 @@ pub(super) fn publish(state: &mut State, receipts: &[Receipt]) {
 /// Shared restrictions for disposal and permanent retirement. Neither path may
 /// discard another party's claim, a standing offer or an attached obligation.
 pub(super) fn restrictions(world: &World, state: &State, asset: AssetId) -> Option<Rejection> {
+    restrictions_except_equipment(world, state, asset)
+        .or_else(|| attached(state, asset).next().map(|_| Rejection::Attached))
+}
+
+fn attached(
+    state: &State,
+    asset: AssetId,
+) -> impl Iterator<Item = &crate::equipment::DurableAsset> {
+    state
+        .equipment
+        .values()
+        .filter(move |a| a.attached_to == Some(asset))
+}
+
+fn package_rejection(
+    world: &World,
+    state: &State,
+    seller: AgentId,
+    sale: &Sale,
+) -> Option<Rejection> {
+    if sale.attachments.is_empty() {
+        return restrictions(world, state, sale.asset);
+    }
+    if !world.assets.iter().any(|a| a.id == sale.asset)
+        || sale
+            .attachments
+            .iter()
+            .map(|a| a.asset)
+            .collect::<BTreeSet<_>>()
+            != attached(state, sale.asset).map(|a| a.id).collect()
+    {
+        return Some(Rejection::Attached);
+    }
+    if let Some(reason) = restrictions_except_equipment(world, state, sale.asset) {
+        return Some(reason);
+    }
+    for tool in attached(state, sale.asset) {
+        if tool.owner != seller
+            || tool.remaining_uses == 0
+            || tool.last_used_month == Some(state.month)
+        {
+            return Some(Rejection::Unavailable);
+        }
+        if let Some(reason) = restrictions(world, state, tool.id) {
+            return Some(reason);
+        }
+    }
+    None
+}
+
+fn restrictions_except_equipment(
+    world: &World,
+    state: &State,
+    asset: AssetId,
+) -> Option<Rejection> {
     if state.exchange.contracts.contains_key(&asset)
         || world
             .offers
@@ -222,14 +335,10 @@ pub(super) fn restrictions(world: &World, state: &State, asset: AssetId) -> Opti
     {
         return Some(Rejection::Encumbered);
     }
-    if state
-        .equipment
-        .values()
-        .any(|tool| tool.attached_to == Some(asset))
-        || world
-            .rights
-            .iter()
-            .any(|r| r.asset == asset && r.through >= state.month)
+    if world
+        .rights
+        .iter()
+        .any(|r| r.asset == asset && r.through >= state.month)
         || state
             .processes
             .values()

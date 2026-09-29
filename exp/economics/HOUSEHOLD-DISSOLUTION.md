@@ -4,8 +4,8 @@ Implemented extension to [adult membership](HOUSEHOLD-MEMBERSHIP.md). A last adu
 can now wind down a household under its founding terms, settle residual stock, and
 release the final membership. The household's identity, accounts and history remain.
 This is a solvent wind-down path with explicit sales of unencumbered catalog
-assets, portable equipment and residual stock distribution. General inheritance and bankruptcy remain
-separate extensions.
+assets, portable equipment, explicit plot/equipment packages and residual stock
+distribution. General inheritance and bankruptcy remain separate extensions.
 
 ## Founding rules and authority
 
@@ -84,9 +84,10 @@ positions, but this change does not claim to service household loans or perform
 household insolvency. The working debt-composition test uses supported land dues.
 Unencumbered catalog assets and usable portable equipment have the explicit
 disposal path below. Exhausted portable equipment can be explicitly retired as
-described below; attached equipment, live rights and attached processes still block
-closure. Configured standing roles may require explicit closure rather than being
-inferred finished from a zero balance.
+described below. Usable attached equipment can leave with its plot through an
+explicit package sale; live rights and attached processes still block closure.
+Configured standing roles may require explicit closure rather than being inferred
+finished from a zero balance.
 
 If the last member or recipient dies before payout, wind-down defers. Automatic
 last-member death estates, guardian/executor appointment, contested distributions,
@@ -102,7 +103,8 @@ instruction; buyer consent and price are supplied scenario terms, like the exist
 accepted lending inputs. There is no autonomous solicitation, auction, negotiation
 or forced sale. This adapter does not give a governor authority to amend the charter.
 
-The sale names an asset, buyer, payment resource/quantity and current month. Admission
+The sale names an asset, buyer, payment resource/quantity and current month, with
+optional explicitly priced equipment attachments (see below). Admission
 requires Open, the correct last member, household ownership and permission for both
 parties to perform `AssetTrade`. Unknown parties/assets, nonpositive payments,
 perishable payment resources and duplicate same-asset/month instructions fail
@@ -155,7 +157,8 @@ posted offers and existing tool-delivery/output-share agreements block disposal;
 this adapter does not cancel or novate them. Those contracts remain conservative
 blockers even if their nominal purchase appears paid. Attached equipment cannot
 be detached for sale, and its plot cannot be sold independently through this path.
-A combined plot/dwelling/crop transfer needs explicit terms in a later adapter.
+The package adapter below transfers the plot and its equipment together; live crop
+and right transfers still require a later adapter.
 
 Disposal stays at Open, **before** ordinary equipment aging. The buyer's purchase
 price becomes its carrying cost before that month's scheduled decay. The seller
@@ -171,6 +174,55 @@ priority. An unfunded or restricted sale leaves payment and ownership unchanged;
 ordinary monthly aging still occurs for the owner. Proceeds stay in the household
 until the next Open clearance. Equipment purchases and residual transfers use the
 same separate-agent double-entry audit, including rejected unsupported valuations.
+
+### Explicit plot and equipment package sales
+
+`disposal::Sale.attachments` lists every durable asset attached to the catalog plot
+being sold, together with each asset's allocated consideration in the sale's payment
+denomination. The `price` is the **whole package price**; its remainder after those
+allocations is the plot's consideration. Equipment allocations must be nonnegative
+and leave a positive plot remainder, as required by the current catalog ownership/
+value registry. Zero equipment values are permitted explicitly; zero plot
+consideration is rejected at admission. These are mutually supplied terms, not an
+automatic appraisal or negotiated market quote.
+
+For example, a 30-coin sale can allocate 12 to a dwelling and 10 to a workshop,
+leaving 8 for the plot. If their opening carrying costs are respectively 12, 6 and
+6, the seller records no dwelling gain, workshop gain 4 and plot gain 2. The buyer
+starts with costs 12, 10 and 8 before ordinary equipment aging. Each asset retains
+its own ID, attachment, condition and last-use month. The single 30-coin payment is
+recorded once as investing cash flow on each party's books.
+
+The package must name the complete current attachment set. All components must
+belong to the household; equipment must remain usable and unused in the current
+month. Admission and execution check the plot and each component for claims,
+standing unfilled offers, active processes and live rights. Adding, removing or
+reassigning an attachment after consent rejects the whole sale. A sale cannot
+include the same asset twice, overlap another same-month disposal or conflict with
+retirement. A component cannot be sold independently to detach it implicitly.
+
+Funding reserves the total once from the existing shared opening buyer budget.
+Ownership of the plot and every included item changes with complete payment or
+none changes. Insufficient money or recipient storage rejects the whole package;
+ordinary aging still applies to retained equipment. Instructions expire after that
+Open; a retry needs fresh consent. Ordering remains the existing stable household/
+root-asset priority, independent of submitted component order. Sale proceeds are
+retained until the next Open clearance; final closure still requires `finish`.
+
+Receipts retain the complete opening equipment snapshots, including for rejected
+sales. Replay validates the component set, conditions, agreed cost allocation and
+payment. Settlement observers expose attachments and allocations with the existing
+sale outcome; these proposed amounts do not become revenue on rejection. Each
+component's disposal gain/loss and buyer cost are recognized separately, with buyer
+depreciation charged after the Open transfer. Unsupported payment valuation rejects
+the combined simulation/audit step without publishing any ownership or journal.
+
+This is a physical ownership package, **not** agreement novation. It does not
+transfer a tenant's rights, unfinished crop work, loans or guarantees, nor create
+new productive-use rights for the buyer. Mixed ownership, exhausted attached
+equipment, partial packages and detach/rebuild actions remain unsupported. Existing
+mortgage/recovery attachment rules are unchanged. The representative test uses
+accelerated building wear to exercise accounting, not to calibrate dwelling life.
 
 ### Explicit retirement of exhausted equipment
 
@@ -203,7 +255,7 @@ charge. Nonzero supplied archive value is rejected, not hidden. Settlement obser
 report the asset, exhaustion and acceptance/rejection without affecting execution.
 
 Remaining: physical scrap/recycling and salvage value, premature retirement with
-write-off terms, attached-property packages, contract novation, autonomous disposal
+write-off terms, live right/crop novation, autonomous disposal
 selection/prices and household insolvency. The archive is reusable state machinery;
 the current authorization adapter specifically covers household wind-down.
 
@@ -311,3 +363,31 @@ cargo +1.92.0 clippy --locked --all-targets -- -D warnings
 ```
 
 Generated logs remain in ignored `output/economics/household-retirement-*.log`.
+
+### Property-package verification (2026-09-28)
+
+**207 distinct tests passed** across 15 suites, including nine new package tests.
+The integrated plot/dwelling/workshop sale covers gains, losses and zero equipment
+allocations; retained condition; buyer depreciation; next-Open distribution; final
+closure; separate-agent statements; and CPU/reference/checkpoint agreement.
+Controls cover incomplete/duplicate components, negative or excessive allocation,
+zero plot consideration, changed ownership/attachments, current-month use,
+exhaustion, live rights/work, future pledges, standing offers, both-party law,
+finite shared budgets, recipient storage, stale instructions, replay tampering,
+effect limits, unsupported valuation and observational equivalence.
+
+The 42 package/disposal/retirement checks were rerun after tightening admission to
+reject zero plot consideration. Strict all-target Clippy, formatting and repository
+artifact checks passed. One slow 32-person accounting test remains ignored; this
+was not the full crate suite. The future-pledge admission control does not enable
+the unsupported household lending driver. Building wear is deliberately accelerated
+for accounting verification, not an economic calibration.
+
+Run from `exp/economics`:
+
+```sh
+cargo +1.92.0 test --locked --test household_property_package --test household_equipment_disposal --test household_dissolution --test households --test household_accounting --test equipment --test equipment_accounting --test manufacture_accounting --test activities --test recovery --test resale --test accounting --test laws --test agreement_laws --test telemetry
+cargo +1.92.0 clippy --locked --all-targets -- -D warnings
+```
+
+Generated logs remain under ignored `output/economics/household-package-*.log`.

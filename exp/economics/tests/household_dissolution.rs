@@ -27,6 +27,7 @@ fn disposal_fixture(price: i32) -> (World, State) {
         HOME,
         PERSON,
         households::disposal::Sale {
+            attachments: vec![],
             month: 2,
             asset: PLOT,
             buyer: STATE_AGENT,
@@ -183,6 +184,7 @@ fn pledged_sales_and_unvalued_denominations_do_not_bypass_admission_or_accountin
         HOME,
         PERSON,
         households::disposal::Sale {
+            attachments: vec![],
             month: 2,
             asset: PLOT,
             buyer: STATE_AGENT,
@@ -235,6 +237,7 @@ fn unfunded_sales_expire_without_transferring_property_and_need_fresh_consent() 
         HOME,
         PERSON,
         households::disposal::Sale {
+            attachments: vec![],
             month: 3,
             asset: PLOT,
             buyer: STATE_AGENT,
@@ -261,6 +264,7 @@ fn competing_disposals_share_one_opening_budget_with_stable_priority() {
         HOME,
         PERSON,
         households::disposal::Sale {
+            attachments: vec![],
             month: 2,
             asset: PLOT + 1,
             buyer: STATE_AGENT,

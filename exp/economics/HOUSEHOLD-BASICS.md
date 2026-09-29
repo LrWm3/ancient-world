@@ -138,6 +138,7 @@ updated storage sharing and household-specific fractional collection. Property a
 debts stay separate. Market recruitment remains outside this slice. A subsequent
 [solvent dissolution extension](HOUSEHOLD-DISSOLUTION.md) handles last-member
 wind-down, explicit sales of unencumbered catalog assets/portable equipment and
-residual stock, plus explicit retirement of exhausted portable equipment. Attached
-assets and insolvent estates remain outstanding. The original validation counts above describe the earlier governance
-completion; membership verification is recorded in the extension document.
+residual stock, plus explicit retirement of exhausted portable equipment. Catalog
+plots and usable attached equipment can now sell as explicit packages. Transfers
+of live rights/crops and insolvent estates remain outstanding. The original
+validation counts above describe the earlier governance completion; membership verification is recorded in the extension document.

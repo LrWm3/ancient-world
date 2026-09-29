@@ -429,5 +429,7 @@ distribution, and releasing the last member without deleting financial history.
 Explicit funded sales now clear unencumbered catalog assets and usable portable
 equipment during wind-down, preserving wear and recording buyer depreciation.
 Explicit retirement now archives exhausted, unencumbered portable equipment with
-its identity and history intact. Attached crops/rights/equipment and insolvency
-remain outside this adapter.
+its identity and history intact. Explicit package sales can transfer a catalog plot
+and all its usable attached equipment together, with component price allocations
+and separate accounting. Live crop/right transfers and insolvency remain outside
+this adapter.

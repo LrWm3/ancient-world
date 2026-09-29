@@ -1166,8 +1166,8 @@ established and actual cash classified as investing. Payment must use the report
 denomination; unsupported valuation rejects the combined step without publishing
 state or journal. Sale proceeds remain household property until the next Open's
 clearance check. This does not integrate household loans, insolvent estates or
-sales with attached equipment/live rights/crop obligations. Equipment disposal preserves condition and sets the buyer's purchase
-basis before ordinary Open aging. The seller recognizes gain/loss against its
+sales with live rights/crop obligations. Equipment disposal preserves condition and
+sets the buyer's purchase basis before ordinary Open aging. The seller recognizes gain/loss against its
 opening basis; the buyer bears subsequent depreciation and productive wear.
 Calendar decay can consume all remaining life in the sale month, with the full
 buyer cost recognized as depreciation; ownership transfer never refreshes life.
@@ -1179,3 +1179,14 @@ basis; this adapter cannot retire usable equipment or invent a scrap valuation.
 The integrated CPU/reference case verifies depreciation, retirement, later residual
 transfers and closure with zero final household assets/liabilities and identical
 checkpoint continuation.
+
+Plot/equipment package sales now allocate one agreed total payment among the plot
+and every attached durable item. The plot receives the residual price; equipment
+receives its explicit allocation. Each component records seller gain/loss against
+its own opening basis and buyer acquisition cost before ordinary depreciation.
+The payment is investing cash flow once, regardless of component count. Zero
+equipment allocations are supported; negative or overallocated prices reject. The
+current catalog registry requires positive plot consideration, checked at admission.
+The CPU/reference integration closes the household after later residual transfers
+with balanced separate books and matching checkpoint continuation. Live crop/right
+novation and household loan/recovery composition remain unsupported.
