@@ -442,5 +442,9 @@ shares finite cash, stock and storage across listings; member holdings stay sepa
 The three-month CPU example feeds two adults for two months, then records unmet
 needs when its initial funding cannot afford another lot. Run
 `cargo +1.92.0 run --locked --example household_market` from this directory.
-Income planning, household employment and town-market credit integration remain
-outstanding.
+The next [income-aware allocation policy](HOUSEHOLD-INCOME.md) links contributed
+work to the next book's expected cash flow. In its reciprocal grain/fuel fixture,
+both members stay fed for 12 months and cash stabilizes at 60 ticks. The 36-month
+check finds shortages from month 27 when a private work target blocks further
+collective income. Private/collective target coordination, household employment
+and town-market credit integration remain outstanding.

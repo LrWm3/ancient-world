@@ -285,3 +285,7 @@ collective orders for real members, protected surplus can be sold, and multiple
 listings share finite household resources. Member accounts remain separate. The
 next integration targets are sustainable income plans and household employment/credit
 budgets; the small consumption fixture currently exhausts affordable funding.
+[`NeedsThenIncome`](HOUSEHOLD-INCOME.md) now provides bounded next-book income
+comparisons in the existing labor allocator. Reciprocal exchange funds the first
+12 months, but longer validation exposes a private work-target limit. Explicit
+private/collective target coordination remains necessary for continued viability.

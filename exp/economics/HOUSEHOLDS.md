@@ -301,7 +301,7 @@ publish only net transfers between members; the reservation receipts represent
 the household's authority over hours, without creating a second spendable labor
 account. Ordinary process receipts record actual completion and consumption.
 
-Three operational choices use a bounded, current-month net-output progress
+The original three operational choices use a bounded, current-month net-output progress
 score (quoted spot values, otherwise par; duration-adjusted):
 
 - `PreserveCommittedWork` additionally rejects reallocations that displace a
@@ -311,6 +311,13 @@ score (quoted spot values, otherwise par; duration-adjusted):
   missed-work consequences still execute; the household does not suppress them.
 - `NeedsFirst` retains committed-work protection and compares projected current
   need deficits before the output score, using settlement previews described above.
+
+Opt-in [`NeedsThenIncome`](HOUSEHOLD-INCOME.md) preserves current needs and
+commitments, then compares expected collective cash through the next town book.
+It requires explicit constitutional permission and contributed labor. Forecasts
+use real market budgets and create no spendable receipts. The 12-month reciprocal
+fixture funds food purchases; a longer run exposes the remaining conflict between
+private stock targets and collective income demand.
 
 None optimizes six-month wealth. Each requires a strict improvement under its
 configured ordering over the ordinary unreserved baseline, or returns all hours.
@@ -324,8 +331,9 @@ Equal-score recipient and donor ties use an explicit static charter choice:
 `MemberId`, `Rotating` (sorted living IDs, rotated monthly from founding), or
 `SignatoryOrder`. Rotating allocation is independent of the constitution’s
 governor rotation; either can be selected without the other.
-Pooled-goods allocation still uses its existing benefit/reservation-order rule;
-these new policies currently govern labor only.
+Pooled-goods allocation still uses its existing benefit/reservation-order rule.
+The [town adapter](HOUSEHOLD-MARKET.md) also uses the effective objective to
+authorize collective consumption purchases.
 
 Dated labor receipts retain governor, policy, tie-break, baseline/projected score,
 recipient and granted hours, plus each contributor's available, reserved, directed

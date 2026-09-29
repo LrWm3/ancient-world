@@ -13,7 +13,7 @@ or used to create transport. Open records local admission. Acquire rechecks curr
 permission, operational membership and the presence of a governor. Wind-down and
 governance vacancies prevent new collective orders.
 
-The effective `NeedsFirst` policy authorizes purchases that improve members'
+The effective `NeedsFirst` or `NeedsThenIncome` policy authorizes purchases that improve members'
 projected consumption. `NetOutput` and `PreserveCommittedWork` currently authorize
 protected-surplus sales only in this adapter. They do not invent speculative demand
 or a valuation policy. Existing dated governor instructions can switch the objective.
@@ -104,6 +104,8 @@ the book, but the exercised household scenario has one collective and two seller
 The joint production-market forecast planner, credit/mortgage purchase drivers,
 legacy exchange, pool markets and competing-access drivers remain excluded. Ordinary
 productive work with contributed labor is exercised separately from that planner.
-Outstanding work includes autonomous income plans, producer-input purchases,
+The [income-aware work policy](HOUSEHOLD-INCOME.md) now compares the existing
+labor alternatives using next-book cash forecasts. Outstanding work includes
+coordinating private work targets with collective income, producer-input purchases,
 employment and credit budgets, simultaneous member/collective participation,
 market recruitment and market registration derived from membership or travel.

@@ -501,7 +501,7 @@ See [completed behaviors, controls and limits](HOUSEHOLD-WIND-DOWN.md).
 ### Household town-market integration
 
 Households can now register as collective town traders under explicit venue and
-legal permission. `NeedsFirst` uses member consumption projections for purchases;
+legal permission. `NeedsFirst` and `NeedsThenIncome` use member consumption projections for purchases;
 other current objectives offer only protected surplus. Current private member stock
 reduces collective demand without becoming collective funding. Each listing shares
 real opening money, stock and storage; current governor authority is recorded and
@@ -510,7 +510,7 @@ separate double-entry statements compose with this adapter.
 
 This supersedes earlier blanket household/town exclusions above. It does not remove
 the joint production-market forecast planner, credit, legacy exchange or member
-trader exclusions. Income, producer-input purchasing and employment budgets still
+trader exclusions. Longer-horizon income planning, producer-input purchasing and employment budgets still
 need adapters. The CPU example runs short of money in month three after feeding
 two adults for two months. See [settings, controls and limits](HOUSEHOLD-MARKET.md).
 
@@ -518,3 +518,23 @@ Verification (2026-09-29): **195 distinct tests passed** across 16 selected suit
 including the final 12-test household-market run, plus the CPU example and strict
 all-target Clippy. One slow annual accounting check remained ignored; the full crate
 suite was not run. Formatting and artifact checks passed.
+
+### Household income-aware labor allocation
+
+[`NeedsThenIncome`](HOUSEHOLD-INCOME.md) adds an opt-in secondary work objective:
+after current needs and commitment protection, compare collective cash through
+the next town book. Existing work candidates, contribution receipts, market budgets,
+settlement and financial reporting are reused. Expected sales remain hypotheses,
+and no projected income becomes current spending power.
+
+The reciprocal grain/fuel fixture keeps two household members fed for 12 months
+with 60 closing coin ticks after the first purchase. A 36-month CPU check exposes
+the current boundary: a private fuel target stops work in month 25; food deficits
+begin in month 27. Coordinating private and collective work targets remains next.
+This does not enable the joint production-market planner or household hiring/credit
+budgets. The linked document records assumptions, controls and full results.
+
+Verification (2026-09-29): **162 distinct tests passed** across 11 selected suites,
+including all 13 final income-policy tests. The 12- and 36-month CPU examples,
+strict all-target Clippy, formatting and artifact checks passed. One slow annual
+accounting test remained ignored; the full crate suite was not run.
