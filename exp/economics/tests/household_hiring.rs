@@ -340,3 +340,85 @@ fn old_earned_claims_reduce_new_household_hiring_even_when_work_on_credit_is_all
     assert_eq!(sim.state.balance(WORKER, TOKEN), 8);
     assert_eq!(sim.state.balance(HOME, TOKEN), 0);
 }
+
+fn arrears_market(enabled: bool, funded: bool) -> (World, State) {
+    use economics_compute_smoke::{negotiation::QuotePolicy, scenario::GRAIN};
+    let (mut w, mut s) = arrears(0);
+    let (mw, ms) = households::market::scenario().unwrap();
+    w.town_market = mw.town_market;
+    s.town_market = ms.town_market;
+    w.households[0].governance.charter.fund_earned_wages = enabled;
+    s.balances.insert((HOME, GRAIN), if funded { 2 } else { 0 });
+    s.balances.insert((92, TOKEN), 6);
+    let c = w.town_market.as_mut().unwrap();
+    c.traders.retain(|t| [HOME, 92].contains(&t.trader.agent));
+    for t in &mut c.traders {
+        t.trader.limit = 2;
+        t.trader.opening_quote = 2;
+        t.trader.policy = QuotePolicy::Fixed;
+    }
+    let market = &mut w
+        .marketplaces
+        .iter_mut()
+        .find(|m| m.agent == c.venue)
+        .unwrap()
+        .markets[0];
+    market.goods = Amount::new(TOKEN, 6);
+    market.payment = GRAIN;
+    market.price_tick = 1;
+    (w, s)
+}
+#[test]
+fn collective_bids_clear_real_wage_arrears_without_funding_same_boundary_hires() {
+    use economics_compute_smoke::scenario::GRAIN;
+    for enabled in [false, true] {
+        for funded in [false, true] {
+            let (w, s) = arrears_market(enabled, funded);
+            let run = |backend| {
+                let mut a = Audit::with_opening(
+                    &w,
+                    &s,
+                    TOKEN,
+                    Opening {
+                        services: Some(Default::default()),
+                        processes: Some(Default::default()),
+                        inventory: if funded {
+                            [((HOME, GRAIN), 2)].into()
+                        } else {
+                            Default::default()
+                        },
+                        exchange_values: [(GRAIN, 3)].into(),
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+                let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+                while sim.state.phase != Phase::Productive {
+                    a.step(&mut sim).unwrap();
+                }
+                assert!(!sim.state.employment.earned.contains_key(&(1, 2)));
+                let traded = enabled && funded;
+                assert_eq!(sim.state.balance(HOME, TOKEN), if traded { 6 } else { 0 });
+                assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 6);
+                let checkpoint = (sim.clone(), a.clone());
+                through(&mut a, &mut sim, 2);
+                assert_eq!(sim.state.balance(WORKER, TOKEN), if traded { 6 } else { 0 });
+                assert_eq!(
+                    sim.state.employment.earned[&(1, 1)].claim.outstanding(),
+                    if traded { 0 } else { 6 }
+                );
+                let (mut resumed, mut ra) = checkpoint;
+                through(&mut ra, &mut resumed, 2);
+                assert_eq!(sim.state, resumed.state);
+                assert_eq!(a, ra);
+                let mut replay = s.clone();
+                for b in &sim.ledger {
+                    commit(&w, &mut replay, b, backend, DEFAULT_EFFECT_LIMIT).unwrap();
+                }
+                assert_eq!(replay, sim.state);
+                (sim.state, sim.ledger, a)
+            };
+            assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+        }
+    }
+}

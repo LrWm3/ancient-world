@@ -142,6 +142,11 @@ fn funded_requirements(
                 *result.entry(r).or_default() += q;
             }
         }
+        if who == agent && h.governance.charter.fund_earned_wages {
+            for (r, q) in crate::employment::claims(state, agent)? {
+                *result.entry(r).or_default() += q;
+            }
+        }
         Ok(result)
     };
     let mut result = requirements(agent)?;

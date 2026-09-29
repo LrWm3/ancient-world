@@ -8,7 +8,7 @@ excluding person self-directed policy changes. Hiring terms are preaccepted.
 | 16 | Budgeted external hiring | Bounded employment delivery and earned claims | Complete |
 | 17 | Direct purchased hours to member work | Transfer paid-capacity basis into production | Complete |
 | 18 | Preserve payroll funding | Shared earned-wage protection across allocations | Complete |
-| 19 | Buy resources for wage arrears | Collective claim-driven market demand | Pending |
+| 19 | Buy resources for wage arrears | Collective claim-driven market demand | Complete |
 | 20 | Repeated hiring, work, sales and payroll | Combined shortage/recovery and continuation controls | Pending |
 
 ## Pass 16
@@ -60,3 +60,16 @@ requesting two as production inputs; the request is recorded but not funded. A
 second control opens with eight coins and six of old wages: only one two-coin hour
 is hired, then old and new wages clear once. Existing loan-assistance and market
 protection tests continue to pass. No projected output is spendable funding.
+
+## Pass 19
+
+Static `fund_earned_wages` allows collective needs-first market bids for stock
+needed to settle the household's earned wage claims. It uses the shared native
+claim map; future contractual hours do not generate a payable or a funded bid.
+Loan-funding and member-loan-support choices remain separate.
+
+An imported arrears opening trades two grain for six coins. Acquire records a real
+fill but does not reuse its incoming coins for new hiring at that boundary. Close
+then clears the old wage claim. Disabled funding and missing-payment-stock controls
+leave arrears outstanding. Audited CPU/reference, checkpoint and full replay agree;
+existing household loan funding and market controls also pass.
