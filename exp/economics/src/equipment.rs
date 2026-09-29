@@ -44,6 +44,12 @@ pub struct Trade {
     pub buyer: AgentId,
 }
 
+/// Portable, usable equipment cannot be sold after its exclusive monthly use.
+/// Transfer never restores condition or clears the last-use marker.
+pub(crate) fn transferable(asset: &DurableAsset, month: u32) -> bool {
+    asset.attached_to.is_none() && asset.remaining_uses > 0 && asset.last_used_month != Some(month)
+}
+
 pub fn transaction(world: &World, state: &State, trade: Trade) -> Result<Transaction, String> {
     let offer = world
         .offers
@@ -56,10 +62,8 @@ pub fn transaction(world: &World, state: &State, trade: Trade) -> Result<Transac
         .ok_or("missing offered equipment")?;
     if state.phase != Phase::Acquire
         || state.filled_offers.contains(&offer.id)
-        || asset.attached_to.is_some()
+        || !transferable(asset, state.month)
         || asset.owner != offer.seller
-        || asset.remaining_uses == 0
-        || asset.last_used_month == Some(state.month)
         || trade.buyer == offer.seller
         || !world.agents.iter().any(|a| a.id == trade.buyer)
         || state.terminal.contains_key(&trade.buyer)

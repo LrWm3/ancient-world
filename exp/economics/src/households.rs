@@ -176,7 +176,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     let mut agents = BTreeSet::new();
     membership::validate(world, state)?;
     dissolution::validate(world, state)?;
-    disposal::validate(world)?;
+    disposal::validate(world, state)?;
     for a in &world.households {
         crate::household_governance::validate(world, state, a)?;
         crate::laws::households::validate_admission(world, a)?;

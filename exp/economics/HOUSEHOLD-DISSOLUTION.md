@@ -4,7 +4,7 @@ Implemented extension to [adult membership](HOUSEHOLD-MEMBERSHIP.md). A last adu
 can now wind down a household under its founding terms, settle residual stock, and
 release the final membership. The household's identity, accounts and history remain.
 This is a solvent wind-down path with explicit sales of unencumbered catalog
-assets and residual stock distribution. General inheritance and bankruptcy remain
+assets, portable equipment and residual stock distribution. General inheritance and bankruptcy remain
 separate extensions.
 
 ## Founding rules and authority
@@ -82,8 +82,9 @@ claim buyout or write-off. Fractional sharing carry remains historical bookkeepi
 Their existing validation rejection remains. Defensive clearance recognizes those
 positions, but this change does not claim to service household loans or perform
 household insolvency. The working debt-composition test uses supported land dues.
-Unencumbered catalog assets now have the explicit disposal path below. Durable
-equipment, live rights and attached processes still block closure. Configured standing roles may require retirement rather than
+Unencumbered catalog assets and usable portable equipment have the explicit
+disposal path below. Attached/exhausted equipment, live rights and attached
+processes still block closure. Configured standing roles may require retirement rather than
 being inferred finished from a zero balance.
 
 If the last member or recipient dies before payout, wind-down defers. Automatic
@@ -137,6 +138,42 @@ The financial adapter currently requires payment in its reporting denomination.
 It records buyer cost, seller derecognition, actual disposal gain/loss and investing
 cash flows. Residual transfers remain TransferExpense/TransferIncome. An unsupported
 payment valuation rejects the combined simulation/audit step atomically.
+
+### Portable equipment
+
+The same `disposal::Sale` now accepts a durable equipment ID. Globally unique IDs
+select its existing equipment registry; catalog property keeps its existing
+ownership registry. Equipment transfers update the owner only. Kind, attachment,
+remaining uses and last-use month are retained; no replacement tool or useful life
+is created. Receipts include the complete opening equipment condition, verified
+again during replay, and the settlement observer exposes kind and remaining uses.
+
+Admission and execution share the ordinary equipment-sale availability rule:
+portable, positive remaining uses and no use already recorded this month. Unfilled
+posted offers and existing tool-delivery/output-share agreements block disposal;
+this adapter does not cancel or novate them. Those contracts remain conservative
+blockers even if their nominal purchase appears paid. Attached equipment cannot
+be detached for sale, and its plot cannot be sold independently through this path.
+A combined plot/dwelling/crop transfer needs explicit terms in a later adapter.
+
+Disposal stays at Open, **before** ordinary equipment aging. The buyer's purchase
+price becomes its carrying cost before that month's scheduled decay. The seller
+records gain/loss against the opening carrying amount; the buyer bears subsequent
+depreciation and productive wear. Remaining life and last-use history survive the
+transfer. A tool with one remaining use and one scheduled decay can therefore be
+bought and fully depreciated in that same Open; supplied sale terms do not promise
+that a purchase is economically sensible. Already exhausted equipment cannot be
+sold through this usable-equipment adapter.
+
+Equipment and catalog sales share the same opening buyer budget and stable sale
+priority. An unfunded or restricted sale leaves payment and ownership unchanged;
+ordinary monthly aging still occurs for the owner. Proceeds stay in the household
+until the next Open clearance. Equipment purchases and residual transfers use the
+same separate-agent double-entry audit, including rejected unsupported valuations.
+
+Remaining: scrap/retirement of exhausted equipment, attached-property packages,
+contract novation, autonomous buyers/prices and household insolvency. Retained
+zero-use equipment is still property; it is not silently deleted to permit closure.
 
 ## Accounting and verification
 
@@ -192,3 +229,32 @@ restriction remains tested: asset ownership alone does not authorize loan state.
 
 Validation results for this increment are recorded in INTEGRATION-STATUS.md. The
 slow 32-person accounting test and full crate suite remain outside this run.
+
+
+## Portable-equipment verification (2026-09-28)
+
+A worn household tool starts with six remaining uses, carrying cost 12 and last
+use in month 1. At Open 2 it sells for either 9 or 15 coins. The sale preserves
+condition; ordinary aging then reduces it to five uses, with depreciation charged
+to the buyer's new basis. The seller records loss 3 or gain 3. Open 3 releases
+residual stock/money and Open 4 permits closure. CPU/reference states, complete
+ledgers and separate-agent audits agree, including continuation from after the sale.
+
+Eight focused equipment-disposal tests cover the integrated case, complete decay
+in the sale month, outstanding offers/delivery agreements, live ownership/use
+rechecks, attached equipment and plot rejection, competing catalog/equipment
+purchases, forged condition/replay and read-only observer evidence.
+
+**164 tests passed** across equipment disposal (8), dissolution (18), households
+(55), household accounting (6), equipment (8), equipment accounting (3), manufacture
+accounting (7), activities (10), recovery (26), resale (7) and accounting (16).
+Strict all-target Clippy, formatting, diff whitespace and the repository artifact
+check passed. The slow 32-person accounting test remained ignored and the full
+crate suite was not run. Logs are under ignored `output/economics/household-equipment-*.log`.
+
+Run from `exp/economics`:
+
+```sh
+cargo +1.92.0 test --locked --test household_equipment_disposal --test household_dissolution --test households --test household_accounting --test equipment --test equipment_accounting --test manufacture_accounting --test activities --test recovery --test resale --test accounting
+cargo +1.92.0 clippy --locked --all-targets -- -D warnings
+```

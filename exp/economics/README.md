@@ -13,7 +13,7 @@ remaining financial work.
 | --- | --- | --- |
 | Persons and planning | Needs, deprivation consequences, repeated processes, bounded forecasts, opportunity search and dated commitments | General discovery across all drivers; reliably sustainable autonomous cooperation |
 | State and law | Citizenship, action permissions, named prohibitions, selected agreement recognition/term limits; issuance and physical minting pilots | Autonomous state objectives, general jurisdiction/founding law, constitutional governance |
-| Households | Lawful founding, static constitution/charter, fixed, rotating or elected governors with terms and election receipts, dated objective/tie authority, 20% contributed labor, opt-in current-needs-first allocation, explicit ties, pooled resources/storage and shelter, dated adult joining/exit, opt-in solvent dissolution with explicit unencumbered asset sales | Autonomous voting and broader succession rules, longer-horizon collective planning, market recruitment, asset/insolvency estates and integrated market/credit/employment budgets |
+| Households | Lawful founding, static constitution/charter, fixed, rotating or elected governors with terms and election receipts, dated objective/tie authority, 20% contributed labor, opt-in current-needs-first allocation, explicit ties, pooled resources/storage and shelter, dated adult joining/exit, opt-in solvent dissolution with explicit unencumbered asset and portable-equipment sales | Autonomous voting and broader succession rules, longer-horizon collective planning, market recruitment, asset/insolvency estates and integrated market/credit/employment budgets |
 | Marketplaces | Bilateral negotiation/ZIP, local town books, need-generated orders and reciprocal commodity markets | Shared acquisition with every driver; general markets for labor, assets, rights and memberships |
 | Contracts and lending | Direct consented advances and mortgages share a loan book; loan, land and forward claims share execution; guarantees share inspection | Common acceptance/performance adapters for all arrangements; autonomous general loan discovery/underwriting |
 | [Creditor allocation](CREDITOR-ALLOCATION.md) | Ranked collection and opt-in proportional loan/land allocation, including accepted coin tender and whole-unit conversion | Standalone land and forward allocation; additional denominations/routes and indivisible obligations |
@@ -426,5 +426,7 @@ for timing, consent, legal checks and verification.
 [Solvent household dissolution](HOUSEHOLD-DISSOLUTION.md) now provides an opt-in
 founding rule for winding down, paying supported claims before residual stock
 distribution, and releasing the last member without deleting financial history.
-Explicit funded sales now clear unencumbered catalog assets during wind-down;
-attached crops/rights, equipment disposal and insolvency remain outside this adapter.
+Explicit funded sales now clear unencumbered catalog assets and usable portable
+equipment during wind-down, preserving wear and recording buyer depreciation.
+Attached crops/rights/equipment, exhausted-equipment retirement and insolvency
+remain outside this adapter.

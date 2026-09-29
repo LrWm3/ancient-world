@@ -604,6 +604,19 @@ impl Audit {
             return Err("transaction needs an explicit accounting adapter".into());
         }
         let mut asset_values = self.asset_values.clone();
+        // Household disposal precedes this Open's scheduled depreciation. The
+        // buyer's acquired cost is therefore the basis for subsequent decay/use.
+        for r in batch
+            .household
+            .iter()
+            .flat_map(|h| &h.disposals)
+            .filter(|r| r.rejection.is_none() && r.equipment.is_some())
+        {
+            if r.sale.price.resource != self.book.denomination() {
+                return Err("asset disposal needs reporting-denomination payment".into());
+            }
+            asset_values.insert(r.sale.asset, i128::from(r.sale.price.quantity));
+        }
         let mut equipment_lines = Vec::new();
         let mut barter_deliveries = vec![];
         let mut production_costs = BTreeMap::new();

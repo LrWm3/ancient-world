@@ -66,6 +66,8 @@ pub(super) fn batch(
                     json!({"kind":"household_asset_disposal", "household":r.household,
                     "asset":r.sale.asset,"buyer":r.sale.buyer,"resource":r.sale.price.resource,
                     "price":r.sale.price.quantity,"settled":r.rejection.is_none(),
+                    "equipment":r.equipment.as_ref().map(|e| json!({"kind":e.kind,
+                        "remaining_uses":e.remaining_uses,"last_used_month":e.last_used_month})),
                     "rejection":r.rejection.as_ref().map(|reason| format!("{reason:?}"))}),
                 );
             }

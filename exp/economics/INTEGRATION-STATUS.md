@@ -427,9 +427,11 @@ verified residual-stock distribution and final membership release. Constitution
 and static charter select permission and recipient; admitted legal limits persist.
 The integrated CPU/reference case pays annual household land dues before releasing
 surplus and closes with balanced separate statements. Explicit funded sales now
-clear unencumbered catalog assets at Open, retain proceeds until the next clearance
+clear unencumbered catalog assets and usable portable equipment at Open, retain
+proceeds until the next clearance
 check, and recognize disposal gains/losses in separate statements. CPU/reference
-and checkpoint cases agree. Attached crops/rights, equipment, insolvency, general
+and checkpoint cases agree. Attached crops/rights/equipment, exhausted-equipment
+retirement, insolvency, general
 household loan/recovery composition and automatic death estates remain outstanding.
 
 
@@ -443,3 +445,16 @@ ignored `output/economics/household-disposal-*.log`. Run from `exp/economics`:
 cargo +1.92.0 test --locked --test household_dissolution --test households --test household_accounting --test credit --test resale --test recovery --test accounting
 cargo +1.92.0 clippy --locked --all-targets -- -D warnings
 ```
+
+
+Portable equipment now uses that same disposal boundary and opening budget.
+Ownership changes preserve condition and last-use history; buyer cost is established
+before ordinary monthly depreciation. Existing offers/delivery agreements and
+attached property prevent sale. The new checks also prevent independently disposing
+of a plot carrying attached equipment. No scrap removal or agreement novation is
+implied. See [equipment rules and verification](HOUSEHOLD-DISSOLUTION.md#portable-equipment).
+
+Equipment-disposal verification (2026-09-28): **164 tests passed** across household,
+equipment, manufacture, activities, recovery/resale and accounting suites, including
+eight new focused checks. Strict all-target Clippy passed. The slow 32-person test
+remains ignored and the full crate suite was not run.

@@ -137,6 +137,7 @@ and member-requested exit at Open, dated rosters, retained governance history,
 updated storage sharing and household-specific fractional collection. Property and
 debts stay separate. Market recruitment remains outside this slice. A subsequent
 [solvent dissolution extension](HOUSEHOLD-DISSOLUTION.md) handles last-member
-wind-down, explicit sales of unencumbered catalog assets and residual stock.
-Attached assets, equipment and insolvency estates remain outstanding. The original validation counts above describe the earlier governance
+wind-down, explicit sales of unencumbered catalog assets/portable equipment and
+residual stock. Attached assets, exhausted-equipment retirement and insolvency
+estates remain outstanding. The original validation counts above describe the earlier governance
 completion; membership verification is recorded in the extension document.

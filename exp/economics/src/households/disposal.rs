@@ -24,6 +24,9 @@ pub struct Receipt {
     pub household: AgentId,
     pub sale: Sale,
     pub rejection: Option<Rejection>,
+    /// Opening condition, present for durable equipment. Replay checks it; the
+    /// transfer preserves wear and attachment state rather than creating a tool.
+    pub equipment: Option<crate::equipment::DurableAsset>,
 }
 
 /// Supply mutually accepted sale terms at Open. The last member authorizes the
@@ -61,7 +64,7 @@ pub fn accept(
     Ok(())
 }
 
-pub(super) fn validate(world: &World) -> Result<(), String> {
+pub(super) fn validate(world: &World, state: &State) -> Result<(), String> {
     for a in &world.households {
         let mut dated = BTreeSet::new();
         for s in &a.asset_sales {
@@ -71,7 +74,8 @@ pub(super) fn validate(world: &World) -> Result<(), String> {
                 || s.buyer == a.agent
                 || s.price.quantity <= 0
                 || !world.agents.iter().any(|b| b.id == s.buyer)
-                || !world.assets.iter().any(|b| b.id == s.asset)
+                || (!world.assets.iter().any(|b| b.id == s.asset)
+                    && !state.equipment.contains_key(&s.asset))
                 || !world
                     .resources
                     .iter()
@@ -94,9 +98,25 @@ fn rejection(world: &World, state: &State, a: &Agreement, sale: &Sale) -> Option
             .households
             .iter()
             .any(|h| h.agent == sale.buyer && dissolution::winding_at(h, state.month).is_some())
-        || credit::owner(world, state, sale.asset) != Some(a.agent)
+        || asset_exchange::owner(world, state, &state.credit, sale.asset) != Some(a.agent)
     {
         return Some(Rejection::Unavailable);
+    }
+    if let Some(tool) = state.equipment.get(&sale.asset) {
+        if tool.attached_to.is_some() {
+            return Some(Rejection::Attached);
+        }
+        if !crate::equipment::transferable(tool, state.month) {
+            return Some(Rejection::Unavailable);
+        }
+    }
+    if state.exchange.contracts.contains_key(&sale.asset)
+        || world
+            .offers
+            .iter()
+            .any(|o| o.asset == sale.asset && !state.filled_offers.contains(&o.id))
+    {
+        return Some(Rejection::Encumbered);
     }
     if state.credit.loans.values().any(|l| {
         l.collateral
@@ -116,10 +136,14 @@ fn rejection(world: &World, state: &State, a: &Agreement, sale: &Sale) -> Option
     {
         return Some(Rejection::Encumbered);
     }
-    if world
-        .rights
-        .iter()
-        .any(|r| r.asset == sale.asset && r.through >= state.month)
+    if state
+        .equipment
+        .values()
+        .any(|tool| tool.attached_to == Some(sale.asset))
+        || world
+            .rights
+            .iter()
+            .any(|r| r.asset == sale.asset && r.through >= state.month)
         || state
             .processes
             .values()
@@ -179,6 +203,7 @@ pub(super) fn prepare(world: &World, state: &State) -> Result<(Vec<Receipt>, Vec
             household: a.agent,
             sale: sale.clone(),
             rejection: reason,
+            equipment: state.equipment.get(&sale.asset).cloned(),
         });
     }
     Ok((receipts, effects))
@@ -186,10 +211,18 @@ pub(super) fn prepare(world: &World, state: &State) -> Result<(Vec<Receipt>, Vec
 
 pub(super) fn publish(state: &mut State, receipts: &[Receipt]) {
     for r in receipts.iter().filter(|r| r.rejection.is_none()) {
-        state.credit.owners.insert(r.sale.asset, r.sale.buyer);
-        state
-            .credit
-            .values
-            .insert(r.sale.asset, r.sale.price.quantity);
+        if r.equipment.is_some() {
+            state
+                .equipment
+                .get_mut(&r.sale.asset)
+                .expect("verified durable disposal")
+                .owner = r.sale.buyer;
+        } else {
+            state.credit.owners.insert(r.sale.asset, r.sale.buyer);
+            state
+                .credit
+                .values
+                .insert(r.sale.asset, r.sale.price.quantity);
+        }
     }
 }

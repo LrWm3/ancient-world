@@ -1,4 +1,4 @@
-//! Shared funded asset transfer for collateral resale and estate liquidation.
+//! Shared funded asset transfer for resale, liquidation and household disposal.
 use crate::{credit, finance, model::*};
 
 pub(crate) struct AcceptedSale {
@@ -37,13 +37,7 @@ pub(crate) fn fund(
     accepted: &AcceptedSale,
 ) -> Result<Vec<Effect>, String> {
     let sale = &accepted.sale;
-    let owner = book.owners.get(&sale.asset).copied().or_else(|| {
-        world
-            .assets
-            .iter()
-            .find(|a| a.id == sale.asset)
-            .map(|a| a.owner)
-    });
+    let owner = owner(world, state, book, sale.asset);
     if owner != Some(sale.seller)
         || sale.seller == accepted.buyer
         || sale.price.quantity <= 0
@@ -78,4 +72,19 @@ pub(crate) fn fund(
         })
         .collect();
     execution.exchange(world, &legs)
+}
+
+/// Catalog property and durable equipment retain their existing authoritative
+/// registries. Asset IDs are globally unique; a cash sale needs no loan driver.
+pub(crate) fn owner(
+    world: &World,
+    state: &State,
+    book: &credit::Book,
+    asset: AssetId,
+) -> Option<AgentId> {
+    book.owners
+        .get(&asset)
+        .copied()
+        .or_else(|| world.assets.iter().find(|a| a.id == asset).map(|a| a.owner))
+        .or_else(|| state.equipment.get(&asset).map(|a| a.owner))
 }
