@@ -206,3 +206,89 @@ fn unpaid_member_wages_do_not_fund_household_orders_or_resell_promised_labor() {
     assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 77);
     assert!(!sim.state.employment.earned.contains_key(&(1, 2)));
 }
+
+fn private_sales_fixture() -> (World, State) {
+    use economics_compute_smoke::marketplace::Side;
+    let (mut w, mut s) = households::market::scenario().unwrap();
+    w.activities.orders.clear();
+    for cap in w.storage.capacities.values_mut() {
+        *cap = 64;
+    }
+    let c = w.town_market.as_mut().unwrap();
+    let mut seller = c
+        .traders
+        .iter()
+        .find(|e| e.side == Side::Sell)
+        .unwrap()
+        .clone();
+    seller.trader.agent = PERSON;
+    seller.trader.limit = 10;
+    seller.trader.opening_quote = 10;
+    c.traders.push(seller);
+    let buyer = c.traders.iter_mut().find(|e| e.trader.agent == 89).unwrap();
+    buyer.side = Side::Buy;
+    buyer.trader.limit = 40;
+    buyer.trader.opening_quote = 40;
+    let needs = w
+        .participants
+        .iter()
+        .find(|p| p.agent == PERSON)
+        .unwrap()
+        .needs
+        .clone();
+    w.participants
+        .iter_mut()
+        .find(|p| p.agent == 89)
+        .unwrap()
+        .needs = needs;
+    s.balances.insert((PERSON, GRAIN), 10);
+    s.balances.insert((89, GRAIN), 0);
+    s.balances.insert((89, TOKEN), 100);
+    s.balances.insert((HOME, TOKEN), 0);
+    (w, s)
+}
+
+#[test]
+fn private_sales_and_collective_orders_share_a_book_without_reusing_pooled_receipts() {
+    let (w, s) = private_sales_fixture();
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut audit = inventory_audit(&w, &s);
+        while sim.state.phase != Phase::Acquire {
+            audit.step(&mut sim).unwrap();
+        }
+        audit.step(&mut sim).unwrap();
+        assert!(sim.state.balance(PERSON, TOKEN) > 0);
+        assert_eq!(
+            sim.state.balance(PERSON, TOKEN),
+            sim.state.balance(HOME, TOKEN)
+        );
+        assert_eq!(sim.state.balance(HOME, GRAIN), 0); // incoming sale receipts wait for a later book
+        assert!(sim.state.balance(PERSON, GRAIN) >= 2);
+        assert!(sim.state.balance(89, GRAIN) > 0);
+        while sim.state.month <= 2 {
+            audit.step(&mut sim).unwrap();
+        }
+        for a in &w.agents {
+            let f = audit.book().statements(a.id, 1, 2).unwrap();
+            assert_eq!(f.assets, f.liabilities + f.equity);
+        }
+        (sim.state, sim.ledger, audit)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}
+
+#[test]
+fn private_sales_do_not_enable_duplicate_buying_or_unreserved_physical_payment() {
+    let (mut w, s) = private_sales_fixture();
+    w.town_market.as_mut().unwrap().adaptive = true;
+    assert!(Simulation::new(w, s, Backend::Reference).is_err());
+    let (mut w, s) = private_sales_fixture();
+    w.storage.weights.insert(TOKEN, 1);
+    assert!(
+        Simulation::new(w, s, Backend::Reference)
+            .err()
+            .unwrap()
+            .contains("storage-free payment")
+    );
+}

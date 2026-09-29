@@ -12,8 +12,31 @@ pub(crate) fn validate(world: &World, traders: &BTreeSet<AgentId>) -> Result<(),
         return Err("household town orders do not compose with joint production planning".into());
     }
     for h in &world.households {
-        if traders.iter().any(|id| membership::ever_member(h, *id)) {
-            return Err("household members use their collective town account in this pilot".into());
+        for member in traders.iter().filter(|id| membership::ever_member(h, **id)) {
+            let c = world.town_market.as_ref().ok_or("missing town market")?;
+            for listing in crate::town_market::listings(c) {
+                let entry = listing
+                    .traders
+                    .iter()
+                    .find(|e| e.trader.agent == *member)
+                    .ok_or("missing member listing")?;
+                let market = crate::marketplace::venue(world, listing.venue)
+                    .and_then(|v| v.markets.iter().find(|m| m.id == listing.market))
+                    .ok_or("missing member market")?;
+                if listing.adaptive || entry.side != crate::marketplace::Side::Sell {
+                    return Err("members buy through their collective town account; private surplus sales are permitted".into());
+                }
+                if world
+                    .storage
+                    .weights
+                    .get(&market.payment)
+                    .copied()
+                    .unwrap_or(0)
+                    > 0
+                {
+                    return Err("private member town sales require storage-free payment".into());
+                }
+            }
         }
     }
     Ok(())
