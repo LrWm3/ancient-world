@@ -43,6 +43,7 @@ pub enum Reason {
     Inactive,
     NotPermitted,
     Unavailable,
+    HiringBudget,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Receipt {
@@ -77,14 +78,25 @@ pub fn validate(w: &World, s: &State) -> Result<(), String> {
     let mut ids = BTreeSet::new();
     let kind = |id| w.resources.iter().find(|r| r.id == id).map(|r| r.kind);
     for t in &w.employment {
-        // Own labor may be sold outside a household. Forwarding bought labor
-        // through household allocations needs a separate cost-basis adapter.
         if w.households.iter().any(|h| {
-            h.agent == t.employer
-                || h.agent == t.worker
-                || crate::households::membership::ever_member(h, t.employer)
+            h.agent == t.worker || crate::households::membership::ever_member(h, t.employer)
         }) {
-            return Err("households and their members cannot yet employ paid capacity".into());
+            return Err(
+                "household workers and member employers need a paid-capacity adapter".into(),
+            );
+        }
+        if let Some(h) = w.households.iter().find(|h| h.agent == t.employer) {
+            if h.governance
+                .charter
+                .hiring_budget
+                .as_ref()
+                .is_none_or(|b| b.resource != t.wage_per_unit.resource)
+                || crate::households::membership::ever_member(h, t.worker)
+            {
+                return Err(
+                    "household employment requires a matching budget and outside worker".into(),
+                );
+            }
         }
         if !ids.insert(t.id)
             || t.worker == t.employer
@@ -142,6 +154,24 @@ pub fn validate(w: &World, s: &State) -> Result<(), String> {
     }
     Ok(())
 }
+pub(crate) fn outstanding(
+    state: &State,
+    employer: AgentId,
+    resource: ResourceId,
+) -> Result<i128, String> {
+    state
+        .employment
+        .earned
+        .values()
+        .filter(|e| {
+            e.claim.transfer.from == employer && e.claim.transfer.amount.resource == resource
+        })
+        .try_fold(0_i128, |sum, e| {
+            sum.checked_add(i128::from(e.claim.outstanding()))
+                .ok_or_else(|| "wage claim overflow".into())
+        })
+}
+
 /// Existing boundary commitments reserve first; incoming goods/cash/hours are
 /// not spendable again in this boundary. Employment delivery is divisible.
 pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boundary>, String> {
@@ -185,6 +215,7 @@ pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boun
     if s.phase == Phase::Acquire {
         let mut terms: Vec<_> = w.employment.iter().collect();
         terms.sort_by_key(|t| (t.rank, t.id));
+        let mut hiring = BTreeMap::<AgentId, i32>::new();
         for t in terms {
             if s.month < t.from || s.month > t.through {
                 continue;
@@ -192,9 +223,9 @@ pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boun
             if b.after.earned.contains_key(&(t.id, s.month)) {
                 return Err("duplicate wage earning boundary".into());
             }
-            let reason = if [t.worker, t.employer]
+            let mut reason = if [t.worker, t.employer]
                 .iter()
-                .any(|a| s.terminal.contains_key(a))
+                .any(|a| s.terminal.contains_key(a) || !crate::households::market::active(w, s, *a))
             {
                 Reason::Inactive
             } else if ![t.worker, t.employer]
@@ -211,7 +242,7 @@ pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boun
             } else {
                 Reason::Delivered
             };
-            let delivered = if reason == Reason::Delivered {
+            let mut delivered = if reason == Reason::Delivered {
                 execution
                     .available
                     .get(&(t.worker, t.capacity.resource))
@@ -222,6 +253,29 @@ pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boun
             } else {
                 0
             };
+            if let Some(h) = w.households.iter().find(|h| h.agent == t.employer) {
+                let budget = h.governance.charter.hiring_budget.as_ref().unwrap();
+                let spent = hiring.entry(t.employer).or_default();
+                let arrears = outstanding(s, t.employer, budget.resource)?;
+                let liquid = execution
+                    .available
+                    .get(&(t.employer, budget.resource))
+                    .copied()
+                    .unwrap_or(0);
+                let allowance = (budget.quantity - *spent).max(0).min(
+                    (i128::from(liquid) - arrears - i128::from(*spent))
+                        .max(0)
+                        .min(i128::from(i32::MAX)) as i32,
+                );
+                let bounded = delivered.min(allowance / t.wage_per_unit.quantity);
+                if bounded < delivered {
+                    reason = Reason::HiringBudget;
+                }
+                delivered = bounded;
+                *spent = spent
+                    .checked_add(delivered * t.wage_per_unit.quantity)
+                    .ok_or("hiring budget overflow")?;
+            }
             let wage = delivered
                 .checked_mul(t.wage_per_unit.quantity)
                 .ok_or("wage overflow")?;

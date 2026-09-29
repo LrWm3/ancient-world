@@ -68,6 +68,9 @@ pub struct Charter {
     /// Collective bids may acquire denomination stock for current collectible loans.
     pub fund_due_loans: bool,
     pub debt_support: DebtSupportPolicy,
+    /// Maximum earned wages for new hired hours per month; None disables hiring.
+    /// Delivery also requires opening funds after other boundary reservations.
+    pub hiring_budget: Option<Amount>,
     /// Optional static target for projected cash after the next town book.
     /// Above this buffer NeedsThenIncome does not request extra income work.
     pub cash_target: Option<Amount>,
@@ -139,6 +142,7 @@ impl Governance {
                 support_member_loans: false,
                 fund_due_loans: false,
                 debt_support: DebtSupportPolicy::default(),
+                hiring_budget: None,
                 cash_target: None,
                 residual_recipient: None,
                 leader,
@@ -206,6 +210,19 @@ pub fn validate(world: &World, state: &State, a: &Agreement) -> Result<(), Strin
         });
         if target.quantity < 0 || payment != Some(target.resource) {
             return Err("household cash target requires nonnegative town-payment units".into());
+        }
+    }
+    if let Some(budget) = &g.charter.hiring_budget {
+        if budget.quantity < 0
+            || !world
+                .resources
+                .iter()
+                .any(|r| r.id == budget.resource && r.kind == ResourceKind::Stock)
+            || !matches!(g.charter.contribution, Contribution::Percent(_))
+        {
+            return Err(
+                "household hiring requires a stock budget and percentage labor charter".into(),
+            );
         }
     }
     elections::validate(a, state)?;
