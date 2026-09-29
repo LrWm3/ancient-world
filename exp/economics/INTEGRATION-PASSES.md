@@ -7,7 +7,7 @@ self-directed policy changes are explicitly excluded. No scheduler rewrite.
 | Pass | Household/organizational work | Shared consolidation and evidence | Status |
 | --- | --- | --- | --- |
 | 1 | Useful voluntary support under needs-first governance without a market | Shared stock protection for consumption, commitments and voluntary offers | Complete |
-| 2 | Member wage income and bounded household labor contributions | Employment + pooling + separate financial statements | Pending |
+| 2 | Member wage income and bounded household labor contributions | Employment + pooling + separate financial statements | Complete |
 | 3 | Private member surplus sales alongside collective purchases | Town trade collection and storage reservations without duplicated needs | Pending |
 | 4 | Collective cash reserve decisions | Direct lending + town acquisition sharing finite opening resources | Pending |
 | 5 | Collective adaptation to income and membership changes | Combined scenario, adverse controls, replay and continuation | Pending |
@@ -27,3 +27,20 @@ Evidence: two integration tests cover food sharing without a town market,
 private food protection, forged receipt rejection, CPU/reference parity and
 ledger replay. Existing need-order and household-income controls also pass.
 Voluntary mandates remain supplied, not autonomously renegotiated.
+
+## Pass 2 — earned wages, household labor and paid-income pooling
+
+An independent employer can now employ a household member. Acquire protects the
+household's percentage of own labor; Productive retains that entitlement after
+external work. Close pools half of actual paid wages with fractional carry,
+leaving wage receivables outside the cash budget. Existing monthly phases remain.
+
+Evidence: CPU/reference audited integration earns four of five available hours,
+retains one promised hour, pools paid wages and purchases household food the
+following month. An unfunded employer pays only three coins, shares one with the
+household, carries 77 in arrears and suspends subsequent delivery. The nine
+employment controls remain green.
+
+Limits: household/member employers and onward allocation of purchased labor are
+still rejected pending a cost-basis adapter. Member wages currently use a
+storage-free stock denomination; physical wage pooling needs storage reservation.

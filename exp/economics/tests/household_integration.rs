@@ -88,3 +88,121 @@ fn support_protects_private_needs_and_rejects_forged_acceptance() {
     );
     assert_eq!(unchanged, opening);
 }
+
+fn wage_fixture(cash: i32) -> (World, State) {
+    use economics_compute_smoke::{
+        employment::{ArrearsPolicy, Terms},
+        opportunities::{Action, PERSON_TYPE},
+        scenario::LABOR,
+    };
+    let (mut w, mut s) = households::market::scenario().unwrap();
+    w.activities.orders.clear();
+    for p in &mut w.participants {
+        p.capacity.quantity = 5;
+    }
+    w.transaction_policy
+        .as_mut()
+        .unwrap()
+        .permissions
+        .insert((PERSON_TYPE, Action::CapacityTrade));
+    s.balances.insert((HOME, TOKEN), 0);
+    s.balances.insert((89, TOKEN), cash);
+    for member in [PERSON, 91] {
+        s.balances.insert((member, GRAIN), 2);
+    }
+    w.employment.push(Terms {
+        id: 1,
+        employer: 89,
+        worker: PERSON,
+        from: 1,
+        through: 3,
+        capacity: Amount::new(LABOR, 5),
+        wage_per_unit: Amount::new(TOKEN, 20),
+        on_arrears: ArrearsPolicy::SuspendDelivery,
+        rank: 0,
+    });
+    (w, s)
+}
+fn inventory_audit(w: &World, s: &State) -> economics_compute_smoke::financial_reporting::Audit {
+    use economics_compute_smoke::financial_reporting::{Audit, Opening};
+    Audit::with_opening(
+        w,
+        s,
+        TOKEN,
+        Opening {
+            inventory: s
+                .balances
+                .iter()
+                .filter(|((_, r), q)| {
+                    *r != TOKEN
+                        && **q > 0
+                        && w.resources
+                            .iter()
+                            .any(|v| v.id == *r && v.kind == ResourceKind::Stock)
+                })
+                .map(|(key, q)| (*key, i128::from(*q)))
+                .collect(),
+            processes: Some(Default::default()),
+            ..Default::default()
+        },
+    )
+    .unwrap()
+}
+
+#[test]
+fn wages_pool_only_when_paid_and_finance_next_months_collective_food() {
+    let (w, s) = wage_fixture(160);
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut audit = inventory_audit(&w, &s);
+        while sim.state.phase != Phase::Productive {
+            audit.step(&mut sim).unwrap();
+        }
+        assert_eq!(sim.state.employment.earned[&(1, 1)].delivered, 4);
+        assert_eq!(sim.state.balance(HOME, TOKEN), 0);
+        audit.step(&mut sim).unwrap();
+        let c = sim.ledger.last().unwrap().household.as_ref().unwrap().labor[0]
+            .contributions
+            .iter()
+            .find(|c| c.member == PERSON)
+            .unwrap();
+        assert_eq!(c.reserved, 1);
+        while sim.state.month == 1 {
+            audit.step(&mut sim).unwrap();
+        }
+        assert_eq!(sim.state.balance(HOME, TOKEN), 40);
+        assert_eq!(sim.state.balance(PERSON, TOKEN), 40);
+        while sim.state.month == 2 {
+            audit.step(&mut sim).unwrap();
+        }
+        assert!(
+            sim.reports
+                .iter()
+                .filter(|r| r.month == 2 && [PERSON, 91].contains(&r.agent))
+                .all(|r| r.deficit(NUTRITION) == 0)
+        );
+        for a in &w.agents {
+            let f = audit.book().statements(a.id, 1, 2).unwrap();
+            assert_eq!(f.assets, f.liabilities + f.equity);
+        }
+        (sim.state, sim.ledger, audit)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}
+
+#[test]
+fn unpaid_member_wages_do_not_fund_household_orders_or_resell_promised_labor() {
+    let (mut w, s) = wage_fixture(3);
+    // Remove the employer's sales income so this is a genuine cash shortage.
+    w.town_market = None;
+    let mut s = s;
+    s.town_market = Default::default();
+    let mut sim = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    let mut audit = inventory_audit(&w, &s);
+    while sim.state.month <= 2 {
+        audit.step(&mut sim).unwrap();
+    }
+    assert_eq!(sim.state.balance(HOME, TOKEN), 1);
+    assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 77);
+    assert!(!sim.state.employment.earned.contains_key(&(1, 2)));
+}

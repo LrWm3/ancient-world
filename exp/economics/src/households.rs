@@ -670,6 +670,47 @@ fn incomes(
     Ok(result)
 }
 
+/// Household entitlement is based on own capacity before this month's external
+/// employment deliveries. It is reserved at Acquire and remains the same when
+/// Productive allocates the remaining hours. Unused hours return at Productive.
+pub(crate) fn labor_reserve(
+    world: &World,
+    state: &State,
+    member: AgentId,
+    resource: ResourceId,
+) -> i32 {
+    let Some(h) =
+        parent(world, state, member).and_then(|id| world.households.iter().find(|h| h.agent == id))
+    else {
+        return 0;
+    };
+    if !market::active(world, state, h.agent) {
+        return 0;
+    }
+    let crate::household_governance::Contribution::Percent(percent) =
+        h.governance.charter.contribution
+    else {
+        return 0;
+    };
+    let delivered: i64 = state
+        .employment
+        .earned
+        .iter()
+        .filter_map(|((id, month), e)| {
+            (*month == state.month
+                && world
+                    .employment
+                    .iter()
+                    .any(|t| t.id == *id && t.worker == member && t.capacity.resource == resource))
+            .then_some(i64::from(e.delivered))
+        })
+        .sum();
+    let available = state.balance(member, resource);
+    ((i64::from(available) + delivered) * i64::from(percent)
+        / i64::from(crate::household_governance::PERCENT))
+    .min(i64::from(available)) as i32
+}
+
 fn collect(
     world: &World,
     opening: &State,
@@ -688,6 +729,19 @@ fn collect(
             for (key, quantity) in incomes(world, opening, &t.effects)? {
                 let q = gained.entry(key).or_default();
                 *q = q.checked_add(quantity).ok_or("household income overflow")?;
+            }
+        }
+    }
+    // Only settled cash is shared: an earned wage claim is not spendable income.
+    if batch.phase == Phase::Close {
+        if let Some(employment) = &batch.employment {
+            for t in &employment.transactions {
+                for (key, quantity) in incomes(world, opening, &t.effects)? {
+                    let q = gained.entry(key).or_default();
+                    *q = q
+                        .checked_add(quantity)
+                        .ok_or("household wage income overflow")?;
+                }
             }
         }
     }
@@ -927,7 +981,7 @@ fn contributed_labor(
     world: &World,
     state: &State,
     a: &Agreement,
-    percent: u32,
+    _percent: u32,
 ) -> Result<(Vec<Effect>, LaborDecision), String> {
     use crate::household_governance::{self as governance, Policy};
     let people: BTreeSet<_> = members(a, state).collect();
@@ -953,8 +1007,7 @@ fn contributed_labor(
                 .capacity
                 .resource;
             let available = state.balance(member, resource);
-            let reserved =
-                (i64::from(available) * i64::from(percent) / i64::from(governance::PERCENT)) as i32;
+            let reserved = labor_reserve(world, state, member, resource);
             LaborContribution {
                 member,
                 resource,

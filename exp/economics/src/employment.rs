@@ -74,14 +74,30 @@ fn transaction(effects: Vec<Effect>) -> Transaction {
     }
 }
 pub fn validate(w: &World, s: &State) -> Result<(), String> {
-    if !w.employment.is_empty() && !w.households.is_empty() {
-        return Err(
-            "employment household pooling and delegated paid capacity are not yet supported".into(),
-        );
-    }
     let mut ids = BTreeSet::new();
     let kind = |id| w.resources.iter().find(|r| r.id == id).map(|r| r.kind);
     for t in &w.employment {
+        // Own labor may be sold outside a household. Forwarding bought labor
+        // through household allocations needs a separate cost-basis adapter.
+        if w.households.iter().any(|h| {
+            h.agent == t.employer
+                || h.agent == t.worker
+                || crate::households::membership::ever_member(h, t.employer)
+        }) {
+            return Err("households and their members cannot yet employ paid capacity".into());
+        }
+        if w.households
+            .iter()
+            .any(|h| crate::households::membership::ever_member(h, t.worker))
+            && w.storage
+                .weights
+                .get(&t.wage_per_unit.resource)
+                .copied()
+                .unwrap_or(0)
+                > 0
+        {
+            return Err("household wages currently require a storage-free denomination".into());
+        }
         if !ids.insert(t.id)
             || t.worker == t.employer
             || t.from == 0
@@ -158,6 +174,16 @@ pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boun
                 let available = resources.available.entry(effect.account).or_default();
                 *available = available.saturating_add(effect.delta).max(0);
             }
+        }
+    }
+    if s.phase == Phase::Acquire {
+        for p in &w.participants {
+            let reserved = crate::households::labor_reserve(w, s, p.agent, p.capacity.resource);
+            let available = resources
+                .available
+                .entry((p.agent, p.capacity.resource))
+                .or_default();
+            *available = available.saturating_sub(reserved).max(0);
         }
     }
     let mut execution = finance::Execution::from_parts(resources.available, resources.storage);
