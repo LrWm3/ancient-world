@@ -47,6 +47,7 @@ fn positions(
     processes: Option<&crate::process_accounting::Costs>,
     dues: Option<&crate::dues_accounting::Valuation>,
     services: Option<&crate::service_accounting::Costs>,
+    exchange_values: &BTreeMap<ResourceId, i128>,
 ) -> Result<Positions, String> {
     if !world
         .resources
@@ -61,12 +62,13 @@ fn positions(
     }
     inventory.validate(world, state, coin)?;
     crate::employment::validate(world, state)?;
-    if world
-        .employment
-        .iter()
-        .any(|t| t.wage_per_unit.resource != coin)
-    {
-        return Err("employment reporting requires wages in book denomination".into());
+    for terms in &world.employment {
+        crate::employment_accounting::value(
+            coin,
+            exchange_values,
+            terms.wage_per_unit.resource,
+            1,
+        )?;
     }
     let mut p = services
         .map(|c| c.positions(world, state))
@@ -189,7 +191,12 @@ fn positions(
         accounting::add(&mut p, key, value)?;
     }
     for (&(id, month), earned) in &state.employment.earned {
-        let q = i128::from(earned.claim.outstanding());
+        let q = crate::employment_accounting::value(
+            coin,
+            exchange_values,
+            earned.claim.transfer.amount.resource,
+            earned.claim.outstanding(),
+        )?;
         accounting::add(
             &mut p,
             (
@@ -398,7 +405,7 @@ impl Audit {
             return Err("open a reporting book at a month opening".into());
         }
         let mut audit = Self {
-            exchange_values,
+            exchange_values: exchange_values.clone(),
             book: Book::open_at(
                 denomination,
                 state.month.checked_sub(1).ok_or("invalid opening month")?,
@@ -411,6 +418,7 @@ impl Audit {
                     processes.as_ref(),
                     dues.as_ref(),
                     services.as_ref(),
+                    &exchange_values,
                 )?,
             )?,
             asset_values,
@@ -882,6 +890,7 @@ impl Audit {
             }
             (None, lines)
         };
+        let mut wage_deliveries = vec![];
         if let Some(b) = &batch.employment {
             for r in &b.receipts {
                 let t = world
@@ -890,7 +899,12 @@ impl Audit {
                     .find(|t| t.id == r.agreement)
                     .ok_or("missing employment terms")?;
                 if r.earned > 0 {
-                    let value = i128::from(r.earned);
+                    let value = crate::employment_accounting::value(
+                        coin,
+                        &self.exchange_values,
+                        t.wage_per_unit.resource,
+                        r.earned,
+                    )?;
                     service_lines.push(Line {
                         agent: t.worker,
                         account: Account::ServiceIncome,
@@ -912,7 +926,20 @@ impl Audit {
                         });
                     }
                 }
-                if r.paid > 0 {
+                if r.paid > 0 && t.wage_per_unit.resource != coin {
+                    wage_deliveries.push(crate::inventory_accounting::PrepaidSale {
+                        seller: t.employer,
+                        buyer: t.worker,
+                        resource: t.wage_per_unit.resource,
+                        quantity: r.paid,
+                        value: crate::employment_accounting::value(
+                            coin,
+                            &self.exchange_values,
+                            t.wage_per_unit.resource,
+                            r.paid,
+                        )?,
+                    });
+                } else if r.paid > 0 {
                     for (agent, sign) in [(t.employer, -1), (t.worker, 1)] {
                         service_lines.push(Line {
                             agent,
@@ -1007,6 +1034,7 @@ impl Audit {
         }
         let (mut prepaid, forward_lines) = crate::forward_accounting::settle(before, after)?;
         prepaid.extend(barter_deliveries);
+        prepaid.extend(wage_deliveries);
         let mut allocation = crate::inventory_accounting::CostAllocation::new(&opening_inventory);
         let (inventory, trade_lines) =
             opening_inventory.settle_allocated(&cash_trades, coin, &prepaid, &mut allocation)?;
@@ -1145,6 +1173,7 @@ impl Audit {
             self.processes.as_ref(),
             self.dues.as_ref(),
             self.services.as_ref(),
+            &self.exchange_values,
         )?;
         let closing = positions(
             world,
@@ -1155,6 +1184,7 @@ impl Audit {
             processes.as_ref(),
             self.dues.as_ref(),
             services.as_ref(),
+            &self.exchange_values,
         )?;
         let mut delta = closing.clone();
         for (key, value) in &opening {
