@@ -260,3 +260,131 @@ fn cross_household_physical_payroll_preserves_storage_fractional_pooling_and_pri
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn optional_household_wage_assistance_keeps_the_debt_personal_and_protects_own_payroll() {
+    for (enabled, own_payroll, expected) in [(false, false, 0), (true, false, 6), (true, true, 2)] {
+        let (mut w, mut s) = fixture();
+        w.activities.orders.clear();
+        w.households[0].governance.charter.support_member_wages = enabled;
+        s.balances.clear();
+        s.balances.insert((HOME, TOKEN), 6);
+        if own_payroll {
+            use economics_compute_smoke::opportunities::HOUSEHOLD_TYPE;
+            w.households[0].governance.charter.hiring_budget = Some(Amount::new(TOKEN, 4));
+            w.transaction_policy
+                .as_mut()
+                .unwrap()
+                .permissions
+                .insert((HOUSEHOLD_TYPE, Action::CapacityTrade));
+            w.participants
+                .iter_mut()
+                .find(|p| p.agent == 92)
+                .unwrap()
+                .capacity
+                .quantity = 2;
+            let mut t = w.employment[0].clone();
+            t.id = 2;
+            t.employer = HOME;
+            t.worker = 92;
+            t.capacity.quantity = 2;
+            w.employment.push(t);
+        }
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            while sim.state.phase != Phase::Close {
+                a.step(&mut sim).unwrap();
+            }
+            assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 10);
+            let opening = sim.state.clone();
+            let (mut resumed, mut ra) = (sim.clone(), a.clone());
+            a.step(&mut sim).unwrap();
+            ra.step(&mut resumed).unwrap();
+            assert_eq!(sim.state.balance(WORKER, TOKEN), expected);
+            assert_eq!(
+                sim.state.employment.earned[&(1, 1)].claim.outstanding(),
+                10 - expected
+            );
+            assert_eq!(value(&a, HOME, A::TransferExpense), i128::from(expected));
+            assert_eq!(value(&a, PERSON, A::TransferIncome), -i128::from(expected));
+            assert_eq!(
+                value(&a, PERSON, A::WagesPayable(1, 1)),
+                -i128::from(10 - expected)
+            );
+            assert_eq!(value(&a, HOME, A::WagesPayable(1, 1)), 0);
+            if own_payroll {
+                assert_eq!(sim.state.balance(92, TOKEN), 4);
+                assert_eq!(sim.state.balance(HOME, TOKEN), 0);
+            }
+            assert_eq!(sim.state, resumed.state);
+            assert_eq!(a, ra);
+            replay(&w, &s, &sim);
+            if enabled {
+                let mut bad = sim.ledger.last().unwrap().clone();
+                bad.household.as_mut().unwrap().reservations[0].allocated += 1;
+                let mut unchanged = opening.clone();
+                assert!(commit(&w, &mut unchanged, &bad, backend, DEFAULT_EFFECT_LIMIT).is_err());
+                assert_eq!(unchanged, opening);
+            }
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
+#[test]
+fn scarce_member_payroll_uses_explicit_support_priority() {
+    use economics_compute_smoke::household_governance::DebtSupportPolicy;
+    for (policy, recipient) in [
+        (DebtSupportPolicy::ReservationOrder, WORKER),
+        (DebtSupportPolicy::ClaimPriority, 92),
+    ] {
+        let (mut w, mut s) = fixture();
+        w.activities.orders.clear();
+        w.households[0].governance.charter.support_member_wages = true;
+        w.households[0].governance.charter.debt_support = policy;
+        s.balances.clear();
+        s.balances.insert((HOME, TOKEN), 5);
+        w.employment[0].rank = 9;
+        w.employment[0].capacity.quantity = 3;
+        let mut t = w.employment[0].clone();
+        t.id = 2;
+        t.rank = 0;
+        t.employer = MEMBER;
+        t.worker = 92;
+        w.employment.push(t);
+        w.participants
+            .iter_mut()
+            .find(|p| p.agent == 92)
+            .unwrap()
+            .capacity
+            .quantity = 3;
+        let run = |w: World, backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            through(&mut a, &mut sim, 1);
+            assert_eq!(sim.state.balance(recipient, TOKEN), 5);
+            assert_eq!(
+                sim.state.balance(WORKER, TOKEN) + sim.state.balance(92, TOKEN),
+                5
+            );
+            assert_eq!(sim.state.balance(HOME, TOKEN), 0);
+            replay(&w, &s, &sim);
+            (sim.state, sim.ledger, a)
+        };
+        let reference = run(w.clone(), Backend::Reference);
+        w.participants.reverse();
+        w.employment.reverse();
+        if policy == DebtSupportPolicy::ClaimPriority {
+            w.households[0].adults.reverse();
+        }
+        let cpu = run(w, Backend::CubeCpu);
+        assert_eq!(reference.0, cpu.0);
+        assert_eq!(reference.2, cpu.2);
+        // Submission sequences record the actual roster order even when claim
+        // priority selects the same recipient after the roster is reversed.
+        if policy == DebtSupportPolicy::ReservationOrder {
+            assert_eq!(reference.1, cpu.1);
+        }
+    }
+}

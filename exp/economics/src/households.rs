@@ -14,6 +14,7 @@ pub(crate) mod income_reservations;
 pub mod market;
 pub mod membership;
 pub mod needs;
+pub(crate) mod payroll;
 pub mod retirement;
 pub mod support;
 
@@ -53,6 +54,11 @@ pub enum Purpose {
     Obligation,
     /// Combined native obligation demand that includes current loan assistance.
     LoanSupport {
+        rank: u32,
+        policy: crate::household_governance::DebtSupportPolicy,
+    },
+    /// Assistance for a member's earned wages; never an assumption of the debt.
+    WageSupport {
         rank: u32,
         policy: crate::household_governance::DebtSupportPolicy,
     },
@@ -267,6 +273,9 @@ pub fn allocate(
             Purpose::LoanSupport {
                 policy: crate::household_governance::DebtSupportPolicy::ClaimPriority,
                 ..
+            } | Purpose::WageSupport {
+                policy: crate::household_governance::DebtSupportPolicy::ClaimPriority,
+                ..
             }
         ) {
             pools
@@ -278,8 +287,9 @@ pub fn allocate(
     for slots in pools.values() {
         let mut ordered: Vec<_> = slots.iter().map(|i| requests[*i].clone()).collect();
         ordered.sort_by_key(|r| {
-            let Purpose::LoanSupport { rank, .. } = r.purpose else {
-                unreachable!()
+            let rank = match r.purpose {
+                Purpose::LoanSupport { rank, .. } | Purpose::WageSupport { rank, .. } => rank,
+                _ => unreachable!(),
             };
             (rank, r.member, r.sequence)
         });
@@ -314,12 +324,13 @@ pub fn allocate(
             .unwrap_or(0);
         // Supporting a member never assumes their debt or pledges collective cash
         // already needed for the household's own current loan payments.
-        if state.phase == Phase::Due
+        if (state.phase == Phase::Due
             && matches!(r.purpose, Purpose::Obligation | Purpose::LoanSupport { .. })
             && world
                 .households
                 .iter()
-                .any(|h| h.agent == r.household && h.governance.charter.support_member_loans)
+                .any(|h| h.agent == r.household && h.governance.charter.support_member_loans))
+            || (state.phase == Phase::Close && matches!(r.purpose, Purpose::WageSupport { .. }))
         {
             available -= crate::credit::current_dues(world, state, r.household)?
                 .get(&r.resource)
@@ -697,8 +708,13 @@ fn prepare(world: &World, state: &State) -> Result<(State, Boundary), String> {
         )?;
         retirement::publish(&mut staged, &b.retirements);
     }
-    if !matches!(state.phase, Phase::Open | Phase::Close) {
-        (b.reservations, b.before) = allocate(world, state, requests(world, state)?)?;
+    if state.phase != Phase::Open {
+        let requests = if state.phase == Phase::Close {
+            payroll::requests(world, state)?
+        } else {
+            requests(world, state)?
+        };
+        (b.reservations, b.before) = allocate(world, state, requests)?;
         apply(world, &mut staged, &b.before, Backend::Reference)?;
     }
     if state.phase == Phase::Productive && staged.pending_production.is_none() {

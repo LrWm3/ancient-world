@@ -65,6 +65,8 @@ pub struct Charter {
     pub fund_committed_inputs: bool,
     /// Pay current member loan dues from collective stock at Due; no debt assumption.
     pub support_member_loans: bool,
+    /// Transfer current earned-wage shortfalls to member employers before Close payroll.
+    pub support_member_wages: bool,
     /// Collective bids may acquire denomination stock for current collectible loans.
     pub fund_due_loans: bool,
     /// Collective buying may acquire stock for the household's earned wage claims.
@@ -142,6 +144,7 @@ impl Governance {
                 purchasing: Purchasing::Collective,
                 fund_committed_inputs: false,
                 support_member_loans: false,
+                support_member_wages: false,
                 fund_due_loans: false,
                 fund_earned_wages: false,
                 debt_support: DebtSupportPolicy::default(),

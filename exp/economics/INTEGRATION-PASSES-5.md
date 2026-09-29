@@ -8,7 +8,7 @@ preaccepted. Person self-directed policy changes remain deferred.
 | --- | --- | --- | --- |
 | 21 | Members hire outside labor | Own-capacity contribution and paid-hour accounting | Complete |
 | 22 | Physical payroll from member inventory | Storage, wage pooling and carrying costs | Complete |
-| 23 | Optional assistance for member wage debts | Claim-driven Close allocations with explicit priority | Pending |
+| 23 | Optional assistance for member wage debts | Claim-driven Close allocations with explicit priority | Complete |
 | 24 | Buy denomination stock for supported member wages | Shared funded requirements and finite market budgets | Pending |
 | 25 | Combine member employment, collective support and changing membership | Continuation, replay and separate books | Pending |
 
@@ -45,3 +45,23 @@ from the expired contract. CPU/reference runs reconcile native wage claims,
 carrying costs and separate employer/member/household books; the employer's
 household never acquires the personal payable. First-month replay and resumed
 collection agree. All ten existing household finance-loop tests also pass.
+
+## Pass 23
+
+Static `support_member_wages` enables before-Close transfers for current living
+members' earned wage shortfalls. Private denomination holdings offset requests.
+The existing household sub-boundary supplies payment stock before ordinary Close
+payroll; no monthly phase moves, no future wage is funded and the liability stays
+personal. Collective earned payroll and current own-loan claims retain their stock.
+
+The existing `debt_support` policy also orders wage-assistance slots: reservation
+order or lowest covered employment rank then member ID. This does not create a
+creditor priority between loans and wages. Combined per-member/resource requests
+are not claim-specific escrow.
+
+CPU/reference tests exercise disabled assistance, partial support, competing
+household payroll and two member employers with different claim ranks. Reversing
+signatories under claim priority preserves recipients and financial outcomes;
+receipts still retain actual submission sequences. Forged allocations reject,
+replay and checkpoint continuation agree, and household books contain transfer
+expense rather than a member wage payable. Existing loan/hiring tests pass.
