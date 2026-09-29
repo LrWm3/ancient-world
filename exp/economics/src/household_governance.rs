@@ -46,6 +46,9 @@ pub struct Constitution {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Charter {
+    /// Optional static target for projected cash after the next town book.
+    /// Above this buffer NeedsThenIncome does not request extra income work.
+    pub cash_target: Option<Amount>,
     /// None selects the last living member; otherwise a named residual recipient.
     pub residual_recipient: Option<AgentId>,
     /// Founding governor; rotating terms start here in the stable adult-ID ring.
@@ -109,6 +112,7 @@ impl Governance {
                 activities: None,
             },
             charter: Charter {
+                cash_target: None,
                 residual_recipient: None,
                 leader,
                 term_months: DEFAULT_TERM_MONTHS,
@@ -166,6 +170,16 @@ pub fn validate(world: &World, state: &State, a: &Agreement) -> Result<(), Strin
             || !matches!(g.charter.contribution, Contribution::Percent(_)))
     {
         return Err("household income policy requires contributed labor and a town book".into());
+    }
+    if let Some(target) = &g.charter.cash_target {
+        let payment = world.town_market.as_ref().and_then(|c| {
+            crate::marketplace::venue(world, c.venue)
+                .and_then(|v| v.markets.iter().find(|m| m.id == c.market))
+                .map(|m| m.payment)
+        });
+        if target.quantity < 0 || payment != Some(target.resource) {
+            return Err("household cash target requires nonnegative town-payment units".into());
+        }
     }
     elections::validate(a, state)?;
     let mut dates = BTreeSet::new();

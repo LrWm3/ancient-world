@@ -82,7 +82,9 @@ impl Simulation {
             {
                 crate::offers::resolve(self, &[request], &mut batch)?;
             } else if self.state.phase == Phase::Acquire
-                && (self.world.negotiation.is_some() || self.world.market.is_some())
+                && (self.world.negotiation.is_some()
+                    || self.world.market.is_some()
+                    || self.world.town_market.is_some())
             {
                 batch = crate::acquisition::evaluate(&self.world, &self.state)?;
             } else {

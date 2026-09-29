@@ -360,6 +360,14 @@ pub fn admission(world: &World, state: &State) -> Result<Admission, String> {
 }
 
 pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
+    evaluate_with(world, state, &Resources::opening(world, state))
+}
+
+pub(crate) fn evaluate_with(
+    world: &World,
+    state: &State,
+    opening: &Resources,
+) -> Result<Round, String> {
     validate(world)?;
     if state.phase != Phase::Acquire {
         return Err("town matching requires Acquire".into());
@@ -370,7 +378,6 @@ pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
     let c = world.town_market.as_ref().ok_or("missing town market")?;
     let planning = crate::production_market::choose(world, state)?;
     let choices = crate::production_market::choices(world, planning.as_ref());
-    let opening = Resources::opening(world, state);
     let mut resources = opening.clone();
     let mut pricing_state = state.clone();
     let mut result = Round {
@@ -387,7 +394,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
     let books = listings(c)
         .into_iter()
         .map(|c| {
-            let (orders, receipts) = orders(world, state, &c, &choices, &opening)?;
+            let (orders, receipts) = orders(world, state, &c, &choices, opening)?;
             result.order_receipts.extend(receipts);
             Ok((c, orders))
         })
@@ -650,6 +657,11 @@ fn clear(
     Ok(())
 }
 pub(crate) fn validate_batch(world: &World, state: &State, batch: &Batch) -> Result<(), String> {
+    if state.phase == Phase::Acquire && world.town_market.is_some() && crate::credit::enabled(world)
+    {
+        // The shared resolver validates credit and town trades together.
+        return crate::acquisition::validate_batch(world, state, batch);
+    }
     let expected = if world.town_market.is_none() {
         None
     } else {

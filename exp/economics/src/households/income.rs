@@ -18,6 +18,16 @@ pub struct Forecast {
     pub purchases: BTreeMap<MarketId, i32>,
 }
 
+/// Compare the same cash objective for labor allocation and voluntary support.
+/// A static reserve target permits leisure once needs and the buffer are covered.
+pub(super) fn improves(household: &Agreement, baseline: &Forecast, candidate: &Forecast) -> bool {
+    if let Some(target) = &household.governance.charter.cash_target {
+        candidate.closing_coins.min(target.quantity) > baseline.closing_coins.min(target.quantity)
+    } else {
+        candidate.net_coins > baseline.net_coins
+    }
+}
+
 /// One next-book hypothesis, not a receivable. Observe current balances and
 /// completed book history; never execute another Productive phase recursively.
 pub(super) fn project(

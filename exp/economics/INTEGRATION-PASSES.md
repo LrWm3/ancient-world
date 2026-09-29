@@ -9,7 +9,7 @@ self-directed policy changes are explicitly excluded. No scheduler rewrite.
 | 1 | Useful voluntary support under needs-first governance without a market | Shared stock protection for consumption, commitments and voluntary offers | Complete |
 | 2 | Member wage income and bounded household labor contributions | Employment + pooling + separate financial statements | Complete |
 | 3 | Private member surplus sales alongside collective purchases | Town trade collection without duplicated needs | Complete |
-| 4 | Collective cash reserve decisions | Direct lending + town acquisition sharing finite opening resources | Pending |
+| 4 | Collective cash reserve decisions | Direct lending + town acquisition sharing finite opening resources | Complete |
 | 5 | Collective adaptation to income and membership changes | Combined scenario, adverse controls, replay and continuation | Pending |
 
 Each pass records its actual scope, validation and limits below. Configuration and
@@ -60,3 +60,22 @@ physical payment are rejected. Existing household market and accounting tests pa
 
 Scope: member sales currently require a storage-free payment resource. General
 barter needs pooling-aware storage reservations before that restriction can lift.
+
+## Pass 4 — bounded cash objectives and shared loan/market acquisition
+
+The static charter may set a cash target in the town payment denomination.
+NeedsThenIncome values extra cash only up to that projected next-book balance;
+needs still take precedence. Both voluntary support and labor use the same
+comparison. Omitted targets preserve the existing income objective.
+
+Direct accepted loans now compose with household town books. Acquire reserves
+loan transfers first, then clears markets against remaining opening budgets.
+Incoming loan principal cannot finance another transfer in the same batch.
+Receipt validation checks the combined result atomically. Due still services
+loans before the later market boundary.
+
+Evidence: buffer controls release unnecessary labor and resume it below target;
+audited CPU/reference loan-plus-market scenarios check loan principal, subsequent
+repayment and purchases, lender budget exhaustion and forged combined settlement.
+Loan discovery remains supplied. Town recovery proceedings, mortgage purchase
+configuration and joint production planning remain outside this composition.

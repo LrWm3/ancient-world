@@ -510,7 +510,6 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     }
     if (!world.lending.is_empty() || !world.recovery.proceedings.is_empty())
         && (world.minting.is_some()
-            || world.town_market.is_some()
             || world.competition.is_some()
             || world.pool_market.is_some()
             || world.market.as_ref().is_some_and(|m| m.plots.is_some())
@@ -519,6 +518,11 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                 && (!world.offers.is_empty() || !world.access_offers.is_empty())))
     {
         return Err("general loans require a composed acquisition driver; town/minting, plot expansion and search acquisition are not yet composed".into());
+    }
+    if world.town_market.is_some()
+        && (!world.recovery.proceedings.is_empty() || world.production_market.is_some())
+    {
+        return Err("town lending does not yet compose with recovery or joint production".into());
     }
     let agent = |id| world.agents.iter().any(|a| a.id == id);
     let stock = |id| {

@@ -70,6 +70,13 @@ pub fn evaluate(world: &World, state: &State) -> Result<Batch, String> {
                 .insert(change.after.id, change.after.clone());
         }
     }
+    if world.town_market.is_some() {
+        let round = crate::town_market::evaluate_with(world, &quoted, &resources)?;
+        resources.reserve(world, &round.transactions)?;
+        batch.transactions.extend(round.transactions.clone());
+        batch.town_market = Some(crate::town_market::Boundary::Market(round));
+        return Ok(batch);
+    }
     batch.negotiation = negotiation::evaluate_with(world, &quoted, &resources)?;
     let trades = negotiation::transactions(world, state, &batch.negotiation)?;
     resources.reserve(world, &trades)?;
@@ -88,10 +95,11 @@ pub fn evaluate(world: &World, state: &State) -> Result<Batch, String> {
 pub(crate) fn validate_batch(world: &World, state: &State, batch: &Batch) -> Result<(), String> {
     if state.phase == Phase::Acquire
         && crate::credit::enabled(world)
-        && (world.negotiation.is_some() || world.market.is_some())
+        && (world.negotiation.is_some() || world.market.is_some() || world.town_market.is_some())
     {
         let expected = evaluate(world, state)?;
         if batch.credit != expected.credit
+            || batch.town_market != expected.town_market
             || batch.negotiation != expected.negotiation
             || batch.production_plan != expected.production_plan
             || batch.transactions != expected.transactions

@@ -246,7 +246,7 @@ pub(super) fn prepare(
                         && next_income
                             .as_ref()
                             .zip(base_income.as_ref())
-                            .is_some_and(|(next, base)| next.net_coins > base.net_coins));
+                            .is_some_and(|(next, base)| income::improves(h, base, next)));
                 r.reason = if no_private_harm && improves {
                     r.accepted = r.offered;
                     staged = trial;

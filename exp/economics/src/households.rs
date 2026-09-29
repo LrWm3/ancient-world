@@ -1182,7 +1182,7 @@ fn contributed_labor(
         // Lexicographic need deficits precede the selected output/income objective.
         // No conversion of fulfillment units into a single monetary score.
         let improves_secondary = if let Some(f) = &projected_income {
-            f.net_coins > decision.projected_income.as_ref().unwrap().net_coins
+            income::improves(a, decision.projected_income.as_ref().unwrap(), f)
         } else {
             value > decision.projected_value
         };

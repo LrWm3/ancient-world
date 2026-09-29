@@ -297,3 +297,115 @@ fn private_sales_do_not_enable_duplicate_buying_or_unreserved_physical_payment()
             .contains("storage-free payment")
     );
 }
+
+#[test]
+fn cash_target_stops_extra_income_work_and_resumes_below_the_buffer() {
+    use economics_compute_smoke::households::income::scenario;
+    let run = |target: Option<i32>| {
+        let (mut w, s) = scenario::scenario().unwrap();
+        w.households[0].governance.charter.cash_target = target.map(|q| Amount::new(TOKEN, q));
+        let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+        while sim.state.phase != Phase::Productive {
+            sim.step().unwrap();
+        }
+        sim.step().unwrap();
+        sim.ledger.last().unwrap().household.as_ref().unwrap().labor[0].clone()
+    };
+    assert_eq!(run(None).granted, 2);
+    let rested = run(Some(20));
+    assert_eq!(rested.granted, 0);
+    assert!(
+        rested
+            .contributions
+            .iter()
+            .all(|c| c.directed == 0 && c.returned == c.reserved)
+    );
+    assert_eq!(run(Some(60)).granted, 2);
+}
+
+fn lend(w: &mut World, debtor: AgentId, creditor: AgentId, principal: i32) {
+    use economics_compute_smoke::{
+        credit::{Advance, LoanOffer},
+        opportunities::{Action, HOUSEHOLD_TYPE, PERSON_TYPE},
+    };
+    let law = w.transaction_policy.as_mut().unwrap();
+    for kind in [PERSON_TYPE, HOUSEHOLD_TYPE] {
+        for action in [Action::Borrow, Action::Lend] {
+            law.permissions.insert((kind, action));
+        }
+    }
+    w.lending.push(Advance {
+        id: 1,
+        debtor,
+        principal,
+        month: 1,
+        priority: 0,
+        collateral: None,
+        terms: LoanOffer {
+            creditor,
+            denomination: TOKEN,
+            max_principal: principal,
+            monthly_rate_bps: 0,
+            term_months: 2,
+            grace_months: 3,
+        },
+    });
+}
+
+#[test]
+fn household_loan_and_town_purchase_share_budget_and_repay_on_separate_books() {
+    let (mut w, mut s) = households::market::scenario().unwrap();
+    w.activities.orders.clear();
+    s.balances.insert((HOME, TOKEN), 0);
+    s.balances.insert((89, TOKEN), 80);
+    lend(&mut w, HOME, 89, 80);
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut audit = inventory_audit(&w, &s);
+        while sim.state.phase != Phase::Acquire {
+            audit.step(&mut sim).unwrap();
+        }
+        let opening = sim.state.clone();
+        audit.step(&mut sim).unwrap();
+        assert_eq!(sim.state.balance(HOME, TOKEN), 80);
+        assert_eq!(sim.state.balance(HOME, GRAIN), 0);
+        assert_eq!(sim.state.credit.loans[&1].principal, 80);
+        let mut forged = sim.ledger.last().unwrap().clone();
+        forged.transactions.pop();
+        let mut unchanged = opening.clone();
+        assert!(commit(&w, &mut unchanged, &forged, backend, DEFAULT_EFFECT_LIMIT).is_err());
+        assert_eq!(unchanged, opening);
+        while sim.state.month <= 2 {
+            audit.step(&mut sim).unwrap();
+        }
+        assert_eq!(sim.state.credit.loans[&1].principal, 40);
+        assert!(
+            sim.state.town_market.history[1]
+                .markets
+                .values()
+                .any(|m| m.volume > 0)
+        );
+        for a in &w.agents {
+            let f = audit.book().statements(a.id, 1, 2).unwrap();
+            assert_eq!(f.assets, f.liabilities + f.equity);
+        }
+        (sim.state, sim.ledger, audit)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}
+
+#[test]
+fn lender_cannot_spend_the_same_coins_on_a_town_purchase() {
+    let (mut w, mut s) = households::market::scenario().unwrap();
+    w.activities.orders.clear();
+    s.balances.insert((HOME, TOKEN), 40);
+    lend(&mut w, 89, HOME, 40);
+    let mut sim = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    let mut audit = inventory_audit(&w, &s);
+    while sim.state.phase != Phase::Productive {
+        audit.step(&mut sim).unwrap();
+    }
+    assert_eq!(sim.state.balance(HOME, TOKEN), 0);
+    assert_eq!(sim.state.balance(HOME, GRAIN), 0);
+    assert_eq!(sim.state.credit.loans[&1].principal, 40);
+}
