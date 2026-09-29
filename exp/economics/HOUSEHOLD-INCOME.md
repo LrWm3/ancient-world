@@ -56,7 +56,7 @@ month, demand caps, opening/closing coins, net cash change and traded quantities
 The external settlement observer exports them. Replay recomputes the forecasts and
 rejects altered projections or transfers atomically.
 
-## Controlled CPU scenario
+## Original control and coordinated CPU scenario
 
 Two adults form a household, while two independent people supply grain. The household
 buys two grain for 40 ticks monthly. One external producer needs one fuel monthly
@@ -79,7 +79,7 @@ at the following month's book. No wage or private-to-household sale is invented.
 | 26 | 2 | 0 | 20 | 0 |
 | 27–36 | 0 | 0 | 20 | 2 |
 
-The default 12-month run completes with all household food needs met, unchanged
+The original 12-month control completes with all household food needs met, unchanged
 total coins and reconciled separate-agent statements. The longer run exposes a
 remaining coordination failure: private fuel reaches its supplied target of 24
 at the end of month 24. The member stops requesting work in month 25, although the
@@ -87,11 +87,15 @@ household still needs sales. The last unit sells in month 25; affordable food en
 after month 26. Unused private stock is not silently appropriated for collective
 sales. The fuel buyer also lacks warmth in the opening month before the first sale.
 
-Thus the experiment demonstrates working income-aware allocation and reciprocal
-funding over a bounded interval. It does not establish indefinite viability. The
-next issue is explicitly coordinating private work/stock goals with collective
-income demand, including consent and the existing sharing rules. Increasing the
-stock target merely postpones that issue.
+The original failure remains a control. The coordinated variant now closes this
+connection through dated, voluntary member surplus support: protect two private
+fuel, offer at most one per month toward a one-unit collective target, and accept
+only useful support before deciding whether extra labor is needed. The target of
+24, technology, starting money and prices are unchanged. A 120-month CPU/reference
+comparison keeps both members fed, conserves coins and reconciles separate books.
+See the [completed initial loop](PERSON-HOUSEHOLD-LOOP.md) for consent, timing,
+withdrawal, shock recovery, receipts and limitations. The example now defaults to
+this coordinated variant for 36 months.
 
 ## Verification
 
@@ -116,6 +120,9 @@ income-policy tests. Both CPU examples (12 and 36 months), strict all-target Cli
 formatting and repository artifact checks passed. One slow annual household
 accounting test remained ignored; the full crate suite was not run. Raw logs are
 under ignored `output/economics/household-income-*.log`.
+
+The original verification record above predates the coordinated variant; see the
+[loop verification](PERSON-HOUSEHOLD-LOOP.md#reproduce-and-verification-scope) for that extension.
 
 Remaining limits include endogenous activity targets, producer-input purchases,
 multi-period investment, coordinated private/collective market accounts, household

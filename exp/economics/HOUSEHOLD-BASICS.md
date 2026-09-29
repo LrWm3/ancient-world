@@ -1,6 +1,8 @@
 # Household governance basics
 
 Status: core checklist complete and verified on 2026-09-28.
+The subsequent [initial person–household economic loop](PERSON-HOUSEHOLD-LOOP.md)
+is also complete within its bounded market scenario (2026-09-29).
 
 This completion checklist covers the adult-only household governance loop. It does
 not claim that every institutional or financial extension in GOALS.md is complete.

@@ -564,3 +564,16 @@ operations, settle residual stock through Open receipts after obligations clear,
 and then release membership/storage. Separate books and historical authority survive.
 General household lending/recovery, asset dispositions and death estates remain
 uncomposed; this path does not silently write off or transfer their claims.
+
+
+## Initial economic loop and voluntary surplus
+
+The [completed loop](PERSON-HOUSEHOLD-LOOP.md) connects personal needs, household
+purchases, contributed work, market income and separate accounting for 120 months
+on CPU. `Agreement.support` holds dated member-authored surplus mandates, independent
+of governor authority. Accepted transfers protect personal reserves and supported
+claims, require a useful need/income improvement, and settle before contributed
+labor at Productive. Members may withdraw future support; the ordinary half-output
+rule remains unchanged. The new receipts are replayed and observed alongside labor
+receipts. See the linked document for the original failure control, recovery test,
+composition limits and subsequent work.

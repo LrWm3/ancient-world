@@ -529,8 +529,11 @@ and no projected income becomes current spending power.
 
 The reciprocal grain/fuel fixture keeps two household members fed for 12 months
 with 60 closing coin ticks after the first purchase. A 36-month CPU check exposes
-the current boundary: a private fuel target stops work in month 25; food deficits
-begin in month 27. Coordinating private and collective work targets remains next.
+the original boundary: a private fuel target stops work in month 25; food deficits
+begin in month 27. That behavior remains a control; voluntary surplus support now
+closes the coordination gap in the [completed initial loop](PERSON-HOUSEHOLD-LOOP.md).
+The coordinated 120-month CPU/reference run meets household food needs, conserves
+coins and reconciles separate statements.
 This does not enable the joint production-market planner or household hiring/credit
 budgets. The linked document records assumptions, controls and full results.
 
@@ -538,3 +541,19 @@ Verification (2026-09-29): **162 distinct tests passed** across 11 selected suit
 including all 13 final income-policy tests. The 12- and 36-month CPU examples,
 strict all-target Clippy, formatting and artifact checks passed. One slow annual
 accounting test remained ignored; the full crate suite was not run.
+
+
+### Initial person–household loop complete
+
+Voluntary member surplus support now connects private stock targets to collective
+income without changing those targets or extending governor authority. Consent,
+reserves, obligations, storage, demand and policy bound transfers; dated withdrawal
+preserves historical replay. The 120-month CPU/reference comparison keeps both
+household members fed, conserves coins and reconciles every separate statement.
+Temporary market closure produces real shortages and subsequent recovery. See
+[completed scope and subsequent work](PERSON-HOUSEHOLD-LOOP.md).
+
+Verification (2026-09-29): **215 distinct tests passed** across 15 selected suites,
+including the long audit and final support controls. The 36-month CPU example,
+strict all-target Clippy, formatting and artifact checks passed. One slow annual
+32-person test remained ignored; the full crate suite was not run.

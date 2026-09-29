@@ -283,9 +283,10 @@ death estates or autonomous liquidation-price discovery. See
 formation/governance/allocation/market connection: current governor policy generates
 collective orders for real members, protected surplus can be sold, and multiple
 listings share finite household resources. Member accounts remain separate. The
-next integration targets are sustainable income plans and household employment/credit
-budgets; the small consumption fixture currently exhausts affordable funding.
-[`NeedsThenIncome`](HOUSEHOLD-INCOME.md) now provides bounded next-book income
-comparisons in the existing labor allocator. Reciprocal exchange funds the first
-12 months, but longer validation exposes a private work-target limit. Explicit
-private/collective target coordination remains necessary for continued viability.
+initial person–household economic loop is now [complete in a bounded reciprocal
+market scenario](PERSON-HOUSEHOLD-LOOP.md). `NeedsThenIncome` links contributed work
+to expected next-book cash. Explicit member surplus mandates close the private
+stock-target failure without increasing targets or appropriating holdings. The
+120-month CPU/reference check feeds both members, conserves coins and reconciles
+separate accounts. Household employment/credit budgets, endogenous work and
+consent-term discovery, and longer-horizon collective planning remain extensions.

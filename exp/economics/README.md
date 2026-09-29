@@ -444,7 +444,10 @@ needs when its initial funding cannot afford another lot. Run
 `cargo +1.92.0 run --locked --example household_market` from this directory.
 The next [income-aware allocation policy](HOUSEHOLD-INCOME.md) links contributed
 work to the next book's expected cash flow. In its reciprocal grain/fuel fixture,
-both members stay fed for 12 months and cash stabilizes at 60 ticks. The 36-month
-check finds shortages from month 27 when a private work target blocks further
-collective income. Private/collective target coordination, household employment
-and town-market credit integration remain outstanding.
+the original control stays fed for 12 months but fails from month 27 as private
+stock targets stop work. The [completed initial person–household loop](PERSON-HOUSEHOLD-LOOP.md)
+adds voluntary, protected member-surplus support and runs for 120 months on CPU
+with both members fed, finite coins and reconciled separate books. The income
+example now defaults to the coordinated 36-month scenario. Household employment,
+town-market credit integration and autonomous work/support-term discovery remain
+extensions.
