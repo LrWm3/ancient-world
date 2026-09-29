@@ -37,6 +37,70 @@ impl Costs {
         }
         Ok(positions)
     }
+    /// Transfer historical basis with allocated hours before productive work.
+    /// Opening donor quantities bound all transfers; receipts cannot be re-spent.
+    pub(crate) fn allocate(
+        &self,
+        world: &World,
+        state: &State,
+        effects: &[Effect],
+    ) -> Result<(Self, Vec<Line>), String> {
+        self.positions(world, state)?;
+        let capacity: Vec<_> = effects
+            .iter()
+            .filter(|e| {
+                world
+                    .resources
+                    .iter()
+                    .any(|r| r.id == e.account.1 && r.kind == ResourceKind::Capacity)
+            })
+            .collect();
+        if capacity.len() % 2 != 0 {
+            return Err("capacity allocation must be paired".into());
+        }
+        let mut next = self.clone();
+        let mut used = BTreeMap::new();
+        let mut released = BTreeMap::new();
+        let mut lines = vec![];
+        for pair in capacity.chunks_exact(2) {
+            let (from, to) = (pair[0], pair[1]);
+            if from.delta >= 0
+                || to.delta <= 0
+                || i64::from(from.delta) != -i64::from(to.delta)
+                || from.account.1 != to.account.1
+                || from.account.0 == to.account.0
+            {
+                return Err("invalid capacity allocation".into());
+            }
+            let opening = i128::from(state.balance(from.account.0, from.account.1));
+            accounting::add(&mut used, from.account, i128::from(to.delta))?;
+            let quantity = used[&from.account];
+            if opening <= 0 || quantity > opening {
+                return Err("capacity allocation exceeds opening hours".into());
+            }
+            let basis = self.balances.get(&from.account).copied().unwrap_or(0);
+            let cumulative = (basis / opening) * quantity + (basis % opening) * quantity / opening;
+            let cost = cumulative - released.get(&from.account).copied().unwrap_or(0);
+            released.insert(from.account, cumulative);
+            accounting::add(&mut next.balances, from.account, -cost)?;
+            accounting::add(&mut next.balances, to.account, cost)?;
+            for (agent, account, debit) in [
+                (from.account.0, Account::TransferExpense, cost),
+                (to.account.0, Account::TransferIncome, -cost),
+            ] {
+                if debit != 0 {
+                    lines.push(Line {
+                        agent,
+                        account,
+                        debit,
+                        flow: None,
+                    });
+                }
+            }
+        }
+        next.balances.retain(|_, cost| *cost != 0);
+        Ok((next, lines))
+    }
     pub(crate) fn settle(
         &self,
         world: &World,

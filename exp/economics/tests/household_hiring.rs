@@ -152,3 +152,102 @@ fn hiring_requires_explicit_matching_charter_and_outside_worker() {
         assert!(Simulation::new(w, s.clone(), Backend::Reference).is_err());
     }
 }
+
+const MAKE: DefinitionId = 901;
+fn production(cash: i32) -> (World, State) {
+    use economics_compute_smoke::{
+        activities::{Target, WorkOrder},
+        scenario::GRAIN,
+    };
+    let (mut w, s) = fixture(cash, 6);
+    w.definitions.push(ProcessDefinition {
+        id: MAKE,
+        name: "household directed output".into(),
+        enabled: true,
+        execution: Execution::Productive,
+        asset_kind: None,
+        stages: vec![Stage {
+            name: "work".into(),
+            months: 1,
+            entry_inputs: vec![],
+            monthly_services: vec![Amount::new(LABOR, 2)],
+        }],
+        outputs: vec![Amount::new(GRAIN, 4)],
+    });
+    w.activities.orders.push(WorkOrder {
+        agent: PERSON,
+        definition: MAKE,
+        priority: 0,
+        target: Target::Stock(Amount::new(GRAIN, 100)),
+    });
+    w.transaction_policy
+        .as_mut()
+        .unwrap()
+        .permissions
+        .insert((PERSON_TYPE, Action::Process(MAKE)));
+    (w, s)
+}
+#[test]
+fn hired_hours_and_basis_follow_member_work_output_pooling_and_expiration() {
+    use economics_compute_smoke::scenario::GRAIN;
+    let (w, s) = production(6);
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut a = audit(&w, &s);
+        through(&mut a, &mut sim, 1);
+        assert_eq!(sim.state.balance(HOME, GRAIN), 2);
+        assert_eq!(sim.state.balance(PERSON, GRAIN), 2);
+        assert_eq!(value(&a, HOME, A::Inventory(GRAIN)), 2);
+        assert_eq!(value(&a, PERSON, A::Inventory(GRAIN)), 2);
+        assert_eq!(value(&a, HOME, A::PurchasedCapacity(LABOR)), 2);
+        assert_eq!(value(&a, HOME, A::TransferExpense), 4);
+        assert_eq!(value(&a, PERSON, A::TransferIncome), -4);
+        let d = sim
+            .ledger
+            .iter()
+            .filter_map(|b| b.household.as_ref())
+            .flat_map(|b| &b.labor)
+            .find(|d| d.recipient == Some(PERSON))
+            .unwrap();
+        assert_eq!(d.purchased[0].available, 3);
+        assert_eq!(d.purchased[0].directed, 2);
+        assert_eq!(d.purchased[0].unused, 1);
+        let saved = (sim.clone(), a.clone());
+        through(&mut a, &mut sim, 2);
+        assert_eq!(value(&a, HOME, A::ServiceExpense), 2);
+        assert_eq!(value(&a, HOME, A::PurchasedCapacity(LABOR)), 0);
+        let (mut resumed, mut ra) = saved;
+        through(&mut ra, &mut resumed, 2);
+        assert_eq!(sim.state, resumed.state);
+        assert_eq!(a, ra);
+        let mut replay = s.clone();
+        for b in &sim.ledger {
+            commit(&w, &mut replay, b, backend, DEFAULT_EFFECT_LIMIT).unwrap();
+        }
+        assert_eq!(replay, sim.state);
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}
+#[test]
+fn paid_hours_do_not_override_constitution_or_member_permissions() {
+    use economics_compute_smoke::scenario::GRAIN;
+    for legal in [false, true] {
+        let (mut w, s) = production(6);
+        if legal {
+            w.households[0].governance.constitution.activities = Some(Default::default());
+        } else {
+            w.transaction_policy
+                .as_mut()
+                .unwrap()
+                .permissions
+                .remove(&(PERSON_TYPE, Action::Process(MAKE)));
+        }
+        let mut sim = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+        let mut a = audit(&w, &s);
+        through(&mut a, &mut sim, 2);
+        assert_eq!(sim.state.balance(HOME, GRAIN), 0);
+        assert_eq!(value(&a, HOME, A::ServiceExpense), 6);
+        assert_eq!(sim.state.balance(WORKER, TOKEN), 6);
+    }
+}

@@ -599,6 +599,19 @@ impl Audit {
         if verified != *after {
             return Err("accounting requires the exact committed state".into());
         }
+        let (allocated_services, capacity_allocation_lines) = if let Some(costs) = &self.services {
+            let (next, lines) = costs.allocate(
+                world,
+                outer_before,
+                batch
+                    .household
+                    .as_ref()
+                    .map_or(&[][..], |h| h.before.as_slice()),
+            )?;
+            (Some(next), lines)
+        } else {
+            (None, vec![])
+        };
         let before = &prepared;
         let after = &core_settled;
         let (mut allocated_inventory, allocation_lines) = self.inventory.pool(
@@ -876,7 +889,7 @@ impl Audit {
                 })
             })
             .collect();
-        let (mut services, mut service_lines) = if let Some(costs) = &self.services {
+        let (mut services, mut service_lines) = if let Some(costs) = &allocated_services {
             let (costs, lines, work) =
                 costs.settle(world, before, batch, &service_transactions, coin)?;
             for (id, cost) in work {
@@ -1204,6 +1217,7 @@ impl Audit {
             .chain(attachment_lines)
             .chain(expiration_lines)
             .chain(allocation_lines)
+            .chain(capacity_allocation_lines)
             .chain(pooling_lines)
         {
             if let Some(kind) = l.flow {

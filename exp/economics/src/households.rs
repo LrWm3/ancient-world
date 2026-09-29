@@ -90,6 +90,14 @@ pub struct LaborDecision {
     pub leader: Option<AgentId>,
     pub tie_break: crate::household_governance::TieBreak,
     pub contributions: Vec<LaborContribution>,
+    pub purchased: Vec<PurchasedLabor>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PurchasedLabor {
+    pub resource: ResourceId,
+    pub available: i32,
+    pub directed: i32,
+    pub unused: i32,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LaborContribution {
@@ -1060,6 +1068,7 @@ fn labor(world: &World, state: &State) -> Result<(Vec<Effect>, Vec<LaborDecision
             leader: crate::household_governance::leader(a, state),
             tie_break: a.governance.tie_break(state.month),
             contributions: vec![],
+            purchased: vec![],
         };
         if let Some((gain, member, chosen)) = best {
             apply(world, &mut staged, &chosen, Backend::Reference)?;
@@ -1129,6 +1138,20 @@ fn contributed_labor(
         leader: crate::household_governance::leader(a, state),
         tie_break: a.governance.tie_break(state.month),
         contributions: contributions.clone(),
+        purchased: world
+            .resources
+            .iter()
+            .filter(|r| r.kind == ResourceKind::Capacity)
+            .filter_map(|r| {
+                let q = state.balance(a.agent, r.id);
+                (q > 0).then_some(PurchasedLabor {
+                    resource: r.id,
+                    available: q,
+                    directed: 0,
+                    unused: q,
+                })
+            })
+            .collect(),
     };
     let mut reserved_state = state.clone();
     for c in &contributions {
@@ -1145,13 +1168,16 @@ fn contributed_labor(
             .unwrap()
             .capacity
             .resource;
+        let purchased = state.balance(a.agent, resource);
         let pool = contributions
             .iter()
             .filter(|c| c.resource == resource)
             .try_fold(0_i32, |q, c| {
                 q.checked_add(c.reserved)
                     .ok_or("household labor pool overflow")
-            })?;
+            })?
+            .checked_add(purchased)
+            .ok_or("purchased labor pool overflow")?;
         if pool == 0 {
             continue;
         }
@@ -1216,6 +1242,10 @@ fn contributed_labor(
             if c.member != member && c.directed > 0 {
                 proposed.extend(transfer(c.member, member, resource, c.directed));
             }
+        }
+        let purchased_directed = required;
+        if purchased_directed > 0 {
+            proposed.extend(transfer(a.agent, member, resource, purchased_directed));
         }
         let mut final_state = state.clone();
         apply(world, &mut final_state, &proposed, Backend::Reference)?;
@@ -1282,6 +1312,14 @@ fn contributed_labor(
         decision.projected_value = value;
         decision.granted = grant;
         decision.contributions = receipts;
+        for p in &mut decision.purchased {
+            p.directed = if p.resource == resource {
+                purchased_directed
+            } else {
+                0
+            };
+            p.unused = p.available - p.directed;
+        }
         best_effects = proposed;
     }
     Ok((best_effects, decision))
