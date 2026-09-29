@@ -287,7 +287,18 @@ fn private_sales_and_collective_orders_share_a_book_without_reusing_pooled_recei
 fn private_sales_do_not_enable_duplicate_buying() {
     let (mut w, s) = private_sales_fixture();
     w.town_market.as_mut().unwrap().adaptive = true;
-    assert!(Simulation::new(w, s, Backend::Reference).is_err());
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    while sim.state.phase != Phase::Acquire {
+        sim.step().unwrap();
+    }
+    sim.step().unwrap();
+    let round = &sim.state.town_market.history[0];
+    assert!(!round.orders.iter().any(|o|o.agent==PERSON && o.side==economics_compute_smoke::marketplace::Side::Buy));
+    assert!(
+        round.orders.iter().any(
+            |o| o.agent == PERSON && o.side == economics_compute_smoke::marketplace::Side::Sell
+        )
+    );
 }
 
 #[test]

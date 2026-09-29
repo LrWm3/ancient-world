@@ -9,7 +9,7 @@ remain excluded. Monthly boundaries are unchanged.
 | 6 | Useful partial voluntary support | Storage-bounded conserved transfers | Complete |
 | 7 | Physical barter proceeds | Pooling-aware town storage reservations | Complete |
 | 8 | Charter delegates consumption buying | Exclusive collective/member purchase routing | Complete |
-| 9 | Purchase eligibility follows membership | Runtime admission rather than historical exclusion | Pending |
+| 9 | Purchase eligibility follows membership | Runtime admission rather than historical exclusion | Complete |
 | 10 | Collective purchases for accepted process inputs | Shared commitment demand and integrated tests | Pending |
 
 ## Pass 6
@@ -41,3 +41,16 @@ Evidence: CPU/reference audited controls include storage rejection, odd payment
 carry, conserved barter stocks, ledger replay, and a private purchase feeding both
 members through subsequent household allocation without spending collective cash.
 Existing household integration/market and barter accounting controls pass.
+
+## Pass 9
+
+Registration no longer permanently excludes buyers who have ever belonged to a
+household. Acquire checks current membership and the static purchase route. An
+outside former member can buy privately; re-entry restores the collective gate.
+Adaptive members can still offer protected surplus when their buy side is blocked.
+
+Evidence: an audited three-month CPU/reference scenario exercises collective
+buying, explicit member exit with private purchases and no pooling, then accession
+with private buying blocked again. Continuation from each monthly boundary agrees.
+Registration, legal permissions and locality remain explicit prerequisites; this
+is not autonomous registration or recruitment.

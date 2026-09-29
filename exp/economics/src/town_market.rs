@@ -238,7 +238,7 @@ pub fn validate(world: &World) -> Result<(), String> {
     let mut goods = BTreeSet::new();
     let payment = catalog(world, c)?.payment;
     let participants: BTreeSet<_> = c.traders.iter().map(|t| t.trader.agent).collect();
-    crate::households::market::validate(world, &participants)?;
+    crate::households::market::validate(world)?;
     for row in listings(c) {
         let c = &row;
         let m = catalog(world, c)?;

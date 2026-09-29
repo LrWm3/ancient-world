@@ -275,3 +275,70 @@ fn charter_delegates_buys_while_preserving_pooling_and_separate_books() {
     };
     assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
 }
+
+#[test]
+fn current_membership_routes_registered_bids_through_exit_and_accession() {
+    use economics_compute_smoke::{
+        household_governance::Purchasing, marketplace::Side, town_market::OrderReason,
+    };
+    let (mut w, mut s) = delegated_fixture();
+    w.households[0].governance.charter.purchasing = Purchasing::Collective;
+    w.town_market
+        .as_mut()
+        .unwrap()
+        .traders
+        .iter_mut()
+        .find(|e| e.trader.agent == PERSON)
+        .unwrap()
+        .trader
+        .agent = 91;
+    s.balances.insert((91, TOKEN), 100);
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut a = audit(&w, &s);
+        for month in 1..=3 {
+            if month == 2 {
+                households::membership::leave(&mut sim.world, &sim.state, HOME, 91).unwrap();
+            }
+            if month == 3 {
+                households::membership::join(
+                    &mut sim.world,
+                    &sim.state,
+                    HOME,
+                    91,
+                    vec![PERSON, 91],
+                )
+                .unwrap();
+            }
+            let (mut resumed, mut saved) = (sim.clone(), a.clone());
+            while sim.state.month == month {
+                a.step(&mut sim).unwrap();
+                saved.step(&mut resumed).unwrap();
+            }
+            assert_eq!(
+                (&sim.state, &sim.ledger, &a),
+                (&resumed.state, &resumed.ledger, &saved)
+            );
+            let round = sim.state.town_market.history.last().unwrap();
+            let receipt = round
+                .order_receipts
+                .iter()
+                .find(|r| r.agent == 91 && r.side == Side::Buy)
+                .unwrap();
+            assert_eq!(
+                receipt.reason,
+                if month == 2 {
+                    OrderReason::Submitted
+                } else {
+                    OrderReason::PurchasePolicy
+                }
+            );
+            if month == 2 {
+                assert_eq!(sim.state.balance(91, GRAIN), 1);
+            } // no pooling while outside
+        }
+        assert_eq!(sim.state.balance(91, TOKEN), 60);
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}

@@ -315,11 +315,20 @@ fn member_and_household_cannot_duplicate_orders_for_the_same_needs() {
         .clone();
     entry.trader.agent = PERSON;
     w.town_market.as_mut().unwrap().traders.push(entry);
-    assert!(
-        Simulation::new(w, s, Backend::Reference)
-            .err()
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    sim.step().unwrap();
+    sim.step().unwrap();
+    let round = &sim.state.town_market.history[0];
+    assert!(round.orders.iter().any(|o| o.agent == HOME));
+    assert!(!round.orders.iter().any(|o| o.agent == PERSON));
+    assert_eq!(
+        round
+            .order_receipts
+            .iter()
+            .find(|r| r.agent == PERSON)
             .unwrap()
-            .contains("collective town account")
+            .reason,
+        OrderReason::PurchasePolicy
     );
 }
 

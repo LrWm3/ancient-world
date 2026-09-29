@@ -7,26 +7,9 @@ use crate::{
 
 pub const EXAMPLE_HOUSEHOLD: AgentId = 10_000;
 
-pub(crate) fn validate(world: &World, traders: &BTreeSet<AgentId>) -> Result<(), String> {
+pub(crate) fn validate(world: &World) -> Result<(), String> {
     if !world.households.is_empty() && world.production_market.is_some() {
         return Err("household town orders do not compose with joint production planning".into());
-    }
-    for h in &world.households {
-        for member in traders.iter().filter(|id| membership::ever_member(h, **id)) {
-            let c = world.town_market.as_ref().ok_or("missing town market")?;
-            for listing in crate::town_market::listings(c) {
-                let entry = listing
-                    .traders
-                    .iter()
-                    .find(|e| e.trader.agent == *member)
-                    .ok_or("missing member listing")?;
-                if h.governance.charter.purchasing == Purchasing::Collective
-                    && (listing.adaptive || entry.side != crate::marketplace::Side::Sell)
-                {
-                    return Err("members buy through their collective town account; private surplus sales are permitted".into());
-                }
-            }
-        }
     }
     Ok(())
 }
