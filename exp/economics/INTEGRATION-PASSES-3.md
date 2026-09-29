@@ -8,7 +8,7 @@ household hiring remain out of scope; existing monthly boundaries are preserved.
 | 11 | Physical wage receipts | Bounded payroll plus exact contribution storage | Complete |
 | 12 | Costed physical wage income | Native wage claims and noncash settlement reporting | Complete |
 | 13 | Opt-in support of member loan dues | Shared current loan-claim calculation | Complete |
-| 14 | Acquire resources for due obligations | Claim-driven collective market demand | Pending |
+| 14 | Acquire resources for due obligations | Claim-driven collective market demand | Complete |
 | 15 | Prioritize scarce debt support | Explicit allocation policy and combined controls | Pending |
 
 ## Pass 11
@@ -47,3 +47,18 @@ CPU/reference tests cover enabled/disabled assistance, accrued interest, scarce
 cash competing with a household loan, separate balanced accounts and replay.
 A membership-exit control receives no assistance. Lending and need-order tests
 exercise the shared claim preview against existing collection/protection paths.
+
+## Pass 14
+
+Static `fund_due_loans` extends collective needs-first bids to missing denomination
+stock for current collectible loans. Member claims qualify only when member loan
+support is also enabled. Private stocks offset combined enabled process/loan
+requirements once. Existing prices, admission, protection, funding and storage
+still decide whether a useful order can settle.
+
+CPU/reference audited tests trade collective grain for coins, preserve the unpaid
+loan after that month's Due, and use actual coins for next month's support and
+collection. Disabled purchase/support and unfunded-bid controls leave debt unpaid;
+collective-own debt can generate demand without member support. Checkpoint/replay
+and separate balanced statements agree. Future installments are not demand and
+this does not introduce refinancing or household hiring.

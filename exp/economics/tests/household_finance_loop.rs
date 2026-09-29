@@ -285,3 +285,116 @@ fn exited_member_receives_no_collective_loan_support() {
     assert_eq!(sim.state.balance(HOME, TOKEN), 5);
     assert_eq!(sim.state.credit.loans[&1].principal, 4);
 }
+
+fn financed_market(buy: bool, support: bool) -> (World, State) {
+    use economics_compute_smoke::{negotiation::QuotePolicy, scenario::GRAIN};
+    let (mut w, mut s) = loans(support, false);
+    let (mw, ms) = households::market::scenario().unwrap();
+    w.town_market = mw.town_market;
+    s.town_market = ms.town_market;
+    w.households[0].governance.charter.fund_due_loans = buy;
+    w.lending[0].terms.monthly_rate_bps = 0;
+    s.credit.loans.get_mut(&1).unwrap().monthly_rate_bps = 0;
+    s.balances.clear();
+    s.balances.insert((HOME, GRAIN), 2);
+    s.balances.insert((92, TOKEN), 4);
+    let c = w.town_market.as_mut().unwrap();
+    c.traders.retain(|t| [HOME, 92].contains(&t.trader.agent));
+    for entry in &mut c.traders {
+        entry.trader.limit = 2;
+        entry.trader.opening_quote = 2;
+        entry.trader.policy = QuotePolicy::Fixed;
+    }
+    let market = &mut w
+        .marketplaces
+        .iter_mut()
+        .find(|m| m.agent == c.venue)
+        .unwrap()
+        .markets[0];
+    market.goods = Amount::new(TOKEN, 4);
+    market.payment = GRAIN;
+    market.price_tick = 1;
+    (w, s)
+}
+#[test]
+fn collective_market_acquires_payment_stock_for_next_due_without_backdating_settlement() {
+    use economics_compute_smoke::{
+        financial_reporting::{Audit, Opening},
+        scenario::GRAIN,
+    };
+    for buy in [false, true] {
+        for support in [false, true] {
+            let (w, s) = financed_market(buy, support);
+            let run = |backend| {
+                let mut audit = Audit::with_opening(
+                    &w,
+                    &s,
+                    TOKEN,
+                    Opening {
+                        inventory: [((HOME, GRAIN), 2)].into(),
+                        exchange_values: [(GRAIN, 2)].into(),
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+                let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+                while sim.state.month == 2 {
+                    audit.step(&mut sim).unwrap();
+                }
+                let traded = buy && support;
+                assert_eq!(sim.state.balance(HOME, TOKEN), if traded { 4 } else { 0 });
+                assert_eq!(sim.state.balance(92, TOKEN), if traded { 0 } else { 4 });
+                assert_eq!(sim.state.balance(92, GRAIN), if traded { 2 } else { 0 });
+                assert_eq!(sim.state.credit.loans[&1].principal, 4);
+                let checkpoint = (sim.clone(), audit.clone());
+                while sim.state.month == 3 {
+                    audit.step(&mut sim).unwrap();
+                }
+                assert_eq!(
+                    sim.state.credit.loans[&1].principal,
+                    if traded { 0 } else { 4 }
+                );
+                assert_eq!(sim.state.balance(89, TOKEN), if traded { 4 } else { 0 });
+                let (mut resumed, mut saved) = checkpoint;
+                while resumed.state.month == 3 {
+                    saved.step(&mut resumed).unwrap();
+                }
+                assert_eq!(sim.state, resumed.state);
+                assert_eq!(audit, saved);
+                let mut replay = s.clone();
+                for b in &sim.ledger {
+                    commit(&w, &mut replay, b, backend, DEFAULT_EFFECT_LIMIT).unwrap();
+                }
+                assert_eq!(replay, sim.state);
+                for id in [HOME, PERSON, 89, 92] {
+                    let report = audit.book().statements(id, 2, 3).unwrap();
+                    assert_eq!(report.assets, report.liabilities + report.equity);
+                }
+                (sim.state, sim.ledger, audit)
+            };
+            assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+        }
+    }
+}
+
+#[test]
+fn collective_own_dues_generate_orders_but_unfunded_bids_do_not_create_payment_stock() {
+    use economics_compute_smoke::scenario::GRAIN;
+    for funded in [false, true] {
+        let (mut w, mut s) = financed_market(true, false);
+        w.lending[0].debtor = HOME;
+        s.credit.loans.get_mut(&1).unwrap().debtor = HOME;
+        if !funded {
+            s.balances.insert((HOME, GRAIN), 0);
+        }
+        let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+        sim.run_months(1).unwrap();
+        assert_eq!(sim.state.balance(HOME, TOKEN), if funded { 4 } else { 0 });
+        assert_eq!(sim.state.credit.loans[&1].principal, 4);
+        sim.run_months(1).unwrap();
+        assert_eq!(
+            sim.state.credit.loans[&1].principal,
+            if funded { 0 } else { 4 }
+        );
+    }
+}

@@ -57,6 +57,8 @@ pub struct Charter {
     pub fund_committed_inputs: bool,
     /// Pay current member loan dues from collective stock at Due; no debt assumption.
     pub support_member_loans: bool,
+    /// Collective bids may acquire denomination stock for current collectible loans.
+    pub fund_due_loans: bool,
     /// Optional static target for projected cash after the next town book.
     /// Above this buffer NeedsThenIncome does not request extra income work.
     pub cash_target: Option<Amount>,
@@ -126,6 +128,7 @@ impl Governance {
                 purchasing: Purchasing::Collective,
                 fund_committed_inputs: false,
                 support_member_loans: false,
+                fund_due_loans: false,
                 cash_target: None,
                 residual_recipient: None,
                 leader,

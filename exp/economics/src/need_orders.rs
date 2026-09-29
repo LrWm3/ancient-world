@@ -122,25 +122,43 @@ fn process_claims(world: &World, state: &State, agent: AgentId) -> BTreeMap<Reso
     result
 }
 
-/// Only active processes qualify, not speculative work orders or expected yields.
-/// Existing private inputs offset the household's commitment-support demand.
-fn funded_inputs(world: &World, state: &State, agent: AgentId) -> BTreeMap<ResourceId, i128> {
+/// Only accepted commitments qualify, not speculative work or future installments.
+/// Offset private stocks once across enabled requirements before collective demand.
+fn funded_requirements(
+    world: &World,
+    state: &State,
+    agent: AgentId,
+) -> Result<BTreeMap<ResourceId, i128>, String> {
     let Some(h) = world.households.iter().find(|h| {
         h.agent == agent
-            && h.governance.charter.fund_committed_inputs
             && h.governance.charter.purchasing
                 == crate::household_governance::Purchasing::Collective
     }) else {
-        return BTreeMap::new();
+        return Ok(BTreeMap::new());
     };
-    let mut result = process_claims(world, state, agent);
+    let requirements = |who| -> Result<BTreeMap<ResourceId, i128>, String> {
+        let mut result = if h.governance.charter.fund_committed_inputs {
+            process_claims(world, state, who)
+        } else {
+            BTreeMap::new()
+        };
+        if h.governance.charter.fund_due_loans
+            && (who == agent || h.governance.charter.support_member_loans)
+        {
+            for (r, q) in crate::credit::current_dues(world, state, who)? {
+                *result.entry(r).or_default() += q;
+            }
+        }
+        Ok(result)
+    };
+    let mut result = requirements(agent)?;
     for member in crate::households::members(h, state) {
-        for (resource, quantity) in process_claims(world, state, member) {
+        for (resource, quantity) in requirements(member)? {
             *result.entry(resource).or_default() +=
                 (quantity - i128::from(state.balance(member, resource))).max(0);
         }
     }
-    result
+    Ok(result)
 }
 
 fn stock_map(balances: &BTreeMap<Account, i32>, agent: AgentId) -> BTreeMap<ResourceId, i128> {
@@ -336,21 +354,21 @@ pub(crate) fn generate_for_horizon(
     let mut after = unclaimed(&with_goods, &commitments);
     let mut buyer_deficits = consume(world, &observed, agent, months, &mut before, false)?;
     let mut buyer_after_purchase = consume(world, &observed, agent, months, &mut after, false)?;
-    for (resource, quantity) in funded_inputs(world, &observed, agent) {
+    for (resource, quantity) in funded_requirements(world, &observed, agent)? {
         let required = commitments.get(&resource).copied().unwrap_or(0);
         let held = i128::from(observed.balance(agent, resource));
         let supplied = with_goods.get(&resource).copied().unwrap_or(0);
-        // Stock-resource keys describe input shortfalls; fulfillment-resource
+        // Stock-resource keys describe commitment shortfalls; fulfillment-resource
         // keys above describe consumption. Keep both visible in order receipts.
         buyer_deficits.insert(
             resource,
             i64::try_from(quantity.min((required - held).max(0)))
-                .map_err(|_| "input deficit overflow")?,
+                .map_err(|_| "commitment deficit overflow")?,
         );
         buyer_after_purchase.insert(
             resource,
             i64::try_from(quantity.min((required - supplied).max(0)))
-                .map_err(|_| "input deficit overflow")?,
+                .map_err(|_| "commitment deficit overflow")?,
         );
     }
     let useful = buyer_after_purchase
