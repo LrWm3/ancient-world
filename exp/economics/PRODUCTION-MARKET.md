@@ -49,8 +49,9 @@ Every alternative runs the existing reference simulation for six months. The
 person's candidate policy is held for that hypothetical horizon; other people are
 assumed to follow ordinary need-directed work and allow purchases. Live people
 replan monthly, so those assumptions can be wrong. Decisions rank terminal state,
-priority-ordered need deficits, failed processes, a two-month closing need buffer,
-closing coins plus bounded surplus valuation, and labor used. Stable candidate
+priority-ordered need deficits, observed loan-payment failure, failed processes,
+a two-month closing need buffer, closing coins plus bounded surplus valuation
+minus remaining loan debt, and labor used. Stable candidate
 order breaks ties. This is a named bounded policy, not a general optimizer.
 
 Market beliefs use only preceding months, over a six-month observation window.
@@ -128,6 +129,36 @@ capacity overrides, forged decisions/work, observed price sensitivity without ne
 configurations and reconstruction
 at Productive. CPU monthly/checkpoint continuation with reversed catalogs matches
 reference batched state, ledger and reports.
+
+## Loans and member-directed household purchases
+
+The ordinary individual planner and fixed-choice controls can now use direct
+coin advances and the existing Due servicing boundary. Forecasts retain actual
+loan admission, installments and arrears. Remaining principal plus interest reduces
+the closing financial score; borrowed cash is not treated as free wealth. Payment
+failure also enters the safety comparison used by retained plans. Planning logs
+expose both remaining debt and payment failure.
+
+Acquisition still reserves loans before spot trades from one opening budget.
+Forecasts start from that complete opening boundary and execute the same sequence.
+They must not start from a quote snapshot containing newly advanced coins, because
+those coins cannot fund another outgoing leg in the same batch. Actual proceeds
+become available at subsequent boundaries. Due occurs before the month's market
+decision, so reaching Due does not require a decision that has not been made yet.
+
+Households can use this adapter when the static charter delegates purchasing to
+members. Governed labor, shared inputs and output pooling remain in the household
+wrapper, and the borrower's debt remains separate from household funds. Collective
+household order generation and negotiated cooperative production contracts retain
+their guards. Loan and guarantee claims must use the planner's market currency;
+cross-denomination valuation and autonomous loan selection remain outstanding.
+
+The funded/unfunded control in `tests/production_lending.rs` combines a member
+borrower, household governance, a grain counterparty and production choices.
+It checks the absence of a first-boundary purchase using new loan receipts,
+later servicing and buying, distinct statements, altered forecast rejection and
+CPU/checkpoint continuation. Supplied consent and a finite planning horizon do
+not establish sustainable underwriting or guarantee that every need is met.
 
 The full crate run passed all 323 tests, including nine production-market tests.
 Strict all-target Clippy and the repository artifact check passed. The three

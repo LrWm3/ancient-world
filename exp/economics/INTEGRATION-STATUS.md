@@ -57,7 +57,10 @@ collective purchases. Internal household employment remains excluded.
 [Pass 26](PAYROLL-OUTLOOK.md) adds opt-in current-month payroll estimates for
 collective funding; future wages remain outside authoritative claims and accounts.
 Household mortgage admission now has a separate adapter and solvent-exit control.
-Direct town lending does not enable joint production planners.
+Direct town lending now composes with ordinary individual production/purchase
+planning, including member-directed household purchases. Forecasts retain loan
+debt and arrears and cannot recycle an incoming advance within Acquire. Collective
+town purchasing and cooperative production agreements retain their scope limits.
 Bounded town recovery now observes market stays and native claims. Adult accession/exit changes contribution and consumption
 scope without rewriting accepted wages or personal debt. Personal self-directed
 policy changes are explicitly deferred.
@@ -137,7 +140,7 @@ collateral resale remains rejected pending explicit buyer/seller rules.
 | Bilateral negotiation + households | Member purchases reserve the contributed share and pool once; collective buying follows charter/permissions; concurrent advances stay unpooled |
 | Bilateral negotiation + environmental collection | Financed need orders buy real collected output; incoming loans cannot fund trades in the same Acquire window |
 | Need-generated marketplace orders | [Bounded consumption/surplus policy](NEED-ORDERS.md) implemented; bilateral parties, lot and reservation prices remain supplied |
-| Monthly town book + household accounts | [Bounded collective adapter](HOUSEHOLD-MARKET.md): locality, governor policy, real member demand, shared money/stock/storage and fixed/ZIP quotes; private sales/barter, charter-delegated buying, active-process input funding, paid outside wages and direct loans now compose; budgeted external hiring and costed member allocation now compose; posted labor acceptance and authorized direct-loan/forward recovery also compose; joint production-market planning remains excluded; household mortgages have a separate bounded acceptance/exit test |
+| Monthly town book + household accounts | [Bounded collective adapter](HOUSEHOLD-MARKET.md): locality, governor policy, real member demand, shared money/stock/storage and fixed/ZIP quotes; private sales/barter, charter-delegated buying, active-process input funding, paid outside wages and direct loans now compose; budgeted external hiring and costed member allocation now compose; posted labor acceptance and authorized direct-loan/forward recovery also compose; individual town production planning now supports member-directed purchasing and coin loans; collective planning remains excluded; household mortgages have a separate bounded acceptance/exit test |
 | Physical minting + direct loans, prepaid deliveries and household hiring | [Shared finance adapter](MINT-FINANCE.md) reserves scarce coins, inputs and hours; the configured package still has its own explicit issuance policy |
 | State posted bids learning ZIP prices | Not implemented; co-settlement does not change the price-setting policy |
 | Direct loans + native/alternative-tender land dues | Shared Due collection; opt-in proportional policy with whole claim units and protected opening funds |
@@ -792,5 +795,6 @@ The subsequent bounded adapter now permits up to four participants. A deciding
 member changes only their own new work while others keep ordinary decisions.
 Need deficits remain separate per participant, and the two-member farming/warmth
 control checks funded and unavailable-worker outcomes on CPU with separate books.
-This does not optimize collective policies or integrate the separate town
-production-market planner.
+This does not optimize collective policies. A separate subsequent adapter now
+connects the town production-market planner to ordinary coin loans and households
+using member-directed purchases; collective town buying remains outstanding.

@@ -362,13 +362,14 @@ pub fn admission(world: &World, state: &State) -> Result<Admission, String> {
 }
 
 pub fn evaluate(world: &World, state: &State) -> Result<Round, String> {
-    evaluate_with(world, state, &Resources::opening(world, state))
+    evaluate_with(world, state, &Resources::opening(world, state), state)
 }
 
 pub(crate) fn evaluate_with(
     world: &World,
     state: &State,
     opening: &Resources,
+    planning_state: &State,
 ) -> Result<Round, String> {
     validate(world)?;
     if state.phase != Phase::Acquire {
@@ -378,7 +379,9 @@ pub(crate) fn evaluate_with(
         return Ok(round);
     }
     let c = world.town_market.as_ref().ok_or("missing town market")?;
-    let planning = crate::production_market::choose(world, state)?;
+    // Rollouts must repeat the complete acquisition from its opening state.
+    // Quoted holdings can include a new advance that is not yet spendable here.
+    let planning = crate::production_market::choose(world, planning_state)?;
     let choices = crate::production_market::choices(world, planning.as_ref());
     let mut resources = opening.clone();
     if resources.pooling.is_none() {

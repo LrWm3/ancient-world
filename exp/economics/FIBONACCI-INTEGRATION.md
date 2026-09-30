@@ -753,3 +753,15 @@ their separately recorded affected gates and are not covered by that snapshot.
     reconstructed statements agree and inspection is read-only. The four-target
     gate passed 43 tests; the expanded exhaustion control and strict all-target
     Clippy also passed. Remaining cap still does not promise actual funding.
+
+42. **Town production plans include ordinary coin borrowing and its consequences.**
+    Member-directed household purchasing now composes with direct lending. Forecasts
+    replay the full opening acquisition budget, report remaining accepted debt and
+    missed installments, and rank financial consequences without reusing newly
+    issued cash in the same batch. The two-person household control buys in a later
+    month after paying an installment; unmet needs remain visible. Accepted loan
+    denominations are checked independently of editable offers. CPU, checkpoint,
+    separate statements and forged-receipt rejection agree. The seven-target gate
+    passed 119 tests; the final two-test focused suite and strict all-target Clippy
+    passed. Collective purchasing, cooperative contracts and unpriced other
+    denominations retain explicit exclusions pending their own adapters.

@@ -155,7 +155,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Batch, String> {
         return Ok(batch);
     }
     if world.town_market.is_some() {
-        let round = crate::town_market::evaluate_with(world, &quoted, &resources)?;
+        let round = crate::town_market::evaluate_with(world, &quoted, &resources, state)?;
         resources.reserve(world, &round.transactions)?;
         batch.transactions.extend(round.transactions.clone());
         batch.town_market = Some(crate::town_market::Boundary::Market(round));

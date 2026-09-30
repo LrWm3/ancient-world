@@ -27,6 +27,7 @@ fn forecast(f: &planning::Forecast) -> Value {
     };
     json!({"work":work,"buy":purchases,"deficits":f.deficits,"terminal":f.terminal,
         "failures":f.failures,"buffer_gap":f.buffer_gap.to_string(),"closing_coins":f.closing_coins,
+        "closing_debt":f.closing_debt,"missed_payment":f.missed_payment,
         "sales":f.sales,"purchases":f.purchases,"labor":f.labor,"stock_value":f.stock_value})
 }
 fn selected(config: &Config, agent: AgentId) -> bool {
@@ -696,7 +697,7 @@ pub(super) fn batch(
                     "selection_reason":format!("{:?}",person.selection_reason),"retain_through":person.retain_through,
                     "selected":person.selected,"candidate_count":person.alternatives.len(),
                     "needs":needs,"beliefs":beliefs,"forecast":forecast(chosen),
-                    "ranking":"terminal, priority-ordered deficits, failures, buffer_gap, descending(closing_coins+stock_value), labor, candidate_index"}));
+                    "ranking":"terminal, priority-ordered deficits, missed_payment, failures, buffer_gap, descending(closing_coins+stock_value-closing_debt), labor, candidate_index"}));
                 if config.planning == PlanningDetail::Alternatives {
                     for (index, f) in person.alternatives.iter().enumerate() {
                         records.push(json!({"kind":"plan_alternative","agent":person.agent,"index":index,

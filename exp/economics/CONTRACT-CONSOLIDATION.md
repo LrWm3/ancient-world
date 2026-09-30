@@ -10,6 +10,10 @@ its shared-input, labor and output-pooling receipts in a dated joint production
 plan; configured negotiated seed purchases also feed joint work. Bounded joint
 forecasts preserve other participants' ordinary decisions and inspect their need
 deficits separately, with a two-member farming/warmth integration control.
+Town production/purchase planning now also carries ordinary coin loans, debt and
+arrears forecasts, including households whose charter delegates buying to members.
+Its rollouts preserve the complete opening acquisition budget; collective town
+buying and cooperative production contracts still require their own adapters.
 Household mortgages now connect repayment to solvent disposal and dissolution.
 Independent leases (including fixed-reserve and bounded-forecast stock income)
 and physical mint procurement compose with financed purchases;

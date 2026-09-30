@@ -136,6 +136,8 @@ pub struct Forecast {
     pub failures: usize,
     pub buffer_gap: i128,
     pub closing_coins: i32,
+    pub closing_debt: i64,
+    pub missed_payment: bool,
     pub sales: BTreeMap<crate::marketplace::MarketId, i32>,
     pub purchases: BTreeMap<crate::marketplace::MarketId, i32>,
     pub labor: i64,
@@ -156,6 +158,15 @@ pub struct Decision {
     pub through: u32,
     pub belief: BTreeMap<crate::marketplace::MarketId, Belief>,
     pub people: Vec<PersonDecision>,
+}
+
+fn payment_resource(w: &World) -> Option<ResourceId> {
+    let market = w.town_market.as_ref()?;
+    crate::marketplace::venue(w, market.venue)?
+        .markets
+        .iter()
+        .find(|m| m.id == market.market)
+        .map(|m| m.payment)
 }
 
 pub fn validate(w: &World) -> Result<(), String> {
@@ -192,6 +203,27 @@ pub fn validate(w: &World) -> Result<(), String> {
             "production market requires bounded independent work and an adaptive town book".into(),
         );
     }
+    if crate::credit::enabled(w) && matches!(c.policy, Policy::Cooperate(_) | Policy::Agreement(_))
+    {
+        return Err(
+            "lending with cooperative production requires a separate acquisition adapter".into(),
+        );
+    }
+    let denomination = payment_resource(w).ok_or("missing production market terms")?;
+    if w.lending
+        .iter()
+        .any(|a| a.terms.denomination != denomination)
+        || w.credit
+            .as_ref()
+            .is_some_and(|c| c.offers.iter().any(|o| o.loan.denomination != denomination))
+        || w.recovery.guarantees.iter().any(|g| {
+            g.claim
+                .parties(w)
+                .is_some_and(|(_, _, r)| r != denomination)
+        })
+    {
+        return Err("production planning currently requires loan and guarantee claims in its market currency".into());
+    }
     crate::cooperation::validate(w)?;
     if let Policy::Fixed(choices) = &c.policy {
         for (agent, choice) in choices {
@@ -206,6 +238,14 @@ pub fn validate(w: &World) -> Result<(), String> {
     Ok(())
 }
 pub(crate) fn validate_state(w: &World, s: &State) -> Result<(), String> {
+    if w.production_market.is_some()
+        && s.credit
+            .loans
+            .values()
+            .any(|l| Some(l.denomination) != payment_resource(w))
+    {
+        return Err("accepted production-planning loans must use the market currency".into());
+    }
     for r in &s.town_market.history {
         if let Some(d) = &r.planning {
             let mut ids = std::collections::BTreeSet::new();
@@ -220,7 +260,8 @@ pub(crate) fn validate_state(w: &World, s: &State) -> Result<(), String> {
                         || p.selected >= p.alternatives.len()
                         || p.alternatives.len() > 4 * (MAX_PRODUCERS + 2)
                         || p.alternatives.iter().any(|a| {
-                            matches!(a.choice.work,
+                            a.closing_debt < 0
+                                || matches!(a.choice.work,
                             Work::Produce(id) if !w.definitions.iter().any(|d|
                                 d.id == id && d.execution == Execution::Productive))
                         })
@@ -233,7 +274,7 @@ pub(crate) fn validate_state(w: &World, s: &State) -> Result<(), String> {
     if w.production_market
         .as_ref()
         .is_some_and(|c| matches!(c.policy, Policy::Plan))
-        && !matches!(s.phase, Phase::Open | Phase::Acquire)
+        && !matches!(s.phase, Phase::Open | Phase::Due | Phase::Acquire)
         && s.town_market
             .history
             .iter()
@@ -489,6 +530,27 @@ fn forecast(
             }
         })
         .sum();
+    let closing_debt = sim
+        .state
+        .credit
+        .loans
+        .values()
+        .filter(|l| l.debtor == agent)
+        .try_fold(0_i64, |total, l| {
+            total
+                .checked_add(i64::from(l.debt()?))
+                .ok_or_else(|| "forecast debt overflow".to_string())
+        })?;
+    let missed_payment = sim
+        .ledger
+        .iter()
+        .filter_map(|b| b.credit.as_ref())
+        .any(|b| {
+            b.events.iter().any(|e| {
+                matches!(e, crate::credit::Event::Arrears { loan, .. }
+            if b.after.loans.get(loan).is_some_and(|l| l.debtor == agent))
+            })
+        });
     Ok(Forecast {
         choice,
         deficits,
@@ -496,6 +558,8 @@ fn forecast(
         failures,
         buffer_gap: gap,
         closing_coins: sim.state.balance(agent, terms.payment),
+        closing_debt,
+        missed_payment,
         sales,
         purchases,
         labor,
@@ -534,10 +598,11 @@ fn observed_choices(w: &World, s: &State) -> BTreeMap<AgentId, ObservedChoice> {
         })
         .unwrap_or_default()
 }
-fn safety_score(p: &Participant, f: &Forecast) -> (bool, Vec<i64>, usize) {
+fn safety_score(p: &Participant, f: &Forecast) -> (bool, Vec<i64>, bool, usize) {
     (
         f.terminal,
         crate::forecast::needs::score(&p.needs, &f.deficits),
+        f.missed_payment,
         f.failures,
     )
 }
@@ -618,9 +683,13 @@ pub fn choose(w: &World, s: &State) -> Result<Option<Decision>, String> {
                 (
                     a.terminal,
                     crate::forecast::needs::score(&p.needs, &a.deficits),
+                    a.missed_payment,
                     a.failures,
                     a.buffer_gap,
-                    std::cmp::Reverse(i64::from(a.closing_coins) + a.stock_value),
+                    std::cmp::Reverse(
+                        i128::from(a.closing_coins) + i128::from(a.stock_value)
+                            - i128::from(a.closing_debt),
+                    ),
                     a.labor,
                     *i,
                 )
@@ -851,6 +920,8 @@ mod persistence_tests {
             failures: 0,
             buffer_gap: 0,
             closing_coins: 0,
+            closing_debt: 0,
+            missed_payment: false,
             sales: BTreeMap::new(),
             purchases: BTreeMap::new(),
             labor: 0,

@@ -8,8 +8,16 @@ use crate::{
 pub const EXAMPLE_HOUSEHOLD: AgentId = 10_000;
 
 pub(crate) fn validate(world: &World) -> Result<(), String> {
-    if !world.households.is_empty() && world.production_market.is_some() {
-        return Err("household town orders do not compose with joint production planning".into());
+    if world.production_market.is_some()
+        && world
+            .households
+            .iter()
+            .any(|h| h.governance.charter.purchasing != Purchasing::Members)
+    {
+        return Err(
+            "collective household purchases do not yet compose with town production planning"
+                .into(),
+        );
     }
     Ok(())
 }
