@@ -648,3 +648,119 @@ fn generated_household_labor_quotes_match_public_preview_and_settlement() {
     assert_eq!(sim.state.balance(ISSUER, COIN), 6);
     assert_eq!(sim.state.balance(ISSUER, METAL), 0);
 }
+
+#[test]
+fn persons_household_land_credit_forwards_and_need_orders_run_in_one_mint_economy() {
+    use economics_compute_smoke::{commitments::Agreement, credit::Status, forward::direct::Terms};
+    for incremental in [false, true] {
+        let (mut w, mut s) = minting::provision_scenario("adequate").unwrap();
+        worker_household(&mut w, &s, 20);
+        s.month = 12;
+        s.balances.insert((WORKER, WHEAT), 1);
+        for start in &mut w.scheduled_starts {
+            start.month += 11;
+        }
+        let orders = w.minting.as_mut().unwrap().order_policy.as_mut().unwrap();
+        if incremental {
+            orders.provisioning.as_mut().unwrap().goal =
+                minting::provisioning::ProvisionGoal::Incremental;
+        }
+        orders.month += 11;
+        orders.additional_months = orders.additional_months.iter().map(|m| m + 11).collect();
+        let (loan_world, _) = fixture();
+        w.lending = loan_world.lending;
+        let loan = &mut w.lending[0];
+        loan.month = 12;
+        loan.debtor = SUPPLIER;
+        loan.terms.creditor = ISSUER;
+        loan.principal = 3;
+        loan.terms.max_principal = 3;
+        loan.terms.term_months = 1;
+        loan.terms.grace_months = 12;
+        w.transaction_policy
+            .as_mut()
+            .unwrap()
+            .permissions
+            .extend([(PERSON_TYPE, Action::Borrow), (STATE_TYPE, Action::Lend)]);
+        w.prepaid_deliveries.push(Terms {
+            id: 20,
+            seller: ISSUER,
+            buyer: WORKER,
+            month: 12,
+            due: 13,
+            goods: Amount::new(WHEAT, 1),
+            prepayment: Amount::new(COIN, 3),
+        });
+        w.assets.push(Asset {
+            id: 777,
+            owner: ISSUER,
+            kind: 1,
+        });
+        w.rights.push(UseRight {
+            id: 77,
+            holder: SUPPLIER,
+            asset: 777,
+            from: 1,
+            through: 24,
+            output_owner: SUPPLIER,
+        });
+        w.agreements.push(Agreement {
+            id: 77,
+            right: 77,
+            creditor: ISSUER,
+            debtor: SUPPLIER,
+            activated: 1,
+            payment: Amount::new(COIN, 2),
+        });
+        let mut a = audit(&w, &s);
+        let mut b = a.clone();
+        let mut sim = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+        let mut reference = Simulation::new(w, s, Backend::Reference).unwrap();
+        while sim.state.month <= 13 {
+            a.step(&mut sim).unwrap();
+        }
+        let mut checkpoint =
+            Simulation::new(sim.world.clone(), sim.state.clone(), Backend::Reference).unwrap();
+        let mut resumed = a.clone();
+        sim.world.agents.reverse();
+        sim.world.participants.reverse();
+        while sim.state.month <= 17 {
+            a.step(&mut sim).unwrap();
+        }
+        while checkpoint.state.month <= 17 {
+            resumed.step(&mut checkpoint).unwrap();
+        }
+        while reference.state.month <= 17 {
+            b.step(&mut reference).unwrap();
+        }
+        assert_eq!(sim.state, reference.state);
+        assert_eq!(sim.state, checkpoint.state);
+        assert_eq!(sim.ledger, reference.ledger);
+        assert_eq!(a, b);
+        assert_eq!(a, resumed);
+        assert_eq!(sim.state.exchange.forwards[&20].delivered, 1);
+        assert_eq!(sim.state.credit.loans[&10].status, Status::Repaid);
+        // Full-buffer planning repays the loan but does not fund the annual bill.
+        // Composition must retain the claim instead of treating activity as solvency.
+        assert_eq!(
+            sim.state.obligations[&(77, 13)].paid,
+            if incremental { 2 } else { 0 }
+        );
+        assert_eq!(
+            sim.state.obligations[&(77, 13)].outstanding(),
+            if incremental { 0 } else { 2 }
+        );
+        assert_eq!(
+            a.book().balances()[&(
+                SUPPLIER,
+                economics_compute_smoke::accounting::Account::DuesPayable(77, 13)
+            )],
+            if incremental { 0 } else { -2 }
+        );
+        assert!(sim.reports.iter().any(|r| r.fulfilled(NUTRITION) > 0));
+        assert_eq!(
+            a.book().statements(ISSUER, 12, 17).unwrap().issuance_change > 0,
+            incremental
+        );
+    }
+}
