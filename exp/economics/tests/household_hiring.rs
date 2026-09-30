@@ -325,6 +325,7 @@ fn arrears(cash: i32) -> (World, State) {
     s.employment.earned.insert(
         (1, 1),
         Earned {
+            relief: vec![],
             delivered: 3,
             claim: Obligation {
                 transfer: Transfer {

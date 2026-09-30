@@ -1510,6 +1510,30 @@ impl Audit {
             }
             for r in &c.recovery {
                 match r {
+                    recovery::Receipt::ClaimRelief {
+                        proceeding,
+                        creditor,
+                        written_off: Some(amount),
+                        ..
+                    } => {
+                        let p = world
+                            .recovery
+                            .proceedings
+                            .iter()
+                            .find(|p| p.id == *proceeding)
+                            .ok_or("missing estate")?;
+                        let loss = crate::employment_accounting::value(
+                            coin,
+                            &self.exchange_values,
+                            amount.resource,
+                            amount.quantity,
+                        )?;
+                        result(&mut lines, *creditor, Account::CreditLoss, loss);
+                        result(&mut lines, p.debtor, Account::DebtRelief, -loss);
+                    }
+                    recovery::Receipt::ClaimRelief {
+                        written_off: None, ..
+                    } => {}
                     recovery::Receipt::WagesDistributed {
                         proceeding,
                         creditor,

@@ -257,6 +257,19 @@ pub(super) fn batch(
                             "outstanding":c.remaining.quantity
                         })).collect::<Vec<_>>()}),
                 ),
+                Receipt::ClaimRelief {
+                    proceeding,
+                    terms,
+                    contract,
+                    creditor,
+                    rejection,
+                    written_off,
+                } => (
+                    Some(*proceeding),
+                    json!({"event":"ClaimRelief", "terms":terms, "contract":format!("{contract:?}"), "creditor":creditor,
+                        "rejection":rejection.as_ref().map(|r| format!("{r:?}")),
+                        "written_off":written_off.as_ref().map(|a| a.quantity), "resource":written_off.as_ref().map(|a| a.resource)}),
+                ),
                 Receipt::WagesDistributed {
                     proceeding,
                     agreement,

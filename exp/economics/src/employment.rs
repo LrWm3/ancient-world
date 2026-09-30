@@ -35,6 +35,7 @@ pub struct Terms {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Earned {
+    pub relief: Vec<crate::claim_relief::Applied>,
     pub delivered: i32,
     pub claim: finance::Obligation,
 }
@@ -160,6 +161,23 @@ pub fn validate(w: &World, s: &State) -> Result<(), String> {
             .iter()
             .find(|t| t.id == id)
             .ok_or("unknown wage agreement")?;
+        let nominal = e
+            .delivered
+            .checked_mul(t.wage_per_unit.quantity)
+            .ok_or("wage overflow")?;
+        let waived = crate::claim_relief::validate_history(
+            w,
+            s,
+            &crate::claim_relief::Claim {
+                contract: finance::ContractId::Wages(id),
+                original_due: month.checked_add(1).ok_or("wage due overflow")?,
+                debtor: t.employer,
+                creditor: t.worker,
+                quantity: nominal,
+                paid: e.claim.settled,
+            },
+            &e.relief,
+        )?;
         if month < t.from
             || month > t.through
             || month > s.month
@@ -170,12 +188,7 @@ pub fn validate(w: &World, s: &State) -> Result<(), String> {
                     transfer: finance::Transfer {
                         from: t.employer,
                         to: t.worker,
-                        amount: Amount::new(
-                            t.wage_per_unit.resource,
-                            e.delivered
-                                .checked_mul(t.wage_per_unit.quantity)
-                                .ok_or("wage overflow")?,
-                        ),
+                        amount: Amount::new(t.wage_per_unit.resource, nominal - waived),
                     },
                     settled: e.claim.settled,
                     condition: finance::Condition::OnOrAfterMonth(
@@ -481,6 +494,7 @@ pub fn contract(t: &Terms, book: &Book) -> agreements::Agreement {
 /// One month's exercised quantity is the accepted job and authoritative wage claim.
 pub(crate) fn earning(t: &Terms, month: u32, delivered: i32) -> Result<Earned, String> {
     Ok(Earned {
+        relief: vec![],
         delivered,
         claim: finance::Obligation {
             transfer: finance::Transfer {

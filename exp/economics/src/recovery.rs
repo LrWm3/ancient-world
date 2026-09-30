@@ -58,6 +58,7 @@ pub struct Config {
     pub proceedings: Vec<ProceedingTerms>,
     pub bids: Vec<Bid>,
     pub delivery_relief: Vec<crate::delivery_relief::Terms>,
+    pub claim_relief: Vec<crate::claim_relief::Terms>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stage {
@@ -81,6 +82,14 @@ pub struct Book {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Receipt {
+    ClaimRelief {
+        proceeding: u32,
+        terms: u32,
+        contract: finance::ContractId,
+        creditor: AgentId,
+        rejection: Option<crate::claim_relief::Rejection>,
+        written_off: Option<Amount>,
+    },
     WagesDistributed {
         proceeding: u32,
         agreement: u32,
@@ -188,6 +197,7 @@ fn rank(world: &World, loan: &Loan) -> u32 {
 
 pub fn validate(world: &World, state: &State) -> Result<(), String> {
     crate::delivery_relief::validate_terms(world)?;
+    crate::claim_relief::validate_terms(world)?;
     for c in state.exchange.forwards.values() {
         crate::delivery_relief::validate_history(world, state, c)?;
     }

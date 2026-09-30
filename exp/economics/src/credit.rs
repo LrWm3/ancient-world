@@ -1410,6 +1410,7 @@ fn due(
     }
     crate::recovery::guarantees(world, state, out, &mut execution)?;
     crate::delivery_relief::apply(world, state, out);
+    crate::claim_relief::apply(world, state, out)?;
     crate::recovery::distribute(world, state, out, &mut execution)?;
     *budgets = execution.available;
     Ok(())

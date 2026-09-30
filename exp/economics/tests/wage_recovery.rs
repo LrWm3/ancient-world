@@ -443,3 +443,92 @@ fn liquidation_wages_pool_to_workers_household_once_and_are_observable() {
             .any(|r| r["detail"]["event"] == "WagesDistributed" && r["detail"]["paid"] == 4)
     );
 }
+
+fn wage_relief(
+    id: u32,
+    month: u32,
+    remaining: i32,
+    quantity: i32,
+) -> economics_compute_smoke::claim_relief::Terms {
+    economics_compute_smoke::claim_relief::Terms {
+        id,
+        proceeding: 1,
+        contract: ContractId::Wages(1),
+        original_due: 2,
+        debtor: ISSUER,
+        creditor: WORKER,
+        month,
+        expected_due: 2,
+        expected_remaining: remaining,
+        action: economics_compute_smoke::claim_relief::Action::WriteOff { quantity },
+    }
+}
+#[test]
+fn accepted_wage_relief_preserves_actual_work_and_payment_and_allows_closure() {
+    let (mut w, mut s) = fixture();
+    w.employment[0].through = 1;
+    s.balances.insert((ISSUER, COIN), 1);
+    w.recovery.claim_relief = vec![wage_relief(1, 3, 3, 2), wage_relief(2, 4, 1, 1)];
+    let mut a = audit(&w, &s);
+    let mut sim = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+    let mut b = a.clone();
+    let mut reference = Simulation::new(w, s, Backend::Reference).unwrap();
+    through(&mut a, &mut sim, 3);
+    assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 1);
+    assert_eq!(
+        sim.state.credit.recovery.proceedings[&1].stage,
+        Stage::Active
+    );
+    let mut resumed = sim.clone();
+    let mut c = a.clone();
+    through(&mut a, &mut sim, 5);
+    through(&mut b, &mut reference, 5);
+    through(&mut c, &mut resumed, 5);
+    assert_eq!(sim.state, reference.state);
+    assert_eq!(sim.ledger, reference.ledger);
+    assert_eq!(sim.state, resumed.state);
+    assert_eq!(a.book().balances(), b.book().balances());
+    assert_eq!(a.book().balances(), c.book().balances());
+    let e = &sim.state.employment.earned[&(1, 1)];
+    assert_eq!(e.delivered, 2);
+    assert_eq!(e.claim.settled, 1);
+    assert_eq!(e.claim.outstanding(), 0);
+    assert_eq!(sim.state.balance(WORKER, COIN), 1);
+    assert_eq!(
+        sim.state.credit.recovery.proceedings[&1].stage,
+        Stage::Closed
+    );
+    let balances = a.book().balances();
+    assert_eq!(balances[&(WORKER, Account::CreditLoss)], 3);
+    assert_eq!(balances[&(ISSUER, Account::DebtRelief)], -3);
+    assert_eq!(balances[&(WORKER, Account::ServiceIncome)], -4);
+}
+#[test]
+fn stale_wage_relief_and_unconsented_checkpoint_changes_are_rejected() {
+    let (mut w, mut s) = fixture();
+    s.balances.insert((ISSUER, COIN), 1);
+    w.employment[0].through = 1;
+    w.recovery.claim_relief.push(wage_relief(1, 3, 4, 4));
+    let mut a = audit(&w, &s);
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    through(&mut a, &mut sim, 3);
+    assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 3);
+    assert!(receipts(&sim).any(|r| matches!(
+        r,
+        Receipt::ClaimRelief {
+            rejection: Some(_),
+            written_off: None,
+            ..
+        }
+    )));
+    let mut bad = sim.state.clone();
+    bad.employment
+        .earned
+        .get_mut(&(1, 1))
+        .unwrap()
+        .claim
+        .transfer
+        .amount
+        .quantity -= 1;
+    assert!(Simulation::new(sim.world.clone(), bad, Backend::Reference).is_err());
+}

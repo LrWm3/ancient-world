@@ -1,4 +1,5 @@
 //! Stand-alone process-based economics experiment with CubeCL CPU settlement.
+pub mod claim_relief;
 pub mod commitments;
 pub mod compute;
 pub mod equipment;
