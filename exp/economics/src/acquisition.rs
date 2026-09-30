@@ -83,9 +83,10 @@ impl Resources {
 /// Quoted work uses committed advances; competitive applications reuse the same
 /// funded boundary. Cash/equipment markets need their own reservation adapters.
 pub(crate) fn search_composition(world: &World) -> bool {
-    (!world.lending.is_empty() || crate::forward::direct::enabled(world))
+    (!world.lending.is_empty()
+        || crate::forward::direct::enabled(world)
+        || !world.recovery.proceedings.is_empty())
         && world.credit.is_none()
-        && world.recovery.proceedings.is_empty()
         && world.market.is_none()
         && world.negotiation.is_none()
         && world.town_market.is_none()

@@ -532,3 +532,128 @@ fn common_requests_can_name_financial_and_productive_acceptances_atomically() {
         assert!(sim.state.processes.values().any(|p| p.definition == GROW));
     }
 }
+
+#[test]
+fn authorized_recovery_preserves_existing_farming_and_blocks_new_land_acceptance() {
+    use economics_compute_smoke::{
+        commitments,
+        dues_accounting::Valuation,
+        financial_reporting::{Audit, Opening},
+        process_accounting::{Costs, Output},
+        recovery::{ProceedingTerms, Stage},
+    };
+    const ESTATE: AgentId = 99;
+    for discharge in [false, true] {
+        let (mut w, mut s) = fixture(true);
+        w.lending[0].terms.term_months = 24;
+        w.resources.push(Resource {
+            id: TOKEN,
+            name: "coin".into(),
+            kind: ResourceKind::Stock,
+        });
+        w.agents.push(Agent {
+            id: ESTATE,
+            name: "authorized custodian".into(),
+        });
+        s.balances.insert((STATE_AGENT, TOKEN), 100);
+        w.lending.push(Advance {
+            id: 11,
+            debtor: PERSON,
+            principal: 100,
+            month: 1,
+            collateral: None,
+            priority: 0,
+            terms: LoanOffer {
+                creditor: STATE_AGENT,
+                denomination: TOKEN,
+                max_principal: 100,
+                monthly_rate_bps: 1000,
+                term_months: 1,
+                grace_months: 12,
+            },
+        });
+        w.recovery.proceedings.push(ProceedingTerms {
+            id: 1,
+            debtor: PERSON,
+            authority: STATE_AGENT,
+            estate: ESTATE,
+            denomination: TOKEN,
+            opening_month: 3,
+            earliest_close: 15,
+            assets: vec![],
+            discharge_deficiency: discharge,
+        });
+        let run = |backend| {
+            let mut audit = Audit::with_opening(
+                &w,
+                &s,
+                TOKEN,
+                Opening {
+                    assets: w.assets.iter().map(|a| (a.id, 0)).collect(),
+                    inventory: s
+                        .balances
+                        .iter()
+                        .filter(|((_, r), q)| **q > 0 && *r != TOKEN)
+                        .map(|(a, q)| (*a, i128::from(*q)))
+                        .collect(),
+                    exchange_values: [(GRAIN, 1), (SEED, 1), (RAW_WOOD, 1), (FUEL, 1)].into(),
+                    processes: Some(Costs {
+                        output_weights: [(
+                            GROW,
+                            [(Output::Stock(GRAIN), 1), (Output::Stock(SEED), 1)].into(),
+                        )]
+                        .into(),
+                        ..Costs::default()
+                    }),
+                    dues: Some(Valuation([(1, 1)].into())),
+                    ..Opening::default()
+                },
+            )
+            .unwrap();
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            while (sim.state.month, sim.state.phase) != (3, Phase::Acquire) {
+                audit.step(&mut sim).unwrap();
+            }
+            assert_eq!(
+                sim.state.credit.recovery.proceedings[&1].stage,
+                Stage::Active
+            );
+            assert_eq!(sim.state.accepted_agreements.len(), 1);
+            assert!(
+                commitments::acceptance_for(&sim.world, &sim.state, 1, PERSON)
+                    .unwrap_err()
+                    .contains("active proceeding")
+            );
+            assert!(
+                sim.state
+                    .processes
+                    .values()
+                    .any(|p| p.definition == GROW && p.status == Status::Active)
+            );
+            let mut resumed =
+                Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+            let mut ra = audit.clone();
+            while sim.state.month < 16 {
+                audit.step(&mut sim).unwrap();
+            }
+            while resumed.state.month < 16 {
+                ra.step(&mut resumed).unwrap();
+            }
+            assert_eq!((&sim.state, &audit), (&resumed.state, &ra));
+            assert!(
+                sim.state
+                    .processes
+                    .values()
+                    .any(|p| p.definition == GROW && p.status == Status::Completed)
+            );
+            assert_eq!(sim.state.obligations[&(1, 13)].outstanding(), 0);
+            assert_eq!(
+                sim.state.credit.loans[&11].principal,
+                if discharge { 0 } else { 10 }
+            );
+            assert_eq!(sim.state.balance(ESTATE, TOKEN), 0);
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

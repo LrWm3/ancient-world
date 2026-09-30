@@ -558,3 +558,20 @@ corresponding mixed regressions.
 
 The mixed-offer gate passed 42 tests across 6 targets; strict all-target
 Clippy, formatting and repository artifact checks passed.
+
+## Authorized recovery during prerequisite search
+
+The bounded person search can now observe authorized recovery through the same
+loan/forward acquisition adapter. Existing cultivation and native land performance
+continue; an active proceeding rejects new land acceptance. Forecasts and dated
+work retain the exact financial boundary, including stays, custody and explicit
+deficiency disposition. The coordinator and allocation policies are unchanged.
+
+A continuing scenario takes seed credit, accepts citizenship/land, starts farming
+and borrows coins. Its available coins pay the first due installment but leave a
+real interest-related deficiency. Authorized recovery opens while the crop is
+growing. Cultivation completes and the annual native rent is paid; retained versus
+explicitly discharged coin deficiency remains distinct. Separate statements,
+CPU/reference results and reconstructed-checkpoint continuation agree. This does
+not add autonomous insolvency initiation or permission to acquire new land while
+under the stay. Other exclusive acquisition drivers retain their existing guards.

@@ -442,3 +442,11 @@ liquidation and household forwards passed; strict all-target Clippy passed.
     into another call. Native land recourse, creditor cash, valuation differences
     and filtered tender telemetry reconcile in separate statements. The four-target
     gate passed 55 tests; strict all-target Clippy passed.
+
+11. **Authorized recovery shares bounded farming search.** Existing cultivation
+    and annual native rent continue under an explicit coin-estate stay, while
+    new land acceptance rejects. The same forecast and dated production plan
+    carries the authoritative financial boundary. Seed credit, a serviced coin
+    loan with a real residual deficiency, later harvest/rent and retained versus
+    discharged debt run together with separate statements and CPU/checkpoint
+    parity. The six-target gate passed 70 tests; strict all-target Clippy passed.
