@@ -12,6 +12,13 @@ pub enum ArrearsPolicy {
     Continue,
     SuspendDelivery,
 }
+/// Optional funding outlook, separate from authoritative earned wage claims.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PayrollOutlook {
+    #[default]
+    EarnedOnly,
+    CurrentDelivery,
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Terms {
     pub id: u32,
@@ -174,6 +181,29 @@ pub(crate) fn claims(
         *total = total
             .checked_add(i128::from(e.claim.outstanding()))
             .ok_or("wage claim overflow")?;
+    }
+    Ok(result)
+}
+
+/// Current Acquire snapshot only. Reuse delivery rules, including competition
+/// for opening hours, permissions, arrears, contributions and hiring budgets.
+/// This is a read-only funding estimate: no claim, reservation or future income
+/// is published. Later acquisition/production reservations can reduce delivery.
+pub fn projected_payroll(w: &World, s: &State) -> Result<BTreeMap<Account, i128>, String> {
+    if s.phase != Phase::Acquire {
+        return Ok(BTreeMap::new());
+    }
+    let mut result = BTreeMap::new();
+    if let Some(boundary) = evaluate(w, s, &Batch::empty(s))? {
+        for receipt in boundary.receipts.iter().filter(|r| r.earned > 0) {
+            let claim = &boundary.after.earned[&(receipt.agreement, s.month)].claim;
+            let total: &mut i128 = result
+                .entry((claim.transfer.from, claim.transfer.amount.resource))
+                .or_default();
+            *total = total
+                .checked_add(i128::from(receipt.earned))
+                .ok_or("payroll outlook overflow")?;
+        }
     }
     Ok(result)
 }

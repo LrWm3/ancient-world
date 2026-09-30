@@ -155,7 +155,14 @@ With collective buying, a needs-first objective and static charter
 requirements. Member wage claims also qualify with `support_member_wages`; private
 holdings offset combined enabled member requirements once. `employment::claims` supplies the same earned native-stock totals
 used by market retention, household resource allocation and hiring affordability.
-This neither pre-funds future labor nor sets general creditor priority. A real fill
+The default neither pre-funds future labor nor sets general creditor priority. A real fill
 can settle old wages at Close; it is not available to hire at the same Acquire.
 See [household-employer controls](INTEGRATION-PASSES-4.md) and
 [member-employer controls](INTEGRATION-PASSES-5.md).
+
+Optional `payroll_outlook: CurrentDelivery` adds this month's estimated new wages
+from preaccepted employment to collective targets and market retention. It reuses
+the delivery evaluator and offsets private stocks once across claims and estimates.
+Forecasts never enter the earned claim reader, financial books or Close assistance.
+Actual delivery and payment remain independently bounded. See the
+[six-month comparison and limits](PAYROLL-OUTLOOK.md).

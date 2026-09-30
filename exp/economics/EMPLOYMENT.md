@@ -50,8 +50,9 @@ ends new deliveries but leaves claims collectible and inspectable.
 This priority is scoped to employment. It does not reorder loan/dues collection,
 establish statutory wage preference or add wage claims to insolvency estates.
 Preexisting phases retain their timing and may have consumed cash before payroll.
-The planner does not yet forecast a hiring opportunity or automatically reserve
-cash for future wages. These are execution terms, not evidence that an employer's
+The planner does not yet discover a hiring opportunity or escrow cash for future
+wages. The optional funding outlook below estimates existing contracts only.
+These are execution terms, not evidence that an employer's
 plan is financially sustainable.
 
 ## Accounting
@@ -148,7 +149,7 @@ member accounts are not consolidated.
 
 Earned payroll stock is protected from discretionary household member transfers.
 Static `fund_earned_wages` additionally permits collective needs-first orders to buy
-missing payment stock for already earned claims, not future employment. Member
+missing payment stock for already earned claims by default. Member
 claims qualify only when `support_member_wages` also authorizes assistance. Tests cover
 coin and physical wages, scarce budgets, prohibited work, real arrears purchases,
 forged allocation receipts, replay and checkpoint continuation on CPU/reference.
@@ -174,7 +175,21 @@ claim-rank order within these assistance requests; this is not statutory wage
 priority. Unpaid claims remain on the member's and worker's books.
 
 Collective `fund_earned_wages` orders include supported member claims, offsetting
-private holdings once. There is no demand for future unearned wages. Consequently,
+private holdings once. By default there is no demand for future unearned wages. Consequently,
 work can pause while old payroll is funded; the six-month test records that lag.
 Exit ends new assistance without cancelling old personal debt. Physical payment
 still fits both receipt and pooled storage, and pools only actual payment.
+
+## Optional current payroll outlook
+
+[Pass 26](PAYROLL-OUTLOOK.md) adds static `payroll_outlook: CurrentDelivery` to
+collective wage funding. The read-only projection reuses employment delivery rules
+at Acquire, including competing hours, permissions, arrears and hiring budgets.
+It estimates funding demand without publishing claims or transactions. Enabled
+member support is still required, and only delivered hours create debt or qualify
+for Close assistance. `EarnedOnly` remains the default.
+
+The six-month member-employer comparison eliminates the funding delay with enough
+counterparty coins; limited coins still cause arrears and suspend work. Existing
+household opening-affordability rules remain in force. There is no new escrow,
+automatic hiring or promise that the forecast will be fulfilled.

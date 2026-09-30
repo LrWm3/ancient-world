@@ -329,3 +329,9 @@ assistance funded by collective orders. Integration tests retain personal liabil
 through exit and demonstrate funding delays rather than assuming sustainable hiring.
 Internal employment, autonomous contract discovery and wage estates remain future
 work. Person self-directed policy changes remain explicitly deferred.
+
+[Pass 26](PAYROLL-OUTLOOK.md) adds optional current-month payroll funding estimates
+using the existing employment evaluator. Collective demand can anticipate supported
+member work without booking unearned wages. Controlled comparisons distinguish a
+removable funding delay from finite counterparty liquidity; long-horizon employer
+viability and autonomous hiring remain unproven. Earned-only remains the default.

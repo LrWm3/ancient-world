@@ -29,7 +29,8 @@ pub struct Decision {
     pub sell: Option<Order>,
     pub buyer_deficits: BTreeMap<ResourceId, i64>,
     pub buyer_after_purchase: BTreeMap<ResourceId, i64>,
-    /// Protection includes needs and known commitments; it is not a transfer.
+    /// Protection includes needs, commitments and enabled payroll estimates;
+    /// it is neither a transfer nor authoritative debt.
     pub protected: BTreeMap<Account, i128>,
 }
 
@@ -115,7 +116,27 @@ fn process_claims(world: &World, state: &State, agent: AgentId) -> BTreeMap<Reso
     result
 }
 
-/// Only accepted commitments qualify, not speculative work or future installments.
+/// Optional current payroll estimates stay separate from actual claim readers.
+fn payroll_outlook(
+    world: &World,
+    state: &State,
+    h: &crate::households::Agreement,
+) -> Result<BTreeMap<Account, i128>, String> {
+    let c = &h.governance.charter;
+    if c.fund_earned_wages
+        && c.purchasing == crate::household_governance::Purchasing::Collective
+        && c.payroll_outlook == crate::employment::PayrollOutlook::CurrentDelivery
+    {
+        let mut result = crate::employment::projected_payroll(world, state)?;
+        let members: Vec<_> = crate::households::members(h, state).collect();
+        result.retain(|(a, _), _| *a == h.agent || (c.support_member_wages && members.contains(a)));
+        Ok(result)
+    } else {
+        Ok(BTreeMap::new())
+    }
+}
+
+/// Accepted commitments plus opt-in current payroll; no future installments.
 /// Offset private stocks once across enabled requirements before collective demand.
 fn funded_requirements(
     world: &World,
@@ -129,6 +150,7 @@ fn funded_requirements(
     }) else {
         return Ok(BTreeMap::new());
     };
+    let outlook = payroll_outlook(world, state, h)?;
     let requirements = |who| -> Result<BTreeMap<ResourceId, i128>, String> {
         let mut result = if h.governance.charter.fund_committed_inputs {
             process_claims(world, state, who)
@@ -147,6 +169,9 @@ fn funded_requirements(
         {
             for (r, q) in crate::employment::claims(state, who)? {
                 *result.entry(r).or_default() += q;
+            }
+            for ((_, r), q) in outlook.iter().filter(|((a, _), _)| *a == who) {
+                *result.entry(*r).or_default() += q;
             }
         }
         Ok(result)
@@ -241,8 +266,16 @@ fn protected_claims(
 ) -> Result<BTreeMap<ResourceId, i128>, String> {
     let mut result = claims(world, state, agent, months)?;
     if let Some(h) = world.households.iter().find(|h| h.agent == agent) {
+        let outlook = payroll_outlook(world, state, h)?;
+        for ((_, r), q) in outlook.iter().filter(|((a, _), _)| *a == agent) {
+            *result.entry(*r).or_default() += q;
+        }
         for member in crate::households::members(h, state) {
-            for (r, q) in claims(world, state, member, months)? {
+            let mut member_claims = claims(world, state, member, months)?;
+            for ((_, r), q) in outlook.iter().filter(|((a, _), _)| *a == member) {
+                *member_claims.entry(*r).or_default() += q;
+            }
+            for (r, q) in member_claims {
                 *result.entry(r).or_default() += (q - i128::from(state.balance(member, r))).max(0);
             }
         }
@@ -250,7 +283,7 @@ fn protected_claims(
     Ok(result)
 }
 
-/// Stocks protected by accepted commitments and consumption over the same
+/// Stocks protected by accepted commitments, opt-in payroll outlook and consumption over the same
 /// horizon, shared by market orders and voluntary household support. Claims may
 /// exceed current holdings; callers must not interpret the deficit as inventory.
 pub(crate) fn protected_stock(

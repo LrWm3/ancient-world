@@ -26,6 +26,10 @@ continued hiring with a market interruption and the worker switching to self-pro
 physical payroll across households, optional member wage assistance and collective
 market funding of those claims. Combined tests cover actual production, funding
 delays and member exit with personal debt preserved.
+[Pass 26](PAYROLL-OUTLOOK.md) adds an optional current-month payroll outlook:
+collective orders can anticipate supported member wages without booking unearned
+debt. The comparison removes funding delays when counterparty coins suffice and
+retains arrears when they run out. Earned-only demand remains the default.
 Person self-directed policy changes remain deferred.
 These are bounded combinations; the remaining exclusions are explicit.
 

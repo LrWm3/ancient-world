@@ -42,6 +42,8 @@ Budgeted household employers and costed direction to member work now compose in
 [the fourth batch](INTEGRATION-PASSES-4.md). [The fifth batch](INTEGRATION-PASSES-5.md)
 also admits outside member employment, earned-wage assistance and claim-funded
 collective purchases. Internal household employment remains excluded.
+[Pass 26](PAYROLL-OUTLOOK.md) adds opt-in current-month payroll estimates for
+collective funding; future wages remain outside authoritative claims and accounts.
 Direct town lending
 does not enable mortgage purchase configuration, recovery proceedings or joint
 production planners. Adult accession/exit changes contribution and consumption
@@ -620,3 +622,14 @@ household operational. CPU/reference, replay and checkpoint accounting agree.
 Preaccepted terms, supplied market limits and finite counterparties remain scenario
 configuration. This adds no wage insolvency, internal household employment,
 autonomous recruitment or person self-directed policy changes.
+
+## Current payroll funding outlook
+
+[Pass 26](PAYROLL-OUTLOOK.md) reuses employment delivery rules to estimate this
+month's payroll at Acquire. Static charter policy can include it in collective
+orders and market retention; actual delivery alone earns wages and authorizes Close
+support. The six-month member-employer comparison produces six paid working months
+with adequate counterparty coins, or five working months followed by suspension
+when coins run out. Earned-only demand remains the default and produces four
+working months in both controls. No scheduler, liability or hiring-admission rule
+changes; estimates are not escrow or guaranteed resource reservations.

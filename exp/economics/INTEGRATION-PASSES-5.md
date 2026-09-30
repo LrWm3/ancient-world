@@ -4,6 +4,9 @@ Five further passes connect individual member employers to the shared employment
 household allocation, market and accounting paths. Employment terms remain
 preaccepted. Person self-directed policy changes remain deferred.
 
+Subsequent [pass 26](PAYROLL-OUTLOOK.md) adds an optional current-month payroll
+outlook and compares it with this batch's unchanged earned-only default.
+
 | Pass | Household work | Shared consolidation | Status |
 | --- | --- | --- | --- |
 | 21 | Members hire outside labor | Own-capacity contribution and paid-hour accounting | Complete |

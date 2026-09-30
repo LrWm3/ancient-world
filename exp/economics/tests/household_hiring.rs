@@ -73,6 +73,18 @@ fn household_hiring_is_bounded_by_charter_cash_and_whole_hours() {
         let run = |backend| {
             let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
             let mut a = audit(&w, &s);
+            while sim.state.phase != Phase::Acquire {
+                a.step(&mut sim).unwrap();
+            }
+            let opening = sim.state.clone();
+            let payroll =
+                economics_compute_smoke::employment::projected_payroll(&w, &sim.state).unwrap();
+            assert_eq!(
+                payroll.get(&(HOME, TOKEN)).copied().unwrap_or(0),
+                i128::from(hours * 2)
+            );
+            assert_eq!(sim.state, opening);
+            assert!(sim.state.employment.earned.is_empty());
             through(&mut a, &mut sim, 1);
             let r = sim
                 .ledger

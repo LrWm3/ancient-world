@@ -160,7 +160,10 @@ member wage obligations when `support_member_wages` is enabled, to collective
 needs-first buying requirements, alongside separately enabled process
 inputs and current loan dues. Each member's private holdings offset combined enabled
 requirements once; collective holdings reduce the remaining demand. Future
-undelivered work creates no demand. Member purchasing delegation does not acquire
+undelivered work creates no demand under the default `EarnedOnly` outlook.
+Opt-in `CurrentDelivery` also targets current-month estimated payroll; see
+[pass 26](PAYROLL-OUTLOOK.md) for its separate projection/earning boundaries.
+Member purchasing delegation does not acquire
 this responsibility. Orders still require legal access, payment stock, space and a
 matching counterparty. Incoming market receipts cannot fund hiring in the same
 Acquire boundary, but actual holdings can settle arrears at Close.
@@ -172,7 +175,7 @@ contract terms and conserved cash do not guarantee sustained household employmen
 
 The [fifth integration batch](INTEGRATION-PASSES-5.md) runs private member hiring,
 production, output pooling, collective coin purchases and payroll assistance through
-this book. Current earned claims generate bids; future payroll does not. With finite
+this book under earned-only demand. Current earned claims generate bids; future payroll does not. With finite
 initial funds, work alternates with months clearing arrears. Explicit member exit
 removes collective demand for that member without erasing their wage debt. Quotes,
 work targets and counterparties remain supplied configuration.

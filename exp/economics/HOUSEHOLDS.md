@@ -631,8 +631,10 @@ follows the hours into the member's production; idle hours and basis expire.
 Existing earned wages reserve their stock before discretionary member allocations.
 `fund_earned_wages: bool` (default false) enables collective needs-first acquisition
 of payment stock for these claims. It is independent of current-loan funding and
-member-loan-support settings. No future wages, hypothetical market fills or projected
-outputs count as current funding. See [employment](EMPLOYMENT.md) and the
+member-loan-support settings. No hypothetical market fills or projected outputs
+count as current funding. Earned-only wage demand is the default; the optional
+[payroll outlook](PAYROLL-OUTLOOK.md) adds current-month funding estimates without
+creating debt or spendable funds. See [employment](EMPLOYMENT.md) and the
 [fourth combined verification batch](INTEGRATION-PASSES-4.md).
 
 ## Private member employers
@@ -653,6 +655,8 @@ Transfers support payment; they never assume or discharge the personal liability
 
 `fund_earned_wages` can also buy missing stock for these supported claims under
 collective needs-first purchasing. Individual holdings offset combined requirements
-once. New future wages are not forecast demand. A member leaving loses subsequent
+once. New wages are not forecast demand unless the charter opts into
+`payroll_outlook: CurrentDelivery`. Assistance itself remains earned-only.
+A member leaving loses subsequent
 support while keeping their private contracts, assets and debts. See
 [the fifth integration batch](INTEGRATION-PASSES-5.md) for controls and funding lag.

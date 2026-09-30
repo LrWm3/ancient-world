@@ -71,6 +71,9 @@ pub struct Charter {
     pub fund_due_loans: bool,
     /// Collective buying may fund own wages and explicitly supported member wage claims.
     pub fund_earned_wages: bool,
+    /// Optional current-delivery target when collective wage funding is enabled.
+    /// Forecasts never authorize member assistance or create wage liabilities.
+    pub payroll_outlook: crate::employment::PayrollOutlook,
     pub debt_support: DebtSupportPolicy,
     /// Maximum earned wages for new hired hours per month; None disables hiring.
     /// Delivery also requires opening funds after other boundary reservations.
@@ -147,6 +150,7 @@ impl Governance {
                 support_member_wages: false,
                 fund_due_loans: false,
                 fund_earned_wages: false,
+                payroll_outlook: crate::employment::PayrollOutlook::default(),
                 debt_support: DebtSupportPolicy::default(),
                 hiring_budget: None,
                 cash_target: None,

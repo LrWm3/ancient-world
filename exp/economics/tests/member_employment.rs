@@ -515,6 +515,273 @@ fn leave_at_three(w: &mut World, s: &State, leave: bool) {
     }
 }
 #[test]
+fn current_payroll_outlook_removes_funding_lag_but_cannot_create_counterparty_liquidity() {
+    use economics_compute_smoke::employment::{PayrollOutlook, projected_payroll};
+    for external_coins in [12, 20] {
+        for outlook in [PayrollOutlook::EarnedOnly, PayrollOutlook::CurrentDelivery] {
+            let (mut w, mut s) = live_loop();
+            w.households[0].governance.charter.payroll_outlook = outlook;
+            s.balances.insert((92, TOKEN), external_coins);
+            let run = |mut w: World, backend| {
+                if matches!(backend, Backend::CubeCpu) {
+                    w.participants.reverse();
+                    w.resources.reverse();
+                }
+                let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+                let mut a = audit(&w, &s);
+                let mut checkpoint = None;
+                while sim.state.month <= 6 {
+                    if sim.state.phase == Phase::Acquire {
+                        let before = sim.state.clone();
+                        let books = a.clone();
+                        let estimate = projected_payroll(&w, &sim.state).unwrap();
+                        assert_eq!(sim.state, before);
+                        assert_eq!(a, books);
+                        assert!(
+                            !sim.state
+                                .employment
+                                .earned
+                                .contains_key(&(1, sim.state.month))
+                        );
+                        assert!(estimate.get(&(PERSON, TOKEN)).copied().unwrap_or(0) <= 4);
+                    }
+                    a.step(&mut sim).unwrap();
+                    if sim.state.month == 3 && sim.state.phase == Phase::Open {
+                        checkpoint = Some((sim.clone(), a.clone()));
+                    }
+                }
+                let anticipates = outlook == PayrollOutlook::CurrentDelivery;
+                let working_months = if anticipates {
+                    if external_coins == 20 { 6 } else { 5 }
+                } else {
+                    4
+                };
+                let paid = if anticipates { external_coins + 4 } else { 12 };
+                assert_eq!(sim.state.employment.earned.len(), working_months);
+                assert_eq!(sim.state.balance(WORKER, TOKEN), paid);
+                assert_eq!(sim.state.balance(PERSON, GRAIN), working_months as i32 * 2);
+                assert_eq!(
+                    [HOME, PERSON, WORKER, 92]
+                        .iter()
+                        .map(|id| sim.state.balance(*id, GRAIN))
+                        .sum::<i32>(),
+                    working_months as i32 * 4
+                );
+                let owed = if anticipates && external_coins == 20 {
+                    0
+                } else {
+                    4
+                };
+                assert_eq!(
+                    sim.state
+                        .employment
+                        .earned
+                        .values()
+                        .map(|e| e.claim.outstanding())
+                        .sum::<i32>(),
+                    owed
+                );
+                assert_eq!(
+                    [HOME, PERSON, WORKER, 92]
+                        .iter()
+                        .map(|id| sim.state.balance(*id, TOKEN))
+                        .sum::<i32>(),
+                    external_coins + 4
+                );
+                let month_two = sim
+                    .state
+                    .town_market
+                    .history
+                    .iter()
+                    .find(|r| r.month == 2)
+                    .unwrap();
+                let receipt = month_two
+                    .order_receipts
+                    .iter()
+                    .find(|r| r.agent == HOME)
+                    .unwrap();
+                assert_eq!(
+                    receipt
+                        .deficits_before
+                        .as_ref()
+                        .unwrap()
+                        .get(&TOKEN)
+                        .copied(),
+                    Some(if anticipates { 4 } else { 0 })
+                );
+                for id in [PERSON, HOME, WORKER, 92] {
+                    let r = a.book().statements(id, 1, 6).unwrap();
+                    assert_eq!(r.assets, r.liabilities + r.equity);
+                }
+                for month in 1..=6 {
+                    assert_eq!(value(&a, HOME, A::WagesPayable(1, month)), 0);
+                }
+                let (mut resumed, mut ra) = checkpoint.unwrap();
+                through(&mut ra, &mut resumed, 6);
+                assert_eq!(sim.state, resumed.state);
+                assert_eq!(sim.ledger, resumed.ledger);
+                assert_eq!(a, ra);
+                replay(&w, &s, &sim);
+                (sim.state, sim.ledger, a)
+            };
+            assert_eq!(run(w.clone(), Backend::Reference), run(w, Backend::CubeCpu));
+        }
+    }
+}
+
+#[test]
+fn payroll_outlook_shares_finite_hours_and_respects_permissions_dates_and_arrears() {
+    use economics_compute_smoke::employment::projected_payroll;
+    let (mut w, mut s) = live_loop();
+    // Two unrelated employers compete for one worker; contract ID breaks equal ranks.
+    let mut competing = w.employment[0].clone();
+    competing.id = 2;
+    competing.employer = 92;
+    w.employment.push(competing);
+    s.phase = Phase::Acquire;
+    s.balances.insert((WORKER, LABOR), 3);
+    let before = s.clone();
+    assert_eq!(
+        projected_payroll(&w, &s).unwrap(),
+        [((PERSON, TOKEN), 4), ((92, TOKEN), 2)].into()
+    );
+    w.employment.reverse();
+    assert_eq!(
+        projected_payroll(&w, &s).unwrap(),
+        [((PERSON, TOKEN), 4), ((92, TOKEN), 2)].into()
+    );
+    assert_eq!(before, s);
+    w.transaction_policy
+        .as_mut()
+        .unwrap()
+        .permissions
+        .remove(&(PERSON_TYPE, Action::CapacityTrade));
+    assert!(projected_payroll(&w, &s).unwrap().is_empty());
+    w.transaction_policy
+        .as_mut()
+        .unwrap()
+        .permissions
+        .insert((PERSON_TYPE, Action::CapacityTrade));
+    s.month = 7;
+    assert!(projected_payroll(&w, &s).unwrap().is_empty());
+    let (w, mut s) = arrears_market(true, true, true);
+    s.phase = Phase::Acquire;
+    s.balances.insert((WORKER, LABOR), 5);
+    assert!(projected_payroll(&w, &s).unwrap().is_empty());
+    s.employment.earned.get_mut(&(1, 1)).unwrap().claim.settled = 6;
+    assert_eq!(
+        projected_payroll(&w, &s).unwrap(),
+        [((PERSON, TOKEN), 10)].into()
+    );
+    s.phase = Phase::Close;
+    assert!(projected_payroll(&w, &s).unwrap().is_empty());
+
+    let (mut w, mut s) = live_loop();
+    w.employment[0].employer = 92;
+    w.employment[0].worker = PERSON;
+    w.employment[0].capacity.quantity = 5;
+    s.phase = Phase::Acquire;
+    s.balances.insert((PERSON, LABOR), 5);
+    // One of five own hours belongs to the household, not external employment.
+    assert_eq!(
+        projected_payroll(&w, &s).unwrap(),
+        [((92, TOKEN), 8)].into()
+    );
+}
+
+#[test]
+fn forecast_funding_offsets_private_cash_and_stops_with_membership_or_authorization() {
+    use economics_compute_smoke::employment::PayrollOutlook;
+    for (support, funding, private, leave, expected) in [
+        (true, true, 0, false, 4),
+        (true, true, 2, false, 2),
+        (true, true, 4, false, 0),
+        (false, true, 0, false, 0),
+        (true, false, 0, false, 0),
+        (true, true, 0, true, 0),
+    ] {
+        let (mut w, mut s) = live_loop();
+        let c = &mut w.households[0].governance.charter;
+        c.payroll_outlook = PayrollOutlook::CurrentDelivery;
+        c.support_member_wages = support;
+        c.fund_earned_wages = funding;
+        s.month = 2; // Membership exit is allowed after the founding month.
+        s.balances.insert((HOME, TOKEN), 0);
+        s.balances.insert((HOME, GRAIN), 2);
+        s.balances.insert((PERSON, TOKEN), private);
+        if leave {
+            households::membership::leave(&mut w, &s, HOME, PERSON).unwrap();
+        }
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            through(&mut a, &mut sim, 2);
+            let r = sim.state.town_market.history[0]
+                .order_receipts
+                .iter()
+                .find(|r| r.agent == HOME)
+                .unwrap();
+            assert_eq!(
+                r.deficits_before
+                    .as_ref()
+                    .unwrap()
+                    .get(&TOKEN)
+                    .copied()
+                    .unwrap_or(0),
+                expected
+            );
+            let bought = expected > 0;
+            assert_eq!(sim.state.balance(92, TOKEN), if bought { 8 } else { 12 });
+            assert_eq!(
+                sim.state.balance(WORKER, TOKEN),
+                if bought { 4 } else { private }
+            );
+            assert_eq!(
+                sim.state.employment.earned[&(1, 2)].claim.outstanding(),
+                if bought { 0 } else { 4 - private }
+            );
+            replay(&w, &s, &sim);
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
+
+#[test]
+fn continued_delivery_combines_old_claims_and_new_payroll_without_offsetting_cash_twice() {
+    use economics_compute_smoke::employment::PayrollOutlook;
+    let (mut w, s) = arrears_market(true, true, true);
+    w.households[0].governance.charter.payroll_outlook = PayrollOutlook::CurrentDelivery;
+    w.employment[0].on_arrears = ArrearsPolicy::Continue;
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut a = audit(&w, &s);
+        while sim.state.phase != Phase::Productive {
+            a.step(&mut sim).unwrap();
+        }
+        let receipt = sim.state.town_market.history[0]
+            .order_receipts
+            .iter()
+            .find(|r| r.agent == HOME)
+            .unwrap();
+        // Six old + ten projected - two private, not a private offset per claim.
+        assert_eq!(receipt.deficits_before.as_ref().unwrap()[&TOKEN], 14);
+        assert_eq!(receipt.deficits_after.as_ref().unwrap()[&TOKEN], 10);
+        assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 6);
+        assert_eq!(sim.state.employment.earned[&(1, 2)].claim.outstanding(), 10);
+        assert_eq!(sim.state.balance(HOME, TOKEN), 4);
+        through(&mut a, &mut sim, 2);
+        assert_eq!(sim.state.balance(WORKER, TOKEN), 6);
+        assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 0);
+        assert_eq!(sim.state.employment.earned[&(1, 2)].claim.outstanding(), 10);
+        assert_eq!(value(&a, HOME, A::WagesPayable(1, 2)), 0);
+        replay(&w, &s, &sim);
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}
+
+#[test]
 fn live_production_pooling_market_payroll_and_member_exit_preserve_claims_and_expose_funding_lag() {
     use economics_compute_smoke::telemetry::{Config, Observer};
     for leave in [false, true] {
