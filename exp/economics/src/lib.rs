@@ -166,4 +166,6 @@ mod accounting_allocation_tests;
 pub mod service_accounting;
 
 pub mod employment;
-mod employment_accounting;
+mod reporting_value;
+
+mod loan_accounting;

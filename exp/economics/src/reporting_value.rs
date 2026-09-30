@@ -1,4 +1,4 @@
-//! Fixed opening reporting valuations for native wage claims. No marks or FX.
+//! Fixed opening reporting valuations for native-denomination claims. No marks or FX.
 use crate::model::*;
 use std::collections::BTreeMap;
 
@@ -14,8 +14,8 @@ pub(crate) fn value(
         *values
             .get(&resource)
             .filter(|v| **v > 0)
-            .ok_or("physical wages need an explicit positive exchange value")?
+            .ok_or("noncash claims need an explicit positive exchange value")?
     };
     unit.checked_mul(i128::from(quantity))
-        .ok_or_else(|| "wage reporting value overflow".into())
+        .ok_or_else(|| "claim reporting value overflow".into())
 }

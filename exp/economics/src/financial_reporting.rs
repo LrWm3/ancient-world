@@ -63,12 +63,7 @@ fn positions(
     inventory.validate(world, state, coin)?;
     crate::employment::validate(world, state)?;
     for terms in &world.employment {
-        crate::employment_accounting::value(
-            coin,
-            exchange_values,
-            terms.wage_per_unit.resource,
-            1,
-        )?;
+        crate::reporting_value::value(coin, exchange_values, terms.wage_per_unit.resource, 1)?;
     }
     let mut p = services
         .map(|c| c.positions(world, state))
@@ -143,8 +138,8 @@ fn positions(
         return Err("retired equipment has nonzero carrying cost".into());
     }
     for l in state.credit.loans.values() {
-        if l.denomination != coin {
-            return Err("mixed loan denominations require an explicit valuation adapter".into());
+        if l.denomination != coin && l.collateral.is_some() {
+            return Err("noncash collateral needs explicit recovery valuation".into());
         }
         for (agent, a, q) in [
             (l.creditor, Account::LoanReceivable(l.id), l.principal),
@@ -152,7 +147,11 @@ fn positions(
             (l.debtor, Account::LoanPayable(l.id), -l.principal),
             (l.debtor, Account::InterestPayable(l.id), -l.interest),
         ] {
-            accounting::add(&mut p, (agent, a), i128::from(q))?;
+            accounting::add(
+                &mut p,
+                (agent, a),
+                crate::reporting_value::value(coin, exchange_values, l.denomination, q)?,
+            )?;
         }
     }
     for terms in &world.recovery.proceedings {
@@ -191,7 +190,7 @@ fn positions(
         accounting::add(&mut p, key, value)?;
     }
     for (&(id, month), earned) in &state.employment.earned {
-        let q = crate::employment_accounting::value(
+        let q = crate::reporting_value::value(
             coin,
             exchange_values,
             earned.claim.transfer.amount.resource,
@@ -912,7 +911,7 @@ impl Audit {
                     .find(|t| t.id == r.agreement)
                     .ok_or("missing employment terms")?;
                 if r.earned > 0 {
-                    let value = crate::employment_accounting::value(
+                    let value = crate::reporting_value::value(
                         coin,
                         &self.exchange_values,
                         t.wage_per_unit.resource,
@@ -945,7 +944,7 @@ impl Audit {
                         buyer: t.worker,
                         resource: t.wage_per_unit.resource,
                         quantity: r.paid,
-                        value: crate::employment_accounting::value(
+                        value: crate::reporting_value::value(
                             coin,
                             &self.exchange_values,
                             t.wage_per_unit.resource,
@@ -1051,6 +1050,14 @@ impl Audit {
         let mut allocation = crate::inventory_accounting::CostAllocation::new(&opening_inventory);
         let (inventory, trade_lines) =
             opening_inventory.settle_allocated(&cash_trades, coin, &prepaid, &mut allocation)?;
+        let (inventory, loan_lines, loan_transfers) = crate::loan_accounting::settle(
+            world,
+            batch.credit.as_ref(),
+            coin,
+            &self.exchange_values,
+            &inventory,
+            &mut allocation,
+        )?;
         let (cost_transactions, issuance_lines) = if self.issuance.is_some() {
             crate::issuance_accounting::processes(world, &batch.transactions, coin)?
         } else {
@@ -1136,6 +1143,7 @@ impl Audit {
                 || t.forward.is_some()
                 || trades.contains(&t)
                 || mint_transactions.contains(t)
+                || loan_transfers.contains(t)
             {
                 continue;
             }
@@ -1214,6 +1222,7 @@ impl Audit {
         for l in trade_lines
             .into_iter()
             .chain(dues_lines)
+            .chain(loan_lines)
             .chain(equipment_lines)
             .chain(forward_lines)
             .chain(issuance_lines)
@@ -1283,6 +1292,9 @@ impl Audit {
                         amount,
                         ..
                     } => {
+                        if amount.resource != coin {
+                            continue;
+                        }
                         flow(
                             &mut flows,
                             *creditor,
@@ -1312,13 +1324,23 @@ impl Audit {
                             &mut lines,
                             l.creditor,
                             Account::InterestIncome,
-                            -i128::from(*q),
+                            -crate::reporting_value::value(
+                                coin,
+                                &self.exchange_values,
+                                l.denomination,
+                                *q,
+                            )?,
                         );
                         result(
                             &mut lines,
                             l.debtor,
                             Account::InterestExpense,
-                            i128::from(*q),
+                            crate::reporting_value::value(
+                                coin,
+                                &self.exchange_values,
+                                l.denomination,
+                                *q,
+                            )?,
                         );
                     }
                     Event::Paid {
@@ -1328,6 +1350,9 @@ impl Audit {
                     } => {
                         let l = loan(id)?;
                         *interest.entry(*id).or_default() -= *q;
+                        if l.denomination != coin {
+                            continue;
+                        }
                         for (agent, sign, kind) in [
                             (l.creditor, 1, Flow::Investing),
                             (l.debtor, -1, Flow::Financing),
@@ -1530,7 +1555,7 @@ impl Audit {
                             .iter()
                             .find(|p| p.id == *proceeding)
                             .ok_or("missing estate")?;
-                        let loss = crate::employment_accounting::value(
+                        let loss = crate::reporting_value::value(
                             coin,
                             &self.exchange_values,
                             amount.resource,
@@ -1586,6 +1611,9 @@ impl Audit {
                         let q = interest.entry(*id).or_default();
                         let paid_interest = (*q).min(*paid);
                         *q -= paid_interest;
+                        if l.denomination != coin {
+                            continue;
+                        }
                         flow(
                             &mut flows,
                             g.guarantor,
