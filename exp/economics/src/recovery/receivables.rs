@@ -31,10 +31,18 @@ pub struct Assignment {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GuaranteeCoverage {
+    pub terms: recovery::Guarantee,
+    pub accepted_month: u32,
+    /// Native claim units still covered; neither escrow nor a funding forecast.
+    pub remaining_cap: i32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Offer {
     /// Current servicing terms and security; discovery is not an underwriting promise.
     pub loan: credit::Loan,
-    pub guarantees: Vec<recovery::Guarantee>,
+    pub guarantees: Vec<GuaranteeCoverage>,
     pub listing: Listing,
     pub seller: AgentId,
     pub debtor: AgentId,
@@ -81,9 +89,25 @@ pub fn discover(world: &World, state: &State, buyer: AgentId) -> Vec<Offer> {
                 .guarantees
                 .iter()
                 .filter(|g| g.claim == recovery::GuaranteedClaim::Loan(l.loan))
-                .cloned()
+                .filter_map(|g| {
+                    let accepted_month =
+                        recovery::admission::accepted_month(world, &state.credit, g)?;
+                    let paid = state
+                        .credit
+                        .recovery
+                        .paid_guarantees
+                        .get(&g.id)
+                        .copied()
+                        .unwrap_or(0);
+                    let remaining_cap = g.cap.checked_sub(paid)?;
+                    (g.through >= state.month && remaining_cap > 0).then(|| GuaranteeCoverage {
+                        terms: g.clone(),
+                        accepted_month,
+                        remaining_cap,
+                    })
+                })
                 .collect();
-            guarantees.sort_by_key(|g| g.id);
+            guarantees.sort_by_key(|g| g.terms.id);
             offers.push(Offer {
                 loan: loan.clone(),
                 guarantees,

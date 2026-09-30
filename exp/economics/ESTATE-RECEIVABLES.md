@@ -106,9 +106,13 @@ passed 50 tests, including CPU/reference and checkpoint comparisons.
 ## Explicitly transferable guarantees
 
 A guarantee may consent to `follows_assignment`. Without that term, its covered
-loan cannot be listed for assignment. Discovery exposes the attached terms; a
-configured future guarantee is still subject to its original admission, term,
-cap, delay and available funding. Assignment is not an underwriting promise.
+loan cannot be listed for assignment. Discovery exposes accepted, unexpired
+coverage with its original terms, acceptance date and remaining native cap.
+Unaccepted posted offers, exhausted caps and expired terms are absent from that
+coverage list. Preconfigured future coverage still shows its future start date;
+it is not callable early. Remaining cap is not reserved cash or a funding forecast:
+original term, delay, current claim and actual guarantor resources still constrain
+performance. Assignment is not an underwriting promise.
 The guarantor cannot buy its own covered claim through this adapter.
 
 The original claim ID remains unchanged. Calls, common agreement inspection and
@@ -116,6 +120,12 @@ settlement observers identify the current creditor. Actual payment reaches that
 holder and creates recourse against the original debtor, never the seller.
 Person and household seller controls exercise installments, private guarantor
 funding, estate distributions, separate statements and CPU/checkpoint parity.
+
+A household estate inspection control distinguishes preconfigured, posted but
+unaccepted, and posted accepted guarantees. Partial calls leave only the unused
+cap visible; full calls exhaust it and expiry removes it. The loan and any
+recourse survive those discovery changes. Inspection does not mutate state, and
+CPU/reference statements and reconstructed continuation agree.
 
 The secured household variant now combines assignment with lien subrogation.
 A six-coin guarantee of a ten-coin loan and four actual property-sale coins

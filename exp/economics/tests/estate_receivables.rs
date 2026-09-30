@@ -989,7 +989,11 @@ fn explicit_guarantee_benefit_follows_assignment_and_pays_the_current_holder() {
             let mut audit = Audit::new(&sim.world, &sim.state, TOKEN).unwrap();
             until(&mut sim, &mut audit, 3, Phase::Acquire);
             let offers = receivables::discover(&sim.world, &sim.state, BUYER);
-            assert_eq!(offers[0].guarantees, sim.world.recovery.guarantees);
+            assert_eq!(
+                offers[0].guarantees[0].terms,
+                sim.world.recovery.guarantees[0]
+            );
+            assert_eq!(offers[0].guarantees[0].remaining_cap, 3);
             assert!(receivables::discover(&sim.world, &sim.state, GUARANTOR).is_empty());
             audit.step(&mut sim).unwrap();
             until(&mut sim, &mut audit, 4, Phase::Open);
@@ -1013,6 +1017,111 @@ fn explicit_guarantee_benefit_follows_assignment_and_pays_the_current_holder() {
             assert_eq!(sim.state.credit.loans[&200].principal, 3);
             assert_eq!(sim.state.credit.loans[&200].creditor, GUARANTOR);
             assert_eq!(sim.state.credit.loans[&200].debtor, BORROWER);
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
+
+#[test]
+fn receivable_discovery_distinguishes_posted_guarantees_from_accepted_remaining_cover() {
+    use economics_compute_smoke::recovery::{
+        Guarantee, GuaranteeTender, GuaranteedClaim, RecourseSecurity, admission, receivables,
+    };
+    const BUYER: AgentId = 98;
+    const GUARANTOR: AgentId = 100;
+    for (posted, accepted, funds) in [
+        (false, true, 1),
+        (false, true, 2),
+        (true, false, 1),
+        (true, true, 1),
+        (true, true, 2),
+    ] {
+        let mut opening = fixture_for(3, 3, false, true);
+        for id in [BUYER, GUARANTOR] {
+            opening.world.agents.push(Agent {
+                id,
+                name: format!("claim party {id}"),
+            });
+            opening.state.balances.insert((id, TOKEN), funds);
+        }
+        opening
+            .world
+            .recovery
+            .receivable_listings
+            .push(receivables::Listing {
+                coins_per_unit: 1,
+                id: 1,
+                proceeding: 1,
+                loan: ASSET,
+            });
+        opening.world.recovery.guarantees.push(Guarantee {
+            follows_assignment: true,
+            tender: GuaranteeTender::Native,
+            security: RecourseSecurity::Unsecured,
+            id: 1,
+            claim: GuaranteedClaim::Loan(ASSET),
+            guarantor: GUARANTOR,
+            cap: 2,
+            from: 2,
+            through: 3,
+            delay_months: 0,
+            recourse: 200,
+            priority: 0,
+        });
+        if posted {
+            opening.world.recovery.posted_guarantees.insert(1);
+            if accepted {
+                opening
+                    .world
+                    .recovery
+                    .guarantee_applications
+                    .push(admission::Application {
+                        guarantee: 1,
+                        month: 2,
+                    });
+            }
+        }
+        let run = |backend| {
+            let mut sim =
+                Simulation::new(opening.world.clone(), opening.state.clone(), backend).unwrap();
+            let mut audit = Audit::new(&sim.world, &sim.state, TOKEN).unwrap();
+            until(&mut sim, &mut audit, 3, Phase::Acquire);
+            let before = sim.state.clone();
+            let offers = receivables::discover(&sim.world, &sim.state, BUYER);
+            assert_eq!(offers.len(), 1);
+            assert_eq!(
+                !offers[0].guarantees.is_empty(),
+                accepted && funds < 2,
+                "posted={posted} accepted={accepted} funds={funds} paid={:?} loans={:?}",
+                sim.state.credit.recovery.paid_guarantees,
+                sim.state.credit.loans
+            );
+            if accepted && funds < 2 {
+                let coverage = &offers[0].guarantees[0];
+                assert_eq!(coverage.terms, sim.world.recovery.guarantees[0]);
+                assert_eq!(coverage.accepted_month, 2);
+                assert_eq!(coverage.remaining_cap, 1);
+                assert_eq!(sim.state.credit.recovery.paid_guarantees[&1], 1);
+                assert_eq!(sim.state.balance(GUARANTOR, TOKEN), 0);
+            }
+            if accepted {
+                assert_eq!(sim.state.credit.recovery.paid_guarantees[&1], funds);
+            }
+            assert_eq!(sim.state, before);
+            let prefix = sim.ledger.len();
+            let mut resumed =
+                Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+            let mut ra = audit.clone();
+            until(&mut sim, &mut audit, 4, Phase::Acquire);
+            until(&mut resumed, &mut ra, 4, Phase::Acquire);
+            let expired = receivables::discover(&sim.world, &sim.state, BUYER);
+            assert_eq!(expired.len(), 1);
+            assert!(expired[0].guarantees.is_empty());
+            assert_eq!(
+                (&sim.state, &sim.ledger[prefix..], &audit),
+                (&resumed.state, &resumed.ledger[..], &ra)
+            );
             (sim.state, sim.ledger, audit)
         };
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));

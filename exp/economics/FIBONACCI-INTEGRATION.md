@@ -744,3 +744,12 @@ their separately recorded affected gates and are not covered by that snapshot.
     CPU/checkpoint execution and forged-receipt rejection agree. The six-target
     gate passed 90 tests and strict all-target Clippy passed. This remains one
     seller's comparison, not collective policy optimization or multiple sellers.
+
+41. **Receivable offers report actual remaining guarantee coverage.** Discovery
+    previously advertised expired and unaccepted catalog guarantees. It now
+    exposes accepted, unexpired terms with remaining native cap, omitting exhausted
+    coverage. Household estate controls exercise posted acceptance, partial/full
+    calls and expiry without changing the original loan or recourse. CPU and
+    reconstructed statements agree and inspection is read-only. The four-target
+    gate passed 43 tests; the expanded exhaustion control and strict all-target
+    Clippy also passed. Remaining cap still does not promise actual funding.
