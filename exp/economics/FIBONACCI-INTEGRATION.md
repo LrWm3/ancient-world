@@ -516,3 +516,11 @@ their separately recorded affected gates; this full result does not cover them.
     denomination controls reconcile with CPU/checkpoint and separate books.
     The five-target gate passed 20 tests; strict all-target Clippy passed.
     Discounted acquisition basis and native collateral remain outside this adapter.
+
+19. **Assigned native guarantees use resources earned through employment.**
+    A worker receives seed wages, then covers a sold seed loan under explicit
+    transferable coverage. The current holder receives the goods; the original
+    borrower owes native recourse. Person/household, funded/unfunded and storage
+    controls preserve actual wages, custody, wind-down and separate statements.
+    CPU/checkpoint continuation agrees. The four-target gate passed 42 tests;
+    strict all-target Clippy passed.

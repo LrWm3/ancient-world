@@ -159,3 +159,11 @@ and unfunded buyers, available and absent receiving storage, stale prices and
 invalid quotes. A two-seed asset sells for four real coins; later delivery either
 repays those same seed units or remains due. Loan interest, estate discharge,
 private member funds, separate statements and CPU/checkpoint continuation agree.
+
+The same matrix now includes transferable native guarantees and actual employment.
+The borrower pays a worker two seed units for completed labor; that worker later
+covers the missed seed installments as guarantor. Delivery goes to the current
+claim holder and creates seed recourse against the original borrower. Absent buyer
+storage prevents both delivery and premature recourse. Household wind-down,
+private balances and estate proceeds retain their separate accounting. The
+four-target gate passed 42 tests; strict all-target Clippy passed.

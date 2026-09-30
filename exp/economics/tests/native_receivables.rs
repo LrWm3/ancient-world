@@ -125,10 +125,62 @@ fn opening(seller: AgentId, unit: i128) -> Opening {
 
 #[test]
 fn estate_sells_native_claim_for_coins_and_buyer_collects_goods_with_real_storage() {
+    assignment(false);
+}
+
+#[test]
+fn native_guarantees_follow_sold_claims_and_leave_recourse_with_the_original_borrower() {
+    assignment(true);
+}
+
+fn assignment(guaranteed: bool) {
     for household in [false, true] {
         for funded in [false, true] {
             for room in [false, true] {
-                let (w, s, seller) = fixture(household, funded, room);
+                let (mut w, s, seller) = fixture(household, funded, room);
+                const GUARANTOR: AgentId = 96;
+                if guaranteed {
+                    use economics_compute_smoke::{
+                        employment::{ArrearsPolicy, Terms},
+                        recovery,
+                    };
+                    w.agents.push(Agent {
+                        id: GUARANTOR,
+                        name: "worker and guarantor".into(),
+                    });
+                    w.participants.push(Participant {
+                        agent: GUARANTOR,
+                        capacity: Amount::new(LABOR, 1),
+                        needs: vec![],
+                    });
+                    // Actual work earns the borrowed seeds. The original borrower
+                    // spends them as wages and cannot also deliver loan repayments.
+                    w.employment.push(Terms {
+                        id: 1,
+                        employer: BORROWER,
+                        worker: GUARANTOR,
+                        from: 1,
+                        through: 1,
+                        capacity: Amount::new(LABOR, 1),
+                        wage_per_unit: Amount::new(SEED, 2),
+                        on_arrears: ArrearsPolicy::Continue,
+                        rank: 0,
+                    });
+                    w.recovery.guarantees.push(recovery::Guarantee {
+                        id: 1,
+                        follows_assignment: true,
+                        tender: recovery::GuaranteeTender::Native,
+                        security: recovery::RecourseSecurity::Unsecured,
+                        claim: recovery::GuaranteedClaim::Loan(11),
+                        guarantor: GUARANTOR,
+                        cap: 2,
+                        from: 4,
+                        through: 8,
+                        delay_months: 0,
+                        recourse: 200,
+                        priority: 0,
+                    });
+                }
                 let run = |backend| {
                     let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
                     let mut audit = Audit::with_opening(&w, &s, TOKEN, opening(seller, 2)).unwrap();
@@ -213,6 +265,35 @@ fn estate_sells_native_claim_for_coins_and_buyer_collects_goods_with_real_storag
                         if funded { 104 } else { 100 }
                     );
                     assert_eq!(sim.state.balance(ESTATE, TOKEN), 0);
+                    if guaranteed {
+                        let paid = if funded && !room { 0 } else { 2 };
+                        assert_eq!(
+                            sim.state
+                                .credit
+                                .recovery
+                                .paid_guarantees
+                                .get(&1)
+                                .copied()
+                                .unwrap_or(0),
+                            paid
+                        );
+                        assert_eq!(sim.state.balance(GUARANTOR, SEED), 2 - paid);
+                        assert_eq!(sim.state.balance(BORROWER, SEED), 0);
+                        if paid > 0 {
+                            let recourse = &sim.state.credit.loans[&200];
+                            assert_eq!(
+                                (
+                                    recourse.debtor,
+                                    recourse.creditor,
+                                    recourse.denomination,
+                                    recourse.principal
+                                ),
+                                (BORROWER, GUARANTOR, SEED, 2)
+                            );
+                        } else {
+                            assert!(!sim.state.credit.loans.contains_key(&200));
+                        }
+                    }
                     if household {
                         assert_eq!(sim.state.balance(PERSON, TOKEN), 5);
                     }
