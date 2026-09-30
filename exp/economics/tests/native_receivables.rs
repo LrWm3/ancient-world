@@ -455,3 +455,134 @@ fn native_assignment_requires_positive_quote_and_matching_fixed_report_value() {
     );
     assert_eq!(sim.state, before);
 }
+
+#[test]
+fn priced_native_claims_release_cost_through_partial_relief_and_later_delivery_or_loss() {
+    use economics_compute_smoke::{
+        accounting::Account,
+        claim_relief::{Action, Terms},
+        finance::ContractId,
+    };
+    const BORROWER_ESTATE: AgentId = 96;
+    for household in [false, true] {
+        for delivery in [false, true] {
+            for price in [1, 3, 5] {
+                let (mut w, mut s, seller) = fixture(household, true, false);
+                s.balances.insert((BUYER, TOKEN), price);
+                w.recovery.receivable_price_floors.insert(1, 1);
+                w.recovery.receivable_bids[0].price = price;
+                w.agents.push(Agent {
+                    id: BORROWER_ESTATE,
+                    name: "native debtor coin estate".into(),
+                });
+                w.recovery.proceedings.push(ProceedingTerms {
+                    id: 2,
+                    debtor: BORROWER,
+                    authority: STATE_AGENT,
+                    estate: BORROWER_ESTATE,
+                    denomination: TOKEN,
+                    opening_month: 5,
+                    earliest_close: 5,
+                    assets: vec![],
+                    discharge_deficiency: true,
+                });
+                for (id, month, expected_remaining) in [(1, 5, 2), (2, 6, 1)] {
+                    if delivery && id == 2 {
+                        continue;
+                    }
+                    w.recovery.claim_relief.push(Terms {
+                        id,
+                        proceeding: 2,
+                        contract: ContractId::Loan(11),
+                        original_due: 2,
+                        debtor: BORROWER,
+                        creditor: BUYER,
+                        month,
+                        expected_due: 2,
+                        expected_remaining,
+                        action: Action::WriteOff { quantity: 1 },
+                    });
+                }
+                let run = |backend| {
+                    let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+                    let mut audit = Audit::with_opening(&w, &s, TOKEN, opening(seller, 2)).unwrap();
+                    let balance = |a: &Audit, who, account| {
+                        a.book()
+                            .balances()
+                            .get(&(who, account))
+                            .copied()
+                            .unwrap_or(0)
+                    };
+                    while sim.state.month < 2 {
+                        audit.step(&mut sim).unwrap();
+                    }
+                    if household {
+                        households::dissolution::request(&mut sim.world, &sim.state, HOME, PERSON)
+                            .unwrap();
+                    }
+                    while sim.state.month < 6 {
+                        audit.step(&mut sim).unwrap();
+                    }
+                    let cost = i128::from(price / 2);
+                    assert_eq!(sim.state.credit.loans[&11].principal, 1);
+                    assert_eq!(sim.state.balance(BUYER, SEED), 0);
+                    assert_eq!(
+                        balance(&audit, BUYER, Account::LoanReceivable(11))
+                            + balance(&audit, BUYER, Account::LoanBasisAdjustment(11)),
+                        cost
+                    );
+                    assert_eq!(
+                        balance(&audit, BUYER, Account::CreditLoss),
+                        i128::from(price) - cost
+                    );
+                    // A disclosed capacity change at the next opening can enable
+                    // future delivery; it cannot change the prior failed collection.
+                    if delivery {
+                        sim.world.storage.capacities.insert(BUYER, 1);
+                    }
+                    let mut resumed =
+                        Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+                    let mut ra = audit.clone();
+                    while sim.state.month < 8 {
+                        audit.step(&mut sim).unwrap();
+                    }
+                    while resumed.state.month < 8 {
+                        ra.step(&mut resumed).unwrap();
+                    }
+                    assert_eq!((&sim.state, &audit), (&resumed.state, &ra));
+                    assert_eq!(sim.state.credit.loans[&11].principal, 0);
+                    assert_eq!(balance(&audit, BUYER, Account::LoanBasisAdjustment(11)), 0);
+                    assert_eq!(
+                        balance(&audit, BUYER, Account::CreditLoss),
+                        if delivery {
+                            i128::from(price) - cost
+                        } else {
+                            i128::from(price)
+                        }
+                    );
+                    assert_eq!(
+                        balance(&audit, BUYER, Account::SettlementGain)
+                            + balance(&audit, BUYER, Account::SettlementLoss),
+                        if delivery { cost - 2 } else { 0 }
+                    );
+                    assert_eq!(
+                        balance(&audit, BORROWER, Account::DebtRelief),
+                        if delivery { -2 } else { -4 }
+                    );
+                    assert_eq!(sim.state.balance(BUYER, SEED), if delivery { 1 } else { 0 });
+                    assert_eq!(
+                        sim.state.balance(BORROWER, SEED),
+                        if delivery { 1 } else { 2 }
+                    );
+                    assert_eq!(sim.state.balance(BUYER, TOKEN), 0);
+                    assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 100 + price);
+                    if household {
+                        assert_eq!(balance(&audit, PERSON, Account::CreditLoss), 0);
+                    }
+                    (sim.state, sim.ledger, audit)
+                };
+                assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+            }
+        }
+    }
+}

@@ -288,3 +288,11 @@ winds down. The guarantor delivers real goods only when the buyer has space and
 receives native recourse valued under the original reporting quote, without the
 buyer's purchase adjustment. Household exit neither releases the buyer's storage
 constraint nor transfers disposal results to its member.
+
+Partial native relief releases only the corresponding purchased cost. A further
+control starts with blocked receiving storage, opens the debtor estate after an
+actual missed installment, and forgives one unit. The remaining unit can later
+be delivered when storage becomes available, or waived by separately accepted
+terms. Those paths preserve actual goods, recognize different loss/return amounts,
+and never substitute an invented coin payment. Both person and household sellers
+use the same execution and reporting adapters.

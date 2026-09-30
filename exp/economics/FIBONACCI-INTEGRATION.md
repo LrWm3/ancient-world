@@ -1124,3 +1124,11 @@ their separate gates above and are not covered by this snapshot.
     while buyer claims remain; member books stay separate. CPU/reference and
     checkpoints agree. The three-target gate passed 59 tests and strict all-target
     Clippy passed.
+
+80. **Priced native relief composes with later storage and delivery.** A real
+    missed installment precedes estate admission; household sellers explicitly
+    request wind-down. Partial native forgiveness releases proportional cost,
+    then the remainder is either delivered into newly available storage or waived
+    under later consent. Discount/premium, person/household and CPU/checkpoint
+    controls reconcile stocks, cash, remaining basis and losses. The four-target
+    gate passed 51 tests and strict all-target Clippy passed.
