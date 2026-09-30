@@ -365,3 +365,11 @@ or justify declaring the remaining work complete.
 
 Batch 89 first integration gate: 40 tests across mint finance, inventory
 liquidation and household forwards passed; strict all-target Clippy passed.
+
+2. **Legacy stock-market reservation adapter.** Multiple posted lots and earlier
+   estate purchases now share exact contribution carry. Available, partly full
+   and full household storage controls admit three, two and zero later lots,
+   preserving funds, inventory and separate books on CPU and checkpoint replay.
+   Recovery no longer excludes unrelated posted stock sellers. Ordinary trading
+   by the active debtor stays blocked, and custody remains non-operating. The
+   affected six-target gate passed 93 tests; strict all-target Clippy passed.

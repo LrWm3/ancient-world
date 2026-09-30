@@ -170,6 +170,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Batch, String> {
         &quoted,
         resources.available.clone(),
         resources.storage.clone(),
+        resources.pooling.clone(),
     )?;
     resources.reserve(world, &trades)?;
     batch.transactions.extend(trades);

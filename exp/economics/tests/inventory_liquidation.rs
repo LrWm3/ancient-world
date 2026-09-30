@@ -1043,3 +1043,169 @@ fn guaranteed_delivery_pools_once_and_creates_recourse_only_for_actual_receipts(
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn legacy_stock_exchange_retains_estate_purchase_contributions_across_lots() {
+    use economics_compute_smoke::{currency, exchange};
+    for shared_stock in [2, 3, 4] {
+        let (mut w, mut s) = fixture(true, 8);
+        add_household(&mut w, &s);
+        s.balances.insert((HOME, GRAIN), shared_stock);
+        w.recovery.inventory_listings[0].goods.quantity = 1;
+        w.recovery.inventory_listings[0].minimum_price = 1;
+        w.recovery.inventory_bids.retain(|b| b.id == 2);
+        w.recovery.inventory_bids[0].price = 1;
+        w.market = Some(exchange::Market {
+            targets: [(1, 4)].into(),
+            reserves: [((STATE_AGENT, GRAIN), 0)].into(),
+            ..Default::default()
+        });
+        w.bids.push(currency::Bid {
+            id: 1,
+            buyer: BUYER,
+            goods: Amount::new(GRAIN, 1),
+            payment: Amount::new(TOKEN, 1),
+        });
+        let run = |backend| {
+            let (mut sim, mut books) = opening(w.clone(), s.clone(), backend);
+            while (sim.state.month, sim.state.phase) != (3, Phase::Open) {
+                books.step(&mut sim).unwrap();
+            }
+            // Arrival is a disclosed new reporting opening, not same-window funding.
+            sim.state.balances.insert((STATE_AGENT, GRAIN), 3);
+            books = Audit::with_opening(
+                &sim.world,
+                &sim.state,
+                TOKEN,
+                Opening {
+                    inventory: sim
+                        .state
+                        .balances
+                        .iter()
+                        .filter_map(|(&(a, r), &q)| {
+                            (r == GRAIN && q > 0).then_some(((a, r), i128::from(q) * 2))
+                        })
+                        .collect(),
+                    exchange_values: [(GRAIN, 2)].into(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            while (sim.state.month, sim.state.phase) != (3, Phase::Acquire) {
+                books.step(&mut sim).unwrap();
+            }
+            let (mut resumed, mut rb) = (sim.clone(), books.clone());
+            books.step(&mut sim).unwrap();
+            rb.step(&mut resumed).unwrap();
+            assert_eq!(
+                (&sim.state, &sim.ledger, &books),
+                (&resumed.state, &resumed.ledger, &rb)
+            );
+            let expected = match shared_stock {
+                2 => 3,
+                3 => 2,
+                _ => 0,
+            };
+            let batch = sim.ledger.last().unwrap();
+            assert_eq!(
+                batch
+                    .transactions
+                    .iter()
+                    .filter(|t| t.stock_trade.is_some())
+                    .count(),
+                expected
+            );
+            assert_eq!(sim.state.balance(ESTATE, TOKEN), 1);
+            assert_eq!(sim.state.balance(STATE_AGENT, GRAIN), 3 - expected as i32);
+            assert_eq!(
+                sim.state.balance(HOME, GRAIN),
+                shared_stock + (1 + expected as i32) / 2
+            );
+            assert_eq!(sim.state.balance(BUYER, GRAIN), (2 + expected as i32) / 2);
+            (sim.state, sim.ledger, books)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
+
+#[test]
+fn legacy_stock_trading_stays_distinct_from_authorized_estate_sales() {
+    use economics_compute_smoke::{currency, exchange};
+    let (mut w, s) = fixture(true, 8);
+    w.recovery.inventory_listings.clear();
+    w.recovery.inventory_bids.clear();
+    w.market = Some(exchange::Market {
+        targets: [(1, 1)].into(),
+        reserves: [((PERSON, GRAIN), 6)].into(),
+        ..Default::default()
+    });
+    w.bids.push(currency::Bid {
+        id: 1,
+        buyer: BUYER,
+        goods: Amount::new(GRAIN, 1),
+        payment: Amount::new(TOKEN, 1),
+    });
+    let (mut sim, mut books) = opening(w, s, Backend::CubeCpu);
+    while (sim.state.month, sim.state.phase) != (3, Phase::Acquire) {
+        books.step(&mut sim).unwrap();
+    }
+    sim.world
+        .market
+        .as_mut()
+        .unwrap()
+        .reserves
+        .insert((PERSON, GRAIN), 0);
+    // Neither a solvent-looking spot bid nor a sale outside custody bypasses the stay.
+    assert!(
+        currency::transaction(
+            &sim.world,
+            &sim.state,
+            currency::StockTrade {
+                bid: 1,
+                seller: PERSON
+            }
+        )
+        .is_err()
+    );
+    let mut buyer_state = sim.state.clone();
+    buyer_state.balances.insert((PERSON, TOKEN), 10);
+    buyer_state.balances.insert((BUYER, GRAIN), 1);
+    let mut buyer_world = sim.world.clone();
+    buyer_world.bids[0].buyer = PERSON;
+    assert!(
+        currency::transaction(
+            &buyer_world,
+            &buyer_state,
+            currency::StockTrade {
+                bid: 1,
+                seller: BUYER
+            }
+        )
+        .is_err()
+    );
+    books.step(&mut sim).unwrap();
+    assert_eq!(sim.state.balance(PERSON, GRAIN), 6);
+    assert_eq!(sim.state.balance(BUYER, TOKEN), 8);
+    assert!(
+        sim.ledger
+            .last()
+            .unwrap()
+            .transactions
+            .iter()
+            .all(|t| t.stock_trade.is_none())
+    );
+    for as_seller in [true, false] {
+        let mut invalid = sim.world.clone();
+        if as_seller {
+            invalid
+                .market
+                .as_mut()
+                .unwrap()
+                .reserves
+                .insert((ESTATE, GRAIN), 0);
+        } else {
+            invalid.bids[0].buyer = ESTATE;
+        }
+        assert!(Simulation::new(invalid, sim.state.clone(), Backend::Reference).is_err());
+    }
+}

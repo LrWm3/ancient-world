@@ -206,6 +206,7 @@ pub fn resolve(world: &World, state: &State) -> Result<Vec<Transaction>, String>
         state,
         state.balances.clone(),
         crate::storage::usage(world, &state.balances),
+        None,
     )
 }
 pub(crate) fn resolve_with(
@@ -213,11 +214,34 @@ pub(crate) fn resolve_with(
     state: &State,
     mut available: BTreeMap<Account, i32>,
     mut stored: BTreeMap<AgentId, i128>,
+    pooling: Option<crate::households::income_reservations::Reservations>,
 ) -> Result<Vec<Transaction>, String> {
     if world.market.is_none() {
         return Ok(vec![]);
     }
-    let mut result = crate::forward::settle(world, state, &mut available, &mut stored)?;
+    let mut pooling = pooling.unwrap_or_else(|| {
+        crate::households::income_reservations::Reservations::new(world, state, stored.clone())
+    });
+    let mut result = crate::forward::collect_with_pooling(
+        world,
+        state,
+        &mut available,
+        &mut stored,
+        Some(&pooling),
+    )?
+    .transactions;
+    for t in &result {
+        if t.forward
+            .as_ref()
+            .is_some_and(|r| matches!(r, crate::forward::Event::Delivery { contract, .. } if world.prepaid_deliveries.iter().any(|d| d.id == *contract)))
+        {
+            pooling = pooling
+                .preview(world, &t.effects)?
+                .ok_or("forward contribution exceeds storage")?;
+        } else {
+            pooling.reserve_unpooled(world, &t.effects)?;
+        }
+    }
     let mut quoted_state = state.clone();
     for transaction in &result {
         record(&mut quoted_state, transaction);
@@ -225,7 +249,13 @@ pub(crate) fn resolve_with(
             *quoted_state.balances.entry(effect.account).or_default() += effect.delta;
         }
     }
-    result.extend(after_collections(world, &quoted_state, available, stored)?);
+    result.extend(after_collections(
+        world,
+        &quoted_state,
+        available,
+        stored,
+        Some(pooling),
+    )?);
     Ok(result)
 }
 
@@ -236,10 +266,14 @@ pub(crate) fn after_collections(
     state: &State,
     mut available: BTreeMap<Account, i32>,
     mut stored: BTreeMap<AgentId, i128>,
+    pooling: Option<crate::households::income_reservations::Reservations>,
 ) -> Result<Vec<Transaction>, String> {
     let Some(market) = &world.market else {
         return Ok(vec![]);
     };
+    let mut pooling = pooling.unwrap_or_else(|| {
+        crate::households::income_reservations::Reservations::new(world, state, stored.clone())
+    });
     let mut result = Vec::new();
     let mut purchased = BTreeSet::new();
     let mut quoted_state = state.clone();
@@ -353,11 +387,12 @@ pub(crate) fn after_collections(
                 ) else {
                     break;
                 };
-                let stored_effects =
-                    crate::households::with_contributions(world, state, &t.effects)?;
-                if !crate::storage::fits(world, &stored, &stored_effects) {
+                if !crate::storage::fits(world, &stored, &t.effects) {
                     break;
                 }
+                let Some(next_pooling) = pooling.preview(world, &t.effects)? else {
+                    break;
+                };
                 for e in &t.effects {
                     if e.delta < 0 {
                         *available.entry(e.account).or_default() += e.delta;
@@ -368,7 +403,8 @@ pub(crate) fn after_collections(
                         *received.entry(e.account).or_default() += e.delta;
                     }
                 }
-                crate::storage::apply(world, &mut stored, &stored_effects);
+                crate::storage::apply(world, &mut stored, &t.effects);
+                pooling = next_pooling;
                 result.push(t);
             }
         }

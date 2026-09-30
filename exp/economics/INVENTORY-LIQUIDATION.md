@@ -28,13 +28,13 @@ nothing. Normal scheduled execution retains its independent successful bids.
 ## Household and accounting integration
 
 Household agents can purchase inventory with their own funds and storage. Their
-books remain separate from member books. Member purchases in credit-only, bilateral-market, town-market and physical-mint
+books remain separate from member books. Member purchases in credit-only, bilateral-market, town-market, physical-mint and legacy stock-market
 Acquire drivers reserve their exact household contribution, including fractional
 carry across lots, and pool it once after settlement. Subsequent commodity loans
 also respect that reserved space; loan proceeds remain unpooled. Bilateral negotiation and town matching inherit those reservations and fractional carry. Direct forward performance now inherits the same contribution budget, as do later
-bilateral, town and physical-mint trades. Legacy tool-market compositions still
-reject member inventory bids pending their integration checks. This is a bounded compatibility restriction, not an
-exemption from household pooling.
+bilateral, town, physical-mint and legacy stock trades. Legacy tool replacement
+purchases during estate configurations remain unsupported; servicing existing
+forwards and ordinary trading by other agents remain available.
 
 The buyer records actual purchase cost. The debtor records sales revenue,
 released inventory basis and restricted proceeds. Estate custody and later loan
@@ -89,3 +89,9 @@ The physical-mint integration in `tests/mint_finance.rs` checks actual issuance
 before estate recovery, then two one-unit purchases with a single fractional
 household contribution. Full shared storage rejects the later wheat trade while
 preserving the earlier funded estate purchase and its custody proceeds.
+
+Legacy stock-market integration retains fractional contribution reservations
+across an estate purchase and multiple later lots. Ordinary buyer/seller trading
+is stayed during active recovery; authorized liquidation remains a separate
+route into custody. Custody agents cannot place ordinary bids or offer stock.
+The affected six-target gate passed 93 tests and strict all-target Clippy.

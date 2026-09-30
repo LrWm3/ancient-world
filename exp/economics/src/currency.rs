@@ -54,6 +54,14 @@ pub fn transaction(world: &World, state: &State, trade: StockTrade) -> Result<Tr
         || !world.agents.iter().any(|a| a.id == trade.seller)
         || state.terminal.contains_key(&trade.seller)
         || state.terminal.contains_key(&bid.buyer)
+        || [trade.seller, bid.buyer].iter().any(|agent| {
+            crate::recovery::active(world, &state.credit, *agent).is_some()
+                || world
+                    .recovery
+                    .proceedings
+                    .iter()
+                    .any(|p| p.estate == *agent)
+        })
         || state.balance(trade.seller, bid.goods.resource) < bid.goods.quantity
         || state.balance(bid.buyer, bid.payment.resource) < bid.payment.quantity
     {
