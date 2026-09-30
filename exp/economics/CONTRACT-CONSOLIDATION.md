@@ -153,7 +153,9 @@ can establish that all these arrangements compose.
    consent, cap, trigger, term and dated recourse, with explicit stable/proportional
    allocation. Physical and direct-delivery claims now have native adapters and statements.
    Posted guarantee discovery and dated consented admission now exist. Extend
-   autonomous acceptance, alternative tenders and lien subrogation. A successful
+   autonomous acceptance and alternative tenders. Explicit authorized-liquidation
+   lien subrogation now preserves both active pledges and already reserved proceeds;
+   broader security/denomination combinations remain open. A successful
    guarantee payment reduces the original creditor's claim and creates the guarantor's corresponding recourse
    claim; it must not pay the creditor twice. Reserve guarantor resources across
    multiple calls using the same allocation window. Cycles and chains need
@@ -164,7 +166,8 @@ can establish that all these arrangements compose.
    listing/valuation, further asset kinds beyond portable equipment and general claims.
    [Compatible competing liens](LIEN-PRIORITY.md) now reserve actual per-asset
    proceeds under explicit authorized-liquidation terms; cross-currency priority
-   and lien subrogation remain open. [Receivable collection](ESTATE-RECEIVABLES.md)
+   and broader security assignment remain open. Explicit same-denomination
+   guarantee subrogation now follows that lifecycle. [Receivable collection](ESTATE-RECEIVABLES.md)
    now blocks deficient closure until existing assets are performed or disposed of;
    [inventory liquidation](INVENTORY-LIQUIDATION.md) now sells configured stock lots
    into the same custody and waterfall. Receivable sale/assignment remains open. Unsold assets

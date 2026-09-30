@@ -34,6 +34,7 @@ fn fixture() -> (World, State) {
         rank: 0,
     });
     w.recovery.guarantees.push(Guarantee {
+        security: economics_compute_smoke::recovery::RecourseSecurity::Unsecured,
         id: 1,
         claim: GuaranteedClaim::Wages {
             agreement: 1,
@@ -382,6 +383,7 @@ fn guaranteed_member_wages_pool_actual_receipts_once_and_preserve_household_reco
             rank: 0,
         });
         w.recovery.guarantees.push(Guarantee {
+            security: economics_compute_smoke::recovery::RecourseSecurity::Unsecured,
             id: 1,
             claim: GuaranteedClaim::Wages {
                 agreement: 1,
@@ -737,6 +739,7 @@ fn household_guarantees_share_cash_across_loan_wage_and_land_claims_with_separat
         ),
     ] {
         w.recovery.guarantees.push(Guarantee {
+            security: economics_compute_smoke::recovery::RecourseSecurity::Unsecured,
             id,
             claim,
             guarantor: HOME,

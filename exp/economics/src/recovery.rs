@@ -11,6 +11,8 @@ const RECOURSE_TERM_MONTHS: u32 = 1;
 pub mod admission;
 pub mod inventory;
 pub mod market;
+mod subrogation;
+pub use subrogation::RecourseSecurity;
 
 /// Identifies the authoritative obligation covered by accepted contingent terms.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -81,6 +83,7 @@ impl GuaranteedClaim {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Guarantee {
+    pub security: RecourseSecurity,
     pub id: u32,
     pub claim: GuaranteedClaim,
     pub guarantor: AgentId,
@@ -336,21 +339,24 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         let (debtor, creditor, _) = g.claim.parties(world).ok_or(
             "guarantee requires original accepted terms; recursive guarantee chains are unsupported",
         )?;
-        if world.credit.as_ref().is_some_and(|c| {
-            c.offers.iter().any(|o| {
-                g.claim == GuaranteedClaim::Loan(o.id)
-                    && matches!(
-                        o.collateral.settlement,
-                        credit::CollateralSettlement::ResaleProceeds { .. }
-                            | credit::CollateralSettlement::AuthorizedLiquidation
-                    )
-            })
-        }) || world.lending.iter().any(|a| {
-            g.claim == GuaranteedClaim::Loan(a.id)
-                && a.collateral.as_ref().is_some_and(|c| {
-                    c.settlement == credit::CollateralSettlement::AuthorizedLiquidation
+        subrogation::terms(world, g)?;
+        if g.security == RecourseSecurity::Unsecured
+            && (world.credit.as_ref().is_some_and(|c| {
+                c.offers.iter().any(|o| {
+                    g.claim == GuaranteedClaim::Loan(o.id)
+                        && matches!(
+                            o.collateral.settlement,
+                            credit::CollateralSettlement::ResaleProceeds { .. }
+                                | credit::CollateralSettlement::AuthorizedLiquidation
+                        )
                 })
-        }) {
+            }) || world.lending.iter().any(|a| {
+                g.claim == GuaranteedClaim::Loan(a.id)
+                    && a.collateral.as_ref().is_some_and(|c| {
+                        c.settlement == credit::CollateralSettlement::AuthorizedLiquidation
+                    })
+            }))
+        {
             return Err(
                 "guarantees of shared-liquidation or pending-resale loans need a lien-subrogation adapter".into(),
             );
@@ -586,7 +592,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                         .get(&g.id)
                         .copied()
                         .unwrap_or(0)
-                || loan.collateral.is_some()
+                || !subrogation::validate_loan(world, g, loan)?
                 || loan.monthly_rate_bps != 0
                 || loan.interest != 0
                 || loan.interest_remainder != 0
@@ -1061,6 +1067,7 @@ pub(crate) fn guarantees(
                     format!("guarantee {} pays {:?}", g.id, g.claim),
                     payment.effects.clone(),
                 );
+                let inherited = subrogation::collateral(world, &out.after, g)?;
                 match g.claim {
                     GuaranteedClaim::Loan(id) => {
                         let loan = out.after.loans.get_mut(&id).unwrap();
@@ -1159,12 +1166,16 @@ pub(crate) fn guarantees(
                     .principal
                     .checked_add(paid)
                     .ok_or("recourse overflow")?;
+                recourse.collateral = inherited;
                 recourse.status = if stayed {
                     Status::Stayed
+                } else if recourse.collateral.as_ref().is_some_and(|c| !c.pledged) {
+                    Status::Enforced
                 } else {
                     Status::Active
                 };
                 recourse.last_accrued = state.month;
+                subrogation::transfer_reserved(&mut out.after, g, paid)?;
             }
             out.recovery.push(Receipt::Guaranteed {
                 guarantee: g.id,
@@ -1406,12 +1417,14 @@ pub(crate) fn distribute(
             )
         });
         for id in secured {
+            let current = current_recourse(world, &out.after, id, state.month);
             let loan = out
                 .after
                 .loans
                 .get_mut(&id)
                 .ok_or("estate lien without loan")?;
-            let requested = case.secured[&id].min(loan.debt()?);
+            let reserved = case.secured[&id].min(loan.debt()?);
+            let requested = reserved.min(loan.debt()?.saturating_sub(current));
             let claim = estate_claim(p, loan, requested, state.month);
             let payment = execution.pay(world, state.month, true, &claim)?;
             if payment.paid > 0 {
@@ -1430,7 +1443,7 @@ pub(crate) fn distribute(
                 paid: payment.paid,
                 secured: true,
             });
-            case.secured.insert(id, (requested - payment.paid).max(0));
+            case.secured.insert(id, (reserved - payment.paid).max(0));
         }
         let mut requests: Vec<_> = out
             .after

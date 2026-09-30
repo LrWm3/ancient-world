@@ -59,6 +59,7 @@ fn fixture() -> (World, State) {
 }
 fn guarantee(id: u32, loan: u32, cap: i32) -> Guarantee {
     Guarantee {
+        security: economics_compute_smoke::recovery::RecourseSecurity::Unsecured,
         id,
         claim: economics_compute_smoke::recovery::GuaranteedClaim::Loan(loan),
         guarantor: BUYER,
@@ -1831,5 +1832,117 @@ fn household_liens_preserve_member_claims_through_wind_down_and_discharge() {
             (sim.state, sim.ledger, audit)
         };
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
+
+#[test]
+fn guarantee_inherits_liens_and_realized_proceeds_without_same_month_recourse() {
+    use economics_compute_smoke::{financial_reporting::Audit, recovery::RecourseSecurity};
+    for from in [3, 4] {
+        for cap in [6, 10] {
+            for policy in [CollectionPolicy::Stable, CollectionPolicy::Proportional] {
+                let run = |backend| {
+                    let (mut w, s) = fixture();
+                    w.lending.truncate(1);
+                    proceeding(&mut w, false);
+                    w.collection_policy = policy;
+                    w.lending[0].collateral.as_mut().unwrap().settlement =
+                        credit::CollateralSettlement::AuthorizedLiquidation;
+                    let mut g = guarantee(1, 10, cap);
+                    g.guarantor = OTHER;
+                    g.from = from;
+                    g.security = RecourseSecurity::InheritLiquidationLien;
+                    w.recovery.guarantees.push(g);
+                    let mut sim = distressed(w, s, backend);
+                    let mut books =
+                        Audit::with_assets(&sim.world, &sim.state, TOKEN, [(PLOT, 10)].into())
+                            .unwrap();
+                    while (sim.state.month, sim.state.phase) != (3, Phase::Acquire) {
+                        books.step(&mut sim).unwrap();
+                    }
+                    if from == 3 {
+                        assert_eq!(sim.state.credit.loans[&10].principal, 10 - cap);
+                        assert_eq!(sim.state.credit.loans[&101].principal, cap);
+                        assert!(
+                            sim.state.credit.loans[&101]
+                                .collateral
+                                .as_ref()
+                                .unwrap()
+                                .pledged
+                        );
+                    }
+                    let (mut resumed, mut rb) = (sim.clone(), books.clone());
+                    books.step(&mut sim).unwrap();
+                    let allocations = sim.state.credit.recovery.proceedings[&1].secured.clone();
+                    assert_eq!(allocations.values().sum::<i32>(), 8);
+                    if from == 4 {
+                        assert_eq!(allocations[&10], 8);
+                    }
+                    while sim.state.month < 5 {
+                        books.step(&mut sim).unwrap();
+                    }
+                    if from == 4 {
+                        let reserve = cap.min(8);
+                        assert_eq!(sim.state.credit.recovery.proceedings[&1].cash, reserve);
+                        assert_eq!(
+                            sim.state.credit.recovery.proceedings[&1].secured[&101],
+                            reserve
+                        );
+                        assert_eq!(sim.state.credit.loans[&101].principal, cap);
+                        assert_eq!(sim.state.balance(OTHER, TOKEN), 10 - cap);
+                        assert_eq!(
+                            sim.state.credit.recovery.proceedings[&1].stage,
+                            Stage::Active
+                        );
+                    }
+                    while sim.state.month < 6 {
+                        books.step(&mut sim).unwrap();
+                    }
+                    while resumed.state.month < 6 {
+                        rb.step(&mut resumed).unwrap();
+                    }
+                    assert_eq!(
+                        (&sim.state, &sim.ledger, &books),
+                        (&resumed.state, &resumed.ledger, &rb)
+                    );
+                    let original_recovery = if from == 4 {
+                        8 - cap.min(8)
+                    } else {
+                        allocations.get(&10).copied().unwrap_or(0)
+                    };
+                    let recourse_recovery = 8 - original_recovery;
+                    assert_eq!(
+                        sim.state.balance(STATE_AGENT, TOKEN),
+                        cap + original_recovery
+                    );
+                    assert_eq!(
+                        sim.state.balance(OTHER, TOKEN),
+                        10 - cap + recourse_recovery
+                    );
+                    assert_eq!(
+                        sim.state.credit.loans[&10].principal,
+                        10 - cap - original_recovery
+                    );
+                    assert_eq!(
+                        sim.state.credit.loans[&101].principal,
+                        cap - recourse_recovery
+                    );
+                    assert_eq!(sim.state.credit.recovery.proceedings[&1].cash, 0);
+                    assert!(
+                        !sim.state.credit.loans[&101]
+                            .collateral
+                            .as_ref()
+                            .unwrap()
+                            .pledged
+                    );
+                    // A forged checkpoint cannot drop the agreed inherited security.
+                    let mut bad = sim.state.clone();
+                    bad.credit.loans.get_mut(&101).unwrap().collateral = None;
+                    assert!(Simulation::new(sim.world.clone(), bad, Backend::Reference).is_err());
+                    (sim.state, sim.ledger, books)
+                };
+                assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+            }
+        }
     }
 }

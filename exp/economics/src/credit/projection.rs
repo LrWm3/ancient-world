@@ -107,6 +107,7 @@ mod tests {
             });
         }
         world.recovery.guarantees.push(Guarantee {
+            security: crate::recovery::RecourseSecurity::Unsecured,
             id: 1,
             claim: GuaranteedClaim::Wages {
                 agreement: 1,

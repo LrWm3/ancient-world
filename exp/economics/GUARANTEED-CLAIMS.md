@@ -27,7 +27,7 @@ opening funds. Receipts distinguish requested, allocated and paid quantities.
 Receiving a payment or household contribution cannot fund another outgoing call in
 that same reservation window. Existing resource protection and storage limits apply.
 
-Actual payment reduces the original claim and creates equal unsecured,
+Actual payment reduces the original claim and creates equal, normally unsecured,
 zero-interest recourse in the existing loan book. It creates no debtor cash and no
 new wage/rent income. Land payments retain actual native receipt quantities; later
 annual bills and land rights are unchanged. Loan payments retain interest-first
@@ -92,3 +92,8 @@ whitespace and repository artifact checks passed. Raw logs remain ignored under
 `output/economics/guarantee-*.log`. These checks demonstrate the specified bounded
 compositions; they do not establish autonomous financial viability or the proposed
 long-term stress-test institutions.
+
+Authorized-liquidation loans may explicitly select inherited security; see
+[lien subrogation](LIEN-PRIORITY.md#explicit-guarantee-subrogation). The common
+offer exposes this term. It transfers the lien or reserved proceeds without
+changing the next-month collectibility of actual guarantee payments.

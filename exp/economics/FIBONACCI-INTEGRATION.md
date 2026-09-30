@@ -373,3 +373,12 @@ liquidation and household forwards passed; strict all-target Clippy passed.
    Recovery no longer excludes unrelated posted stock sellers. Ordinary trading
    by the active debtor stays blocked, and custody remains non-operating. The
    affected six-target gate passed 93 tests; strict all-target Clippy passed.
+
+3. **Explicit guarantee lien subrogation.** Accepted guarantee terms can carry
+   authorized-liquidation security into the existing recourse loan. Before sale,
+   the active lien transfers even on full original repayment. After sale, its
+   actual custody reservation transfers without duplication. New recourse stays
+   uncollectible until a later Due, including secured distributions; reserved
+   cash remains protected meanwhile. Partial/full guarantees, both allocation
+   policies, CPU/checkpoint parity and separate statements pass. The seven-target
+   affected gate passed 94 tests; strict all-target Clippy passed.

@@ -84,3 +84,29 @@ crop, while no labor causes failure. Crop output does not alter the supplied sal
 price. Actual production costs use explicit joint-output shares. CPU/reference,
 checkpoint continuation and all parties' financial statements agree, without
 controlled losses or injected income in this fixture.
+
+## Explicit guarantee subrogation
+
+`Guarantee.security = InheritLiquidationLien` is an accepted term for an
+authorized-liquidation loan. Actual payment creates zero-interest recourse with
+the original asset, denomination and collateral rank. It preserves the existing
+loan book and ordinary guarantee cap; no new coins, title or appraisal value are
+created. Equal-rank original and inherited liens use the existing Stable or
+Proportional policy; original-creditor-first protection is not implied.
+
+Before sale, recourse inherits the active pledge, including when full payment
+releases the original creditor's pledge. After sale, the paid portion inherits
+any proceeds already reserved for the original claim. The reservation is moved,
+not duplicated. Uncovered amounts remain ordinary deficiencies. A new recourse
+addition cannot collect even reserved proceeds until a later Due; withheld
+proceeds stay in custody and block premature closure.
+
+The default remains explicitly unsecured recourse for existing supported claims.
+Fixed-value and creditor-resale arrangements cannot request inherited liquidation
+security. Autonomous consent, cross-currency subrogation, general security
+assignment and negotiated creditor-first clauses remain outside this adapter.
+
+`tests/recovery.rs` compares six- and ten-coin guarantees of a ten-coin loan,
+payment before and after an eight-coin collateral sale, both allocation policies,
+CPU/reference results, checkpoint continuation and separate financial statements.
+Checkpoint validation rejects removal of agreed inherited collateral.

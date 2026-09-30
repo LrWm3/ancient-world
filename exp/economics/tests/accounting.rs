@@ -101,6 +101,7 @@ fn guarantees_create_an_asset_not_an_expense_and_keep_interest_in_operating_cash
         name: "guarantor".into(),
     });
     w.recovery.guarantees.push(Guarantee {
+        security: economics_compute_smoke::recovery::RecourseSecurity::Unsecured,
         id: 1,
         claim: economics_compute_smoke::recovery::GuaranteedClaim::Loan(10),
         guarantor: 7,
