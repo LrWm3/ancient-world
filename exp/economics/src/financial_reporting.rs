@@ -154,6 +154,28 @@ fn positions(
             )?;
         }
     }
+    for g in &world.recovery.guarantees {
+        if let recovery::GuaranteedClaim::Land { agreement, .. } = g.claim {
+            let (_, _, denomination) = g
+                .claim
+                .parties(world)
+                .ok_or("missing land guarantee terms")?;
+            if denomination != coin {
+                let a = world
+                    .agreements
+                    .iter()
+                    .chain(&world.access_offers)
+                    .find(|a| a.id == agreement)
+                    .ok_or("missing guaranteed land agreement")?;
+                let dues = dues.ok_or("physical land guarantee needs dues valuation")?;
+                if dues.unit(a, coin)?
+                    != crate::reporting_value::value(coin, exchange_values, denomination, 1)?
+                {
+                    return Err("land guarantee and recourse valuations must agree".into());
+                }
+            }
+        }
+    }
     for terms in &world.recovery.proceedings {
         if terms.denomination != coin {
             return Err("mixed estate denominations".into());
@@ -1123,10 +1145,16 @@ impl Audit {
             coin,
         )?;
         let (inventory, dues_lines) = if let Some(dues) = &self.dues {
+            let performance = crate::dues_accounting::without_physical_guarantees(
+                world,
+                batch.credit.as_ref(),
+                after,
+                coin,
+            )?;
             dues.settle_allocated(
                 world,
                 before,
-                after,
+                &performance,
                 &inventory,
                 coin,
                 &dues_transfers,

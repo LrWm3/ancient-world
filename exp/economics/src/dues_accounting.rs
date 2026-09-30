@@ -9,7 +9,11 @@ use std::collections::BTreeMap;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Valuation(pub BTreeMap<u32, i128>);
 impl Valuation {
-    fn unit(&self, a: &commitments::Agreement, coin: ResourceId) -> Result<i128, String> {
+    pub(crate) fn unit(
+        &self,
+        a: &commitments::Agreement,
+        coin: ResourceId,
+    ) -> Result<i128, String> {
         if a.payment.resource == coin {
             return Ok(1);
         }
@@ -357,6 +361,7 @@ pub(crate) fn guarantee_payments(
 ) -> Result<(Vec<Transaction>, Vec<Line>), String> {
     let mut transfers = transactions.to_vec();
     let mut used = std::collections::BTreeSet::new();
+    let mut physical = std::collections::BTreeSet::new();
     let mut lines = vec![];
     if let Some(b) = boundary {
         for receipt in &b.recovery {
@@ -380,9 +385,6 @@ pub(crate) fn guarantee_payments(
                 .ok_or("missing land guarantee")?;
             let (debtor, creditor, denomination) =
                 g.claim.parties(world).ok_or("missing guaranteed dues")?;
-            if denomination != coin {
-                return Err("guaranteed dues require reporting currency".into());
-            }
             let (index, _) = transactions
                 .iter()
                 .enumerate()
@@ -391,17 +393,21 @@ pub(crate) fn guarantee_payments(
                         && t.effects
                             == vec![
                                 Effect {
-                                    account: (g.guarantor, coin),
+                                    account: (g.guarantor, denomination),
                                     delta: -*paid,
                                 },
                                 Effect {
-                                    account: (creditor, coin),
+                                    account: (creditor, denomination),
                                     delta: *paid,
                                 },
                             ]
                 })
                 .ok_or("guaranteed dues receipt does not match actual transfer")?;
             used.insert(index);
+            if denomination != coin {
+                physical.insert(index);
+                continue;
+            }
             transfers[index].effects[0].account.0 = debtor;
             lines.extend([
                 Line {
@@ -419,5 +425,53 @@ pub(crate) fn guarantee_payments(
             ]);
         }
     }
+    let transfers = transfers
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, tx)| (!physical.contains(&index)).then_some(tx))
+        .collect();
     Ok((transfers, lines))
+}
+
+/// Native guarantee delivery is financed by the guarantor, not debtor inventory.
+/// Exclude that payment only from the ordinary inventory-payment adapter; the
+/// authoritative after-state and financial positions retain actual performance.
+pub(crate) fn without_physical_guarantees(
+    world: &World,
+    boundary: Option<&crate::credit::Boundary>,
+    after: &State,
+    coin: ResourceId,
+) -> Result<State, String> {
+    let mut adjusted = after.clone();
+    if let Some(b) = boundary {
+        for r in &b.recovery {
+            if let crate::recovery::Receipt::Guaranteed {
+                claim: claim @ crate::recovery::GuaranteedClaim::Land { agreement, due },
+                paid,
+                ..
+            } = r
+                && claim
+                    .parties(world)
+                    .ok_or("missing land guarantee terms")?
+                    .2
+                    != coin
+            {
+                let bill = adjusted
+                    .obligations
+                    .get_mut(&(*agreement, *due))
+                    .ok_or("missing guaranteed bill")?;
+                bill.paid = bill
+                    .paid
+                    .checked_sub(*paid)
+                    .filter(|n| *n >= 0)
+                    .ok_or("guaranteed dues exceed payment")?;
+                bill.in_kind_paid = bill
+                    .in_kind_paid
+                    .checked_sub(*paid)
+                    .filter(|n| *n >= 0)
+                    .ok_or("guaranteed dues exceed native payment")?;
+            }
+        }
+    }
+    Ok(adjusted)
 }

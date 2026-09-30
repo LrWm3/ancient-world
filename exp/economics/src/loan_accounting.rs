@@ -72,6 +72,7 @@ pub(crate) fn settle(
                 claim,
                 crate::recovery::GuaranteedClaim::Loan(_)
                     | crate::recovery::GuaranteedClaim::Wages { .. }
+                    | crate::recovery::GuaranteedClaim::Land { .. }
             )
         {
             let (_, creditor, denomination) =

@@ -272,7 +272,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     let mut recourse = BTreeSet::new();
     let source = |id| GuaranteedClaim::Loan(id).parties(world);
     for g in &config.guarantees {
-        let (debtor, creditor, denomination) = g.claim.parties(world).ok_or(
+        let (debtor, creditor, _) = g.claim.parties(world).ok_or(
             "guarantee requires original accepted terms; recursive guarantee chains are unsupported",
         )?;
         if world.credit.as_ref().is_some_and(|c| {
@@ -287,17 +287,6 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             return Err(
                 "guarantees of pending-resale loans need a lien-subrogation adapter".into(),
             );
-        }
-        if matches!(g.claim, GuaranteedClaim::Land { .. })
-            && world
-                .storage
-                .weights
-                .get(&denomination)
-                .copied()
-                .unwrap_or(0)
-                != 0
-        {
-            return Err("land guarantees currently require a storage-free denomination".into());
         }
         if !ids.insert(g.id)
             || !recourse.insert(g.recourse)

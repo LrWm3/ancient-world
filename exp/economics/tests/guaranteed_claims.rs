@@ -920,3 +920,43 @@ fn physical_wage_guarantees_reserve_member_and_collective_storage_before_payment
         assert_eq!(run(Backend::CubeCpu), run(Backend::Reference));
     }
 }
+
+#[test]
+fn physical_land_guarantee_uses_guarantor_inventory_and_preserves_native_dues() {
+    use economics_compute_smoke::{dues_accounting::Valuation, minting::FIREWOOD};
+    let (mut w, mut s) = land_fixture();
+    s.month = 12;
+    w.agreements[0].payment.resource = FIREWOOD;
+    s.balances.clear();
+    s.balances.insert((SUPPLIER, FIREWOOD), 3);
+    let opening = Opening {
+        assets: [(900, 0)].into(),
+        dues: Some(Valuation([(900, 3)].into())),
+        exchange_values: [(FIREWOOD, 3)].into(),
+        inventory: [((SUPPLIER, FIREWOOD), 3)].into(),
+        ..Default::default()
+    };
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut a = Audit::with_opening(&w, &s, COIN, opening.clone()).unwrap();
+        through(&mut a, &mut sim, 14);
+        let bill = &sim.state.obligations[&(900, 13)];
+        assert_eq!(
+            (bill.paid, bill.in_kind_paid, bill.outstanding()),
+            (3, 3, 1)
+        );
+        assert_eq!(sim.state.balance(ISSUER, FIREWOOD), 0);
+        assert_eq!(sim.state.balance(WORKER, FIREWOOD), 3);
+        assert_eq!(sim.state.credit.loans[&101].principal, 3);
+        let b = a.book().balances();
+        assert_eq!(b[&(ISSUER, Account::DuesPayable(900, 13))], -3);
+        assert_eq!(b[&(ISSUER, Account::LoanPayable(101))], -9);
+        assert_eq!(b[&(WORKER, Account::Inventory(FIREWOOD))], 9);
+        assert_eq!(b[&(SUPPLIER, Account::SettlementGain)], -6);
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::CubeCpu), run(Backend::Reference));
+    let mut mismatched = opening;
+    mismatched.exchange_values.insert(FIREWOOD, 4);
+    assert!(Audit::with_opening(&w, &s, COIN, mismatched).is_err());
+}
