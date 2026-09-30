@@ -217,3 +217,130 @@ fn guarantee_terms_reject_unidentified_dates_and_unsupported_native_tender() {
     w.employment[0].wage_per_unit.resource = physical;
     assert!(Simulation::new(w, s, Backend::Reference).is_err());
 }
+
+const OTHER_WORKER: AgentId = 92;
+const OTHER_GUARANTOR: AgentId = 93;
+fn competing() -> (World, State) {
+    let (mut w, mut s) = fixture();
+    w.agents.push(Agent {
+        id: OTHER_WORKER,
+        name: "second worker".into(),
+    });
+    let mut participant = w
+        .participants
+        .iter()
+        .find(|p| p.agent == WORKER)
+        .unwrap()
+        .clone();
+    participant.agent = OTHER_WORKER;
+    w.participants.push(participant);
+    let mut job = w.employment[0].clone();
+    job.id = 2;
+    job.worker = OTHER_WORKER;
+    w.employment.push(job);
+    let mut g = w.recovery.guarantees[0].clone();
+    g.id = 2;
+    g.claim = GuaranteedClaim::Wages {
+        agreement: 2,
+        earned_month: 1,
+    };
+    g.recourse = 102;
+    w.recovery.guarantees.push(g);
+    s.balances.insert((SUPPLIER, COIN), 6);
+    (w, s)
+}
+#[test]
+fn explicit_guarantee_allocation_compares_identical_requests_and_finite_funds() {
+    use economics_compute_smoke::finance::CollectionPolicy::{Proportional, Stable};
+    for (policy, high_second, expected) in [
+        (Stable, false, (4, 2)),
+        (Proportional, false, (3, 3)),
+        (Proportional, true, (2, 4)),
+    ] {
+        let (mut w, s) = competing();
+        w.recovery.guarantee_policy = policy;
+        if high_second {
+            w.recovery.guarantees[0].priority = 1;
+        }
+        let mut a = Audit::with_opening(&w, &s, COIN, Opening::default()).unwrap();
+        let mut sim = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+        w.recovery.guarantees.reverse();
+        w.employment.reverse();
+        let mut reference = Simulation::new(w, s, Backend::Reference).unwrap();
+        through(&mut a, &mut sim, 2);
+        reference.run_months(2).unwrap();
+        assert_eq!(sim.state, reference.state);
+        assert_eq!(sim.ledger, reference.ledger);
+        assert_eq!(
+            (
+                sim.state.balance(WORKER, COIN),
+                sim.state.balance(OTHER_WORKER, COIN)
+            ),
+            expected
+        );
+        assert_eq!(sim.state.balance(SUPPLIER, COIN), 0);
+        let receipts: Vec<_> = sim
+            .ledger
+            .iter()
+            .filter_map(|b| b.credit.as_ref())
+            .flat_map(|b| &b.recovery)
+            .filter_map(|r| {
+                if let Receipt::Guaranteed {
+                    requested,
+                    allocated,
+                    paid,
+                    ..
+                } = r
+                {
+                    Some((*requested, *allocated, *paid))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert_eq!(receipts[0].0, 4);
+        assert_eq!(receipts[1].0, 4);
+        assert_eq!(receipts.iter().map(|r| r.2).sum::<i32>(), 6);
+        assert!(
+            receipts
+                .iter()
+                .all(|r| r.1.is_some() == (policy == Proportional))
+        );
+    }
+}
+#[test]
+fn overlapping_coverage_releases_unneeded_grants_without_double_payment() {
+    let (mut w, mut s) = competing();
+    w.recovery.guarantee_policy = economics_compute_smoke::finance::CollectionPolicy::Proportional;
+    w.agents.push(Agent {
+        id: OTHER_GUARANTOR,
+        name: "another guarantor".into(),
+    });
+    s.balances.insert((OTHER_GUARANTOR, COIN), 4);
+    s.balances.insert((SUPPLIER, COIN), 4);
+    let mut duplicate = w.recovery.guarantees[0].clone();
+    duplicate.id = 3;
+    duplicate.recourse = 103;
+    w.recovery.guarantees[0].guarantor = OTHER_GUARANTOR;
+    w.recovery.guarantees.push(duplicate);
+    let mut a = Audit::with_opening(&w, &s, COIN, Opening::default()).unwrap();
+    let mut sim = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+    w.recovery.guarantees.reverse();
+    let mut reordered = Simulation::new(w, s, Backend::Reference).unwrap();
+    through(&mut a, &mut sim, 2);
+    reordered.run_months(2).unwrap();
+    assert_eq!(sim.state, reordered.state);
+    assert_eq!(sim.ledger, reordered.ledger);
+    assert_eq!(sim.state.balance(WORKER, COIN), 4);
+    assert_eq!(sim.state.balance(OTHER_WORKER, COIN), 4);
+    assert_eq!(sim.state.credit.loans[&101].principal, 4);
+    assert_eq!(sim.state.credit.loans[&102].principal, 4);
+    assert!(!sim.state.credit.loans.contains_key(&103));
+    assert!(
+        sim.state
+            .employment
+            .earned
+            .values()
+            .all(|e| e.claim.outstanding() == 0)
+    );
+}

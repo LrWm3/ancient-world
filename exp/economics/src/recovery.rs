@@ -115,6 +115,8 @@ pub struct Bid {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Config {
     pub guarantees: Vec<Guarantee>,
+    /// Shares the guarantor's remaining opening resources; ordinary claims still precede calls.
+    pub guarantee_policy: finance::CollectionPolicy,
     pub proceedings: Vec<ProceedingTerms>,
     pub bids: Vec<Bid>,
     pub delivery_relief: Vec<crate::delivery_relief::Terms>,
@@ -199,6 +201,7 @@ pub enum Receipt {
         guarantee: u32,
         claim: GuaranteedClaim,
         requested: i32,
+        allocated: Option<i32>,
         paid: i32,
         recourse: u32,
     },
@@ -531,7 +534,9 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                             finance::ContractId::Forward(id) => {
                                 state.exchange.forwards[&id].issued <= closed
                             }
-                            finance::ContractId::Loan(_) => false,
+                            finance::ContractId::Loan(_) | finance::ContractId::Guarantee(_) => {
+                                false
+                            }
                         })
             })
             || case.secured.values().any(|v| *v < 0)
@@ -747,121 +752,176 @@ pub(crate) fn guarantees(
         .filter(|g| g.from <= state.month && state.month <= g.through)
         .collect();
     terms.sort_by_key(|g| (g.priority, g.id));
-    for g in terms {
-        let Some(claim) = guarantee_claim(world, &crate::recovery_claims::current(state, out), g)?
-        else {
-            continue;
+    loop {
+        let current = crate::recovery_claims::current(state, out);
+        let requests: Vec<_> = terms
+            .iter()
+            .filter_map(|g| match guarantee_claim(world, &current, g) {
+                Ok(Some(claim)) => Some(Ok(finance::CollectionRequest {
+                    contract: finance::ContractId::Guarantee(g.id),
+                    rank: g.priority,
+                    claim,
+                })),
+                Ok(None) => None,
+                Err(e) => Some(Err(e)),
+            })
+            .collect::<Result<_, String>>()?;
+        let grants = if world.recovery.guarantee_policy == finance::CollectionPolicy::Proportional {
+            Some(finance::proportional_grants(
+                world,
+                state.month,
+                execution,
+                &protected,
+                &requests,
+            )?)
+        } else {
+            None
         };
-        let requested = claim.outstanding();
-        let (debtor, _, denomination) = g.claim.parties(world).ok_or("missing guaranteed terms")?;
-        let payment = execution.pay_protected(
-            world,
-            state.month,
-            &claim,
-            protected
+        let mut round_paid = 0_i64;
+        for g in &terms {
+            let Some(request) = requests
+                .iter()
+                .find(|r| r.contract == finance::ContractId::Guarantee(g.id))
+            else {
+                continue;
+            };
+            let requested = request.claim.outstanding();
+            let allocated = grants.as_ref().map(|grants| grants[&request.contract]);
+            let Some(claim) =
+                guarantee_claim(world, &crate::recovery_claims::current(state, out), g)?
+            else {
+                out.recovery.push(Receipt::Guaranteed {
+                    guarantee: g.id,
+                    claim: g.claim,
+                    requested,
+                    allocated,
+                    paid: 0,
+                    recourse: g.recourse,
+                });
+                continue;
+            };
+            let (debtor, _, denomination) =
+                g.claim.parties(world).ok_or("missing guaranteed terms")?;
+            let reserve = protected
                 .get(&(g.guarantor, denomination))
                 .copied()
-                .unwrap_or(0),
-        )?;
-        let paid = payment.paid;
-        if paid > 0 {
-            let transaction = credit::tx(
-                format!("guarantee {} pays {:?}", g.id, g.claim),
-                payment.effects.clone(),
-            );
-            match g.claim {
-                GuaranteedClaim::Loan(id) => {
-                    let loan = out.after.loans.get_mut(&id).unwrap();
-                    loan.apply_payment(paid);
-                    if loan.due(state.month)? == 0 {
-                        loan.first_unpaid = None;
+                .unwrap_or(0);
+            let limit = (execution
+                .available
+                .get(&(g.guarantor, denomination))
+                .copied()
+                .unwrap_or(0)
+                - reserve)
+                .max(0)
+                .min(allocated.unwrap_or(i32::MAX));
+            let payment = execution.pay_bounded(world, state.month, true, &claim, limit)?;
+            let paid = payment.paid;
+            round_paid += i64::from(paid);
+            if paid > 0 {
+                let transaction = credit::tx(
+                    format!("guarantee {} pays {:?}", g.id, g.claim),
+                    payment.effects.clone(),
+                );
+                match g.claim {
+                    GuaranteedClaim::Loan(id) => {
+                        let loan = out.after.loans.get_mut(&id).unwrap();
+                        loan.apply_payment(paid);
+                        if loan.due(state.month)? == 0 {
+                            loan.first_unpaid = None;
+                        }
+                        out.transactions.push(transaction);
                     }
-                    out.transactions.push(transaction);
-                }
-                GuaranteedClaim::Wages {
-                    agreement,
-                    earned_month,
-                } => {
-                    let book = out
-                        .employment
-                        .get_or_insert_with(|| state.employment.clone());
-                    book.earned
-                        .get_mut(&(agreement, earned_month))
-                        .unwrap()
-                        .claim
-                        .settled += paid;
-                    out.transactions.push(transaction);
-                }
-                GuaranteedClaim::Land { agreement, due } => {
-                    let a = crate::commitments::active(world, state)
-                        .find(|a| a.id == agreement)
-                        .ok_or("missing guaranteed land agreement")?;
-                    if out.commitments.is_none() {
-                        out.commitments = Some(crate::commitments::Settlement {
-                            policy: world.payment_policy,
-                            protected: crate::commitments::protected_stock(world, state)?,
-                            obligations: crate::commitments::due_obligations(world, state)?,
-                            transactions: vec![],
-                        });
+                    GuaranteedClaim::Wages {
+                        agreement,
+                        earned_month,
+                    } => {
+                        let book = out
+                            .employment
+                            .get_or_insert_with(|| state.employment.clone());
+                        book.earned
+                            .get_mut(&(agreement, earned_month))
+                            .unwrap()
+                            .claim
+                            .settled += paid;
+                        out.transactions.push(transaction);
                     }
-                    let settlement = out.commitments.as_mut().unwrap();
-                    let bill = settlement.obligations.get_mut(&(agreement, due)).unwrap();
-                    let txs = crate::commitments::record_payment(
-                        world,
-                        a,
-                        bill,
-                        paid,
-                        true,
-                        payment.effects,
-                    );
-                    // Keep identical transfer records in the domain receipt and common batch.
-                    out.transactions.extend(txs.clone());
-                    settlement.transactions.extend(txs);
+                    GuaranteedClaim::Land { agreement, due } => {
+                        let a = crate::commitments::active(world, state)
+                            .find(|a| a.id == agreement)
+                            .ok_or("missing guaranteed land agreement")?;
+                        if out.commitments.is_none() {
+                            out.commitments = Some(crate::commitments::Settlement {
+                                policy: world.payment_policy,
+                                protected: crate::commitments::protected_stock(world, state)?,
+                                obligations: crate::commitments::due_obligations(world, state)?,
+                                transactions: vec![],
+                            });
+                        }
+                        let settlement = out.commitments.as_mut().unwrap();
+                        let bill = settlement.obligations.get_mut(&(agreement, due)).unwrap();
+                        let txs = crate::commitments::record_payment(
+                            world,
+                            a,
+                            bill,
+                            paid,
+                            true,
+                            payment.effects,
+                        );
+                        // Keep identical transfer records in the domain receipt and common batch.
+                        out.transactions.extend(txs.clone());
+                        settlement.transactions.extend(txs);
+                    }
                 }
+                *out.after.recovery.paid_guarantees.entry(g.id).or_default() += paid;
+                let stayed = active(world, &out.after, debtor).is_some();
+                let recourse = out.after.loans.entry(g.recourse).or_insert_with(|| Loan {
+                    id: g.recourse,
+                    creditor: g.guarantor,
+                    debtor,
+                    denomination,
+                    original_principal: 0,
+                    principal: 0,
+                    interest: 0,
+                    interest_remainder: 0,
+                    monthly_rate_bps: 0,
+                    opened: state.month,
+                    last_accrued: state.month,
+                    term_months: RECOURSE_TERM_MONTHS,
+                    grace_months: 0,
+                    first_unpaid: None,
+                    status: Status::Active,
+                    collateral: None,
+                    priority: g.priority,
+                });
+                recourse.original_principal = recourse
+                    .original_principal
+                    .checked_add(paid)
+                    .ok_or("recourse overflow")?;
+                recourse.principal = recourse
+                    .principal
+                    .checked_add(paid)
+                    .ok_or("recourse overflow")?;
+                recourse.status = if stayed {
+                    Status::Stayed
+                } else {
+                    Status::Active
+                };
+                recourse.last_accrued = state.month;
             }
-            *out.after.recovery.paid_guarantees.entry(g.id).or_default() += paid;
-            let stayed = active(world, &out.after, debtor).is_some();
-            let recourse = out.after.loans.entry(g.recourse).or_insert_with(|| Loan {
-                id: g.recourse,
-                creditor: g.guarantor,
-                debtor,
-                denomination,
-                original_principal: 0,
-                principal: 0,
-                interest: 0,
-                interest_remainder: 0,
-                monthly_rate_bps: 0,
-                opened: state.month,
-                last_accrued: state.month,
-                term_months: RECOURSE_TERM_MONTHS,
-                grace_months: 0,
-                first_unpaid: None,
-                status: Status::Active,
-                collateral: None,
-                priority: g.priority,
+            out.recovery.push(Receipt::Guaranteed {
+                guarantee: g.id,
+                claim: g.claim,
+                requested,
+                allocated,
+                paid,
+                recourse: g.recourse,
             });
-            recourse.original_principal = recourse
-                .original_principal
-                .checked_add(paid)
-                .ok_or("recourse overflow")?;
-            recourse.principal = recourse
-                .principal
-                .checked_add(paid)
-                .ok_or("recourse overflow")?;
-            recourse.status = if stayed {
-                Status::Stayed
-            } else {
-                Status::Active
-            };
-            recourse.last_accrued = state.month;
         }
-        out.recovery.push(Receipt::Guaranteed {
-            guarantee: g.id,
-            claim: g.claim,
-            requested,
-            paid,
-            recourse: g.recourse,
-        });
+        // Overlapping coverage can release a grant after another guarantor pays.
+        // Re-inventory remaining claims against unspent opening funds, never receipts.
+        if grants.is_none() || round_paid == 0 {
+            break;
+        }
     }
     Ok(())
 }

@@ -1146,7 +1146,9 @@ fn due(
                     .unwrap();
                 (agreement.debtor, agreement.payment.resource)
             }
-            finance::ContractId::Forward(_) | finance::ContractId::Wages(_) => unreachable!(),
+            finance::ContractId::Forward(_)
+            | finance::ContractId::Wages(_)
+            | finance::ContractId::Guarantee(_) => unreachable!(),
         }
     };
     let accounts: BTreeMap<_, _> = order
@@ -1268,7 +1270,9 @@ fn due(
                 *budgets = execution.available.clone();
                 continue;
             }
-            finance::ContractId::Forward(_) | finance::ContractId::Wages(_) => {
+            finance::ContractId::Forward(_)
+            | finance::ContractId::Wages(_)
+            | finance::ContractId::Guarantee(_) => {
                 unreachable!("claims collect at their own boundary")
             }
         };

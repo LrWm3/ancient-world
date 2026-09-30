@@ -312,6 +312,7 @@ pub(super) fn batch(
                     guarantee,
                     claim,
                     requested,
+                    allocated,
                     paid,
                     recourse,
                 } => {
@@ -328,7 +329,7 @@ pub(super) fn batch(
                     {
                         let mut record = json!({"kind":"guarantee_payment","guarantee":guarantee,
                             "claim":format!("{claim:?}"),"debtor":debtor,"creditor":creditor,
-                            "guarantor":g.guarantor,"requested":requested,"paid":paid,"recourse":recourse});
+                            "guarantor":g.guarantor,"requested":requested,"allocated":allocated,"paid":paid,"recourse":recourse});
                         if let crate::recovery::GuaranteedClaim::Loan(id) = claim {
                             record["loan"] = json!(id);
                         }
