@@ -290,6 +290,7 @@ Completed integrations:
 48. Preserve receiving-space reservations from estate sales into subsequent commodity advances.
 49. Pool member inventory purchases with fractional carry and reserve collective space before later lending.
 50. Carry inventory contribution reservations into negotiated market matching without resetting fractional carry.
+51. Carry household inventory liquidation through retained debt, explicit discharge and permitted dissolution.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.
@@ -324,3 +325,8 @@ do not cover subsequent inventory changes, which have their own focused gates.
 Inventory/negotiation composition passed 22 tests across five targets and strict
 all-target Clippy, including CPU/checkpoint/accounting comparisons with full and
 available household storage.
+
+Household inventory wind-down and affected estate/disposal targets passed 35 tests
+with strict all-target Clippy. Unfunded lots retain the estate, residual debt blocks
+dissolution, and only cleared claims allow remaining household goods to reach the
+member. Private member cash remains separate throughout.

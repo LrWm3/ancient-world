@@ -67,3 +67,10 @@ strict all-target Clippy. An estate lot followed by a negotiated lot shares cash
 raw storage and exact household pooling reservations. Configured estate bids are
 supplied consent; the negotiated buyer still follows the household purchasing
 policy. These tests do not establish autonomous estate demand.
+
+Household seller integration now compares retained debt, explicit discharge and
+unfunded bids. Unsold lots block estate closure; a closed estate with residual debt
+still blocks household dissolution. Only after claims clear can the existing
+wind-down policy distribute remaining goods. Member cash remains private. The
+three affected targets passed 35 tests, including CPU/reference, checkpoint and
+separate financial statements; strict all-target Clippy passed.

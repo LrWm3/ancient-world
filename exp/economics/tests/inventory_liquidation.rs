@@ -664,3 +664,110 @@ fn negotiated_trade_inherits_estate_purchase_contribution_space_and_fractional_c
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn household_inventory_estate_keeps_member_property_separate_until_permitted_wind_down() {
+    use economics_compute_smoke::households::{self, dissolution};
+    for (funded, discharge) in [(true, false), (true, true), (false, true)] {
+        let (mut w, mut s) = fixture(true, 12);
+        add_household(&mut w, &s);
+        w.households[0].governance.constitution.allow_dissolution = true;
+        w.lending[0].debtor = HOME;
+        w.recovery.proceedings[0].debtor = HOME;
+        w.recovery.proceedings[0].discharge_deficiency = discharge;
+        w.recovery.inventory_bids = vec![Bid {
+            id: 1,
+            listing: 1,
+            buyer: UNFUNDED,
+            month: 3,
+            price: 8,
+        }];
+        s.balances.insert((PERSON, GRAIN), 0);
+        s.balances.insert((HOME, GRAIN), 6);
+        s.balances.insert((BUYER, TOKEN), 7);
+        s.balances
+            .insert((UNFUNDED, TOKEN), if funded { 8 } else { 0 });
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            sim.run_months(1).unwrap();
+            // Disclosed loss before the reporting interval; member cash is intact.
+            sim.state.balances.insert((HOME, TOKEN), 0);
+            dissolution::request(&mut sim.world, &sim.state, HOME, BUYER).unwrap();
+            let mut audit = Audit::with_opening(
+                &sim.world,
+                &sim.state,
+                TOKEN,
+                Opening {
+                    inventory: [((HOME, GRAIN), 12)].into(),
+                    exchange_values: [(GRAIN, 2)].into(),
+                    ..Opening::default()
+                },
+            )
+            .unwrap();
+            while sim.state.month < 3 {
+                audit.step(&mut sim).unwrap();
+            }
+            assert!(dissolution::finish(&mut sim.world, &sim.state, HOME, BUYER).is_err());
+            let mut checkpoint = (sim.clone(), audit.clone());
+            let finish = |sim: &mut Simulation, audit: &mut Audit| {
+                while sim.state.month < 6 {
+                    audit.step(sim).unwrap();
+                }
+                assert_eq!(sim.state.balance(BUYER, TOKEN), 7);
+                assert_eq!(
+                    sim.state.balance(STATE_AGENT, TOKEN),
+                    if funded { 8 } else { 0 }
+                );
+                let closed = funded && discharge;
+                assert_eq!(
+                    sim.state.credit.recovery.proceedings[&1].stage,
+                    if funded { Stage::Closed } else { Stage::Active }
+                );
+                assert_eq!(
+                    sim.state.credit.loans[&1].principal,
+                    if !funded {
+                        10
+                    } else if discharge {
+                        0
+                    } else {
+                        2
+                    }
+                );
+                assert_eq!(
+                    sim.state.balance(HOME, GRAIN),
+                    if closed {
+                        0
+                    } else if funded {
+                        2
+                    } else {
+                        6
+                    }
+                );
+                assert_eq!(sim.state.balance(BUYER, GRAIN), if closed { 2 } else { 0 });
+                assert_eq!(
+                    dissolution::finish(&mut sim.world, &sim.state, HOME, BUYER).is_ok(),
+                    closed
+                );
+                while sim.state.month < 7 {
+                    audit.step(sim).unwrap();
+                }
+                assert_eq!(
+                    households::membership::current(&sim.world.households[0]),
+                    if closed { vec![] } else { vec![BUYER] }
+                );
+                for agent in &sim.world.agents {
+                    let report = audit.book().statements(agent.id, 2, 6).unwrap();
+                    assert_eq!(report.assets, report.liabilities + report.equity);
+                }
+            };
+            finish(&mut sim, &mut audit);
+            finish(&mut checkpoint.0, &mut checkpoint.1);
+            assert_eq!(
+                (&sim.state, &sim.ledger, &audit),
+                (&checkpoint.0.state, &checkpoint.0.ledger, &checkpoint.1)
+            );
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
