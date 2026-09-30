@@ -296,6 +296,10 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                 .lending
                 .iter()
                 .any(|a| a.debtor == p.estate || a.terms.creditor == p.estate)
+            || world
+                .prepaid_deliveries
+                .iter()
+                .any(|t| t.seller == p.estate || t.buyer == p.estate)
             || config.guarantees.iter().any(|g| g.guarantor == p.estate)
             || world
                 .agreements

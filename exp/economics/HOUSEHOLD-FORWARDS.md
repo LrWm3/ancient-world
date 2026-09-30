@@ -118,8 +118,23 @@ explicitly excluded from this new admission path. The old forward recovery and
 relief scenarios retain their existing support.
 
 Discovery, negotiated forward pricing, production underwriting, multiple concurrent
-seller advances, default/refund negotiation and direct-forward estate integration
+seller advances and default/refund negotiation
 remain extensions. Household funding covers its own promises; no new member-forward
 assistance policy is introduced. Autonomous hiring and longer-horizon employer
 viability remain next organizational work. Person self-directed policy changes
 remain deferred.
+
+## Direct-forward recovery follow-up (Fibonacci batch 1)
+
+Direct prepaid deliveries now use the existing authorized recovery proceeding,
+including household wind-down, native delivery claims, deadline extensions and
+explicit write-offs. Partial performance remains real delivery; waived quantities
+recognize creditor loss/debtor relief without creating goods or cash. Neither
+party may enter a new prepayment while in an active proceeding. Dedicated estate
+custody agents cannot be configured as forward counterparties.
+
+Tests cover a two-of-four delivery, extension, residual write-off, preserved
+balance sheets, blocked dissolution until resolution, CPU/reference agreement,
+checkpoint continuation and rejection of new seller/buyer admissions during
+recovery. Plain acquisition is covered here; town recovery remains a separate
+composition step.

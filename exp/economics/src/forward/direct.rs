@@ -57,12 +57,11 @@ pub(crate) fn validate(w: &World, s: &State) -> Result<(), String> {
         || w.competition.is_some()
         || w.work_choice.is_some()
         || w.priority == Priority::ConsequenceAware
-        || !w.recovery.proceedings.is_empty()
         || !w.access_offers.is_empty()
         || !w.offers.is_empty()
         || !w.bids.is_empty()
     {
-        return Err("direct forwards require plain, bilateral or town acquisition without recovery or tool underwriting".into());
+        return Err("direct forwards require plain, bilateral or town acquisition without tool underwriting".into());
     }
     let mut ids = BTreeSet::new();
     let stock = |id| {
@@ -142,6 +141,7 @@ pub(crate) fn evaluate(
         let eligible =
             [t.seller, t.buyer].iter().all(|a| {
                 !s.terminal.contains_key(a)
+                    && crate::recovery::active(w, &s.credit, *a).is_none()
                     && crate::households::market::active(w, s, *a)
                     && !w.households.iter().any(|h| {
                         h.agent == *a

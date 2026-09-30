@@ -497,3 +497,176 @@ fn malformed_terms_and_unsupported_tool_driver_fail_before_execution() {
         .quantity += 1;
     assert!(Simulation::new(sim.world, sim.state, Backend::Reference).is_err());
 }
+
+#[test]
+fn direct_delivery_recovery_extends_then_writes_off_only_the_unfulfilled_claim() {
+    use economics_compute_smoke::{
+        delivery_relief::{Action as Relief, Terms as ReliefTerms},
+        households::dissolution,
+        recovery::{ProceedingTerms, Stage},
+        scenario::STATE_AGENT,
+    };
+    const ESTATE: AgentId = 60002;
+    let (mut w, mut s) = fixture(false);
+    w.town_market = None;
+    s.town_market = Default::default();
+    w.households[0].governance.constitution.allow_dissolution = true;
+    w.households[0].adults = vec![PERSON];
+    w.households[0]
+        .admission
+        .as_mut()
+        .unwrap()
+        .founders
+        .retain(|(id, _)| *id == PERSON);
+    s.balances.insert((HOME, GRAIN), 2);
+    w.agents.push(Agent {
+        id: ESTATE,
+        name: "estate custody".into(),
+    });
+    w.recovery.proceedings.push(ProceedingTerms {
+        id: 1,
+        debtor: HOME,
+        authority: STATE_AGENT,
+        estate: ESTATE,
+        denomination: TOKEN,
+        opening_month: 5,
+        earliest_close: 5,
+        assets: vec![],
+        discharge_deficiency: true,
+    });
+    w.recovery.delivery_relief = vec![
+        ReliefTerms {
+            id: 1,
+            proceeding: 1,
+            contract: CONTRACT,
+            debtor: HOME,
+            creditor: BUYER,
+            month: 5,
+            expected_due: 3,
+            expected_remaining: 2,
+            action: Relief::Extend { due: 7 },
+        },
+        ReliefTerms {
+            id: 2,
+            proceeding: 1,
+            contract: CONTRACT,
+            debtor: HOME,
+            creditor: BUYER,
+            month: 8,
+            expected_due: 7,
+            expected_remaining: 2,
+            action: Relief::WriteOff { quantity: 2 },
+        },
+    ];
+    let mut later = w.prepaid_deliveries[0].clone();
+    later.id += 1;
+    later.month = 6;
+    later.due = 9;
+    w.prepaid_deliveries.push(later);
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut a = audit(&w, &s);
+        through(&mut sim, &mut a, 3);
+        assert_eq!(sim.state.exchange.forwards[&CONTRACT].delivered, 2);
+        dissolution::request(&mut sim.world, &sim.state, HOME, PERSON).unwrap();
+        through(&mut sim, &mut a, 5);
+        assert_eq!(sim.state.exchange.forwards[&CONTRACT].effective_due(), 7);
+        assert_eq!(
+            sim.state.credit.recovery.proceedings[&1].stage,
+            Stage::Active
+        );
+        assert_eq!(balance(&a, HOME, A::DeferredRevenue(CONTRACT)), -2);
+        assert!(dissolution::finish(&mut sim.world, &sim.state, HOME, PERSON).is_err());
+        let (mut resumed, mut ra) = (sim.clone(), a.clone());
+        through(&mut sim, &mut a, 9);
+        through(&mut resumed, &mut ra, 9);
+        assert_eq!(
+            (&sim.state, &sim.ledger, &a),
+            (&resumed.state, &resumed.ledger, &ra)
+        );
+        assert_eq!(
+            sim.state.credit.recovery.proceedings[&1].stage,
+            Stage::Closed
+        );
+        assert_eq!(sim.state.exchange.forwards[&CONTRACT].delivered, 2);
+        assert_eq!(
+            sim.state.exchange.forwards[&CONTRACT].claim().outstanding(),
+            0
+        );
+        assert_eq!(sim.state.balance(BUYER, GRAIN), 2);
+        assert_eq!(balance(&a, HOME, A::DeferredRevenue(CONTRACT)), 0);
+        assert_eq!(balance(&a, BUYER, A::ForwardPrepayment(CONTRACT)), 0);
+        assert_eq!(balance(&a, BUYER, A::CreditLoss), 2);
+        assert_eq!(balance(&a, HOME, A::DebtRelief), -2);
+        assert!(!sim.state.exchange.forwards.contains_key(&(CONTRACT + 1)));
+        dissolution::finish(&mut sim.world, &sim.state, HOME, PERSON).unwrap();
+        through(&mut sim, &mut a, 10);
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    for seller in [false, true] {
+        let mut bad = w.clone();
+        if seller {
+            bad.prepaid_deliveries[0].seller = ESTATE;
+        } else {
+            bad.prepaid_deliveries[0].buyer = ESTATE;
+        }
+        assert!(Simulation::new(bad, s.clone(), Backend::Reference).is_err());
+    }
+}
+
+#[test]
+fn either_party_in_direct_forward_recovery_cannot_accept_a_new_prepayment() {
+    use economics_compute_smoke::{recovery::ProceedingTerms, scenario::STATE_AGENT};
+    let (mut w, mut s) = fixture(false);
+    w.town_market = None;
+    s.town_market = Default::default();
+    s.balances.insert((SELLER, GRAIN), 0);
+    w.prepaid_deliveries[0].seller = SELLER;
+    w.agents.push(Agent {
+        id: 60002,
+        name: "custody".into(),
+    });
+    w.recovery.proceedings.push(ProceedingTerms {
+        id: 1,
+        debtor: SELLER,
+        authority: STATE_AGENT,
+        estate: 60002,
+        denomination: TOKEN,
+        opening_month: 4,
+        earliest_close: 4,
+        assets: vec![],
+        discharge_deficiency: true,
+    });
+    for (id, seller, buyer) in [(CONTRACT + 1, SELLER, BUYER), (CONTRACT + 2, BUYER, SELLER)] {
+        let mut t = w.prepaid_deliveries[0].clone();
+        t.id = id;
+        t.seller = seller;
+        t.buyer = buyer;
+        t.month = 5;
+        t.due = 6;
+        w.prepaid_deliveries.push(t);
+    }
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut a = audit(&w, &s);
+        through(&mut sim, &mut a, 5);
+        assert_eq!(sim.state.exchange.forwards.len(), 1);
+        let rejected: Vec<_> = sim
+            .ledger
+            .iter()
+            .flat_map(|b| &b.transactions)
+            .filter_map(|t| match &t.forward {
+                Some(Event::AdmissionRejected {
+                    contract,
+                    reason: Rejection::Ineligible,
+                }) => Some(*contract),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(rejected, vec![CONTRACT + 1, CONTRACT + 2]);
+        replay(&w, &s, &sim);
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}
