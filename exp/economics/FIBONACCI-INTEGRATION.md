@@ -450,3 +450,11 @@ liquidation and household forwards passed; strict all-target Clippy passed.
     loan with a real residual deficiency, later harvest/rent and retained versus
     discharged debt run together with separate statements and CPU/checkpoint
     parity. The six-target gate passed 70 tests; strict all-target Clippy passed.
+
+12. **Posted guarantees join common productive acceptance.** Explicit bundles
+    can name seed credit, a posted guarantee, citizenship, land and planting.
+    Funding and legal controls reject the entire requested bundle. A later labor
+    interruption fails the crop, calls accepted coverage and leaves native seed
+    recourse against the original farmer, even after formation permission is
+    withdrawn. Tampered admission and CPU/checkpoint controls pass. The five-target
+    gate passed 39 tests; strict all-target Clippy passed.

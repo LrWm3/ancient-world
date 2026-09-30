@@ -756,3 +756,24 @@ advances on an older recourse loan. Coin claim coverage is implemented; physical
 and delivery coverage, lien transfer, autonomous underwriting and guarantee
 formation/discovery remain outstanding. Person self-directed policy changes stay
 deferred, and constitutions/charters remain static.
+
+## Current consolidation additions — 2026-09-30
+
+Later [Fibonacci integrations](FIBONACCI-INTEGRATION.md) supersede the earlier
+blanket exclusions above. Native loan/wage/land/forward guarantees, posted
+guarantee admission, explicit authorized-liquidation lien subrogation and
+whole-loan estate assignment now have common adapters and mixed regressions.
+Assignments can carry compatible collateral and explicitly transferable guarantee
+benefits. Land guarantees can select accepted coin tender while preserving
+native recourse. Household/member books remain separate throughout.
+
+Authorized recovery now composes with bounded cultivation/land search, and
+explicit productive bundles can include posted guarantees. Existing crops and
+native rent continue; new land agreements are stayed during proceedings.
+Inventory estate sales also share the mint, negotiated, town and legacy stock
+acquisition budgets, including fractional household storage reservations.
+
+These changes do not establish autonomous underwriting, universal productive
+bundles, arbitrary guarantee tenders, multiple custody denominations, discount
+claim pricing or general liquidation. Those remain in the active
+[consolidation roadmap](CONTRACT-CONSOLIDATION.md).

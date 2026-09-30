@@ -538,7 +538,7 @@ with strict all-target Clippy and repository artifact checks.
 
 ## Explicit financial and productive bundles
 
-Common requests may now name direct advances and prepaid deliveries alongside
+Common requests may now name direct advances, prepaid deliveries and posted guarantees alongside
 citizenship, land and process offers in a supported search configuration. Financial
 request validation and successful-admission inspection are shared with the existing
 financial-only adapter. Productive prerequisites retain their explicit order;
@@ -552,7 +552,7 @@ actors, unsupported annotations and reversed prerequisites remain errors. Planti
 is reserved at Acquire and consumes the delivered seed at Productive.
 
 This does not let callers override underwriting, bypass allocation, negotiate terms
-or guarantee future performance. Financed purchases, guarantees and employment
+or guarantee future performance. Financed purchases and employment
 retain their financial-only common adapter until their productive bundles have
 corresponding mixed regressions.
 
@@ -575,3 +575,14 @@ explicitly discharged coin deficiency remains distinct. Separate statements,
 CPU/reference results and reconstructed-checkpoint continuation agree. This does
 not add autonomous insolvency initiation or permission to acquire new land while
 under the stay. Other exclusive acquisition drivers retain their existing guards.
+
+A posted guarantee now composes with an explicit seed-credit/citizenship/land/
+planting bundle. Acceptance checks the guarantor's own dated application and law;
+missing funding or forbidden guarantee formation rejects the requested bundle
+without publishing any admission. Planting still consumes seed at Productive.
+A later labor interruption leaves the failed crop and the accepted loan intact:
+the guarantee pays the overdue seed and creates native recourse against the
+farmer. Withdrawing permission to form new guarantees does not erase that
+accepted obligation. Forged admission, CPU/reference execution and reconstructed
+checkpoint continuation are tested. These are supplied offers and consent, not
+autonomous selection or underwriting of contingent credit.

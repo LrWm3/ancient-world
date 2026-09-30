@@ -306,12 +306,14 @@ pub fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, String> 
             .iter()
             .cloned()
             .partition(|r| financial::is_financial(r.offer));
-        if financial
-            .iter()
-            .any(|r| !matches!(r.offer, Id::Advance(_) | Id::PrepaidDelivery(_)))
-        {
+        if financial.iter().any(|r| {
+            !matches!(
+                r.offer,
+                Id::Advance(_) | Id::PrepaidDelivery(_) | Id::Guarantee(_)
+            )
+        }) {
             return Err(
-                "mixed productive bundles currently accept direct credit and prepaid terms".into(),
+                "mixed productive bundles currently accept direct credit, prepaid and guarantee terms".into(),
             );
         }
         financial::validate_requests(sim, &financial)?;
