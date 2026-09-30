@@ -517,3 +517,8 @@ with both members fed, finite coins and reconciled separate books. The income
 example now defaults to the coordinated 36-month scenario. Household employment,
 town-market credit integration and autonomous work/support-term discovery remain
 extensions.
+
+Shared collateral now has an explicit [authorized-liquidation option](LIEN-PRIORITY.md):
+compatible direct-loan liens reserve each asset's realized proceeds by collateral
+priority. Default alone does not transfer title or create recovery cash. Mortgage
+migration, lien subrogation and autonomous listing remain outstanding.

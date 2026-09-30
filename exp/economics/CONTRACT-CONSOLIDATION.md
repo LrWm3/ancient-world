@@ -159,7 +159,10 @@ can establish that all these arrangements compose.
 5. **Broaden actual liquidation.** Configured asset lists and funded bids now
    transfer permitted title/attached responsibilities and distribute actual
    proceeds through the loan waterfall. Eligible listing discovery and funded bid preparation now exist. Add autonomous
-   listing/valuation, further asset kinds beyond portable equipment, competing liens and general claims. [Receivable collection](ESTATE-RECEIVABLES.md)
+   listing/valuation, further asset kinds beyond portable equipment and general claims.
+   [Compatible competing liens](LIEN-PRIORITY.md) now reserve actual per-asset
+   proceeds under explicit authorized-liquidation terms; cross-currency priority
+   and lien subrogation remain open. [Receivable collection](ESTATE-RECEIVABLES.md)
    now blocks deficient closure until existing assets are performed or disposed of;
    receivable sale/assignment and inventory liquidation remain open. Unsold assets
    remain unsold; appraisals do not create coins. Retain surplus, deficiencies,

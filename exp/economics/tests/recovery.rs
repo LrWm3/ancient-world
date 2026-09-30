@@ -1465,3 +1465,257 @@ fn fulfilled_deliveries_or_inactive_cases_cannot_generate_writeoffs() {
             .any(|r| matches!(r, Receipt::DeliveryRelief { applied: false, rejection: Some(reason), .. } if *reason == expected)));
     }
 }
+
+#[test]
+fn competing_liens_share_only_their_assets_realized_proceeds() {
+    use economics_compute_smoke::financial_reporting::Audit;
+    for policy in [CollectionPolicy::Stable, CollectionPolicy::Proportional] {
+        for junior_rank in [0, 1] {
+            for funded in [false, true] {
+                let run = |backend, reverse| {
+                    let (mut w, mut s) = fixture();
+                    proceeding(&mut w, false);
+                    w.collection_policy = policy;
+                    for (i, loan) in w.lending.iter_mut().enumerate() {
+                        loan.terms.grace_months = 0;
+                        // Ordinary collection reverses seniority deliberately.
+                        loan.priority = if i == 0 { 9 } else { 0 };
+                        loan.collateral = Some(credit::Collateral {
+                            asset: PLOT,
+                            priority: if i == 0 { 0 } else { junior_rank },
+                            pledged: true,
+                            settlement: credit::CollateralSettlement::AuthorizedLiquidation,
+                        });
+                    }
+                    if reverse {
+                        w.lending.reverse();
+                    }
+                    s.balances
+                        .insert((BUYER, TOKEN), if funded { 8 } else { 0 });
+                    let mut sim = distressed(w, s, backend);
+                    assert_eq!(sim.state.credit.loans.len(), 2);
+                    let mut audit =
+                        Audit::with_assets(&sim.world, &sim.state, TOKEN, [(PLOT, 10)].into())
+                            .unwrap();
+                    while (sim.state.month, sim.state.phase) != (3, Phase::Acquire) {
+                        audit.step(&mut sim).unwrap();
+                    }
+                    // Neither default nor opening an estate transfers title or
+                    // reduces secured debt using an appraisal.
+                    assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(PERSON));
+                    assert!(sim.state.credit.loans.values().all(|l| l.principal == 10));
+                    let (mut resumed, mut ra) = (sim.clone(), audit.clone());
+                    audit.step(&mut sim).unwrap();
+                    let expected = if !funded {
+                        (0, 0)
+                    } else if junior_rank == 0 && policy == CollectionPolicy::Proportional {
+                        (4, 4)
+                    } else {
+                        (8, 0)
+                    };
+                    let case = &sim.state.credit.recovery.proceedings[&1];
+                    assert_eq!(case.cash, if funded { 8 } else { 0 });
+                    assert_eq!(
+                        (
+                            case.secured.get(&10).copied().unwrap_or(0),
+                            case.secured.get(&11).copied().unwrap_or(0)
+                        ),
+                        expected
+                    );
+                    assert!(sim.state.credit.loans.values().all(|l| l.principal == 10));
+                    assert_eq!(
+                        credit::owner(&sim.world, &sim.state, PLOT),
+                        Some(if funded { BUYER } else { PERSON })
+                    );
+                    while sim.state.month < 5 {
+                        audit.step(&mut sim).unwrap();
+                    }
+                    while resumed.state.month < 5 {
+                        ra.step(&mut resumed).unwrap();
+                    }
+                    assert_eq!(
+                        (&sim.state, &sim.ledger, &audit),
+                        (&resumed.state, &resumed.ledger, &ra)
+                    );
+                    assert_eq!(
+                        (
+                            sim.state.balance(STATE_AGENT, TOKEN),
+                            sim.state.balance(OTHER, TOKEN)
+                        ),
+                        expected
+                    );
+                    assert_eq!(sim.state.credit.loans[&10].principal, 10 - expected.0);
+                    assert_eq!(sim.state.credit.loans[&11].principal, 10 - expected.1);
+                    assert!(
+                        sim.state.credit.loans.values().all(|l| l
+                            .collateral
+                            .as_ref()
+                            .unwrap()
+                            .pledged
+                            != funded)
+                    );
+                    for a in &sim.world.agents {
+                        let report = audit.book().statements(a.id, 2, 4).unwrap();
+                        assert_eq!(report.assets, report.liabilities + report.equity);
+                    }
+                    (sim.state, sim.ledger, audit)
+                };
+                let expected = run(Backend::Reference, false);
+                assert_eq!(expected, run(Backend::Reference, true));
+                assert_eq!(expected, run(Backend::CubeCpu, false));
+            }
+        }
+    }
+}
+
+#[test]
+fn shared_liens_require_compatible_terms_and_explicit_liquidation_authority() {
+    use economics_compute_smoke::financial_reporting::Audit;
+    let (mut w, s) = fixture();
+    for loan in &mut w.lending {
+        loan.terms.grace_months = 0;
+        loan.collateral = Some(credit::Collateral {
+            asset: PLOT,
+            priority: 0,
+            pledged: true,
+            settlement: credit::CollateralSettlement::AuthorizedLiquidation,
+        });
+    }
+    let run = |backend| {
+        let mut sim = distressed(w.clone(), s.clone(), backend);
+        let mut audit =
+            Audit::with_assets(&sim.world, &sim.state, TOKEN, [(PLOT, 10)].into()).unwrap();
+        for _ in 0..4 {
+            let month = sim.state.month;
+            while sim.state.month == month {
+                audit.step(&mut sim).unwrap();
+            }
+        }
+        assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(PERSON));
+        assert!(sim.state.credit.recovery.proceedings.is_empty());
+        assert!(
+            sim.state
+                .credit
+                .loans
+                .values()
+                .all(|l| l.principal == 10 && l.collateral.as_ref().unwrap().pledged)
+        );
+        (sim.state, sim.ledger, audit)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+
+    let mut incompatible = w.clone();
+    incompatible.lending[1]
+        .collateral
+        .as_mut()
+        .unwrap()
+        .settlement = credit::CollateralSettlement::FixedValue { value: 10 };
+    let mut sim = Simulation::new(incompatible, s.clone(), Backend::Reference).unwrap();
+    sim.run_months(1).unwrap();
+    assert!(sim.state.credit.loans.contains_key(&10));
+    assert!(!sim.state.credit.loans.contains_key(&11));
+    assert_eq!(sim.state.balance(OTHER, TOKEN), 10);
+
+    let mut guarantee_world = w.clone();
+    guarantee_world
+        .recovery
+        .guarantees
+        .push(guarantee(1, 10, 5));
+    assert!(
+        Simulation::new(guarantee_world, s.clone(), Backend::Reference)
+            .unwrap_err()
+            .contains("lien-subrogation")
+    );
+
+    let mut foreign = w;
+    proceeding(&mut foreign, false);
+    foreign.lending[1].terms.denomination = scenario::GRAIN;
+    assert!(
+        Simulation::new(foreign, s, Backend::Reference)
+            .unwrap_err()
+            .contains("denomination")
+    );
+}
+
+#[test]
+fn a_lien_cannot_take_proceeds_reserved_for_another_asset() {
+    use economics_compute_smoke::financial_reporting::Audit;
+    let run = |backend| {
+        let (mut w, mut s) = fixture();
+        proceeding(&mut w, false);
+        const SECOND_PLOT: AssetId = 500;
+        w.assets.push(Asset {
+            id: SECOND_PLOT,
+            owner: PERSON,
+            kind: 1,
+        });
+        for (i, loan) in w.lending.iter_mut().enumerate() {
+            loan.terms.grace_months = 0;
+            loan.collateral = Some(credit::Collateral {
+                asset: if i == 0 { PLOT } else { SECOND_PLOT },
+                priority: 0,
+                pledged: true,
+                settlement: credit::CollateralSettlement::AuthorizedLiquidation,
+            });
+        }
+        w.recovery.proceedings[0].assets[0].minimum_price = 4;
+        w.recovery.proceedings[0].assets.push(Listing {
+            asset: SECOND_PLOT,
+            minimum_price: 12,
+        });
+        w.recovery.bids[0].price = 4;
+        w.recovery.bids.push(Bid {
+            id: 2,
+            proceeding: 1,
+            buyer: BUYER,
+            asset: SECOND_PLOT,
+            month: 3,
+            price: 12,
+        });
+        s.balances.insert((BUYER, TOKEN), 16);
+        let mut sim = distressed(w, s, backend);
+        let mut audit = Audit::with_assets(
+            &sim.world,
+            &sim.state,
+            TOKEN,
+            [(PLOT, 10), (SECOND_PLOT, 10)].into(),
+        )
+        .unwrap();
+        while (sim.state.month, sim.state.phase) != (3, Phase::Productive) {
+            audit.step(&mut sim).unwrap();
+        }
+        assert_eq!(
+            sim.state.credit.recovery.proceedings[&1].secured,
+            [(10, 4), (11, 10)].into()
+        );
+        assert_eq!(sim.state.balance(ESTATE, TOKEN), 16);
+        let (mut resumed, mut ra) = (sim.clone(), audit.clone());
+        while sim.state.month < 5 {
+            audit.step(&mut sim).unwrap();
+        }
+        while resumed.state.month < 5 {
+            ra.step(&mut resumed).unwrap();
+        }
+        assert_eq!(
+            (&sim.state, &sim.ledger, &audit),
+            (&resumed.state, &resumed.ledger, &ra)
+        );
+        assert_eq!(
+            (
+                sim.state.balance(STATE_AGENT, TOKEN),
+                sim.state.balance(OTHER, TOKEN)
+            ),
+            (6, 10)
+        );
+        assert_eq!(sim.state.credit.loans[&10].principal, 4);
+        assert_eq!(sim.state.credit.loans[&11].principal, 0);
+        assert_eq!(sim.state.balance(BUYER, TOKEN), 0);
+        assert_eq!(sim.state.balance(ESTATE, TOKEN), 0);
+        for a in &sim.world.agents {
+            let report = audit.book().statements(a.id, 2, 4).unwrap();
+            assert_eq!(report.assets, report.liabilities + report.equity);
+        }
+        (sim.state, sim.ledger, audit)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}

@@ -61,16 +61,36 @@ pub struct Collateral {
 /// Agreement-selected settlement: immediate fixed credit or actual later proceeds.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CollateralSettlement {
-    FixedValue { value: i32 },
-    ResaleProceeds { minimum_price: i32 },
+    FixedValue {
+        value: i32,
+    },
+    ResaleProceeds {
+        minimum_price: i32,
+    },
+    /// Title stays with the debtor until an authorized proceeding sells it.
+    /// Compatible liens share actual proceeds; arrears alone never transfer title.
+    AuthorizedLiquidation,
 }
 impl CollateralSettlement {
     fn is_valid(&self) -> bool {
         match *self {
             Self::FixedValue { value } => value > 0,
             Self::ResaleProceeds { minimum_price } => minimum_price > 0,
+            Self::AuthorizedLiquidation => true,
         }
     }
+}
+/// Shared collateral requires explicit common enforcement and denomination.
+/// A fixed-value or creditor-resale promise remains exclusive.
+fn compatible_liens(
+    a: &Collateral,
+    denomination: ResourceId,
+    b: &Collateral,
+    other: ResourceId,
+) -> bool {
+    denomination == other
+        && a.settlement == CollateralSettlement::AuthorizedLiquidation
+        && b.settlement == CollateralSettlement::AuthorizedLiquidation
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Offer {
@@ -491,6 +511,7 @@ fn validate_purchase(world: &World, state: &State) -> Result<(), String> {
             || o.loan.grace_months > MAX_TERM_MONTHS
             || o.collateral.asset != o.sale.asset
             || !o.collateral.settlement.is_valid()
+            || o.collateral.settlement == CollateralSettlement::AuthorizedLiquidation
             || !o.collateral.pledged
         {
             return Err("invalid financed purchase offer".into());
@@ -626,7 +647,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         }
     }
     crate::resale::validate(world, state)?;
-    let mut pledged = BTreeSet::new();
+    let mut pledged = BTreeMap::new();
     for (&id, l) in &state.credit.loans {
         if id != l.id
             || !ids.contains(&id)
@@ -650,8 +671,11 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                 !assets.contains(&c.asset)
                     || !c.settlement.is_valid()
                     || (c.pledged
-                        && (!pledged.insert(c.asset)
-                            || owner(world, state, c.asset) != Some(l.debtor)))
+                        && (pledged.insert(c.asset, (c, l.denomination)).is_some_and(
+                            |(prior, denomination)| {
+                                !compatible_liens(c, l.denomination, prior, denomination)
+                            },
+                        ) || owner(world, state, c.asset) != Some(l.debtor)))
                     || (c.pledged && !matches!(l.status, Status::Active | Status::Stayed))
                     || (l.status == Status::Active && !c.pledged)
             })
@@ -738,9 +762,11 @@ fn advances(
         } else if a.collateral.as_ref().is_some_and(|c| {
             owner(world, state, c.asset) != Some(a.debtor)
                 || out.after.loans.values().any(|l| {
-                    l.collateral
-                        .as_ref()
-                        .is_some_and(|p| p.pledged && p.asset == c.asset)
+                    l.collateral.as_ref().is_some_and(|p| {
+                        p.pledged
+                            && p.asset == c.asset
+                            && !compatible_liens(c, a.terms.denomination, p, l.denomination)
+                    })
                 })
         }) {
             Some(Rejection::UnavailableAsset)
@@ -1224,6 +1250,11 @@ fn due(
                 && state.month - since >= l.grace_months
                 && let Some(collateral) = &mut l.collateral
             {
+                if collateral.settlement == CollateralSettlement::AuthorizedLiquidation {
+                    // A missed installment is not authorization to liquidate.
+                    out.after.loans.insert(id, l);
+                    continue;
+                }
                 if let CollateralSettlement::ResaleProceeds { minimum_price } =
                     collateral.settlement
                 {

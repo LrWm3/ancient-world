@@ -270,6 +270,9 @@ Completed integrations:
 28. Include eligible collection techniques without multiplying exclusive tool capacity.
 29. Share accepted credit-record application between forecasts and committed settlement.
 30. Compose estate tool purchase, household hiring and actual environmental production.
+31. Admit compatible shared liens under an explicit authorized-liquidation agreement.
+32. Allocate each asset’s actual proceeds by collateral rank and equal-rank policy.
+33. Preserve separate asset reservations, arrears authority and residual deficiencies.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.

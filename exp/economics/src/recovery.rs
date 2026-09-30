@@ -327,11 +327,17 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                     && matches!(
                         o.collateral.settlement,
                         credit::CollateralSettlement::ResaleProceeds { .. }
+                            | credit::CollateralSettlement::AuthorizedLiquidation
                     )
             })
+        }) || world.lending.iter().any(|a| {
+            g.claim == GuaranteedClaim::Loan(a.id)
+                && a.collateral.as_ref().is_some_and(|c| {
+                    c.settlement == credit::CollateralSettlement::AuthorizedLiquidation
+                })
         }) {
             return Err(
-                "guarantees of pending-resale loans need a lien-subrogation adapter".into(),
+                "guarantees of shared-liquidation or pending-resale loans need a lien-subrogation adapter".into(),
             );
         }
         if !ids.insert(g.id)
@@ -409,6 +415,15 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             })
         {
             return Err("estate land tender must match its cash denomination".into());
+        }
+        if world.lending.iter().any(|a| {
+            a.debtor == p.debtor
+                && a.terms.denomination != p.denomination
+                && a.collateral
+                    .as_ref()
+                    .is_some_and(|c| p.assets.iter().any(|x| x.asset == c.asset))
+        }) {
+            return Err("estate listed liens must match the custody denomination".into());
         }
         // Custody agents cannot participate in other configured economic arrangements.
         if world.participants.iter().any(|p0| p0.agent == p.estate)
@@ -1147,6 +1162,59 @@ pub(crate) fn saleable_asset(
         })
 }
 
+/// Proceeds are a reservation, not a payment: actual distribution is next Due.
+fn lien_proceeds(
+    world: &World,
+    state: &State,
+    out: &credit::Boundary,
+    p: &ProceedingTerms,
+    asset: AssetId,
+    proceeds: i32,
+) -> Result<BTreeMap<u32, i32>, String> {
+    let mut requests = Vec::new();
+    for loan in out.after.loans.values().filter(|l| l.debtor == p.debtor) {
+        let Some(c) = loan
+            .collateral
+            .as_ref()
+            .filter(|c| c.pledged && c.asset == asset)
+        else {
+            continue;
+        };
+        if loan.denomination != p.denomination {
+            return Err("liquidation lien denomination differs from sale proceeds".into());
+        }
+        requests.push(finance::CollectionRequest {
+            contract: finance::ContractId::Loan(loan.id),
+            rank: c.priority,
+            claim: estate_claim(p, loan, loan.debt()?, state.month),
+        });
+    }
+    requests.sort_by_key(|r| (r.rank, r.contract));
+    let mut window = finance::Execution::opening(world, state);
+    window.available = [((p.estate, p.denomination), proceeds)].into();
+    let shared = if world.collection_policy == finance::CollectionPolicy::Proportional {
+        Some(finance::proportional_grants(
+            world,
+            state.month,
+            &window,
+            &BTreeMap::new(),
+            &requests,
+        )?)
+    } else {
+        None
+    };
+    let mut result = BTreeMap::new();
+    for request in requests {
+        let finance::ContractId::Loan(id) = request.contract else {
+            unreachable!()
+        };
+        let limit = shared.as_ref().map_or(i32::MAX, |g| g[&request.contract]);
+        let payment = window.pay_bounded(world, state.month, true, &request.claim, limit)?;
+        result.insert(id, payment.paid);
+    }
+    Ok(result)
+}
+
 pub(crate) fn sales(
     world: &World,
     state: &State,
@@ -1200,27 +1268,20 @@ pub(crate) fn sales(
             out.recovery.push(Receipt::SaleRejected { bid: b.id });
             continue;
         }
+        // Allocate this asset's proceeds once, before they join other estate
+        // cash. Unsecured claim rank cannot override collateral lien priority.
+        let grants = lien_proceeds(world, state, out, p, b.asset, b.price)?;
         let case = out.after.recovery.proceedings.get_mut(&p.id).unwrap();
         case.cash = case
             .cash
             .checked_add(b.price)
             .ok_or("estate proceeds overflow")?;
         case.sold.insert(b.asset);
-        for l in out
-            .after
-            .loans
-            .values_mut()
-            .filter(|l| l.debtor == p.debtor && l.denomination == p.denomination)
-        {
-            if l.collateral
-                .as_ref()
-                .is_some_and(|c| c.pledged && c.asset == b.asset)
-            {
-                let amount = b.price.min(l.debt()?);
-                case.secured.insert(l.id, amount);
-                l.collateral.as_mut().unwrap().pledged = false;
-                l.status = Status::Stayed;
-            }
+        for (id, amount) in grants {
+            case.secured.insert(id, amount);
+            let loan = out.after.loans.get_mut(&id).unwrap();
+            loan.collateral.as_mut().unwrap().pledged = false;
+            loan.status = Status::Stayed;
         }
         out.recovery.push(Receipt::Sold {
             proceeding: p.id,

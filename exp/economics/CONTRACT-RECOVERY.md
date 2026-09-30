@@ -112,8 +112,10 @@ is the same. Neither creates coins from an appraisal.
 At a later Due boundary, actual proceeds reserved for an asset's existing lien
 pay that claim first. Any remaining estate cash funds the loan and eligible land-cash waterfall:
 lower collection ranks first, with proportional sharing among equal ranks. The
-current loan book permits one active pledge per asset, not multiple competing
-liens. Collateral priority is separate from ordinary collection priority.
+loan book now permits compatible same-denomination liens when direct terms select
+`AuthorizedLiquidation`. Each asset's realized proceeds are reserved by collateral
+priority before ordinary distribution; see [shared collateral](LIEN-PRIORITY.md).
+Other enforcement choices remain exclusive.
 
 After the earliest authorized closing month, all listed assets must be sold and
 secured reservations resolved. Unpaid creditors cannot be discharged while
@@ -133,7 +135,7 @@ from claims that should have blocked closing.
 Portable durable equipment now follows funded sale and buyer depreciation; see
 [equipment liquidation](EQUIPMENT-LIQUIDATION.md). Remaining general claims, stock
 inventories, multicurrency estates,
-shared operating custodians, multiple liens, automatic asset discovery, auctions,
+shared operating custodians, cross-currency or disputed liens, automatic asset discovery, auctions,
 contested authorization, autonomous restructuring and other claim adapters
 are not implemented. Constitution/charter and state-law machinery will eventually
 supply these terms; configured authorization is the current integration point.
