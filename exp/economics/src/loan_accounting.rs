@@ -76,7 +76,11 @@ pub(crate) fn settle(
             let (_, creditor, denomination) = claim
                 .current_parties(world, &b.after)
                 .ok_or("missing guaranteed terms")?;
-            if *paid > 0 && denomination != coin && tender.resource == denomination {
+            if *paid > 0
+                && tender.resource != coin
+                && (tender.resource == denomination
+                    || matches!(claim, crate::recovery::GuaranteedClaim::Loan(_)))
+            {
                 let g = world
                     .recovery
                     .guarantees
@@ -103,7 +107,7 @@ pub(crate) fn settle(
                 transfers.push(Transfer {
                     from: g.guarantor,
                     to: creditor,
-                    amount: Amount::new(denomination, *paid),
+                    amount: tender.clone(),
                 });
             }
         }

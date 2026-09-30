@@ -167,7 +167,9 @@ can establish that all these arrangements compose.
    consent, cap, trigger, term and dated recourse, with explicit stable/proportional
    allocation. Physical and direct-delivery claims now have native adapters and statements.
    Posted guarantee discovery and dated consented admission now exist. Extend
-   autonomous acceptance and further alternative tenders. Land guarantees now
+   autonomous acceptance and further alternative tenders. Explicitly agreed loan
+   coin payments now preserve native debt/recourse with whole conversion lots and
+   settlement gain/loss accounting. Land guarantees now
    select original accepted coin terms with whole-unit allocation and native recourse. Explicit authorized-liquidation
    lien subrogation now preserves both active pledges and already reserved proceeds;
    broader security/denomination combinations remain open. A successful

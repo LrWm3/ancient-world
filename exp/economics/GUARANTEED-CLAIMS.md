@@ -75,8 +75,9 @@ extensions move eligibility without extending coverage. Physical wage payments
 reserve household pooling space before committing. Guarantee observers identify
 the native resource alongside requested, allocated and paid quantities.
 
-Alternative tenders beyond accepted land coin terms, conversion damages and
-dynamically underwritten tool-forward coverage remain extensions. Fixed resource valuations
+Accepted land coin terms and explicitly agreed loan coin payments now have
+tender adapters. Broader tender routes, conversion damages and dynamically
+underwritten tool-forward coverage remain extensions. Fixed resource valuations
 do not establish general FX or noncash collateral/estate accounting.
 
 Guarantees of recourse loans and pending-resale mortgages remain rejected. General security
@@ -135,3 +136,28 @@ adds one collective coin only after settlement; it cannot fund another call.
 Recourse records two coin claims and one native claim, with separate valuation
 and statements. Reversed catalogs, CPU/checkpoint replay and observer quantities
 agree.
+
+## Agreed alternative payment for a loan guarantee
+
+`GuaranteeTender::AgreedLoanCoins` records the explicitly consented payment
+resource and whole payment units per native loan unit. It applies only to loan
+claims with unsecured recourse. The payment resource must be distinct, a stock
+resource and storage-free; the rate must be positive. This does not change the
+borrower's ordinary repayment terms or infer creditor consent from a market quote.
+
+The lifetime guarantee cap, original debt reduction and resulting recourse all
+remain in native units. Funding and proportional allocation use payment units
+and whole conversion lots. Less than one lot pays nothing. Overlapping guarantees
+recheck the outstanding claim and cannot discharge it twice. Actual receipts
+record the tender separately; paying coins for a grain debt never creates grain.
+
+Reporting uses actual tender quantity for cash flow and explicit fixed reporting
+values for the discharged claim and recourse. A difference is settlement gain or
+loss for the creditor and guarantor. If the tender is not the reporting currency,
+its stock cost basis moves through the common inventory adapter; it is not
+misclassified as reporting cash. This is fixed contract conversion, not FX discovery.
+
+The five-target gate passed 44 tests and strict all-target Clippy passed. New
+controls cover underfunding, rates below/equal/above reporting value, a second
+currency with distinct historical cost, overlapping coverage, stable/proportional
+allocation, reordered terms, CPU/checkpoint equality and forged tender rejection.

@@ -9,24 +9,48 @@ pub enum GuaranteeTender {
     Native,
     /// Use the original land agreement's accepted coin rate, without native fallback.
     AcceptedLandCoins,
+    /// Explicit guarantor/creditor consent to a fixed payment per native loan unit.
+    /// This changes performance of this guarantee only; recourse stays native.
+    AgreedLoanCoins {
+        resource: ResourceId,
+        coins_per_unit: i32,
+    },
 }
 
 pub(super) fn terms(world: &World, g: &Guarantee) -> Result<Option<CoinPayment>, String> {
-    if g.tender == GuaranteeTender::Native {
-        return Ok(None);
-    }
-    let GuaranteedClaim::Land { agreement, .. } = g.claim else {
-        return Err("alternative guarantee tender requires accepted land coin terms".into());
+    let t = match g.tender {
+        GuaranteeTender::Native => return Ok(None),
+        GuaranteeTender::AcceptedLandCoins => {
+            let GuaranteedClaim::Land { agreement, .. } = g.claim else {
+                return Err(
+                    "alternative guarantee tender requires accepted land coin terms".into(),
+                );
+            };
+            world
+                .activities
+                .coin_payments
+                .get(&agreement)
+                .ok_or("alternative guarantee without accepted land coin terms")?
+                .clone()
+        }
+        GuaranteeTender::AgreedLoanCoins {
+            resource,
+            coins_per_unit,
+        } => {
+            if !matches!(g.claim, GuaranteedClaim::Loan(_))
+                || g.security != super::RecourseSecurity::Unsecured
+            {
+                return Err(
+                    "agreed loan tender requires a loan claim and unsecured recourse".into(),
+                );
+            }
+            CoinPayment {
+                resource,
+                coins_per_unit,
+            }
+        }
     };
-    let t = world
-        .activities
-        .coin_payments
-        .get(&agreement)
-        .ok_or("alternative guarantee without accepted land coin terms")?;
-    let (_, _, native) = g
-        .claim
-        .parties(world)
-        .ok_or("missing guaranteed land terms")?;
+    let (_, _, native) = g.claim.parties(world).ok_or("missing guaranteed terms")?;
     if t.resource == native
         || t.coins_per_unit <= 0
         || !world
@@ -37,7 +61,7 @@ pub(super) fn terms(world: &World, g: &Guarantee) -> Result<Option<CoinPayment>,
     {
         return Err("guarantee coin tender must be distinct, positive and storage-free".into());
     }
-    Ok(Some(t.clone()))
+    Ok(Some(t))
 }
 
 pub(super) fn funding(

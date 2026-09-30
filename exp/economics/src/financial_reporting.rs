@@ -1701,6 +1701,7 @@ impl Audit {
                         guarantee,
                         claim: recovery::GuaranteedClaim::Loan(id),
                         paid,
+                        tender,
                         ..
                     } => {
                         let l = loan(id)?;
@@ -1713,29 +1714,70 @@ impl Audit {
                         let q = interest.entry(*id).or_default();
                         let paid_interest = (*q).min(*paid);
                         *q -= paid_interest;
-                        if l.denomination != coin {
+                        if tender.resource != l.denomination {
+                            let native_value = crate::reporting_value::value(
+                                coin,
+                                &self.exchange_values,
+                                l.denomination,
+                                *paid,
+                            )?;
+                            let actual_value = crate::reporting_value::value(
+                                coin,
+                                &self.exchange_values,
+                                tender.resource,
+                                tender.quantity,
+                            )?;
+                            let difference = actual_value - native_value;
+                            result(
+                                &mut lines,
+                                g.guarantor,
+                                if difference > 0 {
+                                    Account::SettlementLoss
+                                } else {
+                                    Account::SettlementGain
+                                },
+                                difference,
+                            );
+                            result(
+                                &mut lines,
+                                l.creditor,
+                                if difference > 0 {
+                                    Account::SettlementGain
+                                } else {
+                                    Account::SettlementLoss
+                                },
+                                -difference,
+                            );
+                        }
+                        if tender.resource != coin {
                             continue;
                         }
+                        let cash_interest = if *paid > 0 {
+                            i128::from(tender.quantity) * i128::from(paid_interest)
+                                / i128::from(*paid)
+                        } else {
+                            0
+                        };
                         flow(
                             &mut flows,
                             g.guarantor,
                             Account::Cash,
                             Flow::Investing,
-                            -i128::from(*paid),
+                            -i128::from(tender.quantity),
                         )?;
                         flow(
                             &mut flows,
                             l.creditor,
                             Account::Cash,
                             Flow::Operating,
-                            i128::from(paid_interest),
+                            cash_interest,
                         )?;
                         flow(
                             &mut flows,
                             l.creditor,
                             Account::Cash,
                             Flow::Investing,
-                            i128::from(*paid - paid_interest),
+                            i128::from(tender.quantity) - cash_interest,
                         )?;
                     }
                     recovery::Receipt::Guaranteed {

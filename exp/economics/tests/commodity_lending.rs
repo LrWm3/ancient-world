@@ -4,7 +4,7 @@ use economics_compute_smoke::{
     credit::{Advance, LoanOffer},
     financial_reporting::{Audit, Opening},
     model::*,
-    scenario::{self, GRAIN, PERSON, STATE_AGENT, TOKEN},
+    scenario::{self, GRAIN, PERSON, SEED, STATE_AGENT, TOKEN},
     simulation::Simulation,
 };
 use std::collections::BTreeMap;
@@ -207,4 +207,253 @@ fn coin_proceeding_admits_unsecured_native_arrears_without_converting_or_accruin
         (sim.state, sim.ledger, a)
     };
     assert_eq!(run(Backend::CubeCpu), run(Backend::Reference));
+}
+
+#[test]
+fn agreed_coin_guarantee_settles_native_loan_units_without_delivering_phantom_grain() {
+    use economics_compute_smoke::{
+        credit,
+        recovery::{Guarantee, GuaranteeTender, GuaranteedClaim, RecourseSecurity},
+        settlement,
+    };
+    for rate in [2, 3, 4] {
+        for cash in [rate - 1, rate] {
+            let (mut w, mut s, opening) = fixture(0);
+            w.agents.push(Agent {
+                id: 99,
+                name: "coin guarantor".into(),
+            });
+            s.balances.insert((99, TOKEN), cash);
+            w.recovery.guarantees.push(Guarantee {
+                id: 1,
+                claim: GuaranteedClaim::Loan(1),
+                guarantor: 99,
+                cap: 2,
+                from: 1,
+                through: 6,
+                delay_months: 0,
+                recourse: 101,
+                priority: 0,
+                follows_assignment: false,
+                security: RecourseSecurity::Unsecured,
+                tender: GuaranteeTender::AgreedLoanCoins {
+                    resource: TOKEN,
+                    coins_per_unit: rate,
+                },
+            });
+            let run = |backend| {
+                let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+                let mut audit = Audit::with_opening(&w, &s, TOKEN, opening.clone()).unwrap();
+                while (sim.state.month, sim.state.phase) != (2, Phase::Due) {
+                    audit.step(&mut sim).unwrap();
+                }
+                let before = sim.state.clone();
+                let mut resumed = Simulation::new(w.clone(), before.clone(), backend).unwrap();
+                let mut ra = audit.clone();
+                let prefix = sim.ledger.len();
+                audit.step(&mut sim).unwrap();
+                let paid = i32::from(cash >= rate);
+                assert_eq!(sim.state.credit.loans[&1].principal, 1 - paid);
+                assert_eq!(sim.state.balance(STATE_AGENT, GRAIN), 6);
+                assert_eq!(sim.state.balance(PERSON, GRAIN), 0);
+                assert_eq!(sim.state.balance(99, TOKEN), cash - paid * rate);
+                assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), paid * rate);
+                assert_eq!(sim.state.credit.loans.contains_key(&101), paid > 0);
+                if paid > 0 {
+                    let recourse = &sim.state.credit.loans[&101];
+                    assert_eq!(
+                        (recourse.principal, recourse.denomination, recourse.opened),
+                        (1, GRAIN, 2)
+                    );
+                    let book = audit.book().balances();
+                    assert_eq!(book[&(99, Account::LoanReceivable(101))], 3);
+                    let difference = i128::from(rate - 3);
+                    let gain_or_loss = if difference > 0 {
+                        Account::SettlementLoss
+                    } else {
+                        Account::SettlementGain
+                    };
+                    assert_eq!(
+                        book.get(&(99, gain_or_loss)).copied().unwrap_or(0),
+                        difference
+                    );
+                    assert_eq!(
+                        audit.book().statements(99, 1, 2).unwrap().closing_cash,
+                        i128::from(cash - rate)
+                    );
+                }
+                let accepted = sim.ledger.last().unwrap();
+                let mut forged = accepted.clone();
+                for r in &mut forged.credit.as_mut().unwrap().recovery {
+                    if let economics_compute_smoke::recovery::Receipt::Guaranteed {
+                        tender, ..
+                    } = r
+                    {
+                        tender.quantity += 1;
+                    }
+                }
+                let mut rejected = before.clone();
+                assert!(
+                    settlement::commit(&w, &mut rejected, &forged, backend, sim.effect_limit)
+                        .is_err()
+                );
+                assert_eq!(rejected, before);
+                while sim.state.month < 3 {
+                    audit.step(&mut sim).unwrap();
+                }
+                while resumed.state.month < 3 {
+                    ra.step(&mut resumed).unwrap();
+                }
+                assert_eq!(
+                    (&sim.state, &sim.ledger[prefix..], &audit),
+                    (&resumed.state, &resumed.ledger[..], &ra)
+                );
+                assert_eq!(
+                    sim.state.credit.loans[&1].status == credit::Status::Repaid,
+                    paid > 0
+                );
+                (sim.state, sim.ledger, audit)
+            };
+            assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+        }
+    }
+}
+
+#[test]
+fn competing_alternative_guarantees_share_whole_payment_lots_and_cannot_pay_a_claim_twice() {
+    use economics_compute_smoke::{
+        finance::CollectionPolicy,
+        recovery::{Guarantee, GuaranteeTender, GuaranteedClaim, RecourseSecurity},
+    };
+    for policy in [CollectionPolicy::Stable, CollectionPolicy::Proportional] {
+        let (mut w, mut s, opening) = fixture(0);
+        w.agents.push(Agent {
+            id: 99,
+            name: "shared guarantor".into(),
+        });
+        s.balances.insert((99, TOKEN), 3);
+        w.recovery.guarantee_policy = policy;
+        w.storage.weights.insert(SEED, 1);
+        for id in [1, 2] {
+            w.recovery.guarantees.push(Guarantee {
+                id,
+                claim: GuaranteedClaim::Loan(1),
+                guarantor: 99,
+                cap: 2,
+                from: 1,
+                through: 6,
+                delay_months: 0,
+                recourse: 100 + id,
+                priority: 0,
+                follows_assignment: false,
+                security: RecourseSecurity::Unsecured,
+                tender: GuaranteeTender::AgreedLoanCoins {
+                    resource: TOKEN,
+                    coins_per_unit: 2,
+                },
+            });
+        }
+        let run = |backend, reverse| {
+            let mut world = w.clone();
+            if reverse {
+                world.recovery.guarantees.reverse();
+            }
+            let mut sim = Simulation::new(world.clone(), s.clone(), backend).unwrap();
+            let mut audit = Audit::with_opening(&world, &s, TOKEN, opening.clone()).unwrap();
+            while sim.state.month < 3 {
+                audit.step(&mut sim).unwrap();
+            }
+            assert_eq!(sim.state.credit.loans[&1].debt().unwrap(), 0);
+            assert_eq!(
+                sim.state
+                    .credit
+                    .recovery
+                    .paid_guarantees
+                    .values()
+                    .sum::<i32>(),
+                1
+            );
+            assert_eq!(
+                sim.state
+                    .credit
+                    .loans
+                    .values()
+                    .filter(|l| l.id >= 100)
+                    .map(|l| l.principal)
+                    .sum::<i32>(),
+                1
+            );
+            assert_eq!(sim.state.balance(99, TOKEN), 1);
+            assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 2);
+            assert_eq!(sim.state.balance(STATE_AGENT, GRAIN), 6);
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference, true), run(Backend::CubeCpu, false));
+        for (resource, coins_per_unit) in [(TOKEN, 0), (GRAIN, 2), (SEED, 2)] {
+            let mut invalid = w.clone();
+            invalid.recovery.guarantees[0].tender = GuaranteeTender::AgreedLoanCoins {
+                resource,
+                coins_per_unit,
+            };
+            assert!(Simulation::new(invalid, s.clone(), Backend::Reference).is_err());
+        }
+    }
+}
+
+#[test]
+fn alternative_guarantee_currency_keeps_its_cost_basis_when_it_is_not_reporting_cash() {
+    use economics_compute_smoke::recovery::{
+        Guarantee, GuaranteeTender, GuaranteedClaim, RecourseSecurity,
+    };
+    const OTHER_COIN: ResourceId = 100;
+    let (mut w, mut s, mut opening) = fixture(0);
+    w.agents.push(Agent {
+        id: 99,
+        name: "other currency guarantor".into(),
+    });
+    w.resources.push(Resource {
+        id: OTHER_COIN,
+        name: "other coin".into(),
+        kind: ResourceKind::Stock,
+    });
+    s.balances.insert((99, OTHER_COIN), 3);
+    opening.inventory.insert((99, OTHER_COIN), 6);
+    opening.exchange_values.insert(OTHER_COIN, 5);
+    w.recovery.guarantees.push(Guarantee {
+        id: 1,
+        claim: GuaranteedClaim::Loan(1),
+        guarantor: 99,
+        cap: 1,
+        from: 1,
+        through: 6,
+        delay_months: 0,
+        recourse: 101,
+        priority: 0,
+        follows_assignment: false,
+        security: RecourseSecurity::Unsecured,
+        tender: GuaranteeTender::AgreedLoanCoins {
+            resource: OTHER_COIN,
+            coins_per_unit: 1,
+        },
+    });
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut audit = Audit::with_opening(&w, &s, TOKEN, opening.clone()).unwrap();
+        while sim.state.month < 3 {
+            audit.step(&mut sim).unwrap();
+        }
+        assert_eq!(sim.state.credit.loans[&1].debt().unwrap(), 0);
+        assert_eq!(sim.state.credit.loans[&101].denomination, GRAIN);
+        assert_eq!(sim.state.balance(99, OTHER_COIN), 2);
+        assert_eq!(sim.state.balance(STATE_AGENT, OTHER_COIN), 1);
+        let b = audit.book().balances();
+        assert_eq!(b[&(99, Account::LoanReceivable(101))], 3);
+        assert_eq!(b[&(99, Account::Inventory(OTHER_COIN))], 4);
+        assert_eq!(b[&(99, Account::SettlementGain)], -3);
+        assert_eq!(b[&(99, Account::SettlementLoss)], 2);
+        assert_eq!(b[&(STATE_AGENT, Account::Inventory(OTHER_COIN))], 5);
+        assert_eq!(audit.book().statements(99, 1, 2).unwrap().closing_cash, 0);
+        (sim.state, sim.ledger, audit)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
 }

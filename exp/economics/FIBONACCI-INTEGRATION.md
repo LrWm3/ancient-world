@@ -699,3 +699,13 @@ separately recorded affected gates and are not covered by that snapshot.
     eight-target gate passed 124 tests with one ignored; the additional final
     checkpoint-validation regression and strict all-target Clippy passed. The
     one-participant joint bound remains; multi-person forecasts are outstanding.
+
+37. **Loan guarantees can perform through an explicitly agreed alternative tender.**
+    Whole storage-free payment units discharge native loan units and create native
+    unsecured recourse. No physical grain is invented. Shared stable/proportional
+    calls cannot double-pay overlapping coverage. Statements distinguish actual
+    cash, native claim value and settlement gains/losses; a non-reporting currency
+    retains its historical inventory basis. CPU/checkpoint and reordered controls
+    agree, underfunded lots remain unpaid, and forged tenders fail atomically.
+    The five-target gate passed 44 tests and strict all-target Clippy passed.
+    Consent and rates are supplied; wider tender/security combinations remain open.
