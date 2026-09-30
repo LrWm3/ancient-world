@@ -203,10 +203,9 @@ pub fn validate(w: &World) -> Result<(), String> {
             "production market requires bounded independent work and an adaptive town book".into(),
         );
     }
-    if crate::credit::enabled(w) && matches!(c.policy, Policy::Cooperate(_) | Policy::Agreement(_))
-    {
+    if crate::credit::enabled(w) && matches!(c.policy, Policy::Cooperate(_)) {
         return Err(
-            "lending with cooperative production requires a separate acquisition adapter".into(),
+            "autonomous cooperative lending requires debt-aware individual assessments".into(),
         );
     }
     let denomination = payment_resource(w).ok_or("missing production market terms")?;

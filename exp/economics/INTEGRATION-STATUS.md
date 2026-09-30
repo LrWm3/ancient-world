@@ -798,3 +798,7 @@ control checks funded and unavailable-worker outcomes on CPU with separate books
 This does not optimize collective policies. A separate subsequent adapter now
 connects the town production-market planner to ordinary coin loans and households
 using member-directed purchases; collective town buying remains outstanding.
+
+Configured cooperative deliveries now share direct-loan acquisition reservations
+and retain cancellation after failed performance; see [cooperative lending](COOPERATION.md#configured-agreements-with-ordinary-lending).
+Automatic cooperative discovery with lending still requires debt-aware acceptance.

@@ -87,13 +87,22 @@ fn latest(s: &State) -> Option<&Boundary> {
         .last()
         .and_then(|r| r.cooperation.as_deref())
 }
+fn cancelled(s: &State, c: &Contract) -> bool {
+    s.town_market.history.iter().any(|r| {
+        r.cooperation
+            .as_ref()
+            .is_some_and(|b| b.agreement == Some(c.start) && b.failure.is_some())
+    })
+}
 pub fn choices(w: &World, s: &State) -> Option<BTreeMap<AgentId, Choice>> {
     match policy(w) {
-        Some(Policy::Agreement(c)) => Some(if (c.start..=c.through).contains(&s.month) {
-            c.choices.clone()
-        } else {
-            BTreeMap::new()
-        }),
+        Some(Policy::Agreement(c)) => Some(
+            if (c.start..=c.through).contains(&s.month) && !cancelled(s, c) {
+                c.choices.clone()
+            } else {
+                BTreeMap::new()
+            },
+        ),
         Some(Policy::Cooperate(_)) => Some(
             latest(s)
                 .and_then(|b| b.active.as_ref())
@@ -179,7 +188,7 @@ fn validate_contract(w: &World, c: &Contract) -> Result<(), String> {
 }
 pub(crate) fn validate_state(w: &World, s: &State) -> Result<(), String> {
     if matches!(policy(w), Some(Policy::Cooperate(_) | Policy::Agreement(_)))
-        && !matches!(s.phase, Phase::Open | Phase::Acquire)
+        && !matches!(s.phase, Phase::Open | Phase::Due | Phase::Acquire)
         && s.town_market
             .history
             .last()
@@ -320,11 +329,23 @@ fn eligible(w: &World, s: &State, c: &Contract) -> bool {
             && crate::opportunities::permits(w, s, *a, crate::opportunities::Action::StockTrade)
     })
 }
-fn settle(w: &World, s: &State, c: &Contract) -> Result<Vec<Transaction>, String> {
+fn settle(
+    w: &World,
+    s: &State,
+    c: &Contract,
+    opening: &Resources,
+) -> Result<Vec<Transaction>, String> {
     if !eligible(w, s, c) {
         return Err("participant unavailable or outside marketplace".into());
     }
-    let mut resources = Resources::opening(w, s);
+    let mut resources = opening.clone();
+    if resources.pooling.is_none() {
+        resources.pooling = Some(crate::households::income_reservations::Reservations::new(
+            w,
+            s,
+            resources.storage.clone(),
+        ));
+    }
     let mut transactions = vec![];
     for d in c.deliveries.iter().filter(|d| d.month == s.month) {
         for transfer in [&d.goods, &d.payment] {
@@ -688,6 +709,15 @@ fn discover(
 }
 
 pub fn evaluate(w: &World, s: &State) -> Result<Option<Round>, String> {
+    evaluate_with(w, s, &Resources::opening(w, s), s)
+}
+
+pub(crate) fn evaluate_with(
+    w: &World,
+    s: &State,
+    opening: &Resources,
+    planning_state: &State,
+) -> Result<Option<Round>, String> {
     let Some(policy @ (Policy::Cooperate(_) | Policy::Agreement(_))) = policy(w) else {
         return Ok(None);
     };
@@ -707,9 +737,17 @@ pub fn evaluate(w: &World, s: &State) -> Result<Option<Round>, String> {
         failure: None,
     };
     let current = match policy {
-        Policy::Agreement(c) => (c.start..=c.through)
-            .contains(&s.month)
-            .then(|| c.as_ref().clone()),
+        Policy::Agreement(c) => {
+            if cancelled(s, c) {
+                b.agreement = Some(c.start);
+                b.event = "Cancelled".into();
+                None
+            } else {
+                (c.start..=c.through)
+                    .contains(&s.month)
+                    .then(|| c.as_ref().clone())
+            }
+        }
         Policy::Cooperate(mode) => {
             if let Some(c) = latest(s)
                 .and_then(|b| b.active.as_ref())
@@ -717,7 +755,7 @@ pub fn evaluate(w: &World, s: &State) -> Result<Option<Round>, String> {
             {
                 Some(c.clone())
             } else {
-                let result = discover(w, s, *mode, &mut b)?;
+                let result = discover(w, planning_state, *mode, &mut b)?;
                 b.event = if result.is_some() {
                     "Accepted"
                 } else {
@@ -744,7 +782,7 @@ pub fn evaluate(w: &World, s: &State) -> Result<Option<Round>, String> {
     };
     if let Some(c) = current {
         b.agreement = Some(c.start);
-        match settle(w, s, &c) {
+        match settle(w, s, &c, opening) {
             Ok(transactions) => {
                 round.transactions = transactions;
                 b.completed = c

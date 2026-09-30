@@ -12,8 +12,8 @@ forecasts preserve other participants' ordinary decisions and inspect their need
 deficits separately, with a two-member farming/warmth integration control.
 Town production/purchase planning now also carries ordinary coin loans, debt and
 arrears forecasts, including households whose charter delegates buying to members.
-Its rollouts preserve the complete opening acquisition budget; collective town
-buying and cooperative production contracts still require their own adapters.
+Its rollouts preserve the complete opening acquisition budget; configured cooperative deliveries also share that budget. Collective town
+buying and autonomous cooperative credit assessment still require adapters.
 Household mortgages now connect repayment to solvent disposal and dissolution.
 Independent leases (including fixed-reserve and bounded-forecast stock income)
 and physical mint procurement compose with financed purchases;
@@ -288,3 +288,7 @@ billing. Funding, projections, estate allocation, reporting and closure read the
 adjusted claim. A composed person/household wage-support, rent and prepaid-delivery
 scenario compares accepted relief with an otherwise identical unresolved estate.
 This is configured consent, not autonomous renegotiation or automatic insolvency.
+
+Configured cooperative deliveries now share direct-loan acquisition reservations
+and retain cancellation after failed performance; see [cooperative lending](COOPERATION.md#configured-agreements-with-ordinary-lending).
+Automatic cooperative discovery with lending still requires debt-aware acceptance.

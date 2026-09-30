@@ -184,3 +184,30 @@ unit test, and 48 regression tests across calibration, production markets,
 reciprocal markets, telemetry and town markets. The final receipt additions and
 strict proposer-preference assertion were also checked directly. Strict
 all-target Clippy and formatting passed. The full crate suite was not run.
+
+## Configured agreements with ordinary lending
+
+A supplied `Policy::Agreement` now settles after loan admission using the shared
+Acquire budget. Loan receipts cannot pay a current delivery, and a participant
+cannot lend and spend the same opening coins. Sufficient independent funding
+settles both; retained borrowed cash may pay a later delivery after Due collection.
+Forecast discovery receives the original acquisition state, while settlement uses
+the quoted legal state and remaining reservations, including pooled storage.
+
+The same cancellation consequence applies to supplied agreements: a failed
+package leaves earlier exchanges final and cancels subsequent deliveries, even
+when new loan money becomes spendable next month. Resuming a checkpoint cannot
+restart that cancelled agreement. The separate loan continues to be serviced.
+
+`tests/cooperative_lending.rs` checks these boundaries, CPU/reference equality,
+reconstructed continuation, separate double-entry statements and tamper rejection.
+Work is held at Wait in this control to isolate financing and delivery; this is
+not evidence that its six-month plan meets needs or earns its repayments.
+Autonomous cooperative lending remains rejected pending debt-aware individual
+acceptance assessments. This adapter does not approve borrowing on an agent's
+behalf or introduce new negotiation terms.
+
+A household control additionally fills shared storage with seed while leaving
+private room for a grain purchase. The required pooled contribution blocks the
+whole delivery when shared room is exhausted; with room it pools exactly once.
+The member's separate loan asset and the loan's unpooled principal remain intact.

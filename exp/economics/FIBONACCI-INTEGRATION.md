@@ -765,3 +765,14 @@ their separately recorded affected gates and are not covered by that snapshot.
     passed 119 tests; the final two-test focused suite and strict all-target Clippy
     passed. Collective purchasing, cooperative contracts and unpriced other
     denominations retain explicit exclusions pending their own adapters.
+
+43. **Configured cooperative deliveries share loan and household reservations.**
+    Existing delivery packages now consume the common remaining Acquire budget.
+    New loan receipts cannot fund current payment, and lending cannot reuse the
+    same coins for a purchase; independent funding and later retained cash work.
+    A failed supplied agreement stays cancelled after checkpoint continuation,
+    while its separate loan continues. Household contribution storage is reserved
+    before accepting the package, with one contribution and separate member debt.
+    CPU/reference, checkpoint statements and tamper rejection agree. The five-target
+    gate passed 36 tests; the final three-test integration suite passed, as did strict all-target
+    Clippy. Autonomous cooperative credit assessment remains explicitly restricted.

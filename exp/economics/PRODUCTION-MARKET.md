@@ -184,3 +184,7 @@ Finite buyer money and market departure should therefore be studied before treat
 higher production as enduring profit. A subsequent step could add a wood market
 and test reciprocal exchange, then compare quote policies under the same production
 and need constraints.
+
+Configured cooperative deliveries now share direct-loan acquisition reservations
+and retain cancellation after failed performance; see [cooperative lending](COOPERATION.md#configured-agreements-with-ordinary-lending).
+Automatic cooperative discovery with lending still requires debt-aware acceptance.

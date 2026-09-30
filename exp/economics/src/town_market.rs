@@ -375,7 +375,7 @@ pub(crate) fn evaluate_with(
     if state.phase != Phase::Acquire {
         return Err("town matching requires Acquire".into());
     }
-    if let Some(round) = crate::cooperation::evaluate(world, state)? {
+    if let Some(round) = crate::cooperation::evaluate_with(world, state, opening, planning_state)? {
         return Ok(round);
     }
     let c = world.town_market.as_ref().ok_or("missing town market")?;
