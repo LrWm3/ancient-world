@@ -520,5 +520,6 @@ extensions.
 
 Shared collateral now has an explicit [authorized-liquidation option](LIEN-PRIORITY.md):
 compatible direct-loan liens reserve each asset's realized proceeds by collateral
-priority. Default alone does not transfer title or create recovery cash. Mortgage
-migration, lien subrogation and autonomous listing remain outstanding.
+priority. Default alone does not transfer title or create recovery cash. Opted-in mortgages use the same authorized lifecycle and transfer unfinished crop
+control at sale. Specialized mortgage planning, lien subrogation and autonomous
+listing remain outstanding.

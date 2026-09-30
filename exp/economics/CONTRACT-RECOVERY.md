@@ -185,3 +185,9 @@ no CUDA validation or economic calibration is claimed.
 
 Subsequent land/forward admission and its validation are recorded in
 [Land/forward admission](LAND-FORWARD-ADMISSION.md).
+
+Opted-in mortgages now enter this same authorized lifecycle using
+`AuthorizedLiquidation`; see [mortgage recovery](LIEN-PRIORITY.md#opted-in-mortgage-recovery).
+Their unfinished crop control transfers only with a funded sale, without an
+appraisal payment or altered crop progress. Specialized mortgage stock-sale
+planning and creditor-resale policy remain separate adapters.

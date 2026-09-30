@@ -493,9 +493,26 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                 .negotiation
                 .as_ref()
                 .is_some_and(|s| [s.buyer.agent, s.seller.agent, s.marketplace].contains(&p.estate))
-            || world.credit.is_some()
+            || world.credit.as_ref().is_some_and(|c| {
+                c.stock_sales.is_some()
+                    || c.resale_buyer.is_some()
+                    || c.application.buyer == p.estate
+                    || c.offers.iter().any(|o| {
+                        o.sale.seller == p.estate
+                            || o.loan.creditor == p.estate
+                            || o.collateral.settlement
+                                != credit::CollateralSettlement::AuthorizedLiquidation
+                            || (c.application.buyer == p.debtor
+                                && p.assets.iter().any(|a| a.asset == o.sale.asset)
+                                && o.loan.denomination != p.denomination)
+                    })
+                    || c.endowments.iter().any(|e| e.agent == p.estate)
+                    || c.transfers
+                        .iter()
+                        .any(|t| t.transfer.from == p.estate || t.transfer.to == p.estate)
+            })
         {
-            return Err("estate custody requires direct-loan composition without active custody-agent trading".into());
+            return Err("estate custody requires direct loans or authorized-liquidation mortgages without active custody-agent trading".into());
         }
         if state.month >= p.opening_month
             && world.households.iter().any(|h| {

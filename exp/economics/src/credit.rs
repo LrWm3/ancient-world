@@ -511,7 +511,6 @@ fn validate_purchase(world: &World, state: &State) -> Result<(), String> {
             || o.loan.grace_months > MAX_TERM_MONTHS
             || o.collateral.asset != o.sale.asset
             || !o.collateral.settlement.is_valid()
-            || o.collateral.settlement == CollateralSettlement::AuthorizedLiquidation
             || !o.collateral.pledged
         {
             return Err("invalid financed purchase offer".into());

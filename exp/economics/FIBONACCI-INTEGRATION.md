@@ -274,6 +274,8 @@ Completed integrations:
 32. Allocate each asset’s actual proceeds by collateral rank and equal-rank policy.
 33. Preserve separate asset reservations, arrears authority and residual deficiencies.
 34. Carry household/member secured claims through recovery and permitted dissolution.
+35. Route opted-in mortgages through authorized estate custody and funded liquidation.
+36. Transfer unfinished crop obligations through mortgage estate sales and reconcile outcomes.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.

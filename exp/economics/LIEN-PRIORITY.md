@@ -49,8 +49,8 @@ unrecorded transfers during the measured recovery interval.
 This does not negotiate lien ranking, infer consent, automatically open/list an
 estate, or permit cross-currency liens in one custody account. Direct configured
 terms remain the consent source. Guarantees of these loans are explicitly refused
-until lien subrogation is supported. Mortgages still use their existing settlement
-choices; migrating them into the authorized lifecycle remains work. Inventory and
+until lien subrogation is supported. Mortgages can opt into this lifecycle as described below; their specialized
+stock-sale planner still needs an adapter. Inventory and
 receivable collateral, disputed priority, changing ranks and autonomous valuation
 remain extensions.
 
@@ -64,3 +64,23 @@ write-off, six-coin deficiencies survive and block dissolution. With explicit
 loan discharge and completed estate closure, the household can release its final
 affiliation. The member receivable and household liability remain separate in
 both cases. CPU/reference, checkpoint and financial statements reconcile.
+
+### Opted-in mortgage recovery
+
+Financed purchases can now select `AuthorizedLiquidation` too. Their downpayment,
+loan admission and ownership-following rights remain unchanged. An independently
+authorized estate can sell the purchased property through the same funded-sale,
+custody and distribution path as direct-loan collateral. Custody cannot receive
+endowments, supply scheduled funding or become a mortgage counterparty. The
+specialized mortgage stock-sale planner and creditor-resale buyer are still
+excluded from this composition; legacy enforcement is not silently converted.
+
+`tests/mortgage_recovery.rs` buys land for eight coins with two down and six
+borrowed. A later four-coin sale leaves a two-coin deficiency; a nine-coin sale
+pays six and returns three to the debtor. Unfunded bids leave property and debt
+intact. Attached crops retain stage, elapsed work and consumed seed at sale; the
+buyer controls their remaining obligations. Adequate buyer labor completes the
+crop, while no labor causes failure. Crop output does not alter the supplied sale
+price. Actual production costs use explicit joint-output shares. CPU/reference,
+checkpoint continuation and all parties' financial statements agree, without
+controlled losses or injected income in this fixture.
