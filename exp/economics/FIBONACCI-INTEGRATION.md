@@ -1169,3 +1169,10 @@ The isolated **`282cbac`** source snapshot completed
 `cargo +1.92.0 test --locked`: **1,011 passed, 0 failed, 1 ignored**, across
 123 Cargo result targets including empty unit/doc targets. Later items retain
 separate affected-suite gates and are not covered by this snapshot.
+
+85. **Priced claims compete with productive acquisition in one reservation.**
+    Discounted/premium bids share opening cash with estate seed, land prerequisites
+    and cultivation. An individually affordable but jointly underfunded package
+    rejects without partial changes. Funded packages harvest and collect the full
+    claim with separate disposal/collection results. CPU/reference and checkpoints
+    agree. The three-target gate passed 35 tests and strict all-target Clippy passed.

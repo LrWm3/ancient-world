@@ -17,8 +17,22 @@ const ESTATE: AgentId = 99;
 
 #[test]
 fn purchased_estate_seed_funds_a_dated_crop_without_spending_new_custody_receipts() {
+    productive_claim(None);
+}
+
+#[test]
+fn priced_claims_share_acquisition_cash_with_seed_and_dated_cultivation() {
+    for price in [1, 3] {
+        productive_claim(Some(price));
+    }
+}
+
+fn productive_claim(price: Option<i32>) {
     for funded in [false, true] {
         for buy_claim in [false, true] {
+            if price.is_some() && !buy_claim {
+                continue;
+            }
             let (mut w, mut s) = named("opportunity-farming").unwrap();
             w.resources.push(Resource {
                 id: TOKEN,
@@ -41,9 +55,9 @@ fn purchased_estate_seed_funds_a_dated_crop_without_spending_new_custody_receipt
             s.balances.insert(
                 (PERSON, TOKEN),
                 if funded {
-                    if buy_claim { 3 } else { 1 }
+                    if buy_claim { price.unwrap_or(2) + 1 } else { 1 }
                 } else {
-                    0
+                    price.unwrap_or(0)
                 },
             );
             s.balances.insert((STATE_AGENT, TOKEN), 100);
@@ -121,8 +135,11 @@ fn purchased_estate_seed_funds_a_dated_crop_without_spending_new_custody_receipt
                     listing: 1,
                     buyer: PERSON,
                     month: 3,
-                    price: 2,
+                    price: price.unwrap_or(2),
                 });
+                if price.is_some() {
+                    w.recovery.receivable_price_floors.insert(1, 1);
+                }
             }
             let run = |backend| {
                 let mut audit = Audit::with_opening(
@@ -205,7 +222,7 @@ fn purchased_estate_seed_funds_a_dated_crop_without_spending_new_custody_receipt
                 assert_eq!(sim.state.balance(PERSON, SEED), 1);
                 assert_eq!(
                     sim.state.balance(ESTATE, TOKEN),
-                    if buy_claim { 3 } else { 1 }
+                    if buy_claim { price.unwrap_or(2) + 1 } else { 1 }
                 );
                 if buy_claim {
                     assert_eq!(sim.state.credit.loans[&11].creditor, PERSON);
@@ -227,11 +244,33 @@ fn purchased_estate_seed_funds_a_dated_crop_without_spending_new_custody_receipt
                 assert_eq!(sim.state.balance(ESTATE, TOKEN), 0);
                 assert_eq!(
                     sim.state.credit.loans[&10].principal,
-                    if buy_claim { 7 } else { 9 }
+                    if buy_claim { 9 - price.unwrap_or(2) } else { 9 }
                 );
                 if buy_claim {
                     assert_eq!(sim.state.credit.loans[&11].principal, 0);
                     assert_eq!(sim.state.balance(PERSON, TOKEN), 2);
+                    if let Some(price) = price {
+                        use economics_compute_smoke::accounting::Account;
+                        let balance = |who, account| {
+                            audit
+                                .book()
+                                .balances()
+                                .get(&(who, account))
+                                .copied()
+                                .unwrap_or(0)
+                        };
+                        assert_eq!(balance(PERSON, Account::LoanBasisAdjustment(11)), 0);
+                        assert_eq!(
+                            balance(PERSON, Account::SettlementGain)
+                                + balance(PERSON, Account::SettlementLoss),
+                            i128::from(price - 2)
+                        );
+                        assert_eq!(
+                            balance(DEBTOR, Account::DisposalGain)
+                                + balance(DEBTOR, Account::DisposalLoss),
+                            i128::from(2 - price)
+                        );
+                    }
                 }
                 assert!(
                     sim.state

@@ -323,3 +323,10 @@ unit reporting quote remains separate. A priced listing with unpaid interest is
 not currently eligible and is omitted until it satisfies the acquisition rule;
 its debt and listing are not deleted. Both discovery and actual sale use the same
 price-rule calculation. Discovery still does not promise funding or future terms.
+
+Priced receivable bids now have a combined acquisition control with estate seed,
+land prerequisites and dated cultivation. Discounted/premium purchases spend
+actual coin prices from the same opening budget as seed. Having enough for either
+purchase but not both rejects the requested package without partial publication.
+Successful packages later harvest and collect the unchanged face claim, releasing
+purchase cost independently from production and custody proceeds.
