@@ -150,9 +150,10 @@ fn run() -> Result<(), String> {
     }
     for o in simulation.state.obligations.values() {
         println!(
-            "- Agreement {} due {}: owed {}, settled {}, native paid {}, written off {}, arrears {}.",
+            "- Agreement {} original due {}, effective due {}: owed {}, settled {}, native paid {}, written off {}, outstanding {}.",
             o.agreement,
             o.due,
+            o.effective_due(),
             o.owed,
             o.paid,
             o.in_kind_paid,

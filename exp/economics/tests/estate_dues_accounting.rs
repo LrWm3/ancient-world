@@ -398,3 +398,108 @@ fn partial_land_relief_leaves_collectible_native_claim_and_stale_terms_do_not_ap
         .action = economics_compute_smoke::claim_relief::Action::WriteOff { quantity: 2 };
     assert!(Simulation::new(sim.world.clone(), forged, Backend::Reference).is_err());
 }
+
+#[test]
+fn land_extension_delays_estate_tender_without_moving_annual_billing() {
+    use economics_compute_smoke::{
+        claim_relief::Action,
+        finance::ContractId,
+        recovery::{Bid, Listing},
+    };
+    const SOLD_ASSET: AssetId = 901;
+    let mut reference = land_estate(true);
+    reference.state.balances.insert((PERSON, TOKEN), 12);
+    let mut relief = land_relief(2);
+    relief.action = Action::Extend { due: 16 };
+    reference.world.recovery.claim_relief.push(relief);
+    reference.world.assets.push(Asset {
+        id: SOLD_ASSET,
+        owner: PERSON,
+        kind: 1,
+    });
+    reference.world.recovery.proceedings[0]
+        .assets
+        .push(Listing {
+            asset: SOLD_ASSET,
+            minimum_price: 4,
+        });
+    reference.world.recovery.bids.push(Bid {
+        id: 1,
+        proceeding: 1,
+        buyer: BUYER,
+        asset: SOLD_ASSET,
+        month: 15,
+        price: 4,
+    });
+    reference
+        .world
+        .claim_priorities
+        .insert(ContractId::Land(1), 0);
+    for id in [10, 11] {
+        reference
+            .world
+            .claim_priorities
+            .insert(ContractId::Loan(id), 1);
+    }
+    let mut a = Audit::with_dues(
+        &reference.world,
+        &reference.state,
+        TOKEN,
+        [(PLOT, 0), (SOLD_ASSET, 0)].into(),
+        BTreeMap::new(),
+        [(1, 3)].into(),
+    )
+    .unwrap()
+    .with_issuance_policy(Policy::NonRedeemableEquity)
+    .unwrap();
+    let mut b = a.clone();
+    let mut cpu = Simulation::new(
+        reference.world.clone(),
+        reference.state.clone(),
+        Backend::CubeCpu,
+    )
+    .unwrap();
+    through(&mut a, &mut reference, 15);
+    through(&mut b, &mut cpu, 15);
+    let bill = &reference.state.obligations[&(1, 13)];
+    assert_eq!(
+        (
+            bill.due,
+            bill.effective_due(),
+            bill.paid,
+            bill.outstanding()
+        ),
+        (13, 16, 0, 2)
+    );
+    assert_eq!(reference.state.balance(ESTATE, TOKEN), 4);
+    assert_eq!(
+        reference.state.credit.recovery.proceedings[&1].stage,
+        Stage::Active
+    );
+    assert!(
+        reference.world.agreements[0]
+            .contract(&reference.world, &reference.state)
+            .unwrap()
+            .evaluate(15)
+            .breaches
+            .is_empty()
+    );
+    let mut resumed = reference.clone();
+    let mut c = a.clone();
+    through(&mut a, &mut reference, 25);
+    through(&mut b, &mut cpu, 25);
+    through(&mut c, &mut resumed, 25);
+    assert_eq!(reference.state, cpu.state);
+    assert_eq!(reference.state, resumed.state);
+    assert_eq!(a, b);
+    assert_eq!(a, c);
+    assert_eq!(reference.state.obligations[&(1, 13)].paid, 2);
+    assert_eq!(reference.state.obligations[&(1, 13)].in_kind_paid, 0);
+    assert_eq!(reference.state.obligations[&(1, 13)].written_off(), 0);
+    assert_eq!(reference.state.obligations[&(1, 25)].outstanding(), 2);
+    assert_eq!(
+        reference.state.credit.recovery.proceedings[&1].closed,
+        Some(16)
+    );
+    assert_eq!(reference.state.balance(PERSON, TOKEN), 0);
+}

@@ -457,7 +457,9 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                     || crate::recovery_claims::outstanding(world, state, p.debtor)
                         .iter()
                         .any(|claim| match claim.contract {
-                            finance::ContractId::Land(_) => claim.due <= closed,
+                            finance::ContractId::Land(id) => state.obligations.values().any(|o| {
+                                o.agreement == id && o.due <= closed && o.outstanding() > 0
+                            }),
                             finance::ContractId::Wages(id) => {
                                 state
                                     .employment

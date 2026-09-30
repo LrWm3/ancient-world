@@ -1226,8 +1226,10 @@ fn due(
                 let spent = limited - execution.available.get(&account).copied().unwrap_or(0);
                 execution.available.insert(account, opening - spent);
                 let mut remaining_grant = grants.as_ref().map(|g| g.claim_units(&contract));
-                for (key, obligation) in
-                    settlement.obligations.iter().filter(|(key, _)| key.0 == id)
+                for (key, obligation) in settlement
+                    .obligations
+                    .iter()
+                    .filter(|(key, o)| key.0 == id && o.effective_due() <= state.month)
                 {
                     let previous = collection_state.obligations.get(key).map_or(0, |o| o.paid);
                     out.collections.push(finance::CollectionReceipt {

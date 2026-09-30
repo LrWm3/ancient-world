@@ -28,7 +28,7 @@ pub fn outstanding(world: &World, state: &State, debtor: AgentId) -> Vec<Claim> 
             claims.push(Claim {
                 contract: ContractId::Land(a.id),
                 creditor: a.creditor,
-                due: o.due,
+                due: o.effective_due(),
                 remaining: Amount::new(a.payment.resource, o.outstanding()),
             });
         }
@@ -200,7 +200,7 @@ pub(crate) fn pay_land(
     for o in settlement
         .obligations
         .values_mut()
-        .filter(|o| o.agreement == id && o.due <= state.month)
+        .filter(|o| o.agreement == id && o.effective_due() <= state.month)
     {
         let units = remaining.min(o.outstanding());
         if units == 0 {

@@ -52,3 +52,18 @@ accounting. A funded extension from month 2 to month 5 leaves money with the deb
 until month 5, then observes the existing custody delay before paying at month 6.
 CPU/reference and resumed states and books agree. Forged closure around the future
 claim is rejected. The land-write-off affected run also passed 59 tests in six suites.
+
+
+## Land date extensions
+
+Land bills now use the same `Extend` action. Their original annual date remains the
+stable bill identity; collection, estate cash requests, need projections and
+household payment support use the effective due date. Extending one bill does not
+renew access, change the annual calendar or remove future bills. Closing a case
+around an unresolved deferred bill is invalid.
+
+The fourth change's integrated control extends the month-13 bill to month 16,
+reserves no early land payment at month 15, then uses actual asset-sale proceeds
+for accepted coin tender at month 16. Native receipts and issuance remain zero.
+The next annual bill still arrives at month 25. CPU/reference and checkpoint books
+agree; wage extension, land funding and member payment-support regressions pass.

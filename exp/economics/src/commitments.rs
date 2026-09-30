@@ -66,6 +66,16 @@ impl Obligation {
                 crate::claim_relief::Action::Extend { .. } => sum,
             })
     }
+    pub fn effective_due(&self) -> u32 {
+        self.relief
+            .iter()
+            .rev()
+            .find_map(|r| match r.terms.action {
+                crate::claim_relief::Action::Extend { due } => Some(due),
+                _ => None,
+            })
+            .unwrap_or(self.due)
+    }
     pub fn outstanding(&self) -> i32 {
         self.owed
             .saturating_sub(self.paid)
@@ -80,7 +90,7 @@ impl Obligation {
                 amount: Amount::new(agreement.payment.resource, self.owed - self.written_off()),
             },
             settled: self.paid,
-            condition: Condition::OnOrAfterMonth(self.due),
+            condition: Condition::OnOrAfterMonth(self.effective_due()),
             failure: FailureRule::BlockNewUse,
         }
     }
@@ -213,7 +223,7 @@ pub(crate) fn current_claims(
     for a in active(world, state).filter(|a| ordinary_collection_allowed(world, state, book, a)) {
         let quantity = obligations
             .values()
-            .filter(|o| o.agreement == a.id && o.due <= state.month)
+            .filter(|o| o.agreement == a.id && o.effective_due() <= state.month)
             .try_fold(0_i32, |sum, o| {
                 sum.checked_add(o.outstanding())
                     .ok_or("collection demand overflow")
@@ -721,7 +731,7 @@ pub(crate) fn projected_claims(
     }
     for a in active(world, state).filter(|a| a.debtor == debtor && a.payment.resource == resource) {
         for o in state.obligations.values().filter(|o| o.agreement == a.id) {
-            let due = u64::from(o.due).max(start);
+            let due = u64::from(o.effective_due()).max(start);
             if due < end {
                 *claims.entry(due).or_default() += i128::from(o.outstanding());
             }

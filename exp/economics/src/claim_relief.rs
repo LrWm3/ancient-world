@@ -60,9 +60,7 @@ pub fn validate_terms(w: &World) -> Result<(), String> {
             || t.expected_remaining <= 0
             || match t.action {
                 Action::WriteOff { quantity } => quantity <= 0 || quantity > t.expected_remaining,
-                Action::Extend { due } => {
-                    due <= t.month || !matches!(t.contract, ContractId::Wages(_))
-                }
+                Action::Extend { due } => due <= t.month,
             }
         {
             return Err("invalid accepted claim relief terms".into());

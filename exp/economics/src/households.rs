@@ -573,7 +573,7 @@ fn requests(world: &World, state: &State) -> Result<Vec<Request>, String> {
                     for o in settlement
                         .obligations
                         .values()
-                        .filter(|o| o.outstanding() > 0)
+                        .filter(|o| o.outstanding() > 0 && o.effective_due() <= state.month)
                     {
                         let Some(contract) = crate::commitments::active(world, state)
                             .find(|c| c.id == o.agreement && c.debtor == member)
