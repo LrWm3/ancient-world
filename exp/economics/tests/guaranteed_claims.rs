@@ -848,7 +848,11 @@ fn household_guarantees_share_cash_across_loan_wage_and_land_claims_with_separat
         .filter(|r: &serde_json::Value| r["kind"] == "guarantee_payment")
         .collect();
     assert!(!calls.is_empty());
-    assert!(calls.iter().all(|r| r["creditor"] == PERSON));
+    assert!(
+        calls
+            .iter()
+            .all(|r| r["creditor"] == PERSON && r["resource"] == TOKEN)
+    );
     assert_eq!(
         calls
             .iter()
