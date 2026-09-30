@@ -51,6 +51,7 @@ pub struct Offer {
 pub struct Score {
     pub terminal: bool,
     pub deficits: Vec<i64>,
+    pub missed_payment: bool,
     pub failures: usize,
     pub buffer_gap: i128,
     pub productive_labor: i64,
@@ -62,6 +63,8 @@ pub struct Assessment {
     pub baseline: Score,
     pub proposed: Score,
     pub closing_coins: i32,
+    pub opening_debt: i64,
+    pub closing_debt: i64,
     pub acceptable: bool,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -394,6 +397,7 @@ fn settle(
 struct Projection {
     scores: BTreeMap<AgentId, Score>,
     coins: BTreeMap<AgentId, i32>,
+    debt: BTreeMap<AgentId, i64>,
     failed: bool,
 }
 /// Conditional individual forecasts endow ONLY the other party with its promised
@@ -457,6 +461,7 @@ fn project(
         .payment;
     let mut scores = BTreeMap::new();
     let mut coins = BTreeMap::new();
+    let mut debt = BTreeMap::new();
     for p in &w.participants {
         let mut deficits = BTreeMap::new();
         for report in sim.reports.iter().filter(|r| r.agent == p.agent) {
@@ -498,12 +503,17 @@ fn project(
             Score {
                 terminal: sim.state.terminal.contains_key(&p.agent),
                 deficits: crate::forecast::needs::score(&p.needs, &deficits),
+                missed_payment: crate::forecast::lending::missed(&sim.ledger, p.agent),
                 failures,
                 buffer_gap,
                 productive_labor: labor,
             },
         );
         coins.insert(p.agent, sim.state.balance(p.agent, coin));
+        debt.insert(
+            p.agent,
+            crate::forecast::lending::debt(&sim.state, p.agent, coin)?,
+        );
     }
     let failed = sim
         .state
@@ -515,6 +525,7 @@ fn project(
     Ok(Projection {
         scores,
         coins,
+        debt,
         failed,
     })
 }
@@ -524,22 +535,29 @@ fn assess(
     c: &Contract,
     p: &Projection,
     baseline: &BTreeMap<AgentId, Score>,
-) -> Vec<Assessment> {
+) -> Result<Vec<Assessment>, String> {
     let coin = marketplace::venue(w, w.town_market.as_ref().unwrap().venue)
         .unwrap()
         .markets[0]
         .payment;
     c.choices
         .iter()
-        .map(|(&agent, &choice)| Assessment {
-            agent,
-            choice,
-            baseline: baseline[&agent].clone(),
-            proposed: p.scores[&agent].clone(),
-            closing_coins: p.coins[&agent],
-            acceptable: !p.failed
-                && p.scores[&agent] <= baseline[&agent]
-                && p.coins[&agent] >= s.balance(agent, coin),
+        .map(|(&agent, &choice)| {
+            let opening_debt = crate::forecast::lending::debt(s, agent, coin)?;
+            Ok(Assessment {
+                agent,
+                choice,
+                baseline: baseline[&agent].clone(),
+                proposed: p.scores[&agent].clone(),
+                closing_coins: p.coins[&agent],
+                opening_debt,
+                closing_debt: p.debt[&agent],
+                acceptable: !p.failed
+                    && p.scores[&agent] <= baseline[&agent]
+                    && !p.scores[&agent].missed_payment
+                    && i128::from(p.coins[&agent]) - i128::from(p.debt[&agent])
+                        >= i128::from(s.balance(agent, coin)) - i128::from(opening_debt),
+            })
         })
         .collect()
 }
@@ -608,7 +626,7 @@ fn discover(
                             b.projections += 1;
                             b.joint_projections += 1;
                             let p = project(w, s, &c, None)?;
-                            let checks = assess(w, s, &c, &p, &base);
+                            let checks = assess(w, s, &c, &p, &base)?;
                             if checks.iter().all(|v| v.acceptable)
                                 && checks.iter().any(|v| v.proposed < v.baseline)
                             {
@@ -649,7 +667,7 @@ fn discover(
                         )?;
                         b.projections += 1;
                         let p = project(w, s, &c, Some(*proposer))?;
-                        let check = assess(w, s, &c, &p, &base)
+                        let check = assess(w, s, &c, &p, &base)?
                             .into_iter()
                             .find(|a| a.agent == *proposer)
                             .unwrap();
@@ -671,7 +689,7 @@ fn discover(
                     c.choices.insert(other, choice);
                     b.projections += 1;
                     let p = project(w, s, &c, Some(other))?;
-                    let check = assess(w, s, &c, &p, &base)
+                    let check = assess(w, s, &c, &p, &base)?
                         .into_iter()
                         .find(|a| a.agent == other)
                         .unwrap();

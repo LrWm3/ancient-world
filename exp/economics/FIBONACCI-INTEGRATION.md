@@ -776,3 +776,14 @@ their separately recorded affected gates and are not covered by that snapshot.
     CPU/reference, checkpoint statements and tamper rejection agree. The five-target
     gate passed 36 tests; the final three-test integration suite passed, as did strict all-target
     Clippy. Autonomous cooperative credit assessment remains explicitly restricted.
+
+44. **Individual cooperative acceptance distinguishes loan cash from income.**
+    Both discovery methods now compare opening and closing cash less accepted debt
+    and reject projected loan arrears. Shared forecast helpers also serve ordinary
+    production plans. The controlled pair accepts interest-free financing and
+    declines otherwise identical exchange with uncovered interest; the separately
+    consented loan still executes. CPU, checkpoint and forged debt-assessment
+    controls pass. The focused test covers both discovery methods. The affected
+    four-target gate passed 23 tests and strict all-target Clippy passed. Household
+    conditional credit forecasts remain excluded; receivables and stock values
+    are not added to this conservative recurring-exchange cash constraint.

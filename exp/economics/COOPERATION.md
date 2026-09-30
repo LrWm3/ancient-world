@@ -36,10 +36,11 @@ work, waiting, crop production and fuel production. Continuing processes retain
 priority; a preferred activity does not create labor, seed, rights or outputs.
 
 Each person's outside option is its best no-exchange candidate over six months.
-Scores compare terminal outcome, priority-ordered deficits, aborted processes,
+Scores compare terminal outcome, priority-ordered deficits, missed loan payments, aborted processes,
 a two-month closing need buffer, then productive labor. Both must be no worse
-than their outside option; at least one must improve. Each must finish with at
-least its opening coins. This last condition is a restrictive recurring-exchange
+than their outside option; at least one must improve. Each must avoid projected loan arrears and finish with at
+least its opening cash minus accepted loan debt, measured on the same basis at
+the horizon. With no loans this is the original closing-cash test. This is a restrictive recurring-exchange
 rule, not a general investment policy. Acceptance does not impose an absolute
 zero-deficit requirement.
 
@@ -203,11 +204,36 @@ restart that cancelled agreement. The separate loan continues to be serviced.
 reconstructed continuation, separate double-entry statements and tamper rejection.
 Work is held at Wait in this control to isolate financing and delivery; this is
 not evidence that its six-month plan meets needs or earns its repayments.
-Autonomous cooperative lending remains rejected pending debt-aware individual
-acceptance assessments. This adapter does not approve borrowing on an agent's
-behalf or introduce new negotiation terms.
+Individual cooperative discovery can now include configured borrowing under the
+debt-aware acceptance test below. This adapter does not approve borrowing on an
+agent's behalf or introduce new negotiation terms.
 
 A household control additionally fills shared storage with seed while leaving
 private room for a grain purchase. The required pooled contribution blocks the
 whole delivery when shared room is exhausted; with room it pools exactly once.
 The member's separate loan asset and the loan's unpooled principal remain intact.
+
+## Loan-aware individual acceptance
+
+Both discovery methods retain actual accepted loans and simulate the configured
+admissions, installments and arrears. Receipts expose opening and closing debt and
+missed payments; observers show the same fields. The acceptance floor is cash
+minus principal and accrued interest. Newly borrowed cash cannot disguise interest
+expense or unpaid principal as exchange income. A projected missed installment
+rejects a candidate even if its no-exchange outside option also misses payment.
+
+The controlled pair accepts an interest-free, externally funded loan plus mutual
+exchange, but declines the same terms with uncovered monthly interest. Actual
+borrowing is supplied consent and still executes even when exchange is declined;
+these agents are choosing an exchange plan, not underwriting their loans.
+CPU/reference and reconstructed continuation agree, and forged debt assessments
+are rejected. This does not value receivables, inventory, collateral appreciation,
+or unrelated claims as spendable cash. It is deliberately a conservative
+recurring-exchange constraint, not a general solvency or investment test.
+
+Conditional forecasts retain observed financial obligations; only the other
+party's promised delivery resources are hypothetical. They do not guarantee that
+competing financial claims will leave those resources available. Household
+cooperative discovery with lending remains excluded until its conditional
+forecast preserves governed allocations and separate financial scopes. Supplied
+household agreements continue to use the tested settlement adapter.

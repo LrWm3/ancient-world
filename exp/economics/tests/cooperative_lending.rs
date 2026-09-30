@@ -277,3 +277,72 @@ fn household_contribution_storage_is_reserved_before_accepting_a_delivery() {
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn independent_acceptance_counts_borrowing_as_debt_and_rejects_unearned_interest_cost() {
+    use economics_compute_smoke::cooperation::Discovery;
+    for mode in [Discovery::Mutual, Discovery::Posted] {
+        for rate in [0, 1000] {
+            let (mut w, mut s) = fixture(false, true, 1);
+            w.production_market.as_mut().unwrap().policy = Policy::Cooperate(mode);
+            s.balances.insert((WOOD_PERSON, TOKEN), 24);
+            s.balances.insert((STATE_AGENT, TOKEN), 12);
+            w.lending[0].principal = 12;
+            w.lending[0].terms.max_principal = 12;
+            w.lending[0].terms.term_months = 12;
+            w.lending[0].terms.monthly_rate_bps = rate;
+            let run = |backend| {
+                let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+                while sim.state.phase != Phase::Acquire {
+                    sim.step().unwrap();
+                }
+                let before = sim.state.clone();
+                sim.step().unwrap();
+                let round = sim.state.town_market.history.last().unwrap();
+                let b = round.cooperation.as_ref().unwrap();
+                assert_eq!(sim.state.credit.loans[&500].principal, 12);
+                assert_eq!(b.active.is_some(), rate == 0);
+                if rate == 0 {
+                    let borrower = b
+                        .assessments
+                        .iter()
+                        .find(|a| a.agent == WOOD_PERSON)
+                        .unwrap();
+                    assert_eq!(borrower.opening_debt, 0);
+                    assert!(borrower.closing_debt > 0);
+                    assert!(!borrower.proposed.missed_payment);
+                    assert!(i64::from(borrower.closing_coins) - borrower.closing_debt >= 24);
+                    assert!(borrower.acceptable);
+                    let mut forged = sim.ledger.last().unwrap().clone();
+                    let Some(economics_compute_smoke::town_market::Boundary::Market(r)) =
+                        &mut forged.town_market
+                    else {
+                        unreachable!()
+                    };
+                    r.cooperation
+                        .as_mut()
+                        .unwrap()
+                        .assessments
+                        .iter_mut()
+                        .find(|a| a.agent == WOOD_PERSON)
+                        .unwrap()
+                        .closing_debt = 0;
+                    let mut unchanged = before.clone();
+                    assert!(
+                        settlement::commit(&w, &mut unchanged, &forged, backend, sim.effect_limit)
+                            .is_err()
+                    );
+                    assert_eq!(unchanged, before);
+                } else {
+                    assert_eq!(b.event, "Declined");
+                    assert!(b.completed.is_empty());
+                }
+                let mut resumed = Simulation::new(w.clone(), before, backend).unwrap();
+                resumed.step().unwrap();
+                assert_eq!(sim.state, resumed.state);
+                (sim.state, sim.ledger)
+            };
+            assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+        }
+    }
+}

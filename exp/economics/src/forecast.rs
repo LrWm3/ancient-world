@@ -106,3 +106,32 @@ pub mod needs {
         })
     }
 }
+
+/// Financial observations from accepted loans and actual hypothetical servicing.
+/// Callers must supply one valued denomination; unlike quantities are never added.
+pub(crate) mod lending {
+    use crate::model::{AgentId, Batch, ResourceId, State};
+    pub fn debt(state: &State, agent: AgentId, denomination: ResourceId) -> Result<i64, String> {
+        state
+            .credit
+            .loans
+            .values()
+            .filter(|l| l.debtor == agent)
+            .try_fold(0_i64, |total, l| {
+                if l.denomination != denomination {
+                    return Err("forecast loan needs a priced denomination".into());
+                }
+                total
+                    .checked_add(i64::from(l.debt()?))
+                    .ok_or_else(|| "forecast debt overflow".to_string())
+            })
+    }
+    pub fn missed(ledger: &[Batch], agent: AgentId) -> bool {
+        ledger.iter().filter_map(|b| b.credit.as_ref()).any(|b| {
+            b.events.iter().any(|e| {
+                matches!(e, crate::credit::Event::Arrears { loan, .. }
+                    if b.after.loans.get(loan).is_some_and(|l| l.debtor == agent))
+            })
+        })
+    }
+}

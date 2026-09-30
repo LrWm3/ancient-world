@@ -642,7 +642,7 @@ pub(super) fn batch(
             };
             let score = |s: &crate::cooperation::Score| {
                 json!({"terminal":s.terminal,
-                "deficits":s.deficits,"failures":s.failures,"buffer_gap":s.buffer_gap.to_string(),
+                "deficits":s.deficits,"missed_payment":s.missed_payment,"failures":s.failures,"buffer_gap":s.buffer_gap.to_string(),
                 "productive_labor":s.productive_labor})
             };
             let relevant = world.participants.iter().any(|p| selected(config, p.agent));
@@ -653,11 +653,11 @@ pub(super) fn batch(
                     "deliveries":c.active.as_ref().map(|a|a.deliveries.iter().map(&delivery).collect::<Vec<_>>()),
                     "choices":c.active.as_ref().map(|a|a.choices.iter().map(|(id,c)|json!({"agent":id,"work":format!("{:?}",c.work)})).collect::<Vec<_>>()),
                     "offers":c.offers.iter().map(|o|json!({"proposer":o.proposer,"expires":o.expires,"accepted":o.accepted,
-                        "proposer_assessment":selected(config,o.proposer).then(||json!({"acceptable":o.proposer_assessment.acceptable,"work":format!("{:?}",o.proposer_assessment.choice.work),"baseline":score(&o.proposer_assessment.baseline),"proposed":score(&o.proposer_assessment.proposed),"closing_coins":o.proposer_assessment.closing_coins})),
-                        "replies":o.replies.iter().filter(|a|selected(config,a.agent)).map(|a|json!({"agent":a.agent,"work":format!("{:?}",a.choice.work),"acceptable":a.acceptable,"baseline":score(&a.baseline),"proposed":score(&a.proposed),"closing_coins":a.closing_coins})).collect::<Vec<_>>(),
+                        "proposer_assessment":selected(config,o.proposer).then(||json!({"acceptable":o.proposer_assessment.acceptable,"work":format!("{:?}",o.proposer_assessment.choice.work),"baseline":score(&o.proposer_assessment.baseline),"proposed":score(&o.proposer_assessment.proposed),"closing_coins":o.proposer_assessment.closing_coins,"opening_debt":o.proposer_assessment.opening_debt,"closing_debt":o.proposer_assessment.closing_debt})),
+                        "replies":o.replies.iter().filter(|a|selected(config,a.agent)).map(|a|json!({"agent":a.agent,"work":format!("{:?}",a.choice.work),"acceptable":a.acceptable,"baseline":score(&a.baseline),"proposed":score(&a.proposed),"closing_coins":a.closing_coins,"opening_debt":a.opening_debt,"closing_debt":a.closing_debt})).collect::<Vec<_>>(),
                         "deliveries":o.deliveries.iter().map(&delivery).collect::<Vec<_>>()})).collect::<Vec<_>>(),
                     "assessments":c.assessments.iter().filter(|a|selected(config,a.agent)).map(|a|json!({"agent":a.agent,"acceptable":a.acceptable,
-                        "baseline":score(&a.baseline),"proposed":score(&a.proposed),"closing_coins":a.closing_coins})).collect::<Vec<_>>(),
+                        "baseline":score(&a.baseline),"proposed":score(&a.proposed),"closing_coins":a.closing_coins,"opening_debt":a.opening_debt,"closing_debt":a.closing_debt})).collect::<Vec<_>>(),
                     "completed":c.completed.iter().map(delivery).collect::<Vec<_>>()}));
             }
         }

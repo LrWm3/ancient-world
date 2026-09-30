@@ -203,9 +203,13 @@ pub fn validate(w: &World) -> Result<(), String> {
             "production market requires bounded independent work and an adaptive town book".into(),
         );
     }
-    if crate::credit::enabled(w) && matches!(c.policy, Policy::Cooperate(_)) {
+    if crate::credit::enabled(w)
+        && matches!(c.policy, Policy::Cooperate(_))
+        && !w.households.is_empty()
+    {
         return Err(
-            "autonomous cooperative lending requires debt-aware individual assessments".into(),
+            "cooperative lending with household policies requires a conditional projection adapter"
+                .into(),
         );
     }
     let denomination = payment_resource(w).ok_or("missing production market terms")?;
@@ -529,27 +533,12 @@ fn forecast(
             }
         })
         .sum();
-    let closing_debt = sim
-        .state
-        .credit
-        .loans
-        .values()
-        .filter(|l| l.debtor == agent)
-        .try_fold(0_i64, |total, l| {
-            total
-                .checked_add(i64::from(l.debt()?))
-                .ok_or_else(|| "forecast debt overflow".to_string())
-        })?;
-    let missed_payment = sim
-        .ledger
-        .iter()
-        .filter_map(|b| b.credit.as_ref())
-        .any(|b| {
-            b.events.iter().any(|e| {
-                matches!(e, crate::credit::Event::Arrears { loan, .. }
-            if b.after.loans.get(loan).is_some_and(|l| l.debtor == agent))
-            })
-        });
+    let closing_debt = crate::forecast::lending::debt(
+        &sim.state,
+        agent,
+        payment_resource(w).ok_or("missing market currency")?,
+    )?;
+    let missed_payment = crate::forecast::lending::missed(&sim.ledger, agent);
     Ok(Forecast {
         choice,
         deficits,

@@ -801,4 +801,5 @@ using member-directed purchases; collective town buying remains outstanding.
 
 Configured cooperative deliveries now share direct-loan acquisition reservations
 and retain cancellation after failed performance; see [cooperative lending](COOPERATION.md#configured-agreements-with-ordinary-lending).
-Automatic cooperative discovery with lending still requires debt-aware acceptance.
+Individual cooperative discovery now checks cash less accepted debt and projected arrears.
+Household conditional credit forecasts remain excluded pending their governance adapter.

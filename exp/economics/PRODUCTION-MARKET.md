@@ -149,7 +149,7 @@ decision, so reaching Due does not require a decision that has not been made yet
 Households can use this adapter when the static charter delegates purchasing to
 members. Governed labor, shared inputs and output pooling remain in the household
 wrapper, and the borrower's debt remains separate from household funds. Collective
-household order generation and negotiated cooperative production contracts retain
+household order generation and conditional household cooperative credit forecasts retain
 their guards. Loan and guarantee claims must use the planner's market currency;
 cross-denomination valuation and autonomous loan selection remain outstanding.
 
@@ -174,17 +174,19 @@ private information, uncertain weather and strategic opponent models are absent.
 
 Adaptive sides currently require fixed quotes at supplied reservation values.
 The earlier fixed-side town pilot still supports ZIP. Combining endogenous
-valuations, adaptive roles and ZIP is separate work. There is one grain market,
-one lot per order, stable ID matching ties and no institutional production budget.
-Households, loans and legacy state-trade drivers remain outside this pilot.
+valuations, adaptive roles and ZIP is separate work. Listings use fixed whole
+lots and stable ID matching ties. Ordinary coin loans and member-directed
+household purchases now compose under the boundaries above. Collective purchases,
+conditional household cooperative lending and legacy state-trade drivers still
+need adapters; these controls do not establish an institutional production budget.
 
 Need deficits affect ranking but this fixture has no deprivation condition rules.
 Unsold output consumes storage and labor, with no automatic guaranteed resale.
 Finite buyer money and market departure should therefore be studied before treating
-higher production as enduring profit. A subsequent step could add a wood market
-and test reciprocal exchange, then compare quote policies under the same production
-and need constraints.
+higher production as enduring profit. The later [reciprocal calibration](CALIBRATION.md) adds a wood market and
+compares continuing exchange under the same production and need constraints.
 
 Configured cooperative deliveries now share direct-loan acquisition reservations
 and retain cancellation after failed performance; see [cooperative lending](COOPERATION.md#configured-agreements-with-ordinary-lending).
-Automatic cooperative discovery with lending still requires debt-aware acceptance.
+Individual cooperative discovery now checks cash less accepted debt and projected arrears.
+Household conditional credit forecasts remain excluded pending their governance adapter.
