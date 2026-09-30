@@ -63,6 +63,7 @@ impl Obligation {
             .iter()
             .fold(0_i32, |sum, r| match r.terms.action {
                 crate::claim_relief::Action::WriteOff { quantity } => sum.saturating_add(quantity),
+                crate::claim_relief::Action::Extend { .. } => sum,
             })
     }
     pub fn outstanding(&self) -> i32 {

@@ -532,3 +532,51 @@ fn stale_wage_relief_and_unconsented_checkpoint_changes_are_rejected() {
         .quantity -= 1;
     assert!(Simulation::new(sim.world.clone(), bad, Backend::Reference).is_err());
 }
+
+#[test]
+fn accepted_wage_extension_preserves_debt_until_new_due_and_blocks_early_closure() {
+    use economics_compute_smoke::{claim_relief::Action, finance::Condition};
+    let (mut w, mut s) = fixture();
+    delayed_income(&mut w, &mut s, 4);
+    let mut terms = wage_relief(1, 3, 4, 4);
+    terms.action = Action::Extend { due: 5 };
+    w.recovery.claim_relief.push(terms);
+    let mut a = audit(&w, &s);
+    let mut b = a.clone();
+    let mut sim = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+    let mut reference = Simulation::new(w, s, Backend::Reference).unwrap();
+    through(&mut a, &mut sim, 4);
+    let e = &sim.state.employment.earned[&(1, 1)];
+    assert_eq!(e.claim.condition, Condition::OnOrAfterMonth(5));
+    assert_eq!(e.claim.outstanding(), 4);
+    assert_eq!(sim.state.balance(ISSUER, COIN), 4);
+    assert_eq!(sim.state.balance(ESTATE, COIN), 0);
+    assert_eq!(sim.state.balance(WORKER, COIN), 0);
+    let mut forged = sim.state.clone();
+    let p = forged.credit.recovery.proceedings.get_mut(&1).unwrap();
+    p.stage = Stage::Closed;
+    p.closed = Some(4);
+    assert!(Simulation::new(sim.world.clone(), forged, Backend::Reference).is_err());
+    let mut resumed = sim.clone();
+    let mut c = a.clone();
+    through(&mut a, &mut sim, 5);
+    assert_eq!(sim.state.balance(ESTATE, COIN), 4);
+    assert_eq!(sim.state.balance(WORKER, COIN), 0);
+    through(&mut a, &mut sim, 6);
+    through(&mut b, &mut reference, 6);
+    through(&mut c, &mut resumed, 6);
+    assert_eq!(sim.state, reference.state);
+    assert_eq!(sim.state, resumed.state);
+    assert_eq!(a, b);
+    assert_eq!(a, c);
+    assert_eq!(sim.state.balance(WORKER, COIN), 4);
+    assert_eq!(
+        sim.state.credit.recovery.proceedings[&1].stage,
+        Stage::Closed
+    );
+    assert!(
+        !a.book()
+            .balances()
+            .contains_key(&(WORKER, Account::CreditLoss))
+    );
+}

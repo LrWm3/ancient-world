@@ -457,8 +457,17 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                     || crate::recovery_claims::outstanding(world, state, p.debtor)
                         .iter()
                         .any(|claim| match claim.contract {
-                            finance::ContractId::Land(_) | finance::ContractId::Wages(_) => {
-                                claim.due <= closed
+                            finance::ContractId::Land(_) => claim.due <= closed,
+                            finance::ContractId::Wages(id) => {
+                                state
+                                    .employment
+                                    .earned
+                                    .iter()
+                                    .any(|(&(agreement, month), e)| {
+                                        agreement == id
+                                            && month < closed
+                                            && e.claim.outstanding() > 0
+                                    })
                             }
                             finance::ContractId::Forward(id) => {
                                 state.exchange.forwards[&id].issued <= closed

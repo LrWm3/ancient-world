@@ -46,12 +46,15 @@ pub fn outstanding(world: &World, state: &State, debtor: AgentId) -> Vec<Claim> 
             remaining: Amount::new(c.goods.resource, c.claim().outstanding()),
         });
     }
-    for (&(id, month), earned) in &state.employment.earned {
-        if earned.claim.transfer.from == debtor && earned.claim.outstanding() > 0 {
+    for (&(id, _), earned) in &state.employment.earned {
+        if earned.claim.transfer.from == debtor
+            && earned.claim.outstanding() > 0
+            && let finance::Condition::OnOrAfterMonth(due) = earned.claim.condition
+        {
             claims.push(Claim {
                 contract: ContractId::Wages(id),
                 creditor: earned.claim.transfer.to,
-                due: month + 1,
+                due,
                 remaining: Amount::new(
                     earned.claim.transfer.amount.resource,
                     earned.claim.outstanding(),
@@ -250,7 +253,11 @@ pub(crate) fn pay_wages(
     let mut remaining = allocated;
     let mut total = 0;
     for (&(agreement, month), earned) in &mut book.earned {
-        if agreement != id || month >= state.month || earned.claim.outstanding() == 0 {
+        if agreement != id
+            || month >= state.month
+            || earned.claim.outstanding() == 0
+            || !earned.claim.condition.is_met(state.month, true)
+        {
             continue;
         }
         let mut claim = earned.claim.clone();

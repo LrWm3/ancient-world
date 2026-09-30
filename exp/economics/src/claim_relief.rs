@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Action {
+    Extend { due: u32 },
     WriteOff { quantity: i32 },
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -59,6 +60,9 @@ pub fn validate_terms(w: &World) -> Result<(), String> {
             || t.expected_remaining <= 0
             || match t.action {
                 Action::WriteOff { quantity } => quantity <= 0 || quantity > t.expected_remaining,
+                Action::Extend { due } => {
+                    due <= t.month || !matches!(t.contract, ContractId::Wages(_))
+                }
             }
         {
             return Err("invalid accepted claim relief terms".into());
@@ -66,14 +70,19 @@ pub fn validate_terms(w: &World) -> Result<(), String> {
     }
     Ok(())
 }
+pub(crate) struct Adjustment {
+    pub due: u32,
+    pub written_off: i32,
+}
 /// Reconstruct outstanding entitlement without treating waivers as transfers.
 pub(crate) fn validate_history(
     w: &World,
     s: &State,
     claim: &Claim,
     history: &[Applied],
-) -> Result<i32, String> {
+) -> Result<Adjustment, String> {
     let mut waived = 0_i32;
+    let mut due = claim.original_due;
     let mut previous_month = 0;
     let mut paid = 0;
     for r in history {
@@ -87,7 +96,7 @@ pub(crate) fn validate_history(
         if !w.recovery.claim_relief.contains(t)
             || t.contract != claim.contract
             || t.original_due != claim.original_due
-            || t.expected_due != claim.original_due
+            || t.expected_due != due
             || t.debtor != claim.debtor
             || t.creditor != claim.creditor
             || t.month <= previous_month
@@ -102,6 +111,7 @@ pub(crate) fn validate_history(
             return Err("invalid applied claim relief history".into());
         }
         match t.action {
+            Action::Extend { due: next } => due = next,
             Action::WriteOff { quantity } => {
                 waived = waived
                     .checked_add(quantity)
@@ -114,7 +124,10 @@ pub(crate) fn validate_history(
     if i64::from(waived) + i64::from(claim.paid) > i64::from(claim.quantity) {
         return Err("payment plus relief exceeds original claim".into());
     }
-    Ok(waived)
+    Ok(Adjustment {
+        due,
+        written_off: waived,
+    })
 }
 
 /// Due, after ordinary collections and before estate allocation. Both parties'
@@ -162,6 +175,9 @@ pub(crate) fn apply(w: &World, s: &State, out: &mut credit::Boundary) -> Result<
                 paid: claim.settled,
             });
             match t.action {
+                Action::Extend { due } => {
+                    claim.condition = crate::finance::Condition::OnOrAfterMonth(due);
+                }
                 Action::WriteOff { quantity } => {
                     claim.transfer.amount.quantity -= quantity;
                     written_off = Some(Amount::new(claim.transfer.amount.resource, quantity));

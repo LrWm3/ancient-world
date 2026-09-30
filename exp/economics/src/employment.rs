@@ -165,7 +165,7 @@ pub fn validate(w: &World, s: &State) -> Result<(), String> {
             .delivered
             .checked_mul(t.wage_per_unit.quantity)
             .ok_or("wage overflow")?;
-        let waived = crate::claim_relief::validate_history(
+        let adjustment = crate::claim_relief::validate_history(
             w,
             s,
             &crate::claim_relief::Claim {
@@ -188,12 +188,13 @@ pub fn validate(w: &World, s: &State) -> Result<(), String> {
                     transfer: finance::Transfer {
                         from: t.employer,
                         to: t.worker,
-                        amount: Amount::new(t.wage_per_unit.resource, nominal - waived),
+                        amount: Amount::new(
+                            t.wage_per_unit.resource,
+                            nominal - adjustment.written_off,
+                        ),
                     },
                     settled: e.claim.settled,
-                    condition: finance::Condition::OnOrAfterMonth(
-                        month.checked_add(1).ok_or("wage due date overflow")?,
-                    ),
+                    condition: finance::Condition::OnOrAfterMonth(adjustment.due),
                     failure: finance::FailureRule::CarryArrears,
                 })
             || e.claim.settled < 0
@@ -314,7 +315,10 @@ pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boun
                 Reason::NotPermitted
             } else if t.on_arrears == ArrearsPolicy::SuspendDelivery
                 && s.employment.earned.iter().any(|((id, month), e)| {
-                    *id == t.id && *month < s.month && e.claim.outstanding() > 0
+                    *id == t.id
+                        && *month < s.month
+                        && e.claim.outstanding() > 0
+                        && e.claim.condition.is_met(s.month, true)
                 })
             {
                 Reason::Arrears

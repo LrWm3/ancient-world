@@ -38,3 +38,17 @@ The dues adapter values the loss at its explicit native-unit reporting valuation
 including when coins are an accepted tender. Partial waivers retain collectible
 claims; stale consent after ordinary native payment is rejected. Six estate-dues
 tests pass, including CPU/reference, continuation, partial relief and forged history.
+
+## Wage date extensions
+
+An accepted `Extend` action moves the effective due date of one earned wage while
+retaining its original identity and full unpaid amount. Collection eligibility and
+recovery admission read that effective date. An extension does not create escrow,
+new wages, forgiveness or a receivable valuation change. Active proceedings still
+block new employer work and cannot close around the deferred claim.
+
+The third change passed 25 tests across employment, wage recovery and estate-dues
+accounting. A funded extension from month 2 to month 5 leaves money with the debtor
+until month 5, then observes the existing custody delay before paying at month 6.
+CPU/reference and resumed states and books agree. Forged closure around the future
+claim is rejected. The land-write-off affected run also passed 59 tests in six suites.
