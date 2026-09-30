@@ -161,3 +161,12 @@ The five-target gate passed 44 tests and strict all-target Clippy passed. New
 controls cover underfunding, rates below/equal/above reporting value, a second
 currency with distinct historical cost, overlapping coverage, stable/proportional
 allocation, reordered terms, CPU/checkpoint equality and forged tender rejection.
+
+The alternative loan tender also composes with household membership and solvent
+wind-down. A household can pay two of its own coins for one native grain unit
+owed by its member, leaving a separately reported grain receivable/payable between
+them. The member's private ten coins cannot fund the household call. An unpaid
+recourse asset prevents dissolution; an underfunded, expired guarantee permits
+household residual distribution without erasing the member's original private
+loan. CPU/checkpoint and audited statements agree. The four-target household
+integration gate passed 55 tests with one ignored; strict Clippy passed.

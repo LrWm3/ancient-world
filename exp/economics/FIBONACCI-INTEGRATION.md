@@ -709,3 +709,11 @@ separately recorded affected gates and are not covered by that snapshot.
     agree, underfunded lots remain unpaid, and forged tenders fail atomically.
     The five-target gate passed 44 tests and strict all-target Clippy passed.
     Consent and rates are supplied; wider tender/security combinations remain open.
+
+38. **Household alternative guarantees connect to separate books and wind-down.**
+    A funded household pays its member's grain claim in agreed coins and retains
+    native recourse against that member. That material internal claim blocks
+    dissolution. An underfunded household cannot spend the member's private coins;
+    after guarantee expiry it can distribute residuals and close without erasing
+    the member's original loan. CPU/checkpoint and audited statements agree. The
+    four-target gate passed 55 tests with one ignored; strict Clippy passed.

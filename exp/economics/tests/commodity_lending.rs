@@ -457,3 +457,122 @@ fn alternative_guarantee_currency_keeps_its_cost_basis_when_it_is_not_reporting_
     };
     assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
 }
+
+#[test]
+fn household_alternative_guarantee_preserves_private_debt_and_blocks_exit_on_native_recourse() {
+    use economics_compute_smoke::{
+        household_governance::Governance,
+        households::{self, dissolution as d},
+        recovery::{Guarantee, GuaranteeTender, GuaranteedClaim, RecourseSecurity},
+        scenario::LABOR,
+    };
+    const HOME: AgentId = 800;
+    for cash in [1, 2] {
+        let (mut w, mut s, opening) = fixture(0);
+        w.participants.push(Participant {
+            agent: PERSON,
+            capacity: Amount::new(LABOR, 0),
+            needs: vec![],
+        });
+        let mut governance = Governance::contributed(PERSON);
+        governance.constitution.allow_dissolution = true;
+        households::form(
+            &mut w,
+            &s,
+            households::Agreement {
+                id: 1,
+                agent: HOME,
+                adults: vec![PERSON],
+                governance,
+                formed: 1,
+                dwelling_process: None,
+                admission: None,
+                membership: vec![],
+                asset_sales: vec![],
+                equipment_retirements: vec![],
+                support: vec![],
+            },
+        )
+        .unwrap();
+        s.balances.insert((HOME, TOKEN), cash);
+        s.balances.insert((PERSON, TOKEN), 10);
+        w.recovery.guarantees.push(Guarantee {
+            id: 1,
+            claim: GuaranteedClaim::Loan(1),
+            guarantor: HOME,
+            cap: 1,
+            from: 1,
+            through: 2,
+            delay_months: 0,
+            recourse: 101,
+            priority: 0,
+            follows_assignment: false,
+            security: RecourseSecurity::Unsecured,
+            tender: GuaranteeTender::AgreedLoanCoins {
+                resource: TOKEN,
+                coins_per_unit: 2,
+            },
+        });
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut audit = Audit::with_opening(&w, &s, TOKEN, opening.clone()).unwrap();
+            while sim.state.month < 3 {
+                audit.step(&mut sim).unwrap();
+            }
+            let funded = cash == 2;
+            assert_eq!(sim.state.balance(PERSON, TOKEN), 10);
+            assert_eq!(sim.state.balance(HOME, TOKEN), if funded { 0 } else { 1 });
+            assert_eq!(sim.state.credit.loans[&1].principal, i32::from(!funded));
+            assert_eq!(
+                d::blockers(&sim.world, &sim.state, HOME).contains(&d::Blocker::Loan),
+                funded
+            );
+            if funded {
+                let loan = &sim.state.credit.loans[&101];
+                assert_eq!(
+                    (
+                        loan.creditor,
+                        loan.debtor,
+                        loan.denomination,
+                        loan.principal
+                    ),
+                    (HOME, PERSON, GRAIN, 1)
+                );
+                let b = audit.book().balances();
+                assert_eq!(b[&(HOME, Account::LoanReceivable(101))], 3);
+                assert_eq!(b[&(PERSON, Account::LoanPayable(101))], -3);
+            }
+            d::request(&mut sim.world, &sim.state, HOME, PERSON).unwrap();
+            let mut resumed =
+                Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+            let mut ra = audit.clone();
+            let prefix = sim.ledger.len();
+            while sim.state.month < 4 {
+                audit.step(&mut sim).unwrap();
+            }
+            while resumed.state.month < 4 {
+                ra.step(&mut resumed).unwrap();
+            }
+            assert_eq!(
+                (&sim.state, &sim.ledger[prefix..], &audit),
+                (&resumed.state, &resumed.ledger[..], &ra)
+            );
+            let before = sim.world.clone();
+            assert_eq!(
+                d::finish(&mut sim.world, &sim.state, HOME, PERSON).is_ok(),
+                !funded
+            );
+            if funded {
+                assert_eq!(sim.world, before);
+                assert_eq!(sim.state.credit.loans[&101].principal, 1);
+            } else {
+                audit.step(&mut sim).unwrap();
+                assert!(d::closed_at(&sim.world.households[0], 4));
+                assert_eq!(sim.state.balance(PERSON, TOKEN), 11);
+                assert_eq!(sim.state.credit.loans[&1].principal, 1);
+            }
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
