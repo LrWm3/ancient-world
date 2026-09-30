@@ -91,3 +91,24 @@ in that same Acquire window. Next month it hires two useful hours from a three-h
 offer, produces the goods, pays wages and fulfills the forward. Law, budget and
 no-useful-work controls reject preparation without publishing partial work.
 Existing monthly accounting and CPU/reference behavior are preserved.
+
+## Liquidation listings and funded bid acceptance
+
+`recovery::market::discover` exposes current, unsold estate listings to eligible
+buyers, including the original seller, cash denomination and reserve price.
+Discovery does not reserve the asset or assert that a buyer has money. Closed
+cases, disposed assets, custody agents and inactive or winding-down households
+are excluded. Normal sale execution applies the same buyer eligibility.
+
+`offers::Id::LiquidationBid` prepares a supplied dated bid through the ordinary
+credit/household boundary. It retains the existing highest-funded-price ordering,
+stable tie-break and fallback when a higher bidder cannot pay. Preparing a losing
+bid cannot force a sale. Duplicate same-price bids by one buyer are distinguished
+by their rejection receipts, so one title transfer cannot satisfy two requests.
+
+Tests compare funded/unfunded bids, same-price duplicates, an unfunded higher
+bidder, reversed catalogs and active/winding households with identical cash.
+Successful preparation matches normal custody, ownership, later distribution,
+CPU/reference continuation and separate statements. Failed preparation publishes
+nothing. This provides common inspection/acceptance; estate inventories and buyer
+prices remain supplied terms. Autonomous listing and valuation are still open.

@@ -108,6 +108,198 @@ fn distressed(w: World, s: State, backend: Backend) -> Simulation {
     sim.state.balances.insert((PERSON, TOKEN), 0);
     sim
 }
+
+#[test]
+fn liquidation_discovery_and_common_acceptance_use_funded_bids_and_existing_custody() {
+    use economics_compute_smoke::{
+        financial_reporting::Audit,
+        offers::{self, Id, Request, Terms},
+    };
+    for funded in [false, true] {
+        let (mut w, mut s) = fixture();
+        proceeding(&mut w, true);
+        s.balances
+            .insert((BUYER, TOKEN), if funded { 8 } else { 0 });
+        let mut sim = distressed(w, s, Backend::CubeCpu);
+        assert!(
+            economics_compute_smoke::recovery::market::discover(&sim.world, &sim.state, BUYER)
+                .is_empty()
+        );
+        let mut audit =
+            Audit::with_assets(&sim.world, &sim.state, TOKEN, [(PLOT, 10)].into()).unwrap();
+        while (sim.state.month, sim.state.phase) != (3, Phase::Acquire) {
+            audit.step(&mut sim).unwrap();
+        }
+        let inventory =
+            economics_compute_smoke::recovery::market::discover(&sim.world, &sim.state, BUYER);
+        assert_eq!(inventory.len(), 1);
+        assert_eq!(inventory[0].listing.minimum_price, 6);
+        assert!(
+            economics_compute_smoke::recovery::market::discover(&sim.world, &sim.state, ESTATE)
+                .is_empty()
+        );
+        assert!(
+            offers::discover(&sim.world, &sim.state, BUYER)
+                .iter()
+                .any(|o| matches!(&o.terms, Terms::Liquidation { bid, .. } if bid.id == 1))
+        );
+        let request = Request::new(Id::LiquidationBid(1), BUYER);
+        let before = sim.clone();
+        let preview = offers::prepare(&sim, std::slice::from_ref(&request));
+        assert_eq!(preview.is_ok(), funded);
+        assert_eq!(sim.state, before.state);
+        assert!(offers::prepare(&sim, &[Request::new(Id::LiquidationBid(1), OTHER)]).is_err());
+        if funded {
+            let mut accepted = sim.clone();
+            offers::accept(&mut accepted, &[request]).unwrap();
+            audit.step(&mut sim).unwrap();
+            assert_eq!(sim.state, accepted.state);
+            assert_eq!(sim.ledger, accepted.ledger);
+            assert_eq!(sim.state.balance(ESTATE, TOKEN), 8);
+            assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(BUYER));
+            assert!(
+                economics_compute_smoke::recovery::market::discover(&sim.world, &sim.state, OTHER)
+                    .is_empty()
+            );
+            assert!(
+                offers::accept(&mut sim, &[Request::new(Id::LiquidationBid(1), BUYER)]).is_err()
+            );
+            let mut resumed = (sim.clone(), audit.clone());
+            while sim.state.month <= 5 {
+                audit.step(&mut sim).unwrap();
+            }
+            resumed.0.backend = Backend::Reference;
+            while resumed.0.state.month <= 5 {
+                resumed.1.step(&mut resumed.0).unwrap();
+            }
+            assert_eq!(
+                (&sim.state, &sim.ledger, &audit),
+                (&resumed.0.state, &resumed.0.ledger, &resumed.1)
+            );
+            assert_eq!(
+                sim.state.credit.recovery.proceedings[&1].stage,
+                Stage::Closed
+            );
+        } else {
+            assert!(offers::accept(&mut sim, &[request]).is_err());
+            assert_eq!(sim.state, before.state);
+            audit.step(&mut sim).unwrap();
+            assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(PERSON));
+            assert_eq!(sim.state.balance(ESTATE, TOKEN), 0);
+        }
+    }
+}
+
+#[test]
+fn common_bid_requests_cannot_override_competing_funded_priority_or_duplicate_a_sale() {
+    use economics_compute_smoke::offers::{self, Id, Request};
+    let (mut w, s) = fixture();
+    proceeding(&mut w, true);
+    let mut duplicate = w.recovery.bids[0].clone();
+    duplicate.id = 2;
+    let mut unfunded = duplicate.clone();
+    unfunded.id = 3;
+    unfunded.buyer = OTHER;
+    unfunded.price = 9;
+    w.recovery.bids.extend([duplicate, unfunded]);
+    let mut sim = distressed(w, s, Backend::Reference);
+    while (sim.state.month, sim.state.phase) != (3, Phase::Acquire) {
+        sim.step().unwrap();
+    }
+    assert!(offers::prepare(&sim, &[Request::new(Id::LiquidationBid(2), BUYER)]).is_err());
+    assert!(offers::prepare(&sim, &[Request::new(Id::LiquidationBid(3), OTHER)]).is_err());
+    let prepared = offers::prepare(&sim, &[Request::new(Id::LiquidationBid(1), BUYER)]).unwrap();
+    let mut reordered = sim.clone();
+    reordered.world.recovery.bids.reverse();
+    assert_eq!(
+        offers::prepare(&reordered, &[Request::new(Id::LiquidationBid(1), BUYER)]).unwrap(),
+        prepared
+    );
+    assert_eq!(
+        prepared
+            .credit
+            .as_ref()
+            .unwrap()
+            .recovery
+            .iter()
+            .filter(|r| matches!(r, Receipt::Sold { .. }))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn winding_household_cannot_exercise_a_liquidation_bid_even_with_reserved_cash() {
+    use economics_compute_smoke::{
+        household_governance::Governance,
+        households::{self, Agreement},
+        offers::{self, Id, Request},
+    };
+    const HOME: AgentId = 10000;
+    for winding in [false, true] {
+        let (mut w, mut s) = fixture();
+        proceeding(&mut w, true);
+        let (baseline, _) = scenario::baseline();
+        let mut member = baseline.participants[0].clone();
+        member.agent = BUYER;
+        member.needs.clear();
+        member.capacity.quantity = 0;
+        w.participants.push(member);
+        let mut governance = Governance::contributed(BUYER);
+        governance.constitution.allow_dissolution = true;
+        households::form(
+            &mut w,
+            &s,
+            Agreement {
+                id: 1,
+                agent: HOME,
+                adults: vec![BUYER],
+                governance,
+                formed: 1,
+                dwelling_process: None,
+                admission: None,
+                membership: vec![],
+                asset_sales: vec![],
+                equipment_retirements: vec![],
+                support: vec![],
+            },
+        )
+        .unwrap();
+        s.balances.insert((BUYER, TOKEN), 0);
+        s.balances.insert((HOME, TOKEN), 8);
+        w.recovery.bids[0].buyer = HOME;
+        // Previously consented future lending prevents distribution while the
+        // optional asset bid is tested against identical eight-coin balances.
+        let mut future = advance(30, STATE_AGENT);
+        future.debtor = HOME;
+        future.month = 6;
+        future.principal = 1;
+        w.lending.push(future);
+        let mut sim = distressed(w, s, Backend::CubeCpu);
+        if winding {
+            households::dissolution::request(&mut sim.world, &sim.state, HOME, BUYER).unwrap();
+        }
+        while (sim.state.month, sim.state.phase) != (3, Phase::Acquire) {
+            sim.step().unwrap();
+        }
+        assert_eq!(sim.state.balance(HOME, TOKEN), 8);
+        assert_eq!(
+            offers::prepare(&sim, &[Request::new(Id::LiquidationBid(1), HOME)]).is_ok(),
+            !winding
+        );
+        assert_eq!(
+            economics_compute_smoke::recovery::market::discover(&sim.world, &sim.state, HOME)
+                .is_empty(),
+            winding
+        );
+        sim.step().unwrap();
+        assert_eq!(
+            credit::owner(&sim.world, &sim.state, PLOT),
+            Some(if winding { PERSON } else { HOME })
+        );
+        assert_eq!(sim.state.balance(HOME, TOKEN), if winding { 8 } else { 0 });
+    }
+}
 #[test]
 fn guarantees_share_finite_funds_and_create_one_collectible_recourse_claim() {
     let (mut w, s) = fixture();

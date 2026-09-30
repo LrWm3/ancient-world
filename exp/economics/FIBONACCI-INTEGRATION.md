@@ -210,6 +210,10 @@ Completed additions so far:
 16. Explain deferred assets through receipts, counterparty filters and checkpoint checks.
 17. Expose posted household hiring through common offer discovery and preparation.
 18. Compose hiring requests with prepaid funding while preserving policy and timing.
+19. Expose active unsold estate listings with denomination and reserve terms.
+20. Prepare liquidation bids through common acceptance and actual funded priority.
+21. Preserve competing bid identities and reject duplicate-sale interpretations.
+22. Apply household lifecycle eligibility to optional estate purchases.
 
 See [acquisition adapters](ACQUISITION-ADAPTERS.md) and
 [guarantee admission](GUARANTEE-ADMISSION.md). This is an unfinished batch; no

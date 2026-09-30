@@ -9,6 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 const RECOURSE_TERM_MONTHS: u32 = 1;
 pub mod admission;
+pub mod market;
 
 /// Identifies the authoritative obligation covered by accepted contingent terms.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -1145,7 +1146,7 @@ pub(crate) fn sales(
                 .proceedings
                 .get(&p.id)
                 .is_some_and(|c| c.stage == Stage::Active && !c.sold.contains(&b.asset))
-            && !state.terminal.contains_key(&b.buyer)
+            && market::eligible_buyer(world, state, b.buyer)
             && active(world, &out.after, b.buyer).is_none()
             && b.price >= listed.minimum_price
             && crate::opportunities::permits(

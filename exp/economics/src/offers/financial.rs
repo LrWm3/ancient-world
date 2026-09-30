@@ -12,6 +12,7 @@ pub(super) fn is_financial(id: Id) -> bool {
             | Id::Guarantee(_)
             | Id::FinancedPurchase(_)
             | Id::Employment(_)
+            | Id::LiquidationBid(_)
     )
 }
 
@@ -54,6 +55,26 @@ pub(super) fn discover(w: &World, s: &State, agent: AgentId, offers: &mut Vec<Of
                 terms: Terms::Employment(t.clone()),
             }),
     );
+    let listed = crate::recovery::market::discover(w, s, agent);
+    for b in w
+        .recovery
+        .bids
+        .iter()
+        .filter(|b| b.buyer == agent && b.month >= s.month)
+    {
+        if let Some(offer) = listed
+            .iter()
+            .find(|o| o.proceeding == b.proceeding && o.listing.asset == b.asset)
+        {
+            additions.push(Offer {
+                id: Id::LiquidationBid(b.id),
+                terms: Terms::Liquidation {
+                    offer: offer.clone(),
+                    bid: b.clone(),
+                },
+            });
+        }
+    }
     additions.sort_by_key(|o| o.id);
     offers.extend(additions);
 }
@@ -68,6 +89,12 @@ pub(super) fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, S
             return Err("duplicate or invalid financial application".into());
         }
         let matches = match r.offer {
+            Id::LiquidationBid(id) => sim
+                .world
+                .recovery
+                .bids
+                .iter()
+                .any(|b| b.id == id && b.buyer == r.agent && b.month == sim.state.month),
             Id::Advance(id) => sim.world.lending.iter().any(|a| {
                 a.id == id
                     && a.debtor == r.agent
@@ -122,6 +149,13 @@ pub(super) fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, S
         .ok_or("missing financial acceptance boundary")?;
     for r in requests {
         let accepted = match r.offer {
+            Id::LiquidationBid(id) => {
+                let b = sim.world.recovery.bids.iter().find(|b| b.id == id).unwrap();
+                batch.credit.as_ref().is_some_and(|c| {
+                    !c.recovery.iter().any(|r| matches!(r, crate::recovery::Receipt::SaleRejected { bid } if *bid == id))
+                        && c.recovery.iter().any(|r| matches!(r, crate::recovery::Receipt::Sold { proceeding, asset, buyer, proceeds } if *proceeding == b.proceeding && *asset == b.asset && *buyer == b.buyer && *proceeds == b.price))
+                })
+            },
             Id::Employment(id) => batch.employment.as_ref().is_some_and(|b| b.receipts.iter().any(|r| r.agreement == id && r.earned_month == sim.state.month && r.delivered > 0)),
             Id::Advance(id) => batch.credit.as_ref().is_some_and(|b| b.events.iter().any(|e| matches!(e, credit::Event::Advanced { loan, .. } if *loan == id))),
             Id::FinancedPurchase(id) => batch.credit.as_ref().is_some_and(|b| b.events.iter().any(|e| matches!(e, credit::Event::Purchased { offer, .. } if *offer == id))),
