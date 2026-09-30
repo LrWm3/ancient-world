@@ -1,4 +1,4 @@
-# Creditor allocation at the monthly Due boundary
+# Creditor allocation at existing collection boundaries
 
 Implemented as a policy of the existing contract execution window. This does not
 introduce an insolvency proceeding or another debt ledger.
@@ -21,7 +21,8 @@ payments in the same boundary. The shared allocator weights equal-rank claims by
 their outstanding quantities, distributes integer remainder units by largest
 fractional remainder then stable contract identity, and reassigns storage-blocked
 shares while another claim can receive them. Zero demand and future claims receive
-nothing. Atomic exchange claims are rejected rather than partially funded.
+nothing. Indivisible single-resource claims receive a whole grant or zero;
+multi-resource packages still use atomic exchange acceptance.
 
 Grants are ceilings passed to the existing claim adapters. Actual execution still
 checks live storage and resources. Fixed-value repossession cannot spend funds
@@ -48,9 +49,9 @@ does not solve cyclic conversions.
 
 ## Limits
 
-- The proportional Due adapter currently requires credit servicing. Standalone
-  land collection retains its existing sequential policy. Alternative tender
-  must be an explicitly accepted storage-free stock resource.
+- Standalone land and forward collection now share the allocator; see
+  [collection adapters](COLLECTION-ADAPTERS.md). Alternative tender must be an
+  explicitly accepted storage-free stock resource.
 - Forward collection remains at Acquire; land arrears retries remain after
   production. Neither participates retroactively in the Due pool.
 - Shared receiving storage across different debtor/resource pools resolves in
@@ -75,7 +76,7 @@ proportional collection. Controlled outcomes include:
 | Ten grain loan due and ten grain land due, six grain available | Three grain paid to each claim |
 | Twelve grain, three protected, two creditors sharing storage for only two grain | Two grain total to constrained creditors; seven to the other eligible same-rank creditor; zero to the lower rank |
 | Future installment | Zero allocation |
-| Indivisible exchange submitted for proportional collection | Explicit rejection |
+| Indivisible claim larger than available budget/storage | Zero allocation; other feasible claims retain access |
 
 The CPU loan case compares batched and resumed execution and reverses configured
 advance order. Both final state and committed ledger agree. Regression checks
@@ -97,6 +98,6 @@ documentation; raw local test output remains under ignored `output/economics/`.
 Current alternative-tender and recovery validation is recorded in
 [Contract recovery](CONTRACT-RECOVERY.md).
 
-Further coverage: standalone and forward allocation adapters, additional tender
-routes, and broader claim admission to recovery. A collection shortage alone
+Further coverage: additional tender routes, jointly constrained multi-resource
+claims, and broader claim admission to recovery. A collection shortage alone
 does not imply a legal proceeding.

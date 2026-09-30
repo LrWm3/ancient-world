@@ -1,12 +1,14 @@
 # Consolidate contracts before adding more financial scenarios
 
-Latest consolidation: [physical minting and finance](MINT-FINANCE.md) now connects
-direct loans, prepaid deliveries, annual dues, employment, household pooling and
-authorized recovery through the shared acquisition budget. Its mixed scenario
-retains unpaid claims and compares provision policies with reconciled statements.
-This supersedes earlier blanket exclusions for those combinations; other driver
-and admission limits remain explicit.
-
+Latest consolidation: [standalone collection adapters](COLLECTION-ADAPTERS.md)
+now share ranked/proportional allocation and observable unpaid attempts.
+[Commodity finance](COMMODITY-FINANCE.md) adds valued native loans and physical
+loan, wage, land and direct-forward guarantees. Household posted hiring also
+composes with [physical minting](MINT-FINANCE.md) against remaining worker hours.
+[Posted guarantee admission](GUARANTEE-ADMISSION.md) now distinguishes offers from
+accepted exposure and checks legal recognition. [Acquisition adapters](ACQUISITION-ADAPTERS.md)
+connect direct loans to plot review and preserve observed household capacity in
+forecasts. These extend supported combinations; other admission and driver limits remain.
 
 This is active implementation work. The next financial work should extend the
 existing contract, claim and settlement model, rather than introduce another
@@ -90,10 +92,9 @@ misrepresented as conserved transfers between fictional counterparties.
 ## What is deliberately not claimed yet
 
 Direct advances are configured consent, not an autonomous credit offer search or
-underwriter. Existing acquisition drivers do not all compose: town markets,
-physical minting, household delegation, competing-access/pool allocation,
-consequence-search acquisition and market-driven plot expansion still need
-adapters. Unsupported direct-loan combinations fail validation explicitly.
+underwriter. Existing acquisition drivers do not all compose: competing-access/pool allocation,
+consequence-search acquisition still need adapters. Legacy plot expansion now
+observes direct-loan liabilities; mortgage expansion remains unsupported. Unsupported direct-loan combinations fail validation explicitly.
 Mortgage-specific compatibility restrictions also remain until their ownership
 and planning assumptions are migrated.
 
@@ -130,12 +131,13 @@ can establish that all these arrangements compose.
    the model unified.
 2. **Extend creditor allocation coverage.** Equal-rank proportional allocation
    now covers native and accepted coin-tender loan/land claims at Due, including
-   whole conversion lots. Extend it to standalone land/forward adapters, additional
-   tender routes and general minimum-useful/indivisible rules. Distinguish claim
+   whole conversion lots. Standalone land/forwards and indivisible single-resource
+   claims now have adapters. Extend additional tender routes and joint
+   minimum-useful/multi-resource rules. Distinguish claim
    priority from collateral lien priority. Inventory all claims, protect only explicitly exempt resources, and preserve claims in
    their denomination unless an actual conversion transaction occurs. Compare
    policies against identical opening requests and budgets.
-3. **Broaden insolvency admission.** The authorized single-denomination loan-estate
+3. **Broaden insolvency admission.** The authorized single-custody-denomination estate
    lifecycle now distinguishes arrears from a proceeding and admits land/forward
    performance claims. Accepted land/wage/forward disposition now exists. Add additional custodial
    arrangements and market compositions before describing it as general insolvency. Record who initiates it,
@@ -144,8 +146,9 @@ can establish that all these arrangements compose.
    cash must not silently delete debts or declare every agent insolvent.
 4. **Extend contingent guarantees.** Configured loan and dated wage/land guarantees now record
    consent, cap, trigger, term and dated recourse, with explicit stable/proportional
-   allocation. Extend acceptance/discovery, physical and delivery claim coverage,
-   alternative tenders and lien subrogation. A successful
+   allocation. Physical and direct-delivery claims now have native adapters and statements.
+   Posted guarantee discovery and dated consented admission now exist. Extend
+   autonomous acceptance, alternative tenders and lien subrogation. A successful
    guarantee payment reduces the original creditor's claim and creates the guarantor's corresponding recourse
    claim; it must not pay the creditor twice. Reserve guarantor resources across
    multiple calls using the same allocation window. Cycles and chains need

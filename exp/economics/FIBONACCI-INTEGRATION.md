@@ -3,7 +3,7 @@
 Scope: finish bounded autonomous household hiring and direct prepaid-delivery
 recovery, then demonstrate that they compose with the existing economic loop.
 The batches contain logical changes, not a prescribed count of files or tests.
-The completed sequence is **1, 1, 2, 3, 5, 8, 13**. Batch sizes count distinct
+The completed sequence is **1, 1, 2, 3, 5, 8, 13** (batch 21 in final verification). Batch sizes count distinct
 implementation and integration changes, not test cases. Person self-directed policy changes remain explicitly deferred.
 
 ## Batch 1 — one recovery change
@@ -149,3 +149,58 @@ that bill and completes physical issuance. This leaves the default unchanged.
 Validation: 153 tests passed across 14 suites, with one existing ignored test.
 Strict all-target Clippy, formatting, whitespace and repository artifact checks
 passed. Raw logs are ignored local artifacts.
+
+
+## Batch 21 — allocation, native finance and household composition
+
+1. Extract shared ranked native/alternative-tender allocation.
+2. Apply proportional policy to standalone dated land claims.
+3. Share land grant execution and observable collection receipts.
+4. Add opt-in concurrent prepaid admission with bounded funds/storage.
+5. Allocate mature forward deliveries against one seller stock budget.
+6. Record and validate direct-forward attempts, including zero payment.
+7. Respect whole useful grants for indivisible single-resource claims.
+8. Compose posted household hiring with scarce physical-mint inputs.
+9. Share explicit native-claim reporting valuation.
+10. Account for commodity advances, accrual and repayments.
+11. Reconcile physical loan guarantees and native recourse.
+12. Admit and account for physical wage guarantees.
+13. Reserve mandatory household pooling space alongside other guarantee calls.
+14. Settle physical land guarantees without fictitious debtor inventory.
+15. Admit direct-forward guarantees after the first ordinary delivery window.
+16. Preserve historical prepaid basis alongside native recourse valuation.
+17. Verify overlapping deliveries and cumulative cost rounding.
+18. Compose extension/expiry with recovery, keeping native recourse outside coin custody.
+19. Identify native units in guarantee telemetry.
+20. Update supported combinations and remaining roadmap boundaries.
+21. Run the complete crate and required repository checks.
+
+See [collection adapters](COLLECTION-ADAPTERS.md) and
+[commodity finance](COMMODITY-FINANCE.md). This batch extends the active
+consolidation roadmap; it does not complete the proposed ten-stage stress-test
+program. Person self-directed policy changes remain deferred.
+
+
+Validation: the complete batch-21 baseline passed **846 tests**, with **zero failures**
+and **one existing ignored test**, across 103 Cargo test outputs (including empty
+binary/doc targets). Later capacity, plot-credit and posted-guarantee refinements
+passed their affected suites separately; those overlapping counts are not added to
+the baseline total. Strict all-target Clippy, formatting, whitespace and repository
+artifact checks passed before their commits.
+
+## Next batch 34 — acceptance and continuing integration (in progress)
+
+Completed additions so far:
+
+1. Preserve the observed own-capacity endowment in household forecasts.
+2. Compose direct lending with additional-plot review and its dated projection.
+3. Distinguish posted guarantee terms from accepted contingent commitments.
+4. Apply state form recognition and guarantor permission at admission.
+5. Expose guarantee discovery and dated preparation through the common offer interface.
+6. Integrate accepted exposure with household wind-down and normal performance.
+7. Observe admission outcomes and verify timing, replay and checkpoint boundaries.
+
+See [acquisition adapters](ACQUISITION-ADAPTERS.md) and
+[guarantee admission](GUARANTEE-ADMISSION.md). This is an unfinished batch; no
+claim is made that the broader consolidation or financial stress-test roadmap is
+complete. Fibonacci batch sizes do not supply a finite stopping point.

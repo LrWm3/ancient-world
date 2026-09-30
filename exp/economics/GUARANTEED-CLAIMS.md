@@ -1,7 +1,7 @@
 # Guarantees across authoritative claims
 
 Implemented in Fibonacci batch 8. Accepted guarantee terms identify an original
-loan, one earned wage `(agreement, earning month)`, or one annual land bill
+loan, a direct prepaid delivery, one earned wage `(agreement, earning month)`, or one annual land bill
 `(agreement, original due date)`. No second wage or rent debt ledger is introduced.
 The guarantee retains its own guarantor, lifetime paid cap, validity interval,
 missed-payment delay, priority and reserved recourse identity. Terms are supplied
@@ -68,19 +68,23 @@ records and atomic rejection of forged settlement/reporting are checked.
 
 ## Remaining boundaries
 
-Non-loan guarantees currently require a storage-free native denomination; their
-financial reports require that denomination to be the reporting currency. Physical
-wages, commodity rent with an alternative coin tender, delivery guarantees and
-conversion damages need explicit adapters. This does not silently price them.
-Loan guarantees preserve their existing native settlement scope, while mixed-
-denomination loan reporting still requires a future valuation adapter.
+[Commodity finance](COMMODITY-FINANCE.md) now covers physical wages, native land
+and direct prepaid deliveries, with explicit valuation and inventory accounting.
+A forward first becomes callable after its original Acquire delivery window;
+extensions move eligibility without extending coverage. Physical wage payments
+reserve household pooling space before committing. Guarantee observers identify
+the native resource alongside requested, allocated and paid quantities.
+
+Accepted alternative-tender guarantees, conversion damages and dynamically
+underwritten tool-forward coverage remain extensions. Fixed resource valuations
+do not establish general FX or noncash collateral/estate accounting.
 
 Guarantees of recourse loans and pending-resale mortgages remain rejected. Lien
 subrogation, guarantee markets, pricing, premiums, legal formation requirements,
 autonomous household guarantee selection and cyclic contingent-credit networks
 remain extensions. Dedicated custody agents cannot guarantee obligations.
 
-## Completed checks
+## Earlier batch-8 checks
 
 The final affected regression selection passed **153 tests across 14 suites**,
 with one existing ignored test, including all 11 new guaranteed-claim tests. Formatting, strict all-target Clippy,

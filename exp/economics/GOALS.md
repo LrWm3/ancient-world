@@ -1,12 +1,14 @@
 # Goals: agents, institutions and markets
 
-Latest consolidation: [physical minting and finance](MINT-FINANCE.md) now connects
-direct loans, prepaid deliveries, annual dues, employment, household pooling and
-authorized recovery through the shared acquisition budget. Its mixed scenario
-retains unpaid claims and compares provision policies with reconciled statements.
-This supersedes earlier blanket exclusions for those combinations; other driver
-and admission limits remain explicit.
-
+Latest consolidation: [standalone collection adapters](COLLECTION-ADAPTERS.md)
+now share ranked/proportional allocation and observable unpaid attempts.
+[Commodity finance](COMMODITY-FINANCE.md) adds valued native loans and physical
+loan, wage, land and direct-forward guarantees. Household posted hiring also
+composes with [physical minting](MINT-FINANCE.md) against remaining worker hours.
+[Posted guarantee admission](GUARANTEE-ADMISSION.md) now distinguishes offers from
+accepted exposure and checks legal recognition. [Acquisition adapters](ACQUISITION-ADAPTERS.md)
+connect direct loans to plot review and preserve observed household capacity in
+forecasts. These extend supported combinations; other admission and driver limits remain.
 
 This document records the experiment's intended direction. These are design goals,
 not claims of implemented behavior or a commitment to implement everything at once.
@@ -15,7 +17,7 @@ the [design](DESIGN.md) describes the transaction and process architecture.
 
 ## Current position
 
-The [README progress summary](README.md#current-progress--2026-09-23) separates
+The [README progress summary](README.md#current-progress--2026-09-30) separates
 implemented pilots from these longer-term goals. Recent consolidation shares loan,
 land and forward claim execution and adds alternative-tender allocation, capped
 guarantees, configured recovery with land/forward admission, and funded liquidation.

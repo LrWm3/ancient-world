@@ -1,12 +1,14 @@
 # Economics integration and planning interfaces
 
-Latest consolidation: [physical minting and finance](MINT-FINANCE.md) now connects
-direct loans, prepaid deliveries, annual dues, employment, household pooling and
-authorized recovery through the shared acquisition budget. Its mixed scenario
-retains unpaid claims and compares provision policies with reconciled statements.
-This supersedes earlier blanket exclusions for those combinations; other driver
-and admission limits remain explicit.
-
+Latest consolidation: [standalone collection adapters](COLLECTION-ADAPTERS.md)
+now share ranked/proportional allocation and observable unpaid attempts.
+[Commodity finance](COMMODITY-FINANCE.md) adds valued native loans and physical
+loan, wage, land and direct-forward guarantees. Household posted hiring also
+composes with [physical minting](MINT-FINANCE.md) against remaining worker hours.
+[Posted guarantee admission](GUARANTEE-ADMISSION.md) now distinguishes offers from
+accepted exposure and checks legal recognition. [Acquisition adapters](ACQUISITION-ADAPTERS.md)
+connect direct loans to plot review and preserve observed household capacity in
+forecasts. These extend supported combinations; other admission and driver limits remain.
 
 Current financial work extends [contract consolidation](CONTRACT-CONSOLIDATION.md).
 Direct consented loans reuse the mortgage book with optional collateral, share Due
@@ -53,8 +55,8 @@ collective purchases. Internal household employment remains excluded.
 [Pass 26](PAYROLL-OUTLOOK.md) adds opt-in current-month payroll estimates for
 collective funding; future wages remain outside authoritative claims and accounts.
 Direct town lending
-does not enable mortgage purchase configuration, recovery proceedings or joint
-production planners. Adult accession/exit changes contribution and consumption
+does not enable mortgage purchase configuration or joint production planners.
+Bounded town recovery now observes market stays and native claims. Adult accession/exit changes contribution and consumption
 scope without rewriting accepted wages or personal debt. Personal self-directed
 policy changes are explicitly deferred.
 
@@ -67,7 +69,7 @@ and loan estates, plus costed posted stock bids and bilateral negotiated/ZIP tra
 Opt-in owner-operated production adds material work-in-progress, joint-product
 cost shares, consumption expense and aborted-work loss. Work ownership transfers,
 household pooling, opt-in completed-output transfers and opt-in paid-capacity
-capitalization are supported. [Preaccepted employment agreements](EMPLOYMENT.md) add capacity delivery, earned wage claims, partial payment and optional suspension. Outside member employment now composes with household labor contributions and paid-wage pooling. Internal household employment, negotiated hiring, wage insolvency and priced third-party contract production remain unsupported. Dated land dues now compose with lending and
+capitalization are supported. [Preaccepted employment agreements](EMPLOYMENT.md) add capacity delivery, earned wage claims, partial payment and optional suspension. Outside member employment now composes with household labor contributions and paid-wage pooling. Posted external hiring and earned-wage insolvency now have adapters. Internal household employment, negotiated wage pricing and priced third-party contract production remain unsupported. Dated land dues now compose with lending and
 material production on existing boundaries, including native goods and accepted
 coin alternatives. Estate-paid native/accepted-coin dues now reconcile to restricted debtor cash and neutral custody positions; collection-linked issuance has an explicit opt-in convention. Storage blockage uses existing process failure;
 there is no stored-goods spoilage event to recognize. The complete report set is not universal
@@ -76,8 +78,8 @@ transaction coverage. Execution and existing acquisition priority are unchanged.
 ## Shared acquisition boundary
 
 `acquisition::evaluate` reads one immutable Acquire boundary and returns a dated
-batch. The explicit allocation rule is **credit first, negotiated exchange
-or town exchange second**. Within credit, the existing purchase/resale/state-bid order is preserved.
+batch. The explicit allocation rule is **credit, direct forward collection/admission,
+then spot exchange or physical mint packages**. Within credit, the existing purchase/resale/state-bid order is preserved.
 This changes neither monthly phase order nor when installments fall due.
 
 1. Credit emits its transactions and receipts from opening balances.

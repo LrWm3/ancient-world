@@ -81,3 +81,11 @@ program, not a completed release checklist.
 
 Generated logs stay under ignored `output/economics/`. See
 [Fibonacci integration](FIBONACCI-INTEGRATION.md) for validation and batch contents.
+
+## Household offer follow-up
+
+Posted household labor offers now run after actual mint-market reservations.
+A paired control completes the mint when its material/labor package is feasible;
+otherwise the household hires the remaining two hours and produces four goods.
+The two paths reconcile on CPU/reference execution. This removes the earlier
+blanket exclusion for household hiring offers, not the other market-driver limits.

@@ -1,5 +1,11 @@
 # Contract recovery using the existing credit book
 
+Latest extension: [commodity finance](COMMODITY-FINANCE.md) adds physical and
+prepaid-delivery guarantees, valued native loans and native recourse during a
+coin proceeding. Coin custody never pays another denomination at par. Native
+performance remains collectible and blocks closure until actually resolved.
+
+
 Latest consolidation: [physical minting and finance](MINT-FINANCE.md) now connects
 direct loans, prepaid deliveries, annual dues, employment, household pooling and
 authorized recovery through the shared acquisition budget. Its mixed scenario

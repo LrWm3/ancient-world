@@ -45,8 +45,9 @@ benefit; no extra hire when own labor suffices; and no duplicated demand across 
 workers. They check actual output, cash and paid-capacity basis, replay, altered
 receipt rejection, checkpoint continuation and CPU/reference equality.
 
-The first adapter supports plain or town acquisition, direct loans and direct
-prepaid deliveries. It does not add ZIP wage negotiation, universal labor-market
+The adapter supports plain or town acquisition, direct loans, direct
+prepaid deliveries and physical minting. Mint input packages reserve worker hours
+before optional household hiring; an unfunded package leaves those hours available. It does not add ZIP wage negotiation, universal labor-market
 participation, multi-month staffing optimization or internal member employment.
 Worker consent and offered terms are supplied; household acceptance is agentic.
 Person self-directed policy changes remain deferred.
