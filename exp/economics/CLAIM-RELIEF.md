@@ -111,3 +111,10 @@ remain open. The control compares absent, exact and stale consent against the
 same actual advance and repayment, including CPU/reference, checkpoint and
 forged receipt/history rejection. The six-target gate passed 104 tests and strict
 all-target Clippy passed.
+
+The household continuation separately accepts forgiveness of a member's native
+guarantee recourse. It resolves the loan after the external prepaid delivery has
+been settled/forgiven, records the member's loss, closes the proceeding and
+releases residual coins before dissolution. Without this acceptance, the same
+internal claim remains material and blocks exit. CPU/reference and checkpoint
+statements agree; the five-target integration gate passed 74 tests.

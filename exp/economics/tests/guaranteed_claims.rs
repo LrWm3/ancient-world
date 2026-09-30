@@ -2411,7 +2411,7 @@ fn member_guarantee_of_household_forward_preserves_native_debt_after_delivery_re
         recovery::GuaranteeTender,
     };
     const HOME: AgentId = 800;
-    for funded in [false, true] {
+    for (funded, recourse_relief) in [(false, false), (true, false), (true, true)] {
         let (mut w, mut s) = fixture();
         let mut governance = Governance::contributed(WORKER);
         governance.constitution.allow_dissolution = true;
@@ -2471,6 +2471,22 @@ fn member_guarantee_of_household_forward_preserves_native_debt_after_delivery_re
                 quantity: if funded { 2 } else { 4 },
             },
         });
+        if recourse_relief {
+            w.recovery
+                .claim_relief
+                .push(economics_compute_smoke::claim_relief::Terms {
+                    id: 91,
+                    proceeding: 1,
+                    contract: economics_compute_smoke::finance::ContractId::Loan(101),
+                    original_due: 4,
+                    debtor: HOME,
+                    creditor: WORKER,
+                    month: 5,
+                    expected_due: 4,
+                    expected_remaining: 2,
+                    action: economics_compute_smoke::claim_relief::Action::WriteOff { quantity: 2 },
+                });
+        }
         let opening = Opening {
             exchange_values: [(WHEAT, 3)].into(),
             ..Opening::default()
@@ -2521,6 +2537,32 @@ fn member_guarantee_of_household_forward_preserves_native_debt_after_delivery_re
             let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
             through(&mut ra, &mut resumed, 4);
             assert_eq!((&sim.state, &a), (&resumed.state, &ra));
+            if recourse_relief {
+                let checkpoint = (sim.clone(), a.clone());
+                through(&mut a, &mut sim, 6);
+                assert_eq!(
+                    sim.state.credit.loans[&101].status,
+                    economics_compute_smoke::credit::Status::Discharged
+                );
+                assert_eq!(
+                    sim.state.credit.recovery.proceedings[&1].stage,
+                    economics_compute_smoke::recovery::Stage::Closed
+                );
+                assert_eq!(sim.state.balance(WORKER, COIN), 5);
+                assert_eq!(sim.state.balance(HOME, COIN), 0);
+                assert_eq!(sim.state.balance(WORKER, WHEAT), 0);
+                assert_eq!(sim.state.balance(SUPPLIER, WHEAT), 0);
+                assert_eq!(a.book().balances()[&(WORKER, Account::CreditLoss)], 6);
+                // Three of debtor relief come from the residual forward and six
+                // from this separately accepted member loan disposition.
+                assert_eq!(a.book().balances()[&(HOME, Account::DebtRelief)], -9);
+                assert!(!d::blockers(&sim.world, &sim.state, HOME).contains(&d::Blocker::Loan));
+                let (saved, mut audit) = checkpoint;
+                let mut resume = Simulation::new(saved.world, saved.state, backend).unwrap();
+                through(&mut audit, &mut resume, 6);
+                assert_eq!((&sim.state, &a), (&resume.state, &audit));
+                d::finish(&mut sim.world, &sim.state, HOME, WORKER).unwrap();
+            }
             if !funded {
                 d::finish(&mut sim.world, &sim.state, HOME, WORKER).unwrap();
                 assert_eq!(sim.state.balance(WORKER, COIN), 5);

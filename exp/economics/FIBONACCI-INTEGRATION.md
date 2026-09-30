@@ -870,3 +870,12 @@ separately recorded affected gates and are not covered by this snapshot.
     CPU/reference, checkpoint and forgery controls pass; the six-target gate passed
     104 tests and strict all-target Clippy passed. Partial amortizing-loan changes
     and secured write-offs remain unsupported.
+
+53. **Accepted member recourse relief completes household wind-down.**
+    The member-guaranteed prepaid scenario now contrasts retained internal debt
+    with a separately accepted full native-loan write-off. Only the accepted
+    disposition clears the proceeding, releases five residual coins and permits
+    dissolution. The member records six units of reporting loss; household relief
+    distinguishes the forward and loan. No native goods or repayment appear.
+    CPU/reference and both pre/post-guarantee checkpoint continuations agree.
+    The five-target gate passed 74 tests and strict all-target Clippy passed.
