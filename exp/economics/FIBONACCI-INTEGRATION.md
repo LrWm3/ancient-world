@@ -1190,3 +1190,11 @@ separate affected-suite gates and are not covered by this snapshot.
 The isolated **`30870e5`** snapshot completed `cargo +1.92.0 test --locked`:
 **1,023 passed, 0 failed, 1 ignored**, across 123 Cargo result targets including
 empty unit/doc targets. Items 85 onward have separate affected-suite gates.
+
+87. **Priced mortgages retain productive collateral and guarantee boundaries.**
+    Discount/premium household assignments compose with crop control transfer,
+    actual property sale, pre/post-sale lien guarantees and separate/shared custody.
+    Remaining investor deficiencies retain proportional acquisition cost, while
+    actual recovery and member property ownership stay independent of claim price.
+    Funded/unfunded and CPU/checkpoint controls pass. The four-target gate passed
+    80 tests and strict all-target Clippy passed.

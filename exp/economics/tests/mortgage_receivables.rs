@@ -137,21 +137,39 @@ fn fixture(funded: bool) -> (World, State) {
 
 #[test]
 fn winding_household_sells_mortgage_claim_and_new_holder_receives_actual_collateral_proceeds() {
-    assignment(None, false);
+    assignment(None, false, None);
 }
 
 #[test]
 fn mortgage_assignment_retains_guarantee_consent_and_inherited_liens_across_custody() {
     for from in [4, 5] {
         for shared in [false, true] {
-            assignment(Some(from), shared);
+            assignment(Some(from), shared, None);
         }
     }
 }
 
-fn assignment(guarantee_from: Option<u32>, shared_custody: bool) {
+#[test]
+fn priced_mortgages_keep_crop_control_guarantees_and_actual_collateral_proceeds() {
+    for price in [3, 7] {
+        for from in [None, Some(4), Some(5)] {
+            for shared in [false, true] {
+                assignment(from, shared, Some(price));
+            }
+        }
+    }
+}
+
+fn assignment(guarantee_from: Option<u32>, shared_custody: bool, price: Option<i32>) {
+    use economics_compute_smoke::accounting::Account;
     for funded in [false, true] {
-        let (mut w, s) = fixture(funded);
+        let (mut w, mut s) = fixture(funded);
+        if let Some(price) = price {
+            w.recovery.receivable_price_floors.insert(1, 1);
+            w.recovery.receivable_bids[0].price = price;
+            s.balances
+                .insert((INVESTOR, TOKEN), if funded { price } else { price - 1 });
+        }
         if shared_custody {
             w.recovery.proceedings[0].estate = HOME_ESTATE;
         }
@@ -215,7 +233,7 @@ fn assignment(guarantee_from: Option<u32>, shared_custody: bool) {
                     .unwrap();
                 assert_eq!(sim.state.credit.loans[&1].creditor, INVESTOR);
                 assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(PERSON));
-                assert_eq!(sim.state.balance(HOME_ESTATE, TOKEN), 6);
+                assert_eq!(sim.state.balance(HOME_ESTATE, TOKEN), price.unwrap_or(6));
                 assert_eq!(sim.state.credit.loans[&10].principal, 10);
             } else {
                 assert!(prepared.is_err());
@@ -254,8 +272,43 @@ fn assignment(guarantee_from: Option<u32>, shared_custody: bool) {
             );
             assert_eq!(
                 sim.state.balance(INVESTOR, TOKEN),
-                if funded { recovered } else { 5 }
+                if funded {
+                    recovered
+                } else {
+                    price.unwrap_or(6) - 1
+                }
             );
+            if let Some(price) = price {
+                let balance = |agent, account| {
+                    audit
+                        .book()
+                        .balances()
+                        .get(&(agent, account))
+                        .copied()
+                        .unwrap_or(0)
+                };
+                let cost = i128::from(price) * i128::from(6 - recovered) / 6;
+                assert_eq!(
+                    balance(INVESTOR, Account::LoanReceivable(1))
+                        + balance(INVESTOR, Account::LoanBasisAdjustment(1)),
+                    if funded { cost } else { 0 }
+                );
+                assert_eq!(
+                    balance(INVESTOR, Account::SettlementGain)
+                        + balance(INVESTOR, Account::SettlementLoss),
+                    if funded {
+                        i128::from(price - recovered) - cost
+                    } else {
+                        0
+                    }
+                );
+                assert_eq!(
+                    balance(HOME, Account::DisposalGain) + balance(HOME, Account::DisposalLoss),
+                    if funded { i128::from(6 - price) } else { 0 }
+                );
+                assert_eq!(balance(INVESTOR, Account::CreditLoss), 0);
+                assert_eq!(balance(MEMBER, Account::LoanBasisAdjustment(1)), 0);
+            }
             assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(MEMBER));
             assert_eq!(sim.state.balance(MEMBER, TOKEN), 0);
             assert!(

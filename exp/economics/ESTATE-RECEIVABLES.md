@@ -338,3 +338,11 @@ remain private. It uses supported fixed individual priorities and scheduled work
 This does not establish household acceptance of a combined prerequisite/process
 bundle: that still needs the household allocation/collection envelope, and the
 consequence-aware individual search remains excluded with households.
+
+Priced mortgage assignments now compose with active cultivation and authorized
+property liquidation. A household sells its six-coin claim at a discount or
+premium, while the member's later four-coin property purchase transfers the plot
+and crop responsibility. Guarantees can act before sale or against reserved
+proceeds afterward, including shared custody. The investor's unpaid deficiency
+keeps proportional purchased cost; the price neither changes the debt nor creates
+additional collateral recovery. Unfunded assignments retain the original holder.
