@@ -147,6 +147,78 @@ pub(crate) fn due_obligations(
     Ok(obligations)
 }
 
+fn ordinary_collection_allowed(
+    world: &World,
+    state: &State,
+    book: &crate::credit::Book,
+    agreement: &Agreement,
+) -> bool {
+    !state.terminal.contains_key(&agreement.debtor)
+        && crate::recovery::active(world, book, agreement.debtor)
+            .is_none_or(|p| p.denomination != agreement.payment.resource)
+}
+
+/// Native current bills for ordinary collection and funding, never future rent
+/// or a second coin claim for an accepted alternative tender. At Due, include the
+/// bills that the existing schedule issues; elsewhere read already issued bills.
+/// Collection supplies its staged recovery book so newly opened estates apply.
+pub(crate) fn current_claims(
+    world: &World,
+    state: &State,
+    book: &crate::credit::Book,
+) -> Result<Vec<finance::CollectionRequest>, String> {
+    let obligations = due_obligations(world, state)?;
+    let mut result = Vec::new();
+    for a in active(world, state).filter(|a| ordinary_collection_allowed(world, state, book, a)) {
+        let quantity = obligations
+            .values()
+            .filter(|o| o.agreement == a.id && o.due <= state.month)
+            .try_fold(0_i32, |sum, o| {
+                sum.checked_add(o.owed - o.paid)
+                    .ok_or("collection demand overflow")
+            })?;
+        let contract = finance::ContractId::Land(a.id);
+        result.push(finance::CollectionRequest {
+            contract,
+            rank: world
+                .claim_priorities
+                .get(&contract)
+                .copied()
+                .unwrap_or(finance::DEFAULT_CLAIM_RANK),
+            claim: finance::Obligation {
+                transfer: Transfer {
+                    from: a.debtor,
+                    to: a.creditor,
+                    amount: Amount::new(a.payment.resource, quantity),
+                },
+                settled: 0,
+                condition: Condition::OnOrAfterMonth(state.month),
+                failure: FailureRule::BlockNewUse,
+            },
+        });
+    }
+    Ok(result)
+}
+
+pub(crate) fn current_dues(
+    world: &World,
+    state: &State,
+    debtor: AgentId,
+) -> Result<BTreeMap<ResourceId, i128>, String> {
+    let mut result = BTreeMap::new();
+    for request in current_claims(world, state, &state.credit)? {
+        if request.claim.transfer.from == debtor {
+            let total: &mut i128 = result
+                .entry(request.claim.transfer.amount.resource)
+                .or_default();
+            *total = total
+                .checked_add(i128::from(request.claim.outstanding()))
+                .ok_or("land funding claim overflow")?;
+        }
+    }
+    Ok(result)
+}
+
 pub fn evaluate(world: &World, state: &State) -> Result<Settlement, String> {
     let mut execution = finance::Execution::opening(world, state);
     evaluate_with(world, state, &mut execution)
@@ -192,9 +264,7 @@ pub(crate) fn evaluate_selected(
         // Native performance continues on its existing boundary. Cash claims
         // and accepted coin alternatives belong to the estate distribution pool.
         let estate = crate::recovery::active(world, &state.credit, a.debtor);
-        if state.terminal.contains_key(&a.debtor)
-            || estate.is_some_and(|p| p.denomination == a.payment.resource)
-        {
+        if !ordinary_collection_allowed(world, state, &state.credit, a) {
             continue;
         }
         let claim = o.claim(a);
@@ -623,6 +693,51 @@ pub fn output_owner(world: &World, state: &State, right: &UseRight) -> Option<Ag
 mod candidate_tests {
     use super::*;
     use crate::scenario::*;
+
+    #[test]
+    fn current_funding_and_collection_share_staged_estate_exclusions() {
+        use crate::recovery::{Proceeding, ProceedingTerms, Stage};
+        let (mut w, mut s) = named("annual-access").unwrap();
+        s.month = 13;
+        s.phase = Phase::Due;
+        w.recovery.proceedings.push(ProceedingTerms {
+            id: 1,
+            debtor: PERSON,
+            authority: STATE_AGENT,
+            estate: 999,
+            denomination: GRAIN,
+            opening_month: 13,
+            earliest_close: 14,
+            assets: vec![],
+            discharge_deficiency: false,
+        });
+        // Before opening the estate, this month's newly issued bill is collectible.
+        assert_eq!(current_dues(&w, &s, PERSON).unwrap()[&GRAIN], 1);
+        assert!(s.obligations.is_empty()); // Read-only, even at the issuance boundary.
+        let mut staged = s.credit.clone();
+        staged.recovery.proceedings.insert(
+            1,
+            Proceeding {
+                opened: 13,
+                closed: None,
+                stage: Stage::Active,
+                cash: 0,
+                sold: Default::default(),
+                secured: Default::default(),
+            },
+        );
+        assert!(current_claims(&w, &s, &staged).unwrap().is_empty());
+        s.credit = staged;
+        assert!(current_dues(&w, &s, PERSON).unwrap().is_empty());
+        assert!(evaluate(&w, &s).unwrap().transactions.is_empty());
+        // A coin estate does not stay native grain performance. No exchange rate
+        // or ordinary coin claim is invented from this distinction.
+        w.recovery.proceedings[0].denomination = TOKEN;
+        assert_eq!(current_dues(&w, &s, PERSON).unwrap()[&GRAIN], 1);
+        let requests = current_claims(&w, &s, &s.credit).unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].claim.transfer.amount, Amount::new(GRAIN, 1));
+    }
 
     #[test]
     fn dated_claims_include_boundary_and_subtract_paid_amounts() {

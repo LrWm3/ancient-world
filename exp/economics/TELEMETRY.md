@@ -311,7 +311,7 @@ submission sequence and purpose. They include `WageSupport` rank/policy receipts
 well as existing need/input/loan requests. Filtering includes either party, and the
 normal settlement log budget applies. No allocation is recomputed by the observer.
 
-Optional `household_support.receipt.payment_funding` reports own wages/loan dues,
+Optional `household_support.receipt.payment_funding` reports own wages/loan/land dues,
 the opening shortage and the candidate shortage after a voluntary donation, in the
 offered resource's native units. `accepted` remains the actual transfer; a rejected
 candidate can still show a projected improvement. Funding is not creditor payment.

@@ -341,3 +341,8 @@ household wage/loan funding under an opt-in static charter. It caps donations at
 actual payment shortages, protects donor needs and claims, and keeps donation,
 liability and settlement distinct. General obligation coverage and automatic support
 consent remain future work; person self-directed policy changes stay deferred.
+
+[Pass 28](HOUSEHOLD-LAND-SUPPORT.md) adds current native land bills to voluntary
+funding and consolidates their collection/funding claim reader. Combined rent and
+payroll checks retain arrears under limited support and storage. Forward admission,
+alternative-tender funding and autonomous household land acquisition remain open.

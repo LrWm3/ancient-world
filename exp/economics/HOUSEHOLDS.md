@@ -665,12 +665,15 @@ support while keeping their private contracts, assets and debts. See
 
 Static `accept_payment_support` defaults false. Under needs-first operating
 policies, existing personally signed surplus mandates can fund the household's own
-earned-wage/current-loan shortages when ordinary consumption/income evaluation
+earned-wage/current-loan/current-land-bill shortages when ordinary consumption/income evaluation
 rejects the offer. A second candidate is capped at the shortage and rechecked for
 protected needs. Donor reserves and personal claims remain protected; later donors
 see the funded collective balance. The flag does not authorize a mandate.
 
 Transfers run at the existing Productive support boundary and record transfer
-expense/income. Wages still collect at Close; loan money waits for Due. There is no
+expense/income. Land retains its after-Productive ClearArrears pass, wages collect
+at Close, and loan money waits for Due. There is no
 new member claim, liability transfer or payment guarantee. See
 [combined cases, receipts and limits](HOUSEHOLD-PAYMENT-SUPPORT.md).
+The [land extension](HOUSEHOLD-LAND-SUPPORT.md) shares collection claim rules and
+tests limited donations and creditor storage without advancing future bills.

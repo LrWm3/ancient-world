@@ -5,6 +5,9 @@ authorized surplus to fund its own earned wages or current loan payments, even
 without a consumption improvement or a useful market sale. This connects existing
 voluntary support, employment, lending and separate accounting paths.
 
+[Pass 28](HOUSEHOLD-LAND-SUPPORT.md) subsequently extends the same opt-in path to
+current native land bills, sharing their ordinary collection rules.
+
 ## Authorization and policy
 
 Static `Charter.accept_payment_support` defaults to `false`. Under `NeedsFirst` or
@@ -18,8 +21,8 @@ Static `Charter.accept_payment_support` defaults to `false`. Under `NeedsFirst` 
    allocations cannot be donated back at that same boundary.
 3. Keep the existing consumption/income comparison. If it accepts, its result is
    unchanged.
-4. Otherwise, inspect the household's own earned wages and current collectible loan
-   dues in the offered resource. Subtract actual holdings and cap a second candidate
+4. Otherwise, inspect the household's own earned wages, current collectible loan
+   dues and current land bills in the offered resource. Subtract actual holdings and cap a second candidate
    at that shortage, the feasible offer and available storage.
 5. Recheck this smaller candidate against collective and individual need projections.
    Accept only if collective needs do not worsen under their existing ordering and
@@ -30,9 +33,10 @@ or income choices. It changes neither governor selection nor labor allocation.
 `support_member_wages` and `support_member_loans` govern the opposite transfer
 direction and remain separate choices.
 
-The payment reader reuses `employment::claims` and `credit::current_dues`, combining
+The payment reader reuses `employment::claims`, `credit::current_dues` and
+`commitments::current_dues`, combining
 only identical denomination units. Future undelivered work, payroll outlooks, future
-loan installments, member debts, land dues and forwards do not create this target.
+loan installments, member debts, future land bills and forwards do not create this target.
 Loan claims under an active estate or stay retain the existing reader's exclusions.
 This is not yet a universal obligation adapter.
 
@@ -43,7 +47,8 @@ changes ownership once. It neither pays a creditor nor gives the donor a new cla
 ownership stake, guarantee or governance power. Replay verifies consent, quantities
 and comparisons before publishing the transfer.
 
-Wages collect at ordinary Close. Loan funding supplied after Due waits for a later
+Land bills collect at existing ClearArrears after Productive; wages collect at ordinary
+Close. Loan funding supplied after Due waits for a later
 Due; there is no backdated collection or extra payment phase. Storage and later
 competing uses can still prevent payment. Support is not creditor-specific escrow
 and changes no creditor priority.

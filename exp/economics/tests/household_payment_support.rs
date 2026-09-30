@@ -85,6 +85,10 @@ fn audit(w: &World, s: &State) -> Audit {
         s,
         TOKEN,
         Opening {
+            assets: w.assets.iter().map(|a| (a.id, 0)).collect(),
+            dues: Some(economics_compute_smoke::dues_accounting::Valuation(
+                w.agreements.iter().map(|a| (a.id, 1)).collect(),
+            )),
             inventory: s
                 .balances
                 .iter()
@@ -474,4 +478,197 @@ fn own_loan_and_wage_funding_share_units_but_keep_their_collection_boundaries() 
         (sim.state, sim.ledger, a)
     };
     assert_eq!(run(w.clone(), Backend::Reference), run(w, Backend::CubeCpu));
+}
+
+fn land_fixture(enabled: bool, resource: ResourceId, month: u32) -> (World, State) {
+    use economics_compute_smoke::commitments::Agreement;
+    let (mut w, mut s) = fixture(enabled, resource, 14);
+    s.month = month;
+    w.households[0].support[0].through = 30;
+    w.assets.push(Asset {
+        id: 55000,
+        owner: LENDER,
+        kind: 1,
+    });
+    w.rights.push(UseRight {
+        id: 55000,
+        holder: HOME,
+        asset: 55000,
+        from: 1,
+        through: 25,
+        output_owner: HOME,
+    });
+    w.agreements.push(Agreement {
+        id: 55000,
+        right: 55000,
+        creditor: LENDER,
+        debtor: HOME,
+        activated: 1,
+        payment: Amount::new(resource, 4),
+    });
+    (w, s)
+}
+
+#[test]
+fn member_surplus_funds_rent_and_payroll_without_accelerating_the_next_annual_bill() {
+    for (enabled, private) in [(false, 14), (true, 14), (true, 7)] {
+        let (w, mut s) = land_fixture(enabled, GRAIN, 13);
+        s.balances.insert((PERSON, GRAIN), private);
+        let funded = if enabled { (private - 2).min(10) } else { 0 };
+        let rent_paid = funded.min(4);
+        let wages_paid = funded - rent_paid;
+        let run = |mut w: World, backend| {
+            if matches!(backend, Backend::CubeCpu) {
+                w.households[0].adults.reverse();
+            }
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            while sim.state.phase != Phase::ClearArrears {
+                a.step(&mut sim).unwrap();
+            }
+            assert_eq!(sim.state.balance(HOME, GRAIN), funded);
+            assert_eq!(sim.state.obligations[&(55000, 13)].paid, 0);
+            assert_eq!(value(&a, HOME, A::DuesPayable(55000, 13)), -4);
+            through(&mut a, &mut sim, 13);
+            let r = sim
+                .ledger
+                .iter()
+                .filter_map(|b| b.household.as_ref())
+                .flat_map(|h| &h.support)
+                .next()
+                .unwrap();
+            assert_eq!(r.accepted, funded);
+            if enabled {
+                assert_eq!(r.payment_funding.as_ref().unwrap().due, 10);
+            }
+            assert_eq!(sim.state.balance(WORKER, GRAIN), wages_paid);
+            assert_eq!(sim.state.balance(HOME, GRAIN), 0);
+            assert_eq!(sim.state.obligations[&(55000, 13)].paid, rent_paid);
+            let (mut resumed, mut ra) = (sim.clone(), a.clone());
+            through(&mut a, &mut sim, 14);
+            through(&mut ra, &mut resumed, 14);
+            assert_eq!(sim.state.obligations[&(55000, 13)].paid, rent_paid);
+            assert!(!sim.state.obligations.contains_key(&(55000, 25)));
+            assert_eq!(sim.state.balance(LENDER, GRAIN), rent_paid);
+            assert_eq!(sim.state.balance(PERSON, GRAIN), private - funded);
+            assert_eq!(value(&a, PERSON, A::TransferExpense), i128::from(funded));
+            assert_eq!(
+                (sim.state.clone(), sim.ledger.clone(), a.clone()),
+                (resumed.state, resumed.ledger, ra)
+            );
+            replay(&w, &s, &sim);
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(w.clone(), Backend::Reference), run(w, Backend::CubeCpu));
+    }
+}
+
+#[test]
+fn rent_support_uses_only_issued_unpaid_native_claims() {
+    for (month, already_paid, expected) in [(12, 0, 0), (13, 0, 4), (14, 3, 1), (14, 4, 0)] {
+        let (mut w, mut s) = land_fixture(true, GRAIN, month);
+        w.employment.clear();
+        s.employment = Default::default();
+        if month > 13 {
+            s.obligations.insert(
+                (55000, 13),
+                economics_compute_smoke::commitments::Obligation {
+                    agreement: 55000,
+                    due: 13,
+                    owed: 4,
+                    paid: already_paid,
+                    in_kind_paid: already_paid,
+                },
+            );
+        }
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            through(&mut a, &mut sim, month);
+            let r = sim
+                .ledger
+                .iter()
+                .filter_map(|b| b.household.as_ref())
+                .flat_map(|h| &h.support)
+                .next()
+                .unwrap();
+            assert_eq!(r.accepted, expected);
+            assert_eq!(sim.state.balance(PERSON, GRAIN), 14 - expected);
+            assert_eq!(sim.state.balance(HOME, GRAIN), 0);
+            assert_eq!(sim.state.balance(LENDER, GRAIN), expected);
+            replay(&w, &s, &sim);
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
+
+#[test]
+fn coin_support_does_not_value_or_duplicate_a_grain_rent_alternative() {
+    for native in [GRAIN, TOKEN] {
+        let (mut w, mut s) = land_fixture(true, TOKEN, 13);
+        w.employment.clear();
+        s.employment = Default::default();
+        w.agreements[0].payment.resource = native;
+        if native == GRAIN {
+            w.activities.coin_payments.insert(
+                55000,
+                economics_compute_smoke::activities::CoinPayment {
+                    resource: TOKEN,
+                    coins_per_unit: 2,
+                },
+            );
+        }
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            through(&mut a, &mut sim, 14);
+            let accepted: i32 = sim
+                .ledger
+                .iter()
+                .filter_map(|b| b.household.as_ref())
+                .flat_map(|h| &h.support)
+                .map(|r| r.accepted)
+                .sum();
+            let expected = if native == TOKEN { 4 } else { 0 };
+            assert_eq!(accepted, expected);
+            assert_eq!(sim.state.balance(LENDER, TOKEN), expected);
+            assert_eq!(sim.state.obligations[&(55000, 13)].paid, expected);
+            replay(&w, &s, &sim);
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
+
+#[test]
+fn funded_rent_waits_for_creditor_storage_without_requesting_the_same_donation_twice() {
+    for room in [0, 2] {
+        let (mut w, s) = land_fixture(true, GRAIN, 13);
+        w.storage.capacities.insert(LENDER, room);
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            through(&mut a, &mut sim, 14);
+            let transfers: Vec<_> = sim
+                .ledger
+                .iter()
+                .filter_map(|b| b.household.as_ref())
+                .flat_map(|h| &h.support)
+                .map(|r| r.accepted)
+                .collect();
+            assert_eq!(transfers, [10, 0]);
+            assert_eq!(sim.state.balance(WORKER, GRAIN), 6);
+            assert_eq!(sim.state.balance(LENDER, GRAIN), room);
+            assert_eq!(sim.state.balance(HOME, GRAIN), 4 - room);
+            assert_eq!(sim.state.obligations[&(55000, 13)].paid, room);
+            assert_eq!(
+                value(&a, HOME, A::DuesPayable(55000, 13)),
+                -i128::from(4 - room)
+            );
+            replay(&w, &s, &sim);
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
 }

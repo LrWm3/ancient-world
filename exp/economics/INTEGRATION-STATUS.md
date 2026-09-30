@@ -646,3 +646,16 @@ Combined checks retain separate books, physical carrying costs and worker storag
 limits. Productive donations can pay wages at Close; loan funds wait until the next
 Due. No creditor ranking, escrow, debt assumption, future-employment funding or
 consent inference is introduced.
+
+## Land dues and voluntary funding
+
+[Pass 28](HOUSEHOLD-LAND-SUPPORT.md) extends optional payment support to current
+native land bills. Proportional collection and funding share the land claim reader;
+ordinary collection shares its estate/terminal eligibility gate. Neither future
+annual rent nor a coin alternative is counted as an additional current obligation.
+
+The combined case funds four rent and six wages from ten donated grain. Land settles
+at the existing after-Productive ClearArrears pass, wages at Close. Five donated
+grain leaves five wages unpaid. Creditor storage can retain funded stock and arrears
+without requesting another donation. Separate accounting, CPU/reference, checkpoint
+and replay checks agree. Forward support and alternative-tender funding remain open.

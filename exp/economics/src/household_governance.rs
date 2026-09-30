@@ -67,7 +67,7 @@ pub struct Charter {
     pub support_member_loans: bool,
     /// Transfer current earned-wage shortfalls to member employers before Close payroll.
     pub support_member_wages: bool,
-    /// Member-authorized surplus may also fill own earned-wage/current-loan gaps
+    /// Member-authorized surplus may also fill own earned-wage/current-loan/land-dues gaps
     /// when it does not improve consumption or market income. No debt assumption.
     pub accept_payment_support: bool,
     /// Collective bids may acquire denomination stock for current collectible loans.

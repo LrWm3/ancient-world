@@ -983,41 +983,9 @@ fn collection_grants(
             requests.push(request);
         }
     }
-    let obligations = crate::commitments::due_obligations(world, state)?;
-    for agreement in crate::commitments::active(world, state) {
-        if state.terminal.contains_key(&agreement.debtor)
-            || crate::recovery::active(world, &out.after, agreement.debtor)
-                .is_some_and(|p| p.denomination == agreement.payment.resource)
-        {
-            continue;
-        }
-        let amount = obligations
-            .values()
-            .filter(|o| o.agreement == agreement.id && o.due <= state.month)
-            .try_fold(0_i32, |sum, o| {
-                sum.checked_add(o.owed - o.paid)
-                    .ok_or("collection demand overflow")
-            })?;
-        let contract = finance::ContractId::Land(agreement.id);
-        requests.push(finance::CollectionRequest {
-            contract,
-            rank: world
-                .claim_priorities
-                .get(&contract)
-                .copied()
-                .unwrap_or(finance::DEFAULT_CLAIM_RANK),
-            claim: finance::Obligation {
-                transfer: finance::Transfer {
-                    from: agreement.debtor,
-                    to: agreement.creditor,
-                    amount: Amount::new(agreement.payment.resource, amount),
-                },
-                settled: 0,
-                condition: finance::Condition::OnOrAfterMonth(state.month),
-                failure: finance::FailureRule::BlockNewUse,
-            },
-        });
-    }
+    requests.extend(crate::commitments::current_claims(
+        world, state, &out.after,
+    )?);
     let currencies: BTreeSet<_> = world
         .activities
         .coin_payments
