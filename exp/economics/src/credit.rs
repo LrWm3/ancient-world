@@ -1438,6 +1438,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
             advances(world, state, &mut out, &mut execution, &mut pooling)?;
             budgets = execution.available;
             if let Some(c) = &world.credit {
+                let funding_start = out.transactions.len();
                 let should_purchase = match &c.purchase_policy {
                     crate::borrowing::Policy::Scripted => true,
                     crate::borrowing::Policy::Decline => false,
@@ -1456,7 +1457,10 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
                     purchase(world, state, c, &mut out, &mut budgets)?;
                 }
                 crate::resale::settle(world, state, &mut out, &mut budgets)?;
-                crate::stock_sale::settle(world, state, &mut out, &mut budgets)?;
+                for transaction in &out.transactions[funding_start..] {
+                    pooling.reserve_unpooled(world, &transaction.effects)?;
+                }
+                crate::stock_sale::settle(world, state, &mut out, &mut budgets, &mut pooling)?;
             }
             crate::recovery::admission::apply(world, state, &mut out)?;
         }

@@ -102,3 +102,17 @@ reduce the seller's debt only at the next recovery window. Funded/unfunded, alte
 receipt, CPU and reconstructed-checkpoint controls pass with separate statements.
 See `tests/recovery_search.rs`. The five-target gate passed 26 tests and strict
 all-target Clippy.
+
+The specialized mortgage stock-sale path now carries the same contribution
+reservations after estate purchases and general advances. Previously a fractional
+estate purchase followed by several stock lots could overfill collective storage
+and reject the entire household commit. Identical opening shared stocks now allow
+three, two or zero later lots in both legacy and specialized drivers. The scoped
+specialized fixture declines its mortgage offer to isolate stock settlement.
+
+Its bounded sale forecast caps candidates by actual contribution space before
+rollout, preserving the seller's explicit nutrition constraint. The stock receipt
+and settlement log expose `contribution_limit` separately from raw storage room.
+It includes preceding eligibility, money, lot and raw-storage limits; it is not an
+independent physical capacity. CPU/checkpoint execution, pooled quantities, actual
+custody and separate books agree. No new receipt funds another outgoing action.

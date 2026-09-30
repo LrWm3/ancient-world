@@ -609,6 +609,7 @@ pub(super) fn batch(
                 "reserve":sale.reserve,"opening_stock":sale.opening_stock,
                 "desired_lots":sale.desired_lots,"monthly_limit":sale.monthly_limit,
                 "funding_limit":sale.funding_limit,"storage_limit":sale.storage_limit,
+                "contribution_limit":sale.contribution_limit,
                 "sold_lots":sale.sold_lots,"goods":sale.goods,"coins":sale.coins}),
             );
         }

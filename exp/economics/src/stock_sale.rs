@@ -44,6 +44,8 @@ pub struct Receipt {
     pub monthly_limit: i32,
     pub funding_limit: i32,
     pub storage_limit: i32,
+    /// Feasible lots after opening money/raw storage and cumulative household shares.
+    pub contribution_limit: i32,
     pub sold_lots: i32,
     pub goods: i32,
     pub coins: i32,
@@ -163,6 +165,7 @@ pub(crate) fn settle(
     state: &State,
     out: &mut credit::Boundary,
     budgets: &mut BTreeMap<Account, i32>,
+    pooling: &mut crate::households::income_reservations::Reservations,
 ) -> Result<(), String> {
     let Some(c) = &world.credit else {
         return Ok(());
@@ -206,6 +209,28 @@ pub(crate) fn settle(
     } else {
         0
     };
+    // Carry prior estate purchases/financing and fractional contributions into
+    // candidate feasibility, so a forecast never proposes an uncommittable lot.
+    let mut contribution_limit = 0;
+    if limit > 0 {
+        let transaction = currency::transaction(
+            world,
+            state,
+            currency::StockTrade {
+                bid: bid.id,
+                seller: p.seller,
+            },
+        )?;
+        let mut projected = pooling.clone();
+        for _ in 0..limit {
+            let Some(next) = projected.preview(world, &transaction.effects)? else {
+                break;
+            };
+            projected = next;
+            contribution_limit += 1;
+        }
+    }
+    let limit = contribution_limit;
     let decision = p
         .forecast
         .as_ref()
@@ -237,6 +262,9 @@ pub(crate) fn settle(
         if !storage::fits(world, &used, &transaction.effects) {
             break;
         }
+        let Some(next_pooling) = pooling.preview(world, &transaction.effects)? else {
+            break;
+        };
         for e in &transaction.effects {
             // Incoming sale receipts cannot fund another outgoing action at this boundary.
             if e.delta < 0 {
@@ -248,6 +276,7 @@ pub(crate) fn settle(
             }
         }
         storage::apply(world, &mut used, &transaction.effects);
+        *pooling = next_pooling;
         out.transactions.push(transaction);
         sold += 1;
     }
@@ -271,6 +300,7 @@ pub(crate) fn settle(
         monthly_limit: p.max_lots_per_month,
         funding_limit: funding,
         storage_limit: room,
+        contribution_limit,
         sold_lots: sold,
         goods: sold
             .checked_mul(bid.goods.quantity)

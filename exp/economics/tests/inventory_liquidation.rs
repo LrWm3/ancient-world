@@ -109,6 +109,7 @@ fn opening(w: World, s: State, backend: Backend) -> (Simulation, Audit) {
         &sim.state,
         TOKEN,
         Opening {
+            assets: sim.world.assets.iter().map(|a| (a.id, 0)).collect(),
             inventory: sim
                 .state
                 .balances
@@ -1049,7 +1050,21 @@ fn guaranteed_delivery_pools_once_and_creates_recourse_only_for_actual_receipts(
 
 #[test]
 fn legacy_stock_exchange_retains_estate_purchase_contributions_across_lots() {
-    use economics_compute_smoke::{currency, exchange};
+    posted_stock_exchange(false, false);
+}
+
+#[test]
+fn mortgage_stock_driver_retains_estate_purchase_contributions_across_lots() {
+    posted_stock_exchange(true, false);
+}
+
+#[test]
+fn sale_forecasts_bound_candidates_by_actual_household_contribution_space() {
+    posted_stock_exchange(true, true);
+}
+
+fn posted_stock_exchange(specialized: bool, forecast: bool) {
+    use economics_compute_smoke::{borrowing, credit, currency, exchange, stock_sale};
     for shared_stock in [2, 3, 4] {
         let (mut w, mut s) = fixture(true, 8);
         add_household(&mut w, &s);
@@ -1058,11 +1073,59 @@ fn legacy_stock_exchange_retains_estate_purchase_contributions_across_lots() {
         w.recovery.inventory_listings[0].minimum_price = 1;
         w.recovery.inventory_bids.retain(|b| b.id == 2);
         w.recovery.inventory_bids[0].price = 1;
+        let seller = if specialized { UNFUNDED } else { STATE_AGENT };
         w.market = Some(exchange::Market {
             targets: [(1, 4)].into(),
-            reserves: [((STATE_AGENT, GRAIN), 0)].into(),
+            reserves: [((seller, GRAIN), 0)].into(),
             ..Default::default()
         });
+        if specialized {
+            w.market = None;
+            let (credit_world, _) = credit::scenario("default").unwrap();
+            w.assets.extend(credit_world.assets);
+            let mut c = credit_world.credit.unwrap();
+            c.endowments.clear();
+            c.application.buyer = seller;
+            c.application.offer = 20;
+            c.offers[0].id = 20;
+            c.offers[0].collateral.settlement = credit::CollateralSettlement::AuthorizedLiquidation;
+            c.purchase_policy = borrowing::Policy::Decline;
+            c.stock_sales = Some(stock_sale::Policy {
+                joint: None,
+                forecast: forecast.then(|| economics_compute_smoke::sale_plan::Policy {
+                    horizon_months: 6,
+                    need_limits: [(scenario::NUTRITION, 0)].into(),
+                }),
+                bid: 1,
+                seller,
+                reserve_months: 0,
+                max_lots_per_month: 3,
+                purchase_budget: 20,
+            });
+            w.credit = Some(c);
+            w.participants.push(Participant {
+                agent: seller,
+                capacity: Amount::new(scenario::LABOR, 0),
+                needs: if forecast {
+                    vec![Requirement {
+                        resource: scenario::NUTRITION,
+                        quantity: 1,
+                        priority: 0,
+                    }]
+                } else {
+                    vec![]
+                },
+            });
+            if forecast {
+                w.definitions.extend(
+                    scenario::baseline()
+                        .0
+                        .definitions
+                        .into_iter()
+                        .filter(|d| d.id == scenario::CONSUME),
+                );
+            }
+        }
         w.bids.push(currency::Bid {
             id: 1,
             buyer: BUYER,
@@ -1075,12 +1138,14 @@ fn legacy_stock_exchange_retains_estate_purchase_contributions_across_lots() {
                 books.step(&mut sim).unwrap();
             }
             // Arrival is a disclosed new reporting opening, not same-window funding.
-            sim.state.balances.insert((STATE_AGENT, GRAIN), 3);
+            let sale_stock = if forecast { 20 } else { 3 };
+            sim.state.balances.insert((seller, GRAIN), sale_stock);
             books = Audit::with_opening(
                 &sim.world,
                 &sim.state,
                 TOKEN,
                 Opening {
+                    assets: sim.world.assets.iter().map(|a| (a.id, 0)).collect(),
                     inventory: sim
                         .state
                         .balances
@@ -1110,6 +1175,16 @@ fn legacy_stock_exchange_retains_estate_purchase_contributions_across_lots() {
                 _ => 0,
             };
             let batch = sim.ledger.last().unwrap();
+            if specialized {
+                let receipt = batch.credit.as_ref().unwrap().stock_sale.as_ref().unwrap();
+                assert_eq!(receipt.contribution_limit, expected as i32);
+                if forecast {
+                    let decision = receipt.decision.as_ref().unwrap();
+                    assert!(decision.feasible);
+                    assert_eq!(decision.alternatives.len(), expected + 1);
+                    assert_eq!(decision.selected_lots, expected as i32);
+                }
+            }
             assert_eq!(
                 batch
                     .transactions
@@ -1119,7 +1194,10 @@ fn legacy_stock_exchange_retains_estate_purchase_contributions_across_lots() {
                 expected
             );
             assert_eq!(sim.state.balance(ESTATE, TOKEN), 1);
-            assert_eq!(sim.state.balance(STATE_AGENT, GRAIN), 3 - expected as i32);
+            assert_eq!(
+                sim.state.balance(seller, GRAIN),
+                sale_stock - expected as i32
+            );
             assert_eq!(
                 sim.state.balance(HOME, GRAIN),
                 shared_stock + (1 + expected as i32) / 2

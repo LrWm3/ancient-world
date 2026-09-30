@@ -590,3 +590,12 @@ The isolated source snapshot at **`37a6208`** passed
 `cargo +1.92.0 test --locked`: **947 passed, 0 failed, 1 ignored**, across
 118 Cargo result targets including empty unit/doc targets. Items 19 onward have
 the separately recorded affected gates above; this full result does not cover them.
+
+27. **Specialized stock sales retain pooled storage reservations.** A regression
+    reproduced a failed monthly commit after an estate purchase and later stock
+    lots overfilled collective storage. The existing contribution budget now
+    flows through financing and specialized sales. Bounded forecasts use the same
+    feasible lot ceiling; receipts/logs distinguish it from raw room. Identical
+    openings allow three, two or zero lots with reconciled household/custody books
+    and CPU/checkpoint equality. The five-target gate passed 39 tests; strict
+    all-target Clippy passed.

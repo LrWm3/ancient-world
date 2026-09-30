@@ -160,3 +160,10 @@ property and later closes the estate; an unfunded bid preserves the original
 claim. Forged plan dates fail atomically. Both executions retain food constraints,
 separate books and CPU/checkpoint equality. Household joint labor allocation,
 multiple producers and negotiated joint plans keep their existing scope limits.
+
+Stock-sale reservation now inherits the household contribution budget from earlier
+estate purchases and financing. Cumulative fractional shares constrain both actual
+lots and forecast candidates. `contribution_limit` records that final feasible
+candidate ceiling alongside raw storage and funding limits. The regression in
+`tests/inventory_liquidation.rs` reproduces the former household-storage failure
+and verifies three/two/zero fills under identical physical constraints.
