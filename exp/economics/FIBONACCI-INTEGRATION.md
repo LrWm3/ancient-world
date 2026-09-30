@@ -1116,3 +1116,11 @@ their separate gates above and are not covered by this snapshot.
     requires goods and storage. Person/household, discount/premium, unfunded and
     no-space controls agree on CPU/reference and checkpoints. The five-target gate
     passed 88 tests and strict all-target Clippy passed.
+
+79. **Priced native guarantees continue after household exit.** Discounted and
+    premium commodity claims retain delivery guarantees and receiving-storage
+    constraints after assignment. Performed native recourse carries its own full
+    value, with no inherited buyer adjustment. The household seller can close
+    while buyer claims remain; member books stay separate. CPU/reference and
+    checkpoints agree. The three-target gate passed 59 tests and strict all-target
+    Clippy passed.

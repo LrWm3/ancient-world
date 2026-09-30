@@ -140,6 +140,13 @@ fn priced_native_claims_preserve_units_storage_and_purchase_cost() {
     }
 }
 
+#[test]
+fn priced_native_guarantees_survive_household_exit_without_transferring_purchase_basis() {
+    for price in [1, 3, 5] {
+        assignment(true, Some(price));
+    }
+}
+
 fn assignment(guaranteed: bool, price: Option<i32>) {
     use economics_compute_smoke::accounting::Account;
     for household in [false, true] {
@@ -350,6 +357,72 @@ fn assignment(guaranteed: bool, price: Option<i32>) {
                     }
                     if household {
                         assert_eq!(sim.state.balance(PERSON, TOKEN), 5);
+                        if guaranteed && funded && price.is_some() {
+                            households::dissolution::finish(
+                                &mut sim.world,
+                                &sim.state,
+                                HOME,
+                                PERSON,
+                            )
+                            .unwrap();
+                            households::dissolution::finish(
+                                &mut resumed.world,
+                                &resumed.state,
+                                HOME,
+                                PERSON,
+                            )
+                            .unwrap();
+                            assert_eq!(sim.state.credit.loans[&11].creditor, BUYER);
+                            while sim.state.month < 9 {
+                                audit.step(&mut sim).unwrap();
+                                ra.step(&mut resumed).unwrap();
+                            }
+                            assert_eq!(
+                                (&sim.world, &sim.state, &audit),
+                                (&resumed.world, &resumed.state, &ra)
+                            );
+                            assert!(
+                                households::membership::current(&sim.world.households[0])
+                                    .is_empty()
+                            );
+                            for account in [
+                                Account::DisposalGain,
+                                Account::DisposalLoss,
+                                Account::SettlementGain,
+                                Account::SettlementLoss,
+                                Account::CreditLoss,
+                            ] {
+                                assert_eq!(
+                                    audit
+                                        .book()
+                                        .balances()
+                                        .get(&(PERSON, account))
+                                        .copied()
+                                        .unwrap_or(0),
+                                    0
+                                );
+                            }
+                        }
+                    }
+                    if guaranteed && funded && room {
+                        assert_eq!(
+                            audit
+                                .book()
+                                .balances()
+                                .get(&(GUARANTOR, Account::LoanReceivable(200)))
+                                .copied()
+                                .unwrap_or(0),
+                            4
+                        );
+                        assert_eq!(
+                            audit
+                                .book()
+                                .balances()
+                                .get(&(GUARANTOR, Account::LoanBasisAdjustment(200)))
+                                .copied()
+                                .unwrap_or(0),
+                            0
+                        );
                     }
                     (sim.state, sim.ledger, audit)
                 };

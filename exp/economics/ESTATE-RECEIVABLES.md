@@ -282,3 +282,9 @@ premiums, unfunded bids, and buyers with no delivery space. Uncollected goods
 remain a claim at purchase cost; actual goods delivery realizes the purchase
 difference. The unit quote still must equal the fixed reporting value, so price
 negotiation does not silently revalue every holding of that commodity.
+
+Priced native claims also retain transferable guarantees after a household seller
+winds down. The guarantor delivers real goods only when the buyer has space and
+receives native recourse valued under the original reporting quote, without the
+buyer's purchase adjustment. Household exit neither releases the buyer's storage
+constraint nor transfers disposal results to its member.
