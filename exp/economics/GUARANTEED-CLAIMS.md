@@ -281,3 +281,12 @@ distributes its own residual cash; the member retains the final private secured
 claim or deficiency against the original borrower. Stable/proportional controls,
 CPU/reference and checkpoint continuation agree. The four-target gate passed
 109 tests and strict all-target Clippy passed.
+
+The first-maturity date also survives closure of the proceeding that created the
+recourse. A regression showed a delayed guarantee becoming uncallable, then having
+its delay restarted by resumed ordinary servicing. Historical proceeding dates now
+retain the original call boundary. Calls pay only the remaining deficiency; fully
+recovered recourse causes no payment or new loan. Person and household controls
+cover the delay across closure with both allocation policies, CPU/reference and
+checkpoint continuation. The four-target gate passed 110 tests and strict all-target
+Clippy passed.

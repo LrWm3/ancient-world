@@ -1055,3 +1055,11 @@ separate gates and are not covered by this snapshot.
     claim and any deficiency. Stable/proportional policies and both live-pledge
     and post-sale cases agree on CPU/reference and checkpoint continuation. The
     four-target gate passed 109 tests and strict all-target Clippy passed.
+
+72. **Guarantee delays survive closure of the originating estate.** The delayed
+    secured-chain control exposed loss of the call date when its proceeding closed,
+    followed by a restarted delay on ordinary servicing. Recourse created during
+    that recorded stay now retains its first-maturity date. Only the deficiency
+    still owed is guaranteed; a fully paid claim creates no downstream advance.
+    Person/household, both allocation policies and CPU/checkpoint controls pass.
+    The four-target gate passed 110 tests and strict all-target Clippy passed.

@@ -971,9 +971,32 @@ pub(crate) fn guarantee_claim(
             // A stay stops collection from the debtor, not a separately accepted
             // guarantee. Recourse created during the proceeding becomes callable
             // at its first maturity; it never acquires a same-month call.
-            let first_unpaid = loan.first_unpaid.or_else(|| {
-                active(world, &state.credit, loan.debtor).and_then(|_| loan.opened.checked_add(1))
-            });
+            let stayed_at_creation = world
+                .recovery
+                .guarantees
+                .iter()
+                .any(|source| source.recourse == id)
+                && world.recovery.proceedings.iter().any(|p| {
+                    p.debtor == loan.debtor
+                        && state
+                            .credit
+                            .recovery
+                            .proceedings
+                            .get(&p.id)
+                            .is_some_and(|case| {
+                                case.opened <= loan.opened
+                                    && case.closed.is_none_or(|closed| loan.opened < closed)
+                            })
+                });
+            let first_unpaid = if stayed_at_creation {
+                // Resumed ordinary servicing must not restart an agreed delay.
+                loan.opened.checked_add(1)
+            } else {
+                loan.first_unpaid.or_else(|| {
+                    active(world, &state.credit, loan.debtor)
+                        .and_then(|_| loan.opened.checked_add(1))
+                })
+            };
             (loan.creditor, loan.denomination, covered, first_unpaid)
         }
         GuaranteedClaim::Forward(id) => {

@@ -2318,15 +2318,21 @@ fn partial_secured_relief(household: bool) {
 
 #[test]
 fn chained_secured_guarantees_transfer_the_same_lien_and_hold_new_recourse_until_next_month() {
-    secured_chain(false);
+    secured_chain(false, 0);
 }
 
 #[test]
 fn household_secured_chain_can_wind_down_while_member_retains_the_final_private_claim() {
-    secured_chain(true);
+    secured_chain(true, 0);
 }
 
-fn secured_chain(household: bool) {
+#[test]
+fn delayed_secured_guarantees_cover_only_deficiencies_remaining_after_estate_closure() {
+    secured_chain(false, 1);
+    secured_chain(true, 1);
+}
+
+fn secured_chain(household: bool, delay: u32) {
     use economics_compute_smoke::{
         financial_reporting::Audit,
         recovery::{GuaranteedClaim, RecourseSecurity},
@@ -2387,7 +2393,8 @@ fn secured_chain(household: bool) {
             let mut second = guarantee(2, 101, 6);
             second.guarantor = LAST;
             second.from = from + 1;
-            second.through = from + 1;
+            second.through = from + 1 + delay;
+            second.delay_months = delay;
             second.security = RecourseSecurity::InheritLiquidationLien;
             w.recovery.guarantees = vec![first, second];
             let mut invalid = w.clone();
@@ -2418,36 +2425,56 @@ fn secured_chain(household: bool) {
                 while sim.state.month <= from + 1 {
                     audit.step(&mut sim).unwrap();
                 }
-                assert_eq!(sim.state.credit.loans[&101].principal, 0);
-                assert_eq!(sim.state.credit.loans[&102].principal, 6);
-                assert_eq!(
-                    sim.state.credit.recovery.proceedings[&1].secured[&102],
-                    reserved
-                );
-                assert_eq!(sim.state.balance(LAST, TOKEN), 4);
-                assert_eq!(sim.state.balance(first_agent, TOKEN), 10);
+                if delay == 0 {
+                    assert_eq!(sim.state.credit.loans[&101].principal, 0);
+                    assert_eq!(sim.state.credit.loans[&102].principal, 6);
+                    assert_eq!(
+                        sim.state.credit.recovery.proceedings[&1].secured[&102],
+                        reserved
+                    );
+                    assert_eq!(sim.state.balance(LAST, TOKEN), 4);
+                    assert_eq!(sim.state.balance(first_agent, TOKEN), 10);
+                } else {
+                    assert!(!sim.state.credit.loans.contains_key(&102));
+                    assert_eq!(sim.state.credit.loans[&101].principal, 6 - reserved);
+                    assert_eq!(sim.state.balance(LAST, TOKEN), 10);
+                    assert_eq!(
+                        sim.state.credit.recovery.proceedings[&1].stage,
+                        Stage::Closed
+                    );
+                }
                 while sim.state.month <= from + 2 {
                     audit.step(&mut sim).unwrap();
                 }
                 assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 6 + original_paid);
                 assert_eq!(sim.state.balance(LAST, TOKEN), 4 + reserved);
-                assert_eq!(sim.state.credit.loans[&102].principal, 6 - reserved);
+                assert_eq!(
+                    sim.state.credit.loans.get(&102).map_or(0, |l| l.principal),
+                    6 - reserved
+                );
+                assert_eq!(sim.state.credit.loans[&101].principal, 0);
+                assert_eq!(sim.state.balance(first_agent, TOKEN), 10);
                 assert_eq!(sim.state.credit.loans[&10].principal, 4 - original_paid);
                 assert_eq!(
                     sim.state.credit.recovery.proceedings[&1].stage,
                     Stage::Closed
                 );
                 assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(BUYER));
-                let mut bad = sim.state.clone();
-                bad.credit
-                    .loans
-                    .get_mut(&102)
-                    .unwrap()
-                    .collateral
-                    .as_mut()
-                    .unwrap()
-                    .priority += 1;
-                assert!(Simulation::new(sim.world.clone(), bad, backend).is_err());
+                if sim.state.credit.loans.contains_key(&102) {
+                    let mut bad = sim.state.clone();
+                    bad.credit
+                        .loans
+                        .get_mut(&102)
+                        .unwrap()
+                        .collateral
+                        .as_mut()
+                        .unwrap()
+                        .priority += 1;
+                    assert!(Simulation::new(sim.world.clone(), bad, backend).is_err());
+                } else {
+                    assert_eq!(delay, 1);
+                    assert_eq!(reserved, 6);
+                }
                 let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
                 while resumed.state.month <= from + 2 {
                     resumed_audit.step(&mut resumed).unwrap();
@@ -2466,8 +2493,12 @@ fn secured_chain(household: bool) {
                         assert_eq!(branch.state.balance(HOME, TOKEN), 0);
                         assert_eq!(branch.state.balance(LAST, TOKEN), 14 + reserved);
                         d::finish(&mut branch.world, &branch.state, HOME, LAST).unwrap();
-                        assert_eq!(branch.state.credit.loans[&102].creditor, LAST);
-                        assert_eq!(branch.state.credit.loans[&102].principal, 6 - reserved);
+                        if let Some(loan) = branch.state.credit.loans.get(&102) {
+                            assert_eq!(loan.creditor, LAST);
+                            assert_eq!(loan.principal, 6 - reserved);
+                        } else {
+                            assert_eq!(reserved, 6);
+                        }
                     }
                     assert_eq!((&sim.state, &audit), (&resumed.state, &resumed_audit));
                 }
