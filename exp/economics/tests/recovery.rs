@@ -1840,9 +1840,21 @@ fn household_liens_preserve_member_claims_through_wind_down_and_discharge() {
 
 #[test]
 fn guarantee_inherits_liens_and_realized_proceeds_without_same_month_recourse() {
+    guaranteed_liens(false);
+}
+
+#[test]
+fn secured_relief_does_not_reclaim_proceeds_transferred_to_a_guarantor() {
+    guaranteed_liens(true);
+}
+
+fn guaranteed_liens(relief: bool) {
     use economics_compute_smoke::{financial_reporting::Audit, recovery::RecourseSecurity};
     for from in [3, 4] {
         for cap in [6, 10] {
+            if relief && (from != 4 || cap != 6) {
+                continue;
+            }
             for policy in [CollectionPolicy::Stable, CollectionPolicy::Proportional] {
                 let run = |backend| {
                     let (mut w, s) = fixture();
@@ -1856,6 +1868,24 @@ fn guarantee_inherits_liens_and_realized_proceeds_without_same_month_recourse() 
                     g.from = from;
                     g.security = RecourseSecurity::InheritLiquidationLien;
                     w.recovery.guarantees.push(g);
+                    if relief {
+                        w.recovery.claim_relief.push(
+                            economics_compute_smoke::claim_relief::Terms {
+                                id: 1,
+                                proceeding: 1,
+                                contract: economics_compute_smoke::finance::ContractId::Loan(10),
+                                original_due: 2,
+                                debtor: PERSON,
+                                creditor: STATE_AGENT,
+                                month: 4,
+                                expected_due: 2,
+                                expected_remaining: 4,
+                                action: economics_compute_smoke::claim_relief::Action::WriteOff {
+                                    quantity: 1,
+                                },
+                            },
+                        );
+                    }
                     let mut sim = distressed(w, s, backend);
                     let mut books =
                         Audit::with_assets(&sim.world, &sim.state, TOKEN, [(PLOT, 10)].into())
@@ -1924,7 +1954,7 @@ fn guarantee_inherits_liens_and_realized_proceeds_without_same_month_recourse() 
                     );
                     assert_eq!(
                         sim.state.credit.loans[&10].principal,
-                        10 - cap - original_recovery
+                        10 - cap - original_recovery - i32::from(relief)
                     );
                     assert_eq!(
                         sim.state.credit.loans[&101].principal,

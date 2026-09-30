@@ -1020,3 +1020,12 @@ separate gates and are not covered by this snapshot.
     relief, plus unsupported full forgiveness. CPU/reference, checkpoint and
     separate loss/payment accounting agree. The five-target gate passed 117 tests
     and strict all-target Clippy passed.
+
+68. **Relief preserves proceeds already transferred by a guarantee.** A composed
+    regression found that reranking all unspent proceeds could take one coin back
+    from a guarantor's inherited reservation. Refresh now preserves existing
+    reservations up to current debt and ranks only genuinely released amounts.
+    Stable/proportional policies keep the six-coin guarantee reservation; new
+    recourse remains uncollectible that month. CPU/reference and checkpoint
+    statements agree. The three-target gate passed 89 tests and strict all-target
+    Clippy passed.

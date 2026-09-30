@@ -1338,6 +1338,7 @@ fn lien_proceeds(
     p: &ProceedingTerms,
     asset: AssetId,
     proceeds: i32,
+    retained: &BTreeMap<u32, i32>,
 ) -> Result<BTreeMap<u32, i32>, String> {
     let mut requests = Vec::new();
     for loan in out.after.loans.values().filter(|l| l.debtor == p.debtor) {
@@ -1358,7 +1359,13 @@ fn lien_proceeds(
         requests.push(finance::CollectionRequest {
             contract: finance::ContractId::Loan(loan.id),
             rank: c.priority,
-            claim: estate_claim(p, loan, loan.debt()?, state.month),
+            claim: estate_claim(
+                p,
+                loan,
+                loan.debt()?
+                    .saturating_sub(retained.get(&loan.id).copied().unwrap_or(0)),
+                state.month,
+            ),
         });
     }
     requests.sort_by_key(|r| (r.rank, r.contract));
@@ -1407,26 +1414,32 @@ pub(crate) fn refresh_lien_proceeds(
         .iter()
         .find(|p| p.id == proceeding)
         .ok_or("missing lien proceeding")?;
-    let proceeds = case
-        .secured
-        .iter()
-        .filter(|(id, _)| {
-            out.after.loans[id]
-                .collateral
-                .as_ref()
-                .is_some_and(|c| c.asset == asset)
-        })
-        .try_fold(0_i32, |sum, (_, amount)| {
-            sum.checked_add(*amount).ok_or("lien reservation overflow")
-        })?;
-    let grants = lien_proceeds(world, state, out, p, asset, proceeds)?;
+    let mut retained = BTreeMap::new();
+    let mut released = 0_i32;
+    for (&id, &amount) in &case.secured {
+        let loan = &out.after.loans[&id];
+        if loan.collateral.as_ref().is_none_or(|c| c.asset != asset) {
+            continue;
+        }
+        let keep = amount.min(loan.debt()?);
+        retained.insert(id, keep);
+        released = released
+            .checked_add(amount - keep)
+            .ok_or("lien reservation overflow")?;
+    }
+    // Existing rights to proceeds (including transferred guarantee reservations)
+    // survive. Allocate only the amount actually released by the reduced claim.
+    let grants = lien_proceeds(world, state, out, p, asset, released, &retained)?;
+    for (id, amount) in grants {
+        *retained.entry(id).or_default() += amount;
+    }
     out.after
         .recovery
         .proceedings
         .get_mut(&proceeding)
         .unwrap()
         .secured
-        .extend(grants);
+        .extend(retained);
     Ok(())
 }
 
@@ -1485,7 +1498,7 @@ pub(crate) fn sales(
         }
         // Allocate this asset's proceeds once, before they join other estate
         // cash. Unsecured claim rank cannot override collateral lien priority.
-        let grants = lien_proceeds(world, state, out, p, b.asset, b.price)?;
+        let grants = lien_proceeds(world, state, out, p, b.asset, b.price, &BTreeMap::new())?;
         let case = out.after.recovery.proceedings.get_mut(&p.id).unwrap();
         case.cash = case
             .cash

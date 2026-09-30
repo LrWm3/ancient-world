@@ -175,7 +175,8 @@ the reduced claim with competing liens against its realized proceeds.
 
 The history records the retained collateral so loss provenance remains valid after
 sale and collection. Partial relief after sale now reruns the accepted lien
-waterfall over only the unspent reservations for that same asset. Junior liens
+waterfall over only the amount released from unspent reservations for that same
+asset, preserving other existing reservations. Junior liens
 retain priority over unsecured collection; other assets' proceeds and completed
 payments are untouched. Full secured forgiveness remains unsupported.
 The control compares relief before sale, before distribution and after distribution,
@@ -197,3 +198,11 @@ released proceeds while a junior lien still claims them. A later reduction of th
 remaining deficiency does not recover money already paid. Person and household
 controls agree across CPU/reference and checkpoints. The five-target gate passed
 117 tests and strict all-target Clippy passed.
+
+Guarantee subrogation remains binding through relief. A regression reproduced a
+six-coin transferred reservation falling to five when the entire waterfall was
+rerun. The allocator now keeps each existing reservation up to its remaining claim
+and allocates only released amounts against unsatisfied liens. Stable/proportional
+controls retain all six guarantor coins and prevent same-month recourse collection.
+The three-target gate passed 89 tests, with CPU/reference, checkpoint continuation
+and strict all-target Clippy.
