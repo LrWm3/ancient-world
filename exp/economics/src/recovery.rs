@@ -390,6 +390,15 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                     .iter()
                     .any(|listing| listing.traders.iter().any(|t| t.trader.agent == p.estate))
             })
+            || world.minting.as_ref().is_some_and(|c| {
+                c.issuer == p.estate
+                    || c.deals
+                        .iter()
+                        .any(|d| d.buyer == p.estate || d.seller == p.estate)
+                    || c.order_policy
+                        .as_ref()
+                        .is_some_and(|o| o.quotes.iter().any(|q| q.agent == p.estate))
+            })
             || config.guarantees.iter().any(|g| g.guarantor == p.estate)
             || world
                 .agreements

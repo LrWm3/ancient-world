@@ -197,7 +197,7 @@ pub(super) fn generate_fixed(
         plan.reason = "target dates passed".into();
         return Ok(plan);
     };
-    if !marketplace::eligible(w, s, c.venue, c.issuer)
+    if !super::eligible(w, s, c.venue, c.issuer)
         || !opportunities::permits(w, s, c.issuer, Action::Process(c.definition))
     {
         plan.reason = "issuer admission or mint permission denied".into();
@@ -247,7 +247,7 @@ pub(super) fn generate_fixed(
         }
     }
     for q in &p.quotes {
-        if !marketplace::eligible(w, s, c.venue, q.agent) {
+        if !super::eligible(w, s, c.venue, q.agent) {
             continue;
         }
         let m = market(q.market)?;

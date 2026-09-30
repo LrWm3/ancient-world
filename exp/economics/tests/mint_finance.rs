@@ -305,3 +305,76 @@ fn food_provision_cannot_spend_a_loan_received_at_the_same_acquisition_boundary(
             .any(|d| d.buyer == WORKER && d.market == WHEAT)
     );
 }
+
+#[test]
+fn authorized_recovery_blocks_mint_counterparty_and_preserves_estate_custody() {
+    use economics_compute_smoke::recovery::{ProceedingTerms, Stage};
+    let (mut w, mut s) = minting::scenario("normal").unwrap();
+    let (loan_world, _) = fixture();
+    w.lending = loan_world.lending;
+    let loan = &mut w.lending[0];
+    loan.debtor = SUPPLIER;
+    loan.terms.creditor = WORKER;
+    loan.terms.max_principal = 8;
+    loan.principal = 8;
+    s.balances.insert((WORKER, COIN), 8);
+    s.balances.insert((SUPPLIER, COIN), 0);
+    w.transaction_policy
+        .as_mut()
+        .unwrap()
+        .permissions
+        .extend([(PERSON_TYPE, Action::Borrow), (PERSON_TYPE, Action::Lend)]);
+    let deals = &mut w.minting.as_mut().unwrap().deals;
+    deals.retain(|d| d.market != WHEAT || d.buyer == SUPPLIER);
+    for d in deals {
+        if d.market == WHEAT {
+            d.month = 2;
+            d.price = 8;
+        } else {
+            d.month = 4;
+        }
+    }
+    for start in &mut w.scheduled_starts {
+        start.month = 4;
+    }
+    w.agents.push(Agent {
+        id: 999,
+        name: "custody".into(),
+    });
+    w.recovery.proceedings.push(ProceedingTerms {
+        id: 1,
+        debtor: SUPPLIER,
+        authority: ISSUER,
+        estate: 999,
+        denomination: COIN,
+        opening_month: 4,
+        earliest_close: 5,
+        assets: vec![],
+        discharge_deficiency: true,
+    });
+    let mut a = audit(&w, &s);
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    while sim.state.month <= 4 {
+        a.step(&mut sim).unwrap();
+    }
+    assert_eq!(
+        sim.state.credit.recovery.proceedings[&1].stage,
+        Stage::Active
+    );
+    assert_eq!(sim.state.balance(ISSUER, COIN), 8);
+    assert_eq!(sim.state.balance(SUPPLIER, METAL), 2);
+    let b = sim
+        .ledger
+        .iter()
+        .filter_map(|b| b.minting.as_ref())
+        .find(|b| b.month == 4)
+        .unwrap();
+    assert!(!b.receipts[0].accepted);
+    assert_eq!(
+        a.book().statements(ISSUER, 1, 4).unwrap().issuance_change,
+        0
+    );
+    let mut invalid = sim.world.clone();
+    invalid.minting.as_mut().unwrap().deals[0].buyer = 999;
+    assert!(Simulation::new(invalid, sim.state.clone(), Backend::Reference).is_err());
+}

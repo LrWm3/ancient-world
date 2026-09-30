@@ -92,6 +92,11 @@ pub struct Boundary {
     pub receipts: Vec<Receipt>,
     pub transactions: Vec<Transaction>,
 }
+/// New market commitments stop while a participant is under authorized recovery.
+fn eligible(w: &World, s: &State, venue: AgentId, agent: AgentId) -> bool {
+    marketplace::eligible(w, s, venue, agent)
+        && crate::recovery::active(w, &s.credit, agent).is_none()
+}
 fn transaction(w: &World, s: &State, c: &Config, d: &Deal) -> Result<Transaction, String> {
     let venue = marketplace::venue(w, c.venue).ok_or("missing venue")?;
     let market = venue
@@ -101,7 +106,7 @@ fn transaction(w: &World, s: &State, c: &Config, d: &Deal) -> Result<Transaction
         .ok_or("unlisted market")?;
     if ![d.buyer, d.seller]
         .iter()
-        .all(|a| marketplace::eligible(w, s, c.venue, *a))
+        .all(|a| eligible(w, s, c.venue, *a))
     {
         return Err("market admission or stock-trade permission denied".into());
     }
@@ -233,9 +238,6 @@ pub fn validate(w: &World) -> Result<(), String> {
     let Some(c) = &w.minting else {
         return Ok(());
     };
-    if !w.recovery.proceedings.is_empty() {
-        return Err("mint recovery adapter is not yet composed".into());
-    }
     // Unsupported planners must not silently override the shared acquisition path.
     if w.credit.is_some()
         || w.negotiation.is_some()

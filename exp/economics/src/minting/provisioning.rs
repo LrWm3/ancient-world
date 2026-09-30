@@ -147,8 +147,8 @@ pub fn decision(
     let held = s.balance(agent, food);
     // Conservative equal-share expectation among configured, admitted actors.
     // Actual matching still uses price then agent ID and never reserves future grain.
-    let admitted = marketplace::eligible(w, s, c.venue, agent)
-        && marketplace::eligible(w, s, c.venue, c.issuer)
+    let admitted = super::eligible(w, s, c.venue, agent)
+        && super::eligible(w, s, c.venue, c.issuer)
         && opportunities::permits(w, s, agent, Action::Process(v.consumption))
         && d.enabled
         && p.quotes.iter().any(|q| {
@@ -160,7 +160,7 @@ pub fn decision(
     let buyers = v
         .earning
         .keys()
-        .filter(|a| marketplace::eligible(w, s, c.venue, **a))
+        .filter(|a| super::eligible(w, s, c.venue, **a))
         .count()
         .max(1) as i32;
     let access = if admitted {
@@ -252,7 +252,7 @@ pub(crate) fn generate_with(
         .iter()
         .find(|m| m.id == p.sale_market)
         .ok_or("missing food listing")?;
-    if marketplace::eligible(w, s, c.venue, c.issuer) {
+    if super::eligible(w, s, c.venue, c.issuer) {
         plan.orders.push(orders::Order {
             agent: c.issuer,
             market: p.sale_market,
@@ -272,7 +272,7 @@ pub(crate) fn generate_with(
         .iter()
         .filter(|q| q.side == Side::Buy && v.earning.contains_key(&q.agent))
     {
-        if !marketplace::eligible(w, s, c.venue, q.agent) {
+        if !super::eligible(w, s, c.venue, q.agent) {
             continue;
         }
         let qty = (monthly(w, v, q.agent) - s.balance(q.agent, sale.goods.resource)).max(0);
