@@ -260,6 +260,8 @@ Completed integrations:
 18. Keep household assets and membership distinct from a member’s environmental-work estate.
 19. Admit posted household hiring against useful work and actual shared environmental stock.
 20. Compose negotiated buying/selling with authorized stays and post-closure eligibility.
+21. Reserve household contributions and storage for negotiated member purchases.
+22. Respect collective/member purchasing while keeping concurrent loan proceeds unpooled.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.

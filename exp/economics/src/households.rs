@@ -853,6 +853,16 @@ fn collect(
             }
         }
     }
+    // Bilateral trades use the same explicit boundary classification. Loan
+    // advances in a composed acquisition remain excluded from pooled income.
+    for t in crate::negotiation::transactions(world, opening, &batch.negotiation)? {
+        for (key, quantity) in incomes(world, opening, &t.effects)? {
+            let q = gained.entry(key).or_default();
+            *q = q
+                .checked_add(quantity)
+                .ok_or("household negotiated income overflow")?;
+        }
+    }
     // Physical-mint market trades also carry classification in the boundary.
     if let Some(round) = &batch.minting {
         for t in &round.transactions {

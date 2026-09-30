@@ -75,6 +75,7 @@ pub enum Outcome {
     NoSurplus,
     UnsupportedMarket,
     Ineligible,
+    PurchasePolicy,
     InsufficientGoods,
     InsufficientPayment,
     InsufficientStorage,
@@ -143,7 +144,6 @@ pub fn validate(world: &World) -> Result<(), String> {
     if world.market.is_some()
         || world.competition.is_some()
         || world.pool_market.is_some()
-        || !world.households.is_empty()
         || !world.offers.is_empty()
         || (!world.bids.is_empty() && world.credit.is_none())
         || !world.access_offers.is_empty()
@@ -185,7 +185,13 @@ pub(crate) fn evaluate_with(
     resources: &crate::acquisition::Resources,
 ) -> Result<Option<Round>, String> {
     validate(world)?;
-    evaluate_matching(world, state, resources)
+    let mut resources = resources.clone();
+    resources.pooling = Some(crate::households::income_reservations::Reservations::new(
+        world,
+        state,
+        resources.storage.clone(),
+    ));
+    evaluate_matching(world, state, &resources)
 }
 
 /// Shared matcher; the calling acquisition driver validates composition.
@@ -220,6 +226,10 @@ pub(crate) fn evaluate_matching(
         .any(|a| !marketplace::eligible(world, state, s.marketplace, *a))
     {
         result.outcome = Outcome::Ineligible;
+        return Ok(Some(result));
+    }
+    if !crate::households::market::buys(world, state, s.buyer.agent) {
+        result.outcome = Outcome::PurchasePolicy;
         return Ok(Some(result));
     }
     let Some(market) = marketplace::supported(world, s) else {

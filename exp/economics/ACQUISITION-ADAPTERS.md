@@ -368,3 +368,21 @@ estate repayment. A month-three trade is refused during the case; the equivalent
 month-five trade succeeds after closure. CPU/reference and checkpoint histories
 agree and all separate books balance. This is the existing full optional-trade
 stay, not a new essential-purchase exemption or a price intervention.
+
+## Bilateral household negotiation
+
+Bilateral quote discovery now supports household organizations and their members.
+It uses the same contributed-storage reservation as town trades and classifies
+only actual negotiated exchange as pooled income. Concurrent loan advances keep
+their financing classification. Shared eligibility requires an active household;
+the purchasing charter distinguishes member orders from collective buying and
+reports `PurchasePolicy` when a member attempts a disallowed purchase.
+
+The CPU/reference test buys two grain units for forty coins, retains one with the
+member and contributes one to the household. Filling shared storage with unrelated
+ore rejects the purchase atomically despite sufficient private room. The same
+case with a ten-coin advance retains the whole loan with the member and records
+its separate liability. Switching to collective purchasing refuses the member's
+order but lets the recognized household buy both grain units itself. Continuation
+and inventory/financial reporting reconcile. This does not add household workers,
+internal employment terms, or arbitrary multi-market negotiation plans.
