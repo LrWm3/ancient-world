@@ -118,11 +118,10 @@ explicitly excluded from this new admission path. The old forward recovery and
 relief scenarios retain their existing support.
 
 Discovery, negotiated forward pricing, production underwriting, multiple concurrent
-seller advances and default/refund negotiation
-remain extensions. Household funding covers its own promises; no new member-forward
-assistance policy is introduced. Autonomous hiring and longer-horizon employer
-viability remain next organizational work. Person self-directed policy changes
-remain deferred.
+seller advances and default/refund negotiation remain extensions. Household funding covers its own promises; no new member-forward
+assistance policy is introduced. Bounded [labor-offer acceptance](HOUSEHOLD-HIRING-OFFERS.md)
+is now implemented; longer-horizon employer viability remains later work. Person
+self-directed policy changes remain deferred.
 
 ## Direct-forward recovery follow-up (Fibonacci batch 1)
 
@@ -136,5 +135,6 @@ custody agents cannot be configured as forward counterparties.
 Tests cover a two-of-four delivery, extension, residual write-off, preserved
 balance sheets, blocked dissolution until resolution, CPU/reference agreement,
 checkpoint continuation and rejection of new seller/buyer admissions during
-recovery. Plain acquisition is covered here; town recovery remains a separate
-composition step.
+recovery. The subsequent two-item batch also covers town recovery: a case opened
+at Due prevents ordinary spot orders at Acquire despite an earlier opening
+admission. Existing native deliveries remain serviceable.

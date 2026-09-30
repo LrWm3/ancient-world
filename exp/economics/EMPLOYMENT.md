@@ -202,3 +202,17 @@ wages at Productive, subject to private reserves, needs, claims, storage and a c
 at the collective shortage. Ordinary Close pays the worker; blocked physical
 payment remains household stock and wage arrears. Donations create transfer
 expense/income, not new wages or a donor receivable.
+
+## Household labor offers
+
+[Posted labor acceptance](HOUSEHOLD-HIRING-OFFERS.md) now provides an opt-in
+admission path alongside preaccepted jobs. `World.employment_offers` marks catalog
+IDs as available offers; each delivered monthly quantity is accepted independently.
+The household evaluates useful work and policy benefit subject to charter budget,
+existing wages and real opening money. All delivery, costing and earned-claim
+settlement below admission stays in this employment model. Offered future time
+alone is neither a claim nor a dissolution blocker.
+
+The [integrated checks](FIBONACCI-INTEGRATION.md) include collective material
+allocation, direct-forward financing and next-book income after payroll. General
+worker matching and ZIP wages remain unimplemented; worker consent/terms are supplied.

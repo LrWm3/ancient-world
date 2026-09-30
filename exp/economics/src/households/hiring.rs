@@ -39,10 +39,23 @@ pub(crate) fn quantity(
     }
     crate::town_market::record(&mut state, &base.town_market);
     state.employment = prior.after.clone();
+    let (pooled, remainders) = collect(&w, opening, &state, base)?;
+    apply(&w, &mut state, &pooled, Backend::Reference)?;
+    state.household_remainders = remainders;
     state.phase = Phase::Productive;
     // Acquire is complete before any productive work. Only already accepted
     // acquisitions enter this hypothesis; no assumed fills or added resources.
-    let (_, baseline) = contributed_labor(&w, &state, h)?;
+    let project = |state: &State| -> Result<LaborDecision, String> {
+        // Include normal input allocation and consented support before comparing
+        // labor, exactly as the Productive boundary will. No second allocator.
+        prepare(&w, state)?
+            .1
+            .labor
+            .into_iter()
+            .find(|d| d.household == h.agent)
+            .ok_or("missing household hiring projection".into())
+    };
+    let baseline = project(&state)?;
     let trial = |hours: i32| -> Result<LaborDecision, String> {
         let mut candidate = state.clone();
         apply(
@@ -55,7 +68,7 @@ pub(crate) fn quantity(
             (terms.id, state.month),
             employment::earning(terms, state.month, hours)?,
         );
-        Ok(contributed_labor(&w, &candidate, h)?.1)
+        project(&candidate)
     };
     let bought = |d: &LaborDecision| {
         d.purchased

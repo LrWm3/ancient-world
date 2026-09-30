@@ -300,6 +300,15 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                 .prepaid_deliveries
                 .iter()
                 .any(|t| t.seller == p.estate || t.buyer == p.estate)
+            || world
+                .employment
+                .iter()
+                .any(|t| t.worker == p.estate || t.employer == p.estate)
+            || world.town_market.as_ref().is_some_and(|c| {
+                crate::town_market::listings(c)
+                    .iter()
+                    .any(|listing| listing.traders.iter().any(|t| t.trader.agent == p.estate))
+            })
             || config.guarantees.iter().any(|g| g.guarantor == p.estate)
             || world
                 .agreements

@@ -205,6 +205,7 @@ Credit, direct forward settlement/admission and town trades reserve one opening
 budget; prospective delivery space respects household shared storage.
 
 This consolidates execution without claiming all admission pilots coexist: direct
-and tool-underwritten configurations, plus direct-forward recovery, remain separate
-integration work. Consent and pricing are supplied terms, not autonomous discovery
+and tool-underwritten configurations remain separate integration work.
+Direct-forward recovery now uses the existing proceeding and delivery-relief adapters,
+including town-market stays; see [Fibonacci integration](FIBONACCI-INTEGRATION.md). Consent and pricing are supplied terms, not autonomous discovery
 or underwriting.

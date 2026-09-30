@@ -18,7 +18,9 @@ new acceptance. Incoming cash cannot fund another acquisition at this boundary.
 
 The household compares its existing contributed-labor plan with a plan that adds
 the offered hours. The comparison uses the existing constitution, governor policy,
-member tie-breaking, process feasibility and productive-work allocator. Only the
+member tie-breaking, process feasibility and productive-work allocator. The
+preview uses acquired-stock pooling, collective material allocation and consented
+support before comparing work. Only the
 incremental hours actually directed to work are considered; the trimmed quantity
 is checked again. Earlier accepted hires enter later comparisons, so two offers
 cannot independently count the same work benefit.
@@ -48,3 +50,10 @@ prepaid deliveries. It does not add ZIP wage negotiation, universal labor-market
 participation, multi-month staffing optimization or internal member employment.
 Worker consent and offered terms are supplied; household acceptance is agentic.
 Person self-directed policy changes remain deferred.
+
+Integration follow-up also checks prepayment at month one, affordable hiring at
+month two and real delivery at month three, with separate balances throughout.
+A town-income case hires two hours per month for three months: household cash
+increases from four to seven, the worker earns six and the food buyer spends nine.
+Increasing the wage above the predicted sale proceeds rejects the hire. Buyer
+liquidity is finite; this does not establish indefinite economic sustainability.

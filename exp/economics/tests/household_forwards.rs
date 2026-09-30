@@ -670,3 +670,70 @@ fn either_party_in_direct_forward_recovery_cannot_accept_a_new_prepayment() {
     };
     assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
 }
+
+#[test]
+fn town_admission_is_rechecked_after_recovery_opens_and_custody_cannot_trade() {
+    use economics_compute_smoke::{
+        recovery::ProceedingTerms, scenario::STATE_AGENT, town_market::OrderReason,
+    };
+    let (mut w, mut s) = fixture(false);
+    s.balances.insert((SELLER, GRAIN), 0);
+    w.prepaid_deliveries[0].seller = SELLER;
+    w.agents.push(Agent {
+        id: 60002,
+        name: "custody".into(),
+    });
+    w.recovery.proceedings.push(ProceedingTerms {
+        id: 1,
+        debtor: SELLER,
+        authority: STATE_AGENT,
+        estate: 60002,
+        denomination: TOKEN,
+        opening_month: 4,
+        earliest_close: 4,
+        assets: vec![],
+        discharge_deficiency: true,
+    });
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut a = audit(&w, &s);
+        through(&mut sim, &mut a, 3);
+        // Enough free stock to sell, even after the overdue four-unit delivery.
+        // An active case must still prevent ordinary market disposal at Acquire.
+        sim.state.balances.insert((SELLER, GRAIN), 12);
+        a = audit(&sim.world, &sim.state);
+        while sim.state.phase != Phase::Acquire {
+            a.step(&mut sim).unwrap();
+        }
+        assert!(
+            sim.state
+                .town_market
+                .admission
+                .as_ref()
+                .unwrap()
+                .eligible
+                .contains(&SELLER)
+        );
+        let checkpoint = (sim.clone(), a.clone());
+        through(&mut sim, &mut a, 4);
+        assert_eq!(sim.state.exchange.forwards[&CONTRACT].delivered, 4);
+        let book = sim.state.town_market.history.last().unwrap();
+        assert!(
+            book.order_receipts
+                .iter()
+                .any(|r| r.agent == SELLER && r.reason == OrderReason::Inactive)
+        );
+        assert_eq!(sim.state.balance(SELLER, GRAIN), 8);
+        let (mut resumed, mut ra) = checkpoint;
+        through(&mut resumed, &mut ra, 4);
+        assert_eq!(
+            (&sim.state, &sim.ledger, &a),
+            (&resumed.state, &resumed.ledger, &ra)
+        );
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    let mut bad = w;
+    bad.town_market.as_mut().unwrap().traders[0].trader.agent = 60002;
+    assert!(Simulation::new(bad, s, Backend::Reference).is_err());
+}

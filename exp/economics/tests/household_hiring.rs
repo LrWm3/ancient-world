@@ -660,6 +660,17 @@ fn posted_labor_is_hired_only_for_incremental_feasible_work_and_keeps_wage_accou
         }
         let run = |backend| {
             let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            assert!(
+                !economics_compute_smoke::agreements::for_agent(&w, &s, HOME)
+                    .unwrap()
+                    .iter()
+                    .any(|v| v.identity()
+                        == economics_compute_smoke::agreements::Identity::Employment(1))
+            );
+            assert!(
+                !households::dissolution::blockers(&w, &s, HOME)
+                    .contains(&households::dissolution::Blocker::Employment)
+            );
             let mut a = audit(&w, &s);
             let mut checkpoint = None;
             while sim.state.month <= 1 {
@@ -738,4 +749,197 @@ fn competing_labor_offers_do_not_duplicate_the_same_projected_work() {
         (sim.state, sim.ledger, a)
     };
     assert_eq!(run(w.clone(), Backend::Reference), run(w, Backend::CubeCpu));
+}
+
+#[test]
+fn direct_prepayment_funds_next_month_useful_hiring_output_and_real_delivery() {
+    use economics_compute_smoke::{forward::direct::Terms as Forward, scenario::GRAIN};
+    let (mut w, mut s) = production(0);
+    w.employment_offers.insert(1);
+    w.employment[0].wage_per_unit.quantity = 1;
+    w.employment[0].through = 2;
+    s.balances.insert((92, TOKEN), 4);
+    w.prepaid_deliveries.push(Forward {
+        id: 70000,
+        seller: HOME,
+        buyer: 92,
+        month: 1,
+        due: 3,
+        goods: Amount::new(GRAIN, 2),
+        prepayment: Amount::new(TOKEN, 4),
+    });
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut a = audit(&w, &s);
+        through(&mut a, &mut sim, 1);
+        assert_eq!(sim.state.balance(HOME, TOKEN), 4);
+        assert!(sim.state.employment.earned.is_empty());
+        assert_eq!(value(&a, HOME, A::DeferredRevenue(70000)), -4);
+        let checkpoint = (sim.clone(), a.clone());
+        through(&mut a, &mut sim, 3);
+        assert_eq!(sim.state.employment.earned[&(1, 2)].delivered, 2);
+        assert_eq!(sim.state.employment.earned[&(1, 2)].claim.outstanding(), 0);
+        assert_eq!(sim.state.exchange.forwards[&70000].delivered, 2);
+        assert_eq!(sim.state.balance(92, GRAIN), 2);
+        assert_eq!(sim.state.balance(PERSON, GRAIN), 2);
+        assert_eq!(sim.state.balance(HOME, TOKEN), 2);
+        assert_eq!(sim.state.balance(WORKER, TOKEN), 2);
+        assert_eq!(value(&a, HOME, A::DeferredRevenue(70000)), 0);
+        assert_eq!(value(&a, 92, A::ForwardPrepayment(70000)), 0);
+        let (mut resumed, mut ra) = checkpoint;
+        through(&mut ra, &mut resumed, 3);
+        assert_eq!(
+            (&sim.state, &sim.ledger, &a),
+            (&resumed.state, &resumed.ledger, &ra)
+        );
+        let mut replay = s.clone();
+        for b in &sim.ledger {
+            commit(&w, &mut replay, b, backend, DEFAULT_EFFECT_LIMIT).unwrap();
+        }
+        assert_eq!(replay, sim.state);
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}
+
+#[test]
+fn income_policy_prices_earned_payroll_into_a_bounded_next_book_hiring_decision() {
+    use economics_compute_smoke::{
+        household_governance::Policy,
+        scenario::{GRAIN, NUTRITION},
+    };
+    let (mut w, mut s) = trading();
+    w.employment_offers.insert(1);
+    w.employment[0].through = 3;
+    w.households[0]
+        .governance
+        .constitution
+        .permitted_policies
+        .insert(Policy::NeedsThenIncome);
+    w.households[0].governance.charter.initial_policy = Policy::NeedsThenIncome;
+    // Separate the worker's offered time from an independently funded food buyer.
+    w.participants
+        .iter_mut()
+        .find(|p| p.agent == WORKER)
+        .unwrap()
+        .needs
+        .clear();
+    w.participants
+        .iter_mut()
+        .find(|p| p.agent == 92)
+        .unwrap()
+        .needs = vec![Requirement {
+        resource: NUTRITION,
+        quantity: 2,
+        priority: 0,
+    }];
+    s.balances.insert((92, TOKEN), 12);
+    s.balances.insert((HOME, GRAIN), 2);
+    let c = w.town_market.as_mut().unwrap();
+    for t in &mut c.traders {
+        if t.trader.agent == WORKER {
+            t.trader.agent = 92;
+        }
+        t.trader.limit = 3;
+        t.trader.opening_quote = 3;
+    }
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut a = Audit::with_opening(
+            &w,
+            &s,
+            TOKEN,
+            Opening {
+                services: Some(Default::default()),
+                processes: Some(Default::default()),
+                inventory: [((HOME, GRAIN), 2)].into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        through(&mut a, &mut sim, 3);
+        assert_eq!(sim.state.employment.earned.len(), 3);
+        assert!(
+            sim.state
+                .employment
+                .earned
+                .values()
+                .all(|e| e.delivered == 2 && e.claim.outstanding() == 0)
+        );
+        assert_eq!(sim.state.balance(HOME, TOKEN), 7);
+        assert_eq!(sim.state.balance(WORKER, TOKEN), 6);
+        assert_eq!(sim.state.balance(92, TOKEN), 3);
+        let checkpoint = (sim.clone(), a.clone());
+        through(&mut a, &mut sim, 5);
+        assert_eq!(sim.state.employment.earned.len(), 3);
+        let (mut resumed, mut ra) = checkpoint;
+        through(&mut ra, &mut resumed, 5);
+        assert_eq!(
+            (&sim.state, &sim.ledger, &a),
+            (&resumed.state, &resumed.ledger, &ra)
+        );
+        let mut replay = s.clone();
+        for b in &sim.ledger {
+            commit(&w, &mut replay, b, backend, DEFAULT_EFFECT_LIMIT).unwrap();
+        }
+        assert_eq!(replay, sim.state);
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    let mut expensive = w;
+    expensive.employment[0].wage_per_unit.quantity = 2;
+    expensive.households[0].governance.charter.hiring_budget = Some(Amount::new(TOKEN, 4));
+    for backend in [Backend::Reference, Backend::CubeCpu] {
+        let mut sim = Simulation::new(expensive.clone(), s.clone(), backend).unwrap();
+        sim.run_months(3).unwrap();
+        assert!(sim.state.employment.earned.is_empty());
+        assert_eq!(sim.state.balance(WORKER, TOKEN), 0);
+    }
+}
+
+#[test]
+fn hiring_preview_includes_collective_input_allocation_before_work_feasibility() {
+    use economics_compute_smoke::scenario::{GRAIN, SEED};
+    let (mut w, mut s) = production(6);
+    w.employment_offers.insert(1);
+    w.employment[0].wage_per_unit.quantity = 1;
+    w.definitions
+        .iter_mut()
+        .find(|d| d.id == MAKE)
+        .unwrap()
+        .stages[0]
+        .entry_inputs = vec![Amount::new(SEED, 1)];
+    w.resources.push(Resource {
+        id: SEED,
+        name: "seed".into(),
+        kind: ResourceKind::Stock,
+    });
+    s.balances.insert((HOME, SEED), 1);
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut a = Audit::with_opening(
+            &w,
+            &s,
+            TOKEN,
+            Opening {
+                services: Some(Default::default()),
+                processes: Some(Default::default()),
+                inventory: [((HOME, SEED), 1)].into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        through(&mut a, &mut sim, 1);
+        assert_eq!(sim.state.employment.earned[&(1, 1)].delivered, 2);
+        assert_eq!(sim.state.balance(HOME, SEED), 0);
+        assert_eq!(sim.state.balance(HOME, GRAIN), 2);
+        assert_eq!(sim.state.balance(WORKER, TOKEN), 2);
+        let mut replay = s.clone();
+        for b in &sim.ledger {
+            commit(&w, &mut replay, b, backend, DEFAULT_EFFECT_LIMIT).unwrap();
+        }
+        assert_eq!(replay, sim.state);
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
 }

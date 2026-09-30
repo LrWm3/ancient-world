@@ -343,6 +343,7 @@ pub fn admission(world: &World, state: &State) -> Result<Admission, String> {
         .filter(|t| {
             let a = t.trader.agent;
             !state.terminal.contains_key(&a)
+                && crate::recovery::active(world, &state.credit, a).is_none()
                 && crate::households::market::active(world, state, a)
                 && marketplace::eligible(world, state, c.venue, a)
                 && state
@@ -448,6 +449,7 @@ fn orders(
             Some(OrderReason::NotAdmitted)
         } else if state.terminal.contains_key(&agent)
             || !crate::households::market::active(world, state, agent)
+            || crate::recovery::active(world, &state.credit, agent).is_some()
         {
             Some(OrderReason::Inactive)
         } else if !marketplace::eligible(world, state, c.venue, agent) {

@@ -358,5 +358,14 @@ agents, including household buyers/sellers, using the existing forward book and
 executor. Collective orders and signed support can fund own current deliveries.
 Combined rent/forward, credit/prepayment, storage and legal-change cases preserve
 finite resources, arrears and separate statements. Autonomous forward underwriting
-and hiring, direct-forward recovery and longer-horizon employer viability remain
-open; person self-directed policy changes remain deferred.
+and longer-horizon employer viability remain open; the follow-up below covers
+bounded hiring and direct-forward recovery. Person self-directed policy changes
+remain deferred.
+
+[Fibonacci follow-up](FIBONACCI-INTEGRATION.md) adds household acceptance of posted
+labor quantities under existing static policies and connects direct delivery claims
+to authorized recovery alongside town markets. Integrated CPU/reference cases show
+prepaid production, earned-payroll costing and a bounded income-funded hiring loop.
+These advance the organizational decision loop without adding person self-directed
+policy changes. General labor matching/price negotiation, autonomous forward
+underwriting and wage insolvency remain later work.

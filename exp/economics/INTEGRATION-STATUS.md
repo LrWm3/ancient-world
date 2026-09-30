@@ -120,7 +120,7 @@ collateral resale remains rejected pending explicit buyer/seller rules.
 | Mortgage purchase/negotiation + households | Dedicated purchase driver remains excluded; negotiated collective purchase budgets need explicit receipts |
 | Legacy equipment/forward exchange, competing-access or pool-market drivers + credit/negotiation | Still rejected |
 | Need-generated marketplace orders | [Bounded consumption/surplus policy](NEED-ORDERS.md) implemented; bilateral parties, lot and reservation prices remain supplied |
-| Monthly town book + household accounts | [Bounded collective adapter](HOUSEHOLD-MARKET.md): locality, governor policy, real member demand, shared money/stock/storage and fixed/ZIP quotes; private sales/barter, charter-delegated buying, active-process input funding, paid outside wages and direct loans now compose; budgeted external hiring and costed member allocation now compose; joint production-market planning and mortgage/recovery drivers remain excluded |
+| Monthly town book + household accounts | [Bounded collective adapter](HOUSEHOLD-MARKET.md): locality, governor policy, real member demand, shared money/stock/storage and fixed/ZIP quotes; private sales/barter, charter-delegated buying, active-process input funding, paid outside wages and direct loans now compose; budgeted external hiring and costed member allocation now compose; posted labor acceptance and authorized direct-loan/forward recovery also compose; joint production-market planning and mortgage drivers remain excluded |
 | Physical minting + scripted or generated dated stock/capacity orders | [Isolated CPU pilot](MINTING.md); excludes other acquisition drivers and collection-linked issuance |
 | State posted bids learning ZIP prices | Not implemented; co-settlement does not change the price-setting policy |
 | Direct loans + native/alternative-tender land dues | Shared Due collection; opt-in proportional policy with whole claim units and protected opening funds |
@@ -684,6 +684,24 @@ they do not reopen an earlier settlement. Combined rent/forward and credit/prepa
 checks reconcile separate statements and preserve cash/storage bounds.
 
 Direct terms support plain, town and bilateral acquisition. Direct/tool admission
-coexistence, direct-forward recovery, autonomous underwriting and negotiated hiring
-remain open. This does not lift legacy mortgage, minting, search or joint-production
+coexistence, autonomous underwriting and negotiated hiring remain open. Direct-forward
+recovery and bounded labor-offer acceptance are covered by the follow-up below. This does not lift legacy mortgage, minting, search or joint-production
 composition limits. Person self-directed policy changes remain deferred.
+
+## Fibonacci follow-up: batches 1, 1, 2
+
+[Fibonacci integration](FIBONACCI-INTEGRATION.md) closes the selected direct-forward
+recovery and household hiring gaps. Direct deliveries retain partial claims through
+authorized recovery, extensions and explicit write-offs. Town admission is rechecked
+after Due opens a proceeding; normal trading is stayed while existing deliveries
+continue. Custody remains outside ordinary contracts and trading.
+
+Households now select quantities from posted, worker-consented labor terms using
+their existing policy and member work allocator. Preaccepted jobs reserve first;
+optional offers follow explicit rank/ID order and one finite budget. The preview
+includes acquired stock pooling, collective input allocation and consented support.
+The integrated cases exercise prepayment → later hiring → production → delivery,
+and income-based hiring with actual payroll and finite buyer money. Wage negotiation,
+wage insolvency and general labor matching remain extensions. Historical pass notes
+above describe their original boundaries; this follow-up supersedes their blanket
+statements that hiring is always preaccepted or town recovery is unavailable.

@@ -519,11 +519,8 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     {
         return Err("general loans require a composed acquisition driver; minting, plot expansion and search acquisition are not yet composed".into());
     }
-    if enabled(world)
-        && world.town_market.is_some()
-        && (!world.recovery.proceedings.is_empty() || world.production_market.is_some())
-    {
-        return Err("town lending does not yet compose with recovery or joint production".into());
+    if enabled(world) && world.town_market.is_some() && world.production_market.is_some() {
+        return Err("town lending does not yet compose with joint production".into());
     }
     let agent = |id| world.agents.iter().any(|a| a.id == id);
     let stock = |id| {
