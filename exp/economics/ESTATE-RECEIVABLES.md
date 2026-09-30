@@ -205,3 +205,14 @@ explicit subrogation semantics, not a promise of identical recovery across timin
 New recourse cannot collect in its creation month. Original claim holders follow
 the same rule when assignment is unfunded, and household exit depends on remaining
 assets. Separate books and CPU/checkpoint continuation agree.
+
+## Assignment after accepted partial relief
+
+The existing whole-loan sale can transfer the remaining balance after a partial
+write-off. The old creditor keeps its recognized loss; the buyer acquires only
+the surviving receivable. Due relief precedes Acquire assignment, so same-month
+loss provenance still belongs to the seller. Fresh relief after assignment needs
+the buyer's consent. A two-estate regression reproduced rejection of this valid
+sale, then verifies stale-former-creditor refusal, immutable history, separate
+statements and CPU/reference/checkpoint agreement. No discount or onward-sale
+adapter is introduced by this change.

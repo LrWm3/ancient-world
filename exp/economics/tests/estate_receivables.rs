@@ -1127,3 +1127,134 @@ fn receivable_discovery_distinguishes_posted_guarantees_from_accepted_remaining_
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn assignment_retains_prior_partial_loss_and_requires_the_new_creditors_relief_consent() {
+    use economics_compute_smoke::{
+        accounting::Account,
+        claim_relief::{Action, Terms},
+        finance::ContractId,
+        recovery::receivables,
+    };
+    const BUYER: AgentId = 98;
+    const BORROWER_ESTATE: AgentId = 96;
+    for current_creditor in [false, true] {
+        let mut opening = fixture(4, 1, false);
+        opening.world.agents.extend([
+            Agent {
+                id: BUYER,
+                name: "claim buyer".into(),
+            },
+            Agent {
+                id: BORROWER_ESTATE,
+                name: "borrower custodian".into(),
+            },
+        ]);
+        opening.state.balances.insert((BUYER, TOKEN), 3);
+        opening.world.recovery.proceedings.push(ProceedingTerms {
+            id: 2,
+            debtor: BORROWER,
+            estate: BORROWER_ESTATE,
+            authority: STATE_AGENT,
+            denomination: TOKEN,
+            opening_month: 3,
+            earliest_close: 6,
+            assets: vec![],
+            discharge_deficiency: false,
+        });
+        for (id, month, creditor, expected_remaining, quantity) in [
+            (1, 4, PERSON, 4, 1),
+            (2, 5, if current_creditor { BUYER } else { PERSON }, 3, 3),
+        ] {
+            opening.world.recovery.claim_relief.push(Terms {
+                id,
+                proceeding: 2,
+                contract: ContractId::Loan(ASSET),
+                original_due: 2,
+                debtor: BORROWER,
+                creditor,
+                month,
+                expected_due: 2,
+                expected_remaining,
+                action: Action::WriteOff { quantity },
+            });
+        }
+        opening
+            .world
+            .recovery
+            .receivable_listings
+            .push(receivables::Listing {
+                id: 1,
+                proceeding: 1,
+                loan: ASSET,
+                coins_per_unit: 1,
+            });
+        opening
+            .world
+            .recovery
+            .receivable_bids
+            .push(receivables::Bid {
+                id: 1,
+                listing: 1,
+                buyer: BUYER,
+                month: 4,
+                price: 3,
+            });
+        let run = |backend| {
+            let mut sim =
+                Simulation::new(opening.world.clone(), opening.state.clone(), backend).unwrap();
+            let mut a = Audit::new(&sim.world, &sim.state, TOKEN).unwrap();
+            until(&mut sim, &mut a, 4, Phase::Acquire);
+            assert_eq!(sim.state.credit.loans[&ASSET].principal, 3);
+            assert_eq!(a.book().balances()[&(PERSON, Account::CreditLoss)], 1);
+            a.step(&mut sim).unwrap();
+            assert_eq!(sim.state.credit.loans[&ASSET].creditor, BUYER);
+            let first = sim.state.credit.recovery.loan_writeoffs[&ASSET][0].clone();
+            assert_eq!(first.terms.creditor, PERSON);
+            let mut forged_world = sim.world.clone();
+            let mut forged_state = sim.state.clone();
+            forged_world.recovery.claim_relief[0].creditor = BUYER;
+            forged_state
+                .credit
+                .recovery
+                .loan_writeoffs
+                .get_mut(&ASSET)
+                .unwrap()[0]
+                .terms
+                .creditor = BUYER;
+            assert!(Simulation::new(forged_world, forged_state, backend).is_err());
+            let (saved, mut ra) = (sim.clone(), a.clone());
+            until(&mut sim, &mut a, 7, Phase::Open);
+            assert_eq!(sim.state.credit.recovery.loan_writeoffs[&ASSET][0], first);
+            assert_eq!(
+                sim.state.credit.loans[&ASSET].principal,
+                if current_creditor { 0 } else { 3 }
+            );
+            assert_eq!(
+                sim.state.credit.recovery.proceedings[&2].stage,
+                Stage::Closed
+            );
+            assert_eq!(
+                sim.state.credit.recovery.proceedings[&1].stage,
+                Stage::Closed
+            );
+            let b = a.book().balances();
+            assert_eq!(b[&(PERSON, Account::CreditLoss)], 1);
+            assert_eq!(
+                b.get(&(BUYER, Account::CreditLoss)).copied().unwrap_or(0),
+                if current_creditor { 3 } else { 0 }
+            );
+            assert_eq!(
+                b[&(BORROWER, Account::DebtRelief)],
+                if current_creditor { -4 } else { -1 }
+            );
+            assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 3);
+            assert_eq!(sim.state.balance(BUYER, TOKEN), 0);
+            let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
+            until(&mut resumed, &mut ra, 7, Phase::Open);
+            assert_eq!((&sim.state, &a), (&resumed.state, &ra));
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

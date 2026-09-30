@@ -342,7 +342,7 @@ pub(crate) fn validate_loans(w: &World, s: &State) -> Result<(), String> {
             if !w.recovery.claim_relief.contains(t)
                 || t.contract != ContractId::Loan(id)
                 || t.debtor != l.debtor
-                || t.creditor != l.creditor
+                || t.creditor != creditor_at_due(w, s, l, t.month)?
                 || Some(t.original_due) != l.opened.checked_add(1)
                 || t.month > s.month
                 || t.month <= previous_month
@@ -466,4 +466,30 @@ fn remaining_bound(
         .unwrap_or(0);
     let principal = i128::from(r.remaining_principal) + advances;
     (principal, i128::from(r.remaining_interest))
+}
+
+/// Disposition runs at Due; assignment runs later at Acquire. Same-month relief
+/// therefore belongs to the seller, while later consent must name the new holder.
+fn creditor_at_due(w: &World, s: &State, l: &credit::Loan, month: u32) -> Result<AgentId, String> {
+    let Some(a) = s
+        .credit
+        .recovery
+        .assignments
+        .get(&l.id)
+        .filter(|a| month <= a.month)
+    else {
+        return Ok(l.creditor);
+    };
+    let listing = w
+        .recovery
+        .receivable_listings
+        .iter()
+        .find(|listing| listing.id == a.listing && listing.loan == l.id)
+        .ok_or("loan relief assignment has no listing")?;
+    w.recovery
+        .proceedings
+        .iter()
+        .find(|p| p.id == listing.proceeding)
+        .map(|p| p.debtor)
+        .ok_or_else(|| "loan relief assignment has no seller".into())
 }

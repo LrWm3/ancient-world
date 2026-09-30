@@ -968,3 +968,19 @@ their separately recorded gates and are not covered by this snapshot.
     Four production/lending checks and 80 related regressions passed across focused
     runs, with final household checks and strict all-target Clippy. Conditional
     cooperative collective purchases remain guarded; this is not joint optimization.
+
+### Full-suite checkpoint through item 56
+
+The isolated **`14abd48`** source snapshot completed
+`cargo +1.92.0 test --locked`: **995 passed, 0 failed, 1 ignored**, across
+123 Cargo result targets including empty unit/doc targets. Later changes have
+separate gates and are not covered by this snapshot.
+
+63. **Partial write-off history survives assignment of the remaining claim.**
+    A two-estate regression reproduced rejection of a valid receivable sale.
+    Validation now resolves the holder at the relief's Due boundary, preserving
+    the seller's loss through same-month Acquire assignment. Only the new holder
+    can consent to later relief. Rewriting both catalog and historical consent is
+    rejected. Purchase proceeds, retained debt and separate losses reconcile on
+    CPU/reference and checkpoint continuation. The five-target gate passed
+    101 tests and strict all-target Clippy passed.

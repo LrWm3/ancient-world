@@ -156,3 +156,11 @@ residual household cash is distributed at the later lifecycle boundary. The
 composed prepaid delivery, substitute guarantee, partial relief and wind-down
 control agrees across CPU/reference and checkpoints on either side of relief.
 The four-target gate passed 77 tests and strict all-target Clippy passed.
+
+A loan sold after partial relief retains the seller's accepted loss history.
+Disposition validation uses the creditor at the original Due boundary: a sale at
+Acquire later that month cannot rewrite that consent. Subsequent relief must name
+the new creditor; the former holder cannot forgive the buyer's remaining claim.
+The composed two-estate control rejects rewritten historical consent and preserves
+separate losses, actual purchase proceeds and CPU/checkpoint continuation. Its
+five-target regression gate passed 101 tests and strict all-target Clippy passed.
