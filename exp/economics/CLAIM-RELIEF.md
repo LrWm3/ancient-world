@@ -88,16 +88,20 @@ suites. Formatting, strict all-target Clippy and artifact checks pass; the broad
 crate regression completed with 801 passing tests and one existing ignored test.
 That snapshot predates the separately passing physical-wage test.
 
-## Full unsecured loan write-off
+## Unsecured loan write-offs
 
-`ContractId::Loan` now uses the same dated consent interface for full write-off of
+`ContractId::Loan` now uses the same dated consent interface for partial or full write-off of
 an unsecured loan inside an active authorized proceeding. Terms name the current
 creditor, debtor, original first-collection date (`opened + 1`) and exact current
 debt. They are checked after ordinary collection and guarantee payments; stale
 quantities are rejected. Native loans and guarantee recourse can use this route
 without conversion into the estate's custody currency.
 
-The authoritative loan becomes discharged, with original principal retained.
+A fully forgiven loan becomes discharged, with original principal retained.
+Partial relief leaves the remaining debt and collection stay in place. Relief
+reduces accrued interest first, then principal, matching collection order without
+representing repayment. The existing proceeding freezes further interest accrual;
+partial relief does not change that timing or the original installment schedule.
 `loan_writeoffs` holds accepted terms and the disposed principal/interest as
 provenance, not another balance. A native discharge without accepted disposition
 is invalid at checkpoint. Reporting values the creditor loss and debtor relief
@@ -105,8 +109,7 @@ in the loan's denomination; no goods, coins, repayment or interest income are
 invented. An unresolved native claim continues to block closure even when the
 estate permits ordinary coin deficiencies to be discharged.
 
-This adapter deliberately supports full unsecured write-offs. Partial reductions,
-rescheduling of amortizing loans, secured releases and autonomous negotiation
+Rescheduling of amortizing loans, secured releases and autonomous negotiation
 remain open. The control compares absent, exact and stale consent against the
 same actual advance and repayment, including CPU/reference, checkpoint and
 forged receipt/history rejection. The six-target gate passed 104 tests and strict
@@ -134,3 +137,14 @@ while its separate coin debt to the member remains. Actual wage pooling finances
 only later calls, including fractional carry; it never creates native inventory.
 CPU/reference and checkpoint statements agree. The four-target gate passed
 58 tests and strict all-target Clippy passed.
+
+Partial-loan controls retain the post-disposition principal, interest and fractional
+interest carry as validation provenance. Later relief needs fresh consent to the
+exact current balance. Actual collections may lower it; only dated guarantee
+advances may add principal, and the insolvency stay cannot invent new interest.
+One test forgives a native loan in three steps. Another first spends borrowed
+stock delivering a prepaid order, then separately forgives unpaid interest and
+principal. Physical delivery, earlier repayments, earned interest and historical
+losses remain distinct; closure waits for the final resolution. CPU/reference,
+checkpoint and tampered history/batch controls pass. The five-target gate passed
+90 tests, followed by the interest/delivery control and strict all-target Clippy.

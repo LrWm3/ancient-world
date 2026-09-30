@@ -28,13 +28,17 @@ pub struct Applied {
     /// Actual units paid when the accepted relief was applied.
     pub paid: i32,
 }
-/// Accepted full disposition of one unsecured loan. This is provenance, not
+/// Accepted disposition of part or all of one unsecured loan. This is provenance, not
 /// another debt balance; principal and interest remain in the ordinary loan book.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LoanWriteOff {
     pub terms: Terms,
     pub principal: i32,
     pub interest: i32,
+    /// Post-disposition snapshot for validating later collections under the stay.
+    pub remaining_principal: i32,
+    pub remaining_interest: i32,
+    pub interest_remainder: i64,
 }
 pub(crate) struct Claim {
     pub contract: ContractId,
@@ -62,10 +66,7 @@ pub fn validate_terms(w: &World) -> Result<(), String> {
             )
             || (matches!(t.contract, ContractId::Loan(_))
                 && (t.expected_due != t.original_due
-                    || t.action
-                        != (Action::WriteOff {
-                            quantity: t.expected_remaining,
-                        })))
+                    || !matches!(t.action, Action::WriteOff { .. })))
             || t.original_due < 2
             || t.expected_due < t.original_due
             || t.expected_due >= t.month
@@ -200,19 +201,31 @@ pub(crate) fn apply(w: &World, s: &State, out: &mut credit::Boundary) -> Result<
             match t.contract {
                 ContractId::Loan(id) => {
                     let loan = out.after.loans.get_mut(&id).ok_or("missing relief loan")?;
+                    let Action::WriteOff { quantity } = t.action else {
+                        return Err("loan relief requires a write-off".into());
+                    };
+                    // Same interest-first ordering as collection, but no payment
+                    // or interest income: the reporting adapter records a loss.
+                    let interest = quantity.min(loan.interest);
+                    let principal = quantity - interest;
+                    loan.apply_payment(quantity);
+                    if loan.debt()? == 0 {
+                        loan.status = credit::Status::Discharged;
+                    }
                     let disposition = LoanWriteOff {
                         terms: t.clone(),
-                        principal: loan.principal,
-                        interest: loan.interest,
+                        principal,
+                        interest,
+                        remaining_principal: loan.principal,
+                        remaining_interest: loan.interest,
+                        interest_remainder: loan.interest_remainder,
                     };
                     out.recovery.push(recovery::Receipt::WrittenOff {
                         proceeding: t.proceeding,
                         loan: id,
-                        principal: loan.principal,
-                        interest: loan.interest,
+                        principal,
+                        interest,
                     });
-                    loan.apply_payment(loan.debt()?);
-                    loan.status = credit::Status::Discharged;
                     out.after
                         .recovery
                         .loan_writeoffs
@@ -307,7 +320,7 @@ fn view(w: &World, s: &State, t: &Terms) -> Option<(crate::finance::Obligation, 
     }
 }
 
-/// Full loan write-offs retain their exact accepted terms through checkpoint and
+/// Loan write-offs retain their exact accepted terms through checkpoint and
 /// closure. They never change the original quantity or masquerade as repayment.
 pub(crate) fn validate_loans(w: &World, s: &State) -> Result<(), String> {
     for (&id, records) in &s.credit.recovery.loan_writeoffs {
@@ -317,6 +330,7 @@ pub(crate) fn validate_loans(w: &World, s: &State) -> Result<(), String> {
         }
         let mut previous_month = 0;
         let mut principal = 0_i64;
+        let mut previous = None;
         for r in records {
             let t = &r.terms;
             let case = s
@@ -337,42 +351,63 @@ pub(crate) fn validate_loans(w: &World, s: &State) -> Result<(), String> {
                 || l.collateral.is_some()
                 || r.principal < 0
                 || r.interest < 0
-                || i64::from(r.principal) + i64::from(r.interest) != i64::from(t.expected_remaining)
+                || r.remaining_principal < 0
+                || r.remaining_interest < 0
+                || !(0..credit::RATE_SCALE).contains(&r.interest_remainder)
+                || (r.remaining_interest > 0 && r.principal != 0)
+                || (r.remaining_principal == 0
+                    && r.remaining_interest == 0
+                    && r.interest_remainder != 0)
+                || t.action
+                    != (Action::WriteOff {
+                        quantity: r
+                            .principal
+                            .checked_add(r.interest)
+                            .ok_or("relief overflow")?,
+                    })
+                || i64::from(r.principal)
+                    + i64::from(r.interest)
+                    + i64::from(r.remaining_principal)
+                    + i64::from(r.remaining_interest)
+                    != i64::from(t.expected_remaining)
             {
                 return Err("invalid accepted loan write-off history".into());
             }
+            if let Some(prior) = previous {
+                let (p, i) = remaining_bound(w, s, l, prior, t.month);
+                if i128::from(r.principal) + i128::from(r.remaining_principal) > p
+                    || i128::from(r.interest) + i128::from(r.remaining_interest) > i
+                    || ((r.remaining_principal > 0 || r.remaining_interest > 0)
+                        && r.interest_remainder != prior.interest_remainder)
+                {
+                    return Err(
+                        "loan relief history exceeds remaining debt and intervening advances"
+                            .into(),
+                    );
+                }
+            }
+            previous = Some(r);
             principal = principal
                 .checked_add(i64::from(r.principal))
                 .ok_or("loan relief overflow")?;
             previous_month = t.month;
         }
-        // Only dated new guarantee advances can reopen this loan after its
-        // full disposition. Prior losses are neither reversed nor overwritten.
-        let later = w
-            .recovery
-            .guarantees
-            .iter()
-            .find(|g| g.recourse == id)
-            .map(|g| {
-                s.credit
-                    .recovery
-                    .guarantee_advances
-                    .iter()
-                    .filter(|((guarantee, month), _)| *guarantee == g.id && *month > previous_month)
-                    .try_fold(0_i64, |total, (_, q)| {
-                        total
-                            .checked_add(i64::from(*q))
-                            .ok_or("later recourse overflow")
-                    })
-            })
-            .transpose()?
-            .unwrap_or(0);
+        let last = records.last().unwrap();
+        let (p, i) = remaining_bound(w, s, l, last, s.month);
+        let fully_disposed =
+            p == 0 && i == 0 && last.remaining_principal == 0 && last.remaining_interest == 0;
         if principal + i64::from(l.principal) > i64::from(l.original_principal)
-            || i64::from(l.debt()?) > later
-            || (later == 0 && l.status != credit::Status::Discharged)
-            || (later > 0 && l.status == credit::Status::Discharged)
+            || i128::from(l.principal) > p
+            || i128::from(l.interest) > i
+            || (l.debt()? > 0 && l.interest_remainder != last.interest_remainder)
+            || (fully_disposed && l.status != credit::Status::Discharged)
+            || (!fully_disposed
+                && l.status == credit::Status::Discharged
+                && !deficiency_discharged(w, s, l))
         {
-            return Err("loan disposition does not reconcile to later advances".into());
+            return Err(
+                "loan disposition does not reconcile to remaining debt and later advances".into(),
+            );
         }
     }
     // Legacy deficient closure can discharge only its own custody denomination.
@@ -383,20 +418,52 @@ pub(crate) fn validate_loans(w: &World, s: &State) -> Result<(), String> {
         .values()
         .filter(|l| l.status == credit::Status::Discharged)
     {
-        if !s.credit.recovery.loan_writeoffs.contains_key(&l.id)
-            && !w.recovery.proceedings.iter().any(|p| {
-                p.debtor == l.debtor
-                    && p.denomination == l.denomination
-                    && p.discharge_deficiency
-                    && s.credit
-                        .recovery
-                        .proceedings
-                        .get(&p.id)
-                        .is_some_and(|c| c.stage == recovery::Stage::Closed)
-            })
+        if !s.credit.recovery.loan_writeoffs.contains_key(&l.id) && !deficiency_discharged(w, s, l)
         {
             return Err("discharged loan without accepted disposition".into());
         }
     }
     Ok(())
+}
+
+fn deficiency_discharged(w: &World, s: &State, l: &credit::Loan) -> bool {
+    w.recovery.proceedings.iter().any(|p| {
+        p.debtor == l.debtor
+            && p.denomination == l.denomination
+            && p.discharge_deficiency
+            && s.credit
+                .recovery
+                .proceedings
+                .get(&p.id)
+                .is_some_and(|c| c.stage == recovery::Stage::Closed)
+    })
+}
+
+/// Upper bounds allow intervening actual collections. New recourse is dated;
+/// ordinary loans cannot create fresh principal after acceptance. The authorized
+/// proceeding freezes accrual; relief does not end that stay.
+fn remaining_bound(
+    w: &World,
+    s: &State,
+    l: &credit::Loan,
+    r: &LoanWriteOff,
+    month: u32,
+) -> (i128, i128) {
+    let advances = w
+        .recovery
+        .guarantees
+        .iter()
+        .find(|g| g.recourse == l.id)
+        .map(|g| {
+            s.credit
+                .recovery
+                .guarantee_advances
+                .iter()
+                .filter(|((id, m), _)| *id == g.id && *m > r.terms.month && *m <= month)
+                .map(|(_, q)| i128::from(*q))
+                .sum::<i128>()
+        })
+        .unwrap_or(0);
+    let principal = i128::from(r.remaining_principal) + advances;
+    (principal, i128::from(r.remaining_interest))
 }

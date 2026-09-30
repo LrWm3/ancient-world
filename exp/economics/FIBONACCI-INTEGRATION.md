@@ -939,3 +939,12 @@ their separately recorded gates and are not covered by this snapshot.
     Solvent household exit distributes its residual cash while the member keeps
     the private native receivable. CPU/reference and checkpoint continuation
     agree. The five-target gate passed 77 tests and strict all-target Clippy passed.
+
+60. **Partial unsecured loan relief retains collectible debt.** Exact consent now
+    waives part of a loan, interest first, preserving original principal, remaining
+    claims, the insolvency stay and historical losses. Later forgiveness needs new
+    exact consent. A prepaid-delivery/borrowing control separates actual goods,
+    repaid and forgiven interest, and final closure. Post-disposition snapshots
+    reject invented interest or unsupported principal. CPU/reference, checkpoint
+    and atomic tamper controls pass. The five-target gate passed 90 tests, followed
+    by the added interest/delivery test and strict all-target Clippy.

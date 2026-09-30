@@ -740,3 +740,280 @@ fn explicit_native_loan_writeoff_closes_only_the_consented_claim_and_preserves_a
         }
     }
 }
+
+#[test]
+fn partial_native_loan_relief_retains_principal_stay_and_separate_loss_history() {
+    use economics_compute_smoke::{
+        claim_relief::{Action, Terms},
+        credit::Status,
+        finance::ContractId,
+        recovery::{ProceedingTerms, Stage},
+        settlement,
+    };
+    for finish in [false, true] {
+        let (mut w, mut s, mut opening) = fixture(0);
+        w.lending[0].principal = 12;
+        w.lending[0].terms.max_principal = 12;
+        s.balances.insert((STATE_AGENT, GRAIN), 12);
+        opening.inventory.insert((STATE_AGENT, GRAIN), 12);
+        w.agents.push(Agent {
+            id: 999,
+            name: "coin custodian".into(),
+        });
+        w.recovery.proceedings.push(ProceedingTerms {
+            id: 1,
+            debtor: PERSON,
+            authority: STATE_AGENT,
+            estate: 999,
+            denomination: TOKEN,
+            opening_month: 3,
+            earliest_close: 3,
+            assets: vec![],
+            discharge_deficiency: true,
+        });
+        for (month, expected_remaining, quantity) in [(3, 3, 1), (4, 2, 1), (5, 1, 1)] {
+            if month == 5 && !finish {
+                continue;
+            }
+            w.recovery.claim_relief.push(Terms {
+                id: 90 + month,
+                proceeding: 1,
+                contract: ContractId::Loan(1),
+                original_due: 2,
+                debtor: PERSON,
+                creditor: STATE_AGENT,
+                month,
+                expected_due: 2,
+                expected_remaining,
+                action: Action::WriteOff { quantity },
+            });
+        }
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut audit = Audit::with_opening(&w, &s, TOKEN, opening.clone()).unwrap();
+            while sim.state.month <= 3 {
+                audit.step(&mut sim).unwrap();
+            }
+            let loan = &sim.state.credit.loans[&1];
+            assert_eq!(
+                (loan.principal, loan.interest, loan.interest_remainder),
+                (2, 0, 0)
+            );
+            assert_eq!(loan.status, Status::Stayed);
+            assert_eq!(
+                sim.state.credit.recovery.proceedings[&1].stage,
+                Stage::Active
+            );
+            let first = sim.state.credit.recovery.loan_writeoffs[&1][0].clone();
+            assert_eq!((first.principal, first.interest), (1, 0));
+            assert_eq!(
+                (first.remaining_principal, first.remaining_interest),
+                (2, 0)
+            );
+            let mut impossible_interest = sim.state.clone();
+            impossible_interest
+                .credit
+                .loans
+                .get_mut(&1)
+                .unwrap()
+                .interest = 1;
+            assert!(Simulation::new(w.clone(), impossible_interest, backend).is_err());
+            let (saved, mut resumed_audit) = (sim.clone(), audit.clone());
+            let mut before_due = None;
+            while sim.state.month <= 5 {
+                if sim.state.month == 4 && sim.state.phase == Phase::Due {
+                    before_due = Some(sim.state.clone());
+                }
+                audit.step(&mut sim).unwrap();
+            }
+            let history = &sim.state.credit.recovery.loan_writeoffs[&1];
+            assert_eq!(history[0], first);
+            assert_eq!((history[1].principal, history[1].interest), (1, 0));
+            assert_eq!(history.len(), if finish { 3 } else { 2 });
+            let loan = &sim.state.credit.loans[&1];
+            assert_eq!(
+                (loan.original_principal, loan.principal, loan.interest),
+                (12, if finish { 0 } else { 1 }, 0)
+            );
+            assert_eq!(
+                loan.status,
+                if finish {
+                    Status::Discharged
+                } else {
+                    Status::Stayed
+                }
+            );
+            assert_eq!(
+                sim.state.credit.recovery.proceedings[&1].stage,
+                if finish { Stage::Closed } else { Stage::Active }
+            );
+            assert_eq!(sim.state.balance(STATE_AGENT, GRAIN), 12);
+            assert_eq!(sim.state.balance(PERSON, GRAIN), 0);
+            assert_eq!(sim.state.balance(999, TOKEN), 0);
+            let balances = audit.book().balances();
+            assert_eq!(
+                balances[&(STATE_AGENT, Account::CreditLoss)],
+                if finish { 9 } else { 6 }
+            );
+            assert_eq!(
+                balances[&(PERSON, Account::DebtRelief)],
+                if finish { -9 } else { -6 }
+            );
+            // Three interest units were earned/paid before the proceeding froze accrual.
+            assert_eq!(balances[&(STATE_AGENT, Account::InterestIncome)], -9);
+            assert_eq!(
+                balances[&(STATE_AGENT, Account::LoanReceivable(1))],
+                if finish { 0 } else { 3 }
+            );
+            assert_eq!(
+                balances[&(PERSON, Account::LoanPayable(1))],
+                if finish { 0 } else { -3 }
+            );
+            let due = sim
+                .ledger
+                .iter()
+                .find(|b| b.month == 4 && b.phase == Phase::Due)
+                .unwrap();
+            let mut forged = due.clone();
+            let record = &mut forged
+                .credit
+                .as_mut()
+                .unwrap()
+                .after
+                .recovery
+                .loan_writeoffs
+                .get_mut(&1)
+                .unwrap()[1];
+            record.principal = 0;
+            record.interest = 1;
+            let before = before_due.unwrap();
+            let mut unchanged = before.clone();
+            assert!(
+                settlement::commit(&w, &mut unchanged, &forged, backend, sim.effect_limit).is_err()
+            );
+            assert_eq!(before, unchanged);
+            let mut bad = sim.state.clone();
+            bad.credit.recovery.loan_writeoffs.get_mut(&1).unwrap()[0].remaining_principal += 1;
+            assert!(Simulation::new(w.clone(), bad, backend).is_err());
+            let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
+            while resumed.state.month <= 5 {
+                resumed_audit.step(&mut resumed).unwrap();
+            }
+            assert_eq!(resumed.state, sim.state);
+            assert_eq!(resumed_audit, audit);
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::CubeCpu), run(Backend::Reference));
+    }
+}
+
+#[test]
+fn loan_relief_forgives_interest_first_after_prepaid_delivery_spends_borrowed_stock() {
+    use economics_compute_smoke::{
+        claim_relief::{Action, Terms},
+        finance::ContractId,
+        forward::direct::Terms as Forward,
+        recovery::{ProceedingTerms, Stage},
+    };
+    let (mut w, mut s, mut opening) = fixture(0);
+    w.lending[0].principal = 8;
+    w.lending[0].terms.max_principal = 8;
+    w.lending[0].terms.term_months = 4;
+    s.balances.insert((STATE_AGENT, GRAIN), 8);
+    opening.inventory.insert((STATE_AGENT, GRAIN), 8);
+    w.agents.extend([
+        Agent {
+            id: 55,
+            name: "buyer".into(),
+        },
+        Agent {
+            id: 999,
+            name: "custodian".into(),
+        },
+    ]);
+    s.balances.insert((55, TOKEN), 1);
+    w.prepaid_deliveries.push(Forward {
+        id: 50,
+        seller: PERSON,
+        buyer: 55,
+        month: 1,
+        due: 2,
+        goods: Amount::new(GRAIN, 4),
+        prepayment: Amount::new(TOKEN, 1),
+    });
+    w.recovery.proceedings.push(ProceedingTerms {
+        id: 1,
+        debtor: PERSON,
+        authority: STATE_AGENT,
+        estate: 999,
+        denomination: TOKEN,
+        opening_month: 4,
+        earliest_close: 4,
+        assets: vec![],
+        discharge_deficiency: true,
+    });
+    for (month, expected_remaining, quantity) in [(4, 7, 1), (5, 6, 2), (6, 4, 4)] {
+        w.recovery.claim_relief.push(Terms {
+            id: month,
+            proceeding: 1,
+            contract: ContractId::Loan(1),
+            original_due: 2,
+            debtor: PERSON,
+            creditor: STATE_AGENT,
+            month,
+            expected_due: 2,
+            expected_remaining,
+            action: Action::WriteOff { quantity },
+        });
+    }
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut a = Audit::with_opening(&w, &s, TOKEN, opening.clone()).unwrap();
+        while sim.state.month <= 4 {
+            a.step(&mut sim).unwrap();
+        }
+        let loan = &sim.state.credit.loans[&1];
+        assert_eq!(
+            (loan.principal, loan.interest, loan.interest_remainder),
+            (6, 0, 5000)
+        );
+        let first = &sim.state.credit.recovery.loan_writeoffs[&1][0];
+        assert_eq!((first.principal, first.interest), (0, 1));
+        assert_eq!(
+            sim.state.credit.recovery.proceedings[&1].stage,
+            Stage::Active
+        );
+        assert_eq!(sim.state.exchange.forwards[&50].delivered, 4);
+        let (saved, mut ra) = (sim.clone(), a.clone());
+        while sim.state.month <= 6 {
+            a.step(&mut sim).unwrap();
+        }
+        assert_eq!(
+            sim.state.credit.recovery.proceedings[&1].stage,
+            Stage::Closed
+        );
+        let history = &sim.state.credit.recovery.loan_writeoffs[&1];
+        assert_eq!(
+            history
+                .iter()
+                .map(|r| (r.principal, r.interest))
+                .collect::<Vec<_>>(),
+            [(0, 1), (2, 0), (4, 0)]
+        );
+        assert_eq!(sim.state.balance(STATE_AGENT, GRAIN), 4);
+        assert_eq!(sim.state.balance(55, GRAIN), 4);
+        assert_eq!(sim.state.balance(PERSON, TOKEN), 1);
+        let b = a.book().balances();
+        assert_eq!(b[&(STATE_AGENT, Account::CreditLoss)], 21);
+        assert_eq!(b[&(PERSON, Account::DebtRelief)], -21);
+        assert_eq!(b[&(STATE_AGENT, Account::InterestIncome)], -9);
+        assert_eq!(b[&(STATE_AGENT, Account::LoanReceivable(1))], 0);
+        let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
+        while resumed.state.month <= 6 {
+            ra.step(&mut resumed).unwrap();
+        }
+        assert_eq!((&sim.state, &a), (&resumed.state, &ra));
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}

@@ -167,7 +167,7 @@ can establish that all these arrangements compose.
    policies against identical opening requests and budgets.
 3. **Broaden insolvency admission.** The authorized single-custody-denomination estate
    lifecycle now distinguishes arrears from a proceeding and admits land/forward
-   performance claims. Accepted land/wage/forward disposition now exists, plus explicit full unsecured
+   performance claims. Accepted land/wage/forward disposition now exists, plus explicit partial/full unsecured
    loan write-offs in the native denomination. Several
    estates may now share a non-operating custodian with separate beneficial cash
    and opening spending limits. Add further custody-denomination/lifecycle combinations and market compositions before describing it as general insolvency. Record who initiates it,
