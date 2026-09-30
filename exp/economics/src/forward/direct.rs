@@ -4,6 +4,15 @@ use super::{Contract, Event, Price};
 use crate::{acquisition::Resources, laws, model::*, opportunities};
 use std::collections::BTreeSet;
 
+/// Supplied terms are bilateral consent. Concurrent admission does not guarantee
+/// future production; all future deliveries remain visible as distinct claims.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum AdmissionPolicy {
+    #[default]
+    SingleOutstanding,
+    Concurrent,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Terms {
     pub id: u32,
@@ -152,9 +161,10 @@ pub(crate) fn evaluate(
                 .allowed;
         let failure = if !eligible {
             Some(Rejection::Ineligible)
-        } else if admitted
-            .values()
-            .any(|c| c.debtor == t.seller && c.claim().outstanding() > 0)
+        } else if w.prepaid_admission == AdmissionPolicy::SingleOutstanding
+            && admitted
+                .values()
+                .any(|c| c.debtor == t.seller && c.claim().outstanding() > 0)
         {
             Some(Rejection::ExistingDelivery)
         } else if resources

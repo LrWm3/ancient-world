@@ -182,6 +182,7 @@ pub struct ScheduledStart {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct World {
     /// Explicitly consented commodity prepayments, independent of equipment purchases.
+    pub prepaid_admission: crate::forward::direct::AdmissionPolicy,
     pub prepaid_deliveries: Vec<crate::forward::direct::Terms>,
     pub employment: Vec<crate::employment::Terms>,
     /// Catalog IDs offered for household acceptance each month, not preaccepted jobs.

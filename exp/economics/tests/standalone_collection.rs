@@ -177,3 +177,67 @@ fn standalone_receipts_and_observers_distinguish_requested_granted_and_paid() {
         5
     );
 }
+
+fn forwards(concurrent: bool, policy: CollectionPolicy) -> (World, State) {
+    use economics_compute_smoke::forward::direct::{AdmissionPolicy, Terms};
+    let (mut w, mut s) = fixture(policy);
+    w.agreements.clear();
+    w.rights.clear();
+    w.assets.clear();
+    w.resources.push(Resource {
+        id: COIN,
+        name: "coin".into(),
+        kind: ResourceKind::Stock,
+    });
+    w.prepaid_admission = if concurrent {
+        AdmissionPolicy::Concurrent
+    } else {
+        AdmissionPolicy::SingleOutstanding
+    };
+    w.prepaid_deliveries = [STATE_AGENT, OTHER]
+        .into_iter()
+        .enumerate()
+        .map(|(i, buyer)| Terms {
+            id: i as u32 + 1,
+            seller: PERSON,
+            buyer,
+            month: 12,
+            due: 13,
+            goods: Amount::new(GRAIN, 4),
+            prepayment: Amount::new(COIN, 4),
+        })
+        .collect();
+    for buyer in [STATE_AGENT, OTHER] {
+        s.balances.insert((buyer, COIN), 4);
+    }
+    (w, s)
+}
+#[test]
+fn concurrent_forward_admission_is_opt_in_and_reserves_real_money_and_storage() {
+    for concurrent in [false, true] {
+        let (w, s) = forwards(concurrent, CollectionPolicy::Stable);
+        let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+        sim.run_months(1).unwrap();
+        assert_eq!(
+            sim.state.exchange.forwards.len(),
+            if concurrent { 2 } else { 1 }
+        );
+        assert_eq!(
+            sim.state.balance(PERSON, COIN),
+            if concurrent { 8 } else { 4 }
+        );
+        assert_eq!(sim.state.balance(PERSON, GRAIN), 5);
+    }
+    let (mut w, s) = forwards(true, CollectionPolicy::Stable);
+    w.prepaid_deliveries[1].buyer = STATE_AGENT;
+    let mut sim = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    sim.run_months(1).unwrap();
+    assert_eq!(sim.state.exchange.forwards.len(), 1); // same four coins cannot fund two advances
+    let mut funded = s;
+    funded.balances.insert((STATE_AGENT, COIN), 8);
+    w.storage.capacities.insert(STATE_AGENT, 4);
+    let mut sim = Simulation::new(w, funded, Backend::Reference).unwrap();
+    sim.run_months(1).unwrap();
+    assert_eq!(sim.state.exchange.forwards.len(), 1); // four prospective slots cannot cover eight goods
+    assert_eq!(sim.state.balance(STATE_AGENT, COIN), 4);
+}

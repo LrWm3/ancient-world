@@ -166,6 +166,7 @@ pub fn baseline() -> (World, State) {
         work_choice: None,
         credit: None,
         lending: vec![],
+        prepaid_admission: Default::default(),
         prepaid_deliveries: vec![],
         recovery: crate::recovery::Config::default(),
         collection_policy: crate::finance::CollectionPolicy::Stable,
