@@ -888,3 +888,12 @@ separately recorded affected gates and are not covered by this snapshot.
     money. Unaccepted posted coverage remains inactive. CPU/reference, catalog
     reordering and checkpoint results agree. The five-target gate passed 93 tests
     and strict all-target Clippy passed. Secured chains remain excluded.
+
+55. **Household/member guarantee chains preserve pooling and private exit claims.**
+    A household guarantees its member's earned wage and the member guarantees
+    the household's recourse. Actual wage receipts pool half with carried rounding;
+    downstream loan collections do not pool again. New advances wait a month,
+    balances remain separate, and after the household's own claim is recovered it
+    releases residual cash and dissolves while the member retains private recourse.
+    CPU/reference and checkpoint statements agree. The four-target gate passed
+    65 tests and strict all-target Clippy passed.

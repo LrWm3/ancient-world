@@ -2680,3 +2680,97 @@ fn acyclic_guarantees_of_recourse_wait_for_dated_exposure_and_share_opening_fund
     assert!(!sim.state.credit.loans.contains_key(&102));
     assert_eq!(sim.state.credit.recovery.paid_guarantees[&1], 3);
 }
+
+#[test]
+fn household_member_guarantee_chain_pools_wages_only_and_preserves_private_recourse_after_exit() {
+    use economics_compute_smoke::{
+        household_governance::Governance,
+        households::{self, dissolution as d},
+    };
+    const HOME: AgentId = 800;
+    let (mut w, mut s) = fixture();
+    let mut governance = Governance::contributed(WORKER);
+    governance.constitution.allow_dissolution = true;
+    households::form(
+        &mut w,
+        &s,
+        households::Agreement {
+            id: 1,
+            agent: HOME,
+            adults: vec![WORKER],
+            governance,
+            formed: 1,
+            dwelling_process: None,
+            admission: None,
+            membership: vec![],
+            asset_sales: vec![],
+            equipment_retirements: vec![],
+            support: vec![],
+        },
+    )
+    .unwrap();
+    let g = &mut w.recovery.guarantees[0];
+    g.guarantor = HOME;
+    g.through = 4;
+    let mut downstream = g.clone();
+    downstream.id = 2;
+    downstream.claim = GuaranteedClaim::Loan(101);
+    downstream.guarantor = WORKER;
+    downstream.recourse = 102;
+    w.recovery.guarantees.push(downstream);
+    s.balances.clear();
+    s.balances.insert((HOME, COIN), 3);
+    s.balances.insert((WORKER, COIN), 10);
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut a = Audit::with_opening(&w, &s, COIN, Opening::default()).unwrap();
+        through(&mut a, &mut sim, 2);
+        assert_eq!(sim.state.balance(HOME, COIN), 1);
+        assert_eq!(sim.state.balance(WORKER, COIN), 12);
+        assert_eq!(sim.state.credit.loans[&101].principal, 3);
+        assert!(!sim.state.credit.loans.contains_key(&102));
+        let (saved, mut ra) = (sim.clone(), a.clone());
+        through(&mut a, &mut sim, 3);
+        assert_eq!(sim.state.credit.loans[&101].principal, 1);
+        assert_eq!(sim.state.credit.loans[&102].principal, 3);
+        assert_eq!(sim.state.balance(HOME, COIN), 4);
+        assert_eq!(sim.state.balance(WORKER, COIN), 9);
+        through(&mut a, &mut sim, 4);
+        assert_eq!(sim.state.credit.loans[&101].principal, 0);
+        assert_eq!(sim.state.credit.loans[&102].principal, 4);
+        assert_eq!(sim.state.balance(HOME, COIN), 5);
+        assert_eq!(sim.state.balance(WORKER, COIN), 8);
+        assert_eq!(
+            a.book().balances()[&(WORKER, Account::LoanReceivable(102))],
+            4
+        );
+        assert_eq!(
+            a.book().balances()[&(ISSUER, Account::LoanPayable(102))],
+            -4
+        );
+        let contributed: i32 = sim
+            .ledger
+            .iter()
+            .flat_map(|b| b.household.iter())
+            .flat_map(|h| &h.after)
+            .filter(|e| e.account == (HOME, COIN) && e.delta > 0)
+            .map(|e| e.delta)
+            .sum();
+        assert_eq!(
+            contributed, 2,
+            "only actual earned wage receipts pool; recourse collections do not"
+        );
+        let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
+        through(&mut ra, &mut resumed, 4);
+        assert_eq!((&sim.state, &a), (&resumed.state, &ra));
+        d::request(&mut sim.world, &sim.state, HOME, WORKER).unwrap();
+        through(&mut a, &mut sim, 5);
+        assert_eq!(sim.state.balance(HOME, COIN), 0);
+        assert_eq!(sim.state.balance(WORKER, COIN), 13);
+        d::finish(&mut sim.world, &sim.state, HOME, WORKER).unwrap();
+        assert_eq!(sim.state.credit.loans[&102].principal, 4);
+        assert_eq!(sim.state.credit.loans[&102].creditor, WORKER);
+        (sim.world, sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}

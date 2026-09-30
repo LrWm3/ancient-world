@@ -242,3 +242,10 @@ It leaves newly added recourse for the next month despite funded downstream
 coverage, then settles it once. CPU/reference, reversed guarantee catalogs and
 checkpoint continuation agree; cyclic/unidentified roots are rejected. The
 five-target gate passed 93 tests and strict all-target Clippy passed.
+
+Household/member chains also compose with pooling and solvent wind-down. Half of
+actual wage receipts pool using the existing carried rounding; repayment of the
+household's guarantee recourse does not create another income contribution. The
+household can dissolve after its own contingent duties and claims clear, while a
+member's separate recourse against the original employer remains owed. The
+four-target gate passed 65 tests with CPU/reference and checkpoint equality.
