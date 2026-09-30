@@ -1719,3 +1719,117 @@ fn a_lien_cannot_take_proceeds_reserved_for_another_asset() {
     };
     assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
 }
+
+#[test]
+fn household_liens_preserve_member_claims_through_wind_down_and_discharge() {
+    use economics_compute_smoke::{
+        financial_reporting::Audit,
+        household_governance::Governance,
+        households::{self, Agreement, dissolution},
+    };
+    const HOME: AgentId = 10000;
+    for discharge in [false, true] {
+        let run = |backend| {
+            let (mut w, mut s) = fixture();
+            let mut member = scenario::baseline().0.participants[0].clone();
+            member.needs.clear();
+            member.capacity.quantity = 0;
+            w.participants.push(member);
+            let mut governance = Governance::contributed(PERSON);
+            governance.constitution.allow_dissolution = true;
+            households::form(
+                &mut w,
+                &s,
+                Agreement {
+                    id: 1,
+                    agent: HOME,
+                    adults: vec![PERSON],
+                    governance,
+                    formed: s.month,
+                    dwelling_process: None,
+                    admission: None,
+                    membership: vec![],
+                    asset_sales: vec![],
+                    equipment_retirements: vec![],
+                    support: vec![],
+                },
+            )
+            .unwrap();
+            proceeding(&mut w, discharge);
+            w.assets.iter_mut().find(|a| a.id == PLOT).unwrap().owner = HOME;
+            w.recovery.proceedings[0].debtor = HOME;
+            w.lending[1].terms.creditor = PERSON;
+            s.balances.insert((PERSON, TOKEN), 17);
+            for loan in &mut w.lending {
+                loan.debtor = HOME;
+                loan.terms.grace_months = 0;
+                loan.collateral = Some(credit::Collateral {
+                    asset: PLOT,
+                    priority: 0,
+                    pledged: true,
+                    settlement: credit::CollateralSettlement::AuthorizedLiquidation,
+                });
+            }
+            let mut sim = Simulation::new(w, s, backend).unwrap();
+            sim.run_months(1).unwrap();
+            assert_eq!(sim.state.balance(PERSON, TOKEN), 7);
+            assert_eq!(sim.state.balance(HOME, TOKEN), 20);
+            // Controlled pre-book household loss; the member's funds and claim
+            // remain separate from the household's estate.
+            sim.state.balances.insert((HOME, TOKEN), 0);
+            dissolution::request(&mut sim.world, &sim.state, HOME, PERSON).unwrap();
+            let mut audit =
+                Audit::with_assets(&sim.world, &sim.state, TOKEN, [(PLOT, 10)].into()).unwrap();
+            while sim.state.month < 3 {
+                audit.step(&mut sim).unwrap();
+            }
+            assert!(dissolution::finish(&mut sim.world, &sim.state, HOME, PERSON).is_err());
+            let (mut resumed, mut ra) = (sim.clone(), audit.clone());
+            while sim.state.month < 5 {
+                audit.step(&mut sim).unwrap();
+            }
+            while resumed.state.month < 5 {
+                ra.step(&mut resumed).unwrap();
+            }
+            assert_eq!(
+                (&sim.state, &sim.ledger, &audit),
+                (&resumed.state, &resumed.ledger, &ra)
+            );
+            assert_eq!(sim.state.balance(PERSON, TOKEN), 11);
+            assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 4);
+            assert_eq!(sim.state.balance(HOME, TOKEN), 0);
+            assert_eq!(
+                sim.state.credit.loans[&11].principal,
+                if discharge { 0 } else { 6 }
+            );
+            assert_eq!(
+                dissolution::finish(&mut sim.world, &sim.state, HOME, PERSON).is_ok(),
+                discharge
+            );
+            assert_eq!(
+                dissolution::finish(&mut resumed.world, &resumed.state, HOME, PERSON).is_ok(),
+                discharge
+            );
+            while sim.state.month < 6 {
+                audit.step(&mut sim).unwrap();
+            }
+            while resumed.state.month < 6 {
+                ra.step(&mut resumed).unwrap();
+            }
+            assert_eq!(
+                (&sim.state, &sim.ledger, &audit),
+                (&resumed.state, &resumed.ledger, &ra)
+            );
+            assert_eq!(
+                households::membership::current(&sim.world.households[0]),
+                if discharge { vec![] } else { vec![PERSON] }
+            );
+            for a in &sim.world.agents {
+                let report = audit.book().statements(a.id, 2, 5).unwrap();
+                assert_eq!(report.assets, report.liabilities + report.equity);
+            }
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

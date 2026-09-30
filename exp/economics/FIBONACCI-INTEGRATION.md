@@ -273,6 +273,7 @@ Completed integrations:
 31. Admit compatible shared liens under an explicit authorized-liquidation agreement.
 32. Allocate each asset’s actual proceeds by collateral rank and equal-rank policy.
 33. Preserve separate asset reservations, arrears authority and residual deficiencies.
+34. Carry household/member secured claims through recovery and permitted dissolution.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.

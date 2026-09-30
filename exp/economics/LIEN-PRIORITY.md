@@ -53,3 +53,14 @@ until lien subrogation is supported. Mortgages still use their existing settleme
 choices; migrating them into the authorized lifecycle remains work. Inventory and
 receivable collateral, disputed priority, changing ranks and autonomous valuation
 remain extensions.
+
+### Household/member integration
+
+A winding household can owe two secured ten-coin debts, one to the state and one
+to its own member. An eight-coin sale pays four to each under equal-rank
+proportional sharing. The member's seven unpledged coins are untouched, and the
+four-coin repayment is not pooled back into the household. Without authorized
+write-off, six-coin deficiencies survive and block dissolution. With explicit
+loan discharge and completed estate closure, the household can release its final
+affiliation. The member receivable and household liability remain separate in
+both cases. CPU/reference, checkpoint and financial statements reconcile.
