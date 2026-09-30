@@ -170,7 +170,7 @@ pub(crate) fn validate(world: &World, state: &State) -> Result<(), String> {
             || !loans.insert(l.loan)
             || a.terms.creditor != p.debtor
             || (world.recovery.receivable_price_floors.contains_key(&l.id)
-                && (a.terms.monthly_rate_bps != 0 || a.terms.denomination != p.denomination))
+                && a.terms.monthly_rate_bps != 0)
             || l.coins_per_unit <= 0
             || (a.terms.denomination == p.denomination && l.coins_per_unit != 1)
             || (a.collateral.is_some() && a.terms.denomination != p.denomination)

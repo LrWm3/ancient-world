@@ -137,7 +137,7 @@ fn positions(
     {
         return Err("retired equipment has nonzero carrying cost".into());
     }
-    // Native quotes retain the fixed reporting value. Opt-in priced coin claims
+    // Native quotes retain the fixed reporting value. Opt-in priced claims
     // keep their separate acquisition-cost adjustment below.
     for listing in &world.recovery.receivable_listings {
         let resource = state
@@ -176,7 +176,7 @@ fn positions(
         accounting::add(
             &mut p,
             (loan.creditor, Account::LoanBasisAdjustment(id)),
-            crate::receivable_accounting::adjustment(world, state, id, coin)?,
+            crate::receivable_accounting::adjustment(world, state, id, coin, exchange_values)?,
         )?;
     }
     for g in &world.recovery.guarantees {
@@ -1332,6 +1332,7 @@ impl Audit {
             outer_after,
             batch,
             coin,
+            &self.exchange_values,
         )?);
         let mut flows = Flows::new();
         for l in trade_lines

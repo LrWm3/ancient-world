@@ -1352,7 +1352,7 @@ and delivery coverage, lien transfer, autonomous underwriting and guarantee
 formation/discovery remain outstanding. Person self-directed policy changes stay
 deferred, and constitutions/charters remain static.
 
-### Purchased zero-interest coin claims
+### Purchased zero-interest claims
 
 Opt-in estate price floors now permit purchase prices different from face value.
 `LoanBasisAdjustment` keeps the buyer's net receivable at remaining acquisition
@@ -1360,4 +1360,6 @@ cost while the authoritative loan and debtor payable retain full principal.
 Actual collections realize the purchase difference; accepted write-offs release
 basis and recognize the net loss. An adjustment cannot exist without a claim or
 make its net carrying value negative. See [estate receivable pricing](ESTATE-RECEIVABLES.md#agreed-price-floors-and-acquisition-cost)
-for rounding, scope and the 130-test verification gate.
+for rounding and scope. Unsecured commodity claims now share this basis model:
+fixed-value native principal plus the adjustment equals coin acquisition cost,
+while actual delivery still requires the original goods and receiving storage.

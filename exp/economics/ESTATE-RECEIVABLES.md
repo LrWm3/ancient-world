@@ -57,7 +57,7 @@ consent and cash price. Listings specify positive custody coins per native claim
 unit. Coin claims retain a one-to-one quote; unsecured commodity claims use an
 explicit fixed quote. The required price is current principal plus accrued
 interest, multiplied by that quote by default. An opt-in whole-claim price floor
-now permits other prices for zero-interest custody-coin claims (below). The
+now permits other prices for zero-interest coin or unsecured commodity claims (below). The
 borrower's amount owed and denomination never change.
 
 Common offer discovery exposes the current loan terms, security, debtor and claim amount.
@@ -229,14 +229,16 @@ suites, followed by strict all-target Clippy.
 ## Agreed price floors and acquisition cost
 
 `recovery.receivable_price_floors` optionally supplies a minimum whole-claim price
-by listing ID. This first route admits zero-interest claims denominated in the
-estate's custody coin. Otherwise the existing exact unit quote remains required.
+by listing ID. It admits zero-interest claims in the custody coin or unsecured
+commodity claims with an explicit fixed reporting quote. Sale payment uses custody
+coins; borrowers still owe native units and collection requires real storage.
+Otherwise the existing exact unit quote remains required.
 Highest funded bids clear first; an unaffordable bid leaves the claim available
 to a lower eligible bid. A below-floor bid cannot buy it. Prices and consent are
 still supplied, with no autonomous valuation or negotiation implied.
 
 The loan book keeps the full contractual principal. Reporting separately records
-`LoanBasisAdjustment`: face principal plus this adjustment equals the buyer's
+`LoanBasisAdjustment`: reported face principal plus this adjustment equals the buyer's
 remaining acquisition cost. Sellers recognize their actual disposal gain/loss;
 buyers recognize no immediate profit merely from purchasing below face value.
 Remaining cost follows the proportion of original acquired principal still owed,
@@ -274,3 +276,9 @@ rounding is explicit: remaining cost rounds down, the waiver's adjustment trunca
 toward zero and collection gets the remainder. A mixed guarantee/partial-waiver
 control checks discounted, par and premium claims, remaining carrying value,
 later full relief, native recourse and separate household/member statements.
+
+Priced commodity controls exercise person and household sellers, discounts and
+premiums, unfunded bids, and buyers with no delivery space. Uncollected goods
+remain a claim at purchase cost; actual goods delivery realizes the purchase
+difference. The unit quote still must equal the fixed reporting value, so price
+negotiation does not silently revalue every holding of that commodity.

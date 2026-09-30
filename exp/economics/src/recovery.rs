@@ -169,7 +169,7 @@ pub struct Config {
     pub receivable_listings: Vec<receivables::Listing>,
     pub receivable_bids: Vec<receivables::Bid>,
     /// Optional whole-claim cash floors by listing. Absent means exact face quote.
-    /// Initially limited to zero-interest claims in the custody denomination.
+    /// Limited to zero-interest claims; native units retain their fixed reporting value.
     pub receivable_price_floors: BTreeMap<u32, i32>,
     pub delivery_relief: Vec<crate::delivery_relief::Terms>,
     pub claim_relief: Vec<crate::claim_relief::Terms>,

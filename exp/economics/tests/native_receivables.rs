@@ -125,19 +125,33 @@ fn opening(seller: AgentId, unit: i128) -> Opening {
 
 #[test]
 fn estate_sells_native_claim_for_coins_and_buyer_collects_goods_with_real_storage() {
-    assignment(false);
+    assignment(false, None);
 }
 
 #[test]
 fn native_guarantees_follow_sold_claims_and_leave_recourse_with_the_original_borrower() {
-    assignment(true);
+    assignment(true, None);
 }
 
-fn assignment(guaranteed: bool) {
+#[test]
+fn priced_native_claims_preserve_units_storage_and_purchase_cost() {
+    for price in [1, 3, 5] {
+        assignment(false, Some(price));
+    }
+}
+
+fn assignment(guaranteed: bool, price: Option<i32>) {
+    use economics_compute_smoke::accounting::Account;
     for household in [false, true] {
         for funded in [false, true] {
             for room in [false, true] {
-                let (mut w, s, seller) = fixture(household, funded, room);
+                let (mut w, mut s, seller) = fixture(household, funded, room);
+                if let Some(price) = price {
+                    w.recovery.receivable_price_floors.insert(1, 1);
+                    w.recovery.receivable_bids[0].price = price;
+                    s.balances
+                        .insert((BUYER, TOKEN), if funded { price } else { price - 1 });
+                }
                 const GUARANTOR: AgentId = 96;
                 if guaranteed {
                     use economics_compute_smoke::{
@@ -241,7 +255,10 @@ fn assignment(guaranteed: bool) {
                     );
                     assert_eq!(sim.state.credit.loans[&11].denomination, SEED);
                     assert_eq!(sim.state.balance(BUYER, SEED), 0);
-                    assert_eq!(sim.state.balance(ESTATE, TOKEN), if funded { 4 } else { 0 });
+                    assert_eq!(
+                        sim.state.balance(ESTATE, TOKEN),
+                        if funded { price.unwrap_or(4) } else { 0 }
+                    );
                     let mut resumed =
                         Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
                     let mut ra = audit.clone();
@@ -262,9 +279,46 @@ fn assignment(guaranteed: bool) {
                     );
                     assert_eq!(
                         sim.state.balance(STATE_AGENT, TOKEN),
-                        if funded { 104 } else { 100 }
+                        if funded {
+                            100 + price.unwrap_or(4)
+                        } else {
+                            100
+                        }
                     );
                     assert_eq!(sim.state.balance(ESTATE, TOKEN), 0);
+                    if let Some(price) = price {
+                        let balance = |who, account| {
+                            audit
+                                .book()
+                                .balances()
+                                .get(&(who, account))
+                                .copied()
+                                .unwrap_or(0)
+                        };
+                        assert_eq!(
+                            balance(seller, Account::DisposalGain)
+                                + balance(seller, Account::DisposalLoss),
+                            if funded { i128::from(4 - price) } else { 0 }
+                        );
+                        assert_eq!(
+                            balance(BUYER, Account::LoanBasisAdjustment(11)),
+                            if funded && !room {
+                                i128::from(price - 4)
+                            } else {
+                                0
+                            }
+                        );
+                        assert_eq!(
+                            balance(BUYER, Account::SettlementGain)
+                                + balance(BUYER, Account::SettlementLoss),
+                            if funded && room {
+                                i128::from(price - 4)
+                            } else {
+                                0
+                            }
+                        );
+                        assert_eq!(balance(BUYER, Account::CreditLoss), 0);
+                    }
                     if guaranteed {
                         let paid = if funded && !room { 0 } else { 2 };
                         assert_eq!(

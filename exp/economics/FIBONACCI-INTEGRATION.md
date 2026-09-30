@@ -1109,3 +1109,10 @@ their separate gates above and are not covered by this snapshot.
     integer-rounding cases reconcile buyer cash, cost, realized return and loss;
     the guarantor keeps its performed claim. CPU/reference and checkpoint results
     agree. The three-target gate passed 73 tests and strict all-target Clippy passed.
+
+78. **Commodity receivables share priced acquisition-cost accounting.** Optional
+    price floors now admit zero-interest unsecured commodity claims. Fixed native
+    valuation stays separate from the negotiated coin price; real repayment still
+    requires goods and storage. Person/household, discount/premium, unfunded and
+    no-space controls agree on CPU/reference and checkpoints. The five-target gate
+    passed 88 tests and strict all-target Clippy passed.
