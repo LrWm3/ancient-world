@@ -4,14 +4,14 @@ A CPU-running experiment in generic agents, needs, processes, agreements and
 transaction-first settlement. The initial person–household loop works in a bounded
 scenario; the broader economy remains partially integrated.
 
-The [v1 release checklist](V1-RELEASE.md) defines the bounded work to finish:
-six completion items, six scenario families, explicit exclusions and a final
-verification gate. It is the release stopping rule; the broader roadmap and
-financial stress tests continue beyond v1. V1 is not yet released.
+The bounded [v1 release checklist](V1-RELEASE.md) is complete. All six scenario
+families and final verification gates passed at `a1b99fa`; see
+[release results](V1-RESULTS.md). The broader roadmap and financial stress tests
+continue beyond this verified scope.
 
 ## Current progress — 2026-09-30
 
-Current through Fibonacci batch 89, implementation revision `30c74e6`.
+Current through verified economics v1, implementation revision `a1b99fa`.
 Use the [integration matrix](INTEGRATION-STATUS.md) for supported combinations,
 [contract consolidation](CONTRACT-CONSOLIDATION.md) for the broader ordered backlog,
 and [Fibonacci integration](FIBONACCI-INTEGRATION.md) for change-by-change evidence.
@@ -40,15 +40,14 @@ deferred by request.
 
 Household-aware common acceptance now carries explicit citizenship/land/process
 bundles through normal allocation and dated execution. See
-[acceptance verification](V1-ACCEPTANCE.md). The next release work is freezing and
-verifying the six scenarios in the bounded v1 checklist.
+[acceptance verification](V1-ACCEPTANCE.md). The
+[scenario manifest](V1-SCENARIOS.md) and release runner fix the tested scope.
 
-Latest full-suite checkpoint: **1,023 passed, zero failed, one ignored**, at
-`30870e5` (batch 89 through item 84). Items 85–89 added tests/documentation and
-passed separate affected-suite gates; the final gate passed **54 tests**, plus
-strict all-target Clippy, formatting and artifact checks. These runs overlap;
-there is no claim of a full-suite run at `30c74e6`. See the
-[verification table](INTEGRATION-STATUS.md#verification).
+Latest full suite: **1,033 passed, zero failed, one ignored** at `a1b99fa`.
+The ignored 32-person annual test also passed explicitly, as did all six release
+families, strict all-target Clippy, formatting and artifact checks. These runs
+overlap; counts are not additive. Reproduce from the repository root with
+`python3 exp/economics/scripts/check_v1.py`.
 
 ## Purpose and existing scenarios
 

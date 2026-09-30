@@ -1,7 +1,7 @@
 # Consolidate contracts before adding more financial scenarios
 
-Current through completed Fibonacci batch 89 (`30c74e6`). This document orders
-the broader implementation backlog; the [integration matrix](INTEGRATION-STATUS.md)
+Current through verified v1 (`a1b99fa`); see [release results](V1-RESULTS.md).
+This document orders the broader implementation backlog; the [integration matrix](INTEGRATION-STATUS.md)
 is the current compatibility reference. Historical verification below records
 the scope of earlier changes, not current suite totals.
 
@@ -177,7 +177,6 @@ can establish that all these arrangements compose.
    bundles now use the ordinary allocation envelope; see
    [the acceptance verification](V1-ACCEPTANCE.md). General household search and
    remaining typed adapters stay beyond this bounded integration.
-   Existing-rights household investment/harvest tests do not cover that gap.
 2. **Extend creditor allocation coverage.** Equal-rank proportional allocation
    now covers native and accepted coin-tender loan/land claims at Due, including
    whole conversion lots. Standalone land/forwards and indivisible single-resource

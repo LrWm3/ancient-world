@@ -1,6 +1,7 @@
 # Economics v1: bounded release scope
 
-Status: release checklist established; **v1 is not complete or released**.
+Status: **v1 checklist complete**, verified at `a1b99fa`.
+See [release results](V1-RESULTS.md) for commands, outcomes and limitations.
 Baseline: implementation `30c74e6`, documentation cleanup `54cf8fa`.
 This is v1 of the stand-alone `exp/economics` experiment, not an Ancient World
 release, a published Rust library, or a promise of a stable public API.
@@ -28,11 +29,11 @@ listed future gap does not automatically become a release blocker.
 
 ## In scope
 
-| Area | V1 commitment | Existing foundation / work to finish |
+| Area | V1 commitment | Verified scope |
 | --- | --- | --- |
 | Execution | CubeCL CPU and reference execution; existing monthly phases, explicit allocation and atomic commit | Implemented; verify the release scenarios together |
 | Persons | Adults with individual needs, deprivation consequences, stocks, capacities, rights and dated commitments; bounded work/search policies | Implemented policies retained; no new general optimizer |
-| Households | Lawful formation, static constitution/charter, existing governor/term/election rules, contributed labor, resource/storage pooling, member support, external hiring, joining/exit and explicit wind-down | Existing behavior retained; finish household-aware prerequisite/process acceptance |
+| Households | Lawful formation, static constitution/charter, existing governor/term/election rules, contributed labor, resource/storage pooling, member support, external hiring, joining/exit and explicit wind-down | Existing behavior retained; household-aware prerequisite/process acceptance completed |
 | State and law | Configured citizenship, permissions, recognized agreement forms/term limits, land offers and issuance; accepted obligations survive later permission withdrawal | Existing laws and state roles; no autonomous state government required |
 | Production | Farming with seed return, wood/warmth, finite storage and competing labor; existing catalogs remain regression fixtures | Use existing processes and consequences; no new occupations or physical simulation |
 | Markets | Existing local town books, need-generated orders, bilateral fixed/concession/ZIP pricing, finite funding and storage | Preserve supported drivers and observations; no requirement to merge all matchers into one session |
@@ -51,7 +52,7 @@ scaffolding. Each scenario must identify them. At least the continuing household
 case must generate operational work, need orders and allocation decisions from
 state; a fully scripted transaction sequence alone cannot satisfy the v1 promise.
 
-## Work remaining
+## Completed release checklist
 
 Each item needs a linked test/runner and a human-readable result record before its
 checkbox is marked complete. Existing passing tests may satisfy criteria; do not
@@ -78,7 +79,7 @@ reimplement supported systems or add redundant tests to increase a count.
   reason and before/after outcomes recorded. Do not weaken assertions after a
   failed candidate merely to pass it.
   Frozen fixtures and exact commands: [scenario manifest](V1-SCENARIOS.md).
-- [ ] **V1-03 — Verify economic outcomes and explain failures.** For each named
+- [x] **V1-03 — Verify economic outcomes and explain failures.** For each named
   baseline/control, assert the outcomes in the matrix as well as conservation.
   Identify when an opportunity was absent, prohibited, unaffordable, storage- or
   labor-blocked, rejected by policy, unmatched or accepted but unfulfilled. Use
@@ -86,7 +87,7 @@ reimplement supported systems or add redundant tests to increase a count.
   requested, reserved and completed work, actual trade and due/paid/unpaid claims.
   Failed controls must retain real shortages or debts rather than create rescue
   resources. Fix defects that violate these expectations.
-- [ ] **V1-04 — Close accounting and continuation coverage for the release set.**
+- [x] **V1-04 — Close accounting and continuation coverage for the release set.**
   Audit all six families through completed boundaries with separate statements.
   Verify matched debtor/creditor exposures, household/private separation, real
   custody balances, explicit issuance/transformation and loss provenance. Reuse
@@ -96,7 +97,7 @@ reimplement supported systems or add redundant tests to increase a count.
   S6 is the existing CPU population stress control; do not require a new large
   reference benchmark. Unsupported combinations must reject clearly before
   publication. No new accounting convention is required outside this scope.
-- [ ] **V1-05 — Provide one release-check entry point and result summary.** Add a
+- [x] **V1-05 — Provide one release-check entry point and result summary.** Add a
   small documented command/script that runs the named existing tests/examples
   and S1 additions, exits nonzero on failure and records the tested revision and
   settings. It may orchestrate current runners; it must not become another
@@ -104,7 +105,7 @@ reimplement supported systems or add redundant tests to increase a count.
   a Markdown summary with need deficits, completed work/harvests, trade volumes,
   payments/arrears, issuance, recovery/losses and reconciliation results applicable
   to each case. Include reproduction instructions and current exclusions.
-- [ ] **V1-06 — Validate and close the release.** On the same frozen code/catalog
+- [x] **V1-06 — Validate and close the release.** On the same frozen code/catalog
   revision, run the full crate suite, release entry point, the explicitly ignored
   S6 stress test, strict all-target Clippy, formatting and artifact checks. Resolve
   every failing required check and every known violation of the release criteria.
@@ -170,10 +171,11 @@ unimplemented. Existing pilots stay available and retain their regression tests.
 ## Release evidence and scope control
 
 The existing 1,023-test full-suite checkpoint is evidence for `30870e5`; later
-focused gates cover subsequent changes. **Neither certifies this release list.**
-V1-01 has focused implementation evidence and V1-02 freezes the scenario manifest;
-the remaining items await the complete candidate run.
-The complete release still requires the frozen candidate checks below.
+focused gates cover subsequent changes. The completed candidate run supersedes
+those partial records for this release.
+All six completion items now have evidence at `a1b99fa`: the
+[scenario manifest](V1-SCENARIOS.md) and [release results](V1-RESULTS.md)
+record the frozen commands, outcomes, controls and final gates.
 
 Each completion record must include item/scenario IDs, exact command and revision,
 expected and observed outcomes, passing/failing checks and limitations. A scenario

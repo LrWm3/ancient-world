@@ -1,6 +1,7 @@
 # Economics integration and planning interfaces
 
-Current through the household common-acceptance adapter following batch 89.
+Current through verified economics v1, candidate `a1b99fa`.
+[Release results](V1-RESULTS.md) record the completed bounded gates.
 This page describes supported combinations and present exclusions. The
 [v1 release checklist](V1-RELEASE.md) defines release requirements and exclusions;
 the [consolidation roadmap](CONTRACT-CONSOLIDATION.md) orders the broader backlog.
@@ -37,7 +38,7 @@ prove that every combination of those systems works together.
 | Person prerequisite search + finance | Bounded citizenship/land search, competitive access, dated farming and explicit loan/prepayment/guarantee/estate-purchase bundles | Finance terms are supplied; the search is not universal |
 | Household + town production/purchase planning | Member-directed or collective buying with ordinary coin loans, active-input funding and accepted work preserved in forecasts | Collective buying under cooperative discovery or posted cooperative agreements remains excluded |
 | Household + joint work/sale planning | Dated shared-input, contributed-labor and output-pooling receipts; bounded comparison with up to four participants | Changes one participant's new work while peers keep ordinary decisions; no collective horizon optimizer |
-| Household + financial acceptance | Loans, guarantees, hiring and estate bids prepare through ordinary household boundaries; member investment stays private while harvests pool | Bundles that acquire institutional prerequisites and start processes still need the household allocation/collection wrapper |
+| Household + common acceptance | Financial requests and explicit citizenship/land/process bundles prepare through ordinary household boundaries; member claims stay private while harvests pool | General household prerequisite search and mixed financial/productive search bundles remain excluded |
 | Household + employment | External member wages, household/member employers, budgeted acceptance of useful posted labor, costed hour allocation, wage support and arrears | No internal household employment or general negotiated wage matching |
 | Environmental collection + finance | Direct loans, forwards, household labor/hiring, native guarantees, financed purchases and coin recovery have mixed controls | Specialized mortgage stock-sale planning is outside this collection adapter |
 | Physical minting + finance | Finite coin/input/hour reservations compose with loans, prepayments, dues, employment, households and authorized recovery | Issuance follows a configured policy, not an autonomous state objective |
@@ -166,15 +167,14 @@ and outstanding valuation/coverage work.
 
 | Recorded boundary | Result | Scope |
 | --- | --- | --- |
+| V1 candidate `a1b99fa` | 1,033 passed, zero failed, one ignored; ignored population test passed explicitly | Six release families, full suite, strict Clippy, format and artifact gates; [results](V1-RESULTS.md) |
 | Full crate snapshot `30870e5`, batch 89 through item 84 | 1,023 passed, zero failed, one ignored | 123 Cargo result targets, including empty unit/doc targets |
 | Items 85–88 | Separate affected-suite gates passed | Tests/documentation added after that snapshot; details in the batch record |
 | Final item 89, committed in `30c74e6` | 54 passed; strict all-target Clippy, formatting and artifact checks passed | Accounting, estate/native/mortgage receivables and recovery search |
 
-These are overlapping runs, not counts to add together. No full-suite run is
-claimed for the final commit. The ignored annual 32-person accounting stress test
-has a separately recorded earlier run in the financial-statement report. CUDA
-and other GPU backends remain unverified; CPU/reference equality is the tested
-execution boundary.
+These are overlapping runs, not counts to add together. The v1 candidate has a
+complete full-suite and explicit annual population run. CUDA and other GPU backends
+remain unverified; CPU/reference equality is the tested execution boundary.
 
 Run from `exp/economics`:
 

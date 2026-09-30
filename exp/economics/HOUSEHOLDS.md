@@ -398,7 +398,8 @@ external sales, valued bilateral/town barter, bounded joint work and explicit
 wind-down property transfers now have adapters. General migration, inheritance,
 children and optimal multi-period household plans remain extensions. The
 [integration matrix](INTEGRATION-STATUS.md) records the current combination limits,
-including household prerequisite/process acceptance and cooperative purchasing.
+including general household prerequisite search and cooperative purchasing.
+Explicit prerequisite/process acceptance is covered by [v1 verification](V1-ACCEPTANCE.md).
 
 ## Running and verification
 

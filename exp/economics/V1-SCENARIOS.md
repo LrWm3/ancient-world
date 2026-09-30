@@ -6,7 +6,7 @@ the tested revision are the exact fixtures; the descriptions below identify thei
 actors, resources, policies, consent and controls. No scenario balance changes
 were made for this freeze. S1 is new; S2–S6 retain their existing parameters.
 
-Run from any directory in a clean checkout:
+Run from the repository root in a clean checkout:
 
 ```sh
 python3 exp/economics/scripts/check_v1.py
@@ -125,7 +125,7 @@ listings, bids, guarantees and explicit discharge terms. No random draws.
 | Fixture / selected target | Actors, resources and fixed limits | Required evidence |
 | --- | --- | --- |
 | All `mortgage_receivables` | Person borrower, household lender/member, investor, state guarantor and one/two custodians; 8-coin plot, 2 down, 6 principal; 4-coin property sale; claim price 3/7 or face 6; guarantee 2 beginning month 4/5; through month 7 | Funded/unfunded claim purchase, crop control, shared custody, guarantee timing, retained/discharged deficiency, discount/premium cost, continuation and journal reconstruction |
-| All `native_receivables` | Household/person creditor, borrower, investor, guarantor and custodian; native grain principal with fixed reporting quotes, coin bids, finite storage; through month 8 | Real native repayment, insufficient receiving storage, unfunded buyer, partial relief, purchase cost and member exit without erased claims |
+| All `native_receivables` | Household/person creditor, borrower, investor, guarantor and custodian; native seed principal with fixed reporting quotes, coin bids, finite storage; through month 8 | Real native repayment, insufficient receiving storage, unfunded buyer, partial relief, purchase cost and member exit without erased claims |
 | `mortgage_recovery::financed_land_and_attached_crop_use_the_authorized_estate_lifecycle` | Existing mortgage/crop fixture, authorized property estate, funded/unfunded buyer, buyer labor 2/0; through month 7 | Maintained crop completes; neglected crop aborts only at work, not transfer; actual sale proceeds and losses reconcile and resume |
 | `estate_receivables::receivable_and_inventory_lots_compete_for_one_opening_cash_budget` | Household/person estate inventory and loan claim, competing supplied bids; inspect month-3 Acquire | Cash cannot buy both independently affordable lots; no same-window receipt financing |
 | All `household_dissolution` | Existing one/two-adult households, static dissolution mandate, explicit exit consent, dues/assets/private claims; short fixed fixtures through month 15 | Last-member wind-down, live claims, title/residual custody and supported financial reporting; unavailable resources do not silently close claims |
