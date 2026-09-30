@@ -206,6 +206,14 @@ pub(crate) fn validate_state(w: &World, s: &State) -> Result<(), String> {
     {
         return Err("cannot discard an active cooperative agreement by changing planner".into());
     }
+    if let Some(accepted) = latest(s)
+        .and_then(|b| b.active.as_ref())
+        .filter(|c| s.month <= c.through)
+        && let Some(Policy::Agreement(configured)) = policy(w)
+        && configured.as_ref() != accepted
+    {
+        return Err("cannot rewrite an active cooperative agreement".into());
+    }
     for r in &s.town_market.history {
         if let Some(b) = &r.cooperation {
             if let Some(c) = &b.active {

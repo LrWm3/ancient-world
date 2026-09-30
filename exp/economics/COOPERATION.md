@@ -237,3 +237,12 @@ competing financial claims will leave those resources available. Household
 cooperative discovery with lending remains excluded until its conditional
 forecast preserves governed allocations and separate financial scopes. Supplied
 household agreements continue to use the tested settlement adapter.
+
+## Accepted terms survive planner configuration changes
+
+A checkpoint with an active cooperative agreement rejects edited price, delivery
+date or work terms under `Policy::Agreement`. Changing the discovery mode keeps
+servicing the accepted schedule. A regression reproduced silent price replacement
+before this guard; `tests/cooperative_terms.rs` now checks refusal and CPU
+continuation with the original consideration. This is immutability during the
+accepted term, not a negotiated amendment mechanism.

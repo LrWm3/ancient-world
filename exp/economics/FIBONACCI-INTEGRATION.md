@@ -787,3 +787,11 @@ their separately recorded affected gates and are not covered by that snapshot.
     four-target gate passed 23 tests and strict all-target Clippy passed. Household
     conditional credit forecasts remain excluded; receivables and stock values
     are not added to this conservative recurring-exchange cash constraint.
+
+45. **Active cooperative terms cannot be replaced through configuration.** A
+    regression reproduced a silently edited delivery price at a checkpoint.
+    Validation now rejects changed consideration, due dates and work choices for
+    an active supplied agreement. Changing discovery mode still services the
+    accepted contract, with CPU continuation matching reference. The three-target
+    gate passed 13 tests (the separately verified expensive debt control was
+    excluded); strict all-target Clippy passed. Negotiated amendments remain open.
