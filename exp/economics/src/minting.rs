@@ -167,7 +167,7 @@ pub(crate) fn evaluate_with(
     let plan = c
         .order_policy
         .as_ref()
-        .map(|p| orders::generate(w, s, c, p))
+        .map(|p| orders::generate_with(w, s, c, p, opening))
         .transpose()?;
     let mut deals = plan.as_ref().map(|p| p.deals.clone()).unwrap_or_else(|| {
         c.deals
@@ -233,13 +233,8 @@ pub fn validate(w: &World) -> Result<(), String> {
     let Some(c) = &w.minting else {
         return Ok(());
     };
-    if !w.recovery.proceedings.is_empty()
-        || (c.order_policy.is_some()
-            && (crate::credit::enabled(w) || crate::forward::direct::enabled(w)))
-    {
-        return Err(
-            "mint recovery and generated financial order adapters are not yet composed".into(),
-        );
+    if !w.recovery.proceedings.is_empty() {
+        return Err("mint recovery adapter is not yet composed".into());
     }
     // Unsupported planners must not silently override the shared acquisition path.
     if w.credit.is_some()

@@ -225,9 +225,19 @@ pub fn generate(
     p: &orders::Policy,
     v: &Policy,
 ) -> Result<orders::Plan, String> {
+    generate_with(w, s, c, p, v, &crate::acquisition::Resources::opening(w, s))
+}
+pub(crate) fn generate_with(
+    w: &World,
+    s: &State,
+    c: &Config,
+    p: &orders::Policy,
+    v: &Policy,
+    opening: &crate::acquisition::Resources,
+) -> Result<orders::Plan, String> {
     // Retain recipe-derived bids and opening funding checks, but make food sales
     // independent of mint authority, its funding gap, and remaining mint dates.
-    let mut plan = orders::generate_fixed(w, s, c, p)?;
+    let mut plan = orders::generate_fixed(w, s, c, p, opening)?;
     let bids: Vec<_> = plan
         .orders
         .iter()
@@ -248,7 +258,12 @@ pub fn generate(
             market: p.sale_market,
             side: Side::Sell,
             limit: p.sale_limit,
-            lots: (s.balance(c.issuer, sale.goods.resource) / sale.goods.quantity)
+            lots: (opening
+                .available
+                .get(&(c.issuer, sale.goods.resource))
+                .copied()
+                .unwrap_or(0)
+                / sale.goods.quantity)
                 .min(MAX_MONTHLY_LOTS),
         });
     }
@@ -273,7 +288,7 @@ pub fn generate(
             });
         }
     }
-    orders::clear(w, s, c, &mut plan)?;
+    orders::clear(w, s, c, &mut plan, opening)?;
     let mut after = s.clone();
     for deal in &plan.deals {
         for e in transaction(w, s, c, deal)?.effects {
@@ -297,7 +312,13 @@ pub fn generate(
             .iter()
             .find(|m| m.id == q.market)
             .ok_or("missing input market")?;
-        let lots = ((s.balance(q.agent, market.goods.resource) - q.holding).max(0)
+        let lots = ((opening
+            .available
+            .get(&(q.agent, market.goods.resource))
+            .copied()
+            .unwrap_or(0)
+            - q.holding)
+            .max(0)
             / market.goods.quantity)
             .min(1);
         let price = i64::from(q.limit.max(choice.cash_gap));
@@ -315,7 +336,7 @@ pub fn generate(
         }
     }
     plan.orders.extend(bids);
-    orders::clear(w, s, c, &mut plan)?;
+    orders::clear(w, s, c, &mut plan, opening)?;
     Ok(plan)
 }
 

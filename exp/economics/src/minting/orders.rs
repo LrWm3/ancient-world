@@ -153,12 +153,27 @@ pub fn validate(w: &World, c: &Config, p: &Policy) -> Result<(), String> {
 }
 
 pub fn generate(w: &World, s: &State, c: &Config, p: &Policy) -> Result<Plan, String> {
-    if let Some(policy) = &p.provisioning {
-        return super::provisioning::generate(w, s, c, p, policy);
-    }
-    generate_fixed(w, s, c, p)
+    generate_with(w, s, c, p, &Resources::opening(w, s))
 }
-pub(super) fn generate_fixed(w: &World, s: &State, c: &Config, p: &Policy) -> Result<Plan, String> {
+pub(crate) fn generate_with(
+    w: &World,
+    s: &State,
+    c: &Config,
+    p: &Policy,
+    opening: &Resources,
+) -> Result<Plan, String> {
+    if let Some(policy) = &p.provisioning {
+        return super::provisioning::generate_with(w, s, c, p, policy, opening);
+    }
+    generate_fixed(w, s, c, p, opening)
+}
+pub(super) fn generate_fixed(
+    w: &World,
+    s: &State,
+    c: &Config,
+    p: &Policy,
+    opening: &Resources,
+) -> Result<Plan, String> {
     let venue = marketplace::venue(w, c.venue).ok_or("missing venue")?;
     let market = |id| {
         venue
@@ -239,7 +254,13 @@ pub(super) fn generate_fixed(w: &World, s: &State, c: &Config, p: &Policy) -> Re
         let held = s.balance(q.agent, m.goods.resource);
         let quantity = match q.side {
             Side::Buy => (q.holding - held).max(0),
-            Side::Sell => (held - q.holding).max(0),
+            Side::Sell => (opening
+                .available
+                .get(&(q.agent, m.goods.resource))
+                .copied()
+                .unwrap_or(0)
+                - q.holding)
+                .max(0),
         };
         let lots = (quantity / m.goods.quantity).min(MAX_LOTS);
         if lots > 0 {
@@ -252,12 +273,23 @@ pub(super) fn generate_fixed(w: &World, s: &State, c: &Config, p: &Policy) -> Re
             });
         }
     }
-    let gap = (plan.required_funding - s.balance(c.issuer, c.coin)).max(0);
+    let gap = (plan.required_funding
+        - opening
+            .available
+            .get(&(c.issuer, c.coin))
+            .copied()
+            .unwrap_or(0))
+    .max(0);
     if gap > 0 && s.month < target_month {
         let m = market(p.sale_market)?;
         let lots = ((i64::from(gap) + i64::from(p.sale_limit) - 1) / i64::from(p.sale_limit))
             .min(i64::from(
-                s.balance(c.issuer, m.goods.resource) / m.goods.quantity,
+                opening
+                    .available
+                    .get(&(c.issuer, m.goods.resource))
+                    .copied()
+                    .unwrap_or(0)
+                    / m.goods.quantity,
             ))
             .min(i64::from(MAX_LOTS)) as i32;
         if lots > 0 {
@@ -278,18 +310,24 @@ pub(super) fn generate_fixed(w: &World, s: &State, c: &Config, p: &Policy) -> Re
         plan.orders.extend(bids);
         plan.reason = "matching complete input package".into();
     }
-    clear(w, s, c, &mut plan)?;
+    clear(w, s, c, &mut plan, opening)?;
     Ok(plan)
 }
 
 /// Food/stock sales precede the conditional input package, but their proceeds
 /// are never added to opening spendable funds. Failed inputs preserve sales.
-pub(super) fn clear(w: &World, s: &State, c: &Config, plan: &mut Plan) -> Result<(), String> {
+pub(super) fn clear(
+    w: &World,
+    s: &State,
+    c: &Config,
+    plan: &mut Plan,
+    opening: &Resources,
+) -> Result<(), String> {
     plan.deals.clear();
     plan.orders
         .sort_by_key(|o| (o.side != Side::Sell, o.market, o.agent));
     let mut remaining: Vec<i32> = plan.orders.iter().map(|o| o.lots).collect();
-    let mut resources = Resources::opening(w, s);
+    let mut resources = opening.clone();
     let mut next_id = 1;
     let mut shortages = vec![];
     for (i, order) in plan

@@ -215,3 +215,93 @@ fn due_forward_and_mint_package_cannot_sell_the_same_metal() {
     assert!(!b.minting.as_ref().unwrap().receipts[0].accepted);
     assert_eq!(sim.state.balance(WORKER, FIREWOOD), 1);
 }
+
+#[test]
+fn generated_mint_orders_use_spendable_budget_after_financing() {
+    for outgoing in [false, true] {
+        let (mut w, mut s) = minting::order_scenario("normal").unwrap();
+        let (loan_world, _) = fixture();
+        w.lending = loan_world.lending;
+        let p = w.transaction_policy.as_mut().unwrap();
+        p.permissions.extend([
+            (PERSON_TYPE, Action::Borrow),
+            (PERSON_TYPE, Action::Lend),
+            (STATE_TYPE, Action::Borrow),
+            (STATE_TYPE, Action::Lend),
+        ]);
+        if outgoing {
+            s.balances.insert((ISSUER, COIN), 6);
+            w.lending[0].debtor = SUPPLIER;
+            w.lending[0].terms.creditor = ISSUER;
+        }
+        w.minting
+            .as_mut()
+            .unwrap()
+            .order_policy
+            .as_mut()
+            .unwrap()
+            .month = 1;
+        for start in &mut w.scheduled_starts {
+            if start.definition == MINT {
+                start.month = 1;
+            }
+        }
+        let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+        sim.run_months(1).unwrap();
+        let plan = sim
+            .ledger
+            .iter()
+            .find_map(|b| b.minting.as_ref())
+            .unwrap()
+            .plan
+            .as_ref()
+            .unwrap();
+        assert_eq!(plan.reason, "insufficient opening funds at target date");
+        assert!(!plan.orders.iter().any(|o| o.agent == ISSUER));
+        assert!(plan.deals.is_empty());
+        assert_eq!(sim.state.credit.loans.len(), 1);
+        assert_eq!(sim.state.balance(ISSUER, METAL), 0);
+    }
+}
+
+#[test]
+fn food_provision_cannot_spend_a_loan_received_at_the_same_acquisition_boundary() {
+    let (mut w, mut s) = minting::provision_scenario("adequate").unwrap();
+    let (loan_world, _) = fixture();
+    w.lending = loan_world.lending;
+    w.lending[0].debtor = WORKER;
+    w.lending[0].terms.creditor = ISSUER;
+    s.balances.insert((WORKER, COIN), 0);
+    w.transaction_policy
+        .as_mut()
+        .unwrap()
+        .permissions
+        .extend([(PERSON_TYPE, Action::Borrow), (STATE_TYPE, Action::Lend)]);
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    let mut a = audit(&sim.world, &sim.state);
+    while sim.state.month <= 1 {
+        a.step(&mut sim).unwrap();
+    }
+    let b = sim.ledger.iter().find_map(|b| b.minting.as_ref()).unwrap();
+    assert!(
+        !b.deals
+            .iter()
+            .any(|d| d.buyer == WORKER && d.market == WHEAT)
+    );
+    assert_eq!(sim.state.credit.loans[&10].principal, 6);
+    assert_eq!(sim.state.balance(WORKER, COIN), 6);
+    while sim.state.month <= 2 {
+        a.step(&mut sim).unwrap();
+    }
+    let b = sim
+        .ledger
+        .iter()
+        .filter_map(|b| b.minting.as_ref())
+        .find(|b| b.month == 2)
+        .unwrap();
+    assert!(
+        b.deals
+            .iter()
+            .any(|d| d.buyer == WORKER && d.market == WHEAT)
+    );
+}
