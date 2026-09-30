@@ -1,3 +1,5 @@
+#[path = "support/release_evidence.rs"]
+mod release_evidence;
 use economics_compute_smoke::{
     compute::Backend,
     credit::{self, Advance, CollateralSettlement, LoanOffer},
@@ -460,6 +462,13 @@ fn assignment(
             } else {
                 assert!(dissolution::finish(&mut sim.world, &sim.state, HOME, MEMBER).is_err());
             }
+            release_evidence::record(
+                &format!(
+                    "S5 mortgage funded={funded} price={price:?} guarantee={guarantee_from:?} shared={shared_custody} discharge={discharge}"
+                ),
+                &sim,
+                &audit,
+            );
             (sim.state, sim.ledger, audit)
         };
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));

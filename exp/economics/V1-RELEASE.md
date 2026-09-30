@@ -69,7 +69,7 @@ reimplement supported systems or add redundant tests to increase a count.
   stale receipt. Starting work must not double-reserve labor or pool output twice.
   Execution and subsequent consequences must use the ordinary scheduler.
   Implemented and checked in [household acceptance](V1-ACCEPTANCE.md).
-- [ ] **V1-02 — Freeze the six release scenario families.** Map S1–S6 below to exact
+- [x] **V1-02 — Freeze the six release scenario families.** Map S1–S6 below to exact
   fixtures, tests and commands; reuse the existing cases where identified. Record
   actors, opening resources, horizon, policies, seed or “no randomness,” supplied
   consent and expected outcomes. Finish the specified mixed coverage, especially
@@ -77,6 +77,7 @@ reimplement supported systems or add redundant tests to increase a count.
   scenario parameters may be calibrated before this baseline is frozen, with the
   reason and before/after outcomes recorded. Do not weaken assertions after a
   failed candidate merely to pass it.
+  Frozen fixtures and exact commands: [scenario manifest](V1-SCENARIOS.md).
 - [ ] **V1-03 — Verify economic outcomes and explain failures.** For each named
   baseline/control, assert the outcomes in the matrix as well as conservation.
   Identify when an opportunity was absent, prohibited, unaffordable, storage- or
@@ -170,7 +171,8 @@ unimplemented. Existing pilots stay available and retain their regression tests.
 
 The existing 1,023-test full-suite checkpoint is evidence for `30870e5`; later
 focused gates cover subsequent changes. **Neither certifies this release list.**
-V1-01 now has focused implementation evidence; the remaining items are open.
+V1-01 has focused implementation evidence and V1-02 freezes the scenario manifest;
+the remaining items await the complete candidate run.
 The complete release still requires the frozen candidate checks below.
 
 Each completion record must include item/scenario IDs, exact command and revision,

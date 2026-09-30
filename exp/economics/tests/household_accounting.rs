@@ -1,3 +1,5 @@
+#[path = "support/release_evidence.rs"]
+mod release_evidence;
 use economics_compute_smoke::{
     accounting::{Account as A, Flow},
     activities::CoinPayment,
@@ -205,6 +207,7 @@ fn forged_household_receipt_does_not_publish_financial_changes() {
 #[test]
 #[ignore = "slow 32-person CPU accounting integration; run explicitly"]
 fn specialist_households_reconcile_production_trading_and_annual_dues() {
+    let started = std::time::Instant::now();
     use economics_compute_smoke::{activities::Outcome, process_accounting::Output};
     let (w, s) = households::scenario().unwrap();
     let stocks = s
@@ -277,6 +280,8 @@ fn specialist_households_reconcile_production_trading_and_annual_dues() {
         let r = a.book().finalized_statements(agent.id, 1, 13).unwrap();
         assert_eq!(r.assets, r.liabilities + r.equity);
     }
+    release_evidence::record("S6 specialist households", &sim, &a);
+    println!("S6 elapsed_seconds={:.3}", started.elapsed().as_secs_f64());
 }
 
 #[test]

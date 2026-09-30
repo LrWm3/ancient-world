@@ -1,3 +1,5 @@
+#[path = "support/release_evidence.rs"]
+mod release_evidence;
 use economics_compute_smoke::{
     borrowing, commitments,
     compute::Backend,
@@ -390,6 +392,11 @@ fn repeated_household_harvests_service_mortgage_rent_and_forwards_through_actual
                     let report = audit.book().statements(agent.id, 1, 24).unwrap();
                     assert_eq!(report.assets, report.liabilities + report.equity);
                 }
+                release_evidence::record(
+                    &format!("S3 household={household} sales={sales}"),
+                    &sim,
+                    &audit,
+                );
                 (sim.state, sim.ledger, audit)
             };
             assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
@@ -403,8 +410,11 @@ fn fixed_food_buffer_can_pay_financial_claims_while_missing_a_meal() {
     let policy = w.credit.as_mut().unwrap().stock_sales.as_mut().unwrap();
     policy.forecast = None;
     policy.reserve_months = 6;
+    let mut audit = opening(&w, &s);
     let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
-    sim.run_months(24).unwrap();
+    while sim.state.month <= 24 {
+        audit.step(&mut sim).unwrap();
+    }
     assert_eq!(sim.state.credit.loans[&1].status, credit::Status::Repaid);
     assert_eq!(sim.state.obligations[&(99, 13)].paid, 2);
     for id in [5, 6] {
@@ -416,6 +426,7 @@ fn fixed_food_buffer_can_pay_financial_claims_while_missing_a_meal() {
             .filter(|r| r.agent == PERSON)
             .any(|r| r.deficit(NUTRITION) > 0)
     );
+    release_evidence::record("S3 fixed food buffer", &sim, &audit);
 }
 
 #[test]

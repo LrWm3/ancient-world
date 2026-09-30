@@ -1,3 +1,5 @@
+#[path = "support/release_evidence.rs"]
+mod release_evidence;
 use economics_compute_smoke::{
     accounting::Flow,
     compute::Backend,
@@ -725,6 +727,7 @@ fn persons_household_land_credit_forwards_and_need_orders_run_in_one_mint_econom
         let mut checkpoint =
             Simulation::new(sim.world.clone(), sim.state.clone(), Backend::Reference).unwrap();
         let mut resumed = a.clone();
+        let prefix = sim.ledger.len();
         sim.world.agents.reverse();
         sim.world.participants.reverse();
         while sim.state.month <= 17 {
@@ -741,6 +744,7 @@ fn persons_household_land_credit_forwards_and_need_orders_run_in_one_mint_econom
         assert_eq!(sim.ledger, reference.ledger);
         assert_eq!(a, b);
         assert_eq!(a, resumed);
+        assert_eq!(&sim.ledger[prefix..], checkpoint.ledger.as_slice());
         assert_eq!(sim.state.exchange.forwards[&20].delivered, 1);
         assert_eq!(sim.state.credit.loans[&10].status, Status::Repaid);
         // Full-buffer planning repays the loan but does not fund the annual bill.
@@ -765,6 +769,7 @@ fn persons_household_land_credit_forwards_and_need_orders_run_in_one_mint_econom
             a.book().statements(ISSUER, 12, 17).unwrap().issuance_change > 0,
             incremental
         );
+        release_evidence::record(&format!("S4 incremental={incremental}"), &sim, &a);
     }
 }
 

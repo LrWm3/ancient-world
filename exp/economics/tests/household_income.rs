@@ -1,3 +1,5 @@
+#[path = "support/release_evidence.rs"]
+mod release_evidence;
 use economics_compute_smoke::{
     activities::{Target, WorkOrder},
     compute::Backend,
@@ -418,8 +420,11 @@ fn observer_exposes_forecast_assumptions_without_affecting_decisions() {
 #[test]
 fn finite_private_work_target_eventually_stops_collective_income() {
     let (w, s) = scenario::scenario().unwrap();
+    let mut a = audit(&w, &s);
     let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
-    sim.run_months(27).unwrap();
+    while sim.state.month <= 27 {
+        a.step(&mut sim).unwrap();
+    }
     assert_eq!(sim.state.balance(PERSON, FUEL), 24);
     assert_eq!(sim.state.balance(HOME, TOKEN), 20);
     assert_eq!(
@@ -439,6 +444,7 @@ fn finite_private_work_target_eventually_stops_collective_income() {
             .sum::<i32>(),
         2
     );
+    release_evidence::record("S2 no support", &sim, &a);
 }
 
 #[test]
@@ -447,10 +453,23 @@ fn voluntary_surplus_closes_the_loop_for_ten_years_on_cpu_with_separate_books() 
     let run = |backend| {
         let mut a = audit(&w, &s);
         let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        while sim.state.month <= 60 {
+            a.step(&mut sim).unwrap();
+        }
+        let mut resumed = Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+        let mut ra = a.clone();
+        let prefix = sim.ledger.len();
         while sim.state.month <= 120 {
             a.step(&mut sim).unwrap();
             assert!(sim.state.balance(PERSON, FUEL) <= 3);
         }
+        while resumed.state.month <= 120 {
+            ra.step(&mut resumed).unwrap();
+        }
+        assert_eq!(
+            (&sim.state, &sim.ledger[prefix..], &a),
+            (&resumed.state, &resumed.ledger[..], &ra)
+        );
         assert_eq!(sim.state.balance(HOME, TOKEN), 60);
         assert!(
             sim.reports
@@ -501,6 +520,7 @@ fn voluntary_surplus_closes_the_loop_for_ten_years_on_cpu_with_separate_books() 
             let r = a.book().statements(agent.id, 1, 120).unwrap();
             assert_eq!(r.assets, r.liabilities + r.equity);
         }
+        release_evidence::record("S2 coordinated 120 months", &sim, &a);
         (sim.state, sim.ledger, sim.reports, a)
     };
     assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
@@ -612,10 +632,15 @@ fn unavailable_demand_private_needs_and_expired_consent_prevent_surplus_capture(
 #[test]
 fn coordinated_income_recovers_after_a_temporary_market_demand_loss() {
     let (w, s) = scenario::coordinated().unwrap();
+    let mut a = audit(&w, &s);
     let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
-    sim.run_months(10).unwrap();
+    while sim.state.month <= 10 {
+        a.step(&mut sim).unwrap();
+    }
     sim.world.town_market.as_mut().unwrap().additional[0].match_limit = Some(0);
-    sim.run_months(3).unwrap();
+    while sim.state.month <= 13 {
+        a.step(&mut sim).unwrap();
+    }
     assert!(
         sim.ledger
             .iter()
@@ -625,7 +650,9 @@ fn coordinated_income_recovers_after_a_temporary_market_demand_loss() {
                 && h.labor.iter().all(|d| d.granted == 0))
     );
     sim.world.town_market.as_mut().unwrap().additional[0].match_limit = None;
-    sim.run_months(12).unwrap();
+    while sim.state.month <= 25 {
+        a.step(&mut sim).unwrap();
+    }
     assert!(
         sim.reports
             .iter()
@@ -633,6 +660,10 @@ fn coordinated_income_recovers_after_a_temporary_market_demand_loss() {
             .all(|r| r.deficit(NUTRITION) == 0)
     );
     assert!(sim.state.balance(HOME, TOKEN) >= 40);
+    assert!(sim.reports.iter().any(|r| (11..=14).contains(&r.month)
+        && [PERSON, 91].contains(&r.agent)
+        && r.deficit(NUTRITION) > 0));
+    release_evidence::record("S2 market interruption", &sim, &a);
 }
 
 #[test]
