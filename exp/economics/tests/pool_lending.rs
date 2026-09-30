@@ -1120,3 +1120,181 @@ fn native_guarantees_and_household_recourse_share_real_collection_inventory() {
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn negotiated_household_sales_fund_later_useful_hiring_without_reusing_incoming_coins() {
+    use economics_compute_smoke::{
+        employment::{ArrearsPolicy, Terms},
+        household_governance::{Governance, Policy as HouseholdPolicy},
+        households::{self, Agreement},
+        marketplace::{MARKETPLACE_TYPE, Market, Marketplace},
+        negotiation::{QuotePolicy, Session, Trader},
+        opportunities::{self, Action, HOUSEHOLD_TYPE, PERSON_TYPE, STATE_TYPE},
+    };
+    const HOME: AgentId = 10000;
+    const VENUE: AgentId = 10001;
+    const WORKER: AgentId = PERSON + 2;
+    let (mut w, mut s) = fixture(false);
+    w.lending.clear();
+    let mut worker = w.participants[0].clone();
+    worker.agent = WORKER;
+    worker.needs.clear();
+    worker.capacity.quantity = 3;
+    for p in &mut w.participants {
+        p.capacity.quantity = 0;
+    }
+    w.participants.push(worker);
+    for (id, name) in [(WORKER, "outside worker"), (VENUE, "fuel market")] {
+        w.agents.push(Agent {
+            id,
+            name: name.into(),
+        });
+    }
+    w.definitions
+        .iter_mut()
+        .find(|d| d.id == PREPARE_FUEL)
+        .unwrap()
+        .stages[0]
+        .monthly_services[0]
+        .quantity = 3;
+    let mut governance = Governance::contributed(PERSON);
+    governance.charter.initial_policy = HouseholdPolicy::NeedsFirst;
+    governance.charter.hiring_budget = Some(Amount::new(TOKEN, 6));
+    households::form(
+        &mut w,
+        &s,
+        Agreement {
+            id: 1,
+            agent: HOME,
+            adults: vec![PERSON, PERSON + 1],
+            governance,
+            formed: s.month,
+            dwelling_process: None,
+            admission: None,
+            membership: vec![],
+            asset_sales: vec![],
+            equipment_retirements: vec![],
+            support: vec![],
+        },
+    )
+    .unwrap();
+    s.balances.insert((HOME, FUEL), 4);
+    s.balances.insert((WORKER, TOKEN), 6);
+    w.employment.push(Terms {
+        id: 1,
+        employer: HOME,
+        worker: WORKER,
+        from: 2,
+        through: 3,
+        capacity: Amount::new(LABOR, 3),
+        wage_per_unit: Amount::new(TOKEN, 2),
+        on_arrears: ArrearsPolicy::SuspendDelivery,
+        rank: 0,
+    });
+    w.employment_offers.insert(1);
+    // Existing formation predates this permissive operational policy.
+    w.transaction_policy = Some(opportunities::Policy {
+        authority: STATE_AGENT,
+        laws: vec![],
+        agreement_forms: None,
+        agreement_limits: Default::default(),
+        membership_offers: vec![],
+        membership_permissions: Default::default(),
+        agent_types: [
+            (PERSON, PERSON_TYPE),
+            (PERSON + 1, PERSON_TYPE),
+            (WORKER, PERSON_TYPE),
+            (STATE_AGENT, STATE_TYPE),
+            (VENUE, MARKETPLACE_TYPE),
+            (HOME, HOUSEHOLD_TYPE),
+        ]
+        .into(),
+        permissions: [
+            (PERSON_TYPE, Action::StockTrade),
+            (HOUSEHOLD_TYPE, Action::StockTrade),
+            (PERSON_TYPE, Action::CapacityTrade),
+            (HOUSEHOLD_TYPE, Action::CapacityTrade),
+            (PERSON_TYPE, Action::Process(PREPARE_FUEL)),
+            (PERSON_TYPE, Action::Process(USE_FUEL)),
+        ]
+        .into(),
+    });
+    w.marketplaces.push(Marketplace {
+        agent: VENUE,
+        allowed_types: [PERSON_TYPE, HOUSEHOLD_TYPE].into(),
+        markets: vec![Market {
+            id: 1,
+            goods: Amount::new(FUEL, 2),
+            payment: TOKEN,
+            price_tick: 1,
+        }],
+    });
+    w.negotiation = Some(Session {
+        marketplace: VENUE,
+        market: 1,
+        month: 2,
+        max_rounds: 1,
+        buyer: Trader {
+            agent: WORKER,
+            limit: 6,
+            opening_quote: 6,
+            policy: QuotePolicy::Fixed,
+        },
+        seller: Trader {
+            agent: HOME,
+            limit: 6,
+            opening_quote: 6,
+            policy: QuotePolicy::Fixed,
+        },
+        goods: Amount::new(FUEL, 2),
+        payment: TOKEN,
+    });
+    let run = |backend| {
+        let mut audit = Audit::with_opening(
+            &w,
+            &s,
+            TOKEN,
+            Opening {
+                inventory: [((HOME, FUEL), 4)].into(),
+                services: Some(Default::default()),
+                processes: Some(Default::default()),
+                ..Opening::default()
+            },
+        )
+        .unwrap();
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        while sim.state.month == 2 {
+            audit.step(&mut sim).unwrap();
+        }
+        assert_eq!(sim.state.balance(HOME, TOKEN), 6);
+        assert!(!sim.state.employment.earned.contains_key(&(1, 2)));
+        let (mut resumed, mut ra) = (sim.clone(), audit.clone());
+        while sim.state.month == 3 {
+            audit.step(&mut sim).unwrap();
+        }
+        while resumed.state.month == 3 {
+            ra.step(&mut resumed).unwrap();
+        }
+        assert_eq!(
+            (&sim.state, &sim.ledger, &audit),
+            (&resumed.state, &resumed.ledger, &ra)
+        );
+        assert_eq!(sim.state.employment.earned[&(1, 3)].claim.outstanding(), 0);
+        assert_eq!(sim.state.balance(WORKER, TOKEN), 6);
+        assert_eq!(sim.state.balance(HOME, TOKEN), 0);
+        assert_eq!(sim.state.balance(WORKER, FUEL), 2);
+        assert!(
+            sim.state
+                .processes
+                .values()
+                .any(|p| p.definition == PREPARE_FUEL && p.status == Status::Completed)
+        );
+        assert!(sim.reports.iter().all(|r| r.deficit(WARMTH) == 0));
+        for a in &sim.world.agents {
+            let report = audit.book().statements(a.id, 2, 3).unwrap();
+            assert_eq!(report.assets, report.liabilities + report.equity);
+        }
+        (sim.state, sim.ledger, audit)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}

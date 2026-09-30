@@ -266,6 +266,7 @@ Completed integrations:
 24. Compose person/household mortgages and repossession with independent environmental work.
 25. Verify individual/household native guarantees and dated recourse against real collected stocks.
 26. Reconcile the main integration matrix and recovery documentation with these combinations.
+27. Fund useful household hiring from negotiated revenue at the next eligible boundary.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.

@@ -429,3 +429,15 @@ created. Household inventory and its recourse asset stay on separate books from
 its member. Five-month CPU/reference and checkpoint execution reconcile. This
 checks existing native guarantee rules in the combined economy; it adds no
 alternative tender or automatic guarantee-selection policy.
+
+### Negotiated household revenue and later hiring
+
+Posted household labor offers now compose with bilateral negotiation. A household
+sells two surplus fuel units for six coins while retaining enough fuel for both
+members. Those incoming coins cannot fund hiring in the same Acquire window.
+Next month, they fund three useful outside hours, one collection lot and paid
+wages; both members' warmth needs remain met. The same worker receives the fuel
+purchase and later wages through separate exchanges, without netting or invented
+cash. CPU/reference and checkpoint histories agree with costed service/inventory
+books. Sale terms and labor offers are supplied; this is a two-month funding test,
+not autonomous reciprocal contracting or a sustainable revenue forecast.
