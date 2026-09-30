@@ -80,7 +80,8 @@ tender adapters. Broader tender routes, conversion damages and dynamically
 underwritten tool-forward coverage remain extensions. Fixed resource valuations
 do not establish general FX or noncash collateral/estate accounting.
 
-Guarantees of secured recourse loans and pending-resale mortgages remain rejected. General security
+Guarantees of pending-resale mortgages remain rejected. Secured recourse now has
+the explicit inherited-lien chain adapter described below. General security
 subrogation, guarantee markets, pricing, premiums, legal formation requirements,
 autonomous household guarantee selection and cyclic contingent-credit networks
 remain extensions. Dedicated custody agents cannot guarantee obligations.
@@ -229,7 +230,7 @@ A configured guarantee may cover another guarantee's unsecured recourse loan.
 Terms resolve iteratively to an original loan, wage, land or prepaid obligation,
 retaining the original debtor and denomination and the immediate recourse creditor.
 Cycles and missing roots fail validation; this does not recursively execute calls.
-Secured recourse chains remain excluded pending a chained-lien adapter.
+Secured recourse now also supports the explicit inherited-lien adapter below.
 
 Each call still needs accepted coverage, actual arrears, cap and opening funds.
 Every addition to recourse is dated, and downstream calls exclude units created
@@ -256,3 +257,19 @@ per unit. Neither payment rate converts the native principal or its reporting
 valuation. Eight actual wage coins contribute four pooled coins; downstream
 recourse collections contribute none. Private recourse survives solvent household
 exit. CPU/reference and checkpoint controls pass alongside the original coin case.
+
+## Bounded chains of inherited liquidation liens
+
+A guarantee can now cover secured recourse when every link explicitly inherits
+the original authorized-liquidation lien. Terms resolve iteratively to one rooted
+collateral definition; a cycle, broken inheritance or forged collateral rank is
+rejected. Payment transfers the live pledge or remaining reserved proceeds, never
+duplicating them. Existing same-denomination and native-tender restrictions apply.
+
+Recourse created during an authorized stay becomes callable at its first maturity.
+A collection stay does not cancel a separate accepted guarantee, but new advances
+cannot cascade or be collected in their creation month. Stable/proportional
+controls cover both a live pledge and already realized proceeds through two links,
+with actual creditor receipts, retained deficiencies and separate statements.
+CPU/reference, reversed catalogs and checkpoint continuation agree. The five-target
+gate passed 102 tests and strict all-target Clippy passed.

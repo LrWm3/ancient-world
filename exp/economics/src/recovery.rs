@@ -391,11 +391,12 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             return Err("transferable guarantee requires a loan claim".into());
         }
         if let GuaranteedClaim::Loan(id) = g.claim
+            && g.security == RecourseSecurity::Unsecured
             && config.guarantees.iter().any(|source| {
                 source.recourse == id && source.security != RecourseSecurity::Unsecured
             })
         {
-            return Err("guaranteeing secured recourse requires a chained lien adapter".into());
+            return Err("guaranteeing secured recourse requires explicit lien inheritance".into());
         }
         subrogation::terms(world, g)?;
         tender::terms(world, g)?;
@@ -967,7 +968,13 @@ pub(crate) fn guarantee_claim(
             // Additions to an existing recourse loan are just as new as its
             // first advance. A downstream call can cover only older exposure.
             let covered = covered.saturating_sub(current_recourse(world, &state.credit, id, month));
-            (loan.creditor, loan.denomination, covered, loan.first_unpaid)
+            // A stay stops collection from the debtor, not a separately accepted
+            // guarantee. Recourse created during the proceeding becomes callable
+            // at its first maturity; it never acquires a same-month call.
+            let first_unpaid = loan.first_unpaid.or_else(|| {
+                active(world, &state.credit, loan.debtor).and_then(|_| loan.opened.checked_add(1))
+            });
+            (loan.creditor, loan.denomination, covered, first_unpaid)
         }
         GuaranteedClaim::Forward(id) => {
             let Some(c) = state.exchange.forwards.get(&id) else {

@@ -109,8 +109,8 @@ in the loan's denomination; no goods, coins, repayment or interest income are
 invented. An unresolved native claim continues to block closure even when the
 estate permits ordinary coin deficiencies to be discharged.
 
-Rescheduling of amortizing loans, full secured releases and autonomous negotiation
-remain open. A bounded partial secured adapter follows below. The control compares absent, exact and stale consent against the
+Rescheduling of amortizing loans and autonomous negotiation remain open. Partial
+and full secured release under authorized liquidation follow below. The control compares absent, exact and stale consent against the
 same actual advance and repayment, including CPU/reference, checkpoint and
 forged receipt/history rejection. The six-target gate passed 104 tests and strict
 all-target Clippy passed.

@@ -2315,3 +2315,104 @@ fn partial_secured_relief(household: bool) {
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn chained_secured_guarantees_transfer_the_same_lien_and_hold_new_recourse_until_next_month() {
+    use economics_compute_smoke::{
+        financial_reporting::Audit,
+        recovery::{GuaranteedClaim, RecourseSecurity},
+    };
+    const LAST: AgentId = 801;
+    for from in [3, 4] {
+        for policy in [CollectionPolicy::Stable, CollectionPolicy::Proportional] {
+            let (mut w, mut s) = fixture();
+            w.lending.truncate(1);
+            proceeding(&mut w, false);
+            w.collection_policy = policy;
+            w.lending[0].collateral.as_mut().unwrap().settlement =
+                credit::CollateralSettlement::AuthorizedLiquidation;
+            w.agents.push(Agent {
+                id: LAST,
+                name: "second guarantor".into(),
+            });
+            s.balances.insert((LAST, TOKEN), 10);
+            let mut first = guarantee(1, 10, 6);
+            first.guarantor = OTHER;
+            first.from = from;
+            first.through = from;
+            first.security = RecourseSecurity::InheritLiquidationLien;
+            let mut second = guarantee(2, 101, 6);
+            second.guarantor = LAST;
+            second.from = from + 1;
+            second.through = from + 1;
+            second.security = RecourseSecurity::InheritLiquidationLien;
+            w.recovery.guarantees = vec![first, second];
+            let mut invalid = w.clone();
+            invalid.recovery.guarantees[1].security = RecourseSecurity::Unsecured;
+            assert!(
+                Simulation::new(invalid, s.clone(), Backend::Reference)
+                    .unwrap_err()
+                    .contains("explicit lien inheritance")
+            );
+            let mut cyclic = w.clone();
+            cyclic.recovery.guarantees[0].claim = GuaranteedClaim::Loan(102);
+            assert!(Simulation::new(cyclic, s.clone(), Backend::Reference).is_err());
+            let run = |backend, reverse| {
+                let mut world = w.clone();
+                if reverse {
+                    world.recovery.guarantees.reverse();
+                }
+                let mut sim = distressed(world, s.clone(), backend);
+                let mut audit =
+                    Audit::with_assets(&sim.world, &sim.state, TOKEN, [(PLOT, 10)].into()).unwrap();
+                while sim.state.month <= from {
+                    audit.step(&mut sim).unwrap();
+                }
+                assert!(!sim.state.credit.loans.contains_key(&102));
+                let reserved = sim.state.credit.recovery.proceedings[&1].secured[&101];
+                let original_paid = 8 - reserved;
+                let (saved, mut resumed_audit) = (sim.clone(), audit.clone());
+                while sim.state.month <= from + 1 {
+                    audit.step(&mut sim).unwrap();
+                }
+                assert_eq!(sim.state.credit.loans[&101].principal, 0);
+                assert_eq!(sim.state.credit.loans[&102].principal, 6);
+                assert_eq!(
+                    sim.state.credit.recovery.proceedings[&1].secured[&102],
+                    reserved
+                );
+                assert_eq!(sim.state.balance(LAST, TOKEN), 4);
+                assert_eq!(sim.state.balance(OTHER, TOKEN), 10);
+                while sim.state.month <= from + 2 {
+                    audit.step(&mut sim).unwrap();
+                }
+                assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 6 + original_paid);
+                assert_eq!(sim.state.balance(LAST, TOKEN), 4 + reserved);
+                assert_eq!(sim.state.credit.loans[&102].principal, 6 - reserved);
+                assert_eq!(sim.state.credit.loans[&10].principal, 4 - original_paid);
+                assert_eq!(
+                    sim.state.credit.recovery.proceedings[&1].stage,
+                    Stage::Closed
+                );
+                assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(BUYER));
+                let mut bad = sim.state.clone();
+                bad.credit
+                    .loans
+                    .get_mut(&102)
+                    .unwrap()
+                    .collateral
+                    .as_mut()
+                    .unwrap()
+                    .priority += 1;
+                assert!(Simulation::new(sim.world.clone(), bad, backend).is_err());
+                let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
+                while resumed.state.month <= from + 2 {
+                    resumed_audit.step(&mut resumed).unwrap();
+                }
+                assert_eq!((&sim.state, &audit), (&resumed.state, &resumed_audit));
+                (sim.state, sim.ledger, audit)
+            };
+            assert_eq!(run(Backend::Reference, false), run(Backend::CubeCpu, true));
+        }
+    }
+}

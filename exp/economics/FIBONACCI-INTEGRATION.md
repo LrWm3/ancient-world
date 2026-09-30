@@ -1038,3 +1038,12 @@ separate gates and are not covered by this snapshot.
     release. Person/household controls cover before sale, before distribution and
     the later deficiency; stale consent and forged history are rejected. The
     six-target gate passed 123 tests and strict all-target Clippy passed.
+
+70. **Secured guarantee chains inherit one rooted liquidation lien.** Each link
+    must explicitly preserve the original collateral and rank; iterative term
+    resolution rejects cycles and broken inheritance. Guarantees transfer actual
+    reserved proceeds and keep new recourse out of same-month collection. Recourse
+    created during a stay becomes callable at its first maturity rather than
+    waiting forever for a skipped ordinary collection. Stable/proportional, live-
+    pledge/post-sale, reversed-catalog and CPU/checkpoint controls pass. The
+    five-target gate passed 102 tests and strict all-target Clippy passed.

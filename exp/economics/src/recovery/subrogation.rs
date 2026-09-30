@@ -18,14 +18,31 @@ pub(super) fn terms<'a>(world: &'a World, g: &Guarantee) -> Result<Option<&'a Co
     if g.security == RecourseSecurity::Unsecured {
         return Ok(None);
     }
-    let GuaranteedClaim::Loan(id) = g.claim else {
-        return Err("lien subrogation requires a secured loan".into());
-    };
-    let collateral = credit::offered_loan(world, id)
-        .and_then(|a| a.collateral)
-        .filter(|c| c.settlement == credit::CollateralSettlement::AuthorizedLiquidation)
-        .ok_or("lien subrogation requires authorized-liquidation collateral")?;
-    Ok(Some(collateral))
+    let mut claim = g.claim;
+    let mut visited = std::collections::BTreeSet::new();
+    loop {
+        let GuaranteedClaim::Loan(id) = claim else {
+            return Err("lien subrogation requires a secured loan".into());
+        };
+        if !visited.insert(id) {
+            return Err("cyclic lien subrogation".into());
+        }
+        if let Some(offered) = credit::offered_loan(world, id) {
+            let collateral = offered
+                .collateral
+                .filter(|c| c.settlement == credit::CollateralSettlement::AuthorizedLiquidation)
+                .ok_or("lien subrogation requires authorized-liquidation collateral")?;
+            return Ok(Some(collateral));
+        }
+        let source = world
+            .recovery
+            .guarantees
+            .iter()
+            .find(|source| source.recourse == id)
+            .filter(|source| source.security == RecourseSecurity::InheritLiquidationLien)
+            .ok_or("lien subrogation requires an uninterrupted inherited lien")?;
+        claim = source.claim;
+    }
 }
 
 pub(super) fn validate_loan(world: &World, g: &Guarantee, loan: &Loan) -> Result<bool, String> {
