@@ -179,3 +179,15 @@ this book under earned-only demand. Current earned claims generate bids; future 
 initial funds, work alternates with months clearing arrears. Explicit member exit
 removes collective demand for that member without erasing their wage debt. Quotes,
 work targets and counterparties remain supplied configuration.
+
+## Composition with person production planning
+
+Ordinary and fixed-choice town production planning now support collective as well
+as member-delegated purchasing. The household remains a separately admitted,
+located trader using its own funds. Its charter controls purchases independently
+of member work choices; loans and actual buying use the common opening budget.
+Household labor previews follow those work choices, and income previews hold them
+fixed at their next-book boundary to avoid recursive planning. Conditional
+cooperative household buying still needs a separate adapter. See
+[production planning](PRODUCTION-MARKET.md#household-previews-follow-accepted-market-work)
+for the bounded expectation and verification scope.

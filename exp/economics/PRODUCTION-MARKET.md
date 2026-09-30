@@ -130,7 +130,7 @@ configurations and reconstruction
 at Productive. CPU monthly/checkpoint continuation with reversed catalogs matches
 reference batched state, ledger and reports.
 
-## Loans and member-directed household purchases
+## Loans and governed household purchases
 
 The ordinary individual planner and fixed-choice controls can now use direct
 coin advances and the existing Due servicing boundary. Forecasts retain actual
@@ -146,11 +146,13 @@ those coins cannot fund another outgoing leg in the same batch. Actual proceeds
 become available at subsequent boundaries. Due occurs before the month's market
 decision, so reaching Due does not require a decision that has not been made yet.
 
-Households can use this adapter when the static charter delegates purchasing to
-members. Governed labor, shared inputs and output pooling remain in the household
-wrapper, and the borrower's debt remains separate from household funds. Collective
-household order generation and conditional household cooperative credit forecasts retain
-their guards. Loan and guarantee claims must use the planner's market currency;
+Households can use this adapter with member-delegated or collective purchasing.
+Governed labor, shared inputs and output pooling remain in the household wrapper;
+private and household borrowing retain separate debt and cash. With collective
+purchasing, the household must be registered, located and authorized at the market
+in its own right. Members choose work; their private purchase choices cannot
+change the household charter's consumption orders. Conditional household
+cooperative credit forecasts retain their guard. Loan and guarantee claims must use the planner's market currency;
 cross-denomination valuation and autonomous loan selection remain outstanding.
 
 The funded/unfunded control in `tests/production_lending.rs` combines a member
@@ -175,10 +177,10 @@ private information, uncertain weather and strategic opponent models are absent.
 Adaptive sides currently require fixed quotes at supplied reservation values.
 The earlier fixed-side town pilot still supports ZIP. Combining endogenous
 valuations, adaptive roles and ZIP is separate work. Listings use fixed whole
-lots and stable ID matching ties. Ordinary coin loans and member-directed
-household purchases now compose under the boundaries above. Collective purchases,
-conditional household cooperative lending and legacy state-trade drivers still
-need adapters; these controls do not establish an institutional production budget.
+lots and stable ID matching ties. Ordinary coin loans and governed household
+purchases compose under the boundaries above. Conditional household cooperative
+lending and legacy state-trade drivers still need adapters; these controls do not
+establish an institutional production budget or joint household horizon optimizer.
 
 Need deficits affect ranking but this fixture has no deprivation condition rules.
 Unsold output consumes storage and labor, with no automatic guaranteed resale.
@@ -190,3 +192,17 @@ Configured cooperative deliveries now share direct-loan acquisition reservations
 and retain cancellation after failed performance; see [cooperative lending](COOPERATION.md#configured-agreements-with-ordinary-lending).
 Individual cooperative discovery now checks cash less accepted debt and projected arrears.
 Household conditional credit forecasts remain excluded pending their governance adapter.
+
+## Household previews follow accepted market work
+
+Household labor comparisons now call the same market work-selection path as live
+Productive execution. A needs-first preview previously generated ordinary work
+and failed validation when the member had selected a different market plan.
+The contributed hours remain governed by the household policy; a member choice
+cannot redirect those hours outside the accepted household allocation.
+
+For `NeedsThenIncome`, the one-next-book forecast holds the currently accepted
+person choices fixed. It still evaluates actual available counterparties, funds,
+needs and demand caps, but does not recursively launch another horizon search
+inside its own labor comparison. This is a bounded expectation, not joint
+optimization or a commitment by the counterparty to trade.

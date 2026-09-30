@@ -244,3 +244,123 @@ fn market_currency_check_uses_accepted_loans_after_offer_catalog_changes() {
         "accepted production-planning loans must use the market currency"
     );
 }
+
+#[test]
+fn collective_purchases_follow_household_policy_with_member_work_and_separate_borrowing() {
+    collective_production(false);
+}
+
+#[test]
+fn income_governed_collective_purchases_keep_next_book_forecasts_bounded() {
+    collective_production(true);
+}
+
+fn collective_production(income: bool) {
+    use economics_compute_smoke::{household_governance, opportunities::HOUSEHOLD_TYPE};
+    for funded in [false, true] {
+        if income && !funded {
+            continue;
+        }
+        let (mut w, mut s) = fixture(funded);
+        w.households[0].governance.charter.purchasing = Purchasing::Collective;
+        w.households[0].governance.charter.initial_policy =
+            household_governance::Policy::NeedsFirst;
+        w.lending[0].debtor = HOME;
+        // Long enough to keep some opening cash available for actual purchases.
+        w.lending[0].terms.term_months = 12;
+        let town = w.town_market.as_mut().unwrap();
+        let mut entry = town
+            .traders
+            .iter()
+            .find(|t| t.trader.agent == PERSON)
+            .unwrap()
+            .clone();
+        entry.trader.agent = HOME;
+        town.traders.push(entry);
+        let venue = town.venue;
+        s.town_market
+            .positions
+            .insert(HOME, s.town_market.positions[&town.town]);
+        w.marketplaces
+            .iter_mut()
+            .find(|m| m.agent == venue)
+            .unwrap()
+            .allowed_types
+            .insert(HOUSEHOLD_TYPE);
+        let law = w.transaction_policy.as_mut().unwrap();
+        law.permissions.extend([
+            (HOUSEHOLD_TYPE, Action::StockTrade),
+            (HOUSEHOLD_TYPE, Action::Borrow),
+        ]);
+        s.balances.insert((HOME, TOKEN), 0);
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = opening(&w, &s);
+            while sim.state.month <= 1 {
+                a.step(&mut sim).unwrap();
+            }
+            assert_eq!(sim.state.credit.loans.contains_key(&LOAN), funded);
+            assert_eq!(sim.state.balance(HOME, TOKEN), if funded { 12 } else { 0 });
+            assert_eq!(sim.state.balance(PERSON, TOKEN), 0);
+            let first = &sim.state.town_market.history[0];
+            assert!(!first.attempts.iter().any(|x| x.session.buyer.agent == HOME
+                && matches!(
+                    x.round.outcome,
+                    economics_compute_smoke::negotiation::Outcome::Traded { .. }
+                )));
+            let (saved, mut ra) = (sim.clone(), a.clone());
+            while sim.state.month <= 3 {
+                a.step(&mut sim).unwrap();
+            }
+            let trades = sim
+                .state
+                .town_market
+                .history
+                .iter()
+                .flat_map(|r| &r.attempts)
+                .filter(|x| {
+                    x.session.buyer.agent == HOME
+                        && matches!(
+                            x.round.outcome,
+                            economics_compute_smoke::negotiation::Outcome::Traded { .. }
+                        )
+                })
+                .count();
+            assert_eq!(trades > 0, funded);
+            assert!(
+                !sim.state
+                    .town_market
+                    .history
+                    .iter()
+                    .flat_map(|r| &r.attempts)
+                    .any(|x| x.session.buyer.agent == PERSON
+                        && matches!(
+                            x.round.outcome,
+                            economics_compute_smoke::negotiation::Outcome::Traded { .. }
+                        ))
+            );
+            if funded {
+                assert!(sim.state.credit.loans[&LOAN].principal > 0);
+                assert_eq!(sim.state.credit.loans[&LOAN].debtor, HOME);
+                assert_eq!(
+                    a.book()
+                        .balances()
+                        .get(&(
+                            PERSON,
+                            economics_compute_smoke::accounting::Account::LoanPayable(LOAN)
+                        ))
+                        .copied()
+                        .unwrap_or(0),
+                    0
+                );
+            }
+            let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
+            while resumed.state.month <= 3 {
+                ra.step(&mut resumed).unwrap();
+            }
+            assert_eq!((&sim.state, &a), (&resumed.state, &ra));
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

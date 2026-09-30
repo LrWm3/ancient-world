@@ -38,6 +38,23 @@ pub(super) fn project(
 ) -> Result<Forecast, String> {
     let (world, opening) = ForecastContext::new(world, state).into_parts();
     let mut sim = needs::after_consumption(&world, &opening, productive)?;
+    // A one-book income comparison holds the current accepted person choices.
+    // Re-entering Plan at that book would recursively forecast this allocation.
+    if world
+        .production_market
+        .as_ref()
+        .is_some_and(|c| matches!(c.policy, crate::production_market::Policy::Plan))
+    {
+        let decision = state
+            .town_market
+            .history
+            .iter()
+            .find(|r| r.month == state.month)
+            .and_then(|r| r.planning.as_ref());
+        let choices = crate::production_market::choices(&world, decision);
+        sim.world.production_market.as_mut().unwrap().policy =
+            crate::production_market::Policy::Fixed(choices);
+    }
     let config = world
         .town_market
         .as_ref()

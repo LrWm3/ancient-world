@@ -11,9 +11,11 @@ plan; configured negotiated seed purchases also feed joint work. Bounded joint
 forecasts preserve other participants' ordinary decisions and inspect their need
 deficits separately, with a two-member farming/warmth integration control.
 Town production/purchase planning now also carries ordinary coin loans, debt and
-arrears forecasts, including households whose charter delegates buying to members.
-Its rollouts preserve the complete opening acquisition budget; configured cooperative deliveries also share that budget. Collective town
-buying and household conditional credit forecasts still require adapters.
+arrears forecasts, with either member-delegated or collective household buying.
+Household labor previews follow the same accepted market work choices; next-book
+income expectations hold those choices fixed. Rollouts preserve the complete
+opening acquisition budget; configured cooperative deliveries also share that
+budget. Household conditional credit forecasts still require an adapter.
 Household mortgages now connect repayment to solvent disposal and dissolution.
 Independent leases (including fixed-reserve and bounded-forecast stock income)
 and physical mint procurement compose with financed purchases;

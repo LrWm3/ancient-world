@@ -8,16 +8,18 @@ use crate::{
 pub const EXAMPLE_HOUSEHOLD: AgentId = 10_000;
 
 pub(crate) fn validate(world: &World) -> Result<(), String> {
-    if world.production_market.is_some()
-        && world
-            .households
-            .iter()
-            .any(|h| h.governance.charter.purchasing != Purchasing::Members)
+    if world.production_market.as_ref().is_some_and(|c| {
+        matches!(
+            c.policy,
+            crate::production_market::Policy::Cooperate(_)
+                | crate::production_market::Policy::Agreement(_)
+        )
+    }) && world
+        .households
+        .iter()
+        .any(|h| h.governance.charter.purchasing != Purchasing::Members)
     {
-        return Err(
-            "collective household purchases do not yet compose with town production planning"
-                .into(),
-        );
+        return Err("collective household purchases require a cooperative delivery adapter".into());
     }
     Ok(())
 }

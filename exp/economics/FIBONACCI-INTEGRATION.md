@@ -957,3 +957,14 @@ their separately recorded gates and are not covered by this snapshot.
     goods or repayment are invented. CPU/reference and continuations before and
     after partial relief agree. The four-target gate passed 77 tests and strict
     all-target Clippy passed.
+
+62. **Collective purchases compose with member production planning and loans.**
+    Ordinary/fixed town work planning now permits governed collective orders.
+    Household labor previews use accepted market work rather than incompatible
+    ordinary requests. Needs-then-income holds current person choices for its next
+    book instead of recursively searching. The located, authorized household uses
+    only its own funds, waits before spending new advances and keeps debt separate
+    from members. Funded/unfunded controls, CPU/reference and checkpoints pass.
+    Four production/lending checks and 80 related regressions passed across focused
+    runs, with final household checks and strict all-target Clippy. Conditional
+    cooperative collective purchases remain guarded; this is not joint optimization.

@@ -999,6 +999,11 @@ fn probe(world: &World, state: &State) -> Result<Batch, String> {
         backend: Backend::Reference,
         effect_limit: crate::settlement::DEFAULT_EFFECT_LIMIT,
     };
+    // Allocation previews must use the same accepted market work choices as live
+    // Productive. Ordinary requests can otherwise promise work the planner omits.
+    if world.production_market.is_some() {
+        return crate::production_market::work(&sim);
+    }
     let mut batch = Batch::empty(state);
     sim.productive_with(&mut batch, false)?;
     Ok(batch)

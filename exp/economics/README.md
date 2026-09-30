@@ -17,8 +17,12 @@ trade respects household purchasing/storage and authorized estate stays.
 collected cash before deficient closure. Whole loan assignment (coin claims and quoted unsecured commodity claims) carries
 compatible liens and explicitly transferable guarantee benefits. Land guarantees
 can pay accepted coins while retaining native recourse and separate statements.
-These are tested combinations; broader
-admission, planning, custody and liquidation work remains.
+Native guarantee chains and accepted partial/full loan relief retain separate
+member and household claims through recovery and dissolution. Collective town
+purchases now compose with member production choices and ordinary lending;
+household previews preserve accepted work and bounded income expectations.
+These are tested combinations; broader admission, planning, custody and liquidation
+work remains.
 
 Direct lending and prepaid deliveries now compose with bounded citizenship/land
 search and competitive land allocation. The common offer API can accept named
