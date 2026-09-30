@@ -346,3 +346,11 @@ and crop responsibility. Guarantees can act before sale or against reserved
 proceeds afterward, including shared custody. The investor's unpaid deficiency
 keeps proportional purchased cost; the price neither changes the debt nor creates
 additional collateral recovery. Unfunded assignments retain the original holder.
+
+The same priced mortgage control can now finish with authorized deficiency
+discharge. After actual collateral and guarantee recovery, the investor expenses
+only remaining purchase cost. A guarantor's residual recourse is discharged at its
+own native principal, independently of the purchase price. Neither loss removes
+previous cash receipts or reverses plot/crop transfer. Unfunded assignments also
+retain their original household exposure until performance or discharge permits
+its own wind-down to finish.

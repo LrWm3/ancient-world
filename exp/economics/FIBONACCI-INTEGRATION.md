@@ -1198,3 +1198,11 @@ empty unit/doc targets. Items 85 onward have separate affected-suite gates.
     actual recovery and member property ownership stay independent of claim price.
     Funded/unfunded and CPU/checkpoint controls pass. The four-target gate passed
     80 tests and strict all-target Clippy passed.
+
+88. **Priced mortgage deficiencies and subrogated losses close independently.**
+    Authorized estate discharge follows actual collateral/guarantee recovery and
+    releases only remaining investor cost. Residual recourse retains its native
+    loss, without inheriting the claim purchase price. The household's separate
+    exposure controls exit; crop transfer and earlier payments persist. Shared/
+    separate custody, funding and CPU/checkpoint controls pass. The four-target
+    gate passed 85 tests and strict all-target Clippy passed.

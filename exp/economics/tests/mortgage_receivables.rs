@@ -137,14 +137,14 @@ fn fixture(funded: bool) -> (World, State) {
 
 #[test]
 fn winding_household_sells_mortgage_claim_and_new_holder_receives_actual_collateral_proceeds() {
-    assignment(None, false, None);
+    assignment(None, false, None, false);
 }
 
 #[test]
 fn mortgage_assignment_retains_guarantee_consent_and_inherited_liens_across_custody() {
     for from in [4, 5] {
         for shared in [false, true] {
-            assignment(Some(from), shared, None);
+            assignment(Some(from), shared, None, false);
         }
     }
 }
@@ -154,16 +154,33 @@ fn priced_mortgages_keep_crop_control_guarantees_and_actual_collateral_proceeds(
     for price in [3, 7] {
         for from in [None, Some(4), Some(5)] {
             for shared in [false, true] {
-                assignment(from, shared, Some(price));
+                assignment(from, shared, Some(price), false);
             }
         }
     }
 }
 
-fn assignment(guarantee_from: Option<u32>, shared_custody: bool, price: Option<i32>) {
+#[test]
+fn priced_mortgage_deficiency_discharge_releases_only_unrecovered_cost_and_native_recourse() {
+    for price in [3, 7] {
+        for from in [None, Some(4), Some(5)] {
+            for shared in [false, true] {
+                assignment(from, shared, Some(price), true);
+            }
+        }
+    }
+}
+
+fn assignment(
+    guarantee_from: Option<u32>,
+    shared_custody: bool,
+    price: Option<i32>,
+    discharge: bool,
+) {
     use economics_compute_smoke::accounting::Account;
     for funded in [false, true] {
         let (mut w, mut s) = fixture(funded);
+        w.recovery.proceedings[0].discharge_deficiency = discharge;
         if let Some(price) = price {
             w.recovery.receivable_price_floors.insert(1, 1);
             w.recovery.receivable_bids[0].price = price;
@@ -251,12 +268,18 @@ fn assignment(guarantee_from: Option<u32>, shared_custody: bool, price: Option<i
             assert_eq!(&sim.ledger[start..], resumed.ledger.as_slice());
             assert_eq!(audit, ra);
             let recovered = if guarantee_from == Some(4) { 6 } else { 4 };
-            assert_eq!(sim.state.credit.loans[&1].principal, 6 - recovered);
+            assert_eq!(
+                sim.state.credit.loans[&1].principal,
+                if discharge { 0 } else { 6 - recovered }
+            );
             if let Some(from) = guarantee_from {
                 let recourse = &sim.state.credit.loans[&200];
                 assert_eq!(recourse.creditor, STATE_AGENT);
                 assert_eq!(recourse.debtor, PERSON);
-                assert_eq!(recourse.principal, if from == 4 { 2 } else { 0 });
+                assert_eq!(
+                    recourse.principal,
+                    if from == 4 && !discharge { 2 } else { 0 }
+                );
                 assert_eq!(recourse.collateral.as_ref().unwrap().asset, PLOT);
                 assert!(sim.ledger.iter().filter(|b| b.month == from).all(|b| {
                     b.credit.as_ref().is_none_or(|c| {
@@ -291,7 +314,7 @@ fn assignment(guarantee_from: Option<u32>, shared_custody: bool, price: Option<i
                 assert_eq!(
                     balance(INVESTOR, Account::LoanReceivable(1))
                         + balance(INVESTOR, Account::LoanBasisAdjustment(1)),
-                    if funded { cost } else { 0 }
+                    if funded && !discharge { cost } else { 0 }
                 );
                 assert_eq!(
                     balance(INVESTOR, Account::SettlementGain)
@@ -306,7 +329,27 @@ fn assignment(guarantee_from: Option<u32>, shared_custody: bool, price: Option<i
                     balance(HOME, Account::DisposalGain) + balance(HOME, Account::DisposalLoss),
                     if funded { i128::from(6 - price) } else { 0 }
                 );
-                assert_eq!(balance(INVESTOR, Account::CreditLoss), 0);
+                assert_eq!(
+                    balance(INVESTOR, Account::CreditLoss),
+                    if funded && discharge { cost } else { 0 }
+                );
+                if discharge && guarantee_from.is_some() {
+                    let recourse_loss: i32 = sim
+                        .ledger
+                        .iter()
+                        .filter_map(|b| b.credit.as_ref())
+                        .flat_map(|c| &c.recovery)
+                        .filter_map(|r| match r {
+                            recovery::Receipt::WrittenOff {
+                                loan: 200,
+                                principal,
+                                ..
+                            } => Some(*principal),
+                            _ => None,
+                        })
+                        .sum();
+                    assert_eq!(recourse_loss, if guarantee_from == Some(4) { 2 } else { 0 });
+                }
                 assert_eq!(balance(MEMBER, Account::LoanBasisAdjustment(1)), 0);
             }
             assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(MEMBER));
@@ -319,9 +362,9 @@ fn assignment(guarantee_from: Option<u32>, shared_custody: bool, price: Option<i
             );
             assert_eq!(
                 recovery::active(&sim.world, &sim.state.credit, HOME).is_none(),
-                funded || recovered == 6
+                funded || recovered == 6 || discharge
             );
-            if funded || recovered == 6 {
+            if funded || recovered == 6 || discharge {
                 assert!(dissolution::blockers(&sim.world, &sim.state, HOME).is_empty());
                 dissolution::finish(&mut sim.world, &sim.state, HOME, MEMBER).unwrap();
             } else {
