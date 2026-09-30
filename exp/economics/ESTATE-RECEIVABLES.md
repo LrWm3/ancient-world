@@ -310,3 +310,9 @@ household retains pre-sale interest and disposal results, finishes after its own
 estate distributions, and closes while the buyer still owns future principal.
 Later collection or debtor relief affects only the buyer's claim and accounts;
 it does not reopen the seller or pass its income/losses onto a member.
+
+Native interest-bearing controls now exercise the same acquisition rule with
+actual goods-denominated interest and principal. Discount/par/premium cases either
+collect both in goods or lose principal plus later unpaid interest in an admitted
+coin-custody estate. No native debt converts to coins; fixed reporting value,
+purchase basis and interest remain separate for person and household sellers.

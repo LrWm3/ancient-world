@@ -1148,3 +1148,10 @@ their separate gates above and are not covered by this snapshot.
     collection/default and cost release remain with that investor. Member accounts
     stay separate; discounted/par/premium, CPU/reference and checkpoint controls
     pass. The four-target gate passed 62 tests and strict all-target Clippy passed.
+
+83. **Native interest-bearing purchases share collection and loss accounting.**
+    Commodity loans sold without unpaid interest now have composed repayment and
+    later-estate-relief controls. Actual interest/principal stays in goods, fixed
+    reporting values stay fixed, and buyer acquisition cost releases separately.
+    Person/household, discount/par/premium and CPU/checkpoint cases agree. The
+    four-target gate passed 57 tests and strict all-target Clippy passed.

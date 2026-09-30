@@ -586,3 +586,145 @@ fn priced_native_claims_release_cost_through_partial_relief_and_later_delivery_o
         }
     }
 }
+
+#[test]
+fn priced_native_interest_loans_keep_goods_interest_and_principal_basis_separate() {
+    use economics_compute_smoke::{
+        accounting::Account,
+        claim_relief::{Action, Terms},
+        finance::ContractId,
+    };
+    const BORROWER_ESTATE: AgentId = 96;
+    for household in [false, true] {
+        for writeoff in [false, true] {
+            for price in [1, 4, 5] {
+                let (mut w, mut s, seller) = fixture(household, true, true);
+                w.lending
+                    .iter_mut()
+                    .find(|l| l.id == 11)
+                    .unwrap()
+                    .terms
+                    .monthly_rate_bps = 5000;
+                s.balances.insert((BUYER, TOKEN), price);
+                s.balances
+                    .insert((BORROWER, SEED), if writeoff { 0 } else { 4 });
+                w.storage.capacities.insert(BUYER, 4);
+                w.recovery.receivable_price_floors.insert(1, 1);
+                w.recovery.receivable_bids[0].price = price;
+                if writeoff {
+                    w.agents.push(Agent {
+                        id: BORROWER_ESTATE,
+                        name: "native interest estate".into(),
+                    });
+                    w.recovery.proceedings.push(ProceedingTerms {
+                        id: 2,
+                        debtor: BORROWER,
+                        estate: BORROWER_ESTATE,
+                        authority: STATE_AGENT,
+                        denomination: TOKEN,
+                        opening_month: 5,
+                        earliest_close: 5,
+                        assets: vec![],
+                        discharge_deficiency: false,
+                    });
+                    w.recovery.claim_relief.push(Terms {
+                        id: 1,
+                        proceeding: 2,
+                        contract: ContractId::Loan(11),
+                        original_due: 2,
+                        debtor: BORROWER,
+                        creditor: BUYER,
+                        month: 5,
+                        expected_due: 2,
+                        expected_remaining: 3,
+                        action: Action::WriteOff { quantity: 3 },
+                    });
+                }
+                let run = |backend| {
+                    let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+                    let mut report_opening = opening(seller, 2);
+                    if !writeoff {
+                        report_opening.inventory.insert((BORROWER, SEED), 8);
+                    }
+                    let mut audit = Audit::with_opening(&w, &s, TOKEN, report_opening).unwrap();
+                    let balance = |a: &Audit, who, account| {
+                        a.book()
+                            .balances()
+                            .get(&(who, account))
+                            .copied()
+                            .unwrap_or(0)
+                    };
+                    while sim.state.month < 2 {
+                        audit.step(&mut sim).unwrap();
+                    }
+                    if household {
+                        households::dissolution::request(&mut sim.world, &sim.state, HOME, PERSON)
+                            .unwrap();
+                    }
+                    while (sim.state.month, sim.state.phase) != (3, Phase::Acquire) {
+                        audit.step(&mut sim).unwrap();
+                    }
+                    audit.step(&mut sim).unwrap();
+                    let loan = &sim.state.credit.loans[&11];
+                    assert_eq!(
+                        (
+                            loan.creditor,
+                            loan.principal,
+                            loan.interest,
+                            loan.denomination
+                        ),
+                        (BUYER, 2, 0, SEED)
+                    );
+                    assert_eq!(
+                        balance(&audit, BUYER, Account::LoanBasisAdjustment(11)),
+                        i128::from(price - 4)
+                    );
+                    while sim.state.month < 5 {
+                        audit.step(&mut sim).unwrap();
+                    }
+                    if writeoff {
+                        assert_eq!(balance(&audit, BUYER, Account::InterestReceivable(11)), 2);
+                        assert_eq!(
+                            balance(&audit, BUYER, Account::LoanBasisAdjustment(11)),
+                            i128::from(price - 4)
+                        );
+                    }
+                    let mut resumed =
+                        Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+                    let mut ra = audit.clone();
+                    while sim.state.month < 9 {
+                        audit.step(&mut sim).unwrap();
+                    }
+                    while resumed.state.month < 9 {
+                        ra.step(&mut resumed).unwrap();
+                    }
+                    assert_eq!((&sim.state, &audit), (&resumed.state, &ra));
+                    assert_eq!(sim.state.credit.loans[&11].debt().unwrap(), 0);
+                    assert_eq!(balance(&audit, BUYER, Account::LoanBasisAdjustment(11)), 0);
+                    assert_eq!(balance(&audit, BUYER, Account::InterestReceivable(11)), 0);
+                    assert_eq!(
+                        balance(&audit, BUYER, Account::InterestIncome),
+                        if writeoff { -2 } else { -4 }
+                    );
+                    assert_eq!(
+                        balance(&audit, BUYER, Account::CreditLoss),
+                        if writeoff { i128::from(price + 2) } else { 0 }
+                    );
+                    assert_eq!(
+                        balance(&audit, BUYER, Account::SettlementGain)
+                            + balance(&audit, BUYER, Account::SettlementLoss),
+                        if writeoff { 0 } else { i128::from(price - 4) }
+                    );
+                    assert_eq!(sim.state.balance(BUYER, SEED), if writeoff { 0 } else { 4 });
+                    assert_eq!(sim.state.balance(BUYER, TOKEN), 0);
+                    assert_eq!(balance(&audit, seller, Account::InterestIncome), -4);
+                    if household {
+                        assert_eq!(balance(&audit, PERSON, Account::InterestIncome), 0);
+                    }
+                    (sim.state, sim.ledger, audit)
+                };
+                assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+            }
+        }
+    }
+}
