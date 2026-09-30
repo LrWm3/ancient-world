@@ -56,12 +56,13 @@ existing direct-loan or authorized-liquidation mortgage asset. Dated `receivable
 consent and cash price. Listings specify positive custody coins per native claim
 unit. Coin claims retain a one-to-one quote; unsecured commodity claims use an
 explicit fixed quote. The required price is current principal plus accrued
-interest, multiplied by that quote. A stale or discounted price is rejected; the
+interest, multiplied by that quote by default. An opt-in whole-claim price floor
+now permits other prices for zero-interest custody-coin claims (below). The
 borrower's amount owed and denomination never change.
 
 Common offer discovery exposes the current loan terms, security, debtor and claim amount.
 `ReceivableLiquidationBid` preparation uses ordinary Acquire settlement. Physical
-asset sales run first, receivable bids next (listing then stable bid ID), then
+asset sales run first, receivable bids next (listing, highest funded price, then stable bid ID), then
 inventory lots and new advances. All share opening cash; a purchased claim or
 new custody receipt cannot fund another purchase inside the same window.
 
@@ -85,7 +86,7 @@ two coins fund only the claim; three fund both, with no duplicated purchasing po
 
 ## Remaining boundaries
 
-This is a bounded assignment adapter, not general debt trading or discount
+This is a bounded assignment adapter, not general debt trading or autonomous
 valuation. It excludes fixed-value/resale security, nontransferable guarantees, secured native-commodity, partial
 and onward assignments, borrower buybacks, netting and impairment estimation.
 Accepted estate authorization supplies assignment authority; autonomous listing,
@@ -160,9 +161,9 @@ its goods remain uncollected and the original borrower retains the debt.
 
 The first valuation model requires the quote to equal the fixed reporting value
 of a native claim unit. Inconsistent reporting configurations fail early. This
-keeps assignment at carrying value; negotiated discounts, impairment and amortized
-acquisition cost still require an explicit extension. Native secured claims remain
-excluded.
+keeps native assignment at carrying value. The coin-claim acquisition-cost adapter
+below permits discounts and premiums; native discounts, interest-bearing purchase
+cost and estimated impairment remain open. Native secured claims remain excluded.
 
 `tests/native_receivables.rs` compares person and winding-household sellers, funded
 and unfunded buyers, available and absent receiving storage, stale prices and
@@ -224,3 +225,30 @@ household can dissolve while the buyer's separate claim survives. Former-holder
 consent cannot cancel that claim, even after household exit. CPU/reference and
 checkpoint financial statements agree; 49 tests passed across the four affected
 suites, followed by strict all-target Clippy.
+
+## Agreed price floors and acquisition cost
+
+`recovery.receivable_price_floors` optionally supplies a minimum whole-claim price
+by listing ID. This first route admits zero-interest claims denominated in the
+estate's custody coin. Otherwise the existing exact unit quote remains required.
+Highest funded bids clear first; an unaffordable bid leaves the claim available
+to a lower eligible bid. A below-floor bid cannot buy it. Prices and consent are
+still supplied, with no autonomous valuation or negotiation implied.
+
+The loan book keeps the full contractual principal. Reporting separately records
+`LoanBasisAdjustment`: face principal plus this adjustment equals the buyer's
+remaining acquisition cost. Sellers recognize their actual disposal gain/loss;
+buyers recognize no immediate profit merely from purchasing below face value.
+Remaining cost follows the proportion of original acquired principal still owed,
+rounded down to integer reporting ticks. Collection realizes the corresponding
+gain/loss; accepted relief charges remaining cost, releasing the matching
+adjustment rather than expensing the full face amount again. Mixed dispositions
+at one boundary split adjustment release proportionally between loss and actual
+collection. Full disposal always releases all remaining basis.
+
+Checks cover discounts, par and premiums followed by collection or full write-off;
+competing funded/unfunded bids, price floors, reversed inputs, forged prices, and
+invalid carrying values. CPU/reference and checkpoint continuation agree. The
+six-target gate passed 130 tests and strict all-target Clippy passed. Partial and
+onward assignments, interest-bearing acquisition cost and market valuation remain
+outstanding.

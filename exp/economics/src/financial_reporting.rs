@@ -137,8 +137,8 @@ fn positions(
     {
         return Err("retired equipment has nonzero carrying cost".into());
     }
-    // This bounded assignment adapter trades whole claims at their fixed reporting
-    // value. A different market price needs explicit acquisition-basis accounting.
+    // Native quotes retain the fixed reporting value. Opt-in priced coin claims
+    // keep their separate acquisition-cost adjustment below.
     for listing in &world.recovery.receivable_listings {
         let resource = state
             .credit
@@ -171,6 +171,13 @@ fn positions(
                 crate::reporting_value::value(coin, exchange_values, l.denomination, q)?,
             )?;
         }
+    }
+    for (&id, loan) in &state.credit.loans {
+        accounting::add(
+            &mut p,
+            (loan.creditor, Account::LoanBasisAdjustment(id)),
+            crate::receivable_accounting::adjustment(world, state, id, coin)?,
+        )?;
     }
     for g in &world.recovery.guarantees {
         if recovery::admission::accepted_month(world, &state.credit, g).is_none() {
@@ -1319,6 +1326,13 @@ impl Audit {
             accounting::add(&mut delta, key.clone(), -*value)?;
         }
         let mut lines = process_lines;
+        lines.extend(crate::receivable_accounting::settle(
+            world,
+            outer_before,
+            outer_after,
+            batch,
+            coin,
+        )?);
         let mut flows = Flows::new();
         for l in trade_lines
             .into_iter()

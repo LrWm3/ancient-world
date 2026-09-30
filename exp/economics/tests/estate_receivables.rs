@@ -1306,3 +1306,222 @@ fn relieved_assignment(household: bool) {
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn priced_receivable_sales_keep_face_claims_and_release_acquisition_cost_on_collection_or_loss() {
+    use economics_compute_smoke::{
+        accounting::Account,
+        claim_relief::{Action, Terms},
+        finance::ContractId,
+        recovery::receivables::{Bid, Listing},
+    };
+    const BUYER: AgentId = 98;
+    const BORROWER_ESTATE: AgentId = 100;
+    for writeoff in [false, true] {
+        for price in [1, 2, 3] {
+            let mut opening = fixture(3, 6, !writeoff);
+            opening.world.agents.push(Agent {
+                id: BUYER,
+                name: "claim investor".into(),
+            });
+            opening.state.balances.insert((BUYER, TOKEN), price);
+            opening.world.recovery.receivable_listings.push(Listing {
+                id: 1,
+                proceeding: 1,
+                loan: ASSET,
+                coins_per_unit: 1,
+            });
+            opening.world.recovery.receivable_price_floors.insert(1, 1);
+            opening.world.recovery.receivable_bids.push(Bid {
+                id: 1,
+                listing: 1,
+                buyer: BUYER,
+                month: 3,
+                price,
+            });
+            let face = if writeoff { 3 } else { 2 };
+            if writeoff {
+                opening.world.agents.push(Agent {
+                    id: BORROWER_ESTATE,
+                    name: "borrower estate".into(),
+                });
+                opening.world.recovery.proceedings.push(ProceedingTerms {
+                    id: 2,
+                    debtor: BORROWER,
+                    estate: BORROWER_ESTATE,
+                    authority: STATE_AGENT,
+                    denomination: TOKEN,
+                    opening_month: 4,
+                    earliest_close: 4,
+                    assets: vec![],
+                    discharge_deficiency: false,
+                });
+                opening.world.recovery.claim_relief.push(Terms {
+                    id: 1,
+                    proceeding: 2,
+                    contract: ContractId::Loan(ASSET),
+                    original_due: 2,
+                    debtor: BORROWER,
+                    creditor: BUYER,
+                    month: 4,
+                    expected_due: 2,
+                    expected_remaining: face,
+                    action: Action::WriteOff { quantity: face },
+                });
+            }
+            let run = |backend| {
+                let mut sim =
+                    Simulation::new(opening.world.clone(), opening.state.clone(), backend).unwrap();
+                let mut audit = Audit::new(&sim.world, &sim.state, TOKEN).unwrap();
+                until(&mut sim, &mut audit, 3, Phase::Acquire);
+                audit.step(&mut sim).unwrap();
+                assert_eq!(sim.state.credit.loans[&ASSET].principal, face);
+                assert_eq!(sim.state.credit.loans[&ASSET].creditor, BUYER);
+                let balance = |a: &Audit, who, account| {
+                    a.book()
+                        .balances()
+                        .get(&(who, account))
+                        .copied()
+                        .unwrap_or(0)
+                };
+                assert_eq!(
+                    balance(&audit, BUYER, Account::LoanReceivable(ASSET)),
+                    i128::from(face)
+                );
+                assert_eq!(
+                    balance(&audit, BUYER, Account::LoanBasisAdjustment(ASSET)),
+                    i128::from(price - face)
+                );
+                assert_eq!(
+                    balance(&audit, BORROWER, Account::LoanPayable(ASSET)),
+                    -i128::from(face)
+                );
+                assert_eq!(sim.state.balance(ESTATE, TOKEN), price);
+                let (saved, mut ra) = (sim.clone(), audit.clone());
+                let mut forged = sim.state.clone();
+                forged
+                    .credit
+                    .recovery
+                    .assignments
+                    .get_mut(&ASSET)
+                    .unwrap()
+                    .price += 1;
+                assert!(Simulation::new(sim.world.clone(), forged, backend).is_err());
+                until(&mut sim, &mut audit, 10, Phase::Open);
+                assert_eq!(sim.state.credit.loans[&ASSET].principal, 0);
+                assert_eq!(
+                    balance(&audit, BUYER, Account::LoanBasisAdjustment(ASSET)),
+                    0
+                );
+                assert_eq!(
+                    balance(&audit, BUYER, Account::CreditLoss),
+                    if writeoff { i128::from(price) } else { 0 }
+                );
+                assert_eq!(
+                    sim.state.balance(BUYER, TOKEN),
+                    if writeoff { 0 } else { face }
+                );
+                if !writeoff {
+                    assert_eq!(
+                        balance(&audit, BUYER, Account::SettlementGain)
+                            + balance(&audit, BUYER, Account::SettlementLoss),
+                        i128::from(price - face)
+                    );
+                }
+                assert_eq!(
+                    balance(&audit, PERSON, Account::DisposalGain)
+                        + balance(&audit, PERSON, Account::DisposalLoss),
+                    i128::from(face - price)
+                );
+                let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
+                until(&mut resumed, &mut ra, 10, Phase::Open);
+                assert_eq!((&sim.state, &audit), (&resumed.state, &ra));
+                (sim.state, sim.ledger, audit)
+            };
+            assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+        }
+    }
+}
+
+#[test]
+fn estate_claim_bids_use_the_highest_funded_price_above_the_agreed_floor() {
+    use economics_compute_smoke::recovery::receivables::{Bid, Listing};
+    const LOW: AgentId = 98;
+    const HIGH: AgentId = 96;
+    for (high_funds, floor, winner, price) in [(3, 1, HIGH, 3), (2, 1, LOW, 1), (2, 2, PERSON, 0)] {
+        let mut opening = fixture(3, 6, true);
+        for (id, funds) in [(LOW, 1), (HIGH, high_funds)] {
+            opening.world.agents.push(Agent {
+                id,
+                name: format!("bidder {id}"),
+            });
+            opening.state.balances.insert((id, TOKEN), funds);
+        }
+        opening.world.recovery.receivable_listings.push(Listing {
+            id: 1,
+            proceeding: 1,
+            loan: ASSET,
+            coins_per_unit: 1,
+        });
+        opening
+            .world
+            .recovery
+            .receivable_price_floors
+            .insert(1, floor);
+        opening.world.recovery.receivable_bids = vec![
+            Bid {
+                id: 1,
+                listing: 1,
+                buyer: LOW,
+                month: 3,
+                price: 1,
+            },
+            Bid {
+                id: 2,
+                listing: 1,
+                buyer: HIGH,
+                month: 3,
+                price: 3,
+            },
+        ];
+        let run = |backend, reverse| {
+            let mut world = opening.world.clone();
+            if reverse {
+                world.recovery.receivable_bids.reverse();
+            }
+            let mut sim = Simulation::new(world, opening.state.clone(), backend).unwrap();
+            let mut audit = Audit::new(&sim.world, &sim.state, TOKEN).unwrap();
+            until(&mut sim, &mut audit, 3, Phase::Acquire);
+            audit.step(&mut sim).unwrap();
+            assert_eq!(sim.state.credit.loans[&ASSET].creditor, winner);
+            assert_eq!(sim.state.balance(ESTATE, TOKEN), price);
+            assert_eq!(
+                sim.state.balance(LOW, TOKEN),
+                if winner == LOW { 0 } else { 1 }
+            );
+            assert_eq!(
+                sim.state.balance(HIGH, TOKEN),
+                if winner == HIGH { 0 } else { high_funds }
+            );
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference, false), run(Backend::CubeCpu, true));
+    }
+}
+
+#[test]
+fn loan_cost_adjustments_cannot_hide_negative_carrying_value_or_exist_without_a_claim() {
+    use economics_compute_smoke::accounting::{Account, Book};
+    let positions = |face, adjustment| {
+        [
+            ((PERSON, Account::LoanReceivable(ASSET)), face),
+            ((PERSON, Account::LoanBasisAdjustment(ASSET)), adjustment),
+        ]
+        .into()
+    };
+    assert!(Book::open(TOKEN, positions(4, -3)).is_ok());
+    assert!(Book::open(TOKEN, positions(4, -5)).is_err());
+    assert!(Book::open(TOKEN, positions(0, 1)).is_err());
+    assert!(Book::open(TOKEN, positions(0, -1)).is_err());
+    assert!(Book::open(TOKEN, [((PERSON, Account::Cash), -1)].into()).is_err());
+}

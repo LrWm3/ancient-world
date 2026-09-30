@@ -1,5 +1,5 @@
 //! Supplied estate bids assign an entire eligible loan at face units times its
-//! explicit custody-coin quote. Discount, partial and onward assignment are deferred.
+//! explicit custody-coin quote or agreed floor. Partial/onward assignment is deferred.
 use crate::{credit, finance, model::*, opportunities, recovery};
 use std::collections::BTreeSet;
 
@@ -123,7 +123,38 @@ pub fn discover(world: &World, state: &State, buyer: AgentId) -> Vec<Offer> {
     offers
 }
 
+fn accepts_price(
+    world: &World,
+    listing: &Listing,
+    principal: i32,
+    interest: i32,
+    price: i32,
+) -> bool {
+    if let Some(minimum) = world.recovery.receivable_price_floors.get(&listing.id) {
+        principal > 0 && interest == 0 && price >= *minimum
+    } else {
+        (i64::from(principal) + i64::from(interest)) * i64::from(listing.coins_per_unit)
+            == i64::from(price)
+    }
+}
+
 pub(crate) fn validate(world: &World, state: &State) -> Result<(), String> {
+    if world
+        .recovery
+        .receivable_price_floors
+        .iter()
+        .any(|(id, price)| {
+            *price <= 0
+                || !world
+                    .recovery
+                    .receivable_listings
+                    .iter()
+                    .any(|l| l.id == *id)
+        })
+    {
+        return Err("invalid receivable price floor".into());
+    }
+
     let mut ids = BTreeSet::new();
     let mut loans = BTreeSet::new();
     for l in &world.recovery.receivable_listings {
@@ -138,6 +169,8 @@ pub(crate) fn validate(world: &World, state: &State) -> Result<(), String> {
         if !ids.insert(l.id)
             || !loans.insert(l.loan)
             || a.terms.creditor != p.debtor
+            || (world.recovery.receivable_price_floors.contains_key(&l.id)
+                && (a.terms.monthly_rate_bps != 0 || a.terms.denomination != p.denomination))
             || l.coins_per_unit <= 0
             || (a.terms.denomination == p.denomination && l.coins_per_unit != 1)
             || (a.collateral.is_some() && a.terms.denomination != p.denomination)
@@ -215,8 +248,7 @@ pub(crate) fn validate(world: &World, state: &State) -> Result<(), String> {
                 && matches!(state.phase, Phase::Open | Phase::Due | Phase::Acquire))
             || a.principal < 0
             || a.interest < 0
-            || (i64::from(a.principal) + i64::from(a.interest)) * i64::from(l.coins_per_unit)
-                != i64::from(a.price)
+            || !accepts_price(world, l, a.principal, a.interest, a.price)
             || !state.credit.loans.contains_key(&loan)
             || !state
                 .credit
@@ -242,7 +274,7 @@ pub(crate) fn sales(
         .iter()
         .filter(|b| b.month == state.month)
         .collect();
-    bids.sort_by_key(|b| (b.listing, b.id));
+    bids.sort_by_key(|b| (b.listing, std::cmp::Reverse(b.price), b.id));
     for b in bids {
         let l = world
             .recovery
@@ -266,11 +298,7 @@ pub(crate) fn sales(
             && !out.after.recovery.assignments.contains_key(&l.loan)
             && loan.is_some_and(|loan| {
                 loan.creditor == p.debtor
-                    && loan
-                        .debt()
-                        .ok()
-                        .and_then(|q| q.checked_mul(l.coins_per_unit))
-                        == Some(b.price)
+                    && accepts_price(world, l, loan.principal, loan.interest, b.price)
             })
             && recovery::market::eligible_buyer_for(
                 world,

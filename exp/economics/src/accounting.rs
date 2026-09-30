@@ -17,6 +17,8 @@ pub enum Account {
     Tangible(u32),
     WorkInProgress(u64),
     LoanReceivable(u32),
+    /// Acquisition cost adjustment; contractual principal remains separately visible.
+    LoanBasisAdjustment(u32),
     ForwardPrepayment(u32),
     DeferredRevenue(u32),
     DuesReceivable(u32, u32),
@@ -71,6 +73,7 @@ impl Account {
             | Self::DuesReceivable(_, _)
             | Self::ForwardPrepayment(_)
             | Self::LoanReceivable(_)
+            | Self::LoanBasisAdjustment(_)
             | Self::InterestReceivable(_) => Class::Asset,
             Self::WagesPayable(_, _)
             | Self::DeferredRevenue(_)
@@ -366,12 +369,20 @@ impl Book {
                 "unbalanced entry: each entity and internal cash transfer must balance".into(),
             );
         }
-        if balances.iter().any(|((_, a), v)| {
+        if balances.iter().any(|((agent, a), v)| {
             *v == i128::MIN
-                || match a.class() {
-                    Class::Asset => *v < 0,
-                    Class::Liability => *v > 0,
-                    _ => false,
+                || if let Account::LoanBasisAdjustment(id) = a {
+                    let face = balances
+                        .get(&(*agent, Account::LoanReceivable(*id)))
+                        .copied()
+                        .unwrap_or(0);
+                    (*v != 0 && face <= 0) || face.checked_add(*v).is_none_or(|net| net < 0)
+                } else {
+                    match a.class() {
+                        Class::Asset => *v < 0,
+                        Class::Liability => *v > 0,
+                        _ => false,
+                    }
                 }
         }) {
             return Err("negative recognized asset or liability".into());

@@ -209,7 +209,9 @@ can establish that all these arrangements compose.
    [inventory liquidation](INVENTORY-LIQUIDATION.md) now sells configured stock lots
    into the same custody and waterfall. Whole-loan assignment now transfers direct or mortgage coin claims with compatible security and
    transferable guarantees, or unsecured commodity claims with explicit fixed
-   coin quotes, through funded estate bids; broader receivable pricing and
+   coin quotes, through funded estate bids. Zero-interest coin claims can opt into
+   agreed price floors, highest-funded-bid clearing and separate acquisition cost;
+   broader interest-bearing/native receivable pricing and
    security/denomination combinations remain open. Unsold assets
    remain unsold; appraisals do not create coins. Retain surplus, deficiencies,
    explicit discharge/write-offs and final receipts. Mortgages can now explicitly select the authorized-liquidation lifecycle,

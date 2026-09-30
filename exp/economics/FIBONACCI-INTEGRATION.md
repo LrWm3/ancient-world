@@ -1078,3 +1078,12 @@ The isolated **`218ae38`** source snapshot completed
 `cargo +1.92.0 test --locked`: **1,004 passed, 0 failed, 1 ignored**, across
 123 Cargo result targets including empty unit/doc targets. Items 65 onward have
 their separate gates above and are not covered by this snapshot.
+
+74. **Estate loan claims can sell at agreed prices with separate acquisition cost.**
+    Optional whole-claim floors admit discounted/par/premium zero-interest coin
+    sales; highest funded bids take priority without locking out affordable lower
+    bids. Borrower principal remains unchanged. A derived basis adjustment keeps
+    buyer assets at cost, realizes actual collection differences and expenses only
+    remaining cost on write-off. Negative net values and orphan adjustments reject.
+    Pricing, full-loss, funding, floor, reordered-catalog and CPU/checkpoint controls
+    pass. The six-target gate passed 130 tests and strict all-target Clippy passed.
