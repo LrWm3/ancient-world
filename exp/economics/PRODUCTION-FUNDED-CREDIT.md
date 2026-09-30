@@ -128,3 +128,13 @@ Separate books, CPU/reference execution, reconstructed checkpoints and tampered
 receipts are checked, along with a separate insolvent-buyer control. Custodians
 remain ineligible traders. Forecast and joint work/sale policies retain explicit
 recovery guards pending their own integration checks.
+
+Fixed-reserve member sales also compose with household pooling. Two one-coin sales
+pool one actual coin and leave one private coin for the member's mortgage. The
+household is not a co-borrower: its balance remains outside the member's estate.
+The continuing test therefore needs five property-sale coins to clear the loan,
+compared with four without pooling. Later sales pool once after closure. The
+funded/unfunded matrix checks separate statements, physical output, custody,
+CPU/reference and reconstructed continuation. This enables a participant who is
+a household member; a household itself is not a stock-sale participant in this
+specialized driver. Household forecast/joint sale policies remain guarded.

@@ -259,9 +259,43 @@ fn buying_estate_land_can_reserve_new_cultivation_in_the_same_request() {
 
 #[test]
 fn posted_crop_sales_pause_during_recovery_and_resume_after_actual_closure() {
+    posted_crop_sales(false);
+}
+
+#[test]
+fn member_mortgage_sales_pool_actual_income_without_lending_household_money_to_the_estate() {
+    posted_crop_sales(true);
+}
+
+fn posted_crop_sales(household: bool) {
     use economics_compute_smoke::{currency, recovery, settlement, stock_sale};
     for funded in [false, true] {
-        let (mut w, mut s) = fixture(4, funded, true);
+        let (mut w, mut s) = fixture(if household { 5 } else { 4 }, funded, true);
+        const HOME: AgentId = 10000;
+        if household {
+            use economics_compute_smoke::{
+                household_governance::Governance,
+                households::{self, Agreement},
+            };
+            households::form(
+                &mut w,
+                &s,
+                Agreement {
+                    id: 1,
+                    agent: HOME,
+                    adults: vec![PERSON],
+                    governance: Governance::contributed(PERSON),
+                    formed: 1,
+                    dwelling_process: None,
+                    admission: None,
+                    membership: vec![],
+                    asset_sales: vec![],
+                    equipment_retirements: vec![],
+                    support: vec![],
+                },
+            )
+            .unwrap();
+        }
         s.balances.insert((PERSON, GRAIN), 20);
         w.bids.push(currency::Bid {
             id: 1,
@@ -308,10 +342,11 @@ fn posted_crop_sales_pause_during_recovery_and_resume_after_actual_closure() {
                 audit.step(&mut sim).unwrap();
             }
             assert_eq!(sim.state.credit.stock_spent, 2);
+            assert_eq!(sim.state.balance(HOME, TOKEN), i32::from(household));
             let original = sim.state.clone();
-            let mut batch = Batch::empty(&sim.state);
-            batch.credit = credit::evaluate(&w, &sim.state).unwrap();
-            batch.transactions = batch.credit.as_ref().unwrap().transactions.clone();
+            let mut preview = sim.clone();
+            preview.step().unwrap();
+            let batch = preview.ledger.last().unwrap().clone();
             let receipt = batch.credit.as_ref().unwrap().stock_sale.as_ref().unwrap();
             assert_eq!(receipt.stayed, Some(PERSON));
             assert!(receipt.desired_lots > 0 && receipt.funding_limit > 0);
@@ -368,9 +403,19 @@ fn posted_crop_sales_pause_during_recovery_and_resume_after_actual_closure() {
             }));
             assert_eq!(
                 sim.state.credit.loans[&1].principal,
-                if funded { 0 } else { 4 }
+                if funded {
+                    0
+                } else if household {
+                    5
+                } else {
+                    4
+                }
             );
             assert_eq!(sim.state.balance(ESTATE, TOKEN), 0);
+            if household {
+                assert_eq!(sim.state.balance(HOME, TOKEN), if funded { 3 } else { 1 });
+                assert_eq!(audit.book().statements(HOME, 1, 7).unwrap().liabilities, 0);
+            }
             (sim.state, sim.ledger, audit)
         };
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));

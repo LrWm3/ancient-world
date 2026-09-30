@@ -533,3 +533,12 @@ their separately recorded affected gates; this full result does not cover them.
     books, forged receipts and CPU/checkpoint controls pass. The four-target gate
     passed 56 tests, followed by the expanded five-test mortgage-recovery suite;
     strict all-target Clippy passed. Forecast/joint sale planning retains its guard.
+
+21. **Member mortgage sales compose with household income pooling.** Fixed-reserve
+    sales now enter the existing household receipt path. Half the actual income
+    belongs to the collective and stays outside the member's loan/estate budget;
+    the resulting deficiency is five rather than four. Funded liquidation cures
+    it, while unfunded recovery retains it. Separate books, crop continuation,
+    forged receipts and CPU/checkpoint checks pass. The three-target gate passed
+    18 tests; strict all-target Clippy passed. Collective specialized sale planning
+    and forecast/joint household policies retain explicit limits.
