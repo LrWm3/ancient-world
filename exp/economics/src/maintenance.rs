@@ -97,6 +97,29 @@ pub fn advance(
     })
 }
 
+/// This month's own endowment, before any capacity trades. Conditions change at
+/// Close, so Open, Acquire and Productive observe the same monthly inputs.
+pub(crate) fn period_capacity(
+    world: &World,
+    state: &State,
+    agent: AgentId,
+    resource: ResourceId,
+) -> i32 {
+    let base = world
+        .participants
+        .iter()
+        .find(|p| p.agent == agent && p.capacity.resource == resource)
+        .map(|p| {
+            world
+                .capacity_overrides
+                .get(&(state.month, agent))
+                .copied()
+                .unwrap_or(p.capacity.quantity)
+        })
+        .unwrap_or(0);
+    capacity(world, state, agent, resource, base)
+}
+
 pub fn capacity(
     world: &World,
     state: &State,

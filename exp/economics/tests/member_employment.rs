@@ -683,6 +683,7 @@ fn payroll_outlook_shares_finite_hours_and_respects_permissions_dates_and_arrear
     w.employment[0].capacity.quantity = 5;
     s.phase = Phase::Acquire;
     s.balances.insert((PERSON, LABOR), 5);
+    w.capacity_overrides.insert((s.month, PERSON), 5);
     // One of five own hours belongs to the household, not external employment.
     assert_eq!(
         projected_payroll(&w, &s).unwrap(),

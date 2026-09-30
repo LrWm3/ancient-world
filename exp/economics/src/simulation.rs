@@ -230,19 +230,7 @@ impl Simulation {
                     continue;
                 }
                 let old = state.balance(agent.id, resource.id);
-                let base = world
-                    .participants
-                    .iter()
-                    .find(|p| p.agent == agent.id && p.capacity.resource == resource.id)
-                    .map(|p| {
-                        world
-                            .capacity_overrides
-                            .get(&(state.month, p.agent))
-                            .copied()
-                            .unwrap_or(p.capacity.quantity)
-                    })
-                    .unwrap_or(0);
-                let new = maintenance::capacity(world, state, agent.id, resource.id, base);
+                let new = maintenance::period_capacity(world, state, agent.id, resource.id);
                 let mut effects = Vec::new();
                 if old != 0 {
                     effects.push(Effect {
