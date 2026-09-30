@@ -296,11 +296,10 @@ pub fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, String> 
         return Err("prerequisites must precede process offers".into());
     }
     let mut batch = Batch::empty(&sim.state);
-    if sim.state.phase == Phase::Acquire && crate::credit::search_composition(&sim.world) {
+    if sim.state.phase == Phase::Acquire && crate::acquisition::search_composition(&sim.world) {
         // Feasibility observes the same configured, funded advances as the live
         // Acquire boundary. No loan offer is treated as already delivered stock.
-        batch.credit = crate::credit::evaluate(&sim.world, &sim.state)?;
-        batch.transactions = batch.credit.as_ref().unwrap().transactions.clone();
+        batch = crate::acquisition::evaluate(&sim.world, &sim.state)?;
     }
 
     let mut preview = sim.clone();

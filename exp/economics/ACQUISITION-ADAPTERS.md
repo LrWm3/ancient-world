@@ -508,3 +508,30 @@ autonomous continuation checks the subsequent boundary after the plot is awarded
 
 The competitive-credit gate passed 30 tests across seven targets, followed by
 strict all-target Clippy, whitespace and repository artifact checks.
+
+## Prepaid performance in prerequisite planning
+
+The shared acquisition adapter now carries configured direct prepaid deliveries,
+with or without direct credit, into the same bounded prerequisite/process search.
+It reserves loans first, then prepaid admission and due deliveries against opening
+resources. Planning can add lawful membership/land acceptance and dated work; it
+cannot alter the exact financial records, payments or delivery receipts. Competitive
+land rounds retain prepaid consent even when nobody applies or another person wins.
+
+Tests compare own seed, six-month borrowed seed and 24-month borrowed seed with a
+two-grain forward due in month nine. Own seed and the longer loan support delivery.
+The shorter loan plus forward makes the existing forecast reject land because it
+projects unpaid annual dues; that control retains the unfulfilled forward claim.
+An unfunded prepayment creates no forward. These are supplied financial commitments,
+not autonomous underwriting: the short-term failure exposes the existing planner's
+hard land-feasibility rule, rather than demonstrating financially sustainable
+contract formation. Renegotiation and debt-aware scoring remain separate work.
+
+Each variant runs through the normal CPU/reference scheduler, in-memory checkpoint
+continuation and separate double-entry statements for stocks, seed debt, prepayment,
+production and delivery. Accepted prepayment remains with the seller; failed
+performance does not fabricate grain, cancel debt or create a refund. Tampered
+forward terms are rejected without partial publication.
+
+The prepaid/search integration gate passed 52 tests across 6 targets,
+with strict all-target Clippy and repository artifact checks.

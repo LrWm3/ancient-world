@@ -61,6 +61,25 @@ impl Resources {
     }
 }
 
+/// Consented credit and prepayments can precede membership/land consequence search.
+/// Quoted work uses committed advances; competitive applications reuse the same
+/// funded boundary. Cash/equipment markets need their own reservation adapters.
+pub(crate) fn search_composition(world: &World) -> bool {
+    (!world.lending.is_empty() || crate::forward::direct::enabled(world))
+        && world.credit.is_none()
+        && world.recovery.proceedings.is_empty()
+        && world.market.is_none()
+        && world.negotiation.is_none()
+        && world.town_market.is_none()
+        && world.pool_market.is_none()
+        && world.production_market.is_none()
+        && world.work_choice.is_none()
+        && world.minting.is_none()
+        && world.offers.is_empty()
+        && world.bids.is_empty()
+        && world.households.is_empty()
+}
+
 pub(crate) fn shared(world: &World) -> bool {
     world.minting.is_some()
         || crate::forward::direct::enabled(world)
@@ -150,9 +169,10 @@ pub(crate) fn validate_batch(world: &World, state: &State, batch: &Batch) -> Res
             || batch.minting != expected.minting
             || batch.town_market != expected.town_market
             || batch.negotiation != expected.negotiation
-            || batch.production_plan != expected.production_plan
+            || (!search_composition(world)
+                && (batch.production_plan != expected.production_plan
+                    || batch.accept_access != expected.accept_access))
             || batch.plot_request != expected.plot_request
-            || batch.accept_access != expected.accept_access
             || batch.transactions != expected.transactions
         {
             return Err("missing or altered shared acquisition settlement".into());

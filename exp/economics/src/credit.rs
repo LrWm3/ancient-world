@@ -541,26 +541,6 @@ fn validate_purchase(world: &World, state: &State) -> Result<(), String> {
     }
     Ok(())
 }
-/// Direct credit can precede the existing membership/land consequence search.
-/// Quoted work uses committed advances; competitive applications reuse the same
-/// funded boundary. Cash/equipment markets need their own reservation adapters.
-pub(crate) fn search_composition(world: &World) -> bool {
-    !world.lending.is_empty()
-        && world.credit.is_none()
-        && world.recovery.proceedings.is_empty()
-        && world.market.is_none()
-        && world.negotiation.is_none()
-        && world.town_market.is_none()
-        && world.pool_market.is_none()
-        && world.production_market.is_none()
-        && world.work_choice.is_none()
-        && world.minting.is_none()
-        && !crate::forward::direct::enabled(world)
-        && world.offers.is_empty()
-        && world.bids.is_empty()
-        && world.households.is_empty()
-}
-
 pub fn validate(world: &World, state: &State) -> Result<(), String> {
     if world.collection_policy == finance::CollectionPolicy::Proportional {
         let currencies: BTreeSet<_> = world
@@ -600,7 +580,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         return Err("unknown ownership-following right".into());
     }
     if (!world.lending.is_empty() || !world.recovery.proceedings.is_empty())
-        && !search_composition(world)
+        && !crate::acquisition::search_composition(world)
         && (world.competition.is_some()
             || world.priority == Priority::ConsequenceAware
             || (world.market.is_none()
@@ -1455,7 +1435,7 @@ pub fn validate_batch(world: &World, state: &State, batch: &Batch) -> Result<(),
     let expected = evaluate(world, state)?;
     if batch.credit != expected
         || (expected.is_some()
-            && !(state.phase == Phase::Acquire && search_composition(world))
+            && !(state.phase == Phase::Acquire && crate::acquisition::search_composition(world))
             && batch.production_plan != expected.as_ref().and_then(|e| e.production_plan.clone()))
         || expected
             .as_ref()

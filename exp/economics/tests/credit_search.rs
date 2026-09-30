@@ -269,3 +269,195 @@ fn autonomous_competition_keeps_credit_on_later_uncontested_boundaries() {
     };
     assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
 }
+
+#[test]
+fn prepaid_harvest_and_seed_credit_remain_distinct_through_search_and_delivery() {
+    use economics_compute_smoke::{
+        dues_accounting::Valuation,
+        financial_reporting::{Audit, Opening},
+        forward::direct,
+        process_accounting::{Costs, Output},
+    };
+    for (credit, funded, term) in [
+        (false, true, 6),
+        (true, true, 24),
+        (true, true, 6),
+        (true, false, 6),
+    ] {
+        let (mut w, mut s) = fixture(true);
+        w.lending[0].terms.term_months = term;
+        if !credit {
+            w.lending.clear();
+            s.balances.insert((PERSON, SEED), 1);
+        }
+        w.resources.push(Resource {
+            id: TOKEN,
+            name: "coin".into(),
+            kind: ResourceKind::Stock,
+        });
+        s.balances
+            .insert((STATE_AGENT, TOKEN), if funded { 2 } else { 0 });
+        w.prepaid_deliveries.push(direct::Terms {
+            id: 20,
+            seller: PERSON,
+            buyer: STATE_AGENT,
+            month: 1,
+            due: 9,
+            goods: Amount::new(GRAIN, 2),
+            prepayment: Amount::new(TOKEN, 2),
+        });
+        let permissions = &mut w.transaction_policy.as_mut().unwrap().permissions;
+        permissions.insert((PERSON_TYPE, Action::StockTrade));
+        permissions.insert((STATE_TYPE, Action::StockTrade));
+        let run = |backend| {
+            let mut audit = Audit::with_opening(
+                &w,
+                &s,
+                TOKEN,
+                Opening {
+                    assets: w.assets.iter().map(|a| (a.id, 0)).collect(),
+                    inventory: s
+                        .balances
+                        .iter()
+                        .filter(|((_, r), q)| {
+                            **q > 0
+                                && *r != TOKEN
+                                && w.resources
+                                    .iter()
+                                    .any(|v| v.id == *r && v.kind == ResourceKind::Stock)
+                        })
+                        .map(|(a, q)| (*a, i128::from(*q)))
+                        .collect(),
+                    exchange_values: [(GRAIN, 1), (SEED, 1), (RAW_WOOD, 1), (FUEL, 1)].into(),
+                    processes: Some(Costs {
+                        output_weights: [(
+                            GROW,
+                            [(Output::Stock(GRAIN), 1), (Output::Stock(SEED), 1)].into(),
+                        )]
+                        .into(),
+                        ..Costs::default()
+                    }),
+                    dues: Some(Valuation([(1, 1)].into())),
+                    ..Opening::default()
+                },
+            )
+            .unwrap();
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            while sim.state.phase != Phase::Acquire {
+                audit.step(&mut sim).unwrap();
+            }
+            let mut resumed = sim.clone();
+            let mut ra = audit.clone();
+            audit.step(&mut sim).unwrap();
+            if credit && funded && term == 6 {
+                let d = sim.ledger.last().unwrap().decision.as_ref().unwrap();
+                assert!(
+                    d.rejection_reasons
+                        .iter()
+                        .any(|r| r.contains("land payment is forecast to remain unpaid"))
+                );
+            }
+            assert_eq!(sim.state.exchange.forwards.contains_key(&20), funded);
+            assert_eq!(sim.state.credit.loans.contains_key(&10), credit);
+            assert!(sim.ledger.last().unwrap().decision.is_some());
+            assert_eq!(sim.state.balance(PERSON, TOKEN), if funded { 2 } else { 0 });
+            while sim.state.month < 10 {
+                audit.step(&mut sim).unwrap();
+            }
+            while resumed.state.month < 10 {
+                ra.step(&mut resumed).unwrap();
+            }
+            if funded {
+                let delivered = if credit && term == 6 { 0 } else { 2 };
+                assert_eq!(sim.state.exchange.forwards[&20].delivered, delivered);
+                assert_eq!(sim.state.balance(STATE_AGENT, GRAIN), delivered);
+                assert_eq!(
+                    sim.state.exchange.forwards[&20].claim().outstanding(),
+                    2 - delivered
+                );
+            }
+            assert_eq!((&sim.state, &sim.ledger), (&resumed.state, &resumed.ledger));
+            assert_eq!(audit, ra);
+            for agent in &w.agents {
+                let report = audit.book().statements(agent.id, 1, 9).unwrap();
+                assert_eq!(report.assets, report.liabilities + report.equity);
+            }
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
+
+#[test]
+fn forward_acceptance_does_not_depend_on_winning_land_and_receipts_remain_exact() {
+    use economics_compute_smoke::{
+        allocation::Policy,
+        competition::{self, Application, SECOND_PERSON},
+        forward::{Event, direct},
+    };
+    let (mut w, mut s) = competition::scenario(1, 7).unwrap();
+    w.resources.push(Resource {
+        id: TOKEN,
+        name: "coin".into(),
+        kind: ResourceKind::Stock,
+    });
+    s.balances.insert((STATE_AGENT, TOKEN), 2);
+    w.prepaid_deliveries.push(direct::Terms {
+        id: 20,
+        seller: SECOND_PERSON,
+        buyer: STATE_AGENT,
+        month: 1,
+        due: 3,
+        goods: Amount::new(GRAIN, 2),
+        prepayment: Amount::new(TOKEN, 2),
+    });
+    let permissions = &mut w.transaction_policy.as_mut().unwrap().permissions;
+    permissions.insert((PERSON_TYPE, Action::StockTrade));
+    permissions.insert((STATE_TYPE, Action::StockTrade));
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    while sim.state.phase != Phase::Acquire {
+        sim.step().unwrap();
+    }
+    // Supplied consent remains binding when no applicant wins, and when a
+    // different person wins. Neither round can erase the prepaid delivery.
+    for applications in [
+        vec![],
+        vec![Application {
+            agent: PERSON,
+            requests: vec![
+                Request::new(Id::Membership(1), PERSON),
+                Request::new(Id::Land(1), PERSON),
+                Request::new(Id::Process(GROW), PERSON),
+            ],
+        }],
+    ] {
+        let batch =
+            competition::prepare(&sim, 1, 7, Policy::StablePriority, &applications).unwrap();
+        let opening = sim.state.clone();
+        let mut bad = batch.clone();
+        for tx in &mut bad.transactions {
+            if let Some(Event::Accepted(c)) = &mut tx.forward {
+                c.goods.quantity += 1;
+            }
+        }
+        let mut state = opening.clone();
+        assert!(
+            settlement::commit(&sim.world, &mut state, &bad, sim.backend, sim.effect_limit)
+                .is_err()
+        );
+        assert_eq!(state, opening);
+        let mut branch = sim.clone();
+        competition::accept(&mut branch, 1, 7, Policy::StablePriority, &applications).unwrap();
+        assert_eq!(branch.state.exchange.forwards[&20].debtor, SECOND_PERSON);
+        assert_eq!(branch.state.balance(SECOND_PERSON, TOKEN), 2);
+        assert_eq!(branch.state.accepted_agreements.len(), applications.len());
+        assert!(
+            !branch
+                .state
+                .accepted_agreements
+                .values()
+                .any(|a| a.debtor == SECOND_PERSON)
+        );
+        branch.step().unwrap();
+    }
+}

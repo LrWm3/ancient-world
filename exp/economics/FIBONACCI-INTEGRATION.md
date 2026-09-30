@@ -280,6 +280,9 @@ Completed integrations:
 38. Preserve dated work, atomic rejection and checkpoint continuation across credit/search acceptance.
 39. Allocate competing land bundles against the same funded lending boundary.
 40. Preserve independently consented credit after allocation losses and empty rounds.
+41. Share the financial acquisition base across credit, prepaid deliveries and prerequisite search.
+42. Carry prepaid consent through competitive and empty land allocation rounds.
+43. Compare feasible delivery and retained shortfalls through production and double-entry statements.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.

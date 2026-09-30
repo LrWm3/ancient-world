@@ -60,15 +60,16 @@ pub(crate) fn validate(w: &World, s: &State) -> Result<(), String> {
     }
     if w.credit.as_ref().is_some_and(|c| c.stock_sales.is_some())
         || w.production_market.is_some()
-        || w.competition.is_some()
         || w.work_choice.is_some()
-        || w.priority == Priority::ConsequenceAware
-        || !w.access_offers.is_empty()
+        || (!crate::acquisition::search_composition(w)
+            && (w.competition.is_some()
+                || w.priority == Priority::ConsequenceAware
+                || !w.access_offers.is_empty()))
         || !w.offers.is_empty()
         || (!w.bids.is_empty() && w.market.is_none())
     {
         return Err(
-            "direct forwards require composed acquisition without mortgage stock-sale planning, competitive access or consequence search".into(),
+            "direct forwards require a composed acquisition driver for this search/market configuration".into(),
         );
     }
     let mut ids = BTreeSet::new();

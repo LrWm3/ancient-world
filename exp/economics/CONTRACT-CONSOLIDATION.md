@@ -227,7 +227,8 @@ Credit, direct forward settlement/admission and town trades reserve one opening
 budget; prospective delivery space respects household shared storage.
 
 Direct and tool-underwritten configurations now share collection and admission
-resources; competitive access and consequence-search drivers remain integration work.
+resources. Direct prepayments also compose with bounded citizenship/land consequence
+search and competitive access; the legacy tool-market search remains separate.
 Direct-forward recovery now uses the existing proceeding and delivery-relief adapters,
 including town-market stays; see [Fibonacci integration](FIBONACCI-INTEGRATION.md). Consent and pricing are supplied terms, not autonomous discovery
 or underwriting.

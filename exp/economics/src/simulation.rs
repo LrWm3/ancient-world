@@ -70,15 +70,6 @@ impl Simulation {
                 batch.credit = crate::credit::evaluate(&self.world, &self.state)?;
                 batch.transactions = batch.credit.as_ref().unwrap().transactions.clone();
                 batch.production_plan = batch.credit.as_ref().unwrap().production_plan.clone();
-                if self.state.phase == Phase::Acquire
-                    && crate::credit::search_composition(&self.world)
-                {
-                    if self.world.competition.is_some() {
-                        crate::competition::choose(self, &mut batch)?;
-                    } else if self.world.priority == Priority::ConsequenceAware {
-                        crate::planning::choose(self, &mut batch)?;
-                    }
-                }
             }
         } else {
             match self.state.phase {
@@ -123,6 +114,14 @@ impl Simulation {
                 Phase::Close => {
                     batch.maintenance = Some(maintenance::evaluate(&self.world, &self.state)?);
                 }
+            }
+        }
+        if self.state.phase == Phase::Acquire && crate::acquisition::search_composition(&self.world)
+        {
+            if self.world.competition.is_some() {
+                crate::competition::choose(self, &mut batch)?;
+            } else if self.world.priority == Priority::ConsequenceAware {
+                crate::planning::choose(self, &mut batch)?;
             }
         }
         batch.employment = crate::employment::evaluate(&self.world, &self.state, &batch)?;
