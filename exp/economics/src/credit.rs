@@ -542,13 +542,12 @@ fn validate_purchase(world: &World, state: &State) -> Result<(), String> {
     Ok(())
 }
 /// Direct credit can precede the existing membership/land consequence search.
-/// Quoted work uses committed advances; cash/equipment markets and competing
-/// applications need their own shared-reservation adapters.
+/// Quoted work uses committed advances; competitive applications reuse the same
+/// funded boundary. Cash/equipment markets need their own reservation adapters.
 pub(crate) fn search_composition(world: &World) -> bool {
     !world.lending.is_empty()
         && world.credit.is_none()
         && world.recovery.proceedings.is_empty()
-        && world.competition.is_none()
         && world.market.is_none()
         && world.negotiation.is_none()
         && world.town_market.is_none()
@@ -601,13 +600,13 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         return Err("unknown ownership-following right".into());
     }
     if (!world.lending.is_empty() || !world.recovery.proceedings.is_empty())
+        && !search_composition(world)
         && (world.competition.is_some()
-            || (!search_composition(world)
-                && (world.priority == Priority::ConsequenceAware
-                    || (world.market.is_none()
-                        && (!world.offers.is_empty() || !world.access_offers.is_empty())))))
+            || world.priority == Priority::ConsequenceAware
+            || (world.market.is_none()
+                && (!world.offers.is_empty() || !world.access_offers.is_empty())))
     {
-        return Err("general loans require a composed acquisition driver; competitive and search acquisition are not yet composed".into());
+        return Err("general loans require a composed acquisition driver for this search/market configuration".into());
     }
     if enabled(world) && world.town_market.is_some() && world.production_market.is_some() {
         return Err("town lending does not yet compose with joint production".into());

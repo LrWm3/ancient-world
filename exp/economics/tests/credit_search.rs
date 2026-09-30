@@ -143,3 +143,129 @@ fn explicit_crop_bundle_uses_delivered_credit_and_rejects_altered_boundaries() {
         assert_eq!(sim.state, after);
     }
 }
+
+#[test]
+fn competing_applicants_share_funded_advances_without_canceling_losers_debt() {
+    use economics_compute_smoke::{
+        allocation::Policy,
+        competition::{self, Application, SECOND_PERSON},
+    };
+    for seeds in [0, 1, 2] {
+        for policy in [Policy::StablePriority, Policy::PriorityLottery] {
+            let (mut w, mut s) = competition::scenario(1, 7).unwrap();
+            for (id, agent) in [(10, PERSON), (11, SECOND_PERSON)] {
+                let mut advance = fixture(true).0.lending.remove(0);
+                advance.id = id;
+                advance.debtor = agent;
+                w.lending.push(advance);
+                s.balances.insert((agent, SEED), 0);
+            }
+            s.balances.insert((STATE_AGENT, SEED), seeds);
+            let permissions = &mut w.transaction_policy.as_mut().unwrap().permissions;
+            permissions.insert((PERSON_TYPE, Action::Borrow));
+            permissions.insert((STATE_TYPE, Action::Lend));
+            let run = |backend| {
+                let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+                while sim.state.phase != Phase::Acquire {
+                    sim.step().unwrap();
+                }
+                let requests: Vec<_> = [PERSON, SECOND_PERSON]
+                    .into_iter()
+                    .map(|agent| Application {
+                        agent,
+                        requests: vec![
+                            Request::new(Id::Membership(1), agent),
+                            Request::new(Id::Land(1), agent),
+                            Request::new(Id::Process(GROW), agent),
+                        ],
+                    })
+                    .collect();
+                let batch = competition::prepare(&sim, 1, 7, policy, &requests).unwrap();
+                let mut reversed = sim.clone();
+                reversed.world.lending.reverse();
+                assert_eq!(
+                    batch,
+                    competition::prepare(
+                        &reversed,
+                        1,
+                        7,
+                        policy,
+                        &requests.iter().cloned().rev().collect::<Vec<_>>()
+                    )
+                    .unwrap()
+                );
+                let checkpoint = sim.clone();
+                competition::accept(&mut sim, 1, 7, policy, &requests).unwrap();
+                assert_eq!(sim.state.credit.loans.len(), seeds as usize);
+                assert_eq!(sim.state.accepted_agreements.len(), usize::from(seeds > 0));
+                let mut resumed = checkpoint;
+                competition::accept(&mut resumed, 1, 7, policy, &requests).unwrap();
+                sim.step().unwrap();
+                resumed.step().unwrap();
+                assert_eq!(
+                    sim.state
+                        .processes
+                        .values()
+                        .filter(|p| p.definition == GROW)
+                        .count(),
+                    usize::from(seeds > 0)
+                );
+                if seeds > 0 {
+                    let winner = sim.state.accepted_agreements[&1].debtor;
+                    assert_eq!(sim.state.balance(winner, SEED), 0);
+                    if seeds == 1 {
+                        assert_eq!(winner, PERSON);
+                    } else {
+                        let loser = if winner == PERSON {
+                            SECOND_PERSON
+                        } else {
+                            PERSON
+                        };
+                        assert_eq!(sim.state.balance(loser, SEED), 1);
+                        assert!(sim.state.credit.loans.values().any(|l| l.debtor == loser));
+                    }
+                }
+                assert_eq!((&sim.state, &sim.ledger), (&resumed.state, &resumed.ledger));
+                (sim.state, sim.ledger)
+            };
+            assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+        }
+    }
+}
+
+#[test]
+fn autonomous_competition_keeps_credit_on_later_uncontested_boundaries() {
+    use economics_compute_smoke::competition::{self, SECOND_PERSON};
+    let (mut w, mut s) = competition::scenario(1, 7).unwrap();
+    for (id, agent) in [(10, PERSON), (11, SECOND_PERSON)] {
+        let mut advance = fixture(true).0.lending.remove(0);
+        advance.id = id;
+        advance.debtor = agent;
+        w.lending.push(advance);
+        s.balances.insert((agent, SEED), 0);
+    }
+    s.balances.insert((STATE_AGENT, SEED), 2);
+    let permissions = &mut w.transaction_policy.as_mut().unwrap().permissions;
+    permissions.insert((PERSON_TYPE, Action::Borrow));
+    permissions.insert((STATE_TYPE, Action::Lend));
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        while sim.state.phase != Phase::Acquire {
+            sim.step().unwrap();
+        }
+        let mut resumed = sim.clone();
+        sim.step().unwrap();
+        assert_eq!(sim.state.accepted_agreements.len(), 1);
+        assert_eq!(sim.state.credit.loans.len(), 2);
+        assert!(sim.ledger.last().unwrap().allocation.is_some());
+        while sim.state.month < 3 {
+            sim.step().unwrap();
+        }
+        while resumed.state.month < 3 {
+            resumed.step().unwrap();
+        }
+        assert_eq!((&sim.state, &sim.ledger), (&resumed.state, &resumed.ledger));
+        (sim.state, sim.ledger)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}

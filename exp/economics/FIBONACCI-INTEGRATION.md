@@ -278,6 +278,8 @@ Completed integrations:
 36. Transfer unfinished crop obligations through mortgage estate sales and reconcile outcomes.
 37. Include funded direct advances in prerequisite search and explicit productive bundles.
 38. Preserve dated work, atomic rejection and checkpoint continuation across credit/search acceptance.
+39. Allocate competing land bundles against the same funded lending boundary.
+40. Preserve independently consented credit after allocation losses and empty rounds.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.

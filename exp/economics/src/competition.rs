@@ -159,7 +159,9 @@ pub fn prepare_many(
             }
         }
         let mut accepted = Vec::new();
-        let mut candidate = Batch::empty(&sim.state);
+        // Scheduled financial consent is independent of winning a plot. Even
+        // an empty allocation must retain the opening funded credit boundary.
+        let mut candidate = offers::prepare(sim, &[])?;
         let mut failed = false;
         for receipt in &receipts {
             let Some(&id) = awards.get(&receipt.claim.id) else {
@@ -388,7 +390,7 @@ pub(crate) fn choose(sim: &Simulation, batch: &mut Batch) -> Result<(), String> 
                 .world
                 .open_access_offers
                 .retain(|id| projection.world.access_offers.iter().any(|a| a.id == *id));
-            let mut proposed = Batch::empty(&projection.state);
+            let mut proposed = offers::prepare(&projection, &[])?;
             crate::planning::choose(&projection, &mut proposed)?;
             if proposed.accept_access != Some(offer) {
                 continue;

@@ -484,9 +484,27 @@ the accepted loan through later work. Altered credit records, replay and incorre
 dated or nested production plans fail before publication.
 
 This adapter is deliberately limited to direct lending with prerequisite/process
-search. Competitive access, household search, financial marketplaces and estate
-search combinations still need adapters. Loan terms remain configured consent;
+search. Household search, financial marketplaces and estate search combinations still
+need adapters. Loan terms remain configured consent;
 this does not add autonomous underwriting or a new debt-aware scoring policy.
 
 The focused credit/search gate passed 43 tests with no failures across six targets;
 strict all-target Clippy and repository artifact checks passed.
+
+### Funded credit with competing land applications
+
+The same adapter now includes open land allocation. Every applicant previews the
+same scheduled credit settlement before testing its bundle; the allocator rechecks
+accepted bundles cumulatively under its explicit policy. Even a round with no
+feasible applications retains the credit boundary. A loan is separately consented:
+losing the land allocation does not cancel it or return its proceeds. Conditional
+credit tied to winning a plot would require different admission terms.
+
+One-plot controls use zero, one or two available seeds and two loan applicants.
+Stable and lottery allocation preserve funding limits, retain the losing borrower's
+seed and liability, and agree under reversed loan/application catalogs. Both CPU
+and reference execution preserve the dated work and checkpoint continuation. An
+autonomous continuation checks the subsequent boundary after the plot is awarded.
+
+The competitive-credit gate passed 30 tests across seven targets, followed by
+strict all-target Clippy, whitespace and repository artifact checks.
