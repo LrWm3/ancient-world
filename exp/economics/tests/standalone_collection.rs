@@ -119,3 +119,61 @@ fn standalone_alternative_tenders_allocate_whole_conversion_lots() {
     assert!(bills.iter().all(|o| o.paid >= 2));
     assert_eq!(sim.state.balance(PERSON, COIN), 1);
 }
+
+#[test]
+fn standalone_receipts_and_observers_distinguish_requested_granted_and_paid() {
+    use economics_compute_smoke::{
+        commitments, settlement,
+        telemetry::{Config, Observer},
+    };
+    let (w, s) = fixture(CollectionPolicy::Proportional);
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    sim.run_months(1).unwrap();
+    sim.step().unwrap();
+    assert_eq!(sim.state.phase, Phase::Due);
+    let mut batch = Batch::empty(&sim.state);
+    let mut result = commitments::evaluate(&sim.world, &sim.state).unwrap();
+    assert_eq!(
+        result
+            .collections
+            .iter()
+            .map(|r| (r.requested.quantity, r.allocated, r.paid))
+            .collect::<Vec<_>>(),
+        vec![(4, Some(3), 3), (4, Some(2), 2)]
+    );
+    batch.transactions = result.transactions.clone();
+    result.collections[0].allocated = Some(4);
+    batch.commitments = Some(result);
+    let before = sim.state.clone();
+    assert!(
+        settlement::commit(&sim.world, &mut sim.state, &batch, Backend::CubeCpu, 4096).is_err()
+    );
+    assert_eq!(sim.state, before);
+    let mut observer = Observer::new(
+        Vec::new(),
+        "standalone",
+        Config {
+            settlement: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    observer.run_months(&mut sim, 1).unwrap();
+    let bytes = observer.finish().unwrap();
+    let rows: Vec<serde_json::Value> = std::str::from_utf8(&bytes)
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    let paid: Vec<_> = rows
+        .iter()
+        .filter(|r| r["kind"] == "claim_collection" && r["paid"].as_i64().unwrap_or(0) > 0)
+        .collect();
+    assert_eq!(paid.len(), 2);
+    assert_eq!(
+        paid.iter()
+            .map(|r| r["paid"].as_i64().unwrap())
+            .sum::<i64>(),
+        5
+    );
+}

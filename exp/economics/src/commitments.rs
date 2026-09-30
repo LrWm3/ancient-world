@@ -97,6 +97,7 @@ impl Obligation {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Settlement {
+    pub collections: Vec<finance::CollectionReceipt>,
     pub policy: PaymentPolicy,
     pub protected: BTreeMap<Account, i32>,
     pub obligations: BTreeMap<(u32, u32), Obligation>,
@@ -318,15 +319,18 @@ pub(crate) fn evaluate_with(
     let mut current = state.clone();
     current.obligations = due_obligations(world, state)?;
     let mut transactions = Vec::new();
+    let mut collections = Vec::new();
     for request in order {
         let finance::ContractId::Land(id) = request.contract else {
             unreachable!()
         };
         let settled = evaluate_allocated(world, &current, execution, id, &grants, &protected)?;
         current.obligations = settled.obligations;
+        collections.extend(settled.collections);
         transactions.extend(settled.transactions);
     }
     Ok(Settlement {
+        collections,
         policy: world.payment_policy,
         protected,
         obligations: current.obligations,
@@ -369,7 +373,15 @@ pub(crate) fn evaluate_allocated(
         saved.push((account, opening, limited));
         execution.available.insert(account, limited);
     }
-    let result = evaluate_selected(world, state, execution, Some(id));
+    let result = evaluate_selected(world, state, execution, Some(id)).map(|mut settlement| {
+        let mut remaining = grants.claim_units(&contract);
+        for receipt in &mut settlement.collections {
+            let allocation = remaining.min(receipt.requested.quantity);
+            remaining -= allocation;
+            receipt.allocated = Some(allocation);
+        }
+        settlement
+    });
     for (account, opening, limited) in saved {
         let spent = limited - execution.available.get(&account).copied().unwrap_or(0);
         execution.available.insert(account, opening - spent);
@@ -399,6 +411,7 @@ pub(crate) fn evaluate_selected(
     });
     let protected = protected_stock(world, state)?;
     let mut transactions = Vec::new();
+    let mut collections = Vec::new();
     for key in order {
         if only.is_some_and(|id| id != key.0) {
             continue;
@@ -410,7 +423,12 @@ pub(crate) fn evaluate_selected(
         // Native performance continues on its existing boundary. Cash claims
         // and accepted coin alternatives belong to the estate distribution pool.
         let estate = crate::recovery::active(world, &state.credit, a.debtor);
+        let requested = o.outstanding();
+        let previous_paid = o.paid;
         if !ordinary_collection_allowed(world, state, &state.credit, a) {
+            if o.effective_due() <= state.month {
+                collections.push(collection_receipt(world, a, requested, 0));
+            }
             continue;
         }
         let alternative = estate
@@ -452,13 +470,44 @@ pub(crate) fn evaluate_selected(
                 payment.effects,
             ));
         }
+        if o.effective_due() <= state.month {
+            collections.push(collection_receipt(
+                world,
+                a,
+                requested,
+                o.paid - previous_paid,
+            ));
+        }
     }
     Ok(Settlement {
+        collections,
         policy: world.payment_policy,
         protected,
         obligations,
         transactions,
     })
+}
+
+fn collection_receipt(
+    world: &World,
+    a: &Agreement,
+    requested: i32,
+    paid: i32,
+) -> finance::CollectionReceipt {
+    let contract = finance::ContractId::Land(a.id);
+    finance::CollectionReceipt {
+        contract,
+        rank: world
+            .claim_priorities
+            .get(&contract)
+            .copied()
+            .unwrap_or(finance::DEFAULT_CLAIM_RANK),
+        debtor: a.debtor,
+        creditor: a.creditor,
+        requested: Amount::new(a.payment.resource, requested),
+        allocated: None,
+        paid,
+    }
 }
 
 /// Update the one authoritative receipt. Only real native receipts may issue tokens.

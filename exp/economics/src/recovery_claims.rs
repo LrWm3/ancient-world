@@ -190,6 +190,7 @@ pub(crate) fn pay_land(
         .ok_or("missing estate land agreement")?;
     let native = a.payment.resource == p.denomination;
     let mut settlement = out.commitments.clone().unwrap_or(commitments::Settlement {
+        collections: vec![],
         policy: world.payment_policy,
         protected: commitments::protected_stock(world, state)?,
         obligations: commitments::due_obligations(world, state)?,

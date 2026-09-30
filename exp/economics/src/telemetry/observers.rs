@@ -209,6 +209,18 @@ pub(super) fn batch(
             }
         }
     }
+    if config.settlement {
+        for collection in batch
+            .credit
+            .iter()
+            .flat_map(|c| &c.collections)
+            .chain(batch.commitments.iter().flat_map(|c| &c.collections))
+        {
+            if selected(config, collection.debtor) || selected(config, collection.creditor) {
+                records.push(json!({"kind":"claim_collection","contract":format!("{:?}",collection.contract),"rank":collection.rank,"debtor":collection.debtor,"creditor":collection.creditor,"resource":collection.requested.resource,"requested":collection.requested.quantity,"allocated":collection.allocated,"paid":collection.paid}));
+            }
+        }
+    }
     if config.settlement
         && let Some(credit) = &batch.credit
     {
@@ -225,11 +237,6 @@ pub(super) fn batch(
                 "last_accrued":loan.last_accrued,"status":format!("{:?}",loan.status),
                 "asset":loan.collateral.as_ref().map(|c| c.asset),"pledged":loan.collateral.as_ref().is_some_and(|c| c.pledged),
                 "owner":loan.collateral.as_ref().and_then(|c| credit.after.owners.get(&c.asset))}));
-        }
-        for collection in &credit.collections {
-            if selected(config, collection.debtor) || selected(config, collection.creditor) {
-                records.push(json!({"kind":"claim_collection","contract":format!("{:?}",collection.contract),"rank":collection.rank,"debtor":collection.debtor,"creditor":collection.creditor,"resource":collection.requested.resource,"requested":collection.requested.quantity,"allocated":collection.allocated,"paid":collection.paid}));
-            }
         }
         for receipt in &credit.recovery {
             use crate::recovery::Receipt;

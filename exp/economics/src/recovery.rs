@@ -925,6 +925,7 @@ pub(crate) fn guarantees(
                             .ok_or("missing guaranteed land agreement")?;
                         if out.commitments.is_none() {
                             out.commitments = Some(crate::commitments::Settlement {
+                                collections: vec![],
                                 policy: world.payment_policy,
                                 protected: crate::commitments::protected_stock(world, state)?,
                                 obligations: crate::commitments::due_obligations(world, state)?,

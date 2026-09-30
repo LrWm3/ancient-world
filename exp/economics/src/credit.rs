@@ -1050,84 +1050,37 @@ fn due(
         let id = match contract {
             finance::ContractId::Loan(id) => id,
             finance::ContractId::Land(id) => {
-                let agreement = crate::commitments::active(world, state)
-                    .find(|a| a.id == id)
-                    .ok_or("missing collection agreement")?;
-                let account = (agreement.debtor, agreement.payment.resource);
-                let opening = execution.available.get(&account).copied().unwrap_or(0);
-                if let Some(grants) = &grants {
-                    execution.available.insert(
-                        account,
-                        opening.min(
-                            grants
-                                .get(&contract)
-                                .copied()
-                                .unwrap_or(0)
-                                .saturating_add(protected.get(&account).copied().unwrap_or(0)),
-                        ),
-                    );
-                }
-                let alternative = grants
-                    .as_ref()
-                    .and_then(|g| g.alternative.get(&contract))
-                    .map(|(resource, amount, _)| {
-                        let account = (agreement.debtor, *resource);
-                        let opening = execution.available.get(&account).copied().unwrap_or(0);
-                        let limited = opening.min(
-                            amount.saturating_add(protected.get(&account).copied().unwrap_or(0)),
-                        );
-                        execution.available.insert(account, limited);
-                        (account, opening, limited)
-                    });
-                let limited = execution.available.get(&account).copied().unwrap_or(0);
-                let settlement = crate::commitments::evaluate_selected(
-                    world,
-                    &collection_state,
-                    &mut execution,
-                    Some(id),
-                )?;
-                if let Some((account, opening, limited)) = alternative {
-                    let spent = limited - execution.available.get(&account).copied().unwrap_or(0);
-                    execution.available.insert(account, opening - spent);
-                }
-                let spent = limited - execution.available.get(&account).copied().unwrap_or(0);
-                execution.available.insert(account, opening - spent);
-                let mut remaining_grant = grants.as_ref().map(|g| g.claim_units(&contract));
-                for (key, obligation) in settlement
-                    .obligations
-                    .iter()
-                    .filter(|(key, o)| key.0 == id && o.effective_due() <= state.month)
-                {
-                    let previous = collection_state.obligations.get(key).map_or(0, |o| o.paid);
-                    out.collections.push(finance::CollectionReceipt {
-                        contract,
-                        rank,
-                        debtor: agreement.debtor,
-                        creditor: agreement.creditor,
-                        requested: Amount::new(
-                            agreement.payment.resource,
-                            obligation.owed - obligation.written_off() - previous,
-                        ),
-                        allocated: remaining_grant.as_mut().map(|remaining| {
-                            let amount = (*remaining)
-                                .min(obligation.owed - obligation.written_off() - previous);
-                            *remaining -= amount;
-                            amount
-                        }),
-                        paid: obligation.paid - previous,
-                    });
-                }
+                let settlement = if let Some(grants) = &grants {
+                    crate::commitments::evaluate_allocated(
+                        world,
+                        &collection_state,
+                        &mut execution,
+                        id,
+                        grants,
+                        &protected,
+                    )?
+                } else {
+                    crate::commitments::evaluate_selected(
+                        world,
+                        &collection_state,
+                        &mut execution,
+                        Some(id),
+                    )?
+                };
+                out.collections.extend(settlement.collections.clone());
                 collection_state.obligations = settlement.obligations.clone();
                 out.transactions.extend(settlement.transactions.clone());
                 let all = out
                     .commitments
                     .get_or_insert_with(|| crate::commitments::Settlement {
+                        collections: vec![],
                         policy: settlement.policy,
                         protected: settlement.protected.clone(),
                         obligations: settlement.obligations.clone(),
                         transactions: vec![],
                     });
                 all.obligations = settlement.obligations;
+                all.collections.extend(settlement.collections);
                 all.transactions.extend(settlement.transactions);
                 *budgets = execution.available.clone();
                 continue;

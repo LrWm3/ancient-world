@@ -190,6 +190,7 @@ pub(crate) fn apply(w: &World, s: &State, out: &mut credit::Boundary) -> Result<
                 ContractId::Land(id) => {
                     if out.commitments.is_none() {
                         out.commitments = Some(crate::commitments::Settlement {
+                            collections: vec![],
                             policy: w.payment_policy,
                             protected: crate::commitments::protected_stock(w, s)?,
                             obligations: crate::commitments::due_obligations(w, s)?,
