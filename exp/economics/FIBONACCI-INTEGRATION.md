@@ -1063,3 +1063,18 @@ separate gates and are not covered by this snapshot.
     still owed is guaranteed; a fully paid claim creates no downstream advance.
     Person/household, both allocation policies and CPU/checkpoint controls pass.
     The four-target gate passed 110 tests and strict all-target Clippy passed.
+
+73. **Admitted fixed-value loans share agreed estate relief.** The active estate's
+    stay now lets direct fixed-value collateral loans use partial/full consented
+    write-off and lien release. Different appraisals produce identical actual
+    eight-coin recovery, with no fixed-value enforcement or fictitious surplus.
+    Pre/post-sale and CPU/checkpoint controls pass. Creditor-resale admission
+    remains excluded. The five-target gate passed 89 tests and strict all-target
+    Clippy passed.
+
+### Full-suite checkpoint through item 64
+
+The isolated **`218ae38`** source snapshot completed
+`cargo +1.92.0 test --locked`: **1,004 passed, 0 failed, 1 ignored**, across
+123 Cargo result targets including empty unit/doc targets. Items 65 onward have
+their separate gates above and are not covered by this snapshot.

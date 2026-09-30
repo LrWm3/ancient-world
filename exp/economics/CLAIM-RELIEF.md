@@ -214,5 +214,14 @@ The historical record distinguishes a retained lien from a full release; forged
 retention/release is rejected. Other loans secured by the same asset survive.
 Person and household controls reconcile creditor losses, debt relief and actual
 payments through CPU/reference and checkpoints. The six-target gate passed
-123 tests and strict all-target Clippy passed. Fixed-value repossession and
-creditor-resale contracts still need their own release adapter.
+123 tests and strict all-target Clippy passed. The subsequent direct fixed-value
+adapter is described below; creditor-resale contracts remain excluded.
+
+Direct fixed-value loans already admitted to an authorized estate now share this
+relief adapter. The proceeding's stay prevents fixed-value enforcement while exact
+creditor consent reduces or clears the claim. Ten- and twenty-coin collateral
+values both yield only eight actual sale coins; there is no appraisal payment,
+creditor title transfer or invented surplus. Partial/full relief before/after sale
+reconciles on CPU/reference and checkpoints. The five-target gate passed 89 tests
+and strict all-target Clippy passed. General creditor-resale loans remain excluded
+by admission; this change does not enable that combination.

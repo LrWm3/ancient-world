@@ -293,7 +293,10 @@ fn view(w: &World, s: &State, t: &Terms) -> Option<(crate::finance::Obligation, 
                             .is_some_and(|case| {
                                 case.sold.contains(&c.asset) && case.secured.contains_key(&id)
                             }))
-                        || c.settlement != credit::CollateralSettlement::AuthorizedLiquidation
+                        || matches!(
+                            c.settlement,
+                            credit::CollateralSettlement::ResaleProceeds { .. }
+                        )
                 })
             {
                 return None;
@@ -375,7 +378,10 @@ pub(crate) fn validate_loans(w: &World, s: &State) -> Result<(), String> {
                         l.collateral.as_ref().map(|c| c.asset)
                     }
                 || l.collateral.as_ref().is_some_and(|c| {
-                    c.settlement != credit::CollateralSettlement::AuthorizedLiquidation
+                    matches!(
+                        c.settlement,
+                        credit::CollateralSettlement::ResaleProceeds { .. }
+                    )
                 })
                 || r.principal < 0
                 || r.interest < 0
