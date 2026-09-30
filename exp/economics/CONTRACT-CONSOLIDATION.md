@@ -209,3 +209,15 @@ and tool-underwritten configurations remain separate integration work.
 Direct-forward recovery now uses the existing proceeding and delivery-relief adapters,
 including town-market stays; see [Fibonacci integration](FIBONACCI-INTEGRATION.md). Consent and pricing are supplied terms, not autonomous discovery
 or underwriting.
+
+
+### Earned-wage recovery integration — Fibonacci batch 3
+
+[Wage recovery](WAGE-RECOVERY.md) now admits earned claims, pauses new employer
+work during an authorized proceeding, and allocates same-denomination estate cash
+with loan/land creditors. Actual payment updates the original employment book and
+separate worker/employer/custodian statements; member wages pool once on receipt.
+Native physical wages retain their existing service path and block closure if
+unpaid. This supersedes the earlier blanket wage-insolvency exclusion. Explicit
+wage relief, guarantees, automatic estates and general employment discovery remain
+open; person self-directed policy changes stay deferred.

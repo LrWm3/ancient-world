@@ -228,3 +228,218 @@ fn wages_and_loans_share_custody_by_explicit_priority_and_proportion() {
         }
     }
 }
+
+#[test]
+fn native_physical_wages_are_not_converted_to_estate_cash_or_forgiven() {
+    use economics_compute_smoke::minting::FIREWOOD;
+    let (mut w, mut s) = fixture();
+    w.employment[0].through = 1;
+    w.employment[0].wage_per_unit.resource = FIREWOOD;
+    s.balances.insert((ISSUER, COIN), 4);
+    let mut a = Audit::with_opening(
+        &w,
+        &s,
+        COIN,
+        Opening {
+            exchange_values: [(FIREWOOD, 1)].into(),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    through(&mut a, &mut sim, 4);
+    assert_eq!(sim.state.balance(ISSUER, COIN), 4);
+    assert_eq!(sim.state.balance(ESTATE, COIN), 0);
+    assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 4);
+    assert_eq!(
+        sim.state.credit.recovery.proceedings[&1].stage,
+        Stage::Active
+    );
+    assert!(!receipts(&sim).any(|r| matches!(r, Receipt::WagesDistributed{paid, ..} if *paid > 0)));
+}
+
+#[test]
+fn tampered_estate_wage_payment_and_replay_are_atomic() {
+    use economics_compute_smoke::settlement::{DEFAULT_EFFECT_LIMIT, commit};
+    let (mut w, mut s) = fixture();
+    delayed_income(&mut w, &mut s, 4);
+    let mut a = audit(&w, &s);
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    while sim.state.month < 4 || sim.state.phase != Phase::Due {
+        a.step(&mut sim).unwrap();
+    }
+    let before = sim.state.clone();
+    let before_audit = a.clone();
+    a.step(&mut sim).unwrap();
+    let valid = sim.ledger.last().unwrap().clone();
+    for mode in 0..3 {
+        let mut bad = valid.clone();
+        let c = bad.credit.as_mut().unwrap();
+        match mode {
+            0 => c.employment = None,
+            1 => {
+                c.employment
+                    .as_mut()
+                    .unwrap()
+                    .earned
+                    .get_mut(&(1, 1))
+                    .unwrap()
+                    .claim
+                    .settled -= 1
+            }
+            _ => {
+                if let Some(Receipt::WagesDistributed { paid, .. }) = c
+                    .recovery
+                    .iter_mut()
+                    .find(|r| matches!(r, Receipt::WagesDistributed{paid, ..} if *paid > 0))
+                {
+                    *paid += 1;
+                }
+            }
+        }
+        let mut candidate = before.clone();
+        assert!(
+            commit(
+                &sim.world,
+                &mut candidate,
+                &bad,
+                Backend::Reference,
+                DEFAULT_EFFECT_LIMIT
+            )
+            .is_err()
+        );
+        assert_eq!(candidate, before);
+        let mut reporting = before_audit.clone();
+        assert!(
+            reporting
+                .record(&sim.world, &before, &bad, &sim.state)
+                .is_err()
+        );
+        assert_eq!(reporting.book().balances(), before_audit.book().balances());
+    }
+    let mut candidate = sim.state.clone();
+    assert!(
+        commit(
+            &sim.world,
+            &mut candidate,
+            &valid,
+            Backend::Reference,
+            DEFAULT_EFFECT_LIMIT
+        )
+        .is_err()
+    );
+    assert_eq!(candidate, sim.state);
+}
+
+#[test]
+fn liquidation_wages_pool_to_workers_household_once_and_are_observable() {
+    use economics_compute_smoke::{
+        households::{self, market::EXAMPLE_HOUSEHOLD as HOME},
+        opportunities::{Action, PERSON_TYPE},
+        recovery::{Bid, Listing},
+        scenario::{LABOR, PERSON, TOKEN},
+        telemetry::{Config, Observer},
+    };
+    const EMPLOYER: AgentId = 89;
+    const BUYER: AgentId = 92;
+    const ASSET: AssetId = 900;
+    let (mut w, mut s) = households::market::scenario().unwrap();
+    w.town_market = None;
+    s.town_market = Default::default();
+    s.balances.clear();
+    s.balances.insert((BUYER, TOKEN), 4);
+    w.activities.orders.clear();
+    for p in &mut w.participants {
+        p.needs.clear();
+        p.capacity.quantity = if p.agent == PERSON { 5 } else { 0 };
+    }
+    w.transaction_policy.as_mut().unwrap().permissions.extend([
+        (PERSON_TYPE, Action::CapacityTrade),
+        (PERSON_TYPE, Action::AssetTrade),
+    ]);
+    w.agents.push(Agent {
+        id: ESTATE,
+        name: "custody".into(),
+    });
+    w.assets.push(Asset {
+        id: ASSET,
+        owner: EMPLOYER,
+        kind: 1,
+    });
+    w.employment.push(Terms {
+        id: 1,
+        employer: EMPLOYER,
+        worker: PERSON,
+        from: 1,
+        through: 1,
+        capacity: Amount::new(LABOR, 2),
+        wage_per_unit: Amount::new(TOKEN, 2),
+        on_arrears: ArrearsPolicy::Continue,
+        rank: 0,
+    });
+    w.recovery.proceedings.push(ProceedingTerms {
+        id: 1,
+        debtor: EMPLOYER,
+        authority: w.transaction_policy.as_ref().unwrap().authority,
+        estate: ESTATE,
+        denomination: TOKEN,
+        opening_month: 3,
+        earliest_close: 3,
+        assets: vec![Listing {
+            asset: ASSET,
+            minimum_price: 4,
+        }],
+        discharge_deficiency: true,
+    });
+    w.recovery.bids.push(Bid {
+        id: 1,
+        proceeding: 1,
+        buyer: BUYER,
+        asset: ASSET,
+        month: 3,
+        price: 4,
+    });
+    let mut a = Audit::with_opening(
+        &w,
+        &s,
+        TOKEN,
+        Opening {
+            assets: w.assets.iter().map(|asset| (asset.id, 0)).collect(),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let mut b = a.clone();
+    let mut reference = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    let mut observer = Observer::new(
+        Vec::new(),
+        "estate-wage",
+        Config {
+            settlement: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    while sim.state.month <= 5 {
+        observer.step_audited(&mut sim, &mut a).unwrap();
+    }
+    through(&mut b, &mut reference, 5);
+    assert_eq!(sim.state, reference.state);
+    assert_eq!(a.book().balances(), b.book().balances());
+    assert_eq!(sim.state.balance(PERSON, TOKEN), 2);
+    assert_eq!(sim.state.balance(HOME, TOKEN), 2);
+    assert_eq!(sim.state.balance(BUYER, TOKEN), 0);
+    assert_eq!(sim.state.balance(ESTATE, TOKEN), 0);
+    assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 0);
+    assert_eq!(
+        sim.state.credit.recovery.proceedings[&1].stage,
+        Stage::Closed
+    );
+    let logs = String::from_utf8(observer.finish().unwrap()).unwrap();
+    assert!(
+        logs.lines()
+            .map(|l| serde_json::from_str::<serde_json::Value>(l).unwrap())
+            .any(|r| r["detail"]["event"] == "WagesDistributed" && r["detail"]["paid"] == 4)
+    );
+}

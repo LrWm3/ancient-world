@@ -42,3 +42,15 @@ controls compare wages-first, loans-first and equal-rank sharing against identic
 six-coin resources and eight-coin claims; reordered catalogs agree. A four-coin
 payment runs from later earned income through custody and full wage payment to
 closure, with CPU/reference and checkpoint continuation agreement.
+
+
+## Integrated validation
+
+The third change adds seven total wage-recovery tests, all passing. The combined
+CPU/reference liquidation case sells real property to a funded buyer, pays four
+coins to a member's wage claim, and leaves two coins with the person and two with
+the household. No wage is earned again, custody balances return to zero and the
+case closes. Telemetry records the actual four-coin distribution. Physical wages
+are not settled using an implicit coin valuation. Forged claim balances, missing
+book changes, altered receipts and replay fail atomically. Strict all-target Clippy
+also passes. Broader affected-suite validation is recorded with subsequent batches.

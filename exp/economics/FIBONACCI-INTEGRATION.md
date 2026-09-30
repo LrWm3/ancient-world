@@ -72,3 +72,19 @@ Final regression selection: **355 tests passed across 29 suites**, with
 passed, as did the existing ten-year household income and full-horizon observer
 checks. The full crate suite was not run. Formatting, strict all-target Clippy,
 whitespace checks and the repository artifact-policy check passed.
+
+
+## Continued batch 3: wages and recovery
+
+1. Admit earned wages, keep native claims, stop new employer delivery during a
+   proceeding, and stay coin collection to prevent bypassing the estate window.
+2. Share actual estate cash with other creditors under explicit ranks; update the
+   existing employment book and separate statements, including household pooling.
+3. Exercise funded liquidation, household wage receipt, physical-denomination
+   limits, forged records, replay and observer evidence together.
+
+See [wage recovery](WAGE-RECOVERY.md). These three changes close the bounded wage
+admission/payment gap, not the entire long-term financial stress-test roadmap.
+The next batch size is 5; explicit non-loan disposition is the next consolidation
+work. Fibonacci has no exhaustion point. Person self-directed policy changes remain
+excluded, and static constitutions/charters stay static.

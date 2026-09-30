@@ -1305,3 +1305,15 @@ book or immediate recognition of prepaid sales is introduced.
 CPU/reference cases combine market funding, native land dues, direct loan funding
 competition, shared storage, legal changes and replay. Advances must use the journal
 reporting coin; direct-forward recovery and FX remain outside this coverage.
+
+
+### Earned-wage recovery integration — Fibonacci batch 3
+
+[Wage recovery](WAGE-RECOVERY.md) now admits earned claims, pauses new employer
+work during an authorized proceeding, and allocates same-denomination estate cash
+with loan/land creditors. Actual payment updates the original employment book and
+separate worker/employer/custodian statements; member wages pool once on receipt.
+Native physical wages retain their existing service path and block closure if
+unpaid. This supersedes the earlier blanket wage-insolvency exclusion. Explicit
+wage relief, guarantees, automatic estates and general employment discovery remain
+open; person self-directed policy changes stay deferred.
