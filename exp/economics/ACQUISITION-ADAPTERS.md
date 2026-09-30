@@ -465,3 +465,28 @@ and hires no labor. The test creates an identical controlled default before its
 reporting opening; no funds are injected during the measured sale/work interval.
 CPU/reference and checkpoint continuations agree. Member ownership and household
 funds remain distinct.
+
+## Direct credit and prerequisite search
+
+Configured direct advances can now precede consequence-aware citizenship, land and
+process search in the same Acquire boundary. Candidate feasibility includes the
+actual funded credit settlement; an advertised advance is not spendable stock.
+Selected work is dated for the following Productive boundary. Explicit common
+offer bundles use the same credit records and can reserve immediate planting
+after seed delivery. An unfunded lender cannot support that bundle.
+
+A seed-lending regression pairs funded and unfunded lenders against the same
+person with no seed. The funded agent obtains citizenship and land and starts
+farming within four months; the existing policy can defer planting rather than
+start immediately. CPU/reference execution and checkpoint continuation agree.
+Explicit preparation remains read-only, rejects incomplete bundles, and preserves
+the accepted loan through later work. Altered credit records, replay and incorrectly
+dated or nested production plans fail before publication.
+
+This adapter is deliberately limited to direct lending with prerequisite/process
+search. Competitive access, household search, financial marketplaces and estate
+search combinations still need adapters. Loan terms remain configured consent;
+this does not add autonomous underwriting or a new debt-aware scoring policy.
+
+The focused credit/search gate passed 43 tests with no failures across six targets;
+strict all-target Clippy and repository artifact checks passed.

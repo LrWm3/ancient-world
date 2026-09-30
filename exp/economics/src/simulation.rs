@@ -70,6 +70,12 @@ impl Simulation {
                 batch.credit = crate::credit::evaluate(&self.world, &self.state)?;
                 batch.transactions = batch.credit.as_ref().unwrap().transactions.clone();
                 batch.production_plan = batch.credit.as_ref().unwrap().production_plan.clone();
+                if self.state.phase == Phase::Acquire
+                    && self.world.priority == Priority::ConsequenceAware
+                    && crate::credit::search_composition(&self.world)
+                {
+                    crate::planning::choose(self, &mut batch)?;
+                }
             }
         } else {
             match self.state.phase {

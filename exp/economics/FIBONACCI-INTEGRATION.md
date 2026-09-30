@@ -276,6 +276,8 @@ Completed integrations:
 34. Carry household/member secured claims through recovery and permitted dissolution.
 35. Route opted-in mortgages through authorized estate custody and funded liquidation.
 36. Transfer unfinished crop obligations through mortgage estate sales and reconcile outcomes.
+37. Include funded direct advances in prerequisite search and explicit productive bundles.
+38. Preserve dated work, atomic rejection and checkpoint continuation across credit/search acceptance.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.

@@ -275,6 +275,14 @@ pub(crate) fn commit_core(
     if batch.production_plan.is_some() && batch.phase != Phase::Acquire {
         return Err("production plan outside acquisition boundary".into());
     }
+    if let Some(plan) = &batch.production_plan
+        && (Some(plan.id) != batch.id.checked_add(1)
+            || plan.month != batch.month
+            || plan.phase != Phase::Productive
+            || plan.production_plan.is_some())
+    {
+        return Err("production plan must describe the next Productive boundary".into());
+    }
     let expected_commitments = if batch.phase == Phase::ClearArrears
         || (!crate::credit::enabled(world) && batch.phase == Phase::Due)
     {

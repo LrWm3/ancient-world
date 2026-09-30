@@ -95,8 +95,9 @@ misrepresented as conserved transfers between fictional counterparties.
 Direct advances are configured consent, not an autonomous credit offer search or
 underwriter. Direct lending now composes with productive pool collection.
 Authorized coin recovery and posted household hiring also compose with productive
-pool allocation. Competitive access and consequence-search acquisition still need
-adapters. Legacy plot expansion now
+pool allocation. Direct lending also composes with citizenship/land consequence search and
+dated productive work; competitive access and broader search/market combinations
+still need adapters. Legacy plot expansion now
 observes direct-loan liabilities; mortgage expansion remains unsupported. Unsupported direct-loan combinations fail validation explicitly.
 Mortgage-specific compatibility restrictions also remain until their ownership
 and planning assumptions are migrated.
