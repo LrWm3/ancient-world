@@ -137,7 +137,7 @@ compared with four without pooling. Later sales pool once after closure. The
 funded/unfunded matrix checks separate statements, physical output, custody,
 CPU/reference and reconstructed continuation. This enables a participant who is
 a household member; a household itself is not a stock-sale participant in this
-specialized driver. Household forecast/joint sale policies remain guarded.
+specialized driver. Household joint work/sale policy remains guarded.
 
 The bounded sale forecast now shares that recovery path. Active stays cap its
 candidate quantity at zero, while ordinary production/consumption continues in
@@ -146,3 +146,10 @@ funded closure and ongoing insolvency without food deficits. A zero-sale candida
 can be feasible without repairing the debt or authorizing forbidden exchange.
 Forecasts remain conditional on configured future recovery bids and real bidder
 funds; this is not autonomous liquidation-price discovery.
+
+Member sale forecasts now run through the household wrapper too. They preserve
+private food, contribution carry, separate collective cash and the member's
+estate. The same nutrition-constrained test projects both an actually funded
+property sale and a continuing stay; it does not assume that collective balances
+can pay a private debt. Forecasts remain read-only, and reconstructed CPU and
+reference continuations agree with the double-entry statements.

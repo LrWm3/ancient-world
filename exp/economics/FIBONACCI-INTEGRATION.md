@@ -550,3 +550,11 @@ their separately recorded affected gates; this full result does not cover them.
     permission. Funded/unfunded continuation, tampering, separate books and
     CPU/checkpoint controls pass. The four-target gate passed 21 tests;
     strict all-target Clippy passed. Joint work/sale planning remains guarded.
+
+23. **Member sale forecasts retain collective and private boundaries.** The
+    bounded forecast now composes with household contribution carry, private food
+    consumption, member mortgage debt and an authorized estate. Funded and
+    unfunded property bids retain distinct closures; household cash never becomes
+    assumed private financing. Separate statements and CPU/reconstructed
+    continuation agree. The four-target gate passed 24 tests; strict all-target
+    Clippy passed. Joint household work/sale reservations remain guarded.

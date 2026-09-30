@@ -272,6 +272,11 @@ fn sale_forecasts_use_actual_recovery_stays_and_retain_food_constraints() {
     posted_crop_sales(false, true);
 }
 
+#[test]
+fn member_sale_forecasts_retain_household_pooling_and_private_food_during_recovery() {
+    posted_crop_sales(true, true);
+}
+
 fn posted_crop_sales(household: bool, forecast: bool) {
     use economics_compute_smoke::{currency, recovery, settlement, stock_sale};
     for funded in [false, true] {
