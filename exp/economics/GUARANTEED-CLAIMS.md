@@ -183,3 +183,11 @@ historical inventory cost. CPU/reference, reconstructed statements and forged
 payment receipts agree. Unpaid wage units remain owed. This does not add an
 alternative tender for prepaid deliveries or a secured wage-recourse route;
 accepted land conversion retains its separate existing terms.
+
+A household may also guarantee a member's native wage using agreed coins. Actual
+coin receipts pool once; those returned contributions cannot finance another call
+at the same Due boundary, and private member coins do not fund the household's
+guarantee. Native recourse remains a separate household asset that blocks solvent
+closure until recovered or disposed of. With an unfunded expired guarantee,
+residual household cash can be distributed without deleting the member's unpaid
+wage claim. CPU/reference and checkpoint statements agree.

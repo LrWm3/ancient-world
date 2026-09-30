@@ -2025,3 +2025,119 @@ fn agreed_coin_wage_guarantees_keep_native_claims_and_actual_payment_statements(
         }
     }
 }
+
+#[test]
+fn household_wage_guarantor_pools_actual_coins_once_and_retains_native_recourse_at_exit() {
+    use economics_compute_smoke::{
+        household_governance::Governance,
+        households::{self, dissolution as d},
+        minting::FIREWOOD,
+        recovery::GuaranteeTender,
+    };
+    const HOME: AgentId = 800;
+    for cash in [1, 5] {
+        let (mut w, mut s) = fixture();
+        w.employment[0].wage_per_unit.resource = FIREWOOD;
+        w.recovery.guarantees[0].guarantor = HOME;
+        w.recovery.guarantees[0].through = 2;
+        w.recovery.guarantees[0].tender = GuaranteeTender::AgreedCoins {
+            resource: COIN,
+            coins_per_unit: 2,
+        };
+        let mut governance = Governance::contributed(WORKER);
+        governance.constitution.allow_dissolution = true;
+        households::form(
+            &mut w,
+            &s,
+            households::Agreement {
+                id: 1,
+                agent: HOME,
+                adults: vec![WORKER],
+                governance,
+                formed: 1,
+                dwelling_process: None,
+                admission: None,
+                membership: vec![],
+                asset_sales: vec![],
+                equipment_retirements: vec![],
+                support: vec![],
+            },
+        )
+        .unwrap();
+        s.balances.insert((HOME, COIN), cash);
+        s.balances.insert((WORKER, COIN), 10);
+        let opening = Opening {
+            exchange_values: [(FIREWOOD, 3)].into(),
+            ..Opening::default()
+        };
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut audit = Audit::with_opening(&w, &s, COIN, opening.clone()).unwrap();
+            through(&mut audit, &mut sim, 2);
+            let paid = cash / 2;
+            // Returned household contributions cannot finance another call in
+            // the same Due boundary, and private opening cash never funds it.
+            assert_eq!(sim.state.balance(HOME, COIN), cash - paid);
+            assert_eq!(sim.state.balance(WORKER, COIN), 10 + paid);
+            assert_eq!(
+                sim.state.employment.earned[&(1, 1)].claim.outstanding(),
+                4 - paid
+            );
+            assert_eq!(
+                sim.state.credit.loans.get(&101).map_or(0, |l| l.principal),
+                paid
+            );
+            assert_eq!(sim.state.balance(HOME, FIREWOOD), 0);
+            assert_eq!(sim.state.balance(WORKER, FIREWOOD), 0);
+            let due = sim
+                .ledger
+                .iter()
+                .find(|b| b.month == 2 && b.phase == Phase::Due)
+                .unwrap();
+            let h = due.household.as_ref().unwrap();
+            assert!(h.after.iter().all(|e| e.account.1 == COIN));
+            assert_eq!(
+                h.after
+                    .iter()
+                    .filter(|e| e.account == (HOME, COIN))
+                    .map(|e| e.delta)
+                    .sum::<i32>(),
+                paid
+            );
+            if paid > 0 {
+                assert_eq!(
+                    audit.book().balances()[&(HOME, Account::LoanReceivable(101))],
+                    i128::from(paid * 3)
+                );
+                assert_eq!(
+                    audit.book().balances()[&(ISSUER, Account::LoanPayable(101))],
+                    -i128::from(paid * 3)
+                );
+            }
+            assert_eq!(
+                audit.book().balances()[&(WORKER, Account::WagesReceivable(1, 1))],
+                i128::from((4 - paid) * 3)
+            );
+            assert_eq!(
+                d::blockers(&sim.world, &sim.state, HOME).contains(&d::Blocker::Loan),
+                paid > 0
+            );
+            d::request(&mut sim.world, &sim.state, HOME, WORKER).unwrap();
+            let mut resumed =
+                Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+            let mut ra = audit.clone();
+            through(&mut audit, &mut sim, 3);
+            through(&mut ra, &mut resumed, 3);
+            assert_eq!((&sim.state, &audit), (&resumed.state, &ra));
+            if paid > 0 {
+                assert!(d::finish(&mut sim.world, &sim.state, HOME, WORKER).is_err());
+            } else {
+                d::finish(&mut sim.world, &sim.state, HOME, WORKER).unwrap();
+                assert_eq!(sim.state.balance(WORKER, COIN), 11);
+                assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 4);
+            }
+            (sim.world, sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

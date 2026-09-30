@@ -834,3 +834,11 @@ separately recorded affected gates and are not covered by this snapshot.
     two reporting denominations. The six-target gate passed 65 tests and strict
     all-target Clippy passed. Prepaid-delivery alternative tender and broader
     security combinations remain outstanding.
+
+49. **Household wage guarantees preserve actual tender and exit obligations.**
+    Funded and underfunded controls combine native wage arrears, agreed coins,
+    household pooling and solvent wind-down. Returned contributions cannot be
+    recycled at Due, private funds remain separate, and native recourse blocks
+    closure while the original unpaid wage survives an unfunded guarantee's expiry.
+    CPU/reference and checkpoint statements agree. The four-target gate passed
+    63 tests; strict all-target Clippy passed.
