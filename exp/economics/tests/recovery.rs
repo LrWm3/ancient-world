@@ -2318,11 +2318,22 @@ fn partial_secured_relief(household: bool) {
 
 #[test]
 fn chained_secured_guarantees_transfer_the_same_lien_and_hold_new_recourse_until_next_month() {
+    secured_chain(false);
+}
+
+#[test]
+fn household_secured_chain_can_wind_down_while_member_retains_the_final_private_claim() {
+    secured_chain(true);
+}
+
+fn secured_chain(household: bool) {
     use economics_compute_smoke::{
         financial_reporting::Audit,
         recovery::{GuaranteedClaim, RecourseSecurity},
     };
     const LAST: AgentId = 801;
+    const HOME: AgentId = 800;
+    let first_agent = if household { HOME } else { OTHER };
     for from in [3, 4] {
         for policy in [CollectionPolicy::Stable, CollectionPolicy::Proportional] {
             let (mut w, mut s) = fixture();
@@ -2336,8 +2347,40 @@ fn chained_secured_guarantees_transfer_the_same_lien_and_hold_new_recourse_until
                 name: "second guarantor".into(),
             });
             s.balances.insert((LAST, TOKEN), 10);
+            if household {
+                use economics_compute_smoke::{
+                    household_governance::Governance,
+                    households::{self, Agreement},
+                };
+                let mut member = scenario::baseline().0.participants.remove(0);
+                member.agent = LAST;
+                member.needs.clear();
+                member.capacity.quantity = 0;
+                w.participants.push(member);
+                let mut governance = Governance::contributed(LAST);
+                governance.constitution.allow_dissolution = true;
+                households::form(
+                    &mut w,
+                    &s,
+                    Agreement {
+                        id: 1,
+                        agent: HOME,
+                        adults: vec![LAST],
+                        governance,
+                        formed: 1,
+                        dwelling_process: None,
+                        admission: None,
+                        membership: vec![],
+                        asset_sales: vec![],
+                        equipment_retirements: vec![],
+                        support: vec![],
+                    },
+                )
+                .unwrap();
+                s.balances.insert((HOME, TOKEN), 10);
+            }
             let mut first = guarantee(1, 10, 6);
-            first.guarantor = OTHER;
+            first.guarantor = first_agent;
             first.from = from;
             first.through = from;
             first.security = RecourseSecurity::InheritLiquidationLien;
@@ -2382,7 +2425,7 @@ fn chained_secured_guarantees_transfer_the_same_lien_and_hold_new_recourse_until
                     reserved
                 );
                 assert_eq!(sim.state.balance(LAST, TOKEN), 4);
-                assert_eq!(sim.state.balance(OTHER, TOKEN), 10);
+                assert_eq!(sim.state.balance(first_agent, TOKEN), 10);
                 while sim.state.month <= from + 2 {
                     audit.step(&mut sim).unwrap();
                 }
@@ -2410,6 +2453,24 @@ fn chained_secured_guarantees_transfer_the_same_lien_and_hold_new_recourse_until
                     resumed_audit.step(&mut resumed).unwrap();
                 }
                 assert_eq!((&sim.state, &audit), (&resumed.state, &resumed_audit));
+                if household {
+                    use economics_compute_smoke::households::dissolution as d;
+                    for (branch, book) in
+                        [(&mut sim, &mut audit), (&mut resumed, &mut resumed_audit)]
+                    {
+                        d::request(&mut branch.world, &branch.state, HOME, LAST).unwrap();
+                        let end = branch.state.month;
+                        while branch.state.month <= end {
+                            book.step(branch).unwrap();
+                        }
+                        assert_eq!(branch.state.balance(HOME, TOKEN), 0);
+                        assert_eq!(branch.state.balance(LAST, TOKEN), 14 + reserved);
+                        d::finish(&mut branch.world, &branch.state, HOME, LAST).unwrap();
+                        assert_eq!(branch.state.credit.loans[&102].creditor, LAST);
+                        assert_eq!(branch.state.credit.loans[&102].principal, 6 - reserved);
+                    }
+                    assert_eq!((&sim.state, &audit), (&resumed.state, &resumed_audit));
+                }
                 (sim.state, sim.ledger, audit)
             };
             assert_eq!(run(Backend::Reference, false), run(Backend::CubeCpu, true));

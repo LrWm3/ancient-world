@@ -1047,3 +1047,11 @@ separate gates and are not covered by this snapshot.
     waiting forever for a skipped ordinary collection. Stable/proportional, live-
     pledge/post-sale, reversed-catalog and CPU/checkpoint controls pass. The
     five-target gate passed 102 tests and strict all-target Clippy passed.
+
+71. **Household/member secured chains retain separate ownership through exit.**
+    The inherited-lien control now includes a household as first guarantor and its
+    member as the second. Actual recourse collection does not pool again; after
+    expiry the household can wind down while its member retains the last private
+    claim and any deficiency. Stable/proportional policies and both live-pledge
+    and post-sale cases agree on CPU/reference and checkpoint continuation. The
+    four-target gate passed 109 tests and strict all-target Clippy passed.

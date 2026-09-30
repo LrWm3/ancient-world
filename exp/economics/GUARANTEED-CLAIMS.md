@@ -273,3 +273,11 @@ controls cover both a live pledge and already realized proceeds through two link
 with actual creditor receipts, retained deficiencies and separate statements.
 CPU/reference, reversed catalogs and checkpoint continuation agree. The five-target
 gate passed 102 tests and strict all-target Clippy passed.
+
+An agreement-formed household can supply the first guarantee and its member the
+second. The member's actual payment settles the household receivable without
+pooling it as income. After the guarantees expire, solvent household wind-down
+distributes its own residual cash; the member retains the final private secured
+claim or deficiency against the original borrower. Stable/proportional controls,
+CPU/reference and checkpoint continuation agree. The four-target gate passed
+109 tests and strict all-target Clippy passed.
