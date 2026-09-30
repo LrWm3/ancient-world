@@ -788,5 +788,9 @@ Productive batch: shared inputs, governed labor and actual output collection.
 A one-participant household can fund planting from shared seed and pool a later
 harvest while the member retains the mortgage. Reference/CPU and reconstructed
 continuation exercise separate books, missing-seed and forged-envelope controls.
-The one-participant joint-driver bound remains; this does not integrate multi-person
-collective forecasts or the separate town production-market planner.
+The subsequent bounded adapter now permits up to four participants. A deciding
+member changes only their own new work while others keep ordinary decisions.
+Need deficits remain separate per participant, and the two-member farming/warmth
+control checks funded and unavailable-worker outcomes on CPU with separate books.
+This does not optimize collective policies or integrate the separate town
+production-market planner.

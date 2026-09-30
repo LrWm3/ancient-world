@@ -1427,7 +1427,7 @@ fn contributed_labor(
 /// person's hypothetical work choice cannot rewrite the household's policy.
 pub(crate) fn productive_plan(
     sim: &Simulation,
-    defer_new: bool,
+    deferred: Option<AgentId>,
     start: Option<ScheduledStart>,
 ) -> Result<Batch, String> {
     if sim.state.phase != Phase::Productive || sim.state.pending_production.is_some() {
@@ -1446,7 +1446,7 @@ pub(crate) fn productive_plan(
         candidate.world.scheduled_starts.push(start);
     }
     let mut batch = Batch::empty(&prepared);
-    candidate.productive_with(&mut batch, defer_new)?;
+    candidate.productive_for(&mut batch, deferred)?;
     batch.employment = crate::employment::evaluate(&candidate.world, &prepared, &batch)?;
     crate::settlement::commit_core(
         &candidate.world,

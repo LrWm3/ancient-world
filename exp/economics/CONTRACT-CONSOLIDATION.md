@@ -5,9 +5,11 @@ prepare dated loans, prepayments, guarantees, household hiring and estate bids
 through ordinary settlement. Direct and tool-backed forwards share collection,
 funding and storage; mortgages compose with prepayments and negotiated exchange. Fixed-reserve and
 bounded-forecast mortgage stock sales now share direct-delivery acquisition,
-including household contribution storage. A single-member household now carries
+including household contribution storage. A household now carries
 its shared-input, labor and output-pooling receipts in a dated joint production
-plan; configured negotiated seed purchases also feed joint work.
+plan; configured negotiated seed purchases also feed joint work. Bounded joint
+forecasts preserve other participants' ordinary decisions and inspect their need
+deficits separately, with a two-member farming/warmth integration control.
 Household mortgages now connect repayment to solvent disposal and dissolution.
 Independent leases (including fixed-reserve and bounded-forecast stock income)
 and physical mint procurement compose with financed purchases;
@@ -195,8 +197,9 @@ can establish that all these arrangements compose.
    explicit discharge/write-offs and final receipts. Mortgages can now explicitly select the authorized-liquidation lifecycle,
    including crop-control transfer, custody and actual proceeds. Legacy fixed-value
    and creditor-resale choices remain distinct. Fixed-reserve, bounded-forecast and single-participant joint mortgage stock
-   sales now respect counterparty recovery stays. Joint household labor and
-   broader market composition still need integration.
+sales now respect counterparty recovery stays. Household labor now accompanies
+dated joint work; collective horizon optimization and broader market composition
+still need integration.
 
 Every step above extends the same book, claim executor and committed ledger.
 There should not be separate guarantees/insolvency/liquidation scenario engines.

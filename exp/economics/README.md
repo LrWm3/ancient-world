@@ -25,9 +25,11 @@ search and competitive land allocation. The common offer API can accept named
 financial terms together with ordered prerequisites and dated farming work.
 [Acquisition adapters](ACQUISITION-ADAPTERS.md) includes successful delivery and
 shortfall controls: configured consent and balanced accounts do not establish
-autonomous, sustainable underwriting. A single-member household now preserves shared inputs and pooling in the dated
-joint work/sale plan. Multi-person household forecast bundles and broader
-market/search combinations remain outstanding.
+autonomous, sustainable underwriting. Household shared inputs and pooling now
+travel with dated joint work/sale plans. A bounded four-participant adapter lets
+one member compare work while peers retain ordinary decisions and separate need
+limits; a two-member farming/warmth control exercises it. Collective horizon
+optimization and broader market/search combinations remain outstanding.
 
 ## Current progress — 2026-09-30
 

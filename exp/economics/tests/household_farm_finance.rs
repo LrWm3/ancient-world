@@ -16,6 +16,185 @@ use economics_compute_smoke::{
 const HOME: AgentId = 10000;
 const RENTED: AssetId = 999;
 
+#[test]
+fn joint_household_forecasts_preserve_other_members_work_and_individual_need_limits() {
+    use economics_compute_smoke::{joint_plan, settlement};
+    const PEER: AgentId = 89;
+    let (mut w, mut s) = fixture(true, true);
+    w.horizon = 12;
+    for d in &mut w.definitions {
+        if d.execution == Execution::Productive && d.id != GROW {
+            d.enabled = false;
+        }
+    }
+    let (warmth, _) = with_warmth(false);
+    for r in warmth.resources {
+        if !w.resources.iter().any(|existing| existing.id == r.id) {
+            w.resources.push(r);
+        }
+    }
+    for d in warmth
+        .definitions
+        .into_iter()
+        .filter(|d| [PREPARE_FUEL, USE_FUEL].contains(&d.id))
+    {
+        w.definitions.retain(|existing| existing.id != d.id);
+        w.definitions.push(d);
+    }
+    w.agents.push(Agent {
+        id: PEER,
+        name: "fuel worker".into(),
+    });
+    let mut peer = w.participants[0].clone();
+    peer.agent = PEER;
+    peer.needs = vec![Requirement {
+        resource: WARMTH,
+        quantity: 1,
+        priority: 0,
+    }];
+    w.participants.push(peer);
+    w.storage.capacities.insert(PEER, 100);
+    w.storage.weights.extend([(RAW_WOOD, 1), (FUEL, 1)]);
+    w.households[0].adults.push(PEER);
+    // Household work cannot substitute for an unavailable fuel worker in the control.
+    w.households[0].governance.constitution.activities = Some([GROW].into());
+    s.balances.insert((PEER, RAW_WOOD), 24);
+    s.balances.insert((PERSON, SEED), 0);
+    s.balances.insert((HOME, SEED), 1);
+    let policy = w.credit.as_mut().unwrap().stock_sales.as_mut().unwrap();
+    policy.forecast = None;
+    policy.joint = Some(joint_plan::Policy {
+        horizon_months: 12,
+        need_limits: [(NUTRITION, 0), (WARMTH, 0)].into(),
+        future_reserves: vec![6],
+    });
+    // Isolate joint work from the existing private bridge-funding shortfall.
+    w.credit
+        .as_mut()
+        .unwrap()
+        .endowments
+        .iter_mut()
+        .find(|e| e.agent == PERSON)
+        .unwrap()
+        .amount
+        .quantity = 20_000;
+    w.households[0].admission =
+        Some(economics_compute_smoke::laws::households::admit(&w, &s, &w.households[0]).unwrap());
+    let run = |backend, unavailable: bool, reordered: bool| {
+        let mut world = w.clone();
+        if unavailable {
+            world
+                .participants
+                .iter_mut()
+                .find(|p| p.agent == PEER)
+                .unwrap()
+                .capacity
+                .quantity = 0;
+        }
+        if reordered {
+            world.participants.reverse();
+            world.definitions.reverse();
+        }
+        let mut sim = Simulation::new(world, s.clone(), backend).unwrap();
+        let mut audit = opening(&sim.world, &sim.state);
+        while sim.state.phase != Phase::Acquire {
+            audit.step(&mut sim).unwrap();
+        }
+        let before = sim.state.clone();
+        audit.step(&mut sim).unwrap();
+        let accepted = sim.ledger.last().unwrap();
+        let decision = accepted
+            .credit
+            .as_ref()
+            .unwrap()
+            .stock_sale
+            .as_ref()
+            .unwrap()
+            .joint
+            .as_ref()
+            .unwrap();
+        assert_eq!(decision.feasible, !unavailable, "decision={decision:?}");
+        for alternative in &decision.alternatives {
+            let deficit = alternative.participant_deficits[&PEER][&WARMTH];
+            assert_eq!(deficit > 0, unavailable, "alternative={alternative:?}");
+            if unavailable {
+                assert!(!alternative.admissible);
+            }
+        }
+        assert!(
+            decision
+                .alternatives
+                .iter()
+                .any(|a| a.work == joint_plan::Work::Wait)
+        );
+        assert!(
+            decision
+                .alternatives
+                .iter()
+                .any(|a| a.work == joint_plan::Work::Produce(GROW))
+        );
+        let mut tampered = accepted.clone();
+        tampered
+            .credit
+            .as_mut()
+            .unwrap()
+            .stock_sale
+            .as_mut()
+            .unwrap()
+            .joint
+            .as_mut()
+            .unwrap()
+            .alternatives[0]
+            .participant_deficits
+            .clear();
+        let mut unchanged = before.clone();
+        assert!(
+            settlement::commit(
+                &sim.world,
+                &mut unchanged,
+                &tampered,
+                backend,
+                sim.effect_limit
+            )
+            .is_err()
+        );
+        assert_eq!(unchanged, before);
+        let plan = sim.state.pending_production.clone().unwrap();
+        assert!(plan.household.is_some());
+        let prefix = sim.ledger.len();
+        let mut resumed_audit = audit.clone();
+        let mut resumed = Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+        audit.step(&mut sim).unwrap();
+        assert_eq!(sim.ledger.last().unwrap(), plan.as_ref());
+        assert_eq!(
+            sim.state
+                .processes
+                .values()
+                .any(|p| p.operator == PEER && p.definition == PREPARE_FUEL),
+            !unavailable
+        );
+        while sim.state.month < 3 {
+            audit.step(&mut sim).unwrap();
+        }
+        while resumed.state.month < 3 {
+            resumed_audit.step(&mut resumed).unwrap();
+        }
+        assert_eq!(
+            (&sim.state, &sim.ledger[prefix..], &audit),
+            (&resumed.state, &resumed.ledger[..], &resumed_audit)
+        );
+        for p in &sim.world.participants {
+            assert!(sim.state.balance(p.agent, LABOR) >= 0);
+        }
+        (sim.state, sim.ledger, audit)
+    };
+    for unavailable in [false, true] {
+        let reference = run(Backend::Reference, unavailable, false);
+        assert_eq!(reference, run(Backend::CubeCpu, unavailable, false));
+        assert_eq!(reference, run(Backend::Reference, unavailable, true));
+    }
+}
+
 fn fixture(household: bool, sales: bool) -> (World, State) {
     let (mut w, s) = stock_sale::scenario("funded").unwrap();
     // This test concerns performance of accepted commitments, not underwriting.
@@ -94,6 +273,13 @@ fn fixture(household: bool, sales: bool) -> (World, State) {
 }
 
 fn opening(w: &World, s: &State) -> Audit {
+    let mut output_weights = std::collections::BTreeMap::from([(
+        GROW,
+        [(Output::Stock(GRAIN), 1), (Output::Stock(SEED), 1)].into(),
+    )]);
+    if w.definitions.iter().any(|d| d.id == PREPARE_FUEL) {
+        output_weights.insert(PREPARE_FUEL, [(Output::Stock(FUEL), 1)].into());
+    }
     Audit::with_opening(
         w,
         s,
@@ -103,18 +289,18 @@ fn opening(w: &World, s: &State) -> Audit {
             inventory: s
                 .balances
                 .iter()
-                .filter(|((_, r), q)| [SEED, GRAIN].contains(r) && **q > 0)
+                .filter(|((_, r), q)| [SEED, GRAIN, RAW_WOOD, FUEL].contains(r) && **q > 0)
                 .map(|(account, q)| (*account, i128::from(*q)))
                 .collect(),
-            exchange_values: [(SEED, 1), (GRAIN, 1)].into(),
+            exchange_values: [SEED, GRAIN, RAW_WOOD, FUEL]
+                .into_iter()
+                .filter(|id| w.resources.iter().any(|r| r.id == *id))
+                .map(|id| (id, 1))
+                .collect(),
             dues: Some(Valuation([(99, 1)].into())),
             processes: Some(Costs {
                 beneficiary_policy: Some(BeneficiaryPolicy::TransferAtCost),
-                output_weights: [(
-                    GROW,
-                    [(Output::Stock(GRAIN), 1), (Output::Stock(SEED), 1)].into(),
-                )]
-                .into(),
+                output_weights,
                 ..Costs::default()
             }),
             ..Opening::default()

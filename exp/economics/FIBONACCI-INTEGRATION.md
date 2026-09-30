@@ -726,3 +726,21 @@ separately recorded affected gates and are not covered by that snapshot.
     and CPU/reconstructed continuation agrees. The five-target gate passed 43
     tests; strict all-target Clippy passed. This protects supplied consent;
     autonomous underwriting and negotiated amendments remain outstanding.
+
+### Full-suite checkpoint through item 36
+
+The isolated source snapshot at **`e3e90cf`** passed
+`cargo +1.92.0 test --locked`: **969 passed, 0 failed, 1 ignored**, across
+120 Cargo result targets including empty unit/doc targets. Later items have
+their separately recorded affected gates and are not covered by that snapshot.
+
+40. **Joint work choices preserve other household members' decisions.** Up to
+    four participants can enter the bounded forecast. Only the seller's new work
+    changes; peers retain ordinary requests. Need caps apply separately to each
+    participant and receipts expose those deficits. A two-member crop/warmth
+    control preserves fuel work under wait and crop candidates; unavailable fuel
+    labor leaves no feasible plan. Additional private bridge cash isolates this
+    from the existing pooling/funding shortfall. Separate books, reordered catalogs,
+    CPU/checkpoint execution and forged-receipt rejection agree. The six-target
+    gate passed 90 tests and strict all-target Clippy passed. This remains one
+    seller's comparison, not collective policy optimization or multiple sellers.

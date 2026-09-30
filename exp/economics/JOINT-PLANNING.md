@@ -29,7 +29,7 @@ cash credit. Loan payments remain before Acquire; production and consumption
 remain after it. Forecasts use the existing sanitized observation context and
 cannot see unpublished future gifts or capacity shocks.
 
-The pilot bounds scope to one participant, four enabled productive definitions,
+The pilot bounds scope to four participants, four enabled productive definitions,
 two current lots and two continuation reserve settings. That is at most 36
 candidates; this fixture has at most 24. Horizons must span at least twice the
 longest enabled production duration and cannot exceed 24 months. The fixture uses
@@ -37,12 +37,23 @@ longest enabled production duration and cannot exceed 24 months. The fixture use
 
 ## Selection and commitment
 
-A qualifying plan must stay active, meet every configured cumulative need-deficit
-cap, avoid missed payments and avoid new aborted processes. Among qualifying
+A qualifying plan must keep every participant active, meet every configured
+cumulative need-deficit cap separately for each participant, avoid missed payments
+and avoid new aborted processes. Limits name needs present in the participant
+set; unnamed needs remain visible but are not hard constraints. Among qualifying
 plans, compare need deficits in priority order, then failures/payment outcomes,
 end-of-horizon food/provision buffer gap, and net debt minus coins. Stable candidate
 order breaks ties. The buffer measure reuses the existing capped coverage score;
-stock security therefore takes precedence over maximizing sale income.
+stock security therefore takes precedence over maximizing sale income. Need
+priority and private financial outcomes belong to the configured seller, located
+by ID rather than participant ordering.
+
+Only that seller's new work changes across candidates. Other participants keep
+their ordinary decisions, configured activity requests and existing commitments.
+This is one person's bounded comparison with visible counterparty behavior, not
+a centralized search over everyone else's choices. Per-participant deficit maps
+make rejected alternatives inspectable; one member's food stock cannot cancel
+another member's unmet warmth.
 
 If no plan qualifies, choose among zero-current-sale alternatives using the same
 outcome ordering and report `feasible=false`. This does not claim that waiting
@@ -117,3 +128,21 @@ forecasts, and remains opt-in. There is no uncertainty margin, competitor model,
 price negotiation, discounting or labor-cost preference in its score. Longer
 horizons and terminal stock coverage reduce the demonstrated boundary problem;
 they do not prove that no end-of-horizon artifact can occur.
+
+## Two household members
+
+The full household reservation and collection envelope also accompanies each
+dated plan. A mixed mortgage/farming control uses household seed while another
+member processes wood for warmth. The farmer's wait and explicit-production
+candidates preserve the other member's work. Removing that worker's capacity
+leaves unmet warmth and no qualifying plan; zero-current-sale fallback still
+performs what is feasible. The funded control supplies additional private bridge
+cash to isolate work planning from the separate shortfall caused by pooling income.
+
+The test checks input-catalog reordering, CPU/reference execution, reconstructed
+continuation, exact-once work and rejection of changed forecast receipts.
+Household governance allocates before the member's candidate choice; this does
+not grant the individual authority over household policy. The supplied contracts,
+full-information observation and finite horizon remain limitations. There is
+still one stock seller and one selected individual work policy, not a market of
+competing sale plans or a collective long-horizon optimizer.

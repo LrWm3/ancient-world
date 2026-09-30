@@ -158,8 +158,8 @@ Its stay-constrained alternatives continue already committed cultivation and
 produce the usual dated Productive batch. A funded sale after harvest releases
 property and later closes the estate; an unfunded bid preserves the original
 claim. Forged plan dates fail atomically. Both executions retain food constraints,
-separate books and CPU/checkpoint equality. Multiple participants retain their existing scope limit; the single-member
-household joint adapter is described below.
+separate books and CPU/checkpoint equality. Household joint adapters are described
+below; multiple competing stock sellers remain outside this scoped driver.
 
 Stock-sale reservation now inherits the household contribution budget from earlier
 estate purchases and financing. Cumulative fractional shares constrain both actual
@@ -234,5 +234,10 @@ uses its existing policy before the member's candidate choice; an explicit
 candidate cannot invent a household contribution. The control uses farming as
 the sole productive option and a twelve-month need horizon.
 
-This is not collective multi-person horizon optimization. The joint driver's
-one-participant bound, fixed individual priority and bounded candidates remain.
+The subsequent [bounded multi-person adapter](JOINT-PLANNING.md#two-household-members)
+permits up to four participants. Only the seller's new work changes across
+candidates; peers keep ordinary work. Configured need caps apply separately per
+participant. A two-member farming/warmth control checks funded and unavailable
+labor outcomes, CPU/checkpoint agreement and separate statements. This remains
+one seller's comparison, with fixed priorities and bounded candidates; it is not
+collective policy optimization or allocation among competing stock sellers.

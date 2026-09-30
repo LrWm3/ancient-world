@@ -6,10 +6,12 @@ use crate::{
 use std::collections::BTreeMap;
 const MAX_HORIZON: u32 = 24;
 const MAX_PRODUCERS: usize = 4;
+const MAX_PARTICIPANTS: usize = 4;
 const MAX_CURRENT_LOTS: i32 = 2;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Policy {
     pub horizon_months: u32,
+    /// Cumulative caps apply separately to each participant, for the named needs.
     pub need_limits: BTreeMap<ResourceId, i64>,
     pub future_reserves: Vec<u32>,
 }
@@ -25,6 +27,8 @@ pub struct Alternative {
     pub work: Work,
     pub future_reserve: u32,
     pub deficits: BTreeMap<ResourceId, i64>,
+    /// Keep participant deficits separate when applying the configured caps.
+    pub participant_deficits: BTreeMap<AgentId, BTreeMap<ResourceId, i64>>,
     pub terminal: bool,
     pub missed_payment: bool,
     pub closing_coins: i32,
@@ -49,21 +53,23 @@ pub fn validate(w: &World, seller: AgentId, p: &Policy) -> Result<(), String> {
         .filter(|d| d.enabled && d.execution == Execution::Productive)
         .collect();
     let duration = producers.iter().map(|d| d.duration()).max().unwrap_or(1);
-    let needs = &w
+    if !w.participants.iter().any(|a| a.agent == seller) {
+        return Err("missing joint planner".into());
+    }
+    let needs: Vec<_> = w
         .participants
         .iter()
-        .find(|a| a.agent == seller)
-        .ok_or("missing joint planner")?
-        .needs;
+        .flat_map(|a| a.needs.clone())
+        .collect();
     if w.priority != Priority::ContinuingFirst
         || w.work_choice.is_some()
         || w.decision_horizon.is_some()
-        || w.participants.len() != 1
+        || w.participants.len() > MAX_PARTICIPANTS
         || producers.len() > MAX_PRODUCERS
         || p.horizon_months < duration.saturating_mul(2)
         || p.horizon_months > MAX_HORIZON
         || p.need_limits.is_empty()
-        || !crate::forecast::needs::valid_limits(needs, &p.need_limits)
+        || !crate::forecast::needs::valid_limits(&needs, &p.need_limits)
         || p.future_reserves.is_empty()
         || p.future_reserves.len() > 2
         || p.future_reserves.iter().any(|n| *n > MAX_HORIZON)
@@ -72,7 +78,7 @@ pub fn validate(w: &World, seller: AgentId, p: &Policy) -> Result<(), String> {
             .and_then(|c| c.stock_sales.as_ref())
             .is_none_or(|s| s.max_lots_per_month > MAX_CURRENT_LOTS)
     {
-        return Err("joint planning requires one participant, bounded needs, two production cycles and bounded sale/work candidates".into());
+        return Err("joint planning requires at most four participants, bounded needs, two production cycles and bounded sale/work candidates".into());
     }
     Ok(())
 }
@@ -181,12 +187,15 @@ pub(crate) fn choose(
                             if let Some(start) = start {
                                 sim.world.scheduled_starts.push(start);
                             }
-                            sim.productive_with(&mut b, selected != Work::Ordinary)?;
+                            sim.productive_for(
+                                &mut b,
+                                (selected != Work::Ordinary).then_some(sale.seller),
+                            )?;
                             sim.world.scheduled_starts.clear();
                         } else {
                             b = crate::households::productive_plan(
                                 &sim,
-                                selected != Work::Ordinary,
+                                (selected != Work::Ordinary).then_some(sale.seller),
                                 start,
                             )?;
                         }
@@ -197,14 +206,24 @@ pub(crate) fn choose(
                     }
                     sim.step()?;
                 }
-                let mut deficits = BTreeMap::new();
-                for r in sim.reports.iter().filter(|r| r.agent == sale.seller) {
-                    crate::forecast::needs::accumulate(
-                        &mut deficits,
-                        r.needs.iter().map(|(r, n)| (*r, n.deficit)),
-                    );
+                let mut participant_deficits: BTreeMap<_, BTreeMap<_, _>> = w
+                    .participants
+                    .iter()
+                    .map(|a| (a.agent, BTreeMap::new()))
+                    .collect();
+                for r in &sim.reports {
+                    if let Some(deficits) = participant_deficits.get_mut(&r.agent) {
+                        crate::forecast::needs::accumulate(
+                            deficits,
+                            r.needs.iter().map(|(r, n)| (*r, n.deficit)),
+                        );
+                    }
                 }
-                let terminal = sim.state.terminal.contains_key(&sale.seller);
+                let deficits = participant_deficits[&sale.seller].clone();
+                let terminal = w
+                    .participants
+                    .iter()
+                    .any(|a| sim.state.terminal.contains_key(&a.agent));
                 let missed_payment = sim
                     .ledger
                     .iter()
@@ -234,7 +253,9 @@ pub(crate) fn choose(
                 let admissible = !terminal
                     && !missed_payment
                     && failures == 0
-                    && crate::forecast::needs::within_limits(&deficits, &p.need_limits);
+                    && participant_deficits
+                        .values()
+                        .all(|d| crate::forecast::needs::within_limits(d, &p.need_limits));
                 let starts = sim
                     .state
                     .processes
@@ -263,6 +284,7 @@ pub(crate) fn choose(
                     work: choice,
                     future_reserve: reserve,
                     deficits,
+                    participant_deficits,
                     terminal,
                     missed_payment,
                     closing_coins: sim.state.balance(sale.seller, bid.payment.resource),
@@ -278,7 +300,12 @@ pub(crate) fn choose(
         }
     }
     let feasible = alternatives.iter().any(|a| a.admissible);
-    let needs = &w.participants[0].needs;
+    let needs = &w
+        .participants
+        .iter()
+        .find(|a| a.agent == sale.seller)
+        .unwrap()
+        .needs;
     let selected = alternatives
         .iter()
         .enumerate()

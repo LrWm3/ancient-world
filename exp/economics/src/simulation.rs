@@ -283,6 +283,27 @@ impl Simulation {
         defer_new: bool,
         preferred: Option<DefinitionId>,
     ) -> Result<Vec<Request>, String> {
+        self.productive_requests_scoped(batch, defer_new, None, preferred)
+    }
+
+    /// Compare one agent's alternative without suppressing other agents' plans.
+    pub(crate) fn productive_for(
+        &self,
+        batch: &mut Batch,
+        deferred: Option<AgentId>,
+    ) -> Result<(), String> {
+        let requests = self.productive_requests_scoped(batch, false, deferred, None)?;
+        self.resolve(requests, batch)
+    }
+
+    fn productive_requests_scoped(
+        &self,
+        batch: &mut Batch,
+        defer_all: bool,
+        deferred: Option<AgentId>,
+        preferred: Option<DefinitionId>,
+    ) -> Result<Vec<Request>, String> {
+        let defers = |agent| defer_all || deferred == Some(agent);
         let mut requests: Vec<_> = self
             .state
             .processes
@@ -296,7 +317,7 @@ impl Simulation {
             })
             .collect();
         for participant in self.sorted_participants() {
-            if self.state.terminal.contains_key(&participant.agent) || defer_new {
+            if self.state.terminal.contains_key(&participant.agent) || defers(participant.agent) {
                 continue;
             }
             let mut selected = BTreeSet::new();
@@ -361,28 +382,27 @@ impl Simulation {
                 }
             }
         }
-        if !defer_new {
-            for order in &self.world.activities.orders {
-                if crate::activities::wants(&self.world, &self.state, order)
-                    && crate::minting::provisioning::activity_allowed(
-                        &self.world,
-                        &self.state,
-                        order.agent,
-                        order.definition,
-                    )
-                    && !requests.iter().any(|r| {
-                        r.agent == order.agent
-                            && r.definition == order.definition
-                            && r.existing.is_none()
-                    })
-                {
-                    requests.push(Request {
-                        agent: order.agent,
-                        definition: order.definition,
-                        existing: None,
-                        need: None,
-                    });
-                }
+        for order in &self.world.activities.orders {
+            if !defers(order.agent)
+                && crate::activities::wants(&self.world, &self.state, order)
+                && crate::minting::provisioning::activity_allowed(
+                    &self.world,
+                    &self.state,
+                    order.agent,
+                    order.definition,
+                )
+                && !requests.iter().any(|r| {
+                    r.agent == order.agent
+                        && r.definition == order.definition
+                        && r.existing.is_none()
+                })
+            {
+                requests.push(Request {
+                    agent: order.agent,
+                    definition: order.definition,
+                    existing: None,
+                    need: None,
+                });
             }
         }
         for start in self
