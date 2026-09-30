@@ -118,3 +118,12 @@ been settled/forgiven, records the member's loss, closes the proceeding and
 releases residual coins before dissolution. Without this acceptance, the same
 internal claim remains material and blocks exit. CPU/reference and checkpoint
 statements agree; the five-target integration gate passed 74 tests.
+
+A full write-off does not cancel unused guarantee coverage. Later calls can add
+new, dated recourse to the same loan identity. Its ordered disposition history
+preserves prior losses and requires new principal to be backed by advances after
+the latest write-off. A subsequent full write-off needs fresh exact consent.
+The regression reproduced a rejected valid later call before this change; it now
+retains both accepted losses, rejects unsupported principal and reordered history,
+and agrees across CPU/reference and checkpoint continuation. The five-target gate
+passed 100 tests, followed by the final focused history controls and strict Clippy.

@@ -897,3 +897,19 @@ separately recorded affected gates and are not covered by this snapshot.
     releases residual cash and dissolves while the member retains private recourse.
     CPU/reference and checkpoint statements agree. The four-target gate passed
     65 tests and strict all-target Clippy passed.
+
+### Full-suite checkpoint through item 48
+
+The isolated source snapshot at **`88acb8d`** passed
+`cargo +1.92.0 test --locked`: **987 passed, 0 failed, 1 ignored**, across
+123 Cargo result targets including empty unit/doc targets. Later items retain
+their separately recorded gates and are not covered by this snapshot.
+
+56. **New recourse survives an earlier accepted write-off.** A regression
+    reproduced rejection of a valid later guarantee call. Loan disposition now
+    retains ordered accepted history and permits reopening only against dated
+    subsequent advances; historical loss is unchanged. Fresh consent can dispose
+    of the new balance. Native claims, reporting values, continuing wage arrears,
+    CPU/reference and checkpoint results reconcile. Unsupported principal and
+    reordered history are rejected. The five-target gate passed 100 tests, then
+    final focused controls and strict all-target Clippy passed.

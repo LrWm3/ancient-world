@@ -213,7 +213,12 @@ pub(crate) fn apply(w: &World, s: &State, out: &mut credit::Boundary) -> Result<
                     });
                     loan.apply_payment(loan.debt()?);
                     loan.status = credit::Status::Discharged;
-                    out.after.recovery.loan_writeoffs.insert(id, disposition);
+                    out.after
+                        .recovery
+                        .loan_writeoffs
+                        .entry(id)
+                        .or_default()
+                        .push(disposition);
                 }
                 ContractId::Wages(id) => {
                     let book = out.employment.get_or_insert_with(|| s.employment.clone());
@@ -265,11 +270,14 @@ fn view(w: &World, s: &State, t: &Terms) -> Option<(crate::finance::Obligation, 
                 .recovery
                 .loan_writeoffs
                 .get(&id)
-                .map(|r| {
-                    vec![Applied {
-                        terms: r.terms.clone(),
-                        paid: 0,
-                    }]
+                .map(|records| {
+                    records
+                        .iter()
+                        .map(|r| Applied {
+                            terms: r.terms.clone(),
+                            paid: 0,
+                        })
+                        .collect()
                 })
                 .unwrap_or_default();
             Some((
@@ -302,32 +310,69 @@ fn view(w: &World, s: &State, t: &Terms) -> Option<(crate::finance::Obligation, 
 /// Full loan write-offs retain their exact accepted terms through checkpoint and
 /// closure. They never change the original quantity or masquerade as repayment.
 pub(crate) fn validate_loans(w: &World, s: &State) -> Result<(), String> {
-    for (&id, r) in &s.credit.recovery.loan_writeoffs {
-        let t = &r.terms;
+    for (&id, records) in &s.credit.recovery.loan_writeoffs {
         let l = s.credit.loans.get(&id).ok_or("write-off without loan")?;
-        let case = s
-            .credit
+        if records.is_empty() {
+            return Err("empty loan write-off history".into());
+        }
+        let mut previous_month = 0;
+        let mut principal = 0_i64;
+        for r in records {
+            let t = &r.terms;
+            let case = s
+                .credit
+                .recovery
+                .proceedings
+                .get(&t.proceeding)
+                .ok_or("loan write-off without proceeding")?;
+            if !w.recovery.claim_relief.contains(t)
+                || t.contract != ContractId::Loan(id)
+                || t.debtor != l.debtor
+                || t.creditor != l.creditor
+                || Some(t.original_due) != l.opened.checked_add(1)
+                || t.month > s.month
+                || t.month <= previous_month
+                || t.month < case.opened
+                || case.closed.is_some_and(|m| m < t.month)
+                || l.collateral.is_some()
+                || r.principal < 0
+                || r.interest < 0
+                || i64::from(r.principal) + i64::from(r.interest) != i64::from(t.expected_remaining)
+            {
+                return Err("invalid accepted loan write-off history".into());
+            }
+            principal = principal
+                .checked_add(i64::from(r.principal))
+                .ok_or("loan relief overflow")?;
+            previous_month = t.month;
+        }
+        // Only dated new guarantee advances can reopen this loan after its
+        // full disposition. Prior losses are neither reversed nor overwritten.
+        let later = w
             .recovery
-            .proceedings
-            .get(&t.proceeding)
-            .ok_or("loan write-off without proceeding")?;
-        if !w.recovery.claim_relief.contains(t)
-            || t.contract != ContractId::Loan(id)
-            || t.debtor != l.debtor
-            || t.creditor != l.creditor
-            || Some(t.original_due) != l.opened.checked_add(1)
-            || t.month > s.month
-            || t.month < case.opened
-            || case.closed.is_some_and(|m| m < t.month)
-            || l.collateral.is_some()
-            || l.status != credit::Status::Discharged
-            || l.debt()? != 0
-            || r.principal < 0
-            || r.principal > l.original_principal
-            || r.interest < 0
-            || i64::from(r.principal) + i64::from(r.interest) != i64::from(t.expected_remaining)
+            .guarantees
+            .iter()
+            .find(|g| g.recourse == id)
+            .map(|g| {
+                s.credit
+                    .recovery
+                    .guarantee_advances
+                    .iter()
+                    .filter(|((guarantee, month), _)| *guarantee == g.id && *month > previous_month)
+                    .try_fold(0_i64, |total, (_, q)| {
+                        total
+                            .checked_add(i64::from(*q))
+                            .ok_or("later recourse overflow")
+                    })
+            })
+            .transpose()?
+            .unwrap_or(0);
+        if principal + i64::from(l.principal) > i64::from(l.original_principal)
+            || i64::from(l.debt()?) > later
+            || (later == 0 && l.status != credit::Status::Discharged)
+            || (later > 0 && l.status == credit::Status::Discharged)
         {
-            return Err("invalid accepted loan write-off history".into());
+            return Err("loan disposition does not reconcile to later advances".into());
         }
     }
     // Legacy deficient closure can discharge only its own custody denomination.

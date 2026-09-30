@@ -2774,3 +2774,106 @@ fn household_member_guarantee_chain_pools_wages_only_and_preserves_private_recou
     };
     assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
 }
+
+#[test]
+fn later_guarantee_advances_after_writeoff_remain_new_debt_with_separate_disposition_history() {
+    use economics_compute_smoke::{
+        claim_relief::{Action, Terms},
+        credit::{Advance, LoanOffer, Status},
+        finance::ContractId,
+        minting::FIREWOOD,
+        recovery::GuaranteeTender,
+    };
+    let (mut w, mut s) = fixture();
+    w.employment[0].wage_per_unit.resource = FIREWOOD;
+    s.balances.insert((SUPPLIER, COIN), 2);
+    w.recovery.guarantees[0].through = 6;
+    w.recovery.guarantees[0].tender = GuaranteeTender::AgreedCoins {
+        resource: COIN,
+        coins_per_unit: 1,
+    };
+    authorize(&mut w, 3);
+    for (id, month, quantity) in [(90, 4, 2), (91, 6, 1)] {
+        w.recovery.claim_relief.push(Terms {
+            id,
+            proceeding: 1,
+            contract: ContractId::Loan(101),
+            original_due: 3,
+            debtor: ISSUER,
+            creditor: SUPPLIER,
+            month,
+            expected_due: 3,
+            expected_remaining: quantity,
+            action: Action::WriteOff { quantity },
+        });
+    }
+    w.lending.push(Advance {
+        id: 200,
+        debtor: SUPPLIER,
+        month: 4,
+        principal: 1,
+        collateral: None,
+        priority: 0,
+        terms: LoanOffer {
+            creditor: WORKER,
+            denomination: COIN,
+            max_principal: 1,
+            monthly_rate_bps: 0,
+            term_months: 12,
+            grace_months: 12,
+        },
+    });
+    let opening = Opening {
+        exchange_values: [(FIREWOOD, 3)].into(),
+        ..Opening::default()
+    };
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut a = Audit::with_opening(&w, &s, COIN, opening.clone()).unwrap();
+        through(&mut a, &mut sim, 4);
+        assert_eq!(sim.state.credit.loans[&101].status, Status::Discharged);
+        assert_eq!(a.book().balances()[&(SUPPLIER, Account::CreditLoss)], 6);
+        let (saved, mut ra) = (sim.clone(), a.clone());
+        through(&mut a, &mut sim, 5);
+        let l = &sim.state.credit.loans[&101];
+        assert_eq!(
+            (l.status, l.original_principal, l.principal),
+            (Status::Stayed, 3, 1)
+        );
+        assert_eq!(a.book().balances()[&(SUPPLIER, Account::CreditLoss)], 6);
+        assert_eq!(
+            a.book().balances()[&(SUPPLIER, Account::LoanReceivable(101))],
+            3
+        );
+        let mut forged = sim.state.clone();
+        forged.credit.loans.get_mut(&101).unwrap().principal += 1;
+        assert!(Simulation::new(w.clone(), forged, backend).is_err());
+        through(&mut a, &mut sim, 6);
+        assert_eq!(sim.state.credit.recovery.loan_writeoffs[&101].len(), 2);
+        let mut forged = sim.state.clone();
+        forged
+            .credit
+            .recovery
+            .loan_writeoffs
+            .get_mut(&101)
+            .unwrap()
+            .reverse();
+        assert!(Simulation::new(w.clone(), forged, backend).is_err());
+        assert_eq!(sim.state.credit.loans[&101].status, Status::Discharged);
+        assert_eq!(a.book().balances()[&(SUPPLIER, Account::CreditLoss)], 9);
+        assert_eq!(a.book().balances()[&(ISSUER, Account::DebtRelief)], -9);
+        assert_eq!(sim.state.credit.recovery.paid_guarantees[&1], 3);
+        assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 1);
+        assert_eq!(sim.state.balance(WORKER, FIREWOOD), 0);
+        assert_eq!(sim.state.balance(WORKER, COIN), 2);
+        assert_eq!(
+            sim.state.credit.recovery.proceedings[&1].stage,
+            economics_compute_smoke::recovery::Stage::Active
+        );
+        let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
+        through(&mut ra, &mut resumed, 6);
+        assert_eq!((&sim.state, &a), (&resumed.state, &ra));
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}
