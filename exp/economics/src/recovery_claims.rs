@@ -15,6 +15,90 @@ pub struct Claim {
     pub remaining: Amount,
 }
 
+/// Existing financial property, not projected income. Amounts retain their native
+/// denominations; neither listing nor closure converts them into estate cash.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Receivable {
+    pub contract: ContractId,
+    pub debtor: AgentId,
+    pub recognized: u32,
+    pub due: u32,
+    pub remaining: Amount,
+}
+
+pub fn receivables(
+    world: &World,
+    state: &State,
+    creditor: AgentId,
+) -> Result<Vec<Receivable>, String> {
+    let mut result = vec![];
+    for l in state
+        .credit
+        .loans
+        .values()
+        .filter(|l| l.creditor == creditor)
+    {
+        let remaining = l.debt()?;
+        if remaining > 0 {
+            result.push(Receivable {
+                contract: ContractId::Loan(l.id),
+                debtor: l.debtor,
+                recognized: l.opened,
+                due: l
+                    .opened
+                    .checked_add(l.term_months)
+                    .ok_or("receivable maturity overflow")?,
+                remaining: Amount::new(l.denomination, remaining),
+            });
+        }
+    }
+    for a in commitments::active(world, state).filter(|a| a.creditor == creditor) {
+        for o in state
+            .obligations
+            .values()
+            .filter(|o| o.agreement == a.id && o.outstanding() > 0)
+        {
+            result.push(Receivable {
+                contract: ContractId::Land(a.id),
+                debtor: a.debtor,
+                recognized: o.due,
+                due: o.effective_due(),
+                remaining: Amount::new(a.payment.resource, o.outstanding()),
+            });
+        }
+    }
+    for c in state
+        .exchange
+        .forwards
+        .values()
+        .filter(|c| c.creditor == creditor && c.claim().outstanding() > 0)
+    {
+        result.push(Receivable {
+            contract: ContractId::Forward(c.id),
+            debtor: c.debtor,
+            recognized: c.issued,
+            due: c.effective_due(),
+            remaining: Amount::new(c.goods.resource, c.claim().outstanding()),
+        });
+    }
+    for (&(id, month), e) in &state.employment.earned {
+        if e.claim.transfer.to == creditor
+            && e.claim.outstanding() > 0
+            && let finance::Condition::OnOrAfterMonth(due) = e.claim.condition
+        {
+            result.push(Receivable {
+                contract: ContractId::Wages(id),
+                debtor: e.claim.transfer.from,
+                recognized: month,
+                due,
+                remaining: Amount::new(e.claim.transfer.amount.resource, e.claim.outstanding()),
+            });
+        }
+    }
+    result.sort_by_key(|r| (r.contract, r.recognized, r.debtor));
+    Ok(result)
+}
+
 /// Includes existing bills, earned wages and accepted future forward deliveries,
 /// never hypothetical future annual rent or payroll. A view does not accelerate or convert performance obligations.
 pub fn outstanding(world: &World, state: &State, debtor: AgentId) -> Vec<Claim> {

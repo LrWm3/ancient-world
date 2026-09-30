@@ -1,5 +1,9 @@
 # Contract recovery using the existing credit book
 
+[Estate receivables](ESTATE-RECEIVABLES.md) now prevent deficient closure from
+discarding uncollected financial property or bypassing new cash receipts. This
+also composes with household wind-down and counterparty discharge.
+
 Latest extension: [commodity finance](COMMODITY-FINANCE.md) adds physical and
 prepaid-delivery guarantees, valued native loans and native recourse during a
 coin proceeding. Coin custody never pays another denomination at par. Native

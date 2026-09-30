@@ -198,6 +198,11 @@ pub enum Receipt {
         proceeding: u32,
         claims: Vec<crate::recovery_claims::Claim>,
     },
+    AssetsPending {
+        proceeding: u32,
+        receivables: Vec<crate::recovery_claims::Receivable>,
+        uncollected_cash: i32,
+    },
     LandDistributed {
         proceeding: u32,
         agreement: u32,
@@ -614,6 +619,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             .iter()
             .find(|p| p.id == id)
             .ok_or("unknown proceeding receipt")?;
+        let receivables = crate::recovery_claims::receivables(world, state, p.debtor)?;
         if case.opened != p.opening_month
             || case.opened > state.month
             || case.cash < 0
@@ -622,6 +628,16 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                 closed < p.earliest_close
                     || closed < case.opened
                     || closed > state.month
+                    || (state.credit.loans.values().any(|l| {
+                        l.debtor == p.debtor
+                            && l.opened <= closed
+                            && (l.status == Status::Discharged
+                                || (l.status == Status::Enforced && l.debt().unwrap_or(0) > 0))
+                    }) && receivables.iter().any(|r| {
+                        r.recognized < closed
+                            || (r.recognized == closed
+                                && matches!(r.contract, finance::ContractId::Land(_)))
+                    }))
                     || native_loans(&state.credit, p)
                         .iter()
                         .any(|c| c.due <= closed)
@@ -1417,6 +1433,40 @@ pub(crate) fn distribute(
                     sum.checked_add(l.debt()?)
                         .ok_or("estate deficiency overflow".to_string())
                 })?;
+            // Ordinary collection may have just paid the debtor; those receipts
+            // cannot be swept/spent again in this window. Outstanding receivables
+            // likewise remain property until performed or explicitly disposed of.
+            if deficiency > 0 {
+                let current = crate::recovery_claims::current(state, out);
+                let receivables = crate::recovery_claims::receivables(world, &current, p.debtor)?;
+                let account = (p.debtor, p.denomination);
+                let cash = out
+                    .transactions
+                    .iter()
+                    .flat_map(|t| &t.effects)
+                    .filter(|e| e.account == account)
+                    .try_fold(
+                        i64::from(state.balance(p.debtor, p.denomination)),
+                        |v, e| {
+                            v.checked_add(i64::from(e.delta))
+                                .ok_or("estate closing cash overflow")
+                        },
+                    )?;
+                let protected = crate::commitments::protected_stock(world, state)?;
+                let uncollected_cash = i32::try_from(
+                    (cash - i64::from(protected.get(&account).copied().unwrap_or(0))).max(0),
+                )
+                .map_err(|_| "estate closing cash overflow")?;
+                if !receivables.is_empty() || uncollected_cash > 0 {
+                    out.recovery.push(Receipt::AssetsPending {
+                        proceeding: p.id,
+                        receivables,
+                        uncollected_cash,
+                    });
+                    out.after.recovery.proceedings.insert(p.id, case);
+                    continue;
+                }
+            }
             // A storage-blocked creditor must not be discharged while cash remains.
             if case.cash == 0 || deficiency == 0 {
                 let surplus = case.cash;

@@ -156,7 +156,9 @@ can establish that all these arrangements compose.
 5. **Broaden actual liquidation.** Configured asset lists and funded bids now
    transfer permitted title/attached responsibilities and distribute actual
    proceeds through the loan waterfall. Add autonomous listing/discovery,
-   additional asset kinds, competing liens and general claims. Unsold assets
+   additional asset kinds, competing liens and general claims. [Receivable collection](ESTATE-RECEIVABLES.md)
+   now blocks deficient closure until existing assets are performed or disposed of;
+   receivable sale/assignment and inventory liquidation remain open. Unsold assets
    remain unsold; appraisals do not create coins. Retain surplus, deficiencies,
    explicit discharge/write-offs and final receipts. The existing fixed-value
    repossession and realized-proceeds sale should finish migrating into this

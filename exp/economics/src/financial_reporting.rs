@@ -1795,6 +1795,7 @@ impl Audit {
                     | recovery::Receipt::OpeningRejected { .. }
                     | recovery::Receipt::Admitted { .. }
                     | recovery::Receipt::ClosureDeferred { .. }
+                    | recovery::Receipt::AssetsPending { .. }
                     | recovery::Receipt::Closed { .. } => {}
                 }
             }

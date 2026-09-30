@@ -290,6 +290,19 @@ pub(super) fn batch(
                             "outstanding":c.remaining.quantity
                         })).collect::<Vec<_>>()}),
                 ),
+                Receipt::AssetsPending {
+                    proceeding,
+                    receivables,
+                    uncollected_cash,
+                } => (
+                    Some(*proceeding),
+                    json!({"event":"AssetsPending", "uncollected_cash":uncollected_cash,
+                        "receivables":receivables.iter().map(|r| json!({
+                            "contract":format!("{:?}",r.contract), "debtor":r.debtor,
+                            "recognized":r.recognized, "due":r.due,
+                            "resource":r.remaining.resource, "outstanding":r.remaining.quantity
+                        })).collect::<Vec<_>>()}),
+                ),
                 Receipt::ClaimRelief {
                     proceeding,
                     terms,
@@ -440,6 +453,16 @@ pub(super) fn batch(
                     .get("creditor")
                     .and_then(|c| c.as_u64())
                     .is_some_and(|a| selected(config, a as AgentId))
+                || detail
+                    .get("receivables")
+                    .and_then(|c| c.as_array())
+                    .is_some_and(|rows| {
+                        rows.iter().any(|r| {
+                            r["debtor"]
+                                .as_u64()
+                                .is_some_and(|a| selected(config, a as AgentId))
+                        })
+                    })
                 || detail
                     .get("claims")
                     .and_then(|c| c.as_array())

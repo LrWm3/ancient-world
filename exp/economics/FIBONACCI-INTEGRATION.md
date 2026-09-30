@@ -202,6 +202,12 @@ Completed additions so far:
 8. Expose consented advances and prepaid deliveries through common discovery.
 9. Prepare financial bundles through the normal household/settlement boundary.
 10. Verify shared funding, failed bundles, continued service and wind-down consent.
+11. Inventory existing financial receivables before deficient estate closure.
+12. Preserve the custody delay for cash collected during the closing boundary.
+13. Compose receivable collection with household wind-down and separate accounts.
+14. Resolve linked estates through actual counterparty discharge and dated visibility.
+15. Keep earned wage assets and later post-closure work distinct.
+16. Explain deferred assets through receipts, counterparty filters and checkpoint checks.
 
 See [acquisition adapters](ACQUISITION-ADAPTERS.md) and
 [guarantee admission](GUARANTEE-ADMISSION.md). This is an unfinished batch; no
