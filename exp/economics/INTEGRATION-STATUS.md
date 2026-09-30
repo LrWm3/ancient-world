@@ -128,6 +128,11 @@ collateral resale remains rejected pending explicit buyer/seller rules.
 | General loans/recovery + households | Shared servicing and separate statements; explicit last-member wind-down before household recovery; member loans are not eliminated |
 | Mortgage purchases + households | Common preparation, separate ownership/debt, normal repayment and solvent disposal/residuals; optional purchases require an active household; specialized stock-sale planning remains excluded |
 | Legacy equipment/forward exchange + direct lending and direct prepayments | Shared opening budgets; one collection pass across direct/tool forwards; competing access/pool and consequence-search adapters remain outstanding |
+| Environmental collection + direct loans/forwards | Accepted repayment/delivery demand informs collection; current stocks, public supply and labor remain finite; repayment and delivery keep their distinct boundaries |
+| Environmental collection + households, hiring and native guarantees | Governed contributed labor, useful outside hiring, pooled output and dated guarantee recourse compose with separate accounts |
+| Environmental collection + financed purchases or coin estate | Independent public collection survives plot repossession; native repayment continues during coin custody; specialized mortgage stock-sale planning remains excluded |
+| Bilateral negotiation + households | Member purchases reserve the contributed share and pool once; collective buying follows charter/permissions; concurrent advances stay unpooled |
+| Bilateral negotiation + environmental collection | Financed need orders buy real collected output; incoming loans cannot fund trades in the same Acquire window |
 | Need-generated marketplace orders | [Bounded consumption/surplus policy](NEED-ORDERS.md) implemented; bilateral parties, lot and reservation prices remain supplied |
 | Monthly town book + household accounts | [Bounded collective adapter](HOUSEHOLD-MARKET.md): locality, governor policy, real member demand, shared money/stock/storage and fixed/ZIP quotes; private sales/barter, charter-delegated buying, active-process input funding, paid outside wages and direct loans now compose; budgeted external hiring and costed member allocation now compose; posted labor acceptance and authorized direct-loan/forward recovery also compose; joint production-market planning remains excluded; household mortgages have a separate bounded acceptance/exit test |
 | Physical minting + direct loans, prepaid deliveries and household hiring | [Shared finance adapter](MINT-FINANCE.md) reserves scarce coins, inputs and hours; the configured package still has its own explicit issuance policy |
@@ -137,7 +142,8 @@ collateral resale remains rejected pending explicit buyer/seller rules.
 | Authorized direct-loan estate + configured asset buyers | Single storage-free denomination, dedicated custody, funded sales and loan waterfall; collateral resale shares the asset-transfer helper |
 | Estate + land/forward claims | [Admitted](LAND-FORWARD-ADMISSION.md): eligible land cash shares the waterfall; native performance retains its boundary; unresolved claims block closure |
 | Estate + existing prepaid-delivery market | Servicing-only composition; retained accepted contracts, no new tool purchase, stock sellers or plot expansion |
-| Estate + legacy mortgage driver or active market/negotiation | Rejected; broader acquisition adapters remain outstanding |
+| Estate + bilateral negotiation | Shared funding and eligibility: active debtor stays suspend optional buying/selling; closure restores eligibility; dedicated custodian cannot trade |
+| Estate + legacy mortgage driver | Rejected; mortgage lifecycle migration remains outstanding |
 | Death/household dissolution + estate | Not integrated; configured arrears proceedings are not automatic lifecycle administration |
 
 These exclusions are intentional validation boundaries, not claims that every

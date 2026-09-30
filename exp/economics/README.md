@@ -7,6 +7,9 @@ funding and storage; mortgages compose with prepayments and negotiated exchange.
 Household mortgages now connect repayment to solvent disposal and dissolution.
 [Portable estate equipment](EQUIPMENT-LIQUIDATION.md) now carries funded sale,
 buyer depreciation and eventual household retirement through the same path.
+Environmental collection now composes with loans, forwards, household governance
+and hiring, negotiated need orders, mortgages and native guarantees. Negotiated
+trade respects household purchasing/storage and authorized estate stays.
 [Estate receivables](ESTATE-RECEIVABLES.md) preserve recoverable assets and newly
 collected cash before deficient closure. These are tested combinations; broader
 admission, planning, custody and liquidation work remains.

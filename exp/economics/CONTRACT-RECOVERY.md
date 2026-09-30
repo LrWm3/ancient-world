@@ -29,7 +29,8 @@ validated CPU/reference batch commit.
 `World.recovery` contains explicit accepted guarantees, authorized proceeding
 terms, and dated consenting asset buyers. These are configuration-driven consent
 and authorization, not autonomous underwriting, court adjudication, negotiation,
-or discovery. When a state transaction policy exists, the proceeding authority
+or autonomous listing/valuation. Existing eligible listings do have common offer
+discovery and funded preparation. When a state transaction policy exists, the proceeding authority
 must match its authority. Asset buyers must have `Action::AssetTrade` permission.
 
 A proceeding admits one debtor's loan portfolio in one storage-free cash
@@ -42,6 +43,11 @@ claims prevent closure unless explicitly released under
 [accepted forward relief](DELIVERY-RELIEF.md); no implicit conversion occurs. Mortgages using
 the older scenario configuration remain excluded. This is bounded contractual
 recovery, not yet universal insolvency.
+
+[Shared acquisition integrations](ACQUISITION-ADAPTERS.md) now cover environmental
+collection/native repayment and bilateral trading. Active debtors retain permitted
+physical work while optional negotiated trades are stayed; eligibility returns
+after closure. Household assets do not become a member’s estate assets.
 
 Each proceeding has a dedicated non-operating estate agent for custody. It cannot
 borrow, guarantee, work, or trade through unrelated configured markets. Its cash
@@ -124,7 +130,9 @@ or waive quantities while retaining original charges, work and actual payments.
 Closed receipts retain their date so subsequent annual bills remain distinguishable
 from claims that should have blocked closing.
 
-Remaining general claims, durable equipment inventories, multicurrency estates,
+Portable durable equipment now follows funded sale and buyer depreciation; see
+[equipment liquidation](EQUIPMENT-LIQUIDATION.md). Remaining general claims, stock
+inventories, multicurrency estates,
 shared operating custodians, multiple liens, automatic asset discovery, auctions,
 contested authorization, autonomous restructuring and other claim adapters
 are not implemented. Constitution/charter and state-law machinery will eventually
