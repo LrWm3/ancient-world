@@ -368,3 +368,98 @@ fn household_governance_pooling_and_member_credit_share_the_collection_boundary(
     };
     assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
 }
+
+#[test]
+fn accepted_prepaid_deliveries_generate_collection_work_without_selling_the_need_buffer() {
+    use economics_compute_smoke::{forward::direct::Terms, offers};
+    for loan in [false, true] {
+        for funded in [false, true] {
+            let (mut w, mut s) = fixture(loan);
+            if !loan {
+                w.lending.clear();
+            }
+            w.horizon = 2;
+            w.prepaid_deliveries.push(Terms {
+                id: 20,
+                seller: PERSON,
+                buyer: STATE_AGENT,
+                month: 2,
+                due: 3,
+                goods: Amount::new(FUEL, 2),
+                prepayment: Amount::new(TOKEN, 2),
+            });
+            s.balances.insert((PERSON, FUEL), if loan { 0 } else { 2 });
+            s.balances
+                .insert((STATE_AGENT, TOKEN), if funded { 2 } else { 0 });
+            let run = |backend| {
+                let mut audit = Audit::with_opening(
+                    &w,
+                    &s,
+                    TOKEN,
+                    Opening {
+                        inventory: if loan {
+                            [((STATE_AGENT, FUEL), 4)].into()
+                        } else {
+                            [((PERSON, FUEL), 2)].into()
+                        },
+                        exchange_values: [(FUEL, 1)].into(),
+                        processes: Some(Default::default()),
+                        ..Opening::default()
+                    },
+                )
+                .unwrap();
+                let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+                while sim.state.phase != Phase::Acquire {
+                    audit.step(&mut sim).unwrap();
+                }
+                let preview = offers::prepare(
+                    &sim,
+                    &[offers::Request::new(
+                        offers::Id::PrepaidDelivery(20),
+                        PERSON,
+                    )],
+                );
+                assert_eq!(preview.is_ok(), funded);
+                audit.step(&mut sim).unwrap();
+                assert_eq!(sim.state.phase, Phase::Productive);
+                assert_eq!(sim.state.exchange.forwards.contains_key(&20), funded);
+                let (lots, _) = pool_market::demand(&sim.world, &sim.state, PERSON).unwrap();
+                assert_eq!(lots > 0, funded);
+                let (mut resumed, mut ra) = (sim.clone(), audit.clone());
+                while sim.state.month <= 3 {
+                    audit.step(&mut sim).unwrap();
+                }
+                while resumed.state.month <= 3 {
+                    ra.step(&mut resumed).unwrap();
+                }
+                assert_eq!(
+                    (&sim.state, &sim.ledger, &audit),
+                    (&resumed.state, &resumed.ledger, &ra)
+                );
+                if funded {
+                    assert_eq!(sim.state.exchange.forwards[&20].delivered, 2);
+                    assert_eq!(
+                        sim.state.balance(STATE_AGENT, FUEL),
+                        if loan { 4 } else { 2 }
+                    );
+                }
+                assert_eq!(
+                    sim.state
+                        .processes
+                        .values()
+                        .filter(|p| p.operator == PERSON
+                            && p.definition == USE_FUEL
+                            && p.status == Status::Completed)
+                        .count(),
+                    2
+                );
+                for who in [PERSON, PERSON + 1, STATE_AGENT] {
+                    let report = audit.book().statements(who, 2, 3).unwrap();
+                    assert_eq!(report.assets, report.liabilities + report.equity);
+                }
+                (sim.state, sim.ledger, audit)
+            };
+            assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+        }
+    }
+}

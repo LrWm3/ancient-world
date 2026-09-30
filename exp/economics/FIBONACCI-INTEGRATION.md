@@ -253,6 +253,8 @@ Completed integrations:
 11. Generate collection requests for repayments even when consumption is buffered.
 12. Compose household governance and resource pooling with environmental allocation.
 13. Compare need-first and output-value labor direction in the same constrained household.
+14. Compose direct prepaid admissions and delivery with environmental collection.
+15. Plan collection for accepted performance claims alongside loan installments and needs.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.

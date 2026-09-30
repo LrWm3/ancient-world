@@ -60,7 +60,6 @@ pub(crate) fn validate(w: &World, s: &State) -> Result<(), String> {
     }
     if w.credit.as_ref().is_some_and(|c| c.stock_sales.is_some())
         || w.production_market.is_some()
-        || w.pool_market.is_some()
         || w.competition.is_some()
         || w.work_choice.is_some()
         || w.priority == Priority::ConsequenceAware

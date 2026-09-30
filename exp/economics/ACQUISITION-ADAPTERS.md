@@ -288,3 +288,19 @@ fuel units, so it returns the hours and completes no first-month collection.
 This is an explicit policy difference, not proof that every charter handles
 scarcity well. Household hiring, competing land admission and insolvency are not
 established by this particular combination.
+
+### Prepaid delivery and collection planning
+
+Direct prepaid deliveries now compose with recurring environmental collection.
+Collection demand reads accepted land/forward performance claims as well as native
+loan installments. The shared request path can therefore collect for an accepted
+delivery even when the person's consumption buffer alone would suppress work.
+Unfunded offers do not become obligations or generate this additional demand.
+
+A two-month CPU/reference matrix compares funded and unfunded prepayments, with
+and without an existing commodity loan. The funded seller collects and delivers
+two fuel units while meeting its warmth need in both months. With a loan, the
+separate Due installment and Acquire delivery both reach the creditor/buyer;
+neither consumes the other's claim or manufactures public wood. Checkpoint
+continuation and the separate inventory and financial statements agree. Terms
+remain supplied consent; this does not introduce autonomous forward underwriting.
