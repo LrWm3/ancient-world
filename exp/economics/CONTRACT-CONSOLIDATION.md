@@ -88,7 +88,8 @@ misrepresented as conserved transfers between fictional counterparties.
   through `World.ownership_rights`. Repossession changes control and future
   output, not crop progress, elapsed labor or already consumed inputs.
 - `agreements::for_agent` includes membership, land, process, loan and forward
-  and guarantee views, plus accepted cooperative exchange schedules and outcomes.
+  and guarantee views, plus accepted cooperative exchange schedules/outcomes and household
+  founding, membership, governance and lifecycle records.
   `View::parties` avoids assigning an artificial creditor role to reciprocal trade.
   Atomic exchange packages remain conditional, not independently collectible legs.
   `View::claims` exposes their recorded or callable claims without

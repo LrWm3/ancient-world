@@ -2189,6 +2189,7 @@ fn exit_preserves_election_and_policy_history_and_vacates_the_office() {
 
 #[test]
 fn membership_changes_drive_actual_cpu_pooling_and_checkpoint_continuation() {
+    use economics_compute_smoke::agreements::{self, View};
     use households::membership as m;
     let (mut w, mut s) = governed_fixture();
     let mut p = w.participants[0].clone();
@@ -2204,6 +2205,12 @@ fn membership_changes_drive_actual_cpu_pooling_and_checkpoint_continuation() {
     cpu.run_months(1).unwrap();
     reference.run_months(1).unwrap();
     for sim in [&mut cpu, &mut reference] {
+        assert!(
+            !agreements::for_agent(&sim.world, &sim.state, PERSON + 2)
+                .unwrap()
+                .iter()
+                .any(|v| matches!(v, View::Household(_)))
+        );
         m::join(
             &mut sim.world,
             &sim.state,
@@ -2227,6 +2234,19 @@ fn membership_changes_drive_actual_cpu_pooling_and_checkpoint_continuation() {
         );
         m::leave(&mut sim.world, &sim.state, HOME, PERSON + 1).unwrap();
         sim.run_months(2).unwrap();
+        for person in [PERSON + 1, PERSON + 2] {
+            let views = agreements::for_agent(&sim.world, &sim.state, person).unwrap();
+            let view = views
+                .iter()
+                .find(|v| matches!(v, View::Household(_)))
+                .unwrap();
+            assert_eq!(view.parties(), vec![PERSON, PERSON + 1, PERSON + 2, HOME]);
+            let View::Household(h) = view else {
+                unreachable!()
+            };
+            assert_eq!(h.roster, vec![PERSON, PERSON + 2]);
+            assert_eq!(h.active_members, h.roster);
+        }
         assert!(
             !sim.ledger
                 .iter()

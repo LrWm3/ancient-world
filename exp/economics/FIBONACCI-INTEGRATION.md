@@ -806,3 +806,14 @@ their separately recorded affected gates and are not covered by that snapshot.
     gate passed 80 tests, excluding the separately verified long calibration and
     credit-discovery controls; strict all-target Clippy passed. Existing loan,
     employment and guarantee inspection remains covered.
+
+47. **Household formation participates in common agreement inspection.** The view
+    borrows founding terms and reports dated roster, active members, authority and
+    operating/inactive/winding/closed status. Historical signatories remain parties
+    for inspection without retaining current work rights. It creates no financial
+    claim from membership and does not consolidate household/member loans. Existing
+    accession and audited internal/external repayment-to-closure controls now check
+    these views through CPU and reconstructed continuation. The six-target gate
+    passed 79 tests, all 56 household tests passed, and strict all-target Clippy
+    passed. This is a common inspection adapter; autonomous founding and recruitment
+    still have their separate implementation limits.

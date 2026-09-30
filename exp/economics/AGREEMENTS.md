@@ -13,8 +13,10 @@ planning and settlement. Land billing reads the shared recurring payment terms.
 Offer eligibility and atomic acceptance remain in their domain resolvers.
 
 `agreements::for_agent(world, state, agent)` now provides a shared inspection entry
-point for accepted membership, land, process, loan, forward and guarantee agreements.
-The participant filter includes holders/grantors and all three guarantee parties.
+point for accepted membership, land, process, loan, forward, guarantee, cooperative
+exchange and household agreements. `View::parties()` includes asymmetric agreement
+roles, all three guarantee parties, both exchange participants and current/former
+household signatories plus the household agent.
 It excludes unaccepted catalog offers and retains terminal agreements. It groups domains and orders by stable IDs, independent of catalog row
 order. It is a read-only query over validated state, not an acceptance or payment
 interface. A separate output beneficiary who is neither holder nor grantor is not
@@ -32,7 +34,9 @@ included by this participant filter.
 
 The inspection result is a typed `View`: existing domains expose `Agreement`,
 while loans expose `LoanView` and guarantees expose `GuaranteeView`. The shared
-view provides identity, grantor, holder and acceptance month. A loan's grantor is its creditor, not necessarily the asset seller.
+view provides identity, parties, optional grantor/holder roles and acceptance month.
+A loan's grantor is its creditor, not necessarily the asset seller. Reciprocal
+exchange and household formation have no distinguished grantor or holder.
 
 `LoanView::record()` borrows the authoritative `credit::Loan`. Original principal,
 denomination, rate, duration, grace, collateral priority and settlement terms come
@@ -163,3 +167,25 @@ commitment suites passed **45 tests**. After boxing the larger inspection varian
 to keep the enum compact, the eight loan-view/agreement tests passed again.
 All-target Clippy passed with warnings denied. Run the focused additions with
 `cargo +1.92.0 test --locked --test loan_views` from this directory.
+
+## Household agreement adapter
+
+`View::Household` borrows the accepted founding agreement and exposes the dated
+roster, currently participating members, governing authority and operating,
+inactive, winding-down or closed status. The founding constitution, charter and
+dated governance records remain in their existing authoritative agreement.
+Former signatories retain inspection access after leaving or closure; being in
+`parties()` does not assert current membership or authorization to direct work.
+
+This view creates no loan claim from a labor contribution, pooling rule or
+membership relationship. Its `claims()` is empty. Actual household/member loans,
+forwards and wages remain independently inspectable and collectible, with their
+existing books and financial reporting scope. A household owing a member ten
+coins still has that liability and the member still owns the receivable.
+
+The household credit/closure control now checks common views while separate
+statements repay internal and external claims before dissolution. The accession
+control distinguishes an unaccepted entrant, a current member and a departed
+signatory while CPU and checkpoint work allocation continues identically.
+Cooperative exchange schedules use their own typed view and conditional execution;
+see [cooperative agreement inspection](COOPERATION.md#common-agreement-inspection).

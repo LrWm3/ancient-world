@@ -218,7 +218,7 @@ class. Processes describe possible transformations; transactions record outcomes
 - [Monthly wood market](WOOD-MARKET.md): quantity allocation, urgency versus lottery, and scarcity consequences on CPU.
 - [Contested offers](CONTESTED-OFFERS.md): generic allocation policies, open land applications and two-person CPU controls.
 - [Production agreements and common offers](MARKET-AGREEMENTS.md): farming terms, atomic acceptance and planning across monthly commitments.
-- [Shared agreements and consequences](AGREEMENTS.md): citizenship, land and production plus read-only loan terms, claims and enforcement views.
+- [Shared agreements and consequences](AGREEMENTS.md): common inspection for citizenship, land, production, loans, guarantees, cooperative exchange and household membership/governance; claims and execution retain typed semantics.
 - [Swappable opportunity search](SEARCH.md): named strategies, common candidate plans, shared evaluation and search budgets.
 - [Households](HOUSEHOLDS.md): adult agreements, pooled resources, shared dwelling services and household decisions.
 - [State prices and tool economics](STATE-PRICING.md): 1.50 resale, 0.75 spot purchases, 0.50 forwards and productivity calibration.

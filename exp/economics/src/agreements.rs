@@ -17,6 +17,7 @@ pub enum Identity {
     Guarantee(u32),
     /// One bounded cooperative agreement per start month in the current pilot.
     CooperativeExchange(u32),
+    Household(u32),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -224,6 +225,7 @@ pub enum View<'a> {
     Forward(&'a crate::forward::Contract),
     Guarantee(GuaranteeView),
     Exchange(Box<ExchangeView>),
+    Household(HouseholdView<'a>),
 }
 
 impl View<'_> {
@@ -237,7 +239,7 @@ impl View<'_> {
             Self::Guarantee(a) => Ok(a.call.clone().into_iter().collect()),
             // Conditional delivery-versus-payment is an atomic package. Neither
             // leg is an independent debt collectible through the claim waterfall.
-            Self::Exchange(_) => Ok(vec![]),
+            Self::Exchange(_) | Self::Household(_) => Ok(vec![]),
         }
     }
     pub fn identity(&self) -> Identity {
@@ -247,6 +249,7 @@ impl View<'_> {
             Self::Forward(a) => Identity::Forward(a.id),
             Self::Guarantee(a) => Identity::Guarantee(a.terms.id),
             Self::Exchange(a) => Identity::CooperativeExchange(a.terms.start),
+            Self::Household(a) => Identity::Household(a.terms.id),
         }
     }
 
@@ -257,7 +260,7 @@ impl View<'_> {
             Self::Loan(a) => Some(Counterparty::Agent(a.record.creditor)),
             Self::Forward(a) => Some(Counterparty::Agent(a.creditor)),
             Self::Guarantee(a) => Some(Counterparty::Agent(a.terms.guarantor)),
-            Self::Exchange(_) => None,
+            Self::Exchange(_) | Self::Household(_) => None,
         }
     }
 
@@ -267,13 +270,29 @@ impl View<'_> {
             Self::Loan(a) => Some(a.record.debtor),
             Self::Forward(a) => Some(a.debtor),
             Self::Guarantee(a) => Some(a.creditor),
-            Self::Exchange(_) => None,
+            Self::Exchange(_) | Self::Household(_) => None,
         }
     }
 
     pub fn parties(&self) -> Vec<AgentId> {
         if let Self::Exchange(a) = self {
             return a.terms.choices.keys().copied().collect();
+        }
+        if let Self::Household(a) = self {
+            let mut parties = a.terms.adults.clone();
+            parties.push(a.terms.agent);
+            parties.extend(a.terms.membership.iter().filter_map(|c| {
+                if c.month > a.month {
+                    return None;
+                }
+                match c.action {
+                    crate::households::membership::Action::Join { person, .. } => Some(person),
+                    _ => None,
+                }
+            }));
+            parties.sort_unstable();
+            parties.dedup();
+            return parties;
         }
         let mut parties: Vec<_> = self.holder().into_iter().collect();
         if let Some(Counterparty::Agent(agent)) = self.grantor() {
@@ -294,6 +313,7 @@ impl View<'_> {
             Self::Forward(a) => a.issued,
             Self::Guarantee(a) => a.accepted_month,
             Self::Exchange(a) => a.terms.start,
+            Self::Household(a) => a.terms.formed,
         }
     }
 }
@@ -306,6 +326,25 @@ pub struct ExchangeView {
     pub completed: Vec<crate::cooperation::Delivery>,
     pub status: Status,
     pub failure: Option<String>,
+}
+
+/// Founding agreement, current authority and lifecycle remain distinct from
+/// member/organization finances. This view never consolidates their claims.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HouseholdView<'a> {
+    pub terms: &'a crate::households::Agreement,
+    pub month: u32,
+    pub roster: Vec<AgentId>,
+    pub active_members: Vec<AgentId>,
+    pub authority: crate::household_governance::Authority,
+    pub status: HouseholdState,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HouseholdState {
+    Operating,
+    Inactive,
+    WindingDown,
+    Closed,
 }
 
 /// Read-only contingent exposure. A callable guarantee is not extra principal
@@ -418,7 +457,7 @@ impl<'a> LoanView<'a> {
 /// are excluded. Terminal contracts remain inspectable. Assumes validated state.
 /// Domain grouping and stable IDs make output independent of catalog row order.
 pub fn for_agent<'a>(
-    world: &World,
+    world: &'a World,
     state: &'a State,
     agent: AgentId,
 ) -> Result<Vec<View<'a>>, String> {
@@ -542,6 +581,33 @@ pub fn for_agent<'a>(
         }
     }
     views.extend(exchanges.into_values().map(|v| View::Exchange(Box::new(v))));
+    let mut households: Vec<_> = world
+        .households
+        .iter()
+        .filter(|h| h.formed <= state.month)
+        .collect();
+    households.sort_by_key(|h| h.id);
+    for terms in households {
+        let authority = crate::household_governance::authority(terms, state);
+        let active_members: Vec<_> = crate::households::members(terms, state).collect();
+        let status = if crate::households::dissolution::closed_at(terms, state.month) {
+            HouseholdState::Closed
+        } else if crate::households::dissolution::winding_at(terms, state.month).is_some() {
+            HouseholdState::WindingDown
+        } else if active_members.is_empty() || authority.leader.is_none() {
+            HouseholdState::Inactive
+        } else {
+            HouseholdState::Operating
+        };
+        views.push(View::Household(HouseholdView {
+            terms,
+            month: state.month,
+            roster: crate::households::membership::roster_at(terms, state.month),
+            active_members,
+            authority,
+            status,
+        }));
+    }
     views.retain(|a| a.accepted_month() <= state.month && a.parties().contains(&agent));
     Ok(views)
 }

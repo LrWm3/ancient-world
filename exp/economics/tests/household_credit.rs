@@ -1,5 +1,6 @@
 use economics_compute_smoke::{
     accounting::Account as A,
+    agreements::{self, HouseholdState, Identity, View},
     compute::Backend,
     credit::{Advance, LoanOffer},
     financial_reporting::Audit,
@@ -90,7 +91,58 @@ fn household_and_member_loans_remain_separate_and_repay_before_residuals_on_cpu(
         assert_eq!(sim.state.balance(PERSON, TOKEN), 0);
         assert_eq!(a.book().statements(HOME, 1, 1).unwrap().liabilities, 20);
         assert_eq!(a.book().statements(PERSON, 1, 1).unwrap().assets, 10);
+        let unchanged = sim.state.clone();
+        for agent in [HOME, PERSON] {
+            let views = agreements::for_agent(&sim.world, &sim.state, agent).unwrap();
+            let h = views
+                .iter()
+                .find(|v| v.identity() == Identity::Household(1))
+                .unwrap();
+            assert_eq!(h.parties(), vec![PERSON, HOME]);
+            assert!(h.claims().unwrap().is_empty());
+            assert_eq!((h.holder(), h.grantor()), (None, None));
+            let View::Household(h) = h else {
+                unreachable!()
+            };
+            assert!(std::ptr::eq(h.terms, &sim.world.households[0]));
+            assert_eq!(h.status, HouseholdState::Operating);
+            assert_eq!(h.active_members, vec![PERSON]);
+            assert_eq!(h.authority.leader, Some(PERSON));
+            let debts: Vec<_> = views
+                .iter()
+                .filter_map(|v| match v {
+                    View::Loan(v) => Some((
+                        v.record().id,
+                        v.record().debtor,
+                        v.record().creditor,
+                        v.record().debt().unwrap(),
+                    )),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(debts.len(), if agent == HOME { 2 } else { 1 });
+            assert!(debts.contains(&(2, HOME, PERSON, 10)));
+        }
+        assert_eq!(sim.state, unchanged);
+        assert!(
+            !agreements::for_agent(&sim.world, &sim.state, STATE_AGENT)
+                .unwrap()
+                .iter()
+                .any(|v| matches!(v, View::Household(_)))
+        );
         dissolution::request(&mut sim.world, &sim.state, HOME, PERSON).unwrap();
+        let winding = agreements::for_agent(&sim.world, &sim.state, PERSON).unwrap();
+        let h = winding
+            .iter()
+            .find_map(|v| match v {
+                View::Household(h) => Some(h),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(h.status, HouseholdState::WindingDown);
+        assert_eq!(h.roster, vec![PERSON]);
+        assert!(h.active_members.is_empty());
+        assert_eq!(h.authority.leader, None);
         let checkpoint = (sim.clone(), a.clone());
         through(&mut a, &mut sim, 2);
         assert_eq!(sim.state.balance(HOME, TOKEN), 0);
@@ -104,6 +156,24 @@ fn household_and_member_loans_remain_separate_and_repay_before_residuals_on_cpu(
         assert_eq!(sim.state, resumed.state);
         assert_eq!(sim.ledger, resumed.ledger);
         assert_eq!(a, ra);
+        for agent in [HOME, PERSON] {
+            let views = agreements::for_agent(&sim.world, &sim.state, agent).unwrap();
+            let View::Household(h) = views
+                .iter()
+                .find(|v| v.identity() == Identity::Household(1))
+                .unwrap()
+            else {
+                unreachable!()
+            };
+            assert_eq!(h.status, HouseholdState::Closed);
+            assert!(h.roster.is_empty());
+            assert!(h.active_members.is_empty());
+            assert_eq!(h.terms.adults, vec![PERSON]);
+            assert_eq!(
+                views,
+                agreements::for_agent(&resumed.world, &resumed.state, agent).unwrap()
+            );
+        }
         (sim.state, sim.ledger, a)
     };
     assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
