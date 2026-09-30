@@ -123,3 +123,9 @@ Neither route duplicates the four coins. Funded/unfunded assignment and retained
 discharged deficiency controls preserve separate investor, guarantor, household,
 member and custodian books. Household dissolution depends on its own remaining
 exposure, not whether the unrelated guarantor has recovered in full.
+
+Common productive requests can now include a receivable bid alongside seed
+purchase, land prerequisites and planting. The combined regression checks
+separate purchase costs, estate custody, later borrower payments to the investor,
+harvest and unfunded rejection. CPU/reference and reconstructed checkpoints
+reconcile. The claim's face amount never becomes immediate spendable cash.

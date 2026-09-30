@@ -620,3 +620,11 @@ to the creditor. Creditor labor completes the harvest; its absence aborts the
 crop. Both leave the same loan deficiency. Separate statements, CPU/reference
 execution and reconstructed-checkpoint continuation reconcile. An altered title
 record fails before publishing the prepared purchase or planting plan.
+
+Estate property and receivable bids also share explicit productive acceptance.
+A purchased land right can support a new crop, while a purchased receivable
+remains a claim until its borrower actually pays. The combined seed/claim case
+spends three opening coins on two separately recorded assets; later installments
+return two coins to the investor. Failed explicit bundles publish neither asset.
+These adapters do not add autonomous bidding or allow projected collections to
+finance another same-window purchase.

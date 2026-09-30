@@ -314,10 +314,12 @@ pub fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, String> 
                     | Id::PrepaidDelivery(_)
                     | Id::Guarantee(_)
                     | Id::InventoryLiquidationBid(_)
+                    | Id::LiquidationBid(_)
+                    | Id::ReceivableLiquidationBid(_)
             )
         }) {
             return Err(
-                "mixed productive bundles currently accept direct credit, financed purchase, prepaid, guarantee and inventory bid terms".into(),
+                "mixed productive bundles currently accept direct credit, financed purchase, prepaid, guarantee and estate bid terms".into(),
             );
         }
         financial::validate_requests(sim, &financial)?;

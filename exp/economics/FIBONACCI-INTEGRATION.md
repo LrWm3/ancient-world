@@ -475,3 +475,11 @@ liquidation and household forwards passed; strict all-target Clippy passed.
     and reconstructed checkpoints agree. The eight-target gate passed 36 tests;
     strict all-target Clippy passed. Specialized mortgage stock-sale planning
     and household prerequisite search retain their separate guards.
+
+15. **Property and claim bids join productive acceptance.** A funded estate-land
+    bid can reserve cultivation under its acquired right. A separate combined
+    request purchases seed and a whole loan claim; only actual seed supports
+    planting, while borrower installments later fund the investor. Custody sale
+    proceeds wait for their existing recovery window. Unfunded requests,
+    CPU/reference and reconstructed checkpoints preserve separate books. The
+    six-target gate passed 37 tests; strict all-target Clippy passed.

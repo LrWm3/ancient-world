@@ -181,3 +181,78 @@ fn mortgage_recovery_keeps_custody_nonoperating_and_legacy_enforcement_explicit(
         assert!(Simulation::new(invalid, s.clone(), Backend::Reference).is_err());
     }
 }
+
+#[test]
+fn buying_estate_land_can_reserve_new_cultivation_in_the_same_request() {
+    use economics_compute_smoke::offers::{self, Id, Request};
+    for funded in [false, true] {
+        let (mut w, mut s) = fixture(4, funded, true);
+        w.scheduled_starts.clear();
+        s.balances.insert((BUYER, SEED), 1);
+        let run = |backend| {
+            let mut audit = Audit::with_opening(
+                &w,
+                &s,
+                TOKEN,
+                Opening {
+                    assets: [(PLOT, 8)].into(),
+                    inventory: [((PERSON, SEED), 1), ((BUYER, SEED), 1)].into(),
+                    exchange_values: [(SEED, 1), (GRAIN, 1)].into(),
+                    processes: Some(Costs {
+                        output_weights: [(
+                            GROW,
+                            [(Output::Stock(GRAIN), 1), (Output::Stock(SEED), 1)].into(),
+                        )]
+                        .into(),
+                        ..Costs::default()
+                    }),
+                    ..Opening::default()
+                },
+            )
+            .unwrap();
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            while (sim.state.month, sim.state.phase) != (3, Phase::Acquire) {
+                audit.step(&mut sim).unwrap();
+            }
+            let before = sim.state.clone();
+            let requests = [
+                Request::new(Id::LiquidationBid(1), BUYER),
+                Request::new(Id::Process(GROW), BUYER),
+            ];
+            let prepared = offers::prepare(&sim, &requests);
+            assert_eq!(sim.state, before);
+            if !funded {
+                assert!(prepared.is_err());
+                assert!(offers::accept(&mut sim, &requests).is_err());
+                assert_eq!(sim.state, before);
+                return (sim.state, sim.ledger, audit);
+            }
+            let prepared = prepared.unwrap();
+            offers::accept(&mut sim, &requests).unwrap();
+            audit
+                .record(&sim.world, &before, &prepared, &sim.state)
+                .unwrap();
+            assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(BUYER));
+            assert_eq!(sim.state.balance(BUYER, SEED), 1);
+            assert_eq!(sim.state.balance(ESTATE, TOKEN), 4);
+            assert_eq!(sim.state.credit.loans[&1].principal, 6);
+            audit.step(&mut sim).unwrap();
+            assert_eq!(sim.state.balance(BUYER, SEED), 0);
+            let mut resumed =
+                Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+            let mut ra = audit.clone();
+            while sim.state.month < 10 {
+                audit.step(&mut sim).unwrap();
+            }
+            while resumed.state.month < 10 {
+                ra.step(&mut resumed).unwrap();
+            }
+            assert_eq!((&sim.state, &audit), (&resumed.state, &ra));
+            assert_eq!(sim.state.balance(BUYER, GRAIN), 8);
+            assert_eq!(sim.state.credit.loans[&1].principal, 2);
+            assert_eq!(sim.state.balance(ESTATE, TOKEN), 0);
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
