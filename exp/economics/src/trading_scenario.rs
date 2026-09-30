@@ -290,7 +290,7 @@ pub fn assess(sim: &crate::simulation::Simulation, count: usize) -> Vec<Assessme
                     r.deficit(NUTRITION) == 0
                         && r.deficit(WARMTH) == 0
                         && r.terminal.is_none()
-                        && r.obligations.values().all(|o| o.owed == o.paid)
+                        && r.obligations.values().all(|o| o.outstanding() == 0)
                 });
             let next_tax_funded = sim
                 .world

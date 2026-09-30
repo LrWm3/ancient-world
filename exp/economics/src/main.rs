@@ -150,13 +150,14 @@ fn run() -> Result<(), String> {
     }
     for o in simulation.state.obligations.values() {
         println!(
-            "- Agreement {} due {}: owed {}, settled {}, native paid {}, arrears {}.",
+            "- Agreement {} due {}: owed {}, settled {}, native paid {}, written off {}, arrears {}.",
             o.agreement,
             o.due,
             o.owed,
             o.paid,
             o.in_kind_paid,
-            o.owed - o.paid
+            o.written_off(),
+            o.outstanding()
         );
     }
     for a in simulation.state.accepted_agreements.values() {
@@ -169,12 +170,12 @@ fn run() -> Result<(), String> {
     let arrears_months = simulation
         .reports
         .iter()
-        .filter(|r| r.obligations.values().any(|o| o.paid < o.owed))
+        .filter(|r| r.obligations.values().any(|o| o.outstanding() > 0))
         .count();
     let active_arrears_months = simulation
         .reports
         .iter()
-        .filter(|r| r.terminal.is_none() && r.obligations.values().any(|o| o.paid < o.owed))
+        .filter(|r| r.terminal.is_none() && r.obligations.values().any(|o| o.outstanding() > 0))
         .count();
     let blocked = simulation
         .ledger
@@ -273,7 +274,7 @@ fn run() -> Result<(), String> {
             println!("- Month {}: plot request {:?}.", batch.month, request);
         }
         if let Some(s) = &batch.commitments
-            && (!s.protected.is_empty() || s.obligations.values().any(|o| o.paid < o.owed))
+            && (!s.protected.is_empty() || s.obligations.values().any(|o| o.outstanding() > 0))
         {
             println!(
                 "- Month {} {:?}: payment policy {:?}, protected stock {:?}, unpaid obligations {}.",
@@ -281,7 +282,10 @@ fn run() -> Result<(), String> {
                 batch.phase,
                 s.policy,
                 s.protected,
-                s.obligations.values().filter(|o| o.paid < o.owed).count()
+                s.obligations
+                    .values()
+                    .filter(|o| o.outstanding() > 0)
+                    .count()
             );
         }
         if let Some(id) = batch.accept_access {

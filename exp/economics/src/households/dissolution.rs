@@ -125,7 +125,7 @@ pub fn blockers(w: &World, s: &State, household: AgentId) -> Vec<Blocker> {
                 .any(|r| r.id == a.right && r.through >= s.month)
                 || s.obligations
                     .values()
-                    .any(|o| o.agreement == a.id && o.paid < o.owed))
+                    .any(|o| o.agreement == a.id && o.outstanding() > 0))
     }) {
         result.push(Blocker::LandAgreement);
     }

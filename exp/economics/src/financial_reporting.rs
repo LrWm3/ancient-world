@@ -1514,6 +1514,7 @@ impl Audit {
                         proceeding,
                         creditor,
                         written_off: Some(amount),
+                        contract: crate::finance::ContractId::Wages(_),
                         ..
                     } => {
                         let p = world
@@ -1531,9 +1532,7 @@ impl Audit {
                         result(&mut lines, *creditor, Account::CreditLoss, loss);
                         result(&mut lines, p.debtor, Account::DebtRelief, -loss);
                     }
-                    recovery::Receipt::ClaimRelief {
-                        written_off: None, ..
-                    } => {}
+                    recovery::Receipt::ClaimRelief { .. } => {}
                     recovery::Receipt::WagesDistributed {
                         proceeding,
                         creditor,

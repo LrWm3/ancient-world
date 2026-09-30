@@ -289,3 +289,112 @@ fn ranked_full_dues_payment_composes_with_loan_discharge_and_estate_closure() {
     through(&mut a, &mut sim, 16);
     assert_eq!(a.book().statements(PERSON, 16, 16).unwrap().net_income, 0);
 }
+
+fn land_relief(quantity: i32) -> economics_compute_smoke::claim_relief::Terms {
+    economics_compute_smoke::claim_relief::Terms {
+        id: 1,
+        proceeding: 1,
+        contract: economics_compute_smoke::finance::ContractId::Land(1),
+        original_due: 13,
+        debtor: PERSON,
+        creditor: STATE_AGENT,
+        month: 14,
+        expected_due: 13,
+        expected_remaining: 2,
+        action: economics_compute_smoke::claim_relief::Action::WriteOff { quantity },
+    }
+}
+#[test]
+fn native_land_writeoff_preserves_bill_payment_and_issuance_history() {
+    let mut reference = land_estate(false);
+    reference.world.recovery.claim_relief.push(land_relief(2));
+    let mut a = audit(&reference);
+    let mut b = a.clone();
+    let mut cpu = Simulation::new(
+        reference.world.clone(),
+        reference.state.clone(),
+        Backend::CubeCpu,
+    )
+    .unwrap();
+    let opening = reference.state.balances.clone();
+    through(&mut a, &mut reference, 14);
+    through(&mut b, &mut cpu, 14);
+    let o = &reference.state.obligations[&(1, 13)];
+    assert_eq!(
+        (
+            o.owed,
+            o.paid,
+            o.in_kind_paid,
+            o.written_off(),
+            o.outstanding()
+        ),
+        (2, 0, 0, 2, 0)
+    );
+    assert_eq!(reference.state.balances, opening);
+    assert_eq!(a.book().balances()[&(PERSON, A::DebtRelief)], -6);
+    assert_eq!(a.book().balances()[&(STATE_AGENT, A::CreditLoss)], 6);
+    let mut resumed = reference.clone();
+    let mut c = a.clone();
+    through(&mut a, &mut reference, 16);
+    through(&mut b, &mut cpu, 16);
+    through(&mut c, &mut resumed, 16);
+    assert_eq!(reference.state, cpu.state);
+    assert_eq!(reference.state, resumed.state);
+    assert_eq!(a, b);
+    assert_eq!(a, c);
+    assert_eq!(
+        reference.state.credit.recovery.proceedings[&1].stage,
+        Stage::Closed
+    );
+    assert_eq!(reference.state.balance(PERSON, TOKEN), 0);
+    assert_eq!(reference.state.balance(STATE_AGENT, TOKEN), 0);
+}
+#[test]
+fn partial_land_relief_leaves_collectible_native_claim_and_stale_terms_do_not_apply() {
+    use economics_compute_smoke::recovery::Receipt;
+    let mut sim = land_estate(true);
+    sim.world.recovery.claim_relief.push(land_relief(1));
+    let mut a = audit(&sim);
+    through(&mut a, &mut sim, 15);
+    assert_eq!(sim.state.obligations[&(1, 13)].outstanding(), 1);
+    assert_eq!(
+        sim.state.credit.recovery.proceedings[&1].stage,
+        Stage::Active
+    );
+    assert_eq!(a.book().balances()[&(PERSON, A::DuesPayable(1, 13))], -3);
+    let mut stale = land_estate(false);
+    stale.world.recovery.claim_relief.push(land_relief(2));
+    stale.state.balances.insert((PERSON, scenario::GRAIN), 1);
+    let mut b = audit(&stale);
+    through(&mut b, &mut stale, 14);
+    let bill = &stale.state.obligations[&(1, 13)];
+    assert_eq!(
+        (
+            bill.paid,
+            bill.in_kind_paid,
+            bill.written_off(),
+            bill.outstanding()
+        ),
+        (1, 1, 0, 1)
+    );
+    assert!(
+        stale
+            .ledger
+            .iter()
+            .filter_map(|b| b.credit.as_ref())
+            .flat_map(|b| &b.recovery)
+            .any(|r| matches!(
+                r,
+                Receipt::ClaimRelief {
+                    rejection: Some(_),
+                    written_off: None,
+                    ..
+                }
+            ))
+    );
+    let mut forged = sim.state.clone();
+    forged.obligations.get_mut(&(1, 13)).unwrap().relief[0]
+        .terms
+        .action = economics_compute_smoke::claim_relief::Action::WriteOff { quantity: 2 };
+    assert!(Simulation::new(sim.world.clone(), forged, Backend::Reference).is_err());
+}

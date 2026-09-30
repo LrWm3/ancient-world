@@ -42,6 +42,7 @@ fn citizenship_and_land_share_terms_but_not_obligations_or_consequences() {
     state.obligations.insert(
         (land.id, 13),
         commitments::Obligation {
+            relief: vec![],
             agreement: land.id,
             due: 13,
             owed: land.payment.quantity,
@@ -87,6 +88,7 @@ fn expiration_ends_grants_without_erasing_claims_and_consequence_is_scoped() {
     state.obligations.insert(
         (land.id, 13),
         commitments::Obligation {
+            relief: vec![],
             agreement: land.id,
             due: 13,
             owed: 1,

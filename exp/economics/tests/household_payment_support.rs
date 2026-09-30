@@ -574,6 +574,7 @@ fn rent_support_uses_only_issued_unpaid_native_claims() {
             s.obligations.insert(
                 (55000, 13),
                 economics_compute_smoke::commitments::Obligation {
+                    relief: vec![],
                     agreement: 55000,
                     due: 13,
                     owed: 4,

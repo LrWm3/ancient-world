@@ -47,7 +47,7 @@ pub fn validate_terms(w: &World) -> Result<(), String> {
             .ok_or("claim relief requires an authorized proceeding")?;
         if !ids.insert(t.id)
             || !dates.insert((t.contract, t.original_due, t.month))
-            || !matches!(t.contract, ContractId::Wages(_))
+            || !matches!(t.contract, ContractId::Wages(_) | ContractId::Land(_))
             || t.original_due < 2
             || t.expected_due < t.original_due
             || t.expected_due >= t.month
@@ -119,6 +119,7 @@ pub(crate) fn validate_history(
 
 /// Due, after ordinary collections and before estate allocation. Both parties'
 /// accepted terms must still match the current dated claim exactly.
+
 pub(crate) fn apply(w: &World, s: &State, out: &mut credit::Boundary) -> Result<(), String> {
     let mut terms: Vec<_> = w
         .recovery
@@ -129,11 +130,7 @@ pub(crate) fn apply(w: &World, s: &State, out: &mut credit::Boundary) -> Result<
     terms.sort_by_key(|t| t.id);
     for t in terms {
         let current = crate::recovery_claims::current(s, out);
-        let ContractId::Wages(id) = t.contract else {
-            return Err("unsupported relief adapter".into());
-        };
-        let key = (id, t.original_due - 1);
-        let mut earned = current.employment.earned.get(&key).cloned();
+        let mut view = view(w, &current, t);
         let active = out
             .after
             .recovery
@@ -142,13 +139,13 @@ pub(crate) fn apply(w: &World, s: &State, out: &mut credit::Boundary) -> Result<
             .is_some_and(|c| c.stage == recovery::Stage::Active);
         let rejection = if !active {
             Some(Rejection::InactiveProceeding)
-        } else if let Some(e) = &earned {
-            if e.relief.iter().any(|r| r.terms.id == t.id) {
+        } else if let Some((claim, history)) = &view {
+            if history.iter().any(|r| r.terms.id == t.id) {
                 Some(Rejection::AlreadyApplied)
-            } else if e.claim.transfer.from != t.debtor
-                || e.claim.transfer.to != t.creditor
-                || e.claim.condition != crate::finance::Condition::OnOrAfterMonth(t.expected_due)
-                || e.claim.outstanding() != t.expected_remaining
+            } else if claim.transfer.from != t.debtor
+                || claim.transfer.to != t.creditor
+                || claim.condition != crate::finance::Condition::OnOrAfterMonth(t.expected_due)
+                || claim.outstanding() != t.expected_remaining
             {
                 Some(Rejection::TermsMismatch)
             } else {
@@ -159,21 +156,43 @@ pub(crate) fn apply(w: &World, s: &State, out: &mut credit::Boundary) -> Result<
         };
         let mut written_off = None;
         if rejection.is_none() {
-            let e = earned.as_mut().unwrap();
-            e.relief.push(Applied {
+            let (claim, history) = view.as_mut().unwrap();
+            history.push(Applied {
                 terms: t.clone(),
-                paid: e.claim.settled,
+                paid: claim.settled,
             });
             match t.action {
                 Action::WriteOff { quantity } => {
-                    e.claim.transfer.amount.quantity -= quantity;
-                    written_off = Some(Amount::new(e.claim.transfer.amount.resource, quantity));
+                    claim.transfer.amount.quantity -= quantity;
+                    written_off = Some(Amount::new(claim.transfer.amount.resource, quantity));
                 }
             }
-            out.employment
-                .get_or_insert_with(|| s.employment.clone())
-                .earned
-                .insert(key, e.clone());
+            match t.contract {
+                ContractId::Wages(id) => {
+                    let book = out.employment.get_or_insert_with(|| s.employment.clone());
+                    let earned = book.earned.get_mut(&(id, t.original_due - 1)).unwrap();
+                    earned.claim = claim.clone();
+                    earned.relief = history.clone();
+                }
+                ContractId::Land(id) => {
+                    if out.commitments.is_none() {
+                        out.commitments = Some(crate::commitments::Settlement {
+                            policy: w.payment_policy,
+                            protected: crate::commitments::protected_stock(w, s)?,
+                            obligations: crate::commitments::due_obligations(w, s)?,
+                            transactions: vec![],
+                        });
+                    }
+                    out.commitments
+                        .as_mut()
+                        .unwrap()
+                        .obligations
+                        .get_mut(&(id, t.original_due))
+                        .unwrap()
+                        .relief = history.clone();
+                }
+                _ => return Err("unsupported relief adapter".into()),
+            }
         }
         out.recovery.push(recovery::Receipt::ClaimRelief {
             proceeding: t.proceeding,
@@ -185,4 +204,18 @@ pub(crate) fn apply(w: &World, s: &State, out: &mut credit::Boundary) -> Result<
         });
     }
     Ok(())
+}
+fn view(w: &World, s: &State, t: &Terms) -> Option<(crate::finance::Obligation, Vec<Applied>)> {
+    match t.contract {
+        ContractId::Wages(id) => {
+            let e = s.employment.earned.get(&(id, t.original_due - 1))?;
+            Some((e.claim.clone(), e.relief.clone()))
+        }
+        ContractId::Land(id) => {
+            let a = crate::commitments::active(w, s).find(|a| a.id == id)?;
+            let o = s.obligations.get(&(id, t.original_due))?;
+            Some((o.claim(a), o.relief.clone()))
+        }
+        _ => None,
+    }
 }

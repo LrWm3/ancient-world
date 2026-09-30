@@ -570,7 +570,11 @@ fn requests(world: &World, state: &State) -> Result<Vec<Request>, String> {
                 }
                 if matches!(state.phase, Phase::Due | Phase::ClearArrears) {
                     let settlement = crate::commitments::evaluate(world, state)?;
-                    for o in settlement.obligations.values().filter(|o| o.owed > o.paid) {
+                    for o in settlement
+                        .obligations
+                        .values()
+                        .filter(|o| o.outstanding() > 0)
+                    {
                         let Some(contract) = crate::commitments::active(world, state)
                             .find(|c| c.id == o.agreement && c.debtor == member)
                         else {
@@ -581,9 +585,9 @@ fn requests(world: &World, state: &State) -> Result<Vec<Request>, String> {
                         };
                         // Native pooled payment takes precedence. Request coins
                         // only for the residual that the common commodity cannot cover.
-                        let residual =
-                            (o.owed - o.paid - state.balance(a.agent, contract.payment.resource))
-                                .max(0);
+                        let residual = (o.outstanding()
+                            - state.balance(a.agent, contract.payment.resource))
+                        .max(0);
                         let quantity = residual
                             .checked_mul(coin.coins_per_unit)
                             .ok_or("household coin payment overflow")?;

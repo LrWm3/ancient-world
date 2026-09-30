@@ -249,6 +249,7 @@ fn annual_tax_window_existing_arrears_and_holding_limit_are_enforced() {
     sim.state.obligations.insert(
         (id, 13),
         economics_compute_smoke::commitments::Obligation {
+            relief: vec![],
             agreement: id,
             due: 13,
             owed: 200,

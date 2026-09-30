@@ -1237,10 +1237,11 @@ fn due(
                         creditor: agreement.creditor,
                         requested: Amount::new(
                             agreement.payment.resource,
-                            obligation.owed - previous,
+                            obligation.owed - obligation.written_off() - previous,
                         ),
                         allocated: remaining_grant.as_mut().map(|remaining| {
-                            let amount = (*remaining).min(obligation.owed - previous);
+                            let amount = (*remaining)
+                                .min(obligation.owed - obligation.written_off() - previous);
                             *remaining -= amount;
                             amount
                         }),

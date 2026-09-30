@@ -55,6 +55,7 @@ fn combined(reverse: bool) -> (Inventory, Costs, Book) {
     after.obligations.insert(
         (1, 13),
         Obligation {
+            relief: vec![],
             agreement: 1,
             due: 13,
             owed: 1,

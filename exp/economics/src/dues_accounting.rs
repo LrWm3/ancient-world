@@ -32,7 +32,7 @@ impl Valuation {
                 .ok_or("missing dues agreement")?;
             let value = self
                 .unit(a, coin)?
-                .checked_mul(i128::from(o.owed - o.paid))
+                .checked_mul(i128::from(o.outstanding()))
                 .ok_or("dues valuation overflow")?;
             accounting::add(
                 &mut p,
@@ -113,6 +113,15 @@ impl Valuation {
             if newly_owed < 0 || native < 0 || paid < native {
                 return Err("dues relief requires explicit accounting".into());
             }
+            let waived = o.written_off() - old.map_or(0, |o| o.written_off());
+            if waived < 0 {
+                return Err("land relief cannot be reversed".into());
+            }
+            let loss = unit
+                .checked_mul(i128::from(waived))
+                .ok_or("land relief value overflow")?;
+            push(a.creditor, Account::CreditLoss, loss, None);
+            push(a.debtor, Account::DebtRelief, -loss, None);
             let charge = unit
                 .checked_mul(i128::from(newly_owed))
                 .ok_or("dues valuation overflow")?;

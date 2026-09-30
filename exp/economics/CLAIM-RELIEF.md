@@ -24,3 +24,17 @@ coin paid and two hours delivered after three coins are explicitly forgiven in t
 steps. CPU/reference and checkpoint continuations agree, and the estate closes only
 after the remaining claim is resolved. Stale relief and unexplained balance changes
 are rejected. The preceding batch's broader run passed 125 tests across 11 suites.
+
+
+## Land-bill adapter
+
+The same dated terms now support annual land bills. Original charges, actual
+payments and native paid quantities remain intact; separate relief history supplies
+the waived quantity. Collection, projections, household support, dissolution and
+recovery use the resulting outstanding claim. Forgiving a bill does not renew or
+transfer a land right, pay a tax, issue currency or cancel later annual bills.
+
+The dues adapter values the loss at its explicit native-unit reporting valuation,
+including when coins are an accepted tender. Partial waivers retain collectible
+claims; stale consent after ordinary native payment is rejected. Six estate-dues
+tests pass, including CPU/reference, continuation, partial relief and forged history.

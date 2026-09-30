@@ -23,13 +23,13 @@ pub fn outstanding(world: &World, state: &State, debtor: AgentId) -> Vec<Claim> 
         for o in state
             .obligations
             .values()
-            .filter(|o| o.agreement == a.id && o.paid < o.owed)
+            .filter(|o| o.agreement == a.id && o.outstanding() > 0)
         {
             claims.push(Claim {
                 contract: ContractId::Land(a.id),
                 creditor: a.creditor,
                 due: o.due,
-                remaining: Amount::new(a.payment.resource, o.owed - o.paid),
+                remaining: Amount::new(a.payment.resource, o.outstanding()),
             });
         }
     }
@@ -199,7 +199,7 @@ pub(crate) fn pay_land(
         .values_mut()
         .filter(|o| o.agreement == id && o.due <= state.month)
     {
-        let units = remaining.min(o.owed - o.paid);
+        let units = remaining.min(o.outstanding());
         if units == 0 {
             continue;
         }

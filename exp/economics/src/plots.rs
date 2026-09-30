@@ -78,7 +78,7 @@ fn forecast(
             .state
             .obligations
             .values()
-            .map(|o| i64::from(o.owed - o.paid))
+            .map(|o| i64::from(o.outstanding()))
             .sum(),
         terminal: sim.state.terminal.contains_key(&agent),
     })
@@ -118,7 +118,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Request>, String>
     }
     if state.terminal.contains_key(&agent)
         || state.obligations.values().any(|o| {
-            o.paid < o.owed
+            o.outstanding() > 0
                 && commitments::active(world, state)
                     .any(|a| a.id == o.agreement && a.debtor == agent)
         })

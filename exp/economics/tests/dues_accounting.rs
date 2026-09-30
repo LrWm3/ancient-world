@@ -125,6 +125,7 @@ fn existing_arrears_open_as_liability_not_current_expense_and_native_cash_is_one
     s.obligations.insert(
         (1, 13),
         Obligation {
+            relief: vec![],
             agreement: 1,
             due: 13,
             owed: 2,

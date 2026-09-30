@@ -396,7 +396,7 @@ pub fn evaluate_candidates(
             && forecast
                 .reports
                 .iter()
-                .any(|r| r.obligations.values().any(|o| o.paid < o.owed))
+                .any(|r| r.obligations.values().any(|o| o.outstanding() > 0))
         {
             rejection_reasons.push(format!(
                 "{}: land payment is forecast to remain unpaid",

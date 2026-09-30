@@ -49,6 +49,7 @@ pub struct Agreement {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Obligation {
+    pub relief: Vec<crate::claim_relief::Applied>,
     pub agreement: u32,
     pub due: u32,
     pub owed: i32,
@@ -57,12 +58,25 @@ pub struct Obligation {
     pub in_kind_paid: i32,
 }
 impl Obligation {
+    pub fn written_off(&self) -> i32 {
+        self.relief
+            .iter()
+            .fold(0_i32, |sum, r| match r.terms.action {
+                crate::claim_relief::Action::WriteOff { quantity } => sum.saturating_add(quantity),
+            })
+    }
+    pub fn outstanding(&self) -> i32 {
+        self.owed
+            .saturating_sub(self.paid)
+            .saturating_sub(self.written_off())
+    }
+
     pub fn claim(&self, agreement: &Agreement) -> finance::Obligation {
         finance::Obligation {
             transfer: Transfer {
                 from: agreement.debtor,
                 to: agreement.creditor,
-                amount: Amount::new(agreement.payment.resource, self.owed),
+                amount: Amount::new(agreement.payment.resource, self.owed - self.written_off()),
             },
             settled: self.paid,
             condition: Condition::OnOrAfterMonth(self.due),
@@ -156,6 +170,7 @@ pub(crate) fn due_obligations(
                 let mut due = terms.first_due;
                 while due <= state.month && due <= terms.through {
                     obligations.entry((a.id, due)).or_insert(Obligation {
+                        relief: vec![],
                         agreement: a.id,
                         due,
                         owed: terms.transfer.amount.quantity,
@@ -199,7 +214,7 @@ pub(crate) fn current_claims(
             .values()
             .filter(|o| o.agreement == a.id && o.due <= state.month)
             .try_fold(0_i32, |sum, o| {
-                sum.checked_add(o.owed - o.paid)
+                sum.checked_add(o.outstanding())
                     .ok_or("collection demand overflow")
             })?;
         let contract = finance::ContractId::Land(a.id);
@@ -498,6 +513,19 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             .find(|r| r.id == a.right)
             .unwrap()
             .through;
+        crate::claim_relief::validate_history(
+            world,
+            state,
+            &crate::claim_relief::Claim {
+                contract: finance::ContractId::Land(a.id),
+                original_due: o.due,
+                debtor: a.debtor,
+                creditor: a.creditor,
+                quantity: o.owed,
+                paid: o.paid,
+            },
+            &o.relief,
+        )?;
         if key != (o.agreement, o.due)
             || o.due > state.month
             || o.due > through
@@ -505,7 +533,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             || !(o.due - a.activated).is_multiple_of(MONTHS_PER_YEAR)
             || o.owed != a.payment.quantity
             || o.paid < 0
-            || o.paid > o.owed
+            || o.paid > o.owed - o.written_off()
             || o.in_kind_paid < 0
             || o.in_kind_paid > o.paid
         {
@@ -694,7 +722,7 @@ pub(crate) fn projected_claims(
         for o in state.obligations.values().filter(|o| o.agreement == a.id) {
             let due = u64::from(o.due).max(start);
             if due < end {
-                *claims.entry(due).or_default() += i128::from(o.owed - o.paid);
+                *claims.entry(due).or_default() += i128::from(o.outstanding());
             }
         }
         let through = u64::from(
@@ -809,6 +837,7 @@ mod candidate_tests {
         s.obligations.insert(
             (1, 13),
             Obligation {
+                relief: vec![],
                 agreement: 1,
                 due: 13,
                 owed: 3,
@@ -839,6 +868,7 @@ mod candidate_tests {
         s.obligations.insert(
             (1, 13),
             Obligation {
+                relief: vec![],
                 agreement: 1,
                 due: 13,
                 owed: 3,
