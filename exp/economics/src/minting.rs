@@ -148,6 +148,16 @@ fn transaction(w: &World, s: &State, c: &Config, d: &Deal) -> Result<Transaction
     })
 }
 pub fn evaluate(w: &World, s: &State) -> Result<Option<Boundary>, String> {
+    evaluate_with(w, s, &Resources::opening(w, s))
+}
+
+/// Resolve packages within a shared opening-resource reservation window.
+/// Quoted holdings and spendable resources remain distinct after other admissions.
+pub(crate) fn evaluate_with(
+    w: &World,
+    s: &State,
+    opening: &Resources,
+) -> Result<Option<Boundary>, String> {
     let Some(c) = &w.minting else {
         return Ok(None);
     };
@@ -171,7 +181,7 @@ pub fn evaluate(w: &World, s: &State) -> Result<Option<Boundary>, String> {
     for d in &deals {
         packages.entry(d.package).or_default().push(d);
     }
-    let mut resources = Resources::opening(w, s);
+    let mut resources = opening.clone();
     let mut out = Boundary {
         month: s.month,
         plan,
