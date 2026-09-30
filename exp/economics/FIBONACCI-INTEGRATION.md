@@ -258,6 +258,7 @@ Completed integrations:
 16. Unify current-debt protection and projected installments with dated guarantee recourse.
 17. Preserve native collection and repayment during authorized coin insolvency.
 18. Keep household assets and membership distinct from a member’s environmental-work estate.
+19. Admit posted household hiring against useful work and actual shared environmental stock.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.

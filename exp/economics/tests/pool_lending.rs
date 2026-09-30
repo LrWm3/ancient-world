@@ -632,3 +632,123 @@ fn estate_cash_control_preserves_native_collection_and_household_membership() {
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn household_hiring_requires_both_useful_labor_and_available_environmental_stock() {
+    use economics_compute_smoke::{
+        employment::{ArrearsPolicy, Terms},
+        household_governance::{Governance, Policy as HouseholdPolicy},
+        households::{self, Agreement},
+        offers::{self, Id, Request},
+    };
+    const HOME: AgentId = 10000;
+    const WORKER: AgentId = PERSON + 2;
+    for (wood, cash, expected_hours) in [(4, 6, 3), (0, 6, 0), (4, 0, 0), (1, 6, 0)] {
+        let (mut w, mut s) = fixture(false);
+        w.lending.clear();
+        for pool in &mut w.pools {
+            pool.monthly_regeneration = wood;
+        }
+        let mut worker = w.participants[1].clone();
+        worker.agent = WORKER;
+        worker.needs.clear();
+        worker.capacity.quantity = 3;
+        for p in &mut w.participants {
+            p.capacity.quantity = 0;
+        }
+        w.participants.push(worker);
+        w.agents.push(Agent {
+            id: WORKER,
+            name: "outside collector".into(),
+        });
+        w.definitions
+            .iter_mut()
+            .find(|d| d.id == PREPARE_FUEL)
+            .unwrap()
+            .stages[0]
+            .monthly_services[0]
+            .quantity = 3;
+        let mut governance = Governance::contributed(PERSON);
+        governance.charter.initial_policy = HouseholdPolicy::NeedsFirst;
+        governance.charter.hiring_budget = Some(Amount::new(TOKEN, 6));
+        households::form(
+            &mut w,
+            &s,
+            Agreement {
+                id: 1,
+                agent: HOME,
+                adults: vec![PERSON, PERSON + 1],
+                governance,
+                formed: s.month,
+                dwelling_process: None,
+                admission: None,
+                membership: vec![],
+                asset_sales: vec![],
+                equipment_retirements: vec![],
+                support: vec![],
+            },
+        )
+        .unwrap();
+        s.balances.insert((HOME, TOKEN), cash);
+        w.employment.push(Terms {
+            id: 1,
+            employer: HOME,
+            worker: WORKER,
+            from: 2,
+            through: 2,
+            capacity: Amount::new(LABOR, 3),
+            wage_per_unit: Amount::new(TOKEN, 2),
+            on_arrears: ArrearsPolicy::SuspendDelivery,
+            rank: 0,
+        });
+        w.employment_offers.insert(1);
+        let run = |backend| {
+            let mut audit = Audit::with_opening(
+                &w,
+                &s,
+                TOKEN,
+                Opening {
+                    services: Some(Default::default()),
+                    processes: Some(Default::default()),
+                    ..Opening::default()
+                },
+            )
+            .unwrap();
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            while sim.state.phase != Phase::Acquire {
+                audit.step(&mut sim).unwrap();
+            }
+            let prepared = offers::prepare(&sim, &[Request::new(Id::Employment(1), HOME)]);
+            assert_eq!(prepared.is_ok(), expected_hours > 0);
+            let (mut resumed, mut ra) = (sim.clone(), audit.clone());
+            while sim.state.month == 2 {
+                audit.step(&mut sim).unwrap();
+            }
+            while resumed.state.month == 2 {
+                ra.step(&mut resumed).unwrap();
+            }
+            assert_eq!(
+                (&sim.state, &sim.ledger, &audit),
+                (&resumed.state, &resumed.ledger, &ra)
+            );
+            assert_eq!(sim.state.balance(WORKER, TOKEN), expected_hours * 2);
+            let completed = sim
+                .state
+                .processes
+                .values()
+                .filter(|p| p.definition == PREPARE_FUEL && p.status == Status::Completed)
+                .count();
+            assert_eq!(completed, usize::from(expected_hours > 0));
+            assert_eq!(
+                sim.state.balance(STATE_AGENT, RAW_WOOD),
+                wood - if expected_hours > 0 { 2 } else { 0 }
+            );
+            for agent in &sim.world.agents {
+                let report = audit.book().statements(agent.id, 2, 2).unwrap();
+                assert_eq!(report.assets, report.liabilities + report.equity);
+            }
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

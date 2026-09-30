@@ -338,3 +338,18 @@ The household retains its two coins and its membership: a member's insolvency do
 not automatically confiscate organizational assets or dissolve the household.
 This does not broaden custody beyond its configured denomination, automate legal
 admission, or establish all market combinations.
+
+### Posted hiring for environmental work
+
+Household labor-offer acceptance now composes with productive pool allocation.
+Its existing forecast runs the ordinary household input/labor allocator and
+collection resolver, so useful hours require an available whole collection lot,
+not merely a member's unmet need. Wages remain earned by actual accepted service
+and paid at Close from the household's bounded budget.
+
+With two members unable to collect on their own, six household coins can buy
+three outside hours that complete one two-wood/two-fuel lot. Controls with zero
+cash, zero wood, or one wood decline the offer and create no wages or collection.
+Common offer preparation, actual CPU/reference execution, checkpoint continuation
+and separate service/inventory books agree. This is a scoped useful-work test;
+it does not claim guaranteed returns from arbitrary multi-market hiring plans.

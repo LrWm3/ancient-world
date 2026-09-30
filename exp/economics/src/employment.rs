@@ -98,7 +98,6 @@ pub fn validate(w: &World, s: &State) -> Result<(), String> {
             || w.credit.is_some()
             || w.negotiation.is_some()
             || w.production_market.is_some()
-            || w.pool_market.is_some()
             || w.competition.is_some()
             || w.work_choice.is_some()
             || !w.offers.is_empty()
@@ -107,7 +106,7 @@ pub fn validate(w: &World, s: &State) -> Result<(), String> {
             || w.priority == Priority::ConsequenceAware)
     {
         return Err(
-            "household labor offers require plain, town or physical-mint acquisition".into(),
+            "household labor offers require plain, pool, town or physical-mint acquisition".into(),
         );
     }
     let mut ids = BTreeSet::new();
