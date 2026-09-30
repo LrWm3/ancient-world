@@ -118,20 +118,27 @@ pub(crate) fn settle(
         if guaranteed > 0 {
             let value = released(old, after_delivery)? - released(old, settled)?;
             let cost = crate::reporting_value::value(coin, values, old.goods.resource, guaranteed)?;
-            lines.extend([
-                Line {
-                    agent: old.debtor,
-                    account: Account::Sales,
-                    debit: -value,
-                    flow: None,
-                },
-                Line {
-                    agent: old.debtor,
-                    account: Account::CostOfSales,
-                    debit: cost,
-                    flow: None,
-                },
-            ]);
+            // Small partial deliveries can release zero historical prepayment
+            // cost after integer rounding. Keep the quantity/claim movement, but
+            // do not emit zero-valued journal lines.
+            lines.extend(
+                [
+                    Line {
+                        agent: old.debtor,
+                        account: Account::Sales,
+                        debit: -value,
+                        flow: None,
+                    },
+                    Line {
+                        agent: old.debtor,
+                        account: Account::CostOfSales,
+                        debit: cost,
+                        flow: None,
+                    },
+                ]
+                .into_iter()
+                .filter(|line| line.debit != 0),
+            );
         } else if delivered > 0 {
             sales.push(PrepaidSale {
                 seller: old.debtor,

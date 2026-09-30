@@ -915,7 +915,9 @@ fn collect(
                     Some((*creditor, p.denomination, *paid))
                 }
                 crate::recovery::Receipt::Guaranteed {
-                    claim: claim @ crate::recovery::GuaranteedClaim::Wages { .. },
+                    claim:
+                        claim @ (crate::recovery::GuaranteedClaim::Wages { .. }
+                        | crate::recovery::GuaranteedClaim::Forward(_)),
                     paid,
                     ..
                 } => {

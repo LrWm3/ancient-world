@@ -1036,8 +1036,11 @@ pub(crate) fn guarantees(
                 - reserve)
                 .max(0)
                 .min(allocated.unwrap_or(i32::MAX));
-            let wage = matches!(g.claim, GuaranteedClaim::Wages { .. });
-            let limit = if wage {
+            let pooled_receipt = matches!(
+                g.claim,
+                GuaranteedClaim::Wages { .. } | GuaranteedClaim::Forward(_)
+            );
+            let limit = if pooled_receipt {
                 limit.min(pooling.payment_limit(world, execution, &claim)?)
             } else {
                 limit.min(pooling.unpooled_payment_limit(world, execution, &claim)?)
@@ -1046,10 +1049,10 @@ pub(crate) fn guarantees(
             let paid = payment.paid;
             round_paid += i64::from(paid);
             if paid > 0 {
-                if wage {
+                if pooled_receipt {
                     pooling = pooling
                         .preview(world, &payment.effects)?
-                        .ok_or("guaranteed wage exceeds pooled storage")?;
+                        .ok_or("guaranteed receipt exceeds pooled storage")?;
                 } else {
                     pooling.reserve_unpooled(world, &payment.effects)?;
                 }

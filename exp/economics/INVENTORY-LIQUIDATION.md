@@ -82,5 +82,5 @@ order when shared capacity is full.
 
 Direct-delivery follow-up: actual deliveries pool after acceptance, using the same
 fractional carry as prior estate purchases; full space leaves a recorded forward
-shortfall. The original seller's receipt is supported here; guaranteed delivery
-is the next contribution adapter. See [household forwards](HOUSEHOLD-FORWARDS.md).
+shortfall. Both original-seller and guarantor deliveries now pool actual goods, with native
+recourse only for completed guarantee payments. See [household forwards](HOUSEHOLD-FORWARDS.md).

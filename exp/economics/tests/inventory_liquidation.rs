@@ -957,3 +957,89 @@ fn need_generated_town_orders_share_household_storage_with_estate_inventory() {
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn guaranteed_delivery_pools_once_and_creates_recourse_only_for_actual_receipts() {
+    use economics_compute_smoke::{
+        forward::direct::Terms,
+        recovery::{Guarantee, GuaranteedClaim},
+    };
+    for initial in [2, 3, 4] {
+        let (mut w, mut s) = fixture(true, 8);
+        add_household(&mut w, &s);
+        s.balances.insert((HOME, GRAIN), initial);
+        s.balances.insert((STATE_AGENT, GRAIN), 3);
+        w.prepaid_deliveries.push(Terms {
+            id: 1,
+            seller: UNFUNDED,
+            buyer: BUYER,
+            month: 1,
+            due: 3,
+            goods: Amount::new(GRAIN, 3),
+            prepayment: Amount::new(TOKEN, 1),
+        });
+        w.recovery.guarantees.push(Guarantee {
+            id: 1,
+            claim: GuaranteedClaim::Forward(1),
+            guarantor: STATE_AGENT,
+            cap: 3,
+            from: 1,
+            through: 4,
+            delay_months: 0,
+            recourse: 200,
+            priority: 0,
+        });
+        w.recovery.inventory_listings[0].goods.quantity = 1;
+        w.recovery.inventory_listings[0].minimum_price = 1;
+        w.recovery.inventory_bids = vec![Bid {
+            id: 2,
+            listing: 1,
+            buyer: BUYER,
+            month: 3,
+            price: 1,
+        }];
+        let run = |backend| {
+            let (mut sim, mut audit) = opening(w.clone(), s.clone(), backend);
+            while (sim.state.month, sim.state.phase) != (4, Phase::Due) {
+                audit.step(&mut sim).unwrap();
+            }
+            assert_eq!(sim.state.exchange.forwards[&1].delivered, 0);
+            let mut checkpoint = (sim.clone(), audit.clone());
+            audit.step(&mut sim).unwrap();
+            checkpoint.1.step(&mut checkpoint.0).unwrap();
+            assert_eq!(
+                (&sim.state, &sim.ledger, &audit),
+                (&checkpoint.0.state, &checkpoint.0.ledger, &checkpoint.1)
+            );
+            let delivered = match initial {
+                2 => 3,
+                3 => 2,
+                _ => 0,
+            };
+            assert_eq!(sim.state.exchange.forwards[&1].delivered, delivered);
+            assert_eq!(sim.state.balance(STATE_AGENT, GRAIN), 3 - delivered);
+            assert_eq!(
+                sim.state.balance(HOME, GRAIN),
+                initial + (1 + delivered) / 2
+            );
+            assert_eq!(sim.state.balance(BUYER, GRAIN), (2 + delivered) / 2);
+            assert_eq!(
+                sim.state.credit.loans.get(&200).map_or(0, |l| l.principal),
+                delivered
+            );
+            if delivered > 0 {
+                let recourse = &sim.state.credit.loans[&200];
+                assert_eq!(
+                    (recourse.debtor, recourse.creditor, recourse.denomination),
+                    (UNFUNDED, STATE_AGENT, GRAIN)
+                );
+            }
+            for agent in &sim.world.agents {
+                let report = audit.book().statements(agent.id, 2, 4).unwrap();
+                assert_eq!(report.assets, report.liabilities + report.equity);
+            }
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

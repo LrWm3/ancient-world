@@ -236,7 +236,7 @@ Do not treat this as a full run of the eventual batch-55 source tree. Strict
 all-target Clippy, formatting, whitespace and artifact checks passed for each
 subsequent implementation chunk.
 
-## Next batch 55 — wider asset and execution composition (in progress)
+## Batch 55 — wider asset and execution composition
 
 Completed integrations:
 
@@ -293,6 +293,8 @@ Completed integrations:
 51. Carry household inventory liquidation through retained debt, explicit discharge and permitted dissolution.
 52. Carry estate contribution reservations into need-generated town order settlement.
 53. Pool actual direct-forward delivery with prior inventory purchases and later market reservations.
+54. Pool guarantor delivery under the same receiving-space limits and preserve native recourse.
+55. Preserve fractional prepaid-cost release without publishing zero-valued accounting lines.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.
@@ -340,3 +342,15 @@ the funded, storable outcome trades, retaining distinct submission/settlement ev
 Direct-delivery pooling passed two affected selections (36 and 60 tests) plus
 strict all-target Clippy. Prepayments remain unpooled; receiving-space shortfalls
 retain seller stock and the original outstanding claim.
+
+Final guarantee/pooling selection: **85 tests passed across five targets**, with
+strict all-target Clippy. The complete batch-55 revision still needs its own full
+crate gate; the preceding 913-test full run is explicitly tied to `a5974d2`.
+
+## Next batch 89 — further shared-contract composition (in progress)
+
+Continue the active consolidation roadmap: extend remaining acquisition adapters,
+creditor allocation, custody, guarantees and real liquidation. Household/member
+separation, static founding terms and deferred person self-policy changes remain
+in force. A Fibonacci count does not expand the roadmap into speculative systems
+or justify declaring the remaining work complete.

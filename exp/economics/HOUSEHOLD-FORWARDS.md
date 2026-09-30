@@ -150,10 +150,16 @@ storage can reduce or block actual delivery without deleting the residual claim.
 Prepayments and credit receipts retain separate, unpooled reservation paths.
 Stable and proportional collection still keep requested, allocated and delivered
 quantities distinct; a pooled-space limit can reduce completion below a prior
-proportional grant. Guarantor-delivered goods still need the same contribution
-adapter; this change covers the original seller's direct performance.
+proportional grant. Guarantor-delivered goods now use the same contribution rules at their existing
+Due boundary. Actual guarantee performance creates equally sized native recourse;
+space-blocked quantities retain their original claim.
 
 The mixed estate/direct-delivery checks compare full, partial and zero delivery,
 fractional carry, retained stock and claims, CPU/reference execution, checkpoints
 and separate statements. Two affected selections passed 36 and 60 tests, with
 strict all-target Clippy. These counts overlap earlier gates.
+
+Guaranteed delivery and integer-cost follow-up passed 85 tests across five targets
+and strict all-target Clippy. Small partial deliveries can release zero historical
+prepayment value; their quantities and recourse still change, but the accounting
+adapter now omits zero-valued journal lines.
