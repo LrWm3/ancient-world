@@ -912,7 +912,10 @@ fn commitment_protection_and_output_policy_differ_on_identical_opening_work() {
 
 #[test]
 fn contribution_rounding_uses_current_capacity_and_does_not_bank_unused_hours() {
-    let (w, mut s) = governed_fixture();
+    let (mut w, mut s) = governed_fixture();
+    // This is a smaller endowment, not hours spent or sold earlier this month.
+    w.capacity_overrides.insert((s.month, PERSON), 4);
+    w.capacity_overrides.insert((s.month, PERSON + 1), 0);
     s.balances.insert((PERSON, LABOR), 4);
     s.balances.insert((PERSON + 1, LABOR), 0);
     let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
@@ -2453,4 +2456,37 @@ fn leaving_ends_household_dues_support_without_cancelling_the_personal_claim() {
     assert_eq!(departed.state.obligations[&(1, 13)].paid, 0);
     assert_eq!(departed.world.agreements[0].debtor, PERSON);
     assert_eq!(departed.state.balance(HOME, GRAIN), 1);
+}
+
+#[test]
+fn household_forecast_preserves_observed_own_capacity_without_future_fixture_knowledge() {
+    use economics_compute_smoke::forecast::ForecastContext;
+    let (mut w, mut s) = governed_fixture();
+    for (agent, own, unspent) in [(PERSON, 4, 9), (PERSON + 1, 0, 0)] {
+        w.capacity_overrides.insert((s.month, agent), own);
+        w.capacity_overrides.insert((s.month + 1, agent), 100);
+        s.balances.insert((agent, LABOR), unspent);
+    }
+    let context = ForecastContext::new(&w, &s);
+    assert_eq!(context.world().capacity_overrides.len(), 2);
+    assert!(
+        context
+            .world()
+            .capacity_overrides
+            .keys()
+            .all(|(m, _)| *m == s.month)
+    );
+    assert_eq!(
+        context,
+        ForecastContext::new(context.world(), context.state())
+    );
+    let (forecast_world, forecast_state) = context.into_parts();
+    let mut live = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    let mut forecast = Simulation::new(forecast_world, forecast_state, Backend::Reference).unwrap();
+    live.step().unwrap();
+    forecast.step().unwrap();
+    assert_eq!(live.state, forecast.state);
+    assert_eq!(live.ledger, forecast.ledger);
+    let labor = &live.ledger[0].household.as_ref().unwrap().labor[0];
+    assert!(labor.contributions.iter().all(|c| c.reserved == 0));
 }

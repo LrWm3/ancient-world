@@ -12,8 +12,12 @@ pub struct ForecastContext {
 impl ForecastContext {
     pub fn new(world: &World, state: &State) -> Self {
         let mut world = world.clone();
-        // Current capacity is already in State after Open. Never replay overrides.
-        world.capacity_overrides.clear();
+        // After Open, the current own endowment is observed independently of
+        // unspent or purchased hours. Household shares still need that input.
+        // Future overrides (and unopened current ones) remain fixture events.
+        world
+            .capacity_overrides
+            .retain(|(month, _), _| *month == state.month && state.phase != Phase::Open);
         world.scheduled_starts.retain(|s| s.month == state.month);
         if let Some(credit) = &mut world.credit {
             // Cash already observed stays in State; future discretionary funding

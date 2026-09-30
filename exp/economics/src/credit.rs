@@ -906,8 +906,9 @@ pub(crate) fn current_claim(
     loan: &Loan,
 ) -> Result<Option<finance::CollectionRequest>, String> {
     let native = crate::recovery::native_performance(world, &state.credit, loan);
-    if (crate::recovery::active(world, &state.credit, loan.debtor).is_some() && !native)
-        || (loan.status == Status::Stayed && !native)
+    if (crate::recovery::active(world, &state.credit, loan.debtor).is_some()
+        || loan.status == Status::Stayed)
+        && !native
         || matches!(
             loan.status,
             Status::Repaid | Status::Discharged | Status::PendingSale

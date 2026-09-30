@@ -713,8 +713,9 @@ pub(crate) fn local(world: &World, state: &State, buyer: AgentId) -> (World, Sta
         .retain(|id, _| w.agreements.iter().any(|a| a.id == *id));
     s.obligations
         .retain(|(id, _), _| w.agreements.iter().any(|a| a.id == *id));
-    // Do not look ahead at scripted future capacities or starts.
-    w.capacity_overrides.clear();
+    // Preserve the observed own endowment without looking ahead at fixture inputs.
+    w.capacity_overrides
+        .retain(|(month, _), _| *month == state.month && state.phase != Phase::Open);
     w.scheduled_starts.clear();
     s.pending_production = None;
     s.equipment.retain(|_, a| a.owner == buyer);
