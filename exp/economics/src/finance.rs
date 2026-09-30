@@ -375,7 +375,9 @@ pub fn proportional_grants(
 }
 
 /// Payment lots prevent an alternative tender from consuming coins without
-/// extinguishing a whole claim unit. Native claims use a lot of one.
+/// extinguishing a whole claim unit. A RejectExchange claim is one indivisible
+/// lot: an unfundable claim leaves resources for other requests. Divisible claims
+/// retain proportional shares; this is not a knapsack optimizer.
 pub(crate) fn proportional_lots(
     world: &World,
     month: u32,
@@ -389,6 +391,12 @@ pub(crate) fn proportional_lots(
     for (account, quantity) in protected {
         window.protect(*account, *quantity);
     }
+    let mut lots = lots.clone();
+    for request in requests {
+        if request.claim.failure == FailureRule::RejectExchange {
+            lots.insert(request.contract, request.claim.outstanding().max(1));
+        }
+    }
     let mut groups = BTreeMap::<_, Vec<_>>::new();
     let mut grants = BTreeMap::new();
     for request in requests {
@@ -400,9 +408,6 @@ pub(crate) fn proportional_lots(
         claim.validate()?;
         if grants.insert(request.contract, 0).is_some() {
             return Err("duplicate collection request".into());
-        }
-        if request.claim.failure == FailureRule::RejectExchange {
-            return Err("proportional collection requires divisible claims".into());
         }
         groups
             .entry((

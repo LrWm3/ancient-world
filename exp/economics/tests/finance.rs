@@ -59,3 +59,65 @@ fn failure_rules_are_scoped_and_clear_when_settled() {
     assert_eq!(c.payable(12, true, 20, 20), 0);
     assert!(c.payment(1).is_err());
 }
+
+#[test]
+fn indivisible_collection_skips_unfundable_claims_and_preserves_protected_stock() {
+    use economics_compute_smoke::{
+        finance::{CollectionRequest, ContractId, Execution, proportional_grants},
+        model::*,
+        scenario::{GRAIN, PERSON, STATE_AGENT, baseline},
+    };
+    use std::collections::BTreeMap;
+    let (mut world, mut state) = baseline();
+    world.storage.weights.insert(GRAIN, 1);
+    world.storage.capacities.insert(STATE_AGENT, 100);
+    state.balances.insert((PERSON, GRAIN), 8);
+    state.balances.insert((STATE_AGENT, GRAIN), 0);
+    let request = |id, quantity, failure| CollectionRequest {
+        contract: ContractId::Forward(id),
+        rank: 0,
+        claim: Obligation {
+            transfer: Transfer {
+                from: PERSON,
+                to: STATE_AGENT,
+                amount: Amount::new(GRAIN, quantity),
+            },
+            settled: 0,
+            condition: Condition::OnOrAfterMonth(1),
+            failure,
+        },
+    };
+    let requests = vec![
+        request(1, 9, FailureRule::RejectExchange),
+        request(2, 8, FailureRule::CarryArrears),
+    ];
+    let opening = Execution::opening(&world, &state);
+    let protected = BTreeMap::from([((PERSON, GRAIN), 2)]);
+    let grants = proportional_grants(&world, 1, &opening, &protected, &requests).unwrap();
+    assert_eq!(grants[&ContractId::Forward(1)], 0);
+    assert_eq!(grants[&ContractId::Forward(2)], 6);
+    assert_eq!(opening.available[&(PERSON, GRAIN)], 8);
+    let mut reversed = requests.clone();
+    reversed.reverse();
+    assert_eq!(
+        grants,
+        proportional_grants(&world, 1, &opening, &protected, &reversed).unwrap()
+    );
+    let fitting = vec![request(1, 6, FailureRule::RejectExchange)];
+    assert_eq!(
+        proportional_grants(&world, 1, &opening, &protected, &fitting).unwrap()
+            [&ContractId::Forward(1)],
+        6
+    );
+    world.storage.capacities.insert(STATE_AGENT, 5);
+    assert_eq!(
+        proportional_grants(&world, 1, &opening, &protected, &fitting).unwrap()
+            [&ContractId::Forward(1)],
+        0
+    );
+    assert_eq!(
+        proportional_grants(&world, 0, &opening, &protected, &fitting).unwrap()
+            [&ContractId::Forward(1)],
+        0
+    );
+}

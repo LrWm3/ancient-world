@@ -497,7 +497,7 @@ fn proportional_allocator_redistributes_storage_limits_and_respects_rank() {
 }
 
 #[test]
-fn proportional_allocator_leaves_future_and_indivisible_claims_out() {
+fn proportional_allocator_leaves_future_and_unfundable_indivisible_claims_out() {
     use economics_compute_smoke::finance::{
         self, CollectionRequest, Condition, FailureRule, Obligation,
     };
@@ -522,9 +522,10 @@ fn proportional_allocator_leaves_future_and_indivisible_claims_out() {
             .unwrap();
     assert_eq!(grants[&request.contract], 0);
     request.claim.failure = FailureRule::RejectExchange;
-    assert!(
-        finance::proportional_grants(&w, 2, &execution, &Default::default(), &[request]).is_err()
-    );
+    let id = request.contract;
+    let grants =
+        finance::proportional_grants(&w, 2, &execution, &Default::default(), &[request]).unwrap();
+    assert_eq!(grants[&id], 0);
 }
 
 #[test]
