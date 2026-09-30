@@ -110,3 +110,8 @@ assignment and negotiated creditor-first clauses remain outside this adapter.
 payment before and after an eight-coin collateral sale, both allocation policies,
 CPU/reference results, checkpoint continuation and separate financial statements.
 Checkpoint validation rejects removal of agreed inherited collateral.
+
+A household-guarantor continuation keeps its member's coins separate, recovers
+actual proceeds, and compares retained versus discharged recourse deficiency.
+Dissolution waits for receivable clearance and the following Open distribution;
+member affiliation and financial reporting are preserved until then.

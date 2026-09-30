@@ -382,3 +382,11 @@ liquidation and household forwards passed; strict all-target Clippy passed.
    cash remains protected meanwhile. Partial/full guarantees, both allocation
    policies, CPU/checkpoint parity and separate statements pass. The seven-target
    affected gate passed 94 tests; strict all-target Clippy passed.
+
+4. **Household guarantor recovery and wind-down.** An organization guarantees
+   a person's secured loan from its own cash; member coins remain private. Its
+   recourse receives actual collateral proceeds. Retained deficiency blocks the
+   household's exit; explicit discharge clears the receivable, then normal Open
+   distribution and dissolution release remaining household cash. CPU/reference,
+   checkpoint and separate books agree. The three-target gate passed 59 tests
+   and strict all-target Clippy.
