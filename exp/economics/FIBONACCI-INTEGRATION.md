@@ -344,8 +344,11 @@ strict all-target Clippy. Prepayments remain unpooled; receiving-space shortfall
 retain seller stock and the original outstanding claim.
 
 Final guarantee/pooling selection: **85 tests passed across five targets**, with
-strict all-target Clippy. The complete batch-55 revision still needs its own full
-crate gate; the preceding 913-test full run is explicitly tied to `a5974d2`.
+strict all-target Clippy. The full crate gate at completed batch-55 revision `3509dd5` subsequently passed
+**925 tests, zero failures, one ignored**, across 113 Cargo target results.
+That exact revision was compiled and run in an isolated target directory; later
+batch-89 edits did not replace its executables. The preceding 913-test full run
+remains explicitly tied to `a5974d2`.
 
 ## Next batch 89 — further shared-contract composition (in progress)
 
@@ -390,3 +393,13 @@ liquidation and household forwards passed; strict all-target Clippy passed.
    distribution and dissolution release remaining household cash. CPU/reference,
    checkpoint and separate books agree. The three-target gate passed 59 tests
    and strict all-target Clippy.
+
+5. **Funded receivable assignment through common acceptance.** An authorized
+   estate can sell an entire unsecured coin loan at remaining principal plus
+   accrued interest. The existing loan changes creditor; borrower terms and
+   future collection timing remain intact. Actual price enters custody, with
+   separate investor/estate statements and no invented sale gain. Person and
+   winding-household cases compare funded, unfunded and wrong-price bids,
+   tampered/duplicate applications, subsequent collection and discharge. Claim
+   and inventory purchases also share one opening budget. The five-target gate
+   passed 77 tests; strict all-target Clippy passed.

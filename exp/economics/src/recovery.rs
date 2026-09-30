@@ -11,6 +11,7 @@ const RECOURSE_TERM_MONTHS: u32 = 1;
 pub mod admission;
 pub mod inventory;
 pub mod market;
+pub mod receivables;
 mod subrogation;
 pub use subrogation::RecourseSecurity;
 
@@ -137,6 +138,8 @@ pub struct Config {
     pub bids: Vec<Bid>,
     pub inventory_listings: Vec<inventory::Listing>,
     pub inventory_bids: Vec<inventory::Bid>,
+    pub receivable_listings: Vec<receivables::Listing>,
+    pub receivable_bids: Vec<receivables::Bid>,
     pub delivery_relief: Vec<crate::delivery_relief::Terms>,
     pub claim_relief: Vec<crate::claim_relief::Terms>,
 }
@@ -158,6 +161,7 @@ pub struct Proceeding {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Book {
+    pub assignments: BTreeMap<u32, receivables::Assignment>,
     pub accepted_guarantees: BTreeMap<u32, u32>,
     pub paid_guarantees: BTreeMap<u32, i32>,
     /// Actual advances by guarantee and month; additions become collectible next month.
@@ -166,6 +170,17 @@ pub struct Book {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Receipt {
+    ReceivableSold {
+        proceeding: u32,
+        listing: u32,
+        bid: u32,
+        loan: u32,
+        buyer: AgentId,
+        proceeds: i32,
+    },
+    ReceivableSaleRejected {
+        bid: u32,
+    },
     GuaranteeAdmission {
         guarantee: u32,
         rejection: Option<admission::Rejection>,
@@ -324,6 +339,7 @@ fn rank(world: &World, loan: &Loan) -> u32 {
 
 pub fn validate(world: &World, state: &State) -> Result<(), String> {
     inventory::validate(world, state)?;
+    receivables::validate(world, state)?;
     admission::validate(world, state)?;
     crate::delivery_relief::validate_terms(world)?;
     crate::claim_relief::validate_terms(world)?;
@@ -1338,6 +1354,7 @@ pub(crate) fn sales(
             proceeds: b.price,
         });
     }
+    receivables::sales(world, state, out, execution)?;
     inventory::sales(world, state, out, execution)
 }
 

@@ -170,7 +170,9 @@ can establish that all these arrangements compose.
    guarantee subrogation now follows that lifecycle. [Receivable collection](ESTATE-RECEIVABLES.md)
    now blocks deficient closure until existing assets are performed or disposed of;
    [inventory liquidation](INVENTORY-LIQUIDATION.md) now sells configured stock lots
-   into the same custody and waterfall. Receivable sale/assignment remains open. Unsold assets
+   into the same custody and waterfall. Whole unsecured coin-loan assignment at current face value now transfers the
+   existing claim through funded estate bids; broader receivable pricing and
+   security/denomination combinations remain open. Unsold assets
    remain unsold; appraisals do not create coins. Retain surplus, deficiencies,
    explicit discharge/write-offs and final receipts. Mortgages can now explicitly select the authorized-liquidation lifecycle,
    including crop-control transfer, custody and actual proceeds. Legacy fixed-value

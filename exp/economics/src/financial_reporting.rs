@@ -1827,6 +1827,36 @@ impl Audit {
                             i128::from(*proceeds),
                         )?;
                     }
+                    recovery::Receipt::ReceivableSold {
+                        proceeding,
+                        buyer,
+                        proceeds,
+                        ..
+                    } => {
+                        let p = world
+                            .recovery
+                            .proceedings
+                            .iter()
+                            .find(|p| p.id == *proceeding)
+                            .ok_or("missing receivable estate")?;
+                        if p.denomination != coin {
+                            return Err("receivable sale requires reporting currency".into());
+                        }
+                        flow(
+                            &mut flows,
+                            *buyer,
+                            Account::Cash,
+                            Flow::Investing,
+                            -i128::from(*proceeds),
+                        )?;
+                        flow(
+                            &mut flows,
+                            p.debtor,
+                            Account::RestrictedCash(*proceeding),
+                            Flow::Investing,
+                            i128::from(*proceeds),
+                        )?;
+                    }
                     recovery::Receipt::Sold {
                         proceeding,
                         asset,
@@ -1868,6 +1898,7 @@ impl Audit {
                     | recovery::Receipt::GuaranteeAdmission { .. }
                     | recovery::Receipt::SaleRejected { .. }
                     | recovery::Receipt::InventorySaleRejected { .. }
+                    | recovery::Receipt::ReceivableSaleRejected { .. }
                     | recovery::Receipt::Opened { .. }
                     | recovery::Receipt::OpeningRejected { .. }
                     | recovery::Receipt::Admitted { .. }

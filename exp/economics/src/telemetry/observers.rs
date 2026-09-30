@@ -384,6 +384,35 @@ pub(super) fn batch(
                     }
                     continue;
                 }
+                Receipt::ReceivableSold {
+                    proceeding,
+                    listing,
+                    bid,
+                    loan,
+                    buyer,
+                    proceeds,
+                } => (
+                    Some(*proceeding),
+                    json!({"event":"ReceivableSold","listing":listing,"bid":bid,"loan":loan,"buyer":buyer,"proceeds":proceeds}),
+                ),
+                Receipt::ReceivableSaleRejected { bid } => {
+                    let b = world
+                        .recovery
+                        .receivable_bids
+                        .iter()
+                        .find(|b| b.id == *bid)
+                        .expect("validated receivable bid");
+                    let l = world
+                        .recovery
+                        .receivable_listings
+                        .iter()
+                        .find(|l| l.id == b.listing)
+                        .expect("validated receivable listing");
+                    (
+                        Some(l.proceeding),
+                        json!({"event":"ReceivableSaleRejected","bid":bid,"loan":l.loan,"buyer":b.buyer}),
+                    )
+                }
                 Receipt::InventorySold {
                     proceeding,
                     listing,

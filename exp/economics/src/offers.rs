@@ -15,9 +15,14 @@ pub enum Id {
     Employment(u32),
     LiquidationBid(u32),
     InventoryLiquidationBid(u32),
+    ReceivableLiquidationBid(u32),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Terms {
+    ReceivableLiquidation {
+        offer: crate::recovery::receivables::Offer,
+        bid: crate::recovery::receivables::Bid,
+    },
     InventoryLiquidation {
         offer: crate::recovery::inventory::Offer,
         bid: crate::recovery::inventory::Bid,
@@ -151,6 +156,7 @@ pub(crate) fn resolve(
                 | Id::PrepaidDelivery(_)
                 | Id::Employment(_)
                 | Id::LiquidationBid(_)
+                | Id::ReceivableLiquidationBid(_)
                 | Id::InventoryLiquidationBid(_)
         )
     }) {
@@ -202,6 +208,7 @@ pub(crate) fn resolve(
             | Id::PrepaidDelivery(_)
             | Id::Employment(_)
             | Id::LiquidationBid(_)
+            | Id::ReceivableLiquidationBid(_)
             | Id::InventoryLiquidationBid(_) => unreachable!("handled above"),
             Id::Membership(offer) => {
                 if request.continuing.is_some() || !work.is_empty() {

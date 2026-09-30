@@ -421,3 +421,207 @@ fn earned_wage_receivables_wait_for_real_payment_but_post_closure_work_is_not_ba
     // Work earned after Due closure is a new asset, not evidence of premature closure.
     Simulation::new(sim.world, sim.state, Backend::CubeCpu).unwrap();
 }
+
+#[test]
+fn receivable_sale_transfers_existing_claim_and_later_collections_into_separate_books() {
+    use economics_compute_smoke::{
+        offers,
+        recovery::receivables::{Bid, Listing},
+        settlement,
+    };
+    const BUYER: AgentId = 98;
+    for household in [false, true] {
+        for (funded, price) in [(true, 2), (false, 2), (true, 1)] {
+            let mut opening = fixture_for(3, 6, true, household);
+            opening.world.agents.push(Agent {
+                id: BUYER,
+                name: "claim investor".into(),
+            });
+            opening
+                .state
+                .balances
+                .insert((BUYER, TOKEN), if funded { 2 } else { 0 });
+            if household {
+                opening.state.balances.insert((PERSON, TOKEN), 5);
+            }
+            opening.world.recovery.receivable_listings.push(Listing {
+                id: 1,
+                proceeding: 1,
+                loan: ASSET,
+            });
+            opening.world.recovery.receivable_bids.push(Bid {
+                id: 1,
+                listing: 1,
+                buyer: BUYER,
+                month: 3,
+                price,
+            });
+            let sold = funded && price == 2;
+            let run = |backend| {
+                let mut sim =
+                    Simulation::new(opening.world.clone(), opening.state.clone(), backend).unwrap();
+                let mut audit = Audit::new(&sim.world, &sim.state, TOKEN).unwrap();
+                until(&mut sim, &mut audit, 3, Phase::Acquire);
+                let owner = if household { HOME } else { PERSON };
+                assert_eq!(sim.state.credit.loans[&ASSET].principal, 2);
+                assert!(
+                    offers::discover(&sim.world, &sim.state, BUYER)
+                        .iter()
+                        .any(|o| o.id == offers::Id::ReceivableLiquidationBid(1))
+                );
+                let request = offers::Request::new(offers::Id::ReceivableLiquidationBid(1), BUYER);
+                let prepared = offers::prepare(&sim, std::slice::from_ref(&request));
+                assert_eq!(prepared.is_ok(), sold);
+                assert!(offers::prepare(&sim, &[request.clone(), request]).is_err());
+                let checkpoint = (sim.clone(), audit.clone());
+                audit.step(&mut sim).unwrap();
+                assert_eq!(
+                    sim.state.credit.loans[&ASSET].creditor,
+                    if sold { BUYER } else { owner }
+                );
+                assert_eq!(sim.state.credit.loans[&ASSET].principal, 2);
+                assert_eq!(sim.state.balance(ESTATE, TOKEN), if sold { 2 } else { 0 });
+                assert_eq!(sim.state.credit.loans[&DEBT].principal, 10);
+                if let Ok(batch) = prepared {
+                    assert_eq!(&batch, sim.ledger.last().unwrap());
+                    let mut forged = batch.clone();
+                    forged
+                        .credit
+                        .as_mut()
+                        .unwrap()
+                        .after
+                        .loans
+                        .get_mut(&ASSET)
+                        .unwrap()
+                        .creditor = owner;
+                    let mut unchanged = checkpoint.0.state.clone();
+                    assert!(
+                        settlement::commit(
+                            &sim.world,
+                            &mut unchanged,
+                            &forged,
+                            backend,
+                            sim.effect_limit
+                        )
+                        .is_err()
+                    );
+                    assert_eq!(unchanged, checkpoint.0.state);
+                }
+                until(&mut sim, &mut audit, 10, Phase::Open);
+                let (mut resumed, mut rb) = checkpoint;
+                until(&mut resumed, &mut rb, 10, Phase::Open);
+                assert_eq!(
+                    (&sim.state, &sim.ledger, &audit),
+                    (&resumed.state, &resumed.ledger, &rb)
+                );
+                assert_eq!(sim.state.credit.loans[&ASSET].principal, 0);
+                assert_eq!(sim.state.balance(BUYER, TOKEN), if funded { 2 } else { 0 });
+                assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 3);
+                assert_eq!(
+                    sim.state.credit.recovery.proceedings[&1].stage,
+                    Stage::Closed
+                );
+                if household {
+                    assert_eq!(sim.state.balance(PERSON, TOKEN), 5);
+                }
+                (sim.state, sim.ledger, audit)
+            };
+            assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+        }
+    }
+}
+
+#[test]
+fn receivable_and_inventory_lots_compete_for_one_opening_cash_budget() {
+    use economics_compute_smoke::{
+        financial_reporting::Opening,
+        recovery::{inventory, receivables},
+        scenario::GRAIN,
+    };
+    const BUYER: AgentId = 98;
+    for coins in [2, 3] {
+        let mut opening = fixture(3, 6, true);
+        opening.world.agents.push(Agent {
+            id: BUYER,
+            name: "mixed asset buyer".into(),
+        });
+        opening.state.balances.insert((BUYER, TOKEN), coins);
+        opening.state.balances.insert((PERSON, GRAIN), 1);
+        opening
+            .world
+            .recovery
+            .receivable_listings
+            .push(receivables::Listing {
+                id: 1,
+                proceeding: 1,
+                loan: ASSET,
+            });
+        opening
+            .world
+            .recovery
+            .receivable_bids
+            .push(receivables::Bid {
+                id: 1,
+                listing: 1,
+                buyer: BUYER,
+                month: 3,
+                price: 2,
+            });
+        opening
+            .world
+            .recovery
+            .inventory_listings
+            .push(inventory::Listing {
+                id: 1,
+                proceeding: 1,
+                goods: Amount::new(GRAIN, 1),
+                minimum_price: 1,
+            });
+        opening.world.recovery.inventory_bids.push(inventory::Bid {
+            id: 1,
+            listing: 1,
+            buyer: BUYER,
+            month: 3,
+            price: 1,
+        });
+        let run = |backend| {
+            let mut sim =
+                Simulation::new(opening.world.clone(), opening.state.clone(), backend).unwrap();
+            let mut audit = Audit::with_opening(
+                &sim.world,
+                &sim.state,
+                TOKEN,
+                Opening {
+                    inventory: [((PERSON, GRAIN), 1)].into(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            until(&mut sim, &mut audit, 3, Phase::Acquire);
+            let (mut resumed, mut rb) = (sim.clone(), audit.clone());
+            audit.step(&mut sim).unwrap();
+            rb.step(&mut resumed).unwrap();
+            assert_eq!(
+                (&sim.state, &sim.ledger, &audit),
+                (&resumed.state, &resumed.ledger, &rb)
+            );
+            assert_eq!(sim.state.credit.loans[&ASSET].creditor, BUYER);
+            assert_eq!(sim.state.balance(BUYER, TOKEN), 0);
+            assert_eq!(sim.state.balance(BUYER, GRAIN), coins - 2);
+            assert_eq!(sim.state.balance(ESTATE, TOKEN), coins);
+            let sold = sim
+                .ledger
+                .last()
+                .unwrap()
+                .credit
+                .as_ref()
+                .unwrap()
+                .recovery
+                .iter()
+                .any(|r| matches!(r, Receipt::InventorySold { .. }));
+            assert_eq!(sold, coins == 3);
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

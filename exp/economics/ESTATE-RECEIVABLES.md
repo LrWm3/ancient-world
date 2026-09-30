@@ -49,11 +49,44 @@ their initial cash depletion is not presented as a simulated expenditure. The
 affected commodity, wage, mixed-claim, guarantee, household-dissolution and
 recovery suites pass alongside these tests. Strict all-target Clippy passes.
 
+## Funded assignment of unsecured coin loans
+
+An authorized estate can post `recovery.receivable_listings` naming an entire
+existing direct-loan asset. Dated `receivable_bids` provide explicit buyer
+consent and cash price. The first adapter requires the current principal plus
+accrued interest, in the estate's custody denomination. A stale or discounted
+price is rejected; it never changes the borrower's amount owed.
+
+Common offer discovery exposes the loan debtor and current claim amount.
+`ReceivableLiquidationBid` preparation uses ordinary Acquire settlement. Physical
+asset sales run first, receivable bids next (listing then stable bid ID), then
+inventory lots and new advances. All share opening cash; a purchased claim or
+new custody receipt cannot fund another purchase inside the same window.
+
+Successful settlement changes the existing loan's creditor and records immutable
+assignment evidence. The borrower, principal, interest, maturity and collection
+rank remain unchanged. Future Due collections pay the new creditor. The estate
+receives actual cash in custody, distributable only at a later Due. No secondary
+debt book, debt cancellation or fictitious repayment is created.
+
+Reporting moves the receivable and actual cash at equal carrying value; neither
+party recognizes sale income at par. Both investor payment and restricted estate
+proceeds are investing flows. Household and member statements remain separate.
+Configured listings, bids and current creditor must reconcile to assignment
+history; changing ownership in an altered batch fails atomic validation.
+
+The composed tests include a person or winding household selling a claim, funded
+and unfunded buyers, wrong prices, read-only common preparation, duplicate
+applications, future repayments, estate discharge, separate books and CPU/checkpoint
+agreement. A receivable and inventory lot also compete for the same buyer money:
+two coins fund only the claim; three fund both, with no duplicated purchasing power.
+
 ## Remaining boundaries
 
-This is collection and closure protection, not receivable trading, assignment,
-netting, impairment estimation or automatic counterparty insolvency. No custody
-of native goods or automatic sale of all debtor inventory is added. An unresolved
-asset can therefore keep a deficient proceeding open until explicit performance
-or disposition terms are supplied. Those broader liquidation adapters remain on
-the consolidation roadmap.
+This is a bounded assignment adapter, not general debt trading or discount
+valuation. It excludes secured, guaranteed, mortgage, native-commodity, partial
+and onward assignments, borrower buybacks, netting and impairment estimation.
+Accepted estate authorization supplies assignment authority; autonomous listing,
+pricing and consent remain future work. Unresolved assets still retain their
+normal collection and closure protections. Inventory sales have their own
+[funded liquidation adapter](INVENTORY-LIQUIDATION.md).
