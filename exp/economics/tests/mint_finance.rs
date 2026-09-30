@@ -439,3 +439,50 @@ fn annual_coin_and_native_land_dues_compose_without_unbacked_issuance() {
         assert_eq!(statement.issuance_change, 10);
     }
 }
+
+#[test]
+fn employment_and_mint_market_share_hours_and_pay_only_for_actual_work() {
+    use economics_compute_smoke::employment::{ArrearsPolicy, Terms};
+    for market_hours in [false, true] {
+        let (mut w, s) = minting::scenario("normal").unwrap();
+        if !market_hours {
+            w.minting
+                .as_mut()
+                .unwrap()
+                .deals
+                .retain(|d| d.market != HOURS);
+        }
+        w.employment.push(Terms {
+            id: 30,
+            employer: ISSUER,
+            worker: WORKER,
+            from: 2,
+            through: 2,
+            capacity: Amount::new(HOURS, 2),
+            wage_per_unit: Amount::new(COIN, 2),
+            on_arrears: ArrearsPolicy::SuspendDelivery,
+            rank: 0,
+        });
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+        while sim.state.month <= 2 {
+            a.step(&mut sim).unwrap();
+        }
+        assert_eq!(sim.state.balance(ISSUER, COIN), 10);
+        assert_eq!(sim.state.balance(WORKER, COIN), 7);
+        assert_eq!(sim.state.balance(WORKER, FIREWOOD), 0);
+        assert_eq!(sim.state.balance(ISSUER, HOURS), 0);
+        if market_hours {
+            assert!(sim.state.employment.earned.is_empty());
+        } else {
+            let earned = &sim.state.employment.earned[&(30, 2)];
+            assert_eq!(earned.delivered, 2);
+            assert_eq!(earned.claim.settled, 4);
+            assert_eq!(earned.claim.outstanding(), 0);
+        }
+        assert_eq!(
+            a.book().statements(ISSUER, 1, 2).unwrap().issuance_change,
+            10
+        );
+    }
+}
