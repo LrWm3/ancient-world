@@ -242,6 +242,29 @@ pub(super) fn batch(
         for receipt in &credit.recovery {
             use crate::recovery::Receipt;
             let (case_id, detail) = match receipt {
+                Receipt::GuaranteeAdmission {
+                    guarantee,
+                    rejection,
+                } => {
+                    let g = world
+                        .recovery
+                        .guarantees
+                        .iter()
+                        .find(|g| g.id == *guarantee)
+                        .expect("validated guarantee");
+                    let (debtor, creditor, resource) =
+                        g.claim.parties(world).expect("validated guarantee");
+                    if [g.guarantor, debtor, creditor]
+                        .into_iter()
+                        .any(|a| selected(config, a))
+                    {
+                        records.push(json!({"kind":"guarantee_admission", "guarantee":guarantee,
+                            "guarantor":g.guarantor,"debtor":debtor,"creditor":creditor,
+                            "resource":resource,"cap":g.cap,"accepted":rejection.is_none(),
+                            "rejection":rejection.as_ref().map(|r|format!("{r:?}"))}));
+                    }
+                    continue;
+                }
                 Receipt::DeliveryRelief {
                     proceeding,
                     terms,

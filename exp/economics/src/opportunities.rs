@@ -21,6 +21,7 @@ pub enum Action {
     FinancedPurchase,
     Borrow,
     Lend,
+    Guarantee,
     FoundHousehold,
 }
 

@@ -136,11 +136,11 @@ pub fn blockers(w: &World, s: &State, household: AgentId) -> Vec<Blocker> {
     {
         result.push(Blocker::Forward);
     }
-    if w.recovery
-        .guarantees
-        .iter()
-        .any(|g| g.guarantor == household && g.through >= s.month)
-    {
+    if w.recovery.guarantees.iter().any(|g| {
+        g.guarantor == household
+            && g.through >= s.month
+            && crate::recovery::admission::accepted_month(w, &s.credit, g).is_some()
+    }) {
         result.push(Blocker::Guarantee);
     }
     if w.recovery.proceedings.iter().any(|p| {

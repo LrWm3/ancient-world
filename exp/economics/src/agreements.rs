@@ -266,7 +266,7 @@ impl View<'_> {
             Self::Agreement(a) => a.accepted_month,
             Self::Loan(a) => a.record.opened,
             Self::Forward(a) => a.issued,
-            Self::Guarantee(a) => a.terms.from,
+            Self::Guarantee(a) => a.accepted_month,
         }
     }
 }
@@ -275,6 +275,7 @@ impl View<'_> {
 /// owed by the borrower; payment substitutes a recourse creditor in the loan book.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GuaranteeView {
+    pub accepted_month: u32,
     pub terms: crate::recovery::Guarantee,
     pub debtor: AgentId,
     pub creditor: AgentId,
@@ -457,8 +458,14 @@ pub fn for_agent<'a>(
     let mut guarantees: Vec<_> = world.recovery.guarantees.iter().collect();
     guarantees.sort_by_key(|g| g.id);
     for g in guarantees {
+        let Some(accepted_month) =
+            crate::recovery::admission::accepted_month(world, &state.credit, g)
+        else {
+            continue;
+        };
         if let Some((debtor, creditor, _)) = g.claim.parties(world) {
             views.push(View::Guarantee(GuaranteeView {
+                accepted_month,
                 terms: g.clone(),
                 debtor,
                 creditor,

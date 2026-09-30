@@ -155,6 +155,9 @@ fn positions(
         }
     }
     for g in &world.recovery.guarantees {
+        if recovery::admission::accepted_month(world, &state.credit, g).is_none() {
+            continue;
+        }
         if let recovery::GuaranteedClaim::Land { agreement, .. } = g.claim {
             let (_, _, denomination) = g
                 .claim
@@ -1786,6 +1789,7 @@ impl Audit {
                     }
                     | recovery::Receipt::LandDistributed { .. }
                     | recovery::Receipt::DeliveryRelief { .. }
+                    | recovery::Receipt::GuaranteeAdmission { .. }
                     | recovery::Receipt::SaleRejected { .. }
                     | recovery::Receipt::Opened { .. }
                     | recovery::Receipt::OpeningRejected { .. }

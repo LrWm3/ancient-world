@@ -8,6 +8,7 @@ use crate::{
 use std::collections::{BTreeMap, BTreeSet};
 
 const RECOURSE_TERM_MONTHS: u32 = 1;
+pub mod admission;
 
 /// Identifies the authoritative obligation covered by accepted contingent terms.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -122,6 +123,9 @@ pub struct Bid {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Config {
     pub guarantees: Vec<Guarantee>,
+    /// These catalog entries are offers until an explicit dated application succeeds.
+    pub posted_guarantees: BTreeSet<u32>,
+    pub guarantee_applications: Vec<admission::Application>,
     /// Shares the guarantor's remaining opening resources; ordinary claims still precede calls.
     pub guarantee_policy: finance::CollectionPolicy,
     pub proceedings: Vec<ProceedingTerms>,
@@ -146,6 +150,7 @@ pub struct Proceeding {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Book {
+    pub accepted_guarantees: BTreeMap<u32, u32>,
     pub paid_guarantees: BTreeMap<u32, i32>,
     /// Actual advances by guarantee and month; additions become collectible next month.
     pub guarantee_advances: BTreeMap<(u32, u32), i32>,
@@ -153,6 +158,10 @@ pub struct Book {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Receipt {
+    GuaranteeAdmission {
+        guarantee: u32,
+        rejection: Option<admission::Rejection>,
+    },
     ClaimRelief {
         proceeding: u32,
         terms: u32,
@@ -291,6 +300,7 @@ fn rank(world: &World, loan: &Loan) -> u32 {
 }
 
 pub fn validate(world: &World, state: &State) -> Result<(), String> {
+    admission::validate(world, state)?;
     crate::delivery_relief::validate_terms(world)?;
     crate::claim_relief::validate_terms(world)?;
     for c in state.exchange.forwards.values() {
@@ -533,7 +543,15 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             .iter()
             .find(|g| g.id == id)
             .ok_or("unknown guarantee advance")?;
-        if quantity <= 0 || month < g.from || month > g.through || month > state.month {
+        if quantity <= 0
+            || month < g.from
+            || month > g.through
+            || month > state.month
+            || admission::accepted_month(world, &state.credit, g).is_none_or(|accepted| {
+                accepted > month
+                    || (world.recovery.posted_guarantees.contains(&g.id) && accepted == month)
+            })
+        {
             return Err("invalid dated guarantee advance".into());
         }
         let total = advanced.entry(id).or_default();
@@ -752,7 +770,14 @@ pub(crate) fn guarantee_claim(
     g: &Guarantee,
 ) -> Result<Option<finance::Obligation>, String> {
     let month = state.month;
-    if month < g.from || month > g.through || active(world, &state.credit, g.guarantor).is_some() {
+    if month < g.from
+        || month > g.through
+        || active(world, &state.credit, g.guarantor).is_some()
+        || admission::accepted_month(world, &state.credit, g).is_none_or(|accepted| {
+            accepted > month
+                || (world.recovery.posted_guarantees.contains(&g.id) && accepted == month)
+        })
+    {
         return Ok(None);
     }
     let (creditor, denomination, covered, first_unpaid) = match g.claim {

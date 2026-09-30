@@ -14,6 +14,7 @@ pub enum AgreementForm {
     PrepaidDelivery,
     FinancedAssetPurchase,
     Loan,
+    Guarantee,
     Household,
 }
 impl AgreementForm {
@@ -23,6 +24,7 @@ impl AgreementForm {
             Self::LandUseLease => Action::LandAccess,
             Self::FinancedAssetPurchase => Action::FinancedPurchase,
             Self::Loan => Action::Borrow,
+            Self::Guarantee => Action::Guarantee,
             Self::Household => Action::FoundHousehold,
         }
     }

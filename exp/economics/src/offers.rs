@@ -8,9 +8,11 @@ pub enum Id {
     Land(u32),
     Process(DefinitionId),
     FinancedPurchase(u32),
+    Guarantee(u32),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Terms {
+    Guarantee(crate::recovery::Guarantee),
     Membership(crate::membership::Offer),
     Land(crate::commitments::Agreement),
     Production(ProductionTerms),
@@ -91,6 +93,14 @@ pub fn discover(world: &World, state: &State, agent: AgentId) -> Vec<Offer> {
                 }),
         );
     }
+    offers.extend(
+        crate::recovery::admission::discover(world, state, agent)
+            .into_iter()
+            .map(|g| Offer {
+                id: Id::Guarantee(g.id),
+                terms: Terms::Guarantee(g.clone()),
+            }),
+    );
     offers
 }
 
@@ -115,6 +125,33 @@ pub(crate) fn resolve(
     requests: &[Request],
     batch: &mut Batch,
 ) -> Result<(), String> {
+    if requests.iter().any(|r| matches!(r.offer, Id::Guarantee(_))) {
+        if requests.len() != 1
+            || *batch != Batch::empty(&sim.state)
+            || sim.state.phase != Phase::Acquire
+        {
+            return Err("guarantee application requires a standalone Acquire request".into());
+        }
+        let request = &requests[0];
+        let Id::Guarantee(id) = request.offer else {
+            unreachable!()
+        };
+        if request.continuing.is_some()
+            || request.need.is_some()
+            || !sim
+                .world
+                .recovery
+                .guarantee_applications
+                .iter()
+                .any(|a| a.guarantee == id && a.month == sim.state.month)
+        {
+            return Err("guarantee request differs from dated application".into());
+        }
+        crate::recovery::admission::acceptance(&sim.world, &sim.state, id, request.agent)
+            .map_err(|r| format!("guarantee application rejected: {r:?}"))?;
+        *batch = crate::acquisition::evaluate(&sim.world, &sim.state)?;
+        return Ok(());
+    }
     if requests
         .iter()
         .any(|r| matches!(r.offer, Id::FinancedPurchase(_)))
@@ -151,7 +188,7 @@ pub(crate) fn resolve(
             return Err("unknown offer applicant".into());
         }
         match request.offer {
-            Id::FinancedPurchase(_) => unreachable!("handled above"),
+            Id::FinancedPurchase(_) | Id::Guarantee(_) => unreachable!("handled above"),
             Id::Membership(offer) => {
                 if request.continuing.is_some() || !work.is_empty() {
                     return Err("duplicate or misordered membership acceptance".into());
@@ -235,6 +272,31 @@ pub(crate) fn resolve(
 /// productive work; its first execution still occurs at Productive. All existing
 /// processes precede requested new work. Automatic planning uses its own ordering.
 pub fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, String> {
+    if requests.iter().any(|r| matches!(r.offer, Id::Guarantee(_))) {
+        let mut batch = Batch::empty(&sim.state);
+        resolve(sim, requests, &mut batch)?;
+        if !sim.world.households.is_empty() {
+            // Preserve the normal before/core/after household boundary in this
+            // read-only preview, including already configured applications.
+            let mut preview = sim.clone();
+            preview.backend = Backend::Reference;
+            preview.step()?;
+            return preview
+                .ledger
+                .pop()
+                .ok_or("missing guarantee boundary".into());
+        }
+        batch.employment = crate::employment::evaluate(&sim.world, &sim.state, &batch)?;
+        let mut checked = sim.state.clone();
+        crate::settlement::commit(
+            &sim.world,
+            &mut checked,
+            &batch,
+            Backend::Reference,
+            sim.effect_limit,
+        )?;
+        return Ok(batch);
+    }
     if requests
         .iter()
         .any(|r| matches!(r.offer, Id::FinancedPurchase(_)))

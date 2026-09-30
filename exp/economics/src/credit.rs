@@ -1328,6 +1328,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
                 crate::resale::settle(world, state, &mut out, &mut budgets)?;
                 crate::stock_sale::settle(world, state, &mut out, &mut budgets)?;
             }
+            crate::recovery::admission::apply(world, state, &mut out)?;
         }
         _ => {}
     }

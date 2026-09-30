@@ -1193,3 +1193,276 @@ fn native_recourse_in_coin_estate_waits_for_actual_goods_without_conversion_or_d
         assert_eq!(run(Backend::CubeCpu), run(Backend::Reference));
     }
 }
+
+fn posted_guarantee_fixture() -> (World, State) {
+    use economics_compute_smoke::{
+        laws::{AgreementForm, AgreementLimits},
+        opportunities::{Action, PERSON_TYPE, Policy},
+    };
+    let (mut w, s) = fixture();
+    w.recovery.posted_guarantees.insert(1);
+    w.recovery.guarantee_applications.push(
+        economics_compute_smoke::recovery::admission::Application {
+            guarantee: 1,
+            month: 2,
+        },
+    );
+    w.transaction_policy = Some(Policy {
+        authority: ISSUER,
+        laws: vec![],
+        agreement_forms: Some([AgreementForm::Guarantee].into()),
+        agreement_limits: AgreementLimits::default(),
+        membership_offers: vec![],
+        membership_permissions: Default::default(),
+        agent_types: [
+            (ISSUER, PERSON_TYPE),
+            (WORKER, PERSON_TYPE),
+            (SUPPLIER, PERSON_TYPE),
+        ]
+        .into(),
+        permissions: [
+            (PERSON_TYPE, Action::CapacityTrade),
+            (PERSON_TYPE, Action::Guarantee),
+        ]
+        .into(),
+    });
+    (w, s)
+}
+
+#[test]
+fn posted_guarantee_uses_common_discovery_acceptance_and_later_performance() {
+    use economics_compute_smoke::{
+        agreements::{self, Identity},
+        offers::{self, Id, Request},
+        opportunities::{Action, PERSON_TYPE},
+        settlement::{DEFAULT_EFFECT_LIMIT, commit},
+    };
+    let (w, s) = posted_guarantee_fixture();
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut a = Audit::with_opening(&w, &s, COIN, Opening::default()).unwrap();
+        assert!(
+            offers::discover(&w, &s, SUPPLIER)
+                .iter()
+                .any(|o| o.id == Id::Guarantee(1))
+        );
+        assert!(
+            !offers::discover(&w, &s, WORKER)
+                .iter()
+                .any(|o| o.id == Id::Guarantee(1))
+        );
+        assert!(
+            !agreements::for_agent(&w, &s, SUPPLIER)
+                .unwrap()
+                .iter()
+                .any(|v| v.identity() == Identity::Guarantee(1))
+        );
+        while sim.state.month < 2 || sim.state.phase != Phase::Acquire {
+            a.step(&mut sim).unwrap();
+        }
+        assert!(sim.state.credit.recovery.paid_guarantees.is_empty());
+        let request = Request::new(Id::Guarantee(1), SUPPLIER);
+        let before = sim.state.clone();
+        let mut premature = before.clone();
+        premature.credit.recovery.accepted_guarantees.insert(1, 2);
+        assert!(Simulation::new(w.clone(), premature, backend).is_err());
+        let prepared = offers::prepare(&sim, &[request]).unwrap();
+        assert_eq!(sim.state, before);
+        let mut forged = prepared.clone();
+        forged
+            .credit
+            .as_mut()
+            .unwrap()
+            .after
+            .recovery
+            .accepted_guarantees
+            .insert(1, 1);
+        let mut unchanged = before.clone();
+        assert!(commit(&w, &mut unchanged, &forged, backend, DEFAULT_EFFECT_LIMIT).is_err());
+        assert_eq!(unchanged, before);
+        a.step(&mut sim).unwrap();
+        assert_eq!(*sim.ledger.last().unwrap(), prepared);
+        assert_eq!(sim.state.credit.recovery.accepted_guarantees[&1], 2);
+        assert_eq!(
+            agreements::for_agent(&w, &sim.state, SUPPLIER)
+                .unwrap()
+                .iter()
+                .find(|v| v.identity() == Identity::Guarantee(1))
+                .unwrap()
+                .accepted_month(),
+            2
+        );
+        assert!(sim.state.credit.recovery.paid_guarantees.is_empty());
+        assert!(
+            commit(
+                &w,
+                &mut sim.state.clone(),
+                &prepared,
+                backend,
+                DEFAULT_EFFECT_LIMIT
+            )
+            .is_err()
+        );
+        // A later withdrawal of formation permission cannot erase accepted exposure.
+        sim.world
+            .transaction_policy
+            .as_mut()
+            .unwrap()
+            .permissions
+            .remove(&(PERSON_TYPE, Action::Guarantee));
+        sim.world
+            .transaction_policy
+            .as_mut()
+            .unwrap()
+            .agreement_forms = Some(Default::default());
+        let mut resumed = Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+        let mut resumed_a = a.clone();
+        through(&mut a, &mut sim, 3);
+        through(&mut resumed_a, &mut resumed, 3);
+        assert_eq!(sim.state, resumed.state);
+        assert_eq!(a, resumed_a);
+        assert_eq!(sim.state.credit.recovery.paid_guarantees[&1], 3);
+        assert_eq!(sim.state.credit.loans[&101].principal, 3);
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::CubeCpu), run(Backend::Reference));
+}
+
+#[test]
+fn unrecognized_or_unpermitted_posted_guarantees_leave_no_contingent_commitment() {
+    use economics_compute_smoke::{
+        opportunities::{Action, PERSON_TYPE},
+        telemetry::{Config, Observer},
+    };
+    for unrecognized in [false, true] {
+        let (mut w, s) = posted_guarantee_fixture();
+        if unrecognized {
+            w.transaction_policy.as_mut().unwrap().agreement_forms = Some(Default::default());
+        } else {
+            w.transaction_policy
+                .as_mut()
+                .unwrap()
+                .permissions
+                .remove(&(PERSON_TYPE, Action::Guarantee));
+        }
+        let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+        let mut observer = Observer::new(
+            vec![],
+            "guarantee-admission",
+            Config {
+                settlement: true,
+                agents: [SUPPLIER].into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        observer.run_months(&mut sim, 3).unwrap();
+        assert!(sim.state.credit.recovery.accepted_guarantees.is_empty());
+        assert!(sim.state.credit.recovery.paid_guarantees.is_empty());
+        assert!(sim.state.credit.loans.is_empty());
+        assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 4);
+        let records = String::from_utf8(observer.finish().unwrap()).unwrap();
+        let admissions: Vec<serde_json::Value> = records
+            .lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .filter(|r: &serde_json::Value| r["kind"] == "guarantee_admission")
+            .collect();
+        assert_eq!(admissions.len(), 1);
+        assert_eq!(admissions[0]["accepted"], false);
+        assert_eq!(admissions[0]["rejection"], "NotPermitted");
+    }
+}
+
+#[test]
+fn unaccepted_household_guarantees_do_not_block_wind_down_but_accepted_ones_do() {
+    use economics_compute_smoke::{
+        household_governance::Governance,
+        households::{self, dissolution as d},
+    };
+    for winding in [false, true] {
+        let (mut w, mut s) = posted_guarantee_fixture();
+        w.transaction_policy = None;
+        let mut governance = Governance::contributed(SUPPLIER);
+        governance.constitution.allow_dissolution = true;
+        households::form(
+            &mut w,
+            &s,
+            households::Agreement {
+                id: 1,
+                agent: 800,
+                governance,
+                adults: vec![SUPPLIER],
+                membership: vec![],
+                asset_sales: vec![],
+                equipment_retirements: vec![],
+                support: vec![],
+                formed: 1,
+                dwelling_process: None,
+                admission: None,
+            },
+        )
+        .unwrap();
+        w.recovery.guarantees[0].guarantor = 800;
+        s.balances.insert((SUPPLIER, COIN), 0);
+        s.balances.insert((800, COIN), 3);
+        let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+        let mut a = Audit::with_opening(&sim.world, &sim.state, COIN, Opening::default()).unwrap();
+        through(&mut a, &mut sim, 1);
+        assert!(!d::blockers(&sim.world, &sim.state, 800).contains(&d::Blocker::Guarantee));
+        if winding {
+            d::request(&mut sim.world, &sim.state, 800, SUPPLIER).unwrap();
+        }
+        if !winding {
+            while sim.state.phase != Phase::Acquire {
+                a.step(&mut sim).unwrap();
+            }
+            let prepared = economics_compute_smoke::offers::prepare(
+                &sim,
+                &[economics_compute_smoke::offers::Request::new(
+                    economics_compute_smoke::offers::Id::Guarantee(1),
+                    800,
+                )],
+            )
+            .unwrap();
+            a.step(&mut sim).unwrap();
+            assert_eq!(sim.ledger.last(), Some(&prepared));
+        }
+        through(&mut a, &mut sim, 2);
+        assert_eq!(
+            sim.state
+                .credit
+                .recovery
+                .accepted_guarantees
+                .contains_key(&1),
+            !winding
+        );
+        assert_eq!(
+            d::blockers(&sim.world, &sim.state, 800).contains(&d::Blocker::Guarantee),
+            !winding
+        );
+        if winding {
+            d::finish(&mut sim.world, &sim.state, 800, SUPPLIER).unwrap();
+            through(&mut a, &mut sim, 3);
+            assert!(sim.state.credit.recovery.paid_guarantees.is_empty());
+        } else {
+            d::request(&mut sim.world, &sim.state, 800, SUPPLIER).unwrap();
+            assert!(d::finish(&mut sim.world, &sim.state, 800, SUPPLIER).is_err());
+            through(&mut a, &mut sim, 3);
+            assert_eq!(sim.state.credit.recovery.paid_guarantees[&1], 3);
+            assert_eq!(sim.state.credit.loans[&101].creditor, 800);
+            assert_eq!(a.book().balances()[&(800, Account::LoanReceivable(101))], 3);
+        }
+    }
+}
+
+#[test]
+fn guarantee_accepted_at_end_of_term_cannot_backdate_a_missed_call() {
+    let (mut w, s) = posted_guarantee_fixture();
+    w.recovery.guarantees[0].through = 2;
+    let mut sim = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    let mut a = Audit::with_opening(&w, &s, COIN, Opening::default()).unwrap();
+    through(&mut a, &mut sim, 3);
+    assert_eq!(sim.state.credit.recovery.accepted_guarantees[&1], 2);
+    assert!(sim.state.credit.recovery.paid_guarantees.is_empty());
+    assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 4);
+}
