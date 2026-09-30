@@ -58,8 +58,7 @@ pub(crate) fn validate(w: &World, s: &State) -> Result<(), String> {
     if !enabled(w) {
         return Ok(());
     }
-    if w.market.is_some()
-        || w.credit.is_some()
+    if w.credit.is_some()
         || w.production_market.is_some()
         || w.pool_market.is_some()
         || w.competition.is_some()
@@ -67,9 +66,11 @@ pub(crate) fn validate(w: &World, s: &State) -> Result<(), String> {
         || w.priority == Priority::ConsequenceAware
         || !w.access_offers.is_empty()
         || !w.offers.is_empty()
-        || !w.bids.is_empty()
+        || (!w.bids.is_empty() && w.market.is_none())
     {
-        return Err("direct forwards require plain, bilateral or town acquisition without tool underwriting".into());
+        return Err(
+            "direct forwards require plain, bilateral, legacy market or town acquisition".into(),
+        );
     }
     let mut ids = BTreeSet::new();
     let stock = |id| {
@@ -101,11 +102,13 @@ pub(crate) fn validate(w: &World, s: &State) -> Result<(), String> {
         }
     }
     for (id, c) in &s.exchange.forwards {
-        let t = w
-            .prepaid_deliveries
-            .iter()
-            .find(|t| t.id == *id)
-            .ok_or("direct forward has no accepted terms")?;
+        let Some(t) = w.prepaid_deliveries.iter().find(|t| t.id == *id) else {
+            // Tool-underwritten records are checked by their own admission adapter.
+            if super::policy(w).is_some() {
+                continue;
+            }
+            return Err("direct forward has no accepted terms".into());
+        };
         let mut expected = t.contract();
         expected.delivered = c.delivered;
         expected.relief = c.relief.clone();

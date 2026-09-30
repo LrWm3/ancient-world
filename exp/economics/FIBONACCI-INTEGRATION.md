@@ -3,7 +3,7 @@
 Scope: finish bounded autonomous household hiring and direct prepaid-delivery
 recovery, then demonstrate that they compose with the existing economic loop.
 The batches contain logical changes, not a prescribed count of files or tests.
-The completed sequence is **1, 1, 2, 3, 5, 8, 13** (batch 21 in final verification). Batch sizes count distinct
+The completed sequence is **1, 1, 2, 3, 5, 8, 13, 21** (batch 34 in progress). Batch sizes count distinct
 implementation and integration changes, not test cases. Person self-directed policy changes remain explicitly deferred.
 
 ## Batch 1 — one recovery change
@@ -214,6 +214,10 @@ Completed additions so far:
 20. Prepare liquidation bids through common acceptance and actual funded priority.
 21. Preserve competing bid identities and reject duplicate-sale interpretations.
 22. Apply household lifecycle eligibility to optional estate purchases.
+23. Compose direct prepayments and legacy tool/state exchange in one reservation window.
+24. Collect both forward origins once with explicit stable/proportional allocation.
+25. Preserve forward identity and future storage across both admission adapters.
+26. Exercise household prepaid buying, stock targets and common inventory accounting.
 
 See [acquisition adapters](ACQUISITION-ADAPTERS.md) and
 [guarantee admission](GUARANTEE-ADMISSION.md). This is an unfinished batch; no

@@ -214,11 +214,10 @@ pub(crate) fn resolve_with(
     mut available: BTreeMap<Account, i32>,
     mut stored: BTreeMap<AgentId, i128>,
 ) -> Result<Vec<Transaction>, String> {
-    let Some(market) = &world.market else {
+    if world.market.is_none() {
         return Ok(vec![]);
-    };
+    }
     let mut result = crate::forward::settle(world, state, &mut available, &mut stored)?;
-    let mut purchased = BTreeSet::new();
     let mut quoted_state = state.clone();
     for transaction in &result {
         record(&mut quoted_state, transaction);
@@ -226,6 +225,24 @@ pub(crate) fn resolve_with(
             *quoted_state.balances.entry(effect.account).or_default() += effect.delta;
         }
     }
+    result.extend(after_collections(world, &quoted_state, available, stored)?);
+    Ok(result)
+}
+
+/// Shared acquisition has already collected all forward adapters once. Use its
+/// updated book and reserved budgets without a second allocation/collection pass.
+pub(crate) fn after_collections(
+    world: &World,
+    state: &State,
+    mut available: BTreeMap<Account, i32>,
+    mut stored: BTreeMap<AgentId, i128>,
+) -> Result<Vec<Transaction>, String> {
+    let Some(market) = &world.market else {
+        return Ok(vec![]);
+    };
+    let mut result = Vec::new();
+    let mut purchased = BTreeSet::new();
+    let mut quoted_state = state.clone();
     let mut reserved = BTreeSet::new();
     let mut requests = market.tools.clone();
     requests.sort_by_key(|r| (r.buyer, r.kind, r.provider));

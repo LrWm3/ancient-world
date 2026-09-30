@@ -370,3 +370,147 @@ fn affordable_but_unproductive_tools_are_declined() {
             ))
     );
 }
+
+#[test]
+fn direct_prepaid_admission_reserves_treasury_before_tool_underwriting() {
+    use forward::direct;
+    let base = fixture(0, 10000, true);
+    let projection = forward::project(&base.world, &base.state, PERSON, 9000).unwrap();
+    let price = forward::quote(forward::policy(&base.world).unwrap(), &projection, 25).unwrap();
+    for short in [0, 1] {
+        let mut w = base.world.clone();
+        let provider = w.market.as_ref().unwrap().tools[0].provider;
+        w.prepaid_deliveries.push(direct::Terms {
+            id: 9001,
+            seller: provider,
+            buyer: STATE_AGENT,
+            month: 1,
+            due: 2,
+            goods: Amount::new(GRAIN, 1),
+            prepayment: Amount::new(TOKEN, 10000 - price + short),
+        });
+        let mut sim = Simulation::new(w, base.state.clone(), Backend::CubeCpu).unwrap();
+        let mut reference = sim.clone();
+        reference.backend = Backend::Reference;
+        sim.step().unwrap();
+        reference.step().unwrap();
+        assert_eq!(
+            (&sim.state, &sim.ledger),
+            (&reference.state, &reference.ledger)
+        );
+        assert!(sim.state.exchange.forwards.contains_key(&9001));
+        assert_eq!(sim.state.exchange.contracts.contains_key(&9000), short == 0);
+        if short == 0 {
+            assert_eq!(sim.state.exchange.forwards[&9000].advance.quantity, price);
+            assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 0);
+        } else {
+            assert!(
+                sim.ledger
+                    .last()
+                    .unwrap()
+                    .transactions
+                    .iter()
+                    .any(|t| matches!(
+                        t.forward,
+                        Some(Event::Rejected {
+                            reason: Reason::TreasuryShortfall,
+                            ..
+                        })
+                    ))
+            );
+            assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), price - 1);
+        }
+    }
+}
+
+#[test]
+fn tool_underwriting_does_not_reuse_future_direct_ids_or_current_prepayment_receipts() {
+    use forward::direct;
+    for collision in [false, true] {
+        let base = fixture(0, 10000, true);
+        let mut w = base.world;
+        w.prepaid_deliveries.push(direct::Terms {
+            id: if collision { 9000 } else { 9001 },
+            seller: PERSON,
+            buyer: STATE_AGENT,
+            month: if collision { 2 } else { 1 },
+            due: 3,
+            goods: Amount::new(GRAIN, 1),
+            prepayment: Amount::new(TOKEN, 1000),
+        });
+        let mut sim = Simulation::new(w, base.state, Backend::CubeCpu).unwrap();
+        sim.step().unwrap();
+        assert!(sim.state.exchange.contracts.is_empty());
+        assert_eq!(sim.state.exchange.forwards.len(), usize::from(!collision));
+        assert_eq!(
+            sim.state.balance(PERSON, TOKEN),
+            if collision { 0 } else { 1000 }
+        );
+        let expected = if collision {
+            Reason::ContractIdentityInUse
+        } else {
+            Reason::ExistingForward
+        };
+        assert!(
+            sim.ledger
+                .last()
+                .unwrap()
+                .transactions
+                .iter()
+                .any(|t| matches!(
+                    &t.forward, Some(Event::Rejected { reason, .. }) if *reason == expected
+                ))
+        );
+    }
+}
+
+#[test]
+fn direct_and_tool_prepaid_receipts_reserve_the_same_future_storage() {
+    use forward::direct;
+    let mut base = fixture(0, 10000, true);
+    let cash = base.world.market.as_mut().unwrap().cash.as_mut().unwrap();
+    cash.prices.retain(|r, _| *r == GRAIN);
+    cash.advance_prices.retain(|r, _| *r == GRAIN);
+    let p = forward::project(&base.world, &base.state, PERSON, 9000).unwrap();
+    let price = forward::quote(forward::policy(&base.world).unwrap(), &p, 25).unwrap();
+    let used =
+        economics_compute_smoke::storage::usage(&base.world, &base.state.balances)[&STATE_AGENT];
+    let weight = base.world.storage.weights[&GRAIN];
+    for short in [0, 1] {
+        let mut w = base.world.clone();
+        let provider = w.market.as_ref().unwrap().tools[0].provider;
+        w.prepaid_deliveries.push(direct::Terms {
+            id: 9001,
+            seller: provider,
+            buyer: STATE_AGENT,
+            month: 1,
+            due: 2,
+            goods: Amount::new(GRAIN, 1),
+            prepayment: Amount::new(TOKEN, 1),
+        });
+        w.storage.capacities.insert(
+            STATE_AGENT,
+            i32::try_from(used).unwrap() + (1 + 2 * price - short) * weight,
+        );
+        let mut sim = Simulation::new(w, base.state.clone(), Backend::CubeCpu).unwrap();
+        sim.step().unwrap();
+        assert!(sim.state.exchange.forwards.contains_key(&9001));
+        assert_eq!(sim.state.exchange.forwards.contains_key(&9000), short == 0);
+        if short == 1 {
+            assert!(
+                sim.ledger
+                    .last()
+                    .unwrap()
+                    .transactions
+                    .iter()
+                    .any(|t| matches!(
+                        t.forward,
+                        Some(Event::Rejected {
+                            reason: Reason::NoProjectedSurplus,
+                            ..
+                        })
+                    ))
+            );
+        }
+    }
+}

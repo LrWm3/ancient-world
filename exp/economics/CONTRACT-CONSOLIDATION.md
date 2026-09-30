@@ -8,7 +8,9 @@ composes with [physical minting](MINT-FINANCE.md) against remaining worker hours
 [Posted guarantee admission](GUARANTEE-ADMISSION.md) now distinguishes offers from
 accepted exposure and checks legal recognition. [Acquisition adapters](ACQUISITION-ADAPTERS.md)
 connect direct loans to plot review and preserve observed household capacity in
-forecasts. These extend supported combinations; other admission and driver limits remain.
+forecasts. Direct prepaid and tool-backed forwards now share collection, treasury and storage
+with legacy state trading. These extend supported combinations; other admission
+and driver limits remain.
 
 This is active implementation work. The next financial work should extend the
 existing contract, claim and settlement model, rather than introduce another

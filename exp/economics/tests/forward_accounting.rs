@@ -410,3 +410,171 @@ fn forged_delivery_does_not_publish_inventory_or_claim_changes() {
     a.step(&mut sim).unwrap();
     assert_eq!(sim.state.exchange.forwards[&9000].delivered, 4);
 }
+
+#[test]
+fn direct_and_tool_forwards_share_one_collection_window_then_spot_inventory() {
+    use economics_compute_smoke::{finance, forward::direct, offers, settlement};
+    const DIRECT: u32 = 9001;
+    for (quantity, policy, paid, household) in [
+        (6, finance::CollectionPolicy::Stable, [4, 2], false),
+        (6, finance::CollectionPolicy::Proportional, [3, 3], false),
+        (9, finance::CollectionPolicy::Proportional, [4, 4], false),
+        (6, finance::CollectionPolicy::Proportional, [3, 3], true),
+    ] {
+        let mut opening = fixture(quantity);
+        opening.state.month = 12;
+        let buyer = if household {
+            use economics_compute_smoke::{household_governance::Governance, households};
+            const HOME: AgentId = 10000;
+            opening.world.storage.capacities.insert(BUYER, 100);
+            households::form(
+                &mut opening.world,
+                &opening.state,
+                households::Agreement {
+                    id: 1,
+                    agent: HOME,
+                    governance: Governance::contributed(BUYER),
+                    adults: vec![BUYER],
+                    membership: vec![],
+                    asset_sales: vec![],
+                    equipment_retirements: vec![],
+                    support: vec![],
+                    formed: 12,
+                    dwelling_process: None,
+                    admission: None,
+                },
+            )
+            .unwrap();
+            HOME
+        } else {
+            BUYER
+        };
+        opening.state.balances.insert((buyer, TOKEN), 2);
+        opening.state.balances.insert((OTHER, TOKEN), 1);
+        opening.world.collection_policy = policy;
+        opening.world.prepaid_admission = direct::AdmissionPolicy::Concurrent;
+        opening.world.prepaid_deliveries.push(direct::Terms {
+            id: DIRECT,
+            seller: PERSON,
+            buyer,
+            month: 12,
+            due: 13,
+            goods: Amount::new(scenario::GRAIN, 4),
+            prepayment: Amount::new(TOKEN, 2),
+        });
+        let market = opening.world.market.as_mut().unwrap();
+        market.targets.insert(1, 100);
+        market.reserves.insert((PERSON, scenario::GRAIN), 0);
+        let run = |backend| {
+            let mut sim =
+                Simulation::new(opening.world.clone(), opening.state.clone(), backend).unwrap();
+            let mut a = audit(&sim);
+            while sim.state.phase != Phase::Acquire {
+                a.step(&mut sim).unwrap();
+            }
+            let request = [offers::Request::new(
+                offers::Id::PrepaidDelivery(DIRECT),
+                PERSON,
+            )];
+            let prepared = offers::prepare(&sim, &request).unwrap();
+            a.step(&mut sim).unwrap();
+            assert_eq!(sim.ledger.last(), Some(&prepared));
+            assert_eq!(sim.state.exchange.forwards.len(), 2);
+            // Future pledges retain eight units. Only the ninth is sold at admission.
+            assert_eq!(sim.state.balance(PERSON, scenario::GRAIN), quantity.min(8));
+            let (mut resumed, mut resumed_a) = (sim.clone(), a.clone());
+            through(&mut a, &mut sim, 14);
+            through(&mut resumed_a, &mut resumed, 14);
+            assert_eq!(
+                (&sim.state, &sim.ledger, &a),
+                (&resumed.state, &resumed.ledger, &resumed_a)
+            );
+            assert_eq!(sim.state.exchange.forwards[&9000].delivered, paid[0]);
+            assert_eq!(sim.state.exchange.forwards[&DIRECT].delivered, paid[1]);
+            let batch = sim
+                .ledger
+                .iter()
+                .find(|b| b.month == 13 && b.phase == Phase::Acquire)
+                .unwrap();
+            assert_eq!(batch.forward_collections.len(), 2);
+            assert_eq!(
+                batch
+                    .forward_collections
+                    .iter()
+                    .map(|r| r.paid)
+                    .collect::<Vec<_>>(),
+                paid
+            );
+            let spot = i32::from(quantity == 9);
+            assert_eq!(sim.state.balance(OTHER, scenario::GRAIN), paid[0] + spot);
+            assert_eq!(sim.state.balance(buyer, scenario::GRAIN), paid[1]);
+            assert_eq!(sim.state.balance(PERSON, scenario::GRAIN), 0);
+            assert_eq!(sim.state.balance(PERSON, TOKEN), 2 + spot);
+            assert_eq!(
+                a.book().statements(PERSON, 12, 14).unwrap().expenses[&A::CostOfSales],
+                i128::from(quantity) * 2
+            );
+            let mut replay = opening.state.clone();
+            for batch in &sim.ledger {
+                settlement::commit(
+                    &sim.world,
+                    &mut replay,
+                    batch,
+                    backend,
+                    settlement::DEFAULT_EFFECT_LIMIT,
+                )
+                .unwrap();
+            }
+            assert_eq!(replay, sim.state);
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
+
+#[test]
+fn mixed_forward_history_rejects_cross_adapter_identity_and_term_tampering() {
+    use economics_compute_smoke::forward::direct;
+    let mut sim = fixture(4);
+    sim.world.prepaid_deliveries.push(direct::Terms {
+        id: 9001,
+        seller: PERSON,
+        buyer: BUYER,
+        month: 1,
+        due: 13,
+        goods: Amount::new(scenario::GRAIN, 2),
+        prepayment: Amount::new(TOKEN, 1),
+    });
+    sim.state
+        .exchange
+        .forwards
+        .insert(9001, sim.world.prepaid_deliveries[0].contract());
+    Simulation::new(sim.world.clone(), sim.state.clone(), Backend::Reference).unwrap();
+    for id in [9000, 9001] {
+        let mut bad = sim.state.clone();
+        bad.exchange.forwards.get_mut(&id).unwrap().advance.quantity += 1;
+        assert!(Simulation::new(sim.world.clone(), bad, Backend::Reference).is_err());
+    }
+    sim.world.prepaid_deliveries[0].id = 9000;
+    assert!(Simulation::new(sim.world, sim.state, Backend::Reference).is_err());
+}
+
+#[test]
+fn spot_targets_observe_goods_already_delivered_by_forward_collection() {
+    let mut sim = fixture(10);
+    sim.state.balances.insert((OTHER, TOKEN), 5);
+    let m = sim.world.market.as_mut().unwrap();
+    m.targets.insert(1, 4);
+    m.reserves.insert((PERSON, scenario::GRAIN), 0);
+    let mut a = audit(&sim);
+    through(&mut a, &mut sim, 13);
+    assert_eq!(sim.state.balance(OTHER, scenario::GRAIN), 4);
+    assert_eq!(sim.state.balance(OTHER, TOKEN), 5);
+    assert_eq!(sim.state.balance(PERSON, scenario::GRAIN), 6);
+    assert!(
+        sim.ledger
+            .iter()
+            .flat_map(|b| &b.transactions)
+            .all(|t| t.stock_trade.is_none())
+    );
+}

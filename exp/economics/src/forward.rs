@@ -70,6 +70,7 @@ pub enum Reason {
     ExistingForward,
     NoProjectedSurplus,
     TreasuryShortfall,
+    ContractIdentityInUse,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
@@ -293,6 +294,18 @@ pub fn purchase(
     let gap = price - own;
     let mut advance = None;
     if gap > 0 {
+        // Tool financing historically uses the asset ID. Dated direct terms
+        // reserve their IDs even before acceptance; never overwrite either book entry.
+        if world.prepaid_deliveries.iter().any(|t| t.id == asset.id)
+            || state.exchange.forwards.contains_key(&asset.id)
+        {
+            return Ok(rejected(
+                buyer,
+                asset.id,
+                price,
+                Reason::ContractIdentityInUse,
+            ));
+        }
         if !config.enabled {
             return Ok(rejected(buyer, asset.id, price, Reason::AdvancesDisabled));
         }
@@ -541,11 +554,12 @@ pub(crate) fn collect(
 
 pub fn validate(world: &World, state: &State) -> Result<(), String> {
     direct::validate(world, state)?;
-    if direct::enabled(world) {
-        return Ok(());
-    }
     let Some(config) = policy(world) else {
-        return if state.exchange.forwards.is_empty()
+        return if state
+            .exchange
+            .forwards
+            .keys()
+            .all(|id| world.prepaid_deliveries.iter().any(|t| t.id == *id))
             && state
                 .exchange
                 .contracts
@@ -599,6 +613,9 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         return Err("invalid forward advance prices".into());
     }
     for (&id, c) in &state.exchange.forwards {
+        if world.prepaid_deliveries.iter().any(|t| t.id == id) {
+            continue;
+        }
         crate::delivery_relief::validate_history(world, state, c)?;
         if id != c.id
             || c.creditor != config.lender
@@ -636,6 +653,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             .ok_or("cash delivery without purchase")?;
         if p.advance.as_ref().is_some_and(|a| {
             a.id != d.asset
+                || world.prepaid_deliveries.iter().any(|t| t.id == a.id)
                 || a.debtor != d.buyer
                 || a.issued != p.projection.from
                 || a.delivered != 0
@@ -670,6 +688,9 @@ pub(crate) fn local(world: &World, state: &State, buyer: AgentId) -> (World, Sta
     let mut s = state.clone();
     w.market = None;
     s.exchange = Default::default();
+    // Local production comparisons exclude future bilateral funding and trades.
+    // Existing forward exposure still blocks additional underwriting at admission.
+    w.prepaid_deliveries.clear();
     w.bids.clear();
     w.offers.clear();
     s.filled_offers.clear();

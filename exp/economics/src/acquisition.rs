@@ -125,7 +125,12 @@ pub fn evaluate(world: &World, state: &State) -> Result<Batch, String> {
     let trades = negotiation::transactions(world, state, &batch.negotiation)?;
     resources.reserve(world, &trades)?;
     batch.transactions.extend(trades);
-    let trades = crate::exchange::resolve_with(
+    let exchange = if crate::forward::direct::enabled(world) {
+        crate::exchange::after_collections
+    } else {
+        crate::exchange::resolve_with
+    };
+    let trades = exchange(
         world,
         &quoted,
         resources.available.clone(),

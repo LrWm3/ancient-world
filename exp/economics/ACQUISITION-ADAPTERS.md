@@ -112,3 +112,32 @@ Successful preparation matches normal custody, ownership, later distribution,
 CPU/reference continuation and separate statements. Failed preparation publishes
 nothing. This provides common inspection/acceptance; estate inventories and buyer
 prices remain supplied terms. Autonomous listing and valuation are still open.
+
+## Direct and tool-backed forwards in the legacy marketplace
+
+The direct prepayment adapter now composes with legacy tool purchases and state
+stock bids. At Acquire, credit reserves first, all due forward claims share one
+collection pass, direct prepaid terms reserve next, then tool purchases and stock
+trades use the remaining opening budget. Incoming money still cannot finance a
+second outgoing leg in this window. Annual land collection remains at Due.
+
+Both forward origins retain their terms and validation in the same book. Tool
+financing cannot reuse an ID reserved by current or future direct terms. Local
+production comparisons exclude future direct funding; an existing unfulfilled
+forward still blocks new tool underwriting. Direct concurrent admission remains
+an explicit opt-in and does not establish that future output will cover every
+promise. Prospective creditor storage includes both origins before a new tool
+advance is accepted. Spot targets observe goods already received during collection.
+
+Tests compare stable allocation (four and two units) with proportional allocation
+(three each) from the same six-unit stock. A household buyer participates through
+its normal wrapper and contributed storage. A surplus control sells only the
+unpledged ninth unit, and both prepaid positions and the shared inventory cost
+reconcile through double-entry statements. CPU/reference, replay and checkpoint
+continuation agree. Other controls reject insufficient treasury/storage, reused
+IDs, changed terms and attempts to spend an incoming prepayment immediately.
+
+This does not enable direct forwards with mortgages, competing access/pool
+allocation or consequence-search drivers. Terms, tool requests and legacy state
+prices are still supplied; this is composition of their execution, not autonomous
+negotiation or general credit assessment.

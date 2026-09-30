@@ -310,7 +310,7 @@ pub(crate) fn commit_core(
     }
     if batch.phase == Phase::Acquire
         && world.market.is_some()
-        && !crate::credit::enabled(world)
+        && !crate::acquisition::shared(world)
         && batch.transactions != crate::exchange::resolve(world, state)?
     {
         return Err("exchange differs from reserved opening offers".into());
