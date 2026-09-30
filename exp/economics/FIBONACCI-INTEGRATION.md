@@ -913,3 +913,12 @@ their separately recorded gates and are not covered by this snapshot.
     CPU/reference and checkpoint results reconcile. Unsupported principal and
     reordered history are rejected. The five-target gate passed 100 tests, then
     final focused controls and strict all-target Clippy passed.
+
+57. **Household financing composes with renewed and forgiven recourse.** The
+    continuing control now includes a household guarantor funded later by a
+    separate member loan. Actual wage coins pool with carried rounding; later
+    guarantee calls create new native recourse after a loss, followed by a second
+    accepted write-off. Household losses do not forgive its distinct debt to the
+    member, and private cash never implicitly funds the guarantee. Native stock
+    remains zero. CPU/reference and checkpoint statements agree. The four-target
+    gate passed 58 tests and strict all-target Clippy passed.

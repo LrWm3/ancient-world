@@ -127,3 +127,10 @@ The regression reproduced a rejected valid later call before this change; it now
 retains both accepted losses, rejects unsupported principal and reordered history,
 and agrees across CPU/reference and checkpoint continuation. The five-target gate
 passed 100 tests, followed by the final focused history controls and strict Clippy.
+
+The renewed-recourse control also runs with a household guarantor and later
+member lending. Two accepted native write-offs retain the household's losses
+while its separate coin debt to the member remains. Actual wage pooling finances
+only later calls, including fractional carry; it never creates native inventory.
+CPU/reference and checkpoint statements agree. The four-target gate passed
+58 tests and strict all-target Clippy passed.

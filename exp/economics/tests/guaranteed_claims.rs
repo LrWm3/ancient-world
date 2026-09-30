@@ -2777,6 +2777,13 @@ fn household_member_guarantee_chain_pools_wages_only_and_preserves_private_recou
 
 #[test]
 fn later_guarantee_advances_after_writeoff_remain_new_debt_with_separate_disposition_history() {
+    renewed_recourse(false);
+}
+#[test]
+fn household_renewed_recourse_keeps_member_funding_pooling_and_repeated_losses_separate() {
+    renewed_recourse(true);
+}
+fn renewed_recourse(household: bool) {
     use economics_compute_smoke::{
         claim_relief::{Action, Terms},
         credit::{Advance, LoanOffer, Status},
@@ -2785,22 +2792,52 @@ fn later_guarantee_advances_after_writeoff_remain_new_debt_with_separate_disposi
         recovery::GuaranteeTender,
     };
     let (mut w, mut s) = fixture();
+    const HOME: AgentId = 800;
+    let guarantor = if household { HOME } else { SUPPLIER };
+    let first = if household { 1 } else { 2 };
+    if household {
+        economics_compute_smoke::households::form(
+            &mut w,
+            &s,
+            economics_compute_smoke::households::Agreement {
+                id: 1,
+                agent: HOME,
+                adults: vec![WORKER],
+                governance: economics_compute_smoke::household_governance::Governance::contributed(
+                    WORKER,
+                ),
+                formed: 1,
+                dwelling_process: None,
+                admission: None,
+                membership: vec![],
+                asset_sales: vec![],
+                equipment_retirements: vec![],
+                support: vec![],
+            },
+        )
+        .unwrap();
+    }
     w.employment[0].wage_per_unit.resource = FIREWOOD;
-    s.balances.insert((SUPPLIER, COIN), 2);
+    s.balances.clear();
+    s.balances.insert((guarantor, COIN), first);
+    if household {
+        s.balances.insert((WORKER, COIN), 10);
+    }
+    w.recovery.guarantees[0].guarantor = guarantor;
     w.recovery.guarantees[0].through = 6;
     w.recovery.guarantees[0].tender = GuaranteeTender::AgreedCoins {
         resource: COIN,
         coins_per_unit: 1,
     };
     authorize(&mut w, 3);
-    for (id, month, quantity) in [(90, 4, 2), (91, 6, 1)] {
+    for (id, month, quantity) in [(90, 4, first), (91, 6, 3 - first)] {
         w.recovery.claim_relief.push(Terms {
             id,
             proceeding: 1,
             contract: ContractId::Loan(101),
             original_due: 3,
             debtor: ISSUER,
-            creditor: SUPPLIER,
+            creditor: guarantor,
             month,
             expected_due: 3,
             expected_remaining: quantity,
@@ -2809,7 +2846,7 @@ fn later_guarantee_advances_after_writeoff_remain_new_debt_with_separate_disposi
     }
     w.lending.push(Advance {
         id: 200,
-        debtor: SUPPLIER,
+        debtor: guarantor,
         month: 4,
         principal: 1,
         collateral: None,
@@ -2832,17 +2869,23 @@ fn later_guarantee_advances_after_writeoff_remain_new_debt_with_separate_disposi
         let mut a = Audit::with_opening(&w, &s, COIN, opening.clone()).unwrap();
         through(&mut a, &mut sim, 4);
         assert_eq!(sim.state.credit.loans[&101].status, Status::Discharged);
-        assert_eq!(a.book().balances()[&(SUPPLIER, Account::CreditLoss)], 6);
+        assert_eq!(
+            a.book().balances()[&(guarantor, Account::CreditLoss)],
+            i128::from(first * 3)
+        );
         let (saved, mut ra) = (sim.clone(), a.clone());
         through(&mut a, &mut sim, 5);
         let l = &sim.state.credit.loans[&101];
         assert_eq!(
             (l.status, l.original_principal, l.principal),
-            (Status::Stayed, 3, 1)
+            (Status::Stayed, first + 1, 1)
         );
-        assert_eq!(a.book().balances()[&(SUPPLIER, Account::CreditLoss)], 6);
         assert_eq!(
-            a.book().balances()[&(SUPPLIER, Account::LoanReceivable(101))],
+            a.book().balances()[&(guarantor, Account::CreditLoss)],
+            i128::from(first * 3)
+        );
+        assert_eq!(
+            a.book().balances()[&(guarantor, Account::LoanReceivable(101))],
             3
         );
         let mut forged = sim.state.clone();
@@ -2860,12 +2903,33 @@ fn later_guarantee_advances_after_writeoff_remain_new_debt_with_separate_disposi
             .reverse();
         assert!(Simulation::new(w.clone(), forged, backend).is_err());
         assert_eq!(sim.state.credit.loans[&101].status, Status::Discharged);
-        assert_eq!(a.book().balances()[&(SUPPLIER, Account::CreditLoss)], 9);
+        assert_eq!(a.book().balances()[&(guarantor, Account::CreditLoss)], 9);
         assert_eq!(a.book().balances()[&(ISSUER, Account::DebtRelief)], -9);
         assert_eq!(sim.state.credit.recovery.paid_guarantees[&1], 3);
         assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 1);
         assert_eq!(sim.state.balance(WORKER, FIREWOOD), 0);
-        assert_eq!(sim.state.balance(WORKER, COIN), 2);
+        assert_eq!(
+            sim.state.balance(WORKER, COIN),
+            if household { 11 } else { 2 }
+        );
+        if household {
+            assert_eq!(a.book().balances()[&(HOME, Account::LoanPayable(200))], -1);
+            assert_eq!(
+                a.book().balances()[&(WORKER, Account::LoanReceivable(200))],
+                1
+            );
+            assert_eq!(sim.state.balance(HOME, COIN), 0);
+            let pooled: i32 = sim
+                .ledger
+                .iter()
+                .flat_map(|b| b.household.iter())
+                .flat_map(|h| &h.after)
+                .filter(|e| e.account == (HOME, COIN) && e.delta > 0)
+                .map(|e| e.delta)
+                .sum();
+            assert_eq!(pooled, 1);
+            assert_eq!(sim.state.balance(HOME, FIREWOOD), 0);
+        }
         assert_eq!(
             sim.state.credit.recovery.proceedings[&1].stage,
             economics_compute_smoke::recovery::Stage::Active
