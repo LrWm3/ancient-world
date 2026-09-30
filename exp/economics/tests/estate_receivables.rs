@@ -628,15 +628,21 @@ fn receivable_and_inventory_lots_compete_for_one_opening_cash_budget() {
 
 #[test]
 fn assigned_secured_claim_keeps_reserved_proceeds_across_two_household_and_person_estates() {
-    secured_assignment(false);
+    secured_assignment(false, false);
 }
 
 #[test]
 fn household_claim_assignment_and_guarantee_subrogation_share_one_collateral_recovery() {
-    secured_assignment(true);
+    secured_assignment(true, false);
 }
 
-fn secured_assignment(guaranteed: bool) {
+#[test]
+fn shared_custodian_separates_assigned_household_claims_and_guarantor_liens() {
+    secured_assignment(false, true);
+    secured_assignment(true, true);
+}
+
+fn secured_assignment(guaranteed: bool, shared_custody: bool) {
     use economics_compute_smoke::{
         financial_reporting::Opening,
         household_governance::Governance,
@@ -732,7 +738,18 @@ fn secured_assignment(guaranteed: bool) {
                         priority: 0,
                     });
                 }
-                for (id, debtor, estate) in [(1, HOME, ESTATE), (2, BORROWER, BORROWER_ESTATE)] {
+                for (id, debtor, estate) in [
+                    (1, HOME, ESTATE),
+                    (
+                        2,
+                        BORROWER,
+                        if shared_custody {
+                            ESTATE
+                        } else {
+                            BORROWER_ESTATE
+                        },
+                    ),
+                ] {
                     w.recovery.proceedings.push(ProceedingTerms {
                         id,
                         debtor,
@@ -817,7 +834,20 @@ fn secured_assignment(guaranteed: bool) {
                     );
                     assert_eq!(
                         sim.state.balance(ESTATE, TOKEN),
+                        (if funded { 10 } else { 0 })
+                            + if shared_custody && sale_month == 3 {
+                                4
+                            } else {
+                                0
+                            }
+                    );
+                    assert_eq!(
+                        sim.state.credit.recovery.proceedings[&1].cash,
                         if funded { 10 } else { 0 }
+                    );
+                    assert_eq!(
+                        sim.state.credit.recovery.proceedings[&2].cash,
+                        if sale_month == 3 { 4 } else { 0 }
                     );
                     assert_eq!(
                         credit::owner(&sim.world, &sim.state, PLOT),

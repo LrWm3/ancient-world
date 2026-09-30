@@ -129,3 +129,10 @@ purchase, land prerequisites and planting. The combined regression checks
 separate purchase costs, estate custody, later borrower payments to the investor,
 harvest and unfunded rejection. CPU/reference and reconstructed checkpoints
 reconcile. The claim's face amount never becomes immediate spendable cash.
+
+The secured assignment and guarantee continuation also runs with one shared
+custodian for the winding household and its debtor. Separate estate cash and
+reserved liens produce the same recoveries as dedicated custodians, including
+unfunded claim bids and retained deficiencies. Shared custody neither consolidates
+their financial statements nor authorizes either estate to spend the other's
+proceeds.

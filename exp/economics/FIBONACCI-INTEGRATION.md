@@ -498,3 +498,12 @@ The isolated source snapshot at **`2b9d40a`** (through item 10) passed
 `cargo +1.92.0 test --locked`: **938 passed, 0 failed, 1 ignored**, across
 113 Cargo result targets including empty unit/doc targets. Later items have
 their separately recorded affected gates; this full result does not cover them.
+
+17. **Shared custody composes with household claim sales and inherited liens.**
+    A winding household and its debtor use one custodian while a whole secured
+    receivable changes holder. Optional guarantees transfer liens or reserved
+    proceeds to recourse without crossing beneficial balances. Before/after-sale,
+    funded/unfunded and retained/discharged controls preserve investor and
+    guarantor recoveries, private member money and household exit. CPU/checkpoint
+    and separate books agree. The four-target gate passed 54 tests; strict
+    all-target Clippy passed.
