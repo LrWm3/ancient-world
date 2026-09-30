@@ -1,5 +1,13 @@
 # Economics integration and planning interfaces
 
+Latest consolidation: [physical minting and finance](MINT-FINANCE.md) now connects
+direct loans, prepaid deliveries, annual dues, employment, household pooling and
+authorized recovery through the shared acquisition budget. Its mixed scenario
+retains unpaid claims and compares provision policies with reconciled statements.
+This supersedes earlier blanket exclusions for those combinations; other driver
+and admission limits remain explicit.
+
+
 Current financial work extends [contract consolidation](CONTRACT-CONSOLIDATION.md).
 Direct consented loans reuse the mortgage book with optional collateral, share Due
 reservations/ranks with land claims, and compose with legacy exchange or bilateral
@@ -10,8 +18,8 @@ Optional proportional Due allocation includes accepted coin alternatives.
 recourse, authorized single-denomination loan estates, custody and funded asset
 liquidation. This is implemented within the existing book and scheduler.
 Land/forward admission now preserves native performance and blocks premature
-closure. General discharge and recovery with town/minting/search acquisition remain
-unfinished; supporting one combination does not remove another driver's limits.
+closure. General discharge and recovery with search acquisition remain
+unfinished; town and mint recovery now have bounded adapters, and supporting one combination does not remove another driver's limits.
 
 
 Implemented: a shared acquisition boundary for secured credit, its finite state

@@ -1,5 +1,13 @@
 # Double-entry financial statements
 
+Latest consolidation: [physical minting and finance](MINT-FINANCE.md) now connects
+direct loans, prepaid deliveries, annual dues, employment, household pooling and
+authorized recovery through the shared acquisition budget. Its mixed scenario
+retains unpaid claims and compares provision policies with reconciled statements.
+This supersedes earlier blanket exclusions for those combinations; other driver
+and admission limits remain explicit.
+
+
 Implemented reporting foundation, September 24, 2026. The complete statement set
 is available for supported financial scenarios; accounting coverage of the entire
 economy remains unfinished. This adds reporting alongside the existing simulation

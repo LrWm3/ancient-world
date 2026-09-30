@@ -1,5 +1,13 @@
 # Physical minting: funded material and labor inputs
 
+Latest consolidation: [physical minting and finance](MINT-FINANCE.md) now connects
+direct loans, prepaid deliveries, annual dues, employment, household pooling and
+authorized recovery through the shared acquisition budget. Its mixed scenario
+retains unpaid claims and compares provision policies with reconciled statements.
+This supersedes earlier blanket exclusions for those combinations; other driver
+and admission limits remain explicit.
+
+
 Implemented as an isolated CPU pilot. A state sells wheat for existing coins,
 uses those proceeds in a later month to buy metal and labor, and executes an
 ordinary production process that creates coins. This tests funding, permission,

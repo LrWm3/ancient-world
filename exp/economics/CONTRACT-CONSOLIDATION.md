@@ -1,5 +1,13 @@
 # Consolidate contracts before adding more financial scenarios
 
+Latest consolidation: [physical minting and finance](MINT-FINANCE.md) now connects
+direct loans, prepaid deliveries, annual dues, employment, household pooling and
+authorized recovery through the shared acquisition budget. Its mixed scenario
+retains unpaid claims and compares provision policies with reconciled statements.
+This supersedes earlier blanket exclusions for those combinations; other driver
+and admission limits remain explicit.
+
+
 This is active implementation work. The next financial work should extend the
 existing contract, claim and settlement model, rather than introduce another
 isolated economy or a second authoritative debt ledger.

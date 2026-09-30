@@ -1,5 +1,13 @@
 # Contract recovery using the existing credit book
 
+Latest consolidation: [physical minting and finance](MINT-FINANCE.md) now connects
+direct loans, prepaid deliveries, annual dues, employment, household pooling and
+authorized recovery through the shared acquisition budget. Its mixed scenario
+retains unpaid claims and compares provision policies with reconciled statements.
+This supersedes earlier blanket exclusions for those combinations; other driver
+and admission limits remain explicit.
+
+
 This implements a bounded first recovery lifecycle in the existing `Simulation`.
 It adds no separate scenario engine, scheduler, cash ledger, or duplicate debt
 balances. General advances, mortgage servicing, guarantees and subrogated loans

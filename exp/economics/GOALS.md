@@ -1,5 +1,13 @@
 # Goals: agents, institutions and markets
 
+Latest consolidation: [physical minting and finance](MINT-FINANCE.md) now connects
+direct loans, prepaid deliveries, annual dues, employment, household pooling and
+authorized recovery through the shared acquisition budget. Its mixed scenario
+retains unpaid claims and compares provision policies with reconciled statements.
+This supersedes earlier blanket exclusions for those combinations; other driver
+and admission limits remain explicit.
+
+
 This document records the experiment's intended direction. These are design goals,
 not claims of implemented behavior or a commitment to implement everything at once.
 The [integration matrix](INTEGRATION-STATUS.md) records supported combinations;

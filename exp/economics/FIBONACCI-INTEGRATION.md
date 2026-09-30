@@ -3,7 +3,7 @@
 Scope: finish bounded autonomous household hiring and direct prepaid-delivery
 recovery, then demonstrate that they compose with the existing economic loop.
 The batches contain logical changes, not a prescribed count of files or tests.
-The completed sequence is **1, 1, 2, 3, 5, 8**. Batch sizes count distinct
+The completed sequence is **1, 1, 2, 3, 5, 8, 13**. Batch sizes count distinct
 implementation and integration changes, not test cases. Person self-directed policy changes remain explicitly deferred.
 
 ## Batch 1 — one recovery change
@@ -122,3 +122,30 @@ passed **801 tests**, with **one existing ignored test**, across 99 Cargo test
 outputs (including empty binary/doc targets). It covers the batch-5 snapshot;
 the subsequently added physical-wage relief test passed separately. Batch-8
 validation is recorded in its own document rather than attributed to that older run.
+
+
+## Batch 13 — physical issuance in the shared contract economy
+
+1. Expose mint packages to the shared resource window.
+2. Compose direct lending with later mint purchases and financial statements.
+3. Compose direct forward admission and delivery with the same opening budget.
+4. Pass remaining budgets through generated fixed/provisioning order matching.
+5. Enforce authorized recovery and custody restrictions on mint counterparties.
+6. Collect annual coin/native land dues without fictitious issuance.
+7. Verify employment and mint purchases compete for actual current hours.
+8. Base household labor entitlement on the common monthly own-capacity endowment.
+9. Reserve member labor and pool actual mint-market receipts once.
+10. Verify shared storage before accepting household-member purchases.
+11. Align public order previews with household reservation rules.
+12. Compare provision policies in a continuing person/household/land/loan/forward
+    economy, including actual arrears and reconciled statements.
+13. Document supported compositions, regressions, economic outcomes and limits.
+
+See [mint finance](MINT-FINANCE.md). The composed six-month scenario repays its loan
+and delivers its forward under both policies. Full-buffer planning leaves the
+annual two-coin bill unpaid and performs no issuance; incremental planning pays
+that bill and completes physical issuance. This leaves the default unchanged.
+
+Validation: 153 tests passed across 14 suites, with one existing ignored test.
+Strict all-target Clippy, formatting, whitespace and repository artifact checks
+passed. Raw logs are ignored local artifacts.

@@ -1,5 +1,13 @@
 # Stand-alone agent-based economics experiment
 
+Latest consolidation: [physical minting and finance](MINT-FINANCE.md) now connects
+direct loans, prepaid deliveries, annual dues, employment, household pooling and
+authorized recovery through the shared acquisition budget. Its mixed scenario
+retains unpaid claims and compares provision policies with reconciled statements.
+This supersedes earlier blanket exclusions for those combinations; other driver
+and admission limits remain explicit.
+
+
 ## Current progress — 2026-09-30
 
 The CPU experiment now shares loan records, claim execution and funded asset

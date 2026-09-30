@@ -1,5 +1,13 @@
 # Purchasing-power-sensitive input offers and optional leisure
 
+Latest consolidation: [physical minting and finance](MINT-FINANCE.md) now connects
+direct loans, prepaid deliveries, annual dues, employment, household pooling and
+authorized recovery through the shared acquisition budget. Its mixed scenario
+retains unpaid claims and compares provision policies with reconciled statements.
+This supersedes earlier blanket exclusions for those combinations; other driver
+and admission limits remain explicit.
+
+
 Implemented as an opt-in policy in the isolated physical-minting experiment.
 Suppliers now have recurring nutrition needs and decide whether coin income can
 help provide food. State wheat sales operate independently of its minting funding

@@ -275,9 +275,7 @@ pub fn validate(w: &World) -> Result<(), String> {
         || w.transaction_policy.is_none()
         || w.decision_horizon.is_some()
     {
-        return Err(
-            "physical minting requires an isolated acquisition driver and explicit policy".into(),
-        );
+        return Err("physical minting requires its own market driver and explicit policy".into());
     }
     let d = w
         .definitions
@@ -349,7 +347,7 @@ pub(crate) fn validate_batch(w: &World, s: &State, b: &Batch) -> Result<(), Stri
         }
     } else if b.phase != Phase::Acquire
         && !(b.phase == Phase::Due && crate::credit::enabled(w))
-        && !(matches!(b.phase, Phase::Due | Phase::ClearArrears) && !w.agreements.is_empty())
+        && (!matches!(b.phase, Phase::Due | Phase::ClearArrears) || w.agreements.is_empty())
         && b.transactions.iter().any(|t| t.process.is_none())
     {
         return Err("physical minting requires a process for non-market effects".into());
