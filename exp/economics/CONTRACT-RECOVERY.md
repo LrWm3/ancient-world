@@ -49,9 +49,11 @@ collection/native repayment and bilateral trading. Active debtors retain permitt
 physical work while optional negotiated trades are stayed; eligibility returns
 after closure. Household assets do not become a member’s estate assets.
 
-Each proceeding has a dedicated non-operating estate agent for custody. It cannot
-borrow, guarantee, work, or trade through unrelated configured markets. Its cash
-balance must reconcile with the proceeding's recorded undistributed funds.
+Proceedings use a non-operating custody agent. Several estates may explicitly
+name the same custodian; it cannot borrow, guarantee, work, or trade through
+unrelated configured markets. Its physical balance must reconcile with the sum
+of those estates' recorded undistributed funds. Each estate can spend only its
+own opening cash, even when another estate has liquidity in the same account.
 Balance-sheet views exclude held cash from the custodian's equity and attribute
 it to the debtor's estate interest. Asset ownership remains with the debtor until
 a funded sale; authorization controls disposal, not a fictitious title transfer.
@@ -191,3 +193,26 @@ Opted-in mortgages now enter this same authorized lifecycle using
 Their unfinished crop control transfers only with a funded sale, without an
 appraisal payment or altered crop progress. Specialized mortgage stock-sale
 planning and creditor-resale policy remain separate adapters.
+
+## Shared custody with separate beneficial balances
+
+A custodian can now hold several authorized estates in the same currency. The
+existing per-proceeding cash records remain authoritative. Distribution scopes
+the common executor to each estate's opening balance, then restores the aggregate
+remaining spendable budget. New wage deposits cannot use another estate's opening
+coins to bypass the next-boundary rule. Asset sales, liens, loan and non-loan
+claims keep their existing allocation and timing.
+
+Reporting retains a custody asset/payable pair per proceeding and restricted cash
+for each beneficial owner. Land payment receipts identify that owner even when
+estates share both the custodian and the creditor. The reporting projection
+reconciles to actual cash legs; it does not create another settlement ledger.
+
+`tests/shared_custody.rs` combines real advances, unpaid interest-related debt,
+annual coin rent, estate inventory sale and later wages. One case distributes
+fourteen sale coins to its own creditors and returns two surplus coins; another
+case's four newly collected wage coins wait until next Due. Person and household
+variants keep member property separate. Tampered per-case balances, reversed
+catalogs, CPU/reference execution and reconstructed checkpoints are checked.
+Both cases eventually repay and close through normal settlement. This is not
+custodian lending, rehypothecation, cross-currency custody or custodian insolvency.

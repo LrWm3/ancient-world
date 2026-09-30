@@ -271,6 +271,7 @@ pub(crate) fn estate_payments(
 ) -> Result<(Vec<Transaction>, Vec<Line>), String> {
     let mut expected = BTreeMap::new();
     let mut lines = vec![];
+    let mut projected = vec![];
     if let Some(boundary) = boundary {
         for receipt in &boundary.recovery {
             let crate::recovery::Receipt::LandDistributed {
@@ -299,6 +300,18 @@ pub(crate) fn estate_payments(
             }
             let cash = i128::from(tender.quantity);
             accounting::add(&mut expected, (p.estate, *creditor), cash)?;
+            // Receipt identity determines beneficial ownership even when several
+            // estates share both a custodian and a creditor. This reporting-only
+            // projection is checked against the aggregate physical legs below.
+            projected.push(crate::credit::tx(
+                format!("estate {} dues reporting projection", p.id),
+                crate::finance::Transfer {
+                    from: p.debtor,
+                    to: *creditor,
+                    amount: tender.clone(),
+                }
+                .effects()?,
+            ));
             lines.extend([
                 Line {
                     agent: p.debtor,
@@ -316,8 +329,7 @@ pub(crate) fn estate_payments(
         }
     }
     let mut actual = BTreeMap::new();
-    let mut transfers = transactions.to_vec();
-    for t in &mut transfers {
+    for t in transactions {
         let Some((index, p)) = t.effects.iter().enumerate().find_map(|(i, e)| {
             (e.delta < 0)
                 .then(|| {
@@ -330,6 +342,7 @@ pub(crate) fn estate_payments(
                 })
                 .flatten()
         }) else {
+            projected.push(t.clone());
             continue;
         };
         let paid = -i128::from(t.effects[index].delta);
@@ -342,12 +355,11 @@ pub(crate) fn estate_payments(
             return Err("unsupported estate dues transfer".into());
         }
         accounting::add(&mut actual, (p.estate, received.account.0), paid)?;
-        t.effects[index].account.0 = p.debtor;
     }
     if actual != expected {
         return Err("estate dues receipts do not reconcile to transfers".into());
     }
-    Ok((transfers, lines))
+    Ok((projected, lines))
 }
 
 /// A guarantee substitutes funded recourse for the debtor's dues payable.

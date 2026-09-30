@@ -126,7 +126,7 @@ pub struct ProceedingTerms {
     pub id: u32,
     pub debtor: AgentId,
     pub authority: AgentId,
-    /// Dedicated non-operating custody agent; never a source of new wealth.
+    /// Non-operating custodian; multiple estates retain separate beneficial balances.
     pub estate: AgentId,
     pub denomination: ResourceId,
     pub opening_month: u32,
@@ -415,11 +415,12 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     }
     let mut debtors = BTreeSet::new();
     let mut estates = BTreeSet::new();
+    let mut custody = BTreeMap::<Account, i64>::new();
     ids.clear();
     for p in &config.proceedings {
+        estates.insert(p.estate);
         if !ids.insert(p.id)
             || !debtors.insert(p.debtor)
-            || !estates.insert(p.estate)
             || !agent(p.debtor)
             || !agent(p.authority)
             || !agent(p.estate)
@@ -589,9 +590,16 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             .proceedings
             .get(&p.id)
             .map_or(0, |c| c.cash);
-        if state.balance(p.estate, p.denomination) != cash {
-            return Err("estate cash does not reconcile".into());
-        }
+        let total = custody.entry((p.estate, p.denomination)).or_default();
+        *total = total
+            .checked_add(i64::from(cash))
+            .ok_or("custody total overflow")?;
+    }
+    if custody
+        .iter()
+        .any(|(&(agent, resource), &cash)| i64::from(state.balance(agent, resource)) != cash)
+    {
+        return Err("estate cash does not reconcile".into());
     }
     if estates.iter().any(|e| debtors.contains(e)) {
         return Err("estate cannot itself enter a proceeding".into());
@@ -1422,313 +1430,344 @@ pub(crate) fn distribute(
         .collect();
     terms.sort_by_key(|p| p.id);
     for p in terms {
-        let mut case = out.after.recovery.proceedings[&p.id].clone();
-        // Collect only unprotected opening coins. Newly deposited funds become
-        // distributable next month, like sale proceeds received at Acquire.
-        let (nonloan_requests, _) = crate::recovery_claims::cash_requests(world, state, out, p)?;
-        let nonloan_cash = nonloan_requests.iter().try_fold(0_i32, |sum, r| {
-            sum.checked_add(r.claim.outstanding())
-                .ok_or("estate cash demand overflow")
+        let account = (p.estate, p.denomination);
+        let pooled = execution.available.get(&account).copied().unwrap_or(0);
+        let owned = state
+            .credit
+            .recovery
+            .proceedings
+            .get(&p.id)
+            .map_or(0, |c| c.cash);
+        // Opening beneficial ownership, not aggregate custody cash, bounds this
+        // estate. New deposits cannot borrow another estate's opening liquidity.
+        let allowance = pooled.min(owned);
+        let mut scoped = execution.clone();
+        scoped.available.insert(account, allowance);
+        distribute_case(world, state, out, &mut scoped, p)?;
+        let remaining = scoped.available.get(&account).copied().unwrap_or(0);
+        let spent = allowance
+            .checked_sub(remaining)
+            .filter(|spent| *spent >= 0)
+            .ok_or("invalid custody spending")?;
+        scoped.available.insert(
+            account,
+            pooled
+                .checked_sub(spent)
+                .ok_or("custody spending overflow")?,
+        );
+        *execution = scoped;
+    }
+    Ok(())
+}
+
+fn distribute_case(
+    world: &World,
+    state: &State,
+    out: &mut credit::Boundary,
+    execution: &mut finance::Execution,
+    p: &ProceedingTerms,
+) -> Result<(), String> {
+    let mut case = out.after.recovery.proceedings[&p.id].clone();
+    // Collect only unprotected opening coins. Newly deposited funds become
+    // distributable next month, like sale proceeds received at Acquire.
+    let (nonloan_requests, _) = crate::recovery_claims::cash_requests(world, state, out, p)?;
+    let nonloan_cash = nonloan_requests.iter().try_fold(0_i32, |sum, r| {
+        sum.checked_add(r.claim.outstanding())
+            .ok_or("estate cash demand overflow")
+    })?;
+    let debt = out
+        .after
+        .loans
+        .values()
+        .filter(|l| l.debtor == p.debtor && l.denomination == p.denomination)
+        .try_fold(nonloan_cash, |sum, l| {
+            sum.checked_add(l.debt()?)
+                .ok_or("estate debt overflow".to_string())
         })?;
-        let debt = out
+    if debt > case.cash {
+        let protected = crate::commitments::protected_stock(world, state)?;
+        let claim = finance::Obligation {
+            transfer: finance::Transfer {
+                from: p.debtor,
+                to: p.estate,
+                amount: Amount::new(p.denomination, debt - case.cash),
+            },
+            settled: 0,
+            condition: finance::Condition::OnOrAfterMonth(state.month),
+            failure: finance::FailureRule::CarryArrears,
+        };
+        let payment = execution.pay_protected(
+            world,
+            state.month,
+            &claim,
+            protected
+                .get(&(p.debtor, p.denomination))
+                .copied()
+                .unwrap_or(0),
+        )?;
+        if payment.paid > 0 {
+            case.cash = case
+                .cash
+                .checked_add(payment.paid)
+                .ok_or("estate funding overflow")?;
+            out.transactions.push(credit::tx(
+                format!("estate {} cash custody", p.id),
+                payment.effects,
+            ));
+        }
+    }
+
+    // The lien has first call only on the actual proceeds of its own asset.
+    let mut secured: Vec<_> = case.secured.keys().copied().collect();
+    secured.sort_by_key(|id| {
+        (
+            out.after.loans[id]
+                .collateral
+                .as_ref()
+                .map_or(0, |c| c.priority),
+            *id,
+        )
+    });
+    for id in secured {
+        let current = current_recourse(world, &out.after, id, state.month);
+        let loan = out
+            .after
+            .loans
+            .get_mut(&id)
+            .ok_or("estate lien without loan")?;
+        let reserved = case.secured[&id].min(loan.debt()?);
+        let requested = reserved.min(loan.debt()?.saturating_sub(current));
+        let claim = estate_claim(p, loan, requested, state.month);
+        let payment = execution.pay(world, state.month, true, &claim)?;
+        if payment.paid > 0 {
+            loan.apply_payment(payment.paid);
+            case.cash -= payment.paid;
+            out.transactions.push(credit::tx(
+                format!("estate {} secured distribution", p.id),
+                payment.effects,
+            ));
+        }
+        out.recovery.push(Receipt::Distributed {
+            proceeding: p.id,
+            loan: id,
+            requested,
+            allocated: payment.paid,
+            paid: payment.paid,
+            secured: true,
+        });
+        case.secured.insert(id, (reserved - payment.paid).max(0));
+    }
+    let mut requests: Vec<_> = out
+        .after
+        .loans
+        .values()
+        .filter(|l| {
+            l.debtor == p.debtor
+                && l.denomination == p.denomination
+                && l.opened < state.month
+                && l.debt().unwrap_or(0) > 0
+        })
+        .map(|l| {
+            Ok(finance::CollectionRequest {
+                contract: finance::ContractId::Loan(l.id),
+                rank: rank(world, l),
+                claim: estate_claim(
+                    p,
+                    l,
+                    l.debt()?.saturating_sub(current_recourse(
+                        world,
+                        &out.after,
+                        l.id,
+                        state.month,
+                    )),
+                    state.month,
+                ),
+            })
+        })
+        .collect::<Result<_, String>>()?;
+    let remaining_lien: i32 = case.secured.values().sum();
+    let protected = BTreeMap::from([((p.estate, p.denomination), remaining_lien)]);
+    let (nonloan_requests, lots) = crate::recovery_claims::cash_requests(world, state, out, p)?;
+    requests.extend(nonloan_requests);
+    let grants =
+        finance::proportional_lots(world, state.month, execution, &protected, &requests, &lots)?;
+    for request in requests {
+        if matches!(request.contract, finance::ContractId::Wages(_)) {
+            case.cash -= crate::recovery_claims::pay_wages(
+                world,
+                state,
+                out,
+                p,
+                &request,
+                grants[&request.contract],
+                execution,
+            )?;
+            continue;
+        }
+        let finance::ContractId::Loan(id) = request.contract else {
+            case.cash -= crate::recovery_claims::pay_land(
+                world,
+                state,
+                out,
+                p,
+                &request,
+                (grants[&request.contract], lots[&request.contract]),
+                execution,
+            )?;
+            continue;
+        };
+        let opening = execution
+            .available
+            .get(&(p.estate, p.denomination))
+            .copied()
+            .unwrap_or(0);
+        let payment = execution.pay_protected(
+            world,
+            state.month,
+            &request.claim,
+            opening - grants[&request.contract],
+        )?;
+        if payment.paid > 0 {
+            out.after
+                .loans
+                .get_mut(&id)
+                .unwrap()
+                .apply_payment(payment.paid);
+            case.cash -= payment.paid;
+            out.transactions.push(credit::tx(
+                format!("estate {} general distribution", p.id),
+                payment.effects,
+            ));
+        }
+        out.recovery.push(Receipt::Distributed {
+            proceeding: p.id,
+            loan: id,
+            requested: request.claim.outstanding(),
+            allocated: grants[&request.contract],
+            paid: payment.paid,
+            secured: false,
+        });
+    }
+    if state.month >= p.earliest_close
+        && !out.after.loans.values().any(|l| {
+            l.debtor == p.debtor
+                && l.debt().unwrap_or(0) > 0
+                && (l.opened == state.month
+                    || current_recourse(world, &out.after, l.id, state.month) > 0)
+        })
+        && p.assets.iter().all(|a| case.sold.contains(&a.asset))
+        && inventory::cleared(world, p.id, &case)
+        && case.secured.values().all(|v| *v == 0)
+    {
+        let mut nonloans = crate::recovery_claims::outstanding(
+            world,
+            &crate::recovery_claims::current(state, out),
+            p.debtor,
+        );
+        nonloans.extend(native_loans(&out.after, p));
+        nonloans.sort_by_key(|c| (c.contract, c.due));
+        if !nonloans.is_empty() {
+            out.recovery.push(Receipt::ClosureDeferred {
+                proceeding: p.id,
+                claims: nonloans,
+            });
+            out.after.recovery.proceedings.insert(p.id, case);
+            return Ok(());
+        }
+        let deficiency = out
             .after
             .loans
             .values()
             .filter(|l| l.debtor == p.debtor && l.denomination == p.denomination)
-            .try_fold(nonloan_cash, |sum, l| {
+            .try_fold(0_i32, |sum, l| {
                 sum.checked_add(l.debt()?)
-                    .ok_or("estate debt overflow".to_string())
+                    .ok_or("estate deficiency overflow".to_string())
             })?;
-        if debt > case.cash {
+        // Ordinary collection may have just paid the debtor; those receipts
+        // cannot be swept/spent again in this window. Outstanding receivables
+        // likewise remain property until performed or explicitly disposed of.
+        if deficiency > 0 {
+            let current = crate::recovery_claims::current(state, out);
+            let receivables = crate::recovery_claims::receivables(world, &current, p.debtor)?;
+            let account = (p.debtor, p.denomination);
+            let cash = out
+                .transactions
+                .iter()
+                .flat_map(|t| &t.effects)
+                .filter(|e| e.account == account)
+                .try_fold(
+                    i64::from(state.balance(p.debtor, p.denomination)),
+                    |v, e| {
+                        v.checked_add(i64::from(e.delta))
+                            .ok_or("estate closing cash overflow")
+                    },
+                )?;
             let protected = crate::commitments::protected_stock(world, state)?;
-            let claim = finance::Obligation {
-                transfer: finance::Transfer {
-                    from: p.debtor,
-                    to: p.estate,
-                    amount: Amount::new(p.denomination, debt - case.cash),
-                },
-                settled: 0,
-                condition: finance::Condition::OnOrAfterMonth(state.month),
-                failure: finance::FailureRule::CarryArrears,
-            };
-            let payment = execution.pay_protected(
-                world,
-                state.month,
-                &claim,
-                protected
-                    .get(&(p.debtor, p.denomination))
-                    .copied()
-                    .unwrap_or(0),
-            )?;
-            if payment.paid > 0 {
-                case.cash = case
-                    .cash
-                    .checked_add(payment.paid)
-                    .ok_or("estate funding overflow")?;
-                out.transactions.push(credit::tx(
-                    format!("estate {} cash custody", p.id),
-                    payment.effects,
-                ));
-            }
-        }
-
-        // The lien has first call only on the actual proceeds of its own asset.
-        let mut secured: Vec<_> = case.secured.keys().copied().collect();
-        secured.sort_by_key(|id| {
-            (
-                out.after.loans[id]
-                    .collateral
-                    .as_ref()
-                    .map_or(0, |c| c.priority),
-                *id,
+            let uncollected_cash = i32::try_from(
+                (cash - i64::from(protected.get(&account).copied().unwrap_or(0))).max(0),
             )
-        });
-        for id in secured {
-            let current = current_recourse(world, &out.after, id, state.month);
-            let loan = out
-                .after
-                .loans
-                .get_mut(&id)
-                .ok_or("estate lien without loan")?;
-            let reserved = case.secured[&id].min(loan.debt()?);
-            let requested = reserved.min(loan.debt()?.saturating_sub(current));
-            let claim = estate_claim(p, loan, requested, state.month);
-            let payment = execution.pay(world, state.month, true, &claim)?;
-            if payment.paid > 0 {
-                loan.apply_payment(payment.paid);
-                case.cash -= payment.paid;
-                out.transactions.push(credit::tx(
-                    format!("estate {} secured distribution", p.id),
-                    payment.effects,
-                ));
-            }
-            out.recovery.push(Receipt::Distributed {
-                proceeding: p.id,
-                loan: id,
-                requested,
-                allocated: payment.paid,
-                paid: payment.paid,
-                secured: true,
-            });
-            case.secured.insert(id, (reserved - payment.paid).max(0));
-        }
-        let mut requests: Vec<_> = out
-            .after
-            .loans
-            .values()
-            .filter(|l| {
-                l.debtor == p.debtor
-                    && l.denomination == p.denomination
-                    && l.opened < state.month
-                    && l.debt().unwrap_or(0) > 0
-            })
-            .map(|l| {
-                Ok(finance::CollectionRequest {
-                    contract: finance::ContractId::Loan(l.id),
-                    rank: rank(world, l),
-                    claim: estate_claim(
-                        p,
-                        l,
-                        l.debt()?.saturating_sub(current_recourse(
-                            world,
-                            &out.after,
-                            l.id,
-                            state.month,
-                        )),
-                        state.month,
-                    ),
-                })
-            })
-            .collect::<Result<_, String>>()?;
-        let remaining_lien: i32 = case.secured.values().sum();
-        let protected = BTreeMap::from([((p.estate, p.denomination), remaining_lien)]);
-        let (nonloan_requests, lots) = crate::recovery_claims::cash_requests(world, state, out, p)?;
-        requests.extend(nonloan_requests);
-        let grants = finance::proportional_lots(
-            world,
-            state.month,
-            execution,
-            &protected,
-            &requests,
-            &lots,
-        )?;
-        for request in requests {
-            if matches!(request.contract, finance::ContractId::Wages(_)) {
-                case.cash -= crate::recovery_claims::pay_wages(
-                    world,
-                    state,
-                    out,
-                    p,
-                    &request,
-                    grants[&request.contract],
-                    execution,
-                )?;
-                continue;
-            }
-            let finance::ContractId::Loan(id) = request.contract else {
-                case.cash -= crate::recovery_claims::pay_land(
-                    world,
-                    state,
-                    out,
-                    p,
-                    &request,
-                    (grants[&request.contract], lots[&request.contract]),
-                    execution,
-                )?;
-                continue;
-            };
-            let opening = execution
-                .available
-                .get(&(p.estate, p.denomination))
-                .copied()
-                .unwrap_or(0);
-            let payment = execution.pay_protected(
-                world,
-                state.month,
-                &request.claim,
-                opening - grants[&request.contract],
-            )?;
-            if payment.paid > 0 {
-                out.after
-                    .loans
-                    .get_mut(&id)
-                    .unwrap()
-                    .apply_payment(payment.paid);
-                case.cash -= payment.paid;
-                out.transactions.push(credit::tx(
-                    format!("estate {} general distribution", p.id),
-                    payment.effects,
-                ));
-            }
-            out.recovery.push(Receipt::Distributed {
-                proceeding: p.id,
-                loan: id,
-                requested: request.claim.outstanding(),
-                allocated: grants[&request.contract],
-                paid: payment.paid,
-                secured: false,
-            });
-        }
-        if state.month >= p.earliest_close
-            && !out.after.loans.values().any(|l| {
-                l.debtor == p.debtor
-                    && l.debt().unwrap_or(0) > 0
-                    && (l.opened == state.month
-                        || current_recourse(world, &out.after, l.id, state.month) > 0)
-            })
-            && p.assets.iter().all(|a| case.sold.contains(&a.asset))
-            && inventory::cleared(world, p.id, &case)
-            && case.secured.values().all(|v| *v == 0)
-        {
-            let mut nonloans = crate::recovery_claims::outstanding(
-                world,
-                &crate::recovery_claims::current(state, out),
-                p.debtor,
-            );
-            nonloans.extend(native_loans(&out.after, p));
-            nonloans.sort_by_key(|c| (c.contract, c.due));
-            if !nonloans.is_empty() {
-                out.recovery.push(Receipt::ClosureDeferred {
+            .map_err(|_| "estate closing cash overflow")?;
+            if !receivables.is_empty() || uncollected_cash > 0 {
+                out.recovery.push(Receipt::AssetsPending {
                     proceeding: p.id,
-                    claims: nonloans,
+                    receivables,
+                    uncollected_cash,
                 });
                 out.after.recovery.proceedings.insert(p.id, case);
-                continue;
-            }
-            let deficiency = out
-                .after
-                .loans
-                .values()
-                .filter(|l| l.debtor == p.debtor && l.denomination == p.denomination)
-                .try_fold(0_i32, |sum, l| {
-                    sum.checked_add(l.debt()?)
-                        .ok_or("estate deficiency overflow".to_string())
-                })?;
-            // Ordinary collection may have just paid the debtor; those receipts
-            // cannot be swept/spent again in this window. Outstanding receivables
-            // likewise remain property until performed or explicitly disposed of.
-            if deficiency > 0 {
-                let current = crate::recovery_claims::current(state, out);
-                let receivables = crate::recovery_claims::receivables(world, &current, p.debtor)?;
-                let account = (p.debtor, p.denomination);
-                let cash = out
-                    .transactions
-                    .iter()
-                    .flat_map(|t| &t.effects)
-                    .filter(|e| e.account == account)
-                    .try_fold(
-                        i64::from(state.balance(p.debtor, p.denomination)),
-                        |v, e| {
-                            v.checked_add(i64::from(e.delta))
-                                .ok_or("estate closing cash overflow")
-                        },
-                    )?;
-                let protected = crate::commitments::protected_stock(world, state)?;
-                let uncollected_cash = i32::try_from(
-                    (cash - i64::from(protected.get(&account).copied().unwrap_or(0))).max(0),
-                )
-                .map_err(|_| "estate closing cash overflow")?;
-                if !receivables.is_empty() || uncollected_cash > 0 {
-                    out.recovery.push(Receipt::AssetsPending {
-                        proceeding: p.id,
-                        receivables,
-                        uncollected_cash,
-                    });
-                    out.after.recovery.proceedings.insert(p.id, case);
-                    continue;
-                }
-            }
-            // A storage-blocked creditor must not be discharged while cash remains.
-            if case.cash == 0 || deficiency == 0 {
-                let surplus = case.cash;
-                if surplus > 0 {
-                    let effects = execution.exchange(
-                        world,
-                        &[finance::Transfer {
-                            from: p.estate,
-                            to: p.debtor,
-                            amount: Amount::new(p.denomination, surplus),
-                        }],
-                    )?;
-                    out.transactions
-                        .push(credit::tx(format!("estate {} surplus", p.id), effects));
-                    case.cash = 0;
-                }
-                for l in out.after.loans.values_mut().filter(|l| {
-                    l.debtor == p.debtor
-                        && l.denomination == p.denomination
-                        && l.debt().unwrap_or(0) > 0
-                }) {
-                    if let Some(c) = &mut l.collateral {
-                        c.pledged = false;
-                    }
-                    l.status = Status::Enforced;
-                    if p.discharge_deficiency {
-                        let debt = l.debt()?;
-                        out.recovery.push(Receipt::WrittenOff {
-                            proceeding: p.id,
-                            loan: l.id,
-                            principal: l.principal,
-                            interest: l.interest,
-                        });
-                        l.apply_payment(debt);
-                        l.status = Status::Discharged;
-                    }
-                }
-                case.stage = Stage::Closed;
-                case.closed = Some(state.month);
-                out.recovery.push(Receipt::Closed {
-                    proceeding: p.id,
-                    surplus,
-                    deficiency,
-                    discharged: p.discharge_deficiency,
-                });
+                return Ok(());
             }
         }
-        out.after.recovery.proceedings.insert(p.id, case);
+        // A storage-blocked creditor must not be discharged while cash remains.
+        if case.cash == 0 || deficiency == 0 {
+            let surplus = case.cash;
+            if surplus > 0 {
+                let effects = execution.exchange(
+                    world,
+                    &[finance::Transfer {
+                        from: p.estate,
+                        to: p.debtor,
+                        amount: Amount::new(p.denomination, surplus),
+                    }],
+                )?;
+                out.transactions
+                    .push(credit::tx(format!("estate {} surplus", p.id), effects));
+                case.cash = 0;
+            }
+            for l in out.after.loans.values_mut().filter(|l| {
+                l.debtor == p.debtor
+                    && l.denomination == p.denomination
+                    && l.debt().unwrap_or(0) > 0
+            }) {
+                if let Some(c) = &mut l.collateral {
+                    c.pledged = false;
+                }
+                l.status = Status::Enforced;
+                if p.discharge_deficiency {
+                    let debt = l.debt()?;
+                    out.recovery.push(Receipt::WrittenOff {
+                        proceeding: p.id,
+                        loan: l.id,
+                        principal: l.principal,
+                        interest: l.interest,
+                    });
+                    l.apply_payment(debt);
+                    l.status = Status::Discharged;
+                }
+            }
+            case.stage = Stage::Closed;
+            case.closed = Some(state.month);
+            out.recovery.push(Receipt::Closed {
+                proceeding: p.id,
+                surplus,
+                deficiency,
+                discharged: p.discharge_deficiency,
+            });
+        }
     }
+    out.after.recovery.proceedings.insert(p.id, case);
     Ok(())
 }
+
 pub(crate) fn current_recourse(world: &World, book: &credit::Book, loan: u32, month: u32) -> i32 {
     world
         .recovery

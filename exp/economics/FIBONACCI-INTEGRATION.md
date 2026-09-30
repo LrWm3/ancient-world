@@ -483,3 +483,18 @@ liquidation and household forwards passed; strict all-target Clippy passed.
     proceeds wait for their existing recovery window. Unfunded requests,
     CPU/reference and reconstructed checkpoints preserve separate books. The
     six-target gate passed 37 tests; strict all-target Clippy passed.
+
+16. **Shared custody preserves separate estate budgets.** Multiple authorized
+    estates can name one non-operating custodian. Per-case opening funds bound
+    distributions; new deposits cannot borrow another estate's liquidity. Loan,
+    rent, inventory-sale, wage and surplus flows reconcile to separate beneficial
+    owners, including a winding household and private member property. Tampering,
+    catalog order and CPU/checkpoint controls pass. The seven-target gate passed
+    85 tests; strict all-target Clippy passed.
+
+### Full-suite checkpoint during batch 89
+
+The isolated source snapshot at **`2b9d40a`** (through item 10) passed
+`cargo +1.92.0 test --locked`: **938 passed, 0 failed, 1 ignored**, across
+113 Cargo result targets including empty unit/doc targets. Later items have
+their separately recorded affected gates; this full result does not cover them.
