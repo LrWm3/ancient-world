@@ -11,6 +11,7 @@ pub mod households;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AgreementForm {
     LandUseLease,
+    PrepaidDelivery,
     FinancedAssetPurchase,
     Loan,
     Household,
@@ -18,6 +19,7 @@ pub enum AgreementForm {
 impl AgreementForm {
     fn action(self) -> Action {
         match self {
+            Self::PrepaidDelivery => Action::StockTrade,
             Self::LandUseLease => Action::LandAccess,
             Self::FinancedAssetPurchase => Action::FinancedPurchase,
             Self::Loan => Action::Borrow,

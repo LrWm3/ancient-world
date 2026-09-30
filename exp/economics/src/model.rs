@@ -181,6 +181,8 @@ pub struct ScheduledStart {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct World {
+    /// Explicitly consented commodity prepayments, independent of equipment purchases.
+    pub prepaid_deliveries: Vec<crate::forward::direct::Terms>,
     pub employment: Vec<crate::employment::Terms>,
     pub minting: Option<crate::minting::Config>,
     pub production_market: Option<crate::production_market::Config>,

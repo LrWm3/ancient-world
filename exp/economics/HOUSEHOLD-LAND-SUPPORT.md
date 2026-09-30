@@ -87,7 +87,8 @@ finance/credit/composition, member employment and need orders.
 These are supplied agreements and consent terms, not autonomous household land
 acquisition or demonstrated business viability. Support does not reserve funds for
 a named creditor or promise future donations. Pass 29 adds purchases and explicit
-alternative-tender funding; forward support remains open. The current forward
-admission path still requires person participants in a tool purchase;
-this pass does not bypass that restriction. Person self-directed policy changes
+alternative-tender funding. [Pass 30](HOUSEHOLD-FORWARDS.md) subsequently adds direct
+prepaid delivery admission and own-household funding. The legacy tool-underwriting
+path still requires person participants; direct admission uses a separate adapter
+to the same forward book and executor. Person self-directed policy changes
 remain deferred.

@@ -194,3 +194,17 @@ This verifies the supported composition and accounting boundaries. It does not
 establish economic calibration, general loan demand/underwriting, equal-rank
 fairness, or a universal insolvency/guarantee/liquidation lifecycle. Subsequent bounded
 recovery work and its additional checks are documented in [Contract recovery](CONTRACT-RECOVERY.md).
+
+## Direct household prepaid deliveries
+
+[Pass 30](HOUSEHOLD-FORWARDS.md) adds an explicit bilateral admission adapter for
+prepaid commodity deliveries, independent of tool purchases. It writes the existing
+forward book and uses its common claim inspection, stock delivery, arrears and
+accounting. Household orders/support consume a shared current-forward claim view.
+Credit, direct forward settlement/admission and town trades reserve one opening
+budget; prospective delivery space respects household shared storage.
+
+This consolidates execution without claiming all admission pilots coexist: direct
+and tool-underwritten configurations, plus direct-forward recovery, remain separate
+integration work. Consent and pricing are supplied terms, not autonomous discovery
+or underwriting.

@@ -279,12 +279,16 @@ pub(super) fn prepare(
                     let wages = crate::employment::claims(&staged, h.agent)?;
                     let loans = crate::credit::current_dues(world, &staged, h.agent)?;
                     let land = crate::commitments::funding_dues(world, &staged, h.agent)?;
+                    let forwards = crate::forward::current_dues(&staged, h.agent)?;
                     let due = wages
                         .get(&m.resource)
                         .copied()
                         .unwrap_or(0)
                         .checked_add(loans.get(&m.resource).copied().unwrap_or(0))
                         .and_then(|q| q.checked_add(land.get(&m.resource).copied().unwrap_or(0)))
+                        .and_then(|q| {
+                            q.checked_add(forwards.get(&m.resource).copied().unwrap_or(0))
+                        })
                         .ok_or("household payment funding overflow")?;
                     let shortfall = (due - i128::from(staged.balance(h.agent, m.resource))).max(0);
                     let quantity = i128::from(feasible).min(shortfall) as i32;

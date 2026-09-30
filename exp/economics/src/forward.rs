@@ -1,4 +1,5 @@
-//! Prepaid commodity forwards finance atomic, upfront tool purchases.
+//! One prepaid commodity book and delivery executor, with direct-consent and
+//! tool-underwriting admission adapters.
 use crate::finance::{self, Condition, FailureRule, Transfer};
 use crate::{
     compute::Backend,
@@ -8,6 +9,8 @@ use crate::{
     simulation::Simulation,
 };
 use std::collections::{BTreeMap, BTreeSet};
+
+pub mod direct;
 
 pub const PROJECTION_MONTHS: u32 = 12;
 const MAX_PROJECTION_MONTHS: u32 = 24;
@@ -70,6 +73,11 @@ pub enum Reason {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
+    Accepted(Box<Contract>),
+    AdmissionRejected {
+        contract: u32,
+        reason: direct::Rejection,
+    },
     Rejected {
         buyer: AgentId,
         asset: AssetId,
@@ -410,9 +418,10 @@ pub fn settle(
     available: &mut BTreeMap<Account, i32>,
     stored: &mut BTreeMap<AgentId, i128>,
 ) -> Result<Vec<Transaction>, String> {
-    let Some(config) = policy(world) else {
+    let config = policy(world);
+    if config.is_none() && !direct::enabled(world) {
         return Ok(Vec::new());
-    };
+    }
     let household_protected = crate::commitments::protected_stock(world, state)?;
     let mut contracts: Vec<_> = state
         .exchange
@@ -436,8 +445,7 @@ pub fn settle(
     for c in contracts {
         let account = (c.debtor, c.goods.resource);
         let protected = config
-            .protected
-            .get(&c.goods.resource)
+            .and_then(|p| p.protected.get(&c.goods.resource))
             .copied()
             .unwrap_or(0)
             .max(household_protected.get(&account).copied().unwrap_or(0));
@@ -461,6 +469,10 @@ pub fn settle(
 }
 
 pub fn validate(world: &World, state: &State) -> Result<(), String> {
+    direct::validate(world, state)?;
+    if direct::enabled(world) {
+        return Ok(());
+    }
     let Some(config) = policy(world) else {
         return if state.exchange.forwards.is_empty()
             && state
@@ -651,4 +663,27 @@ pub(crate) fn local(world: &World, state: &State, buyer: AgentId) -> (World, Sta
         }
     }
     (w, s)
+}
+
+/// Current delivery stock only: future promises do not generate current purchase demand.
+pub(crate) fn current_dues(
+    s: &State,
+    debtor: AgentId,
+) -> Result<BTreeMap<ResourceId, i128>, String> {
+    let mut result = BTreeMap::new();
+    if s.terminal.contains_key(&debtor) {
+        return Ok(result);
+    }
+    for c in s
+        .exchange
+        .forwards
+        .values()
+        .filter(|c| c.debtor == debtor && c.effective_due() <= s.month)
+    {
+        let q: &mut i128 = result.entry(c.goods.resource).or_default();
+        *q = q
+            .checked_add(i128::from(c.claim().outstanding()))
+            .ok_or("forward funding overflow")?;
+    }
+    Ok(result)
 }

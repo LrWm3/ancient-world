@@ -1291,3 +1291,17 @@ basis and require reporting values. The worker's household pools only actual wag
 Leaving a household neither transfers nor writes off the employer's debt. Combined
 coin and physical scenarios keep household/member books separate, including partial
 payment, storage blockage, market funding and later contract suspension.
+
+## Direct prepaid deliveries (integration pass 30)
+
+[Direct household forwards](HOUSEHOLD-FORWARDS.md) use the same historical-cost
+prepayment/deferred-revenue positions as tool-financed forwards. Their cash
+admission receipt records buyer operating cash outflow and seller operating cash
+inflow. Revenue and inventory cost follow actual delivery, including partial
+performance; an unfilled balance stays on both books. Donations funding delivery
+remain separate member/household transfer expense/income. No additional accounting
+book or immediate recognition of prepaid sales is introduced.
+
+CPU/reference cases combine market funding, native land dues, direct loan funding
+competition, shared storage, legal changes and replay. Advances must use the journal
+reporting coin; direct-forward recovery and FX remain outside this coverage.

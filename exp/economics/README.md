@@ -1,6 +1,6 @@
 # Stand-alone agent-based economics experiment
 
-## Current progress — 2026-09-29
+## Current progress — 2026-09-30
 
 The CPU experiment now shares loan records, claim execution and funded asset
 transfer across direct lending, secured purchases and bounded recovery. It remains
@@ -40,6 +40,10 @@ retain their different settlement timing; limited donations can leave arrears.
 bills and a static accepted-tender preference shared by funding and collection.
 Native-first remains the default; alternative-first can acquire or accept donated
 coins without duplicating the native bill.
+[Pass 30](HOUSEHOLD-FORWARDS.md) adds direct prepaid commodity agreements for
+households and other permitted agents, reusing forward delivery and accounting.
+Opt-in household orders and voluntary support fund current deliveries; stock bought
+after Acquire waits until next month to deliver.
 Person self-directed policy changes remain deferred.
 These are bounded combinations; the remaining exclusions are explicit.
 

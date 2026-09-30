@@ -1045,7 +1045,7 @@ impl Audit {
                 world, t, payment, unit,
             )?);
         }
-        let (mut prepaid, forward_lines) = crate::forward_accounting::settle(before, after)?;
+        let (mut prepaid, forward_lines) = crate::forward_accounting::settle(before, after, batch)?;
         prepaid.extend(barter_deliveries);
         prepaid.extend(wage_deliveries);
         let mut allocation = crate::inventory_accounting::CostAllocation::new(&opening_inventory);

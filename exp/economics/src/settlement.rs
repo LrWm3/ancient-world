@@ -316,8 +316,10 @@ pub(crate) fn commit_core(
         return Err("exchange differs from reserved opening offers".into());
     }
     if batch.transactions.iter().any(|t| {
-        (t.delivery.is_some() || t.forward.is_some())
-            && (batch.phase != Phase::Acquire || world.market.is_none())
+        t.delivery.is_some() && (batch.phase != Phase::Acquire || world.market.is_none())
+            || t.forward.is_some()
+                && (batch.phase != Phase::Acquire
+                    || (world.market.is_none() && !crate::forward::direct::enabled(world)))
             || t.royalty.is_some() && t.process.is_none()
     }) {
         return Err("exchange receipt outside authorized boundary".into());
@@ -568,6 +570,7 @@ pub(crate) fn commit_core(
             || !world.employment.is_empty()
             || world.minting.is_some()
             || world.town_market.is_some()
+            || crate::forward::direct::enabled(world)
             || crate::credit::enabled(world))
     {
         staged.phase = Phase::Acquire;

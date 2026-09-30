@@ -83,7 +83,8 @@ Generated validation output stays in ignored `output/economics/land-funding-*.lo
 ## Remaining work
 
 These are supplied land agreements and explicit charter settings. Autonomous land
-acquisition, household forward admission/funding, negotiated hiring and sustained
-employer viability remain separate work. Funding preference is static and scoped
+acquisition, negotiated hiring and sustained employer viability remain separate
+work. [Pass 30](HOUSEHOLD-FORWARDS.md) subsequently adds direct household forward
+admission and funding. Funding preference is static and scoped
 to household-owned bills; it is not an agent-wide currency optimizer or new member
 land-assistance policy. Person self-directed policy changes remain deferred.

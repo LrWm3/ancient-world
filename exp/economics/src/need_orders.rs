@@ -171,6 +171,11 @@ fn funded_requirements(
         } else {
             BTreeMap::new()
         };
+        if who == agent && h.governance.charter.fund_forward_deliveries {
+            for (r, q) in crate::forward::current_dues(state, who)? {
+                *result.entry(r).or_default() += q;
+            }
+        }
         if who == agent && h.governance.charter.fund_land_dues {
             for (r, q) in crate::commitments::funding_dues(world, state, who)? {
                 *result.entry(r).or_default() += q;

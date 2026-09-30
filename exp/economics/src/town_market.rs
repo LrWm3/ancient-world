@@ -663,7 +663,9 @@ fn clear(
     Ok(())
 }
 pub(crate) fn validate_batch(world: &World, state: &State, batch: &Batch) -> Result<(), String> {
-    if state.phase == Phase::Acquire && world.town_market.is_some() && crate::credit::enabled(world)
+    if state.phase == Phase::Acquire
+        && world.town_market.is_some()
+        && crate::acquisition::shared(world)
     {
         // The shared resolver validates credit and town trades together.
         return crate::acquisition::validate_batch(world, state, batch);

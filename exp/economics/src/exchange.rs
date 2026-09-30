@@ -159,6 +159,9 @@ pub fn outputs(
 }
 
 pub fn record(state: &mut State, t: &Transaction) {
+    if let Some(crate::forward::Event::Accepted(c)) = &t.forward {
+        state.exchange.forwards.insert(c.id, *c.clone());
+    }
     if let Some(crate::forward::Event::Delivery { contract, quantity }) = &t.forward {
         state.exchange.forwards.get_mut(contract).unwrap().delivered += quantity;
     }
@@ -360,7 +363,15 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     crate::forward::validate(world, state)?;
     crate::plots::validate(world, state)?;
     let Some(market) = &world.market else {
-        return if state.exchange == ExchangeState::default() {
+        return if state.exchange
+            == (ExchangeState {
+                forwards: if crate::forward::direct::enabled(world) {
+                    state.exchange.forwards.clone()
+                } else {
+                    BTreeMap::new()
+                },
+                ..Default::default()
+            }) {
             Ok(())
         } else {
             Err("exchange state without market".into())

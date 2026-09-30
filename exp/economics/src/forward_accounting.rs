@@ -48,9 +48,22 @@ pub(crate) fn positions(
 pub(crate) fn settle(
     before: &State,
     after: &State,
+    batch: &Batch,
 ) -> Result<(Vec<PrepaidSale>, Vec<Line>), String> {
     let mut sales = Vec::new();
     let mut lines = Vec::new();
+    for tx in &batch.transactions {
+        if let Some(crate::forward::Event::Accepted(c)) = &tx.forward {
+            for (agent, sign) in [(c.creditor, -1), (c.debtor, 1)] {
+                lines.push(Line {
+                    agent,
+                    account: Account::Cash,
+                    debit: i128::from(c.advance.quantity) * sign,
+                    flow: Some(accounting::Flow::Operating),
+                });
+            }
+        }
+    }
     for (id, old) in &before.exchange.forwards {
         let new = after
             .exchange

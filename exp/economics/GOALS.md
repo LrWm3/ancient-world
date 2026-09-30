@@ -349,6 +349,14 @@ payroll checks retain arrears under limited support and storage.
 [Pass 29](HOUSEHOLD-LAND-FUNDING.md) adds current land-bill market purchases and an
 explicit accepted-tender preference shared by protection, support and settlement.
 Scarce alternative currency shares existing collection ranks with loans; native
-fallback covers the remaining bill. Household forward admission/funding, autonomous
-land acquisition and negotiated hiring remain open. Person self-directed policy
+fallback covers the remaining bill. Autonomous land acquisition and negotiated
+hiring remain open. Person self-directed policy
 changes remain deferred.
+
+[Pass 30](HOUSEHOLD-FORWARDS.md) adds direct prepaid delivery admission for permitted
+agents, including household buyers/sellers, using the existing forward book and
+executor. Collective orders and signed support can fund own current deliveries.
+Combined rent/forward, credit/prepayment, storage and legal-change cases preserve
+finite resources, arrears and separate statements. Autonomous forward underwriting
+and hiring, direct-forward recovery and longer-horizon employer viability remain
+open; person self-directed policy changes remain deferred.

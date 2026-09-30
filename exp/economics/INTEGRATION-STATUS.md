@@ -665,5 +665,25 @@ current land bills. Static native-first/accepted-alternative-first preference is
 shared by funding, protection and collection; only one funding denomination is
 counted per bill. Proportional collection shares currency with same-rank loans
 before native fallback. Town markets admit accepted land agreements while retaining
-land-offer search and mortgage/recovery exclusions. Household forward funding and
-autonomous land/hiring discovery remain open.
+land-offer search and mortgage/recovery exclusions. Autonomous land/hiring discovery
+remains open.
+
+## Direct prepaid deliveries and household funding
+
+[Pass 30](HOUSEHOLD-FORWARDS.md) separates prepaid commodity admission from the
+person/tool-underwriting path. Explicit terms create the same forward records,
+claims, delivery receipts and financial positions. Both parties need stock-trade
+permission; new terms require recognized `PrepaidDelivery` form, opening funds and
+prospective storage, including shared household space. Accepted performance survives
+later law changes. Unfilled deliveries block another advance by that seller.
+
+Opt-in collective orders and signed surplus support target own current deliveries.
+The shared Acquire resolver reserves credit first, direct delivery/admission next,
+then spot trades. Purchases or Productive support cover delivery at next Acquire;
+they do not reopen an earlier settlement. Combined rent/forward and credit/prepayment
+checks reconcile separate statements and preserve cash/storage bounds.
+
+Direct terms support plain, town and bilateral acquisition. Direct/tool admission
+coexistence, direct-forward recovery, autonomous underwriting and negotiated hiring
+remain open. This does not lift legacy mortgage, minting, search or joint-production
+composition limits. Person self-directed policy changes remain deferred.

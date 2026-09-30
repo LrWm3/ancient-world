@@ -1,4 +1,4 @@
-//! Shared Acquire boundary: credit reservations precede bilateral exchange.
+//! Shared Acquire boundary: credit, direct prepaid deliveries, then spot exchange.
 //! Receipts describe one atomic batch; incoming funds cannot finance another leg.
 use crate::{credit, model::*, negotiation, storage};
 use std::collections::BTreeMap;
@@ -61,7 +61,16 @@ impl Resources {
     }
 }
 
-/// Credit first is the explicit scoped allocation rule, not a scheduler change.
+pub(crate) fn shared(world: &World) -> bool {
+    crate::forward::direct::enabled(world)
+        || (credit::enabled(world)
+            && (world.negotiation.is_some()
+                || world.market.is_some()
+                || world.town_market.is_some()))
+}
+
+/// Credit, direct forward collection/admission, then spot trades reserve the
+/// same opening pool. This is an explicit allocation rule, not a scheduler change.
 /// Quote discovery observes opening state and only the remaining spendable budget.
 pub fn evaluate(world: &World, state: &State) -> Result<Batch, String> {
     if state.phase != Phase::Acquire {
@@ -87,6 +96,17 @@ pub fn evaluate(world: &World, state: &State) -> Result<Batch, String> {
                 .insert(change.after.id, change.after.clone());
         }
     }
+    batch.transactions.extend(crate::forward::direct::evaluate(
+        world,
+        &quoted,
+        &mut resources,
+    )?);
+    quoted.balances = resources.holdings.clone();
+    for t in &batch.transactions {
+        if t.forward.is_some() {
+            crate::exchange::record(&mut quoted, t);
+        }
+    }
     if world.town_market.is_some() {
         let round = crate::town_market::evaluate_with(world, &quoted, &resources)?;
         resources.reserve(world, &round.transactions)?;
@@ -110,10 +130,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Batch, String> {
 }
 
 pub(crate) fn validate_batch(world: &World, state: &State, batch: &Batch) -> Result<(), String> {
-    if state.phase == Phase::Acquire
-        && crate::credit::enabled(world)
-        && (world.negotiation.is_some() || world.market.is_some() || world.town_market.is_some())
-    {
+    if state.phase == Phase::Acquire && shared(world) {
         let expected = evaluate(world, state)?;
         if batch.credit != expected.credit
             || batch.town_market != expected.town_market
