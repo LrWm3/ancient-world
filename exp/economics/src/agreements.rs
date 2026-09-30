@@ -445,12 +445,11 @@ pub fn for_agent<'a>(
     let mut guarantees: Vec<_> = world.recovery.guarantees.iter().collect();
     guarantees.sort_by_key(|g| g.id);
     for g in guarantees {
-        let crate::recovery::GuaranteedClaim::Loan(id) = g.claim;
-        if let Some(loan) = state.credit.loans.get(&id) {
+        if let Some((debtor, creditor, _)) = g.claim.parties(world) {
             views.push(View::Guarantee(GuaranteeView {
                 terms: g.clone(),
-                debtor: loan.debtor,
-                creditor: loan.creditor,
+                debtor,
+                creditor,
                 paid: state
                     .credit
                     .recovery
@@ -458,7 +457,7 @@ pub fn for_agent<'a>(
                     .get(&g.id)
                     .copied()
                     .unwrap_or(0),
-                call: crate::recovery::guarantee_claim(world, &state.credit, state.month, g)?,
+                call: crate::recovery::guarantee_claim(world, state, g)?,
             }));
         }
     }

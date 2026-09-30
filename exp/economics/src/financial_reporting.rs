@@ -1601,6 +1601,38 @@ impl Audit {
                             i128::from(*paid - paid_interest),
                         )?;
                     }
+                    recovery::Receipt::Guaranteed {
+                        guarantee,
+                        claim: recovery::GuaranteedClaim::Wages { .. },
+                        paid,
+                        ..
+                    } => {
+                        let g = world
+                            .recovery
+                            .guarantees
+                            .iter()
+                            .find(|g| g.id == *guarantee)
+                            .ok_or("missing wage guarantee")?;
+                        let (_, creditor, denomination) =
+                            g.claim.parties(world).ok_or("missing wage terms")?;
+                        if denomination != coin {
+                            return Err("wage guarantee requires reporting currency".into());
+                        }
+                        flow(
+                            &mut flows,
+                            g.guarantor,
+                            Account::Cash,
+                            Flow::Investing,
+                            -i128::from(*paid),
+                        )?;
+                        flow(
+                            &mut flows,
+                            creditor,
+                            Account::Cash,
+                            Flow::Operating,
+                            i128::from(*paid),
+                        )?;
+                    }
                     recovery::Receipt::Distributed {
                         proceeding,
                         loan: id,

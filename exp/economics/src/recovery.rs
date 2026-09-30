@@ -13,11 +13,13 @@ const RECOURSE_TERM_MONTHS: u32 = 1;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum GuaranteedClaim {
     Loan(u32),
+    Wages { agreement: u32, earned_month: u32 },
 }
 impl GuaranteedClaim {
     pub fn contract(self) -> finance::ContractId {
         match self {
             Self::Loan(id) => finance::ContractId::Loan(id),
+            Self::Wages { agreement, .. } => finance::ContractId::Wages(agreement),
         }
     }
     pub(crate) fn parties(self, world: &World) -> Option<(AgentId, AgentId, ResourceId)> {
@@ -35,6 +37,18 @@ impl GuaranteedClaim {
                             .map(|o| (c.application.buyer, o.loan.creditor, o.loan.denomination))
                     })
                 }),
+            Self::Wages {
+                agreement,
+                earned_month,
+            } => world
+                .employment
+                .iter()
+                .find(|t| {
+                    t.id == agreement
+                        && (t.from..=t.through).contains(&earned_month)
+                        && earned_month < u32::MAX
+                })
+                .map(|t| (t.employer, t.worker, t.wage_per_unit.resource)),
         }
     }
 }
@@ -236,8 +250,8 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     let mut recourse = BTreeSet::new();
     let source = |id| GuaranteedClaim::Loan(id).parties(world);
     for g in &config.guarantees {
-        let (debtor, creditor, _) = g.claim.parties(world).ok_or(
-            "guarantee requires an original loan; recursive guarantee chains are unsupported",
+        let (debtor, creditor, denomination) = g.claim.parties(world).ok_or(
+            "guarantee requires original accepted terms; recursive guarantee chains are unsupported",
         )?;
         if world.credit.as_ref().is_some_and(|c| {
             c.offers.iter().any(|o| {
@@ -251,6 +265,17 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             return Err(
                 "guarantees of pending-resale loans need a lien-subrogation adapter".into(),
             );
+        }
+        if !matches!(g.claim, GuaranteedClaim::Loan(_))
+            && world
+                .storage
+                .weights
+                .get(&denomination)
+                .copied()
+                .unwrap_or(0)
+                != 0
+        {
+            return Err("non-loan guarantees currently require a storage-free denomination".into());
         }
         if !ids.insert(g.id)
             || !recourse.insert(g.recourse)
@@ -603,31 +628,54 @@ pub(crate) fn open(world: &World, state: &State, out: &mut credit::Boundary) -> 
 /// not accrue interest, promise funding, or create a second borrower liability.
 pub(crate) fn guarantee_claim(
     world: &World,
-    book: &credit::Book,
-    month: u32,
+    state: &State,
     g: &Guarantee,
 ) -> Result<Option<finance::Obligation>, String> {
-    let GuaranteedClaim::Loan(id) = g.claim;
-    let Some(loan) = book.loans.get(&id) else {
-        return Ok(None);
-    };
-    if month < g.from
-        || month > g.through
-        || active(world, book, g.guarantor).is_some()
-        || loan
-            .first_unpaid
-            .is_none_or(|m| month.saturating_sub(m) < g.delay_months)
-    {
+    let month = state.month;
+    if month < g.from || month > g.through || active(world, &state.credit, g.guarantor).is_some() {
         return Ok(None);
     }
-    let covered = if active(world, book, loan.debtor).is_some() {
-        loan.debt()?
-    } else {
-        loan.due(month)?
+    let (creditor, denomination, covered, first_unpaid) = match g.claim {
+        GuaranteedClaim::Loan(id) => {
+            let Some(loan) = state.credit.loans.get(&id) else {
+                return Ok(None);
+            };
+            let covered = if active(world, &state.credit, loan.debtor).is_some() {
+                loan.debt()?
+            } else {
+                loan.due(month)?
+            };
+            (loan.creditor, loan.denomination, covered, loan.first_unpaid)
+        }
+        GuaranteedClaim::Wages {
+            agreement,
+            earned_month,
+        } => {
+            let Some(e) = state.employment.earned.get(&(agreement, earned_month)) else {
+                return Ok(None);
+            };
+            let finance::Condition::OnOrAfterMonth(due) = e.claim.condition else {
+                return Err("earned wage requires due date".into());
+            };
+            (
+                e.claim.transfer.to,
+                e.claim.transfer.amount.resource,
+                if due <= month {
+                    e.claim.outstanding()
+                } else {
+                    0
+                },
+                Some(due),
+            )
+        }
     };
+    if first_unpaid.is_none_or(|m| month < m || month - m < g.delay_months) {
+        return Ok(None);
+    }
     let requested = covered.min(
         g.cap
-            - book
+            - state
+                .credit
                 .recovery
                 .paid_guarantees
                 .get(&g.id)
@@ -640,8 +688,8 @@ pub(crate) fn guarantee_claim(
     Ok(Some(finance::Obligation {
         transfer: finance::Transfer {
             from: g.guarantor,
-            to: loan.creditor,
-            amount: Amount::new(loan.denomination, requested),
+            to: creditor,
+            amount: Amount::new(denomination, requested),
         },
         settled: 0,
         condition: finance::Condition::OnOrAfterMonth(month),
@@ -664,38 +712,56 @@ pub(crate) fn guarantees(
         .collect();
     terms.sort_by_key(|g| (g.priority, g.id));
     for g in terms {
-        let Some(claim) = guarantee_claim(world, &out.after, state.month, g)? else {
+        let Some(claim) = guarantee_claim(world, &crate::recovery_claims::current(state, out), g)?
+        else {
             continue;
         };
         let requested = claim.outstanding();
-        let GuaranteedClaim::Loan(id) = g.claim;
-        let mut loan = out.after.loans[&id].clone();
+        let (debtor, _, denomination) = g.claim.parties(world).ok_or("missing guaranteed terms")?;
         let payment = execution.pay_protected(
             world,
             state.month,
             &claim,
             protected
-                .get(&(g.guarantor, loan.denomination))
+                .get(&(g.guarantor, denomination))
                 .copied()
                 .unwrap_or(0),
         )?;
         let paid = payment.paid;
         if paid > 0 {
             out.transactions.push(credit::tx(
-                format!("guarantee {} pays loan {}", g.id, loan.id),
+                format!("guarantee {} pays {:?}", g.id, g.claim),
                 payment.effects,
             ));
-            loan.apply_payment(paid);
-            if loan.due(state.month)? == 0 {
-                loan.first_unpaid = None;
+            match g.claim {
+                GuaranteedClaim::Loan(id) => {
+                    let loan = out.after.loans.get_mut(&id).unwrap();
+                    loan.apply_payment(paid);
+                    if loan.due(state.month)? == 0 {
+                        loan.first_unpaid = None;
+                    }
+                }
+                GuaranteedClaim::Wages {
+                    agreement,
+                    earned_month,
+                } => {
+                    let book = out
+                        .employment
+                        .get_or_insert_with(|| state.employment.clone());
+                    book.earned
+                        .get_mut(&(agreement, earned_month))
+                        .unwrap()
+                        .claim
+                        .settled += paid;
+                }
             }
             *out.after.recovery.paid_guarantees.entry(g.id).or_default() += paid;
-            let stayed = active(world, &out.after, loan.debtor).is_some();
+            let stayed = active(world, &out.after, debtor).is_some();
             let recourse = out.after.loans.entry(g.recourse).or_insert_with(|| Loan {
                 id: g.recourse,
                 creditor: g.guarantor,
-                debtor: loan.debtor,
-                denomination: loan.denomination,
+                debtor,
+                denomination,
                 original_principal: 0,
                 principal: 0,
                 interest: 0,
@@ -724,7 +790,6 @@ pub(crate) fn guarantees(
                 Status::Active
             };
             recourse.last_accrued = state.month;
-            out.after.loans.insert(loan.id, loan);
         }
         out.recovery.push(Receipt::Guaranteed {
             guarantee: g.id,

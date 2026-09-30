@@ -321,10 +321,18 @@ pub(super) fn batch(
                         .iter()
                         .find(|g| g.id == *guarantee)
                         .expect("validated guarantee");
-                    let crate::recovery::GuaranteedClaim::Loan(loan) = claim;
-                    let l = &credit.after.loans[loan];
-                    if selected(config, g.guarantor) || visible(l) {
-                        records.push(json!({"kind":"guarantee_payment","guarantee":guarantee,"loan":loan,"guarantor":g.guarantor,"requested":requested,"paid":paid,"recourse":recourse}));
+                    let (debtor, creditor, _) = claim.parties(world).expect("validated guarantee");
+                    if selected(config, g.guarantor)
+                        || selected(config, debtor)
+                        || selected(config, creditor)
+                    {
+                        let mut record = json!({"kind":"guarantee_payment","guarantee":guarantee,
+                            "claim":format!("{claim:?}"),"debtor":debtor,"creditor":creditor,
+                            "guarantor":g.guarantor,"requested":requested,"paid":paid,"recourse":recourse});
+                        if let crate::recovery::GuaranteedClaim::Loan(id) = claim {
+                            record["loan"] = json!(id);
+                        }
+                        records.push(record);
                     }
                     continue;
                 }

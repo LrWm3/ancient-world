@@ -44,7 +44,10 @@ pub struct Advance {
     pub priority: u32,
 }
 pub fn enabled(world: &World) -> bool {
-    world.credit.is_some() || !world.lending.is_empty() || !world.recovery.proceedings.is_empty()
+    world.credit.is_some()
+        || !world.lending.is_empty()
+        || !world.recovery.proceedings.is_empty()
+        || !world.recovery.guarantees.is_empty()
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Collateral {
