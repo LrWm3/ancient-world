@@ -795,3 +795,14 @@ their separately recorded affected gates and are not covered by that snapshot.
     accepted contract, with CPU continuation matching reference. The three-target
     gate passed 13 tests (the separately verified expensive debt control was
     excluded); strict all-target Clippy passed. Negotiated amendments remain open.
+
+46. **Common agreement inspection includes conditional exchanges.** Committed
+    cooperative receipts retain accepted terms even when the first delivery fails.
+    Both counterparties can inspect the same schedule, actual completed packages
+    and active/completed/failed outcome. Reciprocal packages have no artificial
+    holder/grantor; the common parties interface also preserves guarantee debtors.
+    Conditional exchange legs do not become independent waterfall debts. Read-only,
+    first-failure, completion and CPU/checkpoint controls pass. The seven-target
+    gate passed 80 tests, excluding the separately verified long calibration and
+    credit-discovery controls; strict all-target Clippy passed. Existing loan,
+    employment and guarantee inspection remains covered.

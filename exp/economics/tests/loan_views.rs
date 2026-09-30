@@ -54,8 +54,8 @@ fn accepted_terms_are_borrowed_from_book_and_namespaced_not_live_offers() {
     let views = agreements::for_agent(&s.world, &s.state, PERSON).unwrap();
     assert_eq!(views[0].identity(), Identity::Loan(1));
     assert_ne!(views[0].identity(), Identity::Land(1));
-    assert_eq!(views[0].holder(), PERSON);
-    assert_eq!(views[0].grantor(), Counterparty::Agent(STATE_AGENT));
+    assert_eq!(views[0].holder(), Some(PERSON));
+    assert_eq!(views[0].grantor(), Some(Counterparty::Agent(STATE_AGENT)));
     assert_eq!(views[0].accepted_month(), 1);
     assert!(
         agreements::for_agent(&s.world, &s.state, 999)

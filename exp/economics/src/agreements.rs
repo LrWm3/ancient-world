@@ -15,6 +15,8 @@ pub enum Identity {
     Loan(u32),
     Forward(AssetId),
     Guarantee(u32),
+    /// One bounded cooperative agreement per start month in the current pilot.
+    CooperativeExchange(u32),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -221,6 +223,7 @@ pub enum View<'a> {
     Loan(LoanView<'a>),
     Forward(&'a crate::forward::Contract),
     Guarantee(GuaranteeView),
+    Exchange(Box<ExchangeView>),
 }
 
 impl View<'_> {
@@ -232,6 +235,9 @@ impl View<'_> {
             Self::Loan(a) => Ok(a.claim()?.into_iter().collect()),
             Self::Forward(a) => Ok(vec![a.claim()]),
             Self::Guarantee(a) => Ok(a.call.clone().into_iter().collect()),
+            // Conditional delivery-versus-payment is an atomic package. Neither
+            // leg is an independent debt collectible through the claim waterfall.
+            Self::Exchange(_) => Ok(vec![]),
         }
     }
     pub fn identity(&self) -> Identity {
@@ -240,25 +246,45 @@ impl View<'_> {
             Self::Loan(a) => Identity::Loan(a.record.id),
             Self::Forward(a) => Identity::Forward(a.id),
             Self::Guarantee(a) => Identity::Guarantee(a.terms.id),
+            Self::Exchange(a) => Identity::CooperativeExchange(a.terms.start),
         }
     }
 
-    pub fn grantor(&self) -> Counterparty {
+    /// Reciprocal exchange has no distinguished grantor or holder.
+    pub fn grantor(&self) -> Option<Counterparty> {
         match self {
-            Self::Agreement(a) => a.grantor,
-            Self::Loan(a) => Counterparty::Agent(a.record.creditor),
-            Self::Forward(a) => Counterparty::Agent(a.creditor),
-            Self::Guarantee(a) => Counterparty::Agent(a.terms.guarantor),
+            Self::Agreement(a) => Some(a.grantor),
+            Self::Loan(a) => Some(Counterparty::Agent(a.record.creditor)),
+            Self::Forward(a) => Some(Counterparty::Agent(a.creditor)),
+            Self::Guarantee(a) => Some(Counterparty::Agent(a.terms.guarantor)),
+            Self::Exchange(_) => None,
         }
     }
 
-    pub fn holder(&self) -> AgentId {
+    pub fn holder(&self) -> Option<AgentId> {
         match self {
-            Self::Agreement(a) => a.holder,
-            Self::Loan(a) => a.record.debtor,
-            Self::Forward(a) => a.debtor,
-            Self::Guarantee(a) => a.creditor,
+            Self::Agreement(a) => Some(a.holder),
+            Self::Loan(a) => Some(a.record.debtor),
+            Self::Forward(a) => Some(a.debtor),
+            Self::Guarantee(a) => Some(a.creditor),
+            Self::Exchange(_) => None,
         }
+    }
+
+    pub fn parties(&self) -> Vec<AgentId> {
+        if let Self::Exchange(a) = self {
+            return a.terms.choices.keys().copied().collect();
+        }
+        let mut parties: Vec<_> = self.holder().into_iter().collect();
+        if let Some(Counterparty::Agent(agent)) = self.grantor() {
+            parties.push(agent);
+        }
+        if let Self::Guarantee(g) = self {
+            parties.push(g.debtor);
+        }
+        parties.sort_unstable();
+        parties.dedup();
+        parties
     }
 
     pub fn accepted_month(&self) -> u32 {
@@ -267,8 +293,19 @@ impl View<'_> {
             Self::Loan(a) => a.record.opened,
             Self::Forward(a) => a.issued,
             Self::Guarantee(a) => a.accepted_month,
+            Self::Exchange(a) => a.terms.start,
         }
     }
+}
+
+/// Accepted atomic exchanges and their committed outcome, derived from receipts.
+/// Cancellation does not manufacture arrears or reverse prior deliveries.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExchangeView {
+    pub terms: crate::cooperation::Contract,
+    pub completed: Vec<crate::cooperation::Delivery>,
+    pub status: Status,
+    pub failure: Option<String>,
 }
 
 /// Read-only contingent exposure. A callable guarantee is not extra principal
@@ -480,12 +517,32 @@ pub fn for_agent<'a>(
             }));
         }
     }
-    views.retain(|a| {
-        a.accepted_month() <= state.month
-            && (a.holder() == agent
-                || a.grantor() == Counterparty::Agent(agent)
-                || matches!(a, View::Guarantee(g) if g.debtor == agent))
-    });
+    let mut exchanges = std::collections::BTreeMap::new();
+    for round in &state.town_market.history {
+        let Some(boundary) = &round.cooperation else {
+            continue;
+        };
+        let Some(terms) = &boundary.terms else {
+            continue;
+        };
+        let view = exchanges
+            .entry(terms.start)
+            .or_insert_with(|| ExchangeView {
+                terms: terms.clone(),
+                completed: vec![],
+                status: Status::Active,
+                failure: None,
+            });
+        view.completed.extend(boundary.completed.iter().cloned());
+        if let Some(reason) = &boundary.failure {
+            view.status = Status::Failed;
+            view.failure = Some(reason.clone());
+        } else if round.month == terms.through {
+            view.status = Status::Completed;
+        }
+    }
+    views.extend(exchanges.into_values().map(|v| View::Exchange(Box::new(v))));
+    views.retain(|a| a.accepted_month() <= state.month && a.parties().contains(&agent));
     Ok(views)
 }
 #[derive(Clone, Debug, PartialEq, Eq)]

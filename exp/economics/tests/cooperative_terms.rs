@@ -93,3 +93,103 @@ fn changing_discovery_preserves_accepted_terms_through_cpu_continuation() {
         4
     );
 }
+
+#[test]
+fn common_views_keep_conditional_exchange_terms_and_terminal_outcomes() {
+    use economics_compute_smoke::agreements::{self, Identity, Status as AgreementStatus, View};
+    for failed in [false, true] {
+        let initial = fixture();
+        let mut w = initial.world;
+        let (_, mut s) = calibration::scenario(true);
+        let Policy::Agreement(c) = &mut w.production_market.as_mut().unwrap().policy else {
+            unreachable!()
+        };
+        c.deliveries[0].month = 1;
+        if failed {
+            s.balances.insert((WOOD_PERSON, TOKEN), 0);
+        }
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            assert!(
+                !agreements::for_agent(&w, &s, WOOD_PERSON)
+                    .unwrap()
+                    .iter()
+                    .any(|v| matches!(v, View::Exchange(_)))
+            );
+            sim.run_months(1).unwrap();
+            let accepted = sim.state.clone();
+            let mut observations = vec![];
+            for agent in [CROP_PERSON, WOOD_PERSON] {
+                let view = agreements::for_agent(&w, &sim.state, agent)
+                    .unwrap()
+                    .into_iter()
+                    .find(|v| matches!(v, View::Exchange(_)))
+                    .unwrap();
+                assert_eq!(view.identity(), Identity::CooperativeExchange(1));
+                assert_eq!(view.parties(), vec![CROP_PERSON, WOOD_PERSON]);
+                assert_eq!(view.grantor(), None);
+                assert_eq!(view.holder(), None);
+                assert!(view.claims().unwrap().is_empty());
+                let View::Exchange(v) = view else {
+                    unreachable!()
+                };
+                assert_eq!(v.terms.deliveries[0].payment.amount.quantity, 4);
+                assert_eq!(
+                    v.status,
+                    if failed {
+                        AgreementStatus::Failed
+                    } else {
+                        AgreementStatus::Active
+                    }
+                );
+                assert_eq!(v.completed.len(), usize::from(!failed));
+                observations.push(*v);
+            }
+            assert_eq!(observations[0], observations[1]);
+            assert_eq!(sim.state, accepted); // inspection cannot settle or accrue
+            assert!(
+                !agreements::for_agent(&w, &sim.state, 0)
+                    .unwrap()
+                    .iter()
+                    .any(|v| matches!(v, View::Exchange(_)))
+            );
+            let mut resumed = Simulation::new(w.clone(), sim.state.clone(), backend).unwrap();
+            sim.run_months(5).unwrap();
+            resumed.run_months(5).unwrap();
+            assert_eq!(sim.state, resumed.state);
+            let view = agreements::for_agent(&w, &sim.state, WOOD_PERSON)
+                .unwrap()
+                .into_iter()
+                .find_map(|v| {
+                    if let View::Exchange(v) = v {
+                        Some(*v)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            assert_eq!(
+                view.status,
+                if failed {
+                    AgreementStatus::Failed
+                } else {
+                    AgreementStatus::Completed
+                }
+            );
+            assert_eq!(view.completed.len(), usize::from(!failed));
+            assert_eq!(view.failure.is_some(), failed);
+            // Initial failure also keeps the full accepted schedule, even though
+            // no work grant or exchange leg ever became active.
+            assert_eq!(view.terms.deliveries.len(), 1);
+            let mut corrupt = accepted.clone();
+            corrupt.town_market.history[0]
+                .cooperation
+                .as_mut()
+                .unwrap()
+                .terms = None;
+            assert!(Simulation::new(w.clone(), corrupt, backend).is_err());
+            (sim.state, sim.ledger, view)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

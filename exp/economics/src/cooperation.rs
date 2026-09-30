@@ -71,6 +71,8 @@ pub struct Assessment {
 pub struct Boundary {
     /// Start month identifies the single scoped agreement, including its failure receipt.
     pub agreement: Option<u32>,
+    /// Accepted schedule survives failure; active is the continuing work grant.
+    pub terms: Option<Contract>,
     pub active: Option<Contract>,
     pub offers: Vec<Offer>,
     pub assessments: Vec<Assessment>,
@@ -214,8 +216,29 @@ pub(crate) fn validate_state(w: &World, s: &State) -> Result<(), String> {
     {
         return Err("cannot rewrite an active cooperative agreement".into());
     }
+    let mut accepted = BTreeMap::new();
     for r in &s.town_market.history {
         if let Some(b) = &r.cooperation {
+            if let Some(c) = &b.terms {
+                validate_contract(w, c)?;
+                if b.agreement != Some(c.start)
+                    || !(c.start..=c.through).contains(&r.month)
+                    || accepted
+                        .insert(c.start, c)
+                        .is_some_and(|earlier| earlier != c)
+                {
+                    return Err("inconsistent accepted cooperative terms".into());
+                }
+            }
+            if (b.active.is_some() || b.failure.is_some()) && b.terms.is_none()
+                || b.terms.is_some() && (b.active.is_some() == b.failure.is_some())
+                || b.failure.is_some() && !b.completed.is_empty()
+                || b.active
+                    .as_ref()
+                    .is_some_and(|c| b.terms.as_ref() != Some(c))
+            {
+                return Err("cooperative outcome lacks its accepted terms".into());
+            }
             if let Some(c) = &b.active {
                 validate_contract(w, c)?;
                 if !(c.start..=c.through).contains(&r.month) || b.agreement != Some(c.start) {
@@ -753,6 +776,7 @@ pub(crate) fn evaluate_with(
     }
     let mut b = Boundary {
         agreement: None,
+        terms: None,
         active: None,
         offers: vec![],
         assessments: vec![],
@@ -808,6 +832,7 @@ pub(crate) fn evaluate_with(
     };
     if let Some(c) = current {
         b.agreement = Some(c.start);
+        b.terms = Some(c.clone());
         match settle(w, s, &c, opening) {
             Ok(transactions) => {
                 round.transactions = transactions;

@@ -246,3 +246,24 @@ servicing the accepted schedule. A regression reproduced silent price replacemen
 before this guard; `tests/cooperative_terms.rs` now checks refusal and CPU
 continuation with the original consideration. This is immutability during the
 accepted term, not a negotiated amendment mechanism.
+
+## Common agreement inspection
+
+`agreements::for_agent` now returns `View::Exchange` for accepted cooperative
+packages. Committed boundaries retain the accepted schedule even if the first
+package fails. The view aggregates actual completed deliveries and preserves
+active, completed or failed status without another balance or contract book.
+Unaccepted catalog schedules do not appear; either party receives the same view.
+
+`View::parties()` is the common participation interface, including all three
+parties to a guarantee. `holder()` and `grantor()` now return optional roles:
+reciprocal exchange has no privileged holder/grantor. Asymmetric loan, land,
+process and guarantee roles remain available.
+
+Exchange `claims()` is empty deliberately: each goods/payment pair is conditional
+and settles atomically. It cannot be split into two independently collectible
+waterfall claims. Failure retains prior deliveries and cancels the rest under the
+existing terms; it creates no damages, arrears or refund obligation. The complete
+schedule remains inspectable in the typed exchange view. Tests check successful
+completion, first-delivery failure, CPU/checkpoint parity, read-only inspection,
+and rejection of missing accepted terms.
