@@ -7,6 +7,8 @@ voluntary support, employment, lending and separate accounting paths.
 
 [Pass 28](HOUSEHOLD-LAND-SUPPORT.md) subsequently extends the same opt-in path to
 current native land bills, sharing their ordinary collection rules.
+[Pass 29](HOUSEHOLD-LAND-FUNDING.md) adds explicit accepted-alternative funding;
+these receipt quantities then use the accepted rate while the original bill stays native.
 
 ## Authorization and policy
 
@@ -53,7 +55,7 @@ Due; there is no backdated collection or extra payment phase. Storage and later
 competing uses can still prevent payment. Support is not creditor-specific escrow
 and changes no creditor priority.
 
-`support::Receipt.payment_funding` records native units due, observed shortage and
+`support::Receipt.payment_funding` records funding units due in the mandate resource, observed shortage and
 candidate shortage after funding. `accepted` records the actual transfer; a rejected
 candidate may still have a projected improvement. The existing `household_support`
 observer exports this optional record. Under `NeedsThenIncome`, the income forecast

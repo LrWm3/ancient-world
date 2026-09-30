@@ -5,6 +5,31 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub const MONTHS_PER_YEAR: u32 = 12;
 
+/// Choose between accepted payment routes, without changing the native claim.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TenderPreference {
+    #[default]
+    NativeFirst,
+    AcceptedAlternativeFirst,
+}
+
+pub(crate) fn preferred_alternative<'a>(
+    world: &'a World,
+    state: &State,
+    agreement: &Agreement,
+) -> Option<&'a crate::activities::CoinPayment> {
+    if crate::recovery::active(world, &state.credit, agreement.debtor).is_none()
+        && world.households.iter().any(|h| {
+            h.agent == agreement.debtor
+                && h.governance.charter.land_tender == TenderPreference::AcceptedAlternativeFirst
+        })
+    {
+        world.activities.coin_payments.get(&agreement.id)
+    } else {
+        None
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum PaymentPolicy {
     #[default]
@@ -219,6 +244,33 @@ pub(crate) fn current_dues(
     Ok(result)
 }
 
+/// Funding targets use exactly one preferred accepted denomination per current
+/// bill. This view is not a new claim, nor a forecast of future annual bills.
+pub(crate) fn funding_dues(
+    world: &World,
+    state: &State,
+    debtor: AgentId,
+) -> Result<BTreeMap<ResourceId, i128>, String> {
+    let mut result = BTreeMap::new();
+    for request in current_claims(world, state, &state.credit)? {
+        if request.claim.transfer.from != debtor {
+            continue;
+        }
+        let finance::ContractId::Land(id) = request.contract else {
+            unreachable!()
+        };
+        let a = active(world, state)
+            .find(|a| a.id == id)
+            .ok_or("missing funding agreement")?;
+        let (resource, rate) = preferred_alternative(world, state, a)
+            .map_or((a.payment.resource, 1), |t| (t.resource, t.coins_per_unit));
+        let quantity = i128::from(request.claim.outstanding()) * i128::from(rate);
+        let total: &mut i128 = result.entry(resource).or_default();
+        *total = total.checked_add(quantity).ok_or("land funding overflow")?;
+    }
+    Ok(result)
+}
+
 pub fn evaluate(world: &World, state: &State) -> Result<Settlement, String> {
     let mut execution = finance::Execution::opening(world, state);
     evaluate_with(world, state, &mut execution)
@@ -267,37 +319,42 @@ pub(crate) fn evaluate_selected(
         if !ordinary_collection_allowed(world, state, &state.credit, a) {
             continue;
         }
-        let claim = o.claim(a);
-        let payment = execution.pay_protected(
-            world,
-            state.month,
-            &claim,
-            protected
-                .get(&(a.debtor, a.payment.resource))
-                .copied()
-                .unwrap_or(0),
-        )?;
-        let paid = payment.paid;
-        transactions.extend(record_payment(world, a, o, paid, true, payment.effects));
-        if estate.is_none()
-            && let Some(alternative) = world.activities.coin_payments.get(&a.id)
-        {
-            let payment = execution.pay_tender(
-                world,
-                state.month,
-                &o.claim(a),
-                alternative,
-                protected
-                    .get(&(a.debtor, alternative.resource))
-                    .copied()
-                    .unwrap_or(0),
-            )?;
+        let alternative = estate
+            .is_none()
+            .then(|| world.activities.coin_payments.get(&a.id))
+            .flatten();
+        let native_first = preferred_alternative(world, state, a).is_none();
+        for native in [native_first, !native_first] {
+            let payment = if native {
+                execution.pay_protected(
+                    world,
+                    state.month,
+                    &o.claim(a),
+                    protected
+                        .get(&(a.debtor, a.payment.resource))
+                        .copied()
+                        .unwrap_or(0),
+                )?
+            } else if let Some(tender) = alternative {
+                execution.pay_tender(
+                    world,
+                    state.month,
+                    &o.claim(a),
+                    tender,
+                    protected
+                        .get(&(a.debtor, tender.resource))
+                        .copied()
+                        .unwrap_or(0),
+                )?
+            } else {
+                continue;
+            };
             transactions.extend(record_payment(
                 world,
                 a,
                 o,
                 payment.paid,
-                false,
+                native,
                 payment.effects,
             ));
         }

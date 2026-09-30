@@ -998,6 +998,17 @@ fn collection_grants(
     }) {
         return Err("alternative payment routes cannot form currency chains".into());
     }
+    // Preferred alternatives compete with other claims on that currency at the
+    // same rank. Only their remaining native fallback runs after that allocation.
+    let preferred: BTreeSet<_> = crate::commitments::active(world, state)
+        .filter(|a| crate::commitments::preferred_alternative(world, state, a).is_some())
+        .map(|a| finance::ContractId::Land(a.id))
+        .collect();
+    enum TenderPass {
+        NativeGoods,
+        Currency,
+        PreferredNativeFallback,
+    }
     let mut window = execution.clone();
     for (account, amount) in protected {
         window.protect(*account, *amount);
@@ -1005,15 +1016,32 @@ fn collection_grants(
     let mut result = CollectionGrants::default();
     let ranks: BTreeSet<_> = requests.iter().map(|r| r.rank).collect();
     for rank in ranks {
-        for currency_pass in [false, true] {
+        for stage in [
+            TenderPass::NativeGoods,
+            TenderPass::Currency,
+            TenderPass::PreferredNativeFallback,
+        ] {
             let mut pass = vec![];
             let mut lots = BTreeMap::new();
             let mut alternatives = BTreeSet::new();
             for r in requests.iter().filter(|r| r.rank == rank) {
-                if currencies.contains(&r.claim.transfer.amount.resource) == currency_pass {
-                    pass.push(r.clone());
+                let currency = currencies.contains(&r.claim.transfer.amount.resource);
+                let alternative_first = preferred.contains(&r.contract);
+                let native = match stage {
+                    TenderPass::NativeGoods => !currency && !alternative_first,
+                    TenderPass::Currency => currency && !alternative_first,
+                    TenderPass::PreferredNativeFallback => alternative_first,
+                };
+                if native {
+                    let mut request = r.clone();
+                    if alternative_first {
+                        request.claim.transfer.amount.quantity =
+                            r.claim.outstanding() - result.claim_units(&r.contract);
+                        request.claim.settled = 0;
+                    }
+                    pass.push(request);
                 }
-                if currency_pass
+                if matches!(stage, TenderPass::Currency)
                     && let finance::ContractId::Land(id) = r.contract
                     && let Some(tender) = world.activities.coin_payments.get(&id)
                     && crate::recovery::active(world, &out.after, r.claim.transfer.from).is_none()

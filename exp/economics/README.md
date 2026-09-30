@@ -36,6 +36,10 @@ needs and debts; actual payments retain their normal settlement boundaries.
 [Pass 28](HOUSEHOLD-LAND-SUPPORT.md) extends that support to current land dues,
 using the same native claim rules as collection. Rent, payroll and loan funding
 retain their different settlement timing; limited donations can leave arrears.
+[Pass 29](HOUSEHOLD-LAND-FUNDING.md) adds opt-in market purchases for current land
+bills and a static accepted-tender preference shared by funding and collection.
+Native-first remains the default; alternative-first can acquire or accept donated
+coins without duplicating the native bill.
 Person self-directed policy changes remain deferred.
 These are bounded combinations; the remaining exclusions are explicit.
 

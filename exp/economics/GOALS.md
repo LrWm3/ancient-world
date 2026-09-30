@@ -344,5 +344,11 @@ consent remain future work; person self-directed policy changes stay deferred.
 
 [Pass 28](HOUSEHOLD-LAND-SUPPORT.md) adds current native land bills to voluntary
 funding and consolidates their collection/funding claim reader. Combined rent and
-payroll checks retain arrears under limited support and storage. Forward admission,
-alternative-tender funding and autonomous household land acquisition remain open.
+payroll checks retain arrears under limited support and storage.
+
+[Pass 29](HOUSEHOLD-LAND-FUNDING.md) adds current land-bill market purchases and an
+explicit accepted-tender preference shared by protection, support and settlement.
+Scarce alternative currency shares existing collection ranks with loans; native
+fallback covers the remaining bill. Household forward admission/funding, autonomous
+land acquisition and negotiated hiring remain open. Person self-directed policy
+changes remain deferred.

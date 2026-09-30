@@ -5,6 +5,9 @@ Implemented integration pass 28, September 2026. The optional
 alongside earned wages and current loan dues. A member's signed surplus mandate can
 fund these obligations without taking over the household's liability.
 
+Pass 29 adds [market purchases and explicit tender preference](HOUSEHOLD-LAND-FUNDING.md).
+The native-only funding behavior below describes the default and pass-28 controls.
+
 ## Shared claim rules
 
 `commitments::current_claims` supplies the native land demand used by proportional
@@ -83,8 +86,8 @@ finance/credit/composition, member employment and need orders.
 
 These are supplied agreements and consent terms, not autonomous household land
 acquisition or demonstrated business viability. Support does not reserve funds for
-a named creditor or promise future donations. Purchasing goods to fund land bills,
-choosing alternative tender during funding, and forward support remain open. The
-current forward admission path still requires person participants in a tool purchase;
+a named creditor or promise future donations. Pass 29 adds purchases and explicit
+alternative-tender funding; forward support remains open. The current forward
+admission path still requires person participants in a tool purchase;
 this pass does not bypass that restriction. Person self-directed policy changes
 remain deferred.

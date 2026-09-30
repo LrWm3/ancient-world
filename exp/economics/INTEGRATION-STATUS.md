@@ -658,4 +658,12 @@ The combined case funds four rent and six wages from ten donated grain. Land set
 at the existing after-Productive ClearArrears pass, wages at Close. Five donated
 grain leaves five wages unpaid. Creditor storage can retain funded stock and arrears
 without requesting another donation. Separate accounting, CPU/reference, checkpoint
-and replay checks agree. Forward support and alternative-tender funding remain open.
+and replay checks agree.
+
+[Pass 29](HOUSEHOLD-LAND-FUNDING.md) now connects collective market orders to own
+current land bills. Static native-first/accepted-alternative-first preference is
+shared by funding, protection and collection; only one funding denomination is
+counted per bill. Proportional collection shares currency with same-rank loans
+before native fallback. Town markets admit accepted land agreements while retaining
+land-offer search and mortgage/recovery exclusions. Household forward funding and
+autonomous land/hiring discovery remain open.

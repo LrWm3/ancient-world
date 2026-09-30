@@ -33,7 +33,8 @@ pub struct Receipt {
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct PaymentFunding {
-    /// Native units of the mandate resource, never summed across denominations.
+    /// Funding units of the mandate resource, never summed across denominations.
+    /// Land alternatives use their accepted rate; the bill remains native.
     pub due: i128,
     pub shortfall: i128,
     pub projected_shortfall: i128,
@@ -277,7 +278,7 @@ pub(super) fn prepare(
                 if r.accepted == 0 && h.governance.charter.accept_payment_support {
                     let wages = crate::employment::claims(&staged, h.agent)?;
                     let loans = crate::credit::current_dues(world, &staged, h.agent)?;
-                    let land = crate::commitments::current_dues(world, &staged, h.agent)?;
+                    let land = crate::commitments::funding_dues(world, &staged, h.agent)?;
                     let due = wages
                         .get(&m.resource)
                         .copied()

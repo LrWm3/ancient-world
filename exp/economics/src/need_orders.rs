@@ -74,6 +74,20 @@ pub(crate) fn claims(
             )
         })
         .collect();
+    if world.households.iter().any(|h| {
+        h.agent == agent
+            && h.governance.charter.land_tender
+                == crate::commitments::TenderPreference::AcceptedAlternativeFirst
+    }) {
+        // Replace only current collectible land units, once. Future native bills
+        // and other commitments retain their original protection.
+        for (r, q) in crate::commitments::current_dues(world, state, agent)? {
+            *result.entry(r).or_default() -= q;
+        }
+        for (r, q) in crate::commitments::funding_dues(world, state, agent)? {
+            *result.entry(r).or_default() += q;
+        }
+    }
     for (resource, quantity) in process_claims(world, state, agent) {
         *result.entry(resource).or_default() += quantity;
     }
@@ -157,6 +171,11 @@ fn funded_requirements(
         } else {
             BTreeMap::new()
         };
+        if who == agent && h.governance.charter.fund_land_dues {
+            for (r, q) in crate::commitments::funding_dues(world, state, who)? {
+                *result.entry(r).or_default() += q;
+            }
+        }
         if h.governance.charter.fund_due_loans
             && (who == agent || h.governance.charter.support_member_loans)
         {

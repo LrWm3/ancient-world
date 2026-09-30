@@ -72,6 +72,10 @@ pub struct Charter {
     pub accept_payment_support: bool,
     /// Collective bids may acquire denomination stock for current collectible loans.
     pub fund_due_loans: bool,
+    /// Collective bids may acquire stock for the household's own current land bills.
+    pub fund_land_dues: bool,
+    /// Preferred accepted payment route, shared by collection and funding.
+    pub land_tender: crate::commitments::TenderPreference,
     /// Collective buying may fund own wages and explicitly supported member wage claims.
     pub fund_earned_wages: bool,
     /// Optional current-delivery target when collective wage funding is enabled.
@@ -153,6 +157,8 @@ impl Governance {
                 support_member_wages: false,
                 accept_payment_support: false,
                 fund_due_loans: false,
+                fund_land_dues: false,
+                land_tender: crate::commitments::TenderPreference::default(),
                 fund_earned_wages: false,
                 payroll_outlook: crate::employment::PayrollOutlook::default(),
                 debt_support: DebtSupportPolicy::default(),

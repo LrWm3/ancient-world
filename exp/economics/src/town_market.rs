@@ -209,6 +209,8 @@ pub fn validate(world: &World) -> Result<(), String> {
     let Some(c) = &world.town_market else {
         return Ok(());
     };
+    // Accepted land bills use Due/ClearArrears alongside acquisition; land-offer
+    // discovery remains a separate driver.
     if world.negotiation.is_some()
         || world.need_orders.is_some()
         || world.credit.is_some()
@@ -218,7 +220,6 @@ pub fn validate(world: &World) -> Result<(), String> {
         || !world.offers.is_empty()
         || !world.bids.is_empty()
         || !world.access_offers.is_empty()
-        || !world.agreements.is_empty()
         || world.work_choice.is_some()
     {
         return Err("town market requires an isolated acquisition driver".into());
