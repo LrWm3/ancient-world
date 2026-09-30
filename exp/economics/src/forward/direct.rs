@@ -51,7 +51,6 @@ pub(crate) fn validate(w: &World, s: &State) -> Result<(), String> {
     }
     if w.market.is_some()
         || w.credit.is_some()
-        || w.minting.is_some()
         || w.production_market.is_some()
         || w.pool_market.is_some()
         || w.competition.is_some()

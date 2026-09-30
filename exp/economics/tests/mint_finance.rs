@@ -142,3 +142,76 @@ fn lending_reserves_the_same_opening_money_as_mint_purchases() {
             .any(|p| p.definition == MINT && p.status == Status::Completed)
     );
 }
+
+#[test]
+fn prepaid_wheat_funds_minting_only_after_admission_and_delivers_once() {
+    use economics_compute_smoke::forward::direct::Terms;
+    let (mut w, s) = fixture();
+    w.lending.clear();
+    w.prepaid_deliveries.push(Terms {
+        id: 20,
+        seller: ISSUER,
+        buyer: WORKER,
+        month: 1,
+        due: 2,
+        goods: Amount::new(WHEAT, 2),
+        prepayment: Amount::new(COIN, 6),
+    });
+    let mut a = audit(&w, &s);
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    while sim.state.month <= 1 {
+        a.step(&mut sim).unwrap();
+    }
+    assert_eq!(sim.state.balance(ISSUER, COIN), 6);
+    assert_eq!(sim.state.balance(WORKER, WHEAT), 0);
+    assert_eq!(sim.state.balance(ISSUER, METAL), 0);
+    let mut checkpoint =
+        Simulation::new(sim.world.clone(), sim.state.clone(), Backend::Reference).unwrap();
+    let mut report = a.clone();
+    while sim.state.month <= 3 {
+        a.step(&mut sim).unwrap();
+    }
+    while checkpoint.state.month <= 3 {
+        report.step(&mut checkpoint).unwrap();
+    }
+    assert_eq!(sim.state, checkpoint.state);
+    assert_eq!(a, report);
+    assert_eq!(sim.state.exchange.forwards[&20].delivered, 2);
+    assert_eq!(sim.state.balance(WORKER, WHEAT), 2);
+    assert_eq!(sim.state.balance(ISSUER, COIN), 10);
+    assert_eq!(
+        a.book().statements(ISSUER, 1, 3).unwrap().issuance_change,
+        10
+    );
+}
+
+#[test]
+fn due_forward_and_mint_package_cannot_sell_the_same_metal() {
+    use economics_compute_smoke::forward::direct::Terms;
+    let (mut w, mut s) = fixture();
+    w.lending.clear();
+    s.balances.insert((ISSUER, COIN), 6);
+    w.minting.as_mut().unwrap().deals.retain(|d| d.month == 2);
+    w.prepaid_deliveries.push(Terms {
+        id: 20,
+        seller: SUPPLIER,
+        buyer: WORKER,
+        month: 1,
+        due: 2,
+        goods: Amount::new(METAL, 2),
+        prepayment: Amount::new(COIN, 2),
+    });
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    sim.run_months(3).unwrap();
+    assert_eq!(sim.state.exchange.forwards[&20].delivered, 2);
+    assert_eq!(sim.state.balance(WORKER, METAL), 2);
+    assert_eq!(sim.state.balance(ISSUER, METAL), 0);
+    assert_eq!(sim.state.balance(ISSUER, COIN), 6);
+    let b = sim
+        .ledger
+        .iter()
+        .find(|b| b.month == 2 && b.phase == Phase::Acquire)
+        .unwrap();
+    assert!(!b.minting.as_ref().unwrap().receipts[0].accepted);
+    assert_eq!(sim.state.balance(WORKER, FIREWOOD), 1);
+}
