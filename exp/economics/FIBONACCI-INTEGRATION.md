@@ -1011,3 +1011,12 @@ separate gates and are not covered by this snapshot.
     Unsupported full/post-sale relief controls, CPU/reference and checkpoint
     continuation agree. The four-target gate passed 75 tests and strict all-target
     Clippy passed.
+
+67. **Partial secured relief redistributes unspent proceeds after sale.** The
+    existing lien allocator now revisits only that asset's remaining reservations
+    when accepted relief reduces its debt. Junior liens precede higher-ranked
+    unsecured claims; already paid proceeds cannot be clawed back. Person and
+    household controls cover pre-sale, pre-distribution and post-distribution
+    relief, plus unsupported full forgiveness. CPU/reference, checkpoint and
+    separate loss/payment accounting agree. The five-target gate passed 117 tests
+    and strict all-target Clippy passed.

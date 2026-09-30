@@ -1341,11 +1341,15 @@ fn lien_proceeds(
 ) -> Result<BTreeMap<u32, i32>, String> {
     let mut requests = Vec::new();
     for loan in out.after.loans.values().filter(|l| l.debtor == p.debtor) {
-        let Some(c) = loan
-            .collateral
-            .as_ref()
-            .filter(|c| c.pledged && c.asset == asset)
-        else {
+        let case = &out.after.recovery.proceedings[&p.id];
+        let Some(c) = loan.collateral.as_ref().filter(|c| {
+            c.asset == asset
+                && if case.sold.contains(&asset) {
+                    case.secured.contains_key(&loan.id)
+                } else {
+                    c.pledged
+                }
+        }) else {
             continue;
         };
         if loan.denomination != p.denomination {
@@ -1381,6 +1385,49 @@ fn lien_proceeds(
         result.insert(id, payment.paid);
     }
     Ok(result)
+}
+
+/// Accepted relief can release an unspent lien reservation. Reapply the same
+/// waterfall only to the remaining proceeds of that asset, never unrelated cash
+/// or proceeds already distributed. Zero grants retain junior lien eligibility.
+pub(crate) fn refresh_lien_proceeds(
+    world: &World,
+    state: &State,
+    out: &mut credit::Boundary,
+    proceeding: u32,
+    asset: AssetId,
+) -> Result<(), String> {
+    let case = &out.after.recovery.proceedings[&proceeding];
+    if !case.sold.contains(&asset) {
+        return Ok(());
+    }
+    let p = world
+        .recovery
+        .proceedings
+        .iter()
+        .find(|p| p.id == proceeding)
+        .ok_or("missing lien proceeding")?;
+    let proceeds = case
+        .secured
+        .iter()
+        .filter(|(id, _)| {
+            out.after.loans[id]
+                .collateral
+                .as_ref()
+                .is_some_and(|c| c.asset == asset)
+        })
+        .try_fold(0_i32, |sum, (_, amount)| {
+            sum.checked_add(*amount).ok_or("lien reservation overflow")
+        })?;
+    let grants = lien_proceeds(world, state, out, p, asset, proceeds)?;
+    out.after
+        .recovery
+        .proceedings
+        .get_mut(&proceeding)
+        .unwrap()
+        .secured
+        .extend(grants);
+    Ok(())
 }
 
 pub(crate) fn sales(

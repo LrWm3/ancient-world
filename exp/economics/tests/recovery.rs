@@ -2067,7 +2067,7 @@ fn household_guarantor_keeps_member_money_separate_and_recovers_before_wind_down
 }
 
 #[test]
-fn partial_secured_relief_before_sale_preserves_the_lien_and_releases_proceeds_to_junior_claims() {
+fn partial_secured_relief_preserves_lien_priority_before_and_after_sale() {
     partial_secured_relief(false);
 }
 
@@ -2083,12 +2083,18 @@ fn partial_secured_relief(household: bool) {
         finance::ContractId,
         financial_reporting::Audit,
     };
-    for (month, quantity) in [(3, 7), (4, 7), (3, 10)] {
+    for (month, quantity, expected, senior_paid, junior_paid, senior_remaining) in [
+        (3, 7, 10, 3, 5, 0),
+        (4, 7, 10, 3, 5, 0),
+        (3, 10, 10, 8, 0, 2),
+        (5, 1, 2, 8, 0, 1),
+    ] {
         let (mut w, mut s) = fixture();
         const HOME: AgentId = 800;
         let debtor = if household { HOME } else { PERSON };
         let junior = if household { PERSON } else { OTHER };
         proceeding(&mut w, false);
+        w.recovery.proceedings[0].earliest_close = 6;
         if household {
             use economics_compute_smoke::{
                 household_governance::Governance,
@@ -2135,6 +2141,12 @@ fn partial_secured_relief(household: bool) {
                 settlement: credit::CollateralSettlement::AuthorizedLiquidation,
             });
         }
+        // Unsecured collection priority must not capture released lien proceeds.
+        w.lending[1].priority = 10;
+        let mut unsecured = advance(12, BUYER);
+        unsecured.debtor = debtor;
+        w.lending.push(unsecured);
+        s.balances.insert((BUYER, TOKEN), 18);
         w.recovery.claim_relief.push(Terms {
             id: 1,
             proceeding: 1,
@@ -2144,10 +2156,11 @@ fn partial_secured_relief(household: bool) {
             creditor: STATE_AGENT,
             month,
             expected_due: 2,
-            expected_remaining: 10,
+            expected_remaining: expected,
             action: Action::WriteOff { quantity },
         });
-        let accepted = month == 3 && quantity == 7;
+        let accepted = quantity < expected;
+        let before_sale = accepted && month == 3;
         let run = |backend| {
             let mut sim = distressed(w.clone(), s.clone(), backend);
             if household {
@@ -2179,7 +2192,7 @@ fn partial_secured_relief(household: bool) {
                 a.step(&mut sim).unwrap();
             }
             let loan = &sim.state.credit.loans[&10];
-            assert_eq!(loan.principal, if accepted { 3 } else { 10 });
+            assert_eq!(loan.principal, if before_sale { 3 } else { 10 });
             assert!(loan.collateral.as_ref().unwrap().pledged);
             assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(debtor));
             assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 0);
@@ -2187,7 +2200,7 @@ fn partial_secured_relief(household: bool) {
             a.step(&mut sim).unwrap();
             assert_eq!(
                 sim.state.credit.recovery.proceedings[&1].secured[&10],
-                if accepted { 3 } else { 8 }
+                if before_sale { 3 } else { 8 }
             );
             assert_eq!(
                 sim.state.credit.recovery.proceedings[&1]
@@ -2195,37 +2208,27 @@ fn partial_secured_relief(household: bool) {
                     .get(&11)
                     .copied()
                     .unwrap_or(0),
-                if accepted { 5 } else { 0 }
+                if before_sale { 5 } else { 0 }
             );
             assert_eq!(sim.state.balance(ESTATE, TOKEN), 8);
-            while sim.state.month <= 5 {
+            while sim.state.month <= 6 {
                 a.step(&mut sim).unwrap();
             }
-            assert_eq!(
-                sim.state.balance(STATE_AGENT, TOKEN),
-                if accepted { 3 } else { 8 }
-            );
-            assert_eq!(
-                sim.state.balance(junior, TOKEN),
-                if accepted { 5 } else { 0 }
-            );
-            assert_eq!(
-                sim.state.credit.loans[&10].principal,
-                if accepted { 0 } else { 2 }
-            );
-            assert_eq!(
-                sim.state.credit.loans[&11].principal,
-                if accepted { 5 } else { 10 }
-            );
+            assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), senior_paid);
+            assert_eq!(sim.state.balance(junior, TOKEN), junior_paid);
+            assert_eq!(sim.state.credit.loans[&10].principal, senior_remaining);
+            assert_eq!(sim.state.credit.loans[&11].principal, 10 - junior_paid);
             assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(BUYER));
             assert_eq!(sim.state.balance(ESTATE, TOKEN), 0);
+            assert_eq!(sim.state.balance(BUYER, TOKEN), 0);
+            assert_eq!(sim.state.credit.loans[&12].principal, 10);
             assert_eq!(
                 a.book()
                     .balances()
                     .get(&(STATE_AGENT, Account::CreditLoss))
                     .copied()
                     .unwrap_or(0),
-                if accepted { 7 } else { 0 }
+                if accepted { i128::from(quantity) } else { 0 }
             );
             assert_eq!(
                 a.book()
@@ -2233,7 +2236,7 @@ fn partial_secured_relief(household: bool) {
                     .get(&(debtor, Account::DebtRelief))
                     .copied()
                     .unwrap_or(0),
-                if accepted { -7 } else { 0 }
+                if accepted { -i128::from(quantity) } else { 0 }
             );
             if accepted {
                 let r = &sim.state.credit.recovery.loan_writeoffs[&10][0];
@@ -2247,18 +2250,18 @@ fn partial_secured_relief(household: bool) {
                 use economics_compute_smoke::households::dissolution as d;
                 assert_eq!(
                     a.book().balances()[&(PERSON, Account::LoanReceivable(11))],
-                    if accepted { 5 } else { 10 }
+                    i128::from(10 - junior_paid)
                 );
                 assert_eq!(
                     a.book().balances()[&(HOME, Account::LoanPayable(11))],
-                    if accepted { -5 } else { -10 }
+                    i128::from(junior_paid - 10)
                 );
                 assert_eq!(sim.state.balance(HOME, TOKEN), 0);
                 assert!(d::blockers(&sim.world, &sim.state, HOME).contains(&d::Blocker::Loan));
                 assert!(d::finish(&mut sim.world, &sim.state, HOME, PERSON).is_err());
             }
             let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
-            while resumed.state.month <= 5 {
+            while resumed.state.month <= 6 {
                 ra.step(&mut resumed).unwrap();
             }
             assert_eq!((&sim.state, &a), (&resumed.state, &ra));

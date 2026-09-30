@@ -165,7 +165,7 @@ The composed two-estate control rejects rewritten historical consent and preserv
 separate losses, actual purchase proceeds and CPU/checkpoint continuation. Its
 five-target regression gate passed 101 tests and strict all-target Clippy passed.
 
-## Partial secured relief before liquidation
+## Partial secured relief and liquidation
 
 A loan using authorized liquidation can now accept partial relief while its
 collateral is still pledged and unsold. Consent must match current debt and leave
@@ -174,10 +174,12 @@ neither title nor goods, and causes no payment. The subsequent actual sale ranks
 the reduced claim with competing liens against its realized proceeds.
 
 The history records the retained collateral so loss provenance remains valid after
-sale and collection. Full secured forgiveness and relief after collateral sale
-remain unsupported: those require explicit release/proceeds redistribution terms.
-The control compares accepted pre-sale relief with those two unsupported timings
-and scopes. A seven-coin senior loss leaves a three-coin lien; an eight-coin sale
+sale and collection. Partial relief after sale now reruns the accepted lien
+waterfall over only the unspent reservations for that same asset. Junior liens
+retain priority over unsecured collection; other assets' proceeds and completed
+payments are untouched. Full secured forgiveness remains unsupported.
+The control compares relief before sale, before distribution and after distribution,
+as well as the unsupported full-forgiveness scope. A seven-coin senior loss leaves a three-coin lien; an eight-coin sale
 then pays three senior and five junior coins at the later Due boundary. Forged
 collateral history is rejected, and CPU/reference/checkpoint statements agree.
 
@@ -188,3 +190,10 @@ The member receives five actual coins after senior relief and retains a five-coi
 claim. Repayment does not pool as income, and the internal payable still blocks
 household dissolution after estate closure. The four-target gate passed 75 tests,
 with CPU/reference, checkpoint continuation and strict all-target Clippy.
+
+Post-sale relief uses the existing allocation policy and beneficial custody limits.
+An unsecured creditor with higher ordinary collection priority receives none of the
+released proceeds while a junior lien still claims them. A later reduction of the
+remaining deficiency does not recover money already paid. Person and household
+controls agree across CPU/reference and checkpoints. The five-target gate passed
+117 tests and strict all-target Clippy passed.
