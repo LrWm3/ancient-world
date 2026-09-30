@@ -49,7 +49,7 @@ their initial cash depletion is not presented as a simulated expenditure. The
 affected commodity, wage, mixed-claim, guarantee, household-dissolution and
 recovery suites pass alongside these tests. Strict all-target Clippy passes.
 
-## Funded assignment of unsecured coin loans
+## Funded assignment of coin loans
 
 An authorized estate can post `recovery.receivable_listings` naming an entire
 existing direct-loan asset. Dated `receivable_bids` provide explicit buyer
@@ -57,7 +57,7 @@ consent and cash price. The first adapter requires the current principal plus
 accrued interest, in the estate's custody denomination. A stale or discounted
 price is rejected; it never changes the borrower's amount owed.
 
-Common offer discovery exposes the loan debtor and current claim amount.
+Common offer discovery exposes the current loan terms, security, debtor and claim amount.
 `ReceivableLiquidationBid` preparation uses ordinary Acquire settlement. Physical
 asset sales run first, receivable bids next (listing then stable bid ID), then
 inventory lots and new advances. All share opening cash; a purchased claim or
@@ -84,9 +84,19 @@ two coins fund only the claim; three fund both, with no duplicated purchasing po
 ## Remaining boundaries
 
 This is a bounded assignment adapter, not general debt trading or discount
-valuation. It excludes secured, guaranteed, mortgage, native-commodity, partial
+valuation. It excludes fixed-value/resale security, guaranteed, mortgage, native-commodity, partial
 and onward assignments, borrower buybacks, netting and impairment estimation.
 Accepted estate authorization supplies assignment authority; autonomous listing,
 pricing and consent remain future work. Unresolved assets still retain their
 normal collection and closure protections. Inventory sales have their own
 [funded liquidation adapter](INVENTORY-LIQUIDATION.md).
+
+Authorized-liquidation security can now accompany the assigned claim. Neither
+the lien rank nor the loan ID changes, so the same loan receives its asset's
+reserved proceeds after assignment. A two-estate continuation has a winding
+household sell its claim against a person whose collateral is independently
+liquidated, either before or after claim assignment. Funded investors receive
+actual proceeds and retain the agreed deficiency risk; unfunded bids leave the
+household's exposure and exit blockers intact. Explicit debtor discharge clears
+the remaining receivable in the owning party's statements. The four-target gate
+passed 50 tests, including CPU/reference and checkpoint comparisons.

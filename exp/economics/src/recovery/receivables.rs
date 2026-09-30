@@ -1,4 +1,4 @@
-//! Supplied estate bids assign an entire unsecured coin loan at its current face
+//! Supplied estate bids assign an entire eligible coin loan at its current face
 //! amount. Discount valuation, partial assignment and onward resale are deferred.
 use crate::{credit, finance, model::*, opportunities, recovery};
 use std::collections::BTreeSet;
@@ -30,6 +30,8 @@ pub struct Assignment {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Offer {
+    /// Current servicing terms and security; discovery is not an underwriting promise.
+    pub loan: credit::Loan,
     pub listing: Listing,
     pub seller: AgentId,
     pub debtor: AgentId,
@@ -66,6 +68,7 @@ pub fn discover(world: &World, state: &State, buyer: AgentId) -> Vec<Offer> {
                 .is_some_and(|c| c.stage == recovery::Stage::Active)
         {
             offers.push(Offer {
+                loan: loan.clone(),
                 listing: l.clone(),
                 seller: p.debtor,
                 debtor: loan.debtor,
@@ -96,7 +99,9 @@ pub(crate) fn validate(world: &World, state: &State) -> Result<(), String> {
             || !loans.insert(l.loan)
             || a.terms.creditor != p.debtor
             || a.terms.denomination != p.denomination
-            || a.collateral.is_some()
+            || a.collateral.as_ref().is_some_and(|c| {
+                c.settlement != credit::CollateralSettlement::AuthorizedLiquidation
+            })
             || world
                 .recovery
                 .guarantees
@@ -104,7 +109,7 @@ pub(crate) fn validate(world: &World, state: &State) -> Result<(), String> {
                 .any(|g| g.claim == recovery::GuaranteedClaim::Loan(l.loan) || g.recourse == l.loan)
         {
             return Err(
-                "receivable assignment requires one unsecured, unguaranteed estate coin claim"
+                "receivable assignment requires one unguaranteed coin claim with compatible liquidation security"
                     .into(),
             );
         }

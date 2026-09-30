@@ -625,3 +625,218 @@ fn receivable_and_inventory_lots_compete_for_one_opening_cash_budget() {
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn assigned_secured_claim_keeps_reserved_proceeds_across_two_household_and_person_estates() {
+    use economics_compute_smoke::{
+        financial_reporting::Opening,
+        household_governance::Governance,
+        households::{self, Agreement, dissolution},
+        recovery::receivables,
+        scenario::PLOT,
+    };
+    const INVESTOR: AgentId = 98;
+    const PROPERTY_BUYER: AgentId = 100;
+    const BORROWER_ESTATE: AgentId = 101;
+    for funded in [false, true] {
+        for discharge in [false, true] {
+            for sale_month in [3, 4] {
+                let (mut w, mut s) = scenario::baseline();
+                w.participants[0].needs.clear();
+                w.participants[0].capacity.quantity = 0;
+                w.definitions.clear();
+                w.rights.clear();
+                w.agreements.clear();
+                w.resources.push(Resource {
+                    id: TOKEN,
+                    name: "coin".into(),
+                    kind: ResourceKind::Stock,
+                });
+                for id in [BORROWER, INVESTOR, ESTATE, PROPERTY_BUYER, BORROWER_ESTATE] {
+                    w.agents.push(Agent {
+                        id,
+                        name: format!("participant {id}"),
+                    });
+                }
+                w.assets.iter_mut().find(|a| a.id == PLOT).unwrap().owner = BORROWER;
+                let mut governance = Governance::contributed(PERSON);
+                governance.constitution.allow_dissolution = true;
+                households::form(
+                    &mut w,
+                    &s,
+                    Agreement {
+                        id: 1,
+                        agent: HOME,
+                        adults: vec![PERSON],
+                        governance,
+                        formed: 1,
+                        dwelling_process: None,
+                        admission: None,
+                        membership: vec![],
+                        asset_sales: vec![],
+                        equipment_retirements: vec![],
+                        support: vec![],
+                    },
+                )
+                .unwrap();
+                let loan = |id, creditor, debtor| Advance {
+                    id,
+                    debtor,
+                    month: 1,
+                    principal: 10,
+                    collateral: None,
+                    priority: 0,
+                    terms: LoanOffer {
+                        creditor,
+                        denomination: TOKEN,
+                        max_principal: 10,
+                        monthly_rate_bps: 0,
+                        term_months: 1,
+                        grace_months: 10,
+                    },
+                };
+                w.lending = vec![loan(DEBT, STATE_AGENT, HOME), loan(ASSET, HOME, BORROWER)];
+                w.lending[1].collateral = Some(credit::Collateral {
+                    asset: PLOT,
+                    pledged: true,
+                    priority: 5,
+                    settlement: credit::CollateralSettlement::AuthorizedLiquidation,
+                });
+                for (id, debtor, estate) in [(1, HOME, ESTATE), (2, BORROWER, BORROWER_ESTATE)] {
+                    w.recovery.proceedings.push(ProceedingTerms {
+                        id,
+                        debtor,
+                        estate,
+                        authority: STATE_AGENT,
+                        denomination: TOKEN,
+                        opening_month: 3,
+                        earliest_close: 4,
+                        assets: if id == 2 {
+                            vec![recovery::Listing {
+                                asset: PLOT,
+                                minimum_price: 4,
+                            }]
+                        } else {
+                            vec![]
+                        },
+                        discharge_deficiency: id == 1 || discharge,
+                    });
+                }
+                w.recovery.bids.push(recovery::Bid {
+                    id: 1,
+                    proceeding: 2,
+                    buyer: PROPERTY_BUYER,
+                    asset: PLOT,
+                    month: sale_month,
+                    price: 4,
+                });
+                w.recovery.receivable_listings.push(receivables::Listing {
+                    id: 1,
+                    proceeding: 1,
+                    loan: ASSET,
+                });
+                w.recovery.receivable_bids.push(receivables::Bid {
+                    id: 1,
+                    listing: 1,
+                    buyer: INVESTOR,
+                    month: 3,
+                    price: 10,
+                });
+                s.balances = [
+                    ((STATE_AGENT, TOKEN), 10),
+                    ((HOME, TOKEN), 10),
+                    ((PERSON, TOKEN), 5),
+                    ((INVESTOR, TOKEN), if funded { 10 } else { 9 }),
+                    ((PROPERTY_BUYER, TOKEN), 4),
+                ]
+                .into();
+                let run = |backend| {
+                    let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+                    sim.run_months(1).unwrap();
+                    // Both observed losses predate the reporting interval.
+                    sim.state.balances.insert((HOME, TOKEN), 0);
+                    sim.state.balances.insert((BORROWER, TOKEN), 0);
+                    dissolution::request(&mut sim.world, &sim.state, HOME, PERSON).unwrap();
+                    let mut audit = Audit::with_opening(
+                        &sim.world,
+                        &sim.state,
+                        TOKEN,
+                        Opening {
+                            assets: [(PLOT, 6)].into(),
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap();
+                    until(&mut sim, &mut audit, 3, Phase::Acquire);
+                    let (mut resumed, mut rb) = (sim.clone(), audit.clone());
+                    audit.step(&mut sim).unwrap();
+                    assert_eq!(
+                        sim.state.credit.loans[&ASSET].creditor,
+                        if funded { INVESTOR } else { HOME }
+                    );
+                    assert_eq!(
+                        sim.state.credit.recovery.proceedings[&2]
+                            .secured
+                            .get(&ASSET)
+                            .copied()
+                            .unwrap_or(0),
+                        if sale_month == 3 { 4 } else { 0 }
+                    );
+                    assert_eq!(
+                        sim.state.balance(ESTATE, TOKEN),
+                        if funded { 10 } else { 0 }
+                    );
+                    assert_eq!(
+                        credit::owner(&sim.world, &sim.state, PLOT),
+                        Some(if sale_month == 3 {
+                            PROPERTY_BUYER
+                        } else {
+                            BORROWER
+                        })
+                    );
+                    until(&mut sim, &mut audit, 8, Phase::Open);
+                    until(&mut resumed, &mut rb, 8, Phase::Open);
+                    assert_eq!(
+                        (&sim.state, &sim.ledger, &audit),
+                        (&resumed.state, &resumed.ledger, &rb)
+                    );
+                    assert_eq!(
+                        sim.state.balance(INVESTOR, TOKEN),
+                        if funded { 4 } else { 9 }
+                    );
+                    assert_eq!(
+                        sim.state.balance(STATE_AGENT, TOKEN),
+                        if funded { 10 } else { 4 }
+                    );
+                    assert_eq!(sim.state.balance(PERSON, TOKEN), 5);
+                    assert_eq!(
+                        sim.state.credit.loans[&ASSET].principal,
+                        if discharge { 0 } else { 6 }
+                    );
+                    let cleared = funded || discharge;
+                    assert_eq!(
+                        dissolution::finish(&mut sim.world, &sim.state, HOME, PERSON).is_ok(),
+                        cleared
+                    );
+                    assert_eq!(
+                        dissolution::finish(&mut resumed.world, &resumed.state, HOME, PERSON)
+                            .is_ok(),
+                        cleared
+                    );
+                    until(&mut sim, &mut audit, 9, Phase::Open);
+                    until(&mut resumed, &mut rb, 9, Phase::Open);
+                    assert_eq!(
+                        (&sim.state, &sim.ledger, &audit),
+                        (&resumed.state, &resumed.ledger, &rb)
+                    );
+                    assert_eq!(
+                        households::membership::current(&sim.world.households[0]).is_empty(),
+                        cleared
+                    );
+                    (sim.state, sim.ledger, audit)
+                };
+                assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+            }
+        }
+    }
+}

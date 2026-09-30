@@ -403,3 +403,11 @@ liquidation and household forwards passed; strict all-target Clippy passed.
    tampered/duplicate applications, subsequent collection and discharge. Claim
    and inventory purchases also share one opening budget. The five-target gate
    passed 77 tests; strict all-target Clippy passed.
+
+6. **Secured claim assignment across organizational estates.** A household can
+   assign a direct coin loan with authorized-liquidation security. The original
+   lien identity and reserved proceeds follow the existing loan, both before and
+   after its debtor's property sale. Two estates, private member cash, investor
+   funding, retained/discharged deficiency and household dissolution now run
+   together. Offer inspection exposes the complete loan terms and security.
+   The four-target gate passed 50 tests; strict all-target Clippy passed.
