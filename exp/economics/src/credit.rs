@@ -1142,7 +1142,7 @@ fn due(
                     .unwrap();
                 (agreement.debtor, agreement.payment.resource)
             }
-            finance::ContractId::Forward(_) => unreachable!(),
+            finance::ContractId::Forward(_) | finance::ContractId::Wages(_) => unreachable!(),
         }
     };
     let accounts: BTreeMap<_, _> = order
@@ -1261,7 +1261,9 @@ fn due(
                 *budgets = execution.available.clone();
                 continue;
             }
-            finance::ContractId::Forward(_) => unreachable!("forwards collect at Acquire"),
+            finance::ContractId::Forward(_) | finance::ContractId::Wages(_) => {
+                unreachable!("claims collect at their own boundary")
+            }
         };
         let mut l = out.after.loans[&id].clone();
         if crate::recovery::active(world, &out.after, l.debtor).is_some()

@@ -46,6 +46,19 @@ pub fn outstanding(world: &World, state: &State, debtor: AgentId) -> Vec<Claim> 
             remaining: Amount::new(c.goods.resource, c.claim().outstanding()),
         });
     }
+    for (&(id, month), earned) in &state.employment.earned {
+        if earned.claim.transfer.from == debtor && earned.claim.outstanding() > 0 {
+            claims.push(Claim {
+                contract: ContractId::Wages(id),
+                creditor: earned.claim.transfer.to,
+                due: month + 1,
+                remaining: Amount::new(
+                    earned.claim.transfer.amount.resource,
+                    earned.claim.outstanding(),
+                ),
+            });
+        }
+    }
     claims.sort_by_key(|c| (c.contract, c.due));
     claims
 }

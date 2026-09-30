@@ -46,6 +46,7 @@ pub struct Book {
 pub enum Reason {
     Delivered,
     Collection,
+    CollectionStayed,
     Arrears,
     Inactive,
     NotPermitted,
@@ -288,6 +289,7 @@ pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boun
             let mut reason = if [t.worker, t.employer].iter().any(|a| {
                 s.terminal.contains_key(a)
                     || !crate::households::market::active(w, s, *a)
+                    || (*a == t.employer && crate::recovery::active(w, &s.credit, *a).is_some())
                     || (w.employment_offers.contains(&t.id)
                         && crate::recovery::active(w, &s.credit, *a).is_some())
             }) {
@@ -397,6 +399,22 @@ pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boun
         for key in keys {
             let e = b.after.earned.get_mut(&key).unwrap();
             if e.claim.outstanding() == 0 {
+                continue;
+            }
+            // Cash claims under an active proceeding collect through its shared
+            // Due allocation. Other denominations retain native Close servicing.
+            if crate::recovery::active(w, &s.credit, e.claim.transfer.from)
+                .is_some_and(|p| p.denomination == e.claim.transfer.amount.resource)
+            {
+                b.receipts.push(Receipt {
+                    agreement: key.0,
+                    earned_month: key.1,
+                    requested: e.claim.outstanding(),
+                    delivered: 0,
+                    earned: 0,
+                    paid: 0,
+                    reason: Reason::CollectionStayed,
+                });
                 continue;
             }
             let maximum = pooling.payment_limit(w, &execution, &e.claim)?;

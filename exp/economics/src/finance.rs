@@ -315,6 +315,7 @@ pub enum ContractId {
     Loan(u32),
     Land(u32),
     Forward(u32),
+    Wages(u32),
 }
 
 /// Allocation evidence in claim units; actual denomination-conversion legs remain
