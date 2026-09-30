@@ -1763,6 +1763,11 @@ fn priced_interest_loans_separate_later_accrual_from_principal_cost_and_loss() {
     priced_interest(false);
 }
 
+#[test]
+fn household_interest_claim_sales_keep_accrual_and_buyer_risk_separate_after_exit() {
+    priced_interest(true);
+}
+
 fn priced_interest(household: bool) {
     use economics_compute_smoke::{
         accounting::Account,
@@ -1900,6 +1905,20 @@ fn priced_interest(household: bool) {
                     );
                 }
                 let (saved, mut ra) = (sim.clone(), audit.clone());
+                if household {
+                    until(&mut sim, &mut audit, 6, Phase::Open);
+                    economics_compute_smoke::households::dissolution::finish(
+                        &mut sim.world,
+                        &sim.state,
+                        HOME,
+                        PERSON,
+                    )
+                    .unwrap();
+                    assert_eq!(
+                        sim.state.credit.loans[&ASSET].principal,
+                        if writeoff { 0 } else { 34 }
+                    );
+                }
                 until(&mut sim, &mut audit, 9, Phase::Open);
                 assert_eq!(sim.state.credit.loans[&ASSET].debt().unwrap(), 0);
                 assert_eq!(
@@ -1928,8 +1947,35 @@ fn priced_interest(household: bool) {
                     if writeoff { 0 } else { 84 }
                 );
                 let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
+                if household {
+                    until(&mut resumed, &mut ra, 6, Phase::Open);
+                    economics_compute_smoke::households::dissolution::finish(
+                        &mut resumed.world,
+                        &resumed.state,
+                        HOME,
+                        PERSON,
+                    )
+                    .unwrap();
+                }
                 until(&mut resumed, &mut ra, 9, Phase::Open);
                 assert_eq!((&sim.state, &audit), (&resumed.state, &ra));
+                if household {
+                    assert!(
+                        economics_compute_smoke::households::membership::current(
+                            &sim.world.households[0]
+                        )
+                        .is_empty()
+                    );
+                    assert_eq!(balance(&audit, HOME, Account::InterestIncome), -18);
+                    for account in [
+                        Account::InterestIncome,
+                        Account::DisposalGain,
+                        Account::DisposalLoss,
+                        Account::CreditLoss,
+                    ] {
+                        assert_eq!(balance(&audit, PERSON, account), 0);
+                    }
+                }
                 (sim.state, sim.ledger, audit)
             };
             assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));

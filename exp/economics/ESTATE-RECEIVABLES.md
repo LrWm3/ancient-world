@@ -304,3 +304,9 @@ later relief expenses remaining principal cost plus accrued unpaid interest.
 This is proportional principal-cost release, not an effective-interest-yield
 model. Purchasing an already accrued interest balance remains excluded until
 there is an explicit rule allocating purchase cost between the acquired claims.
+
+An interest-bearing claim sold by a household now has an exit control too. The
+household retains pre-sale interest and disposal results, finishes after its own
+estate distributions, and closes while the buyer still owns future principal.
+Later collection or debtor relief affects only the buyer's claim and accounts;
+it does not reopen the seller or pass its income/losses onto a member.

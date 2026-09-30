@@ -1141,3 +1141,10 @@ their separate gates above and are not covered by this snapshot.
     purchasing already accrued interest remains rejected atomically. CPU/reference
     and checkpoints agree. The five-target gate passed 93 tests and strict
     all-target Clippy passed.
+
+82. **Household interest-claim sales separate ownership across dissolution.**
+    The household retains pre-sale interest and disposal results, then closes
+    after estate distribution while the investor still owns installments. Later
+    collection/default and cost release remain with that investor. Member accounts
+    stay separate; discounted/par/premium, CPU/reference and checkpoint controls
+    pass. The four-target gate passed 62 tests and strict all-target Clippy passed.
