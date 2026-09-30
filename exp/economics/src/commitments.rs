@@ -306,7 +306,75 @@ pub(crate) fn evaluate_with(
     state: &State,
     execution: &mut finance::Execution,
 ) -> Result<Settlement, String> {
-    evaluate_selected(world, state, execution, None)
+    if world.collection_policy == finance::CollectionPolicy::Stable {
+        return evaluate_selected(world, state, execution, None);
+    }
+    let protected = protected_stock(world, state)?;
+    let requests = current_claims(world, state, &state.credit)?;
+    let grants = finance::collection::allocate(world, state, execution, &protected, &requests)?
+        .ok_or("missing proportional land grants")?;
+    let mut order: Vec<_> = requests.iter().collect();
+    order.sort_by_key(|r| (r.rank, r.contract));
+    let mut current = state.clone();
+    current.obligations = due_obligations(world, state)?;
+    let mut transactions = Vec::new();
+    for request in order {
+        let finance::ContractId::Land(id) = request.contract else {
+            unreachable!()
+        };
+        let settled = evaluate_allocated(world, &current, execution, id, &grants, &protected)?;
+        current.obligations = settled.obligations;
+        transactions.extend(settled.transactions);
+    }
+    Ok(Settlement {
+        policy: world.payment_policy,
+        protected,
+        obligations: current.obligations,
+        transactions,
+    })
+}
+
+/// Execute one aggregate entitlement against its original dated bills. Restriction
+/// is local to this contract; restore unused global allowance afterward.
+pub(crate) fn evaluate_allocated(
+    world: &World,
+    state: &State,
+    execution: &mut finance::Execution,
+    id: u32,
+    grants: &finance::collection::CollectionGrants,
+    protected: &BTreeMap<Account, i32>,
+) -> Result<Settlement, String> {
+    let a = active(world, state)
+        .find(|a| a.id == id)
+        .ok_or("missing allocated land agreement")?;
+    let contract = finance::ContractId::Land(id);
+    let mut limits = BTreeMap::from([(
+        (a.debtor, a.payment.resource),
+        grants.get(&contract).copied().unwrap_or(0),
+    )]);
+    if let Some(tender) = world.activities.coin_payments.get(&id) {
+        limits.insert(
+            (a.debtor, tender.resource),
+            grants
+                .alternative
+                .get(&contract)
+                .map_or(0, |(_, amount, _)| *amount),
+        );
+    }
+    let mut saved = Vec::new();
+    for (account, grant) in limits {
+        let opening = execution.available.get(&account).copied().unwrap_or(0);
+        let limited =
+            opening.min(grant.saturating_add(protected.get(&account).copied().unwrap_or(0)));
+        saved.push((account, opening, limited));
+        execution.available.insert(account, limited);
+    }
+    let result = evaluate_selected(world, state, execution, Some(id));
+    for (account, opening, limited) in saved {
+        let spent = limited - execution.available.get(&account).copied().unwrap_or(0);
+        execution.available.insert(account, opening - spent);
+    }
+    result
 }
 pub(crate) fn evaluate_selected(
     world: &World,

@@ -471,10 +471,6 @@ fn validate_purchase(world: &World, state: &State) -> Result<(), String> {
     Ok(())
 }
 pub fn validate(world: &World, state: &State) -> Result<(), String> {
-    if world.collection_policy == finance::CollectionPolicy::Proportional && !enabled(world) {
-        return Err("proportional collection currently requires credit servicing".into());
-    }
-
     if world.collection_policy == finance::CollectionPolicy::Proportional {
         let currencies: BTreeSet<_> = world
             .activities
