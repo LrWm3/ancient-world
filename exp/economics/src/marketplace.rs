@@ -49,6 +49,7 @@ pub fn eligible(world: &World, state: &State, marketplace: AgentId, participant:
     venue(world, marketplace).is_some_and(|m| {
         !state.terminal.contains_key(&marketplace)
             && !state.terminal.contains_key(&participant)
+            && crate::recovery::active(world, &state.credit, participant).is_none()
             && participant != marketplace
             && world.transaction_policy.as_ref().is_some_and(|p| {
                 p.agent_types

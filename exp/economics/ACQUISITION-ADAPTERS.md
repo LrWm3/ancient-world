@@ -353,3 +353,18 @@ cash, zero wood, or one wood decline the offer and create no wages or collection
 Common offer preparation, actual CPU/reference execution, checkpoint continuation
 and separate service/inventory books agree. This is a scoped useful-work test;
 it does not claim guaranteed returns from arbitrary multi-market hiring plans.
+
+## Negotiated exchange and authorized recovery
+
+A bilateral negotiated market may now coexist with a direct-loan estate, provided
+its buyer, seller and marketplace are separate from the dedicated custodian.
+Marketplace eligibility excludes participants under an active proceeding, matching
+the existing town-market stay. A stayed party posts no executable quotes; unrelated
+participants remain eligible. Closing the proceeding restores normal eligibility.
+
+The test exercises both buyer and seller debtors. Borrowed coins pay real work,
+a missed installment precedes legal opening, and later service income funds actual
+estate repayment. A month-three trade is refused during the case; the equivalent
+month-five trade succeeds after closure. CPU/reference and checkpoint histories
+agree and all separate books balance. This is the existing full optional-trade
+stay, not a new essential-purchase exemption or a price intervention.

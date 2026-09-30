@@ -474,7 +474,10 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                 .forwards
                 .values()
                 .any(|c| c.debtor == p.estate || c.creditor == p.estate)
-            || world.negotiation.is_some()
+            || world
+                .negotiation
+                .as_ref()
+                .is_some_and(|s| [s.buyer.agent, s.seller.agent, s.marketplace].contains(&p.estate))
             || world.credit.is_some()
         {
             return Err("estate custody requires direct-loan composition without active custody-agent trading".into());

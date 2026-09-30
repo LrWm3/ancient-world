@@ -259,6 +259,7 @@ Completed integrations:
 17. Preserve native collection and repayment during authorized coin insolvency.
 18. Keep household assets and membership distinct from a member’s environmental-work estate.
 19. Admit posted household hiring against useful work and actual shared environmental stock.
+20. Compose negotiated buying/selling with authorized stays and post-closure eligibility.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.
