@@ -100,11 +100,12 @@ fn opening(w: &World, s: &State) -> Audit {
         TOKEN,
         Opening {
             assets: [(PLOT, 10000), (RENTED, 10000)].into(),
-            inventory: [
-                ((PERSON, SEED), i128::from(s.balance(PERSON, SEED))),
-                ((PERSON, GRAIN), i128::from(s.balance(PERSON, GRAIN))),
-            ]
-            .into(),
+            inventory: s
+                .balances
+                .iter()
+                .filter(|((_, r), q)| [SEED, GRAIN].contains(r) && **q > 0)
+                .map(|(account, q)| (*account, i128::from(*q)))
+                .collect(),
             exchange_values: [(SEED, 1), (GRAIN, 1)].into(),
             dues: Some(Valuation([(99, 1)].into())),
             processes: Some(Costs {
@@ -333,5 +334,134 @@ fn joint_work_plan_observes_lease_and_prepaid_performance_before_reserving_produ
             (sim.state, sim.ledger, audit)
         };
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
+
+#[test]
+fn household_joint_plan_reserves_shared_seed_and_replays_allocation_once() {
+    use economics_compute_smoke::{joint_plan, settlement};
+    let (mut w, mut s) = fixture(true, true);
+    w.horizon = 12;
+    for d in &mut w.definitions {
+        if d.execution == Execution::Productive && d.id != GROW {
+            d.enabled = false;
+        }
+    }
+    s.balances.insert((PERSON, SEED), 0);
+    s.balances.insert((HOME, SEED), 1);
+    let policy = w.credit.as_mut().unwrap().stock_sales.as_mut().unwrap();
+    policy.forecast = None;
+    policy.joint = Some(joint_plan::Policy {
+        horizon_months: 12,
+        need_limits: [(NUTRITION, 0)].into(),
+        future_reserves: vec![6],
+    });
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut audit = opening(&w, &s);
+        while sim.state.phase != Phase::Acquire {
+            audit.step(&mut sim).unwrap();
+        }
+        audit.step(&mut sim).unwrap();
+        let plan = sim.state.pending_production.clone().unwrap();
+        let receipt = plan.household.as_ref().unwrap();
+        assert!(
+            receipt
+                .reservations
+                .iter()
+                .any(|r| r.request.member == PERSON
+                    && r.request.resource == SEED
+                    && r.allocated == 1),
+            "receipt={receipt:?}, balances={:?}, plan={plan:?}",
+            sim.state.balances
+        );
+        assert!(!receipt.labor.is_empty());
+        assert_eq!(sim.state.balance(HOME, SEED), 1);
+        assert_eq!(sim.state.balance(PERSON, SEED), 0);
+        let before = sim.state.clone();
+        for missing_envelope in [false, true] {
+            let mut invalid = before.clone();
+            let plan = invalid.pending_production.as_mut().unwrap();
+            if missing_envelope {
+                plan.household = None;
+            } else {
+                plan.month += 1;
+            }
+            assert!(Simulation::new(sim.world.clone(), invalid, backend).is_err());
+        }
+        let mut altered = *plan.clone();
+        altered.household.as_mut().unwrap().before.clear();
+        let mut rejected = before.clone();
+        assert!(
+            settlement::commit(
+                &sim.world,
+                &mut rejected,
+                &altered,
+                backend,
+                sim.effect_limit
+            )
+            .is_err()
+        );
+        assert_eq!(rejected, before);
+        let mut resumed = Simulation::new(sim.world.clone(), before, backend).unwrap();
+        let mut ra = audit.clone();
+        let prefix = sim.ledger.len();
+        audit.step(&mut sim).unwrap();
+        ra.step(&mut resumed).unwrap();
+        assert_eq!(sim.ledger.last().unwrap(), plan.as_ref());
+        assert_eq!(sim.state.balance(HOME, SEED), 0);
+        assert_eq!(sim.state.balance(PERSON, SEED), 0);
+        assert!(
+            sim.state
+                .processes
+                .values()
+                .any(|p| p.definition == GROW && p.status == Status::Active)
+        );
+        assert!(sim.state.pending_production.is_none());
+        while sim.state.month < 7 {
+            audit.step(&mut sim).unwrap();
+        }
+        while resumed.state.month < 7 {
+            ra.step(&mut resumed).unwrap();
+        }
+        assert_eq!(
+            (&sim.state, &sim.ledger[prefix..], &audit),
+            (&resumed.state, &resumed.ledger[..], &ra)
+        );
+        assert!(
+            sim.ledger
+                .iter()
+                .filter_map(|b| b.household.as_ref())
+                .any(|h| h
+                    .after
+                    .iter()
+                    .any(|e| e.account == (HOME, GRAIN) && e.delta > 0))
+        );
+        assert!(
+            sim.state
+                .processes
+                .values()
+                .any(|p| p.definition == GROW && p.status == Status::Completed)
+        );
+        (sim.state, sim.ledger, audit)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    // A wish to start the same crop cannot create absent household seed.
+    s.balances.insert((HOME, SEED), 0);
+    for backend in [Backend::Reference, Backend::CubeCpu] {
+        let mut control = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        while control.state.phase != Phase::Productive {
+            control.step().unwrap();
+        }
+        control.step().unwrap();
+        assert!(
+            !control
+                .state
+                .processes
+                .values()
+                .any(|p| p.definition == GROW)
+        );
+        assert_eq!(control.state.balance(HOME, SEED), 0);
+        assert_eq!(control.state.balance(PERSON, SEED), 0);
     }
 }

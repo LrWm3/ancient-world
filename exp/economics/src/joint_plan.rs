@@ -163,21 +163,33 @@ pub(crate) fn choose(
                         } else {
                             choice
                         };
-                        if let Work::Produce(id) = selected
+                        let start = if let Work::Produce(id) = selected
                             && !sim.state.processes.values().any(|x| {
                                 x.operator == sale.seller
                                     && x.status == Status::Active
                                     && x.definition == id
-                            })
-                        {
-                            sim.world.scheduled_starts.push(ScheduledStart {
+                            }) {
+                            Some(ScheduledStart {
                                 month: sim.state.month,
                                 agent: sale.seller,
                                 definition: id,
-                            });
+                            })
+                        } else {
+                            None
+                        };
+                        if sim.world.households.is_empty() {
+                            if let Some(start) = start {
+                                sim.world.scheduled_starts.push(start);
+                            }
+                            sim.productive_with(&mut b, selected != Work::Ordinary)?;
+                            sim.world.scheduled_starts.clear();
+                        } else {
+                            b = crate::households::productive_plan(
+                                &sim,
+                                selected != Work::Ordinary,
+                                start,
+                            )?;
                         }
-                        sim.productive_with(&mut b, selected != Work::Ordinary)?;
-                        sim.world.scheduled_starts.clear();
                         if first.is_none() {
                             first = Some(Box::new(b.clone()));
                         }

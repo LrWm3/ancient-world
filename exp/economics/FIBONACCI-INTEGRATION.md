@@ -687,3 +687,15 @@ The isolated source snapshot at **`0325e4f`** passed
 `cargo +1.92.0 test --locked`: **964 passed, 0 failed, 1 ignored**, across
 120 Cargo result targets including empty unit/doc targets. Later items have
 separately recorded affected gates and are not covered by that snapshot.
+
+36. **Single-member household joint work retains the complete allocation boundary.**
+    Candidate work carries governed labor, shared-input reservations and output
+    collection alongside its core transactions. Execution verifies and consumes
+    that full dated plan once. A six-month mortgage/farming control reserves the
+    household's only seed and pools the harvest with separate statements;
+    missing seed prevents planting. The control uses farming as its sole
+    productive option and a twelve-month need horizon. CPU and reconstructed
+    continuation agree; altered envelopes and dates fail atomically. The
+    eight-target gate passed 124 tests with one ignored; the additional final
+    checkpoint-validation regression and strict all-target Clippy passed. The
+    one-participant joint bound remains; multi-person forecasts are outstanding.

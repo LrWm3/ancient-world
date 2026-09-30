@@ -189,10 +189,20 @@ pub fn form(world: &mut World, state: &State, mut agreement: Agreement) -> Resul
 }
 
 pub fn validate(world: &World, state: &State) -> Result<(), String> {
+    if !world.households.is_empty() && world.priority == Priority::ConsequenceAware {
+        return Err("households currently require fixed individual priorities".into());
+    }
     if !world.households.is_empty()
-        && (world.priority == Priority::ConsequenceAware || state.pending_production.is_some())
+        && state.pending_production.as_ref().is_some_and(|plan| {
+            state.phase != Phase::Productive
+                || plan.phase != Phase::Productive
+                || plan.month != state.month
+                || plan.id != state.next_batch
+                || plan.household.is_none()
+                || plan.production_plan.is_some()
+        })
     {
-        return Err("households currently require fixed individual priorities without a pending forecast plan".into());
+        return Err("invalid dated household production plan".into());
     }
     for (&(household, member, resource), &remainder) in &state.household_remainders {
         if !(0..POOL_DIVISOR).contains(&remainder)
@@ -722,7 +732,7 @@ fn prepare(world: &World, state: &State) -> Result<(State, Boundary), String> {
         (b.reservations, b.before) = allocate(world, state, requests)?;
         apply(world, &mut staged, &b.before, Backend::Reference)?;
     }
-    if state.phase == Phase::Productive && staged.pending_production.is_none() {
+    if state.phase == Phase::Productive {
         let (effects, receipts) = support::prepare(world, state, &staged)?;
         apply(world, &mut staged, &effects, Backend::Reference)?;
         b.before.extend(effects);
@@ -1412,7 +1422,56 @@ fn contributed_labor(
     Ok((best_effects, decision))
 }
 
+/// Prepare the same household allocation/collection envelope used by live work.
+/// An explicit candidate start is applied only after household allocation, so a
+/// person's hypothetical work choice cannot rewrite the household's policy.
+pub(crate) fn productive_plan(
+    sim: &Simulation,
+    defer_new: bool,
+    start: Option<ScheduledStart>,
+) -> Result<Batch, String> {
+    if sim.state.phase != Phase::Productive || sim.state.pending_production.is_some() {
+        return Err("household work candidate requires an unplanned Productive boundary".into());
+    }
+    let (prepared, mut receipt) = prepare(&sim.world, &sim.state)?;
+    let mut candidate = Simulation {
+        world: sim.world.clone(),
+        state: prepared.clone(),
+        ledger: vec![],
+        reports: vec![],
+        backend: Backend::Reference,
+        effect_limit: sim.effect_limit,
+    };
+    if let Some(start) = start {
+        candidate.world.scheduled_starts.push(start);
+    }
+    let mut batch = Batch::empty(&prepared);
+    candidate.productive_with(&mut batch, defer_new)?;
+    batch.employment = crate::employment::evaluate(&candidate.world, &prepared, &batch)?;
+    crate::settlement::commit_core(
+        &candidate.world,
+        &mut candidate.state,
+        &batch,
+        Backend::Reference,
+        sim.effect_limit,
+    )?;
+    (receipt.after, receipt.remainders) = collect(&sim.world, &prepared, &candidate.state, &batch)?;
+    batch.household = Some(receipt);
+    Ok(batch)
+}
+
 pub(crate) fn step(sim: &mut Simulation) -> Result<(), String> {
+    if let Some(plan) = sim.state.pending_production.clone() {
+        commit(
+            &sim.world,
+            &mut sim.state,
+            &plan,
+            sim.backend,
+            sim.effect_limit,
+        )?;
+        sim.ledger.push(*plan);
+        return Ok(());
+    }
     let (prepared, mut receipt) = prepare(&sim.world, &sim.state)?;
     let mut staged = Simulation {
         world: sim.world.clone(),
@@ -1459,6 +1518,11 @@ pub(crate) fn settled_boundaries(
     backend: Backend,
     limit: usize,
 ) -> Result<(State, State, State), String> {
+    if let Some(plan) = &state.pending_production
+        && plan.as_ref() != batch
+    {
+        return Err("execution differs from dated household production plan".into());
+    }
     let (prepared, mut expected) = prepare(world, state)?;
     let receipt = batch
         .household
@@ -1499,6 +1563,9 @@ pub(crate) fn settled_boundaries(
     retirement::publish(&mut staged, &expected.retirements);
     let mut core = batch.clone();
     core.household = None;
+    if let Some(plan) = &mut staged.pending_production {
+        plan.household = None;
+    }
     crate::settlement::commit_core(world, &mut staged, &core, backend, limit)?;
     (expected.after, expected.remainders) = collect(world, &prepared, &staged, &core)?;
     if receipt.after != expected.after || receipt.remainders != expected.remainders {

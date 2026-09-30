@@ -127,9 +127,9 @@ collateral resale remains rejected pending explicit buyer/seller rules.
 | Finite state stock bid + bilateral exchange | Shared stock, money and net storage; state bid retains its posted price |
 | Credit origination + existing citizenship/type permissions | Supported; due enforcement remains independent of permission |
 | Borrowing/sale-only forecast + configured negotiation | Uses the same resolver in hypothetical branches; optional bounded consumption orders |
-| Joint dated production plan + negotiation | Explicitly rejected; future work reservations need their own shared budget contract |
+| Joint dated production plan + negotiation | Configured seed purchase composes with dated work; downpayment cash cannot be reused; concession and ZIP controls |
 | General loans/recovery + households | Shared servicing and separate statements; explicit last-member wind-down before household recovery; member loans are not eliminated |
-| Mortgage purchases + households | Common preparation, separate ownership/debt, normal repayment and solvent disposal/residuals; optional purchases require an active household; specialized stock-sale planning remains excluded |
+| Mortgage purchases + households | Common preparation, separate ownership/debt, normal repayment and solvent disposal/residuals; optional purchases require an active household; fixed/bounded stock sales and single-member joint plans include household pooling |
 | Legacy equipment/forward exchange + direct lending and direct prepayments | Shared opening budgets; one collection pass across direct/tool forwards; competing access/pool and consequence-search adapters remain outstanding |
 | Environmental collection + direct loans/forwards | Accepted repayment/delivery demand informs collection; current stocks, public supply and labor remain finite; repayment and delivery keep their distinct boundaries |
 | Environmental collection + households, hiring and native guarantees | Governed contributed labor, useful outside hiring, pooled output and dated guarantee recourse compose with separate accounts |
@@ -146,7 +146,7 @@ collateral resale remains rejected pending explicit buyer/seller rules.
 | Estate + land/forward claims | [Admitted](LAND-FORWARD-ADMISSION.md): eligible land cash shares the waterfall; native performance retains its boundary; unresolved claims block closure |
 | Estate + existing prepaid-delivery market | Servicing-only composition; retained accepted contracts, no new tool purchase, stock sellers or plot expansion |
 | Estate + bilateral negotiation | Shared funding and eligibility: active debtor stays suspend optional buying/selling; closure restores eligibility; dedicated custodian cannot trade |
-| Estate + legacy mortgage driver | Rejected; mortgage lifecycle migration remains outstanding |
+| Estate + mortgage driver | Fixed/bounded/joint stock income, household pooling, private deficiency and funded property liquidation have mixed controls; see [production-funded credit](PRODUCTION-FUNDED-CREDIT.md) |
 | Death/household dissolution + estate | Not integrated; configured arrears proceedings are not automatic lifecycle administration |
 
 These exclusions are intentional validation boundaries, not claims that every
@@ -780,3 +780,13 @@ These changes do not establish autonomous underwriting, universal productive
 bundles, arbitrary guarantee tenders, multiple custody denominations, discount
 claim pricing or general liquidation. Those remain in the active
 [consolidation roadmap](CONTRACT-CONSOLIDATION.md).
+
+### Dated joint work inside a single-member household
+
+Joint work/sale planning now records the full household boundary with its dated
+Productive batch: shared inputs, governed labor and actual output collection.
+A one-participant household can fund planting from shared seed and pool a later
+harvest while the member retains the mortgage. Reference/CPU and reconstructed
+continuation exercise separate books, missing-seed and forged-envelope controls.
+The one-participant joint-driver bound remains; this does not integrate multi-person
+collective forecasts or the separate town production-market planner.

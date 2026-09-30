@@ -136,7 +136,7 @@ compared with four without pooling. Later sales pool once after closure. The
 funded/unfunded matrix checks separate statements, physical output, custody,
 CPU/reference and reconstructed continuation. This enables a participant who is
 a household member; a household itself is not a stock-sale participant in this
-specialized driver. Household joint work/sale policy remains guarded.
+specialized driver. The single-member household joint adapter is described below.
 
 The bounded sale forecast now shares that recovery path. Active stays cap its
 candidate quantity at zero, while ordinary production/consumption continues in
@@ -158,8 +158,8 @@ Its stay-constrained alternatives continue already committed cultivation and
 produce the usual dated Productive batch. A funded sale after harvest releases
 property and later closes the estate; an unfunded bid preserves the original
 claim. Forged plan dates fail atomically. Both executions retain food constraints,
-separate books and CPU/checkpoint equality. Household joint labor allocation
-and multiple participants keep their existing scope limits.
+separate books and CPU/checkpoint equality. Multiple participants retain their existing scope limit; the single-member
+household joint adapter is described below.
 
 Stock-sale reservation now inherits the household contribution budget from earlier
 estate purchases and financing. Cumulative fractional shares constrain both actual
@@ -207,8 +207,7 @@ built after ordinary acquisition, including accepted advance receipts and actual
 forward deliveries. A grain-forward case remains feasible. A control that delivers
 the only seed correctly reports an infeasible continuation and never schedules
 planting from that spent seed. Both retain real performance, separate books,
-CPU/checkpoint equality and atomic rejection of altered plan dates. Household
-joint allocation retains its separate guard.
+CPU/checkpoint equality and atomic rejection of altered plan dates.
 
 Configured negotiated exchange now composes with the joint work/sale planner.
 A missing seed bought during Acquire is available to the dated Productive plan.
@@ -217,3 +216,23 @@ coins on the mortgage downpayment prevents that purchase and planting. Incoming
 receipts cannot finance another leg of the same acquisition. CPU and reconstructed
 continuations consume the exact dated plan, and altered negotiation receipts fail
 atomically. This uses supplied counterparties and quotes, not generated seed orders.
+
+## Joint plans with one household member
+
+The bounded joint planner can now include a household with its one existing
+participant. Each candidate carries the ordinary household allocation, directed
+labor, collection and fractional-share receipts with the core Productive batch.
+Settlement verifies that complete dated plan, applies household inputs before
+work and pools actual output afterward. Checkpoint restoration preserves the
+same reservation; it cannot obtain another copy of the shared input.
+
+A six-month mixed control starts with the only seed in the household account,
+uses it for the member's mortgage-backed crop and pools the harvest, with
+separate reconciled statements. Missing seed prevents planting. Missing or
+altered household envelopes and stale dates are rejected. Household allocation
+uses its existing policy before the member's candidate choice; an explicit
+candidate cannot invent a household contribution. The control uses farming as
+the sole productive option and a twelve-month need horizon.
+
+This is not collective multi-person horizon optimization. The joint driver's
+one-participant bound, fixed individual priority and bounded candidates remain.

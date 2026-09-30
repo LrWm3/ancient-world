@@ -472,8 +472,6 @@ fn validate_purchase(world: &World, state: &State) -> Result<(), String> {
     if !world.access_offers.is_empty()
         || world.market.is_some()
         || world.competition.is_some()
-        || (!world.households.is_empty()
-            && c.stock_sales.as_ref().is_some_and(|s| s.joint.is_some()))
         || !world.offers.is_empty()
         || (!world.bids.is_empty() && c.stock_sales.is_none())
         || !world.issuance.is_empty()

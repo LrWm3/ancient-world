@@ -5,7 +5,9 @@ prepare dated loans, prepayments, guarantees, household hiring and estate bids
 through ordinary settlement. Direct and tool-backed forwards share collection,
 funding and storage; mortgages compose with prepayments and negotiated exchange. Fixed-reserve and
 bounded-forecast mortgage stock sales now share direct-delivery acquisition,
-including household contribution storage.
+including household contribution storage. A single-member household now carries
+its shared-input, labor and output-pooling receipts in a dated joint production
+plan; configured negotiated seed purchases also feed joint work.
 Household mortgages now connect repayment to solvent disposal and dissolution.
 Independent leases (including fixed-reserve and bounded-forecast stock income)
 and physical mint procurement compose with financed purchases;
