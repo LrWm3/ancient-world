@@ -249,3 +249,10 @@ household's guarantee recourse does not create another income contribution. The
 household can dissolve after its own contingent duties and claims clear, while a
 member's separate recourse against the original employer remains owed. The
 four-target gate passed 65 tests with CPU/reference and checkpoint equality.
+
+The household chain also supports distinct accepted coin rates at each link.
+A native wage paid at two coins per unit can create recourse covered at one coin
+per unit. Neither payment rate converts the native principal or its reporting
+valuation. Eight actual wage coins contribute four pooled coins; downstream
+recourse collections contribute none. Private recourse survives solvent household
+exit. CPU/reference and checkpoint controls pass alongside the original coin case.

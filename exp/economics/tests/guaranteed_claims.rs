@@ -2683,10 +2683,18 @@ fn acyclic_guarantees_of_recourse_wait_for_dated_exposure_and_share_opening_fund
 
 #[test]
 fn household_member_guarantee_chain_pools_wages_only_and_preserves_private_recourse_after_exit() {
+    household_chain(false);
+}
+#[test]
+fn native_household_guarantee_chain_uses_distinct_coin_rates_without_converting_recourse() {
+    household_chain(true);
+}
+fn household_chain(native: bool) {
     use economics_compute_smoke::{
         household_governance::Governance,
         households::{self, dissolution as d},
     };
+    use economics_compute_smoke::{minting::FIREWOOD, recovery::GuaranteeTender};
     const HOME: AgentId = 800;
     let (mut w, mut s) = fixture();
     let mut governance = Governance::contributed(WORKER);
@@ -2709,44 +2717,81 @@ fn household_member_guarantee_chain_pools_wages_only_and_preserves_private_recou
         },
     )
     .unwrap();
+    if native {
+        w.employment[0].wage_per_unit.resource = FIREWOOD;
+    }
     let g = &mut w.recovery.guarantees[0];
     g.guarantor = HOME;
-    g.through = 4;
+    g.through = if native { 5 } else { 4 };
+    if native {
+        g.tender = GuaranteeTender::AgreedCoins {
+            resource: COIN,
+            coins_per_unit: 2,
+        };
+    }
     let mut downstream = g.clone();
     downstream.id = 2;
     downstream.claim = GuaranteedClaim::Loan(101);
     downstream.guarantor = WORKER;
     downstream.recourse = 102;
+    if native {
+        downstream.tender = GuaranteeTender::AgreedCoins {
+            resource: COIN,
+            coins_per_unit: 1,
+        };
+    }
     w.recovery.guarantees.push(downstream);
     s.balances.clear();
-    s.balances.insert((HOME, COIN), 3);
+    s.balances.insert((HOME, COIN), if native { 5 } else { 3 });
     s.balances.insert((WORKER, COIN), 10);
     let run = |backend| {
         let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
-        let mut a = Audit::with_opening(&w, &s, COIN, Opening::default()).unwrap();
+        let mut a = Audit::with_opening(
+            &w,
+            &s,
+            COIN,
+            Opening {
+                exchange_values: [(FIREWOOD, 3)].into(),
+                ..Opening::default()
+            },
+        )
+        .unwrap();
         through(&mut a, &mut sim, 2);
-        assert_eq!(sim.state.balance(HOME, COIN), 1);
+        assert_eq!(sim.state.balance(HOME, COIN), if native { 3 } else { 1 });
         assert_eq!(sim.state.balance(WORKER, COIN), 12);
-        assert_eq!(sim.state.credit.loans[&101].principal, 3);
+        assert_eq!(
+            sim.state.credit.loans[&101].principal,
+            if native { 2 } else { 3 }
+        );
         assert!(!sim.state.credit.loans.contains_key(&102));
         let (saved, mut ra) = (sim.clone(), a.clone());
         through(&mut a, &mut sim, 3);
         assert_eq!(sim.state.credit.loans[&101].principal, 1);
-        assert_eq!(sim.state.credit.loans[&102].principal, 3);
+        assert_eq!(
+            sim.state.credit.loans[&102].principal,
+            if native { 2 } else { 3 }
+        );
         assert_eq!(sim.state.balance(HOME, COIN), 4);
-        assert_eq!(sim.state.balance(WORKER, COIN), 9);
+        assert_eq!(sim.state.balance(WORKER, COIN), if native { 11 } else { 9 });
         through(&mut a, &mut sim, 4);
+        if native {
+            assert_eq!(sim.state.credit.loans[&101].principal, 1);
+            assert_eq!(sim.state.credit.loans[&102].principal, 3);
+            assert_eq!(sim.state.balance(HOME, COIN), 4);
+            assert_eq!(sim.state.balance(WORKER, COIN), 11);
+            through(&mut a, &mut sim, 5);
+        }
         assert_eq!(sim.state.credit.loans[&101].principal, 0);
         assert_eq!(sim.state.credit.loans[&102].principal, 4);
         assert_eq!(sim.state.balance(HOME, COIN), 5);
-        assert_eq!(sim.state.balance(WORKER, COIN), 8);
+        assert_eq!(sim.state.balance(WORKER, COIN), if native { 10 } else { 8 });
         assert_eq!(
             a.book().balances()[&(WORKER, Account::LoanReceivable(102))],
-            4
+            if native { 12 } else { 4 }
         );
         assert_eq!(
             a.book().balances()[&(ISSUER, Account::LoanPayable(102))],
-            -4
+            if native { -12 } else { -4 }
         );
         let contributed: i32 = sim
             .ledger
@@ -2757,19 +2802,29 @@ fn household_member_guarantee_chain_pools_wages_only_and_preserves_private_recou
             .map(|e| e.delta)
             .sum();
         assert_eq!(
-            contributed, 2,
+            contributed,
+            if native { 4 } else { 2 },
             "only actual earned wage receipts pool; recourse collections do not"
         );
         let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
-        through(&mut ra, &mut resumed, 4);
+        through(&mut ra, &mut resumed, if native { 5 } else { 4 });
         assert_eq!((&sim.state, &a), (&resumed.state, &ra));
         d::request(&mut sim.world, &sim.state, HOME, WORKER).unwrap();
-        through(&mut a, &mut sim, 5);
+        through(&mut a, &mut sim, if native { 6 } else { 5 });
         assert_eq!(sim.state.balance(HOME, COIN), 0);
-        assert_eq!(sim.state.balance(WORKER, COIN), 13);
+        assert_eq!(
+            sim.state.balance(WORKER, COIN),
+            if native { 15 } else { 13 }
+        );
         d::finish(&mut sim.world, &sim.state, HOME, WORKER).unwrap();
         assert_eq!(sim.state.credit.loans[&102].principal, 4);
         assert_eq!(sim.state.credit.loans[&102].creditor, WORKER);
+        assert_eq!(
+            sim.state.credit.loans[&102].denomination,
+            if native { FIREWOOD } else { COIN }
+        );
+        assert_eq!(sim.state.balance(WORKER, FIREWOOD), 0);
+        assert_eq!(sim.state.balance(HOME, FIREWOOD), 0);
         (sim.world, sim.state, sim.ledger, a)
     };
     assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));

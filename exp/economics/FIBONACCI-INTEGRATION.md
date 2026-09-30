@@ -930,3 +930,12 @@ their separately recorded gates and are not covered by this snapshot.
     no disposition, and inspection neither copies balances nor mutates state.
     Existing native-loan and household renewal controls now check the common
     view. The five-target gate passed 88 tests and strict all-target Clippy passed.
+
+59. **Household guarantee chains preserve different substitute payment rates.**
+    The household pays two coins per native wage unit; the member guarantees the
+    resulting recourse at one coin per native unit. Both links retain native
+    claims and their reporting values. Only eight coins of actual wage income
+    pool, producing four household coins; recourse receipts do not pool again.
+    Solvent household exit distributes its residual cash while the member keeps
+    the private native receivable. CPU/reference and checkpoint continuation
+    agree. The five-target gate passed 77 tests and strict all-target Clippy passed.
