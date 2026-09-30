@@ -488,6 +488,9 @@ fn employment_and_mint_market_share_hours_and_pay_only_for_actual_work() {
 }
 
 fn worker_household(w: &mut World, s: &State, percent: u8) {
+    member_household(w, s, WORKER, percent);
+}
+fn member_household(w: &mut World, s: &State, member: AgentId, percent: u8) {
     use economics_compute_smoke::{
         household_governance::{Contribution, Governance},
         households,
@@ -497,7 +500,7 @@ fn worker_household(w: &mut World, s: &State, percent: u8) {
         .unwrap()
         .permissions
         .insert((PERSON_TYPE, Action::FoundHousehold));
-    let mut governance = Governance::contributed(WORKER);
+    let mut governance = Governance::contributed(member);
     governance.charter.contribution = Contribution::Percent(percent.into());
     households::form(
         w,
@@ -506,7 +509,7 @@ fn worker_household(w: &mut World, s: &State, percent: u8) {
             id: 1,
             agent: 800,
             governance,
-            adults: vec![WORKER],
+            adults: vec![member],
             membership: vec![],
             asset_sales: vec![],
             equipment_retirements: vec![],
@@ -762,5 +765,87 @@ fn persons_household_land_credit_forwards_and_need_orders_run_in_one_mint_econom
             a.book().statements(ISSUER, 12, 17).unwrap().issuance_change > 0,
             incremental
         );
+    }
+}
+
+#[test]
+fn household_posted_hiring_and_mint_inputs_compete_for_remaining_worker_hours() {
+    use economics_compute_smoke::{
+        activities::{Target, WorkOrder},
+        employment::{ArrearsPolicy, Terms},
+        opportunities::HOUSEHOLD_TYPE,
+    };
+    for mint_feasible in [true, false] {
+        let (mut w, mut s) = minting::scenario("normal").unwrap();
+        w.scheduled_starts.retain(|start| start.agent != WORKER);
+        w.definitions
+            .iter_mut()
+            .find(|d| d.id == minting::GATHER)
+            .unwrap()
+            .outputs[0]
+            .quantity = 4;
+        member_household(&mut w, &s, SUPPLIER, 20);
+        w.participants
+            .iter_mut()
+            .find(|p| p.agent == SUPPLIER)
+            .unwrap()
+            .capacity
+            .quantity = 0;
+        w.activities.orders.push(WorkOrder {
+            agent: SUPPLIER,
+            definition: minting::GATHER,
+            priority: 0,
+            target: Target::Stock(Amount::new(minting::FIREWOOD, 100)),
+        });
+        s.balances.insert((800, COIN), 2);
+        if !mint_feasible {
+            s.balances.insert((SUPPLIER, METAL), 0);
+        }
+        w.households[0].governance.charter.hiring_budget = Some(Amount::new(COIN, 2));
+        w.transaction_policy
+            .as_mut()
+            .unwrap()
+            .permissions
+            .insert((HOUSEHOLD_TYPE, Action::CapacityTrade));
+        w.employment.push(Terms {
+            id: 90,
+            employer: 800,
+            worker: WORKER,
+            from: 2,
+            through: 2,
+            capacity: Amount::new(HOURS, 2),
+            wage_per_unit: Amount::new(COIN, 1),
+            on_arrears: ArrearsPolicy::SuspendDelivery,
+            rank: 0,
+        });
+        w.employment_offers.insert(90);
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            while sim.state.month <= 2 {
+                a.step(&mut sim).unwrap();
+            }
+            let hired = sim
+                .state
+                .employment
+                .earned
+                .get(&(90, 2))
+                .map_or(0, |e| e.claim.transfer.amount.quantity);
+            assert_eq!(hired, if mint_feasible { 0 } else { 2 });
+            assert_eq!(
+                sim.state.balance(800, minting::FIREWOOD),
+                if mint_feasible { 0 } else { 2 }
+            );
+            assert_eq!(
+                sim.state
+                    .processes
+                    .values()
+                    .filter(|p| p.definition == MINT && p.status == Status::Completed)
+                    .count(),
+                usize::from(mint_feasible)
+            );
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::CubeCpu), run(Backend::Reference));
     }
 }
