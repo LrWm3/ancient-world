@@ -178,3 +178,25 @@ is a recorded contribution, not an assumption of the member's debt. Separate
 books, forged receipts and CPU/reconstructed continuation agree. A lease on the
 financed parcel itself is still rejected, and joint work/sale planning with
 independent leases retains its compatibility guard.
+
+## Continuing person/household farm finance
+
+`tests/household_farm_finance.rs` composes repeated cultivation and seed return,
+a financed parcel, a separate native-grain lease, two prepaid grain deliveries,
+posted stock sales, nutrition and optional household membership for 24 months.
+The calibrated crop yields 20 grain per harvest. The loan is explicitly accepted;
+prepayments and finite buyer allowance are supplied terms, not autonomous demand.
+
+The bounded six-month sale forecast protects nutrition while ordinary work and
+accepted claims execute. Household production and sale income pool under the
+existing agreement, and private loan payments remain private: this fixture does
+not enable member-loan support. Financial statements reconcile separate member,
+household and state positions. Reference, CPU and a reconstructed continuation
+cross the first promised delivery and the annual rent date.
+
+Controls matter here. Removing the stock-sale allowance leads to repossession.
+A six-month fixed stock buffer can instead repay the mortgage, pay rent and
+complete both deliveries while still missing a meal. Financial claim performance
+alone therefore does not establish that this economic loop meets essential needs.
+The forecast result is bounded by these yields, terms, observations and horizon;
+it is not proof of indefinite sustainability or reliable underwriting.

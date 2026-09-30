@@ -4,7 +4,10 @@ Latest integration: [common acquisition adapters](ACQUISITION-ADAPTERS.md) now
 prepare dated loans, prepayments, guarantees, household hiring and estate bids
 through ordinary settlement. Direct and tool-backed forwards share collection,
 funding and storage; mortgages compose with prepayments and negotiated exchange.
-Household mortgages now connect repayment to solvent disposal and dissolution.
+Household mortgages now connect repayment to solvent disposal and dissolution. A
+[continuing farm-finance test](PRODUCTION-FUNDED-CREDIT.md#continuing-personhousehold-farm-finance)
+now combines repeated harvests, independent rent, a mortgage, prepayments, stock
+sales and household pooling with separate books and food-deficit controls.
 [Estate receivables](ESTATE-RECEIVABLES.md) preserve recoverable assets and newly
 collected cash before deficient closure. These are tested combinations; broader
 admission, planning, custody and liquidation work remains.

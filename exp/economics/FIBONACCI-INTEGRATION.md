@@ -629,3 +629,21 @@ the separately recorded affected gates above; this full result does not cover th
     space leaves the delivery owed, rather than rejecting the whole month.
     CPU/checkpoint and separate books agree. The seven-target gate passed 64
     tests; strict all-target Clippy passed. Joint work/sale prepayments stay guarded.
+
+31. **Repeated farming exercises the combined person/household financial loop.**
+    A 24-month scenario combines seed-returning harvests, nutrition, a mortgage,
+    independent native rent, two prepaid deliveries and finite posted stock sales.
+    Bounded sale forecasts meet food needs and repay/perform the claims with and
+    without household pooling. Private loan payments do not assume household
+    balances. Removing sale funding leads to repossession; a fixed food-buffer
+    control performs the financial claims but misses a meal. Seed conservation,
+    separate books and CPU/reconstructed continuation agree. The four-target gate
+    passed 21 tests; strict all-target Clippy passed. This uses calibrated yields
+    and supplied terms, not autonomous or indefinitely sustainable underwriting.
+
+### Full-suite checkpoint through item 27
+
+The isolated source snapshot at **`aea53e8`** passed
+`cargo +1.92.0 test --locked`: **958 passed, 0 failed, 1 ignored**, across
+119 Cargo result targets including empty unit/doc targets. Items 28–31 have the
+separately recorded affected gates above and are not covered by that snapshot.
