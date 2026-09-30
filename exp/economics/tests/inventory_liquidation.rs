@@ -1064,7 +1064,7 @@ fn sale_forecasts_bound_candidates_by_actual_household_contribution_space() {
 }
 
 fn posted_stock_exchange(specialized: bool, forecast: bool) {
-    use economics_compute_smoke::{borrowing, credit, currency, exchange, stock_sale};
+    use economics_compute_smoke::{currency, exchange};
     for shared_stock in [2, 3, 4] {
         let (mut w, mut s) = fixture(true, 8);
         add_household(&mut w, &s);
@@ -1080,51 +1080,7 @@ fn posted_stock_exchange(specialized: bool, forecast: bool) {
             ..Default::default()
         });
         if specialized {
-            w.market = None;
-            let (credit_world, _) = credit::scenario("default").unwrap();
-            w.assets.extend(credit_world.assets);
-            let mut c = credit_world.credit.unwrap();
-            c.endowments.clear();
-            c.application.buyer = seller;
-            c.application.offer = 20;
-            c.offers[0].id = 20;
-            c.offers[0].collateral.settlement = credit::CollateralSettlement::AuthorizedLiquidation;
-            c.purchase_policy = borrowing::Policy::Decline;
-            c.stock_sales = Some(stock_sale::Policy {
-                joint: None,
-                forecast: forecast.then(|| economics_compute_smoke::sale_plan::Policy {
-                    horizon_months: 6,
-                    need_limits: [(scenario::NUTRITION, 0)].into(),
-                }),
-                bid: 1,
-                seller,
-                reserve_months: 0,
-                max_lots_per_month: 3,
-                purchase_budget: 20,
-            });
-            w.credit = Some(c);
-            w.participants.push(Participant {
-                agent: seller,
-                capacity: Amount::new(scenario::LABOR, 0),
-                needs: if forecast {
-                    vec![Requirement {
-                        resource: scenario::NUTRITION,
-                        quantity: 1,
-                        priority: 0,
-                    }]
-                } else {
-                    vec![]
-                },
-            });
-            if forecast {
-                w.definitions.extend(
-                    scenario::baseline()
-                        .0
-                        .definitions
-                        .into_iter()
-                        .filter(|d| d.id == scenario::CONSUME),
-                );
-            }
+            specialized_sales(&mut w, seller, forecast);
         }
         w.bids.push(currency::Bid {
             id: 1,
@@ -1288,5 +1244,139 @@ fn legacy_stock_trading_stays_distinct_from_authorized_estate_sales() {
             invalid.bids[0].buyer = ESTATE;
         }
         assert!(Simulation::new(invalid, sim.state.clone(), Backend::Reference).is_err());
+    }
+}
+
+fn specialized_sales(w: &mut World, seller: AgentId, forecast: bool) {
+    use economics_compute_smoke::{borrowing, credit, stock_sale};
+    w.market = None;
+    let (credit_world, _) = credit::scenario("default").unwrap();
+    w.assets.extend(credit_world.assets);
+    let mut c = credit_world.credit.unwrap();
+    c.endowments.clear();
+    c.application.buyer = seller;
+    c.application.offer = 20;
+    c.offers[0].id = 20;
+    c.offers[0].collateral.settlement = credit::CollateralSettlement::AuthorizedLiquidation;
+    c.purchase_policy = borrowing::Policy::Decline;
+    c.stock_sales = Some(stock_sale::Policy {
+        joint: None,
+        forecast: forecast.then(|| economics_compute_smoke::sale_plan::Policy {
+            horizon_months: 6,
+            need_limits: [(scenario::NUTRITION, 0)].into(),
+        }),
+        bid: 1,
+        seller,
+        reserve_months: 0,
+        max_lots_per_month: 3,
+        purchase_budget: 20,
+    });
+    w.credit = Some(c);
+    w.participants.push(Participant {
+        agent: seller,
+        capacity: Amount::new(scenario::LABOR, 0),
+        needs: if forecast {
+            vec![Requirement {
+                resource: scenario::NUTRITION,
+                quantity: 1,
+                priority: 0,
+            }]
+        } else {
+            vec![]
+        },
+    });
+    if forecast {
+        w.definitions.extend(
+            scenario::baseline()
+                .0
+                .definitions
+                .into_iter()
+                .filter(|d| d.id == scenario::CONSUME),
+        );
+    }
+}
+
+#[test]
+fn earlier_native_advance_releases_storage_for_later_stock_purchase_without_recycling_receipts() {
+    use economics_compute_smoke::currency;
+    for (release, incoming_only) in [(false, false), (true, false), (true, true)] {
+        let (mut w, mut s) = fixture(true, 8);
+        add_household(&mut w, &s);
+        s.balances.insert((HOME, GRAIN), 4);
+        s.balances.insert((BUYER, GRAIN), 4);
+        s.balances
+            .insert((UNFUNDED, GRAIN), if incoming_only { 0 } else { 3 });
+        w.recovery.inventory_listings.clear();
+        w.recovery.inventory_bids.clear();
+        specialized_sales(&mut w, UNFUNDED, false);
+        w.bids.push(currency::Bid {
+            id: 1,
+            buyer: BUYER,
+            goods: Amount::new(GRAIN, 1),
+            payment: Amount::new(TOKEN, 1),
+        });
+        if release {
+            w.lending.push(Advance {
+                id: 2,
+                debtor: if incoming_only { UNFUNDED } else { STATE_AGENT },
+                principal: 2,
+                month: 3,
+                collateral: None,
+                priority: 0,
+                terms: LoanOffer {
+                    creditor: BUYER,
+                    denomination: GRAIN,
+                    max_principal: 2,
+                    monthly_rate_bps: 0,
+                    term_months: 12,
+                    grace_months: 1,
+                },
+            });
+        }
+        let run = |backend| {
+            let (mut sim, mut audit) = opening(w.clone(), s.clone(), backend);
+            while (sim.state.month, sim.state.phase) != (3, Phase::Acquire) {
+                audit.step(&mut sim).unwrap();
+            }
+            assert_eq!(sim.state.credit.stock_spent, 0);
+            let mut resumed =
+                Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+            let mut ra = audit.clone();
+            let start = sim.ledger.len();
+            audit.step(&mut sim).unwrap();
+            ra.step(&mut resumed).unwrap();
+            let fills = i32::from(release && !incoming_only);
+            assert_eq!(sim.state.credit.stock_spent, fills);
+            assert_eq!(
+                sim.state.balance(BUYER, GRAIN),
+                if release { 2 + fills } else { 4 }
+            );
+            assert_eq!(sim.state.balance(HOME, GRAIN), 4);
+            assert_eq!(
+                sim.state.balance(UNFUNDED, GRAIN),
+                if incoming_only { 2 } else { 3 - fills }
+            );
+            assert_eq!(sim.state.balance(BUYER, TOKEN), 8 - fills);
+            if release {
+                assert_eq!(sim.state.credit.loans[&2].principal, 2);
+                assert_eq!(
+                    sim.state
+                        .household_remainders
+                        .get(&(HOME, BUYER, GRAIN))
+                        .copied()
+                        .unwrap_or(0),
+                    fills
+                );
+            }
+            while sim.state.month < 5 {
+                audit.step(&mut sim).unwrap();
+                ra.step(&mut resumed).unwrap();
+            }
+            assert_eq!(sim.state, resumed.state);
+            assert_eq!(&sim.ledger[start..], resumed.ledger.as_slice());
+            assert_eq!(audit, ra);
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }

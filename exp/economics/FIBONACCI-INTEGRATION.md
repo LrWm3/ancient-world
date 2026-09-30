@@ -599,3 +599,12 @@ the separately recorded affected gates above; this full result does not cover th
     openings allow three, two or zero lots with reconciled household/custody books
     and CPU/checkpoint equality. The five-target gate passed 39 tests; strict
     all-target Clippy passed.
+
+28. **Earlier native lending frees physical space for later stock purchases.**
+    Specialized sale quoting and final trade validation now observe preceding
+    accepted transfers. A full household can lend grain and then receive a funded
+    stock lot; without the outgoing transfer it cannot. Opening spending limits
+    remain separate: a control cannot resell newly borrowed grain in the same
+    boundary. Reference/CPU and reconstructed continuation preserve contribution
+    carry, native debt and separate books. The seven-target gate passed 69 tests;
+    strict all-target Clippy passed.

@@ -116,3 +116,10 @@ and settlement log expose `contribution_limit` separately from raw storage room.
 It includes preceding eligibility, money, lot and raw-storage limits; it is not an
 independent physical capacity. CPU/checkpoint execution, pooled quantities, actual
 custody and separate books agree. No new receipt funds another outgoing action.
+
+Earlier accepted native advances can also release physical storage for a later
+stock purchase. Both specialized quoting and final stock-trade validation observe
+that transfer prefix. Their spending budgets still use opening resources: newly
+borrowed goods cannot be resold in the same boundary. Full-storage, outgoing-loan
+and incoming-only controls retain household contribution carry and native debt,
+with reference/CPU and reconstructed continuation agreement.

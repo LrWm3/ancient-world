@@ -439,9 +439,19 @@ pub(crate) fn commit_core(
     }
     let mut groups: BTreeMap<Account, Vec<i32>> = BTreeMap::new();
     let mut changed = BTreeSet::new();
+    // Check stock trades against the physical prefix of accepted transactions.
+    // Gross outgoing resources are still checked against opening balances below.
+    let mut trade_observation = batch
+        .all_transactions()
+        .any(|t| t.stock_trade.is_some())
+        .then(|| state.clone());
     for t in batch.all_transactions() {
         if let Some(trade) = &t.stock_trade {
-            let expected = crate::currency::transaction(world, state, trade.clone())?;
+            let expected = crate::currency::transaction(
+                world,
+                trade_observation.as_ref().unwrap(),
+                trade.clone(),
+            )?;
             if t.effects != expected.effects
                 || t.process.is_some()
                 || t.technique_use.is_some()
@@ -458,6 +468,12 @@ pub(crate) fn commit_core(
         }
         for e in &t.effects {
             groups.entry(e.account).or_default().push(e.delta);
+            if let Some(observed) = &mut trade_observation {
+                let held = observed.balances.entry(e.account).or_default();
+                *held = held
+                    .checked_add(e.delta)
+                    .ok_or("trade observation balance overflow")?;
+            }
         }
         if let Some(change) = &t.process {
             let after = &change.after;

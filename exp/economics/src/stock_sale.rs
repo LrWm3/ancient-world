@@ -186,8 +186,19 @@ pub(crate) fn settle(
         .unwrap_or(&0);
     let remaining_budget = p.purchase_budget - out.after.stock_spent;
     let funding = cash.min(remaining_budget).max(0) / bid.payment.quantity;
+    // Physical feasibility sees earlier accepted transfers in this boundary.
+    // Spendable budgets remain opening-only, so received stock/money is not reused.
+    let mut quoted = state.clone();
+    quoted.credit = out.after.clone();
     let mut used = storage::usage(world, &state.balances);
     for t in &out.transactions {
+        for e in &t.effects {
+            let held = quoted.balances.entry(e.account).or_default();
+            *held = held
+                .checked_add(e.delta)
+                .filter(|q| *q >= 0)
+                .ok_or("stock-sale observation balance overflow")?;
+        }
         storage::apply(world, &mut used, &t.effects);
     }
     let room = storage::room(world, &used, bid.buyer, bid.goods.resource) / bid.goods.quantity;
@@ -215,7 +226,7 @@ pub(crate) fn settle(
     if limit > 0 {
         let transaction = currency::transaction(
             world,
-            state,
+            &quoted,
             currency::StockTrade {
                 bid: bid.id,
                 seller: p.seller,
@@ -253,7 +264,7 @@ pub(crate) fn settle(
     for _ in 0..limit {
         let transaction = currency::transaction(
             world,
-            state,
+            &quoted,
             currency::StockTrade {
                 bid: bid.id,
                 seller: p.seller,
