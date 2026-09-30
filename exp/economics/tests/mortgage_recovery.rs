@@ -256,3 +256,187 @@ fn buying_estate_land_can_reserve_new_cultivation_in_the_same_request() {
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn posted_crop_sales_pause_during_recovery_and_resume_after_actual_closure() {
+    use economics_compute_smoke::{currency, recovery, settlement, stock_sale};
+    for funded in [false, true] {
+        let (mut w, mut s) = fixture(4, funded, true);
+        s.balances.insert((PERSON, GRAIN), 20);
+        w.bids.push(currency::Bid {
+            id: 1,
+            buyer: STATE_AGENT,
+            goods: Amount::new(GRAIN, 1),
+            payment: Amount::new(TOKEN, 1),
+        });
+        w.credit.as_mut().unwrap().stock_sales = Some(stock_sale::Policy {
+            joint: None,
+            forecast: None,
+            bid: 1,
+            seller: PERSON,
+            reserve_months: 0,
+            max_lots_per_month: 1,
+            purchase_budget: 20,
+        });
+        let run = |backend| {
+            let mut audit = Audit::with_opening(
+                &w,
+                &s,
+                TOKEN,
+                Opening {
+                    assets: [(PLOT, 8)].into(),
+                    inventory: [
+                        ((PERSON, SEED), i128::from(s.balance(PERSON, SEED))),
+                        ((PERSON, GRAIN), 20),
+                    ]
+                    .into(),
+                    exchange_values: [(SEED, 1), (GRAIN, 1)].into(),
+                    processes: Some(Costs {
+                        output_weights: [(
+                            GROW,
+                            [(Output::Stock(GRAIN), 1), (Output::Stock(SEED), 1)].into(),
+                        )]
+                        .into(),
+                        ..Costs::default()
+                    }),
+                    ..Opening::default()
+                },
+            )
+            .unwrap();
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            while (sim.state.month, sim.state.phase) != (3, Phase::Acquire) {
+                audit.step(&mut sim).unwrap();
+            }
+            assert_eq!(sim.state.credit.stock_spent, 2);
+            let original = sim.state.clone();
+            let mut batch = Batch::empty(&sim.state);
+            batch.credit = credit::evaluate(&w, &sim.state).unwrap();
+            batch.transactions = batch.credit.as_ref().unwrap().transactions.clone();
+            let receipt = batch.credit.as_ref().unwrap().stock_sale.as_ref().unwrap();
+            assert_eq!(receipt.stayed, Some(PERSON));
+            assert!(receipt.desired_lots > 0 && receipt.funding_limit > 0);
+            assert_eq!(receipt.sold_lots, 0);
+            let mut forged = batch.clone();
+            forged
+                .credit
+                .as_mut()
+                .unwrap()
+                .stock_sale
+                .as_mut()
+                .unwrap()
+                .stayed = None;
+            assert!(
+                settlement::commit(
+                    &w,
+                    &mut sim.state,
+                    &forged,
+                    backend,
+                    settlement::DEFAULT_EFFECT_LIMIT
+                )
+                .is_err()
+            );
+            assert_eq!(sim.state, original);
+            let mut resumed = Simulation::new(w.clone(), sim.state.clone(), backend).unwrap();
+            let mut resumed_audit = audit.clone();
+            let ledger_start = sim.ledger.len();
+            while sim.state.month < 8 {
+                audit.step(&mut sim).unwrap();
+                resumed_audit.step(&mut resumed).unwrap();
+            }
+            assert_eq!(sim.state, resumed.state);
+            assert_eq!(&sim.ledger[ledger_start..], resumed.ledger.as_slice());
+            assert_eq!(audit, resumed_audit);
+            assert_eq!(
+                recovery::active(&w, &sim.state.credit, PERSON).is_none(),
+                funded
+            );
+            let later: Vec<_> = sim
+                .ledger
+                .iter()
+                .filter(|b| b.month >= 3)
+                .filter_map(|b| {
+                    b.credit
+                        .as_ref()
+                        .and_then(|c| c.stock_sale.as_ref())
+                        .map(|r| (b.month, r))
+                })
+                .collect();
+            assert_eq!(later[0].1.stayed, Some(PERSON));
+            assert!(later.iter().filter(|(m, _)| *m >= 4).all(|(_, r)| {
+                r.stayed == if funded { None } else { Some(PERSON) }
+                    && r.sold_lots == i32::from(funded)
+            }));
+            assert_eq!(
+                sim.state.credit.loans[&1].principal,
+                if funded { 0 } else { 4 }
+            );
+            assert_eq!(sim.state.balance(ESTATE, TOKEN), 0);
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+        let mut custody_buyer = w.clone();
+        custody_buyer.bids[0].buyer = ESTATE;
+        assert!(Simulation::new(custody_buyer, s.clone(), Backend::Reference).is_err());
+    }
+}
+
+#[test]
+fn posted_stock_buyer_under_recovery_cannot_trade_with_an_unstayed_seller() {
+    use economics_compute_smoke::{credit::Advance, currency, stock_sale};
+    let (mut w, mut s) = fixture(4, false, true);
+    w.recovery.bids.clear();
+    w.recovery.proceedings[0].debtor = STATE_AGENT;
+    w.recovery.proceedings[0].assets.clear();
+    s.balances.insert((PERSON, GRAIN), 20);
+    s.balances.insert((BUYER, TOKEN), 30);
+    w.lending.push(Advance {
+        id: 10,
+        debtor: STATE_AGENT,
+        principal: 30,
+        month: 1,
+        collateral: None,
+        priority: 0,
+        terms: credit::LoanOffer {
+            creditor: BUYER,
+            denomination: TOKEN,
+            max_principal: 30,
+            monthly_rate_bps: 10_000,
+            term_months: 1,
+            grace_months: 0,
+        },
+    });
+    w.bids.push(currency::Bid {
+        id: 1,
+        buyer: STATE_AGENT,
+        goods: Amount::new(GRAIN, 1),
+        payment: Amount::new(TOKEN, 1),
+    });
+    w.credit.as_mut().unwrap().stock_sales = Some(stock_sale::Policy {
+        joint: None,
+        forecast: None,
+        bid: 1,
+        seller: PERSON,
+        reserve_months: 0,
+        max_lots_per_month: 1,
+        purchase_budget: 20,
+    });
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        sim.run_months(5).unwrap();
+        let receipts: Vec<_> = sim
+            .ledger
+            .iter()
+            .filter(|b| b.month >= 3)
+            .filter_map(|b| b.credit.as_ref().and_then(|c| c.stock_sale.as_ref()))
+            .collect();
+        assert!(!receipts.is_empty());
+        assert!(
+            receipts
+                .iter()
+                .all(|r| r.stayed == Some(STATE_AGENT) && r.sold_lots == 0)
+        );
+        assert!(economics_compute_smoke::recovery::active(&w, &sim.state.credit, PERSON).is_none());
+        (sim.state, sim.ledger)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}

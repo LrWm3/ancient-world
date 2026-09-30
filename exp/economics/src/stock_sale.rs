@@ -32,6 +32,8 @@ pub struct Policy {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Receipt {
+    /// An active proceeding prevents ordinary exchange by either counterparty.
+    pub stayed: Option<AgentId>,
     pub joint: Option<crate::joint_plan::Decision>,
     pub decision: Option<crate::sale_plan::Decision>,
     pub bid: u32,
@@ -186,15 +188,19 @@ pub(crate) fn settle(
         storage::apply(world, &mut used, &t.effects);
     }
     let room = storage::room(world, &used, bid.buyer, bid.goods.resource) / bid.goods.quantity;
-    let active = [p.seller, bid.buyer].iter().all(|agent| {
-        !state.terminal.contains_key(agent)
-            && crate::opportunities::permits(
-                world,
-                state,
-                *agent,
-                crate::opportunities::Action::StockTrade,
-            )
-    });
+    let stayed = [p.seller, bid.buyer]
+        .into_iter()
+        .find(|agent| crate::recovery::active(world, &out.after, *agent).is_some());
+    let active = stayed.is_none()
+        && [p.seller, bid.buyer].iter().all(|agent| {
+            !state.terminal.contains_key(agent)
+                && crate::opportunities::permits(
+                    world,
+                    state,
+                    *agent,
+                    crate::opportunities::Action::StockTrade,
+                )
+        });
     let limit = if active {
         desired.min(p.max_lots_per_month).min(funding).min(room)
     } else {
@@ -254,6 +260,7 @@ pub(crate) fn settle(
         .checked_add(coins)
         .ok_or("purchase budget overflow")?;
     out.stock_sale = Some(Receipt {
+        stayed,
         joint,
         decision,
         bid: bid.id,

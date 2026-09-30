@@ -109,3 +109,22 @@ Generated run output stays under ignored `output/economics/`.
 ordinary production and consumption. The fixed-reserve fixtures above remain
 controls. The new policy can sell safely before an imminent harvest, but its
 short horizon can worsen later scarcity; it is not the default.
+
+## Authorized recovery and ordinary stock sales
+
+The fixed-reserve sale policy now composes with authorized mortgage liquidation.
+At Acquire, it reads the current loan/recovery book and suppresses ordinary sales
+when either seller or buyer has an active proceeding. Its receipt and settlement
+log identify the stayed party; actual quantity remains zero even with surplus
+stock and funded demand. Estate sales still use authorized bids and custody.
+Closure at the existing Due boundary restores eligibility for subsequent ordinary
+exchange; sale receipts cannot be reused for another outgoing action at Acquire.
+
+The continuing crop/mortgage test compares funded and unfunded property sales.
+Before the stay, grain sales pay two of six principal units. A real four-coin
+property sale later clears the balance and releases the stay; an unfunded bid
+leaves four due and ordinary sales paused. Crop control follows the property sale.
+Separate books, CPU/reference execution, reconstructed checkpoints and tampered
+receipts are checked, along with a separate insolvent-buyer control. Custodians
+remain ineligible traders. Forecast and joint work/sale policies retain explicit
+recovery guards pending their own integration checks.

@@ -524,3 +524,12 @@ their separately recorded affected gates; this full result does not cover them.
     controls preserve actual wages, custody, wind-down and separate statements.
     CPU/checkpoint continuation agrees. The four-target gate passed 42 tests;
     strict all-target Clippy passed.
+
+20. **Mortgage stock sales respect authorized recovery.** Fixed-reserve grain
+    sales now pause for an active seller or buyer proceeding, with an explicit
+    stayed-party receipt and log field. Funded property liquidation clears the
+    four-unit deficiency and restores ordinary sales; unfunded liquidation leaves
+    both debt and stay. Custodians cannot trade. Continuing crop control, separate
+    books, forged receipts and CPU/checkpoint controls pass. The four-target gate
+    passed 56 tests, followed by the expanded five-test mortgage-recovery suite;
+    strict all-target Clippy passed. Forecast/joint sale planning retains its guard.

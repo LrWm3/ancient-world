@@ -556,8 +556,11 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                 .as_ref()
                 .is_some_and(|s| [s.buyer.agent, s.seller.agent, s.marketplace].contains(&p.estate))
             || world.credit.as_ref().is_some_and(|c| {
-                c.stock_sales.is_some()
-                    || c.resale_buyer.is_some()
+                c.stock_sales.as_ref().is_some_and(|s| {
+                    s.forecast.is_some()
+                        || s.joint.is_some()
+                        || world.bids.iter().any(|b| b.buyer == p.estate)
+                }) || c.resale_buyer.is_some()
                     || c.application.buyer == p.estate
                     || c.offers.iter().any(|o| {
                         o.sale.seller == p.estate
