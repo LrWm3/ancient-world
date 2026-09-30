@@ -573,3 +573,94 @@ fn unadapted_later_markets_do_not_silently_bypass_member_pool_reservations() {
     assert_eq!(sim.state.balance(HOME, GRAIN), 0);
     assert_eq!(sim.state.balance(BUYER, GRAIN), 0);
 }
+
+#[test]
+fn negotiated_trade_inherits_estate_purchase_contribution_space_and_fractional_carry() {
+    use economics_compute_smoke::{
+        negotiation::{self, Outcome, QuotePolicy},
+        opportunities::{Action, PERSON_TYPE, STATE_TYPE},
+    };
+    for initial in [2, 3, 4] {
+        let (mut w, mut s) = fixture(true, 8);
+        add_household(&mut w, &s);
+        w.households[0].governance.charter.purchasing =
+            economics_compute_smoke::household_governance::Purchasing::Members;
+        s.balances.insert((HOME, GRAIN), initial);
+        s.balances.insert((UNFUNDED, GRAIN), 1);
+        let quoted = negotiation::scenario().0;
+        w.agents.push(Agent {
+            id: negotiation::MARKETPLACE,
+            name: "market".into(),
+        });
+        w.marketplaces = quoted.marketplaces;
+        w.marketplaces[0].markets[0].goods.quantity = 1;
+        w.transaction_policy = quoted.transaction_policy;
+        let law = w.transaction_policy.as_mut().unwrap();
+        law.agent_types.remove(&89);
+        law.agent_types
+            .extend([(BUYER, PERSON_TYPE), (UNFUNDED, PERSON_TYPE)]);
+        law.permissions
+            .extend([(PERSON_TYPE, Action::Borrow), (STATE_TYPE, Action::Lend)]);
+        w.negotiation = quoted.negotiation;
+        let n = w.negotiation.as_mut().unwrap();
+        n.month = 3;
+        n.goods.quantity = 1;
+        n.buyer.agent = BUYER;
+        n.seller.agent = UNFUNDED;
+        for trader in [&mut n.buyer, &mut n.seller] {
+            trader.limit = 1;
+            trader.opening_quote = 1;
+            trader.policy = QuotePolicy::Fixed;
+        }
+        w.recovery.inventory_listings[0].goods.quantity = 1;
+        w.recovery.inventory_listings[0].minimum_price = 1;
+        w.recovery.inventory_bids = vec![Bid {
+            id: 2,
+            listing: 1,
+            buyer: BUYER,
+            month: 3,
+            price: 1,
+        }];
+        let run = |backend| {
+            let (mut sim, mut audit) = opening(w.clone(), s.clone(), backend);
+            while (sim.state.month, sim.state.phase) != (3, Phase::Acquire) {
+                audit.step(&mut sim).unwrap();
+            }
+            let mut checkpoint = (sim.clone(), audit.clone());
+            while sim.state.month < 4 {
+                audit.step(&mut sim).unwrap();
+            }
+            while checkpoint.0.state.month < 4 {
+                checkpoint.1.step(&mut checkpoint.0).unwrap();
+            }
+            assert_eq!(
+                (&sim.state, &sim.ledger, &audit),
+                (&checkpoint.0.state, &checkpoint.0.ledger, &checkpoint.1)
+            );
+            let traded = initial < 4;
+            let round = sim
+                .ledger
+                .iter()
+                .find_map(|b| b.negotiation.as_ref())
+                .unwrap();
+            assert_eq!(
+                round.outcome,
+                if traded {
+                    Outcome::Traded { price: 1 }
+                } else {
+                    Outcome::InsufficientStorage
+                }
+            );
+            assert_eq!(sim.state.balance(HOME, GRAIN), initial + i32::from(traded));
+            assert_eq!(sim.state.balance(BUYER, GRAIN), 1);
+            assert_eq!(sim.state.balance(ESTATE, TOKEN), 1);
+            assert_eq!(sim.state.balance(UNFUNDED, TOKEN), i32::from(traded));
+            assert_eq!(
+                sim.state.household_remainders[&(HOME, BUYER, GRAIN)],
+                i32::from(!traded)
+            );
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

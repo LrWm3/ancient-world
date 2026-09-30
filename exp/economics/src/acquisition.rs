@@ -104,6 +104,9 @@ pub fn evaluate(world: &World, state: &State) -> Result<Batch, String> {
     }
     let mut resources = Resources::opening(world, state);
     resources.reserve(world, &batch.transactions)?;
+    if let Some(c) = &batch.credit {
+        resources.pooling = crate::recovery::inventory::reservations(world, state, c)?;
+    }
     // Later underwriting sees the accepted liabilities/control changes, but
     // receives the separately reserved opening budget for actual settlement.
     let mut quoted = state.clone();

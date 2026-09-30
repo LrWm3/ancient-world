@@ -289,6 +289,7 @@ Completed integrations:
 47. Discover and accept dated inventory bids through the common financial offer interface.
 48. Preserve receiving-space reservations from estate sales into subsequent commodity advances.
 49. Pool member inventory purchases with fractional carry and reserve collective space before later lending.
+50. Carry inventory contribution reservations into negotiated market matching without resetting fractional carry.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.
@@ -315,3 +316,11 @@ same-boundary lending, and unfundable requests leave accepted purchases intact.
 Member inventory pooling passed 35 tests across five affected targets, followed by
 all eight final inventory checks and strict all-target Clippy. The scoped driver
 explicitly rejects member bids if later spot/forward matching is not adapted.
+
+The fixed-revision full crate run at `a5974d2` passed **913 tests, zero failures,
+one ignored**, across 112 Cargo target results. Newer inventory development used a
+separate target directory, preserving that run's compiled executables. Its results
+do not cover subsequent inventory changes, which have their own focused gates.
+Inventory/negotiation composition passed 22 tests across five targets and strict
+all-target Clippy, including CPU/checkpoint/accounting comparisons with full and
+available household storage.

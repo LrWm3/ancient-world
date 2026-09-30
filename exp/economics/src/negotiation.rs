@@ -185,11 +185,13 @@ pub(crate) fn evaluate_with(
 ) -> Result<Option<Round>, String> {
     validate(world)?;
     let mut resources = resources.clone();
-    resources.pooling = Some(crate::households::income_reservations::Reservations::new(
-        world,
-        state,
-        resources.storage.clone(),
-    ));
+    if resources.pooling.is_none() {
+        resources.pooling = Some(crate::households::income_reservations::Reservations::new(
+            world,
+            state,
+            resources.storage.clone(),
+        ));
+    }
     evaluate_matching(world, state, &resources)
 }
 

@@ -66,12 +66,54 @@ pub fn discover(world: &World, state: &State, buyer: AgentId) -> Vec<Offer> {
     offers
 }
 
-/// Member contribution reservations currently cover the credit-only Acquire
-/// driver. Later spot/forward matching needs to inherit that same reservation.
+/// Later bilateral matching inherits the contribution reservation. Other shared
+/// acquisition drivers still need the same adapter before admitting member bids.
 fn eligible_buyer(world: &World, state: &State, buyer: AgentId) -> bool {
+    let composed = !crate::acquisition::shared(world)
+        || (world.negotiation.is_some()
+            && world.market.is_none()
+            && world.prepaid_deliveries.is_empty()
+            && world.town_market.is_none()
+            && world.minting.is_none());
     recovery::market::eligible_buyer_for(world, state, buyer, opportunities::Action::StockTrade)
-        && (crate::households::parent(world, state, buyer).is_none()
-            || !crate::acquisition::shared(world))
+        && (crate::households::parent(world, state, buyer).is_none() || composed)
+}
+
+/// Reconstruct reservation-only pooling from classified committed proposals.
+/// This carries exact fractional shares into later matching, without making
+/// contributions or newly received goods spendable inside the boundary.
+pub(crate) fn reservations(
+    world: &World,
+    state: &State,
+    boundary: &credit::Boundary,
+) -> Result<Option<crate::households::income_reservations::Reservations>, String> {
+    if !boundary.recovery.iter().any(|r| matches!(r, recovery::Receipt::InventorySold { buyer, .. } if crate::households::parent(world, state, *buyer).is_some())) { return Ok(None); }
+    let sales: Vec<_> = boundary
+        .recovery
+        .iter()
+        .filter_map(|r| match r {
+            recovery::Receipt::InventorySold { bid, .. } => Some(sale_transaction(world, *bid)),
+            _ => None,
+        })
+        .collect::<Result<_, _>>()?;
+    if sales.is_empty() {
+        return Ok(None);
+    }
+    let mut pooling = crate::households::income_reservations::Reservations::new(
+        world,
+        state,
+        crate::storage::usage(world, &state.balances),
+    );
+    for t in &boundary.transactions {
+        if sales.contains(t) {
+            pooling = pooling
+                .preview(world, &t.effects)?
+                .ok_or("inventory purchase exceeds household contribution storage")?;
+        } else {
+            pooling.reserve_unpooled(world, &t.effects)?;
+        }
+    }
+    Ok(Some(pooling))
 }
 
 pub(crate) fn cleared(world: &World, proceeding: u32, case: &recovery::Proceeding) -> bool {

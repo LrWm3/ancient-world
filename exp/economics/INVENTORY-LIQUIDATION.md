@@ -28,12 +28,12 @@ nothing. Normal scheduled execution retains its independent successful bids.
 ## Household and accounting integration
 
 Household agents can purchase inventory with their own funds and storage. Their
-books remain separate from member books. Member purchases in the credit-only
-Acquire driver reserve their exact household contribution, including fractional
+books remain separate from member books. Member purchases in credit-only and composed bilateral-market
+Acquire drivers reserve their exact household contribution, including fractional
 carry across lots, and pool it once after settlement. Subsequent commodity loans
-also respect that reserved space; loan proceeds remain unpooled. Mixed later
-spot/forward matching still rejects member inventory bids until it inherits this
-same contribution budget. This is a bounded compatibility restriction, not an
+also respect that reserved space; loan proceeds remain unpooled. Bilateral negotiation inherits those reservations and fractional carry. Other
+later market/forward drivers still reject member inventory bids until they inherit
+this same contribution budget. This is a bounded compatibility restriction, not an
 exemption from household pooling.
 
 The buyer records actual purchase cost. The debtor records sales revenue,
@@ -61,3 +61,9 @@ The household contribution follow-up passed 35 tests across five affected target
 then all eight final inventory checks and strict all-target Clippy. One-unit lots
 exercise fractional carry and full pooled storage; a later household commodity
 loan is rejected if only the raw, unpooled holdings would fit.
+
+The bilateral-market adapter passed 22 tests across five affected targets and
+strict all-target Clippy. An estate lot followed by a negotiated lot shares cash,
+raw storage and exact household pooling reservations. Configured estate bids are
+supplied consent; the negotiated buyer still follows the household purchasing
+policy. These tests do not establish autonomous estate demand.
