@@ -652,12 +652,21 @@ fn later_guarantee_advances_cannot_collect_from_the_estate_in_the_same_boundary(
 
 #[test]
 fn household_guarantees_share_cash_across_loan_wage_and_land_claims_with_separate_books() {
+    household_mixed_guarantees(false);
+}
+
+#[test]
+fn household_guarantees_share_native_wages_and_coin_tender_without_recycling_pooled_receipts() {
+    household_mixed_guarantees(true);
+}
+
+fn household_mixed_guarantees(alternative: bool) {
     use economics_compute_smoke::{
         commitments::Agreement,
         credit::{Advance, LoanOffer},
         finance::CollectionPolicy,
         households::{self, market::EXAMPLE_HOUSEHOLD as HOME},
-        scenario::{LABOR, PERSON, STATE_AGENT, TOKEN},
+        scenario::{GRAIN, LABOR, PERSON, STATE_AGENT, TOKEN},
         settlement::{DEFAULT_EFFECT_LIMIT, commit},
         telemetry::{Config, Observer},
     };
@@ -694,7 +703,11 @@ fn household_guarantees_share_cash_across_loan_wage_and_land_claims_with_separat
         creditor: STATE_AGENT,
         debtor: DEBTOR,
         activated: 1,
-        payment: Amount::new(TOKEN, 4),
+        payment: if alternative {
+            Amount::new(GRAIN, 2)
+        } else {
+            Amount::new(TOKEN, 4)
+        },
     });
     w.lending.push(Advance {
         id: 10,
@@ -757,6 +770,21 @@ fn household_guarantees_share_cash_across_loan_wage_and_land_claims_with_separat
             priority: 0,
         });
     }
+    if alternative {
+        w.activities.coin_payments.insert(
+            900,
+            economics_compute_smoke::activities::CoinPayment {
+                resource: TOKEN,
+                coins_per_unit: 2,
+            },
+        );
+        w.recovery
+            .guarantees
+            .iter_mut()
+            .find(|g| g.id == 3)
+            .unwrap()
+            .tender = economics_compute_smoke::recovery::GuaranteeTender::AcceptedLandCoins;
+    }
     w.recovery.guarantee_policy = CollectionPolicy::Proportional;
     let mut a = Audit::with_opening(
         &w,
@@ -764,7 +792,16 @@ fn household_guarantees_share_cash_across_loan_wage_and_land_claims_with_separat
         TOKEN,
         Opening {
             assets: w.assets.iter().map(|a| (a.id, 0)).collect(),
-            dues: Some(Default::default()),
+            dues: Some(if alternative {
+                economics_compute_smoke::dues_accounting::Valuation([(900, 3)].into())
+            } else {
+                Default::default()
+            }),
+            exchange_values: if alternative {
+                [(GRAIN, 3)].into()
+            } else {
+                Default::default()
+            },
             ..Default::default()
         },
     )
@@ -779,7 +816,11 @@ fn household_guarantees_share_cash_across_loan_wage_and_land_claims_with_separat
         "mixed-guarantees",
         Config {
             settlement: true,
-            agents: [PERSON].into(),
+            agents: if alternative {
+                [PERSON, HOME].into()
+            } else {
+                [PERSON].into()
+            },
             ..Default::default()
         },
     )
@@ -844,11 +885,32 @@ fn household_guarantees_share_cash_across_loan_wage_and_land_claims_with_separat
     assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 2);
     assert_eq!(sim.state.credit.loans[&10].principal, 2);
     assert_eq!(sim.state.employment.earned[&(2, 12)].claim.outstanding(), 2);
-    assert_eq!(sim.state.obligations[&(900, 13)].outstanding(), 2);
+    assert_eq!(
+        sim.state.obligations[&(900, 13)].outstanding(),
+        if alternative { 1 } else { 2 }
+    );
+    assert_eq!(
+        sim.state.obligations[&(900, 13)].in_kind_paid,
+        if alternative { 0 } else { 2 }
+    );
     for id in [101, 102, 103] {
-        assert_eq!(sim.state.credit.loans[&id].principal, 2);
-        assert_eq!(a.book().balances()[&(HOME, Account::LoanReceivable(id))], 2);
-        assert_eq!(a.book().balances()[&(DEBTOR, Account::LoanPayable(id))], -2);
+        let native = alternative && id == 103;
+        assert_eq!(
+            sim.state.credit.loans[&id].principal,
+            if native { 1 } else { 2 }
+        );
+        assert_eq!(
+            sim.state.credit.loans[&id].denomination,
+            if native { GRAIN } else { TOKEN }
+        );
+        assert_eq!(
+            a.book().balances()[&(HOME, Account::LoanReceivable(id))],
+            if native { 3 } else { 2 }
+        );
+        assert_eq!(
+            a.book().balances()[&(DEBTOR, Account::LoanPayable(id))],
+            if native { -3 } else { -2 }
+        );
     }
     let records = String::from_utf8(observer.finish().unwrap()).unwrap();
     let calls: Vec<serde_json::Value> = records
@@ -856,6 +918,15 @@ fn household_guarantees_share_cash_across_loan_wage_and_land_claims_with_separat
         .filter_map(|line| serde_json::from_str(line).ok())
         .filter(|r: &serde_json::Value| r["kind"] == "guarantee_payment")
         .collect();
+    if alternative {
+        assert!(calls.iter().any(|r| r["guarantee"] == 3
+            && r["resource"] == GRAIN
+            && r["paid"] == 1
+            && r["tender_resource"] == TOKEN
+            && r["tender_paid"] == 2));
+        assert_eq!(a.book().balances()[&(HOME, Account::SettlementGain)], -1);
+    }
+    let calls: Vec<_> = calls.iter().filter(|r| r["creditor"] == PERSON).collect();
     assert!(!calls.is_empty());
     assert!(
         calls

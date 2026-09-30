@@ -127,3 +127,11 @@ Controls compare native-only and coin performance, rates above/below reporting
 value, two competing conversion lots, an unaffordable lot, reversed catalogs,
 CPU/checkpoint continuation and atomic rejection of forged tender receipts.
 Other guarantee kinds retain native performance; general FX is still absent.
+
+The household mixed-claim scenario exercises the alternative alongside native
+coin loan and wage calls. Six collective coins pay two to each recipient, while
+the land claim falls by one native unit at its two-coin rate. Member wage pooling
+adds one collective coin only after settlement; it cannot fund another call.
+Recourse records two coin claims and one native claim, with separate valuation
+and statements. Reversed catalogs, CPU/checkpoint replay and observer quantities
+agree.

@@ -435,3 +435,10 @@ liquidation and household forwards passed; strict all-target Clippy passed.
    value without inventing goods or debtor income. Controls cover competing
    rates, unaffordable lots, forged receipts and CPU/checkpoint/catalog parity.
    The eight-target gate passed 124 tests; strict all-target Clippy passed.
+
+10. **Household guarantees mix native and alternative claims.** One collective
+    cash pool now covers a loan, member wages and native land dues paid in coins.
+    The member's actual wage pooling arrives after allocation and is not recycled
+    into another call. Native land recourse, creditor cash, valuation differences
+    and filtered tender telemetry reconcile in separate statements. The four-target
+    gate passed 55 tests; strict all-target Clippy passed.
