@@ -537,7 +537,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     }
     if (!world.lending.is_empty() || !world.recovery.proceedings.is_empty())
         && (world.competition.is_some()
-            || world.pool_market.is_some()
+            || (world.pool_market.is_some() && !world.recovery.proceedings.is_empty())
             || world.priority == Priority::ConsequenceAware
             || (world.market.is_none()
                 && (!world.offers.is_empty() || !world.access_offers.is_empty())))

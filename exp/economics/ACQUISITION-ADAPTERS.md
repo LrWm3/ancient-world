@@ -226,3 +226,24 @@ service the mortgage next month. Prepared offers match ordinary execution,
 checkpoint continuation agrees, and debtor/seller/lender statements reconcile.
 This removes a driver exclusion; the fixture does not claim the property itself
 is required for minting or that states autonomously choose financed sites.
+
+## Commodity lending and recurring environmental collection
+
+Consented direct advances can now coexist with the productive shared-pool
+collection driver. Credit still runs at Acquire; collection observes the committed
+stocks at Productive and uses its existing explicit allocation policy. A loan
+neither enlarges the physical pool nor grants its recipient extra labor. Pool
+regeneration still happens exactly once at Open.
+
+A two-person fuel scenario uses a one-month need horizon and four regenerated raw
+wood units. A four-fuel advance covers one person's immediate collection demand;
+without lender stock, that person still requests collection. Later installments
+remain denominated in fuel. CPU/reference, continuation and separate historical-
+cost statements agree. Additional controls reject a full-storage borrower and
+prevent an onward loan from spending the first loan's incoming fuel in the same
+Acquire window. Ordinary productive allocation still shares the same four wood
+units.
+
+This covers supplied unsecured commodity credit with collection, not competitive
+land admission, recovery in a shared-pool economy, or consequence-search credit
+selection. Those incompatible drivers still fail validation explicitly.

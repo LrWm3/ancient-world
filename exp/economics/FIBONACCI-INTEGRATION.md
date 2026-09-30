@@ -247,6 +247,8 @@ Completed integrations:
 5. Compose financed ownership with independent accepted land leases.
 6. Exercise mortgage/lease collection through household budgets and alternative tender.
 7. Compose state financed purchases with physical mint input procurement and issuance.
+8. Compose direct commodity lending with recurring environmental pool collection.
+9. Reconcile collection, native repayment and separate inventory/financial statements.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.

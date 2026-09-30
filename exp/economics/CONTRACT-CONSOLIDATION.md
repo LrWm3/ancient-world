@@ -93,8 +93,9 @@ misrepresented as conserved transfers between fictional counterparties.
 ## What is deliberately not claimed yet
 
 Direct advances are configured consent, not an autonomous credit offer search or
-underwriter. Existing acquisition drivers do not all compose: competing-access/pool allocation,
-consequence-search acquisition still need adapters. Legacy plot expansion now
+underwriter. Direct lending now composes with productive pool collection.
+Existing acquisition drivers do not all compose: competitive access, recovery with
+pool allocation, and consequence-search acquisition still need adapters. Legacy plot expansion now
 observes direct-loan liabilities; mortgage expansion remains unsupported. Unsupported direct-loan combinations fail validation explicitly.
 Mortgage-specific compatibility restrictions also remain until their ownership
 and planning assumptions are migrated.
