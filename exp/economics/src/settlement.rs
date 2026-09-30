@@ -390,6 +390,7 @@ pub(crate) fn commit_core(
     }
     if let Some(boundary) = &batch.credit {
         staged.credit = boundary.after.clone();
+        staged.equipment.extend(boundary.equipment.clone());
         if let Some(book) = &boundary.employment {
             staged.employment = book.clone();
         }

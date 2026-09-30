@@ -91,6 +91,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Batch, String> {
     quoted.balances = resources.holdings.clone();
     if let Some(c) = &batch.credit {
         quoted.credit = c.after.clone();
+        quoted.equipment.extend(c.equipment.clone());
         for change in &c.attachments {
             quoted
                 .processes

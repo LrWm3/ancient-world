@@ -21,9 +21,15 @@ pub(crate) fn settle(
         format!("asset {} funded sale", sale.asset),
         effects,
     ));
-    credit::transfer_attachments(world, state, out, sale.asset, accepted.buyer);
-    out.after.owners.insert(sale.asset, accepted.buyer);
-    out.after.values.insert(sale.asset, sale.price.quantity);
+    if let Some(equipment) = state.equipment.get(&sale.asset) {
+        let mut transferred = equipment.clone();
+        transferred.owner = accepted.buyer;
+        out.equipment.insert(sale.asset, transferred);
+    } else {
+        credit::transfer_attachments(world, state, out, sale.asset, accepted.buyer);
+        out.after.owners.insert(sale.asset, accepted.buyer);
+        out.after.values.insert(sale.asset, sale.price.quantity);
+    }
     Ok(())
 }
 

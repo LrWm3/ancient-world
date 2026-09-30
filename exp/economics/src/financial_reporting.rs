@@ -658,6 +658,17 @@ impl Audit {
             return Err("transaction needs an explicit accounting adapter".into());
         }
         let mut asset_values = self.asset_values.clone();
+        // Durable estate sales change the same physical object, preserving wear.
+        // The buyer's actual price becomes its basis for subsequent depreciation.
+        for r in batch.credit.iter().flat_map(|c| &c.recovery) {
+            if let recovery::Receipt::Sold {
+                asset, proceeds, ..
+            } = r
+                && before.equipment.contains_key(asset)
+            {
+                asset_values.insert(*asset, i128::from(*proceeds));
+            }
+        }
         // Household disposal precedes this Open's scheduled depreciation. The
         // buyer's acquired cost is therefore the basis for subsequent decay/use.
         for r in batch

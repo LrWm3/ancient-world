@@ -1,6 +1,6 @@
 //! Discover the currently listed estate property. Prices are reserve terms;
 //! only a funded, consented bid and ordinary settlement transfer title.
-use crate::{credit, model::*, opportunities, recovery};
+use crate::{model::*, opportunities, recovery};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Offer {
@@ -44,7 +44,7 @@ pub fn discover(world: &World, state: &State, buyer: AgentId) -> Vec<Offer> {
         };
         for listing in &p.assets {
             if !case.sold.contains(&listing.asset)
-                && credit::owner(world, state, listing.asset) == Some(p.debtor)
+                && recovery::saleable_asset(world, state, p.debtor, listing.asset)
             {
                 offers.push(Offer {
                     proceeding: p.id,

@@ -383,7 +383,15 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         if p.assets.iter().any(|a| {
             a.minimum_price <= 0
                 || !assets.insert(a.asset)
-                || !world.assets.iter().any(|x| x.id == a.asset)
+                || !(world.assets.iter().any(|x| x.id == a.asset)
+                    || state.equipment.contains_key(&a.asset)
+                    || (state.retired_equipment.contains_key(&a.asset)
+                        && state
+                            .credit
+                            .recovery
+                            .proceedings
+                            .get(&p.id)
+                            .is_some_and(|c| c.sold.contains(&a.asset))))
         }) {
             return Err("invalid liquidation inventory".into());
         }
@@ -408,6 +416,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                 h.agent == p.estate || crate::households::membership::ever_member(h, p.estate)
             })
             || world.assets.iter().any(|a| a.owner == p.estate)
+            || state.equipment.values().any(|a| a.owner == p.estate)
             || world
                 .lending
                 .iter()
@@ -730,7 +739,7 @@ pub(crate) fn open(world: &World, state: &State, out: &mut credit::Boundary) -> 
             })
             && p.assets
                 .iter()
-                .all(|a| credit::owner(world, state, a.asset) == Some(p.debtor));
+                .all(|a| saleable_asset(world, state, p.debtor, a.asset));
         if !valid {
             out.recovery
                 .push(Receipt::OpeningRejected { proceeding: p.id });
@@ -1116,6 +1125,21 @@ pub(crate) fn guarantees(
     Ok(())
 }
 
+/// Catalog property keeps its existing attachment-control adapter. A portable
+/// durable has no attached title/work or surviving output-share contract to novate.
+pub(crate) fn saleable_asset(
+    world: &World,
+    state: &State,
+    debtor: AgentId,
+    asset: AssetId,
+) -> bool {
+    crate::asset_exchange::owner(world, state, &state.credit, asset) == Some(debtor)
+        && state.equipment.get(&asset).is_none_or(|a| {
+            crate::equipment::transferable(a, state.month)
+                && !state.exchange.contracts.contains_key(&asset)
+        })
+}
+
 pub(crate) fn sales(
     world: &World,
     state: &State,
@@ -1139,7 +1163,7 @@ pub(crate) fn sales(
             .find(|p| p.id == b.proceeding)
             .unwrap();
         let listed = p.assets.iter().find(|a| a.asset == b.asset).unwrap();
-        let valid = credit::owner(world, state, b.asset) == Some(p.debtor)
+        let valid = saleable_asset(world, state, p.debtor, b.asset)
             && out
                 .after
                 .recovery

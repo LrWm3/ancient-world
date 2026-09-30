@@ -308,6 +308,8 @@ pub enum Event {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Boundary {
+    /// Actual durable title/condition after funded estate sales, in the equipment registry.
+    pub equipment: BTreeMap<AssetId, crate::equipment::DurableAsset>,
     pub employment: Option<crate::employment::Book>,
     pub forward_changes: BTreeMap<AssetId, crate::forward::Contract>,
     pub recovery: Vec<crate::recovery::Receipt>,
@@ -1266,6 +1268,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
         return Ok(None);
     }
     let mut out = Boundary {
+        equipment: BTreeMap::new(),
         employment: None,
         forward_changes: BTreeMap::new(),
         recovery: vec![],

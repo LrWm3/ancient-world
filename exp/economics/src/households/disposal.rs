@@ -434,11 +434,15 @@ fn encumbrances(world: &World, state: &State, asset: AssetId) -> Option<Rejectio
         .iter()
         .any(|l| l.month >= state.month && l.collateral.as_ref().is_some_and(|c| c.asset == asset))
         || crate::credit::pending_purchase(world, state).is_some_and(|o| o.sale.asset == asset)
-        || world
-            .recovery
-            .proceedings
-            .iter()
-            .any(|p| p.assets.iter().any(|l| l.asset == asset))
+        || world.recovery.proceedings.iter().any(|p| {
+            p.assets.iter().any(|l| l.asset == asset)
+                && state
+                    .credit
+                    .recovery
+                    .proceedings
+                    .get(&p.id)
+                    .is_none_or(|case| !case.sold.contains(&asset))
+        })
     {
         return Some(Rejection::Encumbered);
     }
