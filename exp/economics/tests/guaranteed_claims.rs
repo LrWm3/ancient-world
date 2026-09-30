@@ -428,3 +428,130 @@ fn guaranteed_member_wages_pool_actual_receipts_once_and_preserve_household_reco
         );
     }
 }
+
+const ESTATE: AgentId = 999;
+fn authorize(w: &mut World, month: u32) {
+    w.agents.push(Agent {
+        id: ESTATE,
+        name: "custodian".into(),
+    });
+    w.recovery
+        .proceedings
+        .push(economics_compute_smoke::recovery::ProceedingTerms {
+            id: 1,
+            debtor: ISSUER,
+            authority: ISSUER,
+            estate: ESTATE,
+            denomination: COIN,
+            opening_month: month,
+            earliest_close: month,
+            assets: vec![],
+            discharge_deficiency: false,
+        });
+}
+#[test]
+fn accepted_relief_changes_guarantee_calls_without_extending_the_guarantee_term() {
+    use economics_compute_smoke::{
+        claim_relief::{Action, Terms as Relief},
+        finance::ContractId,
+    };
+    for expires in [false, true] {
+        let (mut w, s) = fixture();
+        authorize(&mut w, 3);
+        w.recovery.guarantees[0].delay_months = 2;
+        if expires {
+            w.recovery.guarantees[0].through = 6;
+        }
+        w.recovery.claim_relief = vec![
+            Relief {
+                id: 1,
+                proceeding: 1,
+                contract: ContractId::Wages(1),
+                original_due: 2,
+                debtor: ISSUER,
+                creditor: WORKER,
+                month: 3,
+                expected_due: 2,
+                expected_remaining: 4,
+                action: Action::Extend { due: 5 },
+            },
+            Relief {
+                id: 2,
+                proceeding: 1,
+                contract: ContractId::Wages(1),
+                original_due: 2,
+                debtor: ISSUER,
+                creditor: WORKER,
+                month: 6,
+                expected_due: 5,
+                expected_remaining: 4,
+                action: Action::WriteOff { quantity: 1 },
+            },
+        ];
+        let mut a = Audit::with_opening(&w, &s, COIN, Opening::default()).unwrap();
+        let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+        through(&mut a, &mut sim, 6);
+        assert!(sim.state.credit.recovery.paid_guarantees.is_empty());
+        assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 3);
+        let mut resumed =
+            Simulation::new(sim.world.clone(), sim.state.clone(), Backend::Reference).unwrap();
+        through(&mut a, &mut sim, 8);
+        resumed.run_months(2).unwrap();
+        assert_eq!(sim.state, resumed.state);
+        let claim = &sim.state.employment.earned[&(1, 1)].claim;
+        if expires {
+            assert_eq!(claim.outstanding(), 3);
+            assert!(!sim.state.credit.loans.contains_key(&101));
+            assert_eq!(sim.state.balance(SUPPLIER, COIN), 3);
+        } else {
+            assert_eq!(claim.outstanding(), 0);
+            assert_eq!(claim.settled, 3);
+            assert_eq!(sim.state.credit.loans[&101].principal, 3);
+            assert_eq!(sim.state.credit.loans[&101].opened, 7);
+        }
+        assert_eq!(a.book().balances()[&(WORKER, Account::CreditLoss)], 1);
+        assert_eq!(a.book().balances()[&(ISSUER, Account::DebtRelief)], -1);
+    }
+}
+#[test]
+fn same_boundary_guarantee_payment_invalidates_stale_relief_consent() {
+    use economics_compute_smoke::{
+        claim_relief::{Action, Terms as Relief},
+        finance::ContractId,
+    };
+    let (mut w, s) = fixture();
+    authorize(&mut w, 3);
+    w.recovery.guarantees[0].from = 3;
+    w.recovery.claim_relief.push(Relief {
+        id: 1,
+        proceeding: 1,
+        contract: ContractId::Wages(1),
+        original_due: 2,
+        debtor: ISSUER,
+        creditor: WORKER,
+        month: 3,
+        expected_due: 2,
+        expected_remaining: 4,
+        action: Action::WriteOff { quantity: 4 },
+    });
+    let mut a = Audit::with_opening(&w, &s, COIN, Opening::default()).unwrap();
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    through(&mut a, &mut sim, 3);
+    assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 1);
+    assert!(sim.state.employment.earned[&(1, 1)].relief.is_empty());
+    assert_eq!(sim.state.credit.loans[&101].principal, 3);
+    assert!(
+        sim.ledger
+            .iter()
+            .filter_map(|b| b.credit.as_ref())
+            .flat_map(|b| &b.recovery)
+            .any(|r| matches!(
+                r,
+                Receipt::ClaimRelief {
+                    rejection: Some(_),
+                    written_off: None,
+                    ..
+                }
+            ))
+    );
+}
