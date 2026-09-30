@@ -165,12 +165,13 @@ The composed two-estate control rejects rewritten historical consent and preserv
 separate losses, actual purchase proceeds and CPU/checkpoint continuation. Its
 five-target regression gate passed 101 tests and strict all-target Clippy passed.
 
-## Partial secured relief and liquidation
+## Secured relief and liquidation
 
-A loan using authorized liquidation can now accept partial relief while its
-collateral is still pledged and unsold. Consent must match current debt and leave
-a positive balance. The original asset and lien remain attached; relief transfers
-neither title nor goods, and causes no payment. The subsequent actual sale ranks
+A loan using authorized liquidation can accept partial or full relief while its
+collateral is still pledged and unsold. Consent must match current debt exactly.
+A partial waiver retains the asset's lien; a full waiver releases that loan's lien
+and marks the loan discharged. Relief transfers neither title nor goods, and
+causes no payment. The subsequent actual sale ranks
 the reduced claim with competing liens against its realized proceeds.
 
 The history records the retained collateral so loss provenance remains valid after
@@ -178,9 +179,9 @@ sale and collection. Partial relief after sale now reruns the accepted lien
 waterfall over only the amount released from unspent reservations for that same
 asset, preserving other existing reservations. Junior liens
 retain priority over unsecured collection; other assets' proceeds and completed
-payments are untouched. Full secured forgiveness remains unsupported.
+payments are untouched. Full forgiveness now uses that same release mechanism.
 The control compares relief before sale, before distribution and after distribution,
-as well as the unsupported full-forgiveness scope. A seven-coin senior loss leaves a three-coin lien; an eight-coin sale
+as well as stale consent that cannot discharge a different remaining balance. A seven-coin senior loss leaves a three-coin lien; an eight-coin sale
 then pays three senior and five junior coins at the later Due boundary. Forged
 collateral history is rejected, and CPU/reference/checkpoint statements agree.
 
@@ -206,3 +207,12 @@ and allocates only released amounts against unsatisfied liens. Stable/proportion
 controls retain all six guarantor coins and prevent same-month recourse collection.
 The three-target gate passed 89 tests, with CPU/reference, checkpoint continuation
 and strict all-target Clippy.
+
+Full secured forgiveness is now explicit agreed disposition under authorized
+liquidation, including pre-sale lien release and post-sale reservation release.
+The historical record distinguishes a retained lien from a full release; forged
+retention/release is rejected. Other loans secured by the same asset survive.
+Person and household controls reconcile creditor losses, debt relief and actual
+payments through CPU/reference and checkpoints. The six-target gate passed
+123 tests and strict all-target Clippy passed. Fixed-value repossession and
+creditor-resale contracts still need their own release adapter.

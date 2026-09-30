@@ -1029,3 +1029,12 @@ separate gates and are not covered by this snapshot.
     recourse remains uncollectible that month. CPU/reference and checkpoint
     statements agree. The three-target gate passed 89 tests and strict all-target
     Clippy passed.
+
+69. **Full agreed secured relief releases its own lien and reservation.** Under
+    authorized liquidation, exact creditor consent can now waive the whole
+    remaining loan. This marks it discharged without a payment, preserves asset
+    ownership and other liens, and releases only its remaining reservation through
+    the existing waterfall. History distinguishes partial retention from full
+    release. Person/household controls cover before sale, before distribution and
+    the later deficiency; stale consent and forged history are rejected. The
+    six-target gate passed 123 tests and strict all-target Clippy passed.

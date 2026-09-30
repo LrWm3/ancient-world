@@ -170,7 +170,7 @@ can establish that all these arrangements compose.
 3. **Broaden insolvency admission.** The authorized single-custody-denomination estate
    lifecycle now distinguishes arrears from a proceeding and admits land/forward
    performance claims. Accepted land/wage/forward disposition now exists, plus explicit partial/full unsecured
-   loan write-offs in the native denomination, plus partial secured reductions
+   loan write-offs in the native denomination, plus partial/full secured relief
    before or after authorized collateral liquidation, preserving the same-asset
    waterfall for unspent proceeds. Several
    estates may now share a non-operating custodian with separate beneficial cash

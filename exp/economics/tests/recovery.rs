@@ -2116,8 +2116,11 @@ fn partial_secured_relief(household: bool) {
     for (month, quantity, expected, senior_paid, junior_paid, senior_remaining) in [
         (3, 7, 10, 3, 5, 0),
         (4, 7, 10, 3, 5, 0),
-        (3, 10, 10, 8, 0, 2),
+        (3, 10, 10, 0, 8, 0),
+        (4, 10, 10, 0, 8, 0),
+        (3, 7, 11, 8, 0, 2),
         (5, 1, 2, 8, 0, 1),
+        (5, 2, 2, 8, 0, 0),
     ] {
         let (mut w, mut s) = fixture();
         const HOME: AgentId = 800;
@@ -2189,7 +2192,7 @@ fn partial_secured_relief(household: bool) {
             expected_remaining: expected,
             action: Action::WriteOff { quantity },
         });
-        let accepted = quantity < expected;
+        let accepted = expected != 11;
         let before_sale = accepted && month == 3;
         let run = |backend| {
             let mut sim = distressed(w.clone(), s.clone(), backend);
@@ -2222,15 +2225,22 @@ fn partial_secured_relief(household: bool) {
                 a.step(&mut sim).unwrap();
             }
             let loan = &sim.state.credit.loans[&10];
-            assert_eq!(loan.principal, if before_sale { 3 } else { 10 });
-            assert!(loan.collateral.as_ref().unwrap().pledged);
+            assert_eq!(loan.principal, if before_sale { 10 - quantity } else { 10 });
+            assert_eq!(
+                loan.collateral.as_ref().unwrap().pledged,
+                !(before_sale && quantity == 10)
+            );
             assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(debtor));
             assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 0);
             let (saved, mut ra) = (sim.clone(), a.clone());
             a.step(&mut sim).unwrap();
             assert_eq!(
-                sim.state.credit.recovery.proceedings[&1].secured[&10],
-                if before_sale { 3 } else { 8 }
+                sim.state.credit.recovery.proceedings[&1]
+                    .secured
+                    .get(&10)
+                    .copied()
+                    .unwrap_or(0),
+                if before_sale { 10 - quantity } else { 8 }
             );
             assert_eq!(
                 sim.state.credit.recovery.proceedings[&1]
@@ -2238,7 +2248,7 @@ fn partial_secured_relief(household: bool) {
                     .get(&11)
                     .copied()
                     .unwrap_or(0),
-                if before_sale { 5 } else { 0 }
+                if before_sale { quantity - 2 } else { 0 }
             );
             assert_eq!(sim.state.balance(ESTATE, TOKEN), 8);
             while sim.state.month <= 6 {
@@ -2270,10 +2280,15 @@ fn partial_secured_relief(household: bool) {
             );
             if accepted {
                 let r = &sim.state.credit.recovery.loan_writeoffs[&10][0];
-                assert_eq!(r.retained_collateral, Some(PLOT));
+                let retained = if quantity < expected {
+                    Some(PLOT)
+                } else {
+                    None
+                };
+                assert_eq!(r.retained_collateral, retained);
                 let mut bad = sim.state.clone();
                 bad.credit.recovery.loan_writeoffs.get_mut(&10).unwrap()[0].retained_collateral =
-                    None;
+                    if retained.is_some() { None } else { Some(PLOT) };
                 assert!(Simulation::new(w.clone(), bad, backend).is_err());
             }
             if household {

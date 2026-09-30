@@ -28,7 +28,7 @@ pub struct Applied {
     /// Actual units paid when the accepted relief was applied.
     pub paid: i32,
 }
-/// Accepted loan disposition; a partial secured reduction retains its lien.
+/// Accepted loan disposition; partial secured relief retains its lien, full relief releases it.
 /// This is provenance, not another balance; debt remains in the ordinary loan book.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LoanWriteOff {
@@ -208,6 +208,7 @@ pub(crate) fn apply(w: &World, s: &State, out: &mut credit::Boundary) -> Result<
                     };
                     // Same interest-first ordering as collection, but no payment
                     // or interest income: the reporting adapter records a loss.
+                    let collateral = loan.collateral.as_ref().map(|c| c.asset);
                     let interest = quantity.min(loan.interest);
                     let principal = quantity - interest;
                     loan.apply_payment(quantity);
@@ -221,9 +222,9 @@ pub(crate) fn apply(w: &World, s: &State, out: &mut credit::Boundary) -> Result<
                         remaining_principal: loan.principal,
                         remaining_interest: loan.interest,
                         interest_remainder: loan.interest_remainder,
-                        retained_collateral: loan.collateral.as_ref().map(|c| c.asset),
+                        retained_collateral: if loan.debt()? > 0 { collateral } else { None },
                     };
-                    if let Some(asset) = disposition.retained_collateral {
+                    if let Some(asset) = collateral {
                         recovery::refresh_lien_proceeds(w, s, out, t.proceeding, asset)?;
                     }
                     out.recovery.push(recovery::Receipt::WrittenOff {
@@ -283,11 +284,18 @@ fn view(w: &World, s: &State, t: &Terms) -> Option<(crate::finance::Obligation, 
             let l = s.credit.loans.get(&id)?;
             if l.opened.checked_add(1)? != t.original_due
                 || l.collateral.as_ref().is_some_and(|c| {
-                    (!c.pledged && !s.credit.recovery.proceedings.get(&t.proceeding)
-                        .is_some_and(|case| case.sold.contains(&c.asset) && case.secured.contains_key(&id)))
+                    (!c.pledged
+                        && !s
+                            .credit
+                            .recovery
+                            .proceedings
+                            .get(&t.proceeding)
+                            .is_some_and(|case| {
+                                case.sold.contains(&c.asset) && case.secured.contains_key(&id)
+                            }))
                         || c.settlement != credit::CollateralSettlement::AuthorizedLiquidation
-                        || !matches!(t.action, Action::WriteOff { quantity } if quantity < t.expected_remaining)
-                }) {
+                })
+            {
                 return None;
             }
             let history = s
@@ -360,10 +368,14 @@ pub(crate) fn validate_loans(w: &World, s: &State) -> Result<(), String> {
                 || t.month <= previous_month
                 || t.month < case.opened
                 || case.closed.is_some_and(|m| m < t.month)
-                || r.retained_collateral != l.collateral.as_ref().map(|c| c.asset)
+                || r.retained_collateral
+                    != if r.remaining_principal == 0 && r.remaining_interest == 0 {
+                        None
+                    } else {
+                        l.collateral.as_ref().map(|c| c.asset)
+                    }
                 || l.collateral.as_ref().is_some_and(|c| {
                     c.settlement != credit::CollateralSettlement::AuthorizedLiquidation
-                        || (r.remaining_principal == 0 && r.remaining_interest == 0)
                 })
                 || r.principal < 0
                 || r.interest < 0
