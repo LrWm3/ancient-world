@@ -251,6 +251,8 @@ Completed integrations:
 9. Reconcile collection, native repayment and separate inventory/financial statements.
 10. Expose dated repayment demand through read-only accepted-loan projections.
 11. Generate collection requests for repayments even when consumption is buffered.
+12. Compose household governance and resource pooling with environmental allocation.
+13. Compare need-first and output-value labor direction in the same constrained household.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.

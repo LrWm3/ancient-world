@@ -139,7 +139,6 @@ pub fn validate(world: &World) -> Result<(), String> {
             .pool_inputs
             .iter()
             .any(|p| p.definition == d.id && p.account == c.account)
-        || !world.households.is_empty()
         || world.market.is_some()
     {
         return Err("pool market requires a single-period collection/consumption chain".into());

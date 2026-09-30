@@ -240,3 +240,131 @@ fn repayment_projection_accrues_once_reduces_future_interest_and_ignores_offers(
         after_due.values().sum::<i128>() + i128::from(payment)
     );
 }
+
+#[test]
+fn household_governance_pooling_and_member_credit_share_the_collection_boundary() {
+    use economics_compute_smoke::{
+        household_governance::Governance,
+        households::{self, Agreement},
+    };
+    const HOME: AgentId = 10000;
+    let (mut w, s) = fixture(true);
+    for p in &mut w.participants {
+        p.capacity.quantity = if p.agent == PERSON { 10 } else { 1 };
+    }
+    w.definitions
+        .iter_mut()
+        .find(|d| d.id == PREPARE_FUEL)
+        .unwrap()
+        .stages[0]
+        .monthly_services[0]
+        .quantity = 3;
+    let mut governance = Governance::contributed(PERSON);
+    governance.charter.initial_policy =
+        economics_compute_smoke::household_governance::Policy::NeedsFirst;
+    households::form(
+        &mut w,
+        &s,
+        Agreement {
+            id: 1,
+            agent: HOME,
+            adults: vec![PERSON, PERSON + 1],
+            governance,
+            formed: s.month,
+            dwelling_process: None,
+            admission: None,
+            membership: vec![],
+            asset_sales: vec![],
+            equipment_retirements: vec![],
+            support: vec![],
+        },
+    )
+    .unwrap();
+    let mut output_world = w.clone();
+    output_world.households[0].governance.charter.initial_policy =
+        economics_compute_smoke::household_governance::Policy::PreserveCommittedWork;
+    let mut output_only = Simulation::new(output_world, s.clone(), Backend::Reference).unwrap();
+    output_only.run_months(1).unwrap();
+    assert!(
+        output_only
+            .ledger
+            .iter()
+            .filter_map(|b| b.household.as_ref())
+            .flat_map(|h| &h.labor)
+            .all(|d| d.granted == 0)
+    );
+    assert!(
+        !output_only
+            .state
+            .processes
+            .values()
+            .any(|p| p.definition == PREPARE_FUEL && p.status == Status::Completed)
+    );
+    let run = |backend| {
+        let mut audit = Audit::with_opening(
+            &w,
+            &s,
+            TOKEN,
+            Opening {
+                inventory: [((STATE_AGENT, FUEL), 4)].into(),
+                exchange_values: [(FUEL, 1)].into(),
+                processes: Some(Default::default()),
+                ..Opening::default()
+            },
+        )
+        .unwrap();
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        while sim.state.month <= 3 {
+            audit.step(&mut sim).unwrap();
+        }
+        let (mut resumed, mut ra) = (sim.clone(), audit.clone());
+        while sim.state.month <= 7 {
+            audit.step(&mut sim).unwrap();
+        }
+        while resumed.state.month <= 7 {
+            ra.step(&mut resumed).unwrap();
+        }
+        assert_eq!(
+            (&sim.state, &sim.ledger, &audit),
+            (&resumed.state, &resumed.ledger, &ra)
+        );
+        assert_eq!(sim.state.credit.loans[&10].debtor, PERSON);
+        assert!(
+            sim.ledger
+                .iter()
+                .filter_map(|b| b.household.as_ref())
+                .flat_map(|h| &h.labor)
+                .any(|d| d.granted > 0)
+        );
+        assert!(
+            sim.ledger
+                .iter()
+                .filter_map(|b| b.household.as_ref())
+                .flat_map(|h| &h.after)
+                .any(|e| e.account == (HOME, FUEL) && e.delta > 0)
+        );
+        assert!(
+            sim.ledger
+                .iter()
+                .any(|b| b.pool_market.is_some() && b.household.is_some())
+        );
+        for b in &sim.ledger {
+            if let Some(round) = &b.pool_market {
+                let spent: i32 = b
+                    .transactions
+                    .iter()
+                    .flat_map(|t| &t.effects)
+                    .filter(|e| e.account == (STATE_AGENT, RAW_WOOD) && e.delta < 0)
+                    .map(|e| -e.delta)
+                    .sum();
+                assert!(spent <= round.available_stock);
+            }
+        }
+        for who in [PERSON, PERSON + 1, HOME, STATE_AGENT] {
+            let report = audit.book().statements(who, 2, 7).unwrap();
+            assert_eq!(report.assets, report.liabilities + report.equity);
+        }
+        (sim.state, sim.ledger, audit)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}

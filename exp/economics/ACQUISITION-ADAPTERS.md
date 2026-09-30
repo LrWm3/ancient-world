@@ -266,3 +266,25 @@ later dates. Tests also verify actual debt reduction is not reserved twice and
 interest accrues on declining projected principal without mutating live state.
 Other planning adapters retain their existing current-claim or full-simulation
 forecasting rules; this does not claim a universal optimum or assured repayment.
+
+## Household governance inside pool collection
+
+The household wrapper now composes with recurring environmental collection.
+Household labor direction and resource reservations prepare the boundary; the
+ordinary collection resolver then sees all actual participant requests against
+one remaining public stock. Pool grants do not create another household supply.
+Member loan liability remains on the member's separate books.
+
+The integrated test gives one member ten monthly hours, another one, and makes a
+collection lot require three hours. Twenty-percent contributed labor can bridge
+the second member's shortfall. `NeedsFirst` directs useful labor, output pools as
+usual, and the resulting member/household/creditor statements reconcile across
+six months on CPU/reference and checkpoint continuation. Every collection batch
+checks completed wood use against its dated available stock.
+
+An identical opening-resource control uses `PreserveCommittedWork`. Its simple
+output-minus-input score sees no gain from converting two wood units into two
+fuel units, so it returns the hours and completes no first-month collection.
+This is an explicit policy difference, not proof that every charter handles
+scarcity well. Household hiring, competing land admission and insolvency are not
+established by this particular combination.
