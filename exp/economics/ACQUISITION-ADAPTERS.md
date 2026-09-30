@@ -209,3 +209,20 @@ Both purchased and leased title, carried arrears and separate double-entry books
 agree under CPU/reference and checkpoint continuation. This is execution of
 supplied consent and an opening cash endowment, not evidence of a profitable
 multi-plot business or autonomous mortgage/lease selection.
+
+## State financed property and physical minting
+
+The physical mint procurement driver now accepts financed property purchases that
+do not use the separate mortgage stock-sale planner. Existing common acquisition
+ordering reserves the downpayment and lender funding before mint input purchases;
+sale receipts still cannot fund another outgoing leg in that window. Minting
+continues to require actual metal and labor and its explicit issuance permission.
+
+A CPU/reference case has the state buy property from a supplier, financed by a
+separate worker lender. With six opening coins and a two-coin downpayment, the
+six-coin input package fails atomically. With eight opening coins it succeeds,
+and only completed physical production increases coin supply by ten. Both cases
+service the mortgage next month. Prepared offers match ordinary execution,
+checkpoint continuation agrees, and debtor/seller/lender statements reconcile.
+This removes a driver exclusion; the fixture does not claim the property itself
+is required for minting or that states autonomously choose financed sites.

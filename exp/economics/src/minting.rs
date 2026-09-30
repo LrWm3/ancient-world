@@ -260,7 +260,7 @@ pub fn validate(w: &World) -> Result<(), String> {
         return Ok(());
     };
     // Unsupported planners must not silently override the shared acquisition path.
-    if w.credit.is_some()
+    if w.credit.as_ref().is_some_and(|c| c.stock_sales.is_some())
         || w.negotiation.is_some()
         || w.town_market.is_some()
         || w.production_market.is_some()

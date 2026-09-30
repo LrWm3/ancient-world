@@ -849,3 +849,113 @@ fn household_posted_hiring_and_mint_inputs_compete_for_remaining_worker_hours() 
         assert_eq!(run(Backend::CubeCpu), run(Backend::Reference));
     }
 }
+
+#[test]
+fn financed_state_property_competes_with_mint_inputs_without_creating_currency() {
+    use economics_compute_smoke::credit;
+    const SITE: AssetId = 7000;
+    for extra_cash in [0, 2] {
+        let (mut w, mut s) = minting::scenario("normal").unwrap();
+        let mut config = credit::scenario("default").unwrap().0.credit.unwrap();
+        config.endowments.clear();
+        config.transfers.clear();
+        config.application.buyer = ISSUER;
+        config.application.month = 2;
+        config.application.downpayment = 2;
+        let offer = &mut config.offers[0];
+        offer.sale.asset = SITE;
+        offer.sale.seller = SUPPLIER;
+        offer.sale.price = Amount::new(COIN, 10);
+        offer.minimum_downpayment = 2;
+        offer.loan.creditor = WORKER;
+        offer.loan.denomination = COIN;
+        offer.loan.max_principal = 8;
+        offer.loan.monthly_rate_bps = 0;
+        offer.loan.term_months = 4;
+        offer.loan.grace_months = 12;
+        offer.collateral.asset = SITE;
+        offer.collateral.settlement = credit::CollateralSettlement::FixedValue { value: 8 };
+        w.credit = Some(config);
+        w.assets.push(Asset {
+            id: SITE,
+            owner: SUPPLIER,
+            kind: 1,
+        });
+        w.transaction_policy
+            .as_mut()
+            .unwrap()
+            .permissions
+            .insert((STATE_TYPE, Action::FinancedPurchase));
+        s.balances.insert((ISSUER, COIN), extra_cash);
+        s.balances.insert((WORKER, COIN), 20);
+        let opening_supply: i32 = s
+            .balances
+            .iter()
+            .filter(|((_, r), _)| *r == COIN)
+            .map(|(_, q)| q)
+            .sum();
+        let run = |backend| {
+            let mut a = audit(&w, &s);
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            while (sim.state.month, sim.state.phase) != (2, Phase::Acquire) {
+                a.step(&mut sim).unwrap();
+            }
+            let request = economics_compute_smoke::offers::Request::new(
+                economics_compute_smoke::offers::Id::FinancedPurchase(1),
+                ISSUER,
+            );
+            let prepared = economics_compute_smoke::offers::prepare(&sim, &[request]).unwrap();
+            a.step(&mut sim).unwrap();
+            assert_eq!(sim.ledger.last(), Some(&prepared));
+            assert_eq!(credit::owner(&sim.world, &sim.state, SITE), Some(ISSUER));
+            assert_eq!(sim.state.credit.loans[&1].principal, 8);
+            assert_eq!(
+                sim.state.balance(ISSUER, METAL),
+                if extra_cash == 2 { 2 } else { 0 }
+            );
+            assert_eq!(
+                sim.state.balance(ISSUER, COIN),
+                if extra_cash == 2 { 0 } else { 4 }
+            );
+            let after_purchase_supply: i32 = sim
+                .state
+                .balances
+                .iter()
+                .filter(|((_, r), _)| *r == COIN)
+                .map(|(_, q)| q)
+                .sum();
+            assert_eq!(after_purchase_supply, opening_supply);
+            let (mut resumed, mut ra) = (sim.clone(), a.clone());
+            while sim.state.month <= 3 {
+                a.step(&mut sim).unwrap();
+            }
+            while resumed.state.month <= 3 {
+                ra.step(&mut resumed).unwrap();
+            }
+            assert_eq!(
+                (&sim.state, &sim.ledger, &a),
+                (&resumed.state, &resumed.ledger, &ra)
+            );
+            assert_eq!(sim.state.credit.loans[&1].principal, 6);
+            let report = a.book().statements(ISSUER, 1, 3).unwrap();
+            assert_eq!(report.issuance_change, if extra_cash == 2 { 10 } else { 0 });
+            let closing_supply: i32 = sim
+                .state
+                .balances
+                .iter()
+                .filter(|((_, r), _)| *r == COIN)
+                .map(|(_, q)| q)
+                .sum();
+            assert_eq!(
+                closing_supply - opening_supply,
+                if extra_cash == 2 { 10 } else { 0 }
+            );
+            for who in [ISSUER, SUPPLIER, WORKER] {
+                let report = a.book().statements(who, 1, 3).unwrap();
+                assert_eq!(report.assets, report.liabilities + report.equity);
+            }
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
