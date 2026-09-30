@@ -264,6 +264,7 @@ Completed integrations:
 22. Respect collective/member purchasing while keeping concurrent loan proceeds unpooled.
 23. Exchange collected output through financed need orders and the same monthly budgets.
 24. Compose person/household mortgages and repossession with independent environmental work.
+25. Verify individual/household native guarantees and dated recourse against real collected stocks.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.

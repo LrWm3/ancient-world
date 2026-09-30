@@ -417,3 +417,15 @@ purchase and creates neither loan nor title transfer. Five-month CPU/reference,
 checkpoint and financial statements agree. This deliberately unprofitable case
 checks consequences and separation of rights, not mortgage affordability or
 realized-proceeds liquidation.
+
+### Native guarantees funded from collected stocks
+
+A further integration test combines fuel-denominated lending, collection and
+individual/household guarantees. The borrower repays three of four fuel units;
+the guarantor pays the missing unit from actual inventory and receives one unit
+of next-month recourse. Collection subsequently supplies the borrower's repayment.
+The original lender is paid once, the guarantee is called once, and no coins are
+created. Household inventory and its recourse asset stay on separate books from
+its member. Five-month CPU/reference and checkpoint execution reconcile. This
+checks existing native guarantee rules in the combined economy; it adds no
+alternative tender or automatic guarantee-selection policy.

@@ -1012,3 +1012,111 @@ fn mortgage_default_does_not_confiscate_independent_environmental_work() {
         }
     }
 }
+
+#[test]
+fn native_guarantees_and_household_recourse_share_real_collection_inventory() {
+    use economics_compute_smoke::{
+        household_governance::Governance,
+        households::{self, Agreement},
+        recovery::{Guarantee, GuaranteedClaim},
+    };
+    const HOME: AgentId = 10000;
+    for household in [false, true] {
+        let (mut w, mut s) = fixture(true);
+        w.lending[0].terms.term_months = 1;
+        let guarantor = if household { HOME } else { PERSON + 1 };
+        if household {
+            households::form(
+                &mut w,
+                &s,
+                Agreement {
+                    id: 1,
+                    agent: HOME,
+                    adults: vec![PERSON + 1],
+                    governance: Governance::contributed(PERSON + 1),
+                    formed: s.month,
+                    dwelling_process: None,
+                    admission: None,
+                    membership: vec![],
+                    asset_sales: vec![],
+                    equipment_retirements: vec![],
+                    support: vec![],
+                },
+            )
+            .unwrap();
+        }
+        s.balances.insert((guarantor, FUEL), 4);
+        w.recovery.guarantees.push(Guarantee {
+            id: 1,
+            claim: GuaranteedClaim::Loan(10),
+            guarantor,
+            cap: 4,
+            from: 2,
+            through: 8,
+            delay_months: 0,
+            recourse: 101,
+            priority: 0,
+        });
+        let run = |backend| {
+            let mut audit = Audit::with_opening(
+                &w,
+                &s,
+                TOKEN,
+                Opening {
+                    inventory: [((STATE_AGENT, FUEL), 4), ((guarantor, FUEL), 4)].into(),
+                    exchange_values: [(FUEL, 1)].into(),
+                    processes: Some(Default::default()),
+                    ..Opening::default()
+                },
+            )
+            .unwrap();
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            while sim.state.month < 3 || sim.state.phase != Phase::Acquire {
+                audit.step(&mut sim).unwrap();
+            }
+            assert_eq!(sim.state.credit.recovery.paid_guarantees[&1], 1);
+            assert_eq!(sim.state.credit.loans[&10].principal, 0);
+            let recourse = &sim.state.credit.loans[&101];
+            assert_eq!(
+                (recourse.principal, recourse.creditor, recourse.opened),
+                (1, guarantor, 3)
+            );
+            assert!(
+                economics_compute_smoke::credit::projection::dues(
+                    &sim.world, &sim.state, PERSON, FUEL, 1
+                )
+                .unwrap()
+                .is_empty()
+            );
+            let (mut resumed, mut ra) = (sim.clone(), audit.clone());
+            while sim.state.month <= 6 {
+                audit.step(&mut sim).unwrap();
+            }
+            while resumed.state.month <= 6 {
+                ra.step(&mut resumed).unwrap();
+            }
+            assert_eq!(
+                (&sim.state, &sim.ledger, &audit),
+                (&resumed.state, &resumed.ledger, &ra)
+            );
+            assert_eq!(sim.state.credit.loans[&101].principal, 0);
+            assert_eq!(sim.state.credit.recovery.paid_guarantees[&1], 1);
+            assert!(
+                sim.ledger
+                    .iter()
+                    .filter(|b| b.month >= 3)
+                    .flat_map(|b| &b.transactions)
+                    .filter_map(|t| t.process.as_ref())
+                    .any(|c| c.after.definition == PREPARE_FUEL
+                        && c.after.status == Status::Completed)
+            );
+            assert_eq!(sim.state.balance(guarantor, TOKEN), 0);
+            for a in &sim.world.agents {
+                let report = audit.book().statements(a.id, 2, 6).unwrap();
+                assert_eq!(report.assets, report.liabilities + report.equity);
+            }
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
