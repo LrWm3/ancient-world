@@ -1,5 +1,9 @@
 # Household acceptance of labor offers
 
+The [common offer adapter](ACQUISITION-ADAPTERS.md#posted-household-labor-through-common-offers)
+now exposes these terms to the named employer and prepares the ordinary
+policy-selected monthly fill, including financial commitments and household work.
+
 Implemented as the second one-item Fibonacci batch, after direct-forward recovery.
 
 `World.employment` remains the shared terms catalog. IDs in

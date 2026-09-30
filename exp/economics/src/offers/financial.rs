@@ -7,7 +7,11 @@ use std::collections::BTreeSet;
 pub(super) fn is_financial(id: Id) -> bool {
     matches!(
         id,
-        Id::Advance(_) | Id::PrepaidDelivery(_) | Id::Guarantee(_) | Id::FinancedPurchase(_)
+        Id::Advance(_)
+            | Id::PrepaidDelivery(_)
+            | Id::Guarantee(_)
+            | Id::FinancedPurchase(_)
+            | Id::Employment(_)
     )
 }
 
@@ -36,6 +40,20 @@ pub(super) fn discover(w: &World, s: &State, agent: AgentId, offers: &mut Vec<Of
                 }),
         )
         .collect();
+    additions.extend(
+        w.employment
+            .iter()
+            .filter(|t| {
+                w.employment_offers.contains(&t.id)
+                    && t.employer == agent
+                    && s.month <= t.through
+                    && !s.employment.earned.contains_key(&(t.id, s.month))
+            })
+            .map(|t| Offer {
+                id: Id::Employment(t.id),
+                terms: Terms::Employment(t.clone()),
+            }),
+    );
     additions.sort_by_key(|o| o.id);
     offers.extend(additions);
 }
@@ -62,6 +80,19 @@ pub(super) fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, S
                     && t.month == sim.state.month
                     && !sim.state.exchange.forwards.contains_key(&id)
             }),
+            Id::Employment(id) => {
+                sim.world.employment_offers.contains(&id)
+                    && sim.world.employment.iter().any(|t| {
+                        t.id == id
+                            && t.employer == r.agent
+                            && (t.from..=t.through).contains(&sim.state.month)
+                            && !sim
+                                .state
+                                .employment
+                                .earned
+                                .contains_key(&(id, sim.state.month))
+                    })
+            }
             Id::Guarantee(id) => {
                 sim.world
                     .recovery
@@ -91,6 +122,7 @@ pub(super) fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, S
         .ok_or("missing financial acceptance boundary")?;
     for r in requests {
         let accepted = match r.offer {
+            Id::Employment(id) => batch.employment.as_ref().is_some_and(|b| b.receipts.iter().any(|r| r.agreement == id && r.earned_month == sim.state.month && r.delivered > 0)),
             Id::Advance(id) => batch.credit.as_ref().is_some_and(|b| b.events.iter().any(|e| matches!(e, credit::Event::Advanced { loan, .. } if *loan == id))),
             Id::FinancedPurchase(id) => batch.credit.as_ref().is_some_and(|b| b.events.iter().any(|e| matches!(e, credit::Event::Purchased { offer, .. } if *offer == id))),
             Id::Guarantee(id) => batch.credit.as_ref().is_some_and(|b| b.recovery.iter().any(|e| matches!(e, crate::recovery::Receipt::GuaranteeAdmission { guarantee, rejection: None } if *guarantee == id))),

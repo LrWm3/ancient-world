@@ -208,6 +208,8 @@ Completed additions so far:
 14. Resolve linked estates through actual counterparty discharge and dated visibility.
 15. Keep earned wage assets and later post-closure work distinct.
 16. Explain deferred assets through receipts, counterparty filters and checkpoint checks.
+17. Expose posted household hiring through common offer discovery and preparation.
+18. Compose hiring requests with prepaid funding while preserving policy and timing.
 
 See [acquisition adapters](ACQUISITION-ADAPTERS.md) and
 [guarantee admission](GUARANTEE-ADMISSION.md). This is an unfinished batch; no

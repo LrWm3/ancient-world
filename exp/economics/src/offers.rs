@@ -12,9 +12,11 @@ pub enum Id {
     Guarantee(u32),
     Advance(u32),
     PrepaidDelivery(u32),
+    Employment(u32),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Terms {
+    Employment(crate::employment::Terms),
     Advance(crate::credit::Advance),
     PrepaidDelivery(crate::forward::direct::Terms),
     Guarantee(crate::recovery::Guarantee),
@@ -134,7 +136,7 @@ pub(crate) fn resolve(
     if requests.iter().any(|r| {
         matches!(
             r.offer,
-            Id::Guarantee(_) | Id::Advance(_) | Id::PrepaidDelivery(_)
+            Id::Guarantee(_) | Id::Advance(_) | Id::PrepaidDelivery(_) | Id::Employment(_)
         )
     }) {
         if *batch != Batch::empty(&sim.state) {
@@ -182,7 +184,8 @@ pub(crate) fn resolve(
             Id::FinancedPurchase(_)
             | Id::Guarantee(_)
             | Id::Advance(_)
-            | Id::PrepaidDelivery(_) => unreachable!("handled above"),
+            | Id::PrepaidDelivery(_)
+            | Id::Employment(_) => unreachable!("handled above"),
             Id::Membership(offer) => {
                 if request.continuing.is_some() || !work.is_empty() {
                     return Err("duplicate or misordered membership acceptance".into());

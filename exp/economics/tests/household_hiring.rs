@@ -714,6 +714,122 @@ fn posted_labor_is_hired_only_for_incremental_feasible_work_and_keeps_wage_accou
 }
 
 #[test]
+fn common_hiring_offer_preparation_preserves_charter_law_and_useful_work_limits() {
+    use economics_compute_smoke::offers::{self, Id, Request, Terms as OfferTerms};
+    for control in 0..4 {
+        let (mut w, s) = production(6);
+        w.employment_offers.insert(1);
+        w.employment[0].wage_per_unit.quantity = 1;
+        match control {
+            1 => w.activities.orders.clear(),
+            2 => w.households[0].governance.charter.hiring_budget = Some(Amount::new(TOKEN, 1)),
+            3 => {
+                w.transaction_policy
+                    .as_mut()
+                    .unwrap()
+                    .permissions
+                    .remove(&(HOUSEHOLD_TYPE, Action::CapacityTrade));
+            }
+            _ => (),
+        }
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            let request = Request::new(Id::Employment(1), HOME);
+            assert!(
+                offers::discover(&w, &s, HOME)
+                    .iter()
+                    .any(|o| matches!(&o.terms, OfferTerms::Employment(t) if t.id == 1))
+            );
+            assert!(
+                !offers::discover(&w, &s, WORKER)
+                    .iter()
+                    .any(|o| o.id == Id::Employment(1))
+            );
+            while sim.state.phase != Phase::Acquire {
+                a.step(&mut sim).unwrap();
+            }
+            let before = sim.clone();
+            let proposal = offers::prepare(&sim, std::slice::from_ref(&request));
+            assert_eq!(proposal.is_ok(), control == 0);
+            assert_eq!(sim.state, before.state);
+            assert_eq!(sim.ledger, before.ledger);
+            if let Ok(batch) = proposal {
+                // Three hours were offered, but only two complete useful work.
+                assert_eq!(batch.employment.as_ref().unwrap().receipts[0].delivered, 2);
+                let mut accepted = before.clone();
+                offers::accept(&mut accepted, &[request]).unwrap();
+                a.step(&mut sim).unwrap();
+                assert_eq!(sim.state, accepted.state);
+                assert_eq!(sim.ledger, accepted.ledger);
+                assert!(offers::prepare(&sim, &[Request::new(Id::Employment(1), HOME)]).is_err());
+            } else {
+                assert!(offers::accept(&mut sim, &[request]).is_err());
+                assert_eq!(sim.state, before.state);
+                a.step(&mut sim).unwrap();
+                assert!(sim.state.employment.earned.is_empty());
+            }
+            through(&mut a, &mut sim, 2);
+            assert_eq!(
+                sim.state.balance(WORKER, TOKEN),
+                if control == 0 { 2 } else { 0 }
+            );
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
+
+#[test]
+fn common_forward_and_hiring_offers_keep_acquisition_receipts_out_of_same_window_payroll() {
+    use economics_compute_smoke::{
+        forward::direct::Terms as Forward,
+        offers::{self, Id, Request},
+        scenario::GRAIN,
+    };
+    let (mut w, mut s) = production(0);
+    w.employment_offers.insert(1);
+    w.employment[0].wage_per_unit.quantity = 1;
+    w.employment[0].through = 2;
+    s.balances.insert((92, TOKEN), 4);
+    w.prepaid_deliveries.push(Forward {
+        id: 70000,
+        seller: HOME,
+        buyer: 92,
+        month: 1,
+        due: 3,
+        goods: Amount::new(GRAIN, 2),
+        prepayment: Amount::new(TOKEN, 4),
+    });
+    let mut sim = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+    let mut a = audit(&w, &s);
+    while sim.state.phase != Phase::Acquire {
+        a.step(&mut sim).unwrap();
+    }
+    let forward = Request::new(Id::PrepaidDelivery(70000), HOME);
+    let hiring = Request::new(Id::Employment(1), HOME);
+    assert!(offers::prepare(&sim, &[forward.clone(), hiring.clone()]).is_err());
+    let prepared = offers::prepare(&sim, &[forward]).unwrap();
+    a.step(&mut sim).unwrap();
+    assert_eq!(sim.ledger.last(), Some(&prepared));
+    assert!(sim.state.employment.earned.is_empty());
+    while (sim.state.month, sim.state.phase) != (2, Phase::Acquire) {
+        a.step(&mut sim).unwrap();
+    }
+    assert!(
+        offers::discover(&sim.world, &sim.state, HOME)
+            .iter()
+            .any(|o| o.id == hiring.offer)
+    );
+    let prepared = offers::prepare(&sim, &[hiring]).unwrap();
+    a.step(&mut sim).unwrap();
+    assert_eq!(sim.ledger.last(), Some(&prepared));
+    through(&mut a, &mut sim, 3);
+    assert_eq!(sim.state.exchange.forwards[&70000].delivered, 2);
+    assert_eq!(sim.state.balance(WORKER, TOKEN), 2);
+}
+
+#[test]
 fn competing_labor_offers_do_not_duplicate_the_same_projected_work() {
     let (mut w, s) = production(6);
     w.employment[0].wage_per_unit.quantity = 1;

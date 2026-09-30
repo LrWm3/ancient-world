@@ -75,3 +75,19 @@ Cancelling or renegotiating that prior consent requires a separate explicit
 agreement. The test honors the future advance and repayment before clearing its
 blocker. Household self-directed formation of new borrowing contracts is still
 outstanding.
+
+## Posted household labor through common offers
+
+`offers::Id::Employment` exposes posted labor terms to their named household
+employer. Preparation uses the same policy-selected quantity as ordinary execution:
+the charter budget, permissions, current cash, remaining worker hours and useful
+incremental work still decide acceptance. A positive partial fill is accepted and
+the batch reports its exact hours/wage; the request does not promise the full
+offered quantity or future employment. Preaccepted jobs remain separate commitments.
+
+The adapter can share a preparation request with a prepaid delivery. A tested
+household initially has no cash: its prepayment succeeds, but cannot fund hiring
+in that same Acquire window. Next month it hires two useful hours from a three-hour
+offer, produces the goods, pays wages and fulfills the forward. Law, budget and
+no-useful-work controls reject preparation without publishing partial work.
+Existing monthly accounting and CPU/reference behavior are preserved.
