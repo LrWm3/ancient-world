@@ -8,7 +8,7 @@ use economics_compute_smoke::{
     household_governance::Governance,
     households::{self, Agreement},
     model::*,
-    process_accounting::{Costs, Output},
+    process_accounting::{BeneficiaryPolicy, Costs, Output},
     scenario::*,
     simulation::Simulation,
     stock_sale,
@@ -93,6 +93,35 @@ fn fixture(household: bool, sales: bool) -> (World, State) {
     (w, s)
 }
 
+fn opening(w: &World, s: &State) -> Audit {
+    Audit::with_opening(
+        w,
+        s,
+        TOKEN,
+        Opening {
+            assets: [(PLOT, 10000), (RENTED, 10000)].into(),
+            inventory: [
+                ((PERSON, SEED), i128::from(s.balance(PERSON, SEED))),
+                ((PERSON, GRAIN), i128::from(s.balance(PERSON, GRAIN))),
+            ]
+            .into(),
+            exchange_values: [(SEED, 1), (GRAIN, 1)].into(),
+            dues: Some(Valuation([(99, 1)].into())),
+            processes: Some(Costs {
+                beneficiary_policy: Some(BeneficiaryPolicy::TransferAtCost),
+                output_weights: [(
+                    GROW,
+                    [(Output::Stock(GRAIN), 1), (Output::Stock(SEED), 1)].into(),
+                )]
+                .into(),
+                ..Costs::default()
+            }),
+            ..Opening::default()
+        },
+    )
+    .unwrap()
+}
+
 #[test]
 fn repeated_household_harvests_service_mortgage_rent_and_forwards_through_actual_sales() {
     for household in [false, true] {
@@ -100,18 +129,7 @@ fn repeated_household_harvests_service_mortgage_rent_and_forwards_through_actual
             let (w, s) = fixture(household, sales);
             let run = |backend| {
                 let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
-                let mut audit = Audit::with_opening(&w,&s,TOKEN,Opening {
-                    assets: [(PLOT,10000),(RENTED,10000)].into(),
-                    inventory: [((PERSON,SEED),i128::from(s.balance(PERSON,SEED))),
-                        ((PERSON,GRAIN),i128::from(s.balance(PERSON,GRAIN)))].into(),
-                    exchange_values: [(SEED,1),(GRAIN,1)].into(),
-                    dues: Some(Valuation([(99,1)].into())),
-                    processes: Some(Costs {
-                        beneficiary_policy: Some(economics_compute_smoke::process_accounting::BeneficiaryPolicy::TransferAtCost),
-                        output_weights: [(GROW,[(Output::Stock(GRAIN),1),(Output::Stock(SEED),1)].into())].into(),
-                        ..Costs::default()
-                    }), ..Opening::default()
-                }).unwrap();
+                let mut audit = opening(&w, &s);
                 while sim.state.month < 8 {
                     audit.step(&mut sim).unwrap();
                 }
@@ -211,4 +229,109 @@ fn fixed_food_buffer_can_pay_financial_claims_while_missing_a_meal() {
             .filter(|r| r.agent == PERSON)
             .any(|r| r.deficit(NUTRITION) > 0)
     );
+}
+
+#[test]
+fn joint_work_plan_observes_lease_and_prepaid_performance_before_reserving_production() {
+    use economics_compute_smoke::{joint_plan, settlement};
+    for transfers_seed in [false, true] {
+        let (mut w, s) = fixture(false, true);
+        if transfers_seed {
+            w.prepaid_deliveries[0].month = 6;
+            w.prepaid_deliveries[0].due = 7;
+            w.prepaid_deliveries[0].goods = Amount::new(SEED, 1);
+        }
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut audit = opening(&w, &s);
+            while (sim.state.month, sim.state.phase) != (7, Phase::Acquire) {
+                audit.step(&mut sim).unwrap();
+            }
+            let policy = sim
+                .world
+                .credit
+                .as_mut()
+                .unwrap()
+                .stock_sales
+                .as_mut()
+                .unwrap();
+            policy.forecast = None;
+            policy.joint = Some(joint_plan::Policy {
+                horizon_months: 12,
+                need_limits: [(NUTRITION, 0)].into(),
+                future_reserves: vec![6],
+            });
+            settlement::validate_world(&sim.world, &sim.state).unwrap();
+            let before = sim.state.clone();
+            let mut resumed = Simulation::new(sim.world.clone(), before.clone(), backend).unwrap();
+            let mut ra = audit.clone();
+            let prefix = sim.ledger.len();
+            audit.step(&mut sim).unwrap();
+            assert!(sim.state.exchange.forwards.contains_key(&5));
+            let accepted = sim.ledger.last().unwrap();
+            let decision = accepted
+                .credit
+                .as_ref()
+                .unwrap()
+                .stock_sale
+                .as_ref()
+                .unwrap()
+                .joint
+                .as_ref()
+                .unwrap();
+            assert_eq!(decision.feasible, !transfers_seed);
+            let plan = accepted.production_plan.as_ref().unwrap().clone();
+            assert_eq!(sim.state.pending_production, Some(plan.clone()));
+            assert_eq!((plan.month, plan.phase), (7, Phase::Productive));
+            if transfers_seed {
+                assert_eq!(sim.state.balance(PERSON, SEED), 0);
+                assert_eq!(sim.state.exchange.forwards[&5].delivered, 1);
+                assert!(
+                    !plan
+                        .transactions
+                        .iter()
+                        .filter_map(|t| t.process.as_ref())
+                        .any(|p| p.before.is_none() && p.after.definition == GROW)
+                );
+            }
+            let mut altered = accepted.clone();
+            altered.production_plan.as_mut().unwrap().month += 1;
+            let mut rejected = before.clone();
+            assert!(
+                settlement::commit(
+                    &sim.world,
+                    &mut rejected,
+                    &altered,
+                    backend,
+                    sim.effect_limit
+                )
+                .is_err()
+            );
+            assert_eq!(rejected, before);
+            audit.step(&mut sim).unwrap();
+            assert_eq!(sim.ledger.last().unwrap(), plan.as_ref());
+            while sim.state.month < 9 {
+                audit.step(&mut sim).unwrap();
+            }
+            while resumed.state.month < 9 {
+                ra.step(&mut resumed).unwrap();
+            }
+            assert_eq!(
+                sim.state.exchange.forwards[&5].delivered,
+                if transfers_seed { 1 } else { 2 }
+            );
+            assert!(
+                sim.reports
+                    .iter()
+                    .filter(|r| r.agent == PERSON)
+                    .all(|r| r.deficit(NUTRITION) == 0)
+            );
+            assert_eq!(
+                (&sim.state, &sim.ledger[prefix..], &audit),
+                (&resumed.state, &resumed.ledger[..], &ra)
+            );
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
 }

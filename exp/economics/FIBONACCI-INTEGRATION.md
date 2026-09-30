@@ -647,3 +647,12 @@ The isolated source snapshot at **`aea53e8`** passed
 `cargo +1.92.0 test --locked`: **958 passed, 0 failed, 1 ignored**, across
 119 Cargo result targets including empty unit/doc targets. Items 28–31 have the
 separately recorded affected gates above and are not covered by that snapshot.
+
+32. **Joint work/sale plans observe independent leases and forward performance.**
+    The single-participant planner now prepares its dated Productive batch after
+    shared prepayment/collection. A normal grain-forward continuation is feasible;
+    delivering the only seed makes the continuation infeasible and creates no
+    planting transaction. Accepted plans execute once, altered dates fail
+    atomically, and separate books plus CPU/checkpoint continuation agree. The
+    five-target gate passed 30 tests; strict all-target Clippy passed. Household
+    and negotiated joint planning retain their separate compatibility guards.

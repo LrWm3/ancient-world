@@ -59,8 +59,7 @@ pub(crate) fn validate(w: &World, s: &State) -> Result<(), String> {
         return Ok(());
     }
     let stock_sale = w.credit.as_ref().and_then(|c| c.stock_sales.as_ref());
-    if stock_sale.is_some_and(|p| p.joint.is_some())
-        || w.production_market.is_some()
+    if w.production_market.is_some()
         || w.work_choice.is_some()
         || (!crate::acquisition::search_composition(w)
             && (w.competition.is_some()

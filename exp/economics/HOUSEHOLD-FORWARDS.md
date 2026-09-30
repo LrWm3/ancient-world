@@ -176,4 +176,8 @@ inventory purchases. A one-unit stock purchase and a one-unit forward receipt
 therefore share the same fractional household contribution. If that pooled unit
 would overfill collective storage, the later delivery remains owed; with space it
 settles once. Financing receipts remain unpooled. These controls cover CPU and
-reconstructed continuation. Joint work/sale planning retains its forward guard.
+reconstructed continuation. The single-participant joint work/sale planner now
+also projects direct prepayments and deliveries before reserving its dated
+Productive batch. Delivering its only seed prevents planting and can make the
+continuation infeasible; a normal grain-forward control remains feasible.
+Household joint work allocation remains guarded.

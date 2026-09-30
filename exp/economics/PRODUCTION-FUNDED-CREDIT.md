@@ -176,8 +176,8 @@ members pool half their actual sale income, and the ordinary household rent rule
 can explicitly transfer that collective coin back to support a later bill. This
 is a recorded contribution, not an assumption of the member's debt. Separate
 books, forged receipts and CPU/reconstructed continuation agree. A lease on the
-financed parcel itself is still rejected, and joint work/sale planning with
-independent leases retains its compatibility guard.
+financed parcel itself is still rejected. Joint work/sale planning now has the
+lease/prepayment verification described below.
 
 ## Continuing person/household farm finance
 
@@ -200,3 +200,12 @@ complete both deliveries while still missing a meal. Financial claim performance
 alone therefore does not establish that this economic loop meets essential needs.
 The forecast result is bounded by these yields, terms, observations and horizon;
 it is not proof of indefinite sustainability or reliable underwriting.
+
+The single-participant joint work/sale planner now includes independent leases
+and direct prepayments in the same continuation. Its dated Productive batch is
+built after ordinary acquisition, including accepted advance receipts and actual
+forward deliveries. A grain-forward case remains feasible. A control that delivers
+the only seed correctly reports an infeasible continuation and never schedules
+planting from that spent seed. Both retain real performance, separate books,
+CPU/checkpoint equality and atomic rejection of altered plan dates. Household
+joint allocation and negotiated joint plans retain their separate guards.
