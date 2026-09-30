@@ -1,5 +1,9 @@
 # Contract recovery using the existing credit book
 
+Current scope includes the later integrations through Fibonacci batch 89. The
+[integration matrix](INTEGRATION-STATUS.md) records supported combinations;
+section-level test counts here retain their historical verification boundaries.
+
 [Estate receivables](ESTATE-RECEIVABLES.md) now prevent deficient closure from
 discarding uncollected financial property or bypassing new cash receipts. This
 also composes with household wind-down and counterparty discharge.
@@ -39,8 +43,9 @@ explicit inventory of titled physical assets. All still-pledged collateral must
 be included. [Land/forward admission](LAND-FORWARD-ADMISSION.md) preserves native
 performance and maturity: eligible land cash payments share the estate pool;
 native goods still collect at their existing boundaries. Unfulfilled non-loan
-claims prevent closure unless explicitly released under
-[accepted forward relief](DELIVERY-RELIEF.md); no implicit conversion occurs. Mortgages using
+claims prevent closure unless performed or explicitly released under
+[accepted forward relief](DELIVERY-RELIEF.md) or [land/wage relief](CLAIM-RELIEF.md);
+no implicit conversion occurs. Mortgages using
 the older scenario configuration remain excluded. This is bounded contractual
 recovery, not yet universal insolvency.
 
@@ -75,15 +80,18 @@ not disappear. A failed bid is recorded without partial money or title changes.
 
 ## Guarantees and recourse
 
-A guarantee records a [covered loan or dated wage/land claim](GUARANTEED-CLAIMS.md),
+A guarantee records a [covered loan, dated wage/land claim or direct delivery](GUARANTEED-CLAIMS.md),
 guarantor, cap, validity interval,
 missed-payment delay, collection priority, and a reserved recourse-loan identity.
 The configuration represents the parties' consent to these terms.
 
 Calls use configured stable priority/ID order or proportional sharing against
 the remaining finite opening execution budget used for ordinary servicing. Each
-successful payment reduces the original claim (loans remain interest-first) and adds the same amount to an unsecured, zero-interest recourse
-loan owed by the debtor to the guarantor. Borrower total debt does not disappear;
+successful payment reduces the original claim (loans remain interest-first) and
+creates zero-interest recourse in the native claim units owed by the debtor to
+the guarantor. An accepted alternative tender changes actual payment legs, not
+those claim units. Recourse is unsecured unless explicit supported lien
+inheritance applies. Borrower total debt does not disappear;
 its creditor changes. Balance sheets derive both sides from those records.
 The common `agreements::for_agent` adapter exposes the accepted guarantee to the
 borrower, creditor and guarantor, including paid-to-date and any currently callable
@@ -96,12 +104,14 @@ Caps are lifetime paid amounts. Expiry prevents new calls without deleting
 existing recourse. Recourse starts collecting at a subsequent Due boundary.
 Multiple calls can add to the same recourse record. Guarantees may now cover
 unsecured recourse through a finite acyclic chain rooted in original terms.
-Downstream calls exclude same-month additions; cycles, unidentified roots and
-secured chains now require explicit inheritance of the original authorized-
-liquidation lien. Cycles and broken inheritance remain rejected. See [guaranteed claims](GUARANTEED-CLAIMS.md).
-Existing pending-resale mortgage loans are also excluded until lien subrogation
-is defined. Fixed-value collateral settles before guarantee calls; guarantees
-cover the remaining due exposure. Collateral lien transfer remains unsupported.
+Downstream calls exclude same-month additions. Secured chains require explicit
+inheritance of the original authorized-liquidation lien and unspent proceeds;
+cycles, unidentified roots and broken inheritance remain rejected. See
+[guaranteed claims](GUARANTEED-CLAIMS.md). Pending-resale mortgage guarantees remain
+excluded: that settlement mode has no compatible inheritance adapter. Fixed-value
+collateral settles before guarantee calls; guarantees cover the remaining due
+exposure. Lien transfer is supported only through the explicit authorized-
+liquidation terms, not arbitrary security arrangements.
 Every advance is dated, including additions to older recourse loans; estate
 distribution and closure wait until a subsequent month for each new addition.
 
@@ -138,11 +148,11 @@ Closed receipts retain their date so subsequent annual bills remain distinguisha
 from claims that should have blocked closing.
 
 Portable durable equipment now follows funded sale and buyer depreciation; see
-[equipment liquidation](EQUIPMENT-LIQUIDATION.md). Remaining general claims, stock
-inventories, multicurrency estates,
-shared operating custodians, cross-currency or disputed liens, automatic asset discovery, auctions,
-contested authorization, autonomous restructuring and other claim adapters
-are not implemented. Constitution/charter and state-law machinery will eventually
+[equipment liquidation](EQUIPMENT-LIQUIDATION.md). Configured inventory lots and
+eligible whole-loan claims also have funded sale adapters. Arbitrary claim kinds,
+multicurrency estates, shared operating custodians, cross-currency or disputed
+liens, automatic listing/valuation, general auctions, contested authorization and
+autonomous restructuring are not implemented. Constitution/charter and state-law machinery will eventually
 supply these terms; configured authorization is the current integration point.
 
 ## Verification controls

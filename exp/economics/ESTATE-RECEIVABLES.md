@@ -1,5 +1,13 @@
 # Receivables during recovery and household wind-down
 
+Current through Fibonacci batch 89. Exact-price and opt-in minimum-price sales
+are distinct policies: the latter permits discounts/premiums for principal with
+no unpaid interest at acquisition, including interest-bearing terms and unsecured
+native claims. Historical exact-price examples below retain their original
+settings; see [acquisition cost](#agreed-price-floors-and-acquisition-cost) for the
+current pricing extension and [integration status](INTEGRATION-STATUS.md#verification)
+for the latest verification boundary.
+
 An estate with a loan deficiency now checks existing receivables before closing.
 The view includes outstanding loan principal/interest, materialized land bills,
 accepted prepaid deliveries and actually earned wages owed **to** the debtor.
@@ -161,9 +169,10 @@ its goods remain uncollected and the original borrower retains the debt.
 
 The first valuation model requires the quote to equal the fixed reporting value
 of a native claim unit. Inconsistent reporting configurations fail early. This
-keeps native assignment at carrying value. The coin-claim acquisition-cost adapter
-below permits discounts and premiums; native discounts, interest-bearing purchase
-cost and estimated impairment remain open. Native secured claims remain excluded.
+keeps exact-price native assignment at carrying value. The acquisition-cost
+adapter below also permits native discounts/premiums and interest-bearing claims
+with no unpaid interest at purchase. Estimated impairment, acquired unpaid-interest
+cost allocation and native secured claims remain excluded.
 
 `tests/native_receivables.rs` compares person and winding-household sellers, funded
 and unfunded buyers, available and absent receiving storage, stale prices and

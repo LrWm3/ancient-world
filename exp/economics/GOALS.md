@@ -1,14 +1,5 @@
 # Goals: agents, institutions and markets
 
-Latest integration: [common acquisition adapters](ACQUISITION-ADAPTERS.md) now
-prepare dated loans, prepayments, guarantees, household hiring and estate bids
-through ordinary settlement. Direct and tool-backed forwards share collection,
-funding and storage; mortgages compose with prepayments and negotiated exchange.
-Household mortgages now connect repayment to solvent disposal and dissolution.
-[Estate receivables](ESTATE-RECEIVABLES.md) preserve recoverable assets and newly
-collected cash before deficient closure. These are tested combinations; broader
-admission, planning, custody and liquidation work remains.
-
 This document records the experiment's intended direction. These are design goals,
 not claims of implemented behavior or a commitment to implement everything at once.
 The [integration matrix](INTEGRATION-STATUS.md) records supported combinations;
@@ -17,13 +8,13 @@ the [design](DESIGN.md) describes the transaction and process architecture.
 ## Current position
 
 The [README progress summary](README.md#current-progress--2026-09-30) separates
-implemented pilots from these longer-term goals. Recent consolidation shares loan,
-land and forward claim execution and adds alternative-tender allocation, capped
-guarantees, configured recovery with land/forward admission, and funded liquidation.
-Those are
-bounded mechanisms, not completed organizational governance or a universal legal
-and financial system. Remaining work is ordered in
-[contract consolidation](CONTRACT-CONSOLIDATION.md).
+implemented behavior from these longer-term goals. The initial bounded
+person–household loop is complete. Later household/finance composition is recorded
+in [Fibonacci integration](FIBONACCI-INTEGRATION.md), through completed batch 89.
+The [integration matrix](INTEGRATION-STATUS.md) is the current compatibility
+reference; [contract consolidation](CONTRACT-CONSOLIDATION.md) orders remaining
+implementation. Completion of a batch does not complete these broader ambitions.
+Person self-directed policy changes remain deferred by request.
 
 ## Purpose and consistency
 
@@ -236,17 +227,19 @@ or liquidation flow. Preserve identity, assets, outstanding claims, collateral a
 process obligations while legal and contractual rules determine administration,
 transfer, sale and distribution. Death must not silently delete debt or create
 spendable inheritance before settlement. Estate handling is still a goal for
-persons and households; existing terminal-state or household closure behavior is
-not a complete implementation of this flow. The implemented
-[loan-estate recovery](CONTRACT-RECOVERY.md) starts from configured authorization
-and observed arrears. It does not yet connect death/dissolution to estate creation,
-inheritance, household administration or admission of every contractual claim.
+persons and households beyond the supported explicit wind-down. Implemented
+[household wind-down](HOUSEHOLD-WIND-DOWN.md) composes asset disposal, authorized
+loan recovery and residual distribution; it does not automatically administer a
+person's death. [Contract recovery](CONTRACT-RECOVERY.md) starts from configured
+authorization and observed arrears. Automatic death estates, general inheritance
+and admission of every contractual claim remain goals.
 
 ## Incremental development and evidence
 
 Prioritize a small integrated formation/governance/allocation/market loop over
-additional physical detail. Market price formation and the household redesign are
-major next directions; precise implementation order can follow bounded experiments.
+additional physical detail. Extend the implemented price formation and household
+governance through mixed scenarios; follow the ordered consolidation roadmap
+before describing the economy as unified.
 The existing deprivation, planner-ablation, uncertainty and competing-offer review
 items remain useful validation work within this broader direction.
 
@@ -272,145 +265,3 @@ tests of the primitives, not promised Ancient World content. Alternative species
 and civilizations should vary needs, knowledge, settlement and organizational
 norms through definitions and policies. Each stage requires mechanical, agentic
 and composition evidence rather than merely a catalog entry.
-
-
-The household contributed-labor pilot now includes opt-in `NeedsFirst`: compare
-settled current-month needs after pooling and consumption, then net output, within
-the existing mandate and committed-work protection. This is a bounded allocation
-objective; endogenous policy selection and longer-horizon collective planning
-remain goals. See [household allocation semantics](HOUSEHOLDS.md#needs-first-contributed-labor).
-
-
-The household wind-down completion now composes explicit property/crop transfers,
-material salvage or write-off, and general lending/recovery with priority creditors
-and authorized deficiencies. These are verified small scenarios, not automatic
-death estates or autonomous liquidation-price discovery. See
-[completed scope and limits](HOUSEHOLD-WIND-DOWN.md).
-
-
-[Household town-market participation](HOUSEHOLD-MARKET.md) now exercises the next
-formation/governance/allocation/market connection: current governor policy generates
-collective orders for real members, protected surplus can be sold, and multiple
-listings share finite household resources. Member accounts remain separate. The
-initial person–household economic loop is now [complete in a bounded reciprocal
-market scenario](PERSON-HOUSEHOLD-LOOP.md). `NeedsThenIncome` links contributed work
-to expected next-book cash. Explicit member surplus mandates close the private
-stock-target failure without increasing targets or appropriating holdings. The
-120-month CPU/reference check feeds both members, conserves coins and reconciles
-separate accounts. Broader employment/credit planning, endogenous work and
-consent-term discovery, and longer-horizon collective planning remain extensions.
-
-### Household/shared-gap consolidation — 2026-09-29
-
-[Five alternating passes](INTEGRATION-PASSES.md) connect needs-first support,
-protected stocks, external member wages, private sales, collective purchases,
-static cash buffers and direct lending. Combined scenario controls cover changing
-availability and membership, CPU/reference continuation and separate books.
-Self-directed person policy changes are explicitly deferred while the general
-policy-setting mechanism is designed. This does not remove the broader goals for
-organizational formation, recruitment, governance or autonomous household hiring.
-
-[The second batch](INTEGRATION-PASSES-2.md) extends that loop with storage-bounded
-support, pooled physical barter, static charter purchase delegation, current
-membership routing and funding of accepted process inputs. Autonomous recruitment,
-new-business/input planning and autonomous hiring remain
-follow-ups. Person self-directed policy changes remain excluded.
-
-
-[Passes 11–15](INTEGRATION-PASSES-3.md) connect physical payroll, pooled inventory
-costs, opt-in current member loan assistance, collective acquisition of loan-payment
-stock and explicit scarce-support policy. CPU/reference checks combine wages or
-market exchange with later collection and separate financial statements. These
-are current accepted obligations, not autonomous borrowing or long-horizon
-financing plans. Person self-directed policy changes remain excluded.
-
-[Passes 16–20](INTEGRATION-PASSES-4.md) now connect explicitly budgeted household
-hiring to member production, historical-cost allocation, sales and earned payroll.
-Collective demand can fund existing wage claims. The interruption control also
-exercises an individual's switch to own production when employment stops. This is
-execution and integration evidence; negotiated hiring, self-selected employer
-contracts and long-horizon business viability remain future work. Person
-self-directed policy changes are still deferred.
-
-[Passes 21–25](INTEGRATION-PASSES-5.md) extend this to individual member employers,
-own-hour contribution rules, cross-household physical payroll and optional earned-wage
-assistance funded by collective orders. Integration tests retain personal liabilities
-through exit and demonstrate funding delays rather than assuming sustainable hiring.
-Internal employment, autonomous contract discovery and wage estates remain future
-work. Person self-directed policy changes remain explicitly deferred.
-
-[Pass 26](PAYROLL-OUTLOOK.md) adds optional current-month payroll funding estimates
-using the existing employment evaluator. Collective demand can anticipate supported
-member work without booking unearned wages. Controlled comparisons distinguish a
-removable funding delay from finite counterparty liquidity; long-horizon employer
-viability and autonomous hiring remain unproven. Earned-only remains the default.
-
-[Pass 27](HOUSEHOLD-PAYMENT-SUPPORT.md) connects voluntary member surplus to own
-household wage/loan funding under an opt-in static charter. It caps donations at
-actual payment shortages, protects donor needs and claims, and keeps donation,
-liability and settlement distinct. General obligation coverage and automatic support
-consent remain future work; person self-directed policy changes stay deferred.
-
-[Pass 28](HOUSEHOLD-LAND-SUPPORT.md) adds current native land bills to voluntary
-funding and consolidates their collection/funding claim reader. Combined rent and
-payroll checks retain arrears under limited support and storage.
-
-[Pass 29](HOUSEHOLD-LAND-FUNDING.md) adds current land-bill market purchases and an
-explicit accepted-tender preference shared by protection, support and settlement.
-Scarce alternative currency shares existing collection ranks with loans; native
-fallback covers the remaining bill. Autonomous land acquisition and negotiated
-hiring remain open. Person self-directed policy
-changes remain deferred.
-
-[Pass 30](HOUSEHOLD-FORWARDS.md) adds direct prepaid delivery admission for permitted
-agents, including household buyers/sellers, using the existing forward book and
-executor. Collective orders and signed support can fund own current deliveries.
-Combined rent/forward, credit/prepayment, storage and legal-change cases preserve
-finite resources, arrears and separate statements. Autonomous forward underwriting
-and longer-horizon employer viability remain open; the follow-up below covers
-bounded hiring and direct-forward recovery. Person self-directed policy changes
-remain deferred.
-
-[Fibonacci follow-up](FIBONACCI-INTEGRATION.md) adds household acceptance of posted
-labor quantities under existing static policies and connects direct delivery claims
-to authorized recovery alongside town markets. Integrated CPU/reference cases show
-prepaid production, earned-payroll costing and a bounded income-funded hiring loop.
-These advance the organizational decision loop without adding person self-directed
-policy changes. General labor matching/price negotiation, autonomous forward
-underwriting and wage insolvency remain later work.
-
-
-### Earned-wage recovery integration — Fibonacci batch 3
-
-[Wage recovery](WAGE-RECOVERY.md) now admits earned claims, pauses new employer
-work during an authorized proceeding, and allocates same-denomination estate cash
-with loan/land creditors. Actual payment updates the original employment book and
-separate worker/employer/custodian statements; member wages pool once on receipt.
-Native physical wages retain their existing service path and block closure if
-unpaid. This supersedes the earlier blanket wage-insolvency exclusion. Accepted wage/land relief now follows in [claim relief](CLAIM-RELIEF.md).
-Coin guarantees for those claims now follow in [guaranteed claims](GUARANTEED-CLAIMS.md).
-Automatic estates and general employment discovery remain open; person self-directed policy changes stay deferred.
-
-
-### Accepted non-loan disposition — Fibonacci batch 5
-
-[Claim relief](CLAIM-RELIEF.md) now supplies accepted write-offs and date extensions
-for earned wages and individual annual land bills. The common terms/history adapter
-preserves original identities, actual work, paid quantities, issuance and annual
-billing. Funding, projections, estate allocation, reporting and closure read the
-adjusted claim. A composed person/household wage-support, rent and prepaid-delivery
-scenario compares accepted relief with an otherwise identical unresolved estate.
-This is configured consent, not autonomous renegotiation or automatic insolvency.
-
-
-### Guaranteed claims — Fibonacci batch 8
-
-[Loan, wage and land guarantees](GUARANTEED-CLAIMS.md) now share typed claim
-inspection, funded Due settlement, explicit call allocation and dated same-book
-recourse. Actual member wage receipts pool once; employer, worker, guarantor and
-household retain separate statements. A combined household/loan/wage/rent control
-uses one scarce cash pool, and a reproduced estate timing bug is fixed for later
-advances on an older recourse loan. Coin claim coverage is implemented; physical
-and delivery coverage, lien transfer, autonomous underwriting and guarantee
-formation/discovery remain outstanding. Person self-directed policy changes stay
-deferred, and constitutions/charters remain static.

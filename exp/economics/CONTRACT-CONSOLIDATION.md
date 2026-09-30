@@ -1,5 +1,10 @@
 # Consolidate contracts before adding more financial scenarios
 
+Current through completed Fibonacci batch 89 (`30c74e6`). This document orders
+remaining implementation work; the [integration matrix](INTEGRATION-STATUS.md)
+is the current compatibility reference. Historical verification below records
+the scope of earlier changes, not current suite totals.
+
 Latest integration: [common acquisition adapters](ACQUISITION-ADAPTERS.md) now
 prepare dated loans, prepayments, guarantees, household hiring and estate bids
 through ordinary settlement. Direct and tool-backed forwards share collection,
@@ -135,12 +140,14 @@ annual arrears retry, forward collection and loan servicing retain their existin
 visibility boundaries. Autonomous formation/negotiation of every arrangement is
 not established by financial settlement tests.
 
-## Current verification and next integration target
+## Verification and next integration target
 
-The preceding loan-estate full crate run passed 451 tests; the final affected
-suites passed 61 overlapping tests after inspection, checkpoint and receipt refinements.
-See [contract recovery](CONTRACT-RECOVERY.md#earlier-loan-estate-validation) for the evidence
-and boundaries. Older totals below describe earlier consolidation snapshots.
+The full crate checkpoint at `30870e5` passed 1,023 tests with zero failures and
+one ignored test. It covers batch 89 through item 84; items 85–89 have separate
+affected-suite gates, ending with 54 passing tests at item 89. See
+[verification boundaries](INTEGRATION-STATUS.md#verification) and the
+[batch record](FIBONACCI-INTEGRATION.md). Earlier totals below describe their
+original snapshots and must not be added to these counts.
 
 [Land/forward admission](LAND-FORWARD-ADMISSION.md) is now implemented: native
 performance retains its denomination, timing and receipts; eligible land cash
@@ -219,10 +226,10 @@ can establish that all these arrangements compose.
    remain unsold; appraisals do not create coins. Retain surplus, deficiencies,
    explicit discharge/write-offs and final receipts. Mortgages can now explicitly select the authorized-liquidation lifecycle,
    including crop-control transfer, custody and actual proceeds. Legacy fixed-value
-   and creditor-resale choices remain distinct. Fixed-reserve, bounded-forecast and single-participant joint mortgage stock
-sales now respect counterparty recovery stays. Household labor now accompanies
-dated joint work; collective horizon optimization and broader market composition
-still need integration.
+   and creditor-resale choices remain distinct. Fixed-reserve, bounded-forecast
+   and bounded joint mortgage stock sales respect counterparty recovery stays.
+   Household labor accompanies dated joint work; collective horizon optimization
+   and broader market composition still need integration.
 
 Every step above extends the same book, claim executor and committed ledger.
 There should not be separate guarantees/insolvency/liquidation scenario engines.

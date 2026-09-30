@@ -148,6 +148,8 @@ validation counts above describe the earlier governance completion; membership v
 
 [Household town-market participation](HOUSEHOLD-MARKET.md) now adds policy-driven
 collective consumption orders and protected sales, with private member accounts
-and finite shared market budgets. General borrowing/recovery is separately covered
-in [wind-down completion](HOUSEHOLD-WIND-DOWN.md); these are not yet a combined
-town-market credit planner.
+and finite shared market budgets. Ordinary coin lending now composes with the
+town production/purchase planner, including collective buying. General recovery
+also composes with explicit [wind-down](HOUSEHOLD-WIND-DOWN.md). Conditional
+household cooperative credit and collective cooperative purchasing still need
+adapters; see the [current integration matrix](INTEGRATION-STATUS.md).

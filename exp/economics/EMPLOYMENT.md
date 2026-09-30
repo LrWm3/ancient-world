@@ -15,8 +15,9 @@ workers and internal household employment remain excluded. Individual members ma
 hire outside workers under their own contracts. Actual delivery requires both parties
 to be active and permitted to perform `CapacityTrade` under the current laws.
 
-The fixture supplies consent. Agents do not yet discover, negotiate or sign these
-terms through market orders. Salaries, piece rates, dismissal damages, minimum
+The fixture supplies worker consent and terms. Households can select useful
+quantities from posted labor offers through the admission path below; general
+market matching and wage negotiation are not implemented. Salaries, piece rates, dismissal damages, minimum
 shifts, overtime and holiday pay are not inferred from the hourly contract.
 Use finer resource/coin units when fractional economic quantities are needed.
 
@@ -51,8 +52,9 @@ This priority is scoped to employment. It does not reorder loan/dues collection
 or establish statutory wage preference. [Wage recovery](WAGE-RECOVERY.md) has a
 separate shared estate allocation window with configurable ranks.
 Preexisting phases retain their timing and may have consumed cash before payroll.
-The planner does not yet discover a hiring opportunity or escrow cash for future
-wages. The optional funding outlook below estimates existing contracts only.
+Posted household hiring evaluates useful work within a static budget; it does
+not discover arbitrary employers/workers or escrow all future wages. The optional
+funding outlook below estimates existing contracts only.
 These are execution terms, not evidence that an employer's
 plan is financially sustainable.
 
@@ -87,7 +89,8 @@ and internal household hires remain rejected, including common past/future membe
 both private receipt space and exact collective contribution space, including
 fractional carry. Unstorable payment remains arrears. See the
 [physical-wage verification](INTEGRATION-PASSES-3.md).
-Future-period labor prepayments, refunds and wage guarantees remain extensions.
+Future-period labor prepayments and refunds remain extensions. Native and selected
+coin-tender wage guarantees use the [shared guarantee model](GUARANTEED-CLAIMS.md).
 [Estate collection](WAGE-RECOVERY.md) and [accepted write-offs/date extensions](CLAIM-RELIEF.md)
 now preserve actual work and cash payments through the existing employment book.
 
@@ -155,8 +158,8 @@ missing payment stock for already earned claims by default. Member
 claims qualify only when `support_member_wages` also authorizes assistance. Tests cover
 coin and physical wages, scarce budgets, prohibited work, real arrears purchases,
 forged allocation receipts, replay and checkpoint continuation on CPU/reference.
-Autonomous recruitment, price discovery for labor and wage guarantees remain open;
-authorized wage recovery and explicit claim relief are now integrated.
+Autonomous recruitment and price discovery for labor remain open; wage guarantees,
+authorized recovery and explicit claim relief are integrated.
 
 ## Member employers and household assistance
 
@@ -228,7 +231,9 @@ inspection, funded Due settlement, explicit call allocation and dated same-book
 recourse. Actual member wage receipts pool once; employer, worker, guarantor and
 household retain separate statements. A combined household/loan/wage/rent control
 uses one scarce cash pool, and a reproduced estate timing bug is fixed for later
-advances on an older recourse loan. Coin claim coverage is implemented; physical
-and delivery coverage, lien transfer, autonomous underwriting and guarantee
-formation/discovery remain outstanding. Person self-directed policy changes stay
-deferred, and constitutions/charters remain static.
+advances on an older recourse loan. Later adapters extend coverage to physical wages
+and selected coin substitutes while keeping recourse in native units. Posted
+guarantee discovery/admission and explicitly inherited loan liens are implemented;
+autonomous underwriting/acceptance and broader security/tender combinations remain
+open. Person self-directed policy changes stay deferred, and constitutions/charters
+remain static. See [current integration limits](INTEGRATION-STATUS.md).

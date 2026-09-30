@@ -180,4 +180,7 @@ reconstructed continuation. The single-participant joint work/sale planner now
 also projects direct prepayments and deliveries before reserving its dated
 Productive batch. Delivering its only seed prevents planting and can make the
 continuation infeasible; a normal grain-forward control remains feasible.
-Household joint work allocation remains guarded.
+Subsequent household joint-work integration carries shared inputs, governed labor
+and output collection in the dated plan. It is a bounded participant comparison,
+not collective horizon optimization; household prerequisite/process bundles still
+need a separate adapter. See [current composition limits](INTEGRATION-STATUS.md).

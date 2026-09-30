@@ -1,10 +1,16 @@
 # Fibonacci integration follow-up
 
-Scope: finish bounded autonomous household hiring and direct prepaid-delivery
-recovery, then demonstrate that they compose with the existing economic loop.
+Scope: alternate household/organizational integration and shared financial
+consolidation under the [ordered roadmap](CONTRACT-CONSOLIDATION.md). The initial
+batches began with bounded household hiring and direct prepaid-delivery recovery.
 The batches contain logical changes, not a prescribed count of files or tests.
 The completed sequence is **1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89**. Batch sizes count distinct
 implementation and integration changes, not test cases. Person self-directed policy changes remain explicitly deferred.
+
+This is a chronological change and verification record. A boundary described in
+an early batch may be removed by a later one; use the
+[current integration matrix](INTEGRATION-STATUS.md) to determine present support.
+Test counts belong to their stated snapshots or affected suites and overlap.
 
 ## Batch 1 — one recovery change
 

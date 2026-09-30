@@ -393,10 +393,12 @@ planner and its pending speculative batches. Unsupported combinations fail
 validation at formation.
 
 Individual tool/plot underwriting remains a local individual rollout; it excludes
-future household support and is not a joint household credit assessment. Shared
-production targets, pooled external sales, general bilateral barter, migration,
-exit property settlements, inheritance, children, and optimal multi-period household plans
-remain outside this first version.
+future household support and is not a joint household credit assessment. Pooled
+external sales, valued bilateral/town barter, bounded joint work and explicit
+wind-down property transfers now have adapters. General migration, inheritance,
+children and optimal multi-period household plans remain extensions. The
+[integration matrix](INTEGRATION-STATUS.md) records the current combination limits,
+including household prerequisite/process acceptance and cooperative purchasing.
 
 ## Running and verification
 

@@ -38,7 +38,7 @@ alternative coin payments from creating fictitious grain collections or issuance
 | Stock exchange | Full payment legs on acceptance | Posted prices, both parties' opening stock, joint storage check |
 | Bilateral negotiation pilot | Both full transfer legs on acceptance | Reservation limits, quote policies, dated price receipt, permissions, joint storage check |
 | Equipment purchase | Full payment leg on acceptance | Ownership, remaining life, single-fill validation and atomic asset transfer |
-| Guarantee calls | Partial claim execution, original-debt reduction and same-book recourse | Configured consent, cap, expiry, trigger and priority; no lien subrogation |
+| Guarantee calls | Partial claim execution, original-debt reduction and same-book recourse | Accepted cap, expiry, trigger, tender and priority; explicit authorized-liquidation lien inheritance where supported |
 | Collateral resale and estate asset sale | Shared atomic funded asset-transfer helper, title and attached-process transfer | Buyer selection, accepted price, sale timing and recipient/waterfall rules |
 | Loan-estate distributions | Same executor and ranked/proportional allocation, actual payments and balance-sheet custody treatment | Authorization, stay, frozen interest, lien proceeds, closure and explicit write-off terms |
 
@@ -70,9 +70,10 @@ reported exclusively through the double-entry journal.
 Capped original-loan guarantees, scoped proportional collection and authorized
 single-denomination cash estates are implemented.
 [Land/forward admission](LAND-FORWARD-ADMISSION.md) now includes native performance
-claims without inventing conversion or discharge. Arbitrary event triggers,
-general non-loan discharge, multicurrency recovery, competing liens, general
-death/dissolution administration remain future work.
+claims without inventing conversion or discharge. Explicit land/wage/forward
+relief, compatible competing liens and authorized household wind-down now have
+adapters. Arbitrary event triggers, multicurrency recovery, automatic death
+estates and general lifecycle administration remain future work.
 [Double-entry financial statements](FINANCIAL-STATEMENTS.md) now cover the full
 report set for cash loans, valued mortgages, loan recovery and costed posted or
 bilateral/ZIP spot trades. Opt-in owner-operated material costing now capitalizes
@@ -86,9 +87,9 @@ through this shared view before introducing a second settlement mechanism.
 ## Validation
 
 The counts and snapshot comparisons below describe the earlier primitive migration.
-See [contract recovery](CONTRACT-RECOVERY.md#earlier-loan-estate-validation) for the earlier
-451-test full run and 61-test final focused run (overlapping), and
-[contract consolidation](CONTRACT-CONSOLIDATION.md) for integration gates; they are not evidence that all arrangements now compose.
+See the [current verification table](INTEGRATION-STATUS.md#verification) for the
+latest full-suite checkpoint and later affected-suite gates. These overlapping
+runs are not evidence that all arrangements now compose.
 
 
 - Shared primitive tests cover acceptance, maturity, partial settlement, protected
@@ -107,7 +108,8 @@ See [contract recovery](CONTRACT-RECOVERY.md#earlier-loan-estate-validation) for
 Accepted [forward relief](DELIVERY-RELIEF.md) now stages dated extensions and
 quantity write-offs through the credit boundary. It retains original acceptance
 and actual deliveries, with separate release history; it does not add cash damages
-or land-bill discharge.
+or inferred land-bill discharge. Land bills and wages have their own explicit
+[accepted relief adapter](CLAIM-RELIEF.md).
 
 
 Equipment reporting now recognizes posted coin purchases at actual cost,
@@ -117,8 +119,9 @@ Prepaid-forward/tool bundles now recognize creditor prepayments and producer
 deferred revenue, releasing those balances on actual delivery or accepted write-off.
 Extensions preserve carrying value; spot and forward deliveries share opening
 inventory costing. Equipment and posted commodity barter accept explicit reporting
-values. Royalties and non-posted barter without payment valuation remain outside
-the reporting adapter. See [forward recognition](FINANCIAL-STATEMENTS.md#prepaid-forwards-delivery-and-accepted-relief).
+values. Earned-only royalties and negotiated/town barter have explicit policies
+described below; missing required valuations still reject reporting. See
+[forward recognition](FINANCIAL-STATEMENTS.md#prepaid-forwards-delivery-and-accepted-relief).
 
 
 An explicit [non-redeemable issuance convention](FINANCIAL-STATEMENTS.md#physical-minting-and-collection-linked-issuance)
@@ -183,4 +186,7 @@ orders create no revenue; payment-stock valuation remains explicit.
 is now opt-in through `Opening.services`. Accepted purchases create a short-lived
 capacity cost asset; actual use feeds the existing process cost pipeline. Unused
 cost expires at the next Open. Paid/free capacity mixing uses proportional cost,
-while admission and physical allocation remain unchanged. [Employment delivery and wage arrears](EMPLOYMENT.md) now also feed this cost pipeline. Negotiated hiring, wage insolvency treatment and future service prepayments remain outstanding.
+while admission and physical allocation remain unchanged. [Employment delivery and wage arrears](EMPLOYMENT.md)
+also feed this cost pipeline. [Earned-wage recovery](WAGE-RECOVERY.md) and explicit
+claim relief are implemented; negotiated hiring and future service prepayments
+remain outstanding.

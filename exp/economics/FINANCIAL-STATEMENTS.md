@@ -1,19 +1,16 @@
 # Double-entry financial statements
 
-Latest consolidation: [standalone collection adapters](COLLECTION-ADAPTERS.md)
-now share ranked/proportional allocation and observable unpaid attempts.
-[Commodity finance](COMMODITY-FINANCE.md) adds valued native loans and physical
-loan, wage, land and direct-forward guarantees. Household posted hiring also
-composes with [physical minting](MINT-FINANCE.md) against remaining worker hours.
-[Posted guarantee admission](GUARANTEE-ADMISSION.md) now distinguishes offers from
-accepted exposure and checks legal recognition. [Acquisition adapters](ACQUISITION-ADAPTERS.md)
-connect direct loans to plot review and preserve observed household capacity in
-forecasts. These extend supported combinations; other admission and driver limits remain.
+Current through completed Fibonacci batch 89 (`30c74e6`). The double-entry journal
+is the sole financial reporting system; the simulation ledger and loan book retain
+their execution roles. Complete statements are available for supported scenarios,
+but accounting coverage is not universal. The [integration matrix](INTEGRATION-STATUS.md)
+records supported combinations and the latest verification boundary.
 
-Implemented reporting foundation, September 24, 2026. The complete statement set
-is available for supported financial scenarios; accounting coverage of the entire
-economy remains unfinished. This adds reporting alongside the existing simulation
-ledger and loan book, rather than replacing their execution rules.
+Section-level validation counts below are historical results for those adapters,
+not current suite totals or additional tests to sum. Subsequent integration covers
+native guarantees, shared custody, relief and purchased principal claims with
+discounts/premiums, subsequent interest and restored separate statements. See
+[purchased claims](#purchased-principal-claims) for the current cost convention.
 
 ## Book and statements
 
@@ -21,8 +18,10 @@ ledger and loan book, rather than replacing their execution rules.
 Each journal entry must balance **within each agent**. A borrower's debit cannot
 balance a lender's credit across two otherwise unbalanced books. Every entry has
 an ID, month, description and optional source batch ID. Publication rejects duplicate
-IDs, backdating, arithmetic overflow, negative assets, debit-positive liabilities
-and unclassified cash movements atomically.
+IDs, backdating, arithmetic overflow, invalid negative asset positions,
+debit-positive liabilities and unclassified cash movements atomically. The signed
+`LoanBasisAdjustment` may offset a positive principal asset, but cannot stand
+alone or make the net claim carrying value negative.
 
 The book produces:
 
@@ -131,7 +130,11 @@ with a real-world accounting standard.
 
 The adapter recognizes the selected coin at one reporting tick per stored tick.
 It rejects nonzero stocks without explicit opening cost, unsupported stock movements,
-mixed loan or estate denominations, unvalued equipment barter, unconfigured royalties and unconfigured land dues. Town-market trades use the costed stock adapter. Minting/issuance requires its explicit policy below. Process transactions
+unsupported loan or estate denominations, unvalued equipment barter, unconfigured
+royalties and unconfigured land dues. Valued native loans and guarantees have
+explicit [commodity-finance adapters](COMMODITY-FINANCE.md); these do not implement
+FX or multicurrency custody. Town-market trades use the costed stock adapter.
+Minting/issuance requires its explicit policy below. Process transactions
 require the explicit material-cost opt-in described below. Unsupported activity is an error,
 not zero value or an unexplained income/equity adjustment. Unused capacities and
 need satisfaction are not financial assets. Uncalled guarantees remain contingent
@@ -156,8 +159,9 @@ sales have been costed. Incoming stock cannot fund a same-boundary sale, matchin
 the settlement reservation rule. Transaction order and splitting identical total
 sales into smaller lots therefore do not change total cost of sales.
 
-Only verified one-good/one-coin spot transactions are admitted: existing posted
-stock bids and bilateral negotiated trades, including ZIP quotes. A quote or a
+The cash spot adapter admits verified one-good/one-coin transactions: posted
+stock bids, town trades and bilateral negotiated trades, including ZIP quotes.
+Explicitly valued barter has the separate adapters described below. A quote or a
 failed/unfunded match creates no revenue. The adapter does not alter prices,
 allocation, permissions, storage checks or the monthly schedule. It does not infer
 an exchange merely from coincident stock/cash changes.
@@ -294,11 +298,11 @@ boundary. Loan and dues receipts can share a report without counting loan princi
 as income. `with_process_policy(world, shares)` composes production costing with a
 newly opened dues book; it must be selected before recording the first batch.
 
-Limits remain explicit: arbitrary dues relief and combined same-boundary
-trade/production/dues cost
-allocation require further adapters. Ordinary Due and Productive/Consumption work
-compose on their existing separate boundaries. Prepaid-forward tool purchases,
-physical delivery and accepted relief now have the recognition adapter below.
+Accepted land/wage relief has an explicit adapter. Trade, production and dues
+costing share opening-cost allocation where their execution boundaries permit;
+that accounting helper does not merge Due and Productive/Consumption phases.
+Prepaid-forward purchases, physical delivery and accepted relief have the
+recognition adapter below. Arbitrary repricing or inferred forgiveness is absent.
 
 ```sh
 cargo +1.92.0 run --locked --example dues_statements > ../../output/economics/dues-statements.md
@@ -351,25 +355,21 @@ has 200 cash, 10,000 land, no debt, 200 interest expense and 10,200 equity after
 8,400 configured transfer income and the 2,000 opening endowment. These are
 fixture outcomes, not evidence of sustainable autonomous income.
 
-Extend adapters next, preserving these reconciliation gates:
+Current remaining accounting work, preserving these reconciliation gates:
 
-1. Extend the supported paid-capacity costing to additional labor admission paths and priced third-party production.
-   Historical WIP opening, title-following WIP transfers, configured expiration,
-   town-market trades and explicitly valued equipment barter are implemented.
-   Posted barter and shared opening-stock cost allocation are also implemented.
-   Royalty consideration and other exchange forms still need explicit adapters.
-2. Extend the explicit non-redeemable issuance convention to redeemable issuer liabilities,
-   retirement/burning and broader monetary instruments; do not infer promises from tokens.
-3. Extend ordinary and estate-paid dues to explicit relief.
-   Prepaid-forward origination, delivery, extensions and write-offs now have an
-   adapter; broader repricing/refunding and impairment policies remain open.
-4. Add household/institution contributions and
-   distributions, then ownership and consolidation eliminations. Summing entity
-   statements is not a consolidated economy statement: custody and intra-economy
-   claims need elimination.
-5. Add valuation/FX policies, impairment allowances, contingent-claim and noncash
-   financing disclosure schedules and full Audit/Simulation persistence. Journal-only
-   persistence and completed-period finalization are implemented below.
+1. Broader service admission, negotiated/internal household employment and priced
+   third-party production; estimated contingent consideration beyond earned-only
+   royalties and supported beneficiary transfers.
+2. Redeemable issuer liabilities, currency retirement/burning, FX and multiple
+   custody denominations. Valued native debt is not an FX implementation.
+3. Forward refund/repricing, impairment allowances and acquisition-cost allocation
+   to already unpaid interest. Explicit land/wage/forward relief and partial/full
+   loan relief already have adapters.
+4. Explicit ownership/consolidation elimination adapters and automatic death
+   estates. Household contributions, supported distributions and authorized
+   wind-down/recovery are implemented; member claims remain separate.
+5. Contingent/noncash disclosure schedules and durable full Audit/Simulation
+   persistence. Journal-only persistence and period finalization are implemented.
 
 The adapter deliberately replays validation and clones small scenarios. It has not
 been optimized or benchmarked for a large population. Balanced books establish
@@ -539,12 +539,14 @@ cargo +1.92.0 run --locked --example minting_statements > ../../output/economics
 ```
 
 Limits: no redeemable currency liability, issuer reserve requirement, coin
-retirement, FX or consolidation treatment. The physical minting driver remains
-isolated from collection-linked issuance and other acquisition drivers in the
-simulation. Reporting each separately does not remove those composition limits.
+retirement, FX or consolidation treatment. Physical minting now composes with
+loans, prepayments, dues, employment, household pooling and authorized recovery
+through [mint finance](MINT-FINANCE.md). This does not create a universal issuance
+or acquisition policy; supported combinations retain their domain rules.
 The provisioning/leisure variants now reconcile configured service-ticket expiration
 through InventoryLoss. Estate-paid native/accepted-coin
-dues now have the adapter below; arbitrary non-loan discharge remains unsupported.
+dues have the adapter below; explicit wage/land and delivery relief use their
+accepted terms rather than inferring non-loan discharge.
 
 The issuance-accounting regression run passed **72 tests across 11 suites**:
 accounting 11, dues accounting 7, equipment accounting 2, forward accounting 5,
@@ -627,9 +629,9 @@ continuation (eight material-cost ticks become house basis eight), full configur
 decay, helper wear expensed on repair without revaluation, required-tool wear in
 manufacture, missing-material nonproduction, and atomic rejection of mixed stock
 and durable outputs without an allocation policy. The typed policy described below
-now supports such outputs; stock cost is never silently assumed to be zero. General third-party work, capitalized paid labor,
-royalties and unrestricted specialist reports remain
-outside this increment.
+now supports such outputs; stock cost is never silently assumed to be zero.
+Capitalized paid labor and earned-only royalties have later adapters below.
+General priced third-party work still needs explicit terms and costing rules.
 
 Validation: **42 tests passed** across accounting (11), activities (10), equipment
 accounting (2), forward accounting (5), issuance accounting (5), manufacture
@@ -706,8 +708,9 @@ construction, verify exact WIP release and no income creation, reject missing,
 extra, zero and wrong-kind shares, reject policy changes after opening, and verify
 atomic failure if actual outputs differ (including removal of the stock output).
 Existing unconfigured joint-output rejection remains covered. This only covers the
-current one-durable-per-process execution model, with owner-operated costs;
-cross-agent production and capitalized paid labor remain outstanding.
+current one-durable-per-process execution model. The later beneficiary-transfer
+and paid-capacity adapters extend ownership and labor costing without changing
+that output cardinality.
 
 Validation: **33 tests passed** across accounting (14), equipment accounting (2),
 issuance accounting (5), manufacture accounting (7) and process accounting (5).
@@ -745,7 +748,7 @@ Generated summaries and logs stay under ignored `output/economics/`.
 
 ## Coverage expansion and remaining adapters
 
-The next coverage pass closes these concrete gaps:
+The implemented coverage pass added these adapters:
 
 | Situation | Accounting treatment and evidence |
 | --- | --- |
@@ -775,8 +778,11 @@ still need accounting adapters or policy definitions:
 - Automatic death estates and consolidated reporting beyond separate-agent scope. Explicit household wind-down, asset disposal and general loan/recovery distributions are now verified; see HOUSEHOLD-WIND-DOWN.md.
 - Estimated/capitalized contingent consideration beyond the earned-only royalty policy below; noncash exchanges outside supported posted, negotiated and town-market payment terms.
 - Broader paid-labor admission and contract terms beyond current-period capacity purchases, priced contract production, non-pool resource ownership, and combining distinct beneficiaries with royalties.
-- Multiple loan/estate denominations and FX valuation; redeemable currency and retirement.
-- Explicit dues discharge, forward refund/repricing and impairment policies.
+- Broader loan/security denomination combinations and multicurrency estates/FX;
+  valued native loan and guarantee adapters are implemented. Redeemable currency
+  and retirement still need policies.
+- Forward refund/repricing and impairment policies; explicit dues discharge is
+  implemented through accepted claim relief.
 - Full durable Audit/Simulation restart, consolidation and contingent/noncash disclosures.
 
 Ordinary validation failures (forged batches, insufficient physical stock,
@@ -1160,8 +1166,9 @@ settles the valued wage claim through the shared noncash exchange adapter.
 
 Agreements can continue deliveries on credit or suspend future deliveries while
 prior wages remain unpaid. No wage claim is discharged merely because the contract
-expires, the employer wastes the hours, or production fails. Negotiated hiring,
-household paid-labor delegation and wage insolvency/estate treatment remain open.
+expires, the employer wastes the hours, or production fails. Household paid-labor
+delegation and authorized earned-wage recovery have adapters below. Negotiated
+hiring, internal household employment and automatic death estates remain open.
 
 
 ## Solvent household dissolution
@@ -1245,7 +1252,8 @@ personal wage claims, and household/member books remain separate.
 No new reporting system or automatic consolidation was introduced. The eight-month
 CPU/reference and checkpoint comparison reconciles every boundary and each agent's
 balance sheet. The fourth batch below extends this to household hiring and onward
-delegation of paid capacity; wage insolvency remains outside the composition.
+delegation of paid capacity. Earned-wage recovery is covered by the later adapter
+described below.
 
 The [second integration batch](INTEGRATION-PASSES-2.md) also checks private physical
 barter, delegated purchases, and household-funded member inputs through the same
@@ -1314,7 +1322,8 @@ book or immediate recognition of prepaid sales is introduced.
 
 CPU/reference cases combine market funding, native land dues, direct loan funding
 competition, shared storage, legal changes and replay. Advances must use the journal
-reporting coin; direct-forward recovery and FX remain outside this coverage.
+reporting coin. Direct-forward recovery now uses the existing relief and estate
+adapters; FX remains outside this coverage.
 
 
 ### Earned-wage recovery integration — Fibonacci batch 3
@@ -1325,8 +1334,9 @@ with loan/land creditors. Actual payment updates the original employment book an
 separate worker/employer/custodian statements; member wages pool once on receipt.
 Native physical wages retain their existing service path and block closure if
 unpaid. This supersedes the earlier blanket wage-insolvency exclusion. Accepted wage/land relief now follows in [claim relief](CLAIM-RELIEF.md).
-Guarantees for those claims, automatic estates and general employment discovery remain
-open; person self-directed policy changes stay deferred.
+Guarantees for those claims now have native and selected alternative-tender
+adapters. Automatic estates and general employment discovery remain open;
+person self-directed policy changes stay deferred.
 
 
 ### Accepted non-loan disposition — Fibonacci batch 5
@@ -1347,9 +1357,11 @@ inspection, funded Due settlement, explicit call allocation and dated same-book
 recourse. Actual member wage receipts pool once; employer, worker, guarantor and
 household retain separate statements. A combined household/loan/wage/rent control
 uses one scarce cash pool, and a reproduced estate timing bug is fixed for later
-advances on an older recourse loan. Coin claim coverage is implemented; physical
-and delivery coverage, lien transfer, autonomous underwriting and guarantee
-formation/discovery remain outstanding. Person self-directed policy changes stay
+advances on an older recourse loan. Subsequent adapters cover native physical and
+direct-delivery guarantees, selected coin substitutes, posted admission and
+explicit authorized-liquidation lien inheritance. Autonomous underwriting and
+acceptance, arbitrary tenders and broader security combinations remain open; see
+[guaranteed claims](GUARANTEED-CLAIMS.md). Person self-directed policy changes stay
 deferred, and constitutions/charters remain static.
 
 ### Purchased principal claims
