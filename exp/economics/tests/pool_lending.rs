@@ -463,3 +463,172 @@ fn accepted_prepaid_deliveries_generate_collection_work_without_selling_the_need
         }
     }
 }
+
+#[test]
+fn estate_cash_control_preserves_native_collection_and_household_membership() {
+    use economics_compute_smoke::{
+        employment::{ArrearsPolicy, Terms},
+        household_governance::{Governance, Policy as HouseholdPolicy},
+        households::{self, Agreement},
+        recovery::{ProceedingTerms, Stage},
+    };
+    const ESTATE: AgentId = 20000;
+    const HOME: AgentId = 10000;
+    for household in [false, true] {
+        let (mut w, mut s) = fixture(true);
+        w.horizon = 3;
+        let mut worker = w.participants[1].clone();
+        worker.agent = PERSON + 2;
+        worker.needs.clear();
+        w.participants.push(worker);
+        w.agents.push(Agent {
+            id: PERSON + 2,
+            name: "external worker".into(),
+        });
+        w.lending[0].principal = 12;
+        w.lending[0].terms.max_principal = 12;
+        w.lending[0].terms.term_months = 6;
+        s.balances.insert((STATE_AGENT, FUEL), 12);
+        s.balances.insert((STATE_AGENT, TOKEN), 4);
+        w.lending.push(Advance {
+            id: 11,
+            debtor: PERSON,
+            principal: 4,
+            month: 2,
+            collateral: None,
+            priority: 0,
+            terms: LoanOffer {
+                creditor: STATE_AGENT,
+                denomination: TOKEN,
+                max_principal: 4,
+                monthly_rate_bps: 0,
+                term_months: 1,
+                grace_months: 12,
+            },
+        });
+        // Borrowed coins buy actual work at Close; the missed installment in
+        // month 3 authorizes the configured proceeding at Open in month 4.
+        w.employment.push(Terms {
+            id: 1,
+            employer: PERSON,
+            worker: PERSON + 2,
+            from: 2,
+            through: 2,
+            capacity: Amount::new(LABOR, 1),
+            wage_per_unit: Amount::new(TOKEN, 4),
+            on_arrears: ArrearsPolicy::Continue,
+            rank: 0,
+        });
+        w.agents.push(Agent {
+            id: ESTATE,
+            name: "coin estate".into(),
+        });
+        w.recovery.proceedings.push(ProceedingTerms {
+            id: 1,
+            debtor: PERSON,
+            authority: STATE_AGENT,
+            estate: ESTATE,
+            denomination: TOKEN,
+            opening_month: 4,
+            earliest_close: 8,
+            assets: vec![],
+            discharge_deficiency: true,
+        });
+        if household {
+            s.balances.insert((HOME, TOKEN), 2);
+            let mut governance = Governance::contributed(PERSON);
+            governance.charter.initial_policy = HouseholdPolicy::NeedsFirst;
+            households::form(
+                &mut w,
+                &s,
+                Agreement {
+                    id: 1,
+                    agent: HOME,
+                    adults: vec![PERSON, PERSON + 1],
+                    governance,
+                    formed: s.month,
+                    dwelling_process: None,
+                    admission: None,
+                    membership: vec![],
+                    asset_sales: vec![],
+                    equipment_retirements: vec![],
+                    support: vec![],
+                },
+            )
+            .unwrap();
+        }
+        let mut invalid = w.clone();
+        invalid.pool_market.as_mut().unwrap().account.0 = ESTATE;
+        for pool in &mut invalid.pool_inputs {
+            pool.account.0 = ESTATE;
+        }
+        assert!(Simulation::new(invalid, s.clone(), Backend::Reference).is_err());
+        let run = |backend| {
+            let mut audit = Audit::with_opening(
+                &w,
+                &s,
+                TOKEN,
+                Opening {
+                    inventory: [((STATE_AGENT, FUEL), 12)].into(),
+                    exchange_values: [(FUEL, 1)].into(),
+                    processes: Some(Default::default()),
+                    ..Opening::default()
+                },
+            )
+            .unwrap();
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            while sim.state.month <= 4 {
+                audit.step(&mut sim).unwrap();
+            }
+            assert_eq!(
+                sim.state.credit.recovery.proceedings[&1].stage,
+                Stage::Active
+            );
+            assert_eq!(
+                sim.state.credit.loans[&11].status,
+                economics_compute_smoke::credit::Status::Stayed
+            );
+            let native_at_open = sim.state.credit.loans[&10].principal;
+            let (mut resumed, mut ra) = (sim.clone(), audit.clone());
+            while sim.state.month <= 12 {
+                audit.step(&mut sim).unwrap();
+            }
+            while resumed.state.month <= 12 {
+                ra.step(&mut resumed).unwrap();
+            }
+            assert_eq!(
+                (&sim.state, &sim.ledger, &audit),
+                (&resumed.state, &resumed.ledger, &ra)
+            );
+            assert!(native_at_open > 0);
+            assert_eq!(sim.state.credit.loans[&10].principal, 0);
+            assert_eq!(
+                sim.state.credit.recovery.proceedings[&1].stage,
+                Stage::Closed
+            );
+            assert_eq!(
+                sim.state.credit.loans[&11].status,
+                economics_compute_smoke::credit::Status::Discharged
+            );
+            assert!(
+                sim.ledger
+                    .iter()
+                    .any(|b| b.month >= 4 && b.month < 8 && b.pool_market.is_some())
+            );
+            assert_eq!(sim.state.balance(ESTATE, FUEL), 0);
+            if household {
+                assert_eq!(
+                    households::parent(&sim.world, &sim.state, PERSON),
+                    Some(HOME)
+                );
+                assert_eq!(sim.state.balance(HOME, TOKEN), 2);
+            }
+            for a in &sim.world.agents {
+                let report = audit.book().statements(a.id, 2, 12).unwrap();
+                assert_eq!(report.assets, report.liabilities + report.equity);
+            }
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

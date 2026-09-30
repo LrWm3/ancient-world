@@ -245,8 +245,8 @@ Acquire window. Ordinary productive allocation still shares the same four wood
 units.
 
 This covers supplied unsecured commodity credit with collection, not competitive
-land admission, recovery in a shared-pool economy, or consequence-search credit
-selection. Those incompatible drivers still fail validation explicitly.
+land admission or consequence-search credit selection. Those incompatible drivers
+still fail validation explicitly. Recovery composition follows below.
 
 ### Repayment-aware collection demand
 
@@ -318,3 +318,23 @@ Immediately after that second call, planning protects the older two coins; next
 month it sees all four if still unpaid. The pre-fix test observed four immediately.
 CPU/reference continuation and separate books reconcile. This changes demand
 visibility, not the authoritative debt or the timing of guarantee payment.
+
+## Native collection during coin insolvency
+
+Authorized recovery now composes with productive shared-pool collection. Existing
+rules still require observed prior arrears; shortage alone does not open a case.
+Coin custody stays coin claims while unsecured obligations in other denominations
+continue through native performance. Productive work uses the same finite pool,
+capacity and household allocation paths. The dedicated estate custodian cannot
+also provide an environmental input pool.
+
+The integrated case spends a coin advance on actual external employment, misses
+the following installment, and opens a coin proceeding next month. A fuel loan
+continues to be repaid from fuel stocks and collection. The case cannot close by
+writing off that physical obligation; after repayment, its configured coin
+write-off can close it. Independent and household-member variants run eleven
+months with CPU/reference and checkpoint agreement and separate balanced books.
+The household retains its two coins and its membership: a member's insolvency does
+not automatically confiscate organizational assets or dissolve the household.
+This does not broaden custody beyond its configured denomination, automate legal
+admission, or establish all market combinations.

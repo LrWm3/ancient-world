@@ -412,6 +412,10 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         }
         // Custody agents cannot participate in other configured economic arrangements.
         if world.participants.iter().any(|p0| p0.agent == p.estate)
+            || world
+                .pool_inputs
+                .iter()
+                .any(|pool| pool.account.0 == p.estate)
             || world.households.iter().any(|h| {
                 h.agent == p.estate || crate::households::membership::ever_member(h, p.estate)
             })
