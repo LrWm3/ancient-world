@@ -170,6 +170,8 @@ pub struct Proceeding {
 pub struct Book {
     pub assignments: BTreeMap<u32, receivables::Assignment>,
     pub accepted_guarantees: BTreeMap<u32, u32>,
+    /// Consented posted terms, including any rate selected from another agreement.
+    pub accepted_guarantee_terms: BTreeMap<u32, admission::Accepted>,
     pub paid_guarantees: BTreeMap<u32, i32>,
     /// Actual advances by guarantee and month; additions become collectible next month.
     pub guarantee_advances: BTreeMap<(u32, u32), i32>,

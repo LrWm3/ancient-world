@@ -13,6 +13,12 @@ pub struct Application {
     pub month: u32,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Accepted {
+    pub terms: Guarantee,
+    pub tender: Option<crate::activities::CoinPayment>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Rejection {
     NotPosted,
     WrongApplicant,
@@ -95,6 +101,15 @@ pub(crate) fn validate(world: &World, state: &State) -> Result<(), String> {
             return Err("invalid dated guarantee application".into());
         }
     }
+    if state
+        .credit
+        .recovery
+        .accepted_guarantee_terms
+        .keys()
+        .ne(state.credit.recovery.accepted_guarantees.keys())
+    {
+        return Err("guarantee admission terms and dates disagree".into());
+    }
     for (&id, &month) in &state.credit.recovery.accepted_guarantees {
         if month > state.month
             || (month == state.month
@@ -105,6 +120,15 @@ pub(crate) fn validate(world: &World, state: &State) -> Result<(), String> {
                 .any(|a| a.guarantee == id && a.month == month)
         {
             return Err("guarantee acceptance without dated consent".into());
+        }
+        let accepted = &state.credit.recovery.accepted_guarantee_terms[&id];
+        let current = config
+            .guarantees
+            .iter()
+            .find(|g| g.id == id)
+            .ok_or("missing accepted guarantee terms")?;
+        if accepted.terms != *current || accepted.tender != super::tender::terms(world, current)? {
+            return Err("accepted guarantee terms cannot change without a new agreement".into());
         }
     }
     Ok(())
@@ -144,6 +168,13 @@ pub(crate) fn apply(
                 .recovery
                 .accepted_guarantees
                 .insert(a.guarantee, state.month);
+            out.after.recovery.accepted_guarantee_terms.insert(
+                a.guarantee,
+                Accepted {
+                    terms: g.clone(),
+                    tender: super::tender::terms(world, g)?,
+                },
+            );
         }
         out.recovery.push(recovery::Receipt::GuaranteeAdmission {
             guarantee: a.guarantee,

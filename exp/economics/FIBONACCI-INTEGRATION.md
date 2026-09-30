@@ -717,3 +717,12 @@ separately recorded affected gates and are not covered by that snapshot.
     after guarantee expiry it can distribute residuals and close without erasing
     the member's original loan. CPU/checkpoint and audited statements agree. The
     four-target gate passed 55 tests with one ignored; strict Clippy passed.
+
+39. **Posted guarantee acceptance fixes its terms and resolved tender.** A
+    regression reproduced silent changes to accepted caps. Admission now retains
+    the accepted terms and conversion rate; checkpoint validation rejects edits,
+    missing snapshots and changed referenced land rates. A forged receipt cannot
+    omit those terms. Later legal restrictions still preserve existing servicing,
+    and CPU/reconstructed continuation agrees. The five-target gate passed 43
+    tests; strict all-target Clippy passed. This protects supplied consent;
+    autonomous underwriting and negotiated amendments remain outstanding.

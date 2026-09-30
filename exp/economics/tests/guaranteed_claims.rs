@@ -1768,3 +1768,137 @@ fn alternative_guarantees_allocate_whole_payment_lots_from_one_cash_pool() {
     w.recovery.guarantees[0].tender = GuaranteeTender::AcceptedLandCoins;
     assert!(Simulation::new(w, s, Backend::Reference).is_err());
 }
+
+#[test]
+fn accepted_posted_guarantee_terms_cannot_be_rewritten_in_the_offer_catalog() {
+    let (w, s) = posted_guarantee_fixture();
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    sim.run_months(2).unwrap();
+    assert_eq!(sim.state.credit.recovery.accepted_guarantees[&1], 2);
+    assert_eq!(
+        sim.state.credit.recovery.accepted_guarantee_terms[&1].terms,
+        sim.world.recovery.guarantees[0]
+    );
+    for missing in [false, true] {
+        let mut changed = sim.state.clone();
+        if missing {
+            changed.credit.recovery.accepted_guarantee_terms.clear();
+        } else {
+            changed
+                .credit
+                .recovery
+                .accepted_guarantee_terms
+                .get_mut(&1)
+                .unwrap()
+                .terms
+                .cap += 1;
+        }
+        assert!(Simulation::new(sim.world.clone(), changed, Backend::Reference).is_err());
+    }
+    for mode in 0..5 {
+        let mut changed = sim.world.clone();
+        let g = &mut changed.recovery.guarantees[0];
+        match mode {
+            0 => g.cap += 1,
+            1 => g.through += 1,
+            2 => g.delay_months += 1,
+            3 => g.recourse += 1,
+            _ => g.priority += 1,
+        }
+        assert!(
+            Simulation::new(changed, sim.state.clone(), Backend::Reference).is_err(),
+            "accepted terms changed: {mode}"
+        );
+    }
+}
+
+#[test]
+fn posted_land_guarantee_captures_the_accepted_external_tender_rate() {
+    use economics_compute_smoke::{
+        activities::CoinPayment, commitments, recovery::GuaranteeTender, settlement,
+    };
+    let (mut w, s) = posted_guarantee_fixture();
+    w.assets.push(Asset {
+        id: 900,
+        owner: WORKER,
+        kind: 1,
+    });
+    w.rights.push(UseRight {
+        id: 900,
+        holder: ISSUER,
+        asset: 900,
+        from: 1,
+        through: 24,
+        output_owner: ISSUER,
+    });
+    w.agreements.push(commitments::Agreement {
+        id: 900,
+        right: 900,
+        creditor: WORKER,
+        debtor: ISSUER,
+        activated: 1,
+        payment: Amount::new(minting::FIREWOOD, 1),
+    });
+    w.activities.coin_payments.insert(
+        900,
+        CoinPayment {
+            resource: COIN,
+            coins_per_unit: 2,
+        },
+    );
+    let g = &mut w.recovery.guarantees[0];
+    g.claim = GuaranteedClaim::Land {
+        agreement: 900,
+        due: 13,
+    };
+    g.through = 24;
+    g.tender = GuaranteeTender::AcceptedLandCoins;
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        while (sim.state.month, sim.state.phase) != (2, Phase::Acquire) {
+            sim.step().unwrap();
+        }
+        let before = sim.state.clone();
+        sim.step().unwrap();
+        let accepted = &sim.state.credit.recovery.accepted_guarantee_terms[&1];
+        assert_eq!(
+            accepted.tender,
+            Some(CoinPayment {
+                resource: COIN,
+                coins_per_unit: 2
+            })
+        );
+        let mut altered = sim.ledger.last().unwrap().clone();
+        altered
+            .credit
+            .as_mut()
+            .unwrap()
+            .after
+            .recovery
+            .accepted_guarantee_terms
+            .clear();
+        let mut rejected = before.clone();
+        assert!(
+            settlement::commit(&w, &mut rejected, &altered, backend, sim.effect_limit).is_err()
+        );
+        assert_eq!(rejected, before);
+        let mut changed = sim.world.clone();
+        changed
+            .activities
+            .coin_payments
+            .get_mut(&900)
+            .unwrap()
+            .coins_per_unit = 3;
+        assert!(Simulation::new(changed, sim.state.clone(), backend).is_err());
+        let mut resumed = Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+        let prefix = sim.ledger.len();
+        sim.run_months(2).unwrap();
+        resumed.run_months(2).unwrap();
+        assert_eq!(
+            (&sim.state, &sim.ledger[prefix..]),
+            (&resumed.state, &resumed.ledger[..])
+        );
+        (sim.state, sim.ledger)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}

@@ -10,7 +10,14 @@ The common `offers` catalog exposes eligible `Guarantee` terms. Its `prepare`
 interface verifies the named guarantor, configured application, date and normal
 Acquire settlement. The normal simulation uses the same admission checks and
 records acceptance or rejection in the existing credit boundary. An accepted
-month is stored in the recovery book; there is no second exposure ledger.
+month and a snapshot of the accepted terms are stored in the recovery book;
+there is no second exposure ledger. The snapshot includes the resolved alternative
+tender and conversion rate, including rates referenced from land terms. Retained
+catalog terms must still match: changing a cap, duration, delay, priority,
+recourse or tender after acceptance requires a new agreement. Missing or altered
+snapshots fail checkpoint validation and settlement rejects forged admission
+receipts atomically. Existing preconfigured, non-posted guarantees keep their
+static configuration path.
 
 A state's recognized forms can include `AgreementForm::Guarantee`, and permission
 to originate is `Action::Guarantee`. Missing recognition or permission rejects
@@ -43,5 +50,7 @@ Tests also distinguish unaccepted offers from existing agreements and reject a
 checkpoint containing acceptance before its Acquire boundary.
 
 Remaining extensions include autonomous benefit/risk assessment, paid guarantees,
-negotiated terms, alternative performance tenders and lien subrogation. Static
+negotiated terms and broader tender/security combinations. Explicit loan coin
+tender, accepted land coin tender and bounded lien subrogation are covered in
+[guaranteed claims](GUARANTEED-CLAIMS.md). Static
 constitutions/charters and deferred person self-directed policy changes are unchanged.
