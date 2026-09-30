@@ -397,8 +397,8 @@ fn validate_purchase(world: &World, state: &State) -> Result<(), String> {
     crate::stock_sale::validate(world, state)?;
     // Ownership-following production is supported. Other acquisition/collection
     // drivers still require shared funding and ownership rules.
-    if !world.agreements.is_empty()
-        || !world.access_offers.is_empty()
+    if !world.access_offers.is_empty()
+        || (!world.agreements.is_empty() && c.stock_sales.is_some())
         || world.market.is_some()
         || world.competition.is_some()
         || world.pool_market.is_some()
@@ -418,18 +418,23 @@ fn validate_purchase(world: &World, state: &State) -> Result<(), String> {
             "credit pilot cannot combine unrelated acquisition or collection drivers".into(),
         );
     }
-    if world
-        .rights
-        .iter()
-        .any(|r| !c.attached_rights.contains(&r.id))
-        || c.attached_rights.iter().any(|id| {
-            !world
-                .rights
-                .iter()
-                .any(|r| r.id == *id && c.offers.iter().any(|o| o.sale.asset == r.asset))
-        })
-    {
+    if world.rights.iter().any(|r| {
+        c.offers.iter().any(|o| o.sale.asset == r.asset) && !c.attached_rights.contains(&r.id)
+    }) || c.attached_rights.iter().any(|id| {
+        !world
+            .rights
+            .iter()
+            .any(|r| r.id == *id && c.offers.iter().any(|o| o.sale.asset == r.asset))
+    }) {
         return Err("credit production requires explicit ownership-following rights".into());
+    }
+    if world.agreements.iter().any(|a| {
+        world
+            .rights
+            .iter()
+            .any(|r| r.id == a.right && c.offers.iter().any(|o| o.sale.asset == r.asset))
+    }) {
+        return Err("financed property cannot silently replace an existing land lease".into());
     }
     let agent = |id| world.agents.iter().any(|a| a.id == id);
     let coin = |id| {

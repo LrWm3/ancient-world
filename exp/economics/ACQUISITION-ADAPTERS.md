@@ -187,3 +187,25 @@ CPU/reference and checkpoint continuation agree. A winding applicant rejects the
 new mortgage and can release its own cash without creating title or debt. This
 verifies supplied finance, disposal and governance boundaries; it does not add
 household property speculation or change static constitutions/charters.
+
+## Financed ownership alongside a separate lease
+
+A financed purchase can now coexist with an accepted annual land agreement on a
+different plot. Ordinary lease rights retain their holder and dues. Rights on the
+financed plot must still explicitly follow ownership, and financing cannot silently
+replace a lease on that same property. New access-offer admission and the specialized
+mortgage stock-sale planner remain outside this composition.
+
+Mortgage installments and annual dues use their existing shared Due collection
+window. Tests give a person or household five coins, spend two on the downpayment,
+then compare a two-coin installment and four-coin rent against the remaining three.
+With equal collection ranks, stable collection pays two to the loan and one to rent;
+proportional collection pays one and two. A native two-grain rent with accepted
+two-coin tender instead pays one whole grain unit under proportional allocation;
+stable collection cannot spend its unusable one-coin remainder on half a unit.
+No native grain collection or grain-linked issuance is invented by coin payment.
+
+Both purchased and leased title, carried arrears and separate double-entry books
+agree under CPU/reference and checkpoint continuation. This is execution of
+supplied consent and an opening cash endowment, not evidence of a profitable
+multi-plot business or autonomous mortgage/lease selection.
