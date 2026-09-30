@@ -1651,7 +1651,7 @@ impl Audit {
                         let (_, creditor, denomination) =
                             g.claim.parties(world).ok_or("missing wage terms")?;
                         if denomination != coin {
-                            return Err("wage guarantee requires reporting currency".into());
+                            continue;
                         }
                         flow(
                             &mut flows,

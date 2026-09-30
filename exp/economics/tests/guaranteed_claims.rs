@@ -205,7 +205,7 @@ fn land_guarantee_settles_one_original_bill_without_renewing_or_paying_later_bil
     assert_eq!(b[&(WORKER, Account::DuesIncome)], -8);
 }
 #[test]
-fn guarantee_terms_reject_unidentified_dates_and_unsupported_native_tender() {
+fn guarantee_terms_reject_unidentified_dates_and_allow_physical_wages() {
     let (mut w, s) = land_fixture();
     w.recovery.guarantees[0].claim = GuaranteedClaim::Land {
         agreement: 900,
@@ -215,7 +215,7 @@ fn guarantee_terms_reject_unidentified_dates_and_unsupported_native_tender() {
     let (mut w, s) = fixture();
     let physical = economics_compute_smoke::minting::FIREWOOD;
     w.employment[0].wage_per_unit.resource = physical;
-    assert!(Simulation::new(w, s, Backend::Reference).is_err());
+    assert!(Simulation::new(w, s, Backend::Reference).is_ok());
 }
 
 const OTHER_WORKER: AgentId = 92;
@@ -856,4 +856,67 @@ fn household_guarantees_share_cash_across_loan_wage_and_land_claims_with_separat
             .sum::<i64>(),
         2
     );
+}
+
+#[test]
+fn physical_wage_guarantees_reserve_member_and_collective_storage_before_payment() {
+    use economics_compute_smoke::{
+        household_governance::Governance, households, minting::FIREWOOD,
+    };
+    for pooled_room in [0, 2] {
+        let (mut w, mut s) = fixture();
+        w.employment[0].wage_per_unit.resource = FIREWOOD;
+        s.balances.clear();
+        s.balances.insert((SUPPLIER, FIREWOOD), 4);
+        w.storage.capacities.insert(WORKER, 4);
+        households::form(
+            &mut w,
+            &s,
+            households::Agreement {
+                id: 1,
+                agent: 800,
+                governance: Governance::contributed(WORKER),
+                adults: vec![WORKER],
+                membership: vec![],
+                asset_sales: vec![],
+                equipment_retirements: vec![],
+                support: vec![],
+                formed: 1,
+                dwelling_process: None,
+                admission: None,
+            },
+        )
+        .unwrap();
+        s.balances.insert((800, FIREWOOD), 2 - pooled_room);
+        // Enough private room for two units. At most one can be paid if the
+        // collective half-share would overflow; its odd-unit carry persists.
+        let mut opening = Opening {
+            exchange_values: [(FIREWOOD, 3)].into(),
+            inventory: [((SUPPLIER, FIREWOOD), 4)].into(),
+            ..Default::default()
+        };
+        if pooled_room == 0 {
+            opening.inventory.insert((800, FIREWOOD), 2);
+        }
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = Audit::with_opening(&w, &s, COIN, opening.clone()).unwrap();
+            through(&mut a, &mut sim, 2);
+            let paid = if pooled_room == 0 { 1 } else { 4 };
+            assert_eq!(sim.state.credit.recovery.paid_guarantees[&1], paid);
+            assert_eq!(
+                sim.state.employment.earned[&(1, 1)].claim.outstanding(),
+                4 - paid
+            );
+            assert_eq!(sim.state.credit.loans[&101].principal, paid);
+            assert_eq!(sim.state.balance(800, FIREWOOD), 2 - pooled_room + paid / 2);
+            assert_eq!(sim.state.balance(WORKER, FIREWOOD), (paid + 1) / 2);
+            assert_eq!(
+                a.book().balances()[&(SUPPLIER, Account::LoanReceivable(101))],
+                i128::from(paid * 3)
+            );
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::CubeCpu), run(Backend::Reference));
+    }
 }

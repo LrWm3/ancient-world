@@ -64,13 +64,19 @@ pub(crate) fn settle(
     for receipt in &b.recovery {
         if let crate::recovery::Receipt::Guaranteed {
             guarantee,
-            claim: crate::recovery::GuaranteedClaim::Loan(id),
+            claim,
             paid,
             ..
         } = receipt
+            && matches!(
+                claim,
+                crate::recovery::GuaranteedClaim::Loan(_)
+                    | crate::recovery::GuaranteedClaim::Wages { .. }
+            )
         {
-            let l = loan(id)?;
-            if *paid > 0 && l.denomination != coin {
+            let (_, creditor, denomination) =
+                claim.parties(world).ok_or("missing guaranteed terms")?;
+            if *paid > 0 && denomination != coin {
                 let g = world
                     .recovery
                     .guarantees
@@ -79,8 +85,8 @@ pub(crate) fn settle(
                     .ok_or("missing physical guarantee")?;
                 transfers.push(Transfer {
                     from: g.guarantor,
-                    to: l.creditor,
-                    amount: Amount::new(l.denomination, *paid),
+                    to: creditor,
+                    amount: Amount::new(denomination, *paid),
                 });
             }
         }

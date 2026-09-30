@@ -20,6 +20,14 @@ impl Reservations {
             remainders: state.household_remainders.clone(),
         }
     }
+    /// Financing and other non-income transfers affect room without contributions.
+    pub fn reserve_unpooled(&mut self, world: &World, effects: &[Effect]) -> Result<(), String> {
+        if !crate::storage::fits(world, &self.used, effects) {
+            return Err("non-income transfer exceeds reserved household storage".into());
+        }
+        crate::storage::apply(world, &mut self.used, effects);
+        Ok(())
+    }
     /// Greatest fitting divisible payment. Internal household employment is
     /// excluded: payment frees space at the employer's household while raw and
     /// pooled usage grow at the worker's distinct household. Fractional carry is
@@ -29,6 +37,23 @@ impl Reservations {
         world: &World,
         execution: &crate::finance::Execution,
         claim: &crate::finance::Obligation,
+    ) -> Result<i32, String> {
+        self.bounded_payment(world, execution, claim, true)
+    }
+    pub fn unpooled_payment_limit(
+        &self,
+        world: &World,
+        execution: &crate::finance::Execution,
+        claim: &crate::finance::Obligation,
+    ) -> Result<i32, String> {
+        self.bounded_payment(world, execution, claim, false)
+    }
+    fn bounded_payment(
+        &self,
+        world: &World,
+        execution: &crate::finance::Execution,
+        claim: &crate::finance::Obligation,
+        income: bool,
     ) -> Result<i32, String> {
         let key = (claim.transfer.from, claim.transfer.amount.resource);
         let (mut low, mut high) = (
@@ -41,9 +66,12 @@ impl Reservations {
         while low < high {
             let middle = low + ((i64::from(high) - i64::from(low) + 1) / 2) as i32;
             let effects = claim.payment(middle)?;
-            if crate::storage::fits(world, &execution.stored, &effects)
-                && self.preview(world, &effects)?.is_some()
-            {
+            let reserved_fits = if income {
+                self.preview(world, &effects)?.is_some()
+            } else {
+                crate::storage::fits(world, &self.used, &effects)
+            };
+            if crate::storage::fits(world, &execution.stored, &effects) && reserved_fits {
                 low = middle;
             } else {
                 high = middle - 1;

@@ -288,7 +288,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                 "guarantees of pending-resale loans need a lien-subrogation adapter".into(),
             );
         }
-        if !matches!(g.claim, GuaranteedClaim::Loan(_))
+        if matches!(g.claim, GuaranteedClaim::Land { .. })
             && world
                 .storage
                 .weights
@@ -297,7 +297,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                 .unwrap_or(0)
                 != 0
         {
-            return Err("non-loan guarantees currently require a storage-free denomination".into());
+            return Err("land guarantees currently require a storage-free denomination".into());
         }
         if !ids.insert(g.id)
             || !recourse.insert(g.recourse)
@@ -819,6 +819,11 @@ pub(crate) fn guarantees(
     execution: &mut finance::Execution,
 ) -> Result<(), String> {
     let protected = crate::commitments::protected_stock(world, state)?;
+    let mut pooling = crate::households::income_reservations::Reservations::new(
+        world,
+        state,
+        execution.stored.clone(),
+    );
     let mut terms: Vec<_> = world
         .recovery
         .guarantees
@@ -888,10 +893,23 @@ pub(crate) fn guarantees(
                 - reserve)
                 .max(0)
                 .min(allocated.unwrap_or(i32::MAX));
+            let wage = matches!(g.claim, GuaranteedClaim::Wages { .. });
+            let limit = if wage {
+                limit.min(pooling.payment_limit(world, execution, &claim)?)
+            } else {
+                limit.min(pooling.unpooled_payment_limit(world, execution, &claim)?)
+            };
             let payment = execution.pay_bounded(world, state.month, true, &claim, limit)?;
             let paid = payment.paid;
             round_paid += i64::from(paid);
             if paid > 0 {
+                if wage {
+                    pooling = pooling
+                        .preview(world, &payment.effects)?
+                        .ok_or("guaranteed wage exceeds pooled storage")?;
+                } else {
+                    pooling.reserve_unpooled(world, &payment.effects)?;
+                }
                 let transaction = credit::tx(
                     format!("guarantee {} pays {:?}", g.id, g.claim),
                     payment.effects.clone(),
