@@ -28,11 +28,11 @@ nothing. Normal scheduled execution retains its independent successful bids.
 ## Household and accounting integration
 
 Household agents can purchase inventory with their own funds and storage. Their
-books remain separate from member books. Member purchases in credit-only, bilateral-market and town-market
+books remain separate from member books. Member purchases in credit-only, bilateral-market, town-market and physical-mint
 Acquire drivers reserve their exact household contribution, including fractional
 carry across lots, and pool it once after settlement. Subsequent commodity loans
 also respect that reserved space; loan proceeds remain unpooled. Bilateral negotiation and town matching inherit those reservations and fractional carry. Direct forward performance now inherits the same contribution budget, as do later
-bilateral and town trades. Physical-mint and legacy tool-market compositions still
+bilateral, town and physical-mint trades. Legacy tool-market compositions still
 reject member inventory bids pending their integration checks. This is a bounded compatibility restriction, not an
 exemption from household pooling.
 
@@ -84,3 +84,8 @@ Direct-delivery follow-up: actual deliveries pool after acceptance, using the sa
 fractional carry as prior estate purchases; full space leaves a recorded forward
 shortfall. Both original-seller and guarantor deliveries now pool actual goods, with native
 recourse only for completed guarantee payments. See [household forwards](HOUSEHOLD-FORWARDS.md).
+
+The physical-mint integration in `tests/mint_finance.rs` checks actual issuance
+before estate recovery, then two one-unit purchases with a single fractional
+household contribution. Full shared storage rejects the later wheat trade while
+preserving the earlier funded estate purchase and its custody proceeds.

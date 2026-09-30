@@ -3,7 +3,7 @@
 Scope: finish bounded autonomous household hiring and direct prepaid-delivery
 recovery, then demonstrate that they compose with the existing economic loop.
 The batches contain logical changes, not a prescribed count of files or tests.
-The completed sequence is **1, 1, 2, 3, 5, 8, 13, 21, 34** (batch 55 in progress). Batch sizes count distinct
+The completed sequence is **1, 1, 2, 3, 5, 8, 13, 21, 34, 55** (batch 89 in progress). Batch sizes count distinct
 implementation and integration changes, not test cases. Person self-directed policy changes remain explicitly deferred.
 
 ## Batch 1 — one recovery change
@@ -354,3 +354,14 @@ creditor allocation, custody, guarantees and real liquidation. Household/member
 separation, static founding terms and deferred person self-policy changes remain
 in force. A Fibonacci count does not expand the roadmap into speculative systems
 or justify declaring the remaining work complete.
+
+1. **Inventory recovery in the physical-mint economy.** Member estate purchases
+   now retain their fractional household contribution through later mint-market
+   trades. A funded state mints coins from purchased metal and labor; after a
+   borrower defaults, an estate wheat purchase and a state wheat sale compete for
+   the same shared storage. Full storage rejects only the later trade. Actual
+   issuance, custody, unchanged debt until the next Due boundary, CPU/reference
+   results, checkpoint continuation and separate books are checked together.
+
+Batch 89 first integration gate: 40 tests across mint finance, inventory
+liquidation and household forwards passed; strict all-target Clippy passed.

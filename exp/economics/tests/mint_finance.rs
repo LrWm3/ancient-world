@@ -959,3 +959,141 @@ fn financed_state_property_competes_with_mint_inputs_without_creating_currency()
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn estate_purchase_and_mint_trade_share_fractional_household_storage() {
+    use economics_compute_smoke::recovery::{
+        self, ProceedingTerms,
+        inventory::{Bid, Listing},
+    };
+    for household_stock in [3, 4] {
+        let (mut w, mut s) = minting::scenario("normal").unwrap();
+        w.participants
+            .iter_mut()
+            .find(|c| c.agent == WORKER)
+            .unwrap()
+            .capacity
+            .quantity = 5;
+        worker_household(&mut w, &s, 20);
+        w.scheduled_starts.retain(|p| p.definition == MINT);
+        w.storage.capacities.insert(WORKER, 8);
+        s.balances.insert((800, WHEAT), household_stock);
+        s.balances.insert((ISSUER, COIN), 13);
+        for id in [600, 601] {
+            w.agents.push(Agent {
+                id,
+                name: format!("estate participant {id}"),
+            });
+        }
+        w.storage.capacities.insert(600, 6);
+        s.balances.insert((600, WHEAT), 6);
+        let policy = w.transaction_policy.as_mut().unwrap();
+        policy.agent_types.insert(600, PERSON_TYPE);
+        policy
+            .permissions
+            .extend([(PERSON_TYPE, Action::Borrow), (STATE_TYPE, Action::Lend)]);
+        w.lending.push(Advance {
+            id: 40,
+            debtor: 600,
+            principal: 10,
+            month: 1,
+            collateral: None,
+            priority: 0,
+            terms: LoanOffer {
+                creditor: ISSUER,
+                denomination: COIN,
+                max_principal: 10,
+                monthly_rate_bps: 0,
+                term_months: 1,
+                grace_months: 10,
+            },
+        });
+        w.recovery.proceedings.push(ProceedingTerms {
+            id: 1,
+            debtor: 600,
+            authority: ISSUER,
+            estate: 601,
+            denomination: COIN,
+            opening_month: 3,
+            earliest_close: 4,
+            assets: vec![],
+            discharge_deficiency: false,
+        });
+        w.recovery.inventory_listings.push(Listing {
+            id: 1,
+            proceeding: 1,
+            goods: Amount::new(WHEAT, 1),
+            minimum_price: 1,
+        });
+        w.recovery.inventory_bids.push(Bid {
+            id: 1,
+            listing: 1,
+            buyer: WORKER,
+            month: 3,
+            price: 1,
+        });
+        w.marketplaces[0]
+            .markets
+            .iter_mut()
+            .find(|m| m.id == WHEAT)
+            .unwrap()
+            .goods
+            .quantity = 1;
+        let deals = &mut w.minting.as_mut().unwrap().deals;
+        deals.retain(|d| d.id != 2);
+        deals.push(Deal {
+            id: 10,
+            month: 3,
+            package: 10,
+            market: WHEAT,
+            seller: ISSUER,
+            buyer: WORKER,
+            price: 1,
+        });
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            sim.run_months(1).unwrap();
+            // Disclosed opening loss creates arrears; it is outside the audited interval.
+            sim.state.balances.insert((600, COIN), 0);
+            let mut books = audit(&sim.world, &sim.state);
+            while (sim.state.month, sim.state.phase) != (3, Phase::Acquire) {
+                books.step(&mut sim).unwrap();
+            }
+            assert_eq!(
+                books
+                    .book()
+                    .statements(ISSUER, 2, 2)
+                    .unwrap()
+                    .issuance_change,
+                10
+            );
+            let (mut resumed, mut rb) = (sim.clone(), books.clone());
+            books.step(&mut sim).unwrap();
+            rb.step(&mut resumed).unwrap();
+            assert_eq!(
+                (&sim.state, &sim.ledger, &books),
+                (&resumed.state, &resumed.ledger, &rb)
+            );
+            let batch = sim.ledger.last().unwrap();
+            assert!(
+                batch
+                    .credit
+                    .as_ref()
+                    .unwrap()
+                    .recovery
+                    .iter()
+                    .any(|r| matches!(r, recovery::Receipt::InventorySold { bid: 1, .. }))
+            );
+            assert_eq!(
+                batch.minting.as_ref().unwrap().receipts[0].accepted,
+                household_stock == 3
+            );
+            assert_eq!(sim.state.balance(800, WHEAT), 4);
+            assert_eq!(sim.state.balance(WORKER, WHEAT), 1);
+            assert_eq!(sim.state.balance(601, COIN), 1);
+            assert_eq!(sim.state.credit.loans[&40].principal, 10);
+            (sim.state, sim.ledger, books)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
