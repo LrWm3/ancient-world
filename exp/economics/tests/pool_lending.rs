@@ -1298,3 +1298,342 @@ fn negotiated_household_sales_fund_later_useful_hiring_without_reusing_incoming_
     };
     assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
 }
+
+#[test]
+fn collection_requests_use_eligible_techniques_without_multiplying_exclusive_tools() {
+    use economics_compute_smoke::{
+        activities::DurableKind,
+        equipment::{DurableAsset, Technique},
+    };
+    const KIND: u32 = 99;
+    for hours in [1, 3] {
+        for usable in [false, true] {
+            let (mut w, mut s) = fixture(false);
+            w.lending.clear();
+            w.horizon = 4;
+            for p in &mut w.participants {
+                p.capacity.quantity = if p.agent == PERSON { hours } else { 0 };
+            }
+            w.definitions
+                .iter_mut()
+                .find(|d| d.id == PREPARE_FUEL)
+                .unwrap()
+                .stages[0]
+                .monthly_services[0]
+                .quantity = 3;
+            w.activities.kinds.insert(
+                KIND,
+                DurableKind {
+                    name: "collection tool".into(),
+                    lifetime: 4,
+                    monthly_decay: 0,
+                    attached: false,
+                },
+            );
+            w.techniques.push(Technique {
+                id: 1,
+                definition: PREPARE_FUEL,
+                stage: 0,
+                equipment_kind: Some(KIND),
+                competency: None,
+                wear: 1,
+                output_multiplier: 1,
+                services: vec![Amount::new(LABOR, 1)],
+            });
+            s.equipment.insert(
+                TOOL,
+                DurableAsset {
+                    id: TOOL,
+                    owner: PERSON,
+                    kind: KIND,
+                    attached_to: None,
+                    remaining_uses: if usable { 4 } else { 0 },
+                    last_used_month: None,
+                },
+            );
+            let run = |backend| {
+                let mut audit = Audit::with_opening(
+                    &w,
+                    &s,
+                    TOKEN,
+                    Opening {
+                        assets: [(TOOL, if usable { 4 } else { 0 })].into(),
+                        processes: Some(Default::default()),
+                        ..Opening::default()
+                    },
+                )
+                .unwrap();
+                let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+                while sim.state.phase != Phase::Productive {
+                    audit.step(&mut sim).unwrap();
+                }
+                let expected_request = if hours == 1 {
+                    u32::from(usable)
+                } else {
+                    1 + u32::from(usable)
+                };
+                assert_eq!(
+                    pool_market::demand(&sim.world, &sim.state, PERSON)
+                        .unwrap()
+                        .0,
+                    expected_request
+                );
+                let (mut resumed, mut ra) = (sim.clone(), audit.clone());
+                audit.step(&mut sim).unwrap();
+                let completed = sim
+                    .ledger
+                    .last()
+                    .unwrap()
+                    .transactions
+                    .iter()
+                    .filter_map(|t| t.process.as_ref())
+                    .filter(|c| {
+                        c.after.definition == PREPARE_FUEL
+                            && c.after.operator == PERSON
+                            && c.after.status == Status::Completed
+                    })
+                    .count();
+                assert_eq!(completed, usize::from(usable || hours == 3));
+                assert_eq!(
+                    sim.state.balance(STATE_AGENT, RAW_WOOD),
+                    4 - 2 * completed as i32
+                );
+                assert_eq!(
+                    sim.state.equipment[&TOOL].remaining_uses,
+                    if usable { 3 } else { 0 }
+                );
+                if expected_request == 2 {
+                    let demand = sim
+                        .ledger
+                        .last()
+                        .unwrap()
+                        .pool_market
+                        .as_ref()
+                        .unwrap()
+                        .demands
+                        .iter()
+                        .find(|d| d.agent == PERSON)
+                        .unwrap();
+                    assert_eq!((demand.requested, demand.feasible), (2, 1));
+                }
+                while sim.state.month == 2 {
+                    audit.step(&mut sim).unwrap();
+                }
+                while resumed.state.month == 2 {
+                    ra.step(&mut resumed).unwrap();
+                }
+                assert_eq!(
+                    (&sim.state, &sim.ledger, &audit),
+                    (&resumed.state, &resumed.ledger, &ra)
+                );
+                (sim.state, sim.ledger, audit)
+            };
+            assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+        }
+    }
+}
+
+#[test]
+fn household_hiring_observes_funded_estate_tool_acquisition_in_the_same_boundary() {
+    use economics_compute_smoke::{
+        activities::DurableKind,
+        employment::{ArrearsPolicy, Terms},
+        equipment::{DurableAsset, Technique},
+        household_governance::{Governance, Policy as HouseholdPolicy},
+        households::{self, Agreement},
+        recovery::{Bid, Listing, ProceedingTerms},
+    };
+    const HOME: AgentId = 10000;
+    const WORKER: AgentId = 96;
+    const DEBTOR: AgentId = 97;
+    const ESTATE: AgentId = 98;
+    const KIND: u32 = 99;
+    for funded in [false, true] {
+        let (mut w, mut s) = fixture(false);
+        w.lending[0].debtor = DEBTOR;
+        w.lending[0].terms.denomination = TOKEN;
+        w.lending[0].terms.term_months = 1;
+        s.balances.insert((STATE_AGENT, TOKEN), 4);
+        s.balances
+            .insert((PERSON, TOKEN), if funded { 8 } else { 0 });
+        for id in [WORKER, DEBTOR, ESTATE] {
+            w.agents.push(Agent {
+                id,
+                name: format!("agent {id}"),
+            });
+        }
+        let mut worker = w.participants[0].clone();
+        worker.agent = WORKER;
+        worker.needs.clear();
+        worker.capacity.quantity = 1;
+        for p in &mut w.participants {
+            p.capacity.quantity = 0;
+        }
+        w.participants.push(worker);
+        w.definitions
+            .iter_mut()
+            .find(|d| d.id == PREPARE_FUEL)
+            .unwrap()
+            .stages[0]
+            .monthly_services[0]
+            .quantity = 3;
+        w.activities.kinds.insert(
+            KIND,
+            DurableKind {
+                name: "estate collection tool".into(),
+                lifetime: 8,
+                monthly_decay: 0,
+                attached: false,
+            },
+        );
+        w.techniques.push(Technique {
+            id: 1,
+            definition: PREPARE_FUEL,
+            stage: 0,
+            equipment_kind: Some(KIND),
+            competency: None,
+            wear: 1,
+            output_multiplier: 1,
+            services: vec![Amount::new(LABOR, 1)],
+        });
+        s.equipment.insert(
+            TOOL,
+            DurableAsset {
+                id: TOOL,
+                owner: DEBTOR,
+                kind: KIND,
+                attached_to: None,
+                remaining_uses: 8,
+                last_used_month: None,
+            },
+        );
+        let mut governance = Governance::contributed(PERSON);
+        governance.charter.initial_policy = HouseholdPolicy::NeedsFirst;
+        governance.charter.hiring_budget = Some(Amount::new(TOKEN, 2));
+        households::form(
+            &mut w,
+            &s,
+            Agreement {
+                id: 1,
+                agent: HOME,
+                adults: vec![PERSON, PERSON + 1],
+                governance,
+                formed: s.month,
+                dwelling_process: None,
+                admission: None,
+                membership: vec![],
+                asset_sales: vec![],
+                equipment_retirements: vec![],
+                support: vec![],
+            },
+        )
+        .unwrap();
+        s.balances.insert((HOME, TOKEN), 2);
+        w.employment.push(Terms {
+            id: 1,
+            employer: HOME,
+            worker: WORKER,
+            from: 4,
+            through: 4,
+            capacity: Amount::new(LABOR, 1),
+            wage_per_unit: Amount::new(TOKEN, 2),
+            on_arrears: ArrearsPolicy::SuspendDelivery,
+            rank: 0,
+        });
+        w.employment_offers.insert(1);
+        w.recovery.proceedings.push(ProceedingTerms {
+            id: 1,
+            debtor: DEBTOR,
+            authority: STATE_AGENT,
+            estate: ESTATE,
+            denomination: TOKEN,
+            opening_month: 4,
+            earliest_close: 5,
+            assets: vec![Listing {
+                asset: TOOL,
+                minimum_price: 8,
+            }],
+            discharge_deficiency: true,
+        });
+        w.recovery.bids.push(Bid {
+            id: 1,
+            proceeding: 1,
+            buyer: PERSON,
+            asset: TOOL,
+            month: 4,
+            price: 8,
+        });
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            sim.run_months(1).unwrap();
+            // An identical controlled loss before the reporting opening creates
+            // a default; the measured sale/work interval has no injected funds.
+            sim.state.balances.insert((DEBTOR, TOKEN), 0);
+            let mut audit = Audit::with_opening(
+                &w,
+                &sim.state,
+                TOKEN,
+                Opening {
+                    inventory: sim
+                        .state
+                        .balances
+                        .iter()
+                        .filter(|((_, r), q)| {
+                            **q > 0
+                                && *r != TOKEN
+                                && w.resources
+                                    .iter()
+                                    .any(|x| x.id == *r && x.kind == ResourceKind::Stock)
+                        })
+                        .map(|(a, q)| (*a, i128::from(*q)))
+                        .collect(),
+                    exchange_values: [(RAW_WOOD, 1), (FUEL, 1)].into(),
+                    assets: [(TOOL, 8)].into(),
+                    services: Some(Default::default()),
+                    processes: Some(Default::default()),
+                    ..Opening::default()
+                },
+            )
+            .unwrap();
+            while sim.state.month < 4 || sim.state.phase != Phase::Acquire {
+                audit.step(&mut sim).unwrap();
+            }
+            let (mut resumed, mut ra) = (sim.clone(), audit.clone());
+            audit.step(&mut sim).unwrap();
+            assert_eq!(
+                sim.state.equipment[&TOOL].owner,
+                if funded { PERSON } else { DEBTOR }
+            );
+            assert_eq!(sim.state.employment.earned.contains_key(&(1, 4)), funded);
+            while sim.state.month < 5 {
+                audit.step(&mut sim).unwrap();
+            }
+            while resumed.state.month < 5 {
+                ra.step(&mut resumed).unwrap();
+            }
+            assert_eq!(
+                (&sim.state, &sim.ledger, &audit),
+                (&resumed.state, &resumed.ledger, &ra)
+            );
+            assert_eq!(sim.state.balance(WORKER, TOKEN), if funded { 2 } else { 0 });
+            assert_eq!(
+                sim.state.equipment[&TOOL].remaining_uses,
+                if funded { 7 } else { 8 }
+            );
+            assert_eq!(
+                sim.state
+                    .processes
+                    .values()
+                    .filter(|p| p.definition == PREPARE_FUEL && p.status == Status::Completed)
+                    .count(),
+                usize::from(funded)
+            );
+            for a in &sim.world.agents {
+                let report = audit.book().statements(a.id, 3, 4).unwrap();
+                assert_eq!(report.assets, report.liabilities + report.equity);
+            }
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

@@ -147,7 +147,8 @@ pub fn validate(world: &World) -> Result<(), String> {
 }
 
 /// Forecast stock target uses the configured need buffer; urgent means opening
-/// stock cannot supply this month's need. Request size is bounded by own capacity.
+/// stock cannot supply this month's need. Eligible techniques provide an upper
+/// bound; joint feasibility subsequently resolves shared services and exclusive tools.
 pub fn demand(world: &World, state: &State, agent: AgentId) -> Result<(u32, bool), String> {
     let c = world.pool_market.as_ref().ok_or("missing pool market")?;
     let d = world.definition(c.definition);
@@ -179,14 +180,40 @@ pub fn demand(world: &World, state: &State, agent: AgentId) -> Result<(u32, bool
     .sum();
     let deficit =
         (per_month * i128::from(world.horizon) + loan_demand + performance_demand - stock).max(0);
-    let mut lots =
+    let desired =
         (deficit + i128::from(d.outputs[0].quantity) - 1) / i128::from(d.outputs[0].quantity);
-    for service in &d.stages[0].monthly_services {
-        if service.quantity > 0 {
-            lots = lots.min(i128::from(
-                state.balance(agent, service.resource) / service.quantity,
-            ));
+    let service_bound = |services: &[Amount]| {
+        services
+            .iter()
+            .filter(|s| s.quantity > 0)
+            .fold(desired, |lots, s| {
+                lots.min(i128::from(
+                    (state.balance(agent, s.resource) / s.quantity).max(0),
+                ))
+            })
+    };
+    let mut lots = service_bound(&d.stages[0].monthly_services);
+    for technique in world.techniques.iter().filter(|t| {
+        t.definition == d.id && t.stage == 0 && crate::equipment::eligible(t, state, agent)
+    }) {
+        let mut bound = service_bound(&technique.services);
+        if let Some(kind) = technique.equipment_kind {
+            let available = state
+                .equipment
+                .values()
+                .filter(|asset| {
+                    asset.owner == agent
+                        && asset.kind == kind
+                        && asset.remaining_uses >= technique.wear
+                        && asset.last_used_month != Some(state.month)
+                        && crate::activities::attached_access(world, state, asset, None)
+                })
+                .count();
+            bound = bound.min(available as i128);
         }
+        // Alternative recipes may share hours or tools. This is only a request
+        // bound: resolve() checks combined private feasibility before allocation.
+        lots = (lots + bound).min(desired);
     }
     Ok((
         u32::try_from(lots).map_err(|_| "collection demand overflow")?,

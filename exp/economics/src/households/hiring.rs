@@ -30,12 +30,7 @@ pub(crate) fn quantity(
         crate::exchange::record(&mut state, tx);
     }
     if let Some(c) = &base.credit {
-        state.credit = c.after.clone();
-        for change in &c.attachments {
-            state
-                .processes
-                .insert(change.after.id, change.after.clone());
-        }
+        crate::credit::record(&mut state, c);
     }
     crate::town_market::record(&mut state, &base.town_market);
     state.employment = prior.after.clone();

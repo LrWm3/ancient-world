@@ -441,3 +441,27 @@ purchase and later wages through separate exchanges, without netting or invented
 cash. CPU/reference and checkpoint histories agree with costed service/inventory
 books. Sale terms and labor offers are supplied; this is a two-month funding test,
 not autonomous reciprocal contracting or a sustainable revenue forecast.
+
+### Tool-aware collection and consistent acquired-state forecasts
+
+Collection request bounds now include eligible competency/equipment techniques,
+not only the manual recipe. They remain upper bounds: the existing cumulative
+private-feasibility check and shared-stock allocator reserve actual work. With
+three hours, a one-hour tool recipe and a three-hour manual recipe may initially
+request two lots; only one is feasible because that tool is exclusive for the
+month and two remaining hours cannot complete the manual recipe. Exhausted tools
+do not create demand. This does not introduce an optimal technique scheduler.
+
+Forecasts and committed settlement now use one helper for accepted credit records:
+loans, ownership/condition, transferred process control, earned claims, forwards
+and obligations. Balance effects remain separately reserved/applied once. This
+fixes household hiring overlooking a tool just purchased from an estate.
+
+The combined regression buys an eight-coin estate tool for a household member,
+then hires one outside hour with the household's separate two coins in the same
+Acquire window. The hour completes a collection lot only with the purchased tool;
+wages, inventory cost and tool wear reconcile. An unfunded bid transfers no tool
+and hires no labor. The test creates an identical controlled default before its
+reporting opening; no funds are injected during the measured sale/work interval.
+CPU/reference and checkpoint continuations agree. Member ownership and household
+funds remain distinct.

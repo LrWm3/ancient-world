@@ -267,6 +267,9 @@ Completed integrations:
 25. Verify individual/household native guarantees and dated recourse against real collected stocks.
 26. Reconcile the main integration matrix and recovery documentation with these combinations.
 27. Fund useful household hiring from negotiated revenue at the next eligible boundary.
+28. Include eligible collection techniques without multiplying exclusive tool capacity.
+29. Share accepted credit-record application between forecasts and committed settlement.
+30. Compose estate tool purchase, household hiring and actual environmental production.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.
@@ -274,3 +277,9 @@ Focused gates passed 74 equipment/recovery tests, 53 mortgage/lease tests, and 5
 mint/finance tests; these selections overlap and are not distinct-test totals.
 The broader consolidation roadmap remains active. Fibonacci batch sizes do not
 supply a finite stopping point.
+
+An interim full run completed with **898 passed, zero failures, one ignored**
+across 110 Cargo target results. It started from `3eb0a20`; later targeted builds
+ran while it was executing, so this is mixed-tree regression evidence, not a
+full gate for the final batch-55 revision. Subsequent tool-aware collection and
+acquired-state changes have their own focused gates.

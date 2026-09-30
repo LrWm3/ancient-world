@@ -389,25 +389,9 @@ pub(crate) fn commit_core(
         );
     }
     if let Some(boundary) = &batch.credit {
-        staged.credit = boundary.after.clone();
-        staged.equipment.extend(boundary.equipment.clone());
-        if let Some(book) = &boundary.employment {
-            staged.employment = book.clone();
-        }
-        staged
-            .exchange
-            .forwards
-            .extend(boundary.forward_changes.clone());
-        if let Some(commitments) = &boundary.commitments {
-            staged.obligations = commitments.obligations.clone();
-        }
-        // Exact transfers were checked by credit::validate_batch above. This is
-        // a change of control at acquisition/collection, not process execution.
-        for change in &boundary.attachments {
-            staged
-                .processes
-                .insert(change.after.id, change.after.clone());
-        }
+        // Validation above checks the control transfers; record application
+        // never executes the attached process or reapplies its payment.
+        crate::credit::record(&mut staged, boundary);
     }
     staged.pending_production = batch.production_plan.clone();
     if let Some(settlement) = &batch.maintenance {

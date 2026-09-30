@@ -152,17 +152,7 @@ pub fn outstanding(world: &World, state: &State, debtor: AgentId) -> Vec<Claim> 
 
 pub(crate) fn current(state: &State, out: &credit::Boundary) -> State {
     let mut current = state.clone();
-    current.credit = out.after.clone();
-    if let Some(book) = &out.employment {
-        current.employment = book.clone();
-    }
-    current
-        .exchange
-        .forwards
-        .extend(out.forward_changes.clone());
-    if let Some(s) = &out.commitments {
-        current.obligations = s.obligations.clone();
-    }
+    credit::record(&mut current, out);
     current
 }
 

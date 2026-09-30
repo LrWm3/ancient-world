@@ -294,12 +294,7 @@ pub(crate) fn after_acquisition(
 ) -> Result<Option<Request>, String> {
     let mut observed = state.clone();
     if let Some(credit) = &batch.credit {
-        observed.credit = credit.after.clone();
-        for change in &credit.attachments {
-            observed
-                .processes
-                .insert(change.after.id, change.after.clone());
-        }
+        crate::credit::record(&mut observed, credit);
     }
     after_market(world, &observed, &batch.transactions)
 }

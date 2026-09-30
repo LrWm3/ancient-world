@@ -325,6 +325,29 @@ pub struct Boundary {
     pub events: Vec<Event>,
     pub transactions: Vec<Transaction>,
 }
+/// Apply accepted non-balance records to a committed or hypothetical state.
+/// Callers separately reserve/apply transaction effects exactly once. This does
+/// not execute production, advance time, or authorize the supplied boundary.
+pub(crate) fn record(state: &mut State, boundary: &Boundary) {
+    state.credit = boundary.after.clone();
+    state.equipment.extend(boundary.equipment.clone());
+    if let Some(book) = &boundary.employment {
+        state.employment = book.clone();
+    }
+    state
+        .exchange
+        .forwards
+        .extend(boundary.forward_changes.clone());
+    if let Some(commitments) = &boundary.commitments {
+        state.obligations = commitments.obligations.clone();
+    }
+    for change in &boundary.attachments {
+        state
+            .processes
+            .insert(change.after.id, change.after.clone());
+    }
+}
+
 pub fn owner(world: &World, state: &State, asset: AssetId) -> Option<AgentId> {
     state
         .credit

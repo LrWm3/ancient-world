@@ -90,13 +90,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Batch, String> {
     let mut quoted = state.clone();
     quoted.balances = resources.holdings.clone();
     if let Some(c) = &batch.credit {
-        quoted.credit = c.after.clone();
-        quoted.equipment.extend(c.equipment.clone());
-        for change in &c.attachments {
-            quoted
-                .processes
-                .insert(change.after.id, change.after.clone());
-        }
+        credit::record(&mut quoted, c);
     }
     let forwards = crate::forward::direct::evaluate(world, &quoted, &mut resources)?;
     batch.transactions.extend(forwards.transactions);
