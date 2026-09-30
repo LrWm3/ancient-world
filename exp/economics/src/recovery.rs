@@ -48,7 +48,27 @@ impl GuaranteedClaim {
         self.parties(world)
     }
     pub(crate) fn parties(self, world: &World) -> Option<(AgentId, AgentId, ResourceId)> {
-        match self {
+        // Follow configured recourse identities iteratively. A finite visited
+        // set rejects cycles without recursive graph traversal or collection.
+        let mut claim = self;
+        let mut creditor = None;
+        let mut visited = BTreeSet::new();
+        while let Self::Loan(id) = claim {
+            if !visited.insert(id) {
+                return None;
+            }
+            if credit::offered_loan(world, id).is_some() {
+                break;
+            }
+            let source = world
+                .recovery
+                .guarantees
+                .iter()
+                .find(|g| g.recourse == id)?;
+            creditor.get_or_insert(source.guarantor);
+            claim = source.claim;
+        }
+        let (debtor, original_creditor, resource) = match claim {
             Self::Loan(id) => credit::offered_loan(world, id)
                 .map(|a| (a.debtor, a.terms.creditor, a.terms.denomination)),
             Self::Forward(id) => world
@@ -83,7 +103,8 @@ impl GuaranteedClaim {
                 })
                 .filter(|a| !world.open_access_offers.contains(&a.id))
                 .map(|a| (a.debtor, a.creditor, a.payment.resource)),
-        }
+        }?;
+        Some((debtor, creditor.unwrap_or(original_creditor), resource))
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -361,13 +382,20 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     let agent = |id| world.agents.iter().any(|a| a.id == id);
     let mut ids = BTreeSet::new();
     let mut recourse = BTreeSet::new();
-    let source = |id| GuaranteedClaim::Loan(id).parties(world);
+    let source = |id| credit::offered_loan(world, id);
     for g in &config.guarantees {
         let (debtor, creditor, _) = g.claim.parties(world).ok_or(
-            "guarantee requires original accepted terms; recursive guarantee chains are unsupported",
+            "guarantee requires rooted terms; cyclic or unidentified recourse is unsupported",
         )?;
         if g.follows_assignment && !matches!(g.claim, GuaranteedClaim::Loan(_)) {
             return Err("transferable guarantee requires a loan claim".into());
+        }
+        if let GuaranteedClaim::Loan(id) = g.claim
+            && config.guarantees.iter().any(|source| {
+                source.recourse == id && source.security != RecourseSecurity::Unsecured
+            })
+        {
+            return Err("guaranteeing secured recourse requires a chained lien adapter".into());
         }
         subrogation::terms(world, g)?;
         tender::terms(world, g)?;
@@ -936,6 +964,9 @@ pub(crate) fn guarantee_claim(
             } else {
                 loan.due(month)?
             };
+            // Additions to an existing recourse loan are just as new as its
+            // first advance. A downstream call can cover only older exposure.
+            let covered = covered.saturating_sub(current_recourse(world, &state.credit, id, month));
             (loan.creditor, loan.denomination, covered, loan.first_unpaid)
         }
         GuaranteedClaim::Forward(id) => {

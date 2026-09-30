@@ -188,8 +188,9 @@ can establish that all these arrangements compose.
    broader security/denomination combinations remain open. A successful
    guarantee payment reduces the original creditor's claim and creates the guarantor's corresponding recourse
    claim; it must not pay the creditor twice. Reserve guarantor resources across
-   multiple calls using the same allocation window. Cycles and chains need
-   bounded execution and dated visibility, not recursive unbounded collection.
+   multiple calls using the same allocation window. Unsecured guarantee chains now use finite rooted terms and dated exposure;
+   current-month additions cannot cascade. Cycles and secured chains remain
+   excluded, with no recursive collection.
 5. **Broaden actual liquidation.** Configured asset lists and funded bids now
    transfer permitted title/attached responsibilities and distribute actual
    proceeds through the loan waterfall. Eligible listing discovery and funded bid preparation now exist. Add autonomous

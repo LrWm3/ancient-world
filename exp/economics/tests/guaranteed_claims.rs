@@ -2572,3 +2572,111 @@ fn member_guarantee_of_household_forward_preserves_native_debt_after_delivery_re
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn acyclic_guarantees_of_recourse_wait_for_dated_exposure_and_share_opening_funds() {
+    use economics_compute_smoke::credit::{Advance, LoanOffer};
+    const SECOND: AgentId = 99;
+    const FUNDER: AgentId = 98;
+    let (mut w, mut s) = fixture();
+    for id in [SECOND, FUNDER] {
+        w.agents.push(Agent {
+            id,
+            name: format!("chain agent {id}"),
+        });
+    }
+    s.balances.insert((SECOND, COIN), 2);
+    s.balances.insert((FUNDER, COIN), 2);
+    let mut downstream = w.recovery.guarantees[0].clone();
+    downstream.id = 2;
+    downstream.claim = GuaranteedClaim::Loan(101);
+    downstream.guarantor = SECOND;
+    downstream.recourse = 102;
+    w.recovery.guarantees.push(downstream);
+    // Additional later funding makes the distinction between old and newly
+    // advanced recourse observable, rather than hiding it behind empty funds.
+    w.lending.push(Advance {
+        id: 200,
+        debtor: SECOND,
+        month: 3,
+        principal: 2,
+        collateral: None,
+        priority: 0,
+        terms: LoanOffer {
+            creditor: FUNDER,
+            denomination: COIN,
+            max_principal: 2,
+            monthly_rate_bps: 0,
+            term_months: 12,
+            grace_months: 12,
+        },
+    });
+    let run = |world: &World, backend| {
+        let mut sim = Simulation::new(world.clone(), s.clone(), backend).unwrap();
+        let mut a = Audit::with_opening(world, &s, COIN, Opening::default()).unwrap();
+        through(&mut a, &mut sim, 2);
+        assert_eq!(sim.state.credit.loans[&101].principal, 3);
+        assert!(!sim.state.credit.loans.contains_key(&102));
+        through(&mut a, &mut sim, 3);
+        assert_eq!(sim.state.credit.loans[&101].principal, 1);
+        assert_eq!(sim.state.credit.loans[&102].principal, 2);
+        assert_eq!(sim.state.balance(SECOND, COIN), 2);
+        let (saved, mut ra) = (sim.clone(), a.clone());
+        through(&mut a, &mut sim, 4);
+        // The first guarantor pays the last wage unit. That addition cannot
+        // flow immediately through the next guarantee even though it has funds.
+        assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 0);
+        assert_eq!(sim.state.credit.loans[&101].principal, 1);
+        assert_eq!(sim.state.credit.loans[&102].principal, 3);
+        assert_eq!(sim.state.balance(SECOND, COIN), 1);
+        let due = sim
+            .ledger
+            .iter()
+            .find(|b| b.month == 4 && b.phase == Phase::Due)
+            .unwrap();
+        assert!(
+            due.credit
+                .as_ref()
+                .unwrap()
+                .recovery
+                .iter()
+                .any(|r| matches!(
+                    r,
+                    Receipt::Guaranteed {
+                        guarantee: 2,
+                        paid: 1,
+                        ..
+                    }
+                ))
+        );
+        through(&mut a, &mut sim, 5);
+        assert_eq!(sim.state.credit.loans[&101].principal, 0);
+        assert_eq!(sim.state.credit.loans[&102].principal, 4);
+        assert_eq!(sim.state.credit.recovery.paid_guarantees[&1], 4);
+        assert_eq!(sim.state.credit.recovery.paid_guarantees[&2], 4);
+        assert_eq!(sim.state.balance(WORKER, COIN), 4);
+        assert_eq!(
+            a.book().balances()[&(SECOND, Account::LoanReceivable(102))],
+            4
+        );
+        let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
+        through(&mut ra, &mut resumed, 5);
+        assert_eq!((&sim.state, &a), (&resumed.state, &ra));
+        (sim.state, sim.ledger, a)
+    };
+    let reference = run(&w, Backend::Reference);
+    let mut reordered = w.clone();
+    reordered.recovery.guarantees.reverse();
+    assert_eq!(reference, run(&reordered, Backend::CubeCpu));
+    for claim in [GuaranteedClaim::Loan(102), GuaranteedClaim::Loan(123456)] {
+        let mut invalid = w.clone();
+        invalid.recovery.guarantees[0].claim = claim;
+        assert!(Simulation::new(invalid, s.clone(), Backend::Reference).is_err());
+    }
+    let mut unaccepted = w;
+    unaccepted.recovery.posted_guarantees.insert(2);
+    let mut sim = Simulation::new(unaccepted, s, Backend::Reference).unwrap();
+    sim.run_months(5).unwrap();
+    assert!(!sim.state.credit.loans.contains_key(&102));
+    assert_eq!(sim.state.credit.recovery.paid_guarantees[&1], 3);
+}

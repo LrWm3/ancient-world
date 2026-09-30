@@ -80,7 +80,7 @@ tender adapters. Broader tender routes, conversion damages and dynamically
 underwritten tool-forward coverage remain extensions. Fixed resource valuations
 do not establish general FX or noncash collateral/estate accounting.
 
-Guarantees of recourse loans and pending-resale mortgages remain rejected. General security
+Guarantees of secured recourse loans and pending-resale mortgages remain rejected. General security
 subrogation, guarantee markets, pricing, premiums, legal formation requirements,
 autonomous household guarantee selection and cyclic contingent-credit networks
 remain extensions. Dedicated custody agents cannot guarantee obligations.
@@ -222,3 +222,23 @@ With an unfunded expired guarantee and accepted full delivery relief, the estate
 closes and residual cash passes to the member. Neither case creates grain or pools
 the external buyer's receipt. CPU/reference and checkpoint statements agree; the
 four-target gate passed 65 tests and strict all-target Clippy passed.
+
+## Bounded guarantees of unsecured recourse
+
+A configured guarantee may cover another guarantee's unsecured recourse loan.
+Terms resolve iteratively to an original loan, wage, land or prepaid obligation,
+retaining the original debtor and denomination and the immediate recourse creditor.
+Cycles and missing roots fail validation; this does not recursively execute calls.
+Secured recourse chains remain excluded pending a chained-lien adapter.
+
+Each call still needs accepted coverage, actual arrears, cap and opening funds.
+Every addition to recourse is dated, and downstream calls exclude units created
+that month even when an older balance on that loan is already overdue. Incoming
+guarantee payments cannot fund another outgoing call in the same window.
+Unaccepted posted coverage remains inactive.
+
+The composed control uses earned wages, two guarantees and later direct lending.
+It leaves newly added recourse for the next month despite funded downstream
+coverage, then settles it once. CPU/reference, reversed guarantee catalogs and
+checkpoint continuation agree; cyclic/unidentified roots are rejected. The
+five-target gate passed 93 tests and strict all-target Clippy passed.

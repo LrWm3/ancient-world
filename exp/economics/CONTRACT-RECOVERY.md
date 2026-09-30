@@ -94,8 +94,10 @@ fund another call in the same boundary.
 
 Caps are lifetime paid amounts. Expiry prevents new calls without deleting
 existing recourse. Recourse starts collecting at a subsequent Due boundary.
-Multiple calls can add to the same recourse record. Guarantees cannot cover other
-recourse loans, so cycles and recursive same-month chains are explicitly rejected.
+Multiple calls can add to the same recourse record. Guarantees may now cover
+unsecured recourse through a finite acyclic chain rooted in original terms.
+Downstream calls exclude same-month additions; cycles, unidentified roots and
+secured recourse chains remain explicitly rejected. See [guaranteed claims](GUARANTEED-CLAIMS.md).
 Existing pending-resale mortgage loans are also excluded until lien subrogation
 is defined. Fixed-value collateral settles before guarantee calls; guarantees
 cover the remaining due exposure. Collateral lien transfer remains unsupported.

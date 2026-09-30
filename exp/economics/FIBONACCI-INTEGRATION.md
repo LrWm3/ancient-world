@@ -879,3 +879,12 @@ separately recorded affected gates and are not covered by this snapshot.
     distinguishes the forward and loan. No native goods or repayment appear.
     CPU/reference and both pre/post-guarantee checkpoint continuations agree.
     The five-target gate passed 74 tests and strict all-target Clippy passed.
+
+54. **Unsecured guarantee chains preserve dated exposure.** Recourse coverage
+    resolves iteratively to original terms with cycle detection. Downstream calls
+    exclude every current-month advance, including additions to an already
+    overdue recourse loan. A composed wage/guarantee/direct-loan control proves
+    funded coverage waits for the later boundary and never recycles incoming
+    money. Unaccepted posted coverage remains inactive. CPU/reference, catalog
+    reordering and checkpoint results agree. The five-target gate passed 93 tests
+    and strict all-target Clippy passed. Secured chains remain excluded.
