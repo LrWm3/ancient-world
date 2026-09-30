@@ -39,3 +39,39 @@ than representing it only as a smaller unspent balance.
 [Guarantee admission](GUARANTEE-ADMISSION.md) adds discovery and dated acceptance
 through the shared offer interface, law checks and the existing recovery book.
 Future autonomous acceptance remains separate from execution of supplied consent.
+
+## Common preparation for supplied financial terms
+
+`offers::Id::{Advance, PrepaidDelivery}` expose the existing dated bilateral
+terms to the named borrower and delivery seller. Discovery reserves nothing and
+does not promise legal permission, funding or storage. These adapters do not
+invent an autonomous loan search or a counterparty's consent.
+
+Financial `offers::prepare` now previews the ordinary monthly step for loans,
+prepaid deliveries, financed purchases and posted guarantees. It preserves the
+household wrapper, employment reservations, borrowing policy and all other
+scheduled claims against the same opening resources. A bundle can request more
+than one financial acceptance; it succeeds only if each requested admission
+actually succeeds. Request order does not alter the allocation policy.
+
+The prepared batch includes other scheduled outcomes at that boundary. This is
+an inspection and acceptance interface over existing consent, not permission to
+cancel other parties' scheduled contracts. If a requested bundle is infeasible,
+preparation changes nothing; normal monthly execution still records its usual
+individual successes and rejections. Unknown actors, altered dates, duplicates,
+stale requests and process-style annotations are rejected.
+
+Tests combine a three-coin advance and two-coin grain prepayment, both with and
+without a household. Five opening coins fund both; four fund only the advance.
+CPU/reference execution, read-only previews, reordered requests, checkpoint
+continuation, repayment/delivery and separate double-entry accounts agree.
+Incoming loan proceeds cannot fund another prepayment in the same batch. Forged
+debt and failed bundle acceptance leave live state unchanged. The existing
+mortgage, borrowing-policy and guarantee suites also pass with this common path.
+
+Already consented future loans remain household wind-down blockers and execute
+as scheduled; this differs from the newly posted, unaccepted guarantee offers.
+Cancelling or renegotiating that prior consent requires a separate explicit
+agreement. The test honors the future advance and repayment before clearing its
+blocker. Household self-directed formation of new borrowing contracts is still
+outstanding.

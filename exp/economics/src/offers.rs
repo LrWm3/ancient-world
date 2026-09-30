@@ -1,17 +1,22 @@
 //! One discovery / proposal / feasibility / acceptance interface over domain resolvers.
 //! A proposal is read-only; only ordinary settlement can publish it.
 use crate::{agreements::ProductionTerms, compute::Backend, model::*, simulation::Simulation};
+mod financial;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Id {
     Membership(u32),
     Land(u32),
     Process(DefinitionId),
     FinancedPurchase(u32),
     Guarantee(u32),
+    Advance(u32),
+    PrepaidDelivery(u32),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Terms {
+    Advance(crate::credit::Advance),
+    PrepaidDelivery(crate::forward::direct::Terms),
     Guarantee(crate::recovery::Guarantee),
     Membership(crate::membership::Offer),
     Land(crate::commitments::Agreement),
@@ -101,6 +106,7 @@ pub fn discover(world: &World, state: &State, agent: AgentId) -> Vec<Offer> {
                 terms: Terms::Guarantee(g.clone()),
             }),
     );
+    financial::discover(world, state, agent, &mut offers);
     offers
 }
 
@@ -125,31 +131,16 @@ pub(crate) fn resolve(
     requests: &[Request],
     batch: &mut Batch,
 ) -> Result<(), String> {
-    if requests.iter().any(|r| matches!(r.offer, Id::Guarantee(_))) {
-        if requests.len() != 1
-            || *batch != Batch::empty(&sim.state)
-            || sim.state.phase != Phase::Acquire
-        {
-            return Err("guarantee application requires a standalone Acquire request".into());
+    if requests.iter().any(|r| {
+        matches!(
+            r.offer,
+            Id::Guarantee(_) | Id::Advance(_) | Id::PrepaidDelivery(_)
+        )
+    }) {
+        if *batch != Batch::empty(&sim.state) {
+            return Err("financial applications require an empty Acquire batch".into());
         }
-        let request = &requests[0];
-        let Id::Guarantee(id) = request.offer else {
-            unreachable!()
-        };
-        if request.continuing.is_some()
-            || request.need.is_some()
-            || !sim
-                .world
-                .recovery
-                .guarantee_applications
-                .iter()
-                .any(|a| a.guarantee == id && a.month == sim.state.month)
-        {
-            return Err("guarantee request differs from dated application".into());
-        }
-        crate::recovery::admission::acceptance(&sim.world, &sim.state, id, request.agent)
-            .map_err(|r| format!("guarantee application rejected: {r:?}"))?;
-        *batch = crate::acquisition::evaluate(&sim.world, &sim.state)?;
+        *batch = financial::prepare(sim, requests)?;
         return Ok(());
     }
     if requests
@@ -188,7 +179,10 @@ pub(crate) fn resolve(
             return Err("unknown offer applicant".into());
         }
         match request.offer {
-            Id::FinancedPurchase(_) | Id::Guarantee(_) => unreachable!("handled above"),
+            Id::FinancedPurchase(_)
+            | Id::Guarantee(_)
+            | Id::Advance(_)
+            | Id::PrepaidDelivery(_) => unreachable!("handled above"),
             Id::Membership(offer) => {
                 if request.continuing.is_some() || !work.is_empty() {
                     return Err("duplicate or misordered membership acceptance".into());
@@ -272,57 +266,8 @@ pub(crate) fn resolve(
 /// productive work; its first execution still occurs at Productive. All existing
 /// processes precede requested new work. Automatic planning uses its own ordering.
 pub fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, String> {
-    if requests.iter().any(|r| matches!(r.offer, Id::Guarantee(_))) {
-        let mut batch = Batch::empty(&sim.state);
-        resolve(sim, requests, &mut batch)?;
-        if !sim.world.households.is_empty() {
-            // Preserve the normal before/core/after household boundary in this
-            // read-only preview, including already configured applications.
-            let mut preview = sim.clone();
-            preview.backend = Backend::Reference;
-            preview.step()?;
-            return preview
-                .ledger
-                .pop()
-                .ok_or("missing guarantee boundary".into());
-        }
-        batch.employment = crate::employment::evaluate(&sim.world, &sim.state, &batch)?;
-        let mut checked = sim.state.clone();
-        crate::settlement::commit(
-            &sim.world,
-            &mut checked,
-            &batch,
-            Backend::Reference,
-            sim.effect_limit,
-        )?;
-        return Ok(batch);
-    }
-    if requests
-        .iter()
-        .any(|r| matches!(r.offer, Id::FinancedPurchase(_)))
-    {
-        let mut batch = Batch::empty(&sim.state);
-        resolve(sim, requests, &mut batch)?;
-        let boundary = batch
-            .credit
-            .as_ref()
-            .ok_or("missing financed purchase receipt")?;
-        if !boundary
-            .events
-            .iter()
-            .any(|e| matches!(e, crate::credit::Event::Purchased { .. }))
-        {
-            return Err(format!("financed purchase rejected: {:?}", boundary.events));
-        }
-        let mut checked = sim.state.clone();
-        crate::settlement::commit(
-            &sim.world,
-            &mut checked,
-            &batch,
-            Backend::Reference,
-            sim.effect_limit,
-        )?;
-        return Ok(batch);
+    if requests.iter().any(|r| financial::is_financial(r.offer)) {
+        return financial::prepare(sim, requests);
     }
     if requests.iter().any(|r| r.continuing.is_some()) {
         return Err("explicit acceptance requests must be new offers".into());

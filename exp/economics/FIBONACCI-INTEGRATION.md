@@ -199,6 +199,9 @@ Completed additions so far:
 5. Expose guarantee discovery and dated preparation through the common offer interface.
 6. Integrate accepted exposure with household wind-down and normal performance.
 7. Observe admission outcomes and verify timing, replay and checkpoint boundaries.
+8. Expose consented advances and prepaid deliveries through common discovery.
+9. Prepare financial bundles through the normal household/settlement boundary.
+10. Verify shared funding, failed bundles, continued service and wind-down consent.
 
 See [acquisition adapters](ACQUISITION-ADAPTERS.md) and
 [guarantee admission](GUARANTEE-ADMISSION.md). This is an unfinished batch; no
