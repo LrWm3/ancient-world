@@ -183,3 +183,189 @@ fn financing_cannot_erase_a_lease_on_the_same_property() {
             .contains("existing land lease")
     );
 }
+
+#[test]
+fn stock_sale_income_funds_later_rent_and_mortgage_with_recorded_household_support() {
+    for household in [false, true] {
+        for forecast in [false, true] {
+            for alternate in [false, true] {
+                for proportional in [false, true] {
+                    let (mut w, mut s) = fixture(false, alternate, proportional);
+                    let mut member = baseline().0.participants[0].clone();
+                    member.capacity.quantity = 0;
+                    member.needs = vec![Requirement {
+                        resource: NUTRITION,
+                        quantity: 1,
+                        priority: 0,
+                    }];
+                    w.participants.push(member);
+                    w.definitions.push(
+                        baseline()
+                            .0
+                            .definitions
+                            .into_iter()
+                            .find(|d| d.id == CONSUME)
+                            .unwrap(),
+                    );
+                    if household {
+                        households::form(
+                            &mut w,
+                            &s,
+                            Agreement {
+                                id: 1,
+                                agent: HOME,
+                                adults: vec![PERSON],
+                                governance: Governance::contributed(PERSON),
+                                formed: 12,
+                                dwelling_process: None,
+                                admission: None,
+                                membership: vec![],
+                                asset_sales: vec![],
+                                equipment_retirements: vec![],
+                                support: vec![],
+                            },
+                        )
+                        .unwrap();
+                    }
+                    s.balances.insert((PERSON, TOKEN), 3);
+                    s.balances.insert((PERSON, GRAIN), 12);
+                    w.bids.push(economics_compute_smoke::currency::Bid {
+                        id: 1,
+                        buyer: STATE_AGENT,
+                        goods: Amount::new(GRAIN, 1),
+                        payment: Amount::new(TOKEN, 1),
+                    });
+                    w.credit.as_mut().unwrap().stock_sales =
+                        Some(economics_compute_smoke::stock_sale::Policy {
+                            joint: None,
+                            forecast: forecast.then(|| {
+                                economics_compute_smoke::sale_plan::Policy {
+                                    horizon_months: 2,
+                                    need_limits: [(NUTRITION, 0)].into(),
+                                }
+                            }),
+                            bid: 1,
+                            seller: PERSON,
+                            reserve_months: 2,
+                            max_lots_per_month: 2,
+                            purchase_budget: 2,
+                        });
+                    let run = |backend| {
+                        let mut audit = Audit::with_opening(
+                            &w,
+                            &s,
+                            TOKEN,
+                            Opening {
+                                assets: [(PLOT, 10), (RENTED, 10)].into(),
+                                dues: Some(Valuation([(1, 2)].into())),
+                                inventory: [((PERSON, GRAIN), 24)].into(),
+                                exchange_values: [(GRAIN, 2)].into(),
+                                processes: Some(Default::default()),
+                                ..Opening::default()
+                            },
+                        )
+                        .unwrap();
+                        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+                        while sim.state.month <= 12 {
+                            audit.step(&mut sim).unwrap();
+                        }
+                        let private_cash = if household { 2 } else { 3 };
+                        assert_eq!(sim.state.balance(PERSON, TOKEN), private_cash);
+                        assert_eq!(sim.state.balance(HOME, TOKEN), i32::from(household));
+                        assert_eq!(sim.state.balance(PERSON, GRAIN), 9);
+                        assert_eq!(sim.state.credit.loans[&1].principal, 8);
+                        let sale = sim
+                            .ledger
+                            .iter()
+                            .filter_map(|b| b.credit.as_ref()?.stock_sale.as_ref())
+                            .next()
+                            .unwrap();
+                        assert_eq!(sale.sold_lots, 2);
+                        if forecast {
+                            assert!(sale.decision.as_ref().unwrap().feasible);
+                        }
+                        audit.step(&mut sim).unwrap(); // Open: prior sales are now spendable.
+                        let mut resumed =
+                            Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+                        let mut ra = audit.clone();
+                        let prefix = sim.ledger.len();
+                        let before = sim.state.clone();
+                        audit.step(&mut sim).unwrap();
+                        let loan_paid = if alternate || !proportional { 2 } else { 1 };
+                        assert_eq!(sim.state.credit.loans[&1].principal, 8 - loan_paid);
+                        let rent_paid = if alternate {
+                            2
+                        } else {
+                            3 - loan_paid // The household explicitly contributes its pooled coin to rent.
+                        };
+                        assert_eq!(
+                            sim.state.obligations[&(1, 13)].paid,
+                            rent_paid,
+                            "household={household}, forecast={forecast}, alternate={alternate}, proportional={proportional}, balances={:?}",
+                            sim.state.balances
+                        );
+                        assert_eq!(
+                            sim.state.balance(PERSON, TOKEN),
+                            if alternate { private_cash - 2 } else { 0 }
+                        );
+                        assert_eq!(
+                            sim.state.balance(HOME, TOKEN),
+                            i32::from(household && alternate)
+                        );
+                        if household {
+                            let boundary = sim.ledger.last().unwrap().household.as_ref().unwrap();
+                            let contributed: i32 = boundary
+                                .before
+                                .iter()
+                                .filter(|e| e.account == (HOME, TOKEN))
+                                .map(|e| -e.delta)
+                                .sum();
+                            assert_eq!(contributed, i32::from(!alternate));
+                        }
+                        let mut altered = sim.ledger.last().unwrap().clone();
+                        altered
+                            .credit
+                            .as_mut()
+                            .unwrap()
+                            .after
+                            .loans
+                            .get_mut(&1)
+                            .unwrap()
+                            .principal -= 1;
+                        let mut rejected = before.clone();
+                        assert!(
+                            settlement::commit(
+                                &sim.world,
+                                &mut rejected,
+                                &altered,
+                                backend,
+                                settlement::DEFAULT_EFFECT_LIMIT
+                            )
+                            .is_err()
+                        );
+                        assert_eq!(rejected, before);
+                        while sim.state.month <= 14 {
+                            audit.step(&mut sim).unwrap();
+                        }
+                        while resumed.state.month <= 14 {
+                            ra.step(&mut resumed).unwrap();
+                        }
+                        assert_eq!(
+                            (&sim.state, &sim.ledger[prefix..], &audit),
+                            (&resumed.state, &resumed.ledger[..], &ra)
+                        );
+                        for who in [PERSON, STATE_AGENT]
+                            .into_iter()
+                            .chain(household.then_some(HOME))
+                        {
+                            let statement = audit.book().statements(who, 12, 14).unwrap();
+                            assert_eq!(statement.assets, statement.liabilities + statement.equity);
+                        }
+                        (sim.state, sim.ledger, audit)
+                    };
+                    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+                }
+            }
+        }
+    }
+}

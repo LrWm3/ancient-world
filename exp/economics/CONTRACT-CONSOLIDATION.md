@@ -5,7 +5,8 @@ prepare dated loans, prepayments, guarantees, household hiring and estate bids
 through ordinary settlement. Direct and tool-backed forwards share collection,
 funding and storage; mortgages compose with prepayments and negotiated exchange.
 Household mortgages now connect repayment to solvent disposal and dissolution.
-Independent leases and physical mint procurement compose with financed purchases;
+Independent leases (including fixed-reserve and bounded-forecast stock income)
+and physical mint procurement compose with financed purchases;
 [portable equipment](EQUIPMENT-LIQUIDATION.md) uses funded estate liquidation.
 [Estate receivables](ESTATE-RECEIVABLES.md) preserve recoverable assets and newly
 collected cash before deficient closure. These are tested combinations; broader

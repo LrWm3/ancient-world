@@ -472,7 +472,8 @@ fn validate_purchase(world: &World, state: &State) -> Result<(), String> {
     // Ownership-following production is supported. Other acquisition/collection
     // drivers still require shared funding and ownership rules.
     if !world.access_offers.is_empty()
-        || (!world.agreements.is_empty() && c.stock_sales.is_some())
+        || (!world.agreements.is_empty()
+            && c.stock_sales.as_ref().is_some_and(|s| s.joint.is_some()))
         || world.market.is_some()
         || world.competition.is_some()
         || (!world.households.is_empty()

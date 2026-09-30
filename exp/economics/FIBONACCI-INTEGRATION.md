@@ -608,3 +608,13 @@ the separately recorded affected gates above; this full result does not cover th
     boundary. Reference/CPU and reconstructed continuation preserve contribution
     carry, native debt and separate books. The seven-target gate passed 69 tests;
     strict all-target Clippy passed.
+
+29. **Mortgage stock income composes with independent rent.** Fixed-reserve and
+    bounded-forecast sales now run alongside a separate land lease. Real sale
+    income funds later mortgage/rent collection; stable and proportional policies
+    retain distinct scarce-cash outcomes. A household member pools actual income,
+    and the existing rent-support rule records any later collective contribution.
+    Native rent preserves its denomination and leaves pooled coin untouched.
+    Separate books, altered receipts and CPU/reconstructed continuation agree.
+    The five-target gate passed 29 tests; strict all-target Clippy passed.
+    Joint work/sale planning with independent leases remains guarded.

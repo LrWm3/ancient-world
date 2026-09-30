@@ -167,3 +167,14 @@ lots and forecast candidates. `contribution_limit` records that final feasible
 candidate ceiling alongside raw storage and funding limits. The regression in
 `tests/inventory_liquidation.rs` reproduces the former household-storage failure
 and verifies three/two/zero fills under identical physical constraints.
+
+Fixed-reserve and bounded-forecast mortgage sales now compose with independent
+land leases (`tests/mortgage_lease.rs`). Sale proceeds become spendable at the
+later Due boundary. Stable and proportional collection preserve their allocation
+rules for scarce cash; accepted native rent remains a goods obligation. Household
+members pool half their actual sale income, and the ordinary household rent rule
+can explicitly transfer that collective coin back to support a later bill. This
+is a recorded contribution, not an assumption of the member's debt. Separate
+books, forged receipts and CPU/reconstructed continuation agree. A lease on the
+financed parcel itself is still rejected, and joint work/sale planning with
+independent leases retains its compatibility guard.
