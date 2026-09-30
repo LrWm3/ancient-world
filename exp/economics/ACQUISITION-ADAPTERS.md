@@ -137,7 +137,30 @@ reconcile through double-entry statements. CPU/reference, replay and checkpoint
 continuation agree. Other controls reject insufficient treasury/storage, reused
 IDs, changed terms and attempts to spend an incoming prepayment immediately.
 
-This does not enable direct forwards with mortgages, competing access/pool
-allocation or consequence-search drivers. Terms, tool requests and legacy state
+This does not enable direct forwards with mortgage stock-sale planning, competing
+access/pool allocation or consequence-search drivers. Terms, tool requests and legacy state
 prices are still supplied; this is composition of their execution, not autonomous
 negotiation or general credit assessment.
+
+
+## Mortgages and direct prepaid commitments
+
+Mortgages without their specialized stock-sale planner now compose with direct
+prepayments and bilateral negotiated exchange. The financed asset purchase still
+reserves before prepayment; sale/downpayment receipts do not fund another outgoing
+leg in the same window. The common financial offer interface can prepare both
+admissions while retaining actual negotiation outcomes and normal debt servicing.
+
+In the six-month control, a borrower with fifty extra opening coins can buy grain
+in the configured first-month trading session and deliver one unit in month two.
+Without that opening cash, the incoming forty-coin prepayment cannot fund the
+same session: the forward remains unpaid, even after the mortgage is repaid.
+Mortgage repayments here use the existing fixture's explicit scheduled income;
+this is a timing/commitment check, not a self-financing production economy.
+
+A separate crop control defaults and transfers the plot and growing crop to the
+lender. Maintaining it produces eight grain for the lender; neglect produces none.
+Neither outcome transfers or cancels the original borrower's separate two-grain
+forward promise. Both parties retain the prepaid asset/deferred revenue until
+actual delivery or explicitly authorized relief. Statements, zero-delivery receipts,
+CPU/reference and checkpoint continuation agree in both controls.

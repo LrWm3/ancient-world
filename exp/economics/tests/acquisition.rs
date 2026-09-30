@@ -368,3 +368,165 @@ fn common_offer_acceptance_uses_the_same_shared_boundary_as_monthly_execution() 
     assert_eq!(explicit.state, monthly.state);
     assert_eq!(explicit.ledger, monthly.ledger);
 }
+
+#[test]
+fn mortgage_forward_and_negotiated_food_share_cash_and_dated_delivery() {
+    use economics_compute_smoke::{
+        financial_reporting::{Audit, Opening},
+        forward::direct,
+        offers,
+    };
+    for extra in [0, 50] {
+        let (mut w, s) = fixture(extra);
+        let law = w.transaction_policy.as_mut().unwrap();
+        law.agent_types.insert(
+            STATE_AGENT,
+            economics_compute_smoke::opportunities::STATE_TYPE,
+        );
+        law.permissions.insert((
+            economics_compute_smoke::opportunities::STATE_TYPE,
+            Action::StockTrade,
+        ));
+        w.prepaid_deliveries.push(direct::Terms {
+            id: 70,
+            seller: PERSON,
+            buyer: STATE_AGENT,
+            month: 1,
+            due: 2,
+            goods: Amount::new(GRAIN, 1),
+            prepayment: Amount::new(TOKEN, 40),
+        });
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut audit = Audit::with_opening(
+                &w,
+                &s,
+                TOKEN,
+                Opening {
+                    assets: w.assets.iter().map(|a| (a.id, 10000)).collect(),
+                    inventory: s
+                        .balances
+                        .iter()
+                        .filter(|((_, r), q)| *r != TOKEN && **q > 0)
+                        .map(|(a, q)| (*a, i128::from(*q)))
+                        .collect(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            while sim.state.phase != Phase::Acquire {
+                audit.step(&mut sim).unwrap();
+            }
+            let requests = [
+                offers::Request::new(offers::Id::FinancedPurchase(1), PERSON),
+                offers::Request::new(offers::Id::PrepaidDelivery(70), PERSON),
+            ];
+            let prepared = offers::prepare(&sim, &requests).unwrap();
+            let before = sim.state.clone();
+            let mut forged = prepared.clone();
+            forged.transactions.extend(
+                prepared
+                    .transactions
+                    .iter()
+                    .filter(|t| t.forward.is_some())
+                    .cloned(),
+            );
+            let mut rejected = before.clone();
+            assert!(
+                settlement::commit(&w, &mut rejected, &forged, backend, DEFAULT_EFFECT_LIMIT)
+                    .is_err()
+            );
+            assert_eq!(rejected, before);
+            audit.step(&mut sim).unwrap();
+            assert_eq!(sim.ledger.last(), Some(&prepared));
+            assert_eq!(
+                credit::owner(&w, &sim.state, economics_compute_smoke::scenario::PLOT),
+                Some(PERSON)
+            );
+            assert_eq!(
+                sim.state.balance(PERSON, GRAIN),
+                if extra == 0 { 0 } else { 2 }
+            );
+            assert_eq!(
+                sim.state.balance(PERSON, TOKEN),
+                if extra == 0 { 40 } else { 50 }
+            );
+            let mut checkpoint = (sim.clone(), audit.clone());
+            while sim.state.month <= 6 {
+                audit.step(&mut sim).unwrap();
+            }
+            while checkpoint.0.state.month <= 6 {
+                checkpoint.1.step(&mut checkpoint.0).unwrap();
+            }
+            assert_eq!(
+                (&sim.state, &sim.ledger, &audit),
+                (&checkpoint.0.state, &checkpoint.0.ledger, &checkpoint.1)
+            );
+            assert_eq!(sim.state.credit.loans[&1].status, credit::Status::Repaid);
+            assert_eq!(
+                sim.state.exchange.forwards[&70].delivered,
+                if extra == 0 { 0 } else { 1 }
+            );
+            let first = sim.ledger.iter().find(|b| {
+                b.transactions.iter().any(|t| {
+                    matches!(
+                        t.forward,
+                        Some(economics_compute_smoke::forward::Event::Delivery {
+                            contract: 70,
+                            ..
+                        })
+                    )
+                })
+            });
+            assert_eq!(
+                first.map(|b| b.month),
+                if extra == 0 { None } else { Some(2) }
+            );
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
+
+#[test]
+fn mortgage_seller_cannot_reuse_downpayment_as_forward_funding_at_acquire() {
+    use economics_compute_smoke::forward::{self, direct};
+    let (mut w, s) = fixture(0);
+    let law = w.transaction_policy.as_mut().unwrap();
+    law.agent_types.insert(
+        STATE_AGENT,
+        economics_compute_smoke::opportunities::STATE_TYPE,
+    );
+    law.permissions.insert((
+        economics_compute_smoke::opportunities::STATE_TYPE,
+        Action::StockTrade,
+    ));
+    w.prepaid_deliveries.push(direct::Terms {
+        id: 70,
+        seller: PERSON,
+        buyer: STATE_AGENT,
+        month: 1,
+        due: 2,
+        goods: Amount::new(GRAIN, 1),
+        prepayment: Amount::new(TOKEN, 100001),
+    });
+    let mut sim = acquire(w, s, Backend::CubeCpu);
+    sim.step().unwrap();
+    assert!(sim.state.credit.loans.contains_key(&1));
+    assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 102000);
+    assert!(sim.state.exchange.forwards.is_empty());
+    assert!(
+        sim.ledger
+            .last()
+            .unwrap()
+            .transactions
+            .iter()
+            .any(|t| matches!(
+                t.forward,
+                Some(forward::Event::AdmissionRejected {
+                    reason: direct::Rejection::FundingShortfall,
+                    ..
+                })
+            ))
+    );
+}

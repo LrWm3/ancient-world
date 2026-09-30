@@ -218,6 +218,8 @@ Completed additions so far:
 24. Collect both forward origins once with explicit stable/proportional allocation.
 25. Preserve forward identity and future storage across both admission adapters.
 26. Exercise household prepaid buying, stock targets and common inventory accounting.
+27. Compose mortgage and direct prepaid admissions with negotiated acquisition.
+28. Keep crop-control transfer separate from personal forward delivery and accounting.
 
 See [acquisition adapters](ACQUISITION-ADAPTERS.md) and
 [guarantee admission](GUARANTEE-ADMISSION.md). This is an unfinished batch; no

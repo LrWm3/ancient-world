@@ -258,3 +258,62 @@ fn audited_observer_keeps_simulation_and_reporting_atomic_on_rejection() {
     let log = String::from_utf8(observer.finish().unwrap()).unwrap();
     assert!(log.contains("step_error"));
 }
+
+#[test]
+fn repossessed_crop_does_not_transfer_or_discharge_a_separate_forward_promise() {
+    use economics_compute_smoke::forward::direct;
+    for maintain in [false, true] {
+        let (mut w, s) = credit::crop_scenario(maintain).unwrap();
+        w.prepaid_deliveries.push(direct::Terms {
+            id: 70,
+            seller: PERSON,
+            buyer: STATE_AGENT,
+            month: 1,
+            due: 6,
+            goods: Amount::new(GRAIN, 2),
+            prepayment: Amount::new(TOKEN, 1),
+        });
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            through(&mut a, &mut sim, 2);
+            let (mut resumed, mut ra) = (sim.clone(), a.clone());
+            through(&mut a, &mut sim, 7);
+            through(&mut ra, &mut resumed, 7);
+            assert_eq!(
+                (&sim.state, &sim.ledger, &a),
+                (&resumed.state, &resumed.ledger, &ra)
+            );
+            assert_eq!(credit::owner(&w, &sim.state, PLOT), Some(STATE_AGENT));
+            assert_eq!(sim.state.balance(PERSON, GRAIN), 0);
+            assert_eq!(
+                sim.state.balance(STATE_AGENT, GRAIN),
+                if maintain { 8 } else { 0 }
+            );
+            let c = &sim.state.exchange.forwards[&70];
+            assert_eq!(
+                (c.debtor, c.creditor, c.delivered, c.written_off()),
+                (PERSON, STATE_AGENT, 0, 0)
+            );
+            assert_eq!(c.claim().outstanding(), 2);
+            let debtor = a.book().statements(PERSON, 1, 7).unwrap();
+            let lender = a.book().statements(STATE_AGENT, 1, 7).unwrap();
+            assert_eq!(debtor.trial_balance[&A::DeferredRevenue(70)], -1);
+            assert_eq!(lender.trial_balance[&A::ForwardPrepayment(70)], 1);
+            let attempts: Vec<_> = sim
+                .ledger
+                .iter()
+                .flat_map(|b| &b.forward_collections)
+                .filter(|r| r.contract == economics_compute_smoke::finance::ContractId::Forward(70))
+                .collect();
+            assert_eq!(attempts.len(), 2);
+            assert!(
+                attempts
+                    .iter()
+                    .all(|r| r.paid == 0 && r.requested.quantity == 2)
+            );
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

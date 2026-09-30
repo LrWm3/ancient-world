@@ -58,7 +58,7 @@ pub(crate) fn validate(w: &World, s: &State) -> Result<(), String> {
     if !enabled(w) {
         return Ok(());
     }
-    if w.credit.is_some()
+    if w.credit.as_ref().is_some_and(|c| c.stock_sales.is_some())
         || w.production_market.is_some()
         || w.pool_market.is_some()
         || w.competition.is_some()
@@ -69,7 +69,7 @@ pub(crate) fn validate(w: &World, s: &State) -> Result<(), String> {
         || (!w.bids.is_empty() && w.market.is_none())
     {
         return Err(
-            "direct forwards require plain, bilateral, legacy market or town acquisition".into(),
+            "direct forwards require composed acquisition without mortgage stock-sale planning, competitive access or consequence search".into(),
         );
     }
     let mut ids = BTreeSet::new();
