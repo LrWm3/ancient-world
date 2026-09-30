@@ -31,9 +31,9 @@ Household agents can purchase inventory with their own funds and storage. Their
 books remain separate from member books. Member purchases in credit-only, bilateral-market and town-market
 Acquire drivers reserve their exact household contribution, including fractional
 carry across lots, and pool it once after settlement. Subsequent commodity loans
-also respect that reserved space; loan proceeds remain unpooled. Bilateral negotiation and town matching inherit those reservations and fractional carry. Other
-later market/forward drivers still reject member inventory bids until they inherit
-this same contribution budget. This is a bounded compatibility restriction, not an
+also respect that reserved space; loan proceeds remain unpooled. Bilateral negotiation and town matching inherit those reservations and fractional carry. Direct forward performance now inherits the same contribution budget, as do later
+bilateral and town trades. Physical-mint and legacy tool-market compositions still
+reject member inventory bids pending their integration checks. This is a bounded compatibility restriction, not an
 exemption from household pooling.
 
 The buyer records actual purchase cost. The debtor records sales revenue,
@@ -79,3 +79,8 @@ The town-market follow-up passed 41 tests across four targets and strict all-tar
 Clippy. Need-generated demand observes already purchased inventory; settlement
 respects the accumulated household share, preserving a submitted-but-storage-blocked
 order when shared capacity is full.
+
+Direct-delivery follow-up: actual deliveries pool after acceptance, using the same
+fractional carry as prior estate purchases; full space leaves a recorded forward
+shortfall. The original seller's receipt is supported here; guaranteed delivery
+is the next contribution adapter. See [household forwards](HOUSEHOLD-FORWARDS.md).

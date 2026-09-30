@@ -445,6 +445,16 @@ pub(crate) fn collect(
     available: &mut BTreeMap<Account, i32>,
     stored: &mut BTreeMap<AgentId, i128>,
 ) -> Result<Collections, String> {
+    collect_with_pooling(world, state, available, stored, None)
+}
+pub(crate) fn collect_with_pooling(
+    world: &World,
+    state: &State,
+    available: &mut BTreeMap<Account, i32>,
+    stored: &mut BTreeMap<AgentId, i128>,
+    pooling: Option<&crate::households::income_reservations::Reservations>,
+) -> Result<Collections, String> {
+    let mut pooling = pooling.cloned();
     let config = policy(world);
     if config.is_none() && !direct::enabled(world) {
         return Ok(Collections::default());
@@ -517,8 +527,29 @@ pub(crate) fn collect(
             claim.transfer.amount.quantity =
                 claim.settled + grants[&finance::ContractId::Forward(c.id)];
         }
+        let income = world.prepaid_deliveries.iter().any(|t| t.id == c.id);
+        if let Some(pooling) = &pooling {
+            let limit = if income {
+                pooling.payment_limit(world, &execution, &claim)?
+            } else {
+                pooling.unpooled_payment_limit(world, &execution, &claim)?
+            };
+            claim.transfer.amount.quantity = claim
+                .settled
+                .checked_add(limit)
+                .ok_or("forward storage limit overflow")?;
+        }
         let payment = execution.pay_protected(world, state.month, &claim, protected)?;
         let quantity = payment.paid;
+        if let Some(pooling) = &mut pooling {
+            if income {
+                *pooling = pooling
+                    .preview(world, &payment.effects)?
+                    .ok_or("forward contribution exceeds storage")?;
+            } else {
+                pooling.reserve_unpooled(world, &payment.effects)?;
+            }
+        }
         let contract = finance::ContractId::Forward(c.id);
         receipts.push(finance::CollectionReceipt {
             contract,

@@ -29,13 +29,31 @@ impl Resources {
         }
     }
     pub fn reserve(&mut self, world: &World, transactions: &[Transaction]) -> Result<(), String> {
+        self.reserve_classified(world, transactions, true)
+    }
+    pub fn reserve_unpooled(
+        &mut self,
+        world: &World,
+        transactions: &[Transaction],
+    ) -> Result<(), String> {
+        self.reserve_classified(world, transactions, false)
+    }
+    fn reserve_classified(
+        &mut self,
+        world: &World,
+        transactions: &[Transaction],
+        income: bool,
+    ) -> Result<(), String> {
         let mut net = BTreeMap::<Account, i128>::new();
         for t in transactions {
-            if let Some(p) = &self.pooling {
-                self.pooling = Some(
-                    p.preview(world, &t.effects)?
-                        .ok_or("acquisition exceeds pooled storage capacity")?,
-                );
+            if let Some(p) = &mut self.pooling {
+                if income {
+                    *p = p
+                        .preview(world, &t.effects)?
+                        .ok_or("acquisition exceeds pooled storage capacity")?;
+                } else {
+                    p.reserve_unpooled(world, &t.effects)?;
+                }
             }
             for e in &t.effects {
                 *net.entry(e.account).or_default() += i128::from(e.delta);

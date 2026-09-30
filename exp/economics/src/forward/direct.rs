@@ -132,9 +132,29 @@ pub(crate) fn evaluate(
     // Existing deliveries precede new prepayments, all from opening funds/stocks.
     let mut available = resources.available.clone();
     let mut stored = resources.storage.clone();
-    let collection = super::collect(w, s, &mut available, &mut stored)?;
+    if resources.pooling.is_none() {
+        resources.pooling = Some(crate::households::income_reservations::Reservations::new(
+            w,
+            s,
+            resources.storage.clone(),
+        ));
+    }
+    let collection = super::collect_with_pooling(
+        w,
+        s,
+        &mut available,
+        &mut stored,
+        resources.pooling.as_ref(),
+    )?;
     let mut result = collection.transactions;
-    resources.reserve(w, &result)?;
+    for t in &result {
+        if matches!(t.forward, Some(Event::Delivery { contract, .. }) if w.prepaid_deliveries.iter().any(|p| p.id == contract))
+        {
+            resources.reserve(w, std::slice::from_ref(t))?;
+        } else {
+            resources.reserve_unpooled(w, std::slice::from_ref(t))?;
+        }
+    }
     let mut delivered = s.clone();
     for tx in &result {
         crate::exchange::record(&mut delivered, tx);
@@ -222,7 +242,7 @@ pub(crate) fn evaluate(
                 return Err("prepayment exceeds storage".into());
             }
             tx.forward = Some(Event::Accepted(Box::new(c.clone())));
-            resources.reserve(w, std::slice::from_ref(&tx))?;
+            resources.reserve_unpooled(w, std::slice::from_ref(&tx))?;
             admitted.insert(c.id, c);
         }
         result.push(tx);

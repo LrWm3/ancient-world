@@ -834,6 +834,7 @@ fn collect(
             || t.stock_trade.is_some()
             || t.delivery.is_some()
             || t.trade.is_some()
+            || matches!(t.forward, Some(crate::forward::Event::Delivery { contract, .. }) if world.prepaid_deliveries.iter().any(|p| p.id == contract))
         {
             for (key, quantity) in incomes(world, opening, &t.effects)? {
                 let q = gained.entry(key).or_default();

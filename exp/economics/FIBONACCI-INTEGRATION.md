@@ -292,6 +292,7 @@ Completed integrations:
 50. Carry inventory contribution reservations into negotiated market matching without resetting fractional carry.
 51. Carry household inventory liquidation through retained debt, explicit discharge and permitted dissolution.
 52. Carry estate contribution reservations into need-generated town order settlement.
+53. Pool actual direct-forward delivery with prior inventory purchases and later market reservations.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.
@@ -335,3 +336,7 @@ member. Private member cash remains separate throughout.
 Town-order integration passed 41 tests across four affected targets and strict
 all-target Clippy. The same need submits an order in both storage controls; only
 the funded, storable outcome trades, retaining distinct submission/settlement evidence.
+
+Direct-delivery pooling passed two affected selections (36 and 60 tests) plus
+strict all-target Clippy. Prepayments remain unpooled; receiving-space shortfalls
+retain seller stock and the original outstanding claim.

@@ -70,7 +70,10 @@ Prepayment records operating cash flow for both parties, a buyer prepayment asse
 and seller deferred revenue. It is not immediate sales revenue or pooled member
 income. Actual delivery releases historical prepayment cost proportionally, records
 sales/cost of sales and transfers inventory through the existing accounting adapter.
-Partial delivery keeps the residual asset and liability. Voluntary member support
+Actual direct deliveries to members now contribute half of received stock to their
+household, with exact fractional carry and storage reserved before payment. The
+prepayment itself remains unpooled. Partial delivery keeps the residual asset and
+liability. Voluntary member support
 remains a separate transfer expense/income until the household delivers the goods.
 Reporting currently requires the advance in the journal's reporting currency, as
 with the existing forward adapter; no FX conversion or synthetic valuation is added.
@@ -138,3 +141,19 @@ checkpoint continuation and rejection of new seller/buyer admissions during
 recovery. The subsequent two-item batch also covers town recovery: a case opened
 at Due prevents ordinary spot orders at Acquire despite an earlier opening
 admission. Existing native deliveries remain serviceable.
+
+## Delivery contribution integration
+
+Direct forward collection now shares contribution reservations with prior estate
+inventory purchases and subsequent bilateral/town/mint matching. Full pooled
+storage can reduce or block actual delivery without deleting the residual claim.
+Prepayments and credit receipts retain separate, unpooled reservation paths.
+Stable and proportional collection still keep requested, allocated and delivered
+quantities distinct; a pooled-space limit can reduce completion below a prior
+proportional grant. Guarantor-delivered goods still need the same contribution
+adapter; this change covers the original seller's direct performance.
+
+The mixed estate/direct-delivery checks compare full, partial and zero delivery,
+fractional carry, retained stock and claims, CPU/reference execution, checkpoints
+and separate statements. Two affected selections passed 36 and 60 tests, with
+strict all-target Clippy. These counts overlap earlier gates.

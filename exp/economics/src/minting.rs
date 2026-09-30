@@ -156,11 +156,13 @@ fn transaction(w: &World, s: &State, c: &Config, d: &Deal) -> Result<Transaction
 /// Add only market-specific reservations; finance has already reserved its legs.
 fn market_resources(w: &World, s: &State, opening: &Resources) -> Resources {
     let mut reserved = opening.clone();
-    reserved.pooling = Some(crate::households::income_reservations::Reservations::new(
-        w,
-        s,
-        reserved.storage.clone(),
-    ));
+    if reserved.pooling.is_none() {
+        reserved.pooling = Some(crate::households::income_reservations::Reservations::new(
+            w,
+            s,
+            reserved.storage.clone(),
+        ));
+    }
     for p in &w.participants {
         let contribution = crate::households::labor_reserve(w, s, p.agent, p.capacity.resource);
         let available = reserved

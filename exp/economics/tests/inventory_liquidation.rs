@@ -550,28 +550,68 @@ fn fractional_member_purchases_and_later_household_loans_share_pooled_space() {
 }
 
 #[test]
-fn unadapted_later_markets_do_not_silently_bypass_member_pool_reservations() {
-    let (mut w, s) = fixture(true, 8);
-    add_household(&mut w, &s);
-    w.prepaid_deliveries
-        .push(economics_compute_smoke::forward::direct::Terms {
+fn direct_forward_delivery_shares_estate_contributions_and_keeps_shortfalls_as_claims() {
+    use economics_compute_smoke::forward::direct::Terms;
+    for initial in [2, 3, 4] {
+        let (mut w, mut s) = fixture(true, 8);
+        add_household(&mut w, &s);
+        s.balances.insert((HOME, GRAIN), initial);
+        s.balances.insert((UNFUNDED, GRAIN), 3);
+        w.prepaid_deliveries.push(Terms {
             id: 1,
-            seller: BUYER,
-            buyer: STATE_AGENT,
-            month: 20,
-            due: 21,
-            goods: Amount::new(GRAIN, 1),
+            seller: UNFUNDED,
+            buyer: BUYER,
+            month: 1,
+            due: 3,
+            goods: Amount::new(GRAIN, 3),
             prepayment: Amount::new(TOKEN, 1),
         });
-    let (mut sim, _) = opening(w, s, Backend::Reference);
-    while (sim.state.month, sim.state.phase) != (3, Phase::Acquire) {
-        sim.step().unwrap();
+        w.recovery.inventory_listings[0].goods.quantity = 1;
+        w.recovery.inventory_listings[0].minimum_price = 1;
+        w.recovery.inventory_bids = vec![Bid {
+            id: 2,
+            listing: 1,
+            buyer: BUYER,
+            month: 3,
+            price: 1,
+        }];
+        let run = |backend| {
+            let (mut sim, mut audit) = opening(w.clone(), s.clone(), backend);
+            assert_eq!(sim.state.balance(HOME, TOKEN), 0);
+            while (sim.state.month, sim.state.phase) != (3, Phase::Acquire) {
+                audit.step(&mut sim).unwrap();
+            }
+            let mut checkpoint = (sim.clone(), audit.clone());
+            audit.step(&mut sim).unwrap();
+            checkpoint.1.step(&mut checkpoint.0).unwrap();
+            assert_eq!(
+                (&sim.state, &sim.ledger, &audit),
+                (&checkpoint.0.state, &checkpoint.0.ledger, &checkpoint.1)
+            );
+            let delivered = match initial {
+                2 => 3,
+                3 => 2,
+                _ => 0,
+            };
+            let total = 1 + delivered;
+            assert_eq!(sim.state.exchange.forwards[&1].delivered, delivered);
+            assert_eq!(
+                sim.state.exchange.forwards[&1].claim().outstanding(),
+                3 - delivered
+            );
+            assert_eq!(sim.state.balance(UNFUNDED, GRAIN), 3 - delivered);
+            assert_eq!(sim.state.balance(HOME, GRAIN), initial + total / 2);
+            assert_eq!(sim.state.balance(BUYER, GRAIN), total - total / 2);
+            assert_eq!(
+                sim.state.household_remainders[&(HOME, BUYER, GRAIN)],
+                total % 2
+            );
+            assert_eq!(sim.state.balance(ESTATE, TOKEN), 1);
+            assert_eq!(sim.state.balance(UNFUNDED, TOKEN), 1);
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
-    assert!(recovery::inventory::discover(&sim.world, &sim.state, BUYER).is_empty());
-    sim.step().unwrap();
-    assert_eq!(sim.state.balance(ESTATE, TOKEN), 0);
-    assert_eq!(sim.state.balance(HOME, GRAIN), 0);
-    assert_eq!(sim.state.balance(BUYER, GRAIN), 0);
 }
 
 #[test]
