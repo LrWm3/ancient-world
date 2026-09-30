@@ -225,7 +225,8 @@ pub fn generate(
     p: &orders::Policy,
     v: &Policy,
 ) -> Result<orders::Plan, String> {
-    generate_with(w, s, c, p, v, &crate::acquisition::Resources::opening(w, s))
+    let resources = super::market_resources(w, s, &crate::acquisition::Resources::opening(w, s));
+    generate_with(w, s, c, p, v, &resources)
 }
 pub(crate) fn generate_with(
     w: &World,

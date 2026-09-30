@@ -153,6 +153,24 @@ fn transaction(w: &World, s: &State, c: &Config, d: &Deal) -> Result<Transaction
         royalty: None,
     })
 }
+/// Add only market-specific reservations; finance has already reserved its legs.
+fn market_resources(w: &World, s: &State, opening: &Resources) -> Resources {
+    let mut reserved = opening.clone();
+    reserved.pooling = Some(crate::households::income_reservations::Reservations::new(
+        w,
+        s,
+        reserved.storage.clone(),
+    ));
+    for p in &w.participants {
+        let contribution = crate::households::labor_reserve(w, s, p.agent, p.capacity.resource);
+        let available = reserved
+            .available
+            .entry((p.agent, p.capacity.resource))
+            .or_default();
+        *available = available.saturating_sub(contribution).max(0);
+    }
+    reserved
+}
 pub fn evaluate(w: &World, s: &State) -> Result<Option<Boundary>, String> {
     evaluate_with(w, s, &Resources::opening(w, s))
 }
@@ -170,20 +188,7 @@ pub(crate) fn evaluate_with(
     if s.phase != Phase::Acquire {
         return Ok(None);
     }
-    let mut reserved = opening.clone();
-    reserved.pooling = Some(crate::households::income_reservations::Reservations::new(
-        w,
-        s,
-        reserved.storage.clone(),
-    ));
-    for p in &w.participants {
-        let contribution = crate::households::labor_reserve(w, s, p.agent, p.capacity.resource);
-        let available = reserved
-            .available
-            .entry((p.agent, p.capacity.resource))
-            .or_default();
-        *available = available.saturating_sub(contribution).max(0);
-    }
+    let reserved = market_resources(w, s, opening);
     let opening = &reserved;
     let plan = c
         .order_policy

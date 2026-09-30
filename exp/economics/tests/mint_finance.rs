@@ -614,3 +614,37 @@ fn mint_market_reserves_pooled_storage_before_accepting_a_member_purchase() {
         }
     }
 }
+
+#[test]
+fn generated_household_labor_quotes_match_public_preview_and_settlement() {
+    let (mut w, s) = minting::order_scenario("normal").unwrap();
+    worker_household(&mut w, &s, 50);
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    sim.run_months(1).unwrap();
+    sim.step().unwrap();
+    assert_eq!(sim.state.phase, Phase::Acquire);
+    let c = sim.world.minting.as_ref().unwrap();
+    let preview =
+        minting::orders::generate(&sim.world, &sim.state, c, c.order_policy.as_ref().unwrap())
+            .unwrap();
+    assert!(
+        !preview
+            .orders
+            .iter()
+            .any(|o| o.agent == WORKER && o.market == HOURS)
+    );
+    sim.step().unwrap();
+    assert_eq!(
+        sim.ledger
+            .last()
+            .unwrap()
+            .minting
+            .as_ref()
+            .unwrap()
+            .plan
+            .as_ref(),
+        Some(&preview)
+    );
+    assert_eq!(sim.state.balance(ISSUER, COIN), 6);
+    assert_eq!(sim.state.balance(ISSUER, METAL), 0);
+}

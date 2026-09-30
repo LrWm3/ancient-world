@@ -153,7 +153,8 @@ pub fn validate(w: &World, c: &Config, p: &Policy) -> Result<(), String> {
 }
 
 pub fn generate(w: &World, s: &State, c: &Config, p: &Policy) -> Result<Plan, String> {
-    generate_with(w, s, c, p, &Resources::opening(w, s))
+    let resources = super::market_resources(w, s, &Resources::opening(w, s));
+    generate_with(w, s, c, p, &resources)
 }
 pub(crate) fn generate_with(
     w: &World,
