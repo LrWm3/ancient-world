@@ -673,6 +673,34 @@ fn explicit_native_loan_writeoff_closes_only_the_consented_claim_and_preserves_a
                 sim.state.credit.recovery.loan_writeoffs.contains_key(&1),
                 accepted
             );
+            let unchanged = sim.state.clone();
+            let mut views = Vec::new();
+            for agent in [PERSON, STATE_AGENT] {
+                let view = economics_compute_smoke::agreements::for_agent(&w, &sim.state, agent)
+                    .unwrap()
+                    .into_iter()
+                    .find_map(|v| match v {
+                        economics_compute_smoke::agreements::View::Loan(v)
+                            if v.record().id == 1 =>
+                        {
+                            Some(v)
+                        }
+                        _ => None,
+                    })
+                    .unwrap();
+                assert_eq!(view.writeoffs().len(), usize::from(accepted));
+                assert_eq!(view.claim().unwrap().is_none(), accepted);
+                if accepted {
+                    assert!(std::ptr::eq(
+                        &view.writeoffs()[0],
+                        &sim.state.credit.recovery.loan_writeoffs[&1][0]
+                    ));
+                    assert_eq!(view.writeoffs()[0].terms.id, 90);
+                }
+                views.push(view);
+            }
+            assert_eq!(views[0], views[1]);
+            assert_eq!(sim.state, unchanged);
             if accepted {
                 let mut bad = sim.state.clone();
                 bad.credit.recovery.loan_writeoffs.clear();

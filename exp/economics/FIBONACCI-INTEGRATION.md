@@ -922,3 +922,11 @@ their separately recorded gates and are not covered by this snapshot.
     member, and private cash never implicitly funds the guarantee. Native stock
     remains zero. CPU/reference and checkpoint statements agree. The four-target
     gate passed 58 tests and strict all-target Clippy passed.
+
+58. **Common loan inspection exposes accepted write-off history.** Borrowed
+    `LoanView::writeoffs` reports explicit dispositions for both counterparties,
+    including historical losses alongside reopened recourse. Current collectible
+    claims stay separate from past forgiven amounts. Absent/stale consent leaves
+    no disposition, and inspection neither copies balances nor mutates state.
+    Existing native-loan and household renewal controls now check the common
+    view. The five-target gate passed 88 tests and strict all-target Clippy passed.

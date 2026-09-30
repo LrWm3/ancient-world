@@ -385,12 +385,20 @@ pub struct LoanView<'a> {
     phase: Phase,
     title_holder: Option<AgentId>,
     listing: Option<&'a crate::resale::PendingSale>,
+    writeoffs: &'a [crate::claim_relief::LoanWriteOff],
 }
 
 impl<'a> LoanView<'a> {
     /// Accepted terms and current balances from the book, never the offer catalog.
     pub fn record(&self) -> &'a crate::credit::Loan {
         self.record
+    }
+
+    /// Explicit full dispositions, including earlier losses when later guarantee
+    /// advances reopened this loan. Estate-wide deficiency closure is a separate
+    /// route; an empty slice does not imply that all reductions were repayments.
+    pub fn writeoffs(&self) -> &'a [crate::claim_relief::LoanWriteOff] {
+        self.writeoffs
     }
 
     /// Phase is the next boundary to execute. No interest or payment is simulated.
@@ -528,6 +536,13 @@ pub fn for_agent<'a>(
                 })
                 .transpose()?,
             listing,
+            writeoffs: state
+                .credit
+                .recovery
+                .loan_writeoffs
+                .get(&record.id)
+                .map(Vec::as_slice)
+                .unwrap_or(&[]),
         }));
     }
     views.extend(state.exchange.forwards.values().map(View::Forward));

@@ -2888,6 +2888,22 @@ fn renewed_recourse(household: bool) {
             a.book().balances()[&(guarantor, Account::LoanReceivable(101))],
             3
         );
+        for agent in [ISSUER, guarantor] {
+            let view = economics_compute_smoke::agreements::for_agent(&w, &sim.state, agent)
+                .unwrap()
+                .into_iter()
+                .find_map(|v| match v {
+                    economics_compute_smoke::agreements::View::Loan(v) if v.record().id == 101 => {
+                        Some(v)
+                    }
+                    _ => None,
+                })
+                .unwrap();
+            assert_eq!(view.writeoffs().len(), 1);
+            assert_eq!(view.writeoffs()[0].principal, first);
+            assert_eq!(view.outstanding().unwrap(), Amount::new(FIREWOOD, 1));
+            assert_eq!(view.claim().unwrap().unwrap().outstanding(), 1);
+        }
         let mut forged = sim.state.clone();
         forged.credit.loans.get_mut(&101).unwrap().principal += 1;
         assert!(Simulation::new(w.clone(), forged, backend).is_err());

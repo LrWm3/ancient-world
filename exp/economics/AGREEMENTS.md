@@ -189,3 +189,10 @@ control distinguishes an unaccepted entrant, a current member and a departed
 signatory while CPU and checkpoint work allocation continues identically.
 Cooperative exchange schedules use their own typed view and conditional execution;
 see [cooperative agreement inspection](COOPERATION.md#common-agreement-inspection).
+
+`LoanView::writeoffs()` borrows explicit accepted full-loan disposition history
+from the recovery book. Both counterparties see the same native principal/interest
+and consent terms. Earlier losses remain inspectable if subsequent guarantee
+advances reopen the loan, alongside its current outstanding claim. This slice
+reports loan-specific consent; estate-wide deficiency discharge remains a
+distinct route, so an empty slice does not prove that every reduction was repayment.
