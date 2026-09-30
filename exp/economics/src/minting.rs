@@ -233,7 +233,15 @@ pub fn validate(w: &World) -> Result<(), String> {
     let Some(c) = &w.minting else {
         return Ok(());
     };
-    // This first driver does not silently override other acquisition planners.
+    if !w.recovery.proceedings.is_empty()
+        || (c.order_policy.is_some()
+            && (crate::credit::enabled(w) || crate::forward::direct::enabled(w)))
+    {
+        return Err(
+            "mint recovery and generated financial order adapters are not yet composed".into(),
+        );
+    }
+    // Unsupported planners must not silently override the shared acquisition path.
     if w.credit.is_some()
         || w.negotiation.is_some()
         || w.town_market.is_some()
@@ -310,7 +318,8 @@ pub fn validate(w: &World) -> Result<(), String> {
     Ok(())
 }
 pub(crate) fn validate_batch(w: &World, s: &State, b: &Batch) -> Result<(), String> {
-    if b.minting != evaluate(w, s)? {
+    let shared = s.phase == Phase::Acquire && crate::acquisition::shared(w);
+    if !shared && b.minting != evaluate(w, s)? {
         return Err("missing or altered minting acquisition receipt".into());
     }
     let Some(c) = &w.minting else {
@@ -322,10 +331,14 @@ pub(crate) fn validate_batch(w: &World, s: &State, b: &Batch) -> Result<(), Stri
         if b.transactions != expected.transactions {
             return Err("minting opening differs from authorized capacity regeneration".into());
         }
-    } else if b.phase != Phase::Acquire && b.transactions.iter().any(|t| t.process.is_none()) {
+    } else if b.phase != Phase::Acquire
+        && !(b.phase == Phase::Due && crate::credit::enabled(w))
+        && b.transactions.iter().any(|t| t.process.is_none())
+    {
         return Err("physical minting requires a process for non-market effects".into());
     }
-    if let Some(r) = &b.minting
+    if !shared
+        && let Some(r) = &b.minting
         && r.transactions != b.transactions
     {
         return Err("minting transactions differ from reserved package".into());

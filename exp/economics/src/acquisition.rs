@@ -62,7 +62,8 @@ impl Resources {
 }
 
 pub(crate) fn shared(world: &World) -> bool {
-    crate::forward::direct::enabled(world)
+    world.minting.is_some()
+        || crate::forward::direct::enabled(world)
         || (credit::enabled(world)
             && (world.negotiation.is_some()
                 || world.market.is_some()
@@ -107,6 +108,14 @@ pub fn evaluate(world: &World, state: &State) -> Result<Batch, String> {
             crate::exchange::record(&mut quoted, t);
         }
     }
+    if world.minting.is_some() {
+        batch.minting = crate::minting::evaluate_with(world, &quoted, &resources)?;
+        if let Some(m) = &batch.minting {
+            resources.reserve(world, &m.transactions)?;
+            batch.transactions.extend(m.transactions.clone());
+        }
+        return Ok(batch);
+    }
     if world.town_market.is_some() {
         let round = crate::town_market::evaluate_with(world, &quoted, &resources)?;
         resources.reserve(world, &round.transactions)?;
@@ -133,6 +142,7 @@ pub(crate) fn validate_batch(world: &World, state: &State, batch: &Batch) -> Res
     if state.phase == Phase::Acquire && shared(world) {
         let expected = evaluate(world, state)?;
         if batch.credit != expected.credit
+            || batch.minting != expected.minting
             || batch.town_market != expected.town_market
             || batch.negotiation != expected.negotiation
             || batch.production_plan != expected.production_plan

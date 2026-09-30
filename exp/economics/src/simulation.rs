@@ -75,7 +75,9 @@ impl Simulation {
             pool_market: None,
             plot_request: None,
         };
-        if self.state.phase == Phase::Acquire && crate::forward::direct::enabled(&self.world) {
+        if self.state.phase == Phase::Acquire
+            && (crate::forward::direct::enabled(&self.world) || self.world.minting.is_some())
+        {
             batch = crate::acquisition::evaluate(&self.world, &self.state)?;
         } else if crate::credit::enabled(&self.world)
             && matches!(self.state.phase, Phase::Open | Phase::Due | Phase::Acquire)
@@ -103,10 +105,7 @@ impl Simulation {
                     batch.commitments = Some(settlement);
                 }
                 Phase::Acquire => {
-                    if self.world.minting.is_some() {
-                        batch.minting = crate::minting::evaluate(&self.world, &self.state)?;
-                        batch.transactions = batch.minting.as_ref().unwrap().transactions.clone();
-                    } else if self.world.town_market.is_some() {
+                    if self.world.town_market.is_some() {
                         let boundary = crate::town_market::evaluate(&self.world, &self.state)?;
                         batch.transactions = boundary.transactions.clone();
                         batch.town_market = Some(crate::town_market::Boundary::Market(boundary));
