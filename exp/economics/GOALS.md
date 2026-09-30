@@ -4,6 +4,8 @@ This document records the experiment's intended direction. These are design goal
 not claims of implemented behavior or a commitment to implement everything at once.
 The [integration matrix](INTEGRATION-STATUS.md) records supported combinations;
 the [design](DESIGN.md) describes the transaction and process architecture.
+The [v1 release checklist](V1-RELEASE.md) selects a finite subset and defines when
+that release is done. The ambitions below remain broader than v1.
 
 ## Current position
 
@@ -12,8 +14,8 @@ implemented behavior from these longer-term goals. The initial bounded
 person–household loop is complete. Later household/finance composition is recorded
 in [Fibonacci integration](FIBONACCI-INTEGRATION.md), through completed batch 89.
 The [integration matrix](INTEGRATION-STATUS.md) is the current compatibility
-reference; [contract consolidation](CONTRACT-CONSOLIDATION.md) orders remaining
-implementation. Completion of a batch does not complete these broader ambitions.
+reference; [contract consolidation](CONTRACT-CONSOLIDATION.md) orders the broader
+backlog. Completion of v1 does not require completing these broader ambitions.
 Person self-directed policy changes remain deferred by request.
 
 ## Purpose and consistency

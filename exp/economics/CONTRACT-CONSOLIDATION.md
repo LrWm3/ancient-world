@@ -1,9 +1,17 @@
 # Consolidate contracts before adding more financial scenarios
 
 Current through completed Fibonacci batch 89 (`30c74e6`). This document orders
-remaining implementation work; the [integration matrix](INTEGRATION-STATUS.md)
+the broader implementation backlog; the [integration matrix](INTEGRATION-STATUS.md)
 is the current compatibility reference. Historical verification below records
 the scope of earlier changes, not current suite totals.
+
+The [v1 release checklist](V1-RELEASE.md) now bounds release work. Its six items
+and named scenarios replace “finish this whole roadmap” as the stopping rule.
+For v1, item 1 below is limited to household-aware common acceptance plus the
+specified mixed regressions. Items 2–5 require preservation and verification of
+their existing supported mechanisms, not the additional tender, custody,
+underwriting, security or liquidation generalizations listed here. Those remain
+post-v1 work unless they are needed to fix a named release criterion.
 
 Latest integration: [common acquisition adapters](ACQUISITION-ADAPTERS.md) now
 prepare dated loans, prepayments, guarantees, household hiring and estate bids

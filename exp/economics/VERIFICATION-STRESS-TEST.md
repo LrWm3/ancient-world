@@ -6,6 +6,9 @@ capabilities rather than treating the list as a release checklist. The immediate
 focus remains minting, markets, forwards and basic lending. The
 [integration matrix](INTEGRATION-STATUS.md) is the authority on current support;
 [GOALS.md](GOALS.md) defines the institutional direction.
+The separate [v1 release checklist](V1-RELEASE.md) defines a finite release gate.
+The later institutions, instruments and generalizations in this program do not
+block v1 merely because they have not been implemented.
 
 ## Purpose and boundary
 

@@ -4,11 +4,16 @@ A CPU-running experiment in generic agents, needs, processes, agreements and
 transaction-first settlement. The initial person–household loop works in a bounded
 scenario; the broader economy remains partially integrated.
 
+The [v1 release checklist](V1-RELEASE.md) defines the bounded work to finish:
+six completion items, six scenario families, explicit exclusions and a final
+verification gate. It is the release stopping rule; the broader roadmap and
+financial stress tests continue beyond v1. V1 is not yet released.
+
 ## Current progress — 2026-09-30
 
 Current through Fibonacci batch 89, implementation revision `30c74e6`.
 Use the [integration matrix](INTEGRATION-STATUS.md) for supported combinations,
-[contract consolidation](CONTRACT-CONSOLIDATION.md) for ordered remaining work,
+[contract consolidation](CONTRACT-CONSOLIDATION.md) for the broader ordered backlog,
 and [Fibonacci integration](FIBONACCI-INTEGRATION.md) for change-by-change evidence.
 [Goals](GOALS.md) and the [verification stress test](VERIFICATION-STRESS-TEST.md)
 describe ambitions, not completed functionality. Older scenario reports retain

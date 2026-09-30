@@ -2,7 +2,8 @@
 
 Current through completed Fibonacci batch 89, implementation revision `30c74e6`.
 This page describes supported combinations and present exclusions. The
-[consolidation roadmap](CONTRACT-CONSOLIDATION.md) orders remaining work;
+[v1 release checklist](V1-RELEASE.md) defines release requirements and exclusions;
+the [consolidation roadmap](CONTRACT-CONSOLIDATION.md) orders the broader backlog.
 [Fibonacci integration](FIBONACCI-INTEGRATION.md) and the linked subsystem reports
 retain historical changes, scenario settings and verification results. Historical
 test counts are snapshots, not additional tests to sum or universal coverage claims.
@@ -95,6 +96,10 @@ performance and permitted ongoing work. Household membership does not transfer
 personal debt to the organization, and custody never authorizes ordinary trading.
 
 ## Household planning gaps
+
+V1 includes the bounded common-acceptance adapter below. Conditional cooperative
+credit, collective cooperative purchasing and general consequence-aware household
+search are deferred; their absence does not block that release.
 
 The next acceptance adapter must carry household allocation and collection through
 combined prerequisite/process bundles. Existing-rights household investment and

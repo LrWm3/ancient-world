@@ -1,5 +1,10 @@
 # Fibonacci integration follow-up
 
+Release work is now bounded by [the v1 checklist](V1-RELEASE.md). This file remains
+the historical batch record. A later batch must serve a named release item;
+neither reaching the next Fibonacci size nor exhausting the broader roadmap is
+required. Stop release implementation when the v1 gate passes.
+
 Scope: alternate household/organizational integration and shared financial
 consolidation under the [ordered roadmap](CONTRACT-CONSOLIDATION.md). The initial
 batches began with bounded household hiring and direct prepaid-delivery recovery.
