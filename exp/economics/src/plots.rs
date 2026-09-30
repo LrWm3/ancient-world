@@ -48,7 +48,12 @@ fn forecast(
     resource: ResourceId,
     asset: AssetId,
 ) -> Result<Forecast, String> {
-    let (w, s) = crate::forward::local(world, state, agent);
+    let (w, mut s) = crate::forward::local(world, state, agent);
+    // This projection starts after this month's acquisition decisions. Replaying
+    // Acquire could retry a rejected advance using newly received trade proceeds.
+    if s.phase == Phase::Acquire {
+        s.phase = Phase::Productive;
+    }
     let mut sim = Simulation::new(w, s, Backend::Reference)?;
     sim.run_months(FORECAST_MONTHS)?;
     Ok(Forecast {
@@ -117,6 +122,12 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Request>, String>
         return Ok(Some(r));
     }
     if state.terminal.contains_key(&agent)
+        || crate::recovery::active(world, &state.credit, agent).is_some()
+        || state
+            .credit
+            .loans
+            .values()
+            .any(|l| l.debtor == agent && l.debt().unwrap_or(0) > 0)
         || state.obligations.values().any(|o| {
             o.outstanding() > 0
                 && commitments::active(world, state)
@@ -272,6 +283,25 @@ pub fn after_market(
         crate::exchange::record(&mut observed, t);
     }
     evaluate(world, &observed)
+}
+
+/// Financial admission precedes expansion in the same Acquire boundary. The
+/// request must see accepted liabilities and title changes, not only cash legs.
+pub(crate) fn after_acquisition(
+    world: &World,
+    state: &State,
+    batch: &Batch,
+) -> Result<Option<Request>, String> {
+    let mut observed = state.clone();
+    if let Some(credit) = &batch.credit {
+        observed.credit = credit.after.clone();
+        for change in &credit.attachments {
+            observed
+                .processes
+                .insert(change.after.id, change.after.clone());
+        }
+    }
+    after_market(world, &observed, &batch.transactions)
 }
 
 pub fn validate(world: &World, state: &State) -> Result<(), String> {

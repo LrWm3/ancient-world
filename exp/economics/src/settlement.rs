@@ -330,7 +330,7 @@ pub(crate) fn commit_core(
         .and_then(|m| m.plots.as_ref())
         .is_some();
     if batch.phase == Phase::Acquire && expansion {
-        let expected = crate::plots::after_market(world, state, &batch.transactions)?;
+        let expected = crate::plots::after_acquisition(world, state, batch)?;
         let accepted = expected
             .as_ref()
             .filter(|r| r.reason == crate::plots::Reason::Accepted)

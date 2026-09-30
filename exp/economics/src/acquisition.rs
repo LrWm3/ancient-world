@@ -133,6 +133,12 @@ pub fn evaluate(world: &World, state: &State) -> Result<Batch, String> {
     )?;
     resources.reserve(world, &trades)?;
     batch.transactions.extend(trades);
+    batch.plot_request = crate::plots::after_acquisition(world, state, &batch)?;
+    batch.accept_access = batch
+        .plot_request
+        .as_ref()
+        .filter(|r| r.reason == crate::plots::Reason::Accepted)
+        .and_then(|r| r.offer);
     Ok(batch)
 }
 
@@ -145,6 +151,8 @@ pub(crate) fn validate_batch(world: &World, state: &State, batch: &Batch) -> Res
             || batch.town_market != expected.town_market
             || batch.negotiation != expected.negotiation
             || batch.production_plan != expected.production_plan
+            || batch.plot_request != expected.plot_request
+            || batch.accept_access != expected.accept_access
             || batch.transactions != expected.transactions
         {
             return Err("missing or altered shared acquisition settlement".into());

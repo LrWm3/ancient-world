@@ -265,3 +265,71 @@ fn annual_tax_window_existing_arrears_and_holding_limit_are_enforced() {
         Reason::ExistingDebt
     );
 }
+
+#[test]
+fn shared_acquisition_expansion_sees_new_loans_but_not_rejected_applications() {
+    use economics_compute_smoke::credit::{Advance, LoanOffer};
+    for funded in [false, true] {
+        let mut sim = fixture(12, 200);
+        sim.world.lending.push(Advance {
+            id: 900,
+            debtor: PERSON,
+            month: 1,
+            principal: 1,
+            collateral: None,
+            priority: 0,
+            terms: LoanOffer {
+                creditor: STATE_AGENT,
+                denomination: TOKEN,
+                max_principal: 1,
+                monthly_rate_bps: 0,
+                term_months: 1,
+                grace_months: 0,
+            },
+        });
+        sim.state
+            .balances
+            .insert((STATE_AGENT, TOKEN), i32::from(funded));
+        let opening = sim.state.clone();
+        let mut cpu =
+            Simulation::new(sim.world.clone(), opening.clone(), Backend::CubeCpu).unwrap();
+        sim.step().unwrap();
+        cpu.step().unwrap();
+        assert_eq!(sim.state, cpu.state);
+        assert_eq!(sim.ledger.last(), cpu.ledger.last());
+        let batch = sim.ledger.last().unwrap();
+        assert_eq!(
+            batch.plot_request.as_ref().unwrap().reason,
+            if funded {
+                Reason::ExistingDebt
+            } else {
+                Reason::Accepted
+            }
+        );
+        assert_eq!(sim.state.credit.loans.contains_key(&900), funded);
+        assert_eq!(batch.accept_access.is_none(), funded);
+        let mut forged = batch.clone();
+        forged.plot_request.as_mut().unwrap().reason = if funded {
+            Reason::Accepted
+        } else {
+            Reason::ExistingDebt
+        };
+        let mut unchanged = opening.clone();
+        assert!(
+            commit(
+                &sim.world,
+                &mut unchanged,
+                &forged,
+                Backend::Reference,
+                DEFAULT_EFFECT_LIMIT
+            )
+            .is_err()
+        );
+        assert_eq!(unchanged, opening);
+        let mut resumed =
+            Simulation::new(sim.world.clone(), sim.state.clone(), Backend::Reference).unwrap();
+        sim.run_months(2).unwrap();
+        resumed.run_months(2).unwrap();
+        assert_eq!(sim.state, resumed.state);
+    }
+}

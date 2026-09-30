@@ -511,12 +511,11 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     if (!world.lending.is_empty() || !world.recovery.proceedings.is_empty())
         && (world.competition.is_some()
             || world.pool_market.is_some()
-            || world.market.as_ref().is_some_and(|m| m.plots.is_some())
             || world.priority == Priority::ConsequenceAware
             || (world.market.is_none()
                 && (!world.offers.is_empty() || !world.access_offers.is_empty())))
     {
-        return Err("general loans require a composed acquisition driver; plot expansion and search acquisition are not yet composed".into());
+        return Err("general loans require a composed acquisition driver; competitive and search acquisition are not yet composed".into());
     }
     if enabled(world) && world.town_market.is_some() && world.production_market.is_some() {
         return Err("town lending does not yet compose with joint production".into());
