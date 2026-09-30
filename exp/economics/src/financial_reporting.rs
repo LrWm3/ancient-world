@@ -1636,6 +1636,7 @@ impl Audit {
                     | Event::Arrears { .. }
                     | Event::RepossessedForSale { .. }
                     | Event::ResaleNoBuyer { .. }
+                    | Event::ResaleDenied { .. }
                     | Event::ResaleBid { .. }
                     | Event::ResaleRejected { .. }
                     | Event::EnforcementDeferred { .. } => {}

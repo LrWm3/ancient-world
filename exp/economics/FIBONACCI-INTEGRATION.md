@@ -673,3 +673,17 @@ separately recorded affected gates above and are not covered by that snapshot.
     prepared work, reconstructed continuation and atomic receipt rejection.
     The six-target gate passed 39 tests; strict all-target Clippy passed.
     Producer-input order generation and household joint allocation remain separate.
+
+35. **Collateral resale composes with current laws.** Both counterparties need
+    asset-trade permission. Denial records a legal decision while preserving
+    accepted enforcement, pending custody, crop, debt and cash. Later permission
+    restoration admits a later sale. Granted/buyer-denied/seller-denied controls
+    agree across CPU and reconstructed continuation; forged denial receipts fail
+    atomically. The four-target gate passed 35 tests and strict Clippy passed.
+
+### Full-suite checkpoint through item 31
+
+The isolated source snapshot at **`0325e4f`** passed
+`cargo +1.92.0 test --locked`: **964 passed, 0 failed, 1 ignored**, across
+120 Cargo result targets including empty unit/doc targets. Later items have
+separately recorded affected gates and are not covered by that snapshot.

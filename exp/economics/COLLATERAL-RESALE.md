@@ -172,3 +172,18 @@ conserved through completed sales.
 Resale plus work-choice, collateral-crop, credit, finance, economics and conditions
 regressions passed **51 tests**. All-target Clippy passed with warnings denied.
 Generated results and logs remain under ignored `output/economics/`.
+
+## Laws at the resale boundary
+
+A configured transaction policy now permits this resale adapter. Both the
+creditor selling the seized title and its prospective buyer must have current
+`AssetTrade` permission. A denied action records the responsible agent and legal
+decision in `ResaleDenied`, leaving custody, debt, cash and crop unchanged. It
+does not undo enforcement already accepted under the loan. Permission restored
+later can admit a later sale; ordinary funding, valuation and minimum-price
+checks still apply. No policy preserves the unrestricted legacy scenarios.
+
+The mixed regression covers permission granted, buyer prohibited and seller
+prohibited, followed by policy restoration, forged denial rejection and
+CPU/reconstructed continuation. The four-target integration gate passed 35 tests
+and strict all-target Clippy passed.

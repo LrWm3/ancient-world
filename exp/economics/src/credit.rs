@@ -292,6 +292,10 @@ pub enum Event {
     ResaleNoBuyer {
         loan: u32,
     },
+    ResaleDenied {
+        loan: u32,
+        denied: Vec<(AgentId, crate::laws::Decision)>,
+    },
     ResaleBid {
         loan: u32,
         quote: crate::resale::Bid,
@@ -461,9 +465,6 @@ fn validate_purchase(world: &World, state: &State) -> Result<(), String> {
     let Some(c) = &world.credit else {
         return Ok(());
     };
-    if world.transaction_policy.is_some() && c.resale_buyer.is_some() {
-        return Err("permission-gated collateral resale is not yet supported".into());
-    }
     crate::borrowing::validate(world)?;
     crate::stock_sale::validate(world, state)?;
     // Ownership-following production is supported. Other acquisition/collection

@@ -316,3 +316,100 @@ fn reserve_price_rejects_low_valuation_and_fixed_rule_remains_immediate() {
             .any(|e| matches!(e, Event::ResaleBid { .. }))
     );
 }
+
+#[test]
+fn laws_gate_resale_without_erasing_enforcement_or_pending_crop() {
+    use economics_compute_smoke::{
+        laws,
+        opportunities::{self, Action, PERSON_TYPE, STATE_TYPE},
+    };
+    for denied in [None, Some(PERSON_TYPE), Some(STATE_TYPE)] {
+        let run = |backend| {
+            let (mut w, s) = resale::scenario("funded").unwrap();
+            let (law_world, _) = opportunities::scenario().unwrap();
+            let mut policy = law_world.transaction_policy.unwrap();
+            policy.laws.clear();
+            policy.membership_offers.clear();
+            policy.membership_permissions.clear();
+            policy.permissions.clear();
+            policy.agent_types.insert(resale::BUYER, PERSON_TYPE);
+            policy
+                .permissions
+                .insert((PERSON_TYPE, Action::FinancedPurchase));
+            for kind in [PERSON_TYPE, STATE_TYPE] {
+                policy.permissions.insert((kind, Action::AssetTrade));
+                for d in &w.definitions {
+                    policy.permissions.insert((kind, Action::Process(d.id)));
+                }
+            }
+            if let Some(kind) = denied {
+                policy.laws.push(laws::Rule {
+                    id: 99,
+                    name: "resale pause".into(),
+                    agent_type: Some(kind),
+                    action: Action::AssetTrade,
+                    requirement: laws::Requirement::Prohibited,
+                });
+            }
+            w.transaction_policy = Some(policy);
+            let mut sim = Simulation::new(w, s, backend).unwrap();
+            sale_boundary(&mut sim);
+            let before = sim.state.clone();
+            sim.step().unwrap();
+            let accepted = sim.ledger.last().unwrap();
+            if denied.is_some() {
+                assert_eq!(sim.state.credit, before.credit);
+                assert_eq!(sim.state.balances, before.balances);
+                assert_eq!(sim.state.processes, before.processes);
+                assert_eq!(sim.state.credit.loans[&1].debt().unwrap(), 8160);
+                assert!(
+                    accepted
+                        .credit
+                        .as_ref()
+                        .unwrap()
+                        .events
+                        .iter()
+                        .any(|e| matches!(e, Event::ResaleDenied { loan: 1, .. }))
+                );
+                let mut forged = accepted.clone();
+                forged.credit.as_mut().unwrap().events.clear();
+                let mut rejected = before.clone();
+                assert!(
+                    settlement::commit(
+                        &sim.world,
+                        &mut rejected,
+                        &forged,
+                        backend,
+                        DEFAULT_EFFECT_LIMIT
+                    )
+                    .is_err()
+                );
+                assert_eq!(rejected, before);
+                // A changed legal policy permits a later sale, without backdating it.
+                sim.world.transaction_policy.as_mut().unwrap().laws.clear();
+            } else {
+                assert_eq!(
+                    credit::owner(&sim.world, &sim.state, PLOT),
+                    Some(resale::BUYER)
+                );
+            }
+            let mut resumed =
+                Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+            let prefix = sim.ledger.len();
+            sim.run_months(3).unwrap();
+            resumed.run_months(3).unwrap();
+            assert_eq!(
+                (&sim.state, &sim.ledger[prefix..]),
+                (&resumed.state, &resumed.ledger[..])
+            );
+            assert_eq!(
+                credit::owner(&sim.world, &sim.state, PLOT),
+                Some(resale::BUYER)
+            );
+            assert!(sim.state.credit.pending_sales.is_empty());
+            assert_eq!(sim.state.credit.loans[&1].debt().unwrap(), 0);
+            (sim.state, sim.ledger)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

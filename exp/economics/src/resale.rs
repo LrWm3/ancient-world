@@ -204,6 +204,27 @@ pub(crate) fn settle(
             out.events.push(Event::ResaleNoBuyer { loan: id });
             continue;
         };
+        // A new title sale is a fresh action by both counterparties. Denial
+        // pauses this listing; it does not unwind previously accepted enforcement.
+        let denied: Vec<_> = [loan.creditor, buyer.preferences.agent]
+            .into_iter()
+            .map(|agent| {
+                (
+                    agent,
+                    crate::laws::evaluate(
+                        world,
+                        state,
+                        agent,
+                        crate::opportunities::Action::AssetTrade,
+                    ),
+                )
+            })
+            .filter(|(_, decision)| !decision.allowed)
+            .collect();
+        if !denied.is_empty() {
+            out.events.push(Event::ResaleDenied { loan: id, denied });
+            continue;
+        }
         let cash = budgets
             .get(&(buyer.preferences.agent, loan.denomination))
             .copied()
