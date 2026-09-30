@@ -109,18 +109,15 @@ pub(crate) fn validate(world: &World, state: &State) -> Result<(), String> {
             .iter()
             .find(|p| p.id == l.proceeding)
             .ok_or("receivable listing without authorized estate")?;
-        let a = world
-            .lending
-            .iter()
-            .find(|a| a.id == l.loan)
-            .ok_or("receivable assignment requires direct loan terms")?;
+        let a = credit::offered_loan(world, l.loan)
+            .ok_or("receivable assignment requires configured loan terms")?;
         if !ids.insert(l.id)
             || !loans.insert(l.loan)
             || a.terms.creditor != p.debtor
             || l.coins_per_unit <= 0
             || (a.terms.denomination == p.denomination && l.coins_per_unit != 1)
             || (a.collateral.is_some() && a.terms.denomination != p.denomination)
-            || a.collateral.as_ref().is_some_and(|c| {
+            || a.collateral.is_some_and(|c| {
                 c.settlement != credit::CollateralSettlement::AuthorizedLiquidation
             })
             || world.recovery.guarantees.iter().any(|g| {
@@ -159,7 +156,7 @@ pub(crate) fn validate(world: &World, state: &State) -> Result<(), String> {
             .iter()
             .find(|p| p.id == l.proceeding)
             .unwrap();
-        let loan = world.lending.iter().find(|a| a.id == l.loan).unwrap();
+        let loan = credit::offered_loan(world, l.loan).unwrap();
         if !ids.insert(b.id)
             || b.month < p.opening_month
             || b.price <= 0

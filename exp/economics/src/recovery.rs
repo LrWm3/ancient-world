@@ -49,19 +49,8 @@ impl GuaranteedClaim {
     }
     pub(crate) fn parties(self, world: &World) -> Option<(AgentId, AgentId, ResourceId)> {
         match self {
-            Self::Loan(id) => world
-                .lending
-                .iter()
-                .find(|a| a.id == id)
-                .map(|a| (a.debtor, a.terms.creditor, a.terms.denomination))
-                .or_else(|| {
-                    world.credit.as_ref().and_then(|c| {
-                        c.offers
-                            .iter()
-                            .find(|o| o.id == id)
-                            .map(|o| (c.application.buyer, o.loan.creditor, o.loan.denomination))
-                    })
-                }),
+            Self::Loan(id) => credit::offered_loan(world, id)
+                .map(|a| (a.debtor, a.terms.creditor, a.terms.denomination)),
             Self::Forward(id) => world
                 .prepaid_deliveries
                 .iter()

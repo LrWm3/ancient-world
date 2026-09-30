@@ -107,6 +107,35 @@ pub struct Application {
     pub month: u32,
     pub downpayment: i32,
 }
+
+/// Configured offer inspection only. Once admitted, the loan book owns terms
+/// and creditor identity; an assignment does not rewrite this source offer.
+pub(crate) struct OfferedLoan<'a> {
+    pub debtor: AgentId,
+    pub terms: &'a LoanOffer,
+    pub collateral: Option<&'a Collateral>,
+}
+
+pub(crate) fn offered_loan(world: &World, id: u32) -> Option<OfferedLoan<'_>> {
+    world
+        .lending
+        .iter()
+        .find(|a| a.id == id)
+        .map(|a| OfferedLoan {
+            debtor: a.debtor,
+            terms: &a.terms,
+            collateral: a.collateral.as_ref(),
+        })
+        .or_else(|| {
+            world.credit.as_ref().and_then(|c| {
+                c.offers.iter().find(|o| o.id == id).map(|o| OfferedLoan {
+                    debtor: c.application.buyer,
+                    terms: &o.loan,
+                    collateral: Some(&o.collateral),
+                })
+            })
+        })
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Endowment {
     pub agent: AgentId,

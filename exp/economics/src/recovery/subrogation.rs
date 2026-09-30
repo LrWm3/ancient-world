@@ -21,17 +21,8 @@ pub(super) fn terms<'a>(world: &'a World, g: &Guarantee) -> Result<Option<&'a Co
     let GuaranteedClaim::Loan(id) = g.claim else {
         return Err("lien subrogation requires a secured loan".into());
     };
-    let collateral = world
-        .lending
-        .iter()
-        .find(|a| a.id == id)
-        .and_then(|a| a.collateral.as_ref())
-        .or_else(|| {
-            world
-                .credit
-                .as_ref()
-                .and_then(|c| c.offers.iter().find(|o| o.id == id).map(|o| &o.collateral))
-        })
+    let collateral = credit::offered_loan(world, id)
+        .and_then(|a| a.collateral)
         .filter(|c| c.settlement == credit::CollateralSettlement::AuthorizedLiquidation)
         .ok_or("lien subrogation requires authorized-liquidation collateral")?;
     Ok(Some(collateral))

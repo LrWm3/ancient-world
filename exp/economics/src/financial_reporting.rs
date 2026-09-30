@@ -146,11 +146,7 @@ fn positions(
             .get(&listing.loan)
             .map(|l| l.denomination)
             .or_else(|| {
-                world
-                    .lending
-                    .iter()
-                    .find(|a| a.id == listing.loan)
-                    .map(|a| a.terms.denomination)
+                crate::credit::offered_loan(world, listing.loan).map(|a| a.terms.denomination)
             })
             .ok_or("missing listed receivable terms")?;
         if crate::reporting_value::value(coin, exchange_values, resource, 1)?

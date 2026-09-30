@@ -566,3 +566,12 @@ their separately recorded affected gates; this full result does not cover them.
     Altered plan dates fail atomically. Food, custody, separate books and
     CPU/reconstructed continuation agree. The four-target gate passed 22 tests;
     strict all-target Clippy passed. Household joint work allocation stays guarded.
+
+25. **Household mortgage receivables share loan assignment.** One configured-loan
+    inspection adapter now serves direct advances and financed purchases in
+    listings, guarantees, lien subrogation and reporting. A winding household
+    sells its six-coin mortgage; four actual property-sale coins pay its investor
+    while two remain due. An unfunded bid retains the household asset and blocks
+    exit. Private member property/crop control, separate estates and CPU/checkpoint
+    books agree. The six-target gate passed 57 tests; strict all-target Clippy
+    passed. Fixed-value/resale security remains excluded.

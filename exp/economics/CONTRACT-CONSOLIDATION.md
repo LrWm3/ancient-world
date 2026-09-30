@@ -180,7 +180,7 @@ can establish that all these arrangements compose.
    guarantee subrogation now follows that lifecycle. [Receivable collection](ESTATE-RECEIVABLES.md)
    now blocks deficient closure until existing assets are performed or disposed of;
    [inventory liquidation](INVENTORY-LIQUIDATION.md) now sells configured stock lots
-   into the same custody and waterfall. Whole-loan assignment now transfers coin claims with compatible security and
+   into the same custody and waterfall. Whole-loan assignment now transfers direct or mortgage coin claims with compatible security and
    transferable guarantees, or unsecured commodity claims with explicit fixed
    coin quotes, through funded estate bids; broader receivable pricing and
    security/denomination combinations remain open. Unsold assets

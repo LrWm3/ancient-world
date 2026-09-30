@@ -52,7 +52,7 @@ recovery suites pass alongside these tests. Strict all-target Clippy passes.
 ## Funded assignment of loan claims
 
 An authorized estate can post `recovery.receivable_listings` naming an entire
-existing direct-loan asset. Dated `receivable_bids` provide explicit buyer
+existing direct-loan or authorized-liquidation mortgage asset. Dated `receivable_bids` provide explicit buyer
 consent and cash price. Listings specify positive custody coins per native claim
 unit. Coin claims retain a one-to-one quote; unsecured commodity claims use an
 explicit fixed quote. The required price is current principal plus accrued
@@ -86,7 +86,7 @@ two coins fund only the claim; three fund both, with no duplicated purchasing po
 ## Remaining boundaries
 
 This is a bounded assignment adapter, not general debt trading or discount
-valuation. It excludes fixed-value/resale security, nontransferable guarantees, mortgage, secured native-commodity, partial
+valuation. It excludes fixed-value/resale security, nontransferable guarantees, secured native-commodity, partial
 and onward assignments, borrower buybacks, netting and impairment estimation.
 Accepted estate authorization supplies assignment authority; autonomous listing,
 pricing and consent remain future work. Unresolved assets still retain their
@@ -167,3 +167,20 @@ claim holder and creates seed recourse against the original borrower. Absent buy
 storage prevents both delivery and premature recourse. Household wind-down,
 private balances and estate proceeds retain their separate accounting. The
 four-target gate passed 42 tests; strict all-target Clippy passed.
+
+## Mortgage claims held by households
+
+Financed purchases now use the same configured-loan inspection adapter as direct
+advances for listings, guarantees, lien subrogation and reporting. Accepted loans
+still own their servicing terms and current creditor; the original offer remains
+unchanged when a claim is assigned.
+
+`tests/mortgage_receivables.rs` gives a household a real six-coin mortgage asset
+and a separate coin liability. During wind-down its authorized estate offers the
+mortgage for six coins. A funded investor receives the claim, preserving borrower,
+collateral and collection rank. A later four-coin property sale pays that investor
+and leaves two due. The household's estate handles its own deficiency and can
+close; an unfunded claim bid leaves the asset with the household and blocks exit.
+The member purchases the property with private money and maintains the transferred
+crop. Separate books, actual custody, CPU/reference and reconstructed continuation
+agree. Fixed-value/resale collateral remains outside receivable assignment.
