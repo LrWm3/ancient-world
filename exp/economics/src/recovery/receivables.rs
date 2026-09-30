@@ -38,6 +38,22 @@ pub struct GuaranteeCoverage {
     pub remaining_cap: i32,
 }
 
+/// Whole-claim price in the offer's custody coin, distinct from unit valuation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Pricing {
+    Exact(i64),
+    Minimum(i64),
+}
+impl Pricing {
+    pub fn accepts(&self, coins: i32) -> bool {
+        coins > 0
+            && match self {
+                Self::Exact(price) => i64::from(coins) == *price,
+                Self::Minimum(price) => i64::from(coins) >= *price,
+            }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Offer {
     /// Current servicing terms and security; discovery is not an underwriting promise.
@@ -48,6 +64,7 @@ pub struct Offer {
     pub debtor: AgentId,
     pub remaining: Amount,
     pub payment_resource: ResourceId,
+    pub pricing: Pricing,
 }
 
 pub fn discover(world: &World, state: &State, buyer: AgentId) -> Vec<Offer> {
@@ -66,6 +83,9 @@ pub fn discover(world: &World, state: &State, buyer: AgentId) -> Vec<Offer> {
             continue;
         };
         let Some(loan) = state.credit.loans.get(&l.loan) else {
+            continue;
+        };
+        let Some(pricing) = pricing(world, l, loan.principal, loan.interest) else {
             continue;
         };
         if loan.creditor == p.debtor
@@ -116,11 +136,22 @@ pub fn discover(world: &World, state: &State, buyer: AgentId) -> Vec<Offer> {
                 debtor: loan.debtor,
                 remaining: Amount::new(loan.denomination, loan.debt().unwrap()),
                 payment_resource: p.denomination,
+                pricing,
             });
         }
     }
     offers.sort_by_key(|o| (o.listing.proceeding, o.listing.id));
     offers
+}
+
+fn pricing(world: &World, listing: &Listing, principal: i32, interest: i32) -> Option<Pricing> {
+    if let Some(minimum) = world.recovery.receivable_price_floors.get(&listing.id) {
+        (principal > 0 && interest == 0).then_some(Pricing::Minimum(i64::from(*minimum)))
+    } else {
+        Some(Pricing::Exact(
+            (i64::from(principal) + i64::from(interest)) * i64::from(listing.coins_per_unit),
+        ))
+    }
 }
 
 fn accepts_price(
@@ -130,12 +161,7 @@ fn accepts_price(
     interest: i32,
     price: i32,
 ) -> bool {
-    if let Some(minimum) = world.recovery.receivable_price_floors.get(&listing.id) {
-        principal > 0 && interest == 0 && price >= *minimum
-    } else {
-        (i64::from(principal) + i64::from(interest)) * i64::from(listing.coins_per_unit)
-            == i64::from(price)
-    }
+    pricing(world, listing, principal, interest).is_some_and(|terms| terms.accepts(price))
 }
 
 pub(crate) fn validate(world: &World, state: &State) -> Result<(), String> {

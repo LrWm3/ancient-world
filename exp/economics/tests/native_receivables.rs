@@ -220,6 +220,18 @@ fn assignment(guaranteed: bool, price: Option<i32>) {
                     assert_eq!(discovered[0].remaining, Amount::new(SEED, 2));
                     assert_eq!(discovered[0].payment_resource, TOKEN);
                     assert_eq!(discovered[0].listing.coins_per_unit, 2);
+                    assert_eq!(
+                        discovered[0].pricing,
+                        if price.is_some() {
+                            receivables::Pricing::Minimum(1)
+                        } else {
+                            receivables::Pricing::Exact(4)
+                        }
+                    );
+                    assert!(discovered[0].pricing.accepts(price.unwrap_or(4)));
+                    assert!(!discovered[0].pricing.accepts(0));
+                    let common = offers::discover(&sim.world, &sim.state, BUYER);
+                    assert!(common.iter().any(|o| matches!(&o.terms, offers::Terms::ReceivableLiquidation { offer, .. } if offer.pricing == discovered[0].pricing)));
                     let requests = [Request::new(Id::ReceivableLiquidationBid(1), BUYER)];
                     let before = sim.state.clone();
                     let prepared = offers::prepare(&sim, &requests);

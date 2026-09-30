@@ -1858,6 +1858,20 @@ fn priced_interest(household: bool) {
             let mut rejected_audit = Audit::new(&rejected.world, &rejected.state, TOKEN).unwrap();
             until(&mut rejected, &mut rejected_audit, 3, Phase::Acquire);
             assert!(rejected.state.credit.loans[&ASSET].interest > 0);
+            assert!(
+                economics_compute_smoke::recovery::receivables::discover(
+                    &rejected.world,
+                    &rejected.state,
+                    BUYER
+                )
+                .is_empty()
+            );
+            assert!(
+                !economics_compute_smoke::offers::discover(&rejected.world, &rejected.state, BUYER)
+                    .iter()
+                    .any(|o| o.id
+                        == economics_compute_smoke::offers::Id::ReceivableLiquidationBid(1))
+            );
             let before = rejected.state.clone();
             assert!(
                 economics_compute_smoke::offers::accept(

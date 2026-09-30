@@ -1155,3 +1155,17 @@ their separate gates above and are not covered by this snapshot.
     reporting values stay fixed, and buyer acquisition cost releases separately.
     Person/household, discount/par/premium and CPU/checkpoint cases agree. The
     four-target gate passed 57 tests and strict all-target Clippy passed.
+
+84. **Receivable discovery exposes executable pricing terms.** Native and common
+    offer views now distinguish an exact whole-claim price from an agreed minimum,
+    separately from unit valuation. Discovery and sale share the rule; priced
+    claims with unsupported unpaid interest are omitted without deleting debt.
+    Person/household, native/coin, funded/unfunded and CPU/checkpoint controls pass.
+    The four-target gate passed 41 tests and strict all-target Clippy passed.
+
+### Full-suite checkpoint through item 73
+
+The isolated **`282cbac`** source snapshot completed
+`cargo +1.92.0 test --locked`: **1,011 passed, 0 failed, 1 ignored**, across
+123 Cargo result targets including empty unit/doc targets. Later items retain
+separate affected-suite gates and are not covered by this snapshot.

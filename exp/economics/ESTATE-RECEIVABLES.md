@@ -316,3 +316,10 @@ actual goods-denominated interest and principal. Discount/par/premium cases eith
 collect both in goods or lose principal plus later unpaid interest in an admitted
 coin-custody estate. No native debt converts to coins; fixed reporting value,
 purchase basis and interest remain separate for person and household sellers.
+
+Discovery now carries explicit whole-claim `Pricing::Exact` or `Pricing::Minimum`
+terms in both native receivable inspection and the common offer interface. The
+unit reporting quote remains separate. A priced listing with unpaid interest is
+not currently eligible and is omitted until it satisfies the acquisition rule;
+its debt and listing are not deleted. Both discovery and actual sale use the same
+price-rule calculation. Discovery still does not promise funding or future terms.
