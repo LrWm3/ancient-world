@@ -1087,3 +1087,11 @@ their separate gates above and are not covered by this snapshot.
     remaining cost on write-off. Negative net values and orphan adjustments reject.
     Pricing, full-loss, funding, floor, reordered-catalog and CPU/checkpoint controls
     pass. The six-target gate passed 130 tests and strict all-target Clippy passed.
+
+75. **Priced household claim sales compose with wind-down and buyer accounting.**
+    Sale losses/gains remain with the household. Exit waits for actual custody
+    distribution, then completes with a remaining installment owned by the buyer.
+    Later collection releases the buyer's purchase basis independently; the member
+    acquires neither loss nor claim. Discount/par/premium and counterparty relief
+    controls agree on CPU/reference and checkpoints. The four-target gate passed
+    58 tests and strict all-target Clippy passed.

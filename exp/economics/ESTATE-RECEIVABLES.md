@@ -252,3 +252,12 @@ invalid carrying values. CPU/reference and checkpoint continuation agree. The
 six-target gate passed 130 tests and strict all-target Clippy passed. Partial and
 onward assignments, interest-bearing acquisition cost and market valuation remain
 outstanding.
+
+A winding household also uses priced assignment with separate disposal results.
+Custody and creditor payment boundaries still delay exit; selling the claim does
+not make newly swept cash immediately distributable. After clearance, the
+household dissolves while the investor still owns a remaining installment. Later
+collection and basis release continue independently. The member inherits neither
+the household's sale loss nor the buyer's claim. Discount/par/premium and borrower
+relief controls agree on CPU/reference and checkpoints. The four-target gate
+passed 58 tests and strict all-target Clippy passed.

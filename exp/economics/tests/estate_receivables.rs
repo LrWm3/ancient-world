@@ -1309,6 +1309,15 @@ fn relieved_assignment(household: bool) {
 
 #[test]
 fn priced_receivable_sales_keep_face_claims_and_release_acquisition_cost_on_collection_or_loss() {
+    priced_receivables(false);
+}
+
+#[test]
+fn household_priced_claim_sales_keep_losses_separate_through_wind_down_and_counterparty_relief() {
+    priced_receivables(true);
+}
+
+fn priced_receivables(household: bool) {
     use economics_compute_smoke::{
         accounting::Account,
         claim_relief::{Action, Terms},
@@ -1319,7 +1328,8 @@ fn priced_receivable_sales_keep_face_claims_and_release_acquisition_cost_on_coll
     const BORROWER_ESTATE: AgentId = 100;
     for writeoff in [false, true] {
         for price in [1, 2, 3] {
-            let mut opening = fixture(3, 6, !writeoff);
+            let mut opening = fixture_for(3, 6, !writeoff, household);
+            let seller = if household { HOME } else { PERSON };
             opening.world.agents.push(Agent {
                 id: BUYER,
                 name: "claim investor".into(),
@@ -1407,6 +1417,21 @@ fn priced_receivable_sales_keep_face_claims_and_release_acquisition_cost_on_coll
                     .unwrap()
                     .price += 1;
                 assert!(Simulation::new(sim.world.clone(), forged, backend).is_err());
+                if household {
+                    until(&mut sim, &mut audit, 6, Phase::Open);
+                    economics_compute_smoke::households::dissolution::finish(
+                        &mut sim.world,
+                        &sim.state,
+                        HOME,
+                        PERSON,
+                    )
+                    .unwrap();
+                    assert_eq!(sim.state.credit.loans[&ASSET].creditor, BUYER);
+                    assert_eq!(
+                        sim.state.credit.loans[&ASSET].principal,
+                        if writeoff { 0 } else { 1 }
+                    );
+                }
                 until(&mut sim, &mut audit, 10, Phase::Open);
                 assert_eq!(sim.state.credit.loans[&ASSET].principal, 0);
                 assert_eq!(
@@ -1429,13 +1454,32 @@ fn priced_receivable_sales_keep_face_claims_and_release_acquisition_cost_on_coll
                     );
                 }
                 assert_eq!(
-                    balance(&audit, PERSON, Account::DisposalGain)
-                        + balance(&audit, PERSON, Account::DisposalLoss),
+                    balance(&audit, seller, Account::DisposalGain)
+                        + balance(&audit, seller, Account::DisposalLoss),
                     i128::from(face - price)
                 );
                 let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
+                if household {
+                    until(&mut resumed, &mut ra, 6, Phase::Open);
+                    economics_compute_smoke::households::dissolution::finish(
+                        &mut resumed.world,
+                        &resumed.state,
+                        HOME,
+                        PERSON,
+                    )
+                    .unwrap();
+                }
                 until(&mut resumed, &mut ra, 10, Phase::Open);
                 assert_eq!((&sim.state, &audit), (&resumed.state, &ra));
+                if household {
+                    for (branch, book) in [(&mut sim, &mut audit), (&mut resumed, &mut ra)] {
+                        assert_eq!(branch.state.balance(PERSON, TOKEN), 0);
+                        assert_eq!(balance(book, PERSON, Account::DisposalLoss), 0);
+                        assert_eq!(balance(book, PERSON, Account::DisposalGain), 0);
+                        until(branch, book, 11, Phase::Open);
+                    }
+                    assert_eq!((&sim.state, &audit), (&resumed.state, &ra));
+                }
                 (sim.state, sim.ledger, audit)
             };
             assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
