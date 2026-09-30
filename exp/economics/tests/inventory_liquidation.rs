@@ -1380,3 +1380,99 @@ fn earlier_native_advance_releases_storage_for_later_stock_purchase_without_recy
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn specialized_sales_and_forward_receipts_share_fractional_household_storage() {
+    use economics_compute_smoke::{currency, forward::direct::Terms};
+    for shared_grain in [3, 4] {
+        let (mut w, mut s) = fixture(true, 8);
+        add_household(&mut w, &s);
+        w.recovery = Default::default();
+        w.lending.clear();
+        specialized_sales(&mut w, UNFUNDED, false);
+        let policy = w.credit.as_mut().unwrap().stock_sales.as_mut().unwrap();
+        policy.max_lots_per_month = 1;
+        policy.purchase_budget = 1;
+        w.bids.push(currency::Bid {
+            id: 1,
+            buyer: BUYER,
+            goods: Amount::new(GRAIN, 1),
+            payment: Amount::new(TOKEN, 1),
+        });
+        s.balances.insert((UNFUNDED, GRAIN), 1);
+        s.balances.insert((STATE_AGENT, GRAIN), 1);
+        s.balances.insert((HOME, GRAIN), shared_grain);
+        // Existing accepted prepayment is an explicit opening position. Its later
+        // physical delivery must share the preceding stock lot's fractional carry.
+        let terms = Terms {
+            id: 5,
+            seller: STATE_AGENT,
+            buyer: BUYER,
+            month: 2,
+            due: 3,
+            goods: Amount::new(GRAIN, 1),
+            prepayment: Amount::new(TOKEN, 1),
+        };
+        s.exchange.forwards.insert(5, terms.contract());
+        w.prepaid_deliveries.push(terms);
+        s.month = 3;
+        s.phase = Phase::Open;
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut audit = Audit::with_opening(
+                &w,
+                &s,
+                TOKEN,
+                Opening {
+                    assets: w.assets.iter().map(|a| (a.id, 0)).collect(),
+                    inventory: s
+                        .balances
+                        .iter()
+                        .filter_map(|(&(agent, r), &q)| {
+                            (r == GRAIN && q > 0).then_some(((agent, r), i128::from(q) * 2))
+                        })
+                        .collect(),
+                    exchange_values: [(GRAIN, 2)].into(),
+                    ..Opening::default()
+                },
+            )
+            .unwrap();
+            while sim.state.phase != Phase::Acquire {
+                audit.step(&mut sim).unwrap();
+            }
+            audit.step(&mut sim).unwrap();
+            let delivered = i32::from(shared_grain == 3);
+            assert_eq!(sim.state.credit.stock_spent, 1);
+            assert_eq!(sim.state.exchange.forwards[&5].delivered, delivered);
+            assert_eq!(sim.state.balance(BUYER, GRAIN), 1);
+            assert_eq!(sim.state.balance(HOME, GRAIN), 4);
+            assert_eq!(sim.state.balance(STATE_AGENT, GRAIN), 1 - delivered);
+            assert_eq!(
+                sim.state.household_remainders[&(HOME, BUYER, GRAIN)],
+                1 - delivered
+            );
+            assert_eq!(sim.state.balance(BUYER, TOKEN), 7);
+            let mut resumed =
+                Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+            let mut ra = audit.clone();
+            let prefix = sim.ledger.len();
+            while sim.state.month < 5 {
+                audit.step(&mut sim).unwrap();
+            }
+            while resumed.state.month < 5 {
+                ra.step(&mut resumed).unwrap();
+            }
+            assert_eq!(
+                (&sim.state, &sim.ledger[prefix..], &audit),
+                (&resumed.state, &resumed.ledger[..], &ra)
+            );
+            assert_eq!(sim.state.exchange.forwards[&5].delivered, delivered);
+            for agent in &w.agents {
+                let report = audit.book().statements(agent.id, 3, 4).unwrap();
+                assert_eq!(report.assets, report.liabilities + report.equity);
+            }
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

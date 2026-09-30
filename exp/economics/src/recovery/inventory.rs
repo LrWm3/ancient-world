@@ -79,7 +79,9 @@ pub(crate) fn reservations(
     state: &State,
     boundary: &credit::Boundary,
 ) -> Result<Option<crate::households::income_reservations::Reservations>, String> {
-    if !boundary.recovery.iter().any(|r| matches!(r, recovery::Receipt::InventorySold { buyer, .. } if crate::households::parent(world, state, *buyer).is_some())) { return Ok(None); }
+    if world.households.is_empty() {
+        return Ok(None);
+    }
     let sales: Vec<_> = boundary
         .recovery
         .iter()
@@ -88,7 +90,12 @@ pub(crate) fn reservations(
             _ => None,
         })
         .collect::<Result<_, _>>()?;
-    if sales.is_empty() {
+    if sales.is_empty()
+        && !boundary
+            .transactions
+            .iter()
+            .any(|t| t.stock_trade.is_some())
+    {
         return Ok(None);
     }
     let mut pooling = crate::households::income_reservations::Reservations::new(
@@ -97,10 +104,10 @@ pub(crate) fn reservations(
         crate::storage::usage(world, &state.balances),
     );
     for t in &boundary.transactions {
-        if sales.contains(t) {
+        if sales.contains(t) || t.stock_trade.is_some() {
             pooling = pooling
                 .preview(world, &t.effects)?
-                .ok_or("inventory purchase exceeds household contribution storage")?;
+                .ok_or("acquisition income exceeds household contribution storage")?;
         } else {
             pooling.reserve_unpooled(world, &t.effects)?;
         }

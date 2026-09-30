@@ -184,72 +184,79 @@ fn financing_cannot_erase_a_lease_on_the_same_property() {
     );
 }
 
+fn stock_income(
+    household: bool,
+    forecast: bool,
+    alternate: bool,
+    proportional: bool,
+) -> (World, State) {
+    let (mut w, mut s) = fixture(false, alternate, proportional);
+    let mut member = baseline().0.participants[0].clone();
+    member.capacity.quantity = 0;
+    member.needs = vec![Requirement {
+        resource: NUTRITION,
+        quantity: 1,
+        priority: 0,
+    }];
+    w.participants.push(member);
+    w.definitions.push(
+        baseline()
+            .0
+            .definitions
+            .into_iter()
+            .find(|d| d.id == CONSUME)
+            .unwrap(),
+    );
+    if household {
+        households::form(
+            &mut w,
+            &s,
+            Agreement {
+                id: 1,
+                agent: HOME,
+                adults: vec![PERSON],
+                governance: Governance::contributed(PERSON),
+                formed: 12,
+                dwelling_process: None,
+                admission: None,
+                membership: vec![],
+                asset_sales: vec![],
+                equipment_retirements: vec![],
+                support: vec![],
+            },
+        )
+        .unwrap();
+    }
+    s.balances.insert((PERSON, TOKEN), 3);
+    s.balances.insert((PERSON, GRAIN), 12);
+    w.bids.push(economics_compute_smoke::currency::Bid {
+        id: 1,
+        buyer: STATE_AGENT,
+        goods: Amount::new(GRAIN, 1),
+        payment: Amount::new(TOKEN, 1),
+    });
+    w.credit.as_mut().unwrap().stock_sales = Some(economics_compute_smoke::stock_sale::Policy {
+        joint: None,
+        forecast: forecast.then(|| economics_compute_smoke::sale_plan::Policy {
+            horizon_months: 2,
+            need_limits: [(NUTRITION, 0)].into(),
+        }),
+        bid: 1,
+        seller: PERSON,
+        reserve_months: 2,
+        max_lots_per_month: 2,
+        purchase_budget: 2,
+    });
+    (w, s)
+}
+
 #[test]
 fn stock_sale_income_funds_later_rent_and_mortgage_with_recorded_household_support() {
     for household in [false, true] {
         for forecast in [false, true] {
             for alternate in [false, true] {
                 for proportional in [false, true] {
-                    let (mut w, mut s) = fixture(false, alternate, proportional);
-                    let mut member = baseline().0.participants[0].clone();
-                    member.capacity.quantity = 0;
-                    member.needs = vec![Requirement {
-                        resource: NUTRITION,
-                        quantity: 1,
-                        priority: 0,
-                    }];
-                    w.participants.push(member);
-                    w.definitions.push(
-                        baseline()
-                            .0
-                            .definitions
-                            .into_iter()
-                            .find(|d| d.id == CONSUME)
-                            .unwrap(),
-                    );
-                    if household {
-                        households::form(
-                            &mut w,
-                            &s,
-                            Agreement {
-                                id: 1,
-                                agent: HOME,
-                                adults: vec![PERSON],
-                                governance: Governance::contributed(PERSON),
-                                formed: 12,
-                                dwelling_process: None,
-                                admission: None,
-                                membership: vec![],
-                                asset_sales: vec![],
-                                equipment_retirements: vec![],
-                                support: vec![],
-                            },
-                        )
-                        .unwrap();
-                    }
-                    s.balances.insert((PERSON, TOKEN), 3);
-                    s.balances.insert((PERSON, GRAIN), 12);
-                    w.bids.push(economics_compute_smoke::currency::Bid {
-                        id: 1,
-                        buyer: STATE_AGENT,
-                        goods: Amount::new(GRAIN, 1),
-                        payment: Amount::new(TOKEN, 1),
-                    });
-                    w.credit.as_mut().unwrap().stock_sales =
-                        Some(economics_compute_smoke::stock_sale::Policy {
-                            joint: None,
-                            forecast: forecast.then(|| {
-                                economics_compute_smoke::sale_plan::Policy {
-                                    horizon_months: 2,
-                                    need_limits: [(NUTRITION, 0)].into(),
-                                }
-                            }),
-                            bid: 1,
-                            seller: PERSON,
-                            reserve_months: 2,
-                            max_lots_per_month: 2,
-                            purchase_budget: 2,
-                        });
+                    let (w, s) = stock_income(household, forecast, alternate, proportional);
                     let run = |backend| {
                         let mut audit = Audit::with_opening(
                             &w,
@@ -365,6 +372,94 @@ fn stock_sale_income_funds_later_rent_and_mortgage_with_recorded_household_suppo
                     };
                     assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
                 }
+            }
+        }
+    }
+}
+
+#[test]
+fn rent_mortgage_sales_and_prepaid_deliveries_share_one_continuing_book() {
+    use economics_compute_smoke::forward::direct::Terms;
+    for household in [false, true] {
+        for forecast in [false, true] {
+            for funded in [false, true] {
+                let (mut w, mut s) = stock_income(household, forecast, false, false);
+                // Financed purchase uses this treasury too; its received downpayment
+                // cannot fund the subsequent stock bid or prepayment this Acquire.
+                s.balances
+                    .insert((STATE_AGENT, TOKEN), if funded { 20 } else { 8 });
+                w.prepaid_deliveries.push(Terms {
+                    id: 5,
+                    seller: PERSON,
+                    buyer: STATE_AGENT,
+                    month: 12,
+                    due: 13,
+                    goods: Amount::new(GRAIN, 2),
+                    prepayment: Amount::new(TOKEN, 8),
+                });
+                let run = |backend| {
+                    let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+                    let mut audit = Audit::with_opening(
+                        &w,
+                        &s,
+                        TOKEN,
+                        Opening {
+                            assets: [(PLOT, 10), (RENTED, 10)].into(),
+                            inventory: [((PERSON, GRAIN), 24)].into(),
+                            exchange_values: [(GRAIN, 2)].into(),
+                            dues: Some(Valuation([(1, 2)].into())),
+                            processes: Some(Default::default()),
+                            ..Opening::default()
+                        },
+                    )
+                    .unwrap();
+                    while sim.state.month <= 12 {
+                        audit.step(&mut sim).unwrap();
+                    }
+                    assert_eq!(sim.state.credit.loans[&1].principal, 8);
+                    assert_eq!(sim.state.credit.stock_spent, 2);
+                    assert_eq!(sim.state.exchange.forwards.contains_key(&5), funded);
+                    assert_eq!(
+                        sim.state.balance(PERSON, TOKEN),
+                        3 - i32::from(household) + if funded { 8 } else { 0 }
+                    );
+                    assert_eq!(sim.state.balance(HOME, TOKEN), i32::from(household));
+                    assert_eq!(sim.state.balance(PERSON, GRAIN), 9);
+                    let mut resumed =
+                        Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+                    let mut ra = audit.clone();
+                    let prefix = sim.ledger.len();
+                    while sim.state.month <= 13 {
+                        audit.step(&mut sim).unwrap();
+                    }
+                    if funded {
+                        assert_eq!(sim.state.exchange.forwards[&5].delivered, 2);
+                        assert_eq!(sim.state.obligations[&(1, 13)].paid, 4);
+                        assert_eq!(sim.state.balance(PERSON, GRAIN), 6);
+                    } else {
+                        assert_eq!(sim.state.obligations[&(1, 13)].paid, 1);
+                        assert_eq!(sim.state.balance(PERSON, GRAIN), 8);
+                    }
+                    assert_eq!(sim.state.credit.loans[&1].principal, 6);
+                    assert_eq!(
+                        sim.state.balance(STATE_AGENT, GRAIN),
+                        if funded { 4 } else { 2 }
+                    );
+                    assert_eq!(sim.state.credit.stock_spent, 2); // Never run the posted bid twice.
+                    while resumed.state.month <= 13 {
+                        ra.step(&mut resumed).unwrap();
+                    }
+                    assert_eq!(
+                        (&sim.state, &sim.ledger[prefix..], &audit),
+                        (&resumed.state, &resumed.ledger[..], &ra)
+                    );
+                    for agent in &w.agents {
+                        let book = audit.book().statements(agent.id, 12, 13).unwrap();
+                        assert_eq!(book.assets, book.liabilities + book.equity);
+                    }
+                    (sim.state, sim.ledger, audit)
+                };
+                assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
             }
         }
     }

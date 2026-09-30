@@ -58,7 +58,8 @@ pub(crate) fn validate(w: &World, s: &State) -> Result<(), String> {
     if !enabled(w) {
         return Ok(());
     }
-    if w.credit.as_ref().is_some_and(|c| c.stock_sales.is_some())
+    let stock_sale = w.credit.as_ref().and_then(|c| c.stock_sales.as_ref());
+    if stock_sale.is_some_and(|p| p.joint.is_some())
         || w.production_market.is_some()
         || w.work_choice.is_some()
         || (!crate::acquisition::search_composition(w)
@@ -66,7 +67,7 @@ pub(crate) fn validate(w: &World, s: &State) -> Result<(), String> {
                 || w.priority == Priority::ConsequenceAware
                 || !w.access_offers.is_empty()))
         || !w.offers.is_empty()
-        || (!w.bids.is_empty() && w.market.is_none())
+        || (!w.bids.is_empty() && w.market.is_none() && stock_sale.is_none())
     {
         return Err(
             "direct forwards require a composed acquisition driver for this search/market configuration".into(),

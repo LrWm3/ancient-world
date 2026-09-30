@@ -618,3 +618,14 @@ the separately recorded affected gates above; this full result does not cover th
     Separate books, altered receipts and CPU/reconstructed continuation agree.
     The five-target gate passed 29 tests; strict all-target Clippy passed.
     Joint work/sale planning with independent leases remains guarded.
+
+30. **Specialized stock sales share acquisition with prepaid deliveries.**
+    Fixed-reserve and bounded-forecast sales now compose with direct prepayments,
+    a mortgage, independent rent and household pooling. Earlier sales reserve
+    buyer funds; an incoming downpayment cannot fund the remaining prepayment.
+    Accepted deliveries settle later and retain separate financial positions.
+    A second regression reproduced collective-storage overflow: stock receipts
+    now carry their exact fractional share into later forward collection. Full
+    space leaves the delivery owed, rather than rejecting the whole month.
+    CPU/checkpoint and separate books agree. The seven-target gate passed 64
+    tests; strict all-target Clippy passed. Joint work/sale prepayments stay guarded.

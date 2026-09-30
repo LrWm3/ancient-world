@@ -163,3 +163,17 @@ Guaranteed delivery and integer-cost follow-up passed 85 tests across five targe
 and strict all-target Clippy. Small partial deliveries can release zero historical
 prepayment value; their quantities and recourse still change, but the accounting
 adapter now omits zero-valued journal lines.
+
+Specialized mortgage stock sales now share this acquisition window with direct
+prepayments. Fixed-reserve and bounded-forecast sales reserve before forward
+collection/admission; later incoming cash cannot finance an earlier outgoing
+promise. A continuing mortgage/rent/member-pooling case verifies funded admission,
+insufficient remaining funds, later real delivery and separate books. This does
+not change the existing priority between credit and forward settlement.
+
+The reservation handoff classifies actual stock-trade income alongside estate
+inventory purchases. A one-unit stock purchase and a one-unit forward receipt
+therefore share the same fractional household contribution. If that pooled unit
+would overfill collective storage, the later delivery remains owed; with space it
+settles once. Financing receipts remain unpooled. These controls cover CPU and
+reconstructed continuation. Joint work/sale planning retains its forward guard.
