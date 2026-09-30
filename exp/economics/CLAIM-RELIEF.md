@@ -85,4 +85,5 @@ Final focused verification: all 11 wage-recovery tests and the mixed recovery te
 pass. A physical wage write-off is valued from its native units without transferring
 coins or inventory. The affected land-extension run passed 34 tests across four
 suites. Formatting, strict all-target Clippy and artifact checks pass; the broader
-crate regression is recorded separately when complete.
+crate regression completed with 801 passing tests and one existing ignored test.
+That snapshot predates the separately passing physical-wage test.

@@ -73,7 +73,7 @@ misrepresented as conserved transfers between fictional counterparties.
   and native-linked issuance in their proper claim units.
 - Existing collateral resale and estate liquidation now share funded asset-sale
   settlement, including atomic title and attached-process transfer.
-- Configured capped guarantees pay residual loan claims and create zero-interest
+- Configured capped guarantees pay residual loan and dated wage/land claims and create zero-interest
   recourse in the same loan book. Authorized loan-estate proceedings add stays,
   interest freezing, custody, actual asset sales, ranked/proportional distributions,
   retained deficiencies or explicit per-loan discharge. See
@@ -134,9 +134,10 @@ can establish that all these arrangements compose.
    the accepted/legal trigger, acceleration, any collection stay, control of
    assets and work, and permitted ongoing essential activity. Being short of
    cash must not silently delete debts or declare every agent insolvent.
-4. **Extend contingent guarantees.** Configured original-loan guarantees now record
-   consent, cap, trigger, term and recourse. Extend acceptance/discovery, claim
-   coverage, lien subrogation and guarantee allocation policy. A successful
+4. **Extend contingent guarantees.** Configured loan and dated wage/land guarantees now record
+   consent, cap, trigger, term and dated recourse, with explicit stable/proportional
+   allocation. Extend acceptance/discovery, physical and delivery claim coverage,
+   alternative tenders and lien subrogation. A successful
    guarantee payment reduces the original creditor's claim and creates the guarantor's corresponding recourse
    claim; it must not pay the creditor twice. Reserve guarantor resources across
    multiple calls using the same allocation window. Cycles and chains need
@@ -219,8 +220,8 @@ with loan/land creditors. Actual payment updates the original employment book an
 separate worker/employer/custodian statements; member wages pool once on receipt.
 Native physical wages retain their existing service path and block closure if
 unpaid. This supersedes the earlier blanket wage-insolvency exclusion. Accepted wage/land relief now follows in [claim relief](CLAIM-RELIEF.md).
-Guarantees for those claims, automatic estates and general employment discovery remain
-open; person self-directed policy changes stay deferred.
+Coin guarantees for those claims now follow in [guaranteed claims](GUARANTEED-CLAIMS.md).
+Automatic estates and general employment discovery remain open; person self-directed policy changes stay deferred.
 
 
 ### Accepted non-loan disposition — Fibonacci batch 5

@@ -3,7 +3,7 @@
 Scope: finish bounded autonomous household hiring and direct prepaid-delivery
 recovery, then demonstrate that they compose with the existing economic loop.
 The batches contain logical changes, not a prescribed count of files or tests.
-The completed sequence is **1, 1, 2, 3, 5**. Batch sizes count distinct
+The completed sequence is **1, 1, 2, 3, 5, 8**. Batch sizes count distinct
 implementation and integration changes, not test cases. Person self-directed policy changes remain explicitly deferred.
 
 ## Batch 1 — one recovery change
@@ -103,3 +103,22 @@ payments/deliveries. Accepted relief closes the estate in month 18, recognizing
 seven coins of total claim losses; without that consent all three claims remain.
 CPU/reference, reordered terms, replay and checkpoint continuation agree. This
 completes this batch, not the proposed ten-stage financial stress-test program.
+
+
+## Continued batch 8: contingent guarantees
+
+1. Identify covered obligations through a shared typed selector.
+2. Cover earned wage claims with actual payment and same-book recourse.
+3. Cover dated land bills without renewing rights or changing annual billing.
+4. Configure stable/proportional allocation against remaining opening funds.
+5. Pool member wage receipts once, preserving household recourse as material debt.
+6. Integrate accepted extensions/write-offs with call amounts, delays and expiry.
+7. Date every recourse advance; prevent same-boundary collection/closure of additions.
+8. Combine household guarantee funding, a loan, wages and land dues with statements,
+   observer filters, CPU/reference, checkpoint and forged-record controls.
+
+See [guaranteed claims](GUARANTEED-CLAIMS.md). The preceding complete crate run
+passed **801 tests**, with **one existing ignored test**, across 99 Cargo test
+outputs (including empty binary/doc targets). It covers the batch-5 snapshot;
+the subsequently added physical-wage relief test passed separately. Batch-8
+validation is recorded in its own document rather than attributed to that older run.

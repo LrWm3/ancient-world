@@ -49,13 +49,14 @@ not disappear. A failed bid is recorded without partial money or title changes.
 
 ## Guarantees and recourse
 
-A guarantee records the covered original loan, guarantor, cap, validity interval,
+A guarantee records a [covered loan or dated wage/land claim](GUARANTEED-CLAIMS.md),
+guarantor, cap, validity interval,
 missed-payment delay, collection priority, and a reserved recourse-loan identity.
 The configuration represents the parties' consent to these terms.
 
-Calls run in priority/ID order against the same finite opening execution budget
-used for ordinary servicing. Each successful payment reduces the original loan
-interest-first and adds the same amount to an unsecured, zero-interest recourse
+Calls use configured stable priority/ID order or proportional sharing against
+the remaining finite opening execution budget used for ordinary servicing. Each
+successful payment reduces the original claim (loans remain interest-first) and adds the same amount to an unsecured, zero-interest recourse
 loan owed by the debtor to the guarantor. Borrower total debt does not disappear;
 its creditor changes. Balance sheets derive both sides from those records.
 The common `agreements::for_agent` adapter exposes the accepted guarantee to the
@@ -71,8 +72,9 @@ Multiple calls can add to the same recourse record. Guarantees cannot cover othe
 recourse loans, so cycles and recursive same-month chains are explicitly rejected.
 Existing pending-resale mortgage loans are also excluded until lien subrogation
 is defined. Fixed-value collateral settles before guarantee calls; guarantees
-cover the remaining due exposure. This version does not transfer collateral liens
-to guarantors or implement proportional sharing between guarantee calls.
+cover the remaining due exposure. Collateral lien transfer remains unsupported.
+Every advance is dated, including additions to older recourse loans; estate
+distribution and closure wait until a subsequent month for each new addition.
 
 ## Realization, priority and closure
 

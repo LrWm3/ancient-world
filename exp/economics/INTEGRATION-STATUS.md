@@ -715,8 +715,8 @@ with loan/land creditors. Actual payment updates the original employment book an
 separate worker/employer/custodian statements; member wages pool once on receipt.
 Native physical wages retain their existing service path and block closure if
 unpaid. This supersedes the earlier blanket wage-insolvency exclusion. Accepted wage/land relief now follows in [claim relief](CLAIM-RELIEF.md).
-Guarantees for those claims, automatic estates and general employment discovery remain
-open; person self-directed policy changes stay deferred.
+Coin guarantees for those claims now follow in [guaranteed claims](GUARANTEED-CLAIMS.md).
+Automatic estates and general employment discovery remain open; person self-directed policy changes stay deferred.
 
 
 ### Accepted non-loan disposition — Fibonacci batch 5
@@ -728,3 +728,16 @@ billing. Funding, projections, estate allocation, reporting and closure read the
 adjusted claim. A composed person/household wage-support, rent and prepaid-delivery
 scenario compares accepted relief with an otherwise identical unresolved estate.
 This is configured consent, not autonomous renegotiation or automatic insolvency.
+
+
+### Guaranteed claims — Fibonacci batch 8
+
+[Loan, wage and land guarantees](GUARANTEED-CLAIMS.md) now share typed claim
+inspection, funded Due settlement, explicit call allocation and dated same-book
+recourse. Actual member wage receipts pool once; employer, worker, guarantor and
+household retain separate statements. A combined household/loan/wage/rent control
+uses one scarce cash pool, and a reproduced estate timing bug is fixed for later
+advances on an older recourse loan. Coin claim coverage is implemented; physical
+and delivery coverage, lien transfer, autonomous underwriting and guarantee
+formation/discovery remain outstanding. Person self-directed policy changes stay
+deferred, and constitutions/charters remain static.

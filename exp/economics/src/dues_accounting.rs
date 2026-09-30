@@ -356,6 +356,7 @@ pub(crate) fn guarantee_payments(
     coin: ResourceId,
 ) -> Result<(Vec<Transaction>, Vec<Line>), String> {
     let mut transfers = transactions.to_vec();
+    let mut used = std::collections::BTreeSet::new();
     let mut lines = vec![];
     if let Some(b) = boundary {
         for receipt in &b.recovery {
@@ -382,23 +383,26 @@ pub(crate) fn guarantee_payments(
             if denomination != coin {
                 return Err("guaranteed dues require reporting currency".into());
             }
-            let t = transfers
-                .iter_mut()
-                .find(|t| {
-                    t.effects
-                        == vec![
-                            Effect {
-                                account: (g.guarantor, coin),
-                                delta: -*paid,
-                            },
-                            Effect {
-                                account: (creditor, coin),
-                                delta: *paid,
-                            },
-                        ]
+            let (index, _) = transactions
+                .iter()
+                .enumerate()
+                .find(|(index, t)| {
+                    !used.contains(index)
+                        && t.effects
+                            == vec![
+                                Effect {
+                                    account: (g.guarantor, coin),
+                                    delta: -*paid,
+                                },
+                                Effect {
+                                    account: (creditor, coin),
+                                    delta: *paid,
+                                },
+                            ]
                 })
                 .ok_or("guaranteed dues receipt does not match actual transfer")?;
-            t.effects[0].account.0 = debtor;
+            used.insert(index);
+            transfers[index].effects[0].account.0 = debtor;
             lines.extend([
                 Line {
                     agent: debtor,

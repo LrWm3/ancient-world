@@ -1,0 +1,90 @@
+# Guarantees across authoritative claims
+
+Implemented in Fibonacci batch 8. Accepted guarantee terms identify an original
+loan, one earned wage `(agreement, earning month)`, or one annual land bill
+`(agreement, original due date)`. No second wage or rent debt ledger is introduced.
+The guarantee retains its own guarantor, lifetime paid cap, validity interval,
+missed-payment delay, priority and reserved recourse identity. Terms are supplied
+consent, not autonomous discovery, underwriting or a new legal formation flow.
+
+## Execution and allocation
+
+At the existing Due boundary, ordinary collections and collateral enforcement run
+first. Calls read the resulting authoritative claim. An unearned wage, unissued
+bill, fully settled claim or unaccepted land offer creates no payable call.
+Existing relief changes the claim's remaining quantity and effective date; an
+extension does not extend the guarantee's validity. Delay for a dated non-loan
+claim runs from its effective due date. Same-boundary guarantees precede relief,
+so consent referring to an amount already paid is rejected as stale.
+
+`recovery.guarantee_policy` is independent of ordinary creditor collection policy.
+`Stable` remains the default: lower priority then stable guarantee ID. Opt-in
+`Proportional` inventories calls and applies the shared finite-budget allocator to
+equal-priority requests. Guarantee identity distinguishes multiple calls covering
+the same underlying contract. Calls recheck residual coverage before payment;
+unused grants from overlapping coverage are redistributed against remaining
+opening funds. Receipts distinguish requested, allocated and paid quantities.
+Receiving a payment or household contribution cannot fund another outgoing call in
+that same reservation window. Existing resource protection and storage limits apply.
+
+Actual payment reduces the original claim and creates equal unsecured,
+zero-interest recourse in the existing loan book. It creates no debtor cash and no
+new wage/rent income. Land payments retain actual native receipt quantities; later
+annual bills and land rights are unchanged. Loan payments retain interest-first
+application. Earned wage receipts enter the worker's current household pooling
+once, including when the household itself is the guarantor. Membership does not
+eliminate recourse from separate financial statements.
+
+## Dated recourse and recovery
+
+`credit.recovery.guarantee_advances` records actual amounts by guarantee and month.
+Its totals reconcile to paid caps and original recourse principal. Covered wage
+and land settlement must explain those payments. Removing dated evidence or
+reversing covered settlement invalidates a checkpoint.
+
+Each addition becomes collectible at a subsequent Due, even when it increases an
+older recourse loan. Estate distribution and closure exclude fresh additions;
+inspection and telemetry distinguish current collectible principal from deferred
+recourse. This fixes a reproduced timing bug in which a later guarantee advance
+could immediately receive estate cash because its loan's original opening date
+was in the past. A continued test now pays old recourse in month 4, keeps new
+recourse and estate cash outstanding, then settles and closes in month 5.
+
+## Combined verification
+
+The mixed scenario contains a person employer, a household member worker, a state
+landlord, a lender and a household guarantor. A real loan funds the first wage.
+Pooling raises household funds from four to six coins. In month 13 a loan, a new
+wage and annual rent each request four coins. Proportional guarantees pay two to
+each; two remains on each original claim and three two-coin recourse assets remain
+with the household. One coin of wage pooling arrives after the reservation window
+and is not respent. Separate books balance without consolidating away liabilities.
+
+Controls compare stable 4/2 and proportional 3/3 division of identical eight-coin
+requests against six coins, priority overrides, overlapping coverage, unavailable
+work, employer payment, expiry, extensions and stale relief. CPU/reference,
+reordered catalogs, checkpoints, actual balances, statements, filtered observer
+records and atomic rejection of forged settlement/reporting are checked.
+
+## Remaining boundaries
+
+Non-loan guarantees currently require a storage-free native denomination; their
+financial reports require that denomination to be the reporting currency. Physical
+wages, commodity rent with an alternative coin tender, delivery guarantees and
+conversion damages need explicit adapters. This does not silently price them.
+Loan guarantees preserve their existing native settlement scope, while mixed-
+denomination loan reporting still requires a future valuation adapter.
+
+Guarantees of recourse loans and pending-resale mortgages remain rejected. Lien
+subrogation, guarantee markets, pricing, premiums, legal formation requirements,
+autonomous household guarantee selection and cyclic contingent-credit networks
+remain extensions. Dedicated custody agents cannot guarantee obligations.
+
+## Completed checks
+
+The final affected regression selection passed **153 tests across 14 suites**,
+with one existing ignored test, including all 11 new guaranteed-claim tests. Formatting, strict all-target Clippy,
+whitespace and repository artifact checks passed. Raw logs remain ignored under
+`output/economics/guarantee-*.log`. These checks demonstrate the specified bounded
+compositions; they do not establish autonomous financial viability or the proposed
+long-term stress-test institutions.

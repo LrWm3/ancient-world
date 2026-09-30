@@ -643,3 +643,217 @@ fn later_guarantee_advances_cannot_collect_from_the_estate_in_the_same_boundary(
         economics_compute_smoke::recovery::Stage::Closed
     );
 }
+
+#[test]
+fn household_guarantees_share_cash_across_loan_wage_and_land_claims_with_separate_books() {
+    use economics_compute_smoke::{
+        commitments::Agreement,
+        credit::{Advance, LoanOffer},
+        finance::CollectionPolicy,
+        households::{self, market::EXAMPLE_HOUSEHOLD as HOME},
+        scenario::{LABOR, PERSON, STATE_AGENT, TOKEN},
+        settlement::{DEFAULT_EFFECT_LIMIT, commit},
+        telemetry::{Config, Observer},
+    };
+    const DEBTOR: AgentId = 89;
+    const LENDER: AgentId = 92;
+    let (mut w, mut s) = households::market::scenario().unwrap();
+    w.transaction_policy = None;
+    w.town_market = None;
+    s.town_market = Default::default();
+    w.activities.orders.clear();
+    for p in &mut w.participants {
+        p.needs.clear();
+        p.capacity.quantity = if p.agent == PERSON { 5 } else { 0 };
+    }
+    s.balances.clear();
+    s.balances.insert((HOME, TOKEN), 4);
+    s.balances.insert((LENDER, TOKEN), 4);
+    w.assets.push(Asset {
+        id: 900,
+        owner: STATE_AGENT,
+        kind: 1,
+    });
+    w.rights.push(UseRight {
+        id: 900,
+        asset: 900,
+        holder: DEBTOR,
+        from: 1,
+        through: 24,
+        output_owner: DEBTOR,
+    });
+    w.agreements.push(Agreement {
+        id: 900,
+        right: 900,
+        creditor: STATE_AGENT,
+        debtor: DEBTOR,
+        activated: 1,
+        payment: Amount::new(TOKEN, 4),
+    });
+    w.lending.push(Advance {
+        id: 10,
+        debtor: DEBTOR,
+        principal: 4,
+        month: 1,
+        collateral: None,
+        priority: 0,
+        terms: LoanOffer {
+            creditor: LENDER,
+            denomination: TOKEN,
+            max_principal: 4,
+            monthly_rate_bps: 0,
+            term_months: 12,
+            grace_months: 0,
+        },
+    });
+    for (id, month) in [(1, 1), (2, 12)] {
+        w.employment.push(Terms {
+            id,
+            employer: DEBTOR,
+            worker: PERSON,
+            from: month,
+            through: month,
+            capacity: Amount::new(LABOR, 2),
+            wage_per_unit: Amount::new(TOKEN, 2),
+            on_arrears: ArrearsPolicy::Continue,
+            rank: 0,
+        });
+    }
+    for (id, claim) in [
+        (1, GuaranteedClaim::Loan(10)),
+        (
+            2,
+            GuaranteedClaim::Wages {
+                agreement: 2,
+                earned_month: 12,
+            },
+        ),
+        (
+            3,
+            GuaranteedClaim::Land {
+                agreement: 900,
+                due: 13,
+            },
+        ),
+    ] {
+        w.recovery.guarantees.push(Guarantee {
+            id,
+            claim,
+            guarantor: HOME,
+            cap: 4,
+            from: 13,
+            through: 13,
+            delay_months: 0,
+            recourse: 100 + id,
+            priority: 0,
+        });
+    }
+    w.recovery.guarantee_policy = CollectionPolicy::Proportional;
+    let mut a = Audit::with_opening(
+        &w,
+        &s,
+        TOKEN,
+        Opening {
+            assets: w.assets.iter().map(|a| (a.id, 0)).collect(),
+            dues: Some(Default::default()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let mut reference_audit = a.clone();
+    let mut sim = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+    w.recovery.guarantees.reverse();
+    w.employment.reverse();
+    let mut reference = Simulation::new(w, s, Backend::Reference).unwrap();
+    let mut observer = Observer::new(
+        Vec::new(),
+        "mixed-guarantees",
+        Config {
+            settlement: true,
+            agents: [PERSON].into(),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    while sim.state.month <= 12 {
+        observer.step_audited(&mut sim, &mut a).unwrap();
+    }
+    assert_eq!(sim.state.balance(HOME, TOKEN), 6);
+    let mut resumed =
+        Simulation::new(sim.world.clone(), sim.state.clone(), Backend::Reference).unwrap();
+    let mut forged_checked = false;
+    while sim.state.month <= 13 {
+        let before = sim.state.clone();
+        let before_audit = a.clone();
+        observer.step_audited(&mut sim, &mut a).unwrap();
+        let batch = sim.ledger.last().unwrap();
+        if batch.phase == Phase::Due {
+            let mut bad = batch.clone();
+            let r = bad
+                .credit
+                .as_mut()
+                .unwrap()
+                .recovery
+                .iter_mut()
+                .find(|r| matches!(r, Receipt::Guaranteed { paid: 2, .. }))
+                .unwrap();
+            if let Receipt::Guaranteed { paid, .. } = r {
+                *paid += 1;
+            }
+            let mut candidate = before.clone();
+            assert!(
+                commit(
+                    &sim.world,
+                    &mut candidate,
+                    &bad,
+                    Backend::Reference,
+                    DEFAULT_EFFECT_LIMIT
+                )
+                .is_err()
+            );
+            assert_eq!(candidate, before);
+            let mut reporting = before_audit.clone();
+            assert!(
+                reporting
+                    .record(&sim.world, &before, &bad, &sim.state)
+                    .is_err()
+            );
+            assert_eq!(reporting.book().balances(), before_audit.book().balances());
+            forged_checked = true;
+        }
+    }
+    assert!(forged_checked);
+    through(&mut reference_audit, &mut reference, 13);
+    resumed.run_months(1).unwrap();
+    assert_eq!(sim.state, reference.state);
+    assert_eq!(sim.ledger, reference.ledger);
+    assert_eq!(sim.state, resumed.state);
+    assert_eq!(a.book().balances(), reference_audit.book().balances());
+    assert_eq!(sim.state.balance(HOME, TOKEN), 1); // one coin of actual wage pooling, not recycled at Due
+    assert_eq!(sim.state.balance(PERSON, TOKEN), 3);
+    assert_eq!(sim.state.balance(LENDER, TOKEN), 2);
+    assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 2);
+    assert_eq!(sim.state.credit.loans[&10].principal, 2);
+    assert_eq!(sim.state.employment.earned[&(2, 12)].claim.outstanding(), 2);
+    assert_eq!(sim.state.obligations[&(900, 13)].outstanding(), 2);
+    for id in [101, 102, 103] {
+        assert_eq!(sim.state.credit.loans[&id].principal, 2);
+        assert_eq!(a.book().balances()[&(HOME, Account::LoanReceivable(id))], 2);
+        assert_eq!(a.book().balances()[&(DEBTOR, Account::LoanPayable(id))], -2);
+    }
+    let records = String::from_utf8(observer.finish().unwrap()).unwrap();
+    let calls: Vec<serde_json::Value> = records
+        .lines()
+        .filter_map(|line| serde_json::from_str(line).ok())
+        .filter(|r: &serde_json::Value| r["kind"] == "guarantee_payment")
+        .collect();
+    assert!(!calls.is_empty());
+    assert!(calls.iter().all(|r| r["creditor"] == PERSON));
+    assert_eq!(
+        calls
+            .iter()
+            .map(|r| r["paid"].as_i64().unwrap())
+            .sum::<i64>(),
+        2
+    );
+}
