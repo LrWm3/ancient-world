@@ -213,3 +213,12 @@ records both physical and substitute performance and never overwrites a payment.
 Unrecovered native recourse continues to block estate closure. The six-target
 regression gate passed 102 tests; strict all-target Clippy passed. CPU/reference,
 checkpoint accounting and forged delivery/tender controls are included.
+
+A member-guaranteed household delivery now composes with explicit wind-down and
+recovery. The member's coins discharge two native delivery units; accepted relief
+forgives only the remaining two. The resulting grain recourse remains a material
+member receivable and household payable, blocking closure despite household coins.
+With an unfunded expired guarantee and accepted full delivery relief, the estate
+closes and residual cash passes to the member. Neither case creates grain or pools
+the external buyer's receipt. CPU/reference and checkpoint statements agree; the
+four-target gate passed 65 tests and strict all-target Clippy passed.

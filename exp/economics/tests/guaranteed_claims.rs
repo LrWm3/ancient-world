@@ -2399,3 +2399,134 @@ fn forward_relief_uses_same_boundary_substitute_performance_and_rejects_stale_co
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn member_guarantee_of_household_forward_preserves_native_debt_after_delivery_relief() {
+    use economics_compute_smoke::{
+        delivery_relief,
+        forward::direct::Terms as Forward,
+        household_governance::Governance,
+        households::{self, dissolution as d},
+        minting::WHEAT,
+        recovery::GuaranteeTender,
+    };
+    const HOME: AgentId = 800;
+    for funded in [false, true] {
+        let (mut w, mut s) = fixture();
+        let mut governance = Governance::contributed(WORKER);
+        governance.constitution.allow_dissolution = true;
+        households::form(
+            &mut w,
+            &s,
+            households::Agreement {
+                id: 1,
+                agent: HOME,
+                adults: vec![WORKER],
+                governance,
+                formed: 1,
+                dwelling_process: None,
+                admission: None,
+                membership: vec![],
+                asset_sales: vec![],
+                equipment_retirements: vec![],
+                support: vec![],
+            },
+        )
+        .unwrap();
+        w.employment.clear();
+        w.prepaid_deliveries.push(Forward {
+            id: 50,
+            seller: HOME,
+            buyer: SUPPLIER,
+            month: 1,
+            due: 2,
+            goods: Amount::new(WHEAT, 4),
+            prepayment: Amount::new(COIN, 5),
+        });
+        let g = &mut w.recovery.guarantees[0];
+        g.claim = GuaranteedClaim::Forward(50);
+        g.guarantor = WORKER;
+        g.cap = 2;
+        g.through = 3;
+        g.tender = GuaranteeTender::AgreedCoins {
+            resource: COIN,
+            coins_per_unit: 2,
+        };
+        s.balances.clear();
+        s.balances.insert((SUPPLIER, COIN), 5);
+        s.balances
+            .insert((WORKER, COIN), if funded { 4 } else { 0 });
+        authorize(&mut w, 3);
+        w.recovery.proceedings[0].debtor = HOME;
+        w.recovery.delivery_relief.push(delivery_relief::Terms {
+            id: 90,
+            proceeding: 1,
+            contract: 50,
+            debtor: HOME,
+            creditor: SUPPLIER,
+            month: 3,
+            expected_due: 2,
+            expected_remaining: if funded { 2 } else { 4 },
+            action: delivery_relief::Action::WriteOff {
+                quantity: if funded { 2 } else { 4 },
+            },
+        });
+        let opening = Opening {
+            exchange_values: [(WHEAT, 3)].into(),
+            ..Opening::default()
+        };
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = Audit::with_opening(&w, &s, COIN, opening.clone()).unwrap();
+            through(&mut a, &mut sim, 1);
+            d::request(&mut sim.world, &sim.state, HOME, WORKER).unwrap();
+            through(&mut a, &mut sim, 2);
+            let (saved, mut ra) = (sim.clone(), a.clone());
+            through(&mut a, &mut sim, 4);
+            let c = &sim.state.exchange.forwards[&50];
+            assert_eq!(
+                (c.delivered, c.substituted, c.claim().outstanding()),
+                (0, if funded { 2 } else { 0 }, 0)
+            );
+            assert_eq!(sim.state.balance(SUPPLIER, WHEAT), 0);
+            assert_eq!(sim.state.balance(HOME, COIN), if funded { 5 } else { 0 });
+            assert_eq!(sim.state.balance(WORKER, COIN), if funded { 0 } else { 5 });
+            assert_eq!(
+                sim.state.balance(SUPPLIER, COIN),
+                if funded { 4 } else { 0 }
+            );
+            assert_eq!(
+                sim.state.credit.recovery.proceedings[&1].stage,
+                if funded {
+                    economics_compute_smoke::recovery::Stage::Active
+                } else {
+                    economics_compute_smoke::recovery::Stage::Closed
+                }
+            );
+            assert_eq!(
+                d::blockers(&sim.world, &sim.state, HOME).contains(&d::Blocker::Loan),
+                funded
+            );
+            if funded {
+                let l = &sim.state.credit.loans[&101];
+                assert_eq!(
+                    (l.creditor, l.debtor, l.denomination, l.principal),
+                    (WORKER, HOME, WHEAT, 2)
+                );
+                let b = a.book().balances();
+                assert_eq!(b[&(WORKER, Account::LoanReceivable(101))], 6);
+                assert_eq!(b[&(HOME, Account::LoanPayable(101))], -6);
+                assert!(d::finish(&mut sim.world, &sim.state, HOME, WORKER).is_err());
+            }
+            let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
+            through(&mut ra, &mut resumed, 4);
+            assert_eq!((&sim.state, &a), (&resumed.state, &ra));
+            if !funded {
+                d::finish(&mut sim.world, &sim.state, HOME, WORKER).unwrap();
+                assert_eq!(sim.state.balance(WORKER, COIN), 5);
+            }
+            (sim.world, sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

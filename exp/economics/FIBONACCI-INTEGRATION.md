@@ -851,3 +851,12 @@ separately recorded affected gates and are not covered by this snapshot.
     rejects stale consent and preserves accepted payment. Native recourse still
     prevents estate closure. CPU/reference, checkpoint and forgery controls pass.
     The six-target gate passed 102 tests and strict all-target Clippy passed.
+
+51. **Member guarantees remain household liabilities after delivery relief.**
+    A household's prepaid obligation, member-funded substitute guarantee, residual
+    write-off and wind-down now run together. Native internal recourse blocks
+    closure even after the external forward is resolved; an unfunded expired
+    guarantee plus full accepted relief permits residual distribution. Individual
+    and household statements remain separate, and no grain is invented.
+    CPU/reference and checkpoint controls pass. The four-target gate passed
+    65 tests and strict all-target Clippy passed.
