@@ -297,6 +297,23 @@ fn add_fallback_work(sim: &Simulation, batch: &mut Batch) -> Result<(), String> 
                 }),
         );
     }
+    if !sim.world.households.is_empty() {
+        let winners = batch
+            .access_applicant
+            .into_iter()
+            .chain(batch.additional_access.iter().map(|(_, agent)| *agent))
+            .collect();
+        let work = crate::households::fallback_work(&preview, requests, &winners)?;
+        crate::settlement::commit(
+            &preview.world,
+            &mut preview.state,
+            &work,
+            Backend::Reference,
+            preview.effect_limit,
+        )?;
+        batch.production_plan = Some(Box::new(work));
+        return Ok(());
+    }
     let mut agents: Vec<_> = sim.world.participants.iter().map(|p| p.agent).collect();
     agents.sort_unstable();
     for agent in agents {

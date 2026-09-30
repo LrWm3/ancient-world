@@ -57,7 +57,7 @@ Each item needs a linked test/runner and a human-readable result record before i
 checkbox is marked complete. Existing passing tests may satisfy criteria; do not
 reimplement supported systems or add redundant tests to increase a count.
 
-- [ ] **V1-01 — Household-aware common acceptance.** Carry the ordinary household
+- [x] **V1-01 — Household-aware common acceptance.** Carry the ordinary household
   resource/allocation boundaries through ordered prerequisite acceptance and a
   dated process start. Cover citizenship/land access and cultivation for members,
   preserving the acting person, household mandate, ownership and future claims.
@@ -68,6 +68,7 @@ reimplement supported systems or add redundant tests to increase a count.
   competing member labor, one scarce plot, missing permission and a forged or
   stale receipt. Starting work must not double-reserve labor or pool output twice.
   Execution and subsequent consequences must use the ordinary scheduler.
+  Implemented and checked in [household acceptance](V1-ACCEPTANCE.md).
 - [ ] **V1-02 — Freeze the six release scenario families.** Map S1–S6 below to exact
   fixtures, tests and commands; reuse the existing cases where identified. Record
   actors, opening resources, horizon, policies, seed or “no randomness,” supplied
@@ -169,8 +170,8 @@ unimplemented. Existing pilots stay available and retain their regression tests.
 
 The existing 1,023-test full-suite checkpoint is evidence for `30870e5`; later
 focused gates cover subsequent changes. **Neither certifies this release list.**
-All six items above are open until their evidence is recorded. No implementation
-or release validation was performed merely by creating this checklist.
+V1-01 now has focused implementation evidence; the remaining items are open.
+The complete release still requires the frozen candidate checks below.
 
 Each completion record must include item/scenario IDs, exact command and revision,
 expected and observed outcomes, passing/failing checks and limitations. A scenario

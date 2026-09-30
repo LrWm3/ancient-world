@@ -162,8 +162,8 @@ fn productive_claim(price: Option<i32>, household: bool) {
                     households::{self, Agreement},
                 };
                 // Existing land rights and fixed priorities exercise the supported
-                // household financial envelope. Common prerequisite/work bundles
-                // still need a household acceptance adapter.
+                // household financial envelope. Explicit prerequisite/work bundles are covered separately
+                // by household_offers; this control keeps existing rights.
                 w.scheduled_starts.push(ScheduledStart {
                     month: 3,
                     agent: PERSON,

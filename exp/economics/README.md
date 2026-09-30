@@ -24,7 +24,7 @@ current blanket restrictions.
 | --- | --- | --- |
 | Persons | Needs and deprivation, repeated processes, bounded forecasts, opportunity search and dated commitments | General discovery across all drivers and sustainable autonomous cooperation |
 | State and law | Citizenship, action permissions, prohibitions, selected agreement recognition/term limits, issuance and physical minting | Autonomous state objectives, general founding/jurisdiction law and state governance |
-| Households | Static constitution/charter, fixed/rotating/elected governors, contributed labor, pooled resources/storage, collective trading, hiring, member support, joining/exit and explicit wind-down | Combined prerequisite/process acceptance, longer-horizon collective planning, recruitment and broader succession |
+| Households | Static constitution/charter, fixed/rotating/elected governors, contributed labor, pooled resources/storage, collective trading, hiring, member support, joining/exit and explicit wind-down | General prerequisite search, longer-horizon collective planning, recruitment and broader succession |
 | Marketplaces | Bilateral negotiation/ZIP, local bid/ask books, need orders, reciprocal goods and household trading | General markets for labor, assets, rights and memberships; composition with every planner |
 | Contracts and finance | Shared loan book and claim executor; mortgages, direct/tool forwards, wages, ranked/proportional allocation, guarantees and dated recourse | Remaining typed acceptance/performance adapters, autonomous underwriting and joint multi-resource allocation |
 | Recovery | Authorized proceedings, separate balances in shared custody, funded asset/inventory/claim sales, lien inheritance and explicit partial/full relief | Multiple custody currencies, broader security combinations, autonomous listing/valuation and automatic death estates |
@@ -38,10 +38,10 @@ membership and governance do not automatically consolidate financial statements.
 Constitution/charter terms remain static; person self-directed policy changes are
 deferred by request.
 
-The next integration gap is household-aware acceptance of prerequisites and dated
-process starts through the common offer path. Existing-rights investment/harvest
-controls do not establish that combination. Household conditional cooperative
-credit and collective cooperative purchases also retain explicit guards.
+Household-aware common acceptance now carries explicit citizenship/land/process
+bundles through normal allocation and dated execution. See
+[acceptance verification](V1-ACCEPTANCE.md). The next release work is freezing and
+verifying the six scenarios in the bounded v1 checklist.
 
 Latest full-suite checkpoint: **1,023 passed, zero failed, one ignored**, at
 `30870e5` (batch 89 through item 84). Items 85–89 added tests/documentation and

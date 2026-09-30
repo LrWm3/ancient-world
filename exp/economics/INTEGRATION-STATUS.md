@@ -1,6 +1,6 @@
 # Economics integration and planning interfaces
 
-Current through completed Fibonacci batch 89, implementation revision `30c74e6`.
+Current through the household common-acceptance adapter following batch 89.
 This page describes supported combinations and present exclusions. The
 [v1 release checklist](V1-RELEASE.md) defines release requirements and exclusions;
 the [consolidation roadmap](CONTRACT-CONSOLIDATION.md) orders the broader backlog.
@@ -101,9 +101,13 @@ V1 includes the bounded common-acceptance adapter below. Conditional cooperative
 credit, collective cooperative purchasing and general consequence-aware household
 search are deferred; their absence does not block that release.
 
-The next acceptance adapter must carry household allocation and collection through
-combined prerequisite/process bundles. Existing-rights household investment and
-harvest tests do not cover that path. The current guards remain intentional:
+Explicit citizenship/land/process bundles now use the ordinary household
+allocation, labor and collection envelope. Preparation is read-only; acceptance
+previews the dated Productive boundary before publishing prerequisites. Scarce
+land retains the existing allocation policy and fixed-priority household fallback.
+[Acceptance verification](V1-ACCEPTANCE.md) covers repeated harvests, rejected
+packages and continuation. These are explicit candidates, not general household
+prerequisite search. The current guards remain intentional:
 
 - `acquisition::search_composition` excludes households.
 - `households::validate` requires fixed individual priorities; it rejects

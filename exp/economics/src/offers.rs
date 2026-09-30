@@ -350,7 +350,7 @@ pub fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, String> 
     }
 
     let mut preview = sim.clone();
-    resolve(&preview, &requests[..split], &mut batch)?;
+    resolve_with_household(&preview, &requests[..split], &mut batch)?;
     if requests.len() > split {
         if preview.state.phase == Phase::Acquire {
             crate::settlement::commit(
@@ -375,7 +375,7 @@ pub fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, String> 
             })
             .collect();
         work_requests.extend_from_slice(&requests[split..]);
-        resolve(&preview, &work_requests, &mut work)?;
+        resolve_with_household(&preview, &work_requests, &mut work)?;
         let created = work
             .transactions
             .iter()
@@ -408,6 +408,18 @@ pub fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, String> 
         sim.effect_limit,
     )?;
     Ok(batch)
+}
+
+fn resolve_with_household(
+    sim: &Simulation,
+    requests: &[Request],
+    batch: &mut Batch,
+) -> Result<(), String> {
+    if sim.world.households.is_empty() {
+        resolve(sim, requests, batch)
+    } else {
+        crate::households::prepare_offers(sim, requests, batch)
+    }
 }
 
 pub fn feasible(sim: &Simulation, requests: &[Request]) -> Result<(), String> {

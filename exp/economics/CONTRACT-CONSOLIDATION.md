@@ -173,9 +173,10 @@ can establish that all these arrangements compose.
    branches only when a mixed regression proves shared funding, storage, rights,
    labor and settlement. Include a person holding land, owing a loan/forward and
    trading to meet needs in one continuing scenario. Do this before declaring
-   the model unified. Household financial acceptance already uses its allocation
-   envelope, but explicit bundles combining institutional prerequisites and
-   process starts still need that envelope threaded through common acceptance.
+   the model unified. Household financial acceptance and explicit institutional prerequisite/process
+   bundles now use the ordinary allocation envelope; see
+   [the acceptance verification](V1-ACCEPTANCE.md). General household search and
+   remaining typed adapters stay beyond this bounded integration.
    Existing-rights household investment/harvest tests do not cover that gap.
 2. **Extend creditor allocation coverage.** Equal-rank proportional allocation
    now covers native and accepted coin-tender loan/land claims at Due, including

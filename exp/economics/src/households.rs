@@ -1464,6 +1464,60 @@ pub(crate) fn productive_plan(
     Ok(batch)
 }
 
+/// Explicit offers use ordinary household entitlements. The supplied choices
+/// cannot change the household's policy or appropriate another member's budget.
+pub(crate) fn prepare_offers(
+    sim: &Simulation,
+    requests: &[crate::offers::Request],
+    batch: &mut Batch,
+) -> Result<(), String> {
+    envelope(sim, batch, |candidate, batch| {
+        crate::offers::resolve(candidate, requests, batch)
+    })
+}
+
+/// Keep awarded work first; fixed-priority fallback sees the whole household
+/// and its ordinary allocation, never a projection with other members removed.
+pub(crate) fn fallback_work(
+    sim: &Simulation,
+    mut requests: Vec<crate::simulation::Request>,
+    winners: &BTreeSet<AgentId>,
+) -> Result<Batch, String> {
+    let mut batch = Batch::empty(&sim.state);
+    envelope(sim, &mut batch, |candidate, batch| {
+        let fallback = candidate.productive_requests(batch, false, None)?;
+        requests.extend(
+            fallback
+                .into_iter()
+                .filter(|r| r.existing.is_none() && !winners.contains(&r.agent)),
+        );
+        candidate.resolve_work(requests, batch)
+    })?;
+    Ok(batch)
+}
+
+fn envelope(
+    sim: &Simulation,
+    batch: &mut Batch,
+    build: impl FnOnce(&Simulation, &mut Batch) -> Result<(), String>,
+) -> Result<(), String> {
+    let (prepared, mut receipt) = prepare(&sim.world, &sim.state)?;
+    let mut candidate = sim.clone();
+    candidate.state = prepared.clone();
+    build(&candidate, batch)?;
+    batch.employment = crate::employment::evaluate(&sim.world, &prepared, batch)?;
+    crate::settlement::commit_core(
+        &sim.world,
+        &mut candidate.state,
+        batch,
+        Backend::Reference,
+        sim.effect_limit,
+    )?;
+    (receipt.after, receipt.remainders) = collect(&sim.world, &prepared, &candidate.state, batch)?;
+    batch.household = Some(receipt);
+    Ok(())
+}
+
 pub(crate) fn step(sim: &mut Simulation) -> Result<(), String> {
     if let Some(plan) = sim.state.pending_production.clone() {
         commit(
@@ -1527,6 +1581,11 @@ pub(crate) fn settled_boundaries(
     {
         return Err("execution differs from dated household production plan".into());
     }
+    // Allocation is a decision over the original opening household, before its
+    // resources are distributed. Core settlement receives the verified result.
+    if batch.allocation.is_some() {
+        crate::competition::validate_batch(world, state, batch, limit)?;
+    }
     let (prepared, mut expected) = prepare(world, state)?;
     let receipt = batch
         .household
@@ -1567,6 +1626,7 @@ pub(crate) fn settled_boundaries(
     retirement::publish(&mut staged, &expected.retirements);
     let mut core = batch.clone();
     core.household = None;
+    core.allocation = None;
     if let Some(plan) = &mut staged.pending_production {
         plan.household = None;
     }
@@ -1579,6 +1639,11 @@ pub(crate) fn settled_boundaries(
     apply(world, &mut staged, &expected.after, backend)?;
     staged.household_remainders = expected.remainders;
     crate::settlement::validate_world(world, &staged)?;
+    if let Some(plan) = &staged.pending_production {
+        // Accepting prerequisites must not publish an unexecutable or forged
+        // dated package. Preview its next boundary without spending inputs now.
+        settled_boundaries(world, &staged, plan, backend, limit)?;
+    }
     Ok((prepared, core_settled, staged))
 }
 
