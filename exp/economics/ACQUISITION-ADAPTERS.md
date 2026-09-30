@@ -304,3 +304,17 @@ separate Due installment and Acquire delivery both reach the creditor/buyer;
 neither consumes the other's claim or manufactures public wood. Checkpoint
 continuation and the separate inventory and financial statements agree. Terms
 remain supplied consent; this does not introduce autonomous forward underwriting.
+
+### Dated guarantee recourse in planning
+
+Repeated guarantee payments can extend an existing recourse loan. Current-debt
+protection now excludes only the addition made at the current boundary, matching
+agreement inspection and next-month collection. Loan-horizon projections read
+that common claim instead of applying a second local adjustment.
+
+The regression earns four unpaid wage coins, pays two through a guarantee, funds
+the guarantor through a real service purchase, then calls the remaining two.
+Immediately after that second call, planning protects the older two coins; next
+month it sees all four if still unpaid. The pre-fix test observed four immediately.
+CPU/reference continuation and separate books reconcile. This changes demand
+visibility, not the authoritative debt or the timing of guarantee payment.

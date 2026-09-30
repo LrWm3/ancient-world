@@ -950,6 +950,20 @@ pub(crate) fn current_claim(
     if loan.status == Status::Active && loan.last_accrued < state.month {
         accrue(&mut loan, state.month)?;
     }
+    let mut claim = loan.claim(state.month)?;
+    // A later guarantee call may extend an older recourse loan. Its new
+    // principal becomes collectible next month, just like the initial advance.
+    claim.transfer.amount.quantity =
+        claim
+            .transfer
+            .amount
+            .quantity
+            .saturating_sub(crate::recovery::current_recourse(
+                world,
+                &state.credit,
+                loan.id,
+                state.month,
+            ));
     let contract = finance::ContractId::Loan(loan.id);
     Ok(Some(finance::CollectionRequest {
         contract,
@@ -958,7 +972,7 @@ pub(crate) fn current_claim(
             .get(&contract)
             .copied()
             .unwrap_or(loan.priority),
-        claim: loan.claim(state.month)?,
+        claim,
     }))
 }
 

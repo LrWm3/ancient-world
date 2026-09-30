@@ -255,6 +255,7 @@ Completed integrations:
 13. Compare need-first and output-value labor direction in the same constrained household.
 14. Compose direct prepaid admissions and delivery with environmental collection.
 15. Plan collection for accepted performance claims alongside loan installments and needs.
+16. Unify current-debt protection and projected installments with dated guarantee recourse.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.
