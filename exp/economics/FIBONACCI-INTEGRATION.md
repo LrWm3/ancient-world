@@ -993,3 +993,12 @@ separate gates and are not covered by this snapshot.
     funds and losses remain separate. CPU/reference and checkpoint continuation
     agree through dissolution. The four-target gate passed 49 tests and strict
     all-target Clippy passed.
+
+65. **Partial secured relief retains the lien before actual sale.** Authorized
+    liquidation loans may accept a reduction while the asset is still pledged,
+    with a positive claim remaining. The later sale allocates its actual proceeds
+    using reduced senior exposure, leaving the rest for junior liens. Title stays
+    put until sale; forgiveness is a separate loss. Full secured forgiveness and
+    post-sale relief remain guarded. Collateral history, CPU/reference and
+    checkpoint controls pass. The five-target gate passed 103 tests and strict
+    all-target Clippy passed.

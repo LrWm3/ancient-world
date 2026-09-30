@@ -109,8 +109,8 @@ in the loan's denomination; no goods, coins, repayment or interest income are
 invented. An unresolved native claim continues to block closure even when the
 estate permits ordinary coin deficiencies to be discharged.
 
-Rescheduling of amortizing loans, secured releases and autonomous negotiation
-remain open. The control compares absent, exact and stale consent against the
+Rescheduling of amortizing loans, full secured releases and autonomous negotiation
+remain open. A bounded partial secured adapter follows below. The control compares absent, exact and stale consent against the
 same actual advance and repayment, including CPU/reference, checkpoint and
 forged receipt/history rejection. The six-target gate passed 104 tests and strict
 all-target Clippy passed.
@@ -164,3 +164,21 @@ the new creditor; the former holder cannot forgive the buyer's remaining claim.
 The composed two-estate control rejects rewritten historical consent and preserves
 separate losses, actual purchase proceeds and CPU/checkpoint continuation. Its
 five-target regression gate passed 101 tests and strict all-target Clippy passed.
+
+## Partial secured relief before liquidation
+
+A loan using authorized liquidation can now accept partial relief while its
+collateral is still pledged and unsold. Consent must match current debt and leave
+a positive balance. The original asset and lien remain attached; relief transfers
+neither title nor goods, and causes no payment. The subsequent actual sale ranks
+the reduced claim with competing liens against its realized proceeds.
+
+The history records the retained collateral so loss provenance remains valid after
+sale and collection. Full secured forgiveness and relief after collateral sale
+remain unsupported: those require explicit release/proceeds redistribution terms.
+The control compares accepted pre-sale relief with those two unsupported timings
+and scopes. A seven-coin senior loss leaves a three-coin lien; an eight-coin sale
+then pays three senior and five junior coins at the later Due boundary. Forged
+collateral history is rejected, and CPU/reference/checkpoint statements agree.
+
+The five-target gate passed 103 tests and strict all-target Clippy passed.

@@ -2065,3 +2065,131 @@ fn household_guarantor_keeps_member_money_separate_and_recovers_before_wind_down
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn partial_secured_relief_before_sale_preserves_the_lien_and_releases_proceeds_to_junior_claims() {
+    use economics_compute_smoke::{
+        accounting::Account,
+        claim_relief::{Action, Terms},
+        finance::ContractId,
+        financial_reporting::Audit,
+    };
+    for (month, quantity) in [(3, 7), (4, 7), (3, 10)] {
+        let (mut w, s) = fixture();
+        proceeding(&mut w, false);
+        for (rank, loan) in w.lending.iter_mut().enumerate() {
+            loan.collateral = Some(credit::Collateral {
+                asset: PLOT,
+                priority: rank as u32,
+                pledged: true,
+                settlement: credit::CollateralSettlement::AuthorizedLiquidation,
+            });
+        }
+        w.recovery.claim_relief.push(Terms {
+            id: 1,
+            proceeding: 1,
+            contract: ContractId::Loan(10),
+            original_due: 2,
+            debtor: PERSON,
+            creditor: STATE_AGENT,
+            month,
+            expected_due: 2,
+            expected_remaining: 10,
+            action: Action::WriteOff { quantity },
+        });
+        let accepted = month == 3 && quantity == 7;
+        let run = |backend| {
+            let mut sim = distressed(w.clone(), s.clone(), backend);
+            let mut a = Audit::with_opening(
+                &sim.world,
+                &sim.state,
+                TOKEN,
+                economics_compute_smoke::financial_reporting::Opening {
+                    assets: sim
+                        .world
+                        .assets
+                        .iter()
+                        .map(|asset| (asset.id, if asset.id == PLOT { 8 } else { 0 }))
+                        .collect(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            while (sim.state.month, sim.state.phase) != (3, Phase::Acquire) {
+                a.step(&mut sim).unwrap();
+            }
+            let loan = &sim.state.credit.loans[&10];
+            assert_eq!(loan.principal, if accepted { 3 } else { 10 });
+            assert!(loan.collateral.as_ref().unwrap().pledged);
+            assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(PERSON));
+            assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 0);
+            let (saved, mut ra) = (sim.clone(), a.clone());
+            a.step(&mut sim).unwrap();
+            assert_eq!(
+                sim.state.credit.recovery.proceedings[&1].secured[&10],
+                if accepted { 3 } else { 8 }
+            );
+            assert_eq!(
+                sim.state.credit.recovery.proceedings[&1]
+                    .secured
+                    .get(&11)
+                    .copied()
+                    .unwrap_or(0),
+                if accepted { 5 } else { 0 }
+            );
+            assert_eq!(sim.state.balance(ESTATE, TOKEN), 8);
+            while sim.state.month <= 5 {
+                a.step(&mut sim).unwrap();
+            }
+            assert_eq!(
+                sim.state.balance(STATE_AGENT, TOKEN),
+                if accepted { 3 } else { 8 }
+            );
+            assert_eq!(
+                sim.state.balance(OTHER, TOKEN),
+                if accepted { 5 } else { 0 }
+            );
+            assert_eq!(
+                sim.state.credit.loans[&10].principal,
+                if accepted { 0 } else { 2 }
+            );
+            assert_eq!(
+                sim.state.credit.loans[&11].principal,
+                if accepted { 5 } else { 10 }
+            );
+            assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(BUYER));
+            assert_eq!(sim.state.balance(ESTATE, TOKEN), 0);
+            assert_eq!(
+                a.book()
+                    .balances()
+                    .get(&(STATE_AGENT, Account::CreditLoss))
+                    .copied()
+                    .unwrap_or(0),
+                if accepted { 7 } else { 0 }
+            );
+            assert_eq!(
+                a.book()
+                    .balances()
+                    .get(&(PERSON, Account::DebtRelief))
+                    .copied()
+                    .unwrap_or(0),
+                if accepted { -7 } else { 0 }
+            );
+            if accepted {
+                let r = &sim.state.credit.recovery.loan_writeoffs[&10][0];
+                assert_eq!(r.retained_collateral, Some(PLOT));
+                let mut bad = sim.state.clone();
+                bad.credit.recovery.loan_writeoffs.get_mut(&10).unwrap()[0].retained_collateral =
+                    None;
+                assert!(Simulation::new(w.clone(), bad, backend).is_err());
+            }
+            let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
+            while resumed.state.month <= 5 {
+                ra.step(&mut resumed).unwrap();
+            }
+            assert_eq!((&sim.state, &a), (&resumed.state, &ra));
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
