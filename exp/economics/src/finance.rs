@@ -1,6 +1,8 @@
 //! Shared settlement primitives. Domain agreements own terms and authoritative receipts.
 use crate::model::*;
 
+pub(crate) mod collection;
+
 pub const DEFAULT_CLAIM_RANK: u32 = 0;
 
 /// Conserved account transfer, not issuance or destruction. Domain resolvers
