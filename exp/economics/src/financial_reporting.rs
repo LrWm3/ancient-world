@@ -1565,7 +1565,7 @@ impl Audit {
                     }
                     recovery::Receipt::Guaranteed {
                         guarantee,
-                        loan: id,
+                        claim: recovery::GuaranteedClaim::Loan(id),
                         paid,
                         ..
                     } => {

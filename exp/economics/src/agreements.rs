@@ -445,7 +445,8 @@ pub fn for_agent<'a>(
     let mut guarantees: Vec<_> = world.recovery.guarantees.iter().collect();
     guarantees.sort_by_key(|g| g.id);
     for g in guarantees {
-        if let Some(loan) = state.credit.loans.get(&g.loan) {
+        let crate::recovery::GuaranteedClaim::Loan(id) = g.claim;
+        if let Some(loan) = state.credit.loans.get(&id) {
             views.push(View::Guarantee(GuaranteeView {
                 terms: g.clone(),
                 debtor: loan.debtor,

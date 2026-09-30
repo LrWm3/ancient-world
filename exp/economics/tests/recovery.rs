@@ -60,7 +60,7 @@ fn fixture() -> (World, State) {
 fn guarantee(id: u32, loan: u32, cap: i32) -> Guarantee {
     Guarantee {
         id,
-        loan,
+        claim: economics_compute_smoke::recovery::GuaranteedClaim::Loan(loan),
         guarantor: BUYER,
         cap,
         from: 1,

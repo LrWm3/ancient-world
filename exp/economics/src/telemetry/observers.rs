@@ -310,7 +310,7 @@ pub(super) fn batch(
                 }
                 Receipt::Guaranteed {
                     guarantee,
-                    loan,
+                    claim,
                     requested,
                     paid,
                     recourse,
@@ -321,6 +321,7 @@ pub(super) fn batch(
                         .iter()
                         .find(|g| g.id == *guarantee)
                         .expect("validated guarantee");
+                    let crate::recovery::GuaranteedClaim::Loan(loan) = claim;
                     let l = &credit.after.loans[loan];
                     if selected(config, g.guarantor) || visible(l) {
                         records.push(json!({"kind":"guarantee_payment","guarantee":guarantee,"loan":loan,"guarantor":g.guarantor,"requested":requested,"paid":paid,"recourse":recourse}));

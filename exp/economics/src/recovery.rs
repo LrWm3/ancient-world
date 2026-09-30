@@ -9,10 +9,39 @@ use std::collections::{BTreeMap, BTreeSet};
 
 const RECOURSE_TERM_MONTHS: u32 = 1;
 
+/// Identifies the authoritative obligation covered by accepted contingent terms.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum GuaranteedClaim {
+    Loan(u32),
+}
+impl GuaranteedClaim {
+    pub fn contract(self) -> finance::ContractId {
+        match self {
+            Self::Loan(id) => finance::ContractId::Loan(id),
+        }
+    }
+    pub(crate) fn parties(self, world: &World) -> Option<(AgentId, AgentId, ResourceId)> {
+        match self {
+            Self::Loan(id) => world
+                .lending
+                .iter()
+                .find(|a| a.id == id)
+                .map(|a| (a.debtor, a.terms.creditor, a.terms.denomination))
+                .or_else(|| {
+                    world.credit.as_ref().and_then(|c| {
+                        c.offers
+                            .iter()
+                            .find(|o| o.id == id)
+                            .map(|o| (c.application.buyer, o.loan.creditor, o.loan.denomination))
+                    })
+                }),
+        }
+    }
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Guarantee {
     pub id: u32,
-    pub loan: u32,
+    pub claim: GuaranteedClaim,
     pub guarantor: AgentId,
     pub cap: i32,
     pub from: u32,
@@ -137,7 +166,7 @@ pub enum Receipt {
     },
     Guaranteed {
         guarantee: u32,
-        loan: u32,
+        claim: GuaranteedClaim,
         requested: i32,
         paid: i32,
         recourse: u32,
@@ -205,28 +234,14 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
     let agent = |id| world.agents.iter().any(|a| a.id == id);
     let mut ids = BTreeSet::new();
     let mut recourse = BTreeSet::new();
-    let source = |id| {
-        world
-            .lending
-            .iter()
-            .find(|a| a.id == id)
-            .map(|a| (a.debtor, a.terms.creditor, a.terms.denomination))
-            .or_else(|| {
-                world.credit.as_ref().and_then(|c| {
-                    c.offers
-                        .iter()
-                        .find(|o| o.id == id)
-                        .map(|o| (c.application.buyer, o.loan.creditor, o.loan.denomination))
-                })
-            })
-    };
+    let source = |id| GuaranteedClaim::Loan(id).parties(world);
     for g in &config.guarantees {
-        let (debtor, creditor, _) = source(g.loan).ok_or(
+        let (debtor, creditor, _) = g.claim.parties(world).ok_or(
             "guarantee requires an original loan; recursive guarantee chains are unsupported",
         )?;
         if world.credit.as_ref().is_some_and(|c| {
             c.offers.iter().any(|o| {
-                o.id == g.loan
+                g.claim == GuaranteedClaim::Loan(o.id)
                     && matches!(
                         o.collateral.settlement,
                         credit::CollateralSettlement::ResaleProceeds { .. }
@@ -404,7 +419,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             return Err("stayed loan without active proceeding".into());
         }
         if let Some(g) = config.guarantees.iter().find(|g| g.recourse == loan.id) {
-            let (debtor, _, denomination) = source(g.loan).unwrap();
+            let (debtor, _, denomination) = g.claim.parties(world).unwrap();
             if loan.debtor != debtor
                 || loan.creditor != g.guarantor
                 || loan.denomination != denomination
@@ -592,7 +607,8 @@ pub(crate) fn guarantee_claim(
     month: u32,
     g: &Guarantee,
 ) -> Result<Option<finance::Obligation>, String> {
-    let Some(loan) = book.loans.get(&g.loan) else {
+    let GuaranteedClaim::Loan(id) = g.claim;
+    let Some(loan) = book.loans.get(&id) else {
         return Ok(None);
     };
     if month < g.from
@@ -652,7 +668,8 @@ pub(crate) fn guarantees(
             continue;
         };
         let requested = claim.outstanding();
-        let mut loan = out.after.loans[&g.loan].clone();
+        let GuaranteedClaim::Loan(id) = g.claim;
+        let mut loan = out.after.loans[&id].clone();
         let payment = execution.pay_protected(
             world,
             state.month,
@@ -711,7 +728,7 @@ pub(crate) fn guarantees(
         }
         out.recovery.push(Receipt::Guaranteed {
             guarantee: g.id,
-            loan: g.loan,
+            claim: g.claim,
             requested,
             paid,
             recourse: g.recourse,
