@@ -1757,3 +1757,182 @@ fn purchased_claims_split_cost_between_same_boundary_guarantee_and_partial_loss(
         }
     }
 }
+
+#[test]
+fn priced_interest_loans_separate_later_accrual_from_principal_cost_and_loss() {
+    priced_interest(false);
+}
+
+fn priced_interest(household: bool) {
+    use economics_compute_smoke::{
+        accounting::Account,
+        claim_relief::{Action, Terms},
+        finance::ContractId,
+        recovery::receivables::{Bid, Listing},
+    };
+    const BUYER: AgentId = 98;
+    const BORROWER_ESTATE: AgentId = 100;
+    for writeoff in [false, true] {
+        for price in [40, 67, 80] {
+            let mut opening = fixture_for(100, 6, true, household);
+            // Interest first accrues in month 2. This disclosed opening has the
+            // same issuance principal/cash, with accepted 10%-monthly terms.
+            opening
+                .world
+                .lending
+                .iter_mut()
+                .find(|l| l.id == ASSET)
+                .unwrap()
+                .terms
+                .monthly_rate_bps = 1000;
+            opening
+                .state
+                .credit
+                .loans
+                .get_mut(&ASSET)
+                .unwrap()
+                .monthly_rate_bps = 1000;
+            opening
+                .state
+                .balances
+                .insert((BORROWER, TOKEN), if writeoff { 51 } else { 200 });
+            opening.world.agents.push(Agent {
+                id: BUYER,
+                name: "interest claim buyer".into(),
+            });
+            opening.state.balances.insert((BUYER, TOKEN), price);
+            opening.world.recovery.receivable_listings.push(Listing {
+                id: 1,
+                proceeding: 1,
+                loan: ASSET,
+                coins_per_unit: 1,
+            });
+            opening.world.recovery.receivable_price_floors.insert(1, 1);
+            opening.world.recovery.receivable_bids.push(Bid {
+                id: 1,
+                listing: 1,
+                buyer: BUYER,
+                month: 3,
+                price,
+            });
+            if writeoff {
+                opening.world.agents.push(Agent {
+                    id: BORROWER_ESTATE,
+                    name: "borrower estate".into(),
+                });
+                opening.world.recovery.proceedings.push(ProceedingTerms {
+                    id: 2,
+                    debtor: BORROWER,
+                    estate: BORROWER_ESTATE,
+                    authority: STATE_AGENT,
+                    denomination: TOKEN,
+                    opening_month: 5,
+                    earliest_close: 5,
+                    assets: vec![],
+                    discharge_deficiency: false,
+                });
+                opening.world.recovery.claim_relief.push(Terms {
+                    id: 1,
+                    proceeding: 2,
+                    contract: ContractId::Loan(ASSET),
+                    original_due: 2,
+                    debtor: BORROWER,
+                    creditor: BUYER,
+                    month: 5,
+                    expected_due: 2,
+                    expected_remaining: 74,
+                    action: Action::WriteOff { quantity: 74 },
+                });
+            }
+            // Interest already unpaid at purchase needs a separate allocation
+            // of cost between acquired principal and interest; that remains guarded.
+            let mut arrears = opening.state.clone();
+            arrears.balances.insert((BORROWER, TOKEN), 0);
+            let mut rejected =
+                Simulation::new(opening.world.clone(), arrears, Backend::Reference).unwrap();
+            let mut rejected_audit = Audit::new(&rejected.world, &rejected.state, TOKEN).unwrap();
+            until(&mut rejected, &mut rejected_audit, 3, Phase::Acquire);
+            assert!(rejected.state.credit.loans[&ASSET].interest > 0);
+            let before = rejected.state.clone();
+            assert!(
+                economics_compute_smoke::offers::accept(
+                    &mut rejected,
+                    &[economics_compute_smoke::offers::Request::new(
+                        economics_compute_smoke::offers::Id::ReceivableLiquidationBid(1),
+                        BUYER
+                    )]
+                )
+                .is_err()
+            );
+            assert_eq!(rejected.state, before);
+            let run = |backend| {
+                let mut sim =
+                    Simulation::new(opening.world.clone(), opening.state.clone(), backend).unwrap();
+                let mut audit = Audit::new(&sim.world, &sim.state, TOKEN).unwrap();
+                let balance = |a: &Audit, who, account| {
+                    a.book()
+                        .balances()
+                        .get(&(who, account))
+                        .copied()
+                        .unwrap_or(0)
+                };
+                until(&mut sim, &mut audit, 3, Phase::Acquire);
+                audit.step(&mut sim).unwrap();
+                let loan = &sim.state.credit.loans[&ASSET];
+                assert_eq!(
+                    (loan.creditor, loan.principal, loan.interest),
+                    (BUYER, 67, 0)
+                );
+                assert_eq!(
+                    balance(&audit, BUYER, Account::LoanBasisAdjustment(ASSET)),
+                    i128::from(price - 67)
+                );
+                assert_eq!(balance(&audit, BUYER, Account::InterestIncome), 0);
+                until(&mut sim, &mut audit, 5, Phase::Open);
+                if writeoff {
+                    assert_eq!(
+                        balance(&audit, BUYER, Account::InterestReceivable(ASSET)),
+                        7
+                    );
+                    assert_eq!(
+                        balance(&audit, BUYER, Account::LoanBasisAdjustment(ASSET)),
+                        i128::from(price - 67)
+                    );
+                }
+                let (saved, mut ra) = (sim.clone(), audit.clone());
+                until(&mut sim, &mut audit, 9, Phase::Open);
+                assert_eq!(sim.state.credit.loans[&ASSET].debt().unwrap(), 0);
+                assert_eq!(
+                    balance(&audit, BUYER, Account::LoanBasisAdjustment(ASSET)),
+                    0
+                );
+                assert_eq!(
+                    balance(&audit, BUYER, Account::InterestReceivable(ASSET)),
+                    0
+                );
+                assert_eq!(
+                    balance(&audit, BUYER, Account::InterestIncome),
+                    if writeoff { -7 } else { -17 }
+                );
+                assert_eq!(
+                    balance(&audit, BUYER, Account::CreditLoss),
+                    if writeoff { i128::from(price + 7) } else { 0 }
+                );
+                assert_eq!(
+                    balance(&audit, BUYER, Account::SettlementGain)
+                        + balance(&audit, BUYER, Account::SettlementLoss),
+                    if writeoff { 0 } else { i128::from(price - 67) }
+                );
+                assert_eq!(
+                    sim.state.balance(BUYER, TOKEN),
+                    if writeoff { 0 } else { 84 }
+                );
+                let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
+                until(&mut resumed, &mut ra, 9, Phase::Open);
+                assert_eq!((&sim.state, &audit), (&resumed.state, &ra));
+                (sim.state, sim.ledger, audit)
+            };
+            assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+        }
+    }
+}

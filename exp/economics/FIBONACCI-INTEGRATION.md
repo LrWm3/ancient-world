@@ -1132,3 +1132,12 @@ their separate gates above and are not covered by this snapshot.
     under later consent. Discount/premium, person/household and CPU/checkpoint
     controls reconcile stocks, cash, remaining basis and losses. The four-target
     gate passed 51 tests and strict all-target Clippy passed.
+
+81. **Priced principal now composes with subsequent interest accrual.** Loans
+    with no unpaid interest at purchase can carry interest-bearing terms. The
+    buyer's principal adjustment stays separate from later accrued interest and
+    releases on principal collection or loss. Discount/par/premium controls cover
+    full repayment and later estate relief of principal plus unpaid interest;
+    purchasing already accrued interest remains rejected atomically. CPU/reference
+    and checkpoints agree. The five-target gate passed 93 tests and strict
+    all-target Clippy passed.

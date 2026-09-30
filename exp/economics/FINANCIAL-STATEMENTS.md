@@ -1352,7 +1352,7 @@ and delivery coverage, lien transfer, autonomous underwriting and guarantee
 formation/discovery remain outstanding. Person self-directed policy changes stay
 deferred, and constitutions/charters remain static.
 
-### Purchased zero-interest claims
+### Purchased principal claims
 
 Opt-in estate price floors now permit purchase prices different from face value.
 `LoanBasisAdjustment` keeps the buyer's net receivable at remaining acquisition
@@ -1363,3 +1363,8 @@ make its net carrying value negative. See [estate receivable pricing](ESTATE-REC
 for rounding and scope. Unsecured commodity claims now share this basis model:
 fixed-value native principal plus the adjustment equals coin acquisition cost,
 while actual delivery still requires the original goods and receiving storage.
+
+Interest-bearing purchases with no unpaid interest at acquisition now retain that
+principal-cost model. Subsequent interest uses existing accrual accounts and is
+expensed separately if it becomes uncollectible. This does not implement effective
+yield amortization or allocation of cost to interest already owed at purchase.

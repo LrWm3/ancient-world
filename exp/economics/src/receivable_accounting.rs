@@ -1,4 +1,4 @@
-//! Acquisition-cost reporting for whole zero-interest receivables.
+//! Acquisition-cost reporting for whole receivables acquired without unpaid interest.
 //! Claim principal stays authoritative in the loan book; this is a derived basis.
 use crate::{
     accounting::{Account, Line},
@@ -25,13 +25,10 @@ pub(crate) fn adjustment(
         return Ok(0);
     }
     let loan = &state.credit.loans[&id];
-    if loan.monthly_rate_bps != 0
-        || loan.interest != 0
-        || a.interest != 0
-        || a.principal <= 0
-        || loan.principal > a.principal
-    {
-        return Err("negotiated receivable basis requires a zero-interest claim".into());
+    if a.interest != 0 || a.principal <= 0 || loan.principal > a.principal {
+        return Err(
+            "negotiated receivable basis requires no unpaid interest at acquisition".into(),
+        );
     }
     // Floor remaining cost to reporting ticks. Full disposal releases all basis;
     // rounding never changes actual cash or the contractual principal.

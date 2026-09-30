@@ -57,7 +57,7 @@ consent and cash price. Listings specify positive custody coins per native claim
 unit. Coin claims retain a one-to-one quote; unsecured commodity claims use an
 explicit fixed quote. The required price is current principal plus accrued
 interest, multiplied by that quote by default. An opt-in whole-claim price floor
-now permits other prices for zero-interest coin or unsecured commodity claims (below). The
+now permits other prices for coin or unsecured commodity claims without unpaid interest at purchase (below). The
 borrower's amount owed and denomination never change.
 
 Common offer discovery exposes the current loan terms, security, debtor and claim amount.
@@ -229,8 +229,8 @@ suites, followed by strict all-target Clippy.
 ## Agreed price floors and acquisition cost
 
 `recovery.receivable_price_floors` optionally supplies a minimum whole-claim price
-by listing ID. It admits zero-interest claims in the custody coin or unsecured
-commodity claims with an explicit fixed reporting quote. Sale payment uses custody
+by listing ID. It admits claims with no unpaid interest at purchase, either in
+the custody coin or unsecured commodities with an explicit fixed reporting quote. Sale payment uses custody
 coins; borrowers still owe native units and collection requires real storage.
 Otherwise the existing exact unit quote remains required.
 Highest funded bids clear first; an unaffordable bid leaves the claim available
@@ -252,7 +252,7 @@ Checks cover discounts, par and premiums followed by collection or full write-of
 competing funded/unfunded bids, price floors, reversed inputs, forged prices, and
 invalid carrying values. CPU/reference and checkpoint continuation agree. The
 six-target gate passed 130 tests and strict all-target Clippy passed. Partial and
-onward assignments, interest-bearing acquisition cost and market valuation remain
+onward assignments, purchase-cost allocation to already unpaid interest and market valuation remain
 outstanding.
 
 A winding household also uses priced assignment with separate disposal results.
@@ -296,3 +296,11 @@ be delivered when storage becomes available, or waived by separately accepted
 terms. Those paths preserve actual goods, recognize different loss/return amounts,
 and never substitute an invented coin payment. Both person and household sellers
 use the same execution and reporting adapters.
+
+Interest-bearing loans with no unpaid interest at assignment now use the same
+principal cost adjustment. Later interest accrues in the ordinary interest
+receivable/income accounts, independently of cost released on principal. Full
+later relief expenses remaining principal cost plus accrued unpaid interest.
+This is proportional principal-cost release, not an effective-interest-yield
+model. Purchasing an already accrued interest balance remains excluded until
+there is an explicit rule allocating purchase cost between the acquired claims.
