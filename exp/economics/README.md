@@ -1,14 +1,15 @@
 # Stand-alone agent-based economics experiment
 
-Latest consolidation: [standalone collection adapters](COLLECTION-ADAPTERS.md)
-now share ranked/proportional allocation and observable unpaid attempts.
-[Commodity finance](COMMODITY-FINANCE.md) adds valued native loans and physical
-loan, wage, land and direct-forward guarantees. Household posted hiring also
-composes with [physical minting](MINT-FINANCE.md) against remaining worker hours.
-[Posted guarantee admission](GUARANTEE-ADMISSION.md) now distinguishes offers from
-accepted exposure and checks legal recognition. [Acquisition adapters](ACQUISITION-ADAPTERS.md)
-connect direct loans to plot review and preserve observed household capacity in
-forecasts. These extend supported combinations; other admission and driver limits remain.
+Latest integration: [common acquisition adapters](ACQUISITION-ADAPTERS.md) now
+prepare dated loans, prepayments, guarantees, household hiring and estate bids
+through ordinary settlement. Direct and tool-backed forwards share collection,
+funding and storage; mortgages compose with prepayments and negotiated exchange.
+Household mortgages now connect repayment to solvent disposal and dissolution.
+[Portable estate equipment](EQUIPMENT-LIQUIDATION.md) now carries funded sale,
+buyer depreciation and eventual household retirement through the same path.
+[Estate receivables](ESTATE-RECEIVABLES.md) preserve recoverable assets and newly
+collected cash before deficient closure. These are tested combinations; broader
+admission, planning, custody and liquidation work remains.
 
 ## Current progress — 2026-09-30
 
@@ -77,9 +78,9 @@ These are bounded combinations; the remaining exclusions are explicit.
 | Households | Lawful founding, static constitution/charter, fixed, rotating or elected governors with terms and election receipts, dated objective/tie authority, 20% contributed labor, opt-in current-needs-first allocation, explicit ties, pooled resources/storage and shelter, dated adult joining/exit, opt-in wind-down with explicit asset/crop transfers and lending/recovery, and [policy-driven town trading](HOUSEHOLD-MARKET.md) with shared budgets, member wage pooling, physical barter, charter-delegated purchases, active-process input funding, current-loan funding/support with explicit priority, direct town lending and budgeted external hiring with costed member allocation, individual member employers, optional earned-wage support and [useful-work labor-offer acceptance](HOUSEHOLD-HIRING-OFFERS.md) | Autonomous voting and broader succession rules, longer-horizon collective planning, market recruitment, automatic death estates, joint work/trade planning and broader employer/worker discovery |
 | Marketplaces | Bilateral negotiation/ZIP, local town books, need-generated orders, reciprocal commodity markets and household accounts | Shared acquisition with every driver; general markets for labor, assets, rights and memberships |
 | Contracts and lending | Direct consented advances and mortgages share a loan book; loan, land and forward claims share execution; guarantees share inspection | Common acceptance/performance adapters for all arrangements; autonomous general loan discovery/underwriting |
-| [Creditor allocation](CREDITOR-ALLOCATION.md) | Ranked collection and opt-in proportional loan/land allocation, including accepted coin tender and whole-unit conversion | Standalone land and forward allocation; additional denominations/routes and indivisible obligations |
+| [Creditor allocation](CREDITOR-ALLOCATION.md) | Ranked collection and opt-in proportional loan/land and forward allocation, standalone or composed, including accepted coin tender, whole-unit conversion and single-resource indivisible claims | Additional tender routes, joint multi-resource minima and competing lien priorities |
 | Recovery | Capped loan/wage/land guarantees, explicit call allocation and dated recourse; authorized stays, frozen interest, dedicated estate custody, funded sales, secured/general distributions, surplus and loan write-offs; land/forward/wage admission and accepted dated relief | Autonomous relief negotiation, multiple currencies/liens, guarantee lien subrogation, autonomous liquidation and death/dissolution estates |
-| [Financial statements](FINANCIAL-STATEMENTS.md) | Explicit separate-agent reporting scope (consolidated requests require a future elimination adapter); per-agent double-entry journal, trial balance, balance sheet, income, cash flows and equity changes; strict loan/mortgage/recovery and costed spot-trade adapters; opt-in material WIP, consumption and production losses; dated dues with native/coin payment and estate-cash settlement; coin equipment purchases, manufacture, repair, decay and joint-output costs; prepaid forwards, delivery and relief; opt-in physical and collection-linked issuance; household pooling, dues support and solvent asset disposal/residual distribution; shared-pool input cost and regeneration; shared opening-stock costing and explicitly valued posted, negotiated and town-market barter; opt-in earned-only tool royalties; completed stock/durable output transfers to distinct beneficiaries at cost; opt-in paid-capacity capitalization through WIP and output; [employment delivery and wage arrears](EMPLOYMENT.md) | Negotiated hiring, physical-wage guarantees, internal household employment, broader service contracts, non-pool third-party production costs, estimated contingent consideration, automatic death estates, redeemable currency, FX and consolidation adapters |
+| [Financial statements](FINANCIAL-STATEMENTS.md) | Explicit separate-agent reporting scope (consolidated requests require a future elimination adapter); per-agent double-entry journal, trial balance, balance sheet, income, cash flows and equity changes; strict loan/mortgage/recovery and costed spot-trade adapters; opt-in material WIP, consumption and production losses; dated dues with native/coin payment and estate-cash settlement; coin equipment purchases, manufacture, repair, decay and joint-output costs; prepaid forwards, delivery and relief; opt-in physical and collection-linked issuance; household pooling, dues support and solvent asset disposal/residual distribution; shared-pool input cost and regeneration; shared opening-stock costing and explicitly valued posted, negotiated and town-market barter; opt-in earned-only tool royalties; completed stock/durable output transfers to distinct beneficiaries at cost; opt-in paid-capacity capitalization through WIP and output; [employment delivery and wage arrears](EMPLOYMENT.md) | Negotiated hiring, internal household employment, broader service contracts, non-pool third-party production costs, estimated contingent consideration, automatic death estates, redeemable currency, FX and consolidation adapters |
 | Observability | External metrics and logs; planning/settlement observers; requested, allocated and paid recovery receipts | Broader subsystem coverage as integrations are added |
 
 [Contract recovery](CONTRACT-RECOVERY.md) is explicitly limited to configured,
@@ -88,8 +89,9 @@ Native obligations keep their performance requirements. Unpaid land bills, earne
 outstanding forwards prevent closure; [accepted forward relief](DELIVERY-RELIEF.md)
 and [dated claim relief](CLAIM-RELIEF.md) can explicitly extend dates or write off
 quantities without pretending payment or delivery.
-Guarantee consent, proceeding authorization, asset inventories and
-buyers are supplied configuration, not agent-discovered outcomes.
+Guarantee consent, proceeding authorization, asset inventories and buyer bids
+remain supplied. Common discovery/preparation exposes eligible listed offers; it
+does not autonomously create listings or choose credit risks.
 
 Earlier loan-estate implementation verification: **451 full-suite tests passed**,
 followed by **61 overlapping focused tests** covering the final recovery/inspection changes.
@@ -103,8 +105,7 @@ for the controls and remaining composition limits.
 
 Earlier [explicit forward relief](DELIVERY-RELIEF.md#completed-validation) validation:
 **105 distinct tests passed across 11 affected suites in scoped runs**, including
-26 recovery tests; final recovery/telemetry rerun passed all 36 tests. Full-crate
-rerun remains outstanding.
+26 recovery tests; final recovery/telemetry rerun passed all 36 tests. Later complete runs are recorded in [Fibonacci integration](FIBONACCI-INTEGRATION.md).
 
 Current [financial statement work](FINANCIAL-STATEMENTS.md) adds reconciled reporting
 without changing execution. Supported financial scenarios reject missing valuations
@@ -115,7 +116,7 @@ across six suites** and its CPU export, with formatting and strict all-target Cl
 The material production/consumption extension passed **38 tests across five suites**
 and three CPU exports. Dated-dues accounting passed **57 distinct tests across six
 suites**, including composition with lending and farming, plus its CPU export and
-strict all-target Clippy. Full-crate rerun remains outstanding.
+strict all-target Clippy. Later complete runs are recorded in [Fibonacci integration](FIBONACCI-INTEGRATION.md).
 
 ## Purpose and existing scenarios
 

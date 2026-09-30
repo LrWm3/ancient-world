@@ -1,16 +1,15 @@
 # Consolidate contracts before adding more financial scenarios
 
-Latest consolidation: [standalone collection adapters](COLLECTION-ADAPTERS.md)
-now share ranked/proportional allocation and observable unpaid attempts.
-[Commodity finance](COMMODITY-FINANCE.md) adds valued native loans and physical
-loan, wage, land and direct-forward guarantees. Household posted hiring also
-composes with [physical minting](MINT-FINANCE.md) against remaining worker hours.
-[Posted guarantee admission](GUARANTEE-ADMISSION.md) now distinguishes offers from
-accepted exposure and checks legal recognition. [Acquisition adapters](ACQUISITION-ADAPTERS.md)
-connect direct loans to plot review and preserve observed household capacity in
-forecasts. Direct prepaid and tool-backed forwards now share collection, treasury and storage
-with legacy state trading. These extend supported combinations; other admission
-and driver limits remain.
+Latest integration: [common acquisition adapters](ACQUISITION-ADAPTERS.md) now
+prepare dated loans, prepayments, guarantees, household hiring and estate bids
+through ordinary settlement. Direct and tool-backed forwards share collection,
+funding and storage; mortgages compose with prepayments and negotiated exchange.
+Household mortgages now connect repayment to solvent disposal and dissolution.
+Independent leases and physical mint procurement compose with financed purchases;
+[portable equipment](EQUIPMENT-LIQUIDATION.md) uses funded estate liquidation.
+[Estate receivables](ESTATE-RECEIVABLES.md) preserve recoverable assets and newly
+collected cash before deficient closure. These are tested combinations; broader
+admission, planning, custody and liquidation work remains.
 
 This is active implementation work. The next financial work should extend the
 existing contract, claim and settlement model, rather than introduce another
@@ -157,8 +156,8 @@ can establish that all these arrangements compose.
    bounded execution and dated visibility, not recursive unbounded collection.
 5. **Broaden actual liquidation.** Configured asset lists and funded bids now
    transfer permitted title/attached responsibilities and distribute actual
-   proceeds through the loan waterfall. Add autonomous listing/discovery,
-   additional asset kinds, competing liens and general claims. [Receivable collection](ESTATE-RECEIVABLES.md)
+   proceeds through the loan waterfall. Eligible listing discovery and funded bid preparation now exist. Add autonomous
+   listing/valuation, further asset kinds beyond portable equipment, competing liens and general claims. [Receivable collection](ESTATE-RECEIVABLES.md)
    now blocks deficient closure until existing assets are performed or disposed of;
    receivable sale/assignment and inventory liquidation remain open. Unsold assets
    remain unsold; appraisals do not create coins. Retain surplus, deficiencies,
@@ -220,8 +219,8 @@ accounting. Household orders/support consume a shared current-forward claim view
 Credit, direct forward settlement/admission and town trades reserve one opening
 budget; prospective delivery space respects household shared storage.
 
-This consolidates execution without claiming all admission pilots coexist: direct
-and tool-underwritten configurations remain separate integration work.
+Direct and tool-underwritten configurations now share collection and admission
+resources; competitive access and consequence-search drivers remain integration work.
 Direct-forward recovery now uses the existing proceeding and delivery-relief adapters,
 including town-market stays; see [Fibonacci integration](FIBONACCI-INTEGRATION.md). Consent and pricing are supplied terms, not autonomous discovery
 or underwriting.

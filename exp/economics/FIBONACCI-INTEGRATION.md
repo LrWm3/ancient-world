@@ -3,7 +3,7 @@
 Scope: finish bounded autonomous household hiring and direct prepaid-delivery
 recovery, then demonstrate that they compose with the existing economic loop.
 The batches contain logical changes, not a prescribed count of files or tests.
-The completed sequence is **1, 1, 2, 3, 5, 8, 13, 21** (batch 34 in progress). Batch sizes count distinct
+The completed sequence is **1, 1, 2, 3, 5, 8, 13, 21, 34** (batch 55 in progress). Batch sizes count distinct
 implementation and integration changes, not test cases. Person self-directed policy changes remain explicitly deferred.
 
 ## Batch 1 — one recovery change
@@ -188,7 +188,7 @@ passed their affected suites separately; those overlapping counts are not added 
 the baseline total. Strict all-target Clippy, formatting, whitespace and repository
 artifact checks passed before their commits.
 
-## Next batch 34 — acceptance and continuing integration (in progress)
+## Batch 34 — acceptance and continuing integration
 
 Completed additions so far:
 
@@ -224,8 +224,33 @@ Completed additions so far:
 30. Recheck household lifecycle and active recovery before optional mortgage acceptance.
 31. Date mortgage catalog encumbrances independently of accepted liens.
 32. Compose household repayment, solvent property disposal and residual distribution.
+33. Reconcile current README/integration coverage with the supported adapter matrix.
+34. Complete the full crate regression gate for these integrations.
 
 See [acquisition adapters](ACQUISITION-ADAPTERS.md) and
-[guarantee admission](GUARANTEE-ADMISSION.md). This is an unfinished batch; no
-claim is made that the broader consolidation or financial stress-test roadmap is
-complete. Fibonacci batch sizes do not supply a finite stopping point.
+[guarantee admission](GUARANTEE-ADMISSION.md). The full run passed **876 tests,
+zero failures, one ignored**, across 105 Cargo target results (including empty
+targets). It was launched after `445da09`; subsequent equipment/mortgage/mint
+changes were developed while it ran and have separate focused regression gates.
+Do not treat this as a full run of the eventual batch-55 source tree. Strict
+all-target Clippy, formatting, whitespace and artifact checks passed for each
+subsequent implementation chunk.
+
+## Next batch 55 — wider asset and execution composition (in progress)
+
+Completed integrations:
+
+1. Admit portable equipment to funded estate listing discovery and settlement.
+2. Carry actual acquisition cost and existing condition into buyer depreciation.
+3. Release sold estate restrictions for household equipment retirement and dissolution.
+4. Recheck durable eligibility and preserve atomic title/condition/payment evidence.
+5. Compose financed ownership with independent accepted land leases.
+6. Exercise mortgage/lease collection through household budgets and alternative tender.
+7. Compose state financed purchases with physical mint input procurement and issuance.
+
+[Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
+[acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.
+Focused gates passed 74 equipment/recovery tests, 53 mortgage/lease tests, and 57
+mint/finance tests; these selections overlap and are not distinct-test totals.
+The broader consolidation roadmap remains active. Fibonacci batch sizes do not
+supply a finite stopping point.

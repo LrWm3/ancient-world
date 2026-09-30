@@ -1,14 +1,13 @@
 # Economics integration and planning interfaces
 
-Latest consolidation: [standalone collection adapters](COLLECTION-ADAPTERS.md)
-now share ranked/proportional allocation and observable unpaid attempts.
-[Commodity finance](COMMODITY-FINANCE.md) adds valued native loans and physical
-loan, wage, land and direct-forward guarantees. Household posted hiring also
-composes with [physical minting](MINT-FINANCE.md) against remaining worker hours.
-[Posted guarantee admission](GUARANTEE-ADMISSION.md) now distinguishes offers from
-accepted exposure and checks legal recognition. [Acquisition adapters](ACQUISITION-ADAPTERS.md)
-connect direct loans to plot review and preserve observed household capacity in
-forecasts. These extend supported combinations; other admission and driver limits remain.
+Latest integration: [common acquisition adapters](ACQUISITION-ADAPTERS.md) now
+prepare dated loans, prepayments, guarantees, household hiring and estate bids
+through ordinary settlement. Direct and tool-backed forwards share collection,
+funding and storage; mortgages compose with prepayments and negotiated exchange.
+Household mortgages now connect repayment to solvent disposal and dissolution.
+[Estate receivables](ESTATE-RECEIVABLES.md) preserve recoverable assets and newly
+collected cash before deficient closure. These are tested combinations; broader
+admission, planning, custody and liquidation work remains.
 
 Current financial work extends [contract consolidation](CONTRACT-CONSOLIDATION.md).
 Direct consented loans reuse the mortgage book with optional collateral, share Due
@@ -54,8 +53,8 @@ also admits outside member employment, earned-wage assistance and claim-funded
 collective purchases. Internal household employment remains excluded.
 [Pass 26](PAYROLL-OUTLOOK.md) adds opt-in current-month payroll estimates for
 collective funding; future wages remain outside authoritative claims and accounts.
-Direct town lending
-does not enable mortgage purchase configuration or joint production planners.
+Household mortgage admission now has a separate adapter and solvent-exit control.
+Direct town lending does not enable joint production planners.
 Bounded town recovery now observes market stays and native claims. Adult accession/exit changes contribution and consumption
 scope without rewriting accepted wages or personal debt. Personal self-directed
 policy changes are explicitly deferred.
@@ -127,11 +126,11 @@ collateral resale remains rejected pending explicit buyer/seller rules.
 | Borrowing/sale-only forecast + configured negotiation | Uses the same resolver in hypothetical branches; optional bounded consumption orders |
 | Joint dated production plan + negotiation | Explicitly rejected; future work reservations need their own shared budget contract |
 | General loans/recovery + households | Shared servicing and separate statements; explicit last-member wind-down before household recovery; member loans are not eliminated |
-| Mortgage purchase/negotiation + households | Dedicated purchase driver remains excluded; negotiated collective purchase budgets need explicit receipts |
-| Legacy equipment/forward exchange, competing-access or pool-market drivers + credit/negotiation | Still rejected |
+| Mortgage purchases + households | Common preparation, separate ownership/debt, normal repayment and solvent disposal/residuals; optional purchases require an active household; specialized stock-sale planning remains excluded |
+| Legacy equipment/forward exchange + direct lending and direct prepayments | Shared opening budgets; one collection pass across direct/tool forwards; competing access/pool and consequence-search adapters remain outstanding |
 | Need-generated marketplace orders | [Bounded consumption/surplus policy](NEED-ORDERS.md) implemented; bilateral parties, lot and reservation prices remain supplied |
-| Monthly town book + household accounts | [Bounded collective adapter](HOUSEHOLD-MARKET.md): locality, governor policy, real member demand, shared money/stock/storage and fixed/ZIP quotes; private sales/barter, charter-delegated buying, active-process input funding, paid outside wages and direct loans now compose; budgeted external hiring and costed member allocation now compose; posted labor acceptance and authorized direct-loan/forward recovery also compose; joint production-market planning and mortgage drivers remain excluded |
-| Physical minting + scripted or generated dated stock/capacity orders | [Isolated CPU pilot](MINTING.md); excludes other acquisition drivers and collection-linked issuance |
+| Monthly town book + household accounts | [Bounded collective adapter](HOUSEHOLD-MARKET.md): locality, governor policy, real member demand, shared money/stock/storage and fixed/ZIP quotes; private sales/barter, charter-delegated buying, active-process input funding, paid outside wages and direct loans now compose; budgeted external hiring and costed member allocation now compose; posted labor acceptance and authorized direct-loan/forward recovery also compose; joint production-market planning remains excluded; household mortgages have a separate bounded acceptance/exit test |
+| Physical minting + direct loans, prepaid deliveries and household hiring | [Shared finance adapter](MINT-FINANCE.md) reserves scarce coins, inputs and hours; the configured package still has its own explicit issuance policy |
 | State posted bids learning ZIP prices | Not implemented; co-settlement does not change the price-setting policy |
 | Direct loans + native/alternative-tender land dues | Shared Due collection; opt-in proportional policy with whole claim units and protected opening funds |
 | Original-loan guarantees + servicing | Capped calls from remaining opening resources; same-book unsecured recourse, collectible at a later boundary; chains and pending-resale guarantees rejected |

@@ -29,9 +29,9 @@ and before new prepayments and spot trades. Stable order uses collection rank,
 effective due date and contract identity. Proportional collection uses the common
 ranked allocator. Essential protection and live receiving space bound execution.
 The direct adapter stores collection attempts in `Batch.forward_collections`,
-including unpaid attempts, and validates them with the acquisition batch. The old
-tool-underwriting adapter still returns physical delivery transactions without this
-new attempt-receipt sidecar.
+including unpaid attempts, and validates them with the acquisition batch. When composed with direct prepayments, tool-backed claims join that same pass and
+attempt receipts. The standalone legacy tool-only driver still returns delivery
+transactions without the attempt-receipt sidecar.
 
 ## Indivisible collection
 

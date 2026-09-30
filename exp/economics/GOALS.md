@@ -1,14 +1,13 @@
 # Goals: agents, institutions and markets
 
-Latest consolidation: [standalone collection adapters](COLLECTION-ADAPTERS.md)
-now share ranked/proportional allocation and observable unpaid attempts.
-[Commodity finance](COMMODITY-FINANCE.md) adds valued native loans and physical
-loan, wage, land and direct-forward guarantees. Household posted hiring also
-composes with [physical minting](MINT-FINANCE.md) against remaining worker hours.
-[Posted guarantee admission](GUARANTEE-ADMISSION.md) now distinguishes offers from
-accepted exposure and checks legal recognition. [Acquisition adapters](ACQUISITION-ADAPTERS.md)
-connect direct loans to plot review and preserve observed household capacity in
-forecasts. These extend supported combinations; other admission and driver limits remain.
+Latest integration: [common acquisition adapters](ACQUISITION-ADAPTERS.md) now
+prepare dated loans, prepayments, guarantees, household hiring and estate bids
+through ordinary settlement. Direct and tool-backed forwards share collection,
+funding and storage; mortgages compose with prepayments and negotiated exchange.
+Household mortgages now connect repayment to solvent disposal and dissolution.
+[Estate receivables](ESTATE-RECEIVABLES.md) preserve recoverable assets and newly
+collected cash before deficient closure. These are tested combinations; broader
+admission, planning, custody and liquidation work remains.
 
 This document records the experiment's intended direction. These are design goals,
 not claims of implemented behavior or a commitment to implement everything at once.
