@@ -259,6 +259,29 @@ pub fn active<'a>(
                 .is_some_and(|c| c.stage == Stage::Active)
     })
 }
+
+/// Custody of one denomination does not convert an unsecured native obligation.
+/// Its interest remains frozen, but actual native performance may cure it at Due.
+pub(crate) fn native_performance(world: &World, book: &credit::Book, loan: &Loan) -> bool {
+    loan.collateral.is_none()
+        && active(world, book, loan.debtor).is_some_and(|p| loan.denomination != p.denomination)
+}
+
+fn native_loans(book: &credit::Book, p: &ProceedingTerms) -> Vec<crate::recovery_claims::Claim> {
+    book.loans
+        .values()
+        .filter(|l| l.debtor == p.debtor && l.denomination != p.denomination)
+        .filter_map(|l| {
+            let remaining = l.debt().ok()?;
+            (remaining > 0).then_some(crate::recovery_claims::Claim {
+                contract: finance::ContractId::Loan(l.id),
+                creditor: l.creditor,
+                due: l.opened.saturating_add(1),
+                remaining: Amount::new(l.denomination, remaining),
+            })
+        })
+        .collect()
+}
 fn rank(world: &World, loan: &Loan) -> u32 {
     world
         .claim_priorities
@@ -581,6 +604,9 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                 closed < p.earliest_close
                     || closed < case.opened
                     || closed > state.month
+                    || native_loans(&state.credit, p)
+                        .iter()
+                        .any(|c| c.due <= closed)
                     || state.credit.loans.values().any(|l| {
                         l.debtor == p.debtor
                             && current_recourse(world, &state.credit, l.id, closed) > 0
@@ -661,7 +687,7 @@ pub(crate) fn open(world: &World, state: &State, out: &mut credit::Boundary) -> 
             .any(|l| l.first_unpaid.is_some_and(|m| m < state.month))
             || nonloans.iter().any(|c| c.due < state.month))
             && loans.iter().all(|l| {
-                l.denomination == p.denomination
+                (l.denomination == p.denomination || l.collateral.is_none())
                     && l.status != Status::PendingSale
                     && l.collateral
                         .as_ref()
@@ -697,7 +723,8 @@ pub(crate) fn open(world: &World, state: &State, out: &mut credit::Boundary) -> 
         });
     }
     // Interest freezes and the full claim is eligible for estate distribution.
-    // Ordinary servicing is stayed; the prior accrual marker still advances once.
+    // Coin servicing is stayed; unsecured native performance keeps its denomination.
+    // The prior accrual marker still advances once.
     let debtors: BTreeSet<_> = out
         .after
         .loans
@@ -1110,7 +1137,7 @@ pub(crate) fn sales(
             .after
             .loans
             .values_mut()
-            .filter(|l| l.debtor == p.debtor)
+            .filter(|l| l.debtor == p.debtor && l.denomination == p.denomination)
         {
             if l.collateral
                 .as_ref()
@@ -1158,7 +1185,7 @@ pub(crate) fn distribute(
             .after
             .loans
             .values()
-            .filter(|l| l.debtor == p.debtor)
+            .filter(|l| l.debtor == p.debtor && l.denomination == p.denomination)
             .try_fold(nonloan_cash, |sum, l| {
                 sum.checked_add(l.debt()?)
                     .ok_or("estate debt overflow".to_string())
@@ -1238,7 +1265,12 @@ pub(crate) fn distribute(
             .after
             .loans
             .values()
-            .filter(|l| l.debtor == p.debtor && l.opened < state.month && l.debt().unwrap_or(0) > 0)
+            .filter(|l| {
+                l.debtor == p.debtor
+                    && l.denomination == p.denomination
+                    && l.opened < state.month
+                    && l.debt().unwrap_or(0) > 0
+            })
             .map(|l| {
                 Ok(finance::CollectionRequest {
                     contract: finance::ContractId::Loan(l.id),
@@ -1336,11 +1368,13 @@ pub(crate) fn distribute(
             && p.assets.iter().all(|a| case.sold.contains(&a.asset))
             && case.secured.values().all(|v| *v == 0)
         {
-            let nonloans = crate::recovery_claims::outstanding(
+            let mut nonloans = crate::recovery_claims::outstanding(
                 world,
                 &crate::recovery_claims::current(state, out),
                 p.debtor,
             );
+            nonloans.extend(native_loans(&out.after, p));
+            nonloans.sort_by_key(|c| (c.contract, c.due));
             if !nonloans.is_empty() {
                 out.recovery.push(Receipt::ClosureDeferred {
                     proceeding: p.id,
@@ -1353,7 +1387,7 @@ pub(crate) fn distribute(
                 .after
                 .loans
                 .values()
-                .filter(|l| l.debtor == p.debtor)
+                .filter(|l| l.debtor == p.debtor && l.denomination == p.denomination)
                 .try_fold(0_i32, |sum, l| {
                     sum.checked_add(l.debt()?)
                         .ok_or("estate deficiency overflow".to_string())
@@ -1374,12 +1408,11 @@ pub(crate) fn distribute(
                         .push(credit::tx(format!("estate {} surplus", p.id), effects));
                     case.cash = 0;
                 }
-                for l in out
-                    .after
-                    .loans
-                    .values_mut()
-                    .filter(|l| l.debtor == p.debtor && l.debt().unwrap_or(0) > 0)
-                {
+                for l in out.after.loans.values_mut().filter(|l| {
+                    l.debtor == p.debtor
+                        && l.denomination == p.denomination
+                        && l.debt().unwrap_or(0) > 0
+                }) {
                     if let Some(c) = &mut l.collateral {
                         c.pledged = false;
                     }

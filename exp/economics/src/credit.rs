@@ -905,10 +905,12 @@ pub(crate) fn current_claim(
     state: &State,
     loan: &Loan,
 ) -> Result<Option<finance::CollectionRequest>, String> {
-    if crate::recovery::active(world, &state.credit, loan.debtor).is_some()
+    let native = crate::recovery::native_performance(world, &state.credit, loan);
+    if (crate::recovery::active(world, &state.credit, loan.debtor).is_some() && !native)
+        || (loan.status == Status::Stayed && !native)
         || matches!(
             loan.status,
-            Status::Repaid | Status::Discharged | Status::PendingSale | Status::Stayed
+            Status::Repaid | Status::Discharged | Status::PendingSale
         )
         || state.month <= loan.opened
     {
@@ -1092,13 +1094,7 @@ fn due(
             }
         };
         let mut l = out.after.loans[&id].clone();
-        if crate::recovery::active(world, &out.after, l.debtor).is_some()
-            || matches!(
-                l.status,
-                Status::Repaid | Status::Discharged | Status::PendingSale | Status::Stayed
-            )
-            || state.month <= l.opened
-        {
+        if current_claim(world, &collection_state, &l)?.is_none() {
             continue;
         }
         if l.status == Status::Active {

@@ -1104,3 +1104,92 @@ fn overlapping_forward_guarantees_keep_rounding_and_relief_dates_consistent() {
         assert_eq!(result, run(&w, Backend::Reference));
     }
 }
+
+#[test]
+fn native_recourse_in_coin_estate_waits_for_actual_goods_without_conversion_or_discharge() {
+    use economics_compute_smoke::{
+        credit::Status, finance::ContractId, minting::FIREWOOD, recovery::Stage,
+    };
+    for discharge in [false, true] {
+        let (mut w, mut s) = fixture();
+        w.employment[0].wage_per_unit.resource = FIREWOOD;
+        w.recovery.guarantees[0].from = 3;
+        authorize(&mut w, 3);
+        w.recovery.proceedings[0].discharge_deficiency = discharge;
+        s.balances.clear();
+        s.balances.insert((ISSUER, COIN), 5);
+        s.balances.insert((SUPPLIER, FIREWOOD), 4);
+        // Real work earns goods after the guarantee call. Month 4 Close wages
+        // cannot fund that month's Due collection; repayment is month 5.
+        w.capacity_overrides.insert((4, ISSUER), 1);
+        w.employment.push(Terms {
+            id: 2,
+            employer: WORKER,
+            worker: ISSUER,
+            from: 4,
+            through: 4,
+            capacity: Amount::new(HOURS, 1),
+            wage_per_unit: Amount::new(FIREWOOD, 4),
+            on_arrears: ArrearsPolicy::Continue,
+            rank: 0,
+        });
+        let opening = Opening {
+            inventory: [((SUPPLIER, FIREWOOD), 4)].into(),
+            exchange_values: [(FIREWOOD, 3)].into(),
+            ..Default::default()
+        };
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = Audit::with_opening(&w, &s, COIN, opening.clone()).unwrap();
+            through(&mut a, &mut sim, 4);
+            assert_eq!(
+                sim.state.credit.recovery.proceedings[&1].stage,
+                Stage::Active
+            );
+            assert_eq!(sim.state.credit.recovery.proceedings[&1].cash, 0);
+            assert_eq!(sim.state.balance(ISSUER, COIN), 5);
+            assert_eq!(sim.state.balance(ISSUER, FIREWOOD), 4);
+            assert_eq!(sim.state.credit.loans[&101].principal, 4);
+            assert_eq!(sim.state.credit.loans[&101].status, Status::Stayed);
+            assert!(sim.ledger.iter().filter_map(|b| b.credit.as_ref())
+                .flat_map(|b| &b.recovery).any(|r| matches!(r,
+                    Receipt::ClosureDeferred { claims, .. } if claims.iter().any(|c|
+                        c.contract == ContractId::Loan(101) && c.remaining == Amount::new(FIREWOOD, 4)))));
+            let mut forged = sim.state.clone();
+            let case = forged.credit.recovery.proceedings.get_mut(&1).unwrap();
+            case.stage = Stage::Closed;
+            case.closed = Some(4);
+            assert!(Simulation::new(w.clone(), forged, backend).is_err());
+            let mut resumed = Simulation::new(w.clone(), sim.state.clone(), backend).unwrap();
+            let mut resumed_a = a.clone();
+            through(&mut a, &mut sim, 5);
+            through(&mut resumed_a, &mut resumed, 5);
+            assert_eq!(sim.state, resumed.state);
+            assert_eq!(a, resumed_a);
+            assert_eq!(sim.state.credit.loans[&101].status, Status::Repaid);
+            assert_eq!(
+                sim.state.credit.recovery.proceedings[&1].stage,
+                Stage::Closed
+            );
+            assert_eq!(sim.state.balance(SUPPLIER, FIREWOOD), 4);
+            assert_eq!(sim.state.balance(ISSUER, COIN), 5);
+            let b = a.book().balances();
+            assert_eq!(
+                b.get(&(ISSUER, Account::LoanPayable(101)))
+                    .copied()
+                    .unwrap_or(0),
+                0
+            );
+            assert_eq!(
+                b.get(&(SUPPLIER, Account::LoanReceivable(101)))
+                    .copied()
+                    .unwrap_or(0),
+                0
+            );
+            assert_eq!(b[&(SUPPLIER, Account::Inventory(FIREWOOD))], 12);
+            assert_eq!(b[&(ISSUER, Account::Cash)], 5);
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::CubeCpu), run(Backend::Reference));
+    }
+}

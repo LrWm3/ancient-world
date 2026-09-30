@@ -156,3 +156,52 @@ fn physical_loan_guarantee_delivers_stock_and_creates_same_unit_recourse() {
     };
     assert_eq!(run(Backend::CubeCpu), run(Backend::Reference));
 }
+
+#[test]
+fn coin_proceeding_admits_unsecured_native_arrears_without_converting_or_accruing_them() {
+    use economics_compute_smoke::{
+        credit::Status,
+        recovery::{ProceedingTerms, Stage},
+    };
+    let (mut w, mut s, opening) = fixture(0);
+    w.agents.push(Agent {
+        id: 999,
+        name: "coin custodian".into(),
+    });
+    s.balances.insert((PERSON, TOKEN), 10);
+    w.recovery.proceedings.push(ProceedingTerms {
+        id: 1,
+        debtor: PERSON,
+        authority: STATE_AGENT,
+        estate: 999,
+        denomination: TOKEN,
+        opening_month: 3,
+        earliest_close: 3,
+        assets: vec![],
+        discharge_deficiency: true,
+    });
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut a = Audit::with_opening(&w, &s, TOKEN, opening.clone()).unwrap();
+        while sim.state.month <= 5 {
+            a.step(&mut sim).unwrap();
+        }
+        let loan = &sim.state.credit.loans[&1];
+        assert_eq!(
+            (loan.principal, loan.interest, loan.last_accrued),
+            (1, 0, 5)
+        );
+        assert_eq!(loan.status, Status::Stayed);
+        let case = &sim.state.credit.recovery.proceedings[&1];
+        assert_eq!((case.stage, case.cash), (Stage::Active, 0));
+        assert_eq!(sim.state.balance(PERSON, TOKEN), 10);
+        assert_eq!(a.book().balances()[&(PERSON, Account::LoanPayable(1))], -3);
+        assert_eq!(
+            a.book().balances()[&(STATE_AGENT, Account::LoanReceivable(1))],
+            3
+        );
+        assert_eq!(a.book().balances()[&(PERSON, Account::InterestExpense)], 3);
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::CubeCpu), run(Backend::Reference));
+}
