@@ -419,3 +419,11 @@ liquidation and household forwards passed; strict all-target Clippy passed.
    installment calls, separate statements and CPU/checkpoint replay. Unconsented
    transfers and guarantor self-purchases are rejected. The seven-target affected
    gate passed 103 tests; strict all-target Clippy passed.
+
+8. **Assigned household loans retain guarantee and collateral consequences.**
+   Two estates now compose claim sale, a third-party guarantee, inherited liens,
+   custody distributions and household dissolution. Before/after-sale timing,
+   funded/unfunded investors and retained/discharged deficiencies preserve
+   actual proceeds, original debtors and private member funds. CPU and checkpoint
+   replay agree with separate statements throughout.
+   The four-target gate passed 84 tests; strict all-target Clippy passed.

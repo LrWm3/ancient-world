@@ -114,3 +114,12 @@ settlement observers identify the current creditor. Actual payment reaches that
 holder and creates recourse against the original debtor, never the seller.
 Person and household seller controls exercise installments, private guarantor
 funding, estate distributions, separate statements and CPU/checkpoint parity.
+
+The secured household variant now combines assignment with lien subrogation.
+A six-coin guarantee of a ten-coin loan and four actual property-sale coins
+follow the existing timing and stable lien priority: a previously reserved lien
+can transfer to recourse; a later sale allocates against the surviving claims.
+Neither route duplicates the four coins. Funded/unfunded assignment and retained/
+discharged deficiency controls preserve separate investor, guarantor, household,
+member and custodian books. Household dissolution depends on its own remaining
+exposure, not whether the unrelated guarantor has recovered in full.

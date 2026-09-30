@@ -628,6 +628,15 @@ fn receivable_and_inventory_lots_compete_for_one_opening_cash_budget() {
 
 #[test]
 fn assigned_secured_claim_keeps_reserved_proceeds_across_two_household_and_person_estates() {
+    secured_assignment(false);
+}
+
+#[test]
+fn household_claim_assignment_and_guarantee_subrogation_share_one_collateral_recovery() {
+    secured_assignment(true);
+}
+
+fn secured_assignment(guaranteed: bool) {
     use economics_compute_smoke::{
         financial_reporting::Opening,
         household_governance::Governance,
@@ -638,6 +647,7 @@ fn assigned_secured_claim_keeps_reserved_proceeds_across_two_household_and_perso
     const INVESTOR: AgentId = 98;
     const PROPERTY_BUYER: AgentId = 100;
     const BORROWER_ESTATE: AgentId = 101;
+    const GUARANTOR: AgentId = 102;
     for funded in [false, true] {
         for discharge in [false, true] {
             for sale_month in [3, 4] {
@@ -702,6 +712,25 @@ fn assigned_secured_claim_keeps_reserved_proceeds_across_two_household_and_perso
                     priority: 5,
                     settlement: credit::CollateralSettlement::AuthorizedLiquidation,
                 });
+                if guaranteed {
+                    w.agents.push(Agent {
+                        id: GUARANTOR,
+                        name: "collateral guarantor".into(),
+                    });
+                    w.recovery.guarantees.push(recovery::Guarantee {
+                        id: 1,
+                        follows_assignment: true,
+                        security: recovery::RecourseSecurity::InheritLiquidationLien,
+                        claim: recovery::GuaranteedClaim::Loan(ASSET),
+                        guarantor: GUARANTOR,
+                        cap: 6,
+                        from: 4,
+                        through: 4,
+                        delay_months: 0,
+                        recourse: 200,
+                        priority: 0,
+                    });
+                }
                 for (id, debtor, estate) in [(1, HOME, ESTATE), (2, BORROWER, BORROWER_ESTATE)] {
                     w.recovery.proceedings.push(ProceedingTerms {
                         id,
@@ -750,6 +779,9 @@ fn assigned_secured_claim_keeps_reserved_proceeds_across_two_household_and_perso
                     ((PROPERTY_BUYER, TOKEN), 4),
                 ]
                 .into();
+                if guaranteed {
+                    s.balances.insert((GUARANTOR, TOKEN), 6);
+                }
                 let run = |backend| {
                     let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
                     sim.run_months(1).unwrap();
@@ -800,20 +832,38 @@ fn assigned_secured_claim_keeps_reserved_proceeds_across_two_household_and_perso
                         (&sim.state, &sim.ledger, &audit),
                         (&resumed.state, &resumed.ledger, &rb)
                     );
+                    let recovered = if guaranteed {
+                        if sale_month == 3 { 6 } else { 10 }
+                    } else {
+                        4
+                    };
                     assert_eq!(
                         sim.state.balance(INVESTOR, TOKEN),
-                        if funded { 4 } else { 9 }
+                        if funded { recovered } else { 9 }
                     );
                     assert_eq!(
                         sim.state.balance(STATE_AGENT, TOKEN),
-                        if funded { 10 } else { 4 }
+                        if funded { 10 } else { recovered }
                     );
                     assert_eq!(sim.state.balance(PERSON, TOKEN), 5);
                     assert_eq!(
                         sim.state.credit.loans[&ASSET].principal,
-                        if discharge { 0 } else { 6 }
+                        if discharge { 0 } else { 10 - recovered }
                     );
-                    let cleared = funded || discharge;
+                    if guaranteed {
+                        let recourse = &sim.state.credit.loans[&200];
+                        assert_eq!(recourse.creditor, GUARANTOR);
+                        assert_eq!(recourse.debtor, BORROWER);
+                        assert_eq!(recourse.collateral.as_ref().unwrap().asset, PLOT);
+                        assert_eq!(recourse.collateral.as_ref().unwrap().priority, 5);
+                        let recovered_recourse = if sale_month == 3 { 4 } else { 0 };
+                        assert_eq!(sim.state.balance(GUARANTOR, TOKEN), recovered_recourse);
+                        assert_eq!(
+                            recourse.principal,
+                            if discharge { 0 } else { 6 - recovered_recourse }
+                        );
+                    }
+                    let cleared = funded || discharge || recovered == 10;
                     assert_eq!(
                         dissolution::finish(&mut sim.world, &sim.state, HOME, PERSON).is_ok(),
                         cleared
