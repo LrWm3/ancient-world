@@ -529,3 +529,144 @@ fn posted_stock_buyer_under_recovery_cannot_trade_with_an_unstayed_seller() {
     };
     assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
 }
+
+#[test]
+fn joint_sale_work_plans_continue_the_crop_while_ordinary_exchange_is_stayed() {
+    use economics_compute_smoke::{currency, joint_plan, recovery, settlement, stock_sale};
+    for funded in [false, true] {
+        let (mut w, mut s) = fixture(4, funded, false);
+        // The crop completes before the funded property sale. Its original
+        // operator remains the sole participant throughout the production plan.
+        w.participants.retain(|p| p.agent == PERSON);
+        w.recovery.bids[0].month = 7;
+        w.recovery.proceedings[0].earliest_close = 8;
+        let (catalog, _) = baseline();
+        w.resources
+            .extend(catalog.resources.into_iter().filter(|r| r.id == NUTRITION));
+        w.definitions
+            .extend(catalog.definitions.into_iter().filter(|d| d.id == CONSUME));
+        w.participants[0].needs = vec![Requirement {
+            resource: NUTRITION,
+            quantity: 1,
+            priority: 0,
+        }];
+        s.balances.insert((PERSON, GRAIN), 20);
+        w.bids.push(currency::Bid {
+            id: 1,
+            buyer: STATE_AGENT,
+            goods: Amount::new(GRAIN, 1),
+            payment: Amount::new(TOKEN, 1),
+        });
+        w.credit.as_mut().unwrap().stock_sales = Some(stock_sale::Policy {
+            joint: None,
+            forecast: None,
+            bid: 1,
+            seller: PERSON,
+            reserve_months: 0,
+            max_lots_per_month: 1,
+            purchase_budget: 20,
+        });
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut audit = Audit::with_opening(
+                &w,
+                &s,
+                TOKEN,
+                Opening {
+                    assets: [(PLOT, 8)].into(),
+                    inventory: [
+                        ((PERSON, SEED), i128::from(s.balance(PERSON, SEED))),
+                        ((PERSON, GRAIN), 20),
+                    ]
+                    .into(),
+                    exchange_values: [(SEED, 1), (GRAIN, 1)].into(),
+                    processes: Some(Costs {
+                        output_weights: [(
+                            GROW,
+                            [(Output::Stock(GRAIN), 1), (Output::Stock(SEED), 1)].into(),
+                        )]
+                        .into(),
+                        ..Costs::default()
+                    }),
+                    ..Opening::default()
+                },
+            )
+            .unwrap();
+            while (sim.state.month, sim.state.phase) != (3, Phase::Acquire) {
+                audit.step(&mut sim).unwrap();
+            }
+            sim.world
+                .credit
+                .as_mut()
+                .unwrap()
+                .stock_sales
+                .as_mut()
+                .unwrap()
+                .joint = Some(joint_plan::Policy {
+                horizon_months: 12,
+                need_limits: [(NUTRITION, 0)].into(),
+                future_reserves: vec![6],
+            });
+            let mut probe = sim.clone();
+            probe.step().unwrap();
+            let batch = probe.ledger.last().unwrap();
+            let sale = batch.credit.as_ref().unwrap().stock_sale.as_ref().unwrap();
+            let decision = sale.joint.as_ref().unwrap();
+            assert_eq!(sale.stayed, Some(PERSON));
+            assert!(decision.alternatives.iter().all(|a| a.lots == 0));
+            assert_eq!(batch.production_plan.as_ref().unwrap().month, 3);
+            assert_eq!(
+                batch.production_plan.as_ref().unwrap().phase,
+                Phase::Productive
+            );
+            let original = sim.state.clone();
+            let mut forged = batch.clone();
+            forged.production_plan.as_mut().unwrap().month += 1;
+            assert!(
+                settlement::commit(
+                    &sim.world,
+                    &mut sim.state,
+                    &forged,
+                    backend,
+                    sim.effect_limit
+                )
+                .is_err()
+            );
+            assert_eq!(sim.state, original);
+            let mut resumed =
+                Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+            let mut ra = audit.clone();
+            let start = sim.ledger.len();
+            while sim.state.month < 9 {
+                audit.step(&mut sim).unwrap();
+                ra.step(&mut resumed).unwrap();
+            }
+            assert_eq!(sim.state, resumed.state);
+            assert_eq!(&sim.ledger[start..], resumed.ledger.as_slice());
+            assert_eq!(audit, ra);
+            assert!(
+                sim.state
+                    .processes
+                    .values()
+                    .any(|p| p.definition == GROW && p.status == Status::Completed)
+            );
+            assert!(sim.reports.iter().all(|r| r.deficit(NUTRITION) == 0));
+            assert_eq!(
+                recovery::active(&sim.world, &sim.state.credit, PERSON).is_none(),
+                funded
+            );
+            assert_eq!(
+                sim.state.credit.loans[&1].principal,
+                if funded { 0 } else { 4 }
+            );
+            for b in sim.ledger.iter().filter(|b| (3..8).contains(&b.month)) {
+                if let Some(sale) = b.credit.as_ref().and_then(|c| c.stock_sale.as_ref()) {
+                    assert_eq!(sale.sold_lots, 0);
+                    assert_eq!(sale.stayed, Some(PERSON));
+                }
+            }
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

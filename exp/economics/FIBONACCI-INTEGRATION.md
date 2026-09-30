@@ -558,3 +558,11 @@ their separately recorded affected gates; this full result does not cover them.
     assumed private financing. Separate statements and CPU/reconstructed
     continuation agree. The four-target gate passed 24 tests; strict all-target
     Clippy passed. Joint household work/sale reservations remain guarded.
+
+24. **Joint work/sale plans retain recovery timing.** The single-participant
+    planner now projects authorized recovery, continues an existing crop during
+    the ordinary-trade stay, and commits a dated Productive plan. Funded sale
+    after harvest closes the estate; an unfunded bid leaves the deficiency.
+    Altered plan dates fail atomically. Food, custody, separate books and
+    CPU/reconstructed continuation agree. The four-target gate passed 22 tests;
+    strict all-target Clippy passed. Household joint work allocation stays guarded.

@@ -187,9 +187,9 @@ can establish that all these arrangements compose.
    remain unsold; appraisals do not create coins. Retain surplus, deficiencies,
    explicit discharge/write-offs and final receipts. Mortgages can now explicitly select the authorized-liquidation lifecycle,
    including crop-control transfer, custody and actual proceeds. Legacy fixed-value
-   and creditor-resale choices remain distinct. Fixed-reserve and bounded-forecast mortgage stock sales
-   now pause for either counterparty under recovery; joint sale/work planning
-   still needs integration.
+   and creditor-resale choices remain distinct. Fixed-reserve, bounded-forecast and single-participant joint mortgage stock
+   sales now respect counterparty recovery stays. Joint household labor and
+   broader market composition still need integration.
 
 Every step above extends the same book, claim executor and committed ledger.
 There should not be separate guarantees/insolvency/liquidation scenario engines.

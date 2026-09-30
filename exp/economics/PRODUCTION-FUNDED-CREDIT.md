@@ -126,8 +126,7 @@ property sale later clears the balance and releases the stay; an unfunded bid
 leaves four due and ordinary sales paused. Crop control follows the property sale.
 Separate books, CPU/reference execution, reconstructed checkpoints and tampered
 receipts are checked, along with a separate insolvent-buyer control. Custodians
-remain ineligible traders. The joint work/sale policy retains its recovery guard pending its own
-integration checks.
+remain ineligible traders. Joint work/sale planning is now checked separately below.
 
 Fixed-reserve member sales also compose with household pooling. Two one-coin sales
 pool one actual coin and leave one private coin for the member's mortgage. The
@@ -153,3 +152,11 @@ estate. The same nutrition-constrained test projects both an actually funded
 property sale and a continuing stay; it does not assume that collective balances
 can pay a private debt. Forecasts remain read-only, and reconstructed CPU and
 reference continuations agree with the double-entry statements.
+
+The single-participant joint work/sale planner now composes with recovery too.
+Its stay-constrained alternatives continue already committed cultivation and
+produce the usual dated Productive batch. A funded sale after harvest releases
+property and later closes the estate; an unfunded bid preserves the original
+claim. Forged plan dates fail atomically. Both executions retain food constraints,
+separate books and CPU/checkpoint equality. Household joint labor allocation,
+multiple producers and negotiated joint plans keep their existing scope limits.
