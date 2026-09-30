@@ -33,6 +33,7 @@ pub enum Rejection {
 pub struct Applied {
     pub terms: Terms,
     pub delivered: i32,
+    pub substituted: i32,
 }
 
 pub fn validate_terms(world: &World) -> Result<(), String> {
@@ -66,12 +67,13 @@ pub fn validate_terms(world: &World) -> Result<(), String> {
 }
 
 pub fn validate_history(world: &World, state: &State, c: &forward::Contract) -> Result<(), String> {
-    if c.delivered < 0 {
+    if c.delivered < 0 || c.substituted < 0 {
         return Err("negative actual delivery".into());
     }
     let mut due = c.due;
     let mut waived = 0_i32;
     let mut delivered = 0;
+    let mut substituted = 0;
     let mut previous_month = c.issued;
     for r in &c.relief {
         let t = &r.terms;
@@ -93,8 +95,13 @@ pub fn validate_history(world: &World, state: &State, c: &forward::Contract) -> 
             || due >= t.month
             || r.delivered < delivered
             || r.delivered > c.delivered
+            || r.substituted < substituted
+            || r.substituted > c.substituted
             || i64::from(t.expected_remaining)
-                != i64::from(c.goods.quantity) - i64::from(r.delivered) - i64::from(waived)
+                != i64::from(c.goods.quantity)
+                    - i64::from(r.delivered)
+                    - i64::from(r.substituted)
+                    - i64::from(waived)
         {
             return Err("invalid applied delivery relief history".into());
         }
@@ -107,9 +114,12 @@ pub fn validate_history(world: &World, state: &State, c: &forward::Contract) -> 
             }
         }
         delivered = r.delivered;
+        substituted = r.substituted;
         previous_month = t.month;
     }
-    if i64::from(c.delivered) + i64::from(waived) > i64::from(c.goods.quantity) {
+    if i64::from(c.delivered) + i64::from(c.substituted) + i64::from(waived)
+        > i64::from(c.goods.quantity)
+    {
         return Err("delivery plus write-off exceeds original obligation".into());
     }
     Ok(())
@@ -126,7 +136,13 @@ pub(crate) fn apply(world: &World, state: &State, out: &mut credit::Boundary) {
         .collect();
     terms.sort_by_key(|t| t.id);
     for t in terms {
-        let mut c = state.exchange.forwards.get(&t.contract).cloned();
+        // Guarantees have already performed at this Due boundary. Negotiate
+        // against that current claim, without overwriting accepted performance.
+        let mut c = out
+            .forward_changes
+            .get(&t.contract)
+            .or_else(|| state.exchange.forwards.get(&t.contract))
+            .cloned();
         let active = out
             .after
             .recovery
@@ -156,6 +172,7 @@ pub(crate) fn apply(world: &World, state: &State, out: &mut credit::Boundary) {
             c.relief.push(Applied {
                 terms: t.clone(),
                 delivered: c.delivered,
+                substituted: c.substituted,
             });
             out.forward_changes.insert(c.id, c.clone());
         }

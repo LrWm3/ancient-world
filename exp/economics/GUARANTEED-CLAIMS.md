@@ -140,8 +140,7 @@ agree.
 ## Agreed alternative payment for loan and wage guarantees
 
 `GuaranteeTender::AgreedCoins` records the explicitly consented payment
-resource and whole payment units per native claim unit. It applies to loan and
-earned wage claims with unsecured recourse. The payment resource must be distinct, a stock
+resource and whole payment units per native claim unit. It applies to loan, earned wage and prepaid-delivery claims with unsecured recourse. The payment resource must be distinct, a stock
 resource and storage-free; the rate must be positive. This does not change the
 underlying contract's ordinary performance terms or infer creditor consent from a market quote.
 
@@ -180,8 +179,7 @@ classification uses actual tender, rather than the nominal wage commodity.
 The wage control compares underfunded lots and rates below/above claim reporting
 value, including a payment currency distinct from the reporting currency with
 historical inventory cost. CPU/reference, reconstructed statements and forged
-payment receipts agree. Unpaid wage units remain owed. This does not add an
-alternative tender for prepaid deliveries or a secured wage-recourse route;
+payment receipts agree. Unpaid wage units remain owed. This does not add a secured wage-recourse route;
 accepted land conversion retains its separate existing terms.
 
 A household may also guarantee a member's native wage using agreed coins. Actual
@@ -191,3 +189,27 @@ guarantee. Native recourse remains a separate household asset that blocks solven
 closure until recovered or disposed of. With an unfunded expired guarantee,
 residual household cash can be distributed without deleting the member's unpaid
 wage claim. CPU/reference and checkpoint statements agree.
+
+## Substitute tender for prepaid deliveries
+
+A prepaid-delivery guarantee can now use the same explicitly agreed coin route.
+`Contract.delivered` counts only actual goods; `substituted` counts native units
+discharged by substitute tender. Outstanding claims and historical prepayment
+release include both, while physical stock, storage and delivered goods include
+only actual transfer. Dated guarantee advances reconcile substitute performance
+at checkpoints. This is accepted guarantee performance, not unilateral conversion
+of the original forward or a new spot sale.
+
+The buyer recognizes actual payment against released historical prepaid cost.
+The guarantor compares payment value with native recourse value; the seller
+recognizes the released prepayment and native recourse cost. A second payment
+currency retains its inventory cost and is not reporting cash. Mixed coin/native
+guarantees consume prepayment basis in receipt order, preserving integer rounding
+even when a small partial performance releases zero cost.
+
+Relief at the same Due boundary now reads already accepted guarantee performance.
+Consent based on the old outstanding quantity is rejected; valid residual relief
+records both physical and substitute performance and never overwrites a payment.
+Unrecovered native recourse continues to block estate closure. The six-target
+regression gate passed 102 tests; strict all-target Clippy passed. CPU/reference,
+checkpoint accounting and forged delivery/tender controls are included.

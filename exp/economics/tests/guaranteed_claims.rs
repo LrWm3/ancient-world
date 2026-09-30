@@ -2141,3 +2141,261 @@ fn household_wage_guarantor_pools_actual_coins_once_and_retains_native_recourse_
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn forward_coin_guarantees_discharge_native_units_without_inventing_delivery() {
+    use economics_compute_smoke::{
+        forward::direct::Terms as Forward, minting::WHEAT, recovery::GuaranteeTender, settlement,
+    };
+    const PAYMENT: ResourceId = 901;
+    const SECOND: AgentId = 99;
+    for other_currency in [false, true] {
+        for advance in [1, 5] {
+            for rate in [1, 4] {
+                for funds in [0, 9] {
+                    let (mut w, mut s) = fixture();
+                    w.employment.clear();
+                    w.prepaid_deliveries.push(Forward {
+                        id: 50,
+                        seller: ISSUER,
+                        buyer: WORKER,
+                        month: 1,
+                        due: 2,
+                        goods: Amount::new(WHEAT, 4),
+                        prepayment: Amount::new(COIN, advance),
+                    });
+                    let payment = if other_currency { PAYMENT } else { COIN };
+                    let g = &mut w.recovery.guarantees[0];
+                    g.claim = GuaranteedClaim::Forward(50);
+                    g.tender = GuaranteeTender::AgreedCoins {
+                        resource: payment,
+                        coins_per_unit: rate,
+                    };
+                    g.priority = 0;
+                    // The second native guarantee follows substitute tender in the
+                    // same boundary: inventory receives its exact remaining basis.
+                    let mut native = g.clone();
+                    native.id = 2;
+                    native.guarantor = SECOND;
+                    native.recourse = 102;
+                    native.priority = 1;
+                    native.tender = GuaranteeTender::Native;
+                    w.recovery.guarantees.push(native);
+                    w.agents.push(Agent {
+                        id: SECOND,
+                        name: "native guarantor".into(),
+                    });
+                    s.balances.clear();
+                    s.balances.insert((WORKER, COIN), advance);
+                    s.balances.insert((ISSUER, WHEAT), 1);
+                    s.balances.insert((SECOND, WHEAT), 1);
+                    s.balances.insert((SUPPLIER, payment), funds);
+                    let mut opening = Opening {
+                        inventory: [((ISSUER, WHEAT), 1), ((SECOND, WHEAT), 1)].into(),
+                        exchange_values: [(WHEAT, 3)].into(),
+                        ..Opening::default()
+                    };
+                    if other_currency {
+                        w.resources.push(Resource {
+                            id: PAYMENT,
+                            name: "payment coin".into(),
+                            kind: ResourceKind::Stock,
+                        });
+                        opening.exchange_values.insert(PAYMENT, 2);
+                        if funds > 0 {
+                            opening
+                                .inventory
+                                .insert((SUPPLIER, PAYMENT), i128::from(funds));
+                        }
+                    }
+                    let run = |backend| {
+                        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+                        let mut audit = Audit::with_opening(&w, &s, COIN, opening.clone()).unwrap();
+                        through(&mut audit, &mut sim, 2);
+                        let saved = (sim.clone(), audit.clone());
+                        let mut before_due = None;
+                        while sim.state.month <= 3 {
+                            if sim.state.phase == Phase::Due {
+                                before_due = Some(sim.state.clone());
+                            }
+                            audit.step(&mut sim).unwrap();
+                        }
+                        let substituted = (funds / rate).min(3);
+                        let native = (3 - substituted).min(1);
+                        let c = &sim.state.exchange.forwards[&50];
+                        assert_eq!(
+                            (c.delivered, c.substituted, c.claim().outstanding()),
+                            (1 + native, substituted, 3 - substituted - native)
+                        );
+                        assert_eq!(sim.state.balance(WORKER, WHEAT), 1 + native);
+                        assert_eq!(sim.state.balance(WORKER, payment), substituted * rate);
+                        assert_eq!(
+                            sim.state.credit.loans.get(&101).map_or(0, |l| l.principal),
+                            substituted
+                        );
+                        let book = audit.book().balances();
+                        let basis_before = advance / 4;
+                        let basis_after_coins = advance * (1 + substituted) / 4;
+                        let basis_after_native = advance * (1 + substituted + native) / 4;
+                        assert_eq!(
+                            book.get(&(WORKER, Account::Inventory(WHEAT)))
+                                .copied()
+                                .unwrap_or(0),
+                            i128::from(basis_before + basis_after_native - basis_after_coins)
+                        );
+                        let difference = basis_after_coins
+                            - basis_before
+                            - substituted * rate * if other_currency { 2 } else { 1 };
+                        let account = if difference > 0 {
+                            Account::SettlementLoss
+                        } else {
+                            Account::SettlementGain
+                        };
+                        assert_eq!(
+                            book.get(&(WORKER, account)).copied().unwrap_or(0),
+                            i128::from(difference)
+                        );
+                        assert_eq!(
+                            book.get(&(WORKER, Account::ForwardPrepayment(50)))
+                                .copied()
+                                .unwrap_or(0),
+                            i128::from(advance - basis_after_native)
+                        );
+                        assert_eq!(
+                            book.get(&(SUPPLIER, Account::LoanReceivable(101)))
+                                .copied()
+                                .unwrap_or(0),
+                            i128::from(substituted * 3)
+                        );
+                        let due = sim
+                            .ledger
+                            .iter()
+                            .find(|b| b.month == 3 && b.phase == Phase::Due)
+                            .unwrap();
+                        let mut forged = due.clone();
+                        let change = forged
+                            .credit
+                            .as_mut()
+                            .unwrap()
+                            .forward_changes
+                            .get_mut(&50)
+                            .unwrap();
+                        change.delivered += change.substituted;
+                        change.substituted = 0;
+                        if substituted > 0 {
+                            let before = before_due.unwrap();
+                            let mut unchanged = before.clone();
+                            assert!(
+                                settlement::commit(
+                                    &w,
+                                    &mut unchanged,
+                                    &forged,
+                                    backend,
+                                    sim.effect_limit
+                                )
+                                .is_err()
+                            );
+                            assert_eq!(before, unchanged);
+                            let mut bad = sim.state.clone();
+                            let c = bad.exchange.forwards.get_mut(&50).unwrap();
+                            c.delivered += c.substituted;
+                            c.substituted = 0;
+                            assert!(Simulation::new(w.clone(), bad, backend).is_err());
+                        }
+                        let (saved, mut ra) = saved;
+                        let mut resumed =
+                            Simulation::new(saved.world, saved.state, backend).unwrap();
+                        through(&mut ra, &mut resumed, 3);
+                        assert_eq!((&sim.state, &audit), (&resumed.state, &ra));
+                        (sim.state, sim.ledger, audit)
+                    };
+                    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn forward_relief_uses_same_boundary_substitute_performance_and_rejects_stale_consent() {
+    use economics_compute_smoke::{
+        delivery_relief, forward::direct::Terms as Forward, minting::WHEAT,
+        recovery::GuaranteeTender,
+    };
+    for stale in [false, true] {
+        let (mut w, mut s) = fixture();
+        w.employment.clear();
+        w.prepaid_deliveries.push(Forward {
+            id: 50,
+            seller: ISSUER,
+            buyer: WORKER,
+            month: 1,
+            due: 2,
+            goods: Amount::new(WHEAT, 4),
+            prepayment: Amount::new(COIN, 5),
+        });
+        let g = &mut w.recovery.guarantees[0];
+        g.claim = GuaranteedClaim::Forward(50);
+        g.cap = 2;
+        g.tender = GuaranteeTender::AgreedCoins {
+            resource: COIN,
+            coins_per_unit: 2,
+        };
+        s.balances.clear();
+        s.balances.insert((WORKER, COIN), 5);
+        s.balances.insert((SUPPLIER, COIN), 4);
+        authorize(&mut w, 3);
+        w.recovery.delivery_relief.push(delivery_relief::Terms {
+            id: 90,
+            proceeding: 1,
+            contract: 50,
+            debtor: ISSUER,
+            creditor: WORKER,
+            month: 3,
+            expected_due: 2,
+            expected_remaining: if stale { 4 } else { 2 },
+            action: delivery_relief::Action::WriteOff { quantity: 2 },
+        });
+        let opening = Opening {
+            exchange_values: [(WHEAT, 3)].into(),
+            ..Opening::default()
+        };
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = Audit::with_opening(&w, &s, COIN, opening.clone()).unwrap();
+            through(&mut a, &mut sim, 2);
+            let (saved, mut ra) = (sim.clone(), a.clone());
+            through(&mut a, &mut sim, 4);
+            let c = &sim.state.exchange.forwards[&50];
+            assert_eq!(
+                (
+                    c.delivered,
+                    c.substituted,
+                    c.written_off(),
+                    c.claim().outstanding()
+                ),
+                (0, 2, if stale { 0 } else { 2 }, if stale { 2 } else { 0 })
+            );
+            assert_eq!(sim.state.balance(WORKER, WHEAT), 0);
+            assert_eq!(sim.state.balance(WORKER, COIN), 4);
+            assert_eq!(sim.state.credit.loans[&101].principal, 2);
+            assert_eq!(sim.state.balance(ESTATE, COIN), 0);
+            assert_eq!(sim.state.balance(ISSUER, COIN), 5);
+            assert_eq!(
+                sim.state.credit.recovery.proceedings[&1].stage,
+                economics_compute_smoke::recovery::Stage::Active
+            );
+            if !stale {
+                assert_eq!(c.relief[0].substituted, 2);
+                assert_eq!(a.book().balances()[&(WORKER, Account::CreditLoss)], 3);
+            }
+            assert!(sim.ledger.iter().flat_map(|b| b.credit.iter()).flat_map(|c| &c.recovery).any(|r|
+                matches!(r, Receipt::DeliveryRelief { applied, .. } if *applied != stale)));
+            let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
+            through(&mut ra, &mut resumed, 4);
+            assert_eq!((&sim.state, &a), (&resumed.state, &ra));
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

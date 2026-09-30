@@ -38,6 +38,7 @@ impl Terms {
             },
             advance: self.prepayment.clone(),
             delivered: 0,
+            substituted: 0,
             relief: vec![],
         }
     }
@@ -111,6 +112,7 @@ pub(crate) fn validate(w: &World, s: &State) -> Result<(), String> {
         };
         let mut expected = t.contract();
         expected.delivered = c.delivered;
+        expected.substituted = c.substituted;
         expected.relief = c.relief.clone();
         crate::delivery_relief::validate_history(w, s, c)?;
         if *c != expected || c.issued > s.month || c.delivered < 0 || c.delivered > c.goods.quantity

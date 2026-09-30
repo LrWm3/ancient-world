@@ -26,7 +26,7 @@ pub(crate) fn positions(
             return Err("forward requires reporting-coin advance and noncoin delivery".into());
         }
         let settled = c
-            .delivered
+            .performed()
             .checked_add(c.written_off())
             .ok_or("forward quantity overflow")?;
         let value = i128::from(c.advance.quantity) - released(c, settled)?;
@@ -80,15 +80,20 @@ pub(crate) fn settle(
             .written_off()
             .checked_sub(old.written_off())
             .ok_or("forward relief overflow")?;
-        if delivered < 0 || waived < 0 {
+        let substituted = new
+            .substituted
+            .checked_sub(old.substituted)
+            .ok_or("forward substitute performance overflow")?;
+        if delivered < 0 || waived < 0 || substituted < 0 {
             return Err("forward performance cannot be reversed".into());
         }
         let settled = old
-            .delivered
+            .performed()
             .checked_add(old.written_off())
             .ok_or("forward quantity overflow")?;
         let after_delivery = settled
             .checked_add(delivered)
+            .and_then(|q| q.checked_add(substituted))
             .ok_or("forward quantity overflow")?;
         let guaranteed =
             batch
@@ -110,7 +115,10 @@ pub(crate) fn settle(
                         Ok(total)
                     }
                 })?;
-        if guaranteed > delivered || (guaranteed > 0 && guaranteed != delivered) {
+        let performed = delivered
+            .checked_add(substituted)
+            .ok_or("forward performance overflow")?;
+        if guaranteed > performed || (guaranteed > 0 && guaranteed != performed) {
             return Err(
                 "guaranteed and ordinary delivery require distinct dated boundaries".into(),
             );
@@ -118,6 +126,50 @@ pub(crate) fn settle(
         if guaranteed > 0 {
             let value = released(old, after_delivery)? - released(old, settled)?;
             let cost = crate::reporting_value::value(coin, values, old.goods.resource, guaranteed)?;
+            if substituted > 0 {
+                // Native delivery retains historical inventory basis. Substitute
+                // tender releases that same prepayment into actual payment value.
+                // Walk receipts in allocation order so partial rounding is exact.
+                let mut progress = settled;
+                for receipt in batch.credit.iter().flat_map(|b| &b.recovery) {
+                    if let crate::recovery::Receipt::Guaranteed {
+                        claim: crate::recovery::GuaranteedClaim::Forward(claim),
+                        paid,
+                        tender,
+                        ..
+                    } = receipt
+                        && claim == id
+                    {
+                        let next = progress
+                            .checked_add(*paid)
+                            .ok_or("forward basis overflow")?;
+                        let basis = released(old, next)? - released(old, progress)?;
+                        if tender.resource != old.goods.resource {
+                            let actual = crate::reporting_value::value(
+                                coin,
+                                values,
+                                tender.resource,
+                                tender.quantity,
+                            )?;
+                            let difference = basis - actual;
+                            if difference != 0 {
+                                lines.push(Line {
+                                    agent: old.creditor,
+                                    account: if difference > 0 {
+                                        Account::SettlementLoss
+                                    } else {
+                                        Account::SettlementGain
+                                    },
+                                    debit: difference,
+                                    flow: None,
+                                });
+                            }
+                        }
+                        progress = next;
+                    }
+                }
+            }
+
             // Small partial deliveries can release zero historical prepayment
             // cost after integer rounding. Keep the quantity/claim movement, but
             // do not emit zero-valued journal lines.

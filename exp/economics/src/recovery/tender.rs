@@ -39,11 +39,13 @@ pub(super) fn terms(world: &World, g: &Guarantee) -> Result<Option<CoinPayment>,
         } => {
             if !matches!(
                 g.claim,
-                GuaranteedClaim::Loan(_) | GuaranteedClaim::Wages { .. }
+                GuaranteedClaim::Loan(_)
+                    | GuaranteedClaim::Wages { .. }
+                    | GuaranteedClaim::Forward(_)
             ) || g.security != super::RecourseSecurity::Unsecured
             {
                 return Err(
-                    "agreed coin tender requires a loan or wage claim and unsecured recourse"
+                    "agreed coin tender requires a loan, wage or forward claim and unsecured recourse"
                         .into(),
                 );
             }

@@ -76,6 +76,27 @@ pub(crate) fn settle(
             let (_, creditor, denomination) = claim
                 .current_parties(world, &b.after)
                 .ok_or("missing guaranteed terms")?;
+            if let crate::recovery::GuaranteedClaim::Forward(id) = claim
+                && *paid > 0
+            {
+                let c = before
+                    .exchange
+                    .forwards
+                    .get(id)
+                    .ok_or("missing guaranteed forward basis")?;
+                let settled = forward_progress
+                    .entry(*id)
+                    .or_insert(c.performed() + c.written_off());
+                let next = settled
+                    .checked_add(*paid)
+                    .ok_or("guaranteed basis overflow")?;
+                let value = crate::forward_accounting::released(c, next)?
+                    - crate::forward_accounting::released(c, *settled)?;
+                if tender.resource == denomination {
+                    delivery_values.insert(transfers.len(), value);
+                }
+                *settled = next;
+            }
             if *paid > 0
                 && tender.resource != coin
                 && (tender.resource == denomination
@@ -83,6 +104,7 @@ pub(crate) fn settle(
                         claim,
                         crate::recovery::GuaranteedClaim::Loan(_)
                             | crate::recovery::GuaranteedClaim::Wages { .. }
+                            | crate::recovery::GuaranteedClaim::Forward(_)
                     ))
             {
                 let g = world
@@ -91,23 +113,6 @@ pub(crate) fn settle(
                     .iter()
                     .find(|g| g.id == *guarantee)
                     .ok_or("missing physical guarantee")?;
-                if let crate::recovery::GuaranteedClaim::Forward(id) = claim {
-                    let c = before
-                        .exchange
-                        .forwards
-                        .get(id)
-                        .ok_or("missing guaranteed forward basis")?;
-                    let settled = forward_progress
-                        .entry(*id)
-                        .or_insert(c.delivered + c.written_off());
-                    let next = settled
-                        .checked_add(*paid)
-                        .ok_or("guaranteed basis overflow")?;
-                    let value = crate::forward_accounting::released(c, next)?
-                        - crate::forward_accounting::released(c, *settled)?;
-                    delivery_values.insert(transfers.len(), value);
-                    *settled = next;
-                }
                 transfers.push(Transfer {
                     from: g.guarantor,
                     to: creditor,

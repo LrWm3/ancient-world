@@ -842,3 +842,12 @@ separately recorded affected gates and are not covered by this snapshot.
     closure while the original unpaid wage survives an unfunded guarantee's expiry.
     CPU/reference and checkpoint statements agree. The four-target gate passed
     63 tests; strict all-target Clippy passed.
+
+50. **Prepaid guarantees can settle with agreed coins without phantom delivery.**
+    Separate physical and substitute counters feed one authoritative forward claim.
+    Historical prepaid cost, actual payment currency and native recourse reconcile
+    through mixed native/coin guarantees, including partial rounding and a second
+    payment currency. Same-boundary relief now uses the claim after guarantees,
+    rejects stale consent and preserves accepted payment. Native recourse still
+    prevents estate closure. CPU/reference, checkpoint and forgery controls pass.
+    The six-target gate passed 102 tests and strict all-target Clippy passed.

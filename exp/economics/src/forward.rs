@@ -52,6 +52,8 @@ pub struct Contract {
     pub price: Price,
     pub advance: Amount,
     pub delivered: i32,
+    /// Native units discharged by accepted substitute tender, never physical goods.
+    pub substituted: i32,
     /// Accepted relief applied at Due; never recorded as physical delivery.
     pub relief: Vec<crate::delivery_relief::Applied>,
 }
@@ -92,6 +94,9 @@ pub enum Event {
 }
 
 impl Contract {
+    pub fn performed(&self) -> i32 {
+        self.delivered + self.substituted
+    }
     pub fn effective_due(&self) -> u32 {
         self.relief
             .iter()
@@ -116,7 +121,7 @@ impl Contract {
                 to: self.creditor,
                 amount: self.goods.clone(),
             },
-            settled: self.delivered + self.written_off(),
+            settled: self.performed() + self.written_off(),
             condition: Condition::OnOrAfterMonth(self.effective_due()),
             failure: FailureRule::BlockNewAdvance,
         }
@@ -372,6 +377,7 @@ pub fn purchase(
                 price: rate.clone(),
                 advance: Amount::new(config.coin, gap),
                 delivered: 0,
+                substituted: 0,
                 relief: vec![],
             });
             break;
@@ -669,6 +675,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                     p.advance.as_ref().is_some_and(|a| {
                         let mut expected = a.clone();
                         expected.delivered = c.delivered;
+                        expected.substituted = c.substituted;
                         expected.relief = c.relief.clone();
                         expected == *c
                     })
@@ -688,6 +695,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                 || a.debtor != d.buyer
                 || a.issued != p.projection.from
                 || a.delivered != 0
+                || a.substituted != 0
                 || !a.relief.is_empty()
                 || a.advance.quantity > p.price.quantity
                 || p.projection

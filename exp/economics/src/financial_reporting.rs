@@ -1654,6 +1654,7 @@ impl Audit {
                         claim,
                         recovery::GuaranteedClaim::Loan(_)
                             | recovery::GuaranteedClaim::Wages { .. }
+                            | recovery::GuaranteedClaim::Forward(_)
                     )
                 {
                     let (_, creditor, denomination) = claim
@@ -1689,16 +1690,20 @@ impl Audit {
                             },
                             difference,
                         );
-                        result(
-                            &mut lines,
-                            creditor,
-                            if difference > 0 {
-                                Account::SettlementGain
-                            } else {
-                                Account::SettlementLoss
-                            },
-                            -difference,
-                        );
+                        // Forward creditors release historical prepayment, not
+                        // the native claim's reporting value (handled by its adapter).
+                        if !matches!(claim, recovery::GuaranteedClaim::Forward(_)) {
+                            result(
+                                &mut lines,
+                                creditor,
+                                if difference > 0 {
+                                    Account::SettlementGain
+                                } else {
+                                    Account::SettlementLoss
+                                },
+                                -difference,
+                            );
+                        }
                     }
                 }
                 match r {
@@ -1805,7 +1810,9 @@ impl Audit {
                     }
                     recovery::Receipt::Guaranteed {
                         guarantee,
-                        claim: recovery::GuaranteedClaim::Wages { .. },
+                        claim:
+                            recovery::GuaranteedClaim::Wages { .. }
+                            | recovery::GuaranteedClaim::Forward(_),
                         tender,
                         ..
                     } => {
@@ -1972,10 +1979,6 @@ impl Audit {
                     }
                     recovery::Receipt::Guaranteed {
                         claim: recovery::GuaranteedClaim::Land { .. },
-                        ..
-                    }
-                    | recovery::Receipt::Guaranteed {
-                        claim: recovery::GuaranteedClaim::Forward(_),
                         ..
                     }
                     | recovery::Receipt::LandDistributed { .. }

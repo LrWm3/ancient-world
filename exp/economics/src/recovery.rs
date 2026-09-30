@@ -699,10 +699,28 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                 state.obligations.get(&(agreement, due)).map(|o| o.paid)
             }
             GuaranteedClaim::Loan(id) => state.credit.loans.get(&id).map(|_| paid),
-            GuaranteedClaim::Forward(id) => state.exchange.forwards.get(&id).map(|c| c.delivered),
+            GuaranteedClaim::Forward(id) => state.exchange.forwards.get(&id).map(|c| c.performed()),
         };
         if actual.is_none_or(|actual| paid > actual) {
             return Err("guarantee advances exceed actual covered settlement".into());
+        }
+    }
+    // Substitute tender must remain distinguishable from actual goods delivery
+    // across checkpoints, including when no substitute guarantee was exercised.
+    let mut substituted = BTreeMap::<AssetId, i32>::new();
+    for g in &config.guarantees {
+        if let GuaranteedClaim::Forward(id) = g.claim
+            && tender::terms(world, g)?.is_some()
+        {
+            let q = substituted.entry(id).or_default();
+            *q = q
+                .checked_add(advanced.get(&g.id).copied().unwrap_or(0))
+                .ok_or("substitute performance overflow")?;
+        }
+    }
+    for (&id, c) in &state.exchange.forwards {
+        if c.substituted != substituted.get(&id).copied().unwrap_or(0) {
+            return Err("forward substitute performance does not reconcile to guarantees".into());
         }
     }
     for (&id, &paid) in &state.credit.recovery.paid_guarantees {
@@ -1146,8 +1164,12 @@ pub(crate) fn guarantees(
                             .forward_changes
                             .entry(id)
                             .or_insert_with(|| state.exchange.forwards[&id].clone());
-                        c.delivered = c
-                            .delivered
+                        let counter = if payment_resource == c.goods.resource {
+                            &mut c.delivered
+                        } else {
+                            &mut c.substituted
+                        };
+                        *counter = counter
                             .checked_add(paid)
                             .ok_or("guaranteed delivery overflow")?;
                         out.transactions.push(transaction);

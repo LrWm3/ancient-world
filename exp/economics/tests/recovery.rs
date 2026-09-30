@@ -936,6 +936,7 @@ fn with_accepted_forward(mut sim: Simulation, due: u32) -> Simulation {
         advance: Amount::new(TOKEN, 2),
         price: Price { goods: 2, coins: 1 },
         delivered: 0,
+        substituted: 0,
         relief: vec![],
     };
     sim.world.bids.push(Bid {
