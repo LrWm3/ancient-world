@@ -148,3 +148,11 @@ principal. Physical delivery, earlier repayments, earned interest and historical
 losses remain distinct; closure waits for the final resolution. CPU/reference,
 checkpoint and tampered history/batch controls pass. The five-target gate passed
 90 tests, followed by the interest/delivery control and strict all-target Clippy.
+
+Household recovery uses the same partial adapter. Forgiving one of two native
+units owed to a member leaves that member's remaining receivable material and
+keeps dissolution blocked. Fresh consent for the final unit permits closure;
+residual household cash is distributed at the later lifecycle boundary. The
+composed prepaid delivery, substitute guarantee, partial relief and wind-down
+control agrees across CPU/reference and checkpoints on either side of relief.
+The four-target gate passed 77 tests and strict all-target Clippy passed.

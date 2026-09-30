@@ -394,7 +394,7 @@ impl<'a> LoanView<'a> {
         self.record
     }
 
-    /// Explicit full dispositions, including earlier losses when later guarantee
+    /// Explicit partial/full dispositions, including earlier losses when later guarantee
     /// advances reopened this loan. Estate-wide deficiency closure is a separate
     /// route; an empty slice does not imply that all reductions were repayments.
     pub fn writeoffs(&self) -> &'a [crate::claim_relief::LoanWriteOff] {

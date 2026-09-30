@@ -948,3 +948,12 @@ their separately recorded gates and are not covered by this snapshot.
     reject invented interest or unsupported principal. CPU/reference, checkpoint
     and atomic tamper controls pass. The five-target gate passed 90 tests, followed
     by the added interest/delivery test and strict all-target Clippy.
+
+61. **Partial member recourse relief cannot close a household estate early.**
+    The prepaid-delivery/member-guarantee scenario now also forgives its internal
+    native loan in two steps. The first loss leaves one unit owed, five household
+    coins retained and dissolution blocked. Separate final consent clears the
+    debt; residual cash moves at the following lifecycle boundary. No native
+    goods or repayment are invented. CPU/reference and continuations before and
+    after partial relief agree. The four-target gate passed 77 tests and strict
+    all-target Clippy passed.

@@ -2402,6 +2402,15 @@ fn forward_relief_uses_same_boundary_substitute_performance_and_rejects_stale_co
 
 #[test]
 fn member_guarantee_of_household_forward_preserves_native_debt_after_delivery_relief() {
+    household_delivery_relief(false);
+}
+
+#[test]
+fn partially_forgiven_member_recourse_keeps_household_estate_and_exit_open() {
+    household_delivery_relief(true);
+}
+
+fn household_delivery_relief(partial: bool) {
     use economics_compute_smoke::{
         delivery_relief,
         forward::direct::Terms as Forward,
@@ -2484,8 +2493,17 @@ fn member_guarantee_of_household_forward_preserves_native_debt_after_delivery_re
                     month: 5,
                     expected_due: 4,
                     expected_remaining: 2,
-                    action: economics_compute_smoke::claim_relief::Action::WriteOff { quantity: 2 },
+                    action: economics_compute_smoke::claim_relief::Action::WriteOff {
+                        quantity: if partial { 1 } else { 2 },
+                    },
                 });
+        }
+        if recourse_relief && partial {
+            let mut next = w.recovery.claim_relief[0].clone();
+            next.id = 92;
+            next.month = 6;
+            next.expected_remaining = 1;
+            w.recovery.claim_relief.push(next);
         }
         let opening = Opening {
             exchange_values: [(WHEAT, 3)].into(),
@@ -2539,7 +2557,30 @@ fn member_guarantee_of_household_forward_preserves_native_debt_after_delivery_re
             assert_eq!((&sim.state, &a), (&resumed.state, &ra));
             if recourse_relief {
                 let checkpoint = (sim.clone(), a.clone());
-                through(&mut a, &mut sim, 6);
+                let through_month = if partial { 7 } else { 6 };
+                let partial_checkpoint = if partial {
+                    through(&mut a, &mut sim, 5);
+                    assert_eq!(sim.state.credit.loans[&101].principal, 1);
+                    assert_eq!(
+                        sim.state.credit.recovery.proceedings[&1].stage,
+                        economics_compute_smoke::recovery::Stage::Active
+                    );
+                    assert_eq!(sim.state.balance(HOME, COIN), 5);
+                    assert_eq!(sim.state.balance(WORKER, COIN), 0);
+                    assert_eq!(a.book().balances()[&(WORKER, Account::CreditLoss)], 3);
+                    assert_eq!(a.book().balances()[&(HOME, Account::LoanPayable(101))], -3);
+                    assert!(d::blockers(&sim.world, &sim.state, HOME).contains(&d::Blocker::Loan));
+                    assert!(d::finish(&mut sim.world, &sim.state, HOME, WORKER).is_err());
+                    Some((sim.clone(), a.clone()))
+                } else {
+                    None
+                };
+                through(&mut a, &mut sim, through_month);
+                if let Some((saved, mut audit)) = partial_checkpoint {
+                    let mut resume = Simulation::new(saved.world, saved.state, backend).unwrap();
+                    through(&mut audit, &mut resume, through_month);
+                    assert_eq!((&sim.state, &a), (&resume.state, &audit));
+                }
                 assert_eq!(
                     sim.state.credit.loans[&101].status,
                     economics_compute_smoke::credit::Status::Discharged
@@ -2559,7 +2600,7 @@ fn member_guarantee_of_household_forward_preserves_native_debt_after_delivery_re
                 assert!(!d::blockers(&sim.world, &sim.state, HOME).contains(&d::Blocker::Loan));
                 let (saved, mut audit) = checkpoint;
                 let mut resume = Simulation::new(saved.world, saved.state, backend).unwrap();
-                through(&mut audit, &mut resume, 6);
+                through(&mut audit, &mut resume, through_month);
                 assert_eq!((&sim.state, &a), (&resume.state, &audit));
                 d::finish(&mut sim.world, &sim.state, HOME, WORKER).unwrap();
             }
