@@ -122,14 +122,15 @@ pub(crate) fn evaluate(
     w: &World,
     s: &State,
     resources: &mut Resources,
-) -> Result<Vec<Transaction>, String> {
+) -> Result<super::Collections, String> {
     if !enabled(w) {
-        return Ok(vec![]);
+        return Ok(Default::default());
     }
     // Existing deliveries precede new prepayments, all from opening funds/stocks.
     let mut available = resources.available.clone();
     let mut stored = resources.storage.clone();
-    let mut result = super::settle(w, s, &mut available, &mut stored)?;
+    let collection = super::collect(w, s, &mut available, &mut stored)?;
+    let mut result = collection.transactions;
     resources.reserve(w, &result)?;
     let mut delivered = s.clone();
     for tx in &result {
@@ -223,5 +224,8 @@ pub(crate) fn evaluate(
         }
         result.push(tx);
     }
-    Ok(result)
+    Ok(super::Collections {
+        transactions: result,
+        receipts: collection.receipts,
+    })
 }

@@ -97,11 +97,9 @@ pub fn evaluate(world: &World, state: &State) -> Result<Batch, String> {
                 .insert(change.after.id, change.after.clone());
         }
     }
-    batch.transactions.extend(crate::forward::direct::evaluate(
-        world,
-        &quoted,
-        &mut resources,
-    )?);
+    let forwards = crate::forward::direct::evaluate(world, &quoted, &mut resources)?;
+    batch.transactions.extend(forwards.transactions);
+    batch.forward_collections = forwards.receipts;
     quoted.balances = resources.holdings.clone();
     for t in &batch.transactions {
         if t.forward.is_some() {
@@ -141,7 +139,8 @@ pub fn evaluate(world: &World, state: &State) -> Result<Batch, String> {
 pub(crate) fn validate_batch(world: &World, state: &State, batch: &Batch) -> Result<(), String> {
     if state.phase == Phase::Acquire && shared(world) {
         let expected = evaluate(world, state)?;
-        if batch.credit != expected.credit
+        if batch.forward_collections != expected.forward_collections
+            || batch.credit != expected.credit
             || batch.minting != expected.minting
             || batch.town_market != expected.town_market
             || batch.negotiation != expected.negotiation
@@ -152,6 +151,9 @@ pub(crate) fn validate_batch(world: &World, state: &State, batch: &Batch) -> Res
         }
         Ok(())
     } else {
+        if !batch.forward_collections.is_empty() {
+            return Err("forward collection receipts outside shared acquisition".into());
+        }
         negotiation::validate_batch(world, state, batch)?;
         credit::validate_batch(world, state, batch)
     }

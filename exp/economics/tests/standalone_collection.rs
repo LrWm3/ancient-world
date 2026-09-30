@@ -296,3 +296,56 @@ fn delivery_priority_and_live_storage_bound_actual_performance() {
         );
     }
 }
+
+#[test]
+fn forward_attempt_receipts_include_unpaid_requests_and_reject_altered_grants() {
+    use economics_compute_smoke::{
+        acquisition, settlement,
+        telemetry::{Config, Observer},
+    };
+    let (w, s) = forwards(true, CollectionPolicy::Proportional);
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    sim.run_months(1).unwrap();
+    sim.step().unwrap();
+    let mut batch = acquisition::evaluate(&sim.world, &sim.state).unwrap();
+    assert_eq!(
+        batch
+            .forward_collections
+            .iter()
+            .map(|r| (r.requested.quantity, r.allocated, r.paid))
+            .collect::<Vec<_>>(),
+        vec![(4, Some(3), 3), (4, Some(2), 2)]
+    );
+    batch.forward_collections[0].allocated = Some(4);
+    let before = sim.state.clone();
+    assert!(
+        settlement::commit(&sim.world, &mut sim.state, &batch, Backend::CubeCpu, 4096).is_err()
+    );
+    assert_eq!(sim.state, before);
+    let mut observer = Observer::new(
+        Vec::new(),
+        "forward",
+        Config {
+            settlement: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    observer.run_months(&mut sim, 2).unwrap();
+    let bytes = observer.finish().unwrap();
+    let rows: Vec<serde_json::Value> = std::str::from_utf8(&bytes)
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    let unmet: Vec<_> = rows
+        .iter()
+        .filter(|r| {
+            r["kind"] == "claim_collection"
+                && r["requested"].as_i64().unwrap_or(0) > 0
+                && r["paid"] == 0
+        })
+        .collect();
+    assert_eq!(unmet.len(), 2);
+    assert!(unmet.iter().all(|r| r["allocated"] == 0));
+}

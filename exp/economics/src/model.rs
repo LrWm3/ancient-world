@@ -298,6 +298,7 @@ pub struct Receipt {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Batch {
+    pub forward_collections: Vec<crate::finance::CollectionReceipt>,
     pub employment: Option<crate::employment::Boundary>,
     pub minting: Option<crate::minting::Boundary>,
     pub town_market: Option<crate::town_market::Boundary>,
@@ -361,6 +362,7 @@ impl Batch {
 
     pub fn empty(state: &State) -> Self {
         Self {
+            forward_collections: vec![],
             employment: Default::default(),
             minting: None,
             work_choice: None,

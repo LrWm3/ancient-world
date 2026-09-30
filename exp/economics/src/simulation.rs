@@ -49,32 +49,7 @@ impl Simulation {
     }
 
     pub(crate) fn step_core(&mut self) -> Result<(), String> {
-        let mut batch = Batch {
-            employment: Default::default(),
-            minting: None,
-            work_choice: None,
-            credit: None,
-            negotiation: None,
-            town_market: None,
-            accept_membership: None,
-            household: None,
-            id: self.state.next_batch,
-            month: self.state.month,
-            phase: self.state.phase,
-            transactions: Vec::new(),
-            receipts: Vec::new(),
-            maintenance: None,
-            decision: None,
-            production_plan: None,
-            commitments: None,
-            accept_access: None,
-            access_applicant: None,
-            additional_access: vec![],
-            additional_memberships: vec![],
-            allocation: None,
-            pool_market: None,
-            plot_request: None,
-        };
+        let mut batch = Batch::empty(&self.state);
         if self.state.phase == Phase::Acquire
             && (crate::forward::direct::enabled(&self.world) || self.world.minting.is_some())
         {

@@ -412,15 +412,29 @@ pub fn purchase(
 
 /// Due commodity delivery precedes new purchases; annual taxes have already settled.
 /// An unmet balance remains a dated obligation, never a fictional stock receipt.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Collections {
+    pub transactions: Vec<Transaction>,
+    pub receipts: Vec<finance::CollectionReceipt>,
+}
+
 pub fn settle(
     world: &World,
     state: &State,
     available: &mut BTreeMap<Account, i32>,
     stored: &mut BTreeMap<AgentId, i128>,
 ) -> Result<Vec<Transaction>, String> {
+    Ok(collect(world, state, available, stored)?.transactions)
+}
+pub(crate) fn collect(
+    world: &World,
+    state: &State,
+    available: &mut BTreeMap<Account, i32>,
+    stored: &mut BTreeMap<AgentId, i128>,
+) -> Result<Collections, String> {
     let config = policy(world);
     if config.is_none() && !direct::enabled(world) {
-        return Ok(Vec::new());
+        return Ok(Collections::default());
     }
     let household_protected = crate::commitments::protected_stock(world, state)?;
     let mut contracts: Vec<_> = state
@@ -441,6 +455,7 @@ pub fn settle(
         )
     });
     let mut result = Vec::new();
+    let mut receipts = Vec::new();
     let mut execution = finance::Execution::from_parts(available.clone(), stored.clone());
     let mut protections = household_protected.clone();
     let requests: Vec<_> = contracts
@@ -491,6 +506,20 @@ pub fn settle(
         }
         let payment = execution.pay_protected(world, state.month, &claim, protected)?;
         let quantity = payment.paid;
+        let contract = finance::ContractId::Forward(c.id);
+        receipts.push(finance::CollectionReceipt {
+            contract,
+            rank: world
+                .claim_priorities
+                .get(&contract)
+                .copied()
+                .unwrap_or(finance::DEFAULT_CLAIM_RANK),
+            debtor: c.debtor,
+            creditor: c.creditor,
+            requested: Amount::new(c.goods.resource, c.claim().outstanding()),
+            allocated: grants.as_ref().map(|g| g[&contract]),
+            paid: quantity,
+        });
         if quantity == 0 {
             continue;
         }
@@ -504,7 +533,10 @@ pub fn settle(
     }
     *available = execution.available;
     *stored = execution.stored;
-    Ok(result)
+    Ok(Collections {
+        transactions: result,
+        receipts,
+    })
 }
 
 pub fn validate(world: &World, state: &State) -> Result<(), String> {

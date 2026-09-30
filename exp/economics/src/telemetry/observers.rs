@@ -215,6 +215,7 @@ pub(super) fn batch(
             .iter()
             .flat_map(|c| &c.collections)
             .chain(batch.commitments.iter().flat_map(|c| &c.collections))
+            .chain(&batch.forward_collections)
         {
             if selected(config, collection.debtor) || selected(config, collection.creditor) {
                 records.push(json!({"kind":"claim_collection","contract":format!("{:?}",collection.contract),"rank":collection.rank,"debtor":collection.debtor,"creditor":collection.creditor,"resource":collection.requested.resource,"requested":collection.requested.quantity,"allocated":collection.allocated,"paid":collection.paid}));
