@@ -896,3 +896,119 @@ fn financed_need_orders_buy_collection_output_without_spending_same_window_advan
     };
     assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
 }
+
+#[test]
+fn mortgage_default_does_not_confiscate_independent_environmental_work() {
+    use economics_compute_smoke::{
+        credit::{self, CollateralSettlement},
+        household_governance::Governance,
+        households::{self, Agreement},
+    };
+    const HOME: AgentId = 10000;
+    for household in [false, true] {
+        for downpayment in [1, 2] {
+            let (mut w, mut s) = fixture(false);
+            w.lending.clear();
+            let borrower = if household { HOME } else { PERSON };
+            if household {
+                households::form(
+                    &mut w,
+                    &s,
+                    Agreement {
+                        id: 1,
+                        agent: HOME,
+                        adults: vec![PERSON, PERSON + 1],
+                        governance: Governance::contributed(PERSON),
+                        formed: s.month,
+                        dwelling_process: None,
+                        admission: None,
+                        membership: vec![],
+                        asset_sales: vec![],
+                        equipment_retirements: vec![],
+                        support: vec![],
+                    },
+                )
+                .unwrap();
+            }
+            let (mortgage, _) = credit::scenario("default").unwrap();
+            w.assets = mortgage.assets;
+            let mut config = mortgage.credit.unwrap();
+            config.endowments.clear();
+            config.application.buyer = borrower;
+            config.application.month = 2;
+            config.application.downpayment = 2;
+            let offer = &mut config.offers[0];
+            offer.sale.price.quantity = 8;
+            offer.minimum_downpayment = 2;
+            offer.loan.max_principal = 6;
+            offer.loan.monthly_rate_bps = 0;
+            offer.loan.term_months = 2;
+            offer.loan.grace_months = 0;
+            offer.collateral.settlement = CollateralSettlement::FixedValue { value: 4 };
+            w.credit = Some(config);
+            s.balances.insert((borrower, TOKEN), downpayment);
+            s.balances.insert((STATE_AGENT, TOKEN), 6);
+            let run = |backend| {
+                let mut audit = Audit::with_opening(
+                    &w,
+                    &s,
+                    TOKEN,
+                    Opening {
+                        assets: [(PLOT, 8)].into(),
+                        processes: Some(Default::default()),
+                        ..Opening::default()
+                    },
+                )
+                .unwrap();
+                let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+                while sim.state.month == 2 {
+                    audit.step(&mut sim).unwrap();
+                }
+                assert_eq!(
+                    credit::owner(&sim.world, &sim.state, PLOT),
+                    Some(if downpayment == 2 {
+                        borrower
+                    } else {
+                        STATE_AGENT
+                    })
+                );
+                let (mut resumed, mut ra) = (sim.clone(), audit.clone());
+                while sim.state.month <= 6 {
+                    audit.step(&mut sim).unwrap();
+                }
+                while resumed.state.month <= 6 {
+                    ra.step(&mut resumed).unwrap();
+                }
+                assert_eq!(
+                    (&sim.state, &sim.ledger, &audit),
+                    (&resumed.state, &resumed.ledger, &ra)
+                );
+                assert_eq!(
+                    credit::owner(&sim.world, &sim.state, PLOT),
+                    Some(STATE_AGENT)
+                );
+                if downpayment == 2 {
+                    assert_eq!(sim.state.credit.loans[&1].status, credit::Status::Enforced);
+                    assert_eq!(sim.state.credit.loans[&1].principal, 2);
+                } else {
+                    assert!(sim.state.credit.loans.is_empty());
+                }
+                assert!(
+                    sim.ledger
+                        .iter()
+                        .filter(|b| b.month >= 3)
+                        .flat_map(|b| &b.transactions)
+                        .filter_map(|t| t.process.as_ref())
+                        .any(|change| change.after.definition == PREPARE_FUEL
+                            && change.after.status == Status::Completed)
+                );
+                for a in &sim.world.agents {
+                    let report = audit.book().statements(a.id, 2, 6).unwrap();
+                    assert_eq!(report.assets, report.liabilities + report.equity);
+                }
+                (sim.state, sim.ledger, audit)
+            };
+            assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+        }
+    }
+}

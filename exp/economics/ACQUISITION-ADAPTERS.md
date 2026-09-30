@@ -401,3 +401,19 @@ collection replenishes the seller, and dated loan installments reduce the same
 cash balance. Five months agree under CPU/reference and checkpoint execution with
 balanced separate books. This demonstrates financial and productive composition,
 not long-run viability: the buyer still has a finite borrowed purchasing budget.
+
+### Financed property alongside environmental collection
+
+Financed purchases now coexist with environmental pools when the separate mortgage
+stock-sale planner is disabled. The ownership registry still governs only the
+pledged property; buying or repossessing it does not change access to an unrelated
+public input pool. Existing downpayment, funding and collateral checks remain.
+
+Person and household variants buy an eight-coin plot with two down and six borrowed.
+Without coin income they default; the configured four-coin collateral settlement
+returns the plot to the creditor and leaves a two-coin deficiency. Completed fuel
+collection continues after repossession. A one-coin opening balance refuses the
+purchase and creates neither loan nor title transfer. Five-month CPU/reference,
+checkpoint and financial statements agree. This deliberately unprofitable case
+checks consequences and separation of rights, not mortgage affordability or
+realized-proceeds liquidation.
