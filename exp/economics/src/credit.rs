@@ -723,10 +723,8 @@ fn advances(
     world: &World,
     state: &State,
     out: &mut Boundary,
-    budgets: &mut BTreeMap<Account, i32>,
+    execution: &mut finance::Execution,
 ) -> Result<(), String> {
-    let mut execution = finance::Execution::opening(world, state);
-    execution.available = budgets.clone();
     let mut requests: Vec<_> = world
         .lending
         .iter()
@@ -805,7 +803,6 @@ fn advances(
             amount,
         });
     }
-    *budgets = execution.available;
     Ok(())
 }
 fn purchase(
@@ -1402,8 +1399,8 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
             let mut execution = finance::Execution::opening(world, state);
             execution.available = budgets.clone();
             crate::recovery::sales(world, state, &mut out, &mut execution)?;
+            advances(world, state, &mut out, &mut execution)?;
             budgets = execution.available;
-            advances(world, state, &mut out, &mut budgets)?;
             if let Some(c) = &world.credit {
                 let should_purchase = match &c.purchase_policy {
                     crate::borrowing::Policy::Scripted => true,

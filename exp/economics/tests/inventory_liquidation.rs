@@ -109,7 +109,13 @@ fn opening(w: World, s: State, backend: Backend) -> (Simulation, Audit) {
         &sim.state,
         TOKEN,
         Opening {
-            inventory: [((PERSON, GRAIN), 12)].into(),
+            inventory: [PERSON, UNFUNDED]
+                .into_iter()
+                .filter_map(|agent| {
+                    let quantity = sim.state.balance(agent, GRAIN);
+                    (quantity > 0).then_some(((agent, GRAIN), i128::from(quantity) * 2))
+                })
+                .collect(),
             exchange_values: [(GRAIN, 2)].into(),
             ..Opening::default()
         },
@@ -408,5 +414,58 @@ fn estate_inventory_sales_respect_explicit_current_essential_exemptions() {
                 4
             }
         );
+    }
+}
+
+#[test]
+fn later_commodity_advances_share_inventory_sale_storage_without_reusing_receipts() {
+    for room in [4, 5] {
+        let (mut w, mut s) = fixture(true, room);
+        s.balances.insert((UNFUNDED, GRAIN), 1);
+        w.lending.push(Advance {
+            id: 2,
+            debtor: BUYER,
+            principal: 1,
+            month: 3,
+            collateral: None,
+            priority: 0,
+            terms: LoanOffer {
+                creditor: UNFUNDED,
+                denomination: GRAIN,
+                max_principal: 1,
+                monthly_rate_bps: 0,
+                term_months: 12,
+                grace_months: 1,
+            },
+        });
+        // A second request cannot lend newly purchased inventory in this boundary.
+        w.lending.push(Advance {
+            id: 3,
+            debtor: UNFUNDED,
+            principal: 1,
+            month: 3,
+            collateral: None,
+            priority: 0,
+            terms: LoanOffer {
+                creditor: BUYER,
+                denomination: GRAIN,
+                max_principal: 1,
+                monthly_rate_bps: 0,
+                term_months: 12,
+                grace_months: 1,
+            },
+        });
+        let run = |backend| {
+            let (mut sim, mut audit) = opening(w.clone(), s.clone(), backend);
+            while sim.state.month < 4 {
+                audit.step(&mut sim).unwrap();
+            }
+            assert_eq!(sim.state.balance(BUYER, GRAIN), room);
+            assert_eq!(sim.state.balance(ESTATE, TOKEN), 8);
+            assert_eq!(sim.state.credit.loans.contains_key(&2), room == 5);
+            assert!(!sim.state.credit.loans.contains_key(&3));
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }

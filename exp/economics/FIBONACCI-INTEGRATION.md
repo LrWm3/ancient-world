@@ -287,6 +287,7 @@ Completed integrations:
 45. Liquidate explicit inventory lots through shared funding, storage, exemptions and estate custody.
 46. Reconcile household inventory purchases and separate buyer/debtor/custodian statements.
 47. Discover and accept dated inventory bids through the common financial offer interface.
+48. Preserve receiving-space reservations from estate sales into subsequent commodity advances.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.
@@ -305,3 +306,7 @@ Inventory liquidation: [scope and evidence](INVENTORY-LIQUIDATION.md). Its focus
 seven-target gate passed 63 tests; all five final inventory tests and strict
 all-target Clippy passed. The final target covers the
 explicit current-essential exemption and inventory cost/revenue assertions too.
+
+The sale/advance storage regression and affected lending/credit/offer targets passed
+37 tests; strict all-target Clippy passed. Newly purchased goods still cannot fund
+same-boundary lending, and unfundable requests leave accepted purchases intact.

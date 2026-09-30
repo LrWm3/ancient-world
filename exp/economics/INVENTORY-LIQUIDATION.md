@@ -8,7 +8,7 @@ transaction books; it introduces no separate liquidation runtime.
 quantity and minimum price. Dated `inventory_bids` identify buyer, lot and actual
 coin price. At Acquire, physical asset bids run first, then inventory bids ordered
 by lot, descending price and stable bid ID. Both consume the same opening funding
-budget. This is an explicit allocation order; it does not move monthly work.
+budget, and subsequent commodity advances retain their receiving-space reservations. This is an explicit allocation order; it does not move monthly work.
 
 A sale requires an active proceeding, an unsold lot, permitted stock trading,
 actual unreserved inventory, receiving space and fully funded payment. Explicit
