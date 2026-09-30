@@ -1102,3 +1102,10 @@ their separate gates above and are not covered by this snapshot.
     the guarantor acquires the full performed claim. Person/household seller
     results stay separate. CPU/reference and checkpoint continuation agree.
     The three-target gate passed 72 tests and strict all-target Clippy passed.
+
+77. **Mixed collection and relief release purchased cost once.** A composed
+    person/household scenario combines a partial guarantee, same-boundary accepted
+    waiver, remaining principal and later full relief. Discount/par/premium and
+    integer-rounding cases reconcile buyer cash, cost, realized return and loss;
+    the guarantor keeps its performed claim. CPU/reference and checkpoint results
+    agree. The three-target gate passed 73 tests and strict all-target Clippy passed.

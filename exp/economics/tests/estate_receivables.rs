@@ -1609,3 +1609,151 @@ fn loan_cost_adjustments_cannot_hide_negative_carrying_value_or_exist_without_a_
     assert!(Book::open(TOKEN, positions(0, -1)).is_err());
     assert!(Book::open(TOKEN, [((PERSON, Account::Cash), -1)].into()).is_err());
 }
+
+#[test]
+fn purchased_claims_split_cost_between_same_boundary_guarantee_and_partial_loss() {
+    use economics_compute_smoke::{
+        accounting::Account,
+        claim_relief::{Action, Terms},
+        finance::ContractId,
+        recovery::{Guarantee, GuaranteeTender, GuaranteedClaim, RecourseSecurity, receivables},
+    };
+    const BUYER: AgentId = 98;
+    const GUARANTOR: AgentId = 100;
+    const BORROWER_ESTATE: AgentId = 101;
+    for household in [false, true] {
+        for price in [1, 3, 5, 6, 7, 9] {
+            let mut opening = fixture_for(6, 6, false, household);
+            for (id, funds) in [(BUYER, price), (GUARANTOR, 2), (BORROWER_ESTATE, 0)] {
+                opening.world.agents.push(Agent {
+                    id,
+                    name: format!("claim participant {id}"),
+                });
+                opening.state.balances.insert((id, TOKEN), funds);
+            }
+            opening
+                .world
+                .recovery
+                .receivable_listings
+                .push(receivables::Listing {
+                    id: 1,
+                    proceeding: 1,
+                    loan: ASSET,
+                    coins_per_unit: 1,
+                });
+            opening.world.recovery.receivable_price_floors.insert(1, 1);
+            opening
+                .world
+                .recovery
+                .receivable_bids
+                .push(receivables::Bid {
+                    id: 1,
+                    listing: 1,
+                    buyer: BUYER,
+                    month: 3,
+                    price,
+                });
+            opening.world.recovery.guarantees.push(Guarantee {
+                follows_assignment: true,
+                tender: GuaranteeTender::Native,
+                security: RecourseSecurity::Unsecured,
+                id: 1,
+                claim: GuaranteedClaim::Loan(ASSET),
+                guarantor: GUARANTOR,
+                cap: 2,
+                from: 4,
+                through: 8,
+                delay_months: 0,
+                recourse: 200,
+                priority: 0,
+            });
+            opening.world.recovery.proceedings.push(ProceedingTerms {
+                id: 2,
+                debtor: BORROWER,
+                estate: BORROWER_ESTATE,
+                authority: STATE_AGENT,
+                denomination: TOKEN,
+                opening_month: 4,
+                earliest_close: 4,
+                assets: vec![],
+                discharge_deficiency: false,
+            });
+            for (id, month, expected_remaining) in [(1, 4, 4), (2, 5, 2)] {
+                opening.world.recovery.claim_relief.push(Terms {
+                    id,
+                    proceeding: 2,
+                    contract: ContractId::Loan(ASSET),
+                    original_due: 2,
+                    debtor: BORROWER,
+                    creditor: BUYER,
+                    month,
+                    expected_due: 2,
+                    expected_remaining,
+                    action: Action::WriteOff { quantity: 2 },
+                });
+            }
+            let run = |backend| {
+                let mut sim =
+                    Simulation::new(opening.world.clone(), opening.state.clone(), backend).unwrap();
+                let mut audit = Audit::new(&sim.world, &sim.state, TOKEN).unwrap();
+                let balance = |a: &Audit, who, account| {
+                    a.book()
+                        .balances()
+                        .get(&(who, account))
+                        .copied()
+                        .unwrap_or(0)
+                };
+                until(&mut sim, &mut audit, 5, Phase::Open);
+                let cost = i128::from(price / 3);
+                let released_adjustment = 4 - i128::from(price) + cost;
+                let waived_adjustment = released_adjustment / 2;
+                assert_eq!(sim.state.credit.loans[&ASSET].principal, 2);
+                assert_eq!(sim.state.balance(BUYER, TOKEN), 2);
+                assert_eq!(
+                    balance(&audit, BUYER, Account::LoanReceivable(ASSET))
+                        + balance(&audit, BUYER, Account::LoanBasisAdjustment(ASSET)),
+                    cost
+                );
+                assert_eq!(
+                    balance(&audit, BUYER, Account::CreditLoss),
+                    2 - waived_adjustment
+                );
+                assert_eq!(
+                    balance(&audit, BUYER, Account::SettlementGain)
+                        + balance(&audit, BUYER, Account::SettlementLoss),
+                    -(released_adjustment - waived_adjustment)
+                );
+                assert_eq!(balance(&audit, GUARANTOR, Account::LoanReceivable(200)), 2);
+                assert_eq!(balance(&audit, BORROWER, Account::DebtRelief), -2);
+                let (saved, mut ra) = (sim.clone(), audit.clone());
+                until(&mut sim, &mut audit, 7, Phase::Open);
+                assert_eq!(sim.state.credit.loans[&ASSET].principal, 0);
+                assert_eq!(sim.state.credit.loans[&200].principal, 2);
+                assert_eq!(
+                    balance(&audit, BUYER, Account::LoanBasisAdjustment(ASSET)),
+                    0
+                );
+                assert_eq!(
+                    balance(&audit, BUYER, Account::CreditLoss),
+                    2 - waived_adjustment + cost
+                );
+                assert_eq!(
+                    balance(&audit, BUYER, Account::CreditLoss)
+                        + balance(&audit, BUYER, Account::SettlementGain)
+                        + balance(&audit, BUYER, Account::SettlementLoss),
+                    i128::from(price - 2)
+                );
+                assert_eq!(balance(&audit, BORROWER, Account::DebtRelief), -4);
+                if household {
+                    assert_eq!(balance(&audit, PERSON, Account::CreditLoss), 0);
+                    assert_eq!(balance(&audit, PERSON, Account::DisposalLoss), 0);
+                }
+                let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
+                until(&mut resumed, &mut ra, 7, Phase::Open);
+                assert_eq!((&sim.state, &audit), (&resumed.state, &ra));
+                (sim.state, sim.ledger, audit)
+            };
+            assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+        }
+    }
+}

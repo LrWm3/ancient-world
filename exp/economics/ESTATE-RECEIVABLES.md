@@ -267,3 +267,10 @@ buyers receive the native amount guaranteed, releasing their own acquisition
 cost into settlement gain/loss. The guarantor's new recourse equals actual
 performance; it never inherits the investor's discount or premium. Person and
 household sellers retain their own disposal result, separately from both claims.
+
+When one boundary both collects and forgives principal, the change in acquisition
+basis is divided in proportion to forgiven versus total disposed units. Integer
+rounding is explicit: remaining cost rounds down, the waiver's adjustment truncates
+toward zero and collection gets the remainder. A mixed guarantee/partial-waiver
+control checks discounted, par and premium claims, remaining carrying value,
+later full relief, native recourse and separate household/member statements.
