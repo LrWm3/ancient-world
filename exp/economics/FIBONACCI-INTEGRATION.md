@@ -1176,3 +1176,17 @@ separate affected-suite gates and are not covered by this snapshot.
     rejects without partial changes. Funded packages harvest and collect the full
     claim with separate disposal/collection results. CPU/reference and checkpoints
     agree. The three-target gate passed 35 tests and strict all-target Clippy passed.
+
+86. **Household member investment stays separate from shared production.** Common
+    financial acceptance of priced claims and seed composes with subsequent farming
+    under existing land rights and fixed priorities. Actual grain output pools;
+    principal receipts and purchased-claim returns do not. Jointly underfunded
+    requests reject atomically. CPU/reference and checkpoints agree. The
+    three-target gate passed 31 tests and strict all-target Clippy passed. A mixed
+    household prerequisite/process acceptance adapter remains an explicit gap.
+
+### Full-suite checkpoint through item 84
+
+The isolated **`30870e5`** snapshot completed `cargo +1.92.0 test --locked`:
+**1,023 passed, 0 failed, 1 ignored**, across 123 Cargo result targets including
+empty unit/doc targets. Items 85 onward have separate affected-suite gates.

@@ -17,23 +17,35 @@ const ESTATE: AgentId = 99;
 
 #[test]
 fn purchased_estate_seed_funds_a_dated_crop_without_spending_new_custody_receipts() {
-    productive_claim(None);
+    productive_claim(None, false);
 }
 
 #[test]
 fn priced_claims_share_acquisition_cash_with_seed_and_dated_cultivation() {
     for price in [1, 3] {
-        productive_claim(Some(price));
+        productive_claim(Some(price), false);
     }
 }
 
-fn productive_claim(price: Option<i32>) {
+#[test]
+fn household_members_keep_purchased_claims_private_while_sharing_harvests() {
+    for price in [1, 3] {
+        productive_claim(Some(price), true);
+    }
+}
+
+fn productive_claim(price: Option<i32>, household: bool) {
+    const HOME: AgentId = 10000;
     for funded in [false, true] {
         for buy_claim in [false, true] {
             if price.is_some() && !buy_claim {
                 continue;
             }
-            let (mut w, mut s) = named("opportunity-farming").unwrap();
+            let (mut w, mut s) = if household {
+                baseline()
+            } else {
+                named("opportunity-farming").unwrap()
+            };
             w.resources.push(Resource {
                 id: TOKEN,
                 name: "coins".into(),
@@ -45,11 +57,12 @@ fn productive_claim(price: Option<i32>) {
                     name: name.into(),
                 });
             }
-            let policy = w.transaction_policy.as_mut().unwrap();
-            policy.agent_types.insert(DEBTOR, PERSON_TYPE);
-            policy.permissions.insert((PERSON_TYPE, Action::Borrow));
-            policy.permissions.insert((PERSON_TYPE, Action::StockTrade));
-            policy.permissions.insert((STATE_TYPE, Action::Lend));
+            if let Some(policy) = &mut w.transaction_policy {
+                policy.agent_types.insert(DEBTOR, PERSON_TYPE);
+                policy.permissions.insert((PERSON_TYPE, Action::Borrow));
+                policy.permissions.insert((PERSON_TYPE, Action::StockTrade));
+                policy.permissions.insert((STATE_TYPE, Action::Lend));
+            }
             s.balances.insert((PERSON, SEED), 0);
             s.balances.insert((PERSON, GRAIN), 10);
             s.balances.insert(
@@ -108,10 +121,11 @@ fn productive_claim(price: Option<i32>) {
                     id: borrower,
                     name: "claim counterparty".into(),
                 });
-                let p = w.transaction_policy.as_mut().unwrap();
-                p.agent_types.insert(borrower, PERSON_TYPE);
-                p.permissions.insert((PERSON_TYPE, Action::Lend));
-                p.permissions.insert((PERSON_TYPE, Action::AssetTrade));
+                if let Some(p) = &mut w.transaction_policy {
+                    p.agent_types.insert(borrower, PERSON_TYPE);
+                    p.permissions.insert((PERSON_TYPE, Action::Lend));
+                    p.permissions.insert((PERSON_TYPE, Action::AssetTrade));
+                }
                 let mut loan = w.lending[0].clone();
                 loan.id = 11;
                 loan.debtor = borrower;
@@ -141,6 +155,39 @@ fn productive_claim(price: Option<i32>) {
                     w.recovery.receivable_price_floors.insert(1, 1);
                 }
             }
+            if household {
+                w.priority = Priority::NeedFirst;
+                use economics_compute_smoke::{
+                    household_governance::Governance,
+                    households::{self, Agreement},
+                };
+                // Existing land rights and fixed priorities exercise the supported
+                // household financial envelope. Common prerequisite/work bundles
+                // still need a household acceptance adapter.
+                w.scheduled_starts.push(ScheduledStart {
+                    month: 3,
+                    agent: PERSON,
+                    definition: GROW,
+                });
+                households::form(
+                    &mut w,
+                    &s,
+                    Agreement {
+                        id: 1,
+                        agent: HOME,
+                        adults: vec![PERSON],
+                        governance: Governance::contributed(PERSON),
+                        formed: 1,
+                        dwelling_process: None,
+                        admission: None,
+                        membership: vec![],
+                        asset_sales: vec![],
+                        equipment_retirements: vec![],
+                        support: vec![],
+                    },
+                )
+                .unwrap();
+            }
             let run = |backend| {
                 let mut audit = Audit::with_opening(
                     &w,
@@ -154,11 +201,23 @@ fn productive_claim(price: Option<i32>) {
                             .filter(|((_, r), q)| **q > 0 && *r != TOKEN)
                             .map(|(a, q)| (*a, i128::from(*q)))
                             .collect(),
-                        exchange_values: [(GRAIN, 1), (SEED, 1), (RAW_WOOD, 1), (FUEL, 1)].into(),
+                        exchange_values: w
+                            .resources
+                            .iter()
+                            .filter(|r| r.kind == ResourceKind::Stock && r.id != TOKEN)
+                            .map(|r| (r.id, 1))
+                            .collect(),
                         processes: Some(Costs {
                             output_weights: [(
                                 GROW,
-                                [(Output::Stock(GRAIN), 1), (Output::Stock(SEED), 1)].into(),
+                                w.definitions
+                                    .iter()
+                                    .find(|d| d.id == GROW)
+                                    .unwrap()
+                                    .outputs
+                                    .iter()
+                                    .map(|a| (Output::Stock(a.resource), 1))
+                                    .collect(),
                             )]
                             .into(),
                             ..Costs::default()
@@ -185,13 +244,15 @@ fn productive_claim(price: Option<i32>) {
                 if buy_claim {
                     requests.push(Request::new(Id::ReceivableLiquidationBid(1), PERSON));
                 }
-                if sim.state.memberships.is_empty() {
+                if !household && sim.state.memberships.is_empty() {
                     requests.push(Request::new(Id::Membership(1), PERSON));
                 }
-                if sim.state.accepted_agreements.is_empty() {
+                if !household && sim.state.accepted_agreements.is_empty() {
                     requests.push(Request::new(Id::Land(1), PERSON));
                 }
-                requests.push(Request::new(Id::Process(GROW), PERSON));
+                if !household {
+                    requests.push(Request::new(Id::Process(GROW), PERSON));
+                }
                 let before = sim.state.clone();
                 let prepared = offers::prepare(&sim, &requests);
                 assert_eq!(sim.state, before);
@@ -271,6 +332,51 @@ fn productive_claim(price: Option<i32>) {
                             i128::from(2 - price)
                         );
                     }
+                }
+                if household {
+                    use economics_compute_smoke::accounting::Account;
+                    assert_eq!(sim.state.balance(HOME, TOKEN), 0);
+                    assert!(
+                        sim.ledger
+                            .iter()
+                            .filter_map(|b| b.household.as_ref())
+                            .flat_map(|h| &h.after)
+                            .any(|e| e.account == (HOME, GRAIN) && e.delta > 0)
+                    );
+                    assert!(
+                        !sim.ledger
+                            .iter()
+                            .filter_map(|b| b.household.as_ref())
+                            .flat_map(|h| &h.after)
+                            .any(|e| e.account == (HOME, TOKEN) && e.delta > 0)
+                    );
+                    assert_eq!(
+                        audit
+                            .book()
+                            .balances()
+                            .get(&(HOME, Account::LoanReceivable(11)))
+                            .copied()
+                            .unwrap_or(0),
+                        0
+                    );
+                    assert_eq!(
+                        audit
+                            .book()
+                            .balances()
+                            .get(&(HOME, Account::SettlementGain))
+                            .copied()
+                            .unwrap_or(0),
+                        0
+                    );
+                    assert_eq!(
+                        audit
+                            .book()
+                            .balances()
+                            .get(&(HOME, Account::SettlementLoss))
+                            .copied()
+                            .unwrap_or(0),
+                        0
+                    );
                 }
                 assert!(
                     sim.state

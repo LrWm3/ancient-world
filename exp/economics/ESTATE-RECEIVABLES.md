@@ -330,3 +330,11 @@ actual coin prices from the same opening budget as seed. Having enough for eithe
 purchase but not both rejects the requested package without partial publication.
 Successful packages later harvest and collect the unchanged face claim, releasing
 purchase cost independently from production and custody proceeds.
+
+A household-member control combines common financial acceptance of priced claims
+and seed with subsequent cultivation under existing land rights. Actual harvests
+pool into the household; claims, principal collection and purchase gains/losses
+remain private. It uses supported fixed individual priorities and scheduled work.
+This does not establish household acceptance of a combined prerequisite/process
+bundle: that still needs the household allocation/collection envelope, and the
+consequence-aware individual search remains excluded with households.
