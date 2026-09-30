@@ -13,6 +13,7 @@ const RECOURSE_TERM_MONTHS: u32 = 1;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum GuaranteedClaim {
     Loan(u32),
+    Forward(u32),
     Wages { agreement: u32, earned_month: u32 },
     Land { agreement: u32, due: u32 },
 }
@@ -20,6 +21,7 @@ impl GuaranteedClaim {
     pub fn contract(self) -> finance::ContractId {
         match self {
             Self::Loan(id) => finance::ContractId::Loan(id),
+            Self::Forward(id) => finance::ContractId::Forward(id),
             Self::Wages { agreement, .. } => finance::ContractId::Wages(agreement),
             Self::Land { agreement, .. } => finance::ContractId::Land(agreement),
         }
@@ -39,6 +41,11 @@ impl GuaranteedClaim {
                             .map(|o| (c.application.buyer, o.loan.creditor, o.loan.denomination))
                     })
                 }),
+            Self::Forward(id) => world
+                .prepaid_deliveries
+                .iter()
+                .find(|t| t.id == id)
+                .map(|t| (t.seller, t.buyer, t.goods.resource)),
             Self::Wages {
                 agreement,
                 earned_month,
@@ -537,6 +544,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                 state.obligations.get(&(agreement, due)).map(|o| o.paid)
             }
             GuaranteedClaim::Loan(id) => state.credit.loans.get(&id).map(|_| paid),
+            GuaranteedClaim::Forward(id) => state.exchange.forwards.get(&id).map(|c| c.delivered),
         };
         if actual.is_none_or(|actual| paid > actual) {
             return Err("guarantee advances exceed actual covered settlement".into());
@@ -732,6 +740,19 @@ pub(crate) fn guarantee_claim(
             };
             (loan.creditor, loan.denomination, covered, loan.first_unpaid)
         }
+        GuaranteedClaim::Forward(id) => {
+            let Some(c) = state.exchange.forwards.get(&id) else {
+                return Ok(None);
+            };
+            // Due precedes Acquire: preserve the first ordinary delivery window.
+            // Subsequent guarantees cover its residual, not hypothetical output.
+            (
+                c.creditor,
+                c.goods.resource,
+                c.claim().outstanding(),
+                c.effective_due().checked_add(1),
+            )
+        }
         GuaranteedClaim::Wages {
             agreement,
             earned_month,
@@ -910,6 +931,17 @@ pub(crate) fn guarantees(
                         if loan.due(state.month)? == 0 {
                             loan.first_unpaid = None;
                         }
+                        out.transactions.push(transaction);
+                    }
+                    GuaranteedClaim::Forward(id) => {
+                        let c = out
+                            .forward_changes
+                            .entry(id)
+                            .or_insert_with(|| state.exchange.forwards[&id].clone());
+                        c.delivered = c
+                            .delivered
+                            .checked_add(paid)
+                            .ok_or("guaranteed delivery overflow")?;
                         out.transactions.push(transaction);
                     }
                     GuaranteedClaim::Wages {

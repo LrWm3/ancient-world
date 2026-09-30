@@ -12,6 +12,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub(crate) fn settle(
     world: &World,
     boundary: Option<&Boundary>,
+    before: &State,
     coin: ResourceId,
     values: &BTreeMap<ResourceId, i128>,
     inventory: &Inventory,
@@ -61,6 +62,8 @@ pub(crate) fn settle(
             _ => (),
         }
     }
+    let mut delivery_values = BTreeMap::new();
+    let mut forward_progress = BTreeMap::new();
     for receipt in &b.recovery {
         if let crate::recovery::Receipt::Guaranteed {
             guarantee,
@@ -68,12 +71,6 @@ pub(crate) fn settle(
             paid,
             ..
         } = receipt
-            && matches!(
-                claim,
-                crate::recovery::GuaranteedClaim::Loan(_)
-                    | crate::recovery::GuaranteedClaim::Wages { .. }
-                    | crate::recovery::GuaranteedClaim::Land { .. }
-            )
         {
             let (_, creditor, denomination) =
                 claim.parties(world).ok_or("missing guaranteed terms")?;
@@ -84,6 +81,23 @@ pub(crate) fn settle(
                     .iter()
                     .find(|g| g.id == *guarantee)
                     .ok_or("missing physical guarantee")?;
+                if let crate::recovery::GuaranteedClaim::Forward(id) = claim {
+                    let c = before
+                        .exchange
+                        .forwards
+                        .get(id)
+                        .ok_or("missing guaranteed forward basis")?;
+                    let settled = forward_progress
+                        .entry(*id)
+                        .or_insert(c.delivered + c.written_off());
+                    let next = settled
+                        .checked_add(*paid)
+                        .ok_or("guaranteed basis overflow")?;
+                    let value = crate::forward_accounting::released(c, next)?
+                        - crate::forward_accounting::released(c, *settled)?;
+                    delivery_values.insert(transfers.len(), value);
+                    *settled = next;
+                }
                 transfers.push(Transfer {
                     from: g.guarantor,
                     to: creditor,
@@ -96,7 +110,7 @@ pub(crate) fn settle(
     let mut lines = vec![];
     let mut used = BTreeSet::new();
     let mut recognized = vec![];
-    for transfer in transfers {
+    for (transfer_index, transfer) in transfers.into_iter().enumerate() {
         let effects = transfer.effects()?;
         let (index, transaction) = b
             .transactions
@@ -133,7 +147,12 @@ pub(crate) fn settle(
             .ok_or("physical loan inventory overflow")?;
         h.cost = h
             .cost
-            .checked_add(value)
+            .checked_add(
+                delivery_values
+                    .get(&transfer_index)
+                    .copied()
+                    .unwrap_or(value),
+            )
             .ok_or("physical loan basis overflow")?;
         if cost != value {
             lines.push(Line {

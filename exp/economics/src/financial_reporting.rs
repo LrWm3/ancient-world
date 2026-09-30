@@ -1066,7 +1066,8 @@ impl Audit {
                 world, t, payment, unit,
             )?);
         }
-        let (mut prepaid, forward_lines) = crate::forward_accounting::settle(before, after, batch)?;
+        let (mut prepaid, forward_lines) =
+            crate::forward_accounting::settle(before, after, batch, coin, &self.exchange_values)?;
         prepaid.extend(barter_deliveries);
         prepaid.extend(wage_deliveries);
         let mut allocation = crate::inventory_accounting::CostAllocation::new(&opening_inventory);
@@ -1075,6 +1076,7 @@ impl Audit {
         let (inventory, loan_lines, loan_transfers) = crate::loan_accounting::settle(
             world,
             batch.credit.as_ref(),
+            before,
             coin,
             &self.exchange_values,
             &inventory,
@@ -1776,6 +1778,10 @@ impl Audit {
                     }
                     recovery::Receipt::Guaranteed {
                         claim: recovery::GuaranteedClaim::Land { .. },
+                        ..
+                    }
+                    | recovery::Receipt::Guaranteed {
+                        claim: recovery::GuaranteedClaim::Forward(_),
                         ..
                     }
                     | recovery::Receipt::LandDistributed { .. }

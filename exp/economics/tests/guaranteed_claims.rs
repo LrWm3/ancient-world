@@ -960,3 +960,143 @@ fn physical_land_guarantee_uses_guarantor_inventory_and_preserves_native_dues() 
     mismatched.exchange_values.insert(FIREWOOD, 4);
     assert!(Audit::with_opening(&w, &s, COIN, mismatched).is_err());
 }
+
+#[test]
+fn forward_guarantee_waits_for_delivery_window_and_keeps_historical_prepaid_cost() {
+    use economics_compute_smoke::{forward::direct::Terms as Forward, minting::WHEAT};
+    let (mut w, mut s) = fixture();
+    w.employment.clear();
+    w.prepaid_deliveries.push(Forward {
+        id: 50,
+        seller: ISSUER,
+        buyer: WORKER,
+        month: 1,
+        due: 2,
+        goods: Amount::new(WHEAT, 4),
+        prepayment: Amount::new(COIN, 5),
+    });
+    w.recovery.guarantees[0].claim = GuaranteedClaim::Forward(50);
+    s.balances.clear();
+    s.balances.insert((WORKER, COIN), 5);
+    s.balances.insert((ISSUER, WHEAT), 1);
+    s.balances.insert((SUPPLIER, WHEAT), 3);
+    let opening = Opening {
+        inventory: [((ISSUER, WHEAT), 1), ((SUPPLIER, WHEAT), 3)].into(),
+        exchange_values: [(WHEAT, 3)].into(),
+        ..Default::default()
+    };
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut a = Audit::with_opening(&w, &s, COIN, opening.clone()).unwrap();
+        through(&mut a, &mut sim, 2);
+        assert_eq!(sim.state.exchange.forwards[&50].delivered, 1);
+        assert!(sim.state.credit.recovery.paid_guarantees.is_empty());
+        let mut resumed = Simulation::new(w.clone(), sim.state.clone(), backend).unwrap();
+        let mut resumed_a = a.clone();
+        through(&mut a, &mut sim, 4);
+        through(&mut resumed_a, &mut resumed, 4);
+        assert_eq!(sim.state, resumed.state);
+        assert_eq!(a, resumed_a);
+        assert_eq!(sim.state.exchange.forwards[&50].delivered, 4);
+        assert_eq!(sim.state.credit.recovery.paid_guarantees[&1], 3);
+        assert_eq!(
+            (
+                sim.state.credit.loans[&101].opened,
+                sim.state.credit.loans[&101].principal
+            ),
+            (3, 3)
+        );
+        assert_eq!(sim.state.balance(WORKER, WHEAT), 4);
+        assert_eq!(sim.state.balance(ISSUER, WHEAT), 0);
+        let b = a.book().balances();
+        assert_eq!(b[&(WORKER, Account::Inventory(WHEAT))], 5);
+        assert_eq!(b[&(ISSUER, Account::LoanPayable(101))], -9);
+        assert_eq!(b[&(SUPPLIER, Account::LoanReceivable(101))], 9);
+        assert_eq!(b[&(ISSUER, Account::Sales)], -5);
+        assert_eq!(b[&(ISSUER, Account::CostOfSales)], 10);
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::CubeCpu), run(Backend::Reference));
+}
+
+#[test]
+fn overlapping_forward_guarantees_keep_rounding_and_relief_dates_consistent() {
+    use economics_compute_smoke::{
+        delivery_relief, finance::CollectionPolicy, forward::direct::Terms as Forward,
+        minting::WHEAT,
+    };
+    for extended in [false, true] {
+        let (mut w, mut s) = fixture();
+        w.employment.clear();
+        w.recovery.guarantee_policy = CollectionPolicy::Proportional;
+        w.prepaid_deliveries.push(Forward {
+            id: 50,
+            seller: ISSUER,
+            buyer: WORKER,
+            month: 1,
+            due: 2,
+            goods: Amount::new(WHEAT, 4),
+            prepayment: Amount::new(COIN, 5),
+        });
+        w.recovery.guarantees[0].claim = GuaranteedClaim::Forward(50);
+        w.recovery.guarantees[0].through = 4;
+        w.recovery.guarantees[0].delay_months = 1;
+        w.agents.push(Agent {
+            id: 99,
+            name: "second grain guarantor".into(),
+        });
+        let mut second = w.recovery.guarantees[0].clone();
+        second.id = 2;
+        second.guarantor = 99;
+        second.recourse = 102;
+        w.recovery.guarantees.push(second);
+        s.balances.clear();
+        s.balances.insert((WORKER, COIN), 5);
+        s.balances.insert((SUPPLIER, WHEAT), 2);
+        s.balances.insert((99, WHEAT), 2);
+        if extended {
+            authorize(&mut w, 3);
+            w.recovery.delivery_relief.push(delivery_relief::Terms {
+                id: 90,
+                proceeding: 1,
+                expected_due: 2,
+                contract: 50,
+                debtor: ISSUER,
+                creditor: WORKER,
+                month: 3,
+                expected_remaining: 4,
+                action: delivery_relief::Action::Extend { due: 4 },
+            });
+        }
+        let opening = Opening {
+            inventory: [((SUPPLIER, WHEAT), 2), ((99, WHEAT), 2)].into(),
+            exchange_values: [(WHEAT, 3)].into(),
+            ..Default::default()
+        };
+        let run = |world: &World, backend| {
+            let mut sim = Simulation::new(world.clone(), s.clone(), backend).unwrap();
+            let mut a = Audit::with_opening(world, &s, COIN, opening.clone()).unwrap();
+            through(&mut a, &mut sim, 5);
+            assert_eq!(
+                sim.state.exchange.forwards[&50].delivered,
+                if extended { 0 } else { 4 }
+            );
+            if extended {
+                assert!(sim.state.credit.recovery.paid_guarantees.is_empty());
+                assert_eq!(sim.state.exchange.forwards[&50].effective_due(), 4);
+            } else {
+                assert_eq!(sim.state.credit.recovery.paid_guarantees[&1], 2);
+                assert_eq!(sim.state.credit.recovery.paid_guarantees[&2], 2);
+                assert_eq!(a.book().balances()[&(WORKER, Account::Inventory(WHEAT))], 5);
+                assert_eq!(
+                    sim.state.credit.loans[&101].principal + sim.state.credit.loans[&102].principal,
+                    4
+                );
+            }
+            (sim.state, sim.ledger, a)
+        };
+        let result = run(&w, Backend::CubeCpu);
+        w.recovery.guarantees.reverse();
+        assert_eq!(result, run(&w, Backend::Reference));
+    }
+}

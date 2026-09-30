@@ -7,7 +7,7 @@ use crate::{
 };
 use std::collections::BTreeMap;
 
-fn released(c: &Contract, quantity: i32) -> Result<i128, String> {
+pub(crate) fn released(c: &Contract, quantity: i32) -> Result<i128, String> {
     if c.goods.quantity <= 0 || quantity < 0 || quantity > c.goods.quantity {
         return Err("invalid forward cost quantity".into());
     }
@@ -49,6 +49,8 @@ pub(crate) fn settle(
     before: &State,
     after: &State,
     batch: &Batch,
+    coin: ResourceId,
+    values: &BTreeMap<ResourceId, i128>,
 ) -> Result<(Vec<PrepaidSale>, Vec<Line>), String> {
     let mut sales = Vec::new();
     let mut lines = Vec::new();
@@ -88,7 +90,49 @@ pub(crate) fn settle(
         let after_delivery = settled
             .checked_add(delivered)
             .ok_or("forward quantity overflow")?;
-        if delivered > 0 {
+        let guaranteed =
+            batch
+                .credit
+                .iter()
+                .flat_map(|b| &b.recovery)
+                .try_fold(0_i32, |total, r| {
+                    if let crate::recovery::Receipt::Guaranteed {
+                        claim: crate::recovery::GuaranteedClaim::Forward(claim),
+                        paid,
+                        ..
+                    } = r
+                        && claim == id
+                    {
+                        total
+                            .checked_add(*paid)
+                            .ok_or("guaranteed forward overflow")
+                    } else {
+                        Ok(total)
+                    }
+                })?;
+        if guaranteed > delivered || (guaranteed > 0 && guaranteed != delivered) {
+            return Err(
+                "guaranteed and ordinary delivery require distinct dated boundaries".into(),
+            );
+        }
+        if guaranteed > 0 {
+            let value = released(old, after_delivery)? - released(old, settled)?;
+            let cost = crate::reporting_value::value(coin, values, old.goods.resource, guaranteed)?;
+            lines.extend([
+                Line {
+                    agent: old.debtor,
+                    account: Account::Sales,
+                    debit: -value,
+                    flow: None,
+                },
+                Line {
+                    agent: old.debtor,
+                    account: Account::CostOfSales,
+                    debit: cost,
+                    flow: None,
+                },
+            ]);
+        } else if delivered > 0 {
             sales.push(PrepaidSale {
                 seller: old.debtor,
                 buyer: old.creditor,
