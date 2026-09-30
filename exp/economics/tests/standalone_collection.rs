@@ -241,3 +241,58 @@ fn concurrent_forward_admission_is_opt_in_and_reserves_real_money_and_storage() 
     assert_eq!(sim.state.exchange.forwards.len(), 1); // four prospective slots cannot cover eight goods
     assert_eq!(sim.state.balance(STATE_AGENT, COIN), 4);
 }
+
+#[test]
+fn concurrent_delivery_shares_one_stock_pool_under_selected_policy() {
+    for (policy, paid) in [
+        (CollectionPolicy::Stable, (4, 1)),
+        (CollectionPolicy::Proportional, (3, 2)),
+    ] {
+        let (w, s) = forwards(true, policy);
+        let mut sim = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+        let mut reference = Simulation::new(w, s, Backend::Reference).unwrap();
+        sim.run_months(1).unwrap();
+        let mut checkpoint =
+            Simulation::new(sim.world.clone(), sim.state.clone(), Backend::Reference).unwrap();
+        sim.world.prepaid_deliveries.reverse();
+        sim.run_months(2).unwrap();
+        reference.run_months(3).unwrap();
+        checkpoint.run_months(1).unwrap();
+        checkpoint.run_months(1).unwrap();
+        assert_eq!(sim.state, reference.state);
+        assert_eq!(sim.state, checkpoint.state);
+        assert_eq!(sim.ledger, reference.ledger);
+        assert_eq!(
+            (
+                sim.state.exchange.forwards[&1].delivered,
+                sim.state.exchange.forwards[&2].delivered
+            ),
+            paid
+        );
+        assert_eq!(sim.state.balance(PERSON, GRAIN), 0);
+    }
+}
+#[test]
+fn delivery_priority_and_live_storage_bound_actual_performance() {
+    for blocked in [false, true] {
+        let (mut w, s) = forwards(true, CollectionPolicy::Proportional);
+        if !blocked {
+            w.claim_priorities.insert(ContractId::Forward(1), 1);
+        }
+        let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+        sim.run_months(1).unwrap();
+        if blocked {
+            sim.world.storage.capacities.insert(STATE_AGENT, 0);
+        }
+        sim.run_months(1).unwrap();
+        assert_eq!(sim.state.exchange.forwards[&2].delivered, 4);
+        assert_eq!(
+            sim.state.exchange.forwards[&1].delivered,
+            if blocked { 0 } else { 1 }
+        );
+        assert_eq!(
+            sim.state.balance(PERSON, GRAIN),
+            if blocked { 1 } else { 0 }
+        );
+    }
+}

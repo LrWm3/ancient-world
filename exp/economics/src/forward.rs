@@ -442,6 +442,41 @@ pub fn settle(
     });
     let mut result = Vec::new();
     let mut execution = finance::Execution::from_parts(available.clone(), stored.clone());
+    let mut protections = household_protected.clone();
+    let requests: Vec<_> = contracts
+        .iter()
+        .map(|c| {
+            let account = (c.debtor, c.goods.resource);
+            let protected = protections.entry(account).or_default();
+            *protected = (*protected).max(
+                config
+                    .and_then(|p| p.protected.get(&c.goods.resource))
+                    .copied()
+                    .unwrap_or(0),
+            );
+            let contract = finance::ContractId::Forward(c.id);
+            finance::CollectionRequest {
+                contract,
+                rank: world
+                    .claim_priorities
+                    .get(&contract)
+                    .copied()
+                    .unwrap_or(finance::DEFAULT_CLAIM_RANK),
+                claim: c.claim(),
+            }
+        })
+        .collect();
+    let grants = if world.collection_policy == finance::CollectionPolicy::Proportional {
+        Some(finance::proportional_grants(
+            world,
+            state.month,
+            &execution,
+            &protections,
+            &requests,
+        )?)
+    } else {
+        None
+    };
     for c in contracts {
         let account = (c.debtor, c.goods.resource);
         let protected = config
@@ -449,7 +484,11 @@ pub fn settle(
             .copied()
             .unwrap_or(0)
             .max(household_protected.get(&account).copied().unwrap_or(0));
-        let claim = c.claim();
+        let mut claim = c.claim();
+        if let Some(grants) = &grants {
+            claim.transfer.amount.quantity =
+                claim.settled + grants[&finance::ContractId::Forward(c.id)];
+        }
         let payment = execution.pay_protected(world, state.month, &claim, protected)?;
         let quantity = payment.paid;
         if quantity == 0 {
