@@ -216,3 +216,11 @@ the buyer's consent. A two-estate regression reproduced rejection of this valid
 sale, then verifies stale-former-creditor refusal, immutable history, separate
 statements and CPU/reference/checkpoint agreement. No discount or onward-sale
 adapter is introduced by this change.
+
+The same sequence now includes household wind-down. Its old loss remains a
+household result; sale proceeds pay its estate creditors without becoming private
+member income. After its own liabilities and receivable ownership resolve, the
+household can dissolve while the buyer's separate claim survives. Former-holder
+consent cannot cancel that claim, even after household exit. CPU/reference and
+checkpoint financial statements agree; 49 tests passed across the four affected
+suites, followed by strict all-target Clippy.

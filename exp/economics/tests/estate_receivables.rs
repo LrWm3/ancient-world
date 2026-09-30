@@ -1130,6 +1130,15 @@ fn receivable_discovery_distinguishes_posted_guarantees_from_accepted_remaining_
 
 #[test]
 fn assignment_retains_prior_partial_loss_and_requires_the_new_creditors_relief_consent() {
+    relieved_assignment(false);
+}
+
+#[test]
+fn household_wind_down_preserves_its_partial_loss_after_selling_the_surviving_receivable() {
+    relieved_assignment(true);
+}
+
+fn relieved_assignment(household: bool) {
     use economics_compute_smoke::{
         accounting::Account,
         claim_relief::{Action, Terms},
@@ -1139,7 +1148,8 @@ fn assignment_retains_prior_partial_loss_and_requires_the_new_creditors_relief_c
     const BUYER: AgentId = 98;
     const BORROWER_ESTATE: AgentId = 96;
     for current_creditor in [false, true] {
-        let mut opening = fixture(4, 1, false);
+        let mut opening = fixture_for(4, 1, false, household);
+        let seller = if household { HOME } else { PERSON };
         opening.world.agents.extend([
             Agent {
                 id: BUYER,
@@ -1163,8 +1173,8 @@ fn assignment_retains_prior_partial_loss_and_requires_the_new_creditors_relief_c
             discharge_deficiency: false,
         });
         for (id, month, creditor, expected_remaining, quantity) in [
-            (1, 4, PERSON, 4, 1),
-            (2, 5, if current_creditor { BUYER } else { PERSON }, 3, 3),
+            (1, 4, seller, 4, 1),
+            (2, 5, if current_creditor { BUYER } else { seller }, 3, 3),
         ] {
             opening.world.recovery.claim_relief.push(Terms {
                 id,
@@ -1206,11 +1216,22 @@ fn assignment_retains_prior_partial_loss_and_requires_the_new_creditors_relief_c
             let mut a = Audit::new(&sim.world, &sim.state, TOKEN).unwrap();
             until(&mut sim, &mut a, 4, Phase::Acquire);
             assert_eq!(sim.state.credit.loans[&ASSET].principal, 3);
-            assert_eq!(a.book().balances()[&(PERSON, Account::CreditLoss)], 1);
+            assert_eq!(a.book().balances()[&(seller, Account::CreditLoss)], 1);
+            if household {
+                assert!(
+                    economics_compute_smoke::households::dissolution::finish(
+                        &mut sim.world,
+                        &sim.state,
+                        HOME,
+                        PERSON
+                    )
+                    .is_err()
+                );
+            }
             a.step(&mut sim).unwrap();
             assert_eq!(sim.state.credit.loans[&ASSET].creditor, BUYER);
             let first = sim.state.credit.recovery.loan_writeoffs[&ASSET][0].clone();
-            assert_eq!(first.terms.creditor, PERSON);
+            assert_eq!(first.terms.creditor, seller);
             let mut forged_world = sim.world.clone();
             let mut forged_state = sim.state.clone();
             forged_world.recovery.claim_relief[0].creditor = BUYER;
@@ -1239,7 +1260,7 @@ fn assignment_retains_prior_partial_loss_and_requires_the_new_creditors_relief_c
                 Stage::Closed
             );
             let b = a.book().balances();
-            assert_eq!(b[&(PERSON, Account::CreditLoss)], 1);
+            assert_eq!(b[&(seller, Account::CreditLoss)], 1);
             assert_eq!(
                 b.get(&(BUYER, Account::CreditLoss)).copied().unwrap_or(0),
                 if current_creditor { 3 } else { 0 }
@@ -1253,7 +1274,34 @@ fn assignment_retains_prior_partial_loss_and_requires_the_new_creditors_relief_c
             let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
             until(&mut resumed, &mut ra, 7, Phase::Open);
             assert_eq!((&sim.state, &a), (&resumed.state, &ra));
-            (sim.state, sim.ledger, a)
+            if household {
+                use economics_compute_smoke::households::dissolution as d;
+                assert!(d::blockers(&sim.world, &sim.state, HOME).is_empty());
+                assert_eq!(sim.state.balance(PERSON, TOKEN), 0);
+                assert_eq!(
+                    a.book()
+                        .balances()
+                        .get(&(PERSON, Account::CreditLoss))
+                        .copied()
+                        .unwrap_or(0),
+                    0
+                );
+                assert_eq!(a.book().balances()[&(HOME, Account::DebtRelief)], -7);
+                d::finish(&mut sim.world, &sim.state, HOME, PERSON).unwrap();
+                d::finish(&mut resumed.world, &resumed.state, HOME, PERSON).unwrap();
+                until(&mut sim, &mut a, 8, Phase::Open);
+                until(&mut resumed, &mut ra, 8, Phase::Open);
+                assert_eq!(
+                    (&sim.world, &sim.state, &a),
+                    (&resumed.world, &resumed.state, &ra)
+                );
+                assert_eq!(sim.state.credit.loans[&ASSET].creditor, BUYER);
+                assert_eq!(
+                    sim.state.credit.loans[&ASSET].principal,
+                    if current_creditor { 0 } else { 3 }
+                );
+            }
+            (sim.world, sim.state, sim.ledger, a)
         };
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }

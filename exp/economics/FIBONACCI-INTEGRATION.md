@@ -984,3 +984,12 @@ separate gates and are not covered by this snapshot.
     rejected. Purchase proceeds, retained debt and separate losses reconcile on
     CPU/reference and checkpoint continuation. The five-target gate passed
     101 tests and strict all-target Clippy passed.
+
+64. **Household wind-down retains loss provenance after claim sale.** The two-estate
+    assignment control now runs with an agreement-formed household as creditor.
+    Its partial loss and separate debt relief stay on its own books. Selling the
+    surviving claim funds actual estate payments and permits household dissolution;
+    the external buyer retains the debt unless it accepts relief itself. Member
+    funds and losses remain separate. CPU/reference and checkpoint continuation
+    agree through dissolution. The four-target gate passed 49 tests and strict
+    all-target Clippy passed.
