@@ -458,3 +458,11 @@ liquidation and household forwards passed; strict all-target Clippy passed.
     recourse against the original farmer, even after formation permission is
     withdrawn. Tampered admission and CPU/checkpoint controls pass. The five-target
     gate passed 39 tests; strict all-target Clippy passed.
+
+13. **Estate seed purchases join cultivation acceptance.** Common requests can
+    combine a funded inventory bid with citizenship, land and planting. The
+    purchased seed supports dated work; the seller's actual proceeds stay in
+    custody until later recovery. Unfunded and tampered requests publish nothing.
+    Continuing harvest, CPU/reference and reconstructed checkpoints agree with
+    separate statements. The five-target gate passed 26 tests; strict all-target
+    Clippy passed.

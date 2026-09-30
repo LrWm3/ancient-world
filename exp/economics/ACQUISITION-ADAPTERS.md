@@ -538,7 +538,7 @@ with strict all-target Clippy and repository artifact checks.
 
 ## Explicit financial and productive bundles
 
-Common requests may now name direct advances, prepaid deliveries and posted guarantees alongside
+Common requests may now name direct advances, prepaid deliveries, posted guarantees and estate inventory bids alongside
 citizenship, land and process offers in a supported search configuration. Financial
 request validation and successful-admission inspection are shared with the existing
 financial-only adapter. Productive prerequisites retain their explicit order;
@@ -586,3 +586,19 @@ farmer. Withdrawing permission to form new guarantees does not erase that
 accepted obligation. Forged admission, CPU/reference execution and reconstructed
 checkpoint continuation are tested. These are supplied offers and consent, not
 autonomous selection or underwriting of contingent credit.
+
+### Estate inventory in productive bundles
+
+A dated inventory bid can now join citizenship, land and planting in one explicit
+request. Preparation reserves the actual estate stock, purchase payment and
+receiving space before checking the dated production plan. An unfunded bid
+rejects the requested bundle without publishing its other admissions. Normal
+scheduled bids retain their independent consent.
+
+The seed-purchase regression starts from an actual loan advance and repayment
+shortfall, then opens an authorized estate. Purchased seed is consumed only at
+Productive; its coin price remains in custody until the subsequent Due recovery
+window. Later harvest, residual estate debt, CPU/reference execution and
+reconstructed checkpoint continuation reconcile with separate statements.
+Removing the inventory-sale receipt rejects the entire altered batch. Listings
+and prices remain supplied terms, not autonomous estate shopping.

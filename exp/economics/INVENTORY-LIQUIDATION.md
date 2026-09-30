@@ -95,3 +95,10 @@ across an estate purchase and multiple later lots. Ordinary buyer/seller trading
 is stayed during active recovery; authorized liquidation remains a separate
 route into custody. Custody agents cannot place ordinary bids or offer stock.
 The affected six-target gate passed 93 tests and strict all-target Clippy.
+
+A supplied seed bid now joins prerequisite and cultivation requests through common
+acceptance. The purchaser plants from delivered seed, while custody proceeds
+reduce the seller's debt only at the next recovery window. Funded/unfunded, altered
+receipt, CPU and reconstructed-checkpoint controls pass with separate statements.
+See `tests/recovery_search.rs`. The five-target gate passed 26 tests and strict
+all-target Clippy.
