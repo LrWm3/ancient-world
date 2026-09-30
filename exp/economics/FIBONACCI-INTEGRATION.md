@@ -411,3 +411,11 @@ liquidation and household forwards passed; strict all-target Clippy passed.
    funding, retained/discharged deficiency and household dissolution now run
    together. Offer inspection exposes the complete loan terms and security.
    The four-target gate passed 50 tests; strict all-target Clippy passed.
+
+7. **Guarantee benefits follow explicitly consented claim assignment.** Whole-loan
+   buyers can receive an attached guarantee when its terms permit transfer.
+   Calls, common inspection and observers use the new creditor; cap, term and
+   recourse debtor remain unchanged. Person and household estates exercise later
+   installment calls, separate statements and CPU/checkpoint replay. Unconsented
+   transfers and guarantor self-purchases are rejected. The seven-target affected
+   gate passed 103 tests; strict all-target Clippy passed.

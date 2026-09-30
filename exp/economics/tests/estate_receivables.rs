@@ -840,3 +840,95 @@ fn assigned_secured_claim_keeps_reserved_proceeds_across_two_household_and_perso
         }
     }
 }
+
+#[test]
+fn explicit_guarantee_benefit_follows_assignment_and_pays_the_current_holder() {
+    use economics_compute_smoke::{
+        agreements,
+        recovery::{Guarantee, GuaranteedClaim, RecourseSecurity, receivables},
+    };
+    const BUYER: AgentId = 98;
+    const GUARANTOR: AgentId = 100;
+    for household in [false, true] {
+        let mut opening = fixture_for(3, 6, false, household);
+        for id in [BUYER, GUARANTOR] {
+            opening.world.agents.push(Agent {
+                id,
+                name: format!("claim party {id}"),
+            });
+            opening.state.balances.insert((id, TOKEN), 3);
+        }
+        opening
+            .world
+            .recovery
+            .receivable_listings
+            .push(receivables::Listing {
+                id: 1,
+                proceeding: 1,
+                loan: ASSET,
+            });
+        opening
+            .world
+            .recovery
+            .receivable_bids
+            .push(receivables::Bid {
+                id: 1,
+                listing: 1,
+                buyer: BUYER,
+                month: 3,
+                price: 3,
+            });
+        opening.world.recovery.guarantees.push(Guarantee {
+            follows_assignment: true,
+            security: RecourseSecurity::Unsecured,
+            id: 1,
+            claim: GuaranteedClaim::Loan(ASSET),
+            guarantor: GUARANTOR,
+            cap: 3,
+            from: 4,
+            through: 8,
+            delay_months: 0,
+            recourse: 200,
+            priority: 0,
+        });
+        let mut invalid = opening.world.clone();
+        invalid.recovery.guarantees[0].follows_assignment = false;
+        assert!(Simulation::new(invalid, opening.state.clone(), Backend::Reference).is_err());
+        let mut invalid = opening.world.clone();
+        invalid.recovery.receivable_bids[0].buyer = GUARANTOR;
+        assert!(Simulation::new(invalid, opening.state.clone(), Backend::Reference).is_err());
+        let run = |backend| {
+            let mut sim =
+                Simulation::new(opening.world.clone(), opening.state.clone(), backend).unwrap();
+            let mut audit = Audit::new(&sim.world, &sim.state, TOKEN).unwrap();
+            until(&mut sim, &mut audit, 3, Phase::Acquire);
+            let offers = receivables::discover(&sim.world, &sim.state, BUYER);
+            assert_eq!(offers[0].guarantees, sim.world.recovery.guarantees);
+            assert!(receivables::discover(&sim.world, &sim.state, GUARANTOR).is_empty());
+            audit.step(&mut sim).unwrap();
+            until(&mut sim, &mut audit, 4, Phase::Open);
+            let views = agreements::for_agent(&sim.world, &sim.state, BUYER).unwrap();
+            assert!(
+                views
+                    .iter()
+                    .any(|v| matches!(v, agreements::View::Guarantee(g) if g.creditor == BUYER))
+            );
+            let (mut resumed, mut rb) = (sim.clone(), audit.clone());
+            until(&mut sim, &mut audit, 9, Phase::Open);
+            until(&mut resumed, &mut rb, 9, Phase::Open);
+            assert_eq!(
+                (&sim.state, &sim.ledger, &audit),
+                (&resumed.state, &resumed.ledger, &rb)
+            );
+            assert_eq!(sim.state.balance(BUYER, TOKEN), 3);
+            assert_eq!(sim.state.balance(GUARANTOR, TOKEN), 0);
+            assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 3);
+            assert_eq!(sim.state.credit.loans[&ASSET].principal, 0);
+            assert_eq!(sim.state.credit.loans[&200].principal, 3);
+            assert_eq!(sim.state.credit.loans[&200].creditor, GUARANTOR);
+            assert_eq!(sim.state.credit.loans[&200].debtor, BORROWER);
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

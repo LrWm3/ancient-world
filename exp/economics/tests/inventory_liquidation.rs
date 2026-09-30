@@ -979,6 +979,7 @@ fn guaranteed_delivery_pools_once_and_creates_recourse_only_for_actual_receipts(
             prepayment: Amount::new(TOKEN, 1),
         });
         w.recovery.guarantees.push(Guarantee {
+            follows_assignment: false,
             security: economics_compute_smoke::recovery::RecourseSecurity::Unsecured,
             id: 1,
             claim: GuaranteedClaim::Forward(1),

@@ -463,7 +463,7 @@ pub fn for_agent<'a>(
         else {
             continue;
         };
-        if let Some((debtor, creditor, _)) = g.claim.parties(world) {
+        if let Some((debtor, creditor, _)) = g.claim.current_parties(world, &state.credit) {
             views.push(View::Guarantee(GuaranteeView {
                 accepted_month,
                 terms: g.clone(),

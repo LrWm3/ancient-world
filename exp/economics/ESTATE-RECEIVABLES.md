@@ -84,7 +84,7 @@ two coins fund only the claim; three fund both, with no duplicated purchasing po
 ## Remaining boundaries
 
 This is a bounded assignment adapter, not general debt trading or discount
-valuation. It excludes fixed-value/resale security, guaranteed, mortgage, native-commodity, partial
+valuation. It excludes fixed-value/resale security, nontransferable guarantees, mortgage, native-commodity, partial
 and onward assignments, borrower buybacks, netting and impairment estimation.
 Accepted estate authorization supplies assignment authority; autonomous listing,
 pricing and consent remain future work. Unresolved assets still retain their
@@ -100,3 +100,17 @@ actual proceeds and retain the agreed deficiency risk; unfunded bids leave the
 household's exposure and exit blockers intact. Explicit debtor discharge clears
 the remaining receivable in the owning party's statements. The four-target gate
 passed 50 tests, including CPU/reference and checkpoint comparisons.
+
+## Explicitly transferable guarantees
+
+A guarantee may consent to `follows_assignment`. Without that term, its covered
+loan cannot be listed for assignment. Discovery exposes the attached terms; a
+configured future guarantee is still subject to its original admission, term,
+cap, delay and available funding. Assignment is not an underwriting promise.
+The guarantor cannot buy its own covered claim through this adapter.
+
+The original claim ID remains unchanged. Calls, common agreement inspection and
+settlement observers identify the current creditor. Actual payment reaches that
+holder and creates recourse against the original debtor, never the seller.
+Person and household seller controls exercise installments, private guarantor
+funding, estate distributions, separate statements and CPU/checkpoint parity.

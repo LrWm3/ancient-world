@@ -79,7 +79,7 @@ Accepted alternative-tender guarantees, conversion damages and dynamically
 underwritten tool-forward coverage remain extensions. Fixed resource valuations
 do not establish general FX or noncash collateral/estate accounting.
 
-Guarantees of recourse loans and pending-resale mortgages remain rejected. Lien
+Guarantees of recourse loans and pending-resale mortgages remain rejected. General security
 subrogation, guarantee markets, pricing, premiums, legal formation requirements,
 autonomous household guarantee selection and cyclic contingent-credit networks
 remain extensions. Dedicated custody agents cannot guarantee obligations.
@@ -97,3 +97,9 @@ Authorized-liquidation loans may explicitly select inherited security; see
 [lien subrogation](LIEN-PRIORITY.md#explicit-guarantee-subrogation). The common
 offer exposes this term. It transfers the lien or reserved proceeds without
 changing the next-month collectibility of actual guarantee payments.
+
+Whole-loan estate assignment can explicitly carry the benefit of a guarantee
+with `follows_assignment`. This does not extend its cap, term or acceptance.
+Inspection, payments and observers use the live loan creditor; the unchanged
+claim identity continues to control calls and recourse. Non-loan guarantees
+cannot select this term. See [receivable assignment](ESTATE-RECEIVABLES.md).

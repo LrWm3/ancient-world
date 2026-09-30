@@ -32,6 +32,7 @@ pub struct Assignment {
 pub struct Offer {
     /// Current servicing terms and security; discovery is not an underwriting promise.
     pub loan: credit::Loan,
+    pub guarantees: Vec<recovery::Guarantee>,
     pub listing: Listing,
     pub seller: AgentId,
     pub debtor: AgentId,
@@ -58,6 +59,11 @@ pub fn discover(world: &World, state: &State, buyer: AgentId) -> Vec<Offer> {
         };
         if loan.creditor == p.debtor
             && ![p.debtor, p.estate, loan.debtor].contains(&buyer)
+            && !world
+                .recovery
+                .guarantees
+                .iter()
+                .any(|g| g.claim == recovery::GuaranteedClaim::Loan(l.loan) && g.guarantor == buyer)
             && loan.debt().unwrap_or(0) > 0
             && !state.credit.recovery.assignments.contains_key(&l.loan)
             && state
@@ -67,8 +73,17 @@ pub fn discover(world: &World, state: &State, buyer: AgentId) -> Vec<Offer> {
                 .get(&p.id)
                 .is_some_and(|c| c.stage == recovery::Stage::Active)
         {
+            let mut guarantees: Vec<_> = world
+                .recovery
+                .guarantees
+                .iter()
+                .filter(|g| g.claim == recovery::GuaranteedClaim::Loan(l.loan))
+                .cloned()
+                .collect();
+            guarantees.sort_by_key(|g| g.id);
             offers.push(Offer {
                 loan: loan.clone(),
+                guarantees,
                 listing: l.clone(),
                 seller: p.debtor,
                 debtor: loan.debtor,
@@ -102,14 +117,13 @@ pub(crate) fn validate(world: &World, state: &State) -> Result<(), String> {
             || a.collateral.as_ref().is_some_and(|c| {
                 c.settlement != credit::CollateralSettlement::AuthorizedLiquidation
             })
-            || world
-                .recovery
-                .guarantees
-                .iter()
-                .any(|g| g.claim == recovery::GuaranteedClaim::Loan(l.loan) || g.recourse == l.loan)
+            || world.recovery.guarantees.iter().any(|g| {
+                (g.claim == recovery::GuaranteedClaim::Loan(l.loan) && !g.follows_assignment)
+                    || g.recourse == l.loan
+            })
         {
             return Err(
-                "receivable assignment requires one unguaranteed coin claim with compatible liquidation security"
+                "receivable assignment requires one coin claim with transferable guarantees and compatible liquidation security"
                     .into(),
             );
         }
@@ -145,6 +159,9 @@ pub(crate) fn validate(world: &World, state: &State) -> Result<(), String> {
             || b.price <= 0
             || !world.agents.iter().any(|a| a.id == b.buyer)
             || [p.debtor, p.estate, loan.debtor].contains(&b.buyer)
+            || world.recovery.guarantees.iter().any(|g| {
+                g.claim == recovery::GuaranteedClaim::Loan(l.loan) && g.guarantor == b.buyer
+            })
         {
             return Err("invalid receivable bid".into());
         }

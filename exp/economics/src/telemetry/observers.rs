@@ -252,8 +252,10 @@ pub(super) fn batch(
                         .iter()
                         .find(|g| g.id == *guarantee)
                         .expect("validated guarantee");
-                    let (debtor, creditor, resource) =
-                        g.claim.parties(world).expect("validated guarantee");
+                    let (debtor, creditor, resource) = g
+                        .claim
+                        .current_parties(world, &credit.after)
+                        .expect("validated guarantee");
                     if [g.guarantor, debtor, creditor]
                         .into_iter()
                         .any(|a| selected(config, a))
@@ -368,8 +370,9 @@ pub(super) fn batch(
                         .iter()
                         .find(|g| g.id == *guarantee)
                         .expect("validated guarantee");
-                    let (debtor, creditor, resource) =
-                        claim.parties(world).expect("validated guarantee");
+                    let (debtor, creditor, resource) = claim
+                        .current_parties(world, &credit.after)
+                        .expect("validated guarantee");
                     if selected(config, g.guarantor)
                         || selected(config, debtor)
                         || selected(config, creditor)

@@ -32,6 +32,19 @@ impl GuaranteedClaim {
             Self::Land { agreement, .. } => finance::ContractId::Land(agreement),
         }
     }
+    /// Current ownership for performance/inspection; origination terms stay immutable.
+    pub(crate) fn current_parties(
+        self,
+        world: &World,
+        book: &credit::Book,
+    ) -> Option<(AgentId, AgentId, ResourceId)> {
+        if let Self::Loan(id) = self
+            && let Some(loan) = book.loans.get(&id)
+        {
+            return Some((loan.debtor, loan.creditor, loan.denomination));
+        }
+        self.parties(world)
+    }
     pub(crate) fn parties(self, world: &World) -> Option<(AgentId, AgentId, ResourceId)> {
         match self {
             Self::Loan(id) => world
@@ -84,6 +97,8 @@ impl GuaranteedClaim {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Guarantee {
+    /// Accepted consent for its benefit to follow a whole-loan assignment.
+    pub follows_assignment: bool,
     pub security: RecourseSecurity,
     pub id: u32,
     pub claim: GuaranteedClaim,
@@ -355,6 +370,9 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         let (debtor, creditor, _) = g.claim.parties(world).ok_or(
             "guarantee requires original accepted terms; recursive guarantee chains are unsupported",
         )?;
+        if g.follows_assignment && !matches!(g.claim, GuaranteedClaim::Loan(_)) {
+            return Err("transferable guarantee requires a loan claim".into());
+        }
         subrogation::terms(world, g)?;
         if g.security == RecourseSecurity::Unsecured
             && (world.credit.as_ref().is_some_and(|c| {
