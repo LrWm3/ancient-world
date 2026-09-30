@@ -887,24 +887,39 @@ fn collect(
     }
     if let Some(credit) = &batch.credit {
         for receipt in &credit.recovery {
-            if let crate::recovery::Receipt::WagesDistributed {
-                proceeding,
-                creditor,
-                paid,
-                ..
-            } = receipt
-                && parent(world, opening, *creditor).is_some()
+            let income = match receipt {
+                crate::recovery::Receipt::WagesDistributed {
+                    proceeding,
+                    creditor,
+                    paid,
+                    ..
+                } => {
+                    let p = world
+                        .recovery
+                        .proceedings
+                        .iter()
+                        .find(|p| p.id == *proceeding)
+                        .ok_or("missing wage estate")?;
+                    Some((*creditor, p.denomination, *paid))
+                }
+                crate::recovery::Receipt::Guaranteed {
+                    claim: claim @ crate::recovery::GuaranteedClaim::Wages { .. },
+                    paid,
+                    ..
+                } => {
+                    let (_, creditor, denomination) =
+                        claim.parties(world).ok_or("missing guaranteed wage")?;
+                    Some((creditor, denomination, *paid))
+                }
+                _ => None,
+            };
+            if let Some((creditor, denomination, paid)) = income
+                && parent(world, opening, creditor).is_some()
             {
-                let p = world
-                    .recovery
-                    .proceedings
-                    .iter()
-                    .find(|p| p.id == *proceeding)
-                    .ok_or("missing wage estate")?;
-                let quantity = gained.entry((*creditor, p.denomination)).or_default();
+                let quantity = gained.entry((creditor, denomination)).or_default();
                 *quantity = quantity
-                    .checked_add(*paid)
-                    .ok_or("estate wage income overflow")?;
+                    .checked_add(paid)
+                    .ok_or("recovery wage income overflow")?;
             }
         }
     }

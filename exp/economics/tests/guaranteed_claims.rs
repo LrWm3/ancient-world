@@ -344,3 +344,87 @@ fn overlapping_coverage_releases_unneeded_grants_without_double_payment() {
             .all(|e| e.claim.outstanding() == 0)
     );
 }
+
+#[test]
+fn guaranteed_member_wages_pool_actual_receipts_once_and_preserve_household_recourse() {
+    use economics_compute_smoke::{
+        households::{self, market::EXAMPLE_HOUSEHOLD as HOME},
+        opportunities::{Action, PERSON_TYPE},
+        scenario::{LABOR, PERSON, TOKEN},
+    };
+    const EMPLOYER: AgentId = 89;
+    const OUTSIDER: AgentId = 92;
+    for guarantor in [OUTSIDER, HOME] {
+        let (mut w, mut s) = households::market::scenario().unwrap();
+        w.town_market = None;
+        s.town_market = Default::default();
+        s.balances.clear();
+        s.balances.insert((guarantor, TOKEN), 4);
+        w.activities.orders.clear();
+        for p in &mut w.participants {
+            p.needs.clear();
+            p.capacity.quantity = if p.agent == PERSON { 5 } else { 0 };
+        }
+        w.transaction_policy
+            .as_mut()
+            .unwrap()
+            .permissions
+            .insert((PERSON_TYPE, Action::CapacityTrade));
+        w.employment.push(Terms {
+            id: 1,
+            employer: EMPLOYER,
+            worker: PERSON,
+            from: 1,
+            through: 1,
+            capacity: Amount::new(LABOR, 2),
+            wage_per_unit: Amount::new(TOKEN, 2),
+            on_arrears: ArrearsPolicy::Continue,
+            rank: 0,
+        });
+        w.recovery.guarantees.push(Guarantee {
+            id: 1,
+            claim: GuaranteedClaim::Wages {
+                agreement: 1,
+                earned_month: 1,
+            },
+            guarantor,
+            cap: 4,
+            from: 1,
+            through: 8,
+            delay_months: 0,
+            recourse: 101,
+            priority: 0,
+        });
+        let mut a = Audit::with_opening(
+            &w,
+            &s,
+            TOKEN,
+            Opening {
+                assets: w.assets.iter().map(|asset| (asset.id, 0)).collect(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let mut b = a.clone();
+        let mut sim = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+        let mut reference = Simulation::new(w, s, Backend::Reference).unwrap();
+        through(&mut a, &mut sim, 4);
+        through(&mut b, &mut reference, 4);
+        assert_eq!(sim.state, reference.state);
+        assert_eq!(sim.ledger, reference.ledger);
+        assert_eq!(a.book().balances(), b.book().balances());
+        assert_eq!(sim.state.balance(PERSON, TOKEN), 2);
+        assert_eq!(sim.state.balance(HOME, TOKEN), 2);
+        assert_eq!(sim.state.balance(OUTSIDER, TOKEN), 0);
+        assert_eq!(sim.state.credit.loans[&101].principal, 4);
+        assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 0);
+        assert_eq!(
+            a.book().balances()[&(guarantor, Account::LoanReceivable(101))],
+            4
+        );
+        assert_eq!(
+            a.book().balances()[&(EMPLOYER, Account::LoanPayable(101))],
+            -4
+        );
+    }
+}
