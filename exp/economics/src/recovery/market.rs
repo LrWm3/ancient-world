@@ -11,6 +11,14 @@ pub struct Offer {
 }
 
 pub(crate) fn eligible_buyer(world: &World, state: &State, buyer: AgentId) -> bool {
+    eligible_buyer_for(world, state, buyer, opportunities::Action::AssetTrade)
+}
+pub(crate) fn eligible_buyer_for(
+    world: &World,
+    state: &State,
+    buyer: AgentId,
+    action: opportunities::Action,
+) -> bool {
     world.agents.iter().any(|a| a.id == buyer)
         && !world.recovery.proceedings.iter().any(|p| p.estate == buyer)
         && !state.terminal.contains_key(&buyer)
@@ -21,7 +29,7 @@ pub(crate) fn eligible_buyer(world: &World, state: &State, buyer: AgentId) -> bo
                 && (crate::households::dissolution::winding_at(h, state.month).is_some()
                     || crate::households::dissolution::closed_at(h, state.month))
         })
-        && opportunities::permits(world, state, buyer, opportunities::Action::AssetTrade)
+        && opportunities::permits(world, state, buyer, action)
 }
 
 pub fn discover(world: &World, state: &State, buyer: AgentId) -> Vec<Offer> {

@@ -9,6 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 const RECOURSE_TERM_MONTHS: u32 = 1;
 pub mod admission;
+pub mod inventory;
 pub mod market;
 
 /// Identifies the authoritative obligation covered by accepted contingent terms.
@@ -131,6 +132,8 @@ pub struct Config {
     pub guarantee_policy: finance::CollectionPolicy,
     pub proceedings: Vec<ProceedingTerms>,
     pub bids: Vec<Bid>,
+    pub inventory_listings: Vec<inventory::Listing>,
+    pub inventory_bids: Vec<inventory::Bid>,
     pub delivery_relief: Vec<crate::delivery_relief::Terms>,
     pub claim_relief: Vec<crate::claim_relief::Terms>,
 }
@@ -146,6 +149,7 @@ pub struct Proceeding {
     pub stage: Stage,
     pub cash: i32,
     pub sold: BTreeSet<AssetId>,
+    pub sold_inventory: BTreeSet<u32>,
     /// Actual proceeds reserved for the asset's existing lien, capped at its debt.
     pub secured: BTreeMap<u32, i32>,
 }
@@ -235,6 +239,16 @@ pub enum Receipt {
         buyer: AgentId,
         proceeds: i32,
     },
+    InventorySold {
+        proceeding: u32,
+        listing: u32,
+        bid: u32,
+        buyer: AgentId,
+        proceeds: i32,
+    },
+    InventorySaleRejected {
+        bid: u32,
+    },
     SaleRejected {
         bid: u32,
     },
@@ -306,6 +320,7 @@ fn rank(world: &World, loan: &Loan) -> u32 {
 }
 
 pub fn validate(world: &World, state: &State) -> Result<(), String> {
+    inventory::validate(world, state)?;
     admission::validate(world, state)?;
     crate::delivery_relief::validate_terms(world)?;
     crate::claim_relief::validate_terms(world)?;
@@ -792,6 +807,7 @@ pub(crate) fn open(world: &World, state: &State, out: &mut credit::Boundary) -> 
                 stage: Stage::Active,
                 cash: 0,
                 sold: BTreeSet::new(),
+                sold_inventory: BTreeSet::new(),
                 secured: BTreeMap::new(),
             },
         );
@@ -1307,6 +1323,7 @@ pub(crate) fn sales(
             proceeds: b.price,
         });
     }
+    inventory::sales(world, state, out, execution)?;
     Ok(())
 }
 
@@ -1517,6 +1534,7 @@ pub(crate) fn distribute(
                         || current_recourse(world, &out.after, l.id, state.month) > 0)
             })
             && p.assets.iter().all(|a| case.sold.contains(&a.asset))
+            && inventory::cleared(world, p.id, &case)
             && case.secured.values().all(|v| *v == 0)
         {
             let mut nonloans = crate::recovery_claims::outstanding(

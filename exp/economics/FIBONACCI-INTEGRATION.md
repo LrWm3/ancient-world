@@ -284,6 +284,9 @@ Completed integrations:
 42. Carry prepaid consent through competitive and empty land allocation rounds.
 43. Compare feasible delivery and retained shortfalls through production and double-entry statements.
 44. Accept named credit/prepaid terms and ordered productive prerequisites through one common bundle.
+45. Liquidate explicit inventory lots through shared funding, storage, exemptions and estate custody.
+46. Reconcile household inventory purchases and separate buyer/debtor/custodian statements.
+47. Discover and accept dated inventory bids through the common financial offer interface.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.
@@ -297,3 +300,8 @@ across 110 Cargo target results. It started from `3eb0a20`; later targeted build
 ran while it was executing, so this is mixed-tree regression evidence, not a
 full gate for the final batch-55 revision. Subsequent tool-aware collection and
 acquired-state changes have their own focused gates.
+
+Inventory liquidation: [scope and evidence](INVENTORY-LIQUIDATION.md). Its focused
+seven-target gate passed 63 tests; all five final inventory tests and strict
+all-target Clippy passed. The final target covers the
+explicit current-essential exemption and inventory cost/revenue assertions too.

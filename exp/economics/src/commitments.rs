@@ -936,6 +936,7 @@ mod candidate_tests {
                 stage: Stage::Active,
                 cash: 0,
                 sold: Default::default(),
+                sold_inventory: Default::default(),
                 secured: Default::default(),
             },
         );

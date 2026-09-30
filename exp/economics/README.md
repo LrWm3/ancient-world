@@ -531,3 +531,8 @@ compatible direct-loan liens reserve each asset's realized proceeds by collatera
 priority. Default alone does not transfer title or create recovery cash. Opted-in mortgages use the same authorized lifecycle and transfer unfinished crop
 control at sale. Specialized mortgage planning, lien subrogation and autonomous
 listing remain outstanding.
+
+Authorized [inventory liquidation](INVENTORY-LIQUIDATION.md) now sells configured
+stock lots through common offer acceptance, shared opening resources and existing
+estate custody. Household agents can buy with separate books; member contribution
+integration and autonomous listing remain open.

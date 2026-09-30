@@ -1084,6 +1084,43 @@ impl Audit {
             crate::forward_accounting::settle(before, after, batch, coin, &self.exchange_values)?;
         prepaid.extend(barter_deliveries);
         prepaid.extend(wage_deliveries);
+        let mut inventory_sales = Vec::new();
+        for receipt in batch.credit.iter().flat_map(|c| &c.recovery) {
+            if let recovery::Receipt::InventorySold {
+                proceeding,
+                listing,
+                bid,
+                buyer,
+                proceeds,
+            } = receipt
+            {
+                let p = world
+                    .recovery
+                    .proceedings
+                    .iter()
+                    .find(|p| p.id == *proceeding)
+                    .ok_or("missing inventory estate")?;
+                let l = world
+                    .recovery
+                    .inventory_listings
+                    .iter()
+                    .find(|l| l.id == *listing)
+                    .ok_or("missing inventory lot")?;
+                if p.denomination != coin {
+                    return Err(
+                        "inventory liquidation needs reporting-denomination proceeds".into(),
+                    );
+                }
+                prepaid.push(crate::inventory_accounting::PrepaidSale {
+                    seller: p.debtor,
+                    buyer: *buyer,
+                    resource: l.goods.resource,
+                    quantity: l.goods.quantity,
+                    value: i128::from(*proceeds),
+                });
+                inventory_sales.push(recovery::inventory::sale_transaction(world, *bid)?);
+            }
+        }
         let mut allocation = crate::inventory_accounting::CostAllocation::new(&opening_inventory);
         let (inventory, trade_lines) =
             opening_inventory.settle_allocated(&cash_trades, coin, &prepaid, &mut allocation)?;
@@ -1188,6 +1225,7 @@ impl Audit {
                 || trades.contains(&t)
                 || mint_transactions.contains(t)
                 || loan_transfers.contains(t)
+                || inventory_sales.contains(t)
             {
                 continue;
             }
@@ -1762,6 +1800,33 @@ impl Audit {
                         result(&mut lines, l.creditor, Account::CreditLoss, loss);
                         result(&mut lines, l.debtor, Account::DebtRelief, -loss);
                     }
+                    recovery::Receipt::InventorySold {
+                        proceeding,
+                        buyer,
+                        proceeds,
+                        ..
+                    } => {
+                        let p = world
+                            .recovery
+                            .proceedings
+                            .iter()
+                            .find(|p| p.id == *proceeding)
+                            .ok_or("missing inventory estate")?;
+                        flow(
+                            &mut flows,
+                            *buyer,
+                            Account::Cash,
+                            Flow::Operating,
+                            -i128::from(*proceeds),
+                        )?;
+                        flow(
+                            &mut flows,
+                            p.debtor,
+                            Account::RestrictedCash(*proceeding),
+                            Flow::Operating,
+                            i128::from(*proceeds),
+                        )?;
+                    }
                     recovery::Receipt::Sold {
                         proceeding,
                         asset,
@@ -1802,6 +1867,7 @@ impl Audit {
                     | recovery::Receipt::DeliveryRelief { .. }
                     | recovery::Receipt::GuaranteeAdmission { .. }
                     | recovery::Receipt::SaleRejected { .. }
+                    | recovery::Receipt::InventorySaleRejected { .. }
                     | recovery::Receipt::Opened { .. }
                     | recovery::Receipt::OpeningRejected { .. }
                     | recovery::Receipt::Admitted { .. }

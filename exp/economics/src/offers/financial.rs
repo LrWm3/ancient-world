@@ -13,6 +13,7 @@ pub(super) fn is_financial(id: Id) -> bool {
             | Id::FinancedPurchase(_)
             | Id::Employment(_)
             | Id::LiquidationBid(_)
+            | Id::InventoryLiquidationBid(_)
     )
 }
 
@@ -75,6 +76,23 @@ pub(super) fn discover(w: &World, s: &State, agent: AgentId, offers: &mut Vec<Of
             });
         }
     }
+    let inventory = crate::recovery::inventory::discover(w, s, agent);
+    for b in w
+        .recovery
+        .inventory_bids
+        .iter()
+        .filter(|b| b.buyer == agent && b.month >= s.month)
+    {
+        if let Some(offer) = inventory.iter().find(|o| o.listing.id == b.listing) {
+            additions.push(Offer {
+                id: Id::InventoryLiquidationBid(b.id),
+                terms: Terms::InventoryLiquidation {
+                    offer: offer.clone(),
+                    bid: b.clone(),
+                },
+            });
+        }
+    }
     additions.sort_by_key(|o| o.id);
     offers.extend(additions);
 }
@@ -89,6 +107,12 @@ pub(super) fn validate_requests(sim: &Simulation, requests: &[Request]) -> Resul
             return Err("duplicate or invalid financial application".into());
         }
         let matches = match r.offer {
+            Id::InventoryLiquidationBid(id) => sim
+                .world
+                .recovery
+                .inventory_bids
+                .iter()
+                .any(|b| b.id == id && b.buyer == r.agent && b.month == sim.state.month),
             Id::LiquidationBid(id) => sim
                 .world
                 .recovery
@@ -148,6 +172,7 @@ pub(super) fn validate_acceptance(
 ) -> Result<(), String> {
     for r in requests {
         let accepted = match r.offer {
+            Id::InventoryLiquidationBid(id) => batch.credit.as_ref().is_some_and(|c| c.recovery.iter().any(|r| matches!(r, crate::recovery::Receipt::InventorySold { bid, .. } if *bid == id))),
             Id::LiquidationBid(id) => {
                 let b = sim.world.recovery.bids.iter().find(|b| b.id == id).unwrap();
                 batch.credit.as_ref().is_some_and(|c| {

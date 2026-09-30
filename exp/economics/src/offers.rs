@@ -14,9 +14,14 @@ pub enum Id {
     PrepaidDelivery(u32),
     Employment(u32),
     LiquidationBid(u32),
+    InventoryLiquidationBid(u32),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Terms {
+    InventoryLiquidation {
+        offer: crate::recovery::inventory::Offer,
+        bid: crate::recovery::inventory::Bid,
+    },
     Liquidation {
         offer: crate::recovery::market::Offer,
         bid: crate::recovery::Bid,
@@ -146,6 +151,7 @@ pub(crate) fn resolve(
                 | Id::PrepaidDelivery(_)
                 | Id::Employment(_)
                 | Id::LiquidationBid(_)
+                | Id::InventoryLiquidationBid(_)
         )
     }) {
         if *batch != Batch::empty(&sim.state) {
@@ -195,7 +201,8 @@ pub(crate) fn resolve(
             | Id::Advance(_)
             | Id::PrepaidDelivery(_)
             | Id::Employment(_)
-            | Id::LiquidationBid(_) => unreachable!("handled above"),
+            | Id::LiquidationBid(_)
+            | Id::InventoryLiquidationBid(_) => unreachable!("handled above"),
             Id::Membership(offer) => {
                 if request.continuing.is_some() || !work.is_empty() {
                     return Err("duplicate or misordered membership acceptance".into());

@@ -42,8 +42,9 @@ misrepresented as conserved transfers between fictional counterparties.
   enforcement, balance-sheet views and CPU batch settlement.
 - `World.lending` holds explicitly consented, dated advances between distinct
   agent IDs. Lender type is not hardcoded. Unsecured advances can use a stock
-  commodity; collateral is optional. Secured direct advances currently use a
-  storage-free denomination and the existing fixed-value repossession rule.
+  commodity; collateral is optional. Secured direct advances use a storage-free denomination and explicit fixed-value,
+  creditor-resale or authorized-estate-liquidation terms. Compatible shared liens
+  now reserve actual proceeds under the last option.
 - General loan acceptance checks the `Loan` legal form, borrower `Borrow`
   permission, creditor `Lend` permission, the interest ceiling, actual funding,
   collateral ownership/exclusivity and receiving storage. Permission withdrawal
@@ -165,7 +166,8 @@ can establish that all these arrangements compose.
    proceeds under explicit authorized-liquidation terms; cross-currency priority
    and lien subrogation remain open. [Receivable collection](ESTATE-RECEIVABLES.md)
    now blocks deficient closure until existing assets are performed or disposed of;
-   receivable sale/assignment and inventory liquidation remain open. Unsold assets
+   [inventory liquidation](INVENTORY-LIQUIDATION.md) now sells configured stock lots
+   into the same custody and waterfall. Receivable sale/assignment remains open. Unsold assets
    remain unsold; appraisals do not create coins. Retain surplus, deficiencies,
    explicit discharge/write-offs and final receipts. Mortgages can now explicitly select the authorized-liquidation lifecycle,
    including crop-control transfer, custody and actual proceeds. Legacy fixed-value
