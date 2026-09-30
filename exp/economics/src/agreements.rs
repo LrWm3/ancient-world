@@ -387,7 +387,25 @@ pub fn for_agent<'a>(
         world
             .employment
             .iter()
-            .map(|t| View::Agreement(Box::new(crate::employment::contract(t, &state.employment)))),
+            .filter(|t| {
+                !world.employment_offers.contains(&t.id)
+                    || state.employment.earned.keys().any(|(id, _)| *id == t.id)
+            })
+            .map(|t| {
+                let mut agreement = crate::employment::contract(t, &state.employment);
+                if world.employment_offers.contains(&t.id) {
+                    let months: Vec<_> = state
+                        .employment
+                        .earned
+                        .keys()
+                        .filter(|(id, _)| *id == t.id)
+                        .map(|(_, m)| *m)
+                        .collect();
+                    agreement.accepted_month = *months.iter().min().unwrap();
+                    agreement.through = months.iter().max().copied();
+                }
+                View::Agreement(Box::new(agreement))
+            }),
     );
     let mut land: Vec<_> = crate::commitments::active(world, state).collect();
     land.sort_by_key(|a| a.id);

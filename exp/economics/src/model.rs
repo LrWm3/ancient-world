@@ -184,6 +184,8 @@ pub struct World {
     /// Explicitly consented commodity prepayments, independent of equipment purchases.
     pub prepaid_deliveries: Vec<crate::forward::direct::Terms>,
     pub employment: Vec<crate::employment::Terms>,
+    /// Catalog IDs offered for household acceptance each month, not preaccepted jobs.
+    pub employment_offers: std::collections::BTreeSet<u32>,
     pub minting: Option<crate::minting::Config>,
     pub production_market: Option<crate::production_market::Config>,
     pub town_market: Option<crate::town_market::Config>,

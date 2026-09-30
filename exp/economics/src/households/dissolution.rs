@@ -155,7 +155,7 @@ pub fn blockers(w: &World, s: &State, household: AgentId) -> Vec<Blocker> {
     }
     if w.employment.iter().any(|t| {
         involved(t.employer, t.worker)
-            && (t.through >= s.month
+            && ((t.through >= s.month && !w.employment_offers.contains(&t.id))
                 || s.employment
                     .earned
                     .iter()

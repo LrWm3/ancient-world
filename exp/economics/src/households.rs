@@ -9,6 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub mod disposal;
 pub mod dissolution;
+pub(crate) mod hiring;
 pub mod income;
 pub(crate) mod income_reservations;
 pub mod market;

@@ -635,3 +635,107 @@ fn purchased_labor_receipts_and_transfers_are_verified_before_publication() {
         assert_eq!(replay, completed);
     }
 }
+
+#[test]
+fn posted_labor_is_hired_only_for_incremental_feasible_work_and_keeps_wage_accounting() {
+    use economics_compute_smoke::scenario::GRAIN;
+    for control in 0..6 {
+        let (mut w, s) = production(6);
+        w.employment_offers.insert(1);
+        w.employment[0].wage_per_unit.quantity = 1;
+        match control {
+            1 => w.activities.orders.clear(),
+            2 => w.households[0].governance.charter.hiring_budget = Some(Amount::new(TOKEN, 1)),
+            3 => {
+                w.participants
+                    .iter_mut()
+                    .find(|p| p.agent == PERSON)
+                    .unwrap()
+                    .capacity
+                    .quantity = 2
+            }
+            4 => w.households[0].governance.constitution.activities = Some(Default::default()),
+            5 => w.employment[0].wage_per_unit.quantity = 2,
+            _ => (),
+        }
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            let mut checkpoint = None;
+            while sim.state.month <= 1 {
+                if sim.state.phase == Phase::Acquire {
+                    checkpoint = Some((sim.clone(), a.clone()));
+                }
+                a.step(&mut sim).unwrap();
+            }
+            let hours = if control == 0 { 2 } else { 0 };
+            assert_eq!(sim.state.balance(WORKER, TOKEN), hours);
+            assert_eq!(sim.state.balance(HOME, TOKEN), 6 - hours);
+            assert_eq!(
+                sim.state
+                    .employment
+                    .earned
+                    .get(&(1, 1))
+                    .map_or(0, |e| e.delivered),
+                hours
+            );
+            assert_eq!(
+                sim.state.balance(HOME, GRAIN),
+                if [0, 3].contains(&control) { 2 } else { 0 }
+            );
+            assert_eq!(value(&a, HOME, A::PurchasedCapacity(LABOR)), 0);
+            let (mut resumed, mut ra) = checkpoint.unwrap();
+            through(&mut ra, &mut resumed, 1);
+            assert_eq!(
+                (&sim.state, &sim.ledger, &a),
+                (&resumed.state, &resumed.ledger, &ra)
+            );
+            let mut replay = s.clone();
+            for b in &sim.ledger {
+                commit(&w, &mut replay, b, backend, DEFAULT_EFFECT_LIMIT).unwrap();
+            }
+            assert_eq!(replay, sim.state);
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
+
+#[test]
+fn competing_labor_offers_do_not_duplicate_the_same_projected_work() {
+    let (mut w, s) = production(6);
+    w.employment[0].wage_per_unit.quantity = 1;
+    let mut second = w.employment[0].clone();
+    second.id = 2;
+    second.worker = 92;
+    w.participants
+        .iter_mut()
+        .find(|p| p.agent == 92)
+        .unwrap()
+        .capacity
+        .quantity = 3;
+    w.employment.push(second);
+    w.employment_offers.extend([1, 2]);
+    let run = |mut w: World, backend| {
+        if matches!(backend, Backend::CubeCpu) {
+            w.employment.reverse();
+        }
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut a = audit(&w, &s);
+        while sim.state.phase != Phase::Acquire {
+            a.step(&mut sim).unwrap();
+        }
+        let before = sim.state.clone();
+        a.step(&mut sim).unwrap();
+        assert_eq!(sim.state.employment.earned[&(1, 1)].delivered, 2);
+        assert!(!sim.state.employment.earned.contains_key(&(2, 1)));
+        let mut forged = sim.ledger.last().unwrap().clone();
+        forged.employment.as_mut().unwrap().receipts[0].delivered = 3;
+        let mut rejected = before.clone();
+        assert!(commit(&w, &mut rejected, &forged, backend, DEFAULT_EFFECT_LIMIT).is_err());
+        assert_eq!(rejected, before);
+        through(&mut a, &mut sim, 2);
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(w.clone(), Backend::Reference), run(w, Backend::CubeCpu));
+}

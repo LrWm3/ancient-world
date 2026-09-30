@@ -51,6 +51,8 @@ pub enum Reason {
     NotPermitted,
     Unavailable,
     HiringBudget,
+    NoUsefulWork,
+    UsefulWorkLimit,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Receipt {
@@ -82,6 +84,29 @@ fn transaction(effects: Vec<Effect>) -> Transaction {
     }
 }
 pub fn validate(w: &World, s: &State) -> Result<(), String> {
+    if w.employment_offers.iter().any(|id| {
+        !w.employment
+            .iter()
+            .any(|t| t.id == *id && w.households.iter().any(|h| h.agent == t.employer))
+    }) {
+        return Err("labor offers require catalog terms targeting a household".into());
+    }
+    if !w.employment_offers.is_empty()
+        && (w.market.is_some()
+            || w.credit.is_some()
+            || w.negotiation.is_some()
+            || w.minting.is_some()
+            || w.production_market.is_some()
+            || w.pool_market.is_some()
+            || w.competition.is_some()
+            || w.work_choice.is_some()
+            || !w.offers.is_empty()
+            || !w.access_offers.is_empty()
+            || !w.bids.is_empty()
+            || w.priority == Priority::ConsequenceAware)
+    {
+        return Err("household labor offers require plain or town acquisition".into());
+    }
     let mut ids = BTreeSet::new();
     let kind = |id| w.resources.iter().find(|r| r.id == id).map(|r| r.kind);
     for t in &w.employment {
@@ -250,7 +275,8 @@ pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boun
     };
     if s.phase == Phase::Acquire {
         let mut terms: Vec<_> = w.employment.iter().collect();
-        terms.sort_by_key(|t| (t.rank, t.id));
+        // Honor preaccepted jobs before considering optional offers.
+        terms.sort_by_key(|t| (w.employment_offers.contains(&t.id), t.rank, t.id));
         let mut hiring = BTreeMap::<AgentId, i32>::new();
         for t in terms {
             if s.month < t.from || s.month > t.through {
@@ -259,10 +285,12 @@ pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boun
             if b.after.earned.contains_key(&(t.id, s.month)) {
                 return Err("duplicate wage earning boundary".into());
             }
-            let mut reason = if [t.worker, t.employer]
-                .iter()
-                .any(|a| s.terminal.contains_key(a) || !crate::households::market::active(w, s, *a))
-            {
+            let mut reason = if [t.worker, t.employer].iter().any(|a| {
+                s.terminal.contains_key(a)
+                    || !crate::households::market::active(w, s, *a)
+                    || (w.employment_offers.contains(&t.id)
+                        && crate::recovery::active(w, &s.credit, *a).is_some())
+            }) {
                 Reason::Inactive
             } else if ![t.worker, t.employer]
                 .iter()
@@ -311,6 +339,17 @@ pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boun
                     reason = Reason::HiringBudget;
                 }
                 delivered = bounded;
+                if delivered > 0 && w.employment_offers.contains(&t.id) {
+                    let useful = crate::households::hiring::quantity(w, s, base, &b, t, delivered)?;
+                    if useful < delivered {
+                        reason = if useful == 0 {
+                            Reason::NoUsefulWork
+                        } else {
+                            Reason::UsefulWorkLimit
+                        };
+                    }
+                    delivered = useful;
+                }
                 *spent = spent
                     .checked_add(delivered * t.wage_per_unit.quantity)
                     .ok_or("hiring budget overflow")?;
@@ -328,24 +367,9 @@ pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boun
                     }],
                 )?;
                 b.transactions.push(transaction(effects));
-                b.after.earned.insert(
-                    (t.id, s.month),
-                    Earned {
-                        delivered,
-                        claim: finance::Obligation {
-                            transfer: finance::Transfer {
-                                from: t.employer,
-                                to: t.worker,
-                                amount: Amount::new(t.wage_per_unit.resource, wage),
-                            },
-                            settled: 0,
-                            condition: finance::Condition::OnOrAfterMonth(
-                                s.month.checked_add(1).ok_or("wage due date overflow")?,
-                            ),
-                            failure: finance::FailureRule::CarryArrears,
-                        },
-                    },
-                );
+                b.after
+                    .earned
+                    .insert((t.id, s.month), earning(t, s.month, delivered)?);
             }
             b.receipts.push(Receipt {
                 agreement: t.id,
@@ -434,4 +458,28 @@ pub fn contract(t: &Terms, book: &Book) -> agreements::Agreement {
             })
             .collect(),
     }
+}
+
+/// One month's exercised quantity is the accepted job and authoritative wage claim.
+pub(crate) fn earning(t: &Terms, month: u32, delivered: i32) -> Result<Earned, String> {
+    Ok(Earned {
+        delivered,
+        claim: finance::Obligation {
+            transfer: finance::Transfer {
+                from: t.employer,
+                to: t.worker,
+                amount: Amount::new(
+                    t.wage_per_unit.resource,
+                    delivered
+                        .checked_mul(t.wage_per_unit.quantity)
+                        .ok_or("wage overflow")?,
+                ),
+            },
+            settled: 0,
+            condition: finance::Condition::OnOrAfterMonth(
+                month.checked_add(1).ok_or("wage due date overflow")?,
+            ),
+            failure: finance::FailureRule::CarryArrears,
+        },
+    })
 }
