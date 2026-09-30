@@ -575,3 +575,42 @@ fn household_member_market_receipts_pool_once_and_own_labor_remains_reserved() {
         assert_eq!(a, report);
     }
 }
+
+#[test]
+fn mint_market_reserves_pooled_storage_before_accepting_a_member_purchase() {
+    for generated in [false, true] {
+        let (mut w, mut s) = if generated {
+            minting::order_scenario("normal")
+        } else {
+            minting::scenario("normal")
+        }
+        .unwrap();
+        w.storage.capacities.insert(WORKER, 8);
+        worker_household(&mut w, &s, 20);
+        // Four shared slots are full. A three-unit private receipt fits before
+        // pooling, but its mandatory one-unit contribution does not.
+        s.balances.insert((800, WHEAT), 4);
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+        while sim.state.month <= 1 {
+            a.step(&mut sim).unwrap();
+        }
+        assert_eq!(sim.state.balance(WORKER, WHEAT), 0);
+        assert_eq!(sim.state.balance(WORKER, COIN), 6);
+        assert_eq!(sim.state.balance(800, WHEAT), 4);
+        assert_eq!(sim.state.balance(SUPPLIER, WHEAT), 3);
+        assert_eq!(sim.state.balance(ISSUER, COIN), 3);
+        assert!(
+            !sim.state
+                .household_remainders
+                .contains_key(&(800, WORKER, WHEAT))
+        );
+        assert_eq!(a.book().statements(ISSUER, 1, 1).unwrap().closing_cash, 3);
+        let mint = sim.ledger.iter().find_map(|b| b.minting.as_ref()).unwrap();
+        if generated {
+            assert!(!mint.deals.iter().any(|d| d.buyer == WORKER));
+        } else {
+            assert!(!mint.receipts[1].accepted);
+        }
+    }
+}
