@@ -1,8 +1,8 @@
 # Explicit relief for dated non-loan claims
 
 `recovery.claim_relief` supplies dated terms accepted by the debtor and creditor
-inside an authorized proceeding. It initially covers earned wages; land bills and
-date extensions follow as adapters to this same mechanism. Relief is never
+inside an authorized proceeding. Earned wages and annual land bills share dated
+extensions and quantity write-offs through this mechanism. Relief is never
 inferred from insolvency or inability to deliver.
 
 Terms identify the contract, original due date, parties, proceeding, application
@@ -67,3 +67,22 @@ reserves no early land payment at month 15, then uses actual asset-sale proceeds
 for accepted coin tender at month 16. Native receipts and issuance remain zero.
 The next annual bill still arrives at month 25. CPU/reference and checkpoint books
 agree; wage extension, land funding and member payment-support regressions pass.
+
+
+## Composed recovery
+
+The fifth change combines one household member's employment, household wage
+assistance, annual rent and direct prepaid delivery in one authorized proceeding.
+One household coin and two advance coins pay three of six earned wage coins.
+No grain is produced: rent and delivery genuinely fail. The control preserves all
+three claims indefinitely; the consented case writes off wage arrears, extends then
+waives the land bill, and extends then waives the forward. Only the last resolution
+allows closure, at month 18. Seven reporting coins of creditor losses match debtor
+relief; three actual wage coins and zero grain payments/deliveries remain unchanged.
+CPU/reference, reordered terms, replay and checkpoint continuation agree.
+
+Final focused verification: all 11 wage-recovery tests and the mixed recovery test
+pass. A physical wage write-off is valued from its native units without transferring
+coins or inventory. The affected land-extension run passed 34 tests across four
+suites. Formatting, strict all-target Clippy and artifact checks pass; the broader
+crate regression is recorded separately when complete.

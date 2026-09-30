@@ -580,3 +580,39 @@ fn accepted_wage_extension_preserves_debt_until_new_due_and_blocks_early_closure
             .contains_key(&(WORKER, Account::CreditLoss))
     );
 }
+
+#[test]
+fn physical_wage_writeoff_uses_claim_valuation_without_a_coin_buyout() {
+    use economics_compute_smoke::minting::FIREWOOD;
+    let (mut w, mut s) = fixture();
+    w.employment[0].through = 1;
+    w.employment[0].wage_per_unit.resource = FIREWOOD;
+    w.recovery.claim_relief.push(wage_relief(1, 3, 4, 4));
+    s.balances.insert((ISSUER, COIN), 7);
+    let mut a = Audit::with_opening(
+        &w,
+        &s,
+        COIN,
+        Opening {
+            exchange_values: [(FIREWOOD, 3)].into(),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    through(&mut a, &mut sim, 4);
+    let e = &sim.state.employment.earned[&(1, 1)];
+    assert_eq!(
+        (e.delivered, e.claim.settled, e.claim.outstanding()),
+        (2, 0, 0)
+    );
+    assert_eq!(sim.state.balance(ISSUER, COIN), 7);
+    assert_eq!(sim.state.balance(WORKER, COIN), 0);
+    assert_eq!(sim.state.balance(WORKER, FIREWOOD), 0);
+    assert_eq!(
+        sim.state.credit.recovery.proceedings[&1].stage,
+        Stage::Closed
+    );
+    assert_eq!(a.book().balances()[&(WORKER, Account::CreditLoss)], 12);
+    assert_eq!(a.book().balances()[&(ISSUER, Account::DebtRelief)], -12);
+}

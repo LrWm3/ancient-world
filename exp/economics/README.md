@@ -51,6 +51,9 @@ cover prepaid production and a bounded income-funded hiring loop.
 [Earned-wage recovery](WAGE-RECOVERY.md) now admits arrears, stays ordinary coin
 collection, and allocates estate cash alongside loan/land creditors. Funded
 liquidation payments reach workers and their households through separate books.
+[Accepted claim relief](CLAIM-RELIEF.md) now extends dates or writes off specific
+earned wages and land bills, preserving actual payments and annual billing. A
+mixed household-support/wage/rent/forward case closes only after each claim is resolved.
 Person self-directed policy changes remain deferred.
 These are bounded combinations; the remaining exclusions are explicit.
 
@@ -62,15 +65,16 @@ These are bounded combinations; the remaining exclusions are explicit.
 | Marketplaces | Bilateral negotiation/ZIP, local town books, need-generated orders, reciprocal commodity markets and household accounts | Shared acquisition with every driver; general markets for labor, assets, rights and memberships |
 | Contracts and lending | Direct consented advances and mortgages share a loan book; loan, land and forward claims share execution; guarantees share inspection | Common acceptance/performance adapters for all arrangements; autonomous general loan discovery/underwriting |
 | [Creditor allocation](CREDITOR-ALLOCATION.md) | Ranked collection and opt-in proportional loan/land allocation, including accepted coin tender and whole-unit conversion | Standalone land and forward allocation; additional denominations/routes and indivisible obligations |
-| Recovery | Capped guarantees with recourse; authorized stays, frozen interest, dedicated estate custody, funded sales, secured/general distributions, surplus and loan write-offs; land/forward admission and explicit forward relief | General non-loan discharge, multiple currencies/liens, guarantee lien subrogation, autonomous liquidation and death/dissolution estates |
-| [Financial statements](FINANCIAL-STATEMENTS.md) | Explicit separate-agent reporting scope (consolidated requests require a future elimination adapter); per-agent double-entry journal, trial balance, balance sheet, income, cash flows and equity changes; strict loan/mortgage/recovery and costed spot-trade adapters; opt-in material WIP, consumption and production losses; dated dues with native/coin payment and estate-cash settlement; coin equipment purchases, manufacture, repair, decay and joint-output costs; prepaid forwards, delivery and relief; opt-in physical and collection-linked issuance; household pooling, dues support and solvent asset disposal/residual distribution; shared-pool input cost and regeneration; shared opening-stock costing and explicitly valued posted, negotiated and town-market barter; opt-in earned-only tool royalties; completed stock/durable output transfers to distinct beneficiaries at cost; opt-in paid-capacity capitalization through WIP and output; [employment delivery and wage arrears](EMPLOYMENT.md) | Negotiated hiring, explicit wage discharge/guarantees, internal household employment, broader service contracts, non-pool third-party production costs, estimated contingent consideration, automatic death estates, redeemable currency, FX and consolidation adapters |
+| Recovery | Capped guarantees with recourse; authorized stays, frozen interest, dedicated estate custody, funded sales, secured/general distributions, surplus and loan write-offs; land/forward/wage admission and accepted dated relief | Autonomous relief negotiation, multiple currencies/liens, guarantee lien subrogation, autonomous liquidation and death/dissolution estates |
+| [Financial statements](FINANCIAL-STATEMENTS.md) | Explicit separate-agent reporting scope (consolidated requests require a future elimination adapter); per-agent double-entry journal, trial balance, balance sheet, income, cash flows and equity changes; strict loan/mortgage/recovery and costed spot-trade adapters; opt-in material WIP, consumption and production losses; dated dues with native/coin payment and estate-cash settlement; coin equipment purchases, manufacture, repair, decay and joint-output costs; prepaid forwards, delivery and relief; opt-in physical and collection-linked issuance; household pooling, dues support and solvent asset disposal/residual distribution; shared-pool input cost and regeneration; shared opening-stock costing and explicitly valued posted, negotiated and town-market barter; opt-in earned-only tool royalties; completed stock/durable output transfers to distinct beneficiaries at cost; opt-in paid-capacity capitalization through WIP and output; [employment delivery and wage arrears](EMPLOYMENT.md) | Negotiated hiring, wage guarantees, internal household employment, broader service contracts, non-pool third-party production costs, estimated contingent consideration, automatic death estates, redeemable currency, FX and consolidation adapters |
 | Observability | External metrics and logs; planning/settlement observers; requested, allocated and paid recovery receipts | Broader subsystem coverage as integrations are added |
 
 [Contract recovery](CONTRACT-RECOVERY.md) is explicitly limited to configured,
 single-denomination cash estates with [land/forward admission](LAND-FORWARD-ADMISSION.md).
-Native obligations keep their performance requirements. Unpaid land bills and
+Native obligations keep their performance requirements. Unpaid land bills, earned wages and
 outstanding forwards prevent closure; [accepted forward relief](DELIVERY-RELIEF.md)
-can explicitly extend a date or write off quantities without pretending delivery.
+and [dated claim relief](CLAIM-RELIEF.md) can explicitly extend dates or write off
+quantities without pretending payment or delivery.
 Guarantee consent, proceeding authorization, asset inventories and
 buyers are supplied configuration, not agent-discovered outcomes.
 

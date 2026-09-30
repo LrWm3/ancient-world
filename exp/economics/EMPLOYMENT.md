@@ -47,8 +47,9 @@ past earnings, reverses production nor confiscates output. Clearing arrears at C
 allows delivery at the next Acquire, with no backdated work. Expiring a contract
 ends new deliveries but leaves claims collectible and inspectable.
 
-This priority is scoped to employment. It does not reorder loan/dues collection,
-establish statutory wage preference or add wage claims to insolvency estates.
+This priority is scoped to employment. It does not reorder loan/dues collection
+or establish statutory wage preference. [Wage recovery](WAGE-RECOVERY.md) has a
+separate shared estate allocation window with configurable ranks.
 Preexisting phases retain their timing and may have consumed cash before payroll.
 The planner does not yet discover a hiring opportunity or escrow cash for future
 wages. The optional funding outlook below estimates existing contracts only.
@@ -86,8 +87,9 @@ and internal household hires remain rejected, including common past/future membe
 both private receipt space and exact collective contribution space, including
 fractional carry. Unstorable payment remains arrears. See the
 [physical-wage verification](INTEGRATION-PASSES-3.md).
-Future-period labor prepayments, refunds, wage guarantees, write-offs and estate
-collection need separate accepted terms and adapters.
+Future-period labor prepayments, refunds and wage guarantees remain extensions.
+[Estate collection](WAGE-RECOVERY.md) and [accepted write-offs/date extensions](CLAIM-RELIEF.md)
+now preserve actual work and cash payments through the existing employment book.
 
 ## Provenance and observation
 
@@ -153,7 +155,8 @@ missing payment stock for already earned claims by default. Member
 claims qualify only when `support_member_wages` also authorizes assistance. Tests cover
 coin and physical wages, scarce budgets, prohibited work, real arrears purchases,
 forged allocation receipts, replay and checkpoint continuation on CPU/reference.
-Autonomous recruitment, price discovery for labor and wage insolvency remain open.
+Autonomous recruitment, price discovery for labor and wage guarantees remain open;
+authorized wage recovery and explicit claim relief are now integrated.
 
 ## Member employers and household assistance
 

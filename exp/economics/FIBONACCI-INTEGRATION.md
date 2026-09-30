@@ -3,8 +3,8 @@
 Scope: finish bounded autonomous household hiring and direct prepaid-delivery
 recovery, then demonstrate that they compose with the existing economic loop.
 The batches contain logical changes, not a prescribed count of files or tests.
-The completed sequence is **1, 1, 2**. No extra changes were added to fill a larger
-batch. Person self-directed policy changes remain explicitly deferred.
+The completed sequence is **1, 1, 2, 3, 5**. Batch sizes count distinct
+implementation and integration changes, not test cases. Person self-directed policy changes remain explicitly deferred.
 
 ## Batch 1 — one recovery change
 
@@ -88,3 +88,18 @@ admission/payment gap, not the entire long-term financial stress-test roadmap.
 The next batch size is 5; explicit non-loan disposition is the next consolidation
 work. Fibonacci has no exhaustion point. Person self-directed policy changes remain
 excluded, and static constitutions/charters stay static.
+
+
+## Continued batch 5: explicit non-loan disposition
+
+1. Shared dated wage write-off terms with consent/history and loss accounting.
+2. Land-bill adapter; all funding and collection readers subtract accepted relief.
+3. Wage date extensions with effective-date collection and closure validation.
+4. Land extensions preserving original annual dates and later annual bills.
+5. Combined household assistance, wages, land and forward recovery controls.
+
+The combined case retains three coins of actual wage payment and zero grain
+payments/deliveries. Accepted relief closes the estate in month 18, recognizing
+seven coins of total claim losses; without that consent all three claims remain.
+CPU/reference, reordered terms, replay and checkpoint continuation agree. This
+completes this batch, not the proposed ten-stage financial stress-test program.

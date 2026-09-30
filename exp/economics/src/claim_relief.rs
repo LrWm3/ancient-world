@@ -130,7 +130,6 @@ pub(crate) fn validate_history(
 
 /// Due, after ordinary collections and before estate allocation. Both parties'
 /// accepted terms must still match the current dated claim exactly.
-
 pub(crate) fn apply(w: &World, s: &State, out: &mut credit::Boundary) -> Result<(), String> {
     let mut terms: Vec<_> = w
         .recovery

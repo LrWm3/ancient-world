@@ -1314,6 +1314,17 @@ work during an authorized proceeding, and allocates same-denomination estate cas
 with loan/land creditors. Actual payment updates the original employment book and
 separate worker/employer/custodian statements; member wages pool once on receipt.
 Native physical wages retain their existing service path and block closure if
-unpaid. This supersedes the earlier blanket wage-insolvency exclusion. Explicit
-wage relief, guarantees, automatic estates and general employment discovery remain
+unpaid. This supersedes the earlier blanket wage-insolvency exclusion. Accepted wage/land relief now follows in [claim relief](CLAIM-RELIEF.md).
+Guarantees for those claims, automatic estates and general employment discovery remain
 open; person self-directed policy changes stay deferred.
+
+
+### Accepted non-loan disposition — Fibonacci batch 5
+
+[Claim relief](CLAIM-RELIEF.md) now supplies accepted write-offs and date extensions
+for earned wages and individual annual land bills. The common terms/history adapter
+preserves original identities, actual work, paid quantities, issuance and annual
+billing. Funding, projections, estate allocation, reporting and closure read the
+adjusted claim. A composed person/household wage-support, rent and prepaid-delivery
+scenario compares accepted relief with an otherwise identical unresolved estate.
+This is configured consent, not autonomous renegotiation or automatic insolvency.

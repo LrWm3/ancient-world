@@ -106,8 +106,8 @@ and boundaries. Older totals below describe earlier consolidation snapshots.
 [Land/forward admission](LAND-FORWARD-ADMISSION.md) is now implemented: native
 performance retains its denomination, timing and receipts; eligible land cash
 shares estate allocation; incomplete non-loan claims block closure. [Explicit forward relief](DELIVERY-RELIEF.md) now supports accepted date extensions
-and quantity write-offs. Land-bill relief, conversion, damages and autonomous
-renegotiation remain outstanding. Broader
+and quantity write-offs. [Land and wage relief](CLAIM-RELIEF.md) now share accepted dated extensions and
+write-offs. Conversion, damages and autonomous renegotiation remain outstanding. Broader
 acquisition adapters remain necessary before the mixed continuing scenario below
 can establish that all these arrangements compose.
 
@@ -129,7 +129,7 @@ can establish that all these arrangements compose.
    policies against identical opening requests and budgets.
 3. **Broaden insolvency admission.** The authorized single-denomination loan-estate
    lifecycle now distinguishes arrears from a proceeding and admits land/forward
-   performance claims. Add explicit non-loan disposition, additional custodial
+   performance claims. Accepted land/wage/forward disposition now exists. Add additional custodial
    arrangements and market compositions before describing it as general insolvency. Record who initiates it,
    the accepted/legal trigger, acceleration, any collection stay, control of
    assets and work, and permitted ongoing essential activity. Being short of
@@ -218,6 +218,17 @@ work during an authorized proceeding, and allocates same-denomination estate cas
 with loan/land creditors. Actual payment updates the original employment book and
 separate worker/employer/custodian statements; member wages pool once on receipt.
 Native physical wages retain their existing service path and block closure if
-unpaid. This supersedes the earlier blanket wage-insolvency exclusion. Explicit
-wage relief, guarantees, automatic estates and general employment discovery remain
+unpaid. This supersedes the earlier blanket wage-insolvency exclusion. Accepted wage/land relief now follows in [claim relief](CLAIM-RELIEF.md).
+Guarantees for those claims, automatic estates and general employment discovery remain
 open; person self-directed policy changes stay deferred.
+
+
+### Accepted non-loan disposition — Fibonacci batch 5
+
+[Claim relief](CLAIM-RELIEF.md) now supplies accepted write-offs and date extensions
+for earned wages and individual annual land bills. The common terms/history adapter
+preserves original identities, actual work, paid quantities, issuance and annual
+billing. Funding, projections, estate allocation, reporting and closure read the
+adjusted claim. A composed person/household wage-support, rent and prepaid-delivery
+scenario compares accepted relief with an otherwise identical unresolved estate.
+This is configured consent, not autonomous renegotiation or automatic insolvency.

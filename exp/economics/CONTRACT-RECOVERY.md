@@ -36,7 +36,7 @@ a funded sale; authorization controls disposal, not a fictitious title transfer.
 
 | Boundary | Work and visibility |
 | --- | --- |
-| Due: opening | A dated authorized proceeding opens only if previous loan/land arrears or an overdue accepted forward exists. Otherwise it records rejection. Loans accelerate, interest freezes and ordinary loan collection/enforcement is stayed; non-loan dates remain unchanged. |
+| Due: opening | A dated authorized proceeding opens only if previous loan/land/wage arrears or an overdue accepted forward exists. Otherwise it records rejection. Loans accelerate, interest freezes and ordinary loan collection/enforcement is stayed; non-loan dates remain unchanged. |
 | Due: ordinary servicing | Non-stayed loans and native land performance collect with existing policies. Estate-eligible land cash claims wait for estate allocation. |
 | Due: guarantees | Eligible guarantees pay residual due claims from remaining opening guarantor resources, after ordinary servicing/collateral enforcement. Recourse is recorded but cannot be collected in this same boundary. |
 | Due: estate collection/distribution | Non-protected debtor coins enter custody. Only opening estate funds can be distributed. Newly received deposits and current-month sale proceeds wait for a later boundary. |
@@ -95,16 +95,18 @@ undistributed cash remains. Closure either preserves accelerated deficiencies or
 if explicitly authorized, records per-loan principal/interest write-offs and marks
 those loans `Discharged`, distinct from `Repaid`. Surplus goes back to the debtor.
 New same-month recourse must get a later collection boundary before closure.
-Unpaid land bills or undelivered accepted forwards also prevent closure, including
-future forwards. The discharge flag does not forgive these performance claims.
+Unpaid land bills, earned wages or undelivered accepted forwards prevent closure,
+including deferred claims. The discharge flag does not forgive these performance claims.
 A separate accepted forward amendment can extend an overdue delivery or release
 a quantity at Due before closure; actual delivery counters remain unchanged.
+[Accepted land/wage amendments](CLAIM-RELIEF.md) likewise extend individual dates
+or waive quantities while retaining original charges, work and actual payments.
 Closed receipts retain their date so subsequent annual bills remain distinguishable
 from claims that should have blocked closing.
 
 Remaining general claims, durable equipment inventories, multicurrency estates,
 shared operating custodians, multiple liens, automatic asset discovery, auctions,
-contested authorization, autonomous restructuring and general non-loan discharge
+contested authorization, autonomous restructuring and other claim adapters
 are not implemented. Constitution/charter and state-law machinery will eventually
 supply these terms; configured authorization is the current integration point.
 
