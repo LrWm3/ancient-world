@@ -220,6 +220,10 @@ Completed additions so far:
 26. Exercise household prepaid buying, stock targets and common inventory accounting.
 27. Compose mortgage and direct prepaid admissions with negotiated acquisition.
 28. Keep crop-control transfer separate from personal forward delivery and accounting.
+29. Admit household financed purchases through the normal wrapper and common offers.
+30. Recheck household lifecycle and active recovery before optional mortgage acceptance.
+31. Date mortgage catalog encumbrances independently of accepted liens.
+32. Compose household repayment, solvent property disposal and residual distribution.
 
 See [acquisition adapters](ACQUISITION-ADAPTERS.md) and
 [guarantee admission](GUARANTEE-ADMISSION.md). This is an unfinished batch; no

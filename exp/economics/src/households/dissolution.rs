@@ -213,10 +213,8 @@ pub fn blockers(w: &World, s: &State, household: AgentId) -> Vec<Blocker> {
                 || m.reserves.keys().any(|(id, _)| *id == household)
         })
         || w.credit.as_ref().is_some_and(|c| {
-            c.application.buyer == household
-                || c.offers
-                    .iter()
-                    .any(|o| involved(o.sale.seller, o.loan.creditor))
+            crate::credit::pending_purchase(w, s)
+                .is_some_and(|o| involved(o.sale.seller, o.loan.creditor))
                 || c.transfers
                     .iter()
                     .any(|t| t.month >= s.month && involved(t.transfer.from, t.transfer.to))

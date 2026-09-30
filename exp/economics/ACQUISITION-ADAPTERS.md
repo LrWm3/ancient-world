@@ -164,3 +164,26 @@ Neither outcome transfers or cancels the original borrower's separate two-grain
 forward promise. Both parties retain the prepaid asset/deferred revenue until
 actual delivery or explicitly authorized relief. Statements, zero-delivery receipts,
 CPU/reference and checkpoint continuation agree in both controls.
+
+## Household financed ownership and solvent exit
+
+A supplied mortgage application can now name a household as buyer through the
+normal household wrapper and common offer interface. The household holds title,
+downpayment and debt; members' books stay separate. There is still no autonomous
+household mortgage-demand policy, and the specialized mortgage stock-sale planner
+remains excluded with households.
+
+New purchases require active counterparties. A winding, closed or leaderless
+household cannot accept an optional mortgage; an existing mortgage continues to
+be serviced. The dated application is not an everlasting encumbrance: accepted
+loan liens remain binding, while an expired/unaccepted application and a repaid
+loan's old offer do not permanently block solvent disposal. Future scheduled cash
+transfers and live loan/property obligations remain wind-down blockers.
+
+The composed test buys a plot with a 2,000-coin downpayment and 8,000-coin mortgage,
+repays using explicitly supplied income, sells the now-unencumbered plot for
+10,000, then distributes 10,200 to its final member and dissolves. Separate books,
+CPU/reference and checkpoint continuation agree. A winding applicant rejects the
+new mortgage and can release its own cash without creating title or debt. This
+verifies supplied finance, disposal and governance boundaries; it does not add
+household property speculation or change static constitutions/charters.

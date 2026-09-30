@@ -226,3 +226,170 @@ fn household_recovery_requires_wind_down_and_independent_custody() {
         .unwrap();
     assert!(err.contains("wind-down"), "{err}");
 }
+
+fn mortgage_household() -> (World, State) {
+    use economics_compute_smoke::credit;
+    let (mut w, mut s) = credit::scenario("repaid").unwrap();
+    w.resources.push(Resource {
+        id: LABOR,
+        name: "labor".into(),
+        kind: ResourceKind::Capacity,
+    });
+    w.participants.push(Participant {
+        agent: PERSON,
+        capacity: Amount::new(LABOR, 0),
+        needs: vec![],
+    });
+    w.agents.push(Agent {
+        id: BUYER,
+        name: "property buyer".into(),
+    });
+    s.balances.insert((BUYER, TOKEN), 10000);
+    let mut governance = Governance::contributed(PERSON);
+    governance.constitution.allow_dissolution = true;
+    households::form(
+        &mut w,
+        &s,
+        Agreement {
+            id: 1,
+            agent: HOME,
+            governance,
+            adults: vec![PERSON],
+            membership: vec![],
+            asset_sales: vec![],
+            equipment_retirements: vec![],
+            support: vec![],
+            formed: 1,
+            dwelling_process: None,
+            admission: None,
+        },
+    )
+    .unwrap();
+    let c = w.credit.as_mut().unwrap();
+    c.application.buyer = HOME;
+    for e in &mut c.endowments {
+        if e.agent == PERSON {
+            e.agent = HOME;
+        }
+    }
+    for t in &mut c.transfers {
+        if t.transfer.to == PERSON {
+            t.transfer.to = HOME;
+        }
+    }
+    (w, s)
+}
+
+#[test]
+fn household_mortgage_repayment_disposal_and_residuals_remain_separate_from_member() {
+    use economics_compute_smoke::{credit, offers};
+    let (w, s) = mortgage_household();
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        let mut a =
+            Audit::with_inventory(&w, &s, TOKEN, [(PLOT, 10000)].into(), Default::default())
+                .unwrap();
+        while sim.state.phase != Phase::Acquire {
+            a.step(&mut sim).unwrap();
+        }
+        let request = [offers::Request::new(offers::Id::FinancedPurchase(1), HOME)];
+        let prepared = offers::prepare(&sim, &request).unwrap();
+        a.step(&mut sim).unwrap();
+        assert_eq!(sim.ledger.last(), Some(&prepared));
+        assert_eq!(credit::owner(&w, &sim.state, PLOT), Some(HOME));
+        assert_eq!(sim.state.credit.loans[&1].debtor, HOME);
+        assert_eq!(a.book().statements(HOME, 1, 1).unwrap().liabilities, 8000);
+        assert_eq!(a.book().statements(PERSON, 1, 1).unwrap().liabilities, 0);
+        through(&mut a, &mut sim, 5);
+        assert_eq!(sim.state.credit.loans[&1].status, credit::Status::Repaid);
+        assert_eq!(sim.state.balance(HOME, TOKEN), 200);
+        dissolution::request(&mut sim.world, &sim.state, HOME, PERSON).unwrap();
+        let blockers = dissolution::blockers(&sim.world, &sim.state, HOME);
+        assert!(blockers.contains(&dissolution::Blocker::Asset));
+        assert!(!blockers.contains(&dissolution::Blocker::StandingExchange));
+        assert!(dissolution::finish(&mut sim.world, &sim.state, HOME, PERSON).is_err());
+        households::disposal::accept(
+            &mut sim.world,
+            &sim.state,
+            HOME,
+            PERSON,
+            households::disposal::Sale {
+                month: 6,
+                asset: PLOT,
+                buyer: BUYER,
+                price: Amount::new(TOKEN, 10000),
+                attachments: vec![],
+                control: None,
+            },
+        )
+        .unwrap();
+        let (mut resumed, mut ra) = (sim.clone(), a.clone());
+        through(&mut a, &mut sim, 7);
+        through(&mut ra, &mut resumed, 7);
+        assert_eq!(
+            (&sim.state, &sim.ledger, &a),
+            (&resumed.state, &resumed.ledger, &ra)
+        );
+        assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(BUYER));
+        assert_eq!(sim.state.balance(PERSON, TOKEN), 10200);
+        assert_eq!(sim.state.balance(HOME, TOKEN), 0);
+        dissolution::finish(&mut sim.world, &sim.state, HOME, PERSON).unwrap();
+        through(&mut a, &mut sim, 8);
+        assert_eq!(a.book().statements(HOME, 1, 8).unwrap().assets, 0);
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}
+
+#[test]
+fn winding_household_declines_unaccepted_mortgage_without_taking_member_money() {
+    use economics_compute_smoke::{credit, offers};
+    let (mut w, mut s) = mortgage_household();
+    s.month = 2;
+    let c = w.credit.as_mut().unwrap();
+    c.application.month = 2;
+    c.transfers.clear();
+    s.balances.insert((HOME, TOKEN), 2000);
+    s.balances.insert((STATE_AGENT, TOKEN), 100000);
+    dissolution::request(&mut w, &s, HOME, PERSON).unwrap();
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    while sim.state.phase != Phase::Acquire {
+        sim.step().unwrap();
+    }
+    assert!(credit::discover(&sim.world, &sim.state, HOME).is_empty());
+    let before = sim.state.clone();
+    assert!(
+        offers::accept(
+            &mut sim,
+            &[offers::Request::new(offers::Id::FinancedPurchase(1), HOME)]
+        )
+        .is_err()
+    );
+    assert_eq!(sim.state, before);
+    sim.step().unwrap();
+    assert!(sim.state.credit.loans.is_empty());
+    assert_eq!(
+        credit::owner(&sim.world, &sim.state, PLOT),
+        Some(STATE_AGENT)
+    );
+    assert!(
+        sim.ledger
+            .last()
+            .unwrap()
+            .credit
+            .as_ref()
+            .unwrap()
+            .events
+            .iter()
+            .any(|e| matches!(
+                e,
+                credit::Event::Rejected {
+                    reason: credit::Rejection::Ineligible,
+                    ..
+                }
+            ))
+    );
+    sim.run_months(1).unwrap();
+    assert_eq!(sim.state.balance(PERSON, TOKEN), 2000);
+    dissolution::finish(&mut sim.world, &sim.state, HOME, PERSON).unwrap();
+}

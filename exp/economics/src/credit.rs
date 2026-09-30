@@ -329,6 +329,26 @@ pub fn owner(world: &World, state: &State, asset: AssetId) -> Option<AgentId> {
         .copied()
         .or_else(|| world.assets.iter().find(|a| a.id == asset).map(|a| a.owner))
 }
+fn purchase_party(world: &World, state: &State, agent: AgentId) -> bool {
+    !state.terminal.contains_key(&agent)
+        && crate::recovery::active(world, &state.credit, agent).is_none()
+        && crate::households::market::active(world, state, agent)
+        && !world.households.iter().any(|h| {
+            h.agent == agent
+                && (crate::households::dissolution::winding_at(h, state.month).is_some()
+                    || crate::households::dissolution::closed_at(h, state.month))
+        })
+}
+
+/// A supplied purchase application has one date. Its catalog entry is not an
+/// everlasting encumbrance after that attempt or an accepted loan's repayment.
+pub(crate) fn pending_purchase<'a>(world: &'a World, state: &State) -> Option<&'a Offer> {
+    let c = world.credit.as_ref()?;
+    (c.application.month >= state.month && !state.credit.loans.contains_key(&c.application.offer))
+        .then(|| c.offers.iter().find(|o| o.id == c.application.offer))
+        .flatten()
+}
+
 /// Visible financed offers; application feasibility and settlement remain separate.
 pub fn discover<'a>(world: &'a World, state: &State, buyer: AgentId) -> Vec<&'a Offer> {
     world.credit.as_ref().map_or(vec![], |c| {
@@ -347,9 +367,9 @@ pub fn discover<'a>(world: &'a World, state: &State, buyer: AgentId) -> Vec<&'a 
                     && buyer != o.sale.seller
                     && buyer != o.loan.creditor
                     && world.agents.iter().any(|a| a.id == buyer)
-                    && !state.terminal.contains_key(&buyer)
-                    && !state.terminal.contains_key(&o.sale.seller)
-                    && !state.terminal.contains_key(&o.loan.creditor)
+                    && [buyer, o.sale.seller, o.loan.creditor]
+                        .iter()
+                        .all(|a| purchase_party(world, state, *a))
                     && !state.credit.loans.contains_key(&o.id)
                     && !state.credit.loans.values().any(|l| {
                         l.collateral
@@ -380,7 +400,7 @@ fn validate_purchase(world: &World, state: &State) -> Result<(), String> {
         || world.market.is_some()
         || world.competition.is_some()
         || world.pool_market.is_some()
-        || !world.households.is_empty()
+        || (!world.households.is_empty() && c.stock_sales.is_some())
         || !world.offers.is_empty()
         || (!world.bids.is_empty() && c.stock_sales.is_none())
         || !world.issuance.is_empty()
@@ -764,9 +784,10 @@ fn purchase(
         },
     )
     .allowed
-        || [a.buyer, o.sale.seller, o.loan.creditor]
-            .iter()
-            .any(|id| state.terminal.contains_key(id))
+        || [a.buyer, o.sale.seller, o.loan.creditor].iter().any(|id| {
+            !purchase_party(world, state, *id)
+                || crate::recovery::active(world, &out.after, *id).is_some()
+        })
         || a.buyer == o.sale.seller
         || a.buyer == o.loan.creditor
     {
