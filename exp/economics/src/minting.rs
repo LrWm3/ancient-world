@@ -96,6 +96,7 @@ pub struct Boundary {
 fn eligible(w: &World, s: &State, venue: AgentId, agent: AgentId) -> bool {
     marketplace::eligible(w, s, venue, agent)
         && crate::recovery::active(w, &s.credit, agent).is_none()
+        && crate::households::market::active(w, s, agent)
 }
 fn transaction(w: &World, s: &State, c: &Config, d: &Deal) -> Result<Transaction, String> {
     let venue = marketplace::venue(w, c.venue).ok_or("missing venue")?;
@@ -169,6 +170,21 @@ pub(crate) fn evaluate_with(
     if s.phase != Phase::Acquire {
         return Ok(None);
     }
+    let mut reserved = opening.clone();
+    reserved.pooling = Some(crate::households::income_reservations::Reservations::new(
+        w,
+        s,
+        reserved.storage.clone(),
+    ));
+    for p in &w.participants {
+        let contribution = crate::households::labor_reserve(w, s, p.agent, p.capacity.resource);
+        let available = reserved
+            .available
+            .entry((p.agent, p.capacity.resource))
+            .or_default();
+        *available = available.saturating_sub(contribution).max(0);
+    }
+    let opening = &reserved;
     let plan = c
         .order_policy
         .as_ref()
@@ -247,7 +263,6 @@ pub fn validate(w: &World) -> Result<(), String> {
         || w.competition.is_some()
         || w.pool_market.is_some()
         || w.work_choice.is_some()
-        || !w.households.is_empty()
         || !w.issuance.is_empty()
         || !w.bids.is_empty()
         || !w.offers.is_empty()

@@ -853,6 +853,17 @@ fn collect(
             }
         }
     }
+    // Physical-mint market trades also carry classification in the boundary.
+    if let Some(round) = &batch.minting {
+        for t in &round.transactions {
+            for (key, quantity) in incomes(world, opening, &t.effects)? {
+                let q = gained.entry(key).or_default();
+                *q = q
+                    .checked_add(quantity)
+                    .ok_or("household mint-market income overflow")?;
+            }
+        }
+    }
     // Only settled cash is shared: an earned wage claim is not spendable income.
     if batch.phase == Phase::Close
         && let Some(employment) = &batch.employment

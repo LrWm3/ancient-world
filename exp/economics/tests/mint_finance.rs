@@ -486,3 +486,92 @@ fn employment_and_mint_market_share_hours_and_pay_only_for_actual_work() {
         );
     }
 }
+
+fn worker_household(w: &mut World, s: &State, percent: u8) {
+    use economics_compute_smoke::{
+        household_governance::{Contribution, Governance},
+        households,
+    };
+    w.transaction_policy
+        .as_mut()
+        .unwrap()
+        .permissions
+        .insert((PERSON_TYPE, Action::FoundHousehold));
+    let mut governance = Governance::contributed(WORKER);
+    governance.charter.contribution = Contribution::Percent(percent.into());
+    households::form(
+        w,
+        s,
+        households::Agreement {
+            id: 1,
+            agent: 800,
+            governance,
+            adults: vec![WORKER],
+            membership: vec![],
+            asset_sales: vec![],
+            equipment_retirements: vec![],
+            support: vec![],
+            formed: 1,
+            dwelling_process: None,
+            admission: None,
+        },
+    )
+    .unwrap();
+}
+
+#[test]
+fn household_member_market_receipts_pool_once_and_own_labor_remains_reserved() {
+    for (capacity, percent, expected_mints) in [(5, 20, 1), (2, 50, 0)] {
+        let (mut w, s) = minting::scenario("normal").unwrap();
+        w.participants
+            .iter_mut()
+            .find(|p| p.agent == WORKER)
+            .unwrap()
+            .capacity
+            .quantity = capacity;
+        worker_household(&mut w, &s, percent);
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+        while sim.state.month <= 2 {
+            a.step(&mut sim).unwrap();
+        }
+        let completed = sim
+            .state
+            .processes
+            .values()
+            .filter(|p| p.definition == MINT && p.status == Status::Completed)
+            .count();
+        assert_eq!(completed, expected_mints);
+        let labor = sim
+            .ledger
+            .iter()
+            .filter(|b| b.month == 2)
+            .filter_map(|b| b.household.as_ref())
+            .flat_map(|h| &h.labor)
+            .next()
+            .unwrap();
+        let contribution = &labor.contributions[0];
+        assert_eq!(contribution.reserved, 1);
+        assert_eq!(sim.state.balance(800, WHEAT), 1);
+        assert_eq!(sim.state.balance(WORKER, WHEAT), 2);
+        assert_eq!(
+            sim.state.balance(800, COIN),
+            if expected_mints == 1 { 2 } else { 0 }
+        );
+        assert_eq!(
+            sim.state.balance(WORKER, COIN),
+            if expected_mints == 1 { 5 } else { 3 }
+        );
+        let mut resumed =
+            Simulation::new(sim.world.clone(), sim.state.clone(), Backend::Reference).unwrap();
+        let mut report = a.clone();
+        while sim.state.month <= 3 {
+            a.step(&mut sim).unwrap();
+        }
+        while resumed.state.month <= 3 {
+            report.step(&mut resumed).unwrap();
+        }
+        assert_eq!(sim.state, resumed.state);
+        assert_eq!(a, report);
+    }
+}
