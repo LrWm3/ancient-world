@@ -3,6 +3,8 @@
 use crate::{finance, model::*};
 use std::collections::{BTreeMap, BTreeSet};
 
+pub mod projection;
+
 pub const RATE_SCALE: i64 = 10_000;
 const PRICE_TICKS: i32 = 10_000;
 const DOWNPAYMENT_TICKS: i32 = 2_000;

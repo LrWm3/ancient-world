@@ -247,3 +247,22 @@ units.
 This covers supplied unsecured commodity credit with collection, not competitive
 land admission, recovery in a shared-pool economy, or consequence-search credit
 selection. Those incompatible drivers still fail validation explicitly.
+
+### Repayment-aware collection demand
+
+`credit::projection::dues` now exposes a dated, read-only schedule for accepted
+native loan payments. It advances private loan copies using existing accrual and
+installment rules, reduces projected principal before subsequent interest, and
+respects current stays and same-month deferred recourse. It assumes timely future
+payment for estimating demand; it does not predict funding, foreclosure, new
+loans, future guarantee calls or the lifting of a legal stay.
+
+Pool collection adds this schedule to its need buffer before deciding quantities.
+The generic request-generation path now allows that configured collection process
+when needs alone would have suppressed it, subject to the same permissions and
+finite allocation. A three-month horizon sees both two-fuel repayments even when
+four fuel already covers consumption. A one-month horizon does not count those
+later dates. Tests also verify actual debt reduction is not reserved twice and
+interest accrues on declining projected principal without mutating live state.
+Other planning adapters retain their existing current-claim or full-simulation
+forecasting rules; this does not claim a universal optimum or assured repayment.

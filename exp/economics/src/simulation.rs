@@ -293,7 +293,27 @@ impl Simulation {
             }
             let mut selected = BTreeSet::new();
             for need in Self::sorted_needs(participant) {
-                let (candidate, reason) = self.plan(participant, need, preferred);
+                let (mut candidate, reason) = self.plan(participant, need, preferred);
+                // A full consumption buffer can still leave accepted loan
+                // installments unfunded. The collection adapter supplies its
+                // combined need/repayment demand before requests are allocated.
+                if candidate.is_none()
+                    && preferred.is_none()
+                    && let Some(c) = &self.world.pool_market
+                    && self
+                        .world
+                        .definition(c.consumer)
+                        .outputs
+                        .iter()
+                        .any(|a| a.resource == need.resource)
+                    && crate::pool_market::demand(&self.world, &self.state, participant.agent)?.0
+                        > 0
+                    && crate::opportunities::processes(&self.world, &self.state, participant.agent)
+                        .iter()
+                        .any(|d| d.id == c.definition)
+                {
+                    candidate = Some(c.definition);
+                }
                 if let Some(definition) = candidate {
                     // A joint-output producer requested by two needs starts once.
                     if selected.insert(definition) {

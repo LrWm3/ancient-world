@@ -165,7 +165,11 @@ pub fn demand(world: &World, state: &State, agent: AgentId) -> Result<(u32, bool
         / i128::from(consumer.outputs[0].quantity)
         * i128::from(consumer.stages[0].entry_inputs[0].quantity);
     let stock = i128::from(state.balance(agent, d.outputs[0].resource));
-    let deficit = (per_month * i128::from(world.horizon) - stock).max(0);
+    let loan_demand: i128 =
+        crate::credit::projection::dues(world, state, agent, d.outputs[0].resource, world.horizon)?
+            .values()
+            .sum();
+    let deficit = (per_month * i128::from(world.horizon) + loan_demand - stock).max(0);
     let mut lots =
         (deficit + i128::from(d.outputs[0].quantity) - 1) / i128::from(d.outputs[0].quantity);
     for service in &d.stages[0].monthly_services {

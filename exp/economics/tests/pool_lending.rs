@@ -154,3 +154,89 @@ fn refused_storage_and_same_window_relending_do_not_expand_collection_resources(
         assert!(sim.state.balance(STATE_AGENT, RAW_WOOD) >= 0);
     }
 }
+
+#[test]
+fn collection_reserves_for_accepted_repayments_inside_its_need_horizon() {
+    use economics_compute_smoke::credit;
+    let (mut w, s) = fixture(true);
+    w.horizon = 3;
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    while sim.state.phase != Phase::Productive {
+        sim.step().unwrap();
+    }
+    let before = sim.clone();
+    assert_eq!(
+        credit::projection::dues(&sim.world, &sim.state, PERSON, FUEL, 1).unwrap(),
+        Default::default()
+    );
+    assert_eq!(
+        credit::projection::dues(&sim.world, &sim.state, PERSON, FUEL, 3).unwrap(),
+        [(3, 2), (4, 2)].into()
+    );
+    let with_debt = pool_market::demand(&sim.world, &sim.state, PERSON)
+        .unwrap()
+        .0;
+    let mut unencumbered = sim.state.clone();
+    unencumbered.credit.loans.clear();
+    let without_debt = pool_market::demand(&sim.world, &unencumbered, PERSON)
+        .unwrap()
+        .0;
+    assert!(with_debt > without_debt);
+    assert_eq!(sim.state, before.state);
+    assert_eq!(sim.ledger, before.ledger);
+    sim.step().unwrap();
+    assert!(
+        sim.ledger
+            .last()
+            .unwrap()
+            .pool_market
+            .as_ref()
+            .unwrap()
+            .demands
+            .iter()
+            .any(|d| d.agent == PERSON && d.requested > 0)
+    );
+}
+
+#[test]
+fn repayment_projection_accrues_once_reduces_future_interest_and_ignores_offers() {
+    use economics_compute_smoke::credit;
+    let (mut w, s) = fixture(true);
+    w.lending[0].terms.monthly_rate_bps = 2500;
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    assert!(
+        credit::projection::dues(&sim.world, &sim.state, PERSON, FUEL, 4)
+            .unwrap()
+            .is_empty()
+    );
+    while sim.state.phase != Phase::Productive {
+        sim.step().unwrap();
+    }
+    assert_eq!(
+        credit::projection::dues(&sim.world, &sim.state, PERSON, FUEL, 4).unwrap(),
+        [(3, 3), (4, 2)].into()
+    );
+    assert!(
+        credit::projection::dues(&sim.world, &sim.state, STATE_AGENT, FUEL, 4)
+            .unwrap()
+            .is_empty()
+    );
+    sim.run_months(1).unwrap();
+    sim.step().unwrap(); // Open
+    let before_due = credit::projection::dues(&sim.world, &sim.state, PERSON, FUEL, 2).unwrap();
+    sim.step().unwrap(); // Due accrues once, actual funding may leave arrears.
+    let after_due = credit::projection::dues(&sim.world, &sim.state, PERSON, FUEL, 2).unwrap();
+    let payment = sim
+        .ledger
+        .last()
+        .unwrap()
+        .credit
+        .as_ref()
+        .unwrap()
+        .collections[0]
+        .paid;
+    assert_eq!(
+        before_due.values().sum::<i128>(),
+        after_due.values().sum::<i128>() + i128::from(payment)
+    );
+}

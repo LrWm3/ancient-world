@@ -249,6 +249,8 @@ Completed integrations:
 7. Compose state financed purchases with physical mint input procurement and issuance.
 8. Compose direct commodity lending with recurring environmental pool collection.
 9. Reconcile collection, native repayment and separate inventory/financial statements.
+10. Expose dated repayment demand through read-only accepted-loan projections.
+11. Generate collection requests for repayments even when consumption is buffered.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.
