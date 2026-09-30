@@ -236,8 +236,9 @@ production and production-funded coin repayment are implemented in their linked
 pilots. Credit and bilateral marketplace exchange now share acquisition budgets;
 existing citizenship can authorize financed purchases. See the
 [integration matrix](INTEGRATION-STATUS.md) for exact supported combinations.
-Households, legacy access and joint production plans with negotiated exchange
-still require additional integration.
+Household stock-sale finance and single-participant joint plans with negotiated
+exchange now have mixed regressions. Household joint work allocation and legacy
+access still require additional integration.
 
 **Implemented opt-in extension: option 3, settlement from actual resale
 proceeds.** The [resale pilot](COLLATERAL-RESALE.md) adds pending custody, a

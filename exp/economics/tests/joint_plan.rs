@@ -246,3 +246,130 @@ fn sixty_month_joint_execution_preserves_food_seed_and_finite_state_funding() {
             .all(|p| p.status != Status::Aborted)
     );
 }
+
+#[test]
+fn negotiated_seed_purchase_is_visible_to_joint_work_without_reusing_mortgage_cash() {
+    use economics_compute_smoke::{
+        negotiation,
+        opportunities::{Action, PERSON_TYPE, STATE_TYPE},
+        scenario::{SEED, STATE_AGENT, TOKEN},
+    };
+    for (funded, zip) in [(false, false), (true, false), (false, true), (true, true)] {
+        let (mut w, mut s) = stock_sale::joint_scenario("funded").unwrap();
+        let (venue, _) = negotiation::scenario();
+        w.agents.extend(
+            venue
+                .agents
+                .into_iter()
+                .filter(|a| a.id != PERSON && a.id != STATE_AGENT),
+        );
+        w.marketplaces = venue.marketplaces;
+        w.transaction_policy = venue.transaction_policy;
+        w.negotiation = venue.negotiation;
+        w.negotiation.as_mut().unwrap().goods = Amount::new(SEED, 1);
+        if zip {
+            let session = w.negotiation.as_mut().unwrap();
+            session.buyer.policy = negotiation::QuotePolicy::Zip(Default::default());
+            session.seller.policy = negotiation::QuotePolicy::Zip(Default::default());
+            session.buyer.opening_quote = 50;
+            session.seller.opening_quote = 30;
+        }
+        w.marketplaces[0].markets[0].goods = Amount::new(SEED, 1);
+        let policy = w.transaction_policy.as_mut().unwrap();
+        policy.permissions.extend([
+            (PERSON_TYPE, Action::FinancedPurchase),
+            (STATE_TYPE, Action::StockTrade),
+        ]);
+        policy.permissions.extend(
+            w.definitions
+                .iter()
+                .map(|d| (PERSON_TYPE, Action::Process(d.id))),
+        );
+        s.balances.insert((PERSON, SEED), 0);
+        s.balances.insert((89, SEED), 1);
+        let c = w.credit.as_mut().unwrap();
+        c.purchase_policy = borrowing::Policy::Scripted;
+        if !funded {
+            c.endowments
+                .iter_mut()
+                .find(|e| e.agent == PERSON)
+                .unwrap()
+                .amount
+                .quantity = c.application.downpayment;
+        }
+        let joint = c.stock_sales.as_mut().unwrap().joint.as_mut().unwrap();
+        joint.horizon_months = 12;
+        joint.future_reserves = vec![6];
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            while sim.state.phase != Phase::Acquire {
+                sim.step().unwrap();
+            }
+            let before = sim.state.clone();
+            sim.step().unwrap();
+            let accepted = sim.ledger.last().unwrap();
+            assert_eq!(
+                accepted.negotiation.as_ref().unwrap().outcome,
+                if funded {
+                    negotiation::Outcome::Traded { price: 40 }
+                } else {
+                    negotiation::Outcome::InsufficientPayment
+                }
+            );
+            assert_eq!(sim.state.balance(PERSON, SEED), i32::from(funded));
+            assert_eq!(sim.state.balance(89, TOKEN), if funded { 40 } else { 0 });
+            assert_eq!(sim.state.credit.loans.len(), 1);
+            let memory = &sim.state.marketplaces[&negotiation::MARKETPLACE];
+            assert_eq!(memory.history.len(), 1);
+            if zip {
+                assert_eq!(memory.pricing.len(), 2);
+                assert!(
+                    memory
+                        .pricing
+                        .values()
+                        .all(|p| p.learning.as_ref().unwrap().updates == u64::from(funded))
+                );
+            }
+            let plan = accepted.production_plan.as_ref().unwrap().clone();
+            assert_eq!(sim.state.pending_production, Some(plan.clone()));
+            let mut tampered = accepted.clone();
+            tampered.negotiation = None;
+            let mut unchanged = before.clone();
+            assert!(
+                settlement::commit(
+                    &sim.world,
+                    &mut unchanged,
+                    &tampered,
+                    backend,
+                    sim.effect_limit
+                )
+                .is_err()
+            );
+            assert_eq!(unchanged, before);
+            let prefix = sim.ledger.len();
+            let mut resumed =
+                Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+            sim.step().unwrap();
+            assert_eq!(sim.ledger.last().unwrap(), plan.as_ref());
+            assert_eq!(
+                sim.state
+                    .processes
+                    .values()
+                    .any(|p| p.definition == GROW && p.status == Status::Active),
+                funded
+            );
+            while sim.state.month < 2 {
+                sim.step().unwrap();
+            }
+            while resumed.state.month < 2 {
+                resumed.step().unwrap();
+            }
+            assert_eq!(
+                (&sim.state, &sim.ledger[prefix..]),
+                (&resumed.state, &resumed.ledger[..])
+            );
+            (sim.state, sim.ledger)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

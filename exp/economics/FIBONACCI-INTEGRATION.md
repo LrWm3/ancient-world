@@ -665,3 +665,11 @@ separately recorded affected gates above and are not covered by that snapshot.
     and rejection at a household-only venue on reference and CPU execution.
     Custom numeric marketplace definitions require the documented migration.
     The five-target gate passed 52 tests; strict all-target Clippy passed.
+
+34. **Negotiated seed trades feed dated joint production plans.** Configured
+    concession and ZIP sessions can buy the missing seed before planting. A
+    mortgage-downpayment-only control cannot spend those coins again, submits no
+    executable seed purchase and starts no crop. Both executions preserve exact
+    prepared work, reconstructed continuation and atomic receipt rejection.
+    The six-target gate passed 39 tests; strict all-target Clippy passed.
+    Producer-input order generation and household joint allocation remain separate.

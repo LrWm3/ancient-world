@@ -461,9 +461,6 @@ fn validate_purchase(world: &World, state: &State) -> Result<(), String> {
     let Some(c) = &world.credit else {
         return Ok(());
     };
-    if world.negotiation.is_some() && c.stock_sales.as_ref().is_some_and(|p| p.joint.is_some()) {
-        return Err("joint production reservations do not yet compose with negotiation".into());
-    }
     if world.transaction_policy.is_some() && c.resale_buyer.is_some() {
         return Err("permission-gated collateral resale is not yet supported".into());
     }

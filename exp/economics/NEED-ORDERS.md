@@ -103,7 +103,9 @@ The venue, counterparties, lot size and private reservation values remain suppli
 Only consumption-driven demand and protected-surplus supply are generated. There
 is no order book, competing-seller selection, producer-input search, endogenous
 valuation or general portfolio planner. ZIP learns quotes within supplied limits.
-Existing credit/household and joint-plan/negotiation exclusions still apply.
+Configured negotiated seed purchases now compose with single-participant joint
+work/sale plans; this does not generate producer-input orders. See
+[production-funded credit](PRODUCTION-FUNDED-CREDIT.md) for that separate control.
 
 The remaining review areas are deprivation consequences in credit fixtures,
 controlled planner ablations, uncertain forecasts and competing offers. Household

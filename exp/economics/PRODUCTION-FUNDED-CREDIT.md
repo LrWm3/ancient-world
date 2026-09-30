@@ -158,8 +158,8 @@ Its stay-constrained alternatives continue already committed cultivation and
 produce the usual dated Productive batch. A funded sale after harvest releases
 property and later closes the estate; an unfunded bid preserves the original
 claim. Forged plan dates fail atomically. Both executions retain food constraints,
-separate books and CPU/checkpoint equality. Household joint labor allocation,
-multiple producers and negotiated joint plans keep their existing scope limits.
+separate books and CPU/checkpoint equality. Household joint labor allocation
+and multiple participants keep their existing scope limits.
 
 Stock-sale reservation now inherits the household contribution budget from earlier
 estate purchases and financing. Cumulative fractional shares constrain both actual
@@ -208,4 +208,12 @@ forward deliveries. A grain-forward case remains feasible. A control that delive
 the only seed correctly reports an infeasible continuation and never schedules
 planting from that spent seed. Both retain real performance, separate books,
 CPU/checkpoint equality and atomic rejection of altered plan dates. Household
-joint allocation and negotiated joint plans retain their separate guards.
+joint allocation retains its separate guard.
+
+Configured negotiated exchange now composes with the joint work/sale planner.
+A missing seed bought during Acquire is available to the dated Productive plan.
+Concession and ZIP quote controls both exercise settlement; spending all opening
+coins on the mortgage downpayment prevents that purchase and planting. Incoming
+receipts cannot finance another leg of the same acquisition. CPU and reconstructed
+continuations consume the exact dated plan, and altered negotiation receipts fail
+atomically. This uses supplied counterparties and quotes, not generated seed orders.
