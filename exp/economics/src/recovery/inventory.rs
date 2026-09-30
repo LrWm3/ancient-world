@@ -66,14 +66,13 @@ pub fn discover(world: &World, state: &State, buyer: AgentId) -> Vec<Offer> {
     offers
 }
 
-/// Later bilateral matching inherits the contribution reservation. Other shared
+/// Later bilateral and town matching inherit the contribution reservation. Other shared
 /// acquisition drivers still need the same adapter before admitting member bids.
 fn eligible_buyer(world: &World, state: &State, buyer: AgentId) -> bool {
     let composed = !crate::acquisition::shared(world)
-        || (world.negotiation.is_some()
+        || ((world.negotiation.is_some() || world.town_market.is_some())
             && world.market.is_none()
             && world.prepaid_deliveries.is_empty()
-            && world.town_market.is_none()
             && world.minting.is_none());
     recovery::market::eligible_buyer_for(world, state, buyer, opportunities::Action::StockTrade)
         && (crate::households::parent(world, state, buyer).is_none() || composed)

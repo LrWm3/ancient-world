@@ -771,3 +771,149 @@ fn household_inventory_estate_keeps_member_property_separate_until_permitted_win
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn need_generated_town_orders_share_household_storage_with_estate_inventory() {
+    use economics_compute_smoke::{
+        household_governance::Purchasing,
+        marketplace::Side,
+        negotiation::{self, Outcome, QuotePolicy},
+        opportunities::{Action, PERSON_TYPE, STATE_TYPE},
+        town_market,
+    };
+    const ORE: ResourceId = 800;
+    for initial in [3, 4] {
+        let (mut w, mut s) = fixture(true, 8);
+        add_household(&mut w, &s);
+        w.households[0].governance.charter.purchasing = Purchasing::Members;
+        w.participants[0].needs = vec![Requirement {
+            resource: scenario::NUTRITION,
+            quantity: 2,
+            priority: 0,
+        }];
+        w.definitions = scenario::baseline()
+            .0
+            .definitions
+            .into_iter()
+            .filter(|d| d.id == scenario::CONSUME)
+            .collect();
+        w.resources.push(Resource {
+            id: ORE,
+            name: "stored ore".into(),
+            kind: ResourceKind::Stock,
+        });
+        w.storage.weights.insert(ORE, 1);
+        s.balances.insert((HOME, ORE), initial);
+        s.balances.insert((UNFUNDED, GRAIN), 1);
+        w.participants.push(Participant {
+            agent: UNFUNDED,
+            capacity: Amount::new(scenario::LABOR, 0),
+            needs: vec![],
+        });
+        let source = town_market::scenario().0;
+        w.marketplaces = source.marketplaces;
+        w.marketplaces[0].markets[0].goods.quantity = 1;
+        w.transaction_policy = source.transaction_policy;
+        let law = w.transaction_policy.as_mut().unwrap();
+        law.agent_types
+            .retain(|id, _| *id == PERSON || *id == STATE_AGENT || *id == negotiation::MARKETPLACE);
+        law.agent_types
+            .extend([(BUYER, PERSON_TYPE), (UNFUNDED, PERSON_TYPE)]);
+        law.permissions
+            .extend([(PERSON_TYPE, Action::Borrow), (STATE_TYPE, Action::Lend)]);
+        w.town_market = source.town_market;
+        let c = w.town_market.as_mut().unwrap();
+        c.traders = [(BUYER, Side::Buy), (UNFUNDED, Side::Sell)]
+            .into_iter()
+            .map(|(agent, side)| town_market::Entry {
+                side,
+                trader: negotiation::Trader {
+                    agent,
+                    limit: 1,
+                    opening_quote: 1,
+                    policy: QuotePolicy::Fixed,
+                },
+            })
+            .collect();
+        c.reserve.reserve_months = 1;
+        for id in [c.town, negotiation::MARKETPLACE] {
+            w.agents.push(Agent {
+                id,
+                name: format!("venue {id}"),
+            });
+        }
+        s.town_market.positions = [(c.town, 0), (BUYER, 100), (UNFUNDED, 0)].into();
+        w.recovery.inventory_listings[0].goods.quantity = 1;
+        w.recovery.inventory_listings[0].minimum_price = 1;
+        w.recovery.inventory_bids = vec![Bid {
+            id: 2,
+            listing: 1,
+            buyer: BUYER,
+            month: 3,
+            price: 1,
+        }];
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            sim.run_months(1).unwrap();
+            sim.state.balances.insert((PERSON, TOKEN), 0);
+            sim.run_months(1).unwrap();
+            // An explicit arrival before Open admission; no retroactive access.
+            sim.state.town_market.positions.insert(BUYER, 0);
+            let mut audit = Audit::with_opening(
+                &sim.world,
+                &sim.state,
+                TOKEN,
+                Opening {
+                    inventory: [
+                        ((PERSON, GRAIN), 12),
+                        ((UNFUNDED, GRAIN), 2),
+                        ((HOME, ORE), i128::from(initial)),
+                    ]
+                    .into(),
+                    exchange_values: [(GRAIN, 2), (ORE, 1)].into(),
+                    processes: Some(Default::default()),
+                    ..Opening::default()
+                },
+            )
+            .unwrap();
+            let mut checkpoint = (sim.clone(), audit.clone());
+            while sim.state.phase != Phase::Productive {
+                audit.step(&mut sim).unwrap();
+            }
+            while checkpoint.0.state.phase != Phase::Productive {
+                checkpoint.1.step(&mut checkpoint.0).unwrap();
+            }
+            assert_eq!(
+                (&sim.state, &sim.ledger, &audit),
+                (&checkpoint.0.state, &checkpoint.0.ledger, &checkpoint.1)
+            );
+            let town_market::Boundary::Market(round) =
+                sim.ledger.last().unwrap().town_market.as_ref().unwrap()
+            else {
+                panic!("missing market");
+            };
+            assert_eq!(
+                round
+                    .order_receipts
+                    .iter()
+                    .find(|r| r.agent == BUYER)
+                    .unwrap()
+                    .reason,
+                town_market::OrderReason::Submitted
+            );
+            assert_eq!(
+                round.attempts[0].round.outcome,
+                if initial == 3 {
+                    Outcome::Traded { price: 1 }
+                } else {
+                    Outcome::InsufficientStorage
+                }
+            );
+            assert_eq!(sim.state.balance(HOME, GRAIN), i32::from(initial == 3));
+            assert_eq!(sim.state.balance(BUYER, GRAIN), 1);
+            assert_eq!(sim.state.balance(ESTATE, TOKEN), 1);
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

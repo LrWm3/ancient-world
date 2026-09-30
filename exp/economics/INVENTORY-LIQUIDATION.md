@@ -28,10 +28,10 @@ nothing. Normal scheduled execution retains its independent successful bids.
 ## Household and accounting integration
 
 Household agents can purchase inventory with their own funds and storage. Their
-books remain separate from member books. Member purchases in credit-only and composed bilateral-market
+books remain separate from member books. Member purchases in credit-only, bilateral-market and town-market
 Acquire drivers reserve their exact household contribution, including fractional
 carry across lots, and pool it once after settlement. Subsequent commodity loans
-also respect that reserved space; loan proceeds remain unpooled. Bilateral negotiation inherits those reservations and fractional carry. Other
+also respect that reserved space; loan proceeds remain unpooled. Bilateral negotiation and town matching inherit those reservations and fractional carry. Other
 later market/forward drivers still reject member inventory bids until they inherit
 this same contribution budget. This is a bounded compatibility restriction, not an
 exemption from household pooling.
@@ -74,3 +74,8 @@ still blocks household dissolution. Only after claims clear can the existing
 wind-down policy distribute remaining goods. Member cash remains private. The
 three affected targets passed 35 tests, including CPU/reference, checkpoint and
 separate financial statements; strict all-target Clippy passed.
+
+The town-market follow-up passed 41 tests across four targets and strict all-target
+Clippy. Need-generated demand observes already purchased inventory; settlement
+respects the accumulated household share, preserving a submitted-but-storage-blocked
+order when shared capacity is full.
