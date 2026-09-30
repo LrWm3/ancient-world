@@ -890,6 +890,15 @@ fn collect(
     if let Some(credit) = &batch.credit {
         for receipt in &credit.recovery {
             let income = match receipt {
+                crate::recovery::Receipt::InventorySold { listing, buyer, .. } => {
+                    let lot = world
+                        .recovery
+                        .inventory_listings
+                        .iter()
+                        .find(|l| l.id == *listing)
+                        .ok_or("missing estate inventory lot")?;
+                    Some((*buyer, lot.goods.resource, lot.goods.quantity))
+                }
                 crate::recovery::Receipt::WagesDistributed {
                     proceeding,
                     creditor,

@@ -28,10 +28,13 @@ nothing. Normal scheduled execution retains its independent successful bids.
 ## Household and accounting integration
 
 Household agents can purchase inventory with their own funds and storage. Their
-books remain separate from member books. Active member purchases are currently
-rejected because this adapter has not yet reserved and collected their mandatory
-household contribution across later financing and market actions. This is a
-bounded compatibility restriction, not an exemption from household pooling.
+books remain separate from member books. Member purchases in the credit-only
+Acquire driver reserve their exact household contribution, including fractional
+carry across lots, and pool it once after settlement. Subsequent commodity loans
+also respect that reserved space; loan proceeds remain unpooled. Mixed later
+spot/forward matching still rejects member inventory bids until it inherits this
+same contribution budget. This is a bounded compatibility restriction, not an
+exemption from household pooling.
 
 The buyer records actual purchase cost. The debtor records sales revenue,
 released inventory basis and restricted proceeds. Estate custody and later loan
@@ -51,5 +54,10 @@ and checkpoint continuation.
 The affected seven-target gate passed 63 tests before the final exemption and
 explicit accounting assertions; all five final inventory tests passed, as did strict all-target
 Clippy. These gates are overlapping
-checks, not a sum of unique tests. Autonomous listings, appraisal, member pooling,
+checks, not a sum of unique tests. Autonomous listings, appraisal, member pooling across later markets,
 receivable assignment and multiple custody denominations remain separate work.
+
+The household contribution follow-up passed 35 tests across five affected targets,
+then all eight final inventory checks and strict all-target Clippy. One-unit lots
+exercise fractional carry and full pooled storage; a later household commodity
+loan is rejected if only the raw, unpooled holdings would fit.

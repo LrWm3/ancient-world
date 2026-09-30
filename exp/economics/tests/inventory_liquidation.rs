@@ -109,11 +109,13 @@ fn opening(w: World, s: State, backend: Backend) -> (Simulation, Audit) {
         &sim.state,
         TOKEN,
         Opening {
-            inventory: [PERSON, UNFUNDED]
-                .into_iter()
-                .filter_map(|agent| {
-                    let quantity = sim.state.balance(agent, GRAIN);
-                    (quantity > 0).then_some(((agent, GRAIN), i128::from(quantity) * 2))
+            inventory: sim
+                .state
+                .balances
+                .iter()
+                .filter_map(|(&(agent, resource), &quantity)| {
+                    (resource == GRAIN && quantity > 0)
+                        .then_some(((agent, resource), i128::from(quantity) * 2))
                 })
                 .collect(),
             exchange_values: [(GRAIN, 2)].into(),
@@ -269,38 +271,42 @@ fn competing_lots_share_actual_stock_cash_and_space_independent_of_catalog_order
     }
 }
 
-#[test]
-fn household_agent_buys_with_separate_books_while_unadapted_member_purchase_is_rejected() {
+const HOME: AgentId = 100;
+fn add_household(w: &mut World, s: &State) {
     use economics_compute_smoke::{
         household_governance::Governance,
         households::{self, Agreement},
     };
-    const HOME: AgentId = 100;
+    let mut member = scenario::baseline().0.participants[0].clone();
+    member.agent = BUYER;
+    member.needs.clear();
+    member.capacity.quantity = 0;
+    w.participants.push(member);
+    households::form(
+        w,
+        s,
+        Agreement {
+            id: 1,
+            agent: HOME,
+            adults: vec![BUYER],
+            governance: Governance::contributed(BUYER),
+            formed: 1,
+            dwelling_process: None,
+            admission: None,
+            membership: vec![],
+            asset_sales: vec![],
+            equipment_retirements: vec![],
+            support: vec![],
+        },
+    )
+    .unwrap();
+}
+
+#[test]
+fn household_and_member_inventory_purchases_pool_once_and_keep_separate_books() {
     for collective in [false, true] {
         let (mut w, mut s) = fixture(true, 8);
-        let mut member = scenario::baseline().0.participants[0].clone();
-        member.agent = BUYER;
-        member.needs.clear();
-        member.capacity.quantity = 0;
-        w.participants.push(member);
-        households::form(
-            &mut w,
-            &s,
-            Agreement {
-                id: 1,
-                agent: HOME,
-                adults: vec![BUYER],
-                governance: Governance::contributed(BUYER),
-                formed: 1,
-                dwelling_process: None,
-                admission: None,
-                membership: vec![],
-                asset_sales: vec![],
-                equipment_retirements: vec![],
-                support: vec![],
-            },
-        )
-        .unwrap();
+        add_household(&mut w, &s);
         if collective {
             s.balances.insert((BUYER, TOKEN), 0);
             s.balances.insert((HOME, TOKEN), 8);
@@ -317,13 +323,13 @@ fn household_agent_buys_with_separate_books_while_unadapted_member_purchase_is_r
             }
             assert_eq!(
                 sim.state.balance(HOME, GRAIN),
-                if collective { 4 } else { 0 }
+                if collective { 4 } else { 2 }
             );
-            assert_eq!(sim.state.balance(BUYER, GRAIN), 0);
             assert_eq!(
-                sim.state.balance(STATE_AGENT, TOKEN),
-                if collective { 8 } else { 0 }
+                sim.state.balance(BUYER, GRAIN),
+                if collective { 0 } else { 2 }
             );
+            assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 8);
             for agent in &w.agents {
                 let report = audit.book().statements(agent.id, 2, 4).unwrap();
                 assert_eq!(report.assets, report.liabilities + report.equity);
@@ -468,4 +474,102 @@ fn later_commodity_advances_share_inventory_sale_storage_without_reusing_receipt
         };
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
+}
+
+#[test]
+fn fractional_member_purchases_and_later_household_loans_share_pooled_space() {
+    for initial in [2, 3, 4] {
+        let (mut w, mut s) = fixture(true, 8);
+        add_household(&mut w, &s);
+        s.balances.insert((HOME, GRAIN), initial);
+        s.balances.insert((UNFUNDED, GRAIN), 1);
+        w.recovery.inventory_listings = (1..=2)
+            .map(|id| Listing {
+                id,
+                proceeding: 1,
+                goods: Amount::new(GRAIN, 1),
+                minimum_price: 1,
+            })
+            .collect();
+        w.recovery.inventory_bids = (1..=2)
+            .map(|id| Bid {
+                id,
+                listing: id,
+                buyer: BUYER,
+                month: 3,
+                price: 1,
+            })
+            .collect();
+        w.lending.push(Advance {
+            id: 2,
+            debtor: HOME,
+            principal: 1,
+            month: 3,
+            collateral: None,
+            priority: 0,
+            terms: LoanOffer {
+                creditor: UNFUNDED,
+                denomination: GRAIN,
+                max_principal: 1,
+                monthly_rate_bps: 0,
+                term_months: 12,
+                grace_months: 1,
+            },
+        });
+        let run = |backend| {
+            let (mut sim, mut audit) = opening(w.clone(), s.clone(), backend);
+            while (sim.state.month, sim.state.phase) != (3, Phase::Acquire) {
+                audit.step(&mut sim).unwrap();
+            }
+            let mut checkpoint = (sim.clone(), audit.clone());
+            while sim.state.month < 4 {
+                audit.step(&mut sim).unwrap();
+            }
+            while checkpoint.0.state.month < 4 {
+                checkpoint.1.step(&mut checkpoint.0).unwrap();
+            }
+            assert_eq!(
+                (&sim.state, &sim.ledger, &audit),
+                (&checkpoint.0.state, &checkpoint.0.ledger, &checkpoint.1)
+            );
+            assert_eq!(sim.state.balance(HOME, GRAIN), 4);
+            assert_eq!(sim.state.balance(BUYER, GRAIN), 1);
+            assert_eq!(
+                sim.state.balance(ESTATE, TOKEN),
+                if initial == 4 { 1 } else { 2 }
+            );
+            assert_eq!(
+                sim.state.household_remainders[&(HOME, BUYER, GRAIN)],
+                if initial == 4 { 1 } else { 0 }
+            );
+            assert_eq!(sim.state.credit.loans.contains_key(&2), initial == 2);
+            (sim.state, sim.ledger, audit)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
+
+#[test]
+fn unadapted_later_markets_do_not_silently_bypass_member_pool_reservations() {
+    let (mut w, s) = fixture(true, 8);
+    add_household(&mut w, &s);
+    w.prepaid_deliveries
+        .push(economics_compute_smoke::forward::direct::Terms {
+            id: 1,
+            seller: BUYER,
+            buyer: STATE_AGENT,
+            month: 20,
+            due: 21,
+            goods: Amount::new(GRAIN, 1),
+            prepayment: Amount::new(TOKEN, 1),
+        });
+    let (mut sim, _) = opening(w, s, Backend::Reference);
+    while (sim.state.month, sim.state.phase) != (3, Phase::Acquire) {
+        sim.step().unwrap();
+    }
+    assert!(recovery::inventory::discover(&sim.world, &sim.state, BUYER).is_empty());
+    sim.step().unwrap();
+    assert_eq!(sim.state.balance(ESTATE, TOKEN), 0);
+    assert_eq!(sim.state.balance(HOME, GRAIN), 0);
+    assert_eq!(sim.state.balance(BUYER, GRAIN), 0);
 }

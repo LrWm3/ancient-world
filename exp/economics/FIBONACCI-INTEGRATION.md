@@ -288,6 +288,7 @@ Completed integrations:
 46. Reconcile household inventory purchases and separate buyer/debtor/custodian statements.
 47. Discover and accept dated inventory bids through the common financial offer interface.
 48. Preserve receiving-space reservations from estate sales into subsequent commodity advances.
+49. Pool member inventory purchases with fractional carry and reserve collective space before later lending.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.
@@ -310,3 +311,7 @@ explicit current-essential exemption and inventory cost/revenue assertions too.
 The sale/advance storage regression and affected lending/credit/offer targets passed
 37 tests; strict all-target Clippy passed. Newly purchased goods still cannot fund
 same-boundary lending, and unfundable requests leave accepted purchases intact.
+
+Member inventory pooling passed 35 tests across five affected targets, followed by
+all eight final inventory checks and strict all-target Clippy. The scoped driver
+explicitly rejects member bids if later spot/forward matching is not adapted.

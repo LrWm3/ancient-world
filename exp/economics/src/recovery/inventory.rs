@@ -66,11 +66,12 @@ pub fn discover(world: &World, state: &State, buyer: AgentId) -> Vec<Offer> {
     offers
 }
 
-/// Member purchases need the household contribution/storage adapter before they
-/// can use this path. Household agents themselves can buy without that transfer.
+/// Member contribution reservations currently cover the credit-only Acquire
+/// driver. Later spot/forward matching needs to inherit that same reservation.
 fn eligible_buyer(world: &World, state: &State, buyer: AgentId) -> bool {
     recovery::market::eligible_buyer_for(world, state, buyer, opportunities::Action::StockTrade)
-        && crate::households::parent(world, state, buyer).is_none()
+        && (crate::households::parent(world, state, buyer).is_none()
+            || !crate::acquisition::shared(world))
 }
 
 pub(crate) fn cleared(world: &World, proceeding: u32, case: &recovery::Proceeding) -> bool {
@@ -196,7 +197,15 @@ pub(crate) fn sales(
     state: &State,
     out: &mut credit::Boundary,
     execution: &mut finance::Execution,
-) -> Result<(), String> {
+) -> Result<crate::households::income_reservations::Reservations, String> {
+    let mut pooling = crate::households::income_reservations::Reservations::new(
+        world,
+        state,
+        crate::storage::usage(world, &state.balances),
+    );
+    for t in &out.transactions {
+        pooling.reserve_unpooled(world, &t.effects)?;
+    }
     let protected = crate::commitments::protected_stock(world, state)?;
     let mut bids: Vec<_> = world
         .recovery
@@ -231,18 +240,21 @@ pub(crate) fn sales(
             && recovery::active(world, &out.after, b.buyer).is_none()
             && b.price >= l.minimum_price
             && spendable >= l.goods.quantity;
-        if !eligible || execution.exchange(world, &legs(p, l, b)).is_err() {
+        let transaction = sale_transaction(world, b.id)?;
+        let reserved = pooling.preview(world, &transaction.effects)?;
+        if !eligible || reserved.is_none() || execution.exchange(world, &legs(p, l, b)).is_err() {
             out.recovery
                 .push(recovery::Receipt::InventorySaleRejected { bid: b.id });
             continue;
         }
+        pooling = reserved.unwrap();
         let case = out.after.recovery.proceedings.get_mut(&p.id).unwrap();
         case.cash = case
             .cash
             .checked_add(b.price)
             .ok_or("estate inventory proceeds overflow")?;
         case.sold_inventory.insert(l.id);
-        out.transactions.push(sale_transaction(world, b.id)?);
+        out.transactions.push(transaction);
         out.recovery.push(recovery::Receipt::InventorySold {
             proceeding: p.id,
             listing: l.id,
@@ -251,5 +263,5 @@ pub(crate) fn sales(
             proceeds: b.price,
         });
     }
-    Ok(())
+    Ok(pooling)
 }

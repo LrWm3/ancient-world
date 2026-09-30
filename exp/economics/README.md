@@ -534,5 +534,6 @@ listing remain outstanding.
 
 Authorized [inventory liquidation](INVENTORY-LIQUIDATION.md) now sells configured
 stock lots through common offer acceptance, shared opening resources and existing
-estate custody. Household agents can buy with separate books; member contribution
-integration and autonomous listing remain open.
+estate custody. Household agents buy with separate books; member purchases pool
+once in the credit-only driver. Pooling across later markets and autonomous listing
+remain open.

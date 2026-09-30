@@ -1253,7 +1253,7 @@ pub(crate) fn sales(
     state: &State,
     out: &mut credit::Boundary,
     execution: &mut finance::Execution,
-) -> Result<(), String> {
+) -> Result<crate::households::income_reservations::Reservations, String> {
     let mut bids: Vec<_> = world
         .recovery
         .bids
@@ -1323,8 +1323,7 @@ pub(crate) fn sales(
             proceeds: b.price,
         });
     }
-    inventory::sales(world, state, out, execution)?;
-    Ok(())
+    inventory::sales(world, state, out, execution)
 }
 
 pub(crate) fn distribute(

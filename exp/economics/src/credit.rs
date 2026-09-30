@@ -724,6 +724,7 @@ fn advances(
     state: &State,
     out: &mut Boundary,
     execution: &mut finance::Execution,
+    pooling: &mut crate::households::income_reservations::Reservations,
 ) -> Result<(), String> {
     let mut requests: Vec<_> = world
         .lending
@@ -779,20 +780,25 @@ fn advances(
             continue;
         }
         let amount = Amount::new(a.terms.denomination, a.principal);
-        let Ok(effects) = execution.exchange(
-            world,
-            &[finance::Transfer {
-                from: creditor,
-                to: a.debtor,
-                amount: amount.clone(),
-            }],
-        ) else {
+        let leg = finance::Transfer {
+            from: creditor,
+            to: a.debtor,
+            amount: amount.clone(),
+        };
+        let mut reserved = pooling.clone();
+        let effects = if reserved.reserve_unpooled(world, &leg.effects()?).is_ok() {
+            execution.exchange(world, &[leg])
+        } else {
+            Err("advance exceeds pooled storage".into())
+        };
+        let Ok(effects) = effects else {
             out.events.push(Event::Rejected {
                 offer: a.id,
                 reason: Rejection::Funding,
             });
             continue;
         };
+        *pooling = reserved;
         out.transactions
             .push(tx("contract loan advance".into(), effects));
         out.after.loans.insert(a.id, Loan::accepted(a));
@@ -1398,8 +1404,8 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
         Phase::Acquire => {
             let mut execution = finance::Execution::opening(world, state);
             execution.available = budgets.clone();
-            crate::recovery::sales(world, state, &mut out, &mut execution)?;
-            advances(world, state, &mut out, &mut execution)?;
+            let mut pooling = crate::recovery::sales(world, state, &mut out, &mut execution)?;
+            advances(world, state, &mut out, &mut execution, &mut pooling)?;
             budgets = execution.available;
             if let Some(c) = &world.credit {
                 let should_purchase = match &c.purchase_policy {
