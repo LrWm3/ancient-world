@@ -466,3 +466,12 @@ liquidation and household forwards passed; strict all-target Clippy passed.
     Continuing harvest, CPU/reference and reconstructed checkpoints agree with
     separate statements. The five-target gate passed 26 tests; strict all-target
     Clippy passed.
+
+14. **Financed property joins explicit productive acceptance.** The common
+    request can fund a mortgage and reserve planting after ownership transfers,
+    with atomic rejection for absent downpayment or seed. Later repossession
+    transfers crop control; creditor labor determines completion versus failure
+    without changing the fixed-value deficiency. Separate books, CPU/reference
+    and reconstructed checkpoints agree. The eight-target gate passed 36 tests;
+    strict all-target Clippy passed. Specialized mortgage stock-sale planning
+    and household prerequisite search retain their separate guards.

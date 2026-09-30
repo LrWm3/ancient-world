@@ -105,8 +105,10 @@ observes direct-loan liabilities; mortgage expansion remains unsupported. Unsupp
 Mortgage-specific compatibility restrictions also remain until their ownership
 and planning assumptions are migrated.
 
-Explicit productive bundles now include dated posted guarantee admission alongside
-seed credit and land prerequisites. Existing caps, call timing and recourse apply
+Explicit productive bundles now include dated posted guarantee admission and
+estate inventory purchases alongside seed credit and land prerequisites. Financed
+property without the specialized stock-sale planner also supports explicit
+purchase/planting bundles and bounded process search. Existing caps, call timing and recourse apply
 after failed work; selection of those financial offers remains supplied consent.
 
 The shared claim executor is a substantive consolidation, but **not yet a

@@ -552,9 +552,9 @@ actors, unsupported annotations and reversed prerequisites remain errors. Planti
 is reserved at Acquire and consumes the delivered seed at Productive.
 
 This does not let callers override underwriting, bypass allocation, negotiate terms
-or guarantee future performance. Financed purchases and employment
-retain their financial-only common adapter until their productive bundles have
-corresponding mixed regressions.
+or guarantee future performance. Employment retains its financial-only common adapter until its productive bundles
+have corresponding mixed regressions. Financed purchases without the specialized
+stock-sale planner now support the productive adapter described below.
 
 The mixed-offer gate passed 42 tests across 6 targets; strict all-target
 Clippy, formatting and repository artifact checks passed.
@@ -602,3 +602,21 @@ window. Later harvest, residual estate debt, CPU/reference execution and
 reconstructed checkpoint continuation reconcile with separate statements.
 Removing the inventory-sale receipt rejects the entire altered batch. Listings
 and prices remain supplied terms, not autonomous estate shopping.
+
+### Financed property in a productive request
+
+Without the specialized mortgage stock-sale planner or another exclusive market
+driver, a financed purchase can now precede bounded process search and explicit
+planting acceptance. Funding, downpayment, legal permission and ownership-following
+rights still come from the existing mortgage resolver. The acceptance request may
+name both purchase and planting; missing either downpayment or seed rejects the
+whole explicit request. Independently consented scheduled purchases retain their
+ordinary execution behavior. This does not negotiate credit or underwrite crop
+profitability.
+
+The continuation deliberately provides no repayment income. Default repossesses
+the plot under its accepted fixed-value terms and transfers the unchanged crop
+to the creditor. Creditor labor completes the harvest; its absence aborts the
+crop. Both leave the same loan deficiency. Separate statements, CPU/reference
+execution and reconstructed-checkpoint continuation reconcile. An altered title
+record fails before publishing the prepared purchase or planting plan.
