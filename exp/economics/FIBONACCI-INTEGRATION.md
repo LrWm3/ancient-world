@@ -1095,3 +1095,10 @@ their separate gates above and are not covered by this snapshot.
     acquires neither loss nor claim. Discount/par/premium and counterparty relief
     controls agree on CPU/reference and checkpoints. The four-target gate passed
     58 tests and strict all-target Clippy passed.
+
+76. **Priced claims preserve guarantee performance and native recourse.**
+    Discounted/premium purchases now have composed controls for transferable
+    guarantees. Actual payment clears buyer cost and realizes its return, while
+    the guarantor acquires the full performed claim. Person/household seller
+    results stay separate. CPU/reference and checkpoint continuation agree.
+    The three-target gate passed 72 tests and strict all-target Clippy passed.

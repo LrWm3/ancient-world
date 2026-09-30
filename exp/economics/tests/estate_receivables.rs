@@ -927,6 +927,18 @@ fn secured_assignment(guaranteed: bool, shared_custody: bool) {
 
 #[test]
 fn explicit_guarantee_benefit_follows_assignment_and_pays_the_current_holder() {
+    assigned_guarantee(None);
+}
+
+#[test]
+fn purchased_guarantee_benefits_release_buyer_cost_without_discounting_native_recourse() {
+    for price in [1, 2, 4] {
+        assigned_guarantee(Some(price));
+    }
+}
+
+fn assigned_guarantee(price: Option<i32>) {
+    use economics_compute_smoke::accounting::Account;
     use economics_compute_smoke::{
         agreements,
         recovery::{Guarantee, GuaranteedClaim, RecourseSecurity, receivables},
@@ -940,7 +952,10 @@ fn explicit_guarantee_benefit_follows_assignment_and_pays_the_current_holder() {
                 id,
                 name: format!("claim party {id}"),
             });
-            opening.state.balances.insert((id, TOKEN), 3);
+            opening.state.balances.insert(
+                (id, TOKEN),
+                if id == BUYER { price.unwrap_or(3) } else { 3 },
+            );
         }
         opening
             .world
@@ -961,8 +976,11 @@ fn explicit_guarantee_benefit_follows_assignment_and_pays_the_current_holder() {
                 listing: 1,
                 buyer: BUYER,
                 month: 3,
-                price: 3,
+                price: price.unwrap_or(3),
             });
+        if price.is_some() {
+            opening.world.recovery.receivable_price_floors.insert(1, 1);
+        }
         opening.world.recovery.guarantees.push(Guarantee {
             follows_assignment: true,
             tender: economics_compute_smoke::recovery::GuaranteeTender::Native,
@@ -1012,7 +1030,29 @@ fn explicit_guarantee_benefit_follows_assignment_and_pays_the_current_holder() {
             );
             assert_eq!(sim.state.balance(BUYER, TOKEN), 3);
             assert_eq!(sim.state.balance(GUARANTOR, TOKEN), 0);
-            assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 3);
+            assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), price.unwrap_or(3));
+            let balance = |who, account| {
+                audit
+                    .book()
+                    .balances()
+                    .get(&(who, account))
+                    .copied()
+                    .unwrap_or(0)
+            };
+            assert_eq!(balance(BUYER, Account::LoanBasisAdjustment(ASSET)), 0);
+            assert_eq!(
+                balance(BUYER, Account::SettlementGain) + balance(BUYER, Account::SettlementLoss),
+                i128::from(price.unwrap_or(3) - 3)
+            );
+            assert_eq!(balance(GUARANTOR, Account::LoanReceivable(200)), 3);
+            assert_eq!(balance(GUARANTOR, Account::LoanBasisAdjustment(200)), 0);
+            assert_eq!(balance(BORROWER, Account::LoanPayable(200)), -3);
+            assert_eq!(balance(BUYER, Account::CreditLoss), 0);
+            let seller = if household { HOME } else { PERSON };
+            assert_eq!(
+                balance(seller, Account::DisposalGain) + balance(seller, Account::DisposalLoss),
+                i128::from(3 - price.unwrap_or(3))
+            );
             assert_eq!(sim.state.credit.loans[&ASSET].principal, 0);
             assert_eq!(sim.state.credit.loans[&200].principal, 3);
             assert_eq!(sim.state.credit.loans[&200].creditor, GUARANTOR);

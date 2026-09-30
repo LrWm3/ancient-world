@@ -261,3 +261,9 @@ collection and basis release continue independently. The member inherits neither
 the household's sale loss nor the buyer's claim. Discount/par/premium and borrower
 relief controls agree on CPU/reference and checkpoints. The four-target gate
 passed 58 tests and strict all-target Clippy passed.
+
+Priced claims also compose with transferable guarantees. Discounted and premium
+buyers receive the native amount guaranteed, releasing their own acquisition
+cost into settlement gain/loss. The guarantor's new recourse equals actual
+performance; it never inherits the investor's discount or premium. Person and
+household sellers retain their own disposal result, separately from both claims.
