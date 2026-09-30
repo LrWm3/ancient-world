@@ -137,8 +137,40 @@ fn fixture(funded: bool) -> (World, State) {
 
 #[test]
 fn winding_household_sells_mortgage_claim_and_new_holder_receives_actual_collateral_proceeds() {
+    assignment(None, false);
+}
+
+#[test]
+fn mortgage_assignment_retains_guarantee_consent_and_inherited_liens_across_custody() {
+    for from in [4, 5] {
+        for shared in [false, true] {
+            assignment(Some(from), shared);
+        }
+    }
+}
+
+fn assignment(guarantee_from: Option<u32>, shared_custody: bool) {
     for funded in [false, true] {
-        let (w, s) = fixture(funded);
+        let (mut w, s) = fixture(funded);
+        if shared_custody {
+            w.recovery.proceedings[0].estate = HOME_ESTATE;
+        }
+        if let Some(from) = guarantee_from {
+            w.recovery.guarantees.push(recovery::Guarantee {
+                id: 1,
+                claim: recovery::GuaranteedClaim::Loan(1),
+                guarantor: STATE_AGENT,
+                cap: 2,
+                from,
+                through: from,
+                delay_months: 0,
+                recourse: 200,
+                priority: 0,
+                follows_assignment: true,
+                tender: recovery::GuaranteeTender::Native,
+                security: recovery::RecourseSecurity::InheritLiquidationLien,
+            });
+        }
         let run = |backend| {
             let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
             let mut audit = Audit::with_opening(
@@ -200,14 +232,29 @@ fn winding_household_sells_mortgage_claim_and_new_holder_receives_actual_collate
             assert_eq!(sim.state, resumed.state);
             assert_eq!(&sim.ledger[start..], resumed.ledger.as_slice());
             assert_eq!(audit, ra);
-            assert_eq!(sim.state.credit.loans[&1].principal, 2);
+            let recovered = if guarantee_from == Some(4) { 6 } else { 4 };
+            assert_eq!(sim.state.credit.loans[&1].principal, 6 - recovered);
+            if let Some(from) = guarantee_from {
+                let recourse = &sim.state.credit.loans[&200];
+                assert_eq!(recourse.creditor, STATE_AGENT);
+                assert_eq!(recourse.debtor, PERSON);
+                assert_eq!(recourse.principal, if from == 4 { 2 } else { 0 });
+                assert_eq!(recourse.collateral.as_ref().unwrap().asset, PLOT);
+                assert!(sim.ledger.iter().filter(|b| b.month == from).all(|b| {
+                    b.credit.as_ref().is_none_or(|c| {
+                        c.recovery
+                            .iter()
+                            .all(|r| !matches!(r, recovery::Receipt::Distributed { loan: 200, paid, .. } if *paid > 0))
+                    })
+                }));
+            }
             assert_eq!(
                 sim.state.credit.loans[&1].creditor,
                 if funded { INVESTOR } else { HOME }
             );
             assert_eq!(
                 sim.state.balance(INVESTOR, TOKEN),
-                if funded { 4 } else { 5 }
+                if funded { recovered } else { 5 }
             );
             assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(MEMBER));
             assert_eq!(sim.state.balance(MEMBER, TOKEN), 0);
@@ -219,9 +266,9 @@ fn winding_household_sells_mortgage_claim_and_new_holder_receives_actual_collate
             );
             assert_eq!(
                 recovery::active(&sim.world, &sim.state.credit, HOME).is_none(),
-                funded
+                funded || recovered == 6
             );
-            if funded {
+            if funded || recovered == 6 {
                 assert!(dissolution::blockers(&sim.world, &sim.state, HOME).is_empty());
                 dissolution::finish(&mut sim.world, &sim.state, HOME, MEMBER).unwrap();
             } else {

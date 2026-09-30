@@ -575,3 +575,18 @@ their separately recorded affected gates; this full result does not cover them.
     exit. Private member property/crop control, separate estates and CPU/checkpoint
     books agree. The six-target gate passed 57 tests; strict all-target Clippy
     passed. Fixed-value/resale security remains excluded.
+
+26. **Assigned mortgages retain guarantees across shared custody.** Transferable
+    coverage and inherited liens now run with a winding household's mortgage
+    sale, another estate's property sale and dedicated/shared custodians. Calls
+    before and after collateral sale retain their distinct reserved-proceeds
+    recoveries. New recourse never collects in its creation month. Unfunded bids,
+    household exit, separate books and CPU/checkpoint controls pass. The
+    four-target gate passed 50 tests; strict all-target Clippy passed.
+
+### Full-suite checkpoint through item 18
+
+The isolated source snapshot at **`37a6208`** passed
+`cargo +1.92.0 test --locked`: **947 passed, 0 failed, 1 ignored**, across
+118 Cargo result targets including empty unit/doc targets. Items 19 onward have
+the separately recorded affected gates above; this full result does not cover them.

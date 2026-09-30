@@ -184,3 +184,14 @@ close; an unfunded claim bid leaves the asset with the household and blocks exit
 The member purchases the property with private money and maintains the transferred
 crop. Separate books, actual custody, CPU/reference and reconstructed continuation
 agree. Fixed-value/resale collateral remains outside receivable assignment.
+
+Mortgage assignment also retains explicit transferable guarantees and authorized
+lien subrogation. The matrix calls two units of coverage before or after the
+four-unit collateral sale, with dedicated or shared custodians. Under the selected
+inherited-lien terms, a pre-sale call leaves the original creditor six recovered
+and the guarantor two in recourse; a post-sale call transfers two reserved proceeds
+to recourse, leaving the creditor four recovered and two still due. These are
+explicit subrogation semantics, not a promise of identical recovery across timing.
+New recourse cannot collect in its creation month. Original claim holders follow
+the same rule when assignment is unfunded, and household exit depends on remaining
+assets. Separate books and CPU/checkpoint continuation agree.
