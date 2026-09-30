@@ -9,7 +9,6 @@ use economics_compute_smoke::{
     opportunities::{Action, PERSON_TYPE, STATE_TYPE},
     simulation::Simulation,
 };
-use std::collections::BTreeMap;
 
 fn fixture() -> (World, State) {
     let (mut w, s) = minting::scenario("normal").unwrap();
@@ -62,10 +61,22 @@ fn audit(w: &World, s: &State) -> Audit {
         })
         .map(|(k, q)| (*k, i128::from(*q)))
         .collect();
-    Audit::with_processes(w, s, COIN, BTreeMap::new(), costs, BTreeMap::new())
-        .unwrap()
-        .with_issuance_policy(issuance_accounting::Policy::NonRedeemableEquity)
-        .unwrap()
+    Audit::with_opening(
+        w,
+        s,
+        COIN,
+        economics_compute_smoke::financial_reporting::Opening {
+            assets: w.assets.iter().map(|a| (a.id, 10)).collect(),
+            inventory: costs,
+            processes: Some(Default::default()),
+            dues: Some(economics_compute_smoke::dues_accounting::Valuation(
+                w.agreements.iter().map(|a| (a.id, 1)).collect(),
+            )),
+            issuance: Some(issuance_accounting::Policy::NonRedeemableEquity),
+            ..Default::default()
+        },
+    )
+    .unwrap()
 }
 
 #[test]
@@ -377,4 +388,54 @@ fn authorized_recovery_blocks_mint_counterparty_and_preserves_estate_custody() {
     let mut invalid = sim.world.clone();
     invalid.minting.as_mut().unwrap().deals[0].buyer = 999;
     assert!(Simulation::new(invalid, sim.state.clone(), Backend::Reference).is_err());
+}
+
+#[test]
+fn annual_coin_and_native_land_dues_compose_without_unbacked_issuance() {
+    use economics_compute_smoke::commitments::Agreement;
+    for denomination in [COIN, WHEAT] {
+        let (mut w, s) = minting::scenario("normal").unwrap();
+        w.assets.push(Asset {
+            id: 777,
+            owner: ISSUER,
+            kind: 1,
+        });
+        w.rights.push(UseRight {
+            id: 77,
+            holder: SUPPLIER,
+            asset: 777,
+            from: 1,
+            through: 24,
+            output_owner: SUPPLIER,
+        });
+        w.agreements.push(Agreement {
+            id: 77,
+            right: 77,
+            creditor: ISSUER,
+            debtor: SUPPLIER,
+            activated: 1,
+            payment: Amount::new(denomination, 2),
+        });
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+        while sim.state.month <= 13 {
+            a.step(&mut sim).unwrap();
+        }
+        assert_eq!(sim.state.obligations[&(77, 13)].paid, 2);
+        assert_eq!(sim.state.obligations[&(77, 13)].in_kind_paid, 2);
+        assert_eq!(
+            sim.state.balance(SUPPLIER, denomination),
+            if denomination == COIN { 3 } else { 1 }
+        );
+        let supply: i32 = sim
+            .state
+            .balances
+            .iter()
+            .filter(|((_, r), _)| *r == COIN)
+            .map(|(_, q)| *q)
+            .sum();
+        assert_eq!(supply, 22);
+        let statement = a.book().statements(ISSUER, 1, 13).unwrap();
+        assert_eq!(statement.issuance_change, 10);
+    }
 }
