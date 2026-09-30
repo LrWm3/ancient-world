@@ -7,7 +7,8 @@ use crate::{
 use std::collections::{BTreeMap, BTreeSet};
 
 pub type MarketId = u32;
-pub const MARKETPLACE_TYPE: opportunities::AgentType = 3;
+// Keep the public marketplace path while sharing the built-in type namespace.
+pub use crate::opportunities::MARKETPLACE_TYPE;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Market {

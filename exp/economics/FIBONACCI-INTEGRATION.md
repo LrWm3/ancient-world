@@ -656,3 +656,12 @@ separately recorded affected gates above and are not covered by that snapshot.
     atomically, and separate books plus CPU/checkpoint continuation agree. The
     five-target gate passed 30 tests; strict all-target Clippy passed. Household
     and negotiated joint planning retain their separate compatibility guards.
+
+33. **Household and marketplace classifications no longer collide.** Both had
+    built-in type ID 3, leaking household borrowing permission to marketplace
+    agents. Shared built-in IDs now keep household 3 and assign marketplace 4;
+    the public marketplace constant re-exports that definition. A formed
+    household, two venues and real funded traders demonstrate separate grants
+    and rejection at a household-only venue on reference and CPU execution.
+    Custom numeric marketplace definitions require the documented migration.
+    The five-target gate passed 52 tests; strict all-target Clippy passed.

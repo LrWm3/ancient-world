@@ -7,6 +7,7 @@ pub type AgentType = u32;
 pub const PERSON_TYPE: AgentType = 1;
 pub const STATE_TYPE: AgentType = 2;
 pub const HOUSEHOLD_TYPE: AgentType = 3;
+pub const MARKETPLACE_TYPE: AgentType = 4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Action {

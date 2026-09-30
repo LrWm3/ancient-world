@@ -39,6 +39,15 @@ registry and no membership list. An unclassified or unlisted type is ineligible,
 even if it has permission to perform stock exchanges. An empty set admits nobody.
 The venue itself cannot trade through its own catalog.
 
+Built-in classifications now share one namespace in `opportunities`: person `1`,
+state `2`, household `3`, marketplace `4`. `marketplace::MARKETPLACE_TYPE` re-exports
+the shared constant. The former household/marketplace collision at `3` incorrectly
+made household-only grants apply to marketplaces. A mixed founding/admission
+regression now checks separate borrowing/lending permissions and rejects a funded
+marketplace buyer at a household-only venue. Venue permission to trade does not
+itself grant venue access. Custom definitions that stored a marketplace as numeric
+`3` must change that entry to `4`; household entries remain `3`.
+
 Both parties must also be active and permitted to perform `StockTrade` under the
 existing state policy. The venue cannot grant an exception to state rules. These
 checks apply to discovery and negotiation and are repeated during settlement.

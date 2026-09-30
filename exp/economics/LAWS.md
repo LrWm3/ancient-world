@@ -5,6 +5,12 @@ one authority, agent types, direct permissions, membership offers and permission
 granted by accepted membership. Its new `laws` catalog constrains those grants.
 An empty catalog preserves existing classified-agent behavior.
 
+Built-in agent-type IDs are defined together in `opportunities`: person `1`,
+state `2`, household `3`, marketplace `4`. Household and marketplace grants and
+venue admission are distinct; the previous duplicate ID `3` could leak one
+organization type's permissions to the other. Custom numeric marketplace
+classifications need `4`, while existing household classifications keep `3`.
+
 Each named rule has a stable ID, an action, an optional agent type and one of:
 
 - `Prohibited`: that action is forbidden even if a type or membership grants it.

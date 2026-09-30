@@ -181,3 +181,99 @@ fn catalog_price_ticks_constrain_quotes_and_the_crossing_price() {
     );
     assert_eq!(invalid.state.balance(88, TOKEN), 100);
 }
+
+#[test]
+fn household_permissions_and_admission_do_not_leak_to_marketplace_agents() {
+    use economics_compute_smoke::{
+        household_governance::Governance,
+        households::{self, Agreement},
+        opportunities::{self, HOUSEHOLD_TYPE},
+        scenario::{LABOR, PERSON},
+    };
+    const HOME: AgentId = 10000;
+    const SECOND_VENUE: AgentId = 91;
+    let (mut w, mut s) = negotiation::scenario();
+    w.resources.push(Resource {
+        id: LABOR,
+        name: "labor".into(),
+        kind: ResourceKind::Capacity,
+    });
+    w.participants.push(Participant {
+        agent: PERSON,
+        capacity: Amount::new(LABOR, 0),
+        needs: vec![],
+    });
+    w.storage.capacities.insert(PERSON, 4);
+    w.transaction_policy
+        .as_mut()
+        .unwrap()
+        .permissions
+        .insert((PERSON_TYPE, Action::FoundHousehold));
+    households::form(
+        &mut w,
+        &s,
+        Agreement {
+            id: 1,
+            agent: HOME,
+            adults: vec![PERSON],
+            governance: Governance::contributed(PERSON),
+            formed: 1,
+            dwelling_process: None,
+            admission: None,
+            membership: vec![],
+            asset_sales: vec![],
+            equipment_retirements: vec![],
+            support: vec![],
+        },
+    )
+    .unwrap();
+    w.agents.push(Agent {
+        id: SECOND_VENUE,
+        name: "household market".into(),
+    });
+    let mut venue = w.marketplaces[0].clone();
+    venue.agent = SECOND_VENUE;
+    venue.allowed_types = [HOUSEHOLD_TYPE].into();
+    w.marketplaces.push(venue);
+    let policy = w.transaction_policy.as_mut().unwrap();
+    policy
+        .agent_types
+        .insert(SECOND_VENUE, marketplace::MARKETPLACE_TYPE);
+    policy.permissions.extend([
+        (HOUSEHOLD_TYPE, Action::Borrow),
+        (HOUSEHOLD_TYPE, Action::StockTrade),
+        (marketplace::MARKETPLACE_TYPE, Action::StockTrade),
+        (marketplace::MARKETPLACE_TYPE, Action::Lend),
+    ]);
+    assert!(opportunities::permits(&w, &s, HOME, Action::Borrow));
+    assert!(!opportunities::permits(&w, &s, MARKETPLACE, Action::Borrow));
+    assert_eq!(marketplace::discover(&w, &s, SECOND_VENUE, HOME).len(), 1);
+    assert!(marketplace::discover(&w, &s, SECOND_VENUE, MARKETPLACE).is_empty());
+    let session = w.negotiation.as_mut().unwrap();
+    session.marketplace = SECOND_VENUE;
+    session.buyer.agent = MARKETPLACE;
+    session.seller.agent = HOME;
+    s.balances.insert((MARKETPLACE, TOKEN), 100);
+    s.balances.insert((HOME, GRAIN), 2);
+    let run = |backend| {
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        while sim.state.phase != Phase::Acquire {
+            sim.step().unwrap();
+        }
+        let opening = sim.state.balances.clone();
+        sim.step().unwrap();
+        assert_eq!(
+            sim.ledger
+                .last()
+                .unwrap()
+                .negotiation
+                .as_ref()
+                .unwrap()
+                .outcome,
+            Outcome::Ineligible
+        );
+        assert_eq!(sim.state.balances, opening);
+        (sim.state, sim.ledger)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}
