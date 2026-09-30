@@ -77,7 +77,8 @@ historical basis cumulatively, without losing integer rounding ticks.
 
 Ordinary and guaranteed forward performance retain separate dated boundaries.
 Guarantees of dynamically underwritten tool forwards, recourse guarantees, pending
-resale mortgages and lien subrogation remain unsupported.
+resale mortgages remain unsupported. Authorized-liquidation lien subrogation
+now has an explicit adapter; see [lien priority](LIEN-PRIORITY.md).
 
 ## Verification
 
@@ -96,3 +97,8 @@ Additional `tests/guaranteed_claims.rs` controls cover:
 
 The run record and final validation results are in
 [Fibonacci integration](FIBONACCI-INTEGRATION.md). Logs remain ignored local artifacts.
+
+Land guarantees may now explicitly select the original agreement's accepted coin
+tender. Actual coins discharge whole native claim units; no goods are received,
+and the guarantor's recourse remains native. Both actual tender and claim units
+appear in receipts. See [guarantee tender](GUARANTEED-CLAIMS.md#accepted-coin-tender-for-land-guarantees).

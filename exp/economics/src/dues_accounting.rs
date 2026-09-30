@@ -358,6 +358,7 @@ pub(crate) fn guarantee_payments(
     boundary: Option<&crate::credit::Boundary>,
     transactions: &[Transaction],
     coin: ResourceId,
+    values: &BTreeMap<ResourceId, i128>,
 ) -> Result<(Vec<Transaction>, Vec<Line>), String> {
     let mut transfers = transactions.to_vec();
     let mut used = std::collections::BTreeSet::new();
@@ -369,6 +370,7 @@ pub(crate) fn guarantee_payments(
                 guarantee,
                 claim: crate::recovery::GuaranteedClaim::Land { .. },
                 paid,
+                tender,
                 ..
             } = receipt
             else {
@@ -393,33 +395,56 @@ pub(crate) fn guarantee_payments(
                         && t.effects
                             == vec![
                                 Effect {
-                                    account: (g.guarantor, denomination),
-                                    delta: -*paid,
+                                    account: (g.guarantor, tender.resource),
+                                    delta: -tender.quantity,
                                 },
                                 Effect {
-                                    account: (creditor, denomination),
-                                    delta: *paid,
+                                    account: (creditor, tender.resource),
+                                    delta: tender.quantity,
                                 },
                             ]
                 })
                 .ok_or("guaranteed dues receipt does not match actual transfer")?;
             used.insert(index);
-            if denomination != coin {
+            if tender.resource != coin {
                 physical.insert(index);
                 continue;
+            }
+            let value = crate::reporting_value::value(coin, values, denomination, *paid)?;
+            let gain = value - i128::from(tender.quantity);
+            if gain != 0 {
+                let account = if gain > 0 {
+                    Account::SettlementGain
+                } else {
+                    Account::SettlementLoss
+                };
+                // The debtor substitutes equal native recourse, while the guarantor
+                // bears the difference between its cash outlay and native claim value.
+                lines.push(Line {
+                    agent: debtor,
+                    account: account.clone(),
+                    debit: gain,
+                    flow: None,
+                });
+                lines.push(Line {
+                    agent: g.guarantor,
+                    account,
+                    debit: -gain,
+                    flow: None,
+                });
             }
             transfers[index].effects[0].account.0 = debtor;
             lines.extend([
                 Line {
                     agent: debtor,
                     account: Account::Cash,
-                    debit: i128::from(*paid),
+                    debit: i128::from(tender.quantity),
                     flow: Some(Flow::Operating),
                 },
                 Line {
                     agent: g.guarantor,
                     account: Account::Cash,
-                    debit: -i128::from(*paid),
+                    debit: -i128::from(tender.quantity),
                     flow: Some(Flow::Investing),
                 },
             ]);
@@ -448,8 +473,10 @@ pub(crate) fn without_physical_guarantees(
             if let crate::recovery::Receipt::Guaranteed {
                 claim: claim @ crate::recovery::GuaranteedClaim::Land { agreement, due },
                 paid,
+                tender,
                 ..
             } = r
+                && tender.resource != coin
                 && claim
                     .parties(world)
                     .ok_or("missing land guarantee terms")?

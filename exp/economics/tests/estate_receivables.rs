@@ -720,6 +720,7 @@ fn secured_assignment(guaranteed: bool) {
                     w.recovery.guarantees.push(recovery::Guarantee {
                         id: 1,
                         follows_assignment: true,
+                        tender: economics_compute_smoke::recovery::GuaranteeTender::Native,
                         security: recovery::RecourseSecurity::InheritLiquidationLien,
                         claim: recovery::GuaranteedClaim::Loan(ASSET),
                         guarantor: GUARANTOR,
@@ -930,6 +931,7 @@ fn explicit_guarantee_benefit_follows_assignment_and_pays_the_current_holder() {
             });
         opening.world.recovery.guarantees.push(Guarantee {
             follows_assignment: true,
+            tender: economics_compute_smoke::recovery::GuaranteeTender::Native,
             security: RecourseSecurity::Unsecured,
             id: 1,
             claim: GuaranteedClaim::Loan(ASSET),

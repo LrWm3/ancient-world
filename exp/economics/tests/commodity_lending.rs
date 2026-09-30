@@ -125,6 +125,7 @@ fn physical_loan_guarantee_delivers_stock_and_creates_same_unit_recourse() {
     opening.inventory.insert((99, GRAIN), 2);
     w.recovery.guarantees.push(Guarantee {
         follows_assignment: false,
+        tender: economics_compute_smoke::recovery::GuaranteeTender::Native,
         security: economics_compute_smoke::recovery::RecourseSecurity::Unsecured,
         id: 1,
         claim: GuaranteedClaim::Loan(1),

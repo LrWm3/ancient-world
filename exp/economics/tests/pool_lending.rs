@@ -1048,6 +1048,7 @@ fn native_guarantees_and_household_recourse_share_real_collection_inventory() {
         s.balances.insert((guarantor, FUEL), 4);
         w.recovery.guarantees.push(Guarantee {
             follows_assignment: false,
+            tender: economics_compute_smoke::recovery::GuaranteeTender::Native,
             security: economics_compute_smoke::recovery::RecourseSecurity::Unsecured,
             id: 1,
             claim: GuaranteedClaim::Loan(10),

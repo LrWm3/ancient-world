@@ -75,8 +75,8 @@ extensions move eligibility without extending coverage. Physical wage payments
 reserve household pooling space before committing. Guarantee observers identify
 the native resource alongside requested, allocated and paid quantities.
 
-Accepted alternative-tender guarantees, conversion damages and dynamically
-underwritten tool-forward coverage remain extensions. Fixed resource valuations
+Alternative tenders beyond accepted land coin terms, conversion damages and
+dynamically underwritten tool-forward coverage remain extensions. Fixed resource valuations
 do not establish general FX or noncash collateral/estate accounting.
 
 Guarantees of recourse loans and pending-resale mortgages remain rejected. General security
@@ -103,3 +103,27 @@ with `follows_assignment`. This does not extend its cap, term or acceptance.
 Inspection, payments and observers use the live loan creditor; the unchanged
 claim identity continues to control calls and recourse. Non-loan guarantees
 cannot select this term. See [receivable assignment](ESTATE-RECEIVABLES.md).
+
+## Accepted coin tender for land guarantees
+
+`GuaranteeTender::Native` preserves existing performance. An explicitly selected
+`AcceptedLandCoins` route pays the original land agreement's accepted coin rate,
+without a native fallback or a new exchange rate. Missing, invalid or non-land
+routes reject during validation. The selected route is visible in common terms.
+
+The shared executor allocates actual tender quantities in whole conversion lots,
+under the guarantee's existing stable or proportional policy. Native caps,
+requested/allocated/paid claim quantities and recourse remain in land-dues units.
+Receipts and observers also expose the actual tender resource and quantity.
+Cash payment cannot count as harvested goods or support native-linked issuance.
+
+Separate reporting uses the existing dues and native-recourse valuations. The
+debtor substitutes equal native recourse for its dues liability; the guarantor
+bears any difference between its cash outlay and recorded receivable value. This
+is an explicit reporting convention, not evidence that the recourse can be sold
+for that value. The creditor records its ordinary agreed-tender settlement.
+
+Controls compare native-only and coin performance, rates above/below reporting
+value, two competing conversion lots, an unaffordable lot, reversed catalogs,
+CPU/checkpoint continuation and atomic rejection of forged tender receipts.
+Other guarantee kinds retain native performance; general FX is still absent.

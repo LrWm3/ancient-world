@@ -35,6 +35,7 @@ fn fixture() -> (World, State) {
     });
     w.recovery.guarantees.push(Guarantee {
         follows_assignment: false,
+        tender: economics_compute_smoke::recovery::GuaranteeTender::Native,
         security: economics_compute_smoke::recovery::RecourseSecurity::Unsecured,
         id: 1,
         claim: GuaranteedClaim::Wages {
@@ -385,6 +386,7 @@ fn guaranteed_member_wages_pool_actual_receipts_once_and_preserve_household_reco
         });
         w.recovery.guarantees.push(Guarantee {
             follows_assignment: false,
+            tender: economics_compute_smoke::recovery::GuaranteeTender::Native,
             security: economics_compute_smoke::recovery::RecourseSecurity::Unsecured,
             id: 1,
             claim: GuaranteedClaim::Wages {
@@ -742,6 +744,7 @@ fn household_guarantees_share_cash_across_loan_wage_and_land_claims_with_separat
     ] {
         w.recovery.guarantees.push(Guarantee {
             follows_assignment: false,
+            tender: economics_compute_smoke::recovery::GuaranteeTender::Native,
             security: economics_compute_smoke::recovery::RecourseSecurity::Unsecured,
             id,
             claim,
@@ -1471,4 +1474,226 @@ fn guarantee_accepted_at_end_of_term_cannot_backdate_a_missed_call() {
     assert_eq!(sim.state.credit.recovery.accepted_guarantees[&1], 2);
     assert!(sim.state.credit.recovery.paid_guarantees.is_empty());
     assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 4);
+}
+
+#[test]
+fn land_guarantee_can_pay_accepted_coins_without_delivering_goods_or_converting_recourse() {
+    use economics_compute_smoke::{
+        activities::CoinPayment, dues_accounting::Valuation, finance::CollectionPolicy,
+        minting::FIREWOOD, recovery::GuaranteeTender,
+    };
+    for policy in [CollectionPolicy::Stable, CollectionPolicy::Proportional] {
+        for alternative in [false, true] {
+            for rate in [2, 4] {
+                let (mut w, mut s) = land_fixture();
+                s.month = 12;
+                w.agreements[0].payment.resource = FIREWOOD;
+                w.activities.coin_payments.insert(
+                    900,
+                    CoinPayment {
+                        resource: COIN,
+                        coins_per_unit: rate,
+                    },
+                );
+                w.recovery.guarantee_policy = policy;
+                w.recovery.guarantees[0].tender = if alternative {
+                    GuaranteeTender::AcceptedLandCoins
+                } else {
+                    GuaranteeTender::Native
+                };
+                s.balances.clear();
+                s.balances.insert((SUPPLIER, COIN), 5);
+                let opening = Opening {
+                    assets: [(900, 0)].into(),
+                    dues: Some(Valuation([(900, 3)].into())),
+                    exchange_values: [(FIREWOOD, 3)].into(),
+                    ..Default::default()
+                };
+                let run = |backend| {
+                    let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+                    let mut audit = Audit::with_opening(&w, &s, COIN, opening.clone()).unwrap();
+                    through(&mut audit, &mut sim, 13);
+                    let paid = if alternative { 5 / rate } else { 0 };
+                    let bill = &sim.state.obligations[&(900, 13)];
+                    assert_eq!(
+                        (bill.paid, bill.in_kind_paid, bill.outstanding()),
+                        (paid, 0, 4 - paid)
+                    );
+                    assert_eq!(sim.state.balance(SUPPLIER, COIN), 5 - paid * rate);
+                    assert_eq!(sim.state.balance(WORKER, COIN), paid * rate);
+                    assert_eq!(sim.state.balance(WORKER, FIREWOOD), 0);
+                    if paid > 0 {
+                        let l = &sim.state.credit.loans[&101];
+                        assert_eq!(
+                            (l.principal, l.denomination, l.debtor, l.creditor),
+                            (paid, FIREWOOD, ISSUER, SUPPLIER)
+                        );
+                        let books = audit.book().balances();
+                        assert_eq!(
+                            books[&(SUPPLIER, Account::LoanReceivable(101))],
+                            i128::from(paid * 3)
+                        );
+                        assert_eq!(
+                            books[&(ISSUER, Account::LoanPayable(101))],
+                            -i128::from(paid * 3)
+                        );
+                        let gain = paid * (3 - rate);
+                        let account = if gain > 0 {
+                            Account::SettlementGain
+                        } else {
+                            Account::SettlementLoss
+                        };
+                        assert_eq!(books[&(SUPPLIER, account.clone())], -i128::from(gain));
+                        assert_eq!(books.get(&(ISSUER, account)).copied().unwrap_or(0), 0);
+                        assert!(sim.ledger.iter().filter_map(|b| b.credit.as_ref()).flat_map(|b| &b.recovery).any(|r| matches!(r,
+                            Receipt::Guaranteed { paid: q, tender, .. } if *q == paid && *tender == Amount::new(COIN, paid * rate))));
+                    } else {
+                        assert!(sim.state.credit.loans.is_empty());
+                    }
+                    let mut resumed =
+                        Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+                    let mut ra = audit.clone();
+                    through(&mut audit, &mut sim, 14);
+                    through(&mut ra, &mut resumed, 14);
+                    assert_eq!((&sim.state, &audit), (&resumed.state, &ra));
+                    (sim.state, sim.ledger, audit)
+                };
+                assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+            }
+        }
+    }
+}
+
+#[test]
+fn alternative_guarantees_allocate_whole_payment_lots_from_one_cash_pool() {
+    use economics_compute_smoke::{
+        activities::CoinPayment,
+        dues_accounting::Valuation,
+        finance::CollectionPolicy,
+        minting::FIREWOOD,
+        recovery::GuaranteeTender,
+        settlement::{self, DEFAULT_EFFECT_LIMIT},
+    };
+    for first_rate in [2, 6] {
+        for policy in [CollectionPolicy::Stable, CollectionPolicy::Proportional] {
+            let (mut w, mut s) = land_fixture();
+            s.month = 12;
+            w.agreements[0].payment.resource = FIREWOOD;
+            w.recovery.guarantees[0].tender = GuaranteeTender::AcceptedLandCoins;
+            w.recovery.guarantee_policy = policy;
+            let mut asset = w.assets.iter().find(|a| a.id == 900).unwrap().clone();
+            asset.id = 901;
+            w.assets.push(asset);
+            let mut right = w.rights.iter().find(|r| r.id == 900).unwrap().clone();
+            right.id = 901;
+            right.asset = 901;
+            w.rights.push(right);
+            let mut agreement = w.agreements[0].clone();
+            agreement.id = 901;
+            agreement.right = 901;
+            w.agreements.push(agreement);
+            let mut g = w.recovery.guarantees[0].clone();
+            g.id = 2;
+            g.recourse = 102;
+            g.claim = GuaranteedClaim::Land {
+                agreement: 901,
+                due: 13,
+            };
+            w.recovery.guarantees.push(g);
+            for (id, rate) in [(900, first_rate), (901, 3)] {
+                w.activities.coin_payments.insert(
+                    id,
+                    CoinPayment {
+                        resource: COIN,
+                        coins_per_unit: rate,
+                    },
+                );
+            }
+            s.balances.clear();
+            s.balances.insert((SUPPLIER, COIN), 5);
+            let opening = Opening {
+                assets: [(900, 0), (901, 0)].into(),
+                dues: Some(Valuation([(900, 3), (901, 3)].into())),
+                exchange_values: [(FIREWOOD, 3)].into(),
+                ..Default::default()
+            };
+            let mut invalid = w.clone();
+            invalid.activities.coin_payments.remove(&900);
+            assert!(Simulation::new(invalid, s.clone(), Backend::Reference).is_err());
+            let mut invalid = w.clone();
+            invalid
+                .activities
+                .coin_payments
+                .get_mut(&900)
+                .unwrap()
+                .coins_per_unit = 0;
+            assert!(Simulation::new(invalid, s.clone(), Backend::Reference).is_err());
+            let run = |backend, reversed| {
+                let mut world = w.clone();
+                if reversed {
+                    world.recovery.guarantees.reverse();
+                    world.agreements.reverse();
+                }
+                let mut sim = Simulation::new(world, s.clone(), backend).unwrap();
+                let mut audit =
+                    Audit::with_opening(&sim.world, &sim.state, COIN, opening.clone()).unwrap();
+                while (sim.state.month, sim.state.phase) != (13, Phase::Due) {
+                    audit.step(&mut sim).unwrap();
+                }
+                let before = sim.state.clone();
+                let before_audit = audit.clone();
+                audit.step(&mut sim).unwrap();
+                let expected = if first_rate == 6 {
+                    [0, 1]
+                } else if policy == CollectionPolicy::Stable {
+                    [2, 0]
+                } else {
+                    [1, 1]
+                };
+                for (id, q) in [(900, expected[0]), (901, expected[1])] {
+                    assert_eq!(sim.state.obligations[&(id, 13)].paid, q);
+                    assert_eq!(sim.state.obligations[&(id, 13)].in_kind_paid, 0);
+                }
+                let paid_coins = expected[0] * first_rate + expected[1] * 3;
+                assert_eq!(sim.state.balance(SUPPLIER, COIN), 5 - paid_coins);
+                assert_eq!(sim.state.balance(WORKER, COIN), paid_coins);
+                let mut forged = sim.ledger.last().unwrap().clone();
+                let receipt = forged
+                    .credit
+                    .as_mut()
+                    .unwrap()
+                    .recovery
+                    .iter_mut()
+                    .find(|r| matches!(r, Receipt::Guaranteed { paid, .. } if *paid > 0))
+                    .unwrap();
+                if let Receipt::Guaranteed { tender, .. } = receipt {
+                    tender.quantity += 1;
+                }
+                let mut candidate = before.clone();
+                assert!(
+                    settlement::commit(
+                        &sim.world,
+                        &mut candidate,
+                        &forged,
+                        backend,
+                        DEFAULT_EFFECT_LIMIT
+                    )
+                    .is_err()
+                );
+                assert_eq!(candidate, before);
+                let mut reporting = before_audit.clone();
+                assert!(
+                    reporting
+                        .record(&sim.world, &before, &forged, &sim.state)
+                        .is_err()
+                );
+                assert_eq!(reporting, before_audit);
+                (sim.state, sim.ledger, audit)
+            };
+            assert_eq!(run(Backend::Reference, false), run(Backend::CubeCpu, true));
+        }
+    }
+    let (mut w, s) = fixture();
+    w.recovery.guarantees[0].tender = GuaranteeTender::AcceptedLandCoins;
+    assert!(Simulation::new(w, s, Backend::Reference).is_err());
 }

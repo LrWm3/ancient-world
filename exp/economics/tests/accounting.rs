@@ -102,6 +102,7 @@ fn guarantees_create_an_asset_not_an_expense_and_keep_interest_in_operating_cash
     });
     w.recovery.guarantees.push(Guarantee {
         follows_assignment: false,
+        tender: economics_compute_smoke::recovery::GuaranteeTender::Native,
         security: economics_compute_smoke::recovery::RecourseSecurity::Unsecured,
         id: 1,
         claim: economics_compute_smoke::recovery::GuaranteedClaim::Loan(10),

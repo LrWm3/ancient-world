@@ -13,7 +13,9 @@ pub mod inventory;
 pub mod market;
 pub mod receivables;
 mod subrogation;
+mod tender;
 pub use subrogation::RecourseSecurity;
+pub use tender::GuaranteeTender;
 
 /// Identifies the authoritative obligation covered by accepted contingent terms.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -99,6 +101,7 @@ impl GuaranteedClaim {
 pub struct Guarantee {
     /// Accepted consent for its benefit to follow a whole-loan assignment.
     pub follows_assignment: bool,
+    pub tender: GuaranteeTender,
     pub security: RecourseSecurity,
     pub id: u32,
     pub claim: GuaranteedClaim,
@@ -264,6 +267,7 @@ pub enum Receipt {
         requested: i32,
         allocated: Option<i32>,
         paid: i32,
+        tender: Amount,
         recourse: u32,
     },
     Sold {
@@ -374,6 +378,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             return Err("transferable guarantee requires a loan claim".into());
         }
         subrogation::terms(world, g)?;
+        tender::terms(world, g)?;
         if g.security == RecourseSecurity::Unsecured
             && (world.credit.as_ref().is_some_and(|c| {
                 c.offers.iter().any(|o| {
@@ -1029,13 +1034,25 @@ pub(crate) fn guarantees(
                 Err(e) => Some(Err(e)),
             })
             .collect::<Result<_, String>>()?;
+        let mut funding_requests = Vec::new();
+        let mut lots = BTreeMap::new();
+        for r in &requests {
+            let g = terms
+                .iter()
+                .find(|g| r.contract == finance::ContractId::Guarantee(g.id))
+                .unwrap();
+            let (claim, lot) = tender::funding(world, g, &r.claim)?;
+            lots.insert(r.contract, lot);
+            funding_requests.push(finance::CollectionRequest { claim, ..r.clone() });
+        }
         let grants = if world.recovery.guarantee_policy == finance::CollectionPolicy::Proportional {
-            Some(finance::proportional_grants(
+            Some(finance::proportional_lots(
                 world,
                 state.month,
                 execution,
                 &protected,
-                &requests,
+                &funding_requests,
+                &lots,
             )?)
         } else {
             None
@@ -1049,7 +1066,10 @@ pub(crate) fn guarantees(
                 continue;
             };
             let requested = request.claim.outstanding();
-            let allocated = grants.as_ref().map(|grants| grants[&request.contract]);
+            let lot = lots[&request.contract];
+            let allocated = grants
+                .as_ref()
+                .map(|grants| grants[&request.contract] / lot);
             let Some(claim) =
                 guarantee_claim(world, &crate::recovery_claims::current(state, out), g)?
             else {
@@ -1059,35 +1079,46 @@ pub(crate) fn guarantees(
                     requested,
                     allocated,
                     paid: 0,
+                    tender: Amount::new(
+                        tender::funding(world, g, &request.claim)?
+                            .0
+                            .transfer
+                            .amount
+                            .resource,
+                        0,
+                    ),
                     recourse: g.recourse,
                 });
                 continue;
             };
             let (debtor, _, denomination) =
                 g.claim.parties(world).ok_or("missing guaranteed terms")?;
+            let (funding, _) = tender::funding(world, g, &claim)?;
+            let payment_resource = funding.transfer.amount.resource;
             let reserve = protected
-                .get(&(g.guarantor, denomination))
+                .get(&(g.guarantor, payment_resource))
                 .copied()
                 .unwrap_or(0);
             let limit = (execution
                 .available
-                .get(&(g.guarantor, denomination))
+                .get(&(g.guarantor, payment_resource))
                 .copied()
                 .unwrap_or(0)
                 - reserve)
                 .max(0)
-                .min(allocated.unwrap_or(i32::MAX));
+                .min(grants.as_ref().map_or(i32::MAX, |g| g[&request.contract]));
             let pooled_receipt = matches!(
                 g.claim,
                 GuaranteedClaim::Wages { .. } | GuaranteedClaim::Forward(_)
             );
             let limit = if pooled_receipt {
-                limit.min(pooling.payment_limit(world, execution, &claim)?)
+                limit.min(pooling.payment_limit(world, execution, &funding)?)
             } else {
-                limit.min(pooling.unpooled_payment_limit(world, execution, &claim)?)
+                limit.min(pooling.unpooled_payment_limit(world, execution, &funding)?)
             };
-            let payment = execution.pay_bounded(world, state.month, true, &claim, limit)?;
-            let paid = payment.paid;
+            let payment =
+                execution.pay_bounded(world, state.month, true, &funding, limit / lot * lot)?;
+            let paid = payment.paid / lot;
             round_paid += i64::from(paid);
             if paid > 0 {
                 if pooled_receipt {
@@ -1156,7 +1187,7 @@ pub(crate) fn guarantees(
                             a,
                             bill,
                             paid,
-                            true,
+                            g.tender == GuaranteeTender::Native,
                             payment.effects,
                         );
                         // Keep identical transfer records in the domain receipt and common batch.
@@ -1217,6 +1248,7 @@ pub(crate) fn guarantees(
                 requested,
                 allocated,
                 paid,
+                tender: Amount::new(payment_resource, payment.paid),
                 recourse: g.recourse,
             });
         }

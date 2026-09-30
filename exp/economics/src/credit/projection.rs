@@ -108,6 +108,7 @@ mod tests {
         }
         world.recovery.guarantees.push(Guarantee {
             follows_assignment: false,
+            tender: crate::recovery::GuaranteeTender::Native,
             security: crate::recovery::RecourseSecurity::Unsecured,
             id: 1,
             claim: GuaranteedClaim::Wages {

@@ -362,6 +362,7 @@ pub(super) fn batch(
                     requested,
                     allocated,
                     paid,
+                    tender,
                     recourse,
                 } => {
                     let g = world
@@ -379,7 +380,7 @@ pub(super) fn batch(
                     {
                         let mut record = json!({"kind":"guarantee_payment","guarantee":guarantee,
                             "claim":format!("{claim:?}"),"debtor":debtor,"creditor":creditor,
-                            "guarantor":g.guarantor,"resource":resource,"requested":requested,"allocated":allocated,"paid":paid,"recourse":recourse});
+                            "guarantor":g.guarantor,"resource":resource,"requested":requested,"allocated":allocated,"paid":paid,"tender_resource":tender.resource,"tender_paid":tender.quantity,"recourse":recourse});
                         if let crate::recovery::GuaranteedClaim::Loan(id) = claim {
                             record["loan"] = json!(id);
                         }

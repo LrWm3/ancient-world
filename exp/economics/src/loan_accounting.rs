@@ -69,13 +69,14 @@ pub(crate) fn settle(
             guarantee,
             claim,
             paid,
+            tender,
             ..
         } = receipt
         {
             let (_, creditor, denomination) = claim
                 .current_parties(world, &b.after)
                 .ok_or("missing guaranteed terms")?;
-            if *paid > 0 && denomination != coin {
+            if *paid > 0 && denomination != coin && tender.resource == denomination {
                 let g = world
                     .recovery
                     .guarantees

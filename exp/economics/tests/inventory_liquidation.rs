@@ -980,6 +980,7 @@ fn guaranteed_delivery_pools_once_and_creates_recourse_only_for_actual_receipts(
         });
         w.recovery.guarantees.push(Guarantee {
             follows_assignment: false,
+            tender: economics_compute_smoke::recovery::GuaranteeTender::Native,
             security: economics_compute_smoke::recovery::RecourseSecurity::Unsecured,
             id: 1,
             claim: GuaranteedClaim::Forward(1),

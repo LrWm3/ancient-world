@@ -427,3 +427,11 @@ liquidation and household forwards passed; strict all-target Clippy passed.
    actual proceeds, original debtors and private member funds. CPU and checkpoint
    replay agree with separate statements throughout.
    The four-target gate passed 84 tests; strict all-target Clippy passed.
+
+9. **Accepted land-coin guarantee tender.** Explicit terms select the existing
+   land coin rate. Shared stable/proportional execution reserves actual cash in
+   whole conversion lots; original claim units remain authoritative for caps,
+   settlement and recourse. Reporting distinguishes cash outlay from native claim
+   value without inventing goods or debtor income. Controls cover competing
+   rates, unaffordable lots, forged receipts and CPU/checkpoint/catalog parity.
+   The eight-target gate passed 124 tests; strict all-target Clippy passed.

@@ -1190,6 +1190,7 @@ impl Audit {
             batch.credit.as_ref(),
             &dues_transfers,
             coin,
+            &self.exchange_values,
         )?;
         let (dues_transfers, estate_dues_lines) = crate::dues_accounting::estate_payments(
             world,
