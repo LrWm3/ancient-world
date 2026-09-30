@@ -18,6 +18,11 @@ reference; [contract consolidation](CONTRACT-CONSOLIDATION.md) orders the broade
 backlog. Completion of v1 does not require completing these broader ambitions.
 Person self-directed policy changes remain deferred by request.
 
+The [planner experiment plan](PLANNER-EXPERIMENTS.md) turns opportunity discovery
+into a bounded research sequence, with matched baselines and a review after its
+first four experiments. It proposes comparisons, not completed capabilities or a
+change to the verified v1 scope.
+
 ## Purpose and consistency
 
 Rebuild economic and institutional behavior from generic agents, explicit

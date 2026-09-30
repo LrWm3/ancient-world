@@ -9,6 +9,10 @@ families and final verification gates passed at `a1b99fa`; see
 [release results](V1-RESULTS.md). The broader roadmap and financial stress tests
 continue beyond this verified scope.
 
+The proposed [planner experiments](PLANNER-EXPERIMENTS.md) define the next research
+batch: compare bounded opportunity-composition searches on existing resources,
+then test household authority and competing plans before selecting further work.
+
 ## Current progress — 2026-09-30
 
 Current through verified economics v1, implementation revision `a1b99fa`.
