@@ -28,6 +28,14 @@ pub struct Applied {
     /// Actual units paid when the accepted relief was applied.
     pub paid: i32,
 }
+/// Accepted full disposition of one unsecured loan. This is provenance, not
+/// another debt balance; principal and interest remain in the ordinary loan book.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LoanWriteOff {
+    pub terms: Terms,
+    pub principal: i32,
+    pub interest: i32,
+}
 pub(crate) struct Claim {
     pub contract: ContractId,
     pub original_due: u32,
@@ -48,7 +56,16 @@ pub fn validate_terms(w: &World) -> Result<(), String> {
             .ok_or("claim relief requires an authorized proceeding")?;
         if !ids.insert(t.id)
             || !dates.insert((t.contract, t.original_due, t.month))
-            || !matches!(t.contract, ContractId::Wages(_) | ContractId::Land(_))
+            || !matches!(
+                t.contract,
+                ContractId::Wages(_) | ContractId::Land(_) | ContractId::Loan(_)
+            )
+            || (matches!(t.contract, ContractId::Loan(_))
+                && (t.expected_due != t.original_due
+                    || t.action
+                        != (Action::WriteOff {
+                            quantity: t.expected_remaining,
+                        })))
             || t.original_due < 2
             || t.expected_due < t.original_due
             || t.expected_due >= t.month
@@ -181,6 +198,23 @@ pub(crate) fn apply(w: &World, s: &State, out: &mut credit::Boundary) -> Result<
                 }
             }
             match t.contract {
+                ContractId::Loan(id) => {
+                    let loan = out.after.loans.get_mut(&id).ok_or("missing relief loan")?;
+                    let disposition = LoanWriteOff {
+                        terms: t.clone(),
+                        principal: loan.principal,
+                        interest: loan.interest,
+                    };
+                    out.recovery.push(recovery::Receipt::WrittenOff {
+                        proceeding: t.proceeding,
+                        loan: id,
+                        principal: loan.principal,
+                        interest: loan.interest,
+                    });
+                    loan.apply_payment(loan.debt()?);
+                    loan.status = credit::Status::Discharged;
+                    out.after.recovery.loan_writeoffs.insert(id, disposition);
+                }
                 ContractId::Wages(id) => {
                     let book = out.employment.get_or_insert_with(|| s.employment.clone());
                     let earned = book.earned.get_mut(&(id, t.original_due - 1)).unwrap();
@@ -221,6 +255,37 @@ pub(crate) fn apply(w: &World, s: &State, out: &mut credit::Boundary) -> Result<
 }
 fn view(w: &World, s: &State, t: &Terms) -> Option<(crate::finance::Obligation, Vec<Applied>)> {
     match t.contract {
+        ContractId::Loan(id) => {
+            let l = s.credit.loans.get(&id)?;
+            if l.collateral.is_some() || l.opened.checked_add(1)? != t.original_due {
+                return None;
+            }
+            let history = s
+                .credit
+                .recovery
+                .loan_writeoffs
+                .get(&id)
+                .map(|r| {
+                    vec![Applied {
+                        terms: r.terms.clone(),
+                        paid: 0,
+                    }]
+                })
+                .unwrap_or_default();
+            Some((
+                crate::finance::Obligation {
+                    transfer: crate::finance::Transfer {
+                        from: l.debtor,
+                        to: l.creditor,
+                        amount: Amount::new(l.denomination, l.debt().ok()?),
+                    },
+                    settled: 0,
+                    condition: crate::finance::Condition::OnOrAfterMonth(t.original_due),
+                    failure: crate::finance::FailureRule::CarryArrears,
+                },
+                history,
+            ))
+        }
         ContractId::Wages(id) => {
             let e = s.employment.earned.get(&(id, t.original_due - 1))?;
             Some((e.claim.clone(), e.relief.clone()))
@@ -232,4 +297,61 @@ fn view(w: &World, s: &State, t: &Terms) -> Option<(crate::finance::Obligation, 
         }
         _ => None,
     }
+}
+
+/// Full loan write-offs retain their exact accepted terms through checkpoint and
+/// closure. They never change the original quantity or masquerade as repayment.
+pub(crate) fn validate_loans(w: &World, s: &State) -> Result<(), String> {
+    for (&id, r) in &s.credit.recovery.loan_writeoffs {
+        let t = &r.terms;
+        let l = s.credit.loans.get(&id).ok_or("write-off without loan")?;
+        let case = s
+            .credit
+            .recovery
+            .proceedings
+            .get(&t.proceeding)
+            .ok_or("loan write-off without proceeding")?;
+        if !w.recovery.claim_relief.contains(t)
+            || t.contract != ContractId::Loan(id)
+            || t.debtor != l.debtor
+            || t.creditor != l.creditor
+            || Some(t.original_due) != l.opened.checked_add(1)
+            || t.month > s.month
+            || t.month < case.opened
+            || case.closed.is_some_and(|m| m < t.month)
+            || l.collateral.is_some()
+            || l.status != credit::Status::Discharged
+            || l.debt()? != 0
+            || r.principal < 0
+            || r.principal > l.original_principal
+            || r.interest < 0
+            || i64::from(r.principal) + i64::from(r.interest) != i64::from(t.expected_remaining)
+        {
+            return Err("invalid accepted loan write-off history".into());
+        }
+    }
+    // Legacy deficient closure can discharge only its own custody denomination.
+    // Other-denomination discharge needs this explicit loan-specific acceptance.
+    for l in s
+        .credit
+        .loans
+        .values()
+        .filter(|l| l.status == credit::Status::Discharged)
+    {
+        if !s.credit.recovery.loan_writeoffs.contains_key(&l.id)
+            && !w.recovery.proceedings.iter().any(|p| {
+                p.debtor == l.debtor
+                    && p.denomination == l.denomination
+                    && p.discharge_deficiency
+                    && s.credit
+                        .recovery
+                        .proceedings
+                        .get(&p.id)
+                        .is_some_and(|c| c.stage == recovery::Stage::Closed)
+            })
+        {
+            return Err("discharged loan without accepted disposition".into());
+        }
+    }
+    Ok(())
 }

@@ -1,4 +1,4 @@
-# Explicit relief for dated non-loan claims
+# Explicit accepted claim relief
 
 `recovery.claim_relief` supplies dated terms accepted by the debtor and creditor
 inside an authorized proceeding. Earned wages and annual land bills share dated
@@ -87,3 +87,27 @@ coins or inventory. The affected land-extension run passed 34 tests across four
 suites. Formatting, strict all-target Clippy and artifact checks pass; the broader
 crate regression completed with 801 passing tests and one existing ignored test.
 That snapshot predates the separately passing physical-wage test.
+
+## Full unsecured loan write-off
+
+`ContractId::Loan` now uses the same dated consent interface for full write-off of
+an unsecured loan inside an active authorized proceeding. Terms name the current
+creditor, debtor, original first-collection date (`opened + 1`) and exact current
+debt. They are checked after ordinary collection and guarantee payments; stale
+quantities are rejected. Native loans and guarantee recourse can use this route
+without conversion into the estate's custody currency.
+
+The authoritative loan becomes discharged, with original principal retained.
+`loan_writeoffs` holds accepted terms and the disposed principal/interest as
+provenance, not another balance. A native discharge without accepted disposition
+is invalid at checkpoint. Reporting values the creditor loss and debtor relief
+in the loan's denomination; no goods, coins, repayment or interest income are
+invented. An unresolved native claim continues to block closure even when the
+estate permits ordinary coin deficiencies to be discharged.
+
+This adapter deliberately supports full unsecured write-offs. Partial reductions,
+rescheduling of amortizing loans, secured releases and autonomous negotiation
+remain open. The control compares absent, exact and stale consent against the
+same actual advance and repayment, including CPU/reference, checkpoint and
+forged receipt/history rejection. The six-target gate passed 104 tests and strict
+all-target Clippy passed.

@@ -860,3 +860,13 @@ separately recorded affected gates and are not covered by this snapshot.
     and household statements remain separate, and no grain is invented.
     CPU/reference and checkpoint controls pass. The four-target gate passed
     65 tests and strict all-target Clippy passed.
+
+52. **Explicit loan-specific write-offs resolve native insolvency claims.**
+    The shared relief interface now accepts full unsecured loan disposition,
+    including native recourse. Exact current debt and parties are checked after
+    collection; stale consent leaves the debt. Accepted provenance survives
+    checkpoints and native reporting values produce loss/relief without a transfer.
+    Ordinary coin-deficiency permission does not implicitly forgive native loans.
+    CPU/reference, checkpoint and forgery controls pass; the six-target gate passed
+    104 tests and strict all-target Clippy passed. Partial amortizing-loan changes
+    and secured write-offs remain unsupported.

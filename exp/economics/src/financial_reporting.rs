@@ -1888,7 +1888,15 @@ impl Audit {
                         ..
                     } => {
                         let l = loan(id)?;
-                        let loss = i128::from(*principal) + i128::from(*interest);
+                        let quantity = principal
+                            .checked_add(*interest)
+                            .ok_or("loan write-off overflow")?;
+                        let loss = crate::reporting_value::value(
+                            coin,
+                            &self.exchange_values,
+                            l.denomination,
+                            quantity,
+                        )?;
                         result(&mut lines, l.creditor, Account::CreditLoss, loss);
                         result(&mut lines, l.debtor, Account::DebtRelief, -loss);
                     }

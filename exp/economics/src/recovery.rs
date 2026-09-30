@@ -168,6 +168,7 @@ pub struct Proceeding {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Book {
+    pub loan_writeoffs: BTreeMap<u32, crate::claim_relief::LoanWriteOff>,
     pub assignments: BTreeMap<u32, receivables::Assignment>,
     pub accepted_guarantees: BTreeMap<u32, u32>,
     /// Consented posted terms, including any rate selected from another agreement.
@@ -819,6 +820,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             return Err("invalid proceeding receipt".into());
         }
     }
+    crate::claim_relief::validate_loans(world, state)?;
     Ok(())
 }
 
