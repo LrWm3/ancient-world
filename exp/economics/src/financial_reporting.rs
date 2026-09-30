@@ -1103,6 +1103,12 @@ impl Audit {
         } else {
             (dues_transactions.to_vec(), vec![])
         };
+        let (dues_transfers, guaranteed_dues_lines) = crate::dues_accounting::guarantee_payments(
+            world,
+            batch.credit.as_ref(),
+            &dues_transfers,
+            coin,
+        )?;
         let (dues_transfers, estate_dues_lines) = crate::dues_accounting::estate_payments(
             world,
             batch.credit.as_ref(),
@@ -1213,6 +1219,7 @@ impl Audit {
             .chain(issuance_lines)
             .chain(collection_lines)
             .chain(estate_dues_lines)
+            .chain(guaranteed_dues_lines)
             .chain(service_lines)
             .chain(attachment_lines)
             .chain(expiration_lines)
@@ -1711,7 +1718,11 @@ impl Audit {
                             i128::from(*proceeds),
                         )?;
                     }
-                    recovery::Receipt::LandDistributed { .. }
+                    recovery::Receipt::Guaranteed {
+                        claim: recovery::GuaranteedClaim::Land { .. },
+                        ..
+                    }
+                    | recovery::Receipt::LandDistributed { .. }
                     | recovery::Receipt::DeliveryRelief { .. }
                     | recovery::Receipt::SaleRejected { .. }
                     | recovery::Receipt::Opened { .. }

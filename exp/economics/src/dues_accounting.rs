@@ -345,3 +345,75 @@ pub(crate) fn estate_payments(
     }
     Ok((transfers, lines))
 }
+
+/// A guarantee substitutes funded recourse for the debtor's dues payable.
+/// Project only verified guarantee transfers into the ordinary dues adapter;
+/// reverse its fictitious debtor cash leg and classify the guarantor's outlay.
+pub(crate) fn guarantee_payments(
+    world: &World,
+    boundary: Option<&crate::credit::Boundary>,
+    transactions: &[Transaction],
+    coin: ResourceId,
+) -> Result<(Vec<Transaction>, Vec<Line>), String> {
+    let mut transfers = transactions.to_vec();
+    let mut lines = vec![];
+    if let Some(b) = boundary {
+        for receipt in &b.recovery {
+            let crate::recovery::Receipt::Guaranteed {
+                guarantee,
+                claim: crate::recovery::GuaranteedClaim::Land { .. },
+                paid,
+                ..
+            } = receipt
+            else {
+                continue;
+            };
+            if *paid == 0 {
+                continue;
+            }
+            let g = world
+                .recovery
+                .guarantees
+                .iter()
+                .find(|g| g.id == *guarantee)
+                .ok_or("missing land guarantee")?;
+            let (debtor, creditor, denomination) =
+                g.claim.parties(world).ok_or("missing guaranteed dues")?;
+            if denomination != coin {
+                return Err("guaranteed dues require reporting currency".into());
+            }
+            let t = transfers
+                .iter_mut()
+                .find(|t| {
+                    t.effects
+                        == vec![
+                            Effect {
+                                account: (g.guarantor, coin),
+                                delta: -*paid,
+                            },
+                            Effect {
+                                account: (creditor, coin),
+                                delta: *paid,
+                            },
+                        ]
+                })
+                .ok_or("guaranteed dues receipt does not match actual transfer")?;
+            t.effects[0].account.0 = debtor;
+            lines.extend([
+                Line {
+                    agent: debtor,
+                    account: Account::Cash,
+                    debit: i128::from(*paid),
+                    flow: Some(Flow::Operating),
+                },
+                Line {
+                    agent: g.guarantor,
+                    account: Account::Cash,
+                    debit: -i128::from(*paid),
+                    flow: Some(Flow::Investing),
+                },
+            ]);
+        }
+    }
+    Ok((transfers, lines))
+}

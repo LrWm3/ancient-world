@@ -133,3 +133,87 @@ fn unearned_work_has_no_call_and_ordinary_payment_reduces_coverage() {
         }
     }
 }
+
+fn land_fixture() -> (World, State) {
+    let (mut w, s) = fixture();
+    w.employment.clear();
+    w.assets.push(Asset {
+        id: 900,
+        owner: WORKER,
+        kind: 1,
+    });
+    w.rights.push(UseRight {
+        id: 900,
+        holder: ISSUER,
+        asset: 900,
+        from: 1,
+        through: 30,
+        output_owner: ISSUER,
+    });
+    w.agreements
+        .push(economics_compute_smoke::commitments::Agreement {
+            id: 900,
+            right: 900,
+            creditor: WORKER,
+            debtor: ISSUER,
+            activated: 1,
+            payment: Amount::new(COIN, 4),
+        });
+    w.recovery.guarantees[0].claim = GuaranteedClaim::Land {
+        agreement: 900,
+        due: 13,
+    };
+    w.recovery.guarantees[0].through = 30;
+    (w, s)
+}
+#[test]
+fn land_guarantee_settles_one_original_bill_without_renewing_or_paying_later_bills() {
+    let (w, s) = land_fixture();
+    let opening = Opening {
+        assets: [(900, 0)].into(),
+        dues: Some(Default::default()),
+        ..Default::default()
+    };
+    let mut a = Audit::with_opening(&w, &s, COIN, opening).unwrap();
+    let mut sim = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+    let mut reference = Simulation::new(w, s, Backend::Reference).unwrap();
+    through(&mut a, &mut sim, 12);
+    assert!(sim.state.credit.recovery.paid_guarantees.is_empty());
+    through(&mut a, &mut sim, 25);
+    reference.run_months(25).unwrap();
+    assert_eq!(sim.state, reference.state);
+    assert_eq!(sim.ledger, reference.ledger);
+    let first = &sim.state.obligations[&(900, 13)];
+    assert_eq!(
+        (
+            first.owed,
+            first.paid,
+            first.in_kind_paid,
+            first.outstanding()
+        ),
+        (4, 3, 3, 1)
+    );
+    assert_eq!(sim.state.obligations[&(900, 25)].outstanding(), 4);
+    assert_eq!(sim.state.credit.loans[&101].principal, 3);
+    assert_eq!(sim.state.balance(WORKER, COIN), 3);
+    let b = a.book().balances();
+    assert_eq!(b[&(ISSUER, Account::DuesPayable(900, 13))], -1);
+    assert_eq!(b[&(ISSUER, Account::LoanPayable(101))], -3);
+    assert_eq!(b[&(WORKER, Account::DuesReceivable(900, 13))], 1);
+    assert_eq!(b[&(SUPPLIER, Account::LoanReceivable(101))], 3);
+    assert_eq!(b[&(ISSUER, Account::DuesExpense)], 8);
+    assert_eq!(b[&(WORKER, Account::DuesIncome)], -8);
+}
+#[test]
+fn guarantee_terms_reject_unidentified_dates_and_unsupported_native_tender() {
+    let (mut w, s) = land_fixture();
+    w.recovery.guarantees[0].claim = GuaranteedClaim::Land {
+        agreement: 900,
+        due: 14,
+    };
+    assert!(Simulation::new(w, s, Backend::Reference).is_err());
+    let (mut w, s) = fixture();
+    let physical = economics_compute_smoke::minting::FIREWOOD;
+    w.employment[0].wage_per_unit.resource = physical;
+    assert!(Simulation::new(w, s, Backend::Reference).is_err());
+}

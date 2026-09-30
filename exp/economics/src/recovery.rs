@@ -14,12 +14,14 @@ const RECOURSE_TERM_MONTHS: u32 = 1;
 pub enum GuaranteedClaim {
     Loan(u32),
     Wages { agreement: u32, earned_month: u32 },
+    Land { agreement: u32, due: u32 },
 }
 impl GuaranteedClaim {
     pub fn contract(self) -> finance::ContractId {
         match self {
             Self::Loan(id) => finance::ContractId::Loan(id),
             Self::Wages { agreement, .. } => finance::ContractId::Wages(agreement),
+            Self::Land { agreement, .. } => finance::ContractId::Land(agreement),
         }
     }
     pub(crate) fn parties(self, world: &World) -> Option<(AgentId, AgentId, ResourceId)> {
@@ -49,6 +51,21 @@ impl GuaranteedClaim {
                         && earned_month < u32::MAX
                 })
                 .map(|t| (t.employer, t.worker, t.wage_per_unit.resource)),
+            Self::Land { agreement, due } => world
+                .agreements
+                .iter()
+                .chain(&world.access_offers)
+                .find(|a| {
+                    a.id == agreement
+                        && due > a.activated
+                        && (due - a.activated).is_multiple_of(crate::commitments::MONTHS_PER_YEAR)
+                        && world
+                            .rights
+                            .iter()
+                            .any(|r| r.id == a.right && due <= r.through)
+                })
+                .filter(|a| !world.open_access_offers.contains(&a.id))
+                .map(|a| (a.debtor, a.creditor, a.payment.resource)),
         }
     }
 }
@@ -668,6 +685,25 @@ pub(crate) fn guarantee_claim(
                 Some(due),
             )
         }
+        GuaranteedClaim::Land { agreement, due } => {
+            let Some(o) = state.obligations.get(&(agreement, due)) else {
+                return Ok(None);
+            };
+            let Some(a) = crate::commitments::active(world, state).find(|a| a.id == agreement)
+            else {
+                return Ok(None);
+            };
+            (
+                a.creditor,
+                a.payment.resource,
+                if o.effective_due() <= month {
+                    o.outstanding()
+                } else {
+                    0
+                },
+                Some(o.effective_due()),
+            )
+        }
     };
     if first_unpaid.is_none_or(|m| month < m || month - m < g.delay_months) {
         return Ok(None);
@@ -729,10 +765,10 @@ pub(crate) fn guarantees(
         )?;
         let paid = payment.paid;
         if paid > 0 {
-            out.transactions.push(credit::tx(
+            let transaction = credit::tx(
                 format!("guarantee {} pays {:?}", g.id, g.claim),
-                payment.effects,
-            ));
+                payment.effects.clone(),
+            );
             match g.claim {
                 GuaranteedClaim::Loan(id) => {
                     let loan = out.after.loans.get_mut(&id).unwrap();
@@ -740,6 +776,7 @@ pub(crate) fn guarantees(
                     if loan.due(state.month)? == 0 {
                         loan.first_unpaid = None;
                     }
+                    out.transactions.push(transaction);
                 }
                 GuaranteedClaim::Wages {
                     agreement,
@@ -753,6 +790,33 @@ pub(crate) fn guarantees(
                         .unwrap()
                         .claim
                         .settled += paid;
+                    out.transactions.push(transaction);
+                }
+                GuaranteedClaim::Land { agreement, due } => {
+                    let a = crate::commitments::active(world, state)
+                        .find(|a| a.id == agreement)
+                        .ok_or("missing guaranteed land agreement")?;
+                    if out.commitments.is_none() {
+                        out.commitments = Some(crate::commitments::Settlement {
+                            policy: world.payment_policy,
+                            protected: crate::commitments::protected_stock(world, state)?,
+                            obligations: crate::commitments::due_obligations(world, state)?,
+                            transactions: vec![],
+                        });
+                    }
+                    let settlement = out.commitments.as_mut().unwrap();
+                    let bill = settlement.obligations.get_mut(&(agreement, due)).unwrap();
+                    let txs = crate::commitments::record_payment(
+                        world,
+                        a,
+                        bill,
+                        paid,
+                        true,
+                        payment.effects,
+                    );
+                    // Keep identical transfer records in the domain receipt and common batch.
+                    out.transactions.extend(txs.clone());
+                    settlement.transactions.extend(txs);
                 }
             }
             *out.after.recovery.paid_guarantees.entry(g.id).or_default() += paid;
