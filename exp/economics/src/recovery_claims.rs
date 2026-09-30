@@ -1,4 +1,4 @@
-//! Land and forward admission views; their source receipts remain authoritative.
+//! Land, forward and earned-wage admission views; their source receipts remain authoritative.
 use crate::{
     commitments, credit,
     finance::{self, ContractId},
@@ -15,8 +15,8 @@ pub struct Claim {
     pub remaining: Amount,
 }
 
-/// Includes existing bills and accepted future forward deliveries, never hypothetical
-/// future annual rent. A view does not accelerate or convert performance obligations.
+/// Includes existing bills, earned wages and accepted future forward deliveries,
+/// never hypothetical future annual rent or payroll. A view does not accelerate or convert performance obligations.
 pub fn outstanding(world: &World, state: &State, debtor: AgentId) -> Vec<Claim> {
     let mut claims = vec![];
     for a in commitments::active(world, state).filter(|a| a.debtor == debtor) {
@@ -66,6 +66,9 @@ pub fn outstanding(world: &World, state: &State, debtor: AgentId) -> Vec<Claim> 
 pub(crate) fn current(state: &State, out: &credit::Boundary) -> State {
     let mut current = state.clone();
     current.credit = out.after.clone();
+    if let Some(book) = &out.employment {
+        current.employment = book.clone();
+    }
     current
         .exchange
         .forwards
@@ -120,6 +123,39 @@ pub(crate) fn cash_requests(
                 transfer: finance::Transfer {
                     from: p.estate,
                     to: a.creditor,
+                    amount: Amount::new(p.denomination, quantity),
+                },
+                settled: 0,
+                condition: finance::Condition::OnOrAfterMonth(state.month),
+                failure: finance::FailureRule::CarryArrears,
+            },
+        });
+    }
+    for t in world
+        .employment
+        .iter()
+        .filter(|t| t.employer == p.debtor && t.wage_per_unit.resource == p.denomination)
+    {
+        let contract = ContractId::Wages(t.id);
+        let quantity = claims
+            .iter()
+            .filter(|c| c.contract == contract && c.due <= state.month)
+            .try_fold(0_i32, |q, c| {
+                q.checked_add(c.remaining.quantity)
+                    .ok_or("estate wage overflow")
+            })?;
+        lots.insert(contract, 1);
+        requests.push(finance::CollectionRequest {
+            contract,
+            rank: world
+                .claim_priorities
+                .get(&contract)
+                .copied()
+                .unwrap_or(t.rank),
+            claim: finance::Obligation {
+                transfer: finance::Transfer {
+                    from: p.estate,
+                    to: t.worker,
                     amount: Amount::new(p.denomination, quantity),
                 },
                 settled: 0,
@@ -192,4 +228,54 @@ pub(crate) fn pay_land(
         tender: Amount::new(p.denomination, paid),
     });
     Ok(paid)
+}
+
+/// A wage contract receives one grant; apply it to dated earnings oldest first.
+/// The authoritative employment book is updated atomically with estate custody.
+pub(crate) fn pay_wages(
+    world: &World,
+    state: &State,
+    out: &mut credit::Boundary,
+    p: &recovery::ProceedingTerms,
+    request: &finance::CollectionRequest,
+    allocated: i32,
+    execution: &mut finance::Execution,
+) -> Result<i32, String> {
+    let ContractId::Wages(id) = request.contract else {
+        return Err("expected wage claim".into());
+    };
+    let book = out
+        .employment
+        .get_or_insert_with(|| state.employment.clone());
+    let mut remaining = allocated;
+    let mut total = 0;
+    for (&(agreement, month), earned) in &mut book.earned {
+        if agreement != id || month >= state.month || earned.claim.outstanding() == 0 {
+            continue;
+        }
+        let mut claim = earned.claim.clone();
+        claim.transfer.from = p.estate;
+        let requested = claim.outstanding();
+        let grant = remaining.min(requested);
+        let payment = execution.pay_bounded(world, state.month, true, &claim, grant)?;
+        earned.claim.settled += payment.paid;
+        remaining -= payment.paid;
+        total += payment.paid;
+        if payment.paid > 0 {
+            out.transactions.push(credit::tx(
+                format!("estate {} wage distribution", p.id),
+                payment.effects,
+            ));
+        }
+        out.recovery.push(recovery::Receipt::WagesDistributed {
+            proceeding: p.id,
+            agreement: id,
+            earned_month: month,
+            creditor: claim.transfer.to,
+            requested,
+            allocated: grant,
+            paid: payment.paid,
+        });
+    }
+    Ok(total)
 }

@@ -1510,6 +1510,36 @@ impl Audit {
             }
             for r in &c.recovery {
                 match r {
+                    recovery::Receipt::WagesDistributed {
+                        proceeding,
+                        creditor,
+                        paid,
+                        ..
+                    } => {
+                        let p = world
+                            .recovery
+                            .proceedings
+                            .iter()
+                            .find(|p| p.id == *proceeding)
+                            .ok_or("missing estate")?;
+                        if p.denomination != coin {
+                            return Err("estate wages require reporting currency".into());
+                        }
+                        flow(
+                            &mut flows,
+                            *creditor,
+                            Account::Cash,
+                            Flow::Operating,
+                            i128::from(*paid),
+                        )?;
+                        flow(
+                            &mut flows,
+                            p.debtor,
+                            Account::RestrictedCash(*proceeding),
+                            Flow::Operating,
+                            -i128::from(*paid),
+                        )?;
+                    }
                     recovery::Receipt::Guaranteed {
                         guarantee,
                         loan: id,

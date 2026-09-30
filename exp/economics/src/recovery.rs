@@ -81,6 +81,15 @@ pub struct Book {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Receipt {
+    WagesDistributed {
+        proceeding: u32,
+        agreement: u32,
+        earned_month: u32,
+        creditor: AgentId,
+        requested: i32,
+        allocated: i32,
+        paid: i32,
+    },
     DeliveryRelief {
         proceeding: u32,
         terms: u32,
@@ -792,8 +801,8 @@ pub(crate) fn distribute(
         let mut case = out.after.recovery.proceedings[&p.id].clone();
         // Collect only unprotected opening coins. Newly deposited funds become
         // distributable next month, like sale proceeds received at Acquire.
-        let (land_requests, _) = crate::recovery_claims::cash_requests(world, state, out, p)?;
-        let land_cash = land_requests.iter().try_fold(0_i32, |sum, r| {
+        let (nonloan_requests, _) = crate::recovery_claims::cash_requests(world, state, out, p)?;
+        let nonloan_cash = nonloan_requests.iter().try_fold(0_i32, |sum, r| {
             sum.checked_add(r.claim.outstanding())
                 .ok_or("estate cash demand overflow")
         })?;
@@ -802,7 +811,7 @@ pub(crate) fn distribute(
             .loans
             .values()
             .filter(|l| l.debtor == p.debtor)
-            .try_fold(land_cash, |sum, l| {
+            .try_fold(nonloan_cash, |sum, l| {
                 sum.checked_add(l.debt()?)
                     .ok_or("estate debt overflow".to_string())
             })?;
@@ -892,8 +901,8 @@ pub(crate) fn distribute(
             .collect::<Result<_, String>>()?;
         let remaining_lien: i32 = case.secured.values().sum();
         let protected = BTreeMap::from([((p.estate, p.denomination), remaining_lien)]);
-        let (land_requests, lots) = crate::recovery_claims::cash_requests(world, state, out, p)?;
-        requests.extend(land_requests);
+        let (nonloan_requests, lots) = crate::recovery_claims::cash_requests(world, state, out, p)?;
+        requests.extend(nonloan_requests);
         let grants = finance::proportional_lots(
             world,
             state.month,
@@ -903,6 +912,18 @@ pub(crate) fn distribute(
             &lots,
         )?;
         for request in requests {
+            if matches!(request.contract, finance::ContractId::Wages(_)) {
+                case.cash -= crate::recovery_claims::pay_wages(
+                    world,
+                    state,
+                    out,
+                    p,
+                    &request,
+                    grants[&request.contract],
+                    execution,
+                )?;
+                continue;
+            }
             let finance::ContractId::Loan(id) = request.contract else {
                 case.cash -= crate::recovery_claims::pay_land(
                     world,

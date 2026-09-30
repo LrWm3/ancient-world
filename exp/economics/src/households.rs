@@ -881,6 +881,29 @@ fn collect(
             }
         }
     }
+    if let Some(credit) = &batch.credit {
+        for receipt in &credit.recovery {
+            if let crate::recovery::Receipt::WagesDistributed {
+                proceeding,
+                creditor,
+                paid,
+                ..
+            } = receipt
+                && parent(world, opening, *creditor).is_some()
+            {
+                let p = world
+                    .recovery
+                    .proceedings
+                    .iter()
+                    .find(|p| p.id == *proceeding)
+                    .ok_or("missing wage estate")?;
+                let quantity = gained.entry((*creditor, p.denomination)).or_default();
+                *quantity = quantity
+                    .checked_add(*paid)
+                    .ok_or("estate wage income overflow")?;
+            }
+        }
+    }
     for (key, quantity) in gained {
         let household = parent(world, opening, key.0).unwrap();
         let carry_key = (household, key.0, key.1);

@@ -106,3 +106,125 @@ fn unearned_or_not_yet_overdue_payroll_cannot_open_proceeding() {
         assert!(receipts(&sim).any(|r| matches!(r, Receipt::OpeningRejected { .. })));
     }
 }
+
+fn delayed_income(w: &mut World, s: &mut State, quantity: i32) {
+    use economics_compute_smoke::minting::SUPPLIER;
+    w.employment[0].through = 1;
+    s.balances.insert((SUPPLIER, COIN), quantity);
+    w.capacity_overrides.insert((2, ISSUER), 1);
+    w.employment.push(Terms {
+        id: 9,
+        employer: SUPPLIER,
+        worker: ISSUER,
+        from: 2,
+        through: 2,
+        capacity: Amount::new(HOURS, 1),
+        wage_per_unit: Amount::new(COIN, quantity),
+        on_arrears: ArrearsPolicy::Continue,
+        rank: 0,
+    });
+}
+#[test]
+fn later_cash_enters_custody_then_pays_real_wages_and_closes() {
+    let (mut w, mut s) = fixture();
+    delayed_income(&mut w, &mut s, 4);
+    let mut a = audit(&w, &s);
+    let mut reference = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    let mut b = a.clone();
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    through(&mut a, &mut sim, 3);
+    assert_eq!(sim.state.balance(ESTATE, COIN), 4);
+    assert_eq!(sim.state.balance(WORKER, COIN), 0);
+    assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 4);
+    let mut resumed = sim.clone();
+    let mut c = a.clone();
+    through(&mut a, &mut sim, 5);
+    through(&mut b, &mut reference, 5);
+    through(&mut c, &mut resumed, 5);
+    assert_eq!(sim.state, reference.state);
+    assert_eq!(sim.ledger, reference.ledger);
+    assert_eq!(sim.state, resumed.state);
+    assert_eq!(a.book().balances(), c.book().balances());
+    assert_eq!(a.book().balances(), b.book().balances());
+    assert_eq!(
+        sim.state.credit.recovery.proceedings[&1].stage,
+        Stage::Closed
+    );
+    assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 0);
+    assert_eq!(sim.state.balance(WORKER, COIN), 4);
+    assert_eq!(sim.state.balance(ESTATE, COIN), 0);
+    assert_eq!(
+        receipts(&sim)
+            .filter_map(|r| if let Receipt::WagesDistributed { paid, .. } = r {
+                Some(*paid)
+            } else {
+                None
+            })
+            .sum::<i32>(),
+        4
+    );
+}
+#[test]
+fn wages_and_loans_share_custody_by_explicit_priority_and_proportion() {
+    use economics_compute_smoke::{
+        credit::{Advance, LoanOffer},
+        minting::{SUPPLIER, VENUE},
+    };
+    for (wage_rank, loan_rank, expected_wages, expected_loan) in
+        [(0, 0, 3, 3), (0, 1, 4, 2), (1, 0, 2, 4)]
+    {
+        let (mut w, mut s) = fixture();
+        delayed_income(&mut w, &mut s, 6);
+        // The first loan funds the first worker. A second worker earns unpaid
+        // wages; the later earned income cannot be reused at the same Close.
+        w.participants
+            .iter_mut()
+            .find(|p| p.agent == SUPPLIER)
+            .unwrap()
+            .capacity
+            .quantity = 2;
+        let mut second = w.employment[0].clone();
+        second.id = 2;
+        second.worker = SUPPLIER;
+        w.employment.push(second);
+        w.lending.push(Advance {
+            id: 20,
+            debtor: ISSUER,
+            terms: LoanOffer {
+                creditor: VENUE,
+                denomination: COIN,
+                max_principal: 4,
+                monthly_rate_bps: 0,
+                term_months: 1,
+                grace_months: 10,
+            },
+            principal: 4,
+            month: 1,
+            collateral: None,
+            priority: loan_rank,
+        });
+        s.balances.insert((VENUE, COIN), 4);
+        w.claim_priorities.insert(ContractId::Wages(2), wage_rank);
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+        w.employment.reverse();
+        let mut reversed = Simulation::new(w, s, Backend::Reference).unwrap();
+        through(&mut a, &mut sim, 4);
+        reversed.run_months(4).unwrap();
+        assert_eq!(sim.state, reversed.state);
+        assert_eq!(sim.ledger, reversed.ledger);
+        assert_eq!(
+            sim.state.employment.earned[&(2, 1)].claim.settled,
+            expected_wages
+        );
+        assert_eq!(sim.state.balance(VENUE, COIN), expected_loan);
+        assert_eq!(sim.state.balance(ESTATE, COIN), 0);
+        if expected_wages < 4 {
+            assert_eq!(
+                sim.state.credit.recovery.proceedings[&1].stage,
+                Stage::Active
+            );
+            assert_eq!(sim.state.credit.loans[&20].principal, 4 - expected_loan);
+        }
+    }
+}

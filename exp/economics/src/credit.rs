@@ -305,6 +305,7 @@ pub enum Event {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Boundary {
+    pub employment: Option<crate::employment::Book>,
     pub forward_changes: BTreeMap<AssetId, crate::forward::Contract>,
     pub recovery: Vec<crate::recovery::Receipt>,
     pub collections: Vec<finance::CollectionReceipt>,
@@ -1422,6 +1423,7 @@ pub fn evaluate(world: &World, state: &State) -> Result<Option<Boundary>, String
         return Ok(None);
     }
     let mut out = Boundary {
+        employment: None,
         forward_changes: BTreeMap::new(),
         recovery: vec![],
         collections: vec![],

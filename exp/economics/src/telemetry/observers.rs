@@ -257,6 +257,18 @@ pub(super) fn batch(
                             "outstanding":c.remaining.quantity
                         })).collect::<Vec<_>>()}),
                 ),
+                Receipt::WagesDistributed {
+                    proceeding,
+                    agreement,
+                    earned_month,
+                    creditor,
+                    requested,
+                    allocated,
+                    paid,
+                } => (
+                    Some(*proceeding),
+                    json!({"event":"WagesDistributed", "agreement":agreement, "earned_month":earned_month, "creditor":creditor, "requested":requested, "allocated":allocated, "paid":paid}),
+                ),
                 Receipt::LandDistributed {
                     proceeding,
                     agreement,
