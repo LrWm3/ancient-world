@@ -79,7 +79,11 @@ pub(crate) fn settle(
             if *paid > 0
                 && tender.resource != coin
                 && (tender.resource == denomination
-                    || matches!(claim, crate::recovery::GuaranteedClaim::Loan(_)))
+                    || matches!(
+                        claim,
+                        crate::recovery::GuaranteedClaim::Loan(_)
+                            | crate::recovery::GuaranteedClaim::Wages { .. }
+                    ))
             {
                 let g = world
                     .recovery

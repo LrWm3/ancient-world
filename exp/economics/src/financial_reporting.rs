@@ -1643,6 +1643,64 @@ impl Audit {
                 }
             }
             for r in &c.recovery {
+                if let recovery::Receipt::Guaranteed {
+                    guarantee,
+                    claim,
+                    paid,
+                    tender,
+                    ..
+                } = r
+                    && matches!(
+                        claim,
+                        recovery::GuaranteedClaim::Loan(_)
+                            | recovery::GuaranteedClaim::Wages { .. }
+                    )
+                {
+                    let (_, creditor, denomination) = claim
+                        .current_parties(world, &c.after)
+                        .ok_or("missing guaranteed claim terms")?;
+                    let g = world
+                        .recovery
+                        .guarantees
+                        .iter()
+                        .find(|g| g.id == *guarantee)
+                        .ok_or("missing guarantee")?;
+                    if tender.resource != denomination {
+                        let native_value = crate::reporting_value::value(
+                            coin,
+                            &self.exchange_values,
+                            denomination,
+                            *paid,
+                        )?;
+                        let actual_value = crate::reporting_value::value(
+                            coin,
+                            &self.exchange_values,
+                            tender.resource,
+                            tender.quantity,
+                        )?;
+                        let difference = actual_value - native_value;
+                        result(
+                            &mut lines,
+                            g.guarantor,
+                            if difference > 0 {
+                                Account::SettlementLoss
+                            } else {
+                                Account::SettlementGain
+                            },
+                            difference,
+                        );
+                        result(
+                            &mut lines,
+                            creditor,
+                            if difference > 0 {
+                                Account::SettlementGain
+                            } else {
+                                Account::SettlementLoss
+                            },
+                            -difference,
+                        );
+                    }
+                }
                 match r {
                     recovery::Receipt::ClaimRelief {
                         proceeding,
@@ -1714,41 +1772,6 @@ impl Audit {
                         let q = interest.entry(*id).or_default();
                         let paid_interest = (*q).min(*paid);
                         *q -= paid_interest;
-                        if tender.resource != l.denomination {
-                            let native_value = crate::reporting_value::value(
-                                coin,
-                                &self.exchange_values,
-                                l.denomination,
-                                *paid,
-                            )?;
-                            let actual_value = crate::reporting_value::value(
-                                coin,
-                                &self.exchange_values,
-                                tender.resource,
-                                tender.quantity,
-                            )?;
-                            let difference = actual_value - native_value;
-                            result(
-                                &mut lines,
-                                g.guarantor,
-                                if difference > 0 {
-                                    Account::SettlementLoss
-                                } else {
-                                    Account::SettlementGain
-                                },
-                                difference,
-                            );
-                            result(
-                                &mut lines,
-                                l.creditor,
-                                if difference > 0 {
-                                    Account::SettlementGain
-                                } else {
-                                    Account::SettlementLoss
-                                },
-                                -difference,
-                            );
-                        }
                         if tender.resource != coin {
                             continue;
                         }
@@ -1783,7 +1806,7 @@ impl Audit {
                     recovery::Receipt::Guaranteed {
                         guarantee,
                         claim: recovery::GuaranteedClaim::Wages { .. },
-                        paid,
+                        tender,
                         ..
                     } => {
                         let g = world
@@ -1792,9 +1815,9 @@ impl Audit {
                             .iter()
                             .find(|g| g.id == *guarantee)
                             .ok_or("missing wage guarantee")?;
-                        let (_, creditor, denomination) =
+                        let (_, creditor, _) =
                             g.claim.parties(world).ok_or("missing wage terms")?;
-                        if denomination != coin {
+                        if tender.resource != coin {
                             continue;
                         }
                         flow(
@@ -1802,14 +1825,14 @@ impl Audit {
                             g.guarantor,
                             Account::Cash,
                             Flow::Investing,
-                            -i128::from(*paid),
+                            -i128::from(tender.quantity),
                         )?;
                         flow(
                             &mut flows,
                             creditor,
                             Account::Cash,
                             Flow::Operating,
-                            i128::from(*paid),
+                            i128::from(tender.quantity),
                         )?;
                     }
                     recovery::Receipt::Distributed {

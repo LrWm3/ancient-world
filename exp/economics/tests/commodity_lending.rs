@@ -236,7 +236,7 @@ fn agreed_coin_guarantee_settles_native_loan_units_without_delivering_phantom_gr
                 priority: 0,
                 follows_assignment: false,
                 security: RecourseSecurity::Unsecured,
-                tender: GuaranteeTender::AgreedLoanCoins {
+                tender: GuaranteeTender::AgreedCoins {
                     resource: TOKEN,
                     coins_per_unit: rate,
                 },
@@ -347,7 +347,7 @@ fn competing_alternative_guarantees_share_whole_payment_lots_and_cannot_pay_a_cl
                 priority: 0,
                 follows_assignment: false,
                 security: RecourseSecurity::Unsecured,
-                tender: GuaranteeTender::AgreedLoanCoins {
+                tender: GuaranteeTender::AgreedCoins {
                     resource: TOKEN,
                     coins_per_unit: 2,
                 },
@@ -391,7 +391,7 @@ fn competing_alternative_guarantees_share_whole_payment_lots_and_cannot_pay_a_cl
         assert_eq!(run(Backend::Reference, true), run(Backend::CubeCpu, false));
         for (resource, coins_per_unit) in [(TOKEN, 0), (GRAIN, 2), (SEED, 2)] {
             let mut invalid = w.clone();
-            invalid.recovery.guarantees[0].tender = GuaranteeTender::AgreedLoanCoins {
+            invalid.recovery.guarantees[0].tender = GuaranteeTender::AgreedCoins {
                 resource,
                 coins_per_unit,
             };
@@ -431,7 +431,7 @@ fn alternative_guarantee_currency_keeps_its_cost_basis_when_it_is_not_reporting_
         priority: 0,
         follows_assignment: false,
         security: RecourseSecurity::Unsecured,
-        tender: GuaranteeTender::AgreedLoanCoins {
+        tender: GuaranteeTender::AgreedCoins {
             resource: OTHER_COIN,
             coins_per_unit: 1,
         },
@@ -508,7 +508,7 @@ fn household_alternative_guarantee_preserves_private_debt_and_blocks_exit_on_nat
             priority: 0,
             follows_assignment: false,
             security: RecourseSecurity::Unsecured,
-            tender: GuaranteeTender::AgreedLoanCoins {
+            tender: GuaranteeTender::AgreedCoins {
                 resource: TOKEN,
                 coins_per_unit: 2,
             },

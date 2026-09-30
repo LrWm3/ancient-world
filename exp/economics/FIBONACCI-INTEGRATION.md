@@ -817,3 +817,20 @@ their separately recorded affected gates and are not covered by that snapshot.
     passed 79 tests, all 56 household tests passed, and strict all-target Clippy
     passed. This is a common inspection adapter; autonomous founding and recruitment
     still have their separate implementation limits.
+
+### Full-suite checkpoint through item 42
+
+The isolated source snapshot at **`e4497cc`** passed
+`cargo +1.92.0 test --locked`: **979 passed, 0 failed, 1 ignored**, across
+121 Cargo result targets including empty unit/doc targets. Later items have their
+separately recorded affected gates and are not covered by this snapshot.
+
+48. **Agreed coin tender also discharges earned native wages.** Loan and wage
+    guarantees share `AgreedCoins` with unsecured native recourse and whole payment
+    lots. Statements distinguish actual coin/inventory transfer, native wage and
+    recourse values, historical tender cost and settlement gain/loss. Pooling reads
+    actual tender. Underfunding leaves wage units owed and creates no phantom stock.
+    CPU/reference, checkpoint accounting and forged-tender controls pass across
+    two reporting denominations. The six-target gate passed 65 tests and strict
+    all-target Clippy passed. Prepaid-delivery alternative tender and broader
+    security combinations remain outstanding.

@@ -137,13 +137,13 @@ Recourse records two coin claims and one native claim, with separate valuation
 and statements. Reversed catalogs, CPU/checkpoint replay and observer quantities
 agree.
 
-## Agreed alternative payment for a loan guarantee
+## Agreed alternative payment for loan and wage guarantees
 
-`GuaranteeTender::AgreedLoanCoins` records the explicitly consented payment
-resource and whole payment units per native loan unit. It applies only to loan
-claims with unsecured recourse. The payment resource must be distinct, a stock
+`GuaranteeTender::AgreedCoins` records the explicitly consented payment
+resource and whole payment units per native claim unit. It applies to loan and
+earned wage claims with unsecured recourse. The payment resource must be distinct, a stock
 resource and storage-free; the rate must be positive. This does not change the
-borrower's ordinary repayment terms or infer creditor consent from a market quote.
+underlying contract's ordinary performance terms or infer creditor consent from a market quote.
 
 The lifetime guarantee cap, original debt reduction and resulting recourse all
 remain in native units. Funding and proportional allocation use payment units
@@ -170,3 +170,16 @@ recourse asset prevents dissolution; an underfunded, expired guarantee permits
 household residual distribution without erasing the member's original private
 loan. CPU/checkpoint and audited statements agree. The four-target household
 integration gate passed 55 tests with one ignored; strict Clippy passed.
+
+Earned native wage claims now use this same agreed coin route. Actual coins can
+settle only whole wage units; the worker's wage receivable and employer's wage
+payable fall in native units and the guarantor receives native loan recourse.
+No physical wage commodity is delivered or invented. Household contribution
+classification uses actual tender, rather than the nominal wage commodity.
+
+The wage control compares underfunded lots and rates below/above claim reporting
+value, including a payment currency distinct from the reporting currency with
+historical inventory cost. CPU/reference, reconstructed statements and forged
+payment receipts agree. Unpaid wage units remain owed. This does not add an
+alternative tender for prepaid deliveries or a secured wage-recourse route;
+accepted land conversion retains its separate existing terms.

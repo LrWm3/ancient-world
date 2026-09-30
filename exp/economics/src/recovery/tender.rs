@@ -9,9 +9,9 @@ pub enum GuaranteeTender {
     Native,
     /// Use the original land agreement's accepted coin rate, without native fallback.
     AcceptedLandCoins,
-    /// Explicit guarantor/creditor consent to a fixed payment per native loan unit.
+    /// Explicit guarantor/creditor consent to a fixed payment per native claim unit.
     /// This changes performance of this guarantee only; recourse stays native.
-    AgreedLoanCoins {
+    AgreedCoins {
         resource: ResourceId,
         coins_per_unit: i32,
     },
@@ -33,15 +33,18 @@ pub(super) fn terms(world: &World, g: &Guarantee) -> Result<Option<CoinPayment>,
                 .ok_or("alternative guarantee without accepted land coin terms")?
                 .clone()
         }
-        GuaranteeTender::AgreedLoanCoins {
+        GuaranteeTender::AgreedCoins {
             resource,
             coins_per_unit,
         } => {
-            if !matches!(g.claim, GuaranteedClaim::Loan(_))
-                || g.security != super::RecourseSecurity::Unsecured
+            if !matches!(
+                g.claim,
+                GuaranteedClaim::Loan(_) | GuaranteedClaim::Wages { .. }
+            ) || g.security != super::RecourseSecurity::Unsecured
             {
                 return Err(
-                    "agreed loan tender requires a loan claim and unsecured recourse".into(),
+                    "agreed coin tender requires a loan or wage claim and unsecured recourse"
+                        .into(),
                 );
             }
             CoinPayment {

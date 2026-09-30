@@ -1902,3 +1902,126 @@ fn posted_land_guarantee_captures_the_accepted_external_tender_rate() {
     };
     assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
 }
+
+#[test]
+fn agreed_coin_wage_guarantees_keep_native_claims_and_actual_payment_statements() {
+    use economics_compute_smoke::{minting::FIREWOOD, recovery::GuaranteeTender, settlement};
+    const REPORT_COIN: ResourceId = 900;
+    for reporting_other in [false, true] {
+        for rate in [2, 4] {
+            for funds in [rate - 1, 5] {
+                let (mut w, mut s) = fixture();
+                w.employment[0].wage_per_unit.resource = FIREWOOD;
+                s.balances.insert((SUPPLIER, COIN), funds);
+                w.recovery.guarantees[0].tender = GuaranteeTender::AgreedCoins {
+                    resource: COIN,
+                    coins_per_unit: rate,
+                };
+                let reporting = if reporting_other { REPORT_COIN } else { COIN };
+                let mut opening = Opening {
+                    exchange_values: [(FIREWOOD, 3)].into(),
+                    ..Opening::default()
+                };
+                if reporting_other {
+                    w.resources.push(Resource {
+                        id: REPORT_COIN,
+                        name: "reporting unit".into(),
+                        kind: ResourceKind::Stock,
+                    });
+                    opening.exchange_values.insert(COIN, 2);
+                    opening
+                        .inventory
+                        .insert((SUPPLIER, COIN), i128::from(funds));
+                }
+                let run = |backend| {
+                    let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+                    let mut audit =
+                        Audit::with_opening(&w, &s, reporting, opening.clone()).unwrap();
+                    through(&mut audit, &mut sim, 1);
+                    let checkpoint = (sim.clone(), audit.clone());
+                    assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 4);
+                    let mut before_due = None;
+                    while sim.state.month <= 2 {
+                        if sim.state.phase == Phase::Due {
+                            before_due = Some(sim.state.clone());
+                        }
+                        audit.step(&mut sim).unwrap();
+                    }
+                    let paid = (funds / rate).min(4);
+                    assert_eq!(sim.state.balance(WORKER, COIN), paid * rate);
+                    assert_eq!(sim.state.balance(SUPPLIER, COIN), funds - paid * rate);
+                    assert_eq!(sim.state.balance(WORKER, FIREWOOD), 0);
+                    assert_eq!(
+                        sim.state.employment.earned[&(1, 1)].claim.outstanding(),
+                        4 - paid
+                    );
+                    assert_eq!(
+                        sim.state.credit.loans.get(&101).map_or(0, |l| l.principal),
+                        paid
+                    );
+                    if paid > 0 {
+                        let l = &sim.state.credit.loans[&101];
+                        assert_eq!(
+                            (l.denomination, l.opened, l.debtor, l.creditor),
+                            (FIREWOOD, 2, ISSUER, SUPPLIER)
+                        );
+                        assert_eq!(
+                            audit.book().balances()[&(SUPPLIER, Account::LoanReceivable(101))],
+                            i128::from(paid * 3)
+                        );
+                    }
+                    assert_eq!(
+                        audit.book().balances()[&(WORKER, Account::ServiceIncome)],
+                        -12
+                    );
+                    let difference = paid * (rate * if reporting_other { 2 } else { 1 } - 3);
+                    let account = if difference > 0 {
+                        Account::SettlementGain
+                    } else {
+                        Account::SettlementLoss
+                    };
+                    assert_eq!(
+                        audit
+                            .book()
+                            .balances()
+                            .get(&(WORKER, account))
+                            .copied()
+                            .unwrap_or(0),
+                        -i128::from(difference)
+                    );
+                    let due = sim
+                        .ledger
+                        .iter()
+                        .find(|b| b.month == 2 && b.phase == Phase::Due)
+                        .unwrap();
+                    let mut forged = due.clone();
+                    let r = forged
+                        .credit
+                        .as_mut()
+                        .unwrap()
+                        .recovery
+                        .iter_mut()
+                        .find(|r| matches!(r, Receipt::Guaranteed { guarantee: 1, .. }))
+                        .unwrap();
+                    let Receipt::Guaranteed { tender, .. } = r else {
+                        unreachable!()
+                    };
+                    tender.quantity += 1;
+                    let before = before_due.unwrap();
+                    let mut unchanged = before.clone();
+                    assert!(
+                        settlement::commit(&w, &mut unchanged, &forged, backend, sim.effect_limit)
+                            .is_err()
+                    );
+                    assert_eq!(unchanged, before);
+                    let (saved, mut ra) = checkpoint;
+                    let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
+                    through(&mut ra, &mut resumed, 2);
+                    assert_eq!((&sim.state, &audit), (&resumed.state, &ra));
+                    (sim.state, sim.ledger, audit)
+                };
+                assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+            }
+        }
+    }
+}

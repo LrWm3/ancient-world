@@ -928,12 +928,11 @@ fn collect(
                     claim:
                         claim @ (crate::recovery::GuaranteedClaim::Wages { .. }
                         | crate::recovery::GuaranteedClaim::Forward(_)),
-                    paid,
+                    tender,
                     ..
                 } => {
-                    let (_, creditor, denomination) =
-                        claim.parties(world).ok_or("missing guaranteed wage")?;
-                    Some((creditor, denomination, *paid))
+                    let (_, creditor, _) = claim.parties(world).ok_or("missing guaranteed wage")?;
+                    Some((creditor, tender.resource, tender.quantity))
                 }
                 _ => None,
             };
