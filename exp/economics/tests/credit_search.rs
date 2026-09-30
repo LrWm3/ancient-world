@@ -461,3 +461,74 @@ fn forward_acceptance_does_not_depend_on_winning_land_and_receipts_remain_exact(
         branch.step().unwrap();
     }
 }
+
+#[test]
+fn common_requests_can_name_financial_and_productive_acceptances_atomically() {
+    use economics_compute_smoke::forward::direct;
+    for funded in [false, true] {
+        let (mut w, mut s) = fixture(true);
+        w.resources.push(Resource {
+            id: TOKEN,
+            name: "coin".into(),
+            kind: ResourceKind::Stock,
+        });
+        s.balances
+            .insert((STATE_AGENT, TOKEN), if funded { 2 } else { 0 });
+        w.prepaid_deliveries.push(direct::Terms {
+            id: 20,
+            seller: PERSON,
+            buyer: STATE_AGENT,
+            month: 1,
+            due: 9,
+            goods: Amount::new(GRAIN, 2),
+            prepayment: Amount::new(TOKEN, 2),
+        });
+        let permissions = &mut w.transaction_policy.as_mut().unwrap().permissions;
+        permissions.insert((PERSON_TYPE, Action::StockTrade));
+        permissions.insert((STATE_TYPE, Action::StockTrade));
+        let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+        while sim.state.phase != Phase::Acquire {
+            sim.step().unwrap();
+        }
+        let requests = vec![
+            Request::new(Id::Advance(10), PERSON),
+            Request::new(Id::PrepaidDelivery(20), PERSON),
+            Request::new(Id::Membership(1), PERSON),
+            Request::new(Id::Land(1), PERSON),
+            Request::new(Id::Process(GROW), PERSON),
+        ];
+        let opening = sim.state.clone();
+        let ledger = sim.ledger.clone();
+        let batch = offers::prepare(&sim, &requests);
+        assert_eq!(sim.state, opening);
+        if !funded {
+            assert!(batch.is_err());
+            assert!(offers::accept(&mut sim, &requests).is_err());
+            assert_eq!((&sim.state, &sim.ledger), (&opening, &ledger));
+            continue;
+        }
+        let batch = batch.unwrap();
+        let mut reordered = requests.clone();
+        reordered.swap(0, 1);
+        assert_eq!(batch, offers::prepare(&sim, &reordered).unwrap());
+        for change in 0..4 {
+            let mut invalid = requests.clone();
+            match change {
+                0 => invalid.push(invalid[0].clone()),
+                1 => invalid[0].agent = STATE_AGENT,
+                2 => invalid[0].need = Some(NUTRITION),
+                _ => invalid.swap(2, 3),
+            }
+            assert!(offers::accept(&mut sim, &invalid).is_err());
+            assert_eq!((&sim.state, &sim.ledger), (&opening, &ledger));
+        }
+        offers::accept(&mut sim, &requests).unwrap();
+        assert_eq!(sim.state.credit.loans.len(), 1);
+        assert_eq!(sim.state.exchange.forwards.len(), 1);
+        assert_eq!(sim.state.accepted_agreements.len(), 1);
+        assert_eq!(sim.state.balance(PERSON, SEED), 1);
+        sim.step().unwrap();
+        assert_eq!(sim.state.balance(PERSON, SEED), 0);
+        assert!(sim.state.processes.values().any(|p| p.definition == GROW));
+    }
+}

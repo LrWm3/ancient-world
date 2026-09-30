@@ -79,7 +79,7 @@ pub(super) fn discover(w: &World, s: &State, agent: AgentId, offers: &mut Vec<Of
     offers.extend(additions);
 }
 
-pub(super) fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, String> {
+pub(super) fn validate_requests(sim: &Simulation, requests: &[Request]) -> Result<(), String> {
     if sim.state.phase != Phase::Acquire || requests.is_empty() {
         return Err("financial acceptance requires a dated Acquire request".into());
     }
@@ -138,15 +138,14 @@ pub(super) fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, S
             return Err("financial request differs from supplied dated consent".into());
         }
     }
-    // Use the same household before/core/after wrapper, employment reservation,
-    // purchase policy and shared acquisition window as ordinary execution.
-    let mut preview = sim.clone();
-    preview.backend = Backend::Reference;
-    preview.step()?;
-    let batch = preview
-        .ledger
-        .pop()
-        .ok_or("missing financial acceptance boundary")?;
+    Ok(())
+}
+
+pub(super) fn validate_acceptance(
+    sim: &Simulation,
+    requests: &[Request],
+    batch: &Batch,
+) -> Result<(), String> {
     for r in requests {
         let accepted = match r.offer {
             Id::LiquidationBid(id) => {
@@ -170,5 +169,20 @@ pub(super) fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, S
             ));
         }
     }
+    Ok(())
+}
+
+pub(super) fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, String> {
+    validate_requests(sim, requests)?;
+    // Use the same household before/core/after wrapper, employment reservation,
+    // purchase policy and shared acquisition window as ordinary execution.
+    let mut preview = sim.clone();
+    preview.backend = Backend::Reference;
+    preview.step()?;
+    let batch = preview
+        .ledger
+        .pop()
+        .ok_or("missing financial acceptance boundary")?;
+    validate_acceptance(sim, requests, &batch)?;
     Ok(batch)
 }

@@ -535,3 +535,26 @@ forward terms are rejected without partial publication.
 
 The prepaid/search integration gate passed 52 tests across 6 targets,
 with strict all-target Clippy and repository artifact checks.
+
+## Explicit financial and productive bundles
+
+Common requests may now name direct advances and prepaid deliveries alongside
+citizenship, land and process offers in a supported search configuration. Financial
+request validation and successful-admission inspection are shared with the existing
+financial-only adapter. Productive prerequisites retain their explicit order;
+financial request order does not change the shared funding policy.
+
+The bundle succeeds only if every named financial admission and requested process
+can be accepted. A missing prepayment rejects the whole explicit request without
+publishing its otherwise feasible loan, membership or work. Normal scheduled
+execution still honors independent supplied consent. Duplicate requests, wrong
+actors, unsupported annotations and reversed prerequisites remain errors. Planting
+is reserved at Acquire and consumes the delivered seed at Productive.
+
+This does not let callers override underwriting, bypass allocation, negotiate terms
+or guarantee future performance. Financed purchases, guarantees and employment
+retain their financial-only common adapter until their productive bundles have
+corresponding mixed regressions.
+
+The mixed-offer gate passed 42 tests across 6 targets; strict all-target
+Clippy, formatting and repository artifact checks passed.

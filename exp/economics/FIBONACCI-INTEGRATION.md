@@ -283,6 +283,7 @@ Completed integrations:
 41. Share the financial acquisition base across credit, prepaid deliveries and prerequisite search.
 42. Carry prepaid consent through competitive and empty land allocation rounds.
 43. Compare feasible delivery and retained shortfalls through production and double-entry statements.
+44. Accept named credit/prepaid terms and ordered productive prerequisites through one common bundle.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.

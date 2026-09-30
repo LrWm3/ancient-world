@@ -14,6 +14,14 @@ trade respects household purchasing/storage and authorized estate stays.
 collected cash before deficient closure. These are tested combinations; broader
 admission, planning, custody and liquidation work remains.
 
+Direct lending and prepaid deliveries now compose with bounded citizenship/land
+search and competitive land allocation. The common offer API can accept named
+financial terms together with ordered prerequisites and dated farming work.
+[Acquisition adapters](ACQUISITION-ADAPTERS.md) includes successful delivery and
+shortfall controls: configured consent and balanced accounts do not establish
+autonomous, sustainable underwriting. Household forecast bundles and broader
+market/search combinations remain outstanding.
+
 ## Current progress — 2026-09-30
 
 The CPU experiment now shares loan records, claim execution and funded asset

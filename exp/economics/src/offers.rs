@@ -151,7 +151,7 @@ pub(crate) fn resolve(
         if *batch != Batch::empty(&sim.state) {
             return Err("financial applications require an empty Acquire batch".into());
         }
-        *batch = financial::prepare(sim, requests)?;
+        *batch = prepare(sim, requests)?;
         return Ok(());
     }
     if requests
@@ -280,7 +280,32 @@ pub(crate) fn resolve(
 /// processes precede requested new work. Automatic planning uses its own ordering.
 pub fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, String> {
     if requests.iter().any(|r| financial::is_financial(r.offer)) {
-        return financial::prepare(sim, requests);
+        if requests.iter().all(|r| financial::is_financial(r.offer)) {
+            return financial::prepare(sim, requests);
+        }
+        if !crate::acquisition::search_composition(&sim.world) {
+            return Err(
+                "mixed financial/productive requests require a composed search boundary".into(),
+            );
+        }
+        let (financial, productive): (Vec<_>, Vec<_>) = requests
+            .iter()
+            .cloned()
+            .partition(|r| financial::is_financial(r.offer));
+        if financial
+            .iter()
+            .any(|r| !matches!(r.offer, Id::Advance(_) | Id::PrepaidDelivery(_)))
+        {
+            return Err(
+                "mixed productive bundles currently accept direct credit and prepaid terms".into(),
+            );
+        }
+        financial::validate_requests(sim, &financial)?;
+        // Supplied financial consent does not determine productive choice. Keep
+        // explicit prerequisites and work, and require every named admission.
+        let batch = prepare(sim, &productive)?;
+        financial::validate_acceptance(sim, &financial, &batch)?;
+        return Ok(batch);
     }
     if requests.iter().any(|r| r.continuing.is_some()) {
         return Err("explicit acceptance requests must be new offers".into());
