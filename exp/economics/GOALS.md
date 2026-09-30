@@ -335,3 +335,9 @@ using the existing employment evaluator. Collective demand can anticipate suppor
 member work without booking unearned wages. Controlled comparisons distinguish a
 removable funding delay from finite counterparty liquidity; long-horizon employer
 viability and autonomous hiring remain unproven. Earned-only remains the default.
+
+[Pass 27](HOUSEHOLD-PAYMENT-SUPPORT.md) connects voluntary member surplus to own
+household wage/loan funding under an opt-in static charter. It caps donations at
+actual payment shortages, protects donor needs and claims, and keeps donation,
+liability and settlement distinct. General obligation coverage and automatic support
+consent remain future work; person self-directed policy changes stay deferred.

@@ -67,6 +67,9 @@ pub struct Charter {
     pub support_member_loans: bool,
     /// Transfer current earned-wage shortfalls to member employers before Close payroll.
     pub support_member_wages: bool,
+    /// Member-authorized surplus may also fill own earned-wage/current-loan gaps
+    /// when it does not improve consumption or market income. No debt assumption.
+    pub accept_payment_support: bool,
     /// Collective bids may acquire denomination stock for current collectible loans.
     pub fund_due_loans: bool,
     /// Collective buying may fund own wages and explicitly supported member wage claims.
@@ -148,6 +151,7 @@ impl Governance {
                 fund_committed_inputs: false,
                 support_member_loans: false,
                 support_member_wages: false,
+                accept_payment_support: false,
                 fund_due_loans: false,
                 fund_earned_wages: false,
                 payroll_outlook: crate::employment::PayrollOutlook::default(),

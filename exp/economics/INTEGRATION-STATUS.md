@@ -633,3 +633,16 @@ with adequate counterparty coins, or five working months followed by suspension
 when coins run out. Earned-only demand remains the default and produces four
 working months in both controls. No scheduler, liability or hiring-admission rule
 changes; estimates are not escrow or guaranteed resource reservations.
+
+## Voluntary funding of household payments
+
+[Pass 27](HOUSEHOLD-PAYMENT-SUPPORT.md) adds `accept_payment_support` (default
+false). Existing signed surplus mandates can fund a household's own earned wages
+and current loan dues when the existing need/income comparison finds no benefit.
+The fallback accepts only the remaining native payment shortfall, preserving donor
+reserves and claims and rechecking need effects. Successive donors share one gap.
+
+Combined checks retain separate books, physical carrying costs and worker storage
+limits. Productive donations can pay wages at Close; loan funds wait until the next
+Due. No creditor ranking, escrow, debt assumption, future-employment funding or
+consent inference is introduced.

@@ -30,6 +30,9 @@ delays and member exit with personal debt preserved.
 collective orders can anticipate supported member wages without booking unearned
 debt. The comparison removes funding delays when counterparty coins suffice and
 retains arrears when they run out. Earned-only demand remains the default.
+[Pass 27](HOUSEHOLD-PAYMENT-SUPPORT.md) lets an opted-in household accept signed
+member surplus for its own wage and loan shortfalls. Donations respect private
+needs and debts; actual payments retain their normal settlement boundaries.
 Person self-directed policy changes remain deferred.
 These are bounded combinations; the remaining exclusions are explicit.
 

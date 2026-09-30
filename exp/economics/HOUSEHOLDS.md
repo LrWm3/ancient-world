@@ -574,7 +574,7 @@ The [completed loop](PERSON-HOUSEHOLD-LOOP.md) connects personal needs, househol
 purchases, contributed work, market income and separate accounting for 120 months
 on CPU. `Agreement.support` holds dated member-authored surplus mandates, independent
 of governor authority. Accepted transfers protect personal reserves and supported
-claims, require a useful need/income improvement, and settle before contributed
+claims, require a useful need/income improvement by default, and settle before contributed
 labor at Productive. Members may withdraw future support; the ordinary half-output
 rule remains unchanged. The new receipts are replayed and observed alongside labor
 receipts. See the linked document for the original failure control, recovery test,
@@ -660,3 +660,17 @@ once. New wages are not forecast demand unless the charter opts into
 A member leaving loses subsequent
 support while keeping their private contracts, assets and debts. See
 [the fifth integration batch](INTEGRATION-PASSES-5.md) for controls and funding lag.
+
+## Voluntary support for collective payments
+
+Static `accept_payment_support` defaults false. Under needs-first operating
+policies, existing personally signed surplus mandates can fund the household's own
+earned-wage/current-loan shortages when ordinary consumption/income evaluation
+rejects the offer. A second candidate is capped at the shortage and rechecked for
+protected needs. Donor reserves and personal claims remain protected; later donors
+see the funded collective balance. The flag does not authorize a mandate.
+
+Transfers run at the existing Productive support boundary and record transfer
+expense/income. Wages still collect at Close; loan money waits for Due. There is no
+new member claim, liability transfer or payment guarantee. See
+[combined cases, receipts and limits](HOUSEHOLD-PAYMENT-SUPPORT.md).

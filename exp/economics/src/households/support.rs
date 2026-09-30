@@ -27,6 +27,16 @@ pub struct Receipt {
     pub reason: String,
     pub baseline_income: Option<income::Forecast>,
     pub projected_income: Option<income::Forecast>,
+    /// Funding comparison only; actual claims remain collectible at their boundary.
+    pub payment_funding: Option<PaymentFunding>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct PaymentFunding {
+    /// Native units of the mandate resource, never summed across denominations.
+    pub due: i128,
+    pub shortfall: i128,
+    pub projected_shortfall: i128,
 }
 
 /// An explicit member instruction, independent of the governor's authority. A
@@ -174,6 +184,7 @@ pub(super) fn prepare(
                     reason: "inactive membership or policy".into(),
                     baseline_income: None,
                     projected_income: None,
+                    payment_funding: None,
                 };
                 if parent(world, &staged, member) != Some(h.agent)
                     || !matches!(
@@ -237,7 +248,7 @@ pub(super) fn prepare(
                 let plan = probe(world, &trial)?;
                 let next_needs = needs::project(world, &trial, &plan, &people)?;
                 let next_private = needs::project(world, &trial, &plan, &[member].into())?;
-                let next_income = monetary
+                let mut next_income = monetary
                     .then(|| income::project(world, &trial, &plan, h.agent))
                     .transpose()?;
                 // Personal fulfillment cannot be sacrificed to aggregate income.
@@ -260,6 +271,51 @@ pub(super) fn prepare(
                     "no protected need or market-income improvement"
                 }
                 .into();
+                // Preserve the existing needs/income choice. When that rejects,
+                // an explicit charter may accept a smaller payment-funding offer.
+                // Do not capture the entire mandate merely because one unit helps.
+                if r.accepted == 0 && h.governance.charter.accept_payment_support {
+                    let wages = crate::employment::claims(&staged, h.agent)?;
+                    let loans = crate::credit::current_dues(world, &staged, h.agent)?;
+                    let due = wages
+                        .get(&m.resource)
+                        .copied()
+                        .unwrap_or(0)
+                        .checked_add(loans.get(&m.resource).copied().unwrap_or(0))
+                        .ok_or("household payment funding overflow")?;
+                    let shortfall = (due - i128::from(staged.balance(h.agent, m.resource))).max(0);
+                    let quantity = i128::from(feasible).min(shortfall) as i32;
+                    r.payment_funding = Some(PaymentFunding {
+                        due,
+                        shortfall,
+                        projected_shortfall: shortfall - i128::from(quantity),
+                    });
+                    if quantity > 0 {
+                        let payment = transfer(member, h.agent, m.resource, quantity);
+                        let mut funded = staged.clone();
+                        apply(world, &mut funded, &payment, Backend::Reference)?;
+                        let plan = probe(world, &funded)?;
+                        let funded_needs = needs::project(world, &funded, &plan, &people)?;
+                        let funded_private =
+                            needs::project(world, &funded, &plan, &[member].into())?;
+                        next_income = monetary
+                            .then(|| income::project(world, &funded, &plan, h.agent))
+                            .transpose()?;
+                        if funded_needs <= base_needs
+                            && funded_private
+                                .iter()
+                                .zip(&base_private)
+                                .all(|(after, before)| after.unmet <= before.unmet)
+                        {
+                            r.accepted = quantity;
+                            staged = funded;
+                            effects.extend(payment);
+                            r.reason = "accepted voluntary payment funding".into();
+                        } else {
+                            r.reason = "payment funding would worsen protected needs".into();
+                        }
+                    }
+                }
                 r.baseline_income = base_income;
                 r.projected_income = next_income;
                 receipts.push(r);

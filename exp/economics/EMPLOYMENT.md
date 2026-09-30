@@ -193,3 +193,12 @@ The six-month member-employer comparison eliminates the funding delay with enoug
 counterparty coins; limited coins still cause arrears and suspend work. Existing
 household opening-affordability rules remain in force. There is no new escrow,
 automatic hiring or promise that the forecast will be fulfilled.
+
+## Member donations toward collective wages
+
+[Pass 27](HOUSEHOLD-PAYMENT-SUPPORT.md) adds opt-in `accept_payment_support` to
+the voluntary surplus resolver. Signed member offers can fund household earned
+wages at Productive, subject to private reserves, needs, claims, storage and a cap
+at the collective shortage. Ordinary Close pays the worker; blocked physical
+payment remains household stock and wage arrears. Donations create transfer
+expense/income, not new wages or a donor receivable.

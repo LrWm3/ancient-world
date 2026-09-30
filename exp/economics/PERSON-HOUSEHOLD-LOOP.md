@@ -4,6 +4,11 @@ Status: implemented and verified on CubeCL CPU and the reference backend,
 2026-09-29. Completion covers the bounded adult household/town-market loop below,
 not the full institutional and financial roadmap.
 
+Integration pass 27 adds optional [voluntary payment support](HOUSEHOLD-PAYMENT-SUPPORT.md):
+signed member surplus can also fund the household's own earned wages and current
+loan dues. The original need/income criterion remains the default; donations retain
+private protections and do not transfer debt responsibility.
+
 ## What completes the loop
 
 Persons retain individual needs, holdings, commitments, productive permissions and

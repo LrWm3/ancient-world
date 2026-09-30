@@ -310,3 +310,9 @@ household/member, resource, requested amount, minimum grant, allocated amount,
 submission sequence and purpose. They include `WageSupport` rank/policy receipts as
 well as existing need/input/loan requests. Filtering includes either party, and the
 normal settlement log budget applies. No allocation is recomputed by the observer.
+
+Optional `household_support.receipt.payment_funding` reports own wages/loan dues,
+the opening shortage and the candidate shortage after a voluntary donation, in the
+offered resource's native units. `accepted` remains the actual transfer; a rejected
+candidate can still show a projected improvement. Funding is not creditor payment.
+See [voluntary payment support](HOUSEHOLD-PAYMENT-SUPPORT.md).
