@@ -143,7 +143,6 @@ pub fn validate(world: &World) -> Result<(), String> {
     // Credit shares explicit reservations; other acquisition drivers remain isolated.
     if world.market.is_some()
         || world.competition.is_some()
-        || world.pool_market.is_some()
         || !world.offers.is_empty()
         || (!world.bids.is_empty() && world.credit.is_none())
         || !world.access_offers.is_empty()

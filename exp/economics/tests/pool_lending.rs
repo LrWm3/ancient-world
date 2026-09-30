@@ -752,3 +752,147 @@ fn household_hiring_requires_both_useful_labor_and_available_environmental_stock
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn financed_need_orders_buy_collection_output_without_spending_same_window_advances() {
+    use economics_compute_smoke::{
+        marketplace::{MARKETPLACE_TYPE, Market, Marketplace},
+        need_orders,
+        negotiation::{Outcome, QuotePolicy, Session, Trader},
+        opportunities::{self, Action, PERSON_TYPE, STATE_TYPE},
+    };
+    const VENUE: AgentId = 10001;
+    let (mut w, mut s) = fixture(false);
+    w.horizon = 3;
+    w.lending[0].terms.denomination = TOKEN;
+    w.lending[0].terms.term_months = 8;
+    w.participants
+        .iter_mut()
+        .find(|p| p.agent == PERSON)
+        .unwrap()
+        .capacity
+        .quantity = 0;
+    s.balances.insert((STATE_AGENT, TOKEN), 4);
+    s.balances.insert((PERSON + 1, FUEL), 4);
+    w.agents.push(Agent {
+        id: VENUE,
+        name: "fuel market".into(),
+    });
+    w.transaction_policy = Some(opportunities::Policy {
+        authority: STATE_AGENT,
+        laws: vec![],
+        agreement_forms: None,
+        agreement_limits: Default::default(),
+        membership_offers: vec![],
+        membership_permissions: Default::default(),
+        agent_types: [
+            (PERSON, PERSON_TYPE),
+            (PERSON + 1, PERSON_TYPE),
+            (STATE_AGENT, STATE_TYPE),
+            (VENUE, MARKETPLACE_TYPE),
+        ]
+        .into(),
+        permissions: [
+            (PERSON_TYPE, Action::StockTrade),
+            (PERSON_TYPE, Action::Borrow),
+            (STATE_TYPE, Action::Lend),
+            (PERSON_TYPE, Action::Process(PREPARE_FUEL)),
+            (PERSON_TYPE, Action::Process(USE_FUEL)),
+        ]
+        .into(),
+    });
+    w.marketplaces.push(Marketplace {
+        agent: VENUE,
+        allowed_types: [PERSON_TYPE].into(),
+        markets: vec![Market {
+            id: 1,
+            goods: Amount::new(FUEL, 1),
+            payment: TOKEN,
+            price_tick: 1,
+        }],
+    });
+    w.negotiation = Some(Session {
+        marketplace: VENUE,
+        market: 1,
+        month: 2,
+        max_rounds: 1,
+        buyer: Trader {
+            agent: PERSON,
+            limit: 1,
+            opening_quote: 1,
+            policy: QuotePolicy::Fixed,
+        },
+        seller: Trader {
+            agent: PERSON + 1,
+            limit: 1,
+            opening_quote: 1,
+            policy: QuotePolicy::Fixed,
+        },
+        goods: Amount::new(FUEL, 1),
+        payment: TOKEN,
+    });
+    w.need_orders = Some(need_orders::Policy { reserve_months: 1 });
+    let run = |backend| {
+        let mut audit = Audit::with_opening(
+            &w,
+            &s,
+            TOKEN,
+            Opening {
+                inventory: [((PERSON + 1, FUEL), 4)].into(),
+                processes: Some(Default::default()),
+                ..Opening::default()
+            },
+        )
+        .unwrap();
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        while sim.state.month == 2 {
+            audit.step(&mut sim).unwrap();
+        }
+        let first = sim
+            .ledger
+            .iter()
+            .find_map(|b| b.negotiation.as_ref())
+            .unwrap();
+        assert_eq!(first.outcome, Outcome::InsufficientPayment);
+        assert_eq!(sim.state.balance(PERSON, TOKEN), 4);
+        let (mut resumed, mut ra) = (sim.clone(), audit.clone());
+        while sim.state.month <= 6 {
+            audit.step(&mut sim).unwrap();
+        }
+        while resumed.state.month <= 6 {
+            ra.step(&mut resumed).unwrap();
+        }
+        assert_eq!(
+            (&sim.state, &sim.ledger, &audit),
+            (&resumed.state, &resumed.ledger, &ra)
+        );
+        assert!(
+            sim.ledger
+                .iter()
+                .filter_map(|b| b.negotiation.as_ref())
+                .any(|r| matches!(r.outcome, Outcome::Traded { price: 1 }))
+        );
+        assert!(
+            sim.state
+                .processes
+                .values()
+                .any(|p| p.operator == PERSON + 1
+                    && p.definition == PREPARE_FUEL
+                    && p.status == Status::Completed)
+        );
+        assert!(
+            sim.reports
+                .iter()
+                .any(|r| r.agent == PERSON && r.month > 2 && r.deficit(WARMTH) == 0)
+        );
+        assert!(sim.state.credit.loans[&10].principal < 4);
+        assert_eq!(sim.state.balance(PERSON, FUEL), 0);
+        assert!(sim.state.balance(PERSON + 1, TOKEN) > 0);
+        for a in &sim.world.agents {
+            let report = audit.book().statements(a.id, 2, 6).unwrap();
+            assert_eq!(report.assets, report.liabilities + report.equity);
+        }
+        (sim.state, sim.ledger, audit)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}

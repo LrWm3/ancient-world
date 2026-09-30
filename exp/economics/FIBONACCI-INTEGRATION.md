@@ -262,6 +262,7 @@ Completed integrations:
 20. Compose negotiated buying/selling with authorized stays and post-closure eligibility.
 21. Reserve household contributions and storage for negotiated member purchases.
 22. Respect collective/member purchasing while keeping concurrent loan proceeds unpooled.
+23. Exchange collected output through financed need orders and the same monthly budgets.
 
 [Equipment liquidation](EQUIPMENT-LIQUIDATION.md) and
 [acquisition adapters](ACQUISITION-ADAPTERS.md) record the tests and boundaries.

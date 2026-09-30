@@ -386,3 +386,18 @@ its separate liability. Switching to collective purchasing refuses the member's
 order but lets the recognized household buy both grain units itself. Continuation
 and inventory/financial reporting reconcile. This does not add household workers,
 internal employment terms, or arbitrary multi-market negotiation plans.
+
+### Negotiated exchange of collected output
+
+Bilateral negotiation now composes with environmental pool collection. Acquire
+uses opening spendable resources and Productive sees the completed exchange.
+The integrated case gives a person no collection labor, supplies a four-coin
+loan, and lets another person sell fuel while replenishing it from the wood pool.
+Need orders and the seller's protected consumption stock govern submission;
+posted prices remain bilateral terms in this controlled test.
+
+The first trade cannot spend the incoming advance. Later trades meet warmth needs,
+collection replenishes the seller, and dated loan installments reduce the same
+cash balance. Five months agree under CPU/reference and checkpoint execution with
+balanced separate books. This demonstrates financial and productive composition,
+not long-run viability: the buyer still has a finite borrowed purchasing budget.
