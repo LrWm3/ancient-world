@@ -111,6 +111,7 @@ fn purchased_estate_seed_funds_a_dated_crop_without_spending_new_custody_receipt
                 w.recovery
                     .receivable_listings
                     .push(recovery::receivables::Listing {
+                        coins_per_unit: 1,
                         id: 1,
                         proceeding: 1,
                         loan: 11,

@@ -445,6 +445,7 @@ fn receivable_sale_transfers_existing_claim_and_later_collections_into_separate_
                 opening.state.balances.insert((PERSON, TOKEN), 5);
             }
             opening.world.recovery.receivable_listings.push(Listing {
+                coins_per_unit: 1,
                 id: 1,
                 proceeding: 1,
                 loan: ASSET,
@@ -552,6 +553,7 @@ fn receivable_and_inventory_lots_compete_for_one_opening_cash_budget() {
             .recovery
             .receivable_listings
             .push(receivables::Listing {
+                coins_per_unit: 1,
                 id: 1,
                 proceeding: 1,
                 loan: ASSET,
@@ -778,6 +780,7 @@ fn secured_assignment(guaranteed: bool, shared_custody: bool) {
                     price: 4,
                 });
                 w.recovery.receivable_listings.push(receivables::Listing {
+                    coins_per_unit: 1,
                     id: 1,
                     proceeding: 1,
                     loan: ASSET,
@@ -944,6 +947,7 @@ fn explicit_guarantee_benefit_follows_assignment_and_pays_the_current_holder() {
             .recovery
             .receivable_listings
             .push(receivables::Listing {
+                coins_per_unit: 1,
                 id: 1,
                 proceeding: 1,
                 loan: ASSET,

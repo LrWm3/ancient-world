@@ -11,7 +11,7 @@ Environmental collection now composes with loans, forwards, household governance
 and hiring, negotiated need orders, mortgages and native guarantees. Negotiated
 trade respects household purchasing/storage and authorized estate stays.
 [Estate receivables](ESTATE-RECEIVABLES.md) preserve recoverable assets and newly
-collected cash before deficient closure. Whole coin-loan assignment now carries
+collected cash before deficient closure. Whole loan assignment (coin claims and quoted unsecured commodity claims) carries
 compatible liens and explicitly transferable guarantee benefits. Land guarantees
 can pay accepted coins while retaining native recourse and separate statements.
 These are tested combinations; broader

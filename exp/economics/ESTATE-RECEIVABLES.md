@@ -49,13 +49,15 @@ their initial cash depletion is not presented as a simulated expenditure. The
 affected commodity, wage, mixed-claim, guarantee, household-dissolution and
 recovery suites pass alongside these tests. Strict all-target Clippy passes.
 
-## Funded assignment of coin loans
+## Funded assignment of loan claims
 
 An authorized estate can post `recovery.receivable_listings` naming an entire
 existing direct-loan asset. Dated `receivable_bids` provide explicit buyer
-consent and cash price. The first adapter requires the current principal plus
-accrued interest, in the estate's custody denomination. A stale or discounted
-price is rejected; it never changes the borrower's amount owed.
+consent and cash price. Listings specify positive custody coins per native claim
+unit. Coin claims retain a one-to-one quote; unsecured commodity claims use an
+explicit fixed quote. The required price is current principal plus accrued
+interest, multiplied by that quote. A stale or discounted price is rejected; the
+borrower's amount owed and denomination never change.
 
 Common offer discovery exposes the current loan terms, security, debtor and claim amount.
 `ReceivableLiquidationBid` preparation uses ordinary Acquire settlement. Physical
@@ -84,7 +86,7 @@ two coins fund only the claim; three fund both, with no duplicated purchasing po
 ## Remaining boundaries
 
 This is a bounded assignment adapter, not general debt trading or discount
-valuation. It excludes fixed-value/resale security, nontransferable guarantees, mortgage, native-commodity, partial
+valuation. It excludes fixed-value/resale security, nontransferable guarantees, mortgage, secured native-commodity, partial
 and onward assignments, borrower buybacks, netting and impairment estimation.
 Accepted estate authorization supplies assignment authority; autonomous listing,
 pricing and consent remain future work. Unresolved assets still retain their
@@ -136,3 +138,24 @@ reserved liens produce the same recoveries as dedicated custodians, including
 unfunded claim bids and retained deficiencies. Shared custody neither consolidates
 their financial statements nor authorizes either estate to spend the other's
 proceeds.
+
+## Commodity claims sold for coins
+
+An unsecured seed loan can be sold for custody coins without converting its debt
+into coins. Discovery exposes the native claim, payment resource and unit quote.
+Assignment moves only creditor identity and actual purchase cash; neither seeds
+nor a second loan are created. Later borrower payments deliver seed to the buyer
+and still require storage. A buyer can acquire a claim with no storage, but then
+its goods remain uncollected and the original borrower retains the debt.
+
+The first valuation model requires the quote to equal the fixed reporting value
+of a native claim unit. Inconsistent reporting configurations fail early. This
+keeps assignment at carrying value; negotiated discounts, impairment and amortized
+acquisition cost still require an explicit extension. Native secured claims remain
+excluded.
+
+`tests/native_receivables.rs` compares person and winding-household sellers, funded
+and unfunded buyers, available and absent receiving storage, stale prices and
+invalid quotes. A two-seed asset sells for four real coins; later delivery either
+repays those same seed units or remains due. Loan interest, estate discharge,
+private member funds, separate statements and CPU/checkpoint continuation agree.

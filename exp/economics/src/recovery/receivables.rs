@@ -1,10 +1,12 @@
-//! Supplied estate bids assign an entire eligible coin loan at its current face
-//! amount. Discount valuation, partial assignment and onward resale are deferred.
+//! Supplied estate bids assign an entire eligible loan at face units times its
+//! explicit custody-coin quote. Discount, partial and onward assignment are deferred.
 use crate::{credit, finance, model::*, opportunities, recovery};
 use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Listing {
+    /// Custody coins per native claim unit; coin claims retain a one-to-one quote.
+    pub coins_per_unit: i32,
     pub id: u32,
     pub proceeding: u32,
     pub loan: u32,
@@ -37,6 +39,7 @@ pub struct Offer {
     pub seller: AgentId,
     pub debtor: AgentId,
     pub remaining: Amount,
+    pub payment_resource: ResourceId,
 }
 
 pub fn discover(world: &World, state: &State, buyer: AgentId) -> Vec<Offer> {
@@ -88,6 +91,7 @@ pub fn discover(world: &World, state: &State, buyer: AgentId) -> Vec<Offer> {
                 seller: p.debtor,
                 debtor: loan.debtor,
                 remaining: Amount::new(loan.denomination, loan.debt().unwrap()),
+                payment_resource: p.denomination,
             });
         }
     }
@@ -113,7 +117,9 @@ pub(crate) fn validate(world: &World, state: &State) -> Result<(), String> {
         if !ids.insert(l.id)
             || !loans.insert(l.loan)
             || a.terms.creditor != p.debtor
-            || a.terms.denomination != p.denomination
+            || l.coins_per_unit <= 0
+            || (a.terms.denomination == p.denomination && l.coins_per_unit != 1)
+            || (a.collateral.is_some() && a.terms.denomination != p.denomination)
             || a.collateral.as_ref().is_some_and(|c| {
                 c.settlement != credit::CollateralSettlement::AuthorizedLiquidation
             })
@@ -123,7 +129,7 @@ pub(crate) fn validate(world: &World, state: &State) -> Result<(), String> {
             })
         {
             return Err(
-                "receivable assignment requires one coin claim with transferable guarantees and compatible liquidation security"
+                "receivable assignment requires a positive native-unit quote, transferable guarantees and compatible liquidation security"
                     .into(),
             );
         }
@@ -188,7 +194,8 @@ pub(crate) fn validate(world: &World, state: &State) -> Result<(), String> {
                 && matches!(state.phase, Phase::Open | Phase::Due | Phase::Acquire))
             || a.principal < 0
             || a.interest < 0
-            || i64::from(a.principal) + i64::from(a.interest) != i64::from(a.price)
+            || (i64::from(a.principal) + i64::from(a.interest)) * i64::from(l.coins_per_unit)
+                != i64::from(a.price)
             || !state.credit.loans.contains_key(&loan)
             || !state
                 .credit
@@ -236,8 +243,14 @@ pub(crate) fn sales(
             .get(&p.id)
             .is_some_and(|c| c.stage == recovery::Stage::Active)
             && !out.after.recovery.assignments.contains_key(&l.loan)
-            && loan
-                .is_some_and(|loan| loan.creditor == p.debtor && loan.debt().ok() == Some(b.price))
+            && loan.is_some_and(|loan| {
+                loan.creditor == p.debtor
+                    && loan
+                        .debt()
+                        .ok()
+                        .and_then(|q| q.checked_mul(l.coins_per_unit))
+                        == Some(b.price)
+            })
             && recovery::market::eligible_buyer_for(
                 world,
                 state,

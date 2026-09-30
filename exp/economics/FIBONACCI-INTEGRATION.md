@@ -507,3 +507,12 @@ their separately recorded affected gates; this full result does not cover them.
     guarantor recoveries, private member money and household exit. CPU/checkpoint
     and separate books agree. The four-target gate passed 54 tests; strict
     all-target Clippy passed.
+
+18. **Native loan claims can be sold for custody coins.** An explicit fixed
+    unit quote prices an entire unsecured commodity receivable. Assignment
+    changes the creditor and transfers real coins without converting the debt.
+    Later goods still require receiving storage. Person/household sellers,
+    unfunded bids, stale prices, absent storage, valuation mismatch and altered
+    denomination controls reconcile with CPU/checkpoint and separate books.
+    The five-target gate passed 20 tests; strict all-target Clippy passed.
+    Discounted acquisition basis and native collateral remain outside this adapter.

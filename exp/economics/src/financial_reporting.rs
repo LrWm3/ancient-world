@@ -137,6 +137,28 @@ fn positions(
     {
         return Err("retired equipment has nonzero carrying cost".into());
     }
+    // This bounded assignment adapter trades whole claims at their fixed reporting
+    // value. A different market price needs explicit acquisition-basis accounting.
+    for listing in &world.recovery.receivable_listings {
+        let resource = state
+            .credit
+            .loans
+            .get(&listing.loan)
+            .map(|l| l.denomination)
+            .or_else(|| {
+                world
+                    .lending
+                    .iter()
+                    .find(|a| a.id == listing.loan)
+                    .map(|a| a.terms.denomination)
+            })
+            .ok_or("missing listed receivable terms")?;
+        if crate::reporting_value::value(coin, exchange_values, resource, 1)?
+            != i128::from(listing.coins_per_unit)
+        {
+            return Err("receivable unit quote must equal fixed reporting claim value".into());
+        }
+    }
     for l in state.credit.loans.values() {
         if l.denomination != coin && l.collateral.is_some() {
             return Err("noncash collateral needs explicit recovery valuation".into());
