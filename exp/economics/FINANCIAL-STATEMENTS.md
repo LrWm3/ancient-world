@@ -1368,3 +1368,11 @@ Interest-bearing purchases with no unpaid interest at acquisition now retain tha
 principal-cost model. Subsequent interest uses existing accrual accounts and is
 expensed separately if it becomes uncollectible. This does not implement effective
 yield amortization or allocation of cost to interest already owed at purchase.
+
+Priced mortgage controls also export and restore the journal at assignment and
+after recovery, then reproduce finalized separate statements. Actual investing
+cash flows, remaining principal cost and realized income/loss reconcile across
+discounts, premiums, guarantee timing and optional deficiency discharge. Household,
+member, investor, borrower and custodian scopes remain separate. Consolidated
+reporting still rejects requests until an explicit elimination adapter exists;
+this archive check does not add consolidation or a simulation checkpoint format.

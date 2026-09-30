@@ -17,12 +17,21 @@ trade respects household purchasing/storage and authorized estate stays.
 collected cash before deficient closure. Whole loan assignment (coin claims and quoted unsecured commodity claims) carries
 compatible liens and explicitly transferable guarantee benefits. Land guarantees
 can pay accepted coins while retaining native recourse and separate statements.
+Opt-in claim price floors permit discounts and premiums, with acquisition cost
+released separately from native principal and subsequent interest. Mortgage
+controls combine those prices with crop transfer, guarantees, custody, deficiency
+discharge and journal-restored separate statements.
 Native guarantee chains and accepted partial/full loan relief retain separate
 member and household claims through recovery and dissolution. Collective town
 purchases now compose with member production choices and ordinary lending;
 household previews preserve accepted work and bounded income expectations.
 These are tested combinations; broader admission, planning, custody and liquidation
 work remains.
+
+The [Fibonacci progress record](FIBONACCI-INTEGRATION.md) records verification
+boundaries: the full-suite checkpoint through batch-89 item 84 passed 1,023 tests
+(one ignored); later items have their own affected-suite gates. Household
+acceptance of combined prerequisite/process bundles remains an explicit gap.
 
 Direct lending and prepaid deliveries now compose with bounded citizenship/land
 search and competitive land allocation. The common offer API can accept named

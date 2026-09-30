@@ -354,3 +354,10 @@ own native principal, independently of the purchase price. Neither loss removes
 previous cash receipts or reverses plot/crop transfer. Unfunded assignments also
 retain their original household exposure until performance or discharge permits
 its own wind-down to finish.
+
+Journal export/import now has a composed mortgage control at assignment and after
+recovery. Restored finalized separate statements retain actual investing cash
+flows, remaining purchase cost and realized gains/losses across funded/unfunded,
+discount/premium, guarantee timing and optional discharge cases. Consolidated
+scope requests still reject without modifying the journal; shared custody and
+household membership do not authorize automatic elimination between parties.

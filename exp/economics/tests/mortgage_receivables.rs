@@ -137,14 +137,14 @@ fn fixture(funded: bool) -> (World, State) {
 
 #[test]
 fn winding_household_sells_mortgage_claim_and_new_holder_receives_actual_collateral_proceeds() {
-    assignment(None, false, None, false);
+    assignment(None, false, None, false, false);
 }
 
 #[test]
 fn mortgage_assignment_retains_guarantee_consent_and_inherited_liens_across_custody() {
     for from in [4, 5] {
         for shared in [false, true] {
-            assignment(Some(from), shared, None, false);
+            assignment(Some(from), shared, None, false, false);
         }
     }
 }
@@ -154,7 +154,7 @@ fn priced_mortgages_keep_crop_control_guarantees_and_actual_collateral_proceeds(
     for price in [3, 7] {
         for from in [None, Some(4), Some(5)] {
             for shared in [false, true] {
-                assignment(from, shared, Some(price), false);
+                assignment(from, shared, Some(price), false, false);
             }
         }
     }
@@ -165,7 +165,18 @@ fn priced_mortgage_deficiency_discharge_releases_only_unrecovered_cost_and_nativ
     for price in [3, 7] {
         for from in [None, Some(4), Some(5)] {
             for shared in [false, true] {
-                assignment(from, shared, Some(price), true);
+                assignment(from, shared, Some(price), true, false);
+            }
+        }
+    }
+}
+
+#[test]
+fn priced_mortgage_journals_rebuild_separate_statements_through_sale_recovery_and_loss() {
+    for price in [3, 7] {
+        for from in [None, Some(4), Some(5)] {
+            for discharge in [false, true] {
+                assignment(from, true, Some(price), discharge, true);
             }
         }
     }
@@ -176,6 +187,7 @@ fn assignment(
     shared_custody: bool,
     price: Option<i32>,
     discharge: bool,
+    archive: bool,
 ) {
     use economics_compute_smoke::accounting::Account;
     for funded in [false, true] {
@@ -255,6 +267,23 @@ fn assignment(
             } else {
                 assert!(prepared.is_err());
                 audit.step(&mut sim).unwrap();
+            }
+            if archive {
+                let restored = economics_compute_smoke::accounting::Book::from_json(
+                    &audit.book().to_json().unwrap(),
+                )
+                .unwrap();
+                assert_eq!(&restored, audit.book());
+                let report = restored.statements(INVESTOR, 3, 3).unwrap();
+                assert_eq!(
+                    report.assets,
+                    i128::from(if funded {
+                        price.unwrap()
+                    } else {
+                        price.unwrap() - 1
+                    })
+                );
+                assert_eq!(report.net_income, 0);
             }
             let mut resumed =
                 Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
@@ -351,6 +380,67 @@ fn assignment(
                     assert_eq!(recourse_loss, if guarantee_from == Some(4) { 2 } else { 0 });
                 }
                 assert_eq!(balance(MEMBER, Account::LoanBasisAdjustment(1)), 0);
+            }
+            if archive {
+                use economics_compute_smoke::accounting::{Book, Flow, ReportingScope};
+                let mut book = audit.book().clone();
+                book.finalize_through(7).unwrap();
+                let restored = Book::from_json(&book.to_json().unwrap()).unwrap();
+                assert_eq!(book, restored);
+                for agent in [INVESTOR, HOME, MEMBER, PERSON, STATE_AGENT, HOME_ESTATE] {
+                    let scope = ReportingScope::Separate { agent };
+                    assert_eq!(
+                        restored
+                            .finalized_statements_for_scope(&scope, 3, 7)
+                            .unwrap(),
+                        book.finalized_statements(agent, 3, 7).unwrap()
+                    );
+                }
+                let p = i128::from(price.unwrap());
+                let remaining_cost = if discharge {
+                    0
+                } else {
+                    p * i128::from(6 - recovered) / 6
+                };
+                let report = restored.finalized_statements(INVESTOR, 3, 7).unwrap();
+                assert_eq!(
+                    report.assets,
+                    if funded {
+                        i128::from(recovered) + remaining_cost
+                    } else {
+                        p - 1
+                    }
+                );
+                assert_eq!(
+                    report.net_income,
+                    if funded {
+                        i128::from(recovered) + remaining_cost - p
+                    } else {
+                        0
+                    }
+                );
+                assert_eq!(
+                    report
+                        .cash_flows
+                        .get(&Flow::Investing)
+                        .copied()
+                        .unwrap_or(0),
+                    if funded { i128::from(recovered) - p } else { 0 }
+                );
+                let before_scope = restored.clone();
+                assert!(
+                    restored
+                        .finalized_statements_for_scope(
+                            &ReportingScope::Consolidated {
+                                entities: [HOME, MEMBER, INVESTOR, PERSON].into()
+                            },
+                            3,
+                            7
+                        )
+                        .unwrap_err()
+                        .contains("elimination adapter")
+                );
+                assert_eq!(restored, before_scope);
             }
             assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(MEMBER));
             assert_eq!(sim.state.balance(MEMBER, TOKEN), 0);

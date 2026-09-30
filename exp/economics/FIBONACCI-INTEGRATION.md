@@ -3,7 +3,7 @@
 Scope: finish bounded autonomous household hiring and direct prepaid-delivery
 recovery, then demonstrate that they compose with the existing economic loop.
 The batches contain logical changes, not a prescribed count of files or tests.
-The completed sequence is **1, 1, 2, 3, 5, 8, 13, 21, 34, 55** (batch 89 in progress). Batch sizes count distinct
+The completed sequence is **1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89**. Batch sizes count distinct
 implementation and integration changes, not test cases. Person self-directed policy changes remain explicitly deferred.
 
 ## Batch 1 — one recovery change
@@ -350,7 +350,7 @@ That exact revision was compiled and run in an isolated target directory; later
 batch-89 edits did not replace its executables. The preceding 913-test full run
 remains explicitly tied to `a5974d2`.
 
-## Next batch 89 — further shared-contract composition (in progress)
+## Batch 89 — further shared-contract composition (complete)
 
 Continue the active consolidation roadmap: extend remaining acquisition adapters,
 creditor allocation, custody, guarantees and real liquidation. Household/member
@@ -1206,3 +1206,20 @@ empty unit/doc targets. Items 85 onward have separate affected-suite gates.
     exposure controls exit; crop transfer and earlier payments persist. Shared/
     separate custody, funding and CPU/checkpoint controls pass. The four-target
     gate passed 85 tests and strict all-target Clippy passed.
+
+89. **Restored journals preserve separate mortgage recovery statements.**
+    Assignment and post-recovery archives reproduce purchased cost, actual
+    investing cash flows and realized returns through discount/premium purchases,
+    guarantee timing, shared custody and optional deficiency discharge. Finalized
+    household, member, investor, borrower and custodian statements agree; requests
+    for unsupported consolidation reject without mutation. Funded/unfunded and
+    CPU/checkpoint controls pass. The five-target gate passed 54 tests, strict
+    all-target Clippy and formatting checks passed.
+
+Batch 89 is complete. The full-suite checkpoint through item 84 passed 1,023
+tests with no failures and one ignored test; items 85–89 added tests/documentation
+and passed their recorded affected-suite gates. This completes the batch, not the
+whole [consolidation roadmap](CONTRACT-CONSOLIDATION.md). In particular, household
+acceptance of combined prerequisite/process bundles, broader autonomous financial
+planning, custody and explicit consolidation adapters remain outstanding. Static
+founding terms and deferred person self-directed policy changes remain in force.
